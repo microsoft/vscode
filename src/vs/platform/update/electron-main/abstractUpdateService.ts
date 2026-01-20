@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { timeout } from '../../../base/common/async.js';
+import { IntervalTimer, timeout } from '../../../base/common/async.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
@@ -31,6 +31,9 @@ export abstract class AbstractUpdateService implements IUpdateService {
 	protected url: string | undefined;
 
 	private _state: State = State.Uninitialized;
+	protected _explicit: boolean = false;
+	protected _overwrite: boolean = false;
+	private readonly overwriteUpdatesCheckInterval = new IntervalTimer();
 
 	private readonly _onStateChange = new Emitter<State>();
 	readonly onStateChange: Event<State> = this._onStateChange.event;
@@ -43,6 +46,15 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		this.logService.info('update#setState', state.type);
 		this._state = state;
 		this._onStateChange.fire(state);
+
+		// Schedule 5-minute checks when in Ready state and overwrite is supported
+		if (this.supportsUpdateOverwrite) {
+			if (state.type === StateType.Ready) {
+				this.overwriteUpdatesCheckInterval.cancelAndSet(() => this.checkForOverwriteUpdates(), 5 * 60 * 1000);
+			} else {
+				this.overwriteUpdatesCheckInterval.cancel();
+			}
+		}
 	}
 
 	constructor(
@@ -51,7 +63,8 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		@IEnvironmentMainService protected environmentMainService: IEnvironmentMainService,
 		@IRequestService protected requestService: IRequestService,
 		@ILogService protected logService: ILogService,
-		@IProductService protected readonly productService: IProductService
+		@IProductService protected readonly productService: IProductService,
+		protected readonly supportsUpdateOverwrite: boolean,
 	) {
 		lifecycleMainService.when(LifecycleMainPhase.AfterWindowOpen)
 			.finally(() => this.initialize());
@@ -143,6 +156,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 			return;
 		}
 
+		this._explicit = explicit;
 		this.doCheckForUpdates(explicit);
 	}
 
@@ -174,11 +188,20 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		// noop
 	}
 
-	quitAndInstall(): Promise<void> {
+	async quitAndInstall(): Promise<void> {
 		this.logService.trace('update#quitAndInstall, state = ', this.state.type);
 
 		if (this.state.type !== StateType.Ready) {
-			return Promise.resolve(undefined);
+			return undefined;
+		}
+
+		if (this.supportsUpdateOverwrite) {
+			const didOverwrite = await this.checkForOverwriteUpdates();
+
+			if (didOverwrite) {
+				this.logService.info('update#quitAndInstall(): overwrite update detected, postponing quitAndInstall');
+				return;
+			}
 		}
 
 		this.logService.trace('update#quitAndInstall(): before lifecycle quit()');
@@ -196,6 +219,25 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		return Promise.resolve(undefined);
 	}
 
+	private async checkForOverwriteUpdates(): Promise<boolean> {
+		if (this._state.type !== StateType.Ready) {
+			return false;
+		}
+
+		const isLatest = await this.isLatestVersion();
+
+		if (isLatest === false && this._state.type === StateType.Ready) {
+			this.logService.info('update#readyStateCheck: newer update available, restarting update machinery');
+			await this.cancelPendingUpdate();
+			this._explicit = false;
+			this._overwrite = true;
+			this.doCheckForUpdates(false);
+			return true;
+		}
+
+		return false;
+	}
+
 	async isLatestVersion(): Promise<boolean | undefined> {
 		if (!this.url) {
 			return undefined;
@@ -204,7 +246,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		const mode = this.configurationService.getValue<'none' | 'manual' | 'start' | 'default'>('update.mode');
 
 		if (mode === 'none') {
-			return false;
+			return undefined;
 		}
 
 		try {
@@ -233,6 +275,10 @@ export abstract class AbstractUpdateService implements IUpdateService {
 	}
 
 	protected async postInitialize(): Promise<void> {
+		// noop
+	}
+
+	protected async cancelPendingUpdate(): Promise<void> {
 		// noop
 	}
 

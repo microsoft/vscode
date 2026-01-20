@@ -12,8 +12,8 @@ import { IInstantiationService, ServicesAccessor } from '../../../../platform/in
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { IUpdateService, State as UpdateState, StateType, IUpdate, DisablementReason } from '../../../../platform/update/common/update.js';
-import { INotificationService, NotificationPriority, Severity } from '../../../../platform/notification/common/notification.js';
+import { IUpdateService, State as UpdateState, StateType, IUpdate, DisablementReason, Downloading, Ready } from '../../../../platform/update/common/update.js';
+import { INotificationService, INotificationHandle, NotificationPriority, Severity } from '../../../../platform/notification/common/notification.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IBrowserWorkbenchEnvironmentService } from '../../../services/environment/browser/environmentService.js';
 import { ReleaseNotesManager } from './releaseNotesEditor.js';
@@ -161,6 +161,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 
 	private state: UpdateState;
 	private readonly badgeDisposable = this._register(new MutableDisposable());
+	private overwriteNotificationHandle: INotificationHandle | undefined;
 	private updateStateContextKey: IContextKey<string>;
 	private majorMinorUpdateAvailableContextKey: IContextKey<boolean>;
 
@@ -244,14 +245,18 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 				this.onUpdateDownloaded(state.update);
 				break;
 
+			case StateType.Downloading:
+				this.onUpdateDownloading(state);
+				break;
+
 			case StateType.Ready: {
 				const productVersion = state.update.productVersion;
 				if (productVersion) {
 					const currentVersion = parseVersion(this.productService.version);
 					const nextVersion = parseVersion(productVersion);
 					this.majorMinorUpdateAvailableContextKey.set(Boolean(currentVersion && nextVersion && isMajorMinorUpdate(currentVersion, nextVersion)));
-					this.onUpdateReady(state.update);
 				}
+				this.onUpdateReady(state);
 				break;
 			}
 		}
@@ -363,39 +368,70 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 	}
 
 	// windows and mac
-	private onUpdateReady(update: IUpdate): void {
-		if (!(isWindows && this.productService.target !== 'user') && !this.shouldShowNotification()) {
+	private onUpdateReady(state: Ready): void {
+		if (state.overwrite && this.overwriteNotificationHandle) {
+			const handle = this.overwriteNotificationHandle;
+			this.overwriteNotificationHandle = undefined;
+
+			// Update notification to show completion with restart action
+			handle.progress.done();
+			handle.updateMessage(nls.localize('newerUpdateReady', "A newer update has been downloaded and is ready to install."));
+			handle.updateActions({
+				primary: [
+					toAction({
+						id: 'update.restartToUpdate',
+						label: nls.localize('restartToUpdate2', "Restart to Update"),
+						run: () => this.updateService.quitAndInstall()
+					})
+				]
+			});
+		} else if ((isWindows && this.productService.target !== 'user') || this.shouldShowNotification()) {
+
+			const actions = [{
+				label: nls.localize('updateNow', "Update Now"),
+				run: () => this.updateService.quitAndInstall()
+			}, {
+				label: nls.localize('later', "Later"),
+				run: () => { }
+			}];
+
+			const productVersion = state.update.productVersion;
+			if (productVersion) {
+				actions.push({
+					label: nls.localize('releaseNotes', "Release Notes"),
+					run: () => {
+						this.instantiationService.invokeFunction(accessor => showReleaseNotes(accessor, productVersion));
+					}
+				});
+			}
+
+			// windows user fast updates and mac
+			this.notificationService.prompt(
+				severity.Info,
+				nls.localize('updateAvailableAfterRestart', "Restart {0} to apply the latest update.", this.productService.nameLong),
+				actions,
+				{
+					sticky: true,
+					priority: NotificationPriority.OPTIONAL
+				}
+			);
+		}
+	}
+
+	// macOS overwrite update - downloading
+	private onUpdateDownloading(state: Downloading): void {
+		if (!state.overwrite || !state.explicit) {
 			return;
 		}
 
-		const actions = [{
-			label: nls.localize('updateNow', "Update Now"),
-			run: () => this.updateService.quitAndInstall()
-		}, {
-			label: nls.localize('later', "Later"),
-			run: () => { }
-		}];
+		// Show notification with progress
+		this.overwriteNotificationHandle = this.notificationService.notify({
+			severity: Severity.Info,
+			message: nls.localize('newerUpdateDownloading', "A newer update is available and is being downloaded..."),
+			source: nls.localize('update service', "Update Service"),
+		});
 
-		const productVersion = update.productVersion;
-		if (productVersion) {
-			actions.push({
-				label: nls.localize('releaseNotes', "Release Notes"),
-				run: () => {
-					this.instantiationService.invokeFunction(accessor => showReleaseNotes(accessor, productVersion));
-				}
-			});
-		}
-
-		// windows user fast updates and mac
-		this.notificationService.prompt(
-			severity.Info,
-			nls.localize('updateAvailableAfterRestart', "Restart {0} to apply the latest update.", this.productService.nameLong),
-			actions,
-			{
-				sticky: true,
-				priority: NotificationPriority.OPTIONAL
-			}
-		);
+		this.overwriteNotificationHandle.progress.infinite();
 	}
 
 	private shouldShowNotification(): boolean {
@@ -423,7 +459,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 				id: 'update.check',
 				title: nls.localize('checkForUpdates', "Check for Updates...")
 			},
-			when: ContextKeyExpr.or(CONTEXT_UPDATE_STATE.isEqualTo(StateType.Idle), CONTEXT_UPDATE_STATE.isEqualTo(StateType.Ready)),
+			when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Idle)
 		});
 
 		CommandsRegistry.registerCommand('update.checking', () => { });

@@ -25,7 +25,7 @@ export interface IUpdate {
  *          ↓  ↑
  *   Checking for Updates  →  Available for Download
  *         ↓
- *     Downloading  →   Ready
+ *     Downloading  ←→   Ready
  *         ↓               ↑
  *     Downloaded   →  Updating
  *
@@ -66,10 +66,10 @@ export type Disabled = { type: StateType.Disabled; reason: DisablementReason };
 export type Idle = { type: StateType.Idle; updateType: UpdateType; error?: string };
 export type CheckingForUpdates = { type: StateType.CheckingForUpdates; explicit: boolean };
 export type AvailableForDownload = { type: StateType.AvailableForDownload; update: IUpdate };
-export type Downloading = { type: StateType.Downloading };
-export type Downloaded = { type: StateType.Downloaded; update: IUpdate };
+export type Downloading = { type: StateType.Downloading; explicit: boolean; overwrite: boolean };
+export type Downloaded = { type: StateType.Downloaded; update: IUpdate; explicit: boolean; overwrite: boolean };
 export type Updating = { type: StateType.Updating; update: IUpdate };
-export type Ready = { type: StateType.Ready; update: IUpdate };
+export type Ready = { type: StateType.Ready; update: IUpdate; explicit: boolean; overwrite: boolean };
 
 export type State = Uninitialized | Disabled | Idle | CheckingForUpdates | AvailableForDownload | Downloading | Downloaded | Updating | Ready;
 
@@ -79,10 +79,10 @@ export const State = {
 	Idle: (updateType: UpdateType, error?: string): Idle => ({ type: StateType.Idle, updateType, error }),
 	CheckingForUpdates: (explicit: boolean): CheckingForUpdates => ({ type: StateType.CheckingForUpdates, explicit }),
 	AvailableForDownload: (update: IUpdate): AvailableForDownload => ({ type: StateType.AvailableForDownload, update }),
-	Downloading: upcast<Downloading>({ type: StateType.Downloading }),
-	Downloaded: (update: IUpdate): Downloaded => ({ type: StateType.Downloaded, update }),
+	Downloading: (explicit: boolean, overwrite: boolean): Downloading => ({ type: StateType.Downloading, explicit, overwrite }),
+	Downloaded: (update: IUpdate, explicit: boolean, overwrite: boolean): Downloaded => ({ type: StateType.Downloaded, update, explicit, overwrite }),
 	Updating: (update: IUpdate): Updating => ({ type: StateType.Updating, update }),
-	Ready: (update: IUpdate): Ready => ({ type: StateType.Ready, update }),
+	Ready: (update: IUpdate, explicit: boolean, overwrite: boolean): Ready => ({ type: StateType.Ready, update, explicit, overwrite }),
 };
 
 export interface IAutoUpdater extends Event.NodeEventEmitter {

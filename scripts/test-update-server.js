@@ -5,8 +5,8 @@
 
 const http = require('http');
 const fs = require('fs');
-const path = require('path');
 const crypto = require('crypto');
+const readline = require('readline');
 
 // Parse command line arguments
 const args = process.argv.slice(2);
@@ -18,7 +18,7 @@ function getArg(name, defaultValue = undefined) {
 	return args[index + 1];
 }
 
-const PORT = parseInt(getArg('port', '3000'), 10);
+const PORT = parseInt(getArg('port', '8080'), 10);
 let ZIP_PATH = getArg('zip');
 let VERSION = getArg('version', '99.0.0');
 let COMMIT = getArg('commit', crypto.randomBytes(20).toString('hex'));
@@ -26,13 +26,22 @@ let COMMIT = getArg('commit', crypto.randomBytes(20).toString('hex'));
 // Compute SHA256 of ZIP file
 function computeSha256(filePath) {
 	if (!filePath || !fs.existsSync(filePath)) {
-		return 'no-zip-configured';
+		return null;
 	}
 	const data = fs.readFileSync(filePath);
 	return crypto.createHash('sha256').update(data).digest('hex');
 }
 
 let sha256hash = computeSha256(ZIP_PATH);
+
+function printStatus() {
+	console.log('\nCurrent state:');
+	console.log(`  ZIP:     ${ZIP_PATH || '(not set - no update available)'}`);
+	console.log(`  Version: ${VERSION}`);
+	console.log(`  Commit:  ${COMMIT}`);
+	console.log(`  SHA256:  ${sha256hash || '(none)'}`);
+	console.log('');
+}
 
 const server = http.createServer((req, res) => {
 	const url = new URL(req.url, `http://localhost:${PORT}`);
@@ -97,45 +106,6 @@ const server = http.createServer((req, res) => {
 		return;
 	}
 
-	// Admin: Set ZIP path - POST /admin/set-zip?path=/path/to/file.zip
-	if (url.pathname === '/admin/set-zip' && req.method === 'POST') {
-		const newPath = url.searchParams.get('path');
-		if (newPath && fs.existsSync(newPath)) {
-			ZIP_PATH = newPath;
-			sha256hash = computeSha256(ZIP_PATH);
-			console.log(`  → ZIP path set to: ${ZIP_PATH}`);
-			console.log(`  → SHA256: ${sha256hash}`);
-			res.writeHead(200, { 'Content-Type': 'application/json' });
-			res.end(JSON.stringify({ zip: ZIP_PATH, sha256hash }));
-		} else {
-			res.writeHead(400);
-			res.end('Invalid path or file does not exist');
-		}
-		return;
-	}
-
-	// Admin: Set version - POST /admin/set-version?version=1.87.0&commit=abc123
-	if (url.pathname === '/admin/set-version' && req.method === 'POST') {
-		VERSION = url.searchParams.get('version') || VERSION;
-		COMMIT = url.searchParams.get('commit') || crypto.randomBytes(20).toString('hex');
-		console.log(`  → Version set to: ${VERSION}, Commit: ${COMMIT}`);
-		res.writeHead(200, { 'Content-Type': 'application/json' });
-		res.end(JSON.stringify({ version: VERSION, commit: COMMIT }));
-		return;
-	}
-
-	// Admin: Get current state - GET /admin/status
-	if (url.pathname === '/admin/status' && req.method === 'GET') {
-		res.writeHead(200, { 'Content-Type': 'application/json' });
-		res.end(JSON.stringify({
-			zip: ZIP_PATH,
-			version: VERSION,
-			commit: COMMIT,
-			sha256hash: sha256hash
-		}, null, 2));
-		return;
-	}
-
 	// 404 for everything else
 	res.writeHead(404);
 	res.end('Not found');
@@ -146,14 +116,74 @@ server.listen(PORT, () => {
 	console.log('Endpoints:');
 	console.log(`  GET  /api/update/:platform/:quality/:commit  - Check for updates`);
 	console.log(`  GET  /download/update.zip                    - Download update ZIP`);
-	console.log(`  POST /admin/set-zip?path=/path/to/file.zip   - Set ZIP file path`);
-	console.log(`  POST /admin/set-version?version=X&commit=Y   - Set version/commit`);
-	console.log(`  GET  /admin/status                           - Get current state`);
-	console.log('');
-	console.log('Current state:');
-	console.log(`  ZIP:     ${ZIP_PATH || '(not set)'}`);
-	console.log(`  Version: ${VERSION}`);
-	console.log(`  Commit:  ${COMMIT}`);
-	console.log(`  SHA256:  ${sha256hash}`);
-	console.log('');
+	printStatus();
+	startRepl();
 });
+
+function startRepl() {
+	const rl = readline.createInterface({
+		input: process.stdin,
+		output: process.stdout,
+		prompt: '> '
+	});
+
+	console.log('Commands: status, set <zip> <version> [commit], none, quit');
+	rl.prompt();
+
+	rl.on('line', (line) => {
+		const parts = line.trim().split(/\s+/);
+		const cmd = parts[0]?.toLowerCase();
+
+		switch (cmd) {
+			case 'status':
+			case 's':
+				printStatus();
+				break;
+
+			case 'set':
+				if (parts.length < 3) {
+					console.log('Usage: set <zip-path> <version> [commit]');
+				} else {
+					const zipPath = parts[1];
+					if (!fs.existsSync(zipPath)) {
+						console.log(`Error: File not found: ${zipPath}`);
+					} else {
+						ZIP_PATH = zipPath;
+						VERSION = parts[2];
+						COMMIT = parts[3] || crypto.randomBytes(20).toString('hex');
+						sha256hash = computeSha256(ZIP_PATH);
+						console.log('Update configured:');
+						printStatus();
+					}
+				}
+				break;
+
+			case 'none':
+			case 'clear':
+				ZIP_PATH = null;
+				sha256hash = null;
+				console.log('Update cleared - no update will be available');
+				break;
+
+			case 'quit':
+			case 'q':
+			case 'exit':
+				console.log('Shutting down...');
+				process.exit(0);
+				break;
+
+			case '':
+				break;
+
+			default:
+				console.log('Commands: status, set <zip> <version> [commit], none, quit');
+		}
+
+		rl.prompt();
+	});
+
+	rl.on('close', () => {
+		console.log('\nShutting down...');
+		process.exit(0);
+	});
+}

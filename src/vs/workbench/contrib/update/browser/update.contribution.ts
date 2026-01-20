@@ -109,7 +109,7 @@ export class CheckForUpdateAction extends Action2 {
 			title: localize2('checkForUpdates', 'Check for Updates...'),
 			category: { value: product.nameShort, original: product.nameShort },
 			f1: true,
-			precondition: ContextKeyExpr.or(CONTEXT_UPDATE_STATE.isEqualTo(StateType.Idle), CONTEXT_UPDATE_STATE.isEqualTo(StateType.Ready)),
+			precondition: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Idle),
 		});
 	}
 

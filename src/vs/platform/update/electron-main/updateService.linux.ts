@@ -25,7 +25,7 @@ export class LinuxUpdateService extends AbstractUpdateService {
 		@INativeHostMainService private readonly nativeHostMainService: INativeHostMainService,
 		@IProductService productService: IProductService
 	) {
-		super(lifecycleMainService, configurationService, environmentMainService, requestService, logService, productService);
+		super(lifecycleMainService, configurationService, environmentMainService, requestService, logService, productService, false);
 	}
 
 	protected buildUpdateFeedUrl(quality: string): string {

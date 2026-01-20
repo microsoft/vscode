@@ -36,7 +36,7 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 		@ILogService logService: ILogService,
 		@IProductService productService: IProductService
 	) {
-		super(lifecycleMainService, configurationService, environmentMainService, requestService, logService, productService);
+		super(lifecycleMainService, configurationService, environmentMainService, requestService, logService, productService, true);
 
 		lifecycleMainService.setRelaunchHandler(this);
 	}
@@ -101,6 +101,7 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 			return;
 		}
 
+		this._explicit = explicit;
 		this.doCheckForUpdates(explicit);
 	}
 
@@ -121,7 +122,7 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 			return;
 		}
 
-		this.setState(State.Downloading);
+		this.setState(State.Downloading(this._explicit, this._overwrite));
 	}
 
 	private onUpdateDownloaded(update: IUpdate): void {
@@ -129,7 +130,7 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 			return;
 		}
 
-		this.setState(State.Downloaded(update));
+		this.setState(State.Downloaded(update, this._explicit, this._overwrite));
 
 		type UpdateDownloadedClassification = {
 			owner: 'joaomoreno';
@@ -138,7 +139,7 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 		};
 		this.telemetryService.publicLog2<{ newVersion: String }, UpdateDownloadedClassification>('update:downloaded', { newVersion: update.version });
 
-		this.setState(State.Ready(update));
+		this.setState(State.Ready(update, this._explicit, this._overwrite));
 	}
 
 	private onUpdateNotAvailable(): void {
