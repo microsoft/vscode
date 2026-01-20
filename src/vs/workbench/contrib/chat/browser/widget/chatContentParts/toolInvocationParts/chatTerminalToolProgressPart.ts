@@ -615,12 +615,8 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 				this._addActions(terminalInstance, this._terminalData.terminalToolSessionId);
 				const resolvedCommand = this._getResolvedCommand(terminalInstance);
 
-				// Auto-expand on completion when in thinking container
-				if (this._isInThinkingContainer && !this._outputView.isExpanded && !this._userToggledOutput) {
-					this._toggleOutput(true);
-				}
-				// Auto-collapse on success (except for thinking)
-				else if (resolvedCommand?.exitCode === 0 && this._outputView.isExpanded && !this._userToggledOutput && !this._isInThinkingContainer) {
+				// Auto-collapse on success
+				if (resolvedCommand?.exitCode === 0 && this._outputView.isExpanded && !this._userToggledOutput) {
 					this._toggleOutput(false);
 				}
 				// keep outer wrapper expanded on error
@@ -636,12 +632,8 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			const resolvedImmediately = await tryResolveCommand();
 			if (resolvedImmediately?.endMarker) {
 				commandDetectionListener.clear();
-				// Auto-expand on completion when in thinking container
-				if (this._isInThinkingContainer && !this._outputView.isExpanded && !this._userToggledOutput) {
-					this._toggleOutput(true);
-				}
-				// Auto-collapse on success (except for thinking)
-				else if (resolvedImmediately.exitCode === 0 && this._outputView.isExpanded && !this._userToggledOutput && !this._isInThinkingContainer) {
+				// Auto-collapse on success
+				if (resolvedImmediately.exitCode === 0 && this._outputView.isExpanded && !this._userToggledOutput) {
 					this._toggleOutput(false);
 				}
 				// keep outer wrapper expanded on error
