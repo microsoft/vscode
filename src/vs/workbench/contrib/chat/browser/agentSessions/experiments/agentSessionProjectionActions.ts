@@ -116,7 +116,7 @@ export class ToggleUnifiedAgentsBarAction extends ToggleTitleBarConfigAction {
 		super(
 			ChatConfiguration.UnifiedAgentsBar,
 			localize('toggle.unifiedAgentsBar', 'Unified Agents Bar'),
-			localize('toggle.unifiedAgentsBarDescription', "Toggle Unified Agents Bar (replaces search box)"), 7,
+			localize('toggle.unifiedAgentsBarDescription', "Toggle Unified Agents Bar, replacing the classic command center search box."), 7,
 			ContextKeyExpr.and(
 				ChatContextKeys.enabled,
 				IsCompactTitleBarContext.negate(),
