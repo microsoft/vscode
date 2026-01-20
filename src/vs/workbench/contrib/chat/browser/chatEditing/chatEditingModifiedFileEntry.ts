@@ -128,7 +128,7 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 		}
 
 		// review mode depends on setting and temporary override
-		const autoAcceptRaw = observableConfigValue('chat.editing.autoAcceptDelay', 0, configService);
+		const autoAcceptRaw = observableConfigValue('chat.editing.autoAcceptDelay', -1, configService);
 		this._autoAcceptTimeout = derived(r => {
 			const value = autoAcceptRaw.read(r);
 			return clamp(value, -1, 100);

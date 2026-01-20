@@ -229,7 +229,7 @@ configurationRegistry.registerConfiguration({
 		'chat.editing.autoAcceptDelay': {
 			type: 'number',
 			markdownDescription: nls.localize('chat.editing.autoAcceptDelay', "Delay after which changes made by chat are automatically accepted. Values are in seconds, `-1` means disabled and `100` seconds is the maximum."),
-			default: 0,
+			default: -1,
 			minimum: -1,
 			maximum: 100
 		},
