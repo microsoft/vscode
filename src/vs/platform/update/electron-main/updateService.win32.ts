@@ -189,6 +189,14 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 					return Promise.resolve(null);
 				}
 
+				// When connection is metered and this is not an explicit check,
+				// show update is available but don't start downloading
+				if (!explicit && this.meteredConnectionService.isConnectionMetered) {
+					this.logService.info('update#doCheckForUpdates - update available but skipping download because connection is metered');
+					this.setState(State.AvailableForDownload(update));
+					return Promise.resolve(null);
+				}
+
 				this.setState(State.Downloading);
 
 				return this.cleanup(update.version).then(() => {
