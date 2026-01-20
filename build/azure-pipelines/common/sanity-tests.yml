@@ -112,7 +112,7 @@ jobs:
 
       # Ubuntu/Debian
       - bash: |
-          ${{ variables.DOCKER_COMMAND }} '
+          $(DOCKER_COMMAND) '
             set -e
             apt-get update
             DEBIAN_FRONTEND=noninteractive
@@ -167,7 +167,7 @@ jobs:
 
       # CentOS/Fedora/RHEL
       - bash: |
-          ${{ variables.DOCKER_COMMAND }} '
+          $(DOCKER_COMMAND) '
               set -e
               dnf install -y \
                 alsa-lib \
@@ -208,7 +208,7 @@ jobs:
 
       # OpenSUSE
       - bash: |
-          ${{ variables.DOCKER_COMMAND }} '
+          $(DOCKER_COMMAND) '
               set -e
               zypper install -y \
                 alsa \
@@ -240,7 +240,7 @@ jobs:
 
       # Alpine Linux
       - bash: |
-          ${{ variables.DOCKER_COMMAND }} '
+          $(DOCKER_COMMAND) '
               set -e
               apk add --no-cache \
                 ca-certificates \
