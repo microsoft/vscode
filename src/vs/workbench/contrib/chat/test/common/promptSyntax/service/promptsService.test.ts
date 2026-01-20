@@ -1032,7 +1032,7 @@ suite('PromptsService', () => {
 			);
 		});
 
-		test('agents with .md extension (no .agent.md)', async () => {
+		test('agents with .md extension (no .agent.md) should NOT be recognized', async () => {
 			const rootFolderName = 'custom-agents-md-extension';
 			const rootFolder = `/${rootFolderName}`;
 			const rootFolderUri = URI.file(rootFolder);
@@ -1051,49 +1051,20 @@ suite('PromptsService', () => {
 					]
 				},
 				{
-					path: `${rootFolder}/.github/agents/test.md`,
+					path: `${rootFolder}/.github/agents/README.md`,
 					contents: [
-						'Test agent without header.',
+						'This is a README file.',
 					]
 				}
 			]);
 
 			const result = (await service.getCustomAgents(CancellationToken.None)).map(agent => ({ ...agent, uri: URI.from(agent.uri) }));
-			const expected: ICustomAgent[] = [
-				{
-					name: 'demonstrate',
-					description: 'Demonstrate agent.',
-					tools: ['demo-tool'],
-					agentInstructions: {
-						content: 'This is a demonstration agent using .md extension.',
-						toolReferences: [],
-						metadata: undefined
-					},
-					handOffs: undefined,
-					model: undefined,
-					argumentHint: undefined,
-					target: undefined,
-					infer: undefined,
-					agents: undefined,
-					uri: URI.joinPath(rootFolderUri, '.github/agents/demonstrate.md'),
-					source: { storage: PromptsStorage.local },
-				},
-				{
-					name: 'test',
-					agentInstructions: {
-						content: 'Test agent without header.',
-						toolReferences: [],
-						metadata: undefined
-					},
-					uri: URI.joinPath(rootFolderUri, '.github/agents/test.md'),
-					source: { storage: PromptsStorage.local },
-				}
-			];
+			const expected: ICustomAgent[] = [];
 
 			assert.deepEqual(
 				result,
 				expected,
-				'Must get custom agents with .md extension from .github/agents/ folder.',
+				'Must NOT get custom agents with .md extension from .github/agents/ folder.',
 			);
 		});
 
