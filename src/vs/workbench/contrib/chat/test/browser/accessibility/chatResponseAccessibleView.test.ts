@@ -100,7 +100,7 @@ suite('ChatResponseAccessibleView', () => {
 		test('returns todo list description for todoList data', () => {
 			const todoData: IChatTodoListContent = {
 				kind: 'todoList',
-				sessionId: 'session-1',
+				sessionResource: URI.parse('vscode-chat-session:/session-1'),
 				todoList: [
 					{ id: '1', title: 'Task 1', status: 'in-progress' },
 					{ id: '2', title: 'Task 2', status: 'completed' }
@@ -117,7 +117,7 @@ suite('ChatResponseAccessibleView', () => {
 		test('returns empty for empty todo list', () => {
 			const todoData: IChatTodoListContent = {
 				kind: 'todoList',
-				sessionId: 'session-1',
+				sessionResource: URI.parse('vscode-chat-session:/session-1'),
 				todoList: []
 			};
 			assert.strictEqual(getToolSpecificDataDescription(todoData), '');
