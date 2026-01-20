@@ -274,6 +274,18 @@ suite('PromptHoverProvider', () => {
 			const hover = await getHover(content, 4, 1, PromptsType.agent);
 			assert.strictEqual(hover, 'Whether the agent can be used as a subagent.');
 		});
+
+		test('hover on agents attribute shows description', async () => {
+			const content = [
+				'---',
+				'name: "Test Agent"',
+				'description: "Test agent"',
+				'agents: ["*"]',
+				'---',
+			].join('\n');
+			const hover = await getHover(content, 4, 1, PromptsType.agent);
+			assert.strictEqual(hover, 'One or more agents that this agent can use as subagents. Use \'*\' to specify all available agents.');
+		});
 	});
 
 	suite('prompt hovers', () => {

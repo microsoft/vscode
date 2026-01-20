@@ -47,8 +47,6 @@ import { InMemoryStorageService, IStorageService } from '../../../../../../../pl
 import { IPathService } from '../../../../../../services/path/common/pathService.js';
 import { IFileMatch, IFileQuery, ISearchService } from '../../../../../../services/search/common/search.js';
 import { IExtensionService } from '../../../../../../services/extensions/common/extensions.js';
-import { IDefaultAccountService } from '../../../../../../../platform/defaultAccount/common/defaultAccount.js';
-import { IDefaultAccount } from '../../../../../../../base/common/defaultAccount.js';
 
 suite('PromptsService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -84,10 +82,6 @@ suite('PromptsService', () => {
 			activateByEvent: () => Promise.resolve()
 		});
 
-		instaService.stub(IDefaultAccountService, {
-			getDefaultAccount: () => Promise.resolve({ chat_preview_features_enabled: true } as IDefaultAccount)
-		});
-
 		fileService = disposables.add(instaService.createInstance(FileService));
 		instaService.stub(IFileService, fileService);
 
@@ -121,6 +115,7 @@ suite('PromptsService', () => {
 		instaService.stub(IPathService, pathService);
 
 		instaService.stub(ISearchService, {
+			schemeHasFileSearchProvider: () => true,
 			async fileSearch(query: IFileQuery) {
 				// mock the search service - recursively find files matching pattern
 				const findFilesInLocation = async (location: URI, results: URI[] = []): Promise<URI[]> => {
@@ -466,7 +461,7 @@ suite('PromptsService', () => {
 			]);
 
 			const instructionFiles = await service.listPromptFiles(PromptsType.instructions, CancellationToken.None);
-			const contextComputer = instaService.createInstance(ComputeAutomaticInstructions, undefined);
+			const contextComputer = instaService.createInstance(ComputeAutomaticInstructions, undefined, undefined);
 			const context = {
 				files: new ResourceSet([
 					URI.joinPath(rootFolderUri, 'folder1/main.tsx'),
@@ -637,7 +632,7 @@ suite('PromptsService', () => {
 			]);
 
 			const instructionFiles = await service.listPromptFiles(PromptsType.instructions, CancellationToken.None);
-			const contextComputer = instaService.createInstance(ComputeAutomaticInstructions, undefined);
+			const contextComputer = instaService.createInstance(ComputeAutomaticInstructions, undefined, undefined);
 			const context = {
 				files: new ResourceSet([
 					URI.joinPath(rootFolderUri, 'folder1/main.tsx'),
@@ -711,7 +706,7 @@ suite('PromptsService', () => {
 			]);
 
 
-			const contextComputer = instaService.createInstance(ComputeAutomaticInstructions, undefined);
+			const contextComputer = instaService.createInstance(ComputeAutomaticInstructions, undefined, undefined);
 			const context = new ChatRequestVariableSet();
 			context.add(toFileVariableEntry(URI.joinPath(rootFolderUri, 'README.md')));
 
@@ -771,6 +766,7 @@ suite('PromptsService', () => {
 					tools: undefined,
 					target: undefined,
 					infer: undefined,
+					agents: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/agent1.agent.md'),
 					source: { storage: PromptsStorage.local }
 				},
@@ -826,6 +822,7 @@ suite('PromptsService', () => {
 					argumentHint: undefined,
 					target: undefined,
 					infer: undefined,
+					agents: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/agent1.agent.md'),
 					source: { storage: PromptsStorage.local },
 				},
@@ -898,6 +895,7 @@ suite('PromptsService', () => {
 					model: undefined,
 					target: undefined,
 					infer: undefined,
+					agents: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/agent1.agent.md'),
 					source: { storage: PromptsStorage.local }
 				},
@@ -915,6 +913,7 @@ suite('PromptsService', () => {
 					tools: undefined,
 					target: undefined,
 					infer: undefined,
+					agents: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/agent2.agent.md'),
 					source: { storage: PromptsStorage.local }
 				},
@@ -984,6 +983,7 @@ suite('PromptsService', () => {
 					model: undefined,
 					argumentHint: undefined,
 					infer: undefined,
+					agents: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/github-agent.agent.md'),
 					source: { storage: PromptsStorage.local }
 				},
@@ -1001,6 +1001,7 @@ suite('PromptsService', () => {
 					argumentHint: undefined,
 					tools: undefined,
 					infer: undefined,
+					agents: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/vscode-agent.agent.md'),
 					source: { storage: PromptsStorage.local }
 				},
@@ -1018,6 +1019,7 @@ suite('PromptsService', () => {
 					tools: undefined,
 					target: undefined,
 					infer: undefined,
+					agents: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/generic-agent.agent.md'),
 					source: { storage: PromptsStorage.local }
 				},
@@ -1072,6 +1074,7 @@ suite('PromptsService', () => {
 					argumentHint: undefined,
 					target: undefined,
 					infer: undefined,
+					agents: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/demonstrate.md'),
 					source: { storage: PromptsStorage.local },
 				},
@@ -1091,6 +1094,112 @@ suite('PromptsService', () => {
 				result,
 				expected,
 				'Must get custom agents with .md extension from .github/agents/ folder.',
+			);
+		});
+
+		test('header with agents', async () => {
+			const rootFolderName = 'custom-agents-with-restrictions';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			await mockFiles(fileService, [
+				{
+					path: `${rootFolder}/.github/agents/restricted-agent.agent.md`,
+					contents: [
+						'---',
+						'description: \'Agent with restricted access.\'',
+						'agents: [ subagent1, subagent2 ]',
+						'tools: [ tool1 ]',
+						'---',
+						'This agent has restricted access.',
+					]
+				},
+				{
+					path: `${rootFolder}/.github/agents/no-access-agent.agent.md`,
+					contents: [
+						'---',
+						'description: \'Agent with no access to subagents, skills, or instructions.\'',
+						'agents: []',
+						'---',
+						'This agent has no access.',
+					]
+				},
+				{
+					path: `${rootFolder}/.github/agents/full-access-agent.agent.md`,
+					contents: [
+						'---',
+						'description: \'Agent with full access.\'',
+						'agents: [ "*" ]',
+						'---',
+						'This agent has full access.',
+					]
+				}
+			]);
+
+			const result = (await service.getCustomAgents(CancellationToken.None)).map(agent => ({ ...agent, uri: URI.from(agent.uri) }));
+			const expected: ICustomAgent[] = [
+				{
+					name: 'restricted-agent',
+					description: 'Agent with restricted access.',
+					agents: ['subagent1', 'subagent2'],
+					tools: ['tool1'],
+					agentInstructions: {
+						content: 'This agent has restricted access.',
+						toolReferences: [],
+						metadata: undefined
+					},
+					handOffs: undefined,
+					model: undefined,
+					argumentHint: undefined,
+					target: undefined,
+					infer: undefined,
+					uri: URI.joinPath(rootFolderUri, '.github/agents/restricted-agent.agent.md'),
+					source: { storage: PromptsStorage.local }
+				},
+				{
+					name: 'no-access-agent',
+					description: 'Agent with no access to subagents, skills, or instructions.',
+					agents: [],
+					agentInstructions: {
+						content: 'This agent has no access.',
+						toolReferences: [],
+						metadata: undefined
+					},
+					handOffs: undefined,
+					model: undefined,
+					argumentHint: undefined,
+					tools: undefined,
+					target: undefined,
+					infer: undefined,
+					uri: URI.joinPath(rootFolderUri, '.github/agents/no-access-agent.agent.md'),
+					source: { storage: PromptsStorage.local }
+				},
+				{
+					name: 'full-access-agent',
+					description: 'Agent with full access.',
+					agents: ['*'],
+					agentInstructions: {
+						content: 'This agent has full access.',
+						toolReferences: [],
+						metadata: undefined
+					},
+					handOffs: undefined,
+					model: undefined,
+					argumentHint: undefined,
+					tools: undefined,
+					target: undefined,
+					infer: undefined,
+					uri: URI.joinPath(rootFolderUri, '.github/agents/full-access-agent.agent.md'),
+					source: { storage: PromptsStorage.local }
+				},
+			];
+
+			assert.deepEqual(
+				result,
+				expected,
+				'Must get custom agents with agents, skills, and instructions attributes.',
 			);
 		});
 
@@ -1307,7 +1416,7 @@ suite('PromptsService', () => {
 		});
 	});
 
-	suite('listPromptFiles - skills', () => {
+	suite('listPromptFiles - skills ', () => {
 		teardown(() => {
 			sinon.restore();
 		});
@@ -2100,42 +2209,6 @@ suite('PromptsService', () => {
 
 			const result = await service.findAgentSkills(CancellationToken.None);
 			assert.strictEqual(result, undefined);
-		});
-
-		test('should return undefined when chat_preview_features_enabled is false', async () => {
-			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
-			instaService.stub(IDefaultAccountService, {
-				getDefaultAccount: () => Promise.resolve({ chat_preview_features_enabled: false } as IDefaultAccount)
-			});
-
-			// Recreate service with new stub
-			service = disposables.add(instaService.createInstance(PromptsService));
-
-			const result = await service.findAgentSkills(CancellationToken.None);
-			assert.strictEqual(result, undefined);
-
-			// Restore default stub for other tests
-			instaService.stub(IDefaultAccountService, {
-				getDefaultAccount: () => Promise.resolve({ chat_preview_features_enabled: true } as IDefaultAccount)
-			});
-		});
-
-		test('should return undefined when USE_AGENT_SKILLS is enabled but chat_preview_features_enabled is false', async () => {
-			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
-			instaService.stub(IDefaultAccountService, {
-				getDefaultAccount: () => Promise.resolve({ chat_preview_features_enabled: false } as IDefaultAccount)
-			});
-
-			// Recreate service with new stub
-			service = disposables.add(instaService.createInstance(PromptsService));
-
-			const result = await service.findAgentSkills(CancellationToken.None);
-			assert.strictEqual(result, undefined);
-
-			// Restore default stub for other tests
-			instaService.stub(IDefaultAccountService, {
-				getDefaultAccount: () => Promise.resolve({ chat_preview_features_enabled: true } as IDefaultAccount)
-			});
 		});
 
 		test('should find skills in workspace and user home', async () => {

@@ -1127,6 +1127,12 @@ export class Repository implements Disposable {
 			return undefined;
 		}
 
+		// Ignore path that is inside a hidden repository
+		if (this.isHidden === true) {
+			this.logger.trace(`[Repository][provideOriginalResource] Repository is hidden: ${uri.toString()}`);
+			return undefined;
+		}
+
 		// Ignore path that is inside a merge group
 		if (this.mergeGroup.resourceStates.some(r => pathEquals(r.resourceUri.fsPath, uri.fsPath))) {
 			this.logger.trace(`[Repository][provideOriginalResource] Resource is part of a merge group: ${uri.toString()}`);
@@ -1888,7 +1894,7 @@ export class Repository implements Disposable {
 		});
 	}
 
-	private async _getWorktreeIncludeFiles(): Promise<Set<string>> {
+	private async _getWorktreeIncludePaths(): Promise<Set<string>> {
 		const config = workspace.getConfiguration('git', Uri.file(this.root));
 		const worktreeIncludeFiles = config.get<string[]>('worktreeIncludeFiles', ['**/node_modules/**']);
 
@@ -1917,58 +1923,70 @@ export class Repository implements Disposable {
 			gitIgnoredFiles.delete(uri.fsPath);
 		}
 
-		return gitIgnoredFiles;
+		// Add the folder paths for git ignored files
+		const gitIgnoredPaths = new Set(gitIgnoredFiles);
+
+		for (const filePath of gitIgnoredFiles) {
+			let dir = path.dirname(filePath);
+			while (dir !== this.root && !gitIgnoredFiles.has(dir)) {
+				gitIgnoredPaths.add(dir);
+				dir = path.dirname(dir);
+			}
+		}
+
+		return gitIgnoredPaths;
 	}
 
 	private async _copyWorktreeIncludeFiles(worktreePath: string): Promise<void> {
-		const ignoredFiles = await this._getWorktreeIncludeFiles();
-		if (ignoredFiles.size === 0) {
+		const gitIgnoredPaths = await this._getWorktreeIncludePaths();
+		if (gitIgnoredPaths.size === 0) {
 			return;
 		}
 
 		try {
+			// Find minimal set of paths (folders and files) to copy.
+			// The goal is to reduce the number of copy operations
+			// needed.
+			const pathsToCopy = new Set<string>();
+			for (const filePath of gitIgnoredPaths) {
+				const relativePath = path.relative(this.root, filePath);
+				const firstSegment = relativePath.split(path.sep)[0];
+				pathsToCopy.add(path.join(this.root, firstSegment));
+			}
+
+			const startTime = Date.now();
+			const limiter = new Limiter<void>(15);
+			const files = Array.from(pathsToCopy);
+
 			// Copy files
-			let copiedFiles = 0;
-			const results = await window.withProgress({
-				location: ProgressLocation.Notification,
-				title: l10n.t('Copying additional files to the worktree'),
-				cancellable: false
-			}, async (progress) => {
-				const limiter = new Limiter<void>(10);
-				const files = Array.from(ignoredFiles);
-
-				return Promise.allSettled(files.map(sourceFile =>
-					limiter.queue(async () => {
-						const targetFile = path.join(worktreePath, relativePath(this.root, sourceFile));
-						await fsPromises.mkdir(path.dirname(targetFile), { recursive: true });
-						await fsPromises.cp(sourceFile, targetFile, {
-							force: true,
-							recursive: false,
-							verbatimSymlinks: true
-						});
-
-						copiedFiles++;
-						progress.report({
-							increment: 100 / ignoredFiles.size,
-							message: l10n.t('({0}/{1})', copiedFiles, ignoredFiles.size)
-						});
-					})
-				));
-			});
+			const results = await Promise.allSettled(files.map(sourceFile =>
+				limiter.queue(async () => {
+					const targetFile = path.join(worktreePath, relativePath(this.root, sourceFile));
+					await fsPromises.mkdir(path.dirname(targetFile), { recursive: true });
+					await fsPromises.cp(sourceFile, targetFile, {
+						filter: src => gitIgnoredPaths.has(src),
+						force: true,
+						mode: fs.constants.COPYFILE_FICLONE,
+						recursive: true,
+						verbatimSymlinks: true
+					});
+				})
+			));
 
 			// Log any failed operations
 			const failedOperations = results.filter(r => r.status === 'rejected');
+			this.logger.info(`[Repository][_copyWorktreeIncludeFiles] Copied ${files.length - failedOperations.length}/${files.length} folder(s)/file(s) to worktree. [${Date.now() - startTime}ms]`);
 
 			if (failedOperations.length > 0) {
-				window.showWarningMessage(l10n.t('Failed to copy {0} files to the worktree.', failedOperations.length));
+				window.showWarningMessage(l10n.t('Failed to copy {0} folder(s)/file(s) to the worktree.', failedOperations.length));
 
-				this.logger.warn(`[Repository][_copyWorktreeIncludeFiles] Failed to copy ${failedOperations.length} files to worktree.`);
+				this.logger.warn(`[Repository][_copyWorktreeIncludeFiles] Failed to copy ${failedOperations.length} folder(s)/file(s) to worktree.`);
 				for (const error of failedOperations) {
 					this.logger.warn(`  - ${(error as PromiseRejectedResult).reason}`);
 				}
 			}
 		} catch (err) {
-			this.logger.warn(`[Repository][_copyWorktreeIncludeFiles] Failed to copy files to worktree: ${err}`);
+			this.logger.warn(`[Repository][_copyWorktreeIncludeFiles] Failed to copy folder(s)/file(s) to worktree: ${err}`);
 		}
 	}
 
@@ -3273,6 +3291,12 @@ export class StagedResourceQuickDiffProvider implements QuickDiffProvider {
 
 		if (uri.scheme !== 'file') {
 			this.logger.trace(`[StagedResourceQuickDiffProvider][provideOriginalResource] Resource is not a file: ${uri.scheme}`);
+			return undefined;
+		}
+
+		// Ignore path that is inside a hidden repository
+		if (this._repository.isHidden === true) {
+			this.logger.trace(`[StagedResourceQuickDiffProvider][provideOriginalResource] Repository is hidden: ${uri.toString()}`);
 			return undefined;
 		}
 

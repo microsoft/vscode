@@ -179,6 +179,12 @@ export interface ICustomAgent {
 	readonly handOffs?: readonly IHandOff[];
 
 	/**
+	 * List of subagent names that can be used by the agent.
+	 * If empty, no subagents are available. If ['*'] or undefined, all agents can be used.
+	 */
+	readonly agents?: readonly string[];
+
+	/**
 	 * Where the agent was loaded from.
 	 */
 	readonly source: IAgentSource;

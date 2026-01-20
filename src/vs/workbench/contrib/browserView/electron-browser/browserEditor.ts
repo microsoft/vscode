@@ -5,7 +5,7 @@
 
 import './media/browser.css';
 import { localize } from '../../../../nls.js';
-import { $, addDisposableListener, Dimension, disposableWindowInterval, EventType, IDomPosition } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, Dimension, disposableWindowInterval, EventType, IDomPosition, isHTMLElement, registerExternalFocusChecker } from '../../../../base/browser/dom.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { RawContextKey, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -247,13 +247,9 @@ export class BrowserEditor extends EditorPane {
 			}
 		}));
 
-		this._register(addDisposableListener(this._browserContainer, EventType.BLUR, () => {
-			// When focus goes to another part of the workbench, make sure the workbench view becomes focused.
-			const focused = this.window.document.activeElement;
-			if (focused && focused !== this._browserContainer) {
-				this.window.focus();
-			}
-		}));
+		// Register external focus checker so that cross-window focus logic knows when
+		// this browser view has focus (since it's outside the normal DOM tree).
+		this._register(registerExternalFocusChecker(() => this._model?.focused ?? false));
 
 		// Automatically call layoutBrowserContainer() when the browser container changes size
 		const resizeObserver = new ResizeObserver(async () => this.layoutBrowserContainer());
@@ -313,9 +309,13 @@ export class BrowserEditor extends EditorPane {
 		}));
 
 		this._inputDisposables.add(this._model.onDidChangeFocus(({ focused }) => {
-			// When the view gets focused, make sure the container also has focus.
+			// When the view gets focused, make sure the editor reports that it has focus,
+			// but focus is removed from the workbench.
 			if (focused) {
-				this._browserContainer.focus();
+				this._onDidFocus?.fire();
+				if (isHTMLElement(this.window.document.activeElement)) {
+					this.window.document.activeElement.blur();
+				}
 			}
 		}));
 
@@ -382,16 +382,20 @@ export class BrowserEditor extends EditorPane {
 	private updateVisibility(): void {
 		const hasUrl = !!this._model?.url;
 		const hasError = !!this._model?.error;
+		const shouldShowPlaceholder = this._editorVisible && this._overlayVisible && !hasError && hasUrl;
 
 		// Welcome container: shown when no URL is loaded
-		this._welcomeContainer.style.display = hasUrl ? 'none' : 'flex';
+		this._welcomeContainer.style.display = hasUrl ? 'none' : '';
 
 		// Error container: shown when there's a load error
-		this._errorContainer.style.display = hasError ? 'flex' : 'none';
+		this._errorContainer.style.display = hasError ? '' : 'none';
+
+		// Placeholder screenshot: shown when the view is hidden due to overlays
+		this._placeholderScreenshot.style.display = shouldShowPlaceholder ? '' : 'none';
+		this._placeholderScreenshot.classList.toggle('blur', shouldShowPlaceholder);
 
 		if (this._model) {
 			// Blur the background placeholder screenshot if the view is hidden due to an overlay.
-			this._placeholderScreenshot.classList.toggle('blur', this._editorVisible && this._overlayVisible && !hasError);
 			void this._model.setVisible(this.shouldShowView);
 		}
 	}

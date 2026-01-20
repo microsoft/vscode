@@ -96,6 +96,8 @@ function getModelPickerActionBarActionProvider(commandService: ICommandService, 
 				chatEntitlementService.entitlement === ChatEntitlement.Free ||
 				chatEntitlementService.entitlement === ChatEntitlement.Pro ||
 				chatEntitlementService.entitlement === ChatEntitlement.ProPlus ||
+				chatEntitlementService.entitlement === ChatEntitlement.Business ||
+				chatEntitlementService.entitlement === ChatEntitlement.Enterprise ||
 				chatEntitlementService.isInternal
 			) {
 				additionalActions.push({
@@ -182,6 +184,12 @@ export class ModelPickerActionItem extends ChatInputPickerActionViewItem {
 		const label = `${localize('chat.modelPicker.label', "Pick Model")}${super.getHoverContents()}`;
 		const { statusIcon, tooltip } = this.currentModel?.metadata || {};
 		return statusIcon && tooltip ? `${label} • ${tooltip}` : label;
+	}
+
+	protected override setAriaLabelAttributes(element: HTMLElement): void {
+		super.setAriaLabelAttributes(element);
+		const modelName = this.currentModel?.metadata.name ?? localize('chat.modelPicker.auto', "Auto");
+		element.ariaLabel = localize('chat.modelPicker.ariaLabel', "Pick Model, {0}", modelName);
 	}
 
 	protected override renderLabel(element: HTMLElement): IDisposable | null {
