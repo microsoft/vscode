@@ -291,15 +291,10 @@
 	height: 22px;
 	border-radius: 6px;
 	overflow: hidden;
-	background-color: color-mix(in srgb, var(--vscode-progressBar-background) 15%, transparent);
-	border: 1px solid color-mix(in srgb, var(--vscode-progressBar-background) 50%, transparent);
+	background-color: var(--vscode-quickInput-background);
+	border: 1px solid var(--vscode-commandCenter-border, transparent);
 	flex-shrink: 0;
 	-webkit-app-region: no-drag;
-}
-
-/* Empty badge - completely hidden */
-.agent-status-badge.empty {
-	display: none;
 }
 
 /* Badge section (for split UI) */
@@ -310,6 +305,26 @@
 	padding: 0 8px;
 	height: 100%;
 	position: relative;
+	cursor: pointer;
+}
+
+.agent-status-badge-section:hover {
+	background-color: var(--vscode-chat-requestBubbleBackground);
+}
+
+.agent-status-badge-section:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+/* Filtered/active state - when this section's filter is toggled on */
+.agent-status-badge-section.filtered {
+	background-color: var(--vscode-inputOption-activeBackground);
+}
+
+.agent-status-badge-section.filtered:hover {
+	background-color: var(--vscode-inputOption-activeBackground);
+	filter: brightness(1.1);
 }
 
 /* Separator between sections */
@@ -320,7 +335,80 @@
 	top: 4px;
 	bottom: 4px;
 	width: 1px;
-	background-color: color-mix(in srgb, var(--vscode-progressBar-background) 40%, transparent);
+	background-color: var(--vscode-commandCenter-border, rgba(128, 128, 128, 0.35));
+}
+
+/* Sparkle section styling */
+.agent-status-badge-section.sparkle {
+	color: var(--vscode-foreground);
+	gap: 0;
+	padding: 0;
+}
+
+/* Disable hover on sparkle section itself since children handle it */
+.agent-status-badge-section.sparkle:hover {
+	background-color: transparent;
+}
+
+/* Dropdown button inside sparkle section */
+.agent-status-badge-section.sparkle .monaco-dropdown-with-primary {
+	display: flex;
+	align-items: center;
+	height: 100%;
+}
+
+.agent-status-badge-section.sparkle .action-container {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 0 6px;
+	height: 100%;
+}
+
+.agent-status-badge-section.sparkle .action-container:hover {
+	background-color: var(--vscode-chat-requestBubbleBackground);
+}
+
+.agent-status-badge-section.sparkle .action-container:focus-within {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.agent-status-badge-section.sparkle .action-container .action-label {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: none !important;
+	width: 16px;
+	height: 16px;
+}
+
+.agent-status-badge-section.sparkle .dropdown-action-container {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 0 6px;
+	height: 100%;
+}
+
+.agent-status-badge-section.sparkle .dropdown-action-container:hover {
+	background-color: var(--vscode-chat-requestBubbleBackground);
+}
+
+.agent-status-badge-section.sparkle .dropdown-action-container:focus-within {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.agent-status-badge-section.sparkle .dropdown-action-container .action-label {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 16px;
+	height: 16px;
+	font-size: 14px;
+	background-position: center !important;
+	background-size: 14px !important;
 }
 
 /* Unread section styling */
