@@ -28,12 +28,6 @@ jobs:
     variables:
       TEST_DIR: ./test/sanity
       LOG_FILE: $(Build.SourcesDirectory)/.build/sanity-test-logs/results.xml
-      DOCKER_COMMAND: |
-        docker run --rm --platform ${{ parameters.containerPlatform }} \
-          -v "$(Build.SourcesDirectory):/workspace" \
-          -w /workspace \
-          ${{ parameters.container }} \
-          /bin/sh -c
     steps:
       - template: ./checkout.yml@self
 
@@ -112,62 +106,70 @@ jobs:
 
       # Ubuntu/Debian
       - bash: |
-          $(DOCKER_COMMAND) '
-            set -e
-            apt-get update
-            DEBIAN_FRONTEND=noninteractive
-            apt-get install -y \
-              ca-certificates \
-              curl \
-              dbus \
-              dbus-x11 \
-              libatk-bridge2.0-0 \
-              libatomic1 \
-              libdrm2 \
-              libgbm1 \
-              libnss3 \
-              libxcomposite1 \
-              libxdamage1 \
-              libxkbcommon0 \
-              libxrandr2 \
-              libxss1 \
-              sudo \
-              x11-utils \
-              xdg-utils \
-              xvfb \
-              xz-utils
+          docker run --rm --platform ${{ parameters.containerPlatform }} \
+            -v "$(Build.SourcesDirectory):/workspace" \
+            -w /workspace \
+            ${{ parameters.container }} \
+            /bin/sh -c '
+              set -e
+              apt-get update
+              DEBIAN_FRONTEND=noninteractive
+              apt-get install -y \
+                ca-certificates \
+                curl \
+                dbus \
+                dbus-x11 \
+                libatk-bridge2.0-0 \
+                libatomic1 \
+                libdrm2 \
+                libgbm1 \
+                libnss3 \
+                libxcomposite1 \
+                libxdamage1 \
+                libxkbcommon0 \
+                libxrandr2 \
+                libxss1 \
+                sudo \
+                x11-utils \
+                xdg-utils \
+                xvfb \
+                xz-utils
 
-            # apt-get install -y libgtk-3-0t64 || apt-get install -y libgtk-3-0
-            apt-get install -y libasound2t64 || apt-get install -y libasound2
+              # apt-get install -y libgtk-3-0t64 || apt-get install -y libgtk-3-0
+              apt-get install -y libasound2t64 || apt-get install -y libasound2
 
-            # if [ "$(arch)" = "armv7l" ] || [ "$(arch)" = "aarch64" ]; then
-            #   echo "Installing libatomic1 for ARM"
-            #   apt-get install -y libatomic1
-            # fi
+              # if [ "$(arch)" = "armv7l" ] || [ "$(arch)" = "aarch64" ]; then
+              #   echo "Installing libatomic1 for ARM"
+              #   apt-get install -y libatomic1
+              # fi
 
-            echo "Installing Node.js 22"
-            if [ "$(arch)" = "x86_64" ] || [ "$(arch)" = "aarch64" ]; then
-              curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
-              apt-get install -y nodejs
-            else
-              curl -fsSL https://nodejs.org/dist/v22.13.0/node-v22.13.0-linux-armv7l.tar.xz | tar -xJ -C /usr/local --strip-components=1
-            fi
+              echo "Installing Node.js 22"
+              if [ "$(arch)" = "x86_64" ] || [ "$(arch)" = "aarch64" ]; then
+                curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
+                apt-get install -y nodejs
+              else
+                curl -fsSL https://nodejs.org/dist/v22.13.0/node-v22.13.0-linux-armv7l.tar.xz | tar -xJ -C /usr/local --strip-components=1
+              fi
 
-            echo "Starting Xvfb on display :99"
-            Xvfb :99 -screen 0 1280x960x24 -ac +extension GLX +render -noreset && export DISPLAY=:99
+              echo "Starting Xvfb on display :99"
+              Xvfb :99 -screen 0 1280x960x24 -ac +extension GLX +render -noreset && export DISPLAY=:99
 
-            echo "Starting D-Bus session"
-            mkdir -p /run/dbus && dbus-daemon --system --fork
+              echo "Starting D-Bus session"
+              mkdir -p /run/dbus && dbus-daemon --system --fork
 
-            echo "Running sanity tests"
-            node /workspace/test/sanity/out/index.js -c "$(BUILD_COMMIT)" -q "$(BUILD_QUALITY)" -t "/workspace/.build/sanity-test-logs/results.xml" -v
+              echo "Running sanity tests"
+              node /workspace/test/sanity/out/index.js -c "$(BUILD_COMMIT)" -q "$(BUILD_QUALITY)" -t "/workspace/.build/sanity-test-logs/results.xml" -v
           '
         displayName: Run Sanity Tests
         condition: or(contains('${{ parameters.container }}', 'ubuntu'), contains('${{ parameters.container }}', 'debian'))
 
       # CentOS/Fedora/RHEL
       - bash: |
-          $(DOCKER_COMMAND) '
+          docker run --rm --platform ${{ parameters.containerPlatform }} \
+            -v "$(Build.SourcesDirectory):/workspace" \
+            -w /workspace \
+            ${{ parameters.container }} \
+            /bin/sh -c '
               set -e
               dnf install -y \
                 alsa-lib \
@@ -208,7 +210,11 @@ jobs:
 
       # OpenSUSE
       - bash: |
-          $(DOCKER_COMMAND) '
+          docker run --rm --platform ${{ parameters.containerPlatform }} \
+            -v "$(Build.SourcesDirectory):/workspace" \
+            -w /workspace \
+            ${{ parameters.container }} \
+            /bin/sh -c '
               set -e
               zypper install -y \
                 alsa \
@@ -240,7 +246,11 @@ jobs:
 
       # Alpine Linux
       - bash: |
-          $(DOCKER_COMMAND) '
+          docker run --rm --platform ${{ parameters.containerPlatform }} \
+            -v "$(Build.SourcesDirectory):/workspace" \
+            -w /workspace \
+            ${{ parameters.container }} \
+            /bin/sh -c '
               set -e
               apk add --no-cache \
                 ca-certificates \
