@@ -5,7 +5,7 @@
 
 import './media/browser.css';
 import { localize } from '../../../../nls.js';
-import { $, addDisposableListener, disposableWindowInterval, EventType } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, Dimension, disposableWindowInterval, EventType, IDomPosition } from '../../../../base/browser/dom.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { RawContextKey, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -254,6 +254,11 @@ export class BrowserEditor extends EditorPane {
 				this.window.focus();
 			}
 		}));
+
+		// Automatically call layoutBrowserContainer() when the browser container changes size
+		const resizeObserver = new ResizeObserver(async () => this.layoutBrowserContainer());
+		resizeObserver.observe(this._browserContainer);
+		this._register(toDisposable(() => resizeObserver.disconnect()));
 	}
 
 	override async setInput(input: BrowserEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
@@ -354,7 +359,7 @@ export class BrowserEditor extends EditorPane {
 		// Listen for zoom level changes and update browser view zoom factor
 		this._inputDisposables.add(onDidChangeZoomLevel(targetWindowId => {
 			if (targetWindowId === this.window.vscodeWindowId) {
-				this.layout();
+				this.layoutBrowserContainer();
 			}
 		}));
 		// Capture screenshot periodically (once per second) to keep background updated
@@ -365,25 +370,8 @@ export class BrowserEditor extends EditorPane {
 		));
 
 		this.updateErrorDisplay();
-		this.layout();
+		this.layoutBrowserContainer();
 		await this._model.setVisible(this.shouldShowView);
-
-		// Sometimes the element has not been inserted into the DOM yet.
-		// Watch for container size changes to handle window moves/resizes.
-		// This is especially important when copying or moving to a new window on a different
-		// monitor where the initial bounds may be incorrect until the window finishes layout.
-		// For some reason, the workbench's normal layout() calls do not cover this case.
-		const resizeObserver = new ResizeObserver(async () => {
-			if (this._model) {
-				const containerRect = this._browserContainer.getBoundingClientRect();
-				// Only proceed if we have valid bounds
-				if (containerRect.width > 0 && containerRect.height > 0) {
-					this.layout();
-				}
-			}
-		});
-		resizeObserver.observe(this._browserContainer);
-		this._inputDisposables.add(toDisposable(() => resizeObserver.disconnect()));
 	}
 
 	protected override setEditorVisible(visible: boolean): void {
@@ -685,7 +673,20 @@ export class BrowserEditor extends EditorPane {
 		}
 	}
 
-	override layout(): void {
+	override layout(_dimension: Dimension, _position?: IDomPosition): void {
+		// no-op: layout is handled in layoutBrowserContainer()
+	}
+
+	/**
+	 * This should be called whenever .browser-container changes in size, or when
+	 * there could be any elements, such as the command palette, overlapping with it.
+	 *
+	 * Note that we don't call layoutBrowserContainer() from layout() but instead rely on using a ResizeObserver and on
+	 * making direct calls to it. This is because we have seen cases where the getBoundingClientRect() values of
+	 * the .browser-container element are not correct during layout() calls, especially during "Move into New Window"
+	 * and "Copy into New Window" operations into a different monitor.
+	 */
+	layoutBrowserContainer(): void {
 		if (this._model) {
 			this.checkOverlays();
 
