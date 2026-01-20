@@ -50,7 +50,7 @@ import { IToolInvocationContext, IToolResult, IToolResultInputOutputDetails, ITo
 import * as chatProvider from '../../contrib/chat/common/languageModels.js';
 import { IChatMessageDataPart, IChatResponseDataPart, IChatResponsePromptTsxPart, IChatResponseTextPart } from '../../contrib/chat/common/languageModels.js';
 import { DebugTreeItemCollapsibleState, IDebugVisualizationTreeItem } from '../../contrib/debug/common/debug.js';
-import { McpServerLaunch, McpServerTransportType } from '../../contrib/mcp/common/mcpTypes.js';
+import { McpServerDefinition as McpServerDefinitionType, McpServerLaunch, McpServerTransportType } from '../../contrib/mcp/common/mcpTypes.js';
 import * as notebooks from '../../contrib/notebook/common/notebookCommon.js';
 import { CellEditType } from '../../contrib/notebook/common/notebookCommon.js';
 import { ICellRange } from '../../contrib/notebook/common/notebookRange.js';
@@ -3148,6 +3148,7 @@ export namespace ChatAgentRequest {
 			enableCommandDetection: request.enableCommandDetection ?? true,
 			isParticipantDetected: request.isParticipantDetected ?? false,
 			sessionId,
+			sessionResource: request.sessionResource,
 			references: variableReferences
 				.map(v => ChatPromptReference.to(v, diagnostics, logService))
 				.filter(isDefined),
@@ -3767,6 +3768,31 @@ export namespace McpServerDefinition {
 					envFile: undefined,
 				}
 		);
+	}
+
+	/** Converts from the IPC DTO to the API type. */
+	export function to(dto: McpServerDefinitionType.Serialized): vscode.McpServerDefinition {
+		const launch = McpServerLaunch.fromSerialized(dto.launch);
+		if (launch.type === McpServerTransportType.HTTP) {
+			return new types.McpHttpServerDefinition(
+				dto.label,
+				launch.uri,
+				Object.fromEntries(launch.headers),
+				dto.cacheNonce === '$$NONE' ? undefined : dto.cacheNonce,
+			);
+		} else {
+			const result = new types.McpStdioServerDefinition(
+				dto.label,
+				launch.command,
+				[...launch.args],
+				Object.fromEntries(Object.entries(launch.env).map(([key, value]) => [key, value === null ? null : String(value)])),
+				dto.cacheNonce === '$$NONE' ? undefined : dto.cacheNonce,
+			);
+			if (launch.cwd) {
+				result.cwd = URI.file(launch.cwd);
+			}
+			return result;
+		}
 	}
 }
 

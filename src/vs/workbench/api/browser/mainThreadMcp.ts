@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { mapFindFirst } from '../../../base/common/arraysFind.js';
-import { disposableTimeout } from '../../../base/common/async.js';
+import { disposableTimeout, RunOnceScheduler } from '../../../base/common/async.js';
 import { CancellationError } from '../../../base/common/errors.js';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
-import { ISettableObservable, observableValue } from '../../../base/common/observable.js';
+import { autorun, ISettableObservable, observableValue } from '../../../base/common/observable.js';
 import Severity from '../../../base/common/severity.js';
 import { URI } from '../../../base/common/uri.js';
 import * as nls from '../../../nls.js';
@@ -98,6 +98,35 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 				return launch;
 			},
 		}));
+
+		// Subscribe to MCP server definition changes and notify ext host
+		const onDidChangeMcpServerDefinitionsTrigger = this._register(new RunOnceScheduler(() => this._proxy.$onDidChangeMcpServerDefinitions(), 500));
+		this._register(autorun(reader => {
+			const collections = this._mcpRegistry.collections.read(reader);
+			// Read all server definitions to track changes
+			for (const collection of collections) {
+				collection.serverDefinitions.read(reader);
+			}
+			// Notify ext host that definitions changed (it will re-fetch if needed)
+			if (!onDidChangeMcpServerDefinitionsTrigger.isScheduled()) {
+				onDidChangeMcpServerDefinitionsTrigger.schedule();
+			}
+		}));
+	}
+
+	/** Returns all MCP server definitions known to the editor. */
+	$getMcpServerDefinitions(): Promise<McpServerDefinition.Serialized[]> {
+		const collections = this._mcpRegistry.collections.get();
+		const allServers: McpServerDefinition.Serialized[] = [];
+
+		for (const collection of collections) {
+			const servers = collection.serverDefinitions.get();
+			for (const server of servers) {
+				allServers.push(McpServerDefinition.toSerialized(server));
+			}
+		}
+
+		return Promise.resolve(allServers);
 	}
 
 	$upsertMcpCollection(collection: McpCollectionDefinition.FromExtHost, serversDto: McpServerDefinition.Serialized[]): void {

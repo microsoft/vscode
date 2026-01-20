@@ -271,7 +271,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private readonly _widgetController = this._register(new MutableDisposable<ChatInputPartWidgetController>());
 	private readonly _contextUsageWidget = this._register(new MutableDisposable<ChatContextUsageWidget>());
 
-	readonly inputPartHeight = observableValue<number>(this, 0);
+	readonly height = observableValue<number>(this, 0);
 
 	private _inputEditor!: CodeEditorWidget;
 	private _inputEditorElement!: HTMLElement;
@@ -2026,7 +2026,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		const inputResizeObserver = this._register(new dom.DisposableResizeObserver(() => {
 			const newHeight = this.container.offsetHeight;
-			this.inputPartHeight.set(newHeight, undefined);
+			this.height.set(newHeight, undefined);
 		}));
 		inputResizeObserver.observe(this.container);
 	}

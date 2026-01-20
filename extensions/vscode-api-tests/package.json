@@ -27,6 +27,7 @@
     "fsChunks",
     "interactive",
     "languageStatusText",
+    "mcpServerDefinitions",
     "nativeWindowHandle",
     "notebookDeprecated",
     "notebookLiveShare",
