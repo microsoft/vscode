@@ -861,13 +861,15 @@ export class ViewModel extends Disposable implements IViewModel {
 
 	public getViewportViewLineRenderingData(visibleRange: Range, lineNumber: number): ViewLineRenderingData {
 		const viewportDecorationsCollection = this._decorations.getDecorationsViewportData(visibleRange);
-		const inlineDecorations = viewportDecorationsCollection.inlineDecorations[lineNumber - visibleRange.startLineNumber];
-		return this._getViewLineRenderingData(lineNumber, inlineDecorations, viewportDecorationsCollection.hasVariableFonts, viewportDecorationsCollection.decorations);
+		const relativeLineNumber = lineNumber - visibleRange.startLineNumber;
+		const inlineDecorations = viewportDecorationsCollection.inlineDecorations[relativeLineNumber];
+		const hasVariableFonts = viewportDecorationsCollection.hasVariableFonts[relativeLineNumber];
+		return this._getViewLineRenderingData(lineNumber, inlineDecorations, hasVariableFonts, viewportDecorationsCollection.decorations);
 	}
 
 	public getViewLineRenderingData(lineNumber: number): ViewLineRenderingData {
 		const decorationsCollection = this._decorations.getDecorationsOnLine(lineNumber);
-		return this._getViewLineRenderingData(lineNumber, decorationsCollection.inlineDecorations[0], decorationsCollection.hasVariableFonts, decorationsCollection.decorations);
+		return this._getViewLineRenderingData(lineNumber, decorationsCollection.inlineDecorations[0], decorationsCollection.hasVariableFonts[0], decorationsCollection.decorations);
 	}
 
 	private _getViewLineRenderingData(lineNumber: number, inlineDecorations: InlineDecoration[], hasVariableFonts: boolean, decorations: ViewModelDecoration[]): ViewLineRenderingData {
