@@ -22,7 +22,7 @@ import { ITextModel } from '../../../common/model.js';
 import { DocumentFormattingEditProvider, DocumentRangeFormattingEditProvider, FormattingOptions, TextEdit, ProviderId } from '../../../common/languages.js';
 import { IEditorWorkerService } from '../../../common/services/editorWorker.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../common/services/resolverService.js';
-import { EditSources } from '../../../common/textModelEditSource.js';
+import { EditSources, TextModelEditSource } from '../../../common/textModelEditSource.js';
 import { FormattingEdit } from './formattingEdit.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { ExtensionIdentifierSet } from '../../../../platform/extensions/common/extensions.js';
@@ -423,21 +423,29 @@ export async function getDocumentFormattingEditsUntilResult(
 	return undefined;
 }
 
+type FormattingEdits = {
+	edits: TextEdit[] | undefined;
+	reason: TextModelEditSource;
+} | { edits?: undefined; };
+
 export async function getDocumentFormattingEditsWithSelectedProvider(
 	workerService: IEditorWorkerService,
 	languageFeaturesService: ILanguageFeaturesService,
 	editorOrModel: ITextModel | IActiveCodeEditor,
 	mode: FormattingMode,
 	token: CancellationToken,
-): Promise<TextEdit[] | undefined> {
+): Promise<FormattingEdits> {
 	const model = isCodeEditor(editorOrModel) ? editorOrModel.getModel() : editorOrModel;
 	const provider = getRealAndSyntheticDocumentFormattersOrdered(languageFeaturesService.documentFormattingEditProvider, languageFeaturesService.documentRangeFormattingEditProvider, model);
 	const selected = await FormattingConflicts.select(provider, model, mode, FormattingKind.File);
 	if (selected) {
 		const rawEdits = await Promise.resolve(selected.provideDocumentFormattingEdits(model, model.getOptions(), token)).catch(onUnexpectedExternalError);
-		return await workerService.computeMoreMinimalEdits(model.uri, rawEdits);
+		return {
+			edits: await workerService.computeMoreMinimalEdits(model.uri, rawEdits),
+			reason: EditSources.unknown({name: 'formatEditsCommand', providerId: ProviderId.fromExtensionId(selected.extensionId?.value)}),
+		}
 	}
-	return undefined;
+	return {};
 }
 
 export function getOnTypeFormattingEdits(
@@ -448,21 +456,22 @@ export function getOnTypeFormattingEdits(
 	ch: string,
 	options: FormattingOptions,
 	token: CancellationToken
-): Promise<TextEdit[] | null | undefined> {
+): Promise<FormattingEdits> {
 
 	const providers = languageFeaturesService.onTypeFormattingEditProvider.ordered(model);
 
 	if (providers.length === 0) {
-		return Promise.resolve(undefined);
+		return Promise.resolve({});
 	}
 
 	if (providers[0].autoFormatTriggerCharacters.indexOf(ch) < 0) {
-		return Promise.resolve(undefined);
+		return Promise.resolve({});
 	}
 
-	return Promise.resolve(providers[0].provideOnTypeFormattingEdits(model, position, ch, options, token)).catch(onUnexpectedExternalError).then(edits => {
-		return workerService.computeMoreMinimalEdits(model.uri, edits);
-	});
+	return Promise.resolve(providers[0].provideOnTypeFormattingEdits(model, position, ch, options, token)).catch(onUnexpectedExternalError).then(async (edits) => ({
+		edits: await workerService.computeMoreMinimalEdits(model.uri, edits),
+		reason: EditSources.unknown({name: 'formatEditsCommand', providerId: ProviderId.fromExtensionId(providers[0].extensionId?.value)}),
+	}));
 }
 
 function isFormattingOptions(obj: unknown): obj is FormattingOptions {
@@ -513,7 +522,7 @@ CommandsRegistry.registerCommand('_executeFormatOnTypeProvider', async function 
 	const languageFeaturesService = accessor.get(ILanguageFeaturesService);
 	const reference = await resolverService.createModelReference(resource);
 	try {
-		return getOnTypeFormattingEdits(workerService, languageFeaturesService, reference.object.textEditorModel, Position.lift(position), ch, ensureFormattingOptions(options, reference), CancellationToken.None);
+		return getOnTypeFormattingEdits(workerService, languageFeaturesService, reference.object.textEditorModel, Position.lift(position), ch, ensureFormattingOptions(options, reference), CancellationToken.None).then(edits => edits.edits);
 	} finally {
 		reference.dispose();
 	}

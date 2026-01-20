@@ -45,7 +45,7 @@ export class FormattingEdit {
 		return fullModelRange.equalsRange(editRange);
 	}
 
-	static execute(editor: ICodeEditor, _edits: TextEdit[], addUndoStops: boolean, reason?: TextModelEditSource) {
+	static execute(editor: ICodeEditor, _edits: TextEdit[], addUndoStops: boolean, reason: TextModelEditSource) {
 		if (addUndoStops) {
 			editor.pushUndoStop();
 		}
