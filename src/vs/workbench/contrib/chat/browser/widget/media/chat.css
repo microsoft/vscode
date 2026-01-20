@@ -943,6 +943,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	flex-direction: row;
 	gap: 4px;
 	margin-top: 6px;
+	margin-right: 20px;
 	flex-wrap: wrap;
 	cursor: default;
 }
@@ -1568,7 +1569,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .interactive-input-part {
-	margin: 0px 16px;
+	margin: 0px 12px;
 	padding: 4px 0 8px 0px;
 	display: flex;
 	flex-direction: column;
@@ -1629,6 +1630,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .action-item.chat-mcp {
+	min-width: 22px !important;
 
 	.chat-mcp-state-indicator {
 		position: absolute;
@@ -1639,6 +1641,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		width: fit-content;
 		height: fit-content;
 		border-radius: 100%;
+		pointer-events: none;
 
 		&.chat-mcp-state-new {
 			color: var(--vscode-button-foreground);

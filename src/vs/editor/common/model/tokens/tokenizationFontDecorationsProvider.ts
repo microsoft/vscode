@@ -148,7 +148,7 @@ export class TokenizationFontDecorationProvider extends Disposable implements De
 
 	public getAllDecorations(ownerId?: number, filterOutValidation?: boolean): IModelDecoration[] {
 		return this.getDecorationsInRange(
-			new Range(1, 1, this.textModel.getLineCount(), 1),
+			new Range(1, 1, this.textModel.getLineCount(), this.textModel.getLineMaxColumn(this.textModel.getLineCount())),
 			ownerId,
 			filterOutValidation
 		);
