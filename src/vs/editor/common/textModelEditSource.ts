@@ -176,7 +176,15 @@ export const EditSources = {
 	snippet: () => createEditSource({ source: 'snippet' } as const),
 	suggest: (data: { providerId: ProviderId | undefined }) => createEditSource({ source: 'suggest', ...toProperties(data.providerId) } as const),
 
-	codeAction: (data: { kind: string | undefined; providerId: ProviderId | undefined }) => createEditSource({ source: 'codeAction', $kind: data.kind, ...toProperties(data.providerId) } as const)
+	codeAction: (data: { kind: string | undefined; providerId: ProviderId | undefined }) => createEditSource({ source: 'codeAction', $kind: data.kind, ...toProperties(data.providerId) } as const),
+
+	bulkEdit(data: { isRefactoring?: boolean, providerId?: ProviderId }) {
+		return createEditSource({
+			source: 'bulkEdit',
+			isRefactoring: data.isRefactoring,
+			...toProperties(data.providerId),
+		} as const);
+	}
 };
 
 function toProperties(version: ProviderId | undefined) {

@@ -53,6 +53,7 @@ export class ExtHostNotebookDocumentSaveParticipant implements ExtHostNotebookDo
 		}
 
 		const edits: WorkspaceEdit[] = [];
+		let extensionId = '';
 
 		await this._onWillSaveNotebookDocumentEvent.fireAsync({ notebook: document.apiNotebook, reason: TextDocumentSaveReason.to(reason) }, token, async (thenable: Promise<unknown>, listener) => {
 			const now = Date.now();
@@ -60,6 +61,8 @@ export class ExtHostNotebookDocumentSaveParticipant implements ExtHostNotebookDo
 			if (Date.now() - now > this._thresholds.timeout) {
 				this._logService.warn('onWillSaveNotebookDocument-listener from extension', (<IExtensionListener<NotebookDocumentWillSaveEvent>>listener).extension.identifier);
 			}
+
+			extensionId = (<IExtensionListener<NotebookDocumentWillSaveEvent>>listener).extension.identifier.value;
 
 			if (token.isCancellationRequested) {
 				return;
@@ -91,6 +94,6 @@ export class ExtHostNotebookDocumentSaveParticipant implements ExtHostNotebookDo
 			dto.edits = dto.edits.concat(edits);
 		}
 
-		return this._mainThreadBulkEdits.$tryApplyWorkspaceEdit(new SerializableObjectWithBuffers(dto));
+		return this._mainThreadBulkEdits.$tryApplyWorkspaceEdit(new SerializableObjectWithBuffers(dto), extensionId);
 	}
 }
