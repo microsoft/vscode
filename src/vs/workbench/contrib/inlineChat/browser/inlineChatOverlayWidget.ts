@@ -180,6 +180,9 @@ export class InlineChatOverlayWidget extends Disposable implements IOverlayWidge
 		if (!this._isVisible) {
 			this._editor.addOverlayWidget(this);
 			this._isVisible = true;
+
+		} else if (!anchorAbove) {
+			this._editor.layoutOverlayWidget(this);
 		}
 
 		// If anchoring above, adjust position after render to account for widget height
