@@ -42,10 +42,6 @@ export interface IActionListItemHover {
 	 * Content to display in the hover.
 	 */
 	readonly content?: string;
-	/**
-	 * Actions to show in the hover.
-	 */
-	readonly actions?: IHoverAction[];
 }
 
 export interface IActionListItem<T> {
