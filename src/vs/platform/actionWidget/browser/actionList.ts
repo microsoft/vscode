@@ -22,7 +22,7 @@ import { ILayoutService } from '../../layout/browser/layoutService.js';
 import { IHoverService } from '../../hover/browser/hover.js';
 import { MarkdownString } from '../../../base/common/htmlContent.js';
 import { HoverPosition } from '../../../base/browser/ui/hover/hoverWidget.js';
-import { IHoverAction } from '../../../base/browser/ui/hover/hover.js';
+import { IHoverAction, IHoverWidget } from '../../../base/browser/ui/hover/hover.js';
 
 export const acceptSelectedActionCommand = 'acceptSelectedCodeAction';
 export const previewSelectedActionCommand = 'previewSelectedCodeAction';
@@ -247,6 +247,8 @@ export class ActionList<T> extends Disposable {
 
 	private readonly cts = this._register(new CancellationTokenSource());
 
+	private hover: { index: number; hover: IHoverWidget } | undefined;
+
 	constructor(
 		user: string,
 		preview: boolean,
@@ -322,7 +324,7 @@ export class ActionList<T> extends Disposable {
 		this._register(this._list.onDidChangeSelection(e => this.onListSelection(e)));
 
 		// Ensure hover is hidden when ActionList is disposed
-		this._register(toDisposable(() => this._hoverService.hideHover()));
+		this._register(toDisposable(() => this.hideHover()));
 
 		this._allMenuItems = items;
 		this._list.splice(0, this._list.length, this._allMenuItems);
@@ -339,7 +341,7 @@ export class ActionList<T> extends Disposable {
 	hide(didCancel?: boolean): void {
 		this._delegate.onHide(didCancel);
 		this.cts.cancel();
-		this._hoverService.hideHover();
+		this.hideHover();
 		this._contextViewService.hideContextView();
 	}
 
@@ -419,6 +421,15 @@ export class ActionList<T> extends Disposable {
 		}
 	}
 
+	private hideHover() {
+		if (this.hover) {
+			if (!this.hover.hover.isDisposed) {
+				this.hover.hover.dispose();
+			}
+			this.hover = undefined;
+		}
+	}
+
 	private onFocus() {
 		const focused = this._list.getFocus();
 		if (focused.length === 0) {
@@ -439,7 +450,12 @@ export class ActionList<T> extends Disposable {
 
 	private _showHoverForElement(element: IActionListItem<T>, index: number): void {
 		// Hide any existing hover when moving to a different item
-		this._hoverService.hideHover();
+		if (this.hover) {
+			if (this.hover.index === index && !this.hover.hover.isDisposed) {
+				return;
+			}
+			this.hideHover();
+		}
 
 		// Show hover if the element has hover content or actions
 		if ((element.hover?.content || element.hover?.actions) && this.focusCondition(element)) {
@@ -448,7 +464,7 @@ export class ActionList<T> extends Disposable {
 			const rowElement = this._getRowElement(index);
 			if (rowElement) {
 				const markdown = element.hover.content ? new MarkdownString(element.hover.content) : undefined;
-				this._hoverService.showInstantHover({
+				const hover = this._hoverService.showInstantHover({
 					content: markdown ?? '',
 					target: rowElement,
 					actions: element.hover.actions,
@@ -461,6 +477,7 @@ export class ActionList<T> extends Disposable {
 						showPointer: true,
 					},
 				});
+				this.hover = hover ? { index, hover } : undefined;
 			}
 		}
 	}
