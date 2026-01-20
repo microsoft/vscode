@@ -2255,8 +2255,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			!this._shellLaunchConfig.isExtensionOwnedTerminal &&
 			// Not a reconnected or revived terminal
 			!this._shellLaunchConfig.attachPersistentProcess &&
-			// Not a Windows remote using ConPTY (#187084)
-			!(this._processManager.remoteAuthority && this._terminalConfigurationService.config.windowsEnableConpty && (await this._processManager.getBackendOS()) === OperatingSystem.Windows)
+			// Not a Windows remote using ConPTY which cannot relaunch (#187084). ConPTY is used on
+			// Windows builds 18309+.
+			!(this._processManager.remoteAuthority && (await this._processManager.getBackendOS()) === OperatingSystem.Windows && this._processManager.processTraits?.windowsPty?.buildNumber && this._processManager.processTraits.windowsPty.buildNumber >= 18309)
 		) {
 			this.relaunch();
 			return;

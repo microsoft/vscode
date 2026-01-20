@@ -91,7 +91,6 @@ export const enum TerminalSettingId {
 	EnvironmentChangesRelaunch = 'terminal.integrated.environmentChangesRelaunch',
 	ShowExitAlert = 'terminal.integrated.showExitAlert',
 	SplitCwd = 'terminal.integrated.splitCwd',
-	WindowsEnableConpty = 'terminal.integrated.windowsEnableConpty',
 	WindowsUseConptyDll = 'terminal.integrated.windowsUseConptyDll',
 	WordSeparators = 'terminal.integrated.wordSeparators',
 	EnableFileLinks = 'terminal.integrated.enableFileLinks',
@@ -725,7 +724,6 @@ export interface ITerminalProcessOptions {
 		suggestEnabled: boolean;
 		nonce: string;
 	};
-	windowsEnableConpty: boolean;
 	windowsUseConptyDll: boolean;
 	environmentVariableCollections: ISerializableEnvironmentVariableCollections | undefined;
 	workspaceFolder: IWorkspaceFolder | undefined;

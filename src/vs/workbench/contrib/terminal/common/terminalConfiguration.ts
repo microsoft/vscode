@@ -490,11 +490,6 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 		],
 		default: 'inherited'
 	},
-	[TerminalSettingId.WindowsEnableConpty]: {
-		markdownDeprecationMessage: localize('terminal.integrated.windowsEnableConpty', "This setting is deprecated. ConPTY is now always used and winpty support has been removed. This setting will be removed in a future version."),
-		type: 'boolean',
-		default: true
-	},
 	[TerminalSettingId.WordSeparators]: {
 		markdownDescription: localize('terminal.integrated.wordSeparators', "A string containing all characters to be considered word separators when double-clicking to select word and in the fallback 'word' link detection. Since this is used for link detection, including characters such as `:` that are used when detecting links will cause the line and column part of links like `file:10:5` to be ignored."),
 		type: 'string',
