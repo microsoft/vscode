@@ -6,7 +6,7 @@
     "name": "Microsoft Corporation"
   },
   "license": "MIT",
-    "engines": {
+  "engines": {
     "npm": ">=8.6.0",
     "node": "22.21.1"
   },
