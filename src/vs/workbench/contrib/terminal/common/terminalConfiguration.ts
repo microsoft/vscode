@@ -491,7 +491,7 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 		default: 'inherited'
 	},
 	[TerminalSettingId.WindowsEnableConpty]: {
-		description: localize('terminal.integrated.windowsEnableConpty', "Whether to use ConPTY for Windows terminal process communication (requires Windows 10 build number 18309+). Winpty will be used if this is false."),
+		markdownDeprecationMessage: localize('terminal.integrated.windowsEnableConpty', "This setting is deprecated. ConPTY is now always used and winpty support has been removed. This setting will be removed in a future version."),
 		type: 'boolean',
 		default: true
 	},

@@ -1025,9 +1025,9 @@ export const enum ShellIntegrationInjectionFailureReason {
 	 */
 	IgnoreShellIntegrationFlag = 'ignoreShellIntegrationFlag',
 	/**
-	 * Shell integration doesn't work with winpty.
+	 * Shell integration doesn't work on older Windows builds that don't support ConPTY.
 	 */
-	Winpty = 'winpty',
+	UnsupportedWindowsBuild = 'unsupportedWindowsBuild',
 	/**
 	 * We're conservative whether we inject when we don't recognize the arguments used for the
 	 * shell as we would prefer launching one without shell integration than breaking their profile.
