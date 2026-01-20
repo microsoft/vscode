@@ -588,7 +588,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			'workbench.secondarySideBar.restoreMaximised': {
 				'type': 'boolean',
 				'default': false,
-				'description': localize('secondarySideBarRestoreMaximised', "Controls whether the secondary side bar restores to a maximized state after startup, irrespective of its previous state."),
+				'description': localize('secondarySideBarRestoreMaximized', "Controls whether the secondary side bar restores to a maximized state after startup, irrespective of its previous state."),
 			},
 			'workbench.secondarySideBar.showLabels': {
 				'type': 'boolean',
