@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+		"sculpt-n-code-viewer": {
+      "command": "node",
+      "args": ["/Users/brian/Documents/ucsd/snc/sculpt-n-code-viewer-mcp/build/index.js"]
+    }
+	}
+}
