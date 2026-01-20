@@ -993,6 +993,7 @@ export class ChatModelsWidget extends Disposable {
 		this.createTable();
 		this._register(this.viewModel.onDidChangeGrouping(() => this.createTable()));
 		this._register(this.chatEntitlementService.onDidChangeEntitlement(() => this.updateAddModelsButton()));
+		this._register(this.languageModelsService.onDidChangeLanguageModelVendors(() => this.updateAddModelsButton()));
 	}
 
 	private createTable(): void {
@@ -1168,7 +1169,6 @@ export class ChatModelsWidget extends Disposable {
 				this.table.setFocus([selectedEntryIndex]);
 				this.table.setSelection([selectedEntryIndex]);
 			}
-			this.updateAddModelsButton();
 		}));
 
 		this.tableDisposables.add(this.table.onDidOpen(async ({ element, browserEvent }) => {
@@ -1205,6 +1205,7 @@ export class ChatModelsWidget extends Disposable {
 				&& entitlement !== ChatEntitlement.Available
 				&& entitlement !== ChatEntitlement.Business
 				&& entitlement !== ChatEntitlement.Enterprise);
+
 		this.addButton.enabled = supportsAddingModels && configurableVendors.length > 0;
 
 		this.dropdownActions = configurableVendors.map(vendor => toAction({
