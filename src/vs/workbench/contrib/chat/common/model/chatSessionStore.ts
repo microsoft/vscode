@@ -383,9 +383,15 @@ export class ChatSessionStore extends Disposable {
 	}
 
 	private reportError(reasonForTelemetry: string, message: string, error?: Error): void {
-		this.logService.error(`ChatSessionStore: ` + message, toErrorMessage(error));
-
 		const fileOperationReason = error && toFileOperationResult(error);
+
+		if (fileOperationReason === FileOperationResult.FILE_NOT_FOUND) {
+			// Expected case (e.g. reading a non-existent session); keep noise low
+			this.logService.trace(`ChatSessionStore: ` + message, toErrorMessage(error));
+		} else {
+			// Unexpected or serious error; surface at error level
+			this.logService.error(`ChatSessionStore: ` + message, toErrorMessage(error));
+		}
 		type ChatSessionStoreErrorData = {
 			reason: string;
 			fileOperationReason: number;

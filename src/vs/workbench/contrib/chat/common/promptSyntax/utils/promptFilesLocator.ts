@@ -387,9 +387,16 @@ export class PromptFilesLocator {
 	}
 
 	/**
-	 * Uses the search service to find all files at the provided location
+	 * Uses the search service to find all files at the provided location.
+	 * Requires a FileSearchProvider to be available for the folder's scheme.
 	 */
 	private async searchFilesInLocation(folder: URI, filePattern: string | undefined, token: CancellationToken): Promise<URI[]> {
+		// Check if a FileSearchProvider is available for this scheme
+		if (!this.searchService.schemeHasFileSearchProvider(folder.scheme)) {
+			this.logService.warn(`[PromptFilesLocator] No FileSearchProvider available for scheme '${folder.scheme}'. Cannot search for pattern '${filePattern}' in ${folder.toString()}`);
+			return [];
+		}
+
 		const disregardIgnoreFiles = this.configService.getValue<boolean>('explorer.excludeGitIgnore');
 
 		const workspaceRoot = this.workspaceService.getWorkspaceFolder(folder);
@@ -445,29 +452,69 @@ export class PromptFilesLocator {
 	}
 
 	private async findAgentMDsInFolder(folder: URI, token: CancellationToken): Promise<URI[]> {
-		const disregardIgnoreFiles = this.configService.getValue<boolean>('explorer.excludeGitIgnore');
-		const getExcludePattern = (folder: URI) => getExcludes(this.configService.getValue<ISearchConfiguration>({ resource: folder })) || {};
-		const searchOptions: IFileQuery = {
-			folderQueries: [{ folder, disregardIgnoreFiles }],
-			type: QueryType.File,
-			shouldGlobMatchFilePattern: true,
-			excludePattern: getExcludePattern(folder),
-			filePattern: '**/AGENTS.md',
+		// Check if a FileSearchProvider is available for this scheme
+		if (this.searchService.schemeHasFileSearchProvider(folder.scheme)) {
+			// Use the search service if a FileSearchProvider is available
+			const disregardIgnoreFiles = this.configService.getValue<boolean>('explorer.excludeGitIgnore');
+			const getExcludePattern = (folder: URI) => getExcludes(this.configService.getValue<ISearchConfiguration>({ resource: folder })) || {};
+			const searchOptions: IFileQuery = {
+				folderQueries: [{ folder, disregardIgnoreFiles }],
+				type: QueryType.File,
+				shouldGlobMatchFilePattern: true,
+				excludePattern: getExcludePattern(folder),
+				filePattern: '**/AGENTS.md',
+				ignoreGlobCase: true,
+			};
+
+			try {
+				const searchResult = await this.searchService.fileSearch(searchOptions, token);
+				if (token.isCancellationRequested) {
+					return [];
+				}
+				return searchResult.results.map(r => r.resource);
+			} catch (e) {
+				if (!isCancellationError(e)) {
+					throw e;
+				}
+			}
+			return [];
+		} else {
+			// Fallback to recursive traversal using file service
+			return this.findAgentMDsUsingFileService(folder, token);
+		}
+	}
+
+	/**
+	 * Recursively traverses a folder using the file service to find AGENTS.md files.
+	 * This is used as a fallback when no FileSearchProvider is available for the scheme.
+	 */
+	private async findAgentMDsUsingFileService(folder: URI, token: CancellationToken): Promise<URI[]> {
+		const result: URI[] = [];
+		const agentsMdFileName = 'agents.md';
+
+		const traverse = async (uri: URI): Promise<void> => {
+			if (token.isCancellationRequested) {
+				return;
+			}
+
+			try {
+				const stat = await this.fileService.resolve(uri);
+				if (stat.isFile && stat.name.toLowerCase() === agentsMdFileName) {
+					result.push(stat.resource);
+				} else if (stat.isDirectory && stat.children) {
+					// Recursively traverse subdirectories
+					for (const child of stat.children) {
+						await traverse(child.resource);
+					}
+				}
+			} catch (error) {
+				// Ignore errors for individual files/folders (e.g., permission denied)
+				this.logService.trace(`[PromptFilesLocator] Error traversing ${uri.toString()}: ${error}`);
+			}
 		};
 
-		try {
-			const searchResult = await this.searchService.fileSearch(searchOptions, token);
-			if (token.isCancellationRequested) {
-				return [];
-			}
-			return searchResult.results.map(r => r.resource);
-		} catch (e) {
-			if (!isCancellationError(e)) {
-				throw e;
-			}
-		}
-		return [];
-
+		await traverse(folder);
+		return result;
 	}
 
 	/**

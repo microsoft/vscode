@@ -3,39 +3,67 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { IAgentSession, isLocalAgentSessionItem } from './agentSessionsModel.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { IChatEditorOptions } from '../widgetHosts/editor/chatEditor.js';
-import { ChatViewPaneTarget, IChatWidgetService } from '../chat.js';
+import { ChatViewPaneTarget, IChatWidget, IChatWidgetService } from '../chat.js';
 import { ACTIVE_GROUP, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
 import { IEditorOptions } from '../../../../../platform/editor/common/editor.js';
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { IAgentSessionProjectionService } from './agentSessionProjectionService.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { ChatConfiguration } from '../../common/constants.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 
-export async function openSession(accessor: ServicesAccessor, session: IAgentSession, openOptions?: { sideBySide?: boolean; editorOptions?: IEditorOptions; expanded?: boolean }): Promise<void> {
-	const configurationService = accessor.get(IConfigurationService);
-	const projectionService = accessor.get(IAgentSessionProjectionService);
+//#region Session Opener Registry
 
-	session.setRead(true); // mark as read when opened
+export interface ISessionOpenerParticipant {
+	handleOpenSession(accessor: ServicesAccessor, session: IAgentSession, openOptions?: ISessionOpenOptions): Promise<boolean>;
+}
 
-	const agentSessionProjectionEnabled = configurationService.getValue<boolean>(ChatConfiguration.AgentSessionProjectionEnabled) === true;
-	if (agentSessionProjectionEnabled) {
-		// Enter Agent Session Projection mode for the session
-		await projectionService.enterProjection(session);
-	} else {
-		// Fall back to opening in chat widget when Agent Session Projection is disabled
-		await openSessionInChatWidget(accessor, session, openOptions);
+export interface ISessionOpenOptions {
+	readonly sideBySide?: boolean;
+	readonly editorOptions?: IEditorOptions;
+}
+
+class SessionOpenerRegistry {
+
+	private readonly participants = new Set<ISessionOpenerParticipant>();
+
+	registerParticipant(participant: ISessionOpenerParticipant): IDisposable {
+		this.participants.add(participant);
+
+		return {
+			dispose: () => {
+				this.participants.delete(participant);
+			}
+		};
+	}
+
+	getParticipants(): readonly ISessionOpenerParticipant[] {
+		return Array.from(this.participants);
 	}
 }
 
-/**
- * Opens a session in the traditional chat widget (side panel or editor).
- * Use this when you explicitly want to open in the chat widget rather than agent session projection mode.
- */
-export async function openSessionInChatWidget(accessor: ServicesAccessor, session: IAgentSession, openOptions?: { sideBySide?: boolean; editorOptions?: IEditorOptions; expanded?: boolean }): Promise<void> {
+export const sessionOpenerRegistry = new SessionOpenerRegistry();
+
+//#endregion
+
+export async function openSession(accessor: ServicesAccessor, session: IAgentSession, openOptions?: ISessionOpenOptions): Promise<IChatWidget | undefined> {
+	const instantiationService = accessor.get(IInstantiationService);
+
+	// First, give registered participants a chance to handle the session
+	for (const participant of sessionOpenerRegistry.getParticipants()) {
+		const handled = await instantiationService.invokeFunction(accessor => participant.handleOpenSession(accessor, session, openOptions));
+		if (handled) {
+			return undefined; // Participant handled the session, skip default opening
+		}
+	}
+
+	// Default session opening logic
+	return instantiationService.invokeFunction(accessor => openSessionDefault(accessor, session, openOptions));
+}
+
+async function openSessionDefault(accessor: ServicesAccessor, session: IAgentSession, openOptions?: ISessionOpenOptions): Promise<IChatWidget | undefined> {
 	const chatSessionsService = accessor.get(IChatSessionsService);
 	const chatWidgetService = accessor.get(IChatWidgetService);
 
@@ -52,7 +80,6 @@ export async function openSessionInChatWidget(accessor: ServicesAccessor, sessio
 		...sessionOptions,
 		...openOptions?.editorOptions,
 		revealIfOpened: true, // always try to reveal if already opened
-		expanded: openOptions?.expanded
 	};
 
 	await chatSessionsService.activateChatSessionItemProvider(session.providerType); // ensure provider is activated before trying to open
@@ -70,5 +97,5 @@ export async function openSessionInChatWidget(accessor: ServicesAccessor, sessio
 		options = { ...options, revealIfOpened: true };
 	}
 
-	await chatWidgetService.openSession(session.resource, target, options);
+	return chatWidgetService.openSession(session.resource, target, options);
 }

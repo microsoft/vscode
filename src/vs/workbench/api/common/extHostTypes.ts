@@ -3360,6 +3360,7 @@ export class ChatToolInvocationPart {
 	isComplete?: boolean;
 	toolSpecificData?: ChatTerminalToolInvocationData2;
 	subAgentInvocationId?: string;
+	subAgentName?: string;
 	presentation?: 'hidden' | 'hiddenAfterComplete' | undefined;
 
 	constructor(toolName: string,

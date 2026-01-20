@@ -92,7 +92,7 @@ export function getToolSpecificDataDescription(toolSpecificData: ToolSpecificDat
 				return '';
 			}
 			const todoDescriptions = todos.map(t =>
-				localize('todoItem', "{0} ({1}): {2}", t.title, t.status, t.description)
+				localize('todoItem', "{0} ({1})", t.title, t.status)
 			);
 			return localize('todoListCount', "{0} items: {1}", todos.length, todoDescriptions.join('; '));
 		}

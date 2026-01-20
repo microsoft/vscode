@@ -33,19 +33,17 @@ import { openSession } from './agentSessionsOpener.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ChatEditorInput } from '../widgetHosts/editor/chatEditorInput.js';
 import { IMouseEvent } from '../../../../../base/browser/mouseEvent.js';
+import { IChatWidget } from '../chat.js';
 
 export interface IAgentSessionsControlOptions extends IAgentSessionsSorterOptions {
 	readonly overrideStyles: IStyleOverride<IListStyles>;
 	readonly filter: IAgentSessionsFilter;
-	readonly source: AgentSessionsControlSource;
+	readonly source: string;
 
 	getHoverPosition(): HoverPosition;
 	trackActiveEditorSession(): boolean;
-}
 
-export const enum AgentSessionsControlSource {
-	ChatViewPane = 'chatViewPane',
-	WelcomeView = 'welcomeView'
+	notifySessionOpened?(resource: URI, widget: IChatWidget): void;
 }
 
 type AgentSessionOpenedClassification = {
@@ -57,19 +55,23 @@ type AgentSessionOpenedClassification = {
 
 type AgentSessionOpenedEvent = {
 	providerType: string;
-	source: AgentSessionsControlSource;
+	source: string;
 };
 
 export class AgentSessionsControl extends Disposable implements IAgentSessionsControl {
 
 	private sessionsContainer: HTMLElement | undefined;
+	get element(): HTMLElement | undefined { return this.sessionsContainer; }
+
 	private sessionsList: WorkbenchCompressibleAsyncDataTree<IAgentSessionsModel, AgentSessionListItem, FuzzyScore> | undefined;
+	private sessionsListFindIsOpen = false;
 
 	private visible: boolean = true;
 
 	private focusedAgentSessionArchivedContextKey: IContextKey<boolean>;
 	private focusedAgentSessionReadContextKey: IContextKey<boolean>;
 	private focusedAgentSessionTypeContextKey: IContextKey<string>;
+	private hasMultipleAgentSessionsSelectedContextKey: IContextKey<boolean>;
 
 	constructor(
 		private readonly container: HTMLElement,
@@ -89,6 +91,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		this.focusedAgentSessionArchivedContextKey = ChatContextKeys.isArchivedAgentSession.bindTo(this.contextKeyService);
 		this.focusedAgentSessionReadContextKey = ChatContextKeys.isReadAgentSession.bindTo(this.contextKeyService);
 		this.focusedAgentSessionTypeContextKey = ChatContextKeys.agentSessionType.bindTo(this.contextKeyService);
+		this.hasMultipleAgentSessionsSelectedContextKey = ChatContextKeys.hasMultipleAgentSessionsSelected.bindTo(this.contextKeyService);
 
 		this.createList(this.container);
 
@@ -134,7 +137,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 			new AgentSessionsListDelegate(),
 			new AgentSessionsCompressionDelegate(),
 			[
-				this.instantiationService.createInstance(AgentSessionRenderer, this.options),
+				this._register(this.instantiationService.createInstance(AgentSessionRenderer, this.options)),
 				this.instantiationService.createInstance(AgentSessionSectionRenderer),
 			],
 			new AgentSessionsDataSource(this.options.filter, sorter),
@@ -143,7 +146,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 				dnd: this.instantiationService.createInstance(AgentSessionsDragAndDrop),
 				identityProvider: new AgentSessionsIdentityProvider(),
 				horizontalScrolling: false,
-				multipleSelectionSupport: false,
+				multipleSelectionSupport: true,
 				findWidgetEnabled: true,
 				defaultFindMode: TreeFindMode.Filter,
 				keyboardNavigationLabelProvider: new AgentSessionsKeyboardNavigationLabelProvider(),
@@ -183,7 +186,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 			}
 		}));
 
-		this._register(Event.any(list.onDidChangeFocus, model.onDidChangeSessions)(() => {
+		this._register(Event.any(list.onDidChangeFocus, list.onDidChangeSelection, model.onDidChangeSessions)(() => {
 			const focused = list.getFocus().at(0);
 			if (focused && isAgentSession(focused)) {
 				this.focusedAgentSessionArchivedContextKey.set(focused.isArchived());
@@ -194,6 +197,15 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 				this.focusedAgentSessionReadContextKey.reset();
 				this.focusedAgentSessionTypeContextKey.reset();
 			}
+
+			const selection = list.getSelection().filter(isAgentSession);
+			this.hasMultipleAgentSessionsSelectedContextKey.set(selection.length > 1);
+		}));
+
+		this._register(list.onDidChangeFindOpenState(open => {
+			this.sessionsListFindIsOpen = open;
+
+			this.updateArchivedSectionCollapseState();
 		}));
 	}
 
@@ -208,7 +220,10 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 			source: this.options.source
 		});
 
-		await this.instantiationService.invokeFunction(openSession, element, { ...e, expanded: this.options.source === AgentSessionsControlSource.WelcomeView });
+		const widget = await this.instantiationService.invokeFunction(openSession, element, e);
+		if (widget) {
+			this.options.notifySessionOpened?.(element.resource, widget);
+		}
 	}
 
 	private async showContextMenu({ element, anchor, browserEvent }: ITreeContextMenuEvent<AgentSessionListItem>): Promise<void> {
@@ -250,11 +265,17 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 
 		const menu = this.menuService.createMenu(MenuId.AgentSessionsContext, this.contextKeyService.createOverlay(contextOverlay));
 
-		const marshalledSession: IMarshalledAgentSessionContext = { session, $mid: MarshalledId.AgentSessionContext };
+		const selection = this.sessionsList?.getSelection().filter(isAgentSession) ?? [];
+		const marshalledContext: IMarshalledAgentSessionContext = {
+			session,
+			sessions: selection.length > 1 && selection.includes(session) ? selection : [session],
+			$mid: MarshalledId.AgentSessionContext
+		};
+
 		this.contextMenuService.showContextMenu({
-			getActions: () => Separator.join(...menu.getActions({ arg: marshalledSession, shouldForwardArgs: true }).map(([, actions]) => actions)),
+			getActions: () => Separator.join(...menu.getActions({ arg: marshalledContext, shouldForwardArgs: true }).map(([, actions]) => actions)),
 			getAnchor: () => anchor,
-			getActionsContext: () => marshalledSession,
+			getActionsContext: () => marshalledContext,
 		});
 
 		menu.dispose();
@@ -275,7 +296,10 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 				continue;
 			}
 
-			const shouldCollapseArchived = this.options.filter.getExcludes().archived;
+			const shouldCollapseArchived =
+				!this.sessionsListFindIsOpen &&				// always expand when find is open
+				this.options.filter.getExcludes().archived;	// only collapse when archived are excluded from filter
+
 			if (shouldCollapseArchived && !child.collapsed) {
 				this.sessionsList.collapse(child.element);
 			} else if (!shouldCollapseArchived && child.collapsed) {
@@ -346,11 +370,5 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 
 		this.sessionsList.setFocus([session]);
 		this.sessionsList.setSelection([session]);
-	}
-
-	setGridMarginOffset(offset: number): void {
-		if (this.sessionsContainer) {
-			this.sessionsContainer.style.marginBottom = `-${offset}px`;
-		}
 	}
 }
