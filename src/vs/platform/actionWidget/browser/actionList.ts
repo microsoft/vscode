@@ -22,7 +22,7 @@ import { ILayoutService } from '../../layout/browser/layoutService.js';
 import { IHoverService } from '../../hover/browser/hover.js';
 import { MarkdownString } from '../../../base/common/htmlContent.js';
 import { HoverPosition } from '../../../base/browser/ui/hover/hoverWidget.js';
-import { IHoverAction, IHoverWidget } from '../../../base/browser/ui/hover/hover.js';
+import { IHoverWidget } from '../../../base/browser/ui/hover/hover.js';
 
 export const acceptSelectedActionCommand = 'acceptSelectedCodeAction';
 export const previewSelectedActionCommand = 'previewSelectedCodeAction';
@@ -42,10 +42,6 @@ export interface IActionListItemHover {
 	 * Content to display in the hover.
 	 */
 	readonly content?: string;
-	/**
-	 * Actions to show in the hover.
-	 */
-	readonly actions?: IHoverAction[];
 }
 
 export interface IActionListItem<T> {
@@ -201,7 +197,7 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 			data.container.title = element.tooltip;
 		} else if (element.disabled) {
 			data.container.title = element.label;
-		} else if (element.hover?.content || element.hover?.actions) {
+		} else if (element.hover?.content) {
 			// Don't show tooltip when hover content is configured - the rich hover will show instead
 			data.container.title = '';
 		} else if (actionTitle && previewTitle) {
@@ -460,8 +456,8 @@ export class ActionList<T> extends Disposable {
 			this.hideHover();
 		}
 
-		// Show hover if the element has hover content or actions
-		if ((element.hover?.content || element.hover?.actions) && this.focusCondition(element)) {
+		// Show hover if the element has hover content
+		if (element.hover?.content && this.focusCondition(element)) {
 			// The List widget separates data models from DOM elements, so we need to
 			// look up the actual DOM node to use as the hover target.
 			const rowElement = this._getRowElement(index);
@@ -470,7 +466,6 @@ export class ActionList<T> extends Disposable {
 				const hover = this._hoverService.showInstantHover({
 					content: markdown ?? '',
 					target: rowElement,
-					actions: element.hover.actions,
 					additionalClasses: ['action-widget-hover'],
 					position: {
 						hoverPosition: HoverPosition.LEFT,
