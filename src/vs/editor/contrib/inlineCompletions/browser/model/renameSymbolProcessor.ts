@@ -10,7 +10,7 @@ import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../nls.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ServicesAccessor } from '../../../../browser/editorExtensions.js';
-import { IBulkEditService } from '../../../../browser/services/bulkEditService.js';
+import { IBulkEditService, ResourceTextEdit } from '../../../../browser/services/bulkEditService.js';
 import { TextReplacement } from '../../../../common/core/edits/textEdit.js';
 import { Position } from '../../../../common/core/position.js';
 import { Range, type IRange } from '../../../../common/core/range.js';
@@ -27,6 +27,7 @@ import { IInlineSuggestDataActionEdit, InlineCompletionContextWithoutUuid } from
 import { InlineSuggestAlternativeAction } from './InlineSuggestAlternativeAction.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { IRenameSymbolTrackerService } from '../../../../browser/services/renameSymbolTrackerService.js';
+import type { URI } from '../../../../../base/common/uri.js';
 
 enum RenameKind {
 	no = 'no',
@@ -64,6 +65,16 @@ export namespace PrepareNesRenameResult {
 }
 
 export type PrepareNesRenameResult = PrepareNesRenameResult.Yes | PrepareNesRenameResult.Maybe | PrepareNesRenameResult.No;
+
+export type TextChange = {
+	range: { start: { line: number; character: number }; end: { line: number; character: number } };
+	newText?: string;
+};
+
+export type RenameGroup = {
+	file: URI;
+	changes: TextChange[];
+};
 
 export type RenameEdits = {
 	renames: { edits: TextReplacement[]; position: Position; oldName: string; newName: string };
@@ -292,19 +303,21 @@ export class RenameInferenceEngine {
 
 class RenameSymbolRunnable {
 
+	private readonly _commandService: ICommandService;
 	private readonly _requestUuid: string;
 	private readonly _cancellationTokenSource: CancellationTokenSource;
 	private readonly _promise: Promise<WorkspaceEdit & Rejection>;
 	private _result: WorkspaceEdit & Rejection | undefined = undefined;
 
-	constructor(languageFeaturesService: ILanguageFeaturesService, requestUuid: string, textModel: ITextModel, position: Position, newName: string, lastSymbolRename: IRange | undefined, oldName: string | undefined) {
+	constructor(languageFeaturesService: ILanguageFeaturesService, commandService: ICommandService, requestUuid: string, textModel: ITextModel, position: Position, newName: string, lastSymbolRename: IRange | undefined, oldName: string | undefined) {
+		this._commandService = commandService;
 		this._requestUuid = requestUuid;
 		this._cancellationTokenSource = new CancellationTokenSource();
 		if (lastSymbolRename === undefined || oldName === undefined) {
 			this._promise = rawRename(languageFeaturesService.renameProvider, textModel, position, newName, this._cancellationTokenSource.token);
 			return;
 		} else {
-			this._promise = this.sendNesRenameRequest();
+			this._promise = this.sendNesRenameRequest(textModel, position, oldName, newName, lastSymbolRename);
 		}
 	}
 
@@ -345,8 +358,24 @@ class RenameSymbolRunnable {
 		return this._result;
 	}
 
-	private sendNesRenameRequest(): Promise<WorkspaceEdit & Rejection> {
-
+	private async sendNesRenameRequest(textModel: ITextModel, position: Position, oldName: string, newName: string, lastSymbolRename: IRange | undefined): Promise<WorkspaceEdit & Rejection> {
+		try {
+			const result = await this._commandService.executeCommand<RenameGroup[]>('github.copilot.nes.postRename', textModel.uri, position, oldName, newName, lastSymbolRename);
+			if (result === undefined) {
+				return { rejectReason: 'Rename failed', edits: [] };
+			}
+			const edits: ResourceTextEdit[] = [];
+			for (const item of result) {
+				for (const change of item.changes) {
+					const range = new Range(change.range.start.line + 1, change.range.start.character + 1, change.range.end.line + 1, change.range.end.character + 1);
+					const edit = new ResourceTextEdit(item.file, new TextReplacement(range, change.newText ?? newName));
+					edits.push(edit);
+				}
+			}
+			return { edits };
+		} catch (error) {
+			return { rejectReason: 'Rename failed', edits: [] };
+		}
 	}
 }
 
@@ -429,7 +458,7 @@ export class RenameSymbolProcessor extends Disposable {
 
 		// Prepare the rename edits
 		if (this._renameRunnable === undefined) {
-			this._renameRunnable = new RenameSymbolRunnable(this._languageFeaturesService, textModel, position, newName, suggestItem.requestUuid);
+			this._renameRunnable = new RenameSymbolRunnable(this._languageFeaturesService, this._commandService, suggestItem.requestUuid, textModel, position, newName, lastSymbolRename, lastSymbolRename !== undefined ? oldName : undefined);
 		}
 
 		// Create alternative action
