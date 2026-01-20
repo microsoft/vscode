@@ -201,6 +201,9 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 			data.container.title = element.tooltip;
 		} else if (element.disabled) {
 			data.container.title = element.label;
+		} else if (element.hover?.content || element.hover?.actions) {
+			// Don't show tooltip when hover content is configured - the rich hover will show instead
+			data.container.title = '';
 		} else if (actionTitle && previewTitle) {
 			if (this._supportsPreview && element.canPreview) {
 				data.container.title = localize({ key: 'label-preview', comment: ['placeholders are keybindings, e.g "F2 to Apply, Shift+F2 to Preview"'] }, "{0} to Apply, {1} to Preview", actionTitle, previewTitle);
