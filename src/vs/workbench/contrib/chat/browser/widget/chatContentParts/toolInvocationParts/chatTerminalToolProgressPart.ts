@@ -354,7 +354,6 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		};
 
 		this.markdownPart = this._register(_instantiationService.createInstance(ChatMarkdownContentPart, chatMarkdownContent, context, editorPool, false, codeBlockStartIndex, renderer, {}, currentWidthDelegate(), codeBlockModelCollection, markdownOptions));
-		this._register(this.markdownPart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 
 		elements.message.append(this.markdownPart.domNode);
 		const progressPart = this._register(_instantiationService.createInstance(ChatProgressSubPart, elements.container, this.getIcon(), terminalData.autoApproveInfo));
@@ -396,8 +395,6 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			initialExpanded
 		));
 		this._thinkingCollapsibleWrapper = wrapper;
-
-		this._register(wrapper.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 
 		return wrapper.domNode;
 	}

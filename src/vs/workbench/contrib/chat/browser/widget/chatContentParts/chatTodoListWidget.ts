@@ -8,16 +8,15 @@ import { Button } from '../../../../../../base/browser/ui/button/button.js';
 import { IconLabel } from '../../../../../../base/browser/ui/iconLabel/iconLabel.js';
 import { IListRenderer, IListVirtualDelegate } from '../../../../../../base/browser/ui/list/list.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
-import { Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { isEqual } from '../../../../../../base/common/resources.js';
+import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { WorkbenchList } from '../../../../../../platform/list/browser/listService.js';
-import { IChatTodoListService, IChatTodo } from '../../../common/tools/chatTodoListService.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
-import { URI } from '../../../../../../base/common/uri.js';
-import { isEqual } from '../../../../../../base/common/resources.js';
+import { IChatTodo, IChatTodoListService } from '../../../common/tools/chatTodoListService.js';
 
 class TodoListDelegate implements IListVirtualDelegate<IChatTodo> {
 	getHeight(element: IChatTodo): number {
