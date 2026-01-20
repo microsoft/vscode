@@ -104,6 +104,9 @@ const _allApiProposals = {
 	contribAccessibilityHelpContent: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.contribAccessibilityHelpContent.d.ts',
 	},
+	contribChatEditorInlineGutterMenu: {
+		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.contribChatEditorInlineGutterMenu.d.ts',
+	},
 	contribCommentEditorActionsMenu: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.contribCommentEditorActionsMenu.d.ts',
 	},

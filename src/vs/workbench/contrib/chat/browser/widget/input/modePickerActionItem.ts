@@ -108,7 +108,10 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 				const modes = chatModeService.getModes();
 				const currentMode = delegate.currentMode.get();
 				const agentMode = modes.builtin.find(mode => mode.id === ChatMode.Agent.id);
-				const otherBuiltinModes = modes.builtin.filter(mode => mode.id !== ChatMode.Agent.id);
+
+				const shouldHideEditMode = configurationService.getValue<boolean>(ChatConfiguration.EditModeHidden) && chatAgentService.hasToolsAgent && currentMode.id !== ChatMode.Edit.id;
+
+				const otherBuiltinModes = modes.builtin.filter(mode => mode.id !== ChatMode.Agent.id && !(shouldHideEditMode && mode.id === ChatMode.Edit.id));
 				const customModes = groupBy(
 					modes.custom,
 					mode => isModeConsideredBuiltIn(mode, this._productService) ? 'builtin' : 'custom');
@@ -118,11 +121,16 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 					action.category = agentModeDisabledViaPolicy ? policyDisabledCategory : builtInCategory;
 					return action;
 				}) ?? [];
+				customBuiltinModeActions.sort((a, b) => a.label.localeCompare(b.label));
+
+				const customModeActions = customModes.custom?.map(mode => makeActionFromCustomMode(mode, currentMode)) ?? [];
+				customModeActions.sort((a, b) => a.label.localeCompare(b.label));
 
 				const orderedModes = coalesce([
 					agentMode && makeAction(agentMode, currentMode),
 					...otherBuiltinModes.map(mode => mode && makeAction(mode, currentMode)),
-					...customBuiltinModeActions, ...customModes.custom?.map(mode => makeActionFromCustomMode(mode, currentMode)) ?? []
+					...customBuiltinModeActions,
+					...customModeActions
 				]);
 				return orderedModes;
 			}

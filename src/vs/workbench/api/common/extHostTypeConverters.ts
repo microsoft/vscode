@@ -2883,6 +2883,7 @@ export namespace ChatToolInvocationPart {
 			toolInvocation.toolSpecificData = convertFromInternalToolSpecificData(part.toolSpecificData);
 		}
 		toolInvocation.subAgentInvocationId = part.subAgentInvocationId;
+		toolInvocation.subAgentName = part.subAgentName;
 
 		return toolInvocation;
 	}
@@ -3162,6 +3163,7 @@ export namespace ChatAgentRequest {
 			modeInstructions: request.modeInstructions?.content,
 			modeInstructions2: ChatRequestModeInstructions.to(request.modeInstructions),
 			subAgentInvocationId: request.subAgentInvocationId,
+			subAgentName: request.subAgentName,
 		};
 
 		if (!isProposedApiEnabled(extension, 'chatParticipantPrivate')) {
@@ -3183,6 +3185,8 @@ export namespace ChatAgentRequest {
 			delete (requestWithAllProps as any).sessionId;
 			// eslint-disable-next-line local/code-no-any-casts
 			delete (requestWithAllProps as any).subAgentInvocationId;
+			// eslint-disable-next-line local/code-no-any-casts
+			delete (requestWithAllProps as any).subAgentName;
 		}
 
 		if (!isProposedApiEnabled(extension, 'chatParticipantAdditions')) {
