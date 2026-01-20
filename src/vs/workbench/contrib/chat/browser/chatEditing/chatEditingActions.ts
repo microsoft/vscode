@@ -328,7 +328,8 @@ export class ViewAllSessionChangesAction extends Action2 {
 				{
 					id: MenuId.AgentSessionItemToolbar,
 					group: 'navigation',
-					order: 0
+					order: 0,
+					when: ChatContextKeys.hasAgentSessionChanges
 				}
 			],
 		});
