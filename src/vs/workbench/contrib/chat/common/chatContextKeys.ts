@@ -56,17 +56,17 @@ export namespace ChatContextKeys {
 	export const languageModelsAreUserSelectable = new RawContextKey<boolean>('chatModelsAreUserSelectable', false, { type: 'boolean', description: localize('chatModelsAreUserSelectable', "True when the chat model can be selected manually by the user.") });
 	export const chatSessionHasModels = new RawContextKey<boolean>('chatSessionHasModels', false, { type: 'boolean', description: localize('chatSessionHasModels', "True when the chat is in a contributed chat session that has available 'models' to display.") });
 	export const extensionInvalid = new RawContextKey<boolean>('chatExtensionInvalid', false, { type: 'boolean', description: localize('chatExtensionInvalid', "True when the installed chat extension is invalid and needs to be updated.") });
-	export const inputCursorAtTop = new RawContextKey<boolean>('chatCursorAtTop', false);
-	export const inputHasAgent = new RawContextKey<boolean>('chatInputHasAgent', false);
-	export const location = new RawContextKey<ChatAgentLocation>('chatLocation', undefined);
+	export const inputCursorAtTop = new RawContextKey<boolean>('chatCursorAtTop', false, { type: 'boolean', description: localize('chatCursorAtTop', "True when the chat input cursor is at the top.") });
+	export const inputHasAgent = new RawContextKey<boolean>('chatInputHasAgent', false, { type: 'boolean', description: localize('chatInputHasAgent', "True when the chat input has an agent specified.") });
+	export const location = new RawContextKey<ChatAgentLocation>('chatLocation', undefined, { type: 'object', description: localize('chatLocation', "The location of the chat (panel, editor, etc.).") });
 	export const inQuickChat = new RawContextKey<boolean>('quickChatHasFocus', false, { type: 'boolean', description: localize('inQuickChat', "True when the quick chat UI has focus, false otherwise.") });
 	export const hasFileAttachments = new RawContextKey<boolean>('chatHasFileAttachments', false, { type: 'boolean', description: localize('chatHasFileAttachments', "True when the chat has file attachments.") });
 	export const chatSessionIsEmpty = new RawContextKey<boolean>('chatSessionIsEmpty', true, { type: 'boolean', description: localize('chatSessionIsEmpty', "True when the current chat session has no requests.") });
 
 	export const remoteJobCreating = new RawContextKey<boolean>('chatRemoteJobCreating', false, { type: 'boolean', description: localize('chatRemoteJobCreating', "True when a remote coding agent job is being created.") });
-	export const hasRemoteCodingAgent = new RawContextKey<boolean>('hasRemoteCodingAgent', false, localize('hasRemoteCodingAgent', "Whether any remote coding agent is available"));
+	export const hasRemoteCodingAgent = new RawContextKey<boolean>('hasRemoteCodingAgent', false, { type: 'boolean', description: localize('hasRemoteCodingAgent', "Whether any remote coding agent is available") });
 	export const hasCanDelegateProviders = new RawContextKey<boolean>('chatHasCanDelegateProviders', false, { type: 'boolean', description: localize('chatHasCanDelegateProviders', "True when there are chat session providers with delegation support available.") });
-	export const enableRemoteCodingAgentPromptFileOverlay = new RawContextKey<boolean>('enableRemoteCodingAgentPromptFileOverlay', false, localize('enableRemoteCodingAgentPromptFileOverlay', "Whether the remote coding agent prompt file overlay feature is enabled"));
+	export const enableRemoteCodingAgentPromptFileOverlay = new RawContextKey<boolean>('enableRemoteCodingAgentPromptFileOverlay', false, { type: 'boolean', description: localize('enableRemoteCodingAgentPromptFileOverlay', "Whether the remote coding agent prompt file overlay feature is enabled") });
 	/** Used by the extension to skip the quit confirmation when #new wants to open a new folder */
 	export const skipChatRequestInProgressMessage = new RawContextKey<boolean>('chatSkipRequestInProgressMessage', false, { type: 'boolean', description: localize('chatSkipRequestInProgressMessage', "True when the chat request in progress message should be skipped.") });
 
@@ -82,7 +82,7 @@ export namespace ChatContextKeys {
 	};
 
 	export const Tools = {
-		toolsCount: new RawContextKey<number>('toolsCount', 0, { type: 'number', description: localize('toolsCount', "The count of tools available in the chat.") })
+		toolsCount: new RawContextKey<number>('chatToolsCount', 0, { type: 'number', description: localize('toolsCount', "The count of tools available in the chat.") })
 	};
 
 	export const Modes = {
@@ -93,11 +93,11 @@ export namespace ChatContextKeys {
 	export const panelLocation = new RawContextKey<ViewContainerLocation>('chatPanelLocation', undefined, { type: 'number', description: localize('chatPanelLocation', "The location of the chat panel.") });
 
 	export const agentSessionsViewerFocused = new RawContextKey<boolean>('agentSessionsViewerFocused', true, { type: 'boolean', description: localize('agentSessionsViewerFocused', "If the agent sessions view in the chat view is focused.") });
-	export const agentSessionsViewerLimited = new RawContextKey<boolean>('agentSessionsViewerLimited', undefined, { type: 'boolean', description: localize('agentSessionsViewerLimited', "If the agent sessions view in the chat view is limited to show recent sessions only.") });
+	export const agentSessionsViewerLimited = new RawContextKey<boolean>('agentSessionsViewerLimited', false, { type: 'boolean', description: localize('agentSessionsViewerLimited', "If the agent sessions view in the chat view is limited to show recent sessions only.") });
 	export const agentSessionsViewerOrientation = new RawContextKey<number>('agentSessionsViewerOrientation', undefined, { type: 'number', description: localize('agentSessionsViewerOrientation', "Orientation of the agent sessions view in the chat view.") });
 	export const agentSessionsViewerPosition = new RawContextKey<number>('agentSessionsViewerPosition', undefined, { type: 'number', description: localize('agentSessionsViewerPosition', "Position of the agent sessions view in the chat view.") });
-	export const agentSessionsViewerVisible = new RawContextKey<boolean>('agentSessionsViewerVisible', undefined, { type: 'boolean', description: localize('agentSessionsViewerVisible', "Visibility of the agent sessions view in the chat view.") });
-	export const agentSessionType = new RawContextKey<string>('chatSessionType', '', { type: 'string', description: localize('agentSessionType', "The type of the current agent session item.") });
+	export const agentSessionsViewerVisible = new RawContextKey<boolean>('agentSessionsViewerVisible', false, { type: 'boolean', description: localize('agentSessionsViewerVisible', "Visibility of the agent sessions view in the chat view.") });
+	export const agentSessionType = new RawContextKey<string>('agentSessionType', '', { type: 'string', description: localize('agentSessionType', "The type of the current agent session item.") });
 	export const agentSessionSection = new RawContextKey<string>('agentSessionSection', '', { type: 'string', description: localize('agentSessionSection', "The section of the current agent session section item.") });
 	export const isArchivedAgentSession = new RawContextKey<boolean>('agentSessionIsArchived', false, { type: 'boolean', description: localize('agentSessionIsArchived', "True when the agent session item is archived.") });
 	export const isReadAgentSession = new RawContextKey<boolean>('agentSessionIsRead', false, { type: 'boolean', description: localize('agentSessionIsRead', "True when the agent session item is read.") });

@@ -253,6 +253,10 @@ export class UserToolSetsContributions extends Disposable implements IWorkbenchC
 				let data: RawToolSetsShape | undefined;
 				try {
 					const content = await this._fileService.readFile(entry.resource, undefined, cts.token);
+					if (!content || !content.value) {
+						this._logService.warn(`Empty or invalid content in tool set file ${entry.resource.toString()}`);
+						continue;
+					}
 					const rawObj = parse(content.value.toString());
 					data = RawToolSetsShape.from(rawObj, this._logService);
 
