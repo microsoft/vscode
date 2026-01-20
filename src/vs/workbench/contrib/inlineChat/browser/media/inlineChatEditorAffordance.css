@@ -1,0 +1,28 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.inline-chat-content-widget {
+	box-shadow: 0 0 8px 2px var(--vscode-widget-shadow);
+	border: 1px solid var(--vscode-widget-border, transparent);
+	border-radius: 4px;
+	color: var(--vscode-button-foreground);
+	background-color: var(--vscode-button-background);
+	display: flex;
+	height: 16px;
+	width: 16px;
+	align-items: center;
+	justify-content: center;
+	cursor: pointer;
+	padding: 2px;
+}
+
+.inline-chat-content-widget:hover {
+	background-color: var(--vscode-button-hoverBackground);
+}
+
+.inline-chat-content-widget .icon.codicon {
+	margin: 0;
+	color: var(--vscode-button-foreground);
+}
