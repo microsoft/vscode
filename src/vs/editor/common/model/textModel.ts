@@ -1842,7 +1842,9 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	}
 
 	public getCustomLineHeightsDecorations(ownerId: number = 0): model.IModelDecoration[] {
-		return this._decorationsTree.getAllCustomLineHeights(this, ownerId);
+		const decs = this._decorationsTree.getAllCustomLineHeights(this, ownerId);
+		pushMany(decs, this._fontTokenDecorationsProvider.getAllDecorations(ownerId));
+		return decs;
 	}
 
 	private _getInjectedTextInLine(lineNumber: number): LineInjectedText[] {

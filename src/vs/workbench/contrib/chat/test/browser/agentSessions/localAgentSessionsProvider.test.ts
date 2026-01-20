@@ -295,12 +295,12 @@ suite('LocalAgentsSessionsProvider', () => {
 		assert.strictEqual(provider.chatSessionType, localChatSessionType);
 	});
 
-	test('should register itself with chat sessions service', () => {
+	test('should register itself with chat sessions service', async () => {
 		const provider = createProvider();
 
-		const providers = mockChatSessionsService.getAllChatSessionItemProviders();
-		assert.strictEqual(providers.length, 1);
-		assert.strictEqual(providers[0], provider);
+		const providerResults = await mockChatSessionsService.getChatSessionItems(undefined, CancellationToken.None);
+		assert.strictEqual(providerResults.length, 1);
+		assert.strictEqual(providerResults[0].chatSessionType, provider.chatSessionType);
 	});
 
 	test('should provide empty sessions when no live or history sessions', async () => {

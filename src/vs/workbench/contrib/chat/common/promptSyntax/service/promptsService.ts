@@ -41,6 +41,13 @@ export interface IPromptFileResource {
 	 * Indicates whether the custom agent resource is editable. Defaults to false.
 	 */
 	readonly isEditable?: boolean;
+
+	/**
+	 * The inline content for virtual prompt files. This property is only used
+	 * during IPC transfer from extension host to main thread - the content is
+	 * immediately registered with the ChatPromptContentStore and not passed further.
+	 */
+	readonly content?: string;
 }
 
 /**
@@ -170,6 +177,12 @@ export interface ICustomAgent {
 	 * Hand-offs defined in the custom agent file.
 	 */
 	readonly handOffs?: readonly IHandOff[];
+
+	/**
+	 * List of subagent names that can be used by the agent.
+	 * If empty, no subagents are available. If ['*'] or undefined, all agents can be used.
+	 */
+	readonly agents?: readonly string[];
 
 	/**
 	 * Where the agent was loaded from.
