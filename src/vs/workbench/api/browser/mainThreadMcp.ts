@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { mapFindFirst } from '../../../base/common/arraysFind.js';
-import { disposableTimeout } from '../../../base/common/async.js';
+import { disposableTimeout, RunOnceScheduler } from '../../../base/common/async.js';
 import { CancellationError } from '../../../base/common/errors.js';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
@@ -100,6 +100,7 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 		}));
 
 		// Subscribe to MCP server definition changes and notify ext host
+		const onDidChangeMcpServerDefinitionsTrigger = this._register(new RunOnceScheduler(() => this._proxy.$onDidChangeMcpServerDefinitions(), 500));
 		this._register(autorun(reader => {
 			const collections = this._mcpRegistry.collections.read(reader);
 			// Read all server definitions to track changes
@@ -107,7 +108,9 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 				collection.serverDefinitions.read(reader);
 			}
 			// Notify ext host that definitions changed (it will re-fetch if needed)
-			this._proxy.$onDidChangeMcpServerDefinitions();
+			if (!onDidChangeMcpServerDefinitionsTrigger.isScheduled()) {
+				onDidChangeMcpServerDefinitionsTrigger.schedule();
+			}
 		}));
 	}
 

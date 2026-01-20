@@ -104,6 +104,9 @@ export class ExtHostMcpService extends Disposable implements IExtHostMpcService 
 
 	/** Called by main thread to notify that MCP server definitions have changed. */
 	$onDidChangeMcpServerDefinitions(): void {
+		if (!this._mcpServerDefinitionsInitialized) {
+			return;
+		}
 		// Re-fetch from main thread
 		this._proxy.$getMcpServerDefinitions().then(dtos => {
 			this._mcpServerDefinitions = dtos.map(dto => Convert.McpServerDefinition.to(dto));

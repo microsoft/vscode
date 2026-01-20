@@ -1630,9 +1630,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			registerMcpServerDefinitionProvider(id, provider) {
 				return extHostMcp.registerMcpConfigurationProvider(extension, id, provider);
 			},
-			onDidChangeMcpServerDefinitions: (listener: (e: void) => unknown, thisArgs?: unknown, disposables?: vscode.Disposable[]) => {
+			onDidChangeMcpServerDefinitions: (...args) => {
 				checkProposedApiEnabled(extension, 'mcpServerDefinitions');
-				return extHostMcp.onDidChangeMcpServerDefinitions(listener, thisArgs, disposables);
+				return _asExtensionEvent(extHostMcp.onDidChangeMcpServerDefinitions)(...args);
 			},
 			get mcpServerDefinitions() {
 				checkProposedApiEnabled(extension, 'mcpServerDefinitions');
