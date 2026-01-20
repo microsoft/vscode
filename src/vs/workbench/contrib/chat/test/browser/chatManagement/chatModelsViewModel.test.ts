@@ -59,7 +59,7 @@ class MockLanguageModelsService implements ILanguageModelsService {
 		throw new Error('Method not implemented.');
 	}
 
-	deltaLanguageModelChatProviderDescriptors(added: Array<Pick<IUserFriendlyLanguageModel, 'vendor' | 'displayName'> & Partial<Omit<IUserFriendlyLanguageModel, 'vendor' | 'displayName'>>>, removed: Array<Pick<IUserFriendlyLanguageModel, 'vendor' | 'displayName'> & Partial<Omit<IUserFriendlyLanguageModel, 'vendor' | 'displayName'>>>): void {
+	deltaLanguageModelChatProviderDescriptors(added: IUserFriendlyLanguageModel[], removed: IUserFriendlyLanguageModel[]): void {
 		throw new Error('Method not implemented.');
 	}
 
