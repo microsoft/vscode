@@ -887,7 +887,6 @@ suite('LanguageModels - Vendor Change Events', function () {
 			new NullLogService(),
 			new TestStorageService(),
 			new MockContextKeyService(),
-			new TestConfigurationService(),
 			new class extends mock<ILanguageModelsConfigurationService>() {
 				override onDidChangeLanguageModelGroups = Event.None;
 				override getLanguageModelsProviderGroups() {
