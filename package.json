@@ -240,5 +240,9 @@
   },
   "optionalDependencies": {
     "windows-foreground-love": "0.5.0"
+  },
+  "engines": {
+    "node": ">=22.17.0",
+    "npm": ">=10.8.0"
   }
 }
