@@ -22,6 +22,7 @@ import { MenuId } from '../../../../../../platform/actions/common/actions.js';
 import { ILifecycleService } from '../../../../../services/lifecycle/common/lifecycle.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
+import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { AgentSessionProviders, getAgentSessionProviderIcon, getAgentSessionProviderName } from '../../../browser/agentSessions/agentSessions.js';
 
 suite('Agent Sessions', () => {
@@ -46,6 +47,7 @@ suite('Agent Sessions', () => {
 			instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
 			instantiationService.stub(IChatSessionsService, mockChatSessionsService);
 			instantiationService.stub(ILifecycleService, mockLifecycleService);
+			instantiationService.stub(ILogService, new NullLogService());
 		});
 
 		teardown(() => {
@@ -1238,6 +1240,7 @@ suite('Agent Sessions', () => {
 			instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
 			instantiationService.stub(IChatSessionsService, mockChatSessionsService);
 			instantiationService.stub(ILifecycleService, disposables.add(new TestLifecycleService()));
+			instantiationService.stub(ILogService, new NullLogService());
 		});
 
 		teardown(() => {
@@ -1400,6 +1403,7 @@ suite('Agent Sessions', () => {
 			instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
 			instantiationService.stub(IChatSessionsService, mockChatSessionsService);
 			instantiationService.stub(ILifecycleService, disposables.add(new TestLifecycleService()));
+			instantiationService.stub(ILogService, new NullLogService());
 		});
 
 		teardown(() => {
@@ -1830,6 +1834,7 @@ suite('Agent Sessions', () => {
 			instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
 			instantiationService.stub(IChatSessionsService, mockChatSessionsService);
 			instantiationService.stub(ILifecycleService, disposables.add(new TestLifecycleService()));
+			instantiationService.stub(ILogService, new NullLogService());
 		});
 
 		teardown(() => {
@@ -2008,6 +2013,7 @@ suite('Agent Sessions', () => {
 				const mockChatSessionsService = new MockChatSessionsService();
 				instantiationService.stub(IChatSessionsService, mockChatSessionsService);
 				instantiationService.stub(ILifecycleService, disposables.add(new TestLifecycleService()));
+				instantiationService.stub(ILogService, new NullLogService());
 
 				const provider: IChatSessionItemProvider = {
 					chatSessionType: AgentSessionProviders.Local,
@@ -2035,6 +2041,7 @@ suite('Agent Sessions', () => {
 				const mockChatSessionsService = new MockChatSessionsService();
 				instantiationService.stub(IChatSessionsService, mockChatSessionsService);
 				instantiationService.stub(ILifecycleService, disposables.add(new TestLifecycleService()));
+				instantiationService.stub(ILogService, new NullLogService());
 
 				const provider: IChatSessionItemProvider = {
 					chatSessionType: AgentSessionProviders.Background,
@@ -2062,6 +2069,7 @@ suite('Agent Sessions', () => {
 				const mockChatSessionsService = new MockChatSessionsService();
 				instantiationService.stub(IChatSessionsService, mockChatSessionsService);
 				instantiationService.stub(ILifecycleService, disposables.add(new TestLifecycleService()));
+				instantiationService.stub(ILogService, new NullLogService());
 
 				const provider: IChatSessionItemProvider = {
 					chatSessionType: AgentSessionProviders.Cloud,
@@ -2089,6 +2097,7 @@ suite('Agent Sessions', () => {
 				const mockChatSessionsService = new MockChatSessionsService();
 				instantiationService.stub(IChatSessionsService, mockChatSessionsService);
 				instantiationService.stub(ILifecycleService, disposables.add(new TestLifecycleService()));
+				instantiationService.stub(ILogService, new NullLogService());
 
 				const customIcon = ThemeIcon.fromId('beaker');
 				const provider: IChatSessionItemProvider = {
@@ -2120,6 +2129,7 @@ suite('Agent Sessions', () => {
 				const mockChatSessionsService = new MockChatSessionsService();
 				instantiationService.stub(IChatSessionsService, mockChatSessionsService);
 				instantiationService.stub(ILifecycleService, disposables.add(new TestLifecycleService()));
+				instantiationService.stub(ILogService, new NullLogService());
 
 				const provider: IChatSessionItemProvider = {
 					chatSessionType: 'custom-type',
@@ -2153,6 +2163,7 @@ suite('Agent Sessions', () => {
 			instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
 			instantiationService.stub(IChatSessionsService, mockChatSessionsService);
 			instantiationService.stub(ILifecycleService, mockLifecycleService);
+			instantiationService.stub(ILogService, new NullLogService());
 		});
 
 		teardown(() => {
