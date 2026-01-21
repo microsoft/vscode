@@ -137,7 +137,7 @@ import { ChatWidgetService } from './widget/chatWidgetService.js';
 import { ILanguageModelsConfigurationService } from '../common/languageModelsConfiguration.js';
 import { ChatWindowNotifier } from './chatWindowNotifier.js';
 import { ChatRepoInfoContribution } from './chatRepoInfo.js';
-import { VALID_SIMPLIFIED_PATH_PATTERN } from '../common/promptSyntax/utils/promptFilesLocator.js';
+import { VALID_PROMPT_FOLDER_PATTERN } from '../common/promptSyntax/utils/promptFilesLocator.js';
 
 const toolReferenceNameEnumValues: string[] = [];
 const toolReferenceNameEnumDescriptions: string[] = [];
@@ -649,6 +649,10 @@ configurationRegistry.registerConfiguration({
 				[INSTRUCTIONS_DEFAULT_SOURCE_FOLDER]: true,
 			},
 			additionalProperties: { type: 'boolean' },
+			propertyNames: {
+				pattern: VALID_PROMPT_FOLDER_PATTERN,
+				patternErrorMessage: nls.localize('chat.instructionsLocations.invalidPath', "Paths must be relative or use '~/' for home directory. Not supported: forward slashes and absolute paths. Glob patterns are deprecated and will be removed in future versions."),
+			},
 			restricted: true,
 			tags: ['prompts', 'reusable prompts', 'prompt snippets', 'instructions'],
 			examples: [
@@ -678,6 +682,10 @@ configurationRegistry.registerConfiguration({
 			},
 			additionalProperties: { type: 'boolean' },
 			unevaluatedProperties: { type: 'boolean' },
+			propertyNames: {
+				pattern: VALID_PROMPT_FOLDER_PATTERN,
+				patternErrorMessage: nls.localize('chat.promptFileLocations.invalidPath', "Paths must be relative or use '~/' for home directory. Not supported: forward slashes and absolute paths. Glob patterns are deprecated and will be removed in future versions."),
+			},
 			restricted: true,
 			tags: ['prompts', 'reusable prompts', 'prompt snippets', 'instructions'],
 			examples: [
@@ -737,8 +745,8 @@ configurationRegistry.registerConfiguration({
 			},
 			additionalProperties: { type: 'boolean' },
 			propertyNames: {
-				pattern: VALID_SIMPLIFIED_PATH_PATTERN,
-				patternErrorMessage: nls.localize('chat.agentFilesLocations.invalidPath', "Agent location paths must be relative paths or start with '~/' for user home directory. Only forward slashes are supported."),
+				pattern: VALID_PROMPT_FOLDER_PATTERN,
+				patternErrorMessage: nls.localize('chat.agentLocations.invalidPath', "Paths must be relative or use '~/' for home directory. Not supported: forward slashes and absolute paths."),
 			},
 			restricted: true,
 			tags: ['prompts', 'reusable prompts', 'prompt snippets', 'instructions'],
@@ -790,8 +798,8 @@ configurationRegistry.registerConfiguration({
 			},
 			additionalProperties: { type: 'boolean' },
 			propertyNames: {
-				pattern: VALID_SIMPLIFIED_PATH_PATTERN,
-				patternErrorMessage: nls.localize('chat.agentSkillsLocations.invalidPath', "Skill location paths must be relative paths or start with '~/' for user home directory. Only forward slashes are supported."),
+				pattern: VALID_PROMPT_FOLDER_PATTERN,
+				patternErrorMessage: nls.localize('chat.agentSkillsLocations.invalidPath', "Paths must be relative or use '~/' for home directory. Not supported: forward slashes and absolute paths."),
 			},
 			restricted: true,
 			tags: ['prompts', 'reusable prompts', 'prompt snippets', 'instructions'],

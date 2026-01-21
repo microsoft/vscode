@@ -24,7 +24,7 @@ import { IUserDataProfileService } from '../../../../../../services/userDataProf
 import { IPathService } from '../../../../../../services/path/common/pathService.js';
 import { PromptsConfig } from '../../../../common/promptSyntax/config/config.js';
 import { PromptsType } from '../../../../common/promptSyntax/promptTypes.js';
-import { hasGlobPattern, isValidGlob, isValidSkillPath, PromptFilesLocator } from '../../../../common/promptSyntax/utils/promptFilesLocator.js';
+import { hasGlobPattern, isValidGlob, isValidPromptFolderPath, PromptFilesLocator } from '../../../../common/promptSyntax/utils/promptFilesLocator.js';
 import { IMockFileEntry, IMockFolder, MockFilesystem } from '../testUtils/mockFilesystem.js';
 import { mockService } from './mock.js';
 import { TestUserDataProfileService } from '../../../../../../test/common/workbenchTestServices.js';
@@ -2921,7 +2921,7 @@ suite('PromptFilesLocator', () => {
 
 			for (const path of validPaths) {
 				assert.strictEqual(
-					isValidSkillPath(path),
+					isValidPromptFolderPath(path),
 					true,
 					`'${path}' must be accepted as a valid skill path (relative path).`,
 				);
@@ -2938,7 +2938,7 @@ suite('PromptFilesLocator', () => {
 
 			for (const path of validPaths) {
 				assert.strictEqual(
-					isValidSkillPath(path),
+					isValidPromptFolderPath(path),
 					true,
 					`'${path}' must be accepted as a valid skill path (user home path).`,
 				);
@@ -2955,7 +2955,7 @@ suite('PromptFilesLocator', () => {
 
 			for (const path of validPaths) {
 				assert.strictEqual(
-					isValidSkillPath(path),
+					isValidPromptFolderPath(path),
 					true,
 					`'${path}' must be accepted as a valid skill path (parent relative path).`,
 				);
@@ -2976,7 +2976,7 @@ suite('PromptFilesLocator', () => {
 
 			for (const path of invalidPaths) {
 				assert.strictEqual(
-					isValidSkillPath(path),
+					isValidPromptFolderPath(path),
 					false,
 					`'${path}' must be rejected (absolute paths not supported for portability).`,
 				);
@@ -2995,7 +2995,7 @@ suite('PromptFilesLocator', () => {
 
 			for (const path of invalidPaths) {
 				assert.strictEqual(
-					isValidSkillPath(path),
+					isValidPromptFolderPath(path),
 					false,
 					`'${path}' must be rejected (tilde must be followed by / only, not \\).`,
 				);
@@ -3012,7 +3012,7 @@ suite('PromptFilesLocator', () => {
 
 			for (const path of invalidPaths) {
 				assert.strictEqual(
-					isValidSkillPath(path),
+					isValidPromptFolderPath(path),
 					false,
 					`'${path}' must be rejected (backslash paths not supported for cross-platform sharing).`,
 				);
@@ -3035,7 +3035,7 @@ suite('PromptFilesLocator', () => {
 
 			for (const path of invalidPaths) {
 				assert.strictEqual(
-					isValidSkillPath(path),
+					isValidPromptFolderPath(path),
 					false,
 					`'${path}' must be rejected (glob patterns not supported for performance).`,
 				);
@@ -3052,7 +3052,7 @@ suite('PromptFilesLocator', () => {
 
 			for (const path of invalidPaths) {
 				assert.strictEqual(
-					isValidSkillPath(path),
+					isValidPromptFolderPath(path),
 					false,
 					`'${path}' must be rejected (empty or whitespace only).`,
 				);
@@ -3069,7 +3069,7 @@ suite('PromptFilesLocator', () => {
 
 			for (const path of validPaths) {
 				assert.strictEqual(
-					isValidSkillPath(path),
+					isValidPromptFolderPath(path),
 					true,
 					`'${path}' must be accepted (paths with spaces are valid).`,
 				);

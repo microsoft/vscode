@@ -377,7 +377,7 @@ export class PromptFilesLocator {
 		// Filter and validate skill paths before resolving
 		const validLocations = configuredLocations.filter(sourceFolder => {
 			const configuredLocation = sourceFolder.path;
-			if (!isValidSkillPath(configuredLocation)) {
+			if (!isValidPromptFolderPath(configuredLocation)) {
 				this.logService.warn(`Skipping invalid skill path (glob patterns and absolute paths not supported): ${configuredLocation}`);
 				return false;
 			}
@@ -731,7 +731,7 @@ function firstNonGlobParentAndPattern(location: URI): { parent: URI; filePattern
 
 
 /**
- * Regex pattern string for validating simplified paths (for skills and agents).
+ * Regex pattern string for validating simplified paths for all prompt files.
  * Simplified paths only support:
  * - Relative paths: someFolder, ./someFolder
  * - User home paths: ~/folder (only forward slash, not backslash for cross-platform sharing)
@@ -752,24 +752,12 @@ function firstNonGlobParentAndPattern(location: URI): { parent: URI; filePattern
  * - No glob pattern characters: * ? [ ] { }
  * - At least one non-whitespace character
  */
-export const VALID_SIMPLIFIED_PATH_PATTERN = '^(?![A-Za-z]:[\\\\/])(?!/)(?!~(?!/))(?!.*\\\\)(?!.*[*?\\[\\]{}]).*\\S.*$';
+export const VALID_PROMPT_FOLDER_PATTERN = '^(?![A-Za-z]:[\\\\/])(?!/)(?!~(?!/))(?!.*\\\\)(?!.*[*?\\[\\]{}]).*\\S.*$';
 
 /**
- * @deprecated Use {@link VALID_SIMPLIFIED_PATH_PATTERN} instead
- */
-export const VALID_SKILL_PATH_PATTERN = VALID_SIMPLIFIED_PATH_PATTERN;
-
-/**
- * Validates if a path is allowed for simplified path configurations (skills and agents).
+ * Validates if a path is allowed for simplified path configurations.
  * Only forward slashes are supported to ensure paths are shareable across platforms.
  */
-export function isValidSimplifiedPath(path: string): boolean {
-	return new RegExp(VALID_SIMPLIFIED_PATH_PATTERN).test(path);
-}
-
-/**
- * @deprecated Use {@link isValidSimplifiedPath} instead
- */
-export function isValidSkillPath(path: string): boolean {
-	return isValidSimplifiedPath(path);
+export function isValidPromptFolderPath(path: string): boolean {
+	return new RegExp(VALID_PROMPT_FOLDER_PATTERN).test(path);
 }
