@@ -31,8 +31,12 @@ export interface IProcessOptions {
 	modelsAndEventsJson?: string; // visualizers state, and events to apply
 }
 
+export type SNCCommand =
+	| { type: 'NewCode'; code: string };
+
 export type SNCStreamMessage =
 	| { runId: string; type: 'item'; item: IVisualizationItem }
+	| { runId: string; type: 'command'; command: SNCCommand }
 	| { runId: string; type: 'end'; result: IProcessResult }
 	| { runId: string; type: 'error'; error: string };
 

@@ -64,3 +64,5 @@ How to get the Python path etc: https://github.com/microsoft/vscode-python-debug
 All together: https://github.com/microsoft/vscode-python-debugger/blob/main/src/extension/debugger/configuration/resolvers/launch.ts
 
 Process spawning/killing: debugpy-main/src/debugpy/launcher/handlers.py debugpy-main/src/debugpy/launcher/debuggee.py
+
+Can overwrite the import handling pretty easily, if we need to hook into that process: https://docs.python.org/3/reference/import.html https://github.com/rohitsanj/import-hook-python/blob/main/import_hook.py https://docs.python.org/3/library/importlib.htm

@@ -5,7 +5,7 @@ import { IEditorContribution } from '../../../common/editorCommon.js';
 import { ICodeEditor, IViewZone, IOverlayWidget, IOverlayWidgetPosition, IOverlayWidgetPositionCoordinates } from '../../../browser/editorBrowser.js';
 import { Position } from '../../../common/core/position.js';
 import { IModelContentChangedEvent } from '../../../common/textModelEvents.js';
-import { IProcessOptions, IVisualizationItem, SNCStreamMessage, UiEvent } from '../../../../platform/snc/common/snc.js';
+import { IProcessOptions, IVisualizationItem, SNCCommand, SNCStreamMessage, UiEvent } from '../../../../platform/snc/common/snc.js';
 import { IMainProcessService } from '../../../../platform/ipc/common/mainProcessService.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { createTrustedTypesPolicy } from '../../../../base/browser/trustedTypes.js';
@@ -15,25 +15,6 @@ import * as dom from '../../../../base/browser/dom.js';
 
 // 'sncVisualization' is a trusted name defined in src/vs/code/electron-sandbox/workbench/workbench(-dev).html
 const ttPolicy = createTrustedTypesPolicy('sncVisualization', { createHTML: value => value });
-
-// May want to use zoneView (see codelensWidget) to give some space
-// And IContentWidget might position things relative to a line of code
-//
-// Need to figure out how to get the provenance info. Maybe be fine
-// to do source-to-source translation for the current file only
-// (so any backward lenses will only be for the current file—might be fine)
-// but will need to wrap every object with special tags, just like in Plottery
-// numpy will break this, but what can you do
-//
-// Actually, not sure we even need provenance *traces*, just a tag of
-// what location the value came from and what's its expression.
-// No need to backtrack yet
-//
-// Maybe have the front-end invoke the app, but such that the "python" executable
-// is our own and imports of the relevant file rewrite it prior to exeuction
-// Can indeed overwrite the import handling pretty easily: https://docs.python.org/3/reference/import.html https://github.com/rohitsanj/import-hook-python/blob/main/import_hook.py https://docs.python.org/3/library/importlib.html
-//
-//
 
 
 // /**
@@ -71,16 +52,18 @@ class VisualizationWidget extends Disposable implements IOverlayWidget {
 	private readonly visIndex: number;
 	private readonly lineNumber: number;
 	private readonly onPointerEvent: (pythonEventStr: string, ev: MouseEvent) => void;
+	private readonly onKeyboardEvent: (pythonEventStr: string, ev: KeyboardEvent) => void;
 	private moveThrottleTimer: any = null;
 	private readonly moveThrottleDelay = 16;
 
-	constructor(editor: ICodeEditor, lineNumber: number, visIndex: number, onPointerEvent: (pythonEventStr: string, ev: MouseEvent) => void) {
+	constructor(editor: ICodeEditor, lineNumber: number, visIndex: number, onPointerEvent: (pythonEventStr: string, ev: MouseEvent) => void, onKeyboardEvent: (pythonEventStr: string, ev: KeyboardEvent) => void) {
 		super();
 		this.editor = editor;
 		this.position = new Position(lineNumber, 1);
 		this.visIndex = visIndex;
 		this.lineNumber = lineNumber;
 		this.onPointerEvent = onPointerEvent;
+		this.onKeyboardEvent = onKeyboardEvent;
 
 		// Create the widget DOM node
 		this.domNode = document.createElement('div');
@@ -98,12 +81,15 @@ class VisualizationWidget extends Disposable implements IOverlayWidget {
 		this.domNode.style.color = 'rgba(255,255,255,0.2)';
 		this.domNode.style.whiteSpace = 'nowrap';
 		this.domNode.style.verticalAlign = 'middle';
-		this.domNode.style.borderRadius = '3px';
+		this.domNode.style.borderRadius = '2px';
+		this.domNode.style.borderColor = 'rgba(127,127,127,0.1)';
+		this.domNode.style.borderStyle = 'solid';
+		this.domNode.style.borderWidth = '1px';
 		this.domNode.style.maxWidth = '800px';
 		this.domNode.style.maxHeight = '600px';
 		this.domNode.style.overflow = 'auto';
 		this.domNode.style.scrollbarWidth = 'thin';
-		this.domNode.style.scrollbarColor = 'rgba(255,255,255,0.1) transparent';
+		this.domNode.style.scrollbarColor = 'rgba(127,127,127,0.1) transparent';
 		// this.domNode.style.textOverflow = 'ellipsis';
 		this.domNode.style.filter = 'none';
 		this.domNode.style.opacity = '0.9';
@@ -127,19 +113,18 @@ class VisualizationWidget extends Disposable implements IOverlayWidget {
 
 
 		this._register(dom.addDisposableListener(this.domNode, 'mousedown', (ev: MouseEvent) => {
-			// ev.target
-			// const idx = this.getIndexFromEventTarget(e.target as Node) ?? this.findNearestIndex(e);
 			this.dispatch_as_python_event('snc-mouse-down', ev);
 		}));
 		this._register(dom.addDisposableListener(this.domNode, 'mousemove', (ev: MouseEvent) => {
 			if (this.moveThrottleTimer) { return; }
 			this.moveThrottleTimer = setTimeout(() => { this.moveThrottleTimer = null; }, this.moveThrottleDelay);
-			// const idx = this.getIndexFromEventTarget(e.target as Node) ?? this.findNearestIndex(e);
 			this.dispatch_as_python_event('snc-mouse-move', ev);
 		}));
 		this._register(dom.addDisposableListener(this.domNode, 'mouseup', (ev: MouseEvent) => {
-			// const idx = this.getIndexFromEventTarget(e.target as Node) ?? this.findNearestIndex(e);
 			this.dispatch_as_python_event('snc-mouse-up', ev);
+		}));
+		this._register(dom.addDisposableListener(this.domNode, 'keydown', (ev: KeyboardEvent) => {
+			this.dispatch_keyboard_event('snc-key-down', ev);
 		}));
 
 		// Add the widget to the editor
@@ -158,6 +143,30 @@ class VisualizationWidget extends Disposable implements IOverlayWidget {
 				this.onPointerEvent(pythonEventStr, ev);
 			}
 			el = el.parentElement;
+		}
+	}
+
+	private dispatch_keyboard_event(attr_name: string, ev: KeyboardEvent): void {
+		if (!ev.target) { return; }
+
+		let node = ev.target as Node;
+		let el: Element | null = node.nodeType === Node.ELEMENT_NODE ? (node as Element) : (node.parentElement);
+
+		// Walk up to find element with the keyboard event handler attribute
+		while (el) {
+			if (el.hasAttribute(attr_name)) {
+				const pythonEventStr: string = el.getAttribute(attr_name) ?? '';
+				this.onKeyboardEvent(pythonEventStr, ev);
+				return;
+			}
+			if (el === this.domNode) { break; }
+			el = el.parentElement;
+		}
+
+		// Also check the domNode itself (container level handler)
+		if (this.domNode.hasAttribute(attr_name)) {
+			const pythonEventStr: string = this.domNode.getAttribute(attr_name) ?? '';
+			this.onKeyboardEvent(pythonEventStr, ev);
 		}
 	}
 
@@ -196,6 +205,8 @@ class VisualizationWidget extends Disposable implements IOverlayWidget {
 				return null;
 			}
 
+			pixelPosition.top -= 1; // align first line of text b/c 1px border
+
 			if (pixelPosition.top < 0 && this.lastOnscreenPixelPosition) {
 				// x coordinate is not reliable when lines are offscreen, use last known coordinate
 				return {
@@ -217,8 +228,31 @@ class VisualizationWidget extends Disposable implements IOverlayWidget {
 	 * Update the widget's HTML content
 	 */
 	updateContent(html: string): void {
+		// Check if focus is inside this widget before replacing HTML
+		const activeElement = document.activeElement;
+		let focusedIndex = -1;
+
+		if (activeElement && this.domNode.contains(activeElement)) {
+			// Find which focusable element (by index) was focused
+			const focusableElements = this.domNode.querySelectorAll('[tabindex]');
+			for (let i = 0; i < focusableElements.length; i++) {
+				if (focusableElements[i] === activeElement) {
+					focusedIndex = i;
+					break;
+				}
+			}
+		}
+
 		const trustedHtml = ttPolicy?.createHTML(html) ?? html;
 		this.domNode.innerHTML = trustedHtml as string;
+
+		// Restore focus to the same nth focusable element
+		if (focusedIndex >= 0) {
+			const focusableElements = this.domNode.querySelectorAll('[tabindex]');
+			if (focusedIndex < focusableElements.length) {
+				(focusableElements[focusedIndex] as HTMLElement).focus();
+			}
+		}
 	}
 
 	/**
@@ -227,49 +261,6 @@ class VisualizationWidget extends Disposable implements IOverlayWidget {
 	updatePosition(): void {
 		this.editor.layoutOverlayWidget(this);
 	}
-
-	// START HERE remove this front-end index stuff
-	// then work on the selection mechanism in Python
-
-	// private getIndexFromEventTarget(node: Node | null): number | null {
-	// 	if (!node) { return null; }
-	// 	let el: Element | null = node.nodeType === Node.ELEMENT_NODE ? (node as Element) : (node.parentElement);
-	// 	while (el && el !== this.domNode) {
-	// 		if (el.hasAttribute('data-snc-idx')) {
-	// 			const attr = el.getAttribute('data-snc-idx');
-	// 			if (attr !== null) {
-	// 				const parsed = parseInt(attr, 10);
-	// 				if (!Number.isNaN(parsed)) { return parsed; }
-	// 			}
-	// 		}
-	// 		el = el.parentElement;
-	// 	}
-	// 	return null;
-	// }
-
-	// private findNearestIndex(e: MouseEvent): number | null {
-	// 	// Fallback: scan elements and pick the one with center nearest to pointer
-	// 	const candidates = this.domNode.querySelectorAll('[data-snc-idx]');
-	// 	let bestIdx: number | null = null;
-	// 	let bestDist = Number.POSITIVE_INFINITY;
-	// 	for (const el of candidates as any as Element[]) {
-	// 		const rect = (el as Element).getBoundingClientRect();
-	// 		const cx = rect.left + rect.width / 2;
-	// 		const cy = rect.top + rect.height / 2;
-	// 		const dx = cx - e.clientX;
-	// 		const dy = cy - e.clientY;
-	// 		const dist = dx * dx + dy * dy;
-	// 		if (dist < bestDist) {
-	// 			bestDist = dist;
-	// 			const attr = (el as Element).getAttribute('data-snc-idx');
-	// 			if (attr !== null) {
-	// 				const parsed = parseInt(attr, 10);
-	// 				if (!Number.isNaN(parsed)) { bestIdx = parsed; }
-	// 			}
-	// 		}
-	// 	}
-	// 	return bestIdx;
-	// }
 
 	/**
 	 * Dispose of the widget
@@ -294,12 +285,9 @@ export class SNCController extends Disposable implements IEditorContribution {
 	private visualizationItems: IVisualizationItem[] = [];
 	private streamSubscription: { dispose(): void } | null = null;
 	private streamUpdateTimer: any = null;
-	// private latestVisualizationData: IVisualizationItem[] = [];
 	private cursorUpdateTimer: any = null;
-	// private lastSentIdxByKey: Map<string, number | null> = new Map();
 	private runStartMsById: Map<string, number> = new Map();
 	private runFirstItemMsById: Map<string, number> = new Map();
-	// private lastPointerEventMs: number = 0;
 
 
 	constructor(
@@ -365,8 +353,7 @@ export class SNCController extends Disposable implements IEditorContribution {
 	}
 
 	private onWindowBecameVisible(): void {
-		// Re-render existing visualizations when window becomes visible; do not rerun
-		// const data = this.currentRunId ? this.streamedItems : this.latestVisualizationData;
+		// Re-render existing visualizations when window becomes visible
 		const data = this.visualizationItems;
 		if (data && data.length > 0) {
 			this.updateVisualizationWidgets(data);
@@ -375,7 +362,6 @@ export class SNCController extends Disposable implements IEditorContribution {
 
 	private onCursorPositionChanged(): void {
 		// Re-render visualizations when cursor moves; do NOT rerun the program
-		// const data = this.currentRunId ? this.streamedItems : this.latestVisualizationData;
 		const data = this.visualizationItems;
 		if (!data || data.length === 0) {
 			return;
@@ -601,7 +587,13 @@ export class SNCController extends Disposable implements IEditorContribution {
 					for (let i = 0; i < stepItems.length; i++) {
 						const item = stepItems[i];
 						const visIndex = (item as any).visIndex ?? i;
-						const widget = new VisualizationWidget(this.editor, lineNumber, visIndex, (pythonEventStr, ev) => { this.onPointerEvent(lineNumber, visIndex, pythonEventStr, ev) });
+						const widget = new VisualizationWidget(
+							this.editor,
+							lineNumber,
+							visIndex,
+							(pythonEventStr, ev) => { this.onPointerEvent(lineNumber, visIndex, pythonEventStr, ev); },
+							(pythonEventStr, ev) => { this.onKeyboardEvent(lineNumber, visIndex, pythonEventStr, ev); }
+						);
 						widget.updateContent(item.html);
 						widgets.push(widget);
 					}
@@ -630,48 +622,60 @@ export class SNCController extends Disposable implements IEditorContribution {
 	 */
 
 	private onPointerEvent(lineNumber: number, visIndex: number, pythonEventStr: string, ev: MouseEvent): void {
-		// const key = this.modelKey(lineNumber, visIndex);
 
-		// const mods: any = {};
-		// if (e.altKey) { mods.altKey = true; }
-		// if (e.ctrlKey) { mods.ctrlKey = true; }
-		// if (e.metaKey) { mods.metaKey = true; }
-		// if (e.shiftKey) { mods.shiftKey = true; }
-		// return Object.keys(mods).length ? mods : undefined;
-
-		// console.log("ev", ev)
-
-		// Dedupe high-frequency moves by index to avoid redundant reruns
-		// const lastSent = this.lastSentIdxByKey.get(key);
-		// let phase = ev.type.replace('mouse', ''); // 'mousemove' => 'move'
-
-		// if (phase === 'down') {
-		// 	this.lastSentIdxByKey.set(key, (typeof idx === 'number') ? idx : null);
-		// } else if (phase === 'move') {
-		// 	const currentIdx = (typeof idx === 'number') ? idx : null;
-		// 	if (lastSent === currentIdx) {
-		// 		return;
-		// 	}
-		// 	this.lastSentIdxByKey.set(key, currentIdx);
-		// }
-
-		const eventJSON = { type: ev.type, button: ev.button, buttons: ev.buttons, layerX: ev.layerX, layerY: ev.layerY, timeStamp: ev.timeStamp, altKey: ev.altKey, ctrlKey: ev.ctrlKey, metaKey: ev.metaKey, shiftKey: ev.shiftKey }
+		const eventJSON = { type: ev.type, button: ev.button, buttons: ev.buttons, layerX: ev.layerX, layerY: ev.layerY, timeStamp: ev.timeStamp, altKey: ev.altKey, ctrlKey: ev.ctrlKey, metaKey: ev.metaKey, shiftKey: ev.shiftKey };
 
 		const event: UiEvent = { line: lineNumber, visIndex, pythonEventStr, eventJSON };
 		// console.log('SNC viz_pointer event', JSON.stringify(event));
 
 		// Rerun on every pointer event to keep backend authoritative for selections
-		// this.lastPointerEventMs = (typeof performance !== 'undefined' ? performance.now() : Date.now());
 		this.sendEventToPython(event);
+	}
 
-		// After mouseup, reset dedupe so a new drag starts fresh
-		// if (phase === 'up') {
-		// 	this.lastSentIdxByKey.delete(key);
-		// }
+	/**
+	 * Handle keyboard event from VisualizationWidget
+	 */
+	private onKeyboardEvent(lineNumber: number, visIndex: number, pythonEventStr: string, ev: KeyboardEvent): void {
+		const eventJSON = {
+			type: ev.type,
+			key: ev.key,
+			code: ev.code,
+			timeStamp: ev.timeStamp,
+			altKey: ev.altKey,
+			ctrlKey: ev.ctrlKey,
+			metaKey: ev.metaKey,
+			shiftKey: ev.shiftKey
+		};
+
+		const event: UiEvent = { line: lineNumber, visIndex, pythonEventStr, eventJSON };
+		// console.log('SNC keyboard event', JSON.stringify(event));
+
+		this.sendEventToPython(event);
 	}
 
 	private sendEventToPython(event: UiEvent) {
 		this.runProgram(this.getProgram(), event);
+	}
+
+	/**
+	 * Handle commands from visualizers (Elm-style commands)
+	 */
+	private handleCommand(command: SNCCommand): void {
+		if (command.type === 'NewCode') {
+			// Replace the entire editor content with new code
+			const model = this.editor.getModel();
+			if (model) {
+				// Use pushEditOperations to make the change undoable
+				model.pushEditOperations(
+					[],
+					[{
+						range: model.getFullModelRange(),
+						text: command.code
+					}],
+					() => null
+				);
+			}
+		}
 	}
 
 	private async runProgram(content: string, uiEvent?: UiEvent): Promise<void> {
@@ -751,6 +755,9 @@ export class SNCController extends Disposable implements IEditorContribution {
 							this.streamUpdateTimer = null;
 						}, 16);
 					}
+				} else if (msg.type === 'command') {
+					// Handle commands from visualizers
+					this.handleCommand(msg.command);
 				} else if (msg.type === 'end') {
 					// console.log('program end');
 
@@ -761,8 +768,7 @@ export class SNCController extends Disposable implements IEditorContribution {
 					// if (typeof tStart === 'number') {
 					// 	const total = tEnd - tStart;
 					// 	const spawnToFirst = (typeof tFirst === 'number') ? (tFirst - tStart) : -1;
-					// 	const ptrToEnd = this.lastPointerEventMs ? (tEnd - this.lastPointerEventMs) : -1;
-					// 	console.log('SNC timing: run end', { runId: msg.runId, totalMs: total, spawnToFirstItemMs: spawnToFirst, ptrEvtToEndMs: ptrToEnd });
+					// 	console.log('SNC timing: run end', { runId: msg.runId, totalMs: total, spawnToFirstItemMs: spawnToFirst });
 					// }
 					this.runStartMsById.delete(msg.runId);
 					this.runFirstItemMsById.delete(msg.runId);
@@ -808,8 +814,6 @@ export class SNCController extends Disposable implements IEditorContribution {
 		this.currentRunId = runId;
 		const nowMs = (typeof performance !== 'undefined' ? performance.now() : Date.now());
 		this.runStartMsById.set(runId, nowMs);
-		// const ptrDelta = this.lastPointerEventMs ? (nowMs - this.lastPointerEventMs) : -1;
-		// console.log('SNC timing: run start', { runId, ptrToStartMs: ptrDelta });
 
 		this.eventsBeingHandledCurrentRun = models_and_events.map(m_e => ({
 			line: m_e.line,

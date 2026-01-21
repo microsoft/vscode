@@ -36,6 +36,9 @@ line_emit_counter: Dict[int, int] = {}  # Per-line item index during a run
 
 _loaded_visualizers = []
 
+# Source code context for visualizers (set before execution)
+_source_code: str = ""
+
 # Prefer the original stdout stream for streaming messages; fall back to sys.stdout.
 try:
 	_stream_out: TextIO = cast(TextIO, getattr(sys, '__stdout__', None)) or sys.stdout  # type: ignore[assignment]
@@ -89,7 +92,7 @@ class Visualizer(Protocol):
 	can_visualize: Callable[[Any], bool]
 	visualize: Callable[[Any, Any], str]  # takes value, model
 	init_model: Callable[[], Any]
-	update:Callable[[Any, Any], Any]  # takes ui_event, model returns new model
+	update:Callable[[Any, Any, Any, Any], Any]  # takes ui_event, source code, source line, model returns new model
 
 # Currently, models are persist in the JS UI and are only provided on UI events (which is wrong)
 @dataclass(frozen=True, slots=True)
@@ -114,6 +117,7 @@ def log_value(line: int, value: Any, last_line_in_containing_loop: int | None = 
 
 	vis = next((v for v in _visualizers() if v.can_visualize(value)), None)
 	model = UnknownModel()
+	commands = []
 
 	# Compute this item's index among items on the same line for this run
 	idx_in_line = line_emit_counter.get(line, 0)
@@ -130,11 +134,13 @@ def log_value(line: int, value: Any, last_line_in_containing_loop: int | None = 
 			else:
 				model = UnknownModel()
 
-			# Apply all the events in order
+			# Apply all the events in order, collecting any commands
 			if model != UnknownModel() and callable(getattr(vis, 'update', None)) and 'events' in item_model_and_event:
 				updater = cast(Visualizer, vis).update
 				for ev in item_model_and_event['events']:
-					model = updater(ev, model)
+					# Add source context to the event
+					model, cmds = updater(ev, _source_code, line, model)
+					commands.extend(cmds)
 
 			if callable(getattr(vis, 'init_model', None)):
 				vis_ = cast(Visualizer, vis)
@@ -172,6 +178,19 @@ def log_value(line: int, value: Any, last_line_in_containing_loop: int | None = 
 	except Exception:
 		# Never let streaming failure break user program execution
 		pass
+
+	# Stream any commands from the visualizer
+	for cmd in commands:
+		try:
+			# Commands are dataclasses, convert to dict for JSON
+			cmd_dict = {"type": type(cmd).__name__}
+			if hasattr(cmd, '__dataclass_fields__'):
+				for field_name in cmd.__dataclass_fields__:
+					cmd_dict[field_name] = getattr(cmd, field_name)
+			_stream_out.write(json.dumps({"type": "command", "command": cmd_dict}, ensure_ascii=False) + "\n")
+			_stream_out.flush()
+		except Exception:
+			pass
 
 def log_and_return(line: int, value: Any, last_line_in_containing_loop: int | None = None) -> Any:
 	"""
@@ -1129,10 +1148,11 @@ def run_with_visualization(code: str) -> Dict[str, Any]:
 			"exitCode": 0
 		}
 
-	global execution_step, line_emit_counter
+	global execution_step, line_emit_counter, _source_code
 	# Reset global state for each run to ensure clean slate
 	execution_step = 0       # Reset execution counter
 	line_emit_counter = {}   # Reset per-line item counters
+	_source_code = code      # Store source code for visualizers to access
 
 	# Transform and compile
 	emit_meta('transform-start')

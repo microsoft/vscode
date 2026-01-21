@@ -8,7 +8,7 @@ import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ILogService } from '../../../platform/log/common/log.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
-import { IProcessOptions, IProcessResult, ISNCProcessService, IVisualizationItem, SNCStreamMessage } from '../common/snc.js';
+import { IProcessOptions, IProcessResult, ISNCProcessService, IVisualizationItem, SNCCommand, SNCStreamMessage } from '../common/snc.js';
 import { Emitter } from '../../../base/common/event.js';
 
 // Get the directory name equivalent to __dirname in ES modules
@@ -64,6 +64,8 @@ export class SNCProcessService extends Disposable implements ISNCProcessService 
 									try { this.logService.info('SNC timing: first item parsed', { runId, msFromSpawn: state.tFirstItem - state.tSpawn, msFromStdoutFirst: typeof state.tStdoutFirst === 'number' ? state.tFirstItem - state.tStdoutFirst : undefined }); } catch { /* ignore */ }
 								}
 								this._onStream.fire({ runId, type: 'item', item: { ...msg.item, runId } as IVisualizationItem });
+							} else if (msg && msg.type === 'command' && msg.command) {
+								this._onStream.fire({ runId, type: 'command', command: msg.command as SNCCommand });
 							} else if (msg && msg.type === 'meta') {
 								try { this.logService.info('SNC runner meta', { runId, meta: (msg as any).meta, t: (msg as any).t }); } catch { /* ignore */ }
 							} else if ((msg && msg.type === 'end')) {
