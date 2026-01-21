@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { hash } from '../../../../../base/common/hash.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { basename } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -27,6 +28,7 @@ import { IChatService } from '../../common/chatService/chatService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, } from '../../common/constants.js';
 import { ILanguageModelChatMetadata } from '../../common/languageModels.js';
 import { ILanguageModelToolsService } from '../../common/tools/languageModelToolsService.js';
+import { PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
 import { getAgentSessionProvider, AgentSessionProviders } from '../agentSessions/agentSessions.js';
@@ -325,9 +327,18 @@ class ToggleChatModeAction extends Action2 {
 		const toolsCount = switchToMode.customTools?.get()?.length ?? 0;
 		const handoffsCount = switchToMode.handOffs?.get()?.length ?? 0;
 
+		// Hash names for user/workspace modes to only instrument non-user agent names
+		const getModeNameForTelemetry = (mode: IChatMode): string => {
+			const modeStorage = mode.source?.storage;
+			if (modeStorage === PromptsStorage.local || modeStorage === PromptsStorage.user) {
+				return String(hash(mode.name.get()));
+			}
+			return mode.name.get();
+		};
+
 		telemetryService.publicLog2<ChatModeChangeEvent, ChatModeChangeClassification>('chat.modeChange', {
-			fromMode: currentMode.name.get(),
-			mode: switchToMode.name.get(),
+			fromMode: getModeNameForTelemetry(currentMode),
+			mode: getModeNameForTelemetry(switchToMode),
 			requestCount: requestCount,
 			storage,
 			extensionId,
@@ -780,20 +791,12 @@ export class CancelAction extends Action2 {
 			}, {
 				id: MenuId.ChatEditorInlineExecute,
 				when: ContextKeyExpr.and(
-					ChatContextKeys.requestInProgress,
-					ChatContextKeys.remoteJobCreating.negate()
-				),
-				order: 4,
-				group: 'navigation',
-			}, {
-				id: MenuId.ChatEditingEditorContent,
-				when: ContextKeyExpr.and(
 					ctxIsGlobalEditingSession.negate(),
-					ctxHasRequestInProgress
+					ctxHasRequestInProgress,
 				),
 				order: 4,
 				group: 'navigation',
-			},
+			}
 			],
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,

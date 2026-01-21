@@ -38,29 +38,17 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../pla
 
 //#region Chat View
 
-const showSessionsSubmenu = new MenuId('chatShowSessionsSubmenu');
-MenuRegistry.appendMenuItem(MenuId.ChatWelcomeContext, {
-	submenu: showSessionsSubmenu,
-	title: localize2('chat.showSessions', "Show Sessions"),
-	group: '0_sessions',
-	order: 1,
-	when: ChatContextKeys.inChatEditor.negate()
-});
-
-export class ShowAllAgentSessionsAction extends Action2 {
-
+export class ToggleChatViewSessionsAction extends Action2 {
 	constructor() {
 		super({
-			id: 'workbench.action.chat.showAllAgentSessions',
-			title: localize2('chat.showSessions.all', "All"),
-			toggled: ContextKeyExpr.and(
-				ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, true),
-				ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsShowRecentOnly}`, false)
-			),
+			id: 'workbench.action.chat.toggleChatViewSessions',
+			title: localize2('chat.toggleChatViewSessions.label', "Show Sessions"),
+			toggled: ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, true),
 			menu: {
-				id: showSessionsSubmenu,
-				group: 'navigation',
-				order: 1
+				id: MenuId.ChatWelcomeContext,
+				group: '0_sessions',
+				order: 1,
+				when: ChatContextKeys.inChatEditor.negate()
 			}
 		});
 	}
@@ -68,56 +56,8 @@ export class ShowAllAgentSessionsAction extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const configurationService = accessor.get(IConfigurationService);
 
-		await configurationService.updateValue(ChatConfiguration.ChatViewSessionsEnabled, true);
-		await configurationService.updateValue(ChatConfiguration.ChatViewSessionsShowRecentOnly, false);
-	}
-}
-
-export class ShowRecentAgentSessionsAction extends Action2 {
-
-	constructor() {
-		super({
-			id: 'workbench.action.chat.showRecentAgentSessions',
-			title: localize2('chat.showSessions.recent', "Recent"),
-			toggled: ContextKeyExpr.and(
-				ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, true),
-				ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsShowRecentOnly}`, true)
-			),
-			menu: {
-				id: showSessionsSubmenu,
-				group: 'navigation',
-				order: 2
-			}
-		});
-	}
-
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const configurationService = accessor.get(IConfigurationService);
-
-		await configurationService.updateValue(ChatConfiguration.ChatViewSessionsEnabled, true);
-		await configurationService.updateValue(ChatConfiguration.ChatViewSessionsShowRecentOnly, true);
-	}
-}
-
-export class HideAgentSessionsAction extends Action2 {
-
-	constructor() {
-		super({
-			id: 'workbench.action.chat.hideAgentSessions',
-			title: localize2('chat.showSessions.none', "None"),
-			toggled: ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, false),
-			menu: {
-				id: showSessionsSubmenu,
-				group: 'navigation',
-				order: 3
-			}
-		});
-	}
-
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const configurationService = accessor.get(IConfigurationService);
-
-		await configurationService.updateValue(ChatConfiguration.ChatViewSessionsEnabled, false);
+		const chatViewSessionsEnabled = configurationService.getValue<boolean>(ChatConfiguration.ChatViewSessionsEnabled);
+		await configurationService.updateValue(ChatConfiguration.ChatViewSessionsEnabled, !chatViewSessionsEnabled);
 	}
 }
 
@@ -845,7 +785,6 @@ export class RefreshAgentSessionsViewerAction extends Action2 {
 				id: MenuId.AgentSessionsToolbar,
 				group: 'navigation',
 				order: 1,
-				when: ChatContextKeys.agentSessionsViewerLimited.negate()
 			},
 		});
 	}
@@ -866,7 +805,6 @@ export class FindAgentSessionInViewerAction extends Action2 {
 				id: MenuId.AgentSessionsToolbar,
 				group: 'navigation',
 				order: 2,
-				when: ChatContextKeys.agentSessionsViewerLimited.negate()
 			}
 		});
 	}
