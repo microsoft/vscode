@@ -45,6 +45,8 @@ import { AgentSessionsControl, IAgentSessionsControlOptions } from '../../chat/b
 import { IAgentSessionsFilter } from '../../chat/browser/agentSessions/agentSessionsViewer.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { IResolvedWalkthrough, IWalkthroughsService } from '../../welcomeGettingStarted/browser/gettingStartedService.js';
+import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
 
 const configurationKey = 'workbench.startupEditor';
 const MAX_SESSIONS = 6;
@@ -81,6 +83,7 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		@IWalkthroughsService private readonly walkthroughsService: IWalkthroughsService,
 		@IChatService private readonly chatService: IChatService,
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
+		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
 	) {
 		super(AgentSessionsWelcomePage.ID, group, telemetryService, themeService, storageService);
 
@@ -374,23 +377,18 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		title.textContent = localize('tosTitle', "AI Feature Trial is Active");
 
 		const desc = append(content, $('.agentSessionsWelcome-walkthroughCard-description'));
-		desc.textContent = localize(
-			{ key: 'tosDescription', comment: ['{Locked="]"}'] },
-			"By continuing, you agree to {0}'s ",
-			providers.default.name
+		const descriptionMarkdown = new MarkdownString(
+			localize(
+				{ key: 'tosDescription', comment: ['{Locked="]({1})"}', '{Locked="]({2})"}'] },
+				"By continuing, you agree to {0}'s [Terms]({1}) and [Privacy Statement]({2}).",
+				providers.default.name,
+				this.productService.defaultChatAgent.termsStatementUrl,
+				this.productService.defaultChatAgent.privacyStatementUrl
+			),
+			{ isTrusted: true }
 		);
-		const termsLink = append(desc, $<HTMLAnchorElement>('a.agentSessionsWelcome-tosLink'));
-		termsLink.textContent = localize('terms', "Terms");
-		termsLink.href = this.productService.defaultChatAgent.termsStatementUrl;
-		termsLink.target = '_blank';
-		termsLink.rel = 'noopener';
-		desc.appendChild(document.createTextNode(localize('and', " and ")));
-		const privacyLink = append(desc, $<HTMLAnchorElement>('a.agentSessionsWelcome-tosLink'));
-		privacyLink.textContent = localize('privacyStatement', "Privacy statement");
-		privacyLink.href = this.productService.defaultChatAgent.privacyStatementUrl;
-		privacyLink.target = '_blank';
-		privacyLink.rel = 'noopener';
-		desc.appendChild(document.createTextNode('.'));
+		const renderedMarkdown = this.markdownRendererService.render(descriptionMarkdown);
+		desc.appendChild(renderedMarkdown.element);
 	}
 
 	private buildFooter(container: HTMLElement): void {
