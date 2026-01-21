@@ -303,7 +303,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 	private static readonly SESSIONS_SIDEBAR_MIN_WIDTH = 200;
 	private static readonly SESSIONS_SIDEBAR_DEFAULT_WIDTH = 300;
-	private static readonly SESSIONS_STACKED_DEFAULT_HEIGHT = 5 * AgentSessionsListDelegate.ITEM_HEIGHT;
+	private static readonly SESSIONS_STACKED_MIN_HEIGHT = AgentSessionsListDelegate.ITEM_HEIGHT;
+	private static readonly SESSIONS_STACKED_DEFAULT_HEIGHT = 3 * AgentSessionsListDelegate.ITEM_HEIGHT;
 	private static readonly CHAT_WIDGET_DEFAULT_WIDTH = 300;
 	private static readonly SESSIONS_SIDEBAR_VIEW_MIN_WIDTH = this.CHAT_WIDGET_DEFAULT_WIDTH + this.SESSIONS_SIDEBAR_DEFAULT_WIDTH;
 
@@ -925,12 +926,11 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	}
 
 	private computeEffectiveStackedSessionsHeight(availableHeight: number, sessionsViewerStackedHeight = this.sessionsViewerStackedHeight): number {
-		const minHeight = AgentSessionsListDelegate.ITEM_HEIGHT; // at least one item
 		return Math.max(
-			minHeight,
+			ChatViewPane.SESSIONS_STACKED_MIN_HEIGHT,			// never smaller than min height for stacked sessions
 			Math.min(
 				sessionsViewerStackedHeight,
-				availableHeight	// never taller than available height
+				availableHeight									// never taller than available height
 			)
 		);
 	}
