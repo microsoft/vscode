@@ -20,20 +20,19 @@ function getArg(name, defaultValue = undefined) {
 
 const PORT = parseInt(getArg('port', '8080'), 10);
 let ZIP_PATH = getArg('zip');
-let VERSION = getArg('version', '99.0.0');
-let COMMIT = getArg('commit', crypto.randomBytes(20).toString('hex'));
+let VERSION = null;
+let COMMIT = null;
 let REDIRECT_URL = null; // If set, redirect to this base URL
+let sha256hash = null;
 
-// Compute SHA256 of ZIP file
-function computeSha256(filePath) {
-	if (!filePath || !fs.existsSync(filePath)) {
-		return null;
-	}
-	const data = fs.readFileSync(filePath);
-	return crypto.createHash('sha256').update(data).digest('hex');
+// Initialize with random values if ZIP provided
+if (ZIP_PATH && fs.existsSync(ZIP_PATH)) {
+	VERSION = `${Math.floor(Math.random() * 100)}.${Math.floor(Math.random() * 100)}.${Math.floor(Math.random() * 100)}`;
+	COMMIT = crypto.randomBytes(20).toString('hex');
+	sha256hash = crypto.randomBytes(32).toString('hex');
+} else {
+	ZIP_PATH = null;
 }
-
-let sha256hash = computeSha256(ZIP_PATH);
 
 function printStatus() {
 	console.log('\nCurrent state:');
@@ -85,6 +84,7 @@ const server = http.createServer((req, res) => {
 			url: `http://localhost:${PORT}/download/update.zip`,
 			name: VERSION,
 			version: COMMIT,
+			notes: COMMIT,
 			productVersion: VERSION,
 			timestamp: Date.now(),
 			sha256hash: sha256hash,
@@ -140,7 +140,7 @@ function startRepl() {
 		prompt: '> '
 	});
 
-	console.log('Commands: status, set <zip> <version> [commit], redirect [url], none, quit');
+	console.log('Commands: status, set <zip>, redirect [url], none, quit');
 	rl.prompt();
 
 	rl.on('line', (line) => {
@@ -154,17 +154,18 @@ function startRepl() {
 				break;
 
 			case 'set':
-				if (parts.length < 3) {
-					console.log('Usage: set <zip-path> <version> [commit]');
+				if (parts.length < 2) {
+					console.log('Usage: set <zip-path>');
 				} else {
 					const zipPath = parts[1];
 					if (!fs.existsSync(zipPath)) {
 						console.log(`Error: File not found: ${zipPath}`);
 					} else {
 						ZIP_PATH = zipPath;
-						VERSION = parts[2];
-						COMMIT = parts[3] || crypto.randomBytes(20).toString('hex');
-						sha256hash = computeSha256(ZIP_PATH);
+						VERSION = `${Math.floor(Math.random() * 100)}.${Math.floor(Math.random() * 100)}.${Math.floor(Math.random() * 100)}`;
+						COMMIT = crypto.randomBytes(20).toString('hex');
+						sha256hash = crypto.randomBytes(32).toString('hex');
+						REDIRECT_URL = null;
 						console.log('Update configured:');
 						printStatus();
 					}
@@ -198,7 +199,7 @@ function startRepl() {
 				break;
 
 			default:
-				console.log('Commands: status, set <zip> <version> [commit], redirect [url], none, quit');
+				console.log('Commands: status, set <zip>, redirect [url], none, quit');
 		}
 
 		rl.prompt();
