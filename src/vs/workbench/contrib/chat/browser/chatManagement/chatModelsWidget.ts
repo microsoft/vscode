@@ -1205,22 +1205,22 @@ export class ChatModelsWidget extends Disposable {
 					if (actions.length) {
 						actions.push(new Separator());
 					}
-				}
-				if (configureVendor.managementCommand) {
-					actions.push(toAction({
-						id: 'configureVendor',
-						label: localize('models.configureContextMenu', 'Configure'),
-						run: async () => {
-							await this.commandService.executeCommand(configureVendor.managementCommand!, configureVendor.vendor);
-							await this.viewModel.refresh();
-						}
-					}));
-				} else {
-					actions.push(toAction({
-						id: 'configureVendor',
-						label: localize('models.configureContextMenu', 'Configure'),
-						run: () => this.languageModelsService.configureLanguageModelsProviderGroup(configureVendor.vendor, configureGroup!)
-					}));
+					if (configureVendor.managementCommand) {
+						actions.push(toAction({
+							id: 'configureVendor',
+							label: localize('models.configureContextMenu', 'Configure'),
+							run: async () => {
+								await this.commandService.executeCommand(configureVendor.managementCommand!, configureVendor.vendor);
+								await this.viewModel.refresh();
+							}
+						}));
+					} else {
+						actions.push(toAction({
+							id: 'configureVendor',
+							label: localize('models.configureContextMenu', 'Configure'),
+							run: () => this.languageModelsService.configureLanguageModelsProviderGroup(configureVendor.vendor, configureGroup!)
+						}));
+					}
 				}
 			}
 

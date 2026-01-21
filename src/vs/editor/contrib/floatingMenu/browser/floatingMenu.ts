@@ -94,12 +94,13 @@ export class FloatingEditorToolbarWidget extends Disposable {
 		this._register(autorun(reader => {
 			const hasActions = this.hasActions.read(reader);
 			const menuPrimaryActionId = menuPrimaryActionIdObs.read(reader);
-			if (!hasActions || !menuPrimaryActionId) {
+
+			if (!hasActions) {
 				return;
 			}
 
 			// Toolbar
-			const toolbar = instantiationService.createInstance(MenuWorkbenchToolBar, this.element, MenuId.EditorContent, {
+			const toolbar = instantiationService.createInstance(MenuWorkbenchToolBar, this.element, _menuId, {
 				actionViewItemProvider: (action, options) => {
 					if (!(action instanceof MenuItemAction)) {
 						return undefined;
