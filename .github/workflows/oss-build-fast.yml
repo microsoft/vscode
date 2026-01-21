@@ -1,0 +1,271 @@
+name: Fast OSS Build
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - copilot/add-github-actions-workflow
+
+jobs:
+  linux:
+    name: Linux x64
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      VSCODE_ARCH: x64
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      - name: Compute node modules cache key
+        id: nodeModulesCacheKey
+        run: echo "value=$(node build/azure-pipelines/common/computeNodeModulesCacheKey.js)" >> $GITHUB_OUTPUT
+
+      - name: Cache node modules
+        id: cacheNodeModules
+        uses: actions/cache@v4
+        with:
+          path: '**/node_modules'
+          key: ${{ runner.os }}-cacheNodeModulesLinux-${{ steps.nodeModulesCacheKey.outputs.value }}
+          restore-keys: ${{ runner.os }}-cacheNodeModulesLinux-
+
+      - name: Get yarn cache directory path
+        id: yarnCacheDirPath
+        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
+        run: echo "dir=$(yarn cache dir)" >> $GITHUB_OUTPUT
+
+      - name: Cache yarn directory
+        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.yarnCacheDirPath.outputs.dir }}
+          key: ${{ runner.os }}-yarnCacheDir-${{ steps.nodeModulesCacheKey.outputs.value }}
+          restore-keys: ${{ runner.os }}-yarnCacheDir-
+
+      - name: Execute yarn
+        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+          ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+        run: yarn --frozen-lockfile --network-timeout 180000
+
+      - name: Compute builtin extensions cache key
+        id: builtInExtensionsCacheKey
+        run: echo "value=$(node build/azure-pipelines/common/computeBuiltInDepsCacheKey.js)" >> $GITHUB_OUTPUT
+
+      - name: Cache builtin extensions
+        id: cache-builtin-extensions
+        uses: actions/cache@v4
+        with:
+          path: .build/builtInExtensions
+          key: builtInExtensions-${{ steps.builtInExtensionsCacheKey.outputs.value }}
+          restore-keys: builtInExtensions-
+
+      - name: Download built-in extensions
+        if: steps.cache-builtin-extensions.outputs.cache-hit != 'true'
+        run: node build/lib/builtInExtensions.ts
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Transpile client & extensions
+        run: npm run gulp transpile-client transpile-extensions
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build package
+        run: npm run gulp vscode-transpile-linux-$VSCODE_ARCH
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create archive
+        working-directory: ..
+        run: |
+          mkdir -p .build/linux/archive
+          tar -czf .build/linux/archive/VSCode-linux-$VSCODE_ARCH.tar.gz VSCode-linux-$VSCODE_ARCH
+
+      - name: Upload archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: vscode-linux-${{ env.VSCODE_ARCH }}
+          path: ../.build/linux/archive/VSCode-linux-${{ env.VSCODE_ARCH }}.tar.gz
+          retention-days: 7
+
+  darwin:
+    name: macOS arm64
+    runs-on: macos-latest
+    timeout-minutes: 60
+    env:
+      VSCODE_ARCH: arm64
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      - name: Compute node modules cache key
+        id: nodeModulesCacheKey
+        run: echo "value=$(node build/azure-pipelines/common/computeNodeModulesCacheKey.js)" >> $GITHUB_OUTPUT
+
+      - name: Cache node modules
+        id: cacheNodeModules
+        uses: actions/cache@v4
+        with:
+          path: '**/node_modules'
+          key: ${{ runner.os }}-cacheNodeModulesLinux-${{ steps.nodeModulesCacheKey.outputs.value }}
+          restore-keys: ${{ runner.os }}-cacheNodeModulesLinux-
+
+      - name: Get yarn cache directory path
+        id: yarnCacheDirPath
+        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
+        run: echo "dir=$(yarn cache dir)" >> $GITHUB_OUTPUT
+
+      - name: Cache yarn directory
+        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.yarnCacheDirPath.outputs.dir }}
+          key: ${{ runner.os }}-yarnCacheDir-${{ steps.nodeModulesCacheKey.outputs.value }}
+          restore-keys: ${{ runner.os }}-yarnCacheDir-
+
+      - name: Execute yarn
+        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+          ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+        run: yarn --frozen-lockfile --network-timeout 180000
+
+      - name: Compute builtin extensions cache key
+        id: builtInExtensionsCacheKey
+        run: echo "value=$(node build/azure-pipelines/common/computeBuiltInDepsCacheKey.js)" >> $GITHUB_OUTPUT
+
+      - name: Cache builtin extensions
+        id: cache-builtin-extensions
+        uses: actions/cache@v4
+        with:
+          path: .build/builtInExtensions
+          key: builtInExtensions-${{ steps.builtInExtensionsCacheKey.outputs.value }}
+          restore-keys: builtInExtensions-
+
+      - name: Download built-in extensions
+        if: steps.cache-builtin-extensions.outputs.cache-hit != 'true'
+        run: node build/lib/builtInExtensions.ts
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Transpile client & extensions
+        run: npm run gulp transpile-client transpile-extensions
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build package
+        run: npm run gulp vscode-transpile-darwin-$VSCODE_ARCH
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create archive
+        working-directory: ..
+        run: |
+          mkdir -p .build/darwin/archive
+          tar -czf .build/darwin/archive/VSCode-darwin-$VSCODE_ARCH.tar.gz VSCode-darwin-$VSCODE_ARCH
+
+      - name: Upload archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: vscode-darwin-${{ env.VSCODE_ARCH }}
+          path: ../.build/darwin/archive/VSCode-darwin-${{ env.VSCODE_ARCH }}.tar.gz
+          retention-days: 7
+
+  windows:
+    name: Windows x64
+    runs-on: windows-latest
+    timeout-minutes: 60
+    env:
+      VSCODE_ARCH: x64
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      - name: Compute node modules cache key
+        id: nodeModulesCacheKey
+        run: echo "value=$(node build/azure-pipelines/common/computeNodeModulesCacheKey.js)" >> $env:GITHUB_OUTPUT
+
+      - name: Cache node modules
+        id: cacheNodeModules
+        uses: actions/cache@v4
+        with:
+          path: '**/node_modules'
+          key: ${{ runner.os }}-cacheNodeModulesLinux-${{ steps.nodeModulesCacheKey.outputs.value }}
+          restore-keys: ${{ runner.os }}-cacheNodeModulesLinux-
+
+      - name: Get yarn cache directory path
+        id: yarnCacheDirPath
+        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
+        run: echo "dir=$(yarn cache dir)" >> $env:GITHUB_OUTPUT
+
+      - name: Cache yarn directory
+        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.yarnCacheDirPath.outputs.dir }}
+          key: ${{ runner.os }}-yarnCacheDir-${{ steps.nodeModulesCacheKey.outputs.value }}
+          restore-keys: ${{ runner.os }}-yarnCacheDir-
+
+      - name: Execute yarn
+        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+          ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+        run: yarn --frozen-lockfile --network-timeout 180000
+
+      - name: Compute builtin extensions cache key
+        id: builtInExtensionsCacheKey
+        run: echo "value=$(node build/azure-pipelines/common/computeBuiltInDepsCacheKey.js)" >> $env:GITHUB_OUTPUT
+
+      - name: Cache builtin extensions
+        id: cache-builtin-extensions
+        uses: actions/cache@v4
+        with:
+          path: .build/builtInExtensions
+          key: builtInExtensions-${{ steps.builtInExtensionsCacheKey.outputs.value }}
+          restore-keys: builtInExtensions-
+
+      - name: Download built-in extensions
+        if: steps.cache-builtin-extensions.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: node build/lib/builtInExtensions.ts
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Transpile client & extensions
+        shell: pwsh
+        run: npm run gulp transpile-client transpile-extensions
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build package
+        shell: pwsh
+        run: npm run gulp vscode-transpile-win32-$env:VSCODE_ARCH
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create archive
+        shell: pwsh
+        working-directory: ..
+        run: |
+          New-Item -ItemType Directory -Force -Path .build/win32-$env:VSCODE_ARCH/archive
+          $archivePath = ".build/win32-$env:VSCODE_ARCH/archive/VSCode-win32-$env:VSCODE_ARCH.zip"
+          7z.exe a -tzip $archivePath VSCode-win32-$env:VSCODE_ARCH/* "-xr!CodeSignSummary*.md"
+
+      - name: Upload archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: vscode-win32-${{ env.VSCODE_ARCH }}
+          path: ../.build/win32-${{ env.VSCODE_ARCH }}/archive/VSCode-win32-${{ env.VSCODE_ARCH }}.zip
+          retention-days: 7
