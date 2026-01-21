@@ -294,11 +294,11 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 			} else if (hasBadge && session.element.status === AgentSessionStatus.Completed) {
 				template.description.textContent = ''; // no description if completed and has badge
 			} else if (
-				session.element.timing.finishedOrFailedTime &&
-				session.element.timing.inProgressTime &&
-				session.element.timing.finishedOrFailedTime > session.element.timing.inProgressTime
+				session.element.timing.lastRequestEnded &&
+				session.element.timing.lastRequestStarted &&
+				session.element.timing.lastRequestEnded > session.element.timing.lastRequestStarted
 			) {
-				const duration = this.toDuration(session.element.timing.inProgressTime, session.element.timing.finishedOrFailedTime, false, true);
+				const duration = this.toDuration(session.element.timing.lastRequestStarted, session.element.timing.lastRequestEnded, false, true);
 
 				template.description.textContent = session.element.status === AgentSessionStatus.Failed ?
 					localize('chat.session.status.failedAfter', "Failed after {0}.", duration) :
@@ -324,8 +324,8 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 
 		const getTimeLabel = (session: IAgentSession) => {
 			let timeLabel: string | undefined;
-			if (session.status === AgentSessionStatus.InProgress && session.timing.inProgressTime) {
-				timeLabel = this.toDuration(session.timing.inProgressTime, Date.now(), false, false);
+			if (session.status === AgentSessionStatus.InProgress && session.timing.lastRequestStarted) {
+				timeLabel = this.toDuration(session.timing.lastRequestStarted, Date.now(), false, false);
 			}
 
 			if (!timeLabel) {
