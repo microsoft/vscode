@@ -74,7 +74,7 @@ export class ChatInputOutputMarkdownProgressPart extends BaseChatToolInvocationS
 					ownerMarkdownPartId: this.codeblocksPartId,
 					uri: undefined, // Will be set when model is created
 					chatSessionResource: context.element.sessionResource,
-					uriPromise: undefined, // Will be set when model is created
+					uriPromise: Promise.resolve(undefined), // Will be updated when model is created
 				}
 			};
 		};
