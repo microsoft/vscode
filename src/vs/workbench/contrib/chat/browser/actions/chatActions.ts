@@ -948,10 +948,6 @@ MenuRegistry.appendMenuItem(MenuId.CommandCenter, {
 			ChatContextKeys.Setup.disabled.negate()
 		),
 		ContextKeyExpr.has('config.chat.commandCenter.enabled'),
-		ContextKeyExpr.or(
-			ContextKeyExpr.has(`config.${ChatConfiguration.AgentStatusEnabled}`).negate(), // Show when agent status is disabled
-			ChatContextKeys.agentStatusHasNotifications.negate() // Or when agent status has no notifications
-		)
 	),
 	order: 10003 // to the right of agent controls
 });

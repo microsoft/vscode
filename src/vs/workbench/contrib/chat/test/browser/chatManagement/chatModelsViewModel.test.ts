@@ -4,17 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { Emitter } from '../../../../../../base/common/event.js';
 import { IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelChatProvider, ILanguageModelChatSelector, ILanguageModelsGroup, ILanguageModelsService, IUserFriendlyLanguageModel } from '../../../common/languageModels.js';
 import { ChatModelGroup, ChatModelsViewModel, ILanguageModelEntry, ILanguageModelProviderEntry, isLanguageModelProviderEntry, isLanguageModelGroupEntry, ILanguageModelGroupEntry } from '../../../browser/chatManagement/chatModelsViewModel.js';
-import { IChatEntitlementService, ChatEntitlement } from '../../../../../services/chat/common/chatEntitlementService.js';
-import { IObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { IStringDictionary } from '../../../../../../base/common/collections.js';
-import { ILanguageModelsConfigurationService, ILanguageModelsProviderGroup } from '../../../common/languageModelsConfiguration.js';
-import { mock } from '../../../../../../base/test/common/mock.js';
+import { ILanguageModelsProviderGroup } from '../../../common/languageModelsConfiguration.js';
 import { ChatAgentLocation } from '../../../common/constants.js';
 
 class MockLanguageModelsService implements ILanguageModelsService {
@@ -27,6 +24,9 @@ class MockLanguageModelsService implements ILanguageModelsService {
 
 	private readonly _onDidChangeLanguageModels = new Emitter<string>();
 	readonly onDidChangeLanguageModels = this._onDidChangeLanguageModels.event;
+
+	private readonly _onDidChangeLanguageModelVendors = new Emitter<readonly string[]>();
+	readonly onDidChangeLanguageModelVendors = this._onDidChangeLanguageModelVendors.event;
 
 	addVendor(vendor: IUserFriendlyLanguageModel): void {
 		this.vendors.push(vendor);
@@ -56,6 +56,10 @@ class MockLanguageModelsService implements ILanguageModelsService {
 	}
 
 	registerLanguageModelProvider(vendor: string, provider: ILanguageModelChatProvider): IDisposable {
+		throw new Error('Method not implemented.');
+	}
+
+	deltaLanguageModelChatProviderDescriptors(added: IUserFriendlyLanguageModel[], removed: IUserFriendlyLanguageModel[]): void {
 		throw new Error('Method not implemented.');
 	}
 
@@ -113,7 +117,7 @@ class MockLanguageModelsService implements ILanguageModelsService {
 	async addLanguageModelsProviderGroup(name: string, vendorId: string, configuration: IStringDictionary<unknown> | undefined): Promise<void> {
 	}
 
-	async fetchLanguageModelGroups(vendor: string): Promise<ILanguageModelsGroup[]> {
+	getLanguageModelGroups(vendor: string): ILanguageModelsGroup[] {
 		return this.modelGroups.get(vendor) || [];
 	}
 
@@ -123,67 +127,13 @@ class MockLanguageModelsService implements ILanguageModelsService {
 	async migrateLanguageModelsProviderGroup(languageModelsProviderGroup: ILanguageModelsProviderGroup): Promise<void> { }
 }
 
-class MockChatEntitlementService implements IChatEntitlementService {
-	_serviceBrand: undefined;
-
-	private readonly _onDidChangeEntitlement = new Emitter<void>();
-	readonly onDidChangeEntitlement = this._onDidChangeEntitlement.event;
-
-	readonly entitlement = ChatEntitlement.Unknown;
-	readonly entitlementObs: IObservable<ChatEntitlement> = observableValue('entitlement', ChatEntitlement.Unknown);
-
-	readonly organisations: string[] | undefined = undefined;
-	readonly isInternal = false;
-	readonly sku: string | undefined = undefined;
-
-	readonly onDidChangeQuotaExceeded = Event.None;
-	readonly onDidChangeQuotaRemaining = Event.None;
-
-	readonly quotas = {
-		chat: {
-			total: 100,
-			remaining: 100,
-			percentRemaining: 100,
-			overageEnabled: false,
-			overageCount: 0,
-			unlimited: false
-		},
-		completions: {
-			total: 100,
-			remaining: 100,
-			percentRemaining: 100,
-			overageEnabled: false,
-			overageCount: 0,
-			unlimited: false
-		}
-	};
-
-	readonly onDidChangeSentiment = Event.None;
-	readonly sentiment: any = { installed: true, hidden: false, disabled: false };
-	readonly sentimentObs: IObservable<any> = observableValue('sentiment', { installed: true, hidden: false, disabled: false });
-
-	readonly onDidChangeAnonymous = Event.None;
-	readonly anonymous = false;
-	readonly anonymousObs: IObservable<boolean> = observableValue('anonymous', false);
-
-	fireEntitlementChange(): void {
-		this._onDidChangeEntitlement.fire();
-	}
-
-	async update(): Promise<void> {
-		// Not needed for tests
-	}
-}
-
 suite('ChatModelsViewModel', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	let languageModelsService: MockLanguageModelsService;
-	let chatEntitlementService: MockChatEntitlementService;
 	let viewModel: ChatModelsViewModel;
 
 	setup(async () => {
 		languageModelsService = new MockLanguageModelsService();
-		chatEntitlementService = new MockChatEntitlementService();
 
 		// Setup test data
 		languageModelsService.addVendor({
@@ -286,15 +236,7 @@ suite('ChatModelsViewModel', () => {
 			}
 		});
 
-		viewModel = store.add(new ChatModelsViewModel(
-			languageModelsService,
-			new class extends mock<ILanguageModelsConfigurationService>() {
-				override get onDidChangeLanguageModelGroups() {
-					return Event.None;
-				}
-			},
-			chatEntitlementService,
-		));
+		viewModel = store.add(new ChatModelsViewModel(languageModelsService));
 
 		await viewModel.refresh();
 	});
@@ -513,20 +455,6 @@ suite('ChatModelsViewModel', () => {
 		assert.strictEqual(copilotModelsAfterExpand.length, 2);
 	});
 
-	test('should fire onDidChangeModelEntries when entitlement changes', async () => {
-		let fired = false;
-		store.add(viewModel.onDidChange(() => {
-			fired = true;
-		}));
-
-		chatEntitlementService.fireEntitlementChange();
-
-		// Wait a bit for async resolve
-		await new Promise(resolve => setTimeout(resolve, 10));
-
-		assert.strictEqual(fired, true);
-	});
-
 	test('should handle quoted search strings', () => {
 		// When a search string is fully quoted (starts and ends with quotes),
 		// the completeMatch flag is set to true, which currently skips all matching
@@ -594,7 +522,7 @@ suite('ChatModelsViewModel', () => {
 		}
 	});
 
-	function createSingleVendorViewModel(chatEntitlementService: IChatEntitlementService, includeSecondModel: boolean = true): { service: MockLanguageModelsService; viewModel: ChatModelsViewModel } {
+	function createSingleVendorViewModel(includeSecondModel: boolean = true): { service: MockLanguageModelsService; viewModel: ChatModelsViewModel } {
 		const service = new MockLanguageModelsService();
 		service.addVendor({
 			vendor: 'copilot',
@@ -648,16 +576,12 @@ suite('ChatModelsViewModel', () => {
 			});
 		}
 
-		const viewModel = store.add(new ChatModelsViewModel(service, new class extends mock<ILanguageModelsConfigurationService>() {
-			override get onDidChangeLanguageModelGroups() {
-				return Event.None;
-			}
-		}, chatEntitlementService));
+		const viewModel = store.add(new ChatModelsViewModel(service));
 		return { service, viewModel };
 	}
 
 	test('should not show vendor header when only one vendor exists', async () => {
-		const { viewModel: singleVendorViewModel } = createSingleVendorViewModel(chatEntitlementService);
+		const { viewModel: singleVendorViewModel } = createSingleVendorViewModel();
 		await singleVendorViewModel.refresh();
 
 		const results = singleVendorViewModel.filter('');
@@ -684,7 +608,7 @@ suite('ChatModelsViewModel', () => {
 	});
 
 	test('should filter single vendor models by capability', async () => {
-		const { viewModel: singleVendorViewModel } = createSingleVendorViewModel(chatEntitlementService);
+		const { viewModel: singleVendorViewModel } = createSingleVendorViewModel();
 		await singleVendorViewModel.refresh();
 
 		const results = singleVendorViewModel.filter('@capability:agent');
@@ -798,7 +722,7 @@ suite('ChatModelsViewModel', () => {
 	});
 
 	test('should not show vendor headers when filtered if only one vendor exists', async () => {
-		const { viewModel: singleVendorViewModel } = createSingleVendorViewModel(chatEntitlementService);
+		const { viewModel: singleVendorViewModel } = createSingleVendorViewModel();
 		await singleVendorViewModel.refresh();
 
 		const results = singleVendorViewModel.filter('GPT');

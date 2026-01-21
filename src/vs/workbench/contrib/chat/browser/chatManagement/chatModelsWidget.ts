@@ -992,6 +992,8 @@ export class ChatModelsWidget extends Disposable {
 		// Create table
 		this.createTable();
 		this._register(this.viewModel.onDidChangeGrouping(() => this.createTable()));
+		this._register(this.chatEntitlementService.onDidChangeEntitlement(() => this.updateAddModelsButton()));
+		this._register(this.languageModelsService.onDidChangeLanguageModelVendors(() => this.updateAddModelsButton()));
 	}
 
 	private createTable(): void {
@@ -1167,19 +1169,6 @@ export class ChatModelsWidget extends Disposable {
 				this.table.setFocus([selectedEntryIndex]);
 				this.table.setSelection([selectedEntryIndex]);
 			}
-
-			const configurableVendors = this.languageModelsService.getVendors().filter(vendor => vendor.managementCommand || vendor.configuration);
-
-			const hasPlan = this.chatEntitlementService.entitlement !== ChatEntitlement.Unknown && this.chatEntitlementService.entitlement !== ChatEntitlement.Available;
-			this.addButton.enabled = hasPlan && configurableVendors.length > 0;
-
-			this.dropdownActions = configurableVendors.map(vendor => toAction({
-				id: `enable-${vendor.vendor}`,
-				label: vendor.displayName,
-				run: async () => {
-					await this.addModelsForVendor(vendor);
-				}
-			}));
 		}));
 
 		this.tableDisposables.add(this.table.onDidOpen(async ({ element, browserEvent }) => {
@@ -1205,6 +1194,27 @@ export class ChatModelsWidget extends Disposable {
 		}));
 
 		this.layout(this.element.clientHeight, this.element.clientWidth);
+	}
+
+	private updateAddModelsButton(): void {
+		const configurableVendors = this.languageModelsService.getVendors().filter(vendor => vendor.managementCommand || vendor.configuration);
+
+		const entitlement = this.chatEntitlementService.entitlement;
+		const supportsAddingModels = this.chatEntitlementService.isInternal
+			|| (entitlement !== ChatEntitlement.Unknown
+				&& entitlement !== ChatEntitlement.Available
+				&& entitlement !== ChatEntitlement.Business
+				&& entitlement !== ChatEntitlement.Enterprise);
+
+		this.addButton.enabled = supportsAddingModels && configurableVendors.length > 0;
+
+		this.dropdownActions = configurableVendors.map(vendor => toAction({
+			id: `enable-${vendor.vendor}`,
+			label: vendor.displayName,
+			run: async () => {
+				await this.addModelsForVendor(vendor);
+			}
+		}));
 	}
 
 	private filterModels(): void {
