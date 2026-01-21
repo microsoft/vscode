@@ -40,6 +40,7 @@ import { Event } from '../../../../../base/common/event.js';
 import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
 import { MarkdownString, IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { AgentSessionHoverWidget } from './agentSessionHoverWidget.js';
+import { autorun, observableFromEvent } from '../../../../../base/common/observable.js';
 
 export type AgentSessionListItem = IAgentSession | IAgentSessionSection;
 
@@ -53,6 +54,7 @@ interface IAgentSessionItemTemplate {
 
 	// Column 2 Row 1
 	readonly title: IconLabel;
+	readonly titleToolbarContainer: HTMLDivElement;
 	readonly titleToolbar: MenuWorkbenchToolBar;
 
 	// Column 2 Row 2
@@ -141,6 +143,7 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 			element: elements.item,
 			icon: elements.icon,
 			title: disposables.add(new IconLabel(elements.title, { supportHighlights: true, supportIcons: true })),
+			titleToolbarContainer: elements.titleToolbar,
 			titleToolbar,
 			diffContainer: elements.diffContainer,
 			diffFilesSpan: elements.filesSpan,
@@ -194,6 +197,9 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 		template.diffContainer.classList.toggle('has-diff', hasDiff);
 		ChatContextKeys.hasAgentSessionChanges.bindTo(template.contextKeyService).set(hasDiff);
 
+		// Toolbar
+		this.renderToolbar(template);
+
 		// Badge
 		let hasBadge = false;
 		if (!isSessionInProgressStatus(session.element.status)) {
@@ -211,6 +217,18 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 
 		// Hover
 		this.renderHover(session, template);
+	}
+
+	private renderToolbar(template: IAgentSessionItemTemplate): void {
+		const itemsCountObs = observableFromEvent(
+			this,
+			template.titleToolbar.onDidChangeMenuItems,
+			() => template.titleToolbar.getItemsLength());
+
+		template.elementDisposable.add(autorun(reader => {
+			const itemsCount = itemsCountObs.read(reader);
+			template.titleToolbarContainer.style.width = `${itemsCount * 22}px`;
+		}));
 	}
 
 	private renderBadge(session: ITreeNode<IAgentSession, FuzzyScore>, template: IAgentSessionItemTemplate): boolean {
