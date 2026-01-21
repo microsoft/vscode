@@ -86,6 +86,7 @@ import { registerChatElicitationActions } from './actions/chatElicitationActions
 import { registerChatToolActions } from './actions/chatToolActions.js';
 import { ChatTransferContribution } from './actions/chatTransfer.js';
 import './agentSessions/agentSessions.contribution.js';
+import { IAgentSessionsService } from './agentSessions/agentSessionsService.js';
 import { IChatAccessibilityService, IChatCodeBlockContextProviderService, IChatWidgetService, IQuickChatService } from './chat.js';
 import { ChatAccessibilityService } from './accessibility/chatAccessibilityService.js';
 import './attachments/chatAttachmentModel.js';
@@ -1148,6 +1149,7 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 		@IChatAgentService chatAgentService: IChatAgentService,
 		@IChatWidgetService chatWidgetService: IChatWidgetService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IAgentSessionsService agentSessionsService: IAgentSessionsService,
 	) {
 		super();
 		this._store.add(slashCommandService.registerSlashCommand({
@@ -1156,7 +1158,12 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 			sortText: 'z2_clear',
 			executeImmediately: true,
 			locations: [ChatAgentLocation.Chat]
-		}, async () => {
+		}, async (_prompt, _progress, _history, _location, sessionResource) => {
+			// Archive the current session before creating a new one
+			const currentSession = agentSessionsService.getSession(sessionResource);
+			if (currentSession && !currentSession.isArchived()) {
+				currentSession.setArchived(true);
+			}
 			commandService.executeCommand(ACTION_ID_NEW_CHAT);
 		}));
 		this._store.add(slashCommandService.registerSlashCommand({
