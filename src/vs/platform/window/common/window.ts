@@ -58,6 +58,7 @@ export interface IBaseOpenWindowsOptions {
 export interface IOpenWindowOptions extends IBaseOpenWindowsOptions {
 	readonly forceNewWindow?: boolean;
 	readonly preferNewWindow?: boolean;
+	readonly isAgentWindow?: boolean;
 
 	readonly noRecentEntry?: boolean;
 
@@ -95,7 +96,13 @@ export function isOpenedAuxiliaryWindow(candidate: IOpenedMainWindow | IOpenedAu
 	return typeof (candidate as IOpenedAuxiliaryWindow).parentId === 'number';
 }
 
-export interface IOpenEmptyWindowOptions extends IBaseOpenWindowsOptions { }
+export interface IOpenEmptyWindowOptions extends IBaseOpenWindowsOptions {
+	/**
+	 * If set, opens an Agent window with a custom minimal UI
+	 * instead of the full workbench.
+	 */
+	readonly isAgentWindow?: boolean;
+}
 
 export type IWindowOpenable = IWorkspaceToOpen | IFolderToOpen | IFileToOpen;
 
@@ -464,6 +471,12 @@ export interface INativeWindowConfiguration extends IWindowConfiguration, Native
 
 	os: IOSConfiguration;
 	policiesData?: IStringDictionary<{ definition: PolicyDefinition; value: PolicyValue }>;
+
+	/**
+	 * If set, indicates this is an Agent window with a custom minimal UI
+	 * instead of the full workbench.
+	 */
+	isAgentWindow?: boolean;
 }
 
 /**

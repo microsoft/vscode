@@ -258,6 +258,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 				remoteAuthority: options.remoteAuthority || undefined,
 				forceProfile: options.forceProfile,
 				forceTempProfile: options.forceTempProfile,
+				isAgentWindow: options.isAgentWindow,
 			});
 		}
 	}

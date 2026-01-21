@@ -82,6 +82,8 @@ interface IOpenBrowserWindowOptions {
 	readonly emptyWindowBackupInfo?: IEmptyWindowBackupInfo;
 	readonly forceProfile?: string;
 	readonly forceTempProfile?: boolean;
+
+	readonly isAgentWindow?: boolean;
 }
 
 interface IPathResolveOptions {
@@ -276,7 +278,17 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		const forceReuseWindow = options?.forceReuseWindow;
 		const forceNewWindow = !forceReuseWindow;
 
-		return this.open({ ...openConfig, cli, forceEmpty, forceNewWindow, forceReuseWindow, remoteAuthority, forceTempProfile: options?.forceTempProfile, forceProfile: options?.forceProfile });
+		return this.open({
+			...openConfig,
+			cli,
+			forceEmpty,
+			forceNewWindow,
+			forceReuseWindow,
+			remoteAuthority,
+			forceTempProfile: options?.forceTempProfile,
+			forceProfile: options?.forceProfile,
+			isAgentWindow: options?.isAgentWindow
+		});
 	}
 
 	openExistingWindow(window: ICodeWindow, openConfig: IOpenConfiguration): void {
@@ -293,6 +305,17 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 	async open(openConfig: IOpenConfiguration): Promise<ICodeWindow[]> {
 		this.logService.trace('windowsManager#open');
+
+		// Reuse existing agent window if one exists
+		if (openConfig.isAgentWindow) {
+			const allWindows = this.getWindows();
+			const existingAgentWindow = allWindows.find(w => w.config?.isAgentWindow);
+			if (existingAgentWindow) {
+				existingAgentWindow.focus();
+				return [existingAgentWindow];
+			}
+			this.logService.info('[AgentWindow] No existing agent window found, creating new one');
+		}
 
 		// Make sure addMode/removeMode is only enabled if we have an active window
 		if ((openConfig.addMode || openConfig.removeMode) && (openConfig.initialStartup || !this.getLastActiveWindow())) {
@@ -588,7 +611,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 					remoteAuthority: filesToOpen.remoteAuthority,
 					forceNewTabbedWindow: openConfig.forceNewTabbedWindow,
 					forceProfile: openConfig.forceProfile,
-					forceTempProfile: openConfig.forceTempProfile
+					forceTempProfile: openConfig.forceTempProfile,
+					isAgentWindow: openConfig.isAgentWindow
 				}), true);
 			}
 		}
@@ -744,7 +768,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			windowToUse,
 			emptyWindowBackupInfo,
 			forceProfile: openConfig.forceProfile,
-			forceTempProfile: openConfig.forceTempProfile
+			forceTempProfile: openConfig.forceTempProfile,
+			isAgentWindow: openConfig.isAgentWindow
 		});
 	}
 
@@ -766,7 +791,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			filesToOpen,
 			windowToUse,
 			forceProfile: openConfig.forceProfile,
-			forceTempProfile: openConfig.forceTempProfile
+			forceTempProfile: openConfig.forceTempProfile,
+			isAgentWindow: openConfig.isAgentWindow
 		});
 	}
 
@@ -1540,7 +1566,9 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			policiesData: this.policyService.serialize(),
 			continueOn: this.environmentMainService.continueOn,
 
-			cssModules: this.cssDevelopmentService.isEnabled ? await this.cssDevelopmentService.getCssModules() : undefined
+			cssModules: this.cssDevelopmentService.isEnabled ? await this.cssDevelopmentService.getCssModules() : undefined,
+
+			isAgentWindow: options.isAgentWindow
 		};
 
 		// New window

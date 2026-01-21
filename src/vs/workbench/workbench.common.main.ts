@@ -212,6 +212,9 @@ import './contrib/mcp/browser/mcp.contribution.js';
 import './contrib/chat/browser/chatSessions/chatSessions.contribution.js';
 import './contrib/chat/browser/contextContrib/chatContext.contribution.js';
 
+// Agent Window Contribution
+import './contrib/agent/browser/agentWindow.js';
+
 // Interactive
 import './contrib/interactive/browser/interactive.contribution.js';
 

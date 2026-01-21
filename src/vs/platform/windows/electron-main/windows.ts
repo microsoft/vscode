@@ -115,6 +115,11 @@ export interface IOpenConfiguration extends IBaseOpenConfiguration {
 	readonly remoteAuthority?: string;
 	readonly forceProfile?: string;
 	readonly forceTempProfile?: boolean;
+	/**
+	 * If set, opens an Agent window with a custom minimal UI
+	 * instead of the full workbench.
+	 */
+	readonly isAgentWindow?: boolean;
 }
 
 export interface IOpenEmptyConfiguration extends IBaseOpenConfiguration { }

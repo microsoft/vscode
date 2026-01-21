@@ -1880,6 +1880,46 @@ export default tseslint.config(
 					]
 				},
 				{
+					'target': 'src/vs/workbench/workbench.agent.desktop.main.ts',
+					'layer': 'electron-browser',
+					'restrictions': [
+						'vs/base/~',
+						'vs/base/parts/*/~',
+						'vs/platform/*/~',
+						'vs/workbench/~',
+						'vs/workbench/workbench.common.main.js',
+						'vs/workbench/workbench.desktop.main.js',
+						'vs/workbench/services/*/~',
+						'vs/workbench/contrib/agent/~',
+						'vs/workbench/contrib/chat/~',
+						'vs/workbench/contrib/chat/browser/~',
+						'vs/workbench/contrib/chat/common/~',
+						'vs/workbench/contrib/chat/browser/chatSessions/~',
+						'vs/workbench/contrib/chat/browser/agentSessions/~',
+						'vs/workbench/contrib/mcp/~',
+						'vs/workbench/contrib/debug/~'
+					]
+				},
+				{
+					'target': 'src/vs/workbench/agent/agentWindowMain.ts',
+					'layer': 'electron-browser',
+					'restrictions': [
+						'vs/base/~',
+						'vs/base/parts/*/~',
+						'vs/platform/*/~',
+						'vs/workbench/~',
+						'vs/workbench/workbench.common.main.js',
+						'vs/workbench/services/*/~',
+						'vs/workbench/contrib/chat/~',
+						'vs/workbench/contrib/chat/browser/~',
+						'vs/workbench/contrib/chat/common/~',
+						'vs/workbench/contrib/chat/browser/chatSessions/~',
+						'vs/workbench/contrib/chat/browser/agentSessions/~',
+						'vs/workbench/contrib/mcp/~',
+						'vs/workbench/contrib/debug/~'
+					]
+				},
+				{
 					'target': 'src/vs/amdX.ts',
 					'restrictions': [
 						'vs/base/common/*'

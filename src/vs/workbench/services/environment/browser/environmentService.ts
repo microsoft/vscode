@@ -37,6 +37,12 @@ export interface IBrowserWorkbenchEnvironmentService extends IWorkbenchEnvironme
 	 * Gets whether a resolver extension is expected for the environment.
 	 */
 	readonly expectsResolverExtension: boolean;
+
+	/**
+	 * Whether this is an Agent window with a custom minimal UI
+	 * instead of the full workbench.
+	 */
+	readonly isAgentWindow?: boolean;
 }
 
 export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvironmentService {
@@ -50,6 +56,8 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 	get expectsResolverExtension(): boolean {
 		return !!this.options.remoteAuthority?.includes('+') && !this.options.webSocketFactory;
 	}
+
+	get isAgentWindow(): boolean { return false; }
 
 	@memoize
 	get isBuilt(): boolean { return !!this.productService.commit; }

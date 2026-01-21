@@ -1166,6 +1166,8 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		let windowUrl: string;
 		if (process.env.VSCODE_DEV && process.env.VSCODE_DEV_SERVER_URL) {
 			windowUrl = process.env.VSCODE_DEV_SERVER_URL; // support URL override for development
+		} else if (configuration.isAgentWindow) {
+			windowUrl = FileAccess.asBrowserUri(`vs/code/electron-browser/agent/agent.html`).toString(true);
 		} else {
 			windowUrl = FileAccess.asBrowserUri(`vs/code/electron-browser/workbench/workbench${this.environmentMainService.isBuilt ? '' : '-dev'}.html`).toString(true);
 		}

@@ -1,0 +1,325 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+html {
+	height: 100%;
+	overflow: hidden;
+}
+
+body {
+	margin: 0;
+	padding: 0;
+	display: flex;
+	flex-direction: column;
+	height: 100vh;
+	max-height: 100vh;
+	overflow: hidden;
+}
+
+.agent-header {
+	height: 35px;
+	padding: 0 20px;
+	padding-left: 80px; /* Space for macOS traffic light buttons */
+	background-color: var(--vscode-titleBar-activeBackground, #3c3c3c);
+	color: var(--vscode-titleBar-activeForeground, #cccccc);
+	-webkit-app-region: drag;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border-bottom: 1px solid var(--vscode-sideBar-border, #3c3c3c);
+	box-sizing: border-box;
+	position: relative;
+}
+
+.agent-header h1 {
+	margin: 0;
+	font-size: 14px;
+	font-weight: 500;
+	position: absolute;
+	left: 80px;
+}
+
+.agent-header .agent-status-widget {
+	-webkit-app-region: no-drag;
+}
+
+.agent-container {
+	flex: 1;
+	display: flex;
+	overflow: hidden;
+	min-height: 0;
+	max-height: calc(100vh - 35px);
+}
+
+.agent-sessions-list {
+	width: 300px;
+	border-right: 1px solid var(--vscode-sideBar-border, #3c3c3c);
+	display: flex;
+	flex-direction: column;
+	overflow: hidden;
+	max-height: 100%;
+}
+
+.agent-sessions-header {
+	padding: 8px 8px 8px 16px;
+	font-size: 11px;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
+	color: var(--vscode-sideBarSectionHeader-foreground, #9d9d9d);
+	border-bottom: 1px solid var(--vscode-sideBar-border, #3c3c3c);
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+}
+
+.agent-sessions-header-title {
+	flex: 1;
+}
+
+.agent-sessions-toolbar {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+}
+
+.agent-sessions-toolbar-button {
+	width: 22px;
+	height: 22px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border: none;
+	background: transparent;
+	color: var(--vscode-icon-foreground, #c5c5c5);
+	cursor: pointer;
+	border-radius: 4px;
+	padding: 0;
+}
+
+.agent-sessions-toolbar-button:hover {
+	background-color: var(--vscode-toolbar-hoverBackground, rgba(90, 93, 94, 0.31));
+}
+
+.agent-sessions-toolbar-button:active {
+	background-color: var(--vscode-toolbar-activeBackground, rgba(99, 102, 103, 0.31));
+}
+
+.agent-sessions-items {
+	flex: 1;
+	overflow: hidden;
+	display: flex;
+	flex-direction: column;
+}
+
+.agent-sessions-empty {
+	padding: 40px 16px;
+	text-align: center;
+	color: var(--vscode-descriptionForeground, #9d9d9d);
+	font-size: 13px;
+}
+
+.agent-chat-container {
+	flex: 1;
+	display: flex;
+	flex-direction: column;
+	overflow: hidden;
+	min-height: 0;
+	max-height: 100%;
+}
+
+/* Welcome/New Session View - styled like AgentSessionsWelcome */
+.agent-chat-empty {
+	flex: 1;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	overflow-y: auto;
+	padding: 40px 20px;
+}
+
+.agent-welcome-content {
+	width: 100%;
+	max-width: 700px;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+}
+
+.agent-welcome-title {
+	font-size: 24px;
+	font-weight: 600;
+	color: var(--vscode-editor-foreground, #cccccc);
+	margin-bottom: 24px;
+}
+
+/* Chat widget in welcome view - input on top, hide conversation list */
+.agent-welcome-chat-widget {
+	width: 100%;
+	max-width: 800px;
+	margin-bottom: 32px;
+}
+
+/* Hide the interactive list (chat history) in welcome view */
+.agent-welcome-chat-widget .interactive-list {
+	display: none !important;
+}
+
+/* Hide the welcome message containers */
+.agent-welcome-chat-widget .chat-welcome-view,
+.agent-welcome-chat-widget .chat-welcome-view-container {
+	display: none !important;
+}
+
+/* Let session container size to content since list is hidden */
+.agent-welcome-chat-widget .interactive-session {
+	height: auto !important;
+}
+
+/* Input part styling - minimal adjustments */
+.agent-welcome-chat-widget .interactive-input-part {
+	margin: 0;
+	padding: 0;
+}
+
+.agent-chat-empty-title {
+	font-size: 18px;
+	font-weight: 600;
+	margin-bottom: 8px;
+	color: var(--vscode-editor-foreground, #cccccc);
+}
+
+.agent-chat-empty-description {
+	font-size: 14px;
+	max-width: 400px;
+	color: var(--vscode-descriptionForeground, #9d9d9d);
+	text-align: center;
+}
+
+/* Ensure chat widget container fills space properly */
+.agent-chat-widget-container {
+	position: relative;
+	min-height: 0;
+	display: none;
+	flex: 1;
+	overflow: hidden;
+}
+
+/* Center loading state in chat widget container */
+.agent-chat-loading {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	height: 100%;
+	width: 100%;
+	color: var(--vscode-descriptionForeground, #9d9d9d);
+	font-size: 14px;
+}
+
+.agent-chat-widget-container > div {
+	height: 100%;
+	width: 100%;
+	min-height: 0;
+}
+
+/* Ensure the interactive session takes full height */
+.interactive-session {
+	height: 100%;
+}
+
+/* Changes pane - shows file changes for the selected session */
+.agent-changes-container {
+	display: flex;
+	flex-direction: column;
+	overflow: hidden;
+	border-left: 1px solid var(--vscode-sideBar-border, #3c3c3c);
+	background: var(--vscode-editor-background, #1e1e1e);
+}
+
+.agent-changes-header {
+	padding: 8px 16px;
+	font-size: 11px;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
+	color: var(--vscode-sideBarSectionHeader-foreground, #9d9d9d);
+	border-bottom: 1px solid var(--vscode-sideBar-border, #3c3c3c);
+}
+
+.agent-changes-list {
+	max-height: 200px;
+	overflow-y: auto;
+	padding: 8px 0;
+	flex-shrink: 0;
+}
+
+.agent-diff-editor {
+	flex: 1;
+	display: none;
+	overflow: hidden;
+	min-height: 200px;
+	border-top: 1px solid var(--vscode-sideBar-border, #3c3c3c);
+}
+
+.agent-changes-empty {
+	padding: 40px 16px;
+	text-align: center;
+	color: var(--vscode-descriptionForeground, #9d9d9d);
+	font-size: 13px;
+}
+
+.agent-change-item {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 6px 16px;
+	cursor: pointer;
+}
+
+.agent-change-item:hover {
+	background-color: var(--vscode-list-hoverBackground, rgba(90, 93, 94, 0.31));
+}
+
+.agent-change-item.selected {
+	background-color: var(--vscode-list-activeSelectionBackground, #04395e);
+	color: var(--vscode-list-activeSelectionForeground, #ffffff);
+}
+
+.agent-change-item.selected .agent-change-path {
+	color: var(--vscode-list-activeSelectionForeground, #ffffff);
+}
+
+.agent-change-path {
+	flex: 1;
+	font-size: 13px;
+	color: var(--vscode-editor-foreground, #cccccc);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.agent-change-stats {
+	display: flex;
+	gap: 8px;
+	font-size: 12px;
+	font-family: var(--monaco-monospace-font);
+}
+
+.agent-change-insertions {
+	color: var(--vscode-chat-linesAddedForeground, #89d185);
+}
+
+.agent-change-deletions {
+	color: var(--vscode-chat-linesRemovedForeground, #f48771);
+}
+
+.agent-changes-summary {
+	padding: 16px;
+	font-size: 13px;
+	color: var(--vscode-editor-foreground, #cccccc);
+	display: flex;
+	align-items: center;
+	gap: 12px;
+}
