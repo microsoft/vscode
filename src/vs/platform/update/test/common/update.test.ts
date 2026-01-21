@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { computeDownloadTimeRemaining, Downloading, StateType } from '../../common/update.js';
+import { computeDownloadTimeRemaining, Downloading, formatTimeRemaining, StateType } from '../../common/update.js';
 
 suite('Update', () => {
 
@@ -57,6 +57,30 @@ suite('Update', () => {
 			const downloaded50MB = 50 * 1024 * 1024;
 			const total100MB = 100 * 1024 * 1024;
 			assert.strictEqual(computeDownloadTimeRemaining(createDownloadingState(downloaded50MB, total100MB, now - 50000)), 50);
+		});
+	});
+
+	suite('formatTimeRemaining', () => {
+
+		test('formats seconds for values less than 1 minute', () => {
+			assert.strictEqual(formatTimeRemaining(1), '1s');
+			assert.strictEqual(formatTimeRemaining(30), '30s');
+			assert.strictEqual(formatTimeRemaining(59), '59s');
+		});
+
+		test('formats minutes for values between 1 minute and 1 hour', () => {
+			assert.strictEqual(formatTimeRemaining(60), '1 min');
+			assert.strictEqual(formatTimeRemaining(120), '2 min');
+			assert.strictEqual(formatTimeRemaining(90), '1 min'); // Floors to 1 min
+			assert.strictEqual(formatTimeRemaining(3599), '59 min');
+		});
+
+		test('formats fractional hours for values >= 1 hour', () => {
+			assert.strictEqual(formatTimeRemaining(3600), '1 hours');
+			assert.strictEqual(formatTimeRemaining(5400), '1.5 hours'); // 1.5 hours
+			assert.strictEqual(formatTimeRemaining(7200), '2 hours');
+			assert.strictEqual(formatTimeRemaining(9000), '2.5 hours'); // 2.5 hours
+			assert.strictEqual(formatTimeRemaining(3960), '1.1 hours'); // 1 hour 6 min = 1.1 hours
 		});
 	});
 });

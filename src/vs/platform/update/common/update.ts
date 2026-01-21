@@ -142,6 +142,28 @@ export function computeDownloadTimeRemaining(state: Downloading): number | undef
 }
 
 /**
+ * Formats the time remaining as a human-readable string.
+ * - If >= 1 hour: shows fractional hours (e.g., "1.5 hours")
+ * - If >= 1 minute but < 1 hour: shows minutes (e.g., "2 min")
+ * - Otherwise: shows seconds (e.g., "30s")
+ *
+ * @param seconds The time remaining in seconds.
+ * @returns A formatted string representing the time remaining.
+ */
+export function formatTimeRemaining(seconds: number): string {
+	const hours = seconds / 3600;
+	if (hours >= 1) {
+		const fractionalHours = Math.round(hours * 10) / 10; // Round to 1 decimal place
+		return localize('timeRemainingHours', "{0} hours", fractionalHours);
+	}
+	const minutes = Math.floor(seconds / 60);
+	if (minutes >= 1) {
+		return localize('timeRemainingMinutes', "{0} min", minutes);
+	}
+	return localize('timeRemainingSeconds', "{0}s", seconds);
+}
+
+/**
  * Formats the download progress label with time remaining if available.
  *
  * @param state The download state containing progress information.
@@ -149,7 +171,9 @@ export function computeDownloadTimeRemaining(state: Downloading): number | undef
  */
 export function formatDownloadingUpdateLabel(state: Downloading): string {
 	const timeRemaining = computeDownloadTimeRemaining(state);
-	return timeRemaining !== undefined && timeRemaining > 0
-		? localize('downloadingUpdateWithProgress', "Downloading Update ({0}s remaining)...", timeRemaining)
-		: localize('downloadingUpdate', "Downloading Update...");
+	if (timeRemaining !== undefined && timeRemaining > 0) {
+		const formattedTime = formatTimeRemaining(timeRemaining);
+		return localize('downloadingUpdateWithProgress', "Downloading Update ({0} remaining)...", formattedTime);
+	}
+	return localize('downloadingUpdate', "Downloading Update...");
 }
