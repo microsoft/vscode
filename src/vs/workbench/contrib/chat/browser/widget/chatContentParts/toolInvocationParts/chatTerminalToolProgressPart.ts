@@ -24,6 +24,7 @@ import { IChatRendererContent } from '../../../../common/model/chatViewModel.js'
 import '../media/chatTerminalToolProgressPart.css';
 import type { ICodeBlockRenderOptions } from '../codeBlockPart.js';
 import { Action, IAction } from '../../../../../../../base/common/actions.js';
+import { timeout } from '../../../../../../../base/common/async.js';
 import { IChatTerminalToolProgressPart, ITerminalChatService, ITerminalConfigurationService, ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalService } from '../../../../../terminal/browser/terminal.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable, type IDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { Emitter } from '../../../../../../../base/common/event.js';
@@ -1064,7 +1065,7 @@ class ChatTerminalToolOutputSection extends Disposable {
 		if (!hasOutput) {
 			const maxRetries = 10;
 			for (let retry = 0; retry < maxRetries && !hasOutput; retry++) {
-				await new Promise(resolve => setTimeout(resolve, 100));
+				await timeout(100);
 				if (this._store.isDisposed) {
 					return true;
 				}
