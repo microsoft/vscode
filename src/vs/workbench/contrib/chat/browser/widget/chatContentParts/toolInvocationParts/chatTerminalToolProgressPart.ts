@@ -592,7 +592,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			const autoExpand = store.add(new TerminalToolAutoExpand({
 				commandDetection,
 				onWillData: terminalInstance.onWillData,
-				shouldAutoExpand: () => !this._outputView.isExpanded && !this._userToggledOutput && !this._store.isDisposed,
+				shouldAutoExpand: () => !this._outputView.isExpanded && !this._userToggledOutput && !this._store.isDisposed  && !expandedStateByInvocation.get(this.toolInvocation),
 				hasRealOutput,
 			}));
 			store.add(autoExpand.onDidRequestExpand(() => {
