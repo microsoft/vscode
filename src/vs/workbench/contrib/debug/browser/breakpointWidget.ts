@@ -354,6 +354,10 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		if (this.context === Context.TRIGGER_POINT) {
 			this.inputContainer.hidden = true;
 			this.selectBreakpointContainer.hidden = false;
+			// Update the breakpoint list when switching to trigger point context
+			if (this.selectBreakpointBox) {
+				this.updateTriggerBreakpointList();
+			}
 		} else {
 			this.inputContainer.hidden = false;
 			this.selectBreakpointContainer.hidden = true;
