@@ -68,6 +68,7 @@ interface IChatViewPaneState extends Partial<IChatModelInputState> {
 	sessionId?: string;
 
 	sessionsSidebarWidth?: number;
+	sessionsStackedHeight?: number;
 }
 
 type ChatViewPaneOpenedClassification = {
@@ -131,7 +132,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			this.viewState.sessionId = undefined; // clear persisted session on fresh start
 		}
 		this.sessionsViewerVisible = false; // will be updated from layout code
+
 		this.sessionsViewerSidebarWidth = Math.max(ChatViewPane.SESSIONS_SIDEBAR_MIN_WIDTH, this.viewState.sessionsSidebarWidth ?? ChatViewPane.SESSIONS_SIDEBAR_DEFAULT_WIDTH);
+		this.sessionsViewerStackedHeight = this.viewState.sessionsStackedHeight ?? ChatViewPane.SESSIONS_STACKED_DEFAULT_HEIGHT;
 
 		// Contextkeys
 		this.chatViewLocationContext = ChatContextKeys.panelLocation.bindTo(contextKeyService);
@@ -300,6 +303,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 	private static readonly SESSIONS_SIDEBAR_MIN_WIDTH = 200;
 	private static readonly SESSIONS_SIDEBAR_DEFAULT_WIDTH = 300;
+	private static readonly SESSIONS_STACKED_DEFAULT_HEIGHT = 5 * AgentSessionsListDelegate.ITEM_HEIGHT;
 	private static readonly CHAT_WIDGET_DEFAULT_WIDTH = 300;
 	private static readonly SESSIONS_SIDEBAR_VIEW_MIN_WIDTH = this.CHAT_WIDGET_DEFAULT_WIDTH + this.SESSIONS_SIDEBAR_DEFAULT_WIDTH;
 
@@ -317,6 +321,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private sessionsViewerVisibilityContext: IContextKey<boolean>;
 	private sessionsViewerPositionContext: IContextKey<AgentSessionsViewerPosition>;
 	private sessionsViewerSidebarWidth: number;
+	private sessionsViewerStackedHeight: number;
 	private sessionsViewerSash: Sash | undefined;
 	private readonly sessionsViewerSashDisposables = this._register(new MutableDisposable<DisposableStore>());
 
@@ -857,12 +862,14 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		// Ensure visibility is in sync before we layout
 		const { visible: sessionsContainerVisible } = this.updateSessionsControlVisibility();
 
-		// Handle Sash (only visible in side-by-side)
-		if (!sessionsContainerVisible || this.sessionsViewerOrientation === AgentSessionsViewerOrientation.Stacked) {
+		// Handle Sash
+		if (!sessionsContainerVisible || oldSessionsViewerOrientation !== this.sessionsViewerOrientation /* re-create on orientation change */) {
 			this.sessionsViewerSashDisposables.clear();
 			this.sessionsViewerSash = undefined;
-		} else if (this.sessionsViewerOrientation === AgentSessionsViewerOrientation.SideBySide) {
-			if (!this.sessionsViewerSashDisposables.value && this.viewPaneContainer) {
+		}
+		if (sessionsContainerVisible) {
+			const needsSashRecreation = !this.sessionsViewerSashDisposables.value || oldSessionsViewerOrientation !== this.sessionsViewerOrientation;
+			if (needsSashRecreation && this.viewPaneContainer) {
 				this.createSessionsViewerSash(this.viewPaneContainer, height, width);
 			}
 		}
@@ -893,14 +900,12 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		// Show stacked
 		else {
-			let sessionsHeight = 5 * AgentSessionsListDelegate.ITEM_HEIGHT;
-
-			const borderBottom = 1;
-			sessionsHeight = Math.min(availableSessionsHeight, sessionsHeight) - borderBottom;
+			const sessionsHeight = this.computeEffectiveStackedSessionsHeight(availableSessionsHeight) - 1 /* border bottom */;
 
 			this.sessionsControlContainer.style.height = `${sessionsHeight}px`;
 			this.sessionsControlContainer.style.width = ``;
 			this.sessionsControl.layout(sessionsHeight, width);
+			this.sessionsViewerSash?.layout();
 
 			heightReduction = this.sessionsContainer.offsetHeight;
 			widthReduction = 0; // stacked on top of the chat widget
@@ -919,6 +924,17 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		);
 	}
 
+	private computeEffectiveStackedSessionsHeight(availableHeight: number, sessionsViewerStackedHeight = this.sessionsViewerStackedHeight): number {
+		const minHeight = AgentSessionsListDelegate.ITEM_HEIGHT; // at least one item
+		return Math.max(
+			minHeight,
+			Math.min(
+				sessionsViewerStackedHeight,
+				availableHeight	// never taller than available height
+			)
+		);
+	}
+
 	getLastDimensions(orientation: AgentSessionsViewerOrientation): { height: number; width: number } | undefined {
 		return this.lastDimensionsPerOrientation.get(orientation);
 	}
@@ -926,6 +942,14 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private createSessionsViewerSash(container: HTMLElement, height: number, width: number): void {
 		const disposables = this.sessionsViewerSashDisposables.value = new DisposableStore();
 
+		if (this.sessionsViewerOrientation === AgentSessionsViewerOrientation.SideBySide) {
+			this.createSideBySideSash(container, height, width, disposables);
+		} else {
+			this.createStackedSash(container, height, width, disposables);
+		}
+	}
+
+	private createSideBySideSash(container: HTMLElement, height: number, width: number, disposables: DisposableStore): void {
 		const sash = this.sessionsViewerSash = disposables.add(new Sash(container, {
 			getVerticalSashLeft: () => {
 				const sessionsViewerSidebarWidth = this.computeEffectiveSideBySideSessionsSidebarWidth(this.lastDimensions?.width ?? width);
@@ -960,6 +984,49 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		disposables.add(sash.onDidReset(() => {
 			this.sessionsViewerSidebarWidth = ChatViewPane.SESSIONS_SIDEBAR_DEFAULT_WIDTH;
 			this.viewState.sessionsSidebarWidth = this.sessionsViewerSidebarWidth;
+
+			this.relayout();
+		}));
+	}
+
+	private createStackedSash(container: HTMLElement, height: number, width: number, disposables: DisposableStore): void {
+		const sash = this.sessionsViewerSash = disposables.add(new Sash(container, {
+			getHorizontalSashTop: () => {
+				if (!this.sessionsContainer || !this.sessionsTitleContainer) {
+					return 0;
+				}
+
+				const titleHeight = this.sessionsTitleContainer.offsetHeight;
+				const availableHeight = (this.lastDimensions?.height ?? height) - titleHeight - Math.max(ChatViewPane.MIN_CHAT_WIDGET_HEIGHT, this._widget?.input?.height.get() ?? 0);
+				const sessionsHeight = this.computeEffectiveStackedSessionsHeight(availableHeight);
+
+				return titleHeight + sessionsHeight;
+			}
+		}, { orientation: Orientation.HORIZONTAL }));
+
+		let sashStartHeight: number | undefined;
+		disposables.add(sash.onDidStart(() => sashStartHeight = this.sessionsViewerStackedHeight));
+		disposables.add(sash.onDidEnd(() => sashStartHeight = undefined));
+
+		disposables.add(sash.onDidChange(e => {
+			if (sashStartHeight === undefined || !this.lastDimensions || !this.sessionsTitleContainer) {
+				return;
+			}
+
+			const titleHeight = this.sessionsTitleContainer.offsetHeight;
+			const delta = e.currentY - e.startY;
+			const newHeight = sashStartHeight + delta;
+
+			const availableHeight = this.lastDimensions.height - titleHeight - Math.max(ChatViewPane.MIN_CHAT_WIDGET_HEIGHT, this._widget?.input?.height.get() ?? 0);
+			this.sessionsViewerStackedHeight = this.computeEffectiveStackedSessionsHeight(availableHeight, newHeight);
+			this.viewState.sessionsStackedHeight = this.sessionsViewerStackedHeight;
+
+			this.layoutBody(this.lastDimensions.height, this.lastDimensions.width);
+		}));
+
+		disposables.add(sash.onDidReset(() => {
+			this.sessionsViewerStackedHeight = ChatViewPane.SESSIONS_STACKED_DEFAULT_HEIGHT;
+			this.viewState.sessionsStackedHeight = this.sessionsViewerStackedHeight;
 
 			this.relayout();
 		}));
