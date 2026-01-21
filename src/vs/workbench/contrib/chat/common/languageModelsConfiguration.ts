@@ -26,7 +26,7 @@ export interface ILanguageModelsConfigurationService {
 
 	removeLanguageModelsProviderGroup(languageModelGroup: ILanguageModelsProviderGroup): Promise<void>;
 
-	configureLanguageModels(range?: IRange): Promise<void>;
+	configureLanguageModels(range?: IRange, snippet?: string): Promise<void>;
 }
 
 export interface ILanguageModelsProviderGroup extends IStringDictionary<unknown> {

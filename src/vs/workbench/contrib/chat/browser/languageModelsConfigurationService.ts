@@ -20,6 +20,7 @@ import { ITextModel } from '../../../../editor/common/model.js';
 import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
 import { getCodeEditor } from '../../../../editor/browser/editorBrowser.js';
+import { SnippetController2 } from '../../../../editor/contrib/snippet/browser/snippetController2.js';
 import { ILanguageModelsConfigurationService, ILanguageModelsProviderGroup } from '../common/languageModelsConfiguration.js';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from '../../../../platform/jsonschemas/common/jsonContributionRegistry.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
@@ -148,9 +149,9 @@ export class LanguageModelsConfigurationService extends Disposable implements IL
 		await this.updateLanguageModelsConfiguration();
 	}
 
-	async configureLanguageModels(range?: IRange): Promise<void> {
+	async configureLanguageModels(range?: IRange, snippet?: string): Promise<void> {
 		const editor = await this.editorGroupsService.activeGroup.openEditor(this.textEditorService.createTextEditor({ resource: this.modelsConfigurationFile }));
-		if (!editor || !range) {
+		if (!editor) {
 			return;
 		}
 
@@ -159,9 +160,25 @@ export class LanguageModelsConfigurationService extends Disposable implements IL
 			return;
 		}
 
-		const position = { lineNumber: range.startLineNumber, column: range.startColumn };
-		codeEditor.setPosition(position);
-		codeEditor.revealPositionNearTop(position);
+		if (range) {
+			const position = { lineNumber: range.startLineNumber, column: range.startColumn };
+			codeEditor.setPosition(position);
+			codeEditor.revealPositionNearTop(position);
+		}
+
+		if (snippet && range) {
+			// Position cursor at the end of the group object (before the closing brace)
+			// We need to find the position just before the closing }
+			const endPosition = { lineNumber: range.endLineNumber, column: range.endColumn - 1 };
+			codeEditor.setPosition(endPosition);
+
+			const snippetController = SnippetController2.get(codeEditor);
+			if (snippetController) {
+				// Insert with leading comma and proper indentation
+				snippetController.insert(',\n\t' + snippet);
+			}
+		}
+
 		codeEditor.focus();
 	}
 

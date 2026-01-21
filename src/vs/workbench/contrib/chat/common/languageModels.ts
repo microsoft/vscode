@@ -849,7 +849,8 @@ export class LanguageModelsService implements ILanguageModelsService {
 				: await this._languageModelsConfigurationService.addLanguageModelsProviderGroup(languageModelProviderGroup);
 
 			if (vendor.configuration && this.canConfigure(configuration ?? {}, vendor.configuration)) {
-				await this._languageModelsConfigurationService.configureLanguageModels(saved.range);
+				const snippet = this.generateSnippetForNonUIProperties(vendor.configuration, existingConfiguration);
+				await this._languageModelsConfigurationService.configureLanguageModels(saved.range, snippet);
 			}
 		} catch (error) {
 			if (isCancellationError(error)) {
@@ -899,6 +900,61 @@ export class LanguageModelsService implements ILanguageModelsService {
 			}
 		}
 		return false;
+	}
+
+	/**
+	 * Generates a snippet string with tab stops for properties that cannot be configured via UI.
+	 */
+	private generateSnippetForNonUIProperties(schema: IJSONSchema, existingConfig: IStringDictionary<unknown> | undefined): string | undefined {
+		if (!schema.properties) {
+			return undefined;
+		}
+
+		const snippetParts: string[] = [];
+		let tabStopIndex = 1;
+
+		for (const property of Object.keys(schema.properties)) {
+			const propertySchema = schema.properties[property];
+
+			// Skip if already configured
+			if (existingConfig?.[property] !== undefined) {
+				continue;
+			}
+
+			// Generate snippet for this property
+			const defaultValue = this.getDefaultSnippetValue(propertySchema);
+			snippetParts.push(`"${property}": \${${tabStopIndex}:${defaultValue}}`);
+			tabStopIndex++;
+		}
+
+		return snippetParts.length > 0 ? snippetParts.join(',\n\t') : undefined;
+	}
+
+	/**
+	 * Returns a default value string for a snippet placeholder based on the property schema.
+	 */
+	private getDefaultSnippetValue(propertySchema: IJSONSchema | undefined): string {
+		if (!propertySchema || typeof propertySchema === 'boolean') {
+			return '""';
+		}
+
+		if (propertySchema.default !== undefined) {
+			return JSON.stringify(propertySchema.default);
+		}
+
+		switch (propertySchema.type) {
+			case 'array':
+				return '[]';
+			case 'object':
+				return '{}';
+			case 'number':
+			case 'integer':
+				return '0';
+			case 'boolean':
+				return 'false';
+			default:
+				return '""';
+		}
 	}
 
 	private async promptForName(languageModelProviderGroups: readonly ILanguageModelsProviderGroup[], vendor: IUserFriendlyLanguageModel, existing: ILanguageModelsProviderGroup | undefined): Promise<string | undefined> {
