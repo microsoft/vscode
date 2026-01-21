@@ -193,10 +193,10 @@ configurationRegistry.registerConfiguration({
 			markdownDescription: nls.localize('chat.commandCenter.enabled', "Controls whether the command center shows a menu for actions to control chat (requires {0}).", '`#window.commandCenter#`'),
 			default: true
 		},
-		[ChatConfiguration.CommandCenterTriStateToggle]: {
+		[ChatConfiguration.CommandCenterTriStateToggle]: { // TODO@bpasero settle this
 			type: 'boolean',
-			markdownDescription: nls.localize('chat.commandCenter.experimentalTriStateToggle', "When enabled, clicking the chat icon in the command center cycles through: show chat, maximize chat, hide chat."),
-			default: false,
+			markdownDescription: nls.localize('chat.commandCenter.triStateToggle', "When enabled, clicking the chat icon in the command center cycles through: show chat, maximize chat, hide chat. This requires chat to be contained in the secondary sidebar."),
+			default: product.quality !== 'stable',
 			tags: ['experimental']
 		},
 		[ChatConfiguration.AgentStatusEnabled]: {
