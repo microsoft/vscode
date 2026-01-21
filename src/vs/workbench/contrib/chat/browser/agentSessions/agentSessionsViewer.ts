@@ -673,10 +673,10 @@ export function groupAgentSessions(sessions: IAgentSession[]): Map<AgentSessionS
 	const archivedSessions: IAgentSession[] = [];
 
 	for (const session of sessions) {
-		if (isSessionInProgressStatus(session.status)) {
-			inProgressSessions.push(session);
-		} else if (session.isArchived()) {
+		if (session.isArchived()) {
 			archivedSessions.push(session);
+		} else if (isSessionInProgressStatus(session.status)) {
+			inProgressSessions.push(session);
 		} else {
 			const sessionTime = session.timing.lastRequestEnded ?? session.timing.lastRequestStarted ?? session.timing.created;
 			if (sessionTime >= startOfToday) {
