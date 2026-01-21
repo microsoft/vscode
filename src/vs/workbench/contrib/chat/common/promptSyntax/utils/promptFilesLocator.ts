@@ -718,11 +718,12 @@ function firstNonGlobParentAndPattern(location: URI): { parent: URI; filePattern
  * - At least one non-whitespace character
  */
 export const VALID_PROMPT_FOLDER_PATTERN = '^(?![A-Za-z]:[\\\\/])(?!/)(?!~(?!/))(?!.*\\\\)(?!.*[*?\\[\\]{}]).*\\S.*$';
+const VALID_PROMPT_FOLDER_REGEX = new RegExp(VALID_PROMPT_FOLDER_PATTERN);
 
 /**
  * Validates if a path is allowed for simplified path configurations.
  * Only forward slashes are supported to ensure paths are shareable across platforms.
  */
 export function isValidPromptFolderPath(path: string): boolean {
-	return new RegExp(VALID_PROMPT_FOLDER_PATTERN).test(path);
+	return VALID_PROMPT_FOLDER_REGEX.test(path);
 }
