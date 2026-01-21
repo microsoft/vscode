@@ -1630,6 +1630,14 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			registerMcpServerDefinitionProvider(id, provider) {
 				return extHostMcp.registerMcpConfigurationProvider(extension, id, provider);
 			},
+			onDidChangeMcpServerDefinitions: (...args) => {
+				checkProposedApiEnabled(extension, 'mcpServerDefinitions');
+				return _asExtensionEvent(extHostMcp.onDidChangeMcpServerDefinitions)(...args);
+			},
+			get mcpServerDefinitions() {
+				checkProposedApiEnabled(extension, 'mcpServerDefinitions');
+				return extHostMcp.mcpServerDefinitions;
+			},
 			onDidChangeChatRequestTools(...args) {
 				checkProposedApiEnabled(extension, 'chatParticipantAdditions');
 				return _asExtensionEvent(extHostChatAgents2.onDidChangeChatRequestTools)(...args);
@@ -1907,6 +1915,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			ChatResponseWarningPart: extHostTypes.ChatResponseWarningPart,
 			ChatResponseTextEditPart: extHostTypes.ChatResponseTextEditPart,
 			ChatResponseNotebookEditPart: extHostTypes.ChatResponseNotebookEditPart,
+			ChatResponseWorkspaceEditPart: extHostTypes.ChatResponseWorkspaceEditPart,
 			ChatResponseMarkdownWithVulnerabilitiesPart: extHostTypes.ChatResponseMarkdownWithVulnerabilitiesPart,
 			ChatResponseCommandButtonPart: extHostTypes.ChatResponseCommandButtonPart,
 			ChatResponseConfirmationPart: extHostTypes.ChatResponseConfirmationPart,

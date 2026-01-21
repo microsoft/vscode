@@ -4,41 +4,49 @@
  *--------------------------------------------------------------------------------------------*/
 
 .floating-menu-overlay-widget {
-	padding: 0px;
-	color: var(--vscode-button-foreground);
-	background-color: var(--vscode-button-background);
-	border-radius: 2px;
+	padding: 2px 4px;
+	color: var(--vscode-foreground);
+	background-color: var(--vscode-editorWidget-background);
+	border-radius: 6px;
 	border: 1px solid var(--vscode-contrastBorder);
 	display: flex;
 	align-items: center;
+	justify-content: center;
+	gap: 4px;
 	z-index: 10;
 	box-shadow: 0 2px 8px var(--vscode-widget-shadow);
 	overflow: hidden;
 
-	.action-item > .action-label {
-		padding: 5px;
-		font-size: 12px;
-		border-radius: 2px;
+	.actions-container {
+		gap: 4px;
 	}
 
-	.action-item > .action-label.codicon, .action-item .codicon {
-		color: var(--vscode-button-foreground);
+	.action-item > .action-label {
+		padding: 4px 6px;
+		font-size: 11px;
+		line-height: 14px;
+		border-radius: 4px;
 	}
 
 	.action-item > .action-label.codicon:not(.separator) {
-		padding-top: 6px;
-		padding-bottom: 6px;
+		color: var(--vscode-foreground);
+		width: 22px;
+		height: 22px;
+		padding: 0;
+		font-size: 16px;
+		line-height: 22px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
 	}
 
-	.action-item:first-child > .action-label {
-		padding-left: 7px;
+	.action-item.primary > .action-label,
+	.action-item.primary > .action-label.action-label.codicon:not(.separator) {
+		background-color: var(--vscode-button-background);
+		color: var(--vscode-button-foreground);
 	}
 
-	.action-item:last-child > .action-label {
-		padding-right: 7px;
-	}
-
-	.action-item .action-label.separator {
-		background-color: var(--vscode-button-separator);
+	.action-item.primary > .action-label:hover {
+		background-color: var(--vscode-button-hoverBackground) !important;
 	}
 }

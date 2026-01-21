@@ -119,6 +119,7 @@ import { DelegationSessionPickerActionItem } from './delegationSessionPickerActi
 import { IChatInputPickerOptions } from './chatInputPickerActionItem.js';
 import { SearchableOptionPickerActionItem } from '../../chatSessions/searchableOptionPickerActionItem.js';
 import { mixin } from '../../../../../../base/common/objects.js';
+import { ChatContextUsageWidget } from './chatContextUsageWidget.js';
 
 const $ = dom.$;
 
@@ -268,8 +269,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private chatInputTodoListWidgetContainer!: HTMLElement;
 	private chatInputWidgetsContainer!: HTMLElement;
 	private readonly _widgetController = this._register(new MutableDisposable<ChatInputPartWidgetController>());
+	private readonly _contextUsageWidget = this._register(new MutableDisposable<ChatContextUsageWidget>());
 
-	readonly inputPartHeight = observableValue<number>(this, 0);
+	readonly height = observableValue<number>(this, 0);
 
 	private _inputEditor!: CodeEditorWidget;
 	private _inputEditorElement!: HTMLElement;
@@ -1621,6 +1623,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this.updateAgentSessionTypeContextKey();
 			this.refreshChatSessionPickers();
 			this.tryUpdateWidgetController();
+			this._contextUsageWidget.value?.setModel(widget.viewModel?.model);
 		}));
 
 		let elements;
@@ -1685,6 +1688,15 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.chatEditingSessionWidgetContainer = elements.chatEditingSessionWidgetContainer;
 		this.chatInputTodoListWidgetContainer = elements.chatInputTodoListWidgetContainer;
 		this.chatInputWidgetsContainer = elements.chatInputWidgetsContainer;
+
+		const isInline = isIChatResourceViewContext(widget.viewContext) && widget.viewContext.isInlineChat;
+		if (this.location !== ChatAgentLocation.EditorInline && !isInline) {
+			this._contextUsageWidget.value = this.instantiationService.createInstance(ChatContextUsageWidget);
+			elements.editorContainer.appendChild(this._contextUsageWidget.value.domNode);
+			if (this._widget?.viewModel) {
+				this._contextUsageWidget.value.setModel(this._widget.viewModel.model);
+			}
+		}
 
 		if (this.options.enableImplicitContext && !this._implicitContext) {
 			this._implicitContext = this._register(
@@ -2017,7 +2029,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		const inputResizeObserver = this._register(new dom.DisposableResizeObserver(() => {
 			const newHeight = this.container.offsetHeight;
-			this.inputPartHeight.set(newHeight, undefined);
+			this.height.set(newHeight, undefined);
 		}));
 		inputResizeObserver.observe(this.container);
 	}
@@ -2318,7 +2330,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 						kind: 'reference',
 						options: {
 							status: undefined,
-							diffMeta: { added: linesAdded ?? 0, removed: linesRemoved ?? 0 }
+							diffMeta: { added: linesAdded ?? 0, removed: linesRemoved ?? 0 },
+							isDeletion: !!entry.isDeletion,
+							originalUri: entry.isDeletion ? entry.originalURI : undefined,
 						}
 					});
 				}
@@ -2529,6 +2543,14 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				if (e.element?.kind === 'reference' && URI.isUri(e.element.reference)) {
 					const modifiedFileUri = e.element.reference;
 					const originalUri = e.element.options?.originalUri;
+
+					if (e.element.options?.isDeletion && originalUri) {
+						await this.editorService.openEditor({
+							resource: originalUri, // instead of modified, because modified will not exist
+							options: e.editorOptions
+						}, e.sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
+						return;
+					}
 
 					// If there's a originalUri, open as diff editor
 					if (originalUri) {

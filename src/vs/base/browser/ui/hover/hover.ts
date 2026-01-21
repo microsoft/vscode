@@ -235,6 +235,12 @@ export interface IHoverOptions {
 	 * Options that define how the hover looks.
 	 */
 	appearance?: IHoverAppearanceOptions;
+
+	/**
+	 * An optional callback that is called when the hover is shown. This is called
+	 * later for delayed hovers.
+	 */
+	onDidShow?(): void;
 }
 
 // `target` is ignored for delayed hover methods as it's included in the method and added

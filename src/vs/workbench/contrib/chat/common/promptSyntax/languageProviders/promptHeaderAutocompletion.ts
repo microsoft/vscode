@@ -15,7 +15,7 @@ import { IChatModeService } from '../../chatModes.js';
 import { getPromptsTypeForLanguageId, PromptsType } from '../promptTypes.js';
 import { IPromptsService } from '../service/promptsService.js';
 import { Iterable } from '../../../../../../base/common/iterator.js';
-import { PromptHeader, PromptHeaderAttributes } from '../promptFileParser.js';
+import { IHeaderAttribute, PromptHeader, PromptHeaderAttributes } from '../promptFileParser.js';
 import { getValidAttributeNames, isGithubTarget, knownGithubCopilotTools } from './promptValidator.js';
 import { localize } from '../../../../../../nls.js';
 
@@ -147,30 +147,35 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 	): Promise<CompletionList | undefined> {
 
 		const suggestions: CompletionItem[] = [];
-		const lineContent = model.getLineContent(position.lineNumber);
-		const attribute = lineContent.substring(0, colonPosition.column - 1).trim();
+		const attribute = header.attributes.find(attr => attr.range.containsPosition(position));
+		if (!attribute) {
+			return undefined;
+		}
 
 		const isGitHubTarget = isGithubTarget(promptType, header.target);
-		if (!getValidAttributeNames(promptType, true, isGitHubTarget).includes(attribute)) {
+		if (!getValidAttributeNames(promptType, true, isGitHubTarget).includes(attribute.key)) {
 			return undefined;
 		}
 
 		if (promptType === PromptsType.prompt || promptType === PromptsType.agent) {
-			// if the position is inside the tools metadata, we provide tool name completions
-			const result = this.provideToolCompletions(model, position, header, isGitHubTarget);
-			if (result) {
-				return result;
+			if (attribute.key === PromptHeaderAttributes.tools) {
+				if (attribute.value.type === 'array') {
+					// if the position is inside the tools metadata, we provide tool name completions
+					const getValues = async () => isGitHubTarget ? knownGithubCopilotTools : Array.from(this.languageModelToolsService.getFullReferenceNames());
+					return this.provideArrayCompletions(model, position, attribute, getValues);
+				}
 			}
 		}
-
-		const bracketIndex = lineContent.indexOf('[');
-		if (bracketIndex !== -1 && bracketIndex <= position.column - 1) {
-			// if the value is already inside a bracket, we don't provide value completions
-			return undefined;
+		if (promptType === PromptsType.agent) {
+			if (attribute.key === PromptHeaderAttributes.agents && !isGitHubTarget) {
+				if (attribute.value.type === 'array') {
+					return this.provideArrayCompletions(model, position, attribute, async () => (await this.promptsService.getCustomAgents(CancellationToken.None)).map(agent => agent.name));
+				}
+			}
 		}
-
+		const lineContent = model.getLineContent(attribute.range.startLineNumber);
 		const whilespaceAfterColon = (lineContent.substring(colonPosition.column).match(/^\s*/)?.[0].length) ?? 0;
-		const values = this.getValueSuggestions(promptType, attribute);
+		const values = this.getValueSuggestions(promptType, attribute.key);
 		for (const value of values) {
 			const item: CompletionItem = {
 				label: value,
@@ -180,7 +185,7 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 			};
 			suggestions.push(item);
 		}
-		if (attribute === PromptHeaderAttributes.handOffs && (promptType === PromptsType.agent)) {
+		if (attribute.key === PromptHeaderAttributes.handOffs && (promptType === PromptsType.agent)) {
 			const value = [
 				'',
 				'  - label: Start Implementation',
@@ -238,6 +243,11 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 					return ['true', 'false'];
 				}
 				break;
+			case PromptHeaderAttributes.agents:
+				if (promptType === PromptsType.agent) {
+					return ['["*"]'];
+				}
+				break;
 		}
 		return [];
 	}
@@ -255,14 +265,13 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 		return result;
 	}
 
-	private provideToolCompletions(model: ITextModel, position: Position, header: PromptHeader, isGitHubTarget: boolean): CompletionList | undefined {
-		const toolsAttr = header.getAttribute(PromptHeaderAttributes.tools);
-		if (!toolsAttr || toolsAttr.value.type !== 'array' || !toolsAttr.range.containsPosition(position)) {
+	private async provideArrayCompletions(model: ITextModel, position: Position, agentsAttr: IHeaderAttribute, getValues: () => Promise<string[]>): Promise<CompletionList | undefined> {
+		if (agentsAttr.value.type !== 'array') {
 			return undefined;
 		}
-		const getSuggestions = (toolRange: Range) => {
+		const getSuggestions = async (toolRange: Range) => {
 			const suggestions: CompletionItem[] = [];
-			const toolNames = isGitHubTarget ? knownGithubCopilotTools : this.languageModelToolsService.getFullReferenceNames();
+			const toolNames = await getValues();
 			for (const toolName of toolNames) {
 				let insertText: string;
 				if (!toolRange.isEmpty()) {
@@ -282,16 +291,16 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 			return { suggestions };
 		};
 
-		for (const toolNameNode of toolsAttr.value.items) {
+		for (const toolNameNode of agentsAttr.value.items) {
 			if (toolNameNode.range.containsPosition(position)) {
 				// if the position is inside a tool range, we provide tool name completions
-				return getSuggestions(toolNameNode.range);
+				return await getSuggestions(toolNameNode.range);
 			}
 		}
 		const prefix = model.getValueInRange(new Range(position.lineNumber, 1, position.lineNumber, position.column));
 		if (prefix.match(/[,[]\s*$/)) {
 			// if the position is after a comma or bracket
-			return getSuggestions(new Range(position.lineNumber, position.column, position.lineNumber, position.column));
+			return await getSuggestions(new Range(position.lineNumber, position.column, position.lineNumber, position.column));
 		}
 		return undefined;
 	}

@@ -109,18 +109,19 @@ export class ToggleAgentStatusAction extends ToggleTitleBarConfigAction {
 
 //#endregion
 
-//#region Toggle Agent Session Projection
+//#region Toggle Unified Agents Bar
 
-export class ToggleAgentSessionProjectionAction extends ToggleTitleBarConfigAction {
+export class ToggleUnifiedAgentsBarAction extends ToggleTitleBarConfigAction {
 	constructor() {
 		super(
-			ChatConfiguration.AgentSessionProjectionEnabled,
-			localize('toggle.agentSessionProjection', 'Agent Session Projection'),
-			localize('toggle.agentSessionProjectionDescription', "Toggle Agent Session Projection mode for focused workspace review of agent sessions"), 7,
+			ChatConfiguration.UnifiedAgentsBar,
+			localize('toggle.unifiedAgentsBar', 'Unified Agents Bar'),
+			localize('toggle.unifiedAgentsBarDescription', "Toggle Unified Agents Bar, replacing the classic command center search box."), 7,
 			ContextKeyExpr.and(
 				ChatContextKeys.enabled,
 				IsCompactTitleBarContext.negate(),
-				ChatContextKeys.supported
+				ChatContextKeys.supported,
+				ContextKeyExpr.has(`config.${ChatConfiguration.AgentStatusEnabled}`)
 			)
 		);
 	}

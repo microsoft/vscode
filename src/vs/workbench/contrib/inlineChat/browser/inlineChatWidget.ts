@@ -393,7 +393,7 @@ export class InlineChatWidget {
 
 		let value = this.contentHeight;
 		value -= this._chatWidget.contentHeight;
-		value += Math.min(this._chatWidget.input.inputPartHeight.get() + maxWidgetOutputHeight, this._chatWidget.contentHeight);
+		value += Math.min(this._chatWidget.input.height.get() + maxWidgetOutputHeight, this._chatWidget.contentHeight);
 		return value;
 	}
 
