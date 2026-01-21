@@ -724,7 +724,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	/**
-	 * Find a model by ID, qualified name, model name, or hashed model ID.
+	 * Find a model by ID, qualified name, or hashed model ID.
 	 * Returns undefined if no matching model is found in the available models.
 	 */
 	private findModelByIdOrName(idOrName: string): ILanguageModelChatMetadataAndIdentifier | undefined {
@@ -738,11 +738,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}
 		}
 
-		// Fall back to searching by qualified name, model name, or hashed ID in available models
+		// Fall back to searching by qualified name or hashed ID in available models
 		const models = this.getModels();
 		return models.find(m =>
 			ILanguageModelChatMetadata.matchesQualifiedName(idOrName, m.metadata) ||
-			m.metadata.name === idOrName ||
 			ChatInputPart.hashModelId(m.identifier) === idOrName
 		);
 	}
