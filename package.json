@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.109.0",
-  "distro": "b90415e4e25274537a83463c7af88fca7e9528a7",
+  "distro": "94127eca547fd49c3a6b1e2f7f80ceea1ed644c5",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -73,6 +73,7 @@
     "update-build-ts-version": "npm install -D typescript@next && npm install -D @typescript/native-preview && (cd build && npm run typecheck)"
   },
   "dependencies": {
+    "@anthropic-ai/sandbox-runtime": "0.0.23",
     "@microsoft/1ds-core-js": "^3.2.13",
     "@microsoft/1ds-post-js": "^3.2.13",
     "@parcel/watcher": "^2.5.4",
@@ -109,7 +110,7 @@
     "minimist": "^1.2.8",
     "native-is-elevated": "0.8.0",
     "native-keymap": "^3.3.5",
-    "node-pty": "^1.2.0-beta.6",
+    "node-pty": "^1.2.0-beta.7",
     "open": "^10.1.2",
     "tas-client": "0.3.1",
     "undici": "^7.18.2",

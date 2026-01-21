@@ -3340,6 +3340,13 @@ export class ChatResponseNotebookEditPart implements vscode.ChatResponseNotebook
 	}
 }
 
+export class ChatResponseWorkspaceEditPart implements vscode.ChatResponseWorkspaceEditPart {
+	edits: vscode.ChatWorkspaceFileEdit[];
+	constructor(edits: vscode.ChatWorkspaceFileEdit[]) {
+		this.edits = edits;
+	}
+}
+
 export interface ChatTerminalToolInvocationData2 {
 	commandLine: {
 		original: string;
@@ -3360,6 +3367,7 @@ export class ChatToolInvocationPart {
 	isComplete?: boolean;
 	toolSpecificData?: ChatTerminalToolInvocationData2;
 	subAgentInvocationId?: string;
+	subAgentName?: string;
 	presentation?: 'hidden' | 'hiddenAfterComplete' | undefined;
 
 	constructor(toolName: string,
@@ -3900,6 +3908,11 @@ export class InstructionsChatResource implements vscode.InstructionsChatResource
 
 @es5ClassCompat
 export class PromptFileChatResource implements vscode.PromptFileChatResource {
+	constructor(public readonly resource: vscode.ChatResourceDescriptor) { }
+}
+
+@es5ClassCompat
+export class SkillChatResource implements vscode.SkillChatResource {
 	constructor(public readonly resource: vscode.ChatResourceDescriptor) { }
 }
 //#endregion

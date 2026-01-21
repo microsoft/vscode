@@ -72,7 +72,7 @@ export class DefaultExtensionsInitializer extends Disposable {
 	}
 
 	private getDefaultExtensionVSIXsLocation(): URI {
-		if (this.productService.quality === 'insider') {
+		if (this.productService.win32VersionedUpdate) {
 			// appRoot = C:\Users\<name>\AppData\Local\Programs\Microsoft VS Code Insiders\<version>\resources\app
 			// extensionsPath = C:\Users\<name>\AppData\Local\Programs\Microsoft VS Code Insiders\<version>\bootstrap\extensions
 			return URI.file(join(dirname(dirname(dirname(this.environmentService.appRoot))), 'bootstrap', 'extensions'));

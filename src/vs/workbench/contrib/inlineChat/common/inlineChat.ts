@@ -15,12 +15,13 @@ import { NOTEBOOK_IS_ACTIVE_EDITOR } from '../../notebook/common/notebookContext
 
 export const enum InlineChatConfigKeys {
 	FinishOnType = 'inlineChat.finishOnType',
-	StartWithOverlayWidget = 'inlineChat.startWithOverlayWidget',
 	HoldToSpeech = 'inlineChat.holdToSpeech',
 	/** @deprecated do not read on client */
 	EnableV2 = 'inlineChat.enableV2',
 	notebookAgent = 'inlineChat.notebookAgent',
 	PersistModelChoice = 'inlineChat.persistModelChoice',
+	Affordance = 'inlineChat.affordance',
+	RenderMode = 'inlineChat.renderMode',
 }
 
 Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
@@ -61,6 +62,29 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			experiment: {
 				mode: 'auto'
 			}
+		},
+		[InlineChatConfigKeys.Affordance]: {
+			description: localize('affordance', "Controls whether an inline chat affordance is shown when text is selected."),
+			default: 'off',
+			type: 'string',
+			enum: ['off', 'gutter', 'editor'],
+			enumDescriptions: [
+				localize('affordance.off', "No affordance is shown."),
+				localize('affordance.gutter', "Show an affordance in the gutter."),
+				localize('affordance.editor', "Show an affordance in the editor at the cursor position."),
+			],
+			tags: ['experimental']
+		},
+		[InlineChatConfigKeys.RenderMode]: {
+			description: localize('renderMode', "Controls how inline chat is rendered."),
+			default: 'zone',
+			type: 'string',
+			enum: ['zone', 'hover'],
+			enumDescriptions: [
+				localize('renderMode.zone', "Render inline chat as a zone widget below the current line."),
+				localize('renderMode.hover', "Render inline chat as a hover overlay."),
+			],
+			tags: ['experimental']
 		}
 	}
 });
@@ -94,6 +118,7 @@ export const CTX_INLINE_CHAT_CHANGE_HAS_DIFF = new RawContextKey<boolean>('inlin
 export const CTX_INLINE_CHAT_CHANGE_SHOWS_DIFF = new RawContextKey<boolean>('inlineChatChangeShowsDiff', false, localize('inlineChatChangeShowsDiff', "Whether the current change showing a diff"));
 export const CTX_INLINE_CHAT_REQUEST_IN_PROGRESS = new RawContextKey<boolean>('inlineChatRequestInProgress', false, localize('inlineChatRequestInProgress', "Whether an inline chat request is currently in progress"));
 export const CTX_INLINE_CHAT_RESPONSE_TYPE = new RawContextKey<InlineChatResponseType>('inlineChatResponseType', InlineChatResponseType.None, localize('inlineChatResponseTypes', "What type was the responses have been receieved, nothing yet, just messages, or messaged and local edits"));
+export const CTX_INLINE_CHAT_GUTTER_VISIBLE = new RawContextKey<boolean>('inlineChatGutterVisible', false, localize('inlineChatGutterVisible', "Whether the inline chat gutter indicator is visible"));
 
 export const CTX_INLINE_CHAT_V1_ENABLED = ContextKeyExpr.or(
 	ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, CTX_INLINE_CHAT_HAS_NOTEBOOK_INLINE)
