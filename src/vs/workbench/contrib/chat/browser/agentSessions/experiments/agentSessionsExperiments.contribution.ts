@@ -6,13 +6,14 @@
 import { registerSingleton, InstantiationType } from '../../../../../../platform/instantiation/common/extensions.js';
 import { MenuId, MenuRegistry, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
 import { IAgentSessionProjectionService, AgentSessionProjectionService, AgentSessionProjectionOpenerContribution } from './agentSessionProjectionService.js';
-import { EnterAgentSessionProjectionAction, ExitAgentSessionProjectionAction, ToggleAgentStatusAction } from './agentSessionProjectionActions.js';
+import { EnterAgentSessionProjectionAction, ExitAgentSessionProjectionAction, ToggleAgentStatusAction, ToggleUnifiedAgentsBarAction } from './agentSessionProjectionActions.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../common/contributions.js';
 import { AgentTitleBarStatusRendering } from './agentTitleBarStatusWidget.js';
 import { AgentTitleBarStatusService, IAgentTitleBarStatusService } from './agentTitleBarStatusService.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { localize } from '../../../../../../nls.js';
 import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { ProductQualityContext } from '../../../../../../platform/contextkey/common/contextkeys.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 
 // #region Agent Session Projection & Status
@@ -20,6 +21,7 @@ import { ChatConfiguration } from '../../../common/constants.js';
 registerAction2(EnterAgentSessionProjectionAction);
 registerAction2(ExitAgentSessionProjectionAction);
 registerAction2(ToggleAgentStatusAction);
+registerAction2(ToggleUnifiedAgentsBarAction);
 
 registerSingleton(IAgentSessionProjectionService, AgentSessionProjectionService, InstantiationType.Delayed);
 registerSingleton(IAgentTitleBarStatusService, AgentTitleBarStatusService, InstantiationType.Delayed);
@@ -43,6 +45,21 @@ MenuRegistry.appendMenuItem(MenuId.AgentsTitleBarControlMenu, {
 		title: localize('openChat', "Open Chat"),
 	},
 	when: ContextKeyExpr.has(`config.${ChatConfiguration.AgentStatusEnabled}`),
+	order: 1
+});
+
+// Toggle for Unified Agents Bar (Insiders only)
+MenuRegistry.appendMenuItem(MenuId.AgentsTitleBarControlMenu, {
+	command: {
+		id: `toggle.${ChatConfiguration.UnifiedAgentsBar}`,
+		title: localize('toggleUnifiedAgentsBar', "Unified Agents Bar"),
+		toggled: ContextKeyExpr.has(`config.${ChatConfiguration.UnifiedAgentsBar}`),
+	},
+	when: ContextKeyExpr.and(
+		ContextKeyExpr.has(`config.${ChatConfiguration.AgentStatusEnabled}`),
+		ProductQualityContext.notEqualsTo('stable')
+	),
+	order: 10
 });
 
 //#endregion

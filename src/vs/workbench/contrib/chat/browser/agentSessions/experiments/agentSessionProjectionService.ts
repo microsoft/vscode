@@ -262,7 +262,7 @@ export class AgentSessionProjectionService extends Disposable implements IAgentS
 				this.layoutService.mainContainer.classList.add('agent-session-projection-active');
 
 				// Update the agent status to show session mode
-				this.agentTitleBarStatusService.enterSessionMode(session.resource.toString(), session.label);
+				this.agentTitleBarStatusService.enterSessionMode(session.resource, session.label);
 
 				if (!wasActive) {
 					this._onDidChangeProjectionMode.fire(true);

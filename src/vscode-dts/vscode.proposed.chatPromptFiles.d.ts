@@ -9,17 +9,11 @@ declare module 'vscode' {
 	// #region Resource Classes
 
 	/**
-	 * Describes a chat resource URI with optional editability.
-	 */
-	export type ChatResourceUriDescriptor =
-		| Uri
-		| { uri: Uri; isEditable?: boolean };
-
-	/**
 	 * Describes a chat resource file.
 	 */
 	export type ChatResourceDescriptor =
-		| ChatResourceUriDescriptor
+		| Uri
+		| { uri: Uri; isEditable?: boolean }
 		| {
 			id: string;
 			content: string;
@@ -80,14 +74,14 @@ declare module 'vscode' {
 		/**
 		 * The skill resource descriptor.
 		 */
-		readonly resource: ChatResourceUriDescriptor;
+		readonly resource: ChatResourceDescriptor;
 
 		/**
 		 * Creates a new skill resource from the specified resource URI pointing to SKILL.md.
 		 * The parent folder name needs to match the name of the skill in the frontmatter.
 		 * @param resource The chat resource descriptor.
 		 */
-		constructor(resource: ChatResourceUriDescriptor);
+		constructor(resource: ChatResourceDescriptor);
 	}
 
 	// #endregion
