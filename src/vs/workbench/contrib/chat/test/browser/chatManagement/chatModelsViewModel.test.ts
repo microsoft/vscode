@@ -938,8 +938,10 @@ suite('ChatModelsViewModel', () => {
 		const updatedModelEntries = updatedResults.filter(r => !isLanguageModelProviderEntry(r) && !isLanguageModelGroupEntry(r)) as ILanguageModelEntry[];
 		assert.ok(updatedModelEntries.length > 0);
 
-		// Restore original visibility
-		viewModel.setModelsVisibility(modelsToHide, initialVisibility[0]);
+		// Restore original visibility for each model
+		for (let i = 0; i < modelsToHide.length; i++) {
+			viewModel.setModelsVisibility([modelsToHide[i]], initialVisibility[i]);
+		}
 	});
 
 	test('setModelsVisibility should make hidden models visible', () => {
@@ -1009,8 +1011,9 @@ suite('ChatModelsViewModel', () => {
 			viewModel.setModelsVisibility([allModelEntries[1]], true);
 		}
 
-		// Now test with the 'visible' group - filter to see groups
+		// Filter to trigger visibility group creation - the visibility filter activates grouping by visibility
 		viewModel.filter('@visible:true');
+		// Now get the results with visibility groups
 		const resultsWithGroups = viewModel.filter('');
 
 		// Find the visibility group entries
