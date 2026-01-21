@@ -26,7 +26,7 @@ import { IProductService } from '../../product/common/productService.js';
 import { asJson, IRequestService } from '../../request/common/request.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { AvailableForDownload, DisablementReason, IUpdate, State, StateType, UpdateType } from '../common/update.js';
-import { AbstractUpdateService, createUpdateURL, UpdateErrorClassification } from './abstractUpdateService.js';
+import { AbstractUpdateService, createUpdateURL, IUpdateURLOptions, UpdateErrorClassification } from './abstractUpdateService.js';
 
 async function pollUntil(fn: () => boolean, millis = 1000): Promise<void> {
 	while (!fn()) {
@@ -152,7 +152,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		}
 	}
 
-	protected buildUpdateFeedUrl(quality: string): string | undefined {
+	protected buildUpdateFeedUrl(quality: string, commit: string, options?: IUpdateURLOptions): string | undefined {
 		let platform = `win32-${process.arch}`;
 
 		if (getUpdateType() === UpdateType.Archive) {
@@ -161,15 +161,15 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 			platform += '-user';
 		}
 
-		return createUpdateURL(platform, quality, this.productService);
+		return createUpdateURL(this.productService.updateUrl!, platform, quality, commit, options);
 	}
 
 	protected doCheckForUpdates(explicit: boolean): void {
-		if (!this.url) {
+		if (!this.quality) {
 			return;
 		}
 
-		const url = explicit ? this.url : `${this.url}?bg=true`;
+		const url = this.buildUpdateFeedUrl(this.quality, this.productService.commit!, { background: !explicit });
 		this.setState(State.CheckingForUpdates(explicit));
 
 		this.requestService.request({ url }, CancellationToken.None)
@@ -268,6 +268,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		}
 
 		const update = this.state.update;
+		const explicit = this.state.explicit;
 		this.setState(State.Updating(update));
 
 		const cachePath = await this.cachePath;
@@ -292,7 +293,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 
 		// poll for mutex-ready
 		pollUntil(() => mutex.isActive(readyMutexName))
-			.then(() => this.setState(State.Ready(update, this._explicit, this._overwrite)));
+			.then(() => this.setState(State.Ready(update, explicit, this._overwrite)));
 	}
 
 	protected override doQuitAndInstall(): void {

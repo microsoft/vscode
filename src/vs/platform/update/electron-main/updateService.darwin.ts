@@ -16,7 +16,7 @@ import { IProductService } from '../../product/common/productService.js';
 import { IRequestService } from '../../request/common/request.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { IUpdate, State, StateType, UpdateType } from '../common/update.js';
-import { AbstractUpdateService, createUpdateURL, UpdateErrorClassification } from './abstractUpdateService.js';
+import { AbstractUpdateService, createUpdateURL, IUpdateURLOptions, UpdateErrorClassification } from './abstractUpdateService.js';
 
 export class DarwinUpdateService extends AbstractUpdateService implements IRelaunchHandler {
 
@@ -73,14 +73,9 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 		this.setState(State.Idle(UpdateType.Archive, message));
 	}
 
-	protected buildUpdateFeedUrl(quality: string): string | undefined {
-		let assetID: string;
-		if (!this.productService.darwinUniversalAssetId) {
-			assetID = process.arch === 'x64' ? 'darwin' : 'darwin-arm64';
-		} else {
-			assetID = this.productService.darwinUniversalAssetId;
-		}
-		const url = createUpdateURL(assetID, quality, this.productService);
+	protected buildUpdateFeedUrl(quality: string, commit: string, options?: IUpdateURLOptions): string | undefined {
+		const assetID = this.productService.darwinUniversalAssetId ?? (process.arch === 'x64' ? 'darwin' : 'darwin-arm64');
+		const url = createUpdateURL(this.productService.updateUrl!, assetID, quality, commit, options);
 		try {
 			electron.autoUpdater.setFeedURL({ url });
 		} catch (e) {
@@ -94,26 +89,26 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 	override async checkForUpdates(explicit: boolean): Promise<void> {
 		this.logService.trace('update#checkForUpdates, state = ', this.state.type);
 
-		// Allow checking for updates when Idle OR when an update is already Ready.
-		// This enables "consecutive updates" - if a newer update is available while
-		// one is pending, we can fetch it and it will replace the pending one.
-		if (this.state.type !== StateType.Idle && this.state.type !== StateType.Ready) {
+		if (this.state.type !== StateType.Idle) {
 			return;
 		}
 
-		this._explicit = explicit;
 		this.doCheckForUpdates(explicit);
 	}
 
-	protected doCheckForUpdates(explicit: boolean): void {
-		if (!this.url) {
+	protected doCheckForUpdates(explicit: boolean, pendingCommit?: string): void {
+		if (!this.quality) {
 			return;
 		}
 
 		this.setState(State.CheckingForUpdates(explicit));
 
-		const url = explicit ? this.url : `${this.url}?bg=true`;
-		electron.autoUpdater.setFeedURL({ url });
+		const url = this.buildUpdateFeedUrl(this.quality, pendingCommit ?? this.productService.commit!, { background: !explicit });
+
+		if (!url) {
+			return;
+		}
+
 		electron.autoUpdater.checkForUpdates();
 	}
 
@@ -122,7 +117,7 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 			return;
 		}
 
-		this.setState(State.Downloading(this._explicit, this._overwrite));
+		this.setState(State.Downloading(this.state.explicit, this._overwrite));
 	}
 
 	private onUpdateDownloaded(update: IUpdate): void {
@@ -130,10 +125,10 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 			return;
 		}
 
-		this.setState(State.Downloaded(update, this._explicit, this._overwrite));
+		this.setState(State.Downloaded(update, this.state.explicit, this._overwrite));
 		this.logService.info(`Update downloaded: ${JSON.stringify(update)}`);
 
-		this.setState(State.Ready(update, this._explicit, this._overwrite));
+		this.setState(State.Ready(update, this.state.explicit, this._overwrite));
 	}
 
 	private onUpdateNotAvailable(): void {

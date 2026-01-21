@@ -14,8 +14,18 @@ import { IProductService } from '../../product/common/productService.js';
 import { IRequestService } from '../../request/common/request.js';
 import { AvailableForDownload, DisablementReason, IUpdateService, State, StateType, UpdateType } from '../common/update.js';
 
-export function createUpdateURL(platform: string, quality: string, productService: IProductService): string {
-	return `${productService.updateUrl}/api/update/${platform}/${quality}/${productService.commit}`;
+export interface IUpdateURLOptions {
+	readonly background?: boolean;
+}
+
+export function createUpdateURL(baseUpdateUrl: string, platform: string, quality: string, commit: string, options?: IUpdateURLOptions): string {
+	const url = new URL(`${baseUpdateUrl}/api/update/${platform}/${quality}/${commit}`);
+
+	if (options?.background) {
+		url.searchParams.set('bg', 'true');
+	}
+
+	return url.toString();
 }
 
 export type UpdateErrorClassification = {
@@ -28,10 +38,9 @@ export abstract class AbstractUpdateService implements IUpdateService {
 
 	declare readonly _serviceBrand: undefined;
 
-	protected url: string | undefined;
+	protected quality: string | undefined;
 
 	private _state: State = State.Uninitialized;
-	protected _explicit: boolean = false;
 	protected _overwrite: boolean = false;
 	private readonly overwriteUpdatesCheckInterval = new IntervalTimer();
 
@@ -102,19 +111,13 @@ export abstract class AbstractUpdateService implements IUpdateService {
 			return;
 		}
 
-		this.url = this.buildUpdateFeedUrl(quality);
-		if (!this.url) {
+		if (!this.buildUpdateFeedUrl(quality, this.productService.commit!)) {
 			this.setState(State.Disabled(DisablementReason.InvalidConfiguration));
 			this.logService.info('update#ctor - updates are disabled as the update URL is badly formed');
 			return;
 		}
 
-		// hidden setting
-		if (this.configurationService.getValue<boolean>('_update.prss')) {
-			const url = new URL(this.url);
-			url.searchParams.set('prss', 'true');
-			this.url = url.toString();
-		}
+		this.quality = quality;
 
 		this.setState(State.Idle(this.getUpdateType()));
 
@@ -156,7 +159,6 @@ export abstract class AbstractUpdateService implements IUpdateService {
 			return;
 		}
 
-		this._explicit = explicit;
 		this.doCheckForUpdates(explicit);
 	}
 
@@ -224,15 +226,14 @@ export abstract class AbstractUpdateService implements IUpdateService {
 			return false;
 		}
 
-		const pendingUpdateVersion = this._state.update.version;
-		const isLatest = await this.isLatestVersion(pendingUpdateVersion);
+		const pendingUpdateCommit = this._state.update.version;
+		const isLatest = await this.isLatestVersion(pendingUpdateCommit);
 
 		if (isLatest === false && this._state.type === StateType.Ready) {
 			this.logService.info('update#readyStateCheck: newer update available, restarting update machinery');
 			await this.cancelPendingUpdate();
-			this._explicit = explicit;
 			this._overwrite = true;
-			this.doCheckForUpdates(explicit);
+			this.doCheckForUpdates(explicit, pendingUpdateCommit);
 			return true;
 		}
 
@@ -240,7 +241,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 	}
 
 	async isLatestVersion(commit?: string): Promise<boolean | undefined> {
-		if (!this.url) {
+		if (!this.quality) {
 			return undefined;
 		}
 
@@ -250,10 +251,10 @@ export abstract class AbstractUpdateService implements IUpdateService {
 			return undefined;
 		}
 
-		let url = this.url;
+		const url = this.buildUpdateFeedUrl(this.quality, commit ?? this.productService.commit!);
 
-		if (commit) {
-			url = url.replace(new RegExp(`/${this.productService.commit}$`), `/${commit}`);
+		if (!url) {
+			return undefined;
 		}
 
 		try {
@@ -289,6 +290,6 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		// noop
 	}
 
-	protected abstract buildUpdateFeedUrl(quality: string): string | undefined;
-	protected abstract doCheckForUpdates(explicit: boolean): void;
+	protected abstract buildUpdateFeedUrl(quality: string, commit: string, options?: IUpdateURLOptions): string | undefined;
+	protected abstract doCheckForUpdates(explicit: boolean, pendingCommit?: string): void;
 }
