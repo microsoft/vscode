@@ -308,6 +308,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		this.codeBlocksByResponseId.clear();
 		this.fileTreesByResponseId.clear();
 		this.focusedFileTreesByResponseId.clear();
+		this._editorPool.clear();
+		this._toolEditorPool.clear();
+		this._diffEditorPool.clear();
+		this._treePool.clear();
+		this._contentReferencesListPool.clear();
 		this._onDidUpdateViewModel.fire();
 	}
 
@@ -574,6 +579,15 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			dispose(coalesce(templateData.renderedParts));
 			templateData.renderedParts = undefined;
 			dom.clearNode(templateData.value);
+
+			templateData.currentElement = undefined;
+			templateData.elementDisposables.clear();
+			if (templateData.titleToolbar) {
+				templateData.titleToolbar.context = undefined;
+			}
+			templateData.footerToolbar.context = undefined;
+			templateData.checkpointToolbar.context = undefined;
+			templateData.checkpointRestoreToolbar.context = undefined;
 		}
 	}
 
