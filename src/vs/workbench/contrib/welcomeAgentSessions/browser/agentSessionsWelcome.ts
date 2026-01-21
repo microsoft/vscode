@@ -44,6 +44,8 @@ import { AgentSessionsControl, IAgentSessionsControlOptions } from '../../chat/b
 import { IAgentSessionsFilter } from '../../chat/browser/agentSessions/agentSessionsViewer.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { IResolvedWalkthrough, IWalkthroughsService } from '../../welcomeGettingStarted/browser/gettingStartedService.js';
+import { IExtensionService } from '../../../services/extensions/common/extensions.js';
+import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 
 const configurationKey = 'workbench.startupEditor';
 const MAX_SESSIONS = 6;
@@ -79,6 +81,7 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		@IProductService private readonly productService: IProductService,
 		@IWalkthroughsService private readonly walkthroughsService: IWalkthroughsService,
 		@IChatService private readonly chatService: IChatService,
+		@IExtensionService private readonly extensionService: IExtensionService,
 	) {
 		super(AgentSessionsWelcomePage.ID, group, telemetryService, themeService, storageService);
 
@@ -240,6 +243,31 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		this.contentDisposables.add(addDisposableListener(chatWidgetContainer, 'mousedown', () => {
 			this.chatWidget?.focusInput();
 		}));
+
+		// Disable the chat input until the chat extension is installed and activated
+		const defaultChatAgent = this.productService.defaultChatAgent;
+		const updateInputEnabled = () => {
+			let chatExtensionActivated = false;
+			if (defaultChatAgent) {
+				const extensionStatus = this.extensionService.getExtensionsStatus();
+				const status = extensionStatus[defaultChatAgent.chatExtensionId];
+				chatExtensionActivated = !!status?.activationTimes;
+			}
+			this.chatWidget?.inputEditor.updateOptions({ readOnly: !chatExtensionActivated });
+		};
+		updateInputEnabled();
+
+		// Listen for extension status changes to enable the input when the extension activates
+		if (defaultChatAgent) {
+			this.contentDisposables.add(this.extensionService.onDidChangeExtensionsStatus(event => {
+				for (const ext of event) {
+					if (ExtensionIdentifier.equals(defaultChatAgent.chatExtensionId, ext.value)) {
+						updateInputEnabled();
+						return;
+					}
+				}
+			}));
+		}
 	}
 
 	private buildSessionsOrPrompts(container: HTMLElement): void {
