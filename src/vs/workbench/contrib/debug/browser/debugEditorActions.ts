@@ -24,6 +24,7 @@ import { KeybindingWeight } from '../../../../platform/keybinding/common/keybind
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { PanelFocusContext } from '../../../common/contextkeys.js';
 import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
+import { CTX_INLINE_CHAT_GUTTER_VISIBLE } from '../../inlineChat/common/inlineChat.js';
 import { openBreakpointSource } from './breakpointsView.js';
 import { DisassemblyView, IDisassembledInstructionEntry } from './disassemblyView.js';
 import { Repl } from './repl.js';
@@ -39,9 +40,10 @@ class ToggleBreakpointAction extends Action2 {
 		super({
 			id: TOGGLE_BREAKPOINT_ID,
 			title: {
-				...nls.localize2('toggleBreakpointAction', "Debug: Toggle Breakpoint"),
+				...nls.localize2('toggleBreakpointAction', "Toggle Breakpoint"),
 				mnemonicTitle: nls.localize({ key: 'miToggleBreakpoint', comment: ['&& denotes a mnemonic'] }, "Toggle &&Breakpoint"),
 			},
+			category: nls.localize2('debugCategory', "Debug"),
 			f1: true,
 			precondition: CONTEXT_DEBUGGERS_AVAILABLE,
 			keybinding: {
@@ -49,12 +51,17 @@ class ToggleBreakpointAction extends Action2 {
 				primary: KeyCode.F9,
 				weight: KeybindingWeight.EditorContrib
 			},
-			menu: {
+			menu: [{
 				id: MenuId.MenubarDebugMenu,
 				when: CONTEXT_DEBUGGERS_AVAILABLE,
 				group: '4_new_breakpoint',
 				order: 1
-			}
+			}, {
+				id: MenuId.ChatEditorInlineGutter,
+				when: ContextKeyExpr.and(CONTEXT_DEBUGGERS_AVAILABLE, CTX_INLINE_CHAT_GUTTER_VISIBLE),
+				group: '4_debug',
+				order: 1
+			}]
 		});
 	}
 

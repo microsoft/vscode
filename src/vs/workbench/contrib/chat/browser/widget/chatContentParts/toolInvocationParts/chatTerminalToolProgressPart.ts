@@ -283,24 +283,26 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			getResolvedCommand: () => this._getResolvedCommand()
 		}));
 
+		// Use presentationOverrides for display if available (e.g., extracted Python code with syntax highlighting)
+		const displayCommand = terminalData.presentationOverrides?.commandLine ?? command;
+		const displayLanguage = terminalData.presentationOverrides?.language ?? terminalData.language;
 		const titlePart = this._register(_instantiationService.createInstance(
 			ChatQueryTitlePart,
 			elements.commandBlock,
 			new MarkdownString([
-				`\`\`\`${terminalData.language}`,
-				`${command.replaceAll('```', '\\`\\`\\`')}`,
+				`\`\`\`${displayLanguage}`,
+				`${displayCommand.replaceAll('```', '\\`\\`\\`')}`,
 				`\`\`\``
 			].join('\n'), { supportThemeIcons: true }),
 			undefined,
 		));
 		this._register(titlePart.onDidChangeHeight(() => {
 			this._decoration.update();
-			this._onDidChangeHeight.fire();
 		}));
 
 		this._outputView = this._register(this._instantiationService.createInstance(
 			ChatTerminalToolOutputSection,
-			() => this._onDidChangeHeight.fire(),
+			() => { },
 			() => this._ensureTerminalInstance(),
 			() => this._getResolvedCommand(),
 			() => this._terminalData.terminalCommandOutput,
@@ -352,7 +354,6 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		};
 
 		this.markdownPart = this._register(_instantiationService.createInstance(ChatMarkdownContentPart, chatMarkdownContent, context, editorPool, false, codeBlockStartIndex, renderer, {}, currentWidthDelegate(), codeBlockModelCollection, markdownOptions));
-		this._register(this.markdownPart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 
 		elements.message.append(this.markdownPart.domNode);
 		const progressPart = this._register(_instantiationService.createInstance(ChatProgressSubPart, elements.container, this.getIcon(), terminalData.autoApproveInfo));
@@ -394,8 +395,6 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			initialExpanded
 		));
 		this._thinkingCollapsibleWrapper = wrapper;
-
-		this._register(wrapper.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 
 		return wrapper.domNode;
 	}
@@ -1003,7 +1002,7 @@ class ChatTerminalToolOutputSection extends Disposable {
 			return true;
 		}
 		await liveTerminalInstance.xtermReadyPromise;
-		if (liveTerminalInstance.isDisposed || !liveTerminalInstance.xterm) {
+		if (this._store.isDisposed || liveTerminalInstance.isDisposed || !liveTerminalInstance.xterm) {
 			this._disposeLiveMirror();
 			return false;
 		}
@@ -1035,6 +1034,9 @@ class ChatTerminalToolOutputSection extends Disposable {
 	private async _renderSnapshotOutput(snapshot: NonNullable<IChatTerminalToolInvocationData['terminalCommandOutput']>): Promise<void> {
 		if (this._snapshotMirror) {
 			this._layoutOutput(snapshot.lineCount ?? 0, this._lastRenderedMaxColumnWidth);
+			return;
+		}
+		if (this._store.isDisposed) {
 			return;
 		}
 		dom.clearNode(this._terminalContainer);

@@ -7,7 +7,6 @@ src/vs/base/common/path.ts @bpasero
 src/vs/base/common/stream.ts @bpasero
 src/vs/base/common/uri.ts @jrieken
 src/vs/base/browser/domSanitize.ts @mjbvz
-src/vs/base/browser/** @bpasero
 src/vs/base/node/pfs.ts @bpasero
 src/vs/base/node/unc.ts @bpasero
 src/vs/base/parts/contextmenu/** @bpasero
@@ -110,7 +109,6 @@ src/vs/workbench/contrib/chat/browser/media/chatViewTitleControl.css @bpasero
 src/vs/workbench/contrib/chat/browser/chatManagement/chatUsageWidget.ts @bpasero
 src/vs/workbench/contrib/chat/browser/chatManagement/media/chatUsageWidget.css @bpasero
 src/vs/workbench/contrib/chat/browser/agentSessions/** @bpasero
-src/vs/workbench/contrib/chat/browser/chatSessions/** @bpasero
 src/vs/workbench/contrib/localization/** @TylerLeonhardt
 src/vs/workbench/contrib/quickaccess/browser/commandsQuickAccess.ts @TylerLeonhardt
 src/vs/workbench/contrib/scm/** @lszomoru
