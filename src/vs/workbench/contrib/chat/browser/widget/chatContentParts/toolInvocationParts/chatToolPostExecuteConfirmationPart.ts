@@ -126,24 +126,16 @@ export class ChatToolPostExecuteConfirmationPart extends AbstractToolConfirmatio
 				parts.push({
 					kind: 'code',
 					title: part.title,
-					textModel: model,
-					languageId: model.getLanguageId(),
+					data: part.value,
+					languageId: 'plaintext',
+					codeBlockIndex: i,
+					ownerMarkdownPartId: this.codeblocksPartId,
 					options: {
 						hideToolbar: true,
 						reserveWidth: 19,
 						maxHeightInLines: 13,
 						verticalPadding: 5,
 						editorOptions: { wordWrap: 'on', readOnly: true }
-					},
-					codeBlockInfo: {
-						codeBlockIndex: i,
-						codemapperUri: undefined,
-						elementId: this.context.element.id,
-						focus: () => { },
-						ownerMarkdownPartId: this.codeblocksPartId,
-						uri: model.uri,
-						chatSessionResource: this.context.element.sessionResource,
-						uriPromise: Promise.resolve(model.uri)
 					}
 				});
 			} else if (part.kind === 'promptTsx') {
@@ -158,24 +150,16 @@ export class ChatToolPostExecuteConfirmationPart extends AbstractToolConfirmatio
 
 				parts.push({
 					kind: 'code',
-					textModel: model,
-					languageId: model.getLanguageId(),
+					data: stringified,
+					languageId: 'json',
+					codeBlockIndex: i,
+					ownerMarkdownPartId: this.codeblocksPartId,
 					options: {
 						hideToolbar: true,
 						reserveWidth: 19,
 						maxHeightInLines: 13,
 						verticalPadding: 5,
 						editorOptions: { wordWrap: 'on', readOnly: true }
-					},
-					codeBlockInfo: {
-						codeBlockIndex: i,
-						codemapperUri: undefined,
-						elementId: this.context.element.id,
-						focus: () => { },
-						ownerMarkdownPartId: this.codeblocksPartId,
-						uri: model.uri,
-						chatSessionResource: this.context.element.sessionResource,
-						uriPromise: Promise.resolve(model.uri)
 					}
 				});
 			} else if (part.kind === 'data') {
@@ -202,56 +186,34 @@ export class ChatToolPostExecuteConfirmationPart extends AbstractToolConfirmatio
 
 						parts.push({
 							kind: 'code',
-							textModel: model,
-							languageId: model.getLanguageId(),
+							data: text,
+							languageId: 'plaintext',
+							codeBlockIndex: i,
+							ownerMarkdownPartId: this.codeblocksPartId,
 							options: {
 								hideToolbar: true,
 								reserveWidth: 19,
 								maxHeightInLines: 13,
 								verticalPadding: 5,
 								editorOptions: { wordWrap: 'on', readOnly: true }
-							},
-							codeBlockInfo: {
-								codeBlockIndex: i,
-								codemapperUri: undefined,
-								elementId: this.context.element.id,
-								focus: () => { },
-								ownerMarkdownPartId: this.codeblocksPartId,
-								uri: model.uri,
-								chatSessionResource: this.context.element.sessionResource,
-								uriPromise: Promise.resolve(model.uri)
 							}
 						});
 					} catch {
 						// Not valid UTF-8, show base64
 						const base64 = data.toString();
-						const model = this._register(this.modelService.createModel(
-							base64,
-							this.languageService.createById('plaintext'),
-							undefined,
-							true
-						));
 
 						parts.push({
 							kind: 'code',
-							textModel: model,
-							languageId: model.getLanguageId(),
+							data: base64,
+							languageId: 'plaintext',
+							codeBlockIndex: i,
+							ownerMarkdownPartId: this.codeblocksPartId,
 							options: {
 								hideToolbar: true,
 								reserveWidth: 19,
 								maxHeightInLines: 13,
 								verticalPadding: 5,
 								editorOptions: { wordWrap: 'on', readOnly: true }
-							},
-							codeBlockInfo: {
-								codeBlockIndex: i,
-								codemapperUri: undefined,
-								elementId: this.context.element.id,
-								focus: () => { },
-								ownerMarkdownPartId: this.codeblocksPartId,
-								uri: model.uri,
-								chatSessionResource: this.context.element.sessionResource,
-								uriPromise: Promise.resolve(model.uri)
 							}
 						});
 					}

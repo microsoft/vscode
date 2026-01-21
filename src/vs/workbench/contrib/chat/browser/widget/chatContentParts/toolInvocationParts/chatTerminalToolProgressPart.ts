@@ -1405,7 +1405,7 @@ export class FocusChatInstanceAction extends Action implements IAction {
 }
 
 class ChatTerminalThinkingCollapsibleWrapper extends ChatCollapsibleContentPart {
-	private readonly _contentElement: HTMLElement;
+	private readonly _terminalContentElement: HTMLElement;
 	private readonly _commandText: string;
 
 	constructor(
@@ -1418,7 +1418,7 @@ class ChatTerminalThinkingCollapsibleWrapper extends ChatCollapsibleContentPart 
 		const title = `Ran \`${commandText}\``;
 		super(title, context, undefined, hoverService);
 
-		this._contentElement = contentElement;
+		this._terminalContentElement = contentElement;
 		this._commandText = commandText;
 
 		this.domNode.classList.add('chat-terminal-thinking-collapsible');
@@ -1445,7 +1445,7 @@ class ChatTerminalThinkingCollapsibleWrapper extends ChatCollapsibleContentPart 
 
 	protected override initContent(): HTMLElement {
 		const listWrapper = dom.$('.chat-used-context-list.chat-terminal-thinking-content');
-		listWrapper.appendChild(this._contentElement);
+		listWrapper.appendChild(this._terminalContentElement);
 		return listWrapper;
 	}
 
@@ -1453,7 +1453,7 @@ class ChatTerminalThinkingCollapsibleWrapper extends ChatCollapsibleContentPart 
 		this.setExpanded(true);
 	}
 
-	hasSameContent(_other: IChatRendererContent, _followingContent: IChatRendererContent[], _element: ChatTreeItem): boolean {
+	override hasSameContent(_other: IChatRendererContent, _followingContent: IChatRendererContent[], _element: ChatTreeItem): boolean {
 		return false;
 	}
 }

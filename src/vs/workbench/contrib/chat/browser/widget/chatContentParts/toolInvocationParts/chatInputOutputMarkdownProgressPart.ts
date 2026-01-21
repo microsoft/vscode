@@ -5,6 +5,7 @@
 
 import { ProgressBar } from '../../../../../../../base/browser/ui/progressbar/progressbar.js';
 import { decodeBase64 } from '../../../../../../../base/common/buffer.js';
+import { Emitter } from '../../../../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { Lazy } from '../../../../../../../base/common/lazy.js';
 import { toDisposable } from '../../../../../../../base/common/lifecycle.js';
@@ -29,6 +30,8 @@ export class ChatInputOutputMarkdownProgressPart extends BaseChatToolInvocationS
 
 	public readonly domNode: HTMLElement;
 	private readonly collapsibleListPart: ChatCollapsibleInputOutputContentPart;
+
+	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
 
 	public get codeblocks(): IChatCodeBlockInfo[] {
 		return this.collapsibleListPart.codeblocks;

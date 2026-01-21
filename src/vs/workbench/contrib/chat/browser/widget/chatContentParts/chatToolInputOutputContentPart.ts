@@ -209,7 +209,6 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 				output.parts,
 			));
 			this._outputSubPart = outputSubPart;
-			this._register(outputSubPart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 			contents.output.appendChild(outputSubPart.domNode);
 		}
 
