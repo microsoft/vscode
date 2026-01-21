@@ -175,12 +175,12 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 			? baseClasses
 			: `${baseClasses}.chat-thinking-streaming`;
 		this.wrapper = $(classes);
-		
+
 		// Hide initially until there are tool calls
 		if (!this.hasToolItems) {
 			this.wrapper.style.display = 'none';
 		}
-		
+
 		return this.wrapper;
 	}
 
@@ -379,7 +379,7 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		const resultIcon = createThinkingIcon(Codicon.check);
 		this.resultContainer.appendChild(resultIcon);
 		this.resultContainer.appendChild(collapsiblePart.domNode);
-		
+
 		// With lazy rendering, wrapper may not be created yet if content hasn't been expanded
 		if (this.wrapper) {
 			dom.append(this.wrapper, this.resultContainer);

@@ -194,7 +194,7 @@ export class ChatToolOutputContentSubPart extends Disposable {
 		editorReference.object.render(data, this._currentWidth || 300);
 		container.appendChild(editorReference.object.element);
 		this._editorReferences.push(editorReference);
-		
+
 		// Track the codeblock
 		this.codeblocks.push({
 			ownerMarkdownPartId: firstPart.ownerMarkdownPartId,
