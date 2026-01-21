@@ -303,14 +303,29 @@ export class ThemeConfiguration {
 
 	public get tokenColorCustomizations(): ITokenColorCustomizations {
 		const tokenColorCustomization = this.configurationService.getValue<ITokenColorCustomizations>(ThemeSettings.TOKEN_COLOR_CUSTOMIZATIONS) || {};
-		tokenColorCustomization.textMateRules?.forEach(rule => {
-			const fontSize = rule.settings.fontSize;
-			const lineHeight = rule.settings.lineHeight;
+		const textMateRules = tokenColorCustomization.textMateRules;
+		if (!textMateRules) {
+			return tokenColorCustomization;
+		}
+		const updatedRules = textMateRules.map(rule => {
+			const fontSize = rule.settings?.fontSize;
+			const lineHeight = rule.settings?.lineHeight;
 			if (fontSize !== undefined && (lineHeight === undefined || lineHeight < fontSize)) {
-				rule.settings.lineHeight = fontSize;
+				return {
+					...rule,
+					settings: {
+						...rule.settings,
+						lineHeight: fontSize
+					}
+				};
 			}
+			return rule;
 		});
-		return tokenColorCustomization;
+		const updatedTokenColorCustomization = {
+			...tokenColorCustomization,
+			textMateRules: updatedRules
+		};
+		return updatedTokenColorCustomization;
 	}
 
 	public get semanticTokenColorCustomizations(): ISemanticTokenColorCustomizations | undefined {
