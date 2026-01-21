@@ -51,6 +51,7 @@ import { INotebookEditorService } from '../../notebook/browser/services/notebook
 import { CellUri, ICellEditOperation } from '../../notebook/common/notebookCommon.js';
 import { INotebookService } from '../../notebook/common/notebookService.js';
 import { CTX_INLINE_CHAT_VISIBLE, InlineChatConfigKeys } from '../common/inlineChat.js';
+import { InlineChatModelSelector } from '../common/inlineChatModelSelector.js';
 import { IInlineChatSession2, IInlineChatSessionService } from './inlineChatSessionService.js';
 import { EditorBasedInlineChatWidget } from './inlineChatWidget.js';
 import { InlineChatZoneWidget } from './inlineChatZoneWidget.js';
@@ -432,17 +433,31 @@ export class InlineChatController implements IEditorContribution {
 		const session = this._inlineChatSessionService.createSession(this._editor);
 		const store = new DisposableStore();
 
-		// fallback to the default model of the selected vendor unless an explicit selection was made for the session
-		// or unless the user has chosen to persist their model choice
+		// Select the language model for this session:
+		// 1. If user chose to persist their model choice, respect that
+		// 2. Otherwise, try to use a preferred inline chat model (e.g., GLM 4.7)
+		// 3. Fall back to the vendor's default model for this location
 		const persistModelChoice = this._configurationService.getValue<boolean>(InlineChatConfigKeys.PersistModelChoice);
-		const model = this._zone.value.widget.chatWidget.input.selectedLanguageModel;
-		if (!persistModelChoice && InlineChatController._selectVendorDefaultLanguageModel && model && !model.metadata.isDefaultForLocation[session.chatModel.initialLocation]) {
-			const ids = await this._languageModelService.selectLanguageModels({ vendor: model.metadata.vendor });
-			for (const identifier of ids) {
-				const candidate = this._languageModelService.lookupLanguageModel(identifier);
-				if (candidate?.isDefaultForLocation[session.chatModel.initialLocation]) {
-					this._zone.value.widget.chatWidget.input.setCurrentLanguageModel({ metadata: candidate, identifier });
-					break;
+
+		if (!persistModelChoice && InlineChatController._selectVendorDefaultLanguageModel) {
+			// Check for preferred inline chat models first
+			const modelSelector = new InlineChatModelSelector(this._languageModelService);
+			const preferredModel = modelSelector.findPreferredModel();
+
+			if (preferredModel) {
+				this._zone.value.widget.chatWidget.input.setCurrentLanguageModel(preferredModel);
+			} else {
+				// Fall back to vendor default for this location
+				const currentModel = this._zone.value.widget.chatWidget.input.selectedLanguageModel;
+				if (currentModel && !currentModel.metadata.isDefaultForLocation[session.chatModel.initialLocation]) {
+					const ids = await this._languageModelService.selectLanguageModels({ vendor: currentModel.metadata.vendor });
+					for (const identifier of ids) {
+						const metadata = this._languageModelService.lookupLanguageModel(identifier);
+						if (metadata?.isDefaultForLocation[session.chatModel.initialLocation]) {
+							this._zone.value.widget.chatWidget.input.setCurrentLanguageModel({ metadata, identifier });
+							break;
+						}
+					}
 				}
 			}
 		}
