@@ -12,7 +12,7 @@ import { IInstantiationService, ServicesAccessor } from '../../../../platform/in
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { IUpdateService, State as UpdateState, StateType, IUpdate, DisablementReason, Downloading, Ready } from '../../../../platform/update/common/update.js';
+import { IUpdateService, State as UpdateState, StateType, IUpdate, DisablementReason, Ready, Overwriting } from '../../../../platform/update/common/update.js';
 import { INotificationService, INotificationHandle, NotificationPriority, Severity } from '../../../../platform/notification/common/notification.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IBrowserWorkbenchEnvironmentService } from '../../../services/environment/browser/environmentService.js';
@@ -245,8 +245,8 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 				this.onUpdateDownloaded(state.update);
 				break;
 
-			case StateType.Downloading:
-				this.onUpdateDownloading(state);
+			case StateType.Overwriting:
+				this.onUpdateOverwriting(state);
 				break;
 
 			case StateType.Ready: {
@@ -267,7 +267,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 			badge = new NumberBadge(1, () => nls.localize('updateIsReady', "New {0} update available.", this.productService.nameShort));
 		} else if (state.type === StateType.CheckingForUpdates) {
 			badge = new ProgressBadge(() => nls.localize('checkingForUpdates', "Checking for {0} updates...", this.productService.nameShort));
-		} else if (state.type === StateType.Downloading) {
+		} else if (state.type === StateType.Downloading || state.type === StateType.Overwriting) {
 			badge = new ProgressBadge(() => nls.localize('downloading', "Downloading {0} update...", this.productService.nameShort));
 		} else if (state.type === StateType.Updating) {
 			badge = new ProgressBadge(() => nls.localize('updating', "Updating {0}...", this.productService.nameShort));
@@ -418,9 +418,9 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 		}
 	}
 
-	// macOS overwrite update - downloading
-	private onUpdateDownloading(state: Downloading): void {
-		if (!state.overwrite || !state.explicit) {
+	// macOS overwrite update - overwriting
+	private onUpdateOverwriting(state: Overwriting): void {
+		if (!state.explicit) {
 			return;
 		}
 

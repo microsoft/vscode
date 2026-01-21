@@ -113,7 +113,7 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 	}
 
 	private onUpdateAvailable(): void {
-		if (this.state.type !== StateType.CheckingForUpdates) {
+		if (this.state.type !== StateType.CheckingForUpdates && this.state.type !== StateType.Overwriting) {
 			return;
 		}
 

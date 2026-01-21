@@ -24,13 +24,16 @@ export interface IUpdate {
  *          ↓  ↑
  *   Checking for Updates  →  Available for Download
  *         ↓
- *     Downloading  ←→   Ready
- *         ↓               ↑
- *     Downloaded   →  Updating
+ *                     ←   Overwriting
+ *     Downloading             ↑
+ *                     →     Ready
+ *         ↓               ↑      ↓
+ *     Downloaded   →  Updating   Overwriting → Downloading
  *
  * Available: There is an update available for download (linux).
  * Ready: Code will be updated as soon as it restarts (win32, darwin).
  * Downloaded: There is an update ready to be installed in the background (win32).
+ * Overwriting: A newer update is being downloaded to replace the pending update (darwin).
  */
 
 export const enum StateType {
@@ -43,6 +46,7 @@ export const enum StateType {
 	Downloaded = 'downloaded',
 	Updating = 'updating',
 	Ready = 'ready',
+	Overwriting = 'overwriting',
 }
 
 export const enum UpdateType {
@@ -69,8 +73,9 @@ export type Downloading = { type: StateType.Downloading; explicit: boolean; over
 export type Downloaded = { type: StateType.Downloaded; update: IUpdate; explicit: boolean; overwrite: boolean };
 export type Updating = { type: StateType.Updating; update: IUpdate };
 export type Ready = { type: StateType.Ready; update: IUpdate; explicit: boolean; overwrite: boolean };
+export type Overwriting = { type: StateType.Overwriting; explicit: boolean };
 
-export type State = Uninitialized | Disabled | Idle | CheckingForUpdates | AvailableForDownload | Downloading | Downloaded | Updating | Ready;
+export type State = Uninitialized | Disabled | Idle | CheckingForUpdates | AvailableForDownload | Downloading | Downloaded | Updating | Ready | Overwriting;
 
 export const State = {
 	Uninitialized: upcast<Uninitialized>({ type: StateType.Uninitialized }),
@@ -82,6 +87,7 @@ export const State = {
 	Downloaded: (update: IUpdate, explicit: boolean, overwrite: boolean): Downloaded => ({ type: StateType.Downloaded, update, explicit, overwrite }),
 	Updating: (update: IUpdate): Updating => ({ type: StateType.Updating, update }),
 	Ready: (update: IUpdate, explicit: boolean, overwrite: boolean): Ready => ({ type: StateType.Ready, update, explicit, overwrite }),
+	Overwriting: (explicit: boolean): Overwriting => ({ type: StateType.Overwriting, explicit }),
 };
 
 export interface IAutoUpdater extends Event.NodeEventEmitter {
