@@ -572,8 +572,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 				break;
 		}
 
-		// Convert ChatResource to IPromptFileResource format
-		return resources?.map(r => ({ uri: r.uri }));
+		return resources;
 	}
 
 	async $detectChatParticipant(handle: number, requestDto: Dto<IChatAgentRequest>, context: { history: IChatAgentHistoryEntryDto[] }, options: { location: ChatAgentLocation; participants?: vscode.ChatParticipantMetadata[] }, token: CancellationToken): Promise<vscode.ChatParticipantDetectionResult | null | undefined> {

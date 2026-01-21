@@ -3888,5 +3888,4 @@ export class McpHttpServerDefinition implements vscode.McpHttpServerDefinition {
 //#endregion
 
 //#region Chat Prompt Files
-// NOTE: ChatResource is now a simple interface in vscode.d.ts, no class implementation needed
 //#endregion

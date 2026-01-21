@@ -12,7 +12,9 @@ declare module 'vscode' {
 	 * Represents a chat-related resource, such as a custom agent, instructions, prompt file, or skill.
 	 */
 	export interface ChatResource {
-		/** Uri to the chat resource. */
+		/**
+		 * Uri to the chat resource.
+		 */
 		readonly uri: Uri;
 	}
 
