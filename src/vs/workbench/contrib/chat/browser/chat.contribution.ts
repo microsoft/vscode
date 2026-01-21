@@ -55,7 +55,7 @@ import { ILanguageModelToolsService } from '../common/tools/languageModelToolsSe
 import { ChatPromptFilesExtensionPointHandler } from '../common/promptSyntax/chatPromptFilesContribution.js';
 import { ChatPromptContentStore, IChatPromptContentStore } from '../common/promptSyntax/chatPromptContentStore.js';
 import { PromptsConfig } from '../common/promptSyntax/config/config.js';
-import { INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, INSTRUCTION_FILE_EXTENSION, LEGACY_MODE_DEFAULT_SOURCE_FOLDER, LEGACY_MODE_FILE_EXTENSION, PROMPT_DEFAULT_SOURCE_FOLDER, PROMPT_FILE_EXTENSION, DEFAULT_SKILL_SOURCE_FOLDERS, AGENTS_SOURCE_FOLDER, AGENT_FILE_EXTENSION } from '../common/promptSyntax/config/promptFileLocations.js';
+import { INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, INSTRUCTION_FILE_EXTENSION, LEGACY_MODE_DEFAULT_SOURCE_FOLDER, LEGACY_MODE_FILE_EXTENSION, PROMPT_DEFAULT_SOURCE_FOLDER, PROMPT_FILE_EXTENSION, DEFAULT_SKILL_SOURCE_FOLDERS, AGENTS_SOURCE_FOLDER, AGENT_FILE_EXTENSION, SKILL_FILENAME } from '../common/promptSyntax/config/promptFileLocations.js';
 import { PromptLanguageFeaturesProvider } from '../common/promptSyntax/promptFileContributions.js';
 import { AGENT_DOCUMENTATION_URL, INSTRUCTIONS_DOCUMENTATION_URL, PROMPT_DOCUMENTATION_URL } from '../common/promptSyntax/promptTypes.js';
 import { IPromptsService } from '../common/promptSyntax/service/promptsService.js';
@@ -651,7 +651,7 @@ configurationRegistry.registerConfiguration({
 			additionalProperties: { type: 'boolean' },
 			propertyNames: {
 				pattern: VALID_PROMPT_FOLDER_PATTERN,
-				patternErrorMessage: nls.localize('chat.instructionsLocations.invalidPath', "Paths must be relative or use '~/' for home directory. Not supported: forward slashes and absolute paths. Glob patterns are deprecated and will be removed in future versions."),
+				patternErrorMessage: nls.localize('chat.instructionsLocations.invalidPath', "Paths must be relative or start with '~/'. Absolute paths and '\\' separators are not supported. Glob patterns are deprecated and will be removed in future versions."),
 			},
 			restricted: true,
 			tags: ['prompts', 'reusable prompts', 'prompt snippets', 'instructions'],
@@ -684,7 +684,7 @@ configurationRegistry.registerConfiguration({
 			unevaluatedProperties: { type: 'boolean' },
 			propertyNames: {
 				pattern: VALID_PROMPT_FOLDER_PATTERN,
-				patternErrorMessage: nls.localize('chat.promptFileLocations.invalidPath', "Paths must be relative or use '~/' for home directory. Not supported: forward slashes and absolute paths. Glob patterns are deprecated and will be removed in future versions."),
+				patternErrorMessage: nls.localize('chat.promptFileLocations.invalidPath', "Paths must be relative or start with '~/'. Absolute paths and '\\' separators are not supported. Glob patterns are deprecated and will be removed in future versions."),
 			},
 			restricted: true,
 			tags: ['prompts', 'reusable prompts', 'prompt snippets', 'instructions'],
@@ -736,7 +736,7 @@ configurationRegistry.registerConfiguration({
 			),
 			markdownDescription: nls.localize(
 				'chat.agents.config.locations.description',
-				"Specify location(s) of custom agent files (`*{0}`). [Learn More]({1}).\n\n**Supported path types:**\n- Workspace paths: `my-agents`, `./my-agents`, `../shared-agents`\n- User home paths: `~/.copilot/agents`, `~/.claude/agents`\n\n**Note:** Only forward slashes (`/`) are supported for cross-platform sharing.",
+				"Specify location(s) of custom agent files (`*{0}`). [Learn More]({1}).\n\nRelative paths are resolved from the root folder(s) of your workspace.",
 				AGENT_FILE_EXTENSION,
 				AGENT_DOCUMENTATION_URL,
 			),
@@ -746,7 +746,7 @@ configurationRegistry.registerConfiguration({
 			additionalProperties: { type: 'boolean' },
 			propertyNames: {
 				pattern: VALID_PROMPT_FOLDER_PATTERN,
-				patternErrorMessage: nls.localize('chat.agentLocations.invalidPath', "Paths must be relative or use '~/' for home directory. Not supported: forward slashes and absolute paths."),
+				patternErrorMessage: nls.localize('chat.agentLocations.invalidPath', "Paths must be relative or start with '~/'. Absolute paths and '\\' separators are not supported."),
 			},
 			restricted: true,
 			tags: ['prompts', 'reusable prompts', 'prompt snippets', 'instructions'],
@@ -792,14 +792,19 @@ configurationRegistry.registerConfiguration({
 		[PromptsConfig.SKILLS_LOCATION_KEY]: {
 			type: 'object',
 			title: nls.localize('chat.agentSkillsLocations.title', "Agent Skills Locations",),
-			markdownDescription: nls.localize('chat.agentSkillsLocations.description', "Specify where agent skills are located. Each path should contain skill subfolders with SKILL.md files (e.g., my-skills/skillA/SKILL.md → add my-skills).\n\n**Supported path types:**\n- Workspace paths: `my-skills`, `./my-skills`, `../shared-skills`\n- User home paths: `~/.copilot/skills`, `~/.claude/skills`\n\n**Note:** Only forward slashes (`/`) are supported for cross-platform sharing.",),
+			markdownDescription: nls.localize(
+				'chat.agentSkillsLocations.description',
+				"Specify location(s) of agent skills (`{0}`) that can be used in Chat Sessions. [Learn More]({1}).\n\nEach path should contain skill subfolders with SKILL.md files (e.g., add `my-skills` if you have `my-skills/skillA/SKILL.md`). Relative paths are resolved from the root folder(s) of your workspace.",
+				SKILL_FILENAME,
+				AGENT_DOCUMENTATION_URL,
+			),
 			default: {
 				...DEFAULT_SKILL_SOURCE_FOLDERS.map((folder) => ({ [folder.path]: true })).reduce((acc, curr) => ({ ...acc, ...curr }), {}),
 			},
 			additionalProperties: { type: 'boolean' },
 			propertyNames: {
 				pattern: VALID_PROMPT_FOLDER_PATTERN,
-				patternErrorMessage: nls.localize('chat.agentSkillsLocations.invalidPath', "Paths must be relative or use '~/' for home directory. Not supported: forward slashes and absolute paths."),
+				patternErrorMessage: nls.localize('chat.agentSkillsLocations.invalidPath', "Paths must be relative or start with '~/'. Absolute paths and '\\' separators are not supported."),
 			},
 			restricted: true,
 			tags: ['prompts', 'reusable prompts', 'prompt snippets', 'instructions'],
