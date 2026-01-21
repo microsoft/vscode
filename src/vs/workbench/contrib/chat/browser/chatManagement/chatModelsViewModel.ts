@@ -611,7 +611,7 @@ export class ChatModelsViewModel extends Disposable {
 				this.collapsedGroups.add(entry.id);
 			}
 		}
-		this.doFilter(this.searchValue);
+		this.doFilter();
 	}
 
 	getConfiguredVendors(): ILanguageModelProvider[] {

@@ -135,7 +135,10 @@ class ModelsSearchFilterDropdownMenuActionViewItem extends DropdownMenuActionVie
 	constructor(
 		action: IAction,
 		options: IActionViewItemOptions,
-		private readonly searchWidget: SuggestEnabledInput,
+		private readonly search: {
+			getValue(): string;
+			setValue(newValue: string): void;
+		},
 		private readonly viewModel: ChatModelsViewModel,
 		@IContextMenuService contextMenuService: IContextMenuService
 	) {
@@ -167,7 +170,7 @@ class ModelsSearchFilterDropdownMenuActionViewItem extends DropdownMenuActionVie
 
 	private createProviderAction(vendor: string, displayName: string): IAction {
 		const query = `@provider:"${displayName}"`;
-		const currentQuery = this.searchWidget.getValue();
+		const currentQuery = this.search.getValue();
 		const isChecked = currentQuery.includes(query) || currentQuery.includes(`@provider:${vendor}`);
 
 		return {
@@ -183,7 +186,7 @@ class ModelsSearchFilterDropdownMenuActionViewItem extends DropdownMenuActionVie
 
 	private createCapabilityAction(capability: string, label: string): IAction {
 		const query = `@capability:${capability}`;
-		const currentQuery = this.searchWidget.getValue();
+		const currentQuery = this.search.getValue();
 		const isChecked = currentQuery.includes(query);
 
 		return {
@@ -200,7 +203,7 @@ class ModelsSearchFilterDropdownMenuActionViewItem extends DropdownMenuActionVie
 	private createVisibleAction(visible: boolean, label: string): IAction {
 		const query = `@visible:${visible}`;
 		const oppositeQuery = `@visible:${!visible}`;
-		const currentQuery = this.searchWidget.getValue();
+		const currentQuery = this.search.getValue();
 		const isChecked = currentQuery.includes(query);
 
 		return {
@@ -215,9 +218,9 @@ class ModelsSearchFilterDropdownMenuActionViewItem extends DropdownMenuActionVie
 	}
 
 	private toggleFilterAndSearch(query: string, alternativeQueries: string[] = []): void {
-		const currentQuery = this.searchWidget.getValue();
+		const currentQuery = this.search.getValue();
 		const newQuery = toggleFilter(currentQuery, query, alternativeQueries);
-		this.search(newQuery);
+		this.search.setValue(newQuery);
 	}
 
 	private getActions(): IAction[] {
@@ -953,7 +956,10 @@ export class ChatModelsWidget extends Disposable {
 		const toolBar = this._register(new ToolBar(this.searchActionsContainer, this.contextMenuService, {
 			actionViewItemProvider: (action: IAction, options: IActionViewItemOptions) => {
 				if (action.id === filterAction.id) {
-					return this.instantiationService.createInstance(ModelsSearchFilterDropdownMenuActionViewItem, action, options, this.searchWidget, this.viewModel);
+					return this.instantiationService.createInstance(ModelsSearchFilterDropdownMenuActionViewItem, action, options, {
+						getValue: () => this.searchWidget.getValue(),
+						setValue: (searchValue) => this.search(searchValue)
+					}, this.viewModel);
 				}
 				return undefined;
 			},
