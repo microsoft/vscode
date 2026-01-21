@@ -124,7 +124,7 @@ export class InlineChatOverlayWidget extends Disposable implements IOverlayWidge
 				if (!value) {
 					e.preventDefault();
 					e.stopPropagation();
-					this.hide();
+					this._hide();
 				}
 			} else if (e.keyCode === KeyCode.DownArrow) {
 				// Focus first action bar item when at the end of the input
@@ -158,11 +158,11 @@ export class InlineChatOverlayWidget extends Disposable implements IOverlayWidge
 
 		// Track focus - hide when focus leaves
 		const focusTracker = this._store.add(dom.trackFocus(this._domNode));
-		this._store.add(focusTracker.onDidBlur(() => this.hide()));
+		this._store.add(focusTracker.onDidBlur(() => this._hide()));
 
 		// Handle action bar cancel (Escape key)
-		this._store.add(this._actionBar.onDidCancel(() => this.hide()));
-		this._store.add(this._actionBar.onWillRun(() => this.hide()));
+		this._store.add(this._actionBar.onDidCancel(() => this._hide()));
+		this._store.add(this._actionBar.onWillRun(() => this._hide()));
 	}
 
 	/**
@@ -213,7 +213,7 @@ export class InlineChatOverlayWidget extends Disposable implements IOverlayWidge
 	/**
 	 * Hide the widget (removes from editor but does not dispose).
 	 */
-	private hide(): void {
+	private _hide(): void {
 		if (!this._isVisible) {
 			return;
 		}
