@@ -15,7 +15,7 @@ import electron from '@vscode/gulp-electron';
 import jsonEditor from 'gulp-json-editor';
 import * as util from './lib/util.ts';
 import { getVersion } from './lib/getVersion.ts';
-import { readISODate } from './lib/date.ts';
+import { readISODate, writeISODate } from './lib/date.ts';
 import * as task from './lib/task.ts';
 import buildfile from './buildfile.ts';
 import * as optimize from './lib/optimize.ts';
@@ -555,6 +555,15 @@ BUILD_TARGETS.forEach(buildTarget => {
 	const arch = buildTarget.arch;
 	const opts = buildTarget.opts;
 
+	// Create custom resources list that uses 'out' instead of 'out-build'
+	const vscodeResourcesTranspiled = vscodeResourceIncludes.map(resource => resource.replace(/^out-build/, 'out')).concat([
+		'!out/vs/code/browser/**',
+		'!out/vs/editor/standalone/**',
+		'!out/vs/code/**/*-dev.html',
+		'!out/vs/workbench/contrib/issue/**/*-dev.html',
+		'!**/test/**'
+	]);
+
 	// Create a custom bundle task that uses transpiled output (out) instead of compiled output (out-build)
 	const bundleTranspiledVSCodeTask = task.define(`bundle-transpiled-vscode${dashed(platform)}${dashed(arch)}`, task.series(
 		util.rimraf('out-vscode'),
@@ -567,7 +576,7 @@ BUILD_TARGETS.forEach(buildTarget => {
 						...vscodeEntryPoints,
 						...bootstrapEntryPoints
 					],
-					resources: vscodeResources,
+					resources: vscodeResourcesTranspiled,
 					skipTSBoilerplateRemoval: entryPoint => entryPoint === 'vs/code/electron-browser/workbench/workbench'
 				}
 			}
@@ -578,6 +587,7 @@ BUILD_TARGETS.forEach(buildTarget => {
 	const destinationFolderName = `VSCode${dashed(platform)}${dashed(arch)}`;
 
 	const tasks = [
+		writeISODate('out-build'), // Create date file for packaging
 		compileNativeExtensionsBuildTask,
 		compileExtensionMediaBuildTask,
 		bundleTranspiledVSCodeTask,
