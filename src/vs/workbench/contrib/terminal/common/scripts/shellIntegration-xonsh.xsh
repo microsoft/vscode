@@ -9,9 +9,8 @@ class _vsCodeXonsh:
 	"""vscode shell integration for xonsh shell."""
 
 	def __init__(self):
-		self._vscode_nonce = __xonsh__.env.get('VSCODE_NONCE', '')
-
 		if 'VSCODE_INJECTION' in __xonsh__.env:
+			self._vscode_nonce = __xonsh__.env.get('VSCODE_NONCE', '')
 			self.stdout = sys.stdout
 			self.vsc_apply_xonshrc()
 			self.vsc_wrapped_prompt()
