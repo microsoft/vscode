@@ -194,7 +194,13 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.AgentStatusEnabled]: {
 			type: 'boolean',
-			markdownDescription: nls.localize('chat.agentsControl.enabled', "Controls whether the Agent Status is shown in the title bar command center, replacing the search box with quick access to chat sessions. Enabling this setting will automatically enable {0}.", '`#window.commandCenter#`'),
+			markdownDescription: nls.localize('chat.agentsControl.enabled', "Controls whether the Agent Status indicator is shown in the title bar command center. Enabling this setting will automatically enable {0}.", '`#window.commandCenter#`'),
+			default: false,
+			tags: ['experimental']
+		},
+		[ChatConfiguration.UnifiedAgentsBar]: {
+			type: 'boolean',
+			markdownDescription: nls.localize('chat.unifiedAgentsBar.enabled', "When enabled alongside {0}, replaces the command center search box with a unified chat and search widget.", '`#chat.agentsControl.enabled#`'),
 			default: false,
 			tags: ['experimental']
 		},
@@ -202,7 +208,7 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			markdownDescription: nls.localize('chat.agentSessionProjection.enabled', "Controls whether Agent Session Projection mode is enabled for reviewing agent sessions in a focused workspace."),
 			default: false,
-			tags: ['experimental']
+			tags: ['experimental'],
 		},
 		'chat.implicitContext.enabled': {
 			type: 'object',
