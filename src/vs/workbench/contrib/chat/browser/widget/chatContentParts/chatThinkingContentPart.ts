@@ -372,7 +372,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		this.markdownResult = rendered;
 		if (!target) {
 			clearNode(this.textContainer);
-			this.textContainer.appendChild(createThinkingIcon(Codicon.comment));
+			this.textContainer.appendChild(createThinkingIcon(Codicon.circleFilled));
 			this.textContainer.appendChild(rendered.element);
 		}
 	}
