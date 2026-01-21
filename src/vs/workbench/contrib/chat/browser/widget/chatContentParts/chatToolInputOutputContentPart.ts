@@ -31,10 +31,11 @@ import { ChatToolOutputContentSubPart } from './chatToolOutputContentSubPart.js'
 
 export interface IChatCollapsibleIOCodePart {
 	kind: 'code';
-	textModel: ITextModel | string; // Can be either an existing model or the data to create one
+	data: string; // The text content to create a model from
 	languageId: string;
 	options: ICodeBlockRenderOptions;
-	codeBlockInfo: IChatCodeBlockInfo;
+	codeBlockIndex: number;
+	ownerMarkdownPartId: string;
 	title?: string | IMarkdownString;
 }
 
@@ -66,12 +67,9 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 	private _contentInitialized = false;
 
 	get codeblocks(): IChatCodeBlockInfo[] {
-		const inputCodeblocks = this._editorReferences.map(ref => {
-			const cbi = this.input.codeBlockInfo;
-			return cbi;
-		});
+		// Codeblocks are only available after content is rendered
 		const outputCodeblocks = this._outputSubPart?.codeblocks ?? [];
-		return [...inputCodeblocks, ...outputCodeblocks];
+		return outputCodeblocks;
 	}
 
 	public set title(s: string | IMarkdownString) {
@@ -222,26 +220,18 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 	}
 
 	private addCodeBlock(part: IChatCollapsibleIOCodePart, container: HTMLElement) {
-		// Lazily create the text model if it's a string
-		const textModel = typeof part.textModel === 'string'
-			? this._register(this.modelService.createModel(
-				part.textModel,
-				this.languageService.createById(part.languageId),
-				undefined,
-				true
-			))
-			: part.textModel;
-
-		// Update codeBlockInfo with the model's URI if it was just created
-		if (typeof part.textModel === 'string') {
-			part.codeBlockInfo.uri = textModel.uri;
-			part.codeBlockInfo.uriPromise = Promise.resolve(textModel.uri);
-		}
+		// Create the text model lazily when rendering
+		const textModel = this._register(this.modelService.createModel(
+			part.data,
+			this.languageService.createById(part.languageId),
+			undefined,
+			true
+		));
 
 		const data: ICodeBlockData = {
 			languageId: part.languageId,
 			textModel: Promise.resolve(textModel),
-			codeBlockIndex: part.codeBlockInfo.codeBlockIndex,
+			codeBlockIndex: part.codeBlockIndex,
 			codeBlockPartIndex: 0,
 			element: this.context.element,
 			parentContextKeyService: this.contextKeyService,

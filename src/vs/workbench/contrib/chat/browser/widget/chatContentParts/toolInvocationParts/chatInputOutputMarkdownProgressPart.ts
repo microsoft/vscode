@@ -28,10 +28,10 @@ export class ChatInputOutputMarkdownProgressPart extends BaseChatToolInvocationS
 	private static readonly _expandedByDefault = new WeakMap<IChatToolInvocation | IChatToolInvocationSerialized, boolean>();
 
 	public readonly domNode: HTMLElement;
+	private readonly collapsibleListPart: ChatCollapsibleInputOutputContentPart;
 
-	private _codeblocks: IChatCodeBlockInfo[] = [];
 	public get codeblocks(): IChatCodeBlockInfo[] {
-		return this._codeblocks;
+		return this.collapsibleListPart.codeblocks;
 	}
 
 	constructor(
@@ -51,40 +51,30 @@ export class ChatInputOutputMarkdownProgressPart extends BaseChatToolInvocationS
 
 		let codeBlockIndex = codeBlockStartIndex;
 		
-		// Create a factory function that will be called lazily when content is expanded
-		const createCodePart = (data: string): IChatCollapsibleIOCodePart => {
-			return {
-				kind: 'code',
-				textModel: data, // Pass the data string, not a created model
-				languageId: 'json',
-				options: {
-					hideToolbar: true,
-					reserveWidth: 19,
-					maxHeightInLines: 13,
-					verticalPadding: 5,
-					editorOptions: {
-						wordWrap: 'on'
-					}
-				},
-				codeBlockInfo: {
-					codeBlockIndex: codeBlockIndex++,
-					codemapperUri: undefined,
-					elementId: context.element.id,
-					focus: () => { },
-					ownerMarkdownPartId: this.codeblocksPartId,
-					uri: undefined, // Will be set when model is created
-					chatSessionResource: context.element.sessionResource,
-					uriPromise: Promise.resolve(undefined), // Will be updated when model is created
+		// Simple factory to create code part data objects
+		const createCodePart = (data: string): IChatCollapsibleIOCodePart => ({
+			kind: 'code',
+			data,
+			languageId: 'json',
+			codeBlockIndex: codeBlockIndex++,
+			ownerMarkdownPartId: this.codeblocksPartId,
+			options: {
+				hideToolbar: true,
+				reserveWidth: 19,
+				maxHeightInLines: 13,
+				verticalPadding: 5,
+				editorOptions: {
+					wordWrap: 'on'
 				}
-			};
-		};
+			}
+		});
 
 		let processedOutput = output;
 		if (typeof output === 'string') { // back compat with older stored versions
 			processedOutput = [{ type: 'embed', value: output, isText: true }];
 		}
 
-		const collapsibleListPart = this._register(instantiationService.createInstance(
+		const collapsibleListPart = this.collapsibleListPart = this._register(instantiationService.createInstance(
 			ChatCollapsibleInputOutputContentPart,
 			message,
 			subtitle,
@@ -124,7 +114,6 @@ export class ChatInputOutputMarkdownProgressPart extends BaseChatToolInvocationS
 			// Expand by default when the tool is running, otherwise use the stored expanded state (defaulting to false)
 			!IChatToolInvocation.isComplete(toolInvocation) || (ChatInputOutputMarkdownProgressPart._expandedByDefault.get(toolInvocation) ?? false),
 		));
-		this._codeblocks.push(...collapsibleListPart.codeblocks);
 		this._register(collapsibleListPart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 		this._register(toDisposable(() => ChatInputOutputMarkdownProgressPart._expandedByDefault.set(toolInvocation, collapsibleListPart.expanded)));
 
