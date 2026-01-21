@@ -349,6 +349,10 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 	}
 
 	private renderHover(session: ITreeNode<IAgentSession, FuzzyScore>, template: IAgentSessionItemTemplate): void {
+		if (!isSessionInProgressStatus(session.element.status)) {
+			return; // the hover is complex and large, for now limit it to in-progress sessions only
+		}
+
 		template.elementDisposable.add(
 			this.hoverService.setupDelayedHover(template.element, () => this.buildHoverContent(session.element), { groupId: 'agent.sessions' })
 		);
