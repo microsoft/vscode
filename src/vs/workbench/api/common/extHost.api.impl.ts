@@ -391,7 +391,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'devDeviceId');
 				return initData.telemetryInfo.devDeviceId ?? initData.telemetryInfo.machineId;
 			},
-			get isPortable() {
+			get isAppPortable() {
 				checkProposedApiEnabled(extension, 'envIsPortable');
 				return initData.environment.isPortable ?? false;
 			},
