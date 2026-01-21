@@ -6,8 +6,6 @@
 import './media/chatContextUsageWidget.css';
 import * as dom from '../../../../../../base/browser/dom.js';
 import { EventType, addDisposableListener } from '../../../../../../base/browser/dom.js';
-import { getDefaultHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
-import { IManagedHover } from '../../../../../../base/browser/ui/hover/hover.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, IObservable, observableValue } from '../../../../../../base/common/observable.js';
@@ -15,12 +13,14 @@ import { localize } from '../../../../../../nls.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IChatRequestModel, IChatResponseModel } from '../../../common/model/chatModel.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
+import { ChatContextUsageDetails, IChatContextUsageData } from './chatContextUsageDetails.js';
 
 const $ = dom.$;
 
 /**
  * Widget that displays the context/token usage for the current chat session.
- * Shows the prompt tokens used in the last message as a percentage of the model's context window.
+ * Shows a circular progress icon that expands on hover/focus to show token counts,
+ * and on click shows the detailed context usage widget.
  */
 export class ChatContextUsageWidget extends Disposable {
 
@@ -29,13 +29,16 @@ export class ChatContextUsageWidget extends Disposable {
 
 	readonly domNode: HTMLElement;
 
-	private progressRing: SVGCircleElement;
+	private readonly iconContainer: HTMLElement;
+	private readonly tokenLabel: HTMLElement;
+	private progressPie: SVGPathElement;
 
 	private readonly _isVisible = observableValue<boolean>(this, false);
 	get isVisible(): IObservable<boolean> { return this._isVisible; }
 
 	private readonly _lastRequestDisposable = this._register(new MutableDisposable());
-	private readonly _managedHover: IManagedHover;
+
+	private currentData: IChatContextUsageData | undefined;
 
 	constructor(
 		@IHoverService private readonly hoverService: IHoverService,
@@ -47,13 +50,17 @@ export class ChatContextUsageWidget extends Disposable {
 		this.domNode.style.display = 'none';
 		this.domNode.setAttribute('tabindex', '0');
 		this.domNode.setAttribute('role', 'button');
+		this.domNode.setAttribute('aria-label', localize('contextUsageLabel', "Context window usage"));
+
+		// Icon container (always visible, contains the pie chart)
+		this.iconContainer = this.domNode.appendChild($('.icon-container'));
 
 		// Create the circular progress indicator
 		const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
 		svg.setAttribute('viewBox', '0 0 36 36');
 		svg.classList.add('circular-progress');
 
-		// Background circle
+		// Background circle (outline only)
 		const bgCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
 		bgCircle.setAttribute('cx', '18');
 		bgCircle.setAttribute('cy', '18');
@@ -61,35 +68,63 @@ export class ChatContextUsageWidget extends Disposable {
 		bgCircle.classList.add('progress-bg');
 		svg.appendChild(bgCircle);
 
-		// Progress circle
-		this.progressRing = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-		this.progressRing.setAttribute('cx', '18');
-		this.progressRing.setAttribute('cy', '18');
-		this.progressRing.setAttribute('r', '16');
-		this.progressRing.classList.add('progress-ring');
-		svg.appendChild(this.progressRing);
+		// Progress pie (filled arc)
+		this.progressPie = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+		this.progressPie.classList.add('progress-pie');
+		svg.appendChild(this.progressPie);
 
-		this.domNode.appendChild(svg);
+		this.iconContainer.appendChild(svg);
 
-		// Set up the managed hover once - we'll update its content when needed
-		this._managedHover = this._register(this.hoverService.setupManagedHover(
-			getDefaultHoverDelegate('mouse'),
-			this.domNode,
-			''
-		));
+		// Token label (shown on hover/focus)
+		this.tokenLabel = this.domNode.appendChild($('.token-label'));
 
-		// Show hover on click as well
+		// Show details popup on click
 		this._register(addDisposableListener(this.domNode, EventType.CLICK, () => {
-			this._managedHover.show(true);
+			this.showDetails();
 		}));
 
-		// Show hover on Enter/Space for keyboard accessibility
+		// Show details on Enter/Space for keyboard accessibility
 		this._register(addDisposableListener(this.domNode, EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			if (e.key === 'Enter' || e.key === ' ') {
 				e.preventDefault();
-				this._managedHover.show(true);
+				this.showDetails();
 			}
 		}));
+	}
+
+	private showDetails(): void {
+		if (!this.currentData) {
+			return;
+		}
+
+		// Add expanded class to keep token label visible while details are shown
+		this.domNode.classList.add('expanded');
+
+		const details = new ChatContextUsageDetails();
+		details.update(this.currentData);
+
+		const hover = this.hoverService.showInstantHover({
+			content: details.domNode,
+			target: this.domNode,
+			persistence: { sticky: true, hideOnHover: false, hideOnKeyDown: false },
+			appearance: { showPointer: true }
+		}, true);
+
+		// Focus the details widget
+		details.focus();
+
+		// Dispose details widget when hover is hidden and remove expanded class
+		if (hover) {
+			const originalDispose = hover.dispose.bind(hover);
+			hover.dispose = () => {
+				this.domNode.classList.remove('expanded');
+				details.dispose();
+				originalDispose();
+			};
+		} else {
+			this.domNode.classList.remove('expanded');
+			details.dispose();
+		}
 	}
 
 	/**
@@ -140,11 +175,38 @@ export class ChatContextUsageWidget extends Disposable {
 	}
 
 	private render(percentage: number, promptTokens: number, maxTokens: number): void {
-		// Update circular progress
-		const circumference = 2 * Math.PI * 16; // r = 16
-		const offset = circumference - (percentage / 100) * circumference;
-		this.progressRing.style.strokeDasharray = `${circumference} ${circumference}`;
-		this.progressRing.style.strokeDashoffset = `${offset}`;
+		// Store current data for use in details popup
+		this.currentData = { promptTokens, maxInputTokens: maxTokens, percentage };
+
+		// Update pie chart progress
+		const cx = 18;
+		const cy = 18;
+		const r = 16;
+
+		if (percentage >= 100) {
+			// Full circle - use a circle element's path equivalent
+			this.progressPie.setAttribute('d', `M ${cx} ${cy - r} A ${r} ${r} 0 1 1 ${cx - 0.001} ${cy - r} Z`);
+		} else if (percentage <= 0) {
+			// Empty - no path
+			this.progressPie.setAttribute('d', '');
+		} else {
+			// Calculate the arc endpoint
+			const angle = (percentage / 100) * 360;
+			const radians = (angle - 90) * (Math.PI / 180); // Start from top (-90 degrees)
+			const x = cx + r * Math.cos(radians);
+			const y = cy + r * Math.sin(radians);
+			const largeArcFlag = angle > 180 ? 1 : 0;
+
+			// Create pie slice path: move to center, line to top, arc to endpoint, close
+			const d = [
+				`M ${cx} ${cy}`,           // Move to center
+				`L ${cx} ${cy - r}`,       // Line to top
+				`A ${r} ${r} 0 ${largeArcFlag} 1 ${x} ${y}`, // Arc to endpoint
+				'Z'                         // Close path back to center
+			].join(' ');
+
+			this.progressPie.setAttribute('d', d);
+		}
 
 		// Update color based on usage level
 		this.domNode.classList.remove('warning', 'error');
@@ -154,22 +216,20 @@ export class ChatContextUsageWidget extends Disposable {
 			this.domNode.classList.add('warning');
 		}
 
-		// Update hover with detailed information
-		const tooltipText = localize(
-			'contextUsageTooltip',
-			"{0}% context used ({1} / {2} tokens)",
-			percentage.toFixed(1),
-			this.formatTokenCount(promptTokens),
-			this.formatTokenCount(maxTokens)
+		// Update token label (shown on hover/focus)
+		this.tokenLabel.textContent = localize(
+			'tokenCount',
+			"{0} / {1} T",
+			this.formatTokenCount(promptTokens, 1),
+			this.formatTokenCount(maxTokens, 0)
 		);
-		this._managedHover.update(tooltipText);
 	}
 
-	private formatTokenCount(count: number): string {
+	private formatTokenCount(count: number, decimals: number): string {
 		if (count >= 1000000) {
-			return `${(count / 1000000).toFixed(1)}M`;
+			return `${(count / 1000000).toFixed(decimals)}M`;
 		} else if (count >= 1000) {
-			return `${(count / 1000).toFixed(1)}K`;
+			return `${(count / 1000).toFixed(decimals)}K`;
 		}
 		return count.toString();
 	}
