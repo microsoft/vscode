@@ -196,5 +196,7 @@ function isModeConsideredBuiltIn(mode: IChatMode, productService: IProductServic
 	if (mode.isBuiltin) {
 		return true;
 	}
-	return mode.source?.storage === PromptsStorage.extension && mode.source.extensionId.value === productService.defaultChatAgent?.chatExtensionId && mode.source.type === ExtensionAgentSourceType.contribution;
+	return mode.source?.storage === PromptsStorage.extension &&
+		mode.source.extensionId.value === productService.defaultChatAgent?.chatExtensionId &&
+		(mode.source.type === ExtensionAgentSourceType.contribution || mode.source.type === ExtensionAgentSourceType.provider);
 }
