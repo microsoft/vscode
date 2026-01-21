@@ -35,6 +35,7 @@ import { isChatTreeItem, isRequestVM, isResponseVM } from '../../common/model/ch
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { ChatTreeItem, IChatWidget, IChatWidgetService } from '../chat.js';
+import { IAgentSession, isAgentSession } from '../agentSessions/agentSessionsModel.js';
 
 export abstract class EditingSessionAction extends Action2 {
 
@@ -323,17 +324,28 @@ export class ViewAllSessionChangesAction extends Action2 {
 					group: 'navigation',
 					order: 10,
 					when: ChatContextKeys.hasAgentSessionChanges
+				},
+				{
+					id: MenuId.AgentSessionItemToolbar,
+					group: 'navigation',
+					order: 0,
+					when: ChatContextKeys.hasAgentSessionChanges
 				}
 			],
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, sessionResource?: URI): Promise<void> {
+	override async run(accessor: ServicesAccessor, sessionOrSessionResource?: URI | IAgentSession): Promise<void> {
 		const agentSessionsService = accessor.get(IAgentSessionsService);
 		const commandService = accessor.get(ICommandService);
-		if (!URI.isUri(sessionResource)) {
+
+		if (!URI.isUri(sessionOrSessionResource) && !isAgentSession(sessionOrSessionResource)) {
 			return;
 		}
+
+		const sessionResource = URI.isUri(sessionOrSessionResource)
+			? sessionOrSessionResource
+			: sessionOrSessionResource.resource;
 
 		const session = agentSessionsService.getSession(sessionResource);
 		const changes = session?.changes;

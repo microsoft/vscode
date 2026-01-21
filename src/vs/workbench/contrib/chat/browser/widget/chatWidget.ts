@@ -584,7 +584,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	get contentHeight(): number {
-		return this.input.inputPartHeight.get() + this.listWidget.contentHeight + this.chatSuggestNextWidget.height;
+		return this.input.height.get() + this.listWidget.contentHeight + this.chatSuggestNextWidget.height;
 	}
 
 	get attachmentModel(): ChatAttachmentModel {
@@ -1508,7 +1508,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.inputPart.dnd.setDisabledOverlay(!isInput);
 			this.input.renderAttachedContext();
 			this.input.setValue(currentElement.messageText, false);
-			this.listWidget.updateItemHeightOnRender(currentElement, item);
 			this.onDidChangeItems();
 			this.input.inputEditor.focus();
 
@@ -1589,9 +1588,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.inputPart?.setEditing(!!this.viewModel?.editing && isInput);
 
 		this.onDidChangeItems();
-		if (editedRequest?.currentElement) {
-			this.listWidget.updateItemHeightOnRender(editedRequest.currentElement, editedRequest);
-		}
 
 		type CancelRequestEditEvent = {
 			editRequestType: string;
@@ -1659,6 +1655,19 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this.styles,
 				false
 			);
+			this._register(autorun(reader => {
+				this.inputPart.height.read(reader);
+				if (!this.listWidget) {
+					// This is set up before the list/renderer are created
+					return;
+				}
+
+				if (this.bodyDimension) {
+					this.layout(this.bodyDimension.height, this.bodyDimension.width);
+				}
+
+				this._onDidChangeContentHeight.fire();
+			}));
 		}
 
 		this.input.render(container, '', this);
@@ -1708,24 +1717,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					followup: e.followup
 				},
 			});
-		}));
-		this._register(autorun(reader => {
-			this.input.inputPartHeight.read(reader);
-			if (!this.listWidget) {
-				// This is set up before the list/renderer are created
-				return;
-			}
-
-			const editedRequest = this.listWidget.getTemplateDataForRequestId(this.viewModel?.editing?.id);
-			if (isRequestVM(editedRequest?.currentElement) && this.viewModel?.editing) {
-				this.listWidget.updateItemHeightOnRender(editedRequest?.currentElement, editedRequest);
-			}
-
-			if (this.bodyDimension) {
-				this.layout(this.bodyDimension.height, this.bodyDimension.width);
-			}
-
-			this._onDidChangeContentHeight.fire();
 		}));
 		this._register(this.inputEditor.onDidChangeModelContent(() => {
 			this.parsedChatRequest = undefined;
@@ -2207,7 +2198,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		this.inputPart.layout(width);
 
-		const inputHeight = this.inputPart.inputPartHeight.get();
+		const inputHeight = this.inputPart.height.get();
 		const chatSuggestNextWidgetHeight = this.chatSuggestNextWidget.height;
 		const lastElementVisible = this.listWidget.isScrolledToBottom;
 		const lastItem = this.listWidget.lastItem;
@@ -2256,7 +2247,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				const possibleMaxHeight = (this._dynamicMessageLayoutData?.maxHeight ?? maxHeight);
 				const width = this.bodyDimension?.width ?? this.container.offsetWidth;
 				this.input.layout(width);
-				const inputPartHeight = this.input.inputPartHeight.get();
+				const inputPartHeight = this.input.height.get();
 				const chatSuggestNextWidgetHeight = this.chatSuggestNextWidget.height;
 				const newHeight = Math.min(renderHeight + diff, possibleMaxHeight - inputPartHeight - chatSuggestNextWidgetHeight);
 				this.layout(newHeight + inputPartHeight + chatSuggestNextWidgetHeight, width);
@@ -2301,7 +2292,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		const width = this.bodyDimension?.width ?? this.container.offsetWidth;
 		this.input.layout(width);
-		const inputHeight = this.input.inputPartHeight.get();
+		const inputHeight = this.input.height.get();
 		const chatSuggestNextWidgetHeight = this.chatSuggestNextWidget.height;
 
 		const totalMessages = this.viewModel.getItems();

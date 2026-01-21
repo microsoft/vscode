@@ -864,6 +864,10 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 	}
 
 	public set shouldBeRemovedOnSend(disablement: IChatRequestDisablement | undefined) {
+		if (this._shouldBeRemovedOnSend === disablement) {
+			return;
+		}
+
 		this._shouldBeRemovedOnSend = disablement;
 		this._onDidChange.fire(defaultChatResponseModelChangeReason);
 	}
@@ -1050,13 +1054,6 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		this._register(this._response.onDidChangeValue(() => this._onDidChange.fire(defaultChatResponseModelChangeReason)));
 		this.id = params.restoredId ?? 'response_' + generateUuid();
 
-		this._register(this._session.onDidChange((e) => {
-			if (e.kind === 'setCheckpoint') {
-				const isDisabled = e.disabledResponseIds.has(this.id);
-				this._shouldBeBlocked.set(isDisabled, undefined);
-			}
-		}));
-
 		let lastStartedWaitingAt: number | undefined = undefined;
 		this.confirmationAdjustedTimestamp = derived(reader => {
 			const pending = this.isPendingConfirmation.read(reader);
@@ -1083,6 +1080,10 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 			throw new BugIndicatingError('Code block infos have already been initialized');
 		}
 		this._codeBlockInfos = [...codeBlockInfo];
+	}
+
+	setBlockedState(isBlocked: boolean): void {
+		this._shouldBeBlocked.set(isBlocked, undefined);
 	}
 
 	/**
@@ -1611,19 +1612,12 @@ export type IChatChangeEvent =
 	| IChatMoveEvent
 	| IChatSetHiddenEvent
 	| IChatCompletedRequestEvent
-	| IChatSetCheckpointEvent
 	| IChatSetCustomTitleEvent
 	;
 
 export interface IChatAddRequestEvent {
 	kind: 'addRequest';
 	request: IChatRequestModel;
-}
-
-export interface IChatSetCheckpointEvent {
-	kind: 'setCheckpoint';
-	disabledRequestIds: Set<string>;
-	disabledResponseIds: Set<string>;
 }
 
 export interface IChatChangedRequestEvent {
@@ -2149,17 +2143,14 @@ export class ChatModel extends Disposable implements IChatModel {
 			}
 		}
 
-		const disabledRequestIds = new Set<string>();
-		const disabledResponseIds = new Set<string>();
 		for (let i = this._requests.length - 1; i >= 0; i -= 1) {
 			const request = this._requests[i];
 			if (this._checkpoint && !checkpoint) {
 				request.setShouldBeBlocked(false);
 			} else if (checkpoint && i >= checkpointIndex) {
 				request.setShouldBeBlocked(true);
-				disabledRequestIds.add(request.id);
 				if (request.response) {
-					disabledResponseIds.add(request.response.id);
+					request.response.setBlockedState(true);
 				}
 			} else if (checkpoint && i < checkpointIndex) {
 				request.setShouldBeBlocked(false);
@@ -2167,11 +2158,6 @@ export class ChatModel extends Disposable implements IChatModel {
 		}
 
 		this._checkpoint = checkpoint;
-		this._onDidChange.fire({
-			kind: 'setCheckpoint',
-			disabledRequestIds,
-			disabledResponseIds
-		});
 	}
 
 	private _checkpoint: ChatRequestModel | undefined = undefined;

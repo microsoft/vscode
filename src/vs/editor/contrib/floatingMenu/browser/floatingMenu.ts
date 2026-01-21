@@ -5,8 +5,8 @@
 
 import { h } from '../../../../base/browser/dom.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { autorun, constObservable, observableFromEvent } from '../../../../base/common/observable.js';
-import { MenuEntryActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { autorun, constObservable, derived, observableFromEvent } from '../../../../base/common/observable.js';
+import { getActionBarActions, MenuEntryActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { IMenuService, MenuId, MenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -29,11 +29,18 @@ export class FloatingEditorToolbar extends Disposable implements IEditorContribu
 		const editorObs = this._register(observableCodeEditor(editor));
 
 		const menu = this._register(menuService.createMenu(MenuId.EditorContent, editor.contextKeyService));
-		const menuIsEmptyObs = observableFromEvent(this, menu.onDidChange, () => menu.getActions().length === 0);
+		const menuGroupsObs = observableFromEvent(this, menu.onDidChange, () => menu.getActions());
+
+		const menuPrimaryActionIdObs = derived(reader => {
+			const menuGroups = menuGroupsObs.read(reader);
+
+			const { primary } = getActionBarActions(menuGroups, () => true);
+			return primary.length > 0 ? primary[0].id : undefined;
+		});
 
 		this._register(autorun(reader => {
-			const menuIsEmpty = menuIsEmptyObs.read(reader);
-			if (menuIsEmpty) {
+			const menuPrimaryActionId = menuPrimaryActionIdObs.read(reader);
+			if (!menuPrimaryActionId) {
 				return;
 			}
 
@@ -41,7 +48,7 @@ export class FloatingEditorToolbar extends Disposable implements IEditorContribu
 
 			// Set height explicitly to ensure that the floating menu element
 			// is rendered in the lower right corner at the correct position.
-			container.root.style.height = '28px';
+			container.root.style.height = '26px';
 
 			// Toolbar
 			const toolbar = instantiationService.createInstance(MenuWorkbenchToolBar, container.root, MenuId.EditorContent, {
@@ -50,15 +57,24 @@ export class FloatingEditorToolbar extends Disposable implements IEditorContribu
 						return undefined;
 					}
 
-					const keybinding = keybindingService.lookupKeybinding(action.id);
-					if (!keybinding) {
-						return undefined;
-					}
-
 					return instantiationService.createInstance(class extends MenuEntryActionViewItem {
+						override render(container: HTMLElement): void {
+							super.render(container);
+
+							// Highlight primary action
+							if (action.id === menuPrimaryActionId) {
+								this.element?.classList.add('primary');
+							}
+						}
+
 						protected override updateLabel(): void {
+							const keybinding = keybindingService.lookupKeybinding(action.id);
+							const keybindingLabel = keybinding ? keybinding.getLabel() : undefined;
+
 							if (this.options.label && this.label) {
-								this.label.textContent = `${this._commandAction.label} (${keybinding.getLabel()})`;
+								this.label.textContent = keybindingLabel
+									? `${this._commandAction.label} (${keybindingLabel})`
+									: this._commandAction.label;
 							}
 						}
 					}, action, { ...options, keybindingNotRenderedWithLabel: true });
