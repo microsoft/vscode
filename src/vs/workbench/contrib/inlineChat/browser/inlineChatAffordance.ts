@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { autorun, debouncedObservable, derived, observableValue } from '../../../../base/common/observable.js';
+import { autorun, debouncedObservable, derived, observableValue, runOnChange } from '../../../../base/common/observable.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { observableCodeEditor } from '../../../../editor/browser/observableCodeEditor.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -18,6 +18,7 @@ import { InlineChatGutterAffordance } from './inlineChatGutterAffordance.js';
 import { Selection, SelectionDirection } from '../../../../editor/common/core/selection.js';
 import { assertType } from '../../../../base/common/types.js';
 import { Event } from '../../../../base/common/event.js';
+import { CursorChangeReason } from '../../../../editor/common/cursorEvents.js';
 
 export class InlineChatAffordance extends Disposable {
 
@@ -45,41 +46,41 @@ export class InlineChatAffordance extends Disposable {
 
 		const debouncedSelection = debouncedObservable(editorObs.cursorSelection, 500);
 
-		const selection = observableValue<Selection | undefined>(this, undefined);
+		const selectionData = observableValue<Selection | undefined>(this, undefined);
 
 
-		this._store.add(autorun(r => {
-			const value = editorObs.cursorSelection.read(r);
-			if (!value || value.isEmpty()) {
-				selection.set(undefined, undefined);
+		let explicitSelection = false;
+
+		this._store.add(runOnChange(editorObs.selections, (value, _prev, events) => {
+			explicitSelection = events.every(e => e.reason === CursorChangeReason.Explicit);
+			if (!value || value.length !== 1 || value[0].isEmpty() || !explicitSelection) {
+				selectionData.set(undefined, undefined);
 			}
 		}));
 
+		this._store.add(autorun(r => {
+			const value = debouncedSelection.read(r);
+			if (!value || value.isEmpty() || !explicitSelection) {
+				selectionData.set(undefined, undefined);
+				return;
+			}
+			selectionData.set(value, undefined);
+		}));
 
 		this._store.add(autorun(r => {
 			if (chatEntiteldService.sentimentObs.read(r).hidden) {
-				selection.set(undefined, undefined);
-				return;
+				selectionData.set(undefined, undefined);
 			}
 			if (suppressGutter.read(r)) {
-				selection.set(undefined, undefined);
-				return;
+				selectionData.set(undefined, undefined);
 			}
-			const value = debouncedSelection.read(r);
-			if (!value || value.isEmpty()) {
-				selection.set(undefined, undefined);
-				return;
-			}
-			selection.set(value, undefined);
 		}));
-
-
 
 		// Instantiate the gutter indicator
 		this._store.add(this._instantiationService.createInstance(
 			InlineChatGutterAffordance,
 			editorObs,
-			derived(r => affordance.read(r) === 'gutter' ? selection.read(r) : undefined),
+			derived(r => affordance.read(r) === 'gutter' ? selectionData.read(r) : undefined),
 			suppressGutter,
 			this._menuData
 		));
@@ -88,7 +89,7 @@ export class InlineChatAffordance extends Disposable {
 		this._store.add(this._instantiationService.createInstance(
 			InlineChatEditorAffordance,
 			this._editor,
-			derived(r => affordance.read(r) === 'editor' ? selection.read(r) : undefined),
+			derived(r => affordance.read(r) === 'editor' ? selectionData.read(r) : undefined),
 			suppressGutter,
 			this._menuData
 		));
