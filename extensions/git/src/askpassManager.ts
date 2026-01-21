@@ -141,7 +141,7 @@ export interface AskpassPaths {
  * Returns the paths to the content-addressed copies.
  *
  * @param sourceDir The directory containing the original askpass scripts (__dirname)
- * @param storageDir The user-controlled storage directory (context.storagePath)
+ * @param storageDir The user-controlled storage directory (context.storageUri.fsPath)
  * @param logger Logger for diagnostic output
  */
 async function ensureAskpassScripts(
