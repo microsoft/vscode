@@ -574,32 +574,36 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 	}
 
+	/**
+	 * Dispose the rendered parts in the template, which aren't done in disposeElement
+	 * so they can be reused when a new render is started.
+	 */
 	private clearRenderedParts(templateData: IChatListItemTemplate): void {
 		if (templateData.renderedParts) {
 			dispose(coalesce(templateData.renderedParts));
 			templateData.renderedParts = undefined;
 			dom.clearNode(templateData.value);
-
-			templateData.currentElement = undefined;
-			templateData.elementDisposables.clear();
-			if (templateData.titleToolbar) {
-				templateData.titleToolbar.context = undefined;
-			}
-			templateData.footerToolbar.context = undefined;
-			templateData.checkpointToolbar.context = undefined;
-			templateData.checkpointRestoreToolbar.context = undefined;
 		}
+
+		// This template item is no longer in use, or having another element rendered into it,
+		// clear the context on toolbars so it doesn't retain the viewmodel.
+		if (templateData.titleToolbar) {
+			templateData.titleToolbar.context = undefined;
+		}
+		templateData.footerToolbar.context = undefined;
+		templateData.checkpointToolbar.context = undefined;
+		templateData.checkpointRestoreToolbar.context = undefined;
 	}
 
 	private renderChatTreeItem(element: ChatTreeItem, index: number, templateData: IChatListItemTemplate): void {
 		if (templateData.currentElement && templateData.currentElement.id !== element.id) {
 			this.traceLayout('renderChatTreeItem', `Rendering a different element into the template, index=${index}`);
-			this.clearRenderedParts(templateData);
-
 			const mappedTemplateData = this.templateDataByRequestId.get(templateData.currentElement.id);
 			if (mappedTemplateData && (mappedTemplateData.currentElement?.id !== templateData.currentElement.id)) {
 				this.templateDataByRequestId.delete(templateData.currentElement.id);
 			}
+
+			this.clearRenderedParts(templateData);
 		}
 
 		templateData.currentElement = element;
@@ -1950,6 +1954,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			templateData.titleToolbar.context = undefined;
 		}
 		templateData.footerToolbar.context = undefined;
+		templateData.checkpointToolbar.context = undefined;
+		templateData.checkpointRestoreToolbar.context = undefined;
 	}
 
 	private renderMcpServersInteractionRequired(content: IChatMcpServersStarting | IChatMcpServersStartingSerialized, context: IChatContentPartRenderContext, templateData: IChatListItemTemplate): IChatContentPart {
