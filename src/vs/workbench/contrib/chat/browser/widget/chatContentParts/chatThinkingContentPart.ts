@@ -548,6 +548,10 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			- The actions may include tool calls (file edits, reads, searches, terminal commands) AND non-tool reasoning/analysis
 			- Summarize ALL actions, not just tool calls. If there's reasoning or analysis without tool calls, summarize that too
 			- Examples of non-tool actions: "Analyzing code structure", "Planning implementation", "Reviewing dependencies"
+			- NEVER include tool names like "Replace String in File", "Multi Replace String in File", "Create File", "Read File", etc. in the output
+			- If an action says "Edited X and used Replace String in File", output ONLY "Edited X"
+			- Tool names describe HOW something was done, not WHAT was done - always omit them
+			- Focus on the outcome (edited, read, created, searched) not the mechanism
 
 			RULES FOR TOOL CALLS:
 			1. If the SAME file was both edited AND read: Start with "Read and edited <filename>"
@@ -563,6 +567,8 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			EXAMPLES:
 			- "Read HomePage.tsx, Edited HomePage.tsx" → "Read and edited HomePage.tsx"
 			- "Edited HomePage.tsx" → "Edited HomePage.tsx"
+			- "Edited config.css and used Replace String in File" → "Edited config.css"
+			- "Edited App.tsx, used Multi Replace String in File" → "Edited App.tsx"
 			- "Read config.json, Read package.json" → "Read 2 files"
 			- "Edited App.tsx, Read utils.ts" → "Edited App.tsx and read utils.ts"
 			- "Edited App.tsx, Read utils.ts, Read types.ts" → "Edited App.tsx and read 2 files"
@@ -576,7 +582,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			- "Analyzing component architecture" → "Analyzed component architecture"
 			- "Planning refactor strategy, Read utils.ts" → "Planned refactor and read utils.ts"
 
-			No quotes, no trailing punctuation. Never say "searched for files" - always include the actual search term.
+			No quotes, no trailing punctuation. Never say "searched for files" - always include the actual search term. Never include tool names.
 
 			Actions: ${context}`;
 
