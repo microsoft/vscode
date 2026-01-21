@@ -239,22 +239,22 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 				data.actionsContainer.appendChild(actionButton);
 
 				// Use capture phase to handle events before the list processes them
-				actionButton.addEventListener('mousedown', e => {
+				data.elementDisposables.add(dom.addDisposableListener(actionButton, dom.EventType.MOUSE_DOWN, e => {
 					e.stopPropagation();
 					e.stopImmediatePropagation();
 					e.preventDefault();
-				}, true);
-				actionButton.addEventListener('mouseup', e => {
+				}, true));
+				data.elementDisposables.add(dom.addDisposableListener(actionButton, dom.EventType.MOUSE_UP, e => {
 					e.stopPropagation();
 					e.stopImmediatePropagation();
 					e.preventDefault();
 					action.run();
-				}, true);
-				actionButton.addEventListener('click', e => {
+				}, true));
+				data.elementDisposables.add(dom.addDisposableListener(actionButton, dom.EventType.CLICK, e => {
 					e.stopPropagation();
 					e.stopImmediatePropagation();
 					e.preventDefault();
-				}, true);
+				}, true));
 				data.elementDisposables.add(dom.addDisposableListener(actionButton, dom.EventType.KEY_DOWN, e => {
 					const event = new StandardKeyboardEvent(e);
 					if (event.keyCode === KeyCode.Enter || event.keyCode === KeyCode.Space) {
