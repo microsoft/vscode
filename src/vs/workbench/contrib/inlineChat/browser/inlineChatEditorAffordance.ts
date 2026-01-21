@@ -4,11 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/inlineChatEditorAffordance.css';
+import { IDimension } from '../../../../base/browser/dom.js';
 import * as dom from '../../../../base/browser/dom.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from '../../../../editor/browser/editorBrowser.js';
+import { EditorOption } from '../../../../editor/common/config/editorOptions.js';
 import { Selection, SelectionDirection } from '../../../../editor/common/core/selection.js';
 import { autorun, IObservable, ISettableObservable } from '../../../../base/common/observable.js';
 import { assertType } from '../../../../base/common/types.js';
@@ -33,7 +35,7 @@ export class InlineChatEditorAffordance extends Disposable implements IContentWi
 		private readonly _editor: ICodeEditor,
 		selection: IObservable<Selection | undefined>,
 		suppressAffordance: ISettableObservable<boolean>,
-		private readonly _hover: ISettableObservable<{ rect: DOMRect; above: boolean } | undefined>
+		private readonly _hover: ISettableObservable<{ rect: DOMRect; above: boolean; lineNumber: number } | undefined>
 	) {
 		super();
 
@@ -42,7 +44,7 @@ export class InlineChatEditorAffordance extends Disposable implements IContentWi
 
 		// Add sparkle icon
 		const icon = dom.append(this._domNode, dom.$('.icon'));
-		icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.sparkle));
+		icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.sparkleFilled));
 
 		// Handle click to show overlay widget
 		this._store.add(dom.addDisposableListener(this._domNode, dom.EventType.CLICK, (e) => {
@@ -110,7 +112,8 @@ export class InlineChatEditorAffordance extends Disposable implements IContentWi
 		this._hide();
 		this._hover.set({
 			rect: new DOMRect(x, y, 0, scrolledPosition.height),
-			above: this._position.preference[0] === ContentWidgetPositionPreference.ABOVE
+			above: this._position.preference[0] === ContentWidgetPositionPreference.ABOVE,
+			lineNumber: position.lineNumber
 		}, undefined);
 	}
 
@@ -124,6 +127,15 @@ export class InlineChatEditorAffordance extends Disposable implements IContentWi
 
 	getPosition(): IContentWidgetPosition | null {
 		return this._position;
+	}
+
+	beforeRender(): IDimension | null {
+		const position = this._editor.getPosition();
+		const lineHeight = position ? this._editor.getLineHeightForPosition(position) : this._editor.getOption(EditorOption.lineHeight);
+
+		this._domNode.style.setProperty('--vscode-inline-chat-affordance-height', `${lineHeight}px`);
+
+		return null;
 	}
 
 	override dispose(): void {

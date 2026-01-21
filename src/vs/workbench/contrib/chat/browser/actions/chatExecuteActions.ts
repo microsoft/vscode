@@ -791,20 +791,12 @@ export class CancelAction extends Action2 {
 			}, {
 				id: MenuId.ChatEditorInlineExecute,
 				when: ContextKeyExpr.and(
-					ChatContextKeys.requestInProgress,
-					ChatContextKeys.remoteJobCreating.negate()
-				),
-				order: 4,
-				group: 'navigation',
-			}, {
-				id: MenuId.ChatEditingEditorContent,
-				when: ContextKeyExpr.and(
 					ctxIsGlobalEditingSession.negate(),
-					ctxHasRequestInProgress
+					ctxHasRequestInProgress,
 				),
 				order: 4,
 				group: 'navigation',
-			},
+			}
 			],
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,

@@ -267,6 +267,8 @@ export interface IOverlayWidgetPositionCoordinates {
 	left: number;
 }
 
+
+
 /**
  * A position for rendering overlay widgets.
  */
@@ -1517,4 +1519,14 @@ export function getIEditor(thing: unknown): editorCommon.IEditor | null {
 	}
 
 	return null;
+}
+
+/**
+ *@internal
+ */
+export function isIOverlayWidgetPositionCoordinates(thing: unknown): thing is IOverlayWidgetPositionCoordinates {
+	return !!thing
+		&& typeof thing === 'object'
+		&& typeof (<IOverlayWidgetPositionCoordinates>thing).top === 'number'
+		&& typeof (<IOverlayWidgetPositionCoordinates>thing).left === 'number';
 }
