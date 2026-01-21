@@ -436,7 +436,6 @@ export class RenameSymbolProcessor extends Disposable {
 				}
 				bulkEditService.apply(workspaceEdit, { reason: source });
 			} finally {
-				this._renameSymbolTrackerService.reset();
 				if (this._renameRunnable === renameRunnable) {
 					this._renameRunnable = undefined;
 				}

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { observableCodeEditor } from '../../../../editor/browser/observableCodeEditor.js';
@@ -13,211 +13,183 @@ import { Position } from '../../../../editor/common/core/position.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { StandardTokenType } from '../../../../editor/common/encodedTokenAttributes.js';
 import { ITextModel } from '../../../../editor/common/model.js';
+import { IModelContentChangedEvent } from '../../../../editor/common/textModelEvents.js';
+import { TextModelEditSource } from '../../../../editor/common/textModelEditSource.js';
+import { IModelService } from '../../../../editor/common/services/model.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 
+/**
+ * Checks if a model content change event was caused only by typing or pasting.
+ * Returns false for AI edits, refactorings, undo/redo, etc.
+ */
+function isTypingOrPasteEdit(event: IModelContentChangedEvent): boolean {
+	if (event.isUndoing || event.isRedoing || event.isFlush) {
+		return false;
+	}
+
+	for (const source of event.detailedReasons) {
+		if (!isTypingOrPasteSource(source)) {
+			return false;
+		}
+	}
+
+	return event.detailedReasons.length > 0;
+}
+
+function isTypingOrPasteSource(source: TextModelEditSource): boolean {
+	const metadata = source.metadata;
+	if (metadata.source !== 'cursor') {
+		return false;
+	}
+	const kind = (metadata as { kind?: string }).kind;
+	return kind === 'type' || kind === 'paste' || kind === 'compositionType' || kind === 'compositionEnd';
+}
+
 type WordState = {
-	model: ITextModel;
 	word: string;
 	range: Range;
 	position: Position;
 };
 
-class RenameSymbolTrackerService extends Disposable implements IRenameSymbolTrackerService {
-	public _serviceBrand: undefined;
-
+/**
+ * Tracks symbol edits for a single ITextModel.
+ *
+ * Receives cursor position updates from external sources (e.g., focused code editors).
+ * Only tracks edits done by typing or paste. Resets when:
+ * - A non-typing/paste edit occurs (AI, refactoring, undo/redo, etc.)
+ */
+class ModelSymbolRenameTracker extends Disposable {
 	private readonly _trackedWord = observableValue<ITrackedWord | undefined>(this, undefined);
 	public readonly trackedWord: IObservable<ITrackedWord | undefined> = this._trackedWord;
 
-	private readonly _activeEditorTracking = this._register(new MutableDisposable<DisposableStore>());
-	private readonly _editorFocusTrackingDisposables = new Map<ICodeEditor, IDisposable>();
-	private _currentTrackedEditor: ICodeEditor | null = null;
-
 	private _capturedWord: WordState | undefined = undefined;
-	private _lastVersionId: number | null = null;
 	private _lastWordBeforeEdit: WordState | undefined = undefined;
+	private _pendingContentChange: boolean = false;
+	private _lastCursorPosition: Position | undefined = undefined;
 
 	constructor(
-		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService
+		private readonly _model: ITextModel
 	) {
 		super();
 
-		// Start tracking on currently focused editor
-		const focusedEditor = this._codeEditorService.getFocusedCodeEditor();
-		if (focusedEditor) {
-			this._startTrackingEditor(focusedEditor);
-		}
-
-		// Track editor additions to detect focus changes
-		this._register(this._codeEditorService.onCodeEditorAdd(editor => {
-			this._setupEditorFocusTracking(editor);
-		}));
-
-		// Clean up when editors are removed
-		this._register(this._codeEditorService.onCodeEditorRemove(editor => {
-			const disposable = this._editorFocusTrackingDisposables.get(editor);
-			if (disposable) {
-				disposable.dispose();
-				this._editorFocusTrackingDisposables.delete(editor);
+		// Listen to content changes - only reset on non-typing/paste edits
+		this._register(this._model.onDidChangeContent(e => {
+			if (!isTypingOrPasteEdit(e)) {
+				// Non-typing/paste edit occurred - reset tracking and start a new
+				// rename tracking at the current cursor position (if any)
+				const position = this._lastCursorPosition;
+				this.reset();
+				if (position !== undefined) {
+					this.updateCursorPosition(position);
+				}
+				return;
 			}
+			// Valid typing/paste edit - mark that content changed, cursor update will handle tracking
+			this._pendingContentChange = true;
 		}));
-
-		// Setup tracking for existing editors
-		for (const editor of this._codeEditorService.listCodeEditors()) {
-			this._setupEditorFocusTracking(editor);
-		}
 	}
 
-	private _setupEditorFocusTracking(editor: ICodeEditor): void {
-		// Don't set up twice for the same editor
-		if (this._editorFocusTrackingDisposables.has(editor)) {
+	/**
+	 * Called by the service when the cursor position changes in an editor showing this model.
+	 * Updates tracking based on the word under cursor and whether content has changed.
+	 */
+	public updateCursorPosition(position: Position): void {
+		this._lastCursorPosition = position;
+		const wordAtPosition = this._model.getWordAtPosition(position);
+		if (!wordAtPosition) {
+			// Not on a word - just clear lastWordBeforeEdit
+			this._lastWordBeforeEdit = undefined;
+			this._pendingContentChange = false;
 			return;
 		}
 
-		const obsEditor = observableCodeEditor(editor);
+		// Check if the position is in a comment
+		if (this._isPositionInComment(position)) {
+			this._lastWordBeforeEdit = undefined;
+			this._pendingContentChange = false;
+			return;
+		}
 
-		const disposable = autorun(reader => {
-			/** @description track the current focused editor */
-			const isFocused = obsEditor.isFocused.read(reader);
-			if (isFocused && this._currentTrackedEditor !== editor) {
-				// New editor gained focus - discard old state and start fresh
-				this._startTrackingEditor(editor);
-			}
-		});
+		const currentWord: WordState = {
+			word: wordAtPosition.word,
+			range: new Range(
+				position.lineNumber,
+				wordAtPosition.startColumn,
+				position.lineNumber,
+				wordAtPosition.endColumn
+			),
+			position
+		};
 
-		this._editorFocusTrackingDisposables.set(editor, disposable);
-	}
+		const contentChanged = this._pendingContentChange;
+		this._pendingContentChange = false;
 
-	private _startTrackingEditor(editor: ICodeEditor): void {
-		// Discard previous tracking state
-		this._activeEditorTracking.clear();
-		this._trackedWord.set(undefined, undefined);
-		this._currentTrackedEditor = editor;
-
-		const store = new DisposableStore();
-		this._activeEditorTracking.value = store;
-
-		const obsEditor = observableCodeEditor(editor);
-
-		// Derive the word under cursor reactively
-		const wordUnderCursor = derived(this, reader => {
-			const model = obsEditor.model.read(reader);
-			const position = obsEditor.cursorPosition.read(reader);
-			// Read versionId to react to content changes
-			obsEditor.versionId.read(reader);
-
-			if (!model || !position) {
-				return undefined;
-			}
-
-			const wordAtPosition = model.getWordAtPosition(position);
-			if (!wordAtPosition) {
-				return undefined;
-			}
-
-			// Check if the position is in a comment
-			if (this._isPositionInComment(model, position)) {
-				return undefined;
-			}
-
-			return {
-				model,
-				word: wordAtPosition.word,
-				range: new Range(
-					position.lineNumber,
-					wordAtPosition.startColumn,
-					position.lineNumber,
-					wordAtPosition.endColumn
-				),
-				position
-			};
-		});
-
-		// Track the captured word state
-
-		store.add(autorun(reader => {
-			const currentWord = wordUnderCursor.read(reader);
-			const currentVersionId = obsEditor.versionId.read(reader);
-			const contentChanged = this._lastVersionId !== null && this._lastVersionId !== currentVersionId;
-			this._lastVersionId = currentVersionId;
-
-			if (!currentWord) {
-				// Cursor moved away from any word - keep existing tracking unchanged
-				// But remember there's no word here for future edits
-				this._lastWordBeforeEdit = undefined;
-				return;
-			}
-
-			if (!this._capturedWord) {
-				if (!contentChanged) {
-					// Just cursor movement to a word without typing - remember this word for later
-					this._lastWordBeforeEdit = currentWord;
-					return;
-				}
-				// First edit on a word - use the word from before the edit as original
-				const originalWord = this._lastWordBeforeEdit ?? currentWord;
-				this._capturedWord = { ...originalWord };
-				this._trackedWord.set({
-					model: currentWord.model,
-					originalWord: originalWord.word,
-					originalPosition: originalWord.position,
-					originalRange: originalWord.range,
-					currentWord: currentWord.word,
-					currentRange: currentWord.range,
-				}, undefined);
-				this._lastWordBeforeEdit = currentWord;
-				return;
-			}
-
-			const capturedWord = this._capturedWord;
-			// Check if we're still on the same word (by position overlap or adjacency)
-			const isOnSameWord = capturedWord.model === currentWord.model &&
-				(this._rangesOverlap(capturedWord.range, currentWord.range) ||
-					this._isAdjacent(capturedWord.range, currentWord.range));
-
-			if (isOnSameWord) {
-				// Word has been edited - update the tracked word
-				this._trackedWord.set({
-					model: currentWord.model,
-					originalWord: capturedWord.word,
-					originalPosition: capturedWord.position,
-					originalRange: capturedWord.range,
-					currentWord: currentWord.word,
-					currentRange: currentWord.range,
-				}, undefined);
-			} else if (contentChanged) {
-				// User started typing in a different word - use the word from before the edit as original
-				const originalWord = this._lastWordBeforeEdit ?? currentWord;
-				this._capturedWord = { ...originalWord };
-				this._trackedWord.set({
-					model: currentWord.model,
-					originalWord: originalWord.word,
-					originalPosition: originalWord.position,
-					originalRange: originalWord.range,
-					currentWord: currentWord.word,
-					currentRange: currentWord.range,
-				}, undefined);
-			}
-			// Update lastWordBeforeEdit for the next iteration
+		if (!contentChanged) {
+			// Just cursor movement - remember this word for later
 			this._lastWordBeforeEdit = currentWord;
-			// If just cursor movement to a different word (no content change), keep existing tracking
-		}));
+			return;
+		}
 
-		store.add(toDisposable(() => {
-			this._trackedWord.set(undefined, undefined);
-			this._currentTrackedEditor = null;
-		}));
+		// Content changed - update tracking
+		if (!this._capturedWord) {
+			// First edit on a word - use the word from before the edit as original
+			const originalWord = this._lastWordBeforeEdit ?? currentWord;
+			this._capturedWord = { ...originalWord };
+			this._trackedWord.set({
+				model: this._model,
+				originalWord: originalWord.word,
+				originalPosition: originalWord.position,
+				originalRange: originalWord.range,
+				currentWord: currentWord.word,
+				currentRange: currentWord.range,
+			}, undefined);
+			this._lastWordBeforeEdit = currentWord;
+			return;
+		}
+
+		const capturedWord = this._capturedWord;
+		// Check if we're still on the same word (by position overlap or adjacency)
+		const isOnSameWord = this._rangesOverlap(capturedWord.range, currentWord.range) ||
+			this._isAdjacent(capturedWord.range, currentWord.range);
+
+		if (isOnSameWord) {
+			// Word has been edited - update the tracked word
+			this._trackedWord.set({
+				model: this._model,
+				originalWord: capturedWord.word,
+				originalPosition: capturedWord.position,
+				originalRange: capturedWord.range,
+				currentWord: currentWord.word,
+				currentRange: currentWord.range,
+			}, undefined);
+		} else {
+			// User started typing in a different word - use the word from before the edit as original
+			const originalWord = this._lastWordBeforeEdit ?? currentWord;
+			this._capturedWord = { ...originalWord };
+			this._trackedWord.set({
+				model: this._model,
+				originalWord: originalWord.word,
+				originalPosition: originalWord.position,
+				originalRange: originalWord.range,
+				currentWord: currentWord.word,
+				currentRange: currentWord.range,
+			}, undefined);
+		}
+		// Update lastWordBeforeEdit for the next iteration
+		this._lastWordBeforeEdit = currentWord;
 	}
 
-	public reset(): void {
+	private reset(): void {
 		this._trackedWord.set(undefined, undefined);
 		this._capturedWord = undefined;
-		this._lastVersionId = null;
 		this._lastWordBeforeEdit = undefined;
+		this._pendingContentChange = false;
+		this._lastCursorPosition = undefined;
 	}
 
-	private _isPositionInComment(model: ITextModel, position: Position): boolean {
-		model.tokenization.tokenizeIfCheap(position.lineNumber);
-		const tokens = model.tokenization.getLineTokens(position.lineNumber);
+	private _isPositionInComment(position: Position): boolean {
+		this._model.tokenization.tokenizeIfCheap(position.lineNumber);
+		const tokens = this._model.tokenization.getLineTokens(position.lineNumber);
 		const tokenIndex = tokens.findTokenIndexAtOffset(position.column - 1);
 		const tokenType = tokens.getStandardTokenType(tokenIndex);
 		return tokenType === StandardTokenType.Comment;
@@ -236,8 +208,102 @@ class RenameSymbolTrackerService extends Disposable implements IRenameSymbolTrac
 		}
 		return a.endColumn === b.startColumn || b.endColumn === a.startColumn;
 	}
+}
+
+class RenameSymbolTrackerService extends Disposable implements IRenameSymbolTrackerService {
+	public _serviceBrand: undefined;
+
+	private readonly _modelTrackers = new Map<ITextModel, ModelSymbolRenameTracker>();
+	private readonly _editorFocusTrackingDisposables = new Map<ICodeEditor, IDisposable>();
+
+	private readonly _focusedModelTracker = observableValue<ModelSymbolRenameTracker | undefined>(this, undefined);
+
+	public readonly trackedWord: IObservable<ITrackedWord | undefined> = derived(this, reader => {
+		const tracker = this._focusedModelTracker.read(reader);
+		return tracker?.trackedWord.read(reader);
+	});
+
+	constructor(
+		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
+		@IModelService private readonly _modelService: IModelService
+	) {
+		super();
+
+		// Setup tracking for existing editors
+		for (const editor of this._codeEditorService.listCodeEditors()) {
+			this._setupEditorTracking(editor);
+		}
+
+		// Track editor additions
+		this._register(this._codeEditorService.onCodeEditorAdd(editor => {
+			this._setupEditorTracking(editor);
+		}));
+
+		// Clean up editor focus tracking when editors are removed
+		this._register(this._codeEditorService.onCodeEditorRemove(editor => {
+			const focusDisposable = this._editorFocusTrackingDisposables.get(editor);
+			if (focusDisposable) {
+				focusDisposable.dispose();
+				this._editorFocusTrackingDisposables.delete(editor);
+			}
+		}));
+
+		// Clean up model trackers when models are removed
+		this._register(this._modelService.onModelRemoved(model => {
+			const tracker = this._modelTrackers.get(model);
+			if (tracker) {
+				tracker.dispose();
+				this._modelTrackers.delete(model);
+			}
+		}));
+	}
+
+	private _setupEditorTracking(editor: ICodeEditor): void {
+		if (editor.isSimpleWidget) {
+			return;
+		}
+
+		// Setup focus and cursor tracking
+		if (!this._editorFocusTrackingDisposables.has(editor)) {
+			const obsEditor = observableCodeEditor(editor);
+
+			const focusDisposable = autorun(reader => {
+				/** @description track focused editor and forward cursor to model tracker */
+				const isFocused = obsEditor.isFocused.read(reader);
+				const model = obsEditor.model.read(reader);
+				const cursorPosition = obsEditor.cursorPosition.read(reader);
+
+				if (!isFocused || !model) {
+					return;
+				}
+
+				// Ensure we have a tracker for this model
+				let tracker = this._modelTrackers.get(model);
+				if (!tracker) {
+					tracker = new ModelSymbolRenameTracker(model);
+					this._modelTrackers.set(model, tracker);
+				}
+
+				// Update the focused tracker
+				if (this._focusedModelTracker.read(undefined) !== tracker) {
+					this._focusedModelTracker.set(tracker, undefined);
+				}
+
+				// Forward cursor position to the model tracker
+				if (cursorPosition) {
+					tracker.updateCursorPosition(cursorPosition);
+				}
+			});
+
+			this._editorFocusTrackingDisposables.set(editor, focusDisposable);
+		}
+	}
 
 	override dispose(): void {
+		for (const tracker of this._modelTrackers.values()) {
+			tracker.dispose();
+		}
+		this._modelTrackers.clear();
 		for (const disposable of this._editorFocusTrackingDisposables.values()) {
 			disposable.dispose();
 		}
