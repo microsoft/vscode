@@ -6,8 +6,6 @@
 import * as dom from '../../../../../../../base/browser/dom.js';
 import { Separator } from '../../../../../../../base/common/actions.js';
 import { getExtensionForMimeType } from '../../../../../../../base/common/mime.js';
-import { ILanguageService } from '../../../../../../../editor/common/languages/language.js';
-import { IModelService } from '../../../../../../../editor/common/services/model.js';
 import { localize } from '../../../../../../../nls.js';
 import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
