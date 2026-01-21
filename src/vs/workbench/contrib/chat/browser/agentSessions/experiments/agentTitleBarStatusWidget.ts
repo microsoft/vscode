@@ -50,6 +50,8 @@ const QUICK_OPEN_ACTION_ID = 'workbench.action.quickOpenWithModes';
 
 // Storage key for filter state
 const FILTER_STORAGE_KEY = 'agentSessions.filterExcludes.agentsessionsviewerfiltersubmenu';
+// Storage key for saving user's filter state before we override it
+const PREVIOUS_FILTER_STORAGE_KEY = 'agentSessions.filterExcludes.previousUserFilter';
 
 const NLS_EXTENSION_HOST = localize('devExtensionWindowTitlePrefix', "[Extension Development Host]");
 const TITLE_DIRTY = '\u25cf ';
@@ -673,14 +675,14 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 
 	/**
 	 * Clear the filter if the currently filtered category becomes empty.
-	 * For example, if filtered to "unread" but no unread sessions exist, clear the filter.
+	 * For example, if filtered to "unread" but no unread sessions exist, restore user's previous filter.
 	 */
 	private _clearFilterIfCategoryEmpty(hasUnreadSessions: boolean, hasActiveSessions: boolean): void {
 		const { isFilteredToUnread, isFilteredToInProgress } = this._getCurrentFilterState();
 
-		// Clear filter if filtered category is now empty
+		// Restore user's filter if filtered category is now empty
 		if ((isFilteredToUnread && !hasUnreadSessions) || (isFilteredToInProgress && !hasActiveSessions)) {
-			this._clearFilter();
+			this._restoreUserFilter();
 		}
 	}
 
@@ -736,7 +738,48 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 	}
 
 	/**
-	 * Opens the agent sessions view with a specific filter applied, or clears filter if already applied.
+	 * Save the current user filter before we override it with a badge filter.
+	 * Only saves if the current filter is NOT already a badge filter (unread or in-progress).
+	 * This preserves the original user filter when switching between badge filters.
+	 */
+	private _saveUserFilter(): void {
+		const { isFilteredToUnread, isFilteredToInProgress } = this._getCurrentFilterState();
+
+		// Don't overwrite the saved filter if we're already in a badge-filtered state
+		// The previous user filter should already be saved
+		if (isFilteredToUnread || isFilteredToInProgress) {
+			return;
+		}
+
+		const currentFilter = this._getStoredFilter();
+		if (currentFilter) {
+			this.storageService.store(PREVIOUS_FILTER_STORAGE_KEY, JSON.stringify(currentFilter), StorageScope.PROFILE, StorageTarget.USER);
+		}
+	}
+
+	/**
+	 * Restore the user's previous filter (saved before we applied a badge filter).
+	 */
+	private _restoreUserFilter(): void {
+		const previousFilterStr = this.storageService.get(PREVIOUS_FILTER_STORAGE_KEY, StorageScope.PROFILE);
+		if (previousFilterStr) {
+			try {
+				const previousFilter = JSON.parse(previousFilterStr);
+				this._storeFilter(previousFilter);
+			} catch {
+				// Fall back to clearing if parse fails
+				this._clearFilter();
+			}
+		} else {
+			// No previous filter saved, clear to default
+			this._clearFilter();
+		}
+		// Clear the saved filter after restoring
+		this.storageService.remove(PREVIOUS_FILTER_STORAGE_KEY, StorageScope.PROFILE);
+	}
+
+	/**
+	 * Opens the agent sessions view with a specific filter applied, or restores previous filter if already applied.
 	 * @param filterType 'unread' to show only unread sessions, 'inProgress' to show only in-progress sessions
 	 */
 	private _openSessionsWithFilter(filterType: 'unread' | 'inProgress'): void {
@@ -745,8 +788,11 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 		// Toggle filter based on current state
 		if (filterType === 'unread') {
 			if (isFilteredToUnread) {
-				this._clearFilter();
+				// Already filtered to unread - restore user's previous filter
+				this._restoreUserFilter();
 			} else {
+				// Save current filter before applying our own
+				this._saveUserFilter();
 				// Exclude read sessions to show only unread
 				this._storeFilter({
 					providers: [],
@@ -757,8 +803,11 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 			}
 		} else {
 			if (isFilteredToInProgress) {
-				this._clearFilter();
+				// Already filtered to in-progress - restore user's previous filter
+				this._restoreUserFilter();
 			} else {
+				// Save current filter before applying our own
+				this._saveUserFilter();
 				// Exclude Completed and Failed to show InProgress and NeedsInput
 				this._storeFilter({
 					providers: [],
