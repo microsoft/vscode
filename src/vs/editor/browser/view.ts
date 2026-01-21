@@ -9,7 +9,7 @@ import { IMouseWheelEvent } from '../../base/browser/mouseEvent.js';
 import { inputLatency } from '../../base/browser/performance.js';
 import { CodeWindow } from '../../base/browser/window.js';
 import { BugIndicatingError, onUnexpectedError } from '../../base/common/errors.js';
-import { Disposable, IDisposable } from '../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable } from '../../base/common/lifecycle.js';
 import { IPointerHandlerHelper } from './controller/mouseHandler.js';
 import { PointerHandlerLastRenderData } from './controller/mouseTarget.js';
 import { PointerHandler } from './controller/pointerHandler.js';
@@ -58,6 +58,7 @@ import { IColorTheme, getThemeTypeSelector } from '../../platform/theme/common/t
 import { ViewGpuContext } from './gpu/viewGpuContext.js';
 import { ViewLinesGpu } from './viewParts/viewLinesGpu/viewLinesGpu.js';
 import { AbstractEditContext } from './controller/editContext/editContext.js';
+import { IClipboardCopyEvent, IClipboardPasteEvent } from './controller/editContext/clipboardUtils.js';
 import { IVisibleRangeProvider, TextAreaEditContext } from './controller/editContext/textArea/textAreaEditContext.js';
 import { NativeEditContext } from './controller/editContext/native/nativeEditContext.js';
 import { RulersGpu } from './viewParts/rulersGpu/rulersGpu.js';
@@ -106,7 +107,18 @@ export class View extends ViewEventHandler {
 	private _editContextEnabled: boolean;
 	private _accessibilitySupport: AccessibilitySupport;
 	private _editContext: AbstractEditContext;
+	private readonly _editContextClipboardListeners = new DisposableStore();
 	private readonly _pointerHandler: PointerHandler;
+
+	// Clipboard events relayed from editContext
+	private readonly _onWillCopy = this._register(new Emitter<IClipboardCopyEvent>());
+	public readonly onWillCopy: Event<IClipboardCopyEvent> = this._onWillCopy.event;
+
+	private readonly _onWillCut = this._register(new Emitter<IClipboardCopyEvent>());
+	public readonly onWillCut: Event<IClipboardCopyEvent> = this._onWillCut.event;
+
+	private readonly _onWillPaste = this._register(new Emitter<IClipboardPasteEvent>());
+	public readonly onWillPaste: Event<IClipboardPasteEvent> = this._onWillPaste.event;
 
 	// Dom nodes
 	private readonly _linesContent: FastDomNode<HTMLElement>;
@@ -160,6 +172,7 @@ export class View extends ViewEventHandler {
 		this._editContextEnabled = this._context.configuration.options.get(EditorOption.effectiveEditContext);
 		this._accessibilitySupport = this._context.configuration.options.get(EditorOption.accessibilitySupport);
 		this._editContext = this._instantiateEditContext();
+		this._connectEditContextClipboardEvents();
 
 		this._viewParts.push(this._editContext);
 
@@ -309,12 +322,23 @@ export class View extends ViewEventHandler {
 		const indexOfEditContext = this._viewParts.indexOf(this._editContext);
 		this._editContext.dispose();
 		this._editContext = this._instantiateEditContext();
+		this._connectEditContextClipboardEvents();
 		if (isEditContextFocused) {
 			this._editContext.focus();
 		}
 		if (indexOfEditContext !== -1) {
 			this._viewParts.splice(indexOfEditContext, 1, this._editContext);
 		}
+	}
+
+	private _connectEditContextClipboardEvents(): void {
+		// Dispose old listeners
+		this._editContextClipboardListeners.clear();
+
+		// Connect to current edit context's clipboard events
+		this._editContextClipboardListeners.add(this._editContext.onWillCopy(e => this._onWillCopy.fire(e)));
+		this._editContextClipboardListeners.add(this._editContext.onWillCut(e => this._onWillCut.fire(e)));
+		this._editContextClipboardListeners.add(this._editContext.onWillPaste(e => this._onWillPaste.fire(e)));
 	}
 
 	private _computeGlyphMarginLanes(): IGlyphMarginLanesModel {
@@ -473,6 +497,9 @@ export class View extends ViewEventHandler {
 			this._renderAnimationFrame.dispose();
 			this._renderAnimationFrame = null;
 		}
+
+		// Dispose clipboard event listeners
+		this._editContextClipboardListeners.dispose();
 
 		this._contentWidgets.overflowingContentWidgetsDomNode.domNode.remove();
 		this._overlayWidgets.overflowingOverlayWidgetsDomNode.domNode.remove();

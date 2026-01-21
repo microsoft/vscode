@@ -57,12 +57,15 @@ function modelDelegateToWidgetActionsProvider(delegate: IModelPickerDelegate, te
 					checked: true,
 					category: DEFAULT_MODEL_PICKER_CATEGORY,
 					class: undefined,
+					description: localize('chat.modelPicker.auto.detail', "Best for your request based on capacity and performance."),
 					tooltip: localize('chat.modelPicker.auto', "Auto"),
 					label: localize('chat.modelPicker.auto', "Auto"),
+					hover: { content: localize('chat.modelPicker.auto.description', "Automatically selects the best model for your task based on context and complexity.") },
 					run: () => { }
 				} satisfies IActionWidgetDropdownAction];
 			}
 			return models.map(model => {
+				const hoverContent = model.metadata.tooltip;
 				return {
 					id: model.metadata.id,
 					enabled: true,
@@ -70,8 +73,9 @@ function modelDelegateToWidgetActionsProvider(delegate: IModelPickerDelegate, te
 					checked: model.identifier === delegate.getCurrentModel()?.identifier,
 					category: model.metadata.modelPickerCategory || DEFAULT_MODEL_PICKER_CATEGORY,
 					class: undefined,
-					description: model.metadata.detail,
-					tooltip: model.metadata.tooltip ?? model.metadata.name,
+					description: model.metadata.multiplier ?? model.metadata.detail,
+					tooltip: hoverContent ? '' : model.metadata.name,
+					hover: hoverContent ? { content: hoverContent } : undefined,
 					label: model.metadata.name,
 					run: () => {
 						const previousModel = delegate.getCurrentModel();
@@ -96,6 +100,8 @@ function getModelPickerActionBarActionProvider(commandService: ICommandService, 
 				chatEntitlementService.entitlement === ChatEntitlement.Free ||
 				chatEntitlementService.entitlement === ChatEntitlement.Pro ||
 				chatEntitlementService.entitlement === ChatEntitlement.ProPlus ||
+				chatEntitlementService.entitlement === ChatEntitlement.Business ||
+				chatEntitlementService.entitlement === ChatEntitlement.Enterprise ||
 				chatEntitlementService.isInternal
 			) {
 				additionalActions.push({

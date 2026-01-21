@@ -40,10 +40,13 @@ import { AgentSessionsWelcomeEditorOptions, AgentSessionsWelcomeInput } from './
 import { IChatService } from '../../chat/common/chatService/chatService.js';
 import { IChatModel } from '../../chat/common/model/chatModel.js';
 import { ISessionTypePickerDelegate } from '../../chat/browser/chat.js';
-import { AgentSessionsControl, AgentSessionsControlSource, IAgentSessionsControlOptions } from '../../chat/browser/agentSessions/agentSessionsControl.js';
+import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
+import { AgentSessionsControl, IAgentSessionsControlOptions } from '../../chat/browser/agentSessions/agentSessionsControl.js';
 import { IAgentSessionsFilter } from '../../chat/browser/agentSessions/agentSessionsViewer.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { IResolvedWalkthrough, IWalkthroughsService } from '../../welcomeGettingStarted/browser/gettingStartedService.js';
+import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
 
 const configurationKey = 'workbench.startupEditor';
 const MAX_SESSIONS = 6;
@@ -79,6 +82,8 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		@IProductService private readonly productService: IProductService,
 		@IWalkthroughsService private readonly walkthroughsService: IWalkthroughsService,
 		@IChatService private readonly chatService: IChatService,
+		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
+		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
 	) {
 		super(AgentSessionsWelcomePage.ID, group, telemetryService, themeService, storageService);
 
@@ -280,7 +285,8 @@ export class AgentSessionsWelcomePage extends EditorPane {
 			filter,
 			getHoverPosition: () => HoverPosition.BELOW,
 			trackActiveEditorSession: () => false,
-			source: AgentSessionsControlSource.WelcomeView,
+			source: 'welcomeView',
+			notifySessionOpened: () => this.layoutService.setAuxiliaryBarMaximized(true) // TODO@osortega what if the session did not open in the 2nd sidebar?
 		};
 
 		this.sessionsControl = this.sessionsControlDisposables.add(this.instantiationService.createInstance(
@@ -348,7 +354,48 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		}
 	}
 
+	private buildPrivacyNotice(container: HTMLElement): void {
+		// TOS/Privacy notice for users who are not signed in - reusing walkthrough card design
+		if (!this.chatEntitlementService.anonymous) {
+			return;
+		}
+
+		const providers = this.productService.defaultChatAgent?.provider;
+		if (!providers || !providers.default || !this.productService.defaultChatAgent?.termsStatementUrl || !this.productService.defaultChatAgent?.privacyStatementUrl) {
+			return;
+		}
+
+		const tosCard = append(container, $('.agentSessionsWelcome-walkthroughCard.agentSessionsWelcome-tosCard'));
+
+		// Icon
+		const iconContainer = append(tosCard, $('.agentSessionsWelcome-walkthroughCard-icon'));
+		iconContainer.appendChild(renderIcon(Codicon.commentDiscussion));
+
+		// Content
+		const content = append(tosCard, $('.agentSessionsWelcome-walkthroughCard-content'));
+		const title = append(content, $('.agentSessionsWelcome-walkthroughCard-title'));
+		title.textContent = localize('tosTitle', "AI Feature Trial is Active");
+
+		const desc = append(content, $('.agentSessionsWelcome-walkthroughCard-description'));
+		const descriptionMarkdown = new MarkdownString(
+			localize(
+				{ key: 'tosDescription', comment: ['{Locked="]({1})"}', '{Locked="]({2})"}'] },
+				"By continuing, you agree to {0}'s [Terms]({1}) and [Privacy Statement]({2}).",
+				providers.default.name,
+				this.productService.defaultChatAgent.termsStatementUrl,
+				this.productService.defaultChatAgent.privacyStatementUrl
+			),
+			{ isTrusted: true }
+		);
+		const renderedMarkdown = this.markdownRendererService.render(descriptionMarkdown);
+		desc.appendChild(renderedMarkdown.element);
+	}
+
 	private buildFooter(container: HTMLElement): void {
+
+		// Privacy notice
+		this.buildPrivacyNotice(container);
+
 		// Learning link
 		const learningLink = append(container, $('button.agentSessionsWelcome-footerLink'));
 		learningLink.appendChild(renderIcon(Codicon.mortarBoard));
@@ -433,7 +480,7 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		// Set margin offset for 2-column layout: actual height - visual height
 		// Visual height = ceil(n/2) * 52, so offset = floor(n/2) * 52
 		const marginOffset = Math.floor(visibleSessions / 2) * 52;
-		this.sessionsControl.setGridMarginOffset(marginOffset);
+		this.sessionsControl.element!.style.marginBottom = `-${marginOffset}px`;
 	}
 
 	override focus(): void {

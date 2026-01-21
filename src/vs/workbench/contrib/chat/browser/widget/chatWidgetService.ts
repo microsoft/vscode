@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
-import { raceCancellablePromises, timeout } from '../../../../../base/common/async.js';
+import { timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { combinedDisposable, Disposable, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { isEqual } from '../../../../../base/common/resources.js';
@@ -19,7 +19,6 @@ import { ChatViewId, ChatViewPaneTarget, IChatWidget, IChatWidgetService, IQuick
 import { ChatEditor, IChatEditorOptions } from '../widgetHosts/editor/chatEditor.js';
 import { ChatEditorInput } from '../widgetHosts/editor/chatEditorInput.js';
 import { ChatViewPane } from '../widgetHosts/viewPane/chatViewPane.js';
-import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 
 export class ChatWidgetService extends Disposable implements IChatWidgetService {
 
@@ -41,7 +40,6 @@ export class ChatWidgetService extends Disposable implements IChatWidgetService 
 		@ILayoutService private readonly layoutService: ILayoutService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IChatService private readonly chatService: IChatService,
-		@IWorkbenchLayoutService private readonly workbenchLayoutService: IWorkbenchLayoutService,
 	) {
 		super();
 	}
@@ -118,9 +116,6 @@ export class ChatWidgetService extends Disposable implements IChatWidgetService 
 				if (!options?.preserveFocus) {
 					chatView.focusInput();
 				}
-				if (options?.expanded) {
-					this.workbenchLayoutService.setAuxiliaryBarMaximized(true);
-				}
 			}
 			return chatView?.widget;
 		}
@@ -158,11 +153,8 @@ export class ChatWidgetService extends Disposable implements IChatWidgetService 
 			const isGroupActive = () => dom.getWindow(this.layoutService.activeContainer).vscodeWindowId === existingEditorWindowId;
 
 			let ensureFocusTransfer: Promise<void> | undefined;
-			if (!isGroupActive()) {
-				ensureFocusTransfer = raceCancellablePromises([
-					timeout(500),
-					Event.toPromise(Event.once(Event.filter(this.layoutService.onDidChangeActiveContainer, isGroupActive))),
-				]);
+			if (!isGroupActive() && !options?.preserveFocus) {
+				ensureFocusTransfer = Event.toPromise(Event.once(Event.filter(this.layoutService.onDidChangeActiveContainer, isGroupActive)));
 			}
 
 			const pane = await existingEditor.group.openEditor(existingEditor.editor, options);

@@ -308,4 +308,68 @@ suite('NewPromptsParser', () => {
 		assert.ok(result.header.tools);
 		assert.deepEqual(result.header.tools, ['built-in', 'browser-click', 'openPullRequest', 'copilotCodingAgent']);
 	});
+
+	test('agent with agents', async () => {
+		const uri = URI.parse('file:///test/test.agent.md');
+		const content = [
+			'---',
+			`description: "Agent with restrictions"`,
+			'agents: ["subagent1", "subagent2"]',
+			'---',
+			'This is an agent with restricted subagents.',
+		].join('\n');
+		const result = new PromptFileParser().parse(uri, content);
+		assert.deepEqual(result.uri, uri);
+		assert.ok(result.header);
+		assert.ok(result.body);
+		assert.deepEqual(result.header.description, 'Agent with restrictions');
+		assert.deepEqual(result.header.agents, ['subagent1', 'subagent2']);
+	});
+
+	test('agent with empty agents array', async () => {
+		const uri = URI.parse('file:///test/test.agent.md');
+		const content = [
+			'---',
+			`description: "Agent with no access"`,
+			'agents: []',
+			'---',
+			'This agent has no access to subagents.',
+		].join('\n');
+		const result = new PromptFileParser().parse(uri, content);
+		assert.deepEqual(result.uri, uri);
+		assert.ok(result.header);
+		assert.deepEqual(result.header.description, 'Agent with no access');
+		assert.deepEqual(result.header.agents, []);
+	});
+
+	test('agent with wildcard agents', async () => {
+		const uri = URI.parse('file:///test/test.agent.md');
+		const content = [
+			'---',
+			`description: "Agent with full access"`,
+			'agents: ["*"]',
+			'---',
+			'This agent has access to all subagents.',
+		].join('\n');
+		const result = new PromptFileParser().parse(uri, content);
+		assert.deepEqual(result.uri, uri);
+		assert.ok(result.header);
+		assert.deepEqual(result.header.description, 'Agent with full access');
+		assert.deepEqual(result.header.agents, ['*']);
+	});
+
+	test('agent without agents (undefined)', async () => {
+		const uri = URI.parse('file:///test/test.agent.md');
+		const content = [
+			'---',
+			`description: "Agent without restrictions"`,
+			'---',
+			'This agent has default access to all.',
+		].join('\n');
+		const result = new PromptFileParser().parse(uri, content);
+		assert.deepEqual(result.uri, uri);
+		assert.ok(result.header);
+		assert.deepEqual(result.header.description, 'Agent without restrictions');
+		assert.deepEqual(result.header.agents, undefined);
+	});
 });
