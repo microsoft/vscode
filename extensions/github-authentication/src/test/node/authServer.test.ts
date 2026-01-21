@@ -86,7 +86,7 @@ suite('LoopbackAuthServer (portable mode)', () => {
 		);
 		assert.strictEqual(response.status, 302);
 		// In portable mode, should redirect to success page without redirect_uri
-		assert.strictEqual(response.headers.get('location'), `/?success=true&app_name=${encodeURIComponent(env.appName)}`);
+		assert.strictEqual(response.headers.get('location'), `/?app_name=${encodeURIComponent(env.appName)}`);
 		await Promise.race([
 			server.waitForOAuthResponse().then(result => {
 				assert.strictEqual(result.code, 'valid-code');

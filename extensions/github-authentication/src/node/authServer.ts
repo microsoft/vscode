@@ -133,7 +133,7 @@ export class LoopbackAuthServer implements ILoopbackServer {
 					}
 					deferred.resolve({ code, state });
 					if (isPortable) {
-						res.writeHead(302);
+						res.writeHead(302, { location: `/?app_name=${encodeURIComponent(env.appName)}` });
 					} else {
 						res.writeHead(302, { location: `/?redirect_uri=${encodeURIComponent(callbackUri)}${appNameQueryParam}` });
 					}
