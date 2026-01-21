@@ -466,6 +466,7 @@ export function registerChatActions() {
 			const configurationService = accessor.get(IConfigurationService);
 
 			const chatLocation = viewDescriptorService.getViewLocationById(ChatViewId);
+
 			if (viewsService.isViewVisible(ChatViewId)) {
 				if (
 					chatLocation === ViewContainerLocation.AuxiliaryBar &&
