@@ -94,11 +94,6 @@
 	justify-content: center;
 }
 
-.chat-editor-overlay-widget  .action-item.primary > .action-label {
-	background-color: var(--vscode-button-background);
-	color: var(--vscode-button-foreground);
-}
-
 .inline-chat-session-overlay-widget .monaco-action-bar .action-item.disabled {
 
 	> .action-label.codicon::before,
