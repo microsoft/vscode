@@ -100,7 +100,7 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 		}));
 
 		// Subscribe to MCP server definition changes and notify ext host
-		const onDidChangeMcpServerDefinitionsTrigger = this._register(new RunOnceScheduler(() => this._proxy.$onDidChangeMcpServerDefinitions(), 500));
+		const onDidChangeMcpServerDefinitionsTrigger = this._register(new RunOnceScheduler(() => this._publishServerDefinitions(), 500));
 		this._register(autorun(reader => {
 			const collections = this._mcpRegistry.collections.read(reader);
 			// Read all server definitions to track changes
@@ -112,10 +112,11 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 				onDidChangeMcpServerDefinitionsTrigger.schedule();
 			}
 		}));
+
+		onDidChangeMcpServerDefinitionsTrigger.schedule();
 	}
 
-	/** Returns all MCP server definitions known to the editor. */
-	$getMcpServerDefinitions(): Promise<McpServerDefinition.Serialized[]> {
+	private _publishServerDefinitions() {
 		const collections = this._mcpRegistry.collections.get();
 		const allServers: McpServerDefinition.Serialized[] = [];
 
@@ -126,7 +127,7 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 			}
 		}
 
-		return Promise.resolve(allServers);
+		this._proxy.$onDidChangeMcpServerDefinitions(allServers);
 	}
 
 	$upsertMcpCollection(collection: McpCollectionDefinition.FromExtHost, serversDto: McpServerDefinition.Serialized[]): void {

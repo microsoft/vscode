@@ -3180,8 +3180,7 @@ export interface ExtHostMcpShape {
 	$stopMcp(id: number): void;
 	$sendMessage(id: number, message: string): void;
 	$waitForInitialCollectionProviders(): Promise<void>;
-	/** Notification that MCP server definitions have changed. ExtHost should re-fetch. */
-	$onDidChangeMcpServerDefinitions(): void;
+	$onDidChangeMcpServerDefinitions(servers: McpServerDefinition.Serialized[]): void;
 }
 
 export interface IMcpAuthenticationDetails {
@@ -3222,8 +3221,6 @@ export interface MainThreadMcpShape {
 	$getTokenFromServerMetadata(id: number, authDetails: IMcpAuthenticationDetails, options?: IMcpAuthenticationOptions): Promise<string | undefined>;
 	$getTokenForProviderId(id: number, providerId: string, scopes: string[], options?: IMcpAuthenticationOptions): Promise<string | undefined>;
 	$logMcpAuthSetup(data: IAuthMetadataSource): void;
-	/** Returns all MCP server definitions known to the editor. */
-	$getMcpServerDefinitions(): Promise<McpServerDefinition.Serialized[]>;
 }
 
 export interface MainThreadDataChannelsShape extends IDisposable {
