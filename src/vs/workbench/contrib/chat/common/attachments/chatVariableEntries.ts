@@ -41,6 +41,7 @@ interface IBaseChatRequestVariableEntry {
 
 export interface IGenericChatRequestVariableEntry extends IBaseChatRequestVariableEntry {
 	kind: 'generic';
+	tooltip?: IMarkdownString;
 }
 
 export interface IChatRequestDirectoryEntry extends IBaseChatRequestVariableEntry {
