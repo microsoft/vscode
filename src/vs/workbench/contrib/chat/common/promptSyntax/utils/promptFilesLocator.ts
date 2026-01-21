@@ -59,9 +59,7 @@ export class PromptFilesLocator {
 	private async listFilesInUserData(type: PromptsType, token: CancellationToken): Promise<readonly URI[]> {
 		const userHome = await this.pathService.userHome();
 		const configuredLocations = PromptsConfig.promptSourceFolders(this.configService, type);
-		const absoluteLocations = type === PromptsType.skill
-			? this.toAbsoluteLocationsForSkills(configuredLocations, userHome)
-			: this.toAbsoluteLocations(configuredLocations, userHome);
+		const absoluteLocations = this.toAbsoluteLocations(type, configuredLocations, userHome);
 
 		const paths = new ResourceSet();
 
@@ -179,7 +177,7 @@ export class PromptFilesLocator {
 
 	public async getAgentSourceFolders(): Promise<readonly URI[]> {
 		const userHome = await this.pathService.userHome();
-		return this.toAbsoluteLocations(DEFAULT_AGENT_SOURCE_FOLDERS, userHome).map(l => l.uri);
+		return this.toAbsoluteLocations(PromptsType.agent, DEFAULT_AGENT_SOURCE_FOLDERS, userHome).map(l => l.uri);
 	}
 
 	/**
@@ -197,14 +195,12 @@ export class PromptFilesLocator {
 	public async getConfigBasedSourceFolders(type: PromptsType): Promise<readonly URI[]> {
 		const userHome = await this.pathService.userHome();
 		const configuredLocations = PromptsConfig.promptSourceFolders(this.configService, type);
+		const absoluteLocations = this.toAbsoluteLocations(type, configuredLocations, userHome).map(l => l.uri);
 
-		// No extra processing needed for skills, since we do not support glob patterns
-		if (type === PromptsType.skill) {
-			return this.toAbsoluteLocationsForSkills(configuredLocations, userHome).map(l => l.uri);
+		// For anything taht doesn't support glob patterns, we can return
+		if (type !== PromptsType.prompt && type !== PromptsType.instructions) {
+			return absoluteLocations;
 		}
-
-		// For other types, use the existing logic with glob pattern filtering
-		const absoluteLocations = this.toAbsoluteLocations(configuredLocations, userHome).map(l => l.uri);
 
 		// locations in the settings can contain glob patterns so we need
 		// to process them to get "clean" paths; the goal here is to have
@@ -277,8 +273,7 @@ export class PromptFilesLocator {
 		// Log warnings for glob patterns in prompt and instructions locations
 		this.warnForGlobPatterns(configuredLocations, type);
 
-		const absoluteLocations = type === PromptsType.skill ?
-			this.toAbsoluteLocationsForSkills(configuredLocations, undefined) : this.toAbsoluteLocations(configuredLocations, undefined);
+		const absoluteLocations = this.toAbsoluteLocations(type, configuredLocations, undefined);
 		return absoluteLocations.map((location) => firstNonGlobParentAndPattern(location.uri));
 	}
 
@@ -312,12 +307,26 @@ export class PromptFilesLocator {
 	 * If userHome is provided, paths starting with `~` will be expanded. Otherwise these paths are ignored.
 	 * Preserves the type and location properties from the source folder definitions.
 	 */
-	private toAbsoluteLocations(configuredLocations: readonly IPromptSourceFolder[], userHome: URI | undefined): readonly IResolvedPromptSourceFolder[] {
+	private toAbsoluteLocations(type: PromptsType, configuredLocations: readonly IPromptSourceFolder[], userHome: URI | undefined): readonly IResolvedPromptSourceFolder[] {
 		const result: IResolvedPromptSourceFolder[] = [];
 		const seen = new ResourceSet();
 		const { folders } = this.workspaceService.getWorkspace();
 
-		for (const sourceFolder of configuredLocations) {
+		// Filter and validate skill paths before resolving
+		const validLocations = configuredLocations.filter(sourceFolder => {
+			// TODO: deprecate glob patterns for prompts and instructions in the future
+			if (type === PromptsType.instructions || type === PromptsType.prompt) {
+				return true;
+			}
+			const configuredLocation = sourceFolder.path;
+			if (!isValidPromptFolderPath(configuredLocation)) {
+				this.logService.warn(`Skipping invalid path (glob patterns and absolute paths not supported): ${configuredLocation}`);
+				return false;
+			}
+			return true;
+		});
+
+		for (const sourceFolder of validLocations) {
 			const configuredLocation = sourceFolder.path;
 			try {
 				// Handle tilde paths when userHome is provided
@@ -360,32 +369,6 @@ export class PromptFilesLocator {
 		}
 
 		return result;
-	}
-
-	/**
-	 * Converts skill locations to absolute filesystem path URIs with restricted validation.
-	 * Unlike toAbsoluteLocations(), this method enforces stricter rules for skills:
-	 * - No glob patterns (performance concerns)
-	 * - No absolute paths (portability concerns)
-	 * - Only relative paths, tilde paths, and parent relative paths
-	 *
-	 * @param configuredLocations - Source folder definitions from configuration
-	 * @param userHome - User home URI for tilde expansion (optional for workspace-only resolution)
-	 * @returns List of resolved absolute URIs with metadata
-	 */
-	private toAbsoluteLocationsForSkills(configuredLocations: readonly IPromptSourceFolder[], userHome: URI | undefined): readonly IResolvedPromptSourceFolder[] {
-		// Filter and validate skill paths before resolving
-		const validLocations = configuredLocations.filter(sourceFolder => {
-			const configuredLocation = sourceFolder.path;
-			if (!isValidPromptFolderPath(configuredLocation)) {
-				this.logService.warn(`Skipping invalid skill path (glob patterns and absolute paths not supported): ${configuredLocation}`);
-				return false;
-			}
-			return true;
-		});
-
-		// Use the standard resolution logic for valid paths
-		return this.toAbsoluteLocations(validLocations, userHome);
 	}
 
 	/**
@@ -593,7 +576,7 @@ export class PromptFilesLocator {
 	public async findAgentSkills(token: CancellationToken): Promise<IResolvedPromptFile[]> {
 		const userHome = await this.pathService.userHome();
 		const configuredLocations = PromptsConfig.promptSourceFolders(this.configService, PromptsType.skill);
-		const absoluteLocations = this.toAbsoluteLocationsForSkills(configuredLocations, userHome);
+		const absoluteLocations = this.toAbsoluteLocations(PromptsType.skill, configuredLocations, userHome);
 		const allResults: IResolvedPromptFile[] = [];
 
 		for (const { uri, source, storage } of absoluteLocations) {
