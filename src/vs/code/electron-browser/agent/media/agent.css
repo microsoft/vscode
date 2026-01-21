@@ -107,6 +107,10 @@ body {
 	background-color: var(--vscode-toolbar-activeBackground, rgba(99, 102, 103, 0.31));
 }
 
+.agent-sessions-new-button-container {
+	padding: 8px;
+}
+
 .agent-sessions-items {
 	flex: 1;
 	overflow: hidden;

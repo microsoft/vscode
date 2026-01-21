@@ -6,8 +6,6 @@
 import { Action } from '../../../../base/common/actions.js';
 import { $, append, clearNode, Dimension } from '../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../base/browser/window.js';
-import { ThemeIcon } from '../../../../base/common/themables.js';
-import { Codicon } from '../../../../base/common/codicons.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { Disposable, DisposableStore, IDisposable, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -23,7 +21,6 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { AgentSessionsControl, IAgentSessionsControlOptions } from '../../chat/browser/agentSessions/agentSessionsControl.js';
 import { IAgentSessionsService } from '../../chat/browser/agentSessions/agentSessionsService.js';
 import { IAgentSession, getAgentChangesSummary } from '../../chat/browser/agentSessions/agentSessionsModel.js';
-import { IAgentSessionsFilter } from '../../chat/browser/agentSessions/agentSessionsViewer.js';
 import { AgentTitleBarStatusWidget } from '../../chat/browser/agentSessions/experiments/agentTitleBarStatusWidget.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { Emitter, Event, ValueWithChangeEvent } from '../../../../base/common/event.js';
@@ -44,6 +41,10 @@ import { MultiDiffEditorWidget } from '../../../../editor/browser/widget/multiDi
 import { IMultiDiffEditorModel, IDocumentDiffItem } from '../../../../editor/browser/widget/multiDiffEditor/model.js';
 import { RefCounted } from '../../../../editor/browser/widget/diffEditor/utils.js';
 import { IWorkbenchUIElementFactory } from '../../../../editor/browser/widget/multiDiffEditor/workbenchUIElementFactory.js';
+import { Button } from '../../../../base/browser/ui/button/button.js';
+import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { MenuId } from '../../../../platform/actions/common/actions.js';
+import { AgentSessionsFilter, IAgentSessionsFilterOptions } from '../../chat/browser/agentSessions/agentSessionsFilter.js';
 
 /**
  * Stub chat widget service for Agent window
@@ -98,7 +99,9 @@ export class AgentWindow extends Disposable {
 	private _containerEl!: HTMLElement;
 	private _sessionsListEl!: HTMLElement;
 	private _sessionsItemsEl!: HTMLElement;
-	private _newSessionButton!: HTMLButtonElement;
+	private _newSessionButtonContainer!: HTMLElement;
+	private _newSessionButton: Button | undefined;
+	private _agentSessionsFilter: AgentSessionsFilter | undefined;
 	private _chatContainerEl!: HTMLElement;
 	private _chatEmptyEl!: HTMLElement;
 	private _welcomeChatWidgetEl!: HTMLElement;
@@ -148,14 +151,13 @@ export class AgentWindow extends Disposable {
 		const sessionsHeaderTitle = $('span.agent-sessions-header-title');
 		sessionsHeaderTitle.textContent = 'Sessions';
 		const sessionsToolbar = $('.agent-sessions-toolbar');
-		this._newSessionButton = $('button.agent-sessions-toolbar-button') as HTMLButtonElement;
-		this._newSessionButton.title = 'New Session';
-		const addIcon = $(`i.codicon.${ThemeIcon.asClassName(Codicon.add)}`);
-		append(this._newSessionButton, addIcon);
-		append(sessionsToolbar, this._newSessionButton);
 		append(sessionsHeader, sessionsHeaderTitle, sessionsToolbar);
+
+		// Create New Session button container (goes after header)
+		this._newSessionButtonContainer = $('.agent-sessions-new-button-container');
+
 		this._sessionsItemsEl = $('.agent-sessions-items');
-		append(this._sessionsListEl, sessionsHeader, this._sessionsItemsEl);
+		append(this._sessionsListEl, sessionsHeader, this._newSessionButtonContainer, this._sessionsItemsEl);
 
 		// Create chat container
 		this._chatContainerEl = $('.agent-chat-container');
@@ -183,9 +185,10 @@ export class AgentWindow extends Disposable {
 		append(changesHeader, changesHeaderTitle);
 		append(this._changesContainerEl, changesHeader);
 
-		// Create main container
+		// Create main container - only add sessions and chat initially
+		// Changes pane is added dynamically when a session is selected via showChangesPane()
 		this._containerEl = $('.agent-container');
-		append(this._containerEl, this._sessionsListEl, this._chatContainerEl, this._changesContainerEl);
+		append(this._containerEl, this._sessionsListEl, this._chatContainerEl);
 
 		// Append to body
 		append(body, this._headerEl, this._containerEl);
@@ -256,9 +259,6 @@ export class AgentWindow extends Disposable {
 
 			// Load agent sessions
 			await this.loadSessions();
-
-			// Add click handler for new session button
-			this._newSessionButton.addEventListener('click', () => this.showEmptyView());
 
 			// Show the welcome view by default when opening the agent window
 			this.showEmptyView();
@@ -406,25 +406,27 @@ export class AgentWindow extends Disposable {
 			// Clear loading message
 			clearNode(sessionsListEl);
 
-			// Create a simple pass-through filter (show all sessions)
-			const filterChangeEmitter = this._register(new Emitter<void>());
-			const filter: IAgentSessionsFilter = {
-				onDidChange: filterChangeEmitter.event,
-				exclude: () => false, // Don't exclude any session
-				getExcludes: () => ({
-					providers: [],
-					states: [],
-					archived: false,
-					read: false,
-				}),
+			// Create the "New Session" button
+			this._newSessionButton = this._register(new Button(this._newSessionButtonContainer, {
+				...defaultButtonStyles,
+				title: 'New Session',
+			}));
+			this._newSessionButton.label = 'New Session';
+			this._register(this._newSessionButton.onDidClick(() => this.showEmptyView()));
+
+			// Create the filter with date grouping enabled (TODAY, YESTERDAY, LAST WEEK, OLDER)
+			const filterOptions: IAgentSessionsFilterOptions = {
+				filterMenuId: MenuId.AgentSessionsViewerFilterSubMenu,
+				groupResults: () => true, // Enable date grouping
 			};
+			this._agentSessionsFilter = this._register(this.instantiationService.createInstance(AgentSessionsFilter, filterOptions));
 
 			// Create AgentSessionsControl options
 			const options: IAgentSessionsControlOptions = {
 				overrideStyles: {
 					listBackground: 'transparent',
 				},
-				filter,
+				filter: this._agentSessionsFilter,
 				source: 'agentWindow',
 				getHoverPosition: () => HoverPosition.RIGHT,
 				trackActiveEditorSession: () => false, // We don't track active editor in agent window
