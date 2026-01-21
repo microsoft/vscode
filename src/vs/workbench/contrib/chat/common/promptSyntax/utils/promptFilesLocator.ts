@@ -273,9 +273,36 @@ export class PromptFilesLocator {
 		if (type === PromptsType.agent) {
 			configuredLocations.push(...DEFAULT_AGENT_SOURCE_FOLDERS);
 		}
+
+		// Log warnings for glob patterns in prompt and instructions locations
+		this.warnForGlobPatterns(configuredLocations, type);
+
 		const absoluteLocations = type === PromptsType.skill ?
 			this.toAbsoluteLocationsForSkills(configuredLocations, undefined) : this.toAbsoluteLocations(configuredLocations, undefined);
 		return absoluteLocations.map((location) => firstNonGlobParentAndPattern(location.uri));
+	}
+
+	/**
+	 * Logs warnings when glob patterns (* or **) are used in prompt or instructions file locations.
+	 * - For prompt file locations: logs a deprecation warning (glob patterns are deprecated but still supported)
+	 * - For instructions file locations: logs an info warning
+	 */
+	private warnForGlobPatterns(configuredLocations: readonly IPromptSourceFolder[], type: PromptsType): void {
+		// Only warn for prompt and instructions types
+		if (type !== PromptsType.prompt && type !== PromptsType.instructions) {
+			return;
+		}
+
+		for (const sourceFolder of configuredLocations) {
+			const path = sourceFolder.path;
+			if (hasGlobPattern(path)) {
+				if (type === PromptsType.prompt) {
+					this.logService.warn(`[Deprecated] Glob patterns (* and **) in prompt file locations are deprecated: "${path}". Consider using explicit paths instead.`);
+				} else if (type === PromptsType.instructions) {
+					this.logService.info(`Glob patterns (* and **) detected in instruction file location: "${path}". Consider using explicit paths for better performance.`);
+				}
+			}
+		}
 	}
 
 	/**
@@ -583,6 +610,18 @@ export class PromptFilesLocator {
 
 
 /**
+ * Checks if the provided path contains a glob pattern (* or **).
+ * Used to detect deprecated glob usage in prompt file locations.
+ *
+ * @param path - path to check
+ * @returns `true` if the path contains `*` or `**`, `false` otherwise
+ */
+export function hasGlobPattern(path: string): boolean {
+	return path.includes('*');
+}
+
+
+/**
  * Checks if the provided `pattern` could be a valid glob pattern.
  */
 export function isValidGlob(pattern: string): boolean {
@@ -692,30 +731,45 @@ function firstNonGlobParentAndPattern(location: URI): { parent: URI; filePattern
 
 
 /**
- * Regex pattern string for validating skill paths.
- * Skills only support:
+ * Regex pattern string for validating simplified paths (for skills and agents).
+ * Simplified paths only support:
  * - Relative paths: someFolder, ./someFolder
- * - User home paths: ~/folder or ~\folder
+ * - User home paths: ~/folder (only forward slash, not backslash for cross-platform sharing)
  * - Parent relative paths for monorepos: ../folder
  *
  * NOT supported:
  * - Absolute paths (portability issue)
  * - Glob patterns with * or ** (performance issue)
- * - Tilde without path separator (e.g., ~abc)
+ * - Backslashes (paths should be shareable in repos across platforms)
+ * - Tilde without forward slash (e.g., ~abc, ~\folder)
  * - Empty or whitespace-only paths
  *
  * The regex validates:
- * - Not a Windows absolute path (e.g., C:\)
+ * - Not a Windows absolute path (e.g., C:\, C:/)
  * - Not starting with / (Unix absolute path)
- * - If starts with ~, must be followed by / or \
+ * - No backslashes anywhere (use forward slashes only)
+ * - If starts with ~, must be followed by /
  * - No glob pattern characters: * ? [ ] { }
  * - At least one non-whitespace character
  */
-export const VALID_SKILL_PATH_PATTERN = '^(?![A-Za-z]:[\\\\/])(?![\\\\/])(?!~(?![\\\\/]))(?!.*[*?\\[\\]{}]).*\\S.*$';
+export const VALID_SIMPLIFIED_PATH_PATTERN = '^(?![A-Za-z]:[\\\\/])(?!/)(?!~(?!/))(?!.*\\\\)(?!.*[*?\\[\\]{}]).*\\S.*$';
 
 /**
- * Validates if a path is allowed for skills configuration.
+ * @deprecated Use {@link VALID_SIMPLIFIED_PATH_PATTERN} instead
+ */
+export const VALID_SKILL_PATH_PATTERN = VALID_SIMPLIFIED_PATH_PATTERN;
+
+/**
+ * Validates if a path is allowed for simplified path configurations (skills and agents).
+ * Only forward slashes are supported to ensure paths are shareable across platforms.
+ */
+export function isValidSimplifiedPath(path: string): boolean {
+	return new RegExp(VALID_SIMPLIFIED_PATH_PATTERN).test(path);
+}
+
+/**
+ * @deprecated Use {@link isValidSimplifiedPath} instead
  */
 export function isValidSkillPath(path: string): boolean {
-	return new RegExp(VALID_SKILL_PATH_PATTERN).test(path);
+	return isValidSimplifiedPath(path);
 }

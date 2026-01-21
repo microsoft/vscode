@@ -55,7 +55,7 @@ import { ILanguageModelToolsService } from '../common/tools/languageModelToolsSe
 import { ChatPromptFilesExtensionPointHandler } from '../common/promptSyntax/chatPromptFilesContribution.js';
 import { ChatPromptContentStore, IChatPromptContentStore } from '../common/promptSyntax/chatPromptContentStore.js';
 import { PromptsConfig } from '../common/promptSyntax/config/config.js';
-import { INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, INSTRUCTION_FILE_EXTENSION, LEGACY_MODE_DEFAULT_SOURCE_FOLDER, LEGACY_MODE_FILE_EXTENSION, PROMPT_DEFAULT_SOURCE_FOLDER, PROMPT_FILE_EXTENSION, DEFAULT_SKILL_SOURCE_FOLDERS } from '../common/promptSyntax/config/promptFileLocations.js';
+import { INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, INSTRUCTION_FILE_EXTENSION, LEGACY_MODE_DEFAULT_SOURCE_FOLDER, LEGACY_MODE_FILE_EXTENSION, PROMPT_DEFAULT_SOURCE_FOLDER, PROMPT_FILE_EXTENSION, DEFAULT_SKILL_SOURCE_FOLDERS, AGENTS_SOURCE_FOLDER, AGENT_FILE_EXTENSION } from '../common/promptSyntax/config/promptFileLocations.js';
 import { PromptLanguageFeaturesProvider } from '../common/promptSyntax/promptFileContributions.js';
 import { AGENT_DOCUMENTATION_URL, INSTRUCTIONS_DOCUMENTATION_URL, PROMPT_DOCUMENTATION_URL } from '../common/promptSyntax/promptTypes.js';
 import { IPromptsService } from '../common/promptSyntax/service/promptsService.js';
@@ -137,7 +137,7 @@ import { ChatWidgetService } from './widget/chatWidgetService.js';
 import { ILanguageModelsConfigurationService } from '../common/languageModelsConfiguration.js';
 import { ChatWindowNotifier } from './chatWindowNotifier.js';
 import { ChatRepoInfoContribution } from './chatRepoInfo.js';
-import { VALID_SKILL_PATH_PATTERN } from '../common/promptSyntax/utils/promptFilesLocator.js';
+import { VALID_SIMPLIFIED_PATH_PATTERN } from '../common/promptSyntax/utils/promptFilesLocator.js';
 
 const toolReferenceNameEnumValues: string[] = [];
 const toolReferenceNameEnumDescriptions: string[] = [];
@@ -720,6 +720,40 @@ configurationRegistry.registerConfiguration({
 				},
 			],
 		},
+		[PromptsConfig.AGENTS_LOCATION_KEY]: {
+			type: 'object',
+			title: nls.localize(
+				'chat.agents.config.locations.title',
+				"Agent File Locations",
+			),
+			markdownDescription: nls.localize(
+				'chat.agents.config.locations.description',
+				"Specify location(s) of custom agent files (`*{0}`). [Learn More]({1}).\n\n**Supported path types:**\n- Workspace paths: `my-agents`, `./my-agents`, `../shared-agents`\n- User home paths: `~/.copilot/agents`, `~/.claude/agents`\n\n**Note:** Only forward slashes (`/`) are supported for cross-platform sharing.",
+				AGENT_FILE_EXTENSION,
+				AGENT_DOCUMENTATION_URL,
+			),
+			default: {
+				[AGENTS_SOURCE_FOLDER]: true,
+			},
+			additionalProperties: { type: 'boolean' },
+			propertyNames: {
+				pattern: VALID_SIMPLIFIED_PATH_PATTERN,
+				patternErrorMessage: nls.localize('chat.agentFilesLocations.invalidPath', "Agent location paths must be relative paths or start with '~/' for user home directory. Only forward slashes are supported."),
+			},
+			restricted: true,
+			tags: ['prompts', 'reusable prompts', 'prompt snippets', 'instructions'],
+			examples: [
+				{
+					[AGENTS_SOURCE_FOLDER]: true,
+				},
+				{
+					[AGENTS_SOURCE_FOLDER]: true,
+					'my-agents': true,
+					'../shared-agents': true,
+					'~/.copilot/agents': true,
+				},
+			],
+		},
 		[PromptsConfig.USE_AGENT_MD]: {
 			type: 'boolean',
 			title: nls.localize('chat.useAgentMd.title', "Use AGENTS.md file",),
@@ -750,14 +784,14 @@ configurationRegistry.registerConfiguration({
 		[PromptsConfig.SKILLS_LOCATION_KEY]: {
 			type: 'object',
 			title: nls.localize('chat.agentSkillsLocations.title', "Agent Skills Locations",),
-			markdownDescription: nls.localize('chat.agentSkillsLocations.description', "Specify where agent skills are located. Each path should contain skill subfolders with SKILL.md files (e.g., my-skills/skillA/SKILL.md → add my-skills).\n\n**Supported path types:**\n- Workspace paths: `my-skills`, `./my-skills`, `../shared-skills`\n- User home paths: `~/.copilot/skills`, `~/.claude/skills`",),
+			markdownDescription: nls.localize('chat.agentSkillsLocations.description', "Specify where agent skills are located. Each path should contain skill subfolders with SKILL.md files (e.g., my-skills/skillA/SKILL.md → add my-skills).\n\n**Supported path types:**\n- Workspace paths: `my-skills`, `./my-skills`, `../shared-skills`\n- User home paths: `~/.copilot/skills`, `~/.claude/skills`\n\n**Note:** Only forward slashes (`/`) are supported for cross-platform sharing.",),
 			default: {
 				...DEFAULT_SKILL_SOURCE_FOLDERS.map((folder) => ({ [folder.path]: true })).reduce((acc, curr) => ({ ...acc, ...curr }), {}),
 			},
 			additionalProperties: { type: 'boolean' },
 			propertyNames: {
-				pattern: VALID_SKILL_PATH_PATTERN,
-				patternErrorMessage: nls.localize('chat.agentSkillsLocations.invalidPath', "Skill location paths must either be relative paths or start with '~' for user home directory."),
+				pattern: VALID_SIMPLIFIED_PATH_PATTERN,
+				patternErrorMessage: nls.localize('chat.agentSkillsLocations.invalidPath', "Skill location paths must be relative paths or start with '~/' for user home directory. Only forward slashes are supported."),
 			},
 			restricted: true,
 			tags: ['prompts', 'reusable prompts', 'prompt snippets', 'instructions'],
