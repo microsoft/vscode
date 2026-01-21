@@ -192,6 +192,7 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 			}
 		}
 		template.diffContainer.classList.toggle('has-diff', hasDiff);
+		ChatContextKeys.hasAgentSessionChanges.bindTo(template.contextKeyService).set(hasDiff);
 
 		// Badge
 		let hasBadge = false;
@@ -297,11 +298,11 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 				session.element.timing.inProgressTime &&
 				session.element.timing.finishedOrFailedTime > session.element.timing.inProgressTime
 			) {
-				const duration = this.toDuration(session.element.timing.inProgressTime, session.element.timing.finishedOrFailedTime, false);
+				const duration = this.toDuration(session.element.timing.inProgressTime, session.element.timing.finishedOrFailedTime, false, true);
 
 				template.description.textContent = session.element.status === AgentSessionStatus.Failed ?
-					localize('chat.session.status.failedAfter', "Failed after {0}.", duration ?? '1s') :
-					localize('chat.session.status.completedAfter', "Completed in {0}.", duration ?? '1s');
+					localize('chat.session.status.failedAfter', "Failed after {0}.", duration) :
+					localize('chat.session.status.completedAfter', "Completed in {0}.", duration);
 			} else {
 				template.description.textContent = session.element.status === AgentSessionStatus.Failed ?
 					localize('chat.session.status.failed', "Failed") :
@@ -310,10 +311,10 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 		}
 	}
 
-	private toDuration(startTime: number, endTime: number, useFullTimeWords: boolean): string | undefined {
-		const elapsed = Math.round((endTime - startTime) / 1000) * 1000;
-		if (elapsed < 1000) {
-			return undefined;
+	private toDuration(startTime: number, endTime: number, useFullTimeWords: boolean, disallowNow: boolean): string {
+		const elapsed = Math.max(Math.round((endTime - startTime) / 1000) * 1000, 1000 /* clamp to 1s */);
+		if (!disallowNow && elapsed < 30000) {
+			return localize('secondsDuration', "now");
 		}
 
 		return getDurationString(elapsed, useFullTimeWords);
@@ -324,11 +325,11 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 		const getTimeLabel = (session: IAgentSession) => {
 			let timeLabel: string | undefined;
 			if (session.status === AgentSessionStatus.InProgress && session.timing.inProgressTime) {
-				timeLabel = this.toDuration(session.timing.inProgressTime, Date.now(), false);
+				timeLabel = this.toDuration(session.timing.inProgressTime, Date.now(), false, false);
 			}
 
 			if (!timeLabel) {
-				timeLabel = fromNow(session.timing.lastRequestEnded ?? session.timing.lastRequestStarted ?? session.timing.created);
+				timeLabel = fromNow(session.timing.lastRequestEnded ?? session.timing.lastRequestStarted ?? session.timing.created, true);
 			}
 
 			return timeLabel;
@@ -344,6 +345,10 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 	}
 
 	private renderHover(session: ITreeNode<IAgentSession, FuzzyScore>, template: IAgentSessionItemTemplate): void {
+		if (!isSessionInProgressStatus(session.element.status)) {
+			return; // the hover is complex and large, for now limit it to in-progress sessions only
+		}
+
 		template.elementDisposable.add(
 			this.hoverService.setupDelayedHover(template.element, () => this.buildHoverContent(session.element), { groupId: 'agent.sessions' })
 		);

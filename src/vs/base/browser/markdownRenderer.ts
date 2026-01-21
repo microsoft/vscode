@@ -600,6 +600,7 @@ function getDomSanitizerConfig(mdStrConfig: MdStrConfig, options: MarkdownSaniti
 		Schemas.vscodeRemote,
 		Schemas.vscodeRemoteResource,
 		Schemas.vscodeNotebookCell,
+		Schemas.vscodeChatPrompt,
 		// For links that are handled entirely by the action handler
 		Schemas.internal,
 	];

@@ -298,12 +298,11 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		));
 		this._register(titlePart.onDidChangeHeight(() => {
 			this._decoration.update();
-			this._onDidChangeHeight.fire();
 		}));
 
 		this._outputView = this._register(this._instantiationService.createInstance(
 			ChatTerminalToolOutputSection,
-			() => this._onDidChangeHeight.fire(),
+			() => { },
 			() => this._ensureTerminalInstance(),
 			() => this._getResolvedCommand(),
 			() => this._terminalData.terminalCommandOutput,
@@ -355,7 +354,6 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		};
 
 		this.markdownPart = this._register(_instantiationService.createInstance(ChatMarkdownContentPart, chatMarkdownContent, context, editorPool, false, codeBlockStartIndex, renderer, {}, currentWidthDelegate(), codeBlockModelCollection, markdownOptions));
-		this._register(this.markdownPart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 
 		elements.message.append(this.markdownPart.domNode);
 		const progressPart = this._register(_instantiationService.createInstance(ChatProgressSubPart, elements.container, this.getIcon(), terminalData.autoApproveInfo));
@@ -397,8 +395,6 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			initialExpanded
 		));
 		this._thinkingCollapsibleWrapper = wrapper;
-
-		this._register(wrapper.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 
 		return wrapper.domNode;
 	}
