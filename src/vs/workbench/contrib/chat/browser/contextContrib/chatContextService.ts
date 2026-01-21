@@ -105,17 +105,17 @@ export class ChatContextService extends Disposable {
 		return items;
 	}
 
-	async contextForResource(uri: URI): Promise<StringChatContextValue | undefined> {
-		return this._contextForResource(uri, false);
+	async contextForResource(uri: URI, language?: string): Promise<StringChatContextValue | undefined> {
+		return this._contextForResource(uri, false, language);
 	}
 
-	private async _contextForResource(uri: URI, withValue: boolean): Promise<StringChatContextValue | undefined> {
+	private async _contextForResource(uri: URI, withValue: boolean, language?: string): Promise<StringChatContextValue | undefined> {
 		const scoredProviders: Array<{ score: number; provider: IChatContextProvider }> = [];
 		for (const providerEntry of this._providers.values()) {
 			if (!providerEntry.chatContextProvider?.provider.provideChatContextForResource || (providerEntry.chatContextProvider.selector === undefined)) {
 				continue;
 			}
-			const matchScore = score(providerEntry.chatContextProvider.selector, uri, '', true, undefined, undefined);
+			const matchScore = score(providerEntry.chatContextProvider.selector, uri, language ?? '', true, undefined, undefined);
 			scoredProviders.push({ score: matchScore, provider: providerEntry.chatContextProvider.provider });
 		}
 		scoredProviders.sort((a, b) => b.score - a.score);
@@ -142,14 +142,14 @@ export class ChatContextService extends Disposable {
 		return contextValue;
 	}
 
-	async resolveChatContext(context: StringChatContextValue): Promise<StringChatContextValue> {
+	async resolveChatContext(context: StringChatContextValue, language?: string): Promise<StringChatContextValue> {
 		if (context.value !== undefined) {
 			return context;
 		}
 
 		const item = this._lastResourceContext.get(context);
 		if (!item) {
-			const resolved = await this._contextForResource(context.uri, true);
+			const resolved = await this._contextForResource(context.uri, true, language);
 			context.value = resolved?.value;
 			context.modelDescription = resolved?.modelDescription;
 			context.tooltip = resolved?.tooltip;
