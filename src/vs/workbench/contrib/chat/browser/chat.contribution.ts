@@ -1154,7 +1154,7 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 		super();
 		this._store.add(slashCommandService.registerSlashCommand({
 			command: 'clear',
-			detail: nls.localize('clear', "Start a new chat"),
+			detail: nls.localize('clear', "Start a new chat and archive the current one"),
 			sortText: 'z2_clear',
 			executeImmediately: true,
 			locations: [ChatAgentLocation.Chat]
