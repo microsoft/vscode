@@ -59,10 +59,13 @@
 
 	.monaco-list-row:hover .agent-session-title-toolbar,
 	.monaco-list-row.focused .agent-session-title-toolbar {
-		width: 44px;
+		height: 16px;
 
 		.monaco-toolbar {
 			display: block;
+			position: relative;
+			height: 22px;
+			top: -3px;
 		}
 	}
 
