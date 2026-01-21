@@ -5,7 +5,7 @@
 
 import { IAction } from '../../../../../../base/common/actions.js';
 import { Event } from '../../../../../../base/common/event.js';
-import { ILanguageModelChatMetadataAndIdentifier } from '../../../common/languageModels.js';
+import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../common/languageModels.js';
 import { localize } from '../../../../../../nls.js';
 import * as dom from '../../../../../../base/browser/dom.js';
 import { renderIcon, renderLabelWithIcons } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
@@ -24,6 +24,8 @@ import { MANAGE_CHAT_COMMAND_ID } from '../../../common/constants.js';
 import { TelemetryTrustedValue } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IManagedHoverContent } from '../../../../../../base/browser/ui/hover/hover.js';
 import { ChatInputPickerActionViewItem, IChatInputPickerOptions } from './chatInputPickerActionItem.js';
+import { Codicon } from '../../../../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../../../../base/common/themables.js';
 
 export interface IModelPickerDelegate {
 	readonly onDidChangeModel: Event<ILanguageModelChatMetadataAndIdentifier>;
@@ -45,7 +47,7 @@ type ChatModelChangeEvent = {
 };
 
 
-function modelDelegateToWidgetActionsProvider(delegate: IModelPickerDelegate, telemetryService: ITelemetryService): IActionWidgetDropdownActionProvider {
+function modelDelegateToWidgetActionsProvider(delegate: IModelPickerDelegate, telemetryService: ITelemetryService, languageModelsService: ILanguageModelsService, reopenPicker: () => void): IActionWidgetDropdownActionProvider {
 	return {
 		getActions: () => {
 			const models = delegate.getModels();
@@ -77,6 +79,18 @@ function modelDelegateToWidgetActionsProvider(delegate: IModelPickerDelegate, te
 					tooltip: hoverContent ? '' : model.metadata.name,
 					hover: hoverContent ? { content: hoverContent } : undefined,
 					label: model.metadata.name,
+					actions: [{
+						id: 'hideFromModelPicker',
+						label: localize('chat.modelPicker.hide', "Hide"),
+						tooltip: localize('chat.modelPicker.hideFromModelPicker', "Hide from Model Picker"),
+						enabled: true,
+						class: ThemeIcon.asClassName(Codicon.close),
+						run: () => {
+							languageModelsService.updateModelPickerPreference(model.identifier, false);
+							// Reopen the picker after hiding so user can continue hiding more models
+							setTimeout(() => reopenPicker(), 0);
+						}
+					}],
 					run: () => {
 						const previousModel = delegate.getCurrentModel();
 						telemetryService.publicLog2<ChatModelChangeEvent, ChatModelChangeClassification>('chat.modelChange', {
@@ -159,6 +173,7 @@ export class ModelPickerActionItem extends ChatInputPickerActionViewItem {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IProductService productService: IProductService,
+		@ILanguageModelsService languageModelsService: ILanguageModelsService,
 	) {
 		// Modify the original action with a different label and make it show the current model
 		const actionWithLabel: IAction = {
@@ -168,7 +183,7 @@ export class ModelPickerActionItem extends ChatInputPickerActionViewItem {
 		};
 
 		const modelPickerActionWidgetOptions: Omit<IActionWidgetDropdownOptions, 'label' | 'labelRenderer'> = {
-			actionProvider: modelDelegateToWidgetActionsProvider(delegate, telemetryService),
+			actionProvider: modelDelegateToWidgetActionsProvider(delegate, telemetryService, languageModelsService, () => this.show()),
 			actionBarActionProvider: getModelPickerActionBarActionProvider(commandService, chatEntitlementService, productService),
 		};
 

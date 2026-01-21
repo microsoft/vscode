@@ -141,6 +141,39 @@
 	text-overflow: ellipsis;
 }
 
+/* Inline actions (e.g., remove from picker) */
+.action-widget .monaco-list-row.action .actions {
+	display: none;
+	margin-left: auto;
+	position: relative;
+	z-index: 10;
+	pointer-events: auto;
+}
+
+.action-widget .monaco-list-row.action.has-actions:hover .actions,
+.action-widget .monaco-list-row.action.has-actions.focused .actions {
+	display: flex;
+}
+
+.action-widget .monaco-list-row.action .actions .action-label {
+	width: 20px;
+	height: 20px;
+	background-size: 16px;
+	margin-right: 2px;
+	cursor: pointer;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border-radius: 3px;
+	position: relative;
+	z-index: 11;
+	pointer-events: auto;
+}
+
+.action-widget .monaco-list-row.action .actions .action-label:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
 .action-widget .monaco-list-row.action .monaco-keybinding > .monaco-keybinding-key {
 		background-color: var(--vscode-keybindingLabel-background);
 		color: var(--vscode-keybindingLabel-foreground);
