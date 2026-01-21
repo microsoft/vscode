@@ -1724,8 +1724,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				wasStreaming = false;
 				if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation) {
 					const createdPart = getCreatedPart();
+					// move the created part out of thinking and into the main template
 					if (createdPart?.domNode) {
-						// Part was materialized - move it out of the thinking wrapper
 						const wrapper = createdPart.domNode.parentElement;
 						if (wrapper?.classList.contains('chat-thinking-tool-wrapper')) {
 							wrapper.remove();
