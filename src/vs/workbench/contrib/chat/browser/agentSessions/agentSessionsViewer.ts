@@ -192,6 +192,7 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 			}
 		}
 		template.diffContainer.classList.toggle('has-diff', hasDiff);
+		ChatContextKeys.hasAgentSessionChanges.bindTo(template.contextKeyService).set(hasDiff);
 
 		// Badge
 		let hasBadge = false;

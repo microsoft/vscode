@@ -44,8 +44,16 @@ export class ChatPromptContentStore extends Disposable implements IChatPromptCon
 		super();
 	}
 
+	/**
+	 * Normalizes a URI by stripping query and fragment for consistent lookup.
+	 * Query parameters like vscodeLinkType are metadata for rendering, not content identification.
+	 */
+	private normalizeUri(uri: URI): string {
+		return uri.with({ query: '', fragment: '' }).toString();
+	}
+
 	registerContent(uri: URI, content: string): { dispose: () => void } {
-		const key = uri.toString();
+		const key = this.normalizeUri(uri);
 		this._contentMap.set(key, content);
 
 		const dispose = () => {
@@ -56,7 +64,7 @@ export class ChatPromptContentStore extends Disposable implements IChatPromptCon
 	}
 
 	getContent(uri: URI): string | undefined {
-		return this._contentMap.get(uri.toString());
+		return this._contentMap.get(this.normalizeUri(uri));
 	}
 
 	override dispose(): void {

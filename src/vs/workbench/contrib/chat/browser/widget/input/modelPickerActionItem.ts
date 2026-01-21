@@ -65,15 +65,7 @@ function modelDelegateToWidgetActionsProvider(delegate: IModelPickerDelegate, te
 				} satisfies IActionWidgetDropdownAction];
 			}
 			return models.map(model => {
-				// Build hover content combining tooltip and rate info
-				const hoverParts: string[] = [];
-				if (model.metadata.tooltip) {
-					hoverParts.push(model.metadata.tooltip);
-				}
-				if (model.metadata.detail) {
-					hoverParts.push(localize('chat.modelPicker.rateDescription', "Rate is counted at {0}.", model.metadata.detail));
-				}
-				const hoverContent = hoverParts.length > 0 ? hoverParts.join(' ') : undefined;
+				const hoverContent = model.metadata.tooltip;
 				return {
 					id: model.metadata.id,
 					enabled: true,
