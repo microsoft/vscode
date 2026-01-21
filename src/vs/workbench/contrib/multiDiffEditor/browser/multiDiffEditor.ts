@@ -32,7 +32,7 @@ import { IDiffEditor } from '../../../../editor/common/editorCommon.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { MultiDiffEditorItem } from './multiDiffSourceResolverService.js';
 import { IEditorProgressService } from '../../../../platform/progress/common/progress.js';
-import { autorun, constObservable, observableValue } from '../../../../base/common/observable.js';
+import { autorun, derived, observableValue } from '../../../../base/common/observable.js';
 import { FloatingEditorToolbarWidget } from '../../../../editor/contrib/floatingMenu/browser/floatingMenu.js';
 
 export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEditorViewState> {
@@ -187,22 +187,30 @@ class MultiDiffEditorContentMenuOverlay extends Disposable {
 	) {
 		super();
 
-		this._register(autorun(reader => {
+		// Widget
+		const widget = instantiationService.createInstance(
+			FloatingEditorToolbarWidget,
+			MenuId.MultiDiffEditorContent,
+			contextKeyService,
+			this.resourceObs);
+		widget.element.classList.add('multi-diff-root-floating-menu');
+		this._register(widget);
+
+		// Derived to show/hide
+		const showToolbarObs = derived(reader => {
 			const resource = this.resourceObs.read(reader);
-			if (!resource) {
+			const hasActions = widget.hasActions.read(reader);
+
+			return resource !== undefined && hasActions;
+		});
+
+		this._register(autorun(reader => {
+			const showToolbar = showToolbarObs.read(reader);
+			if (!showToolbar) {
 				return;
 			}
 
-			// Widget
-			const widget = instantiationService.createInstance(
-				FloatingEditorToolbarWidget,
-				MenuId.MultiDiffEditorContent,
-				contextKeyService,
-				constObservable(resource));
-
-			widget.element.classList.add('multi-diff-root-floating-menu');
 			root.appendChild(widget.element);
-
 			reader.store.add(toDisposable(() => {
 				widget.element.remove();
 			}));
