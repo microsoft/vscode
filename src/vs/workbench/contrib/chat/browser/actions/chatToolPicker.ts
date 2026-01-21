@@ -26,7 +26,7 @@ import { IMcpServer, IMcpService, IMcpWorkbenchService, McpConnectionState, McpS
 import { startServerAndWaitForLiveTools } from '../../../mcp/common/mcpTypesUtils.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ILanguageModelChatMetadata } from '../../common/languageModels.js';
-import { ILanguageModelToolsService, IToolData, ToolDataSource, ToolSet } from '../../common/tools/languageModelToolsService.js';
+import { ILanguageModelToolsService, IToolData, IToolSet, ToolDataSource, ToolSet } from '../../common/tools/languageModelToolsService.js';
 import { ConfigureToolSets } from '../tools/toolSetsContribution.js';
 
 const enum BucketOrdinal { User, BuiltIn, Mcp, Extension }
@@ -56,7 +56,7 @@ interface IToolTreeItem extends IQuickTreeItem {
 interface IBucketTreeItem extends IToolTreeItem {
 	readonly itemType: 'bucket';
 	readonly ordinal: BucketOrdinal;
-	toolset?: ToolSet; // For MCP servers where the bucket represents the ToolSet - mutable
+	toolset?: IToolSet; // For MCP servers where the bucket represents the ToolSet - mutable
 	readonly status?: string;
 	readonly children: AnyTreeItem[];
 	checked: boolean | 'mixed' | undefined;
@@ -69,7 +69,7 @@ interface IBucketTreeItem extends IToolTreeItem {
  */
 interface IToolSetTreeItem extends IToolTreeItem {
 	readonly itemType: 'toolset';
-	readonly toolset: ToolSet;
+	readonly toolset: IToolSet;
 	children: AnyTreeItem[] | undefined;
 	checked: boolean | 'mixed';
 }
@@ -149,7 +149,7 @@ function createToolTreeItemFromData(tool: IToolData, checked: boolean): IToolTre
 	};
 }
 
-function createToolSetTreeItem(toolset: ToolSet, checked: boolean, editorService: IEditorService): IToolSetTreeItem {
+function createToolSetTreeItem(toolset: IToolSet, checked: boolean, editorService: IEditorService): IToolSetTreeItem {
 	const iconProps = mapIconToTreeItem(toolset.icon);
 	const buttons = [];
 	if (toolset.source.type === 'user') {
@@ -196,10 +196,10 @@ export async function showToolsPicker(
 	placeHolder: string,
 	source: string,
 	description?: string,
-	getToolsEntries?: () => ReadonlyMap<ToolSet | IToolData, boolean>,
+	getToolsEntries?: () => ReadonlyMap<IToolSet | IToolData, boolean>,
 	model?: ILanguageModelChatMetadata | undefined,
 	token?: CancellationToken
-): Promise<ReadonlyMap<ToolSet | IToolData, boolean> | undefined> {
+): Promise<ReadonlyMap<IToolSet | IToolData, boolean> | undefined> {
 
 	const quickPickService = accessor.get(IQuickInputService);
 	const mcpService = accessor.get(IMcpService);
@@ -219,9 +219,9 @@ export async function showToolsPicker(
 		}
 	}
 
-	function computeItems(previousToolsEntries?: ReadonlyMap<ToolSet | IToolData, boolean>) {
+	function computeItems(previousToolsEntries?: ReadonlyMap<IToolData | IToolSet, boolean>) {
 		// Create default entries if none provided
-		let toolsEntries = getToolsEntries ? new Map(getToolsEntries()) : undefined;
+		let toolsEntries = getToolsEntries ? new Map([...getToolsEntries()].map(([k, enabled]) => [k.id, enabled])) : undefined;
 		if (!toolsEntries) {
 			const defaultEntries = new Map();
 			for (const tool of toolsService.getTools(model)) {
@@ -229,13 +229,13 @@ export async function showToolsPicker(
 					defaultEntries.set(tool, false);
 				}
 			}
-			for (const toolSet of toolsService.toolSets.get()) {
+			for (const toolSet of toolsService.getToolSetsForModel(model)) {
 				defaultEntries.set(toolSet, false);
 			}
 			toolsEntries = defaultEntries;
 		}
 		previousToolsEntries?.forEach((value, key) => {
-			toolsEntries.set(key, value);
+			toolsEntries.set(key.id, value);
 		});
 
 		// Build tree structure
@@ -387,15 +387,15 @@ export async function showToolsPicker(
 			return bucket;
 		};
 
-		for (const toolSet of toolsService.toolSets.get()) {
-			if (!toolsEntries.has(toolSet)) {
+		for (const toolSet of toolsService.getToolSetsForModel(model)) {
+			if (!toolsEntries.has(toolSet.id)) {
 				continue;
 			}
 			const bucket = getBucket(toolSet.source);
 			if (!bucket) {
 				continue;
 			}
-			const toolSetChecked = toolsEntries.get(toolSet) === true;
+			const toolSetChecked = toolsEntries.get(toolSet.id) === true;
 			if (toolSet.source.type === 'mcp') {
 				// bucket represents the toolset
 				bucket.toolset = toolSet;
@@ -408,7 +408,7 @@ export async function showToolsPicker(
 				bucket.children.push(treeItem);
 				const children = [];
 				for (const tool of toolSet.getTools()) {
-					const toolChecked = toolSetChecked || toolsEntries.get(tool) === true;
+					const toolChecked = toolSetChecked || toolsEntries.get(tool.id) === true;
 					const toolTreeItem = createToolTreeItemFromData(tool, toolChecked);
 					children.push(toolTreeItem);
 				}
@@ -419,14 +419,14 @@ export async function showToolsPicker(
 		}
 		// getting potentially disabled tools is fine here because we filter `toolsEntries.has`
 		for (const tool of toolsService.getAllToolsIncludingDisabled()) {
-			if (!tool.canBeReferencedInPrompt || !toolsEntries.has(tool)) {
+			if (!tool.canBeReferencedInPrompt || !toolsEntries.has(tool.id)) {
 				continue;
 			}
 			const bucket = getBucket(tool.source);
 			if (!bucket) {
 				continue;
 			}
-			const toolChecked = bucket.checked === true || toolsEntries.get(tool) === true;
+			const toolChecked = bucket.checked === true || toolsEntries.get(tool.id) === true;
 			const toolTreeItem = createToolTreeItemFromData(tool, toolChecked);
 			bucket.children.push(toolTreeItem);
 		}
@@ -513,7 +513,7 @@ export async function showToolsPicker(
 
 	const collectResults = () => {
 
-		const result = new Map<IToolData | ToolSet, boolean>();
+		const result = new Map<IToolData | IToolSet, boolean>();
 		const traverse = (items: readonly AnyTreeItem[]) => {
 			for (const item of items) {
 				if (isBucketTreeItem(item)) {
@@ -616,7 +616,7 @@ export async function showToolsPicker(
 	return didAccept ? collectResults() : undefined;
 }
 
-function serializeToolsState(state: ReadonlyMap<IToolData | ToolSet, boolean>): string {
+function serializeToolsState(state: ReadonlyMap<IToolData | IToolSet, boolean>): string {
 	const entries: [string, boolean][] = [];
 	state.forEach((value, key) => {
 		entries.push([key.id, value]);

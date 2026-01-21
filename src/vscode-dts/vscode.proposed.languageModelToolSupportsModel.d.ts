@@ -28,6 +28,11 @@ declare module 'vscode' {
 		 * the selector.
 		 */
 		models?: LanguageModelChatSelector[];
+		/**
+		 * Name of the toolset the tool should be contributed to, as defined in your
+		 * extension's `package.json`.
+		 */
+		toolSet?: string;
 	}
 
 	export namespace lm {

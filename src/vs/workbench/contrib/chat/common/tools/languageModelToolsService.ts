@@ -70,6 +70,29 @@ export interface IToolData {
 	readonly models?: readonly ILanguageModelChatSelector[];
 }
 
+/**
+ * Check if a tool matches the given model metadata based on the tool's `models` selectors.
+ * If the tool has no `models` defined, it matches all models.
+ * If model is undefined, model-specific filtering is skipped (tool is included).
+ */
+export function toolMatchesModel(toolData: IToolData, model: ILanguageModelChatMetadata | undefined): boolean {
+	// If no model selectors are defined, the tool is available for all models
+	if (!toolData.models || toolData.models.length === 0) {
+		return true;
+	}
+	// If model is undefined, skip model-specific filtering
+	if (!model) {
+		return true;
+	}
+	// Check if any selector matches the model (OR logic)
+	return toolData.models.some(selector =>
+		(!selector.id || selector.id === model.id) &&
+		(!selector.vendor || selector.vendor === model.vendor) &&
+		(!selector.family || selector.family === model.family) &&
+		(!selector.version || selector.version === model.version)
+	);
+}
+
 export interface IToolProgressStep {
 	readonly message: string | IMarkdownString | undefined;
 	/** 0-1 progress of the tool call */
@@ -335,13 +358,28 @@ export interface IToolImpl {
 	handleToolStream?(context: IToolInvocationStreamContext, token: CancellationToken): Promise<IStreamedToolInvocation | undefined>;
 }
 
-export type IToolAndToolSetEnablementMap = ReadonlyMap<IToolData | ToolSet, boolean>;
+export interface IToolSet {
+	readonly id: string;
+	readonly referenceName: string;
+	readonly icon: ThemeIcon;
+	readonly source: ToolDataSource;
+	readonly description?: string;
+	readonly legacyFullNames?: string[];
 
-export class ToolSet {
+	getTools(r?: IReader): Iterable<IToolData>;
+}
+
+export type IToolAndToolSetEnablementMap = ReadonlyMap<IToolData | IToolSet, boolean>;
+
+export function isToolSet(obj: IToolData | IToolSet | undefined): obj is IToolSet {
+	return (obj as IToolSet).getTools !== undefined;
+}
+
+export class ToolSet implements IToolSet {
 
 	protected readonly _tools = new ObservableSet<IToolData>();
 
-	protected readonly _toolSets = new ObservableSet<ToolSet>();
+	protected readonly _toolSets = new ObservableSet<IToolSet>();
 
 	/**
 	 * A homogenous tool set only contains tools from the same source as the tool set itself
@@ -370,7 +408,7 @@ export class ToolSet {
 		});
 	}
 
-	addToolSet(toolSet: ToolSet, tx?: ITransaction): IDisposable {
+	addToolSet(toolSet: IToolSet, tx?: ITransaction): IDisposable {
 		if (toolSet === this) {
 			return Disposable.None;
 		}
@@ -385,6 +423,41 @@ export class ToolSet {
 			this._tools.observable.read(r),
 			...Iterable.map(this._toolSets.observable.read(r), toolSet => toolSet.getTools(r))
 		);
+	}
+}
+
+export class ToolSetForModel {
+	public get id() {
+		return this._toolSet.id;
+	}
+
+	public get referenceName() {
+		return this._toolSet.referenceName;
+	}
+
+	public get icon() {
+		return this._toolSet.icon;
+	}
+
+	public get source() {
+		return this._toolSet.source;
+	}
+
+	public get description() {
+		return this._toolSet.description;
+	}
+
+	public get legacyFullNames() {
+		return this._toolSet.legacyFullNames;
+	}
+
+	constructor(
+		private readonly _toolSet: IToolSet,
+		private readonly model: ILanguageModelChatMetadata | undefined,
+	) { }
+
+	public getTools(r?: IReader): Iterable<IToolData> {
+		return Iterable.filter(this._toolSet.getTools(r), toolData => toolMatchesModel(toolData, this.model));
 	}
 }
 
@@ -468,15 +541,16 @@ export interface ILanguageModelToolsService {
 	/** Flush any pending tool updates to the extension hosts. */
 	flushToolUpdates(): void;
 
-	readonly toolSets: IObservable<Iterable<ToolSet>>;
-	getToolSet(id: string): ToolSet | undefined;
-	getToolSetByName(name: string): ToolSet | undefined;
+	readonly toolSets: IObservable<Iterable<IToolSet>>;
+	getToolSetsForModel(model: ILanguageModelChatMetadata | undefined, reader?: IReader): Iterable<IToolSet>;
+	getToolSet(id: string): IToolSet | undefined;
+	getToolSetByName(name: string): IToolSet | undefined;
 	createToolSet(source: ToolDataSource, id: string, referenceName: string, options?: { icon?: ThemeIcon; description?: string; legacyFullNames?: string[] }): ToolSet & IDisposable;
 
 	// tool names in prompt and agent files ('full reference names')
 	getFullReferenceNames(): Iterable<string>;
-	getFullReferenceName(tool: IToolData, toolSet?: ToolSet): string;
-	getToolByFullReferenceName(fullReferenceName: string): IToolData | ToolSet | undefined;
+	getFullReferenceName(tool: IToolData, toolSet?: IToolSet): string;
+	getToolByFullReferenceName(fullReferenceName: string): IToolData | IToolSet | undefined;
 	getDeprecatedFullReferenceNames(): Map<string, Set<string>>;
 
 	/**

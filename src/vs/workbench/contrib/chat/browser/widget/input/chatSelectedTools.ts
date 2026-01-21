@@ -16,7 +16,7 @@ import { ChatModeKind } from '../../../common/constants.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../common/languageModels.js';
 import { UserSelectedTools } from '../../../common/participants/chatAgents.js';
 import { PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
-import { ILanguageModelToolsService, IToolAndToolSetEnablementMap, IToolData, ToolSet } from '../../../common/tools/languageModelToolsService.js';
+import { ILanguageModelToolsService, IToolAndToolSetEnablementMap, IToolData, IToolSet, isToolSet } from '../../../common/tools/languageModelToolsService.js';
 import { PromptFileRewriter } from '../../promptSyntax/promptFileRewriter.js';
 
 
@@ -47,7 +47,7 @@ namespace ToolEnablementStates {
 	export function fromMap(map: IToolAndToolSetEnablementMap): ToolEnablementStates {
 		const toolSets: Map<string, boolean> = new Map(), tools: Map<string, boolean> = new Map();
 		for (const [entry, enabled] of map.entries()) {
-			if (entry instanceof ToolSet) {
+			if (isToolSet(entry)) {
 				toolSets.set(entry.id, enabled);
 			} else {
 				tools.set(entry.toolReferenceName || entry.id, enabled);
@@ -133,7 +133,8 @@ export class ChatSelectedTools extends Disposable {
 	 * Tools are filtered based on the current model context.
 	 */
 	public readonly entriesMap: IObservable<IToolAndToolSetEnablementMap> = derived(r => {
-		const map = new Map<IToolData | ToolSet, boolean>();
+		const map = new Map<IToolData | IToolSet, boolean>();
+		const lm = this.languageModel.read(r)?.metadata;
 
 		// look up the tools in the hierarchy: session > mode > global
 		const currentMode = this._mode.read(r);
@@ -141,7 +142,6 @@ export class ChatSelectedTools extends Disposable {
 		if (!currentMap && currentMode.kind === ChatModeKind.Agent) {
 			const modeTools = currentMode.customTools?.read(r);
 			if (modeTools) {
-				const lm = this.languageModel.read(r)?.metadata;
 				const target = currentMode.target?.read(r);
 				currentMap = ToolEnablementStates.fromMap(this._toolsService.toToolAndToolSetEnablementMap(modeTools, target, lm));
 			}
@@ -156,7 +156,7 @@ export class ChatSelectedTools extends Disposable {
 				map.set(tool, currentMap.tools.get(key) !== false); // if unknown, it's enabled
 			}
 		}
-		for (const toolSet of this._toolsService.toolSets.read(r)) {
+		for (const toolSet of this._toolsService.getToolSetsForModel(lm, r)) {
 			const toolSetEnabled = currentMap.toolSets.get(toolSet.id) !== false; // if unknown, it's enabled
 			map.set(toolSet, toolSetEnabled);
 			for (const tool of toolSet.getTools(r)) {
@@ -172,7 +172,7 @@ export class ChatSelectedTools extends Disposable {
 		const result: UserSelectedTools = {};
 		const map = this.entriesMap.read(r);
 		for (const [item, enabled] of map) {
-			if (!(item instanceof ToolSet)) {
+			if (!isToolSet(item)) {
 				result[item.id] = enabled;
 			}
 		}

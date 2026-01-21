@@ -42,7 +42,7 @@ import { ChatConfiguration } from '../../common/constants.js';
 import { ILanguageModelChatMetadata } from '../../common/languageModels.js';
 import { ChatToolInvocation } from '../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { ILanguageModelToolsConfirmationService } from '../../common/tools/languageModelToolsConfirmationService.js';
-import { CountTokensCallback, createToolSchemaUri, IBeginToolCallOptions, ILanguageModelToolsService, IPreparedToolInvocation, IToolAndToolSetEnablementMap, IToolData, IToolImpl, IToolInvocation, IToolResult, IToolResultInputOutputDetails, SpecedToolAliases, stringifyPromptTsxPart, ToolDataSource, ToolSet, VSCodeToolReference } from '../../common/tools/languageModelToolsService.js';
+import { CountTokensCallback, createToolSchemaUri, IBeginToolCallOptions, ILanguageModelToolsService, IPreparedToolInvocation, IToolAndToolSetEnablementMap, IToolData, IToolImpl, IToolInvocation, IToolResult, IToolResultInputOutputDetails, SpecedToolAliases, stringifyPromptTsxPart, isToolSet, ToolDataSource, toolMatchesModel, ToolSet, VSCodeToolReference, IToolSet, ToolSetForModel } from '../../common/tools/languageModelToolsService.js';
 import { getToolConfirmationAlert } from '../accessibility/chatAccessibilityProvider.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { chatSessionResourceToId } from '../../common/model/chatUri.js';
@@ -200,7 +200,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			return true;
 		}
 		const permittedInternalToolSetIds = [SpecedToolAliases.read, SpecedToolAliases.search, SpecedToolAliases.web];
-		if (toolOrToolSet instanceof ToolSet) {
+		if (isToolSet(toolOrToolSet)) {
 			const permitted = toolOrToolSet.source.type === 'internal' && permittedInternalToolSetIds.includes(toolOrToolSet.referenceName);
 			this._logService.trace(`LanguageModelToolsService#isPermitted: ToolSet ${toolOrToolSet.id} (${toolOrToolSet.referenceName}) permitted=${permitted}`);
 			return permitted;
@@ -292,32 +292,9 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				const satisfiesWhenClause = !toolData.when || this._contextKeyService.contextMatchesRules(toolData.when);
 				const satisfiesExternalToolCheck = toolData.source.type !== 'extension' || !!extensionToolsEnabled;
 				const satisfiesPermittedCheck = this.isPermitted(toolData);
-				const satisfiesModelFilter = this.toolMatchesModel(toolData, model);
+				const satisfiesModelFilter = toolMatchesModel(toolData, model);
 				return satisfiesWhenClause && satisfiesExternalToolCheck && satisfiesPermittedCheck && satisfiesModelFilter;
 			});
-	}
-
-	/**
-	 * Check if a tool matches the given model metadata based on the tool's `models` selectors.
-	 * If the tool has no `models` defined, it matches all models.
-	 * If model is undefined, model-specific filtering is skipped (tool is included).
-	 */
-	private toolMatchesModel(toolData: IToolData, model: ILanguageModelChatMetadata | undefined): boolean {
-		// If no model selectors are defined, the tool is available for all models
-		if (!toolData.models || toolData.models.length === 0) {
-			return true;
-		}
-		// If model is undefined, skip model-specific filtering
-		if (!model) {
-			return true;
-		}
-		// Check if any selector matches the model (OR logic)
-		return toolData.models.some(selector =>
-			(!selector.id || selector.id === model.id) &&
-			(!selector.vendor || selector.vendor === model.vendor) &&
-			(!selector.family || selector.family === model.family) &&
-			(!selector.version || selector.version === model.version)
-		);
 	}
 
 	observeTools(model: ILanguageModelChatMetadata | undefined): IObservable<readonly IToolData[]> {
@@ -918,7 +895,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	private static readonly githubMCPServerAliases = ['github/github-mcp-server', 'io.github.github/github-mcp-server', 'github-mcp-server'];
 	private static readonly playwrightMCPServerAliases = ['microsoft/playwright-mcp', 'com.microsoft/playwright-mcp'];
 
-	private * getToolSetAliases(toolSet: ToolSet, fullReferenceName: string): Iterable<string> {
+	private *getToolSetAliases(toolSet: ToolSet, fullReferenceName: string): Iterable<string> {
 		if (fullReferenceName !== toolSet.referenceName) {
 			yield toolSet.referenceName; // tool set name without '/*'
 		}
@@ -984,18 +961,19 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	 */
 	toToolAndToolSetEnablementMap(fullReferenceNames: readonly string[], _target: string | undefined, model: ILanguageModelChatMetadata | undefined): IToolAndToolSetEnablementMap {
 		const toolOrToolSetNames = new Set(fullReferenceNames);
-		const result = new Map<ToolSet | IToolData, boolean>();
+		const result = new Map<IToolSet | IToolData, boolean>();
 		for (const [tool, fullReferenceName] of this.toolsWithFullReferenceName.get()) {
-			if (tool instanceof ToolSet) {
+			if (isToolSet(tool)) {
 				const enabled = toolOrToolSetNames.has(fullReferenceName) || Iterable.some(this.getToolSetAliases(tool, fullReferenceName), name => toolOrToolSetNames.has(name));
-				result.set(tool, enabled);
+				const scoped = model ? new ToolSetForModel(tool, model) : tool;
+				result.set(scoped, enabled);
 				if (enabled) {
-					for (const memberTool of tool.getTools()) {
+					for (const memberTool of scoped.getTools()) {
 						result.set(memberTool, true);
 					}
 				}
 			} else {
-				if (model && !this.toolMatchesModel(tool, model)) {
+				if (model && !toolMatchesModel(tool, model)) {
 					continue;
 				}
 
@@ -1026,7 +1004,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		const result: string[] = [];
 		const toolsCoveredByEnabledToolSet = new Set<IToolData>();
 		for (const [tool, fullReferenceName] of this.toolsWithFullReferenceName.get()) {
-			if (tool instanceof ToolSet) {
+			if (isToolSet(tool)) {
 				if (map.get(tool)) {
 					result.push(fullReferenceName);
 					for (const memberTool of tool.getTools()) {
@@ -1052,7 +1030,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		for (const ref of variableReferences) {
 			const toolOrToolSet = toolsOrToolSetByName.get(ref.name);
 			if (toolOrToolSet) {
-				if (toolOrToolSet instanceof ToolSet) {
+				if (isToolSet(toolOrToolSet)) {
 					result.push(toToolSetVariableEntry(toolOrToolSet, ref.range));
 				} else {
 					result.push(toToolVariableEntry(toolOrToolSet, ref.range));
@@ -1069,6 +1047,14 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		const allToolSets = Array.from(this._toolSets.observable.read(reader));
 		return allToolSets.filter(toolSet => this.isPermitted(toolSet, reader));
 	});
+
+	getToolSetsForModel(model: ILanguageModelChatMetadata | undefined, reader?: IReader): Iterable<IToolSet> {
+		if (!model) {
+			return this.toolSets.read(reader);
+		}
+
+		return Iterable.map(this.toolSets.read(reader), ts => new ToolSetForModel(ts, model));
+	}
 
 	getToolSet(id: string): ToolSet | undefined {
 		for (const toolSet of this._toolSets) {
@@ -1124,7 +1110,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		() => Array.from(this.getAllToolsIncludingDisabled()),
 	);
 
-	readonly toolsWithFullReferenceName = derived<[IToolData | ToolSet, string][]>(reader => {
+	private readonly toolsWithFullReferenceName = derived<[IToolData | ToolSet, string][]>(reader => {
 		const result: [IToolData | ToolSet, string][] = [];
 		const coveredByToolSets = new Set<IToolData>();
 		for (const toolSet of this.toolSets.read(reader)) {
@@ -1169,7 +1155,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		};
 
 		for (const [tool, _] of this.toolsWithFullReferenceName.get()) {
-			if (tool instanceof ToolSet) {
+			if (isToolSet(tool)) {
 				knownToolSetNames.add(tool.referenceName);
 				if (tool.legacyFullNames) {
 					for (const legacyName of tool.legacyFullNames) {
@@ -1180,7 +1166,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		}
 
 		for (const [tool, fullReferenceName] of this.toolsWithFullReferenceName.get()) {
-			if (tool instanceof ToolSet) {
+			if (isToolSet(tool)) {
 				for (const alias of this.getToolSetAliases(tool, fullReferenceName)) {
 					add(alias, fullReferenceName);
 				}
@@ -1211,7 +1197,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			if (fullReferenceName === toolFullReferenceName) {
 				return tool;
 			}
-			const aliases = tool instanceof ToolSet ? this.getToolSetAliases(tool, toolFullReferenceName) : this.getToolAliases(tool, toolFullReferenceName);
+			const aliases = isToolSet(tool) ? this.getToolSetAliases(tool, toolFullReferenceName) : this.getToolAliases(tool, toolFullReferenceName);
 			if (Iterable.some(aliases, alias => fullReferenceName === alias)) {
 				return tool;
 			}
@@ -1219,15 +1205,15 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		return undefined;
 	}
 
-	getFullReferenceName(tool: IToolData | ToolSet, toolSet?: ToolSet): string {
-		if (tool instanceof ToolSet) {
+	getFullReferenceName(tool: IToolData | IToolSet, toolSet?: IToolSet): string {
+		if (isToolSet(tool)) {
 			return getToolSetFullReferenceName(tool);
 		}
 		return getToolFullReferenceName(tool, toolSet);
 	}
 }
 
-function getToolFullReferenceName(tool: IToolData, toolSet?: ToolSet) {
+function getToolFullReferenceName(tool: IToolData, toolSet?: IToolSet) {
 	const toolName = tool.toolReferenceName ?? tool.displayName;
 	if (toolSet) {
 		return `${toolSet.referenceName}/${toolName}`;
@@ -1237,7 +1223,7 @@ function getToolFullReferenceName(tool: IToolData, toolSet?: ToolSet) {
 	return toolName;
 }
 
-function getToolSetFullReferenceName(toolSet: ToolSet) {
+function getToolSetFullReferenceName(toolSet: IToolSet) {
 	if (toolSet.source.type === 'mcp') {
 		return `${toolSet.referenceName}/*`;
 	}

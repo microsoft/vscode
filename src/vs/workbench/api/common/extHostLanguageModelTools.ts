@@ -346,10 +346,11 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 			},
 			icon: typeConvert.IconPath.from(definition.icon),
 			models: definition.models,
+			toolSet: definition.toolSet,
 		};
 
 		this._registeredTools.set(id, { extension, tool });
-		this._proxy.$registerToolWithDefinition(dto, typeof tool.handleToolStream === 'function');
+		this._proxy.$registerToolWithDefinition(extension.identifier, dto, typeof tool.handleToolStream === 'function');
 
 		return toDisposable(() => {
 			this._registeredTools.delete(id);

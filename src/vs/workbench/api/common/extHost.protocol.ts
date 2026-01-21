@@ -1505,6 +1505,7 @@ export interface ILanguageModelChatSelectorDto {
 export interface IToolDefinitionDto extends IToolDataDto {
 	icon?: IconPathDto;
 	models?: ILanguageModelChatSelectorDto[];
+	toolSet?: string;
 }
 
 export interface MainThreadLanguageModelToolsShape extends IDisposable {
@@ -1513,7 +1514,7 @@ export interface MainThreadLanguageModelToolsShape extends IDisposable {
 	$invokeTool(dto: Dto<IToolInvocation>, token?: CancellationToken): Promise<Dto<IToolResult> | SerializableObjectWithBuffers<Dto<IToolResult>>>;
 	$countTokensForInvocation(callId: string, input: string, token: CancellationToken): Promise<number>;
 	$registerTool(id: string, hasHandleToolStream: boolean): void;
-	$registerToolWithDefinition(definition: IToolDefinitionDto, hasHandleToolStream: boolean): void;
+	$registerToolWithDefinition(extensionId: ExtensionIdentifier, definition: IToolDefinitionDto, hasHandleToolStream: boolean): void;
 	$unregisterTool(name: string): void;
 }
 
