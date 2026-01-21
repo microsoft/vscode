@@ -394,7 +394,7 @@ class ChatEditingOverlayController {
 
 			const { session, entry } = data;
 
-			if (!session.isGlobalEditingSession && !configurationService.getValue<boolean>(InlineChatConfigKeys.ShowGutterMenu)) {
+			if (!session.isGlobalEditingSession && configurationService.getValue<string>(InlineChatConfigKeys.RenderMode) === 'zone') {
 				// inline chat with zone UI - no need for chat overlay
 				hide();
 				return;

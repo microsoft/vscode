@@ -358,3 +358,25 @@
 	width: 16px;
 	height: 16px;
 }
+
+/* TOS/Privacy card - extends walkthrough card with TOS-specific overrides */
+.agentSessionsWelcome-tosCard {
+	width: 100%;
+	max-width: 800px;
+	margin-bottom: 16px;
+	box-sizing: border-box;
+	cursor: default;
+}
+
+.agentSessionsWelcome-tosCard:hover {
+	background-color: var(--vscode-welcomePage-tileBackground);
+}
+
+.agentSessionsWelcome-tosLink {
+	color: var(--vscode-textLink-foreground);
+	text-decoration: none;
+}
+
+.agentSessionsWelcome-tosLink:hover {
+	text-decoration: underline;
+}

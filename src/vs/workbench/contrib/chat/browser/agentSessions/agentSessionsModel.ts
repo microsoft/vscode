@@ -233,12 +233,20 @@ class AgentSessionsLogger extends Disposable {
 	private registerListeners(): void {
 		this._register(this.logService.onDidChangeLogLevel(level => {
 			if (level === LogLevel.Trace) {
-				this.logIfTrace('Log level changed to trace');
+				this.logAllStatsIfTrace('Log level changed to trace');
 			}
 		}));
 	}
 
-	logIfTrace(reason: string): void {
+	logIfTrace(msg: string): void {
+		if (this.logService.getLevel() !== LogLevel.Trace) {
+			return;
+		}
+
+		this.trace(`[Agent Sessions] ${msg}`);
+	}
+
+	logAllStatsIfTrace(reason: string): void {
 		if (this.logService.getLevel() !== LogLevel.Trace) {
 			return;
 		}
@@ -249,11 +257,6 @@ class AgentSessionsLogger extends Disposable {
 	}
 
 	private logAllSessions(reason: string): void {
-		const channel = this.outputService.getChannel(agentSessionsOutputChannelId);
-		if (!channel) {
-			return;
-		}
-
 		const { sessions, sessionStates } = this.getSessionsData();
 
 		const lines: string[] = [];
@@ -316,15 +319,10 @@ class AgentSessionsLogger extends Disposable {
 
 		lines.push(`=== End Agent Sessions ===`);
 
-		channel.append(lines.join('\n') + '\n');
+		this.trace(lines.join('\n'));
 	}
 
 	private logSessionStates(): void {
-		const channel = this.outputService.getChannel(agentSessionsOutputChannelId);
-		if (!channel) {
-			return;
-		}
-
 		const { sessionStates } = this.getSessionsData();
 
 		const lines: string[] = [];
@@ -341,15 +339,10 @@ class AgentSessionsLogger extends Disposable {
 
 		lines.push(`=== End Session States ===`);
 
-		channel.append(lines.join('\n') + '\n');
+		this.trace(lines.join('\n'));
 	}
 
 	private logMapSessionToState(): void {
-		const channel = this.outputService.getChannel(agentSessionsOutputChannelId);
-		if (!channel) {
-			return;
-		}
-
 		const { mapSessionToState } = this.getSessionsData();
 
 		const lines: string[] = [];
@@ -367,7 +360,16 @@ class AgentSessionsLogger extends Disposable {
 
 		lines.push(`=== End Map Session To State ===`);
 
-		channel.append(lines.join('\n') + '\n');
+		this.trace(lines.join('\n'));
+	}
+
+	private trace(msg: string): void {
+		const channel = this.outputService.getChannel(agentSessionsOutputChannelId);
+		if (!channel) {
+			return;
+		}
+
+		channel.append(`${msg}\n`);
 	}
 }
 
@@ -425,7 +427,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 				mapSessionToState: this.mapSessionToState
 			})
 		));
-		this.logger.logIfTrace('Loaded cached sessions');
+		this.logger.logAllStatsIfTrace('Loaded cached sessions');
 
 		this.registerListeners();
 
@@ -523,9 +525,15 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 
 				// No previous state, just add it
 				if (!state) {
+					const isInProgress = isSessionInProgressStatus(status);
+					let inProgressTime: number | undefined;
+					if (isInProgress) {
+						inProgressTime = Date.now();
+						this.logger.logIfTrace(`[agent sessions] Setting inProgressTime for session ${session.resource.toString()} to ${inProgressTime} (status: ${status})`);
+					}
 					this.mapSessionToState.set(session.resource, {
 						status,
-						inProgressTime: isSessionInProgressStatus(status) ? Date.now() : undefined, // this is not accurate but best effort
+						inProgressTime,
 					});
 				}
 
@@ -566,6 +574,8 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 						lastRequestStarted = existing.timing.lastRequestStarted;
 					}
 				}
+
+				this.logger.logIfTrace(`[agent sessions] Resolved session ${session.resource.toString()} with timings: created=${created}, lastRequestStarted=${lastRequestStarted}, lastRequestEnded=${lastRequestEnded}`);
 
 				sessions.set(session.resource, this.toAgentSession({
 					providerType: chatSessionType,
@@ -610,7 +620,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 			}
 		}
 
-		this.logger.logIfTrace('Sessions resolved from providers');
+		this.logger.logAllStatsIfTrace('Sessions resolved from providers');
 
 		this._onDidChangeSessions.fire();
 	}

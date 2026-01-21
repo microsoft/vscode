@@ -80,6 +80,8 @@ interface IManageTodoListToolInputParams {
 		title: string;
 		status: 'not-started' | 'in-progress' | 'completed';
 	}>;
+	// used for todo read only
+	chatSessionResource?: string;
 }
 
 export class ManageTodoListTool extends Disposable implements IToolImpl {
@@ -95,7 +97,14 @@ export class ManageTodoListTool extends Disposable implements IToolImpl {
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	async invoke(invocation: IToolInvocation, _countTokens: any, _progress: any, _token: CancellationToken): Promise<IToolResult> {
 		const args = invocation.parameters as IManageTodoListToolInputParams;
-		const chatSessionResource = invocation.context?.sessionResource;
+		let chatSessionResource = invocation.context?.sessionResource;
+		if (!chatSessionResource && args.operation === 'read' && args.chatSessionResource) {
+			try {
+				chatSessionResource = URI.parse(args.chatSessionResource);
+			} catch (error) {
+				this.logService.error('ManageTodoListTool: Invalid chatSessionResource URI', error);
+			}
+		}
 		if (!chatSessionResource) {
 			return {
 				content: [{

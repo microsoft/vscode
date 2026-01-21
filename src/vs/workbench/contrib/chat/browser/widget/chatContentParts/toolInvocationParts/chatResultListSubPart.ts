@@ -41,7 +41,6 @@ export class ChatResultListSubPart extends BaseChatToolInvocationSubPart {
 			getToolApprovalMessage(toolInvocation),
 		));
 		collapsibleListPart.icon = Codicon.check;
-		this._register(collapsibleListPart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 		this.domNode = collapsibleListPart.domNode;
 	}
 }

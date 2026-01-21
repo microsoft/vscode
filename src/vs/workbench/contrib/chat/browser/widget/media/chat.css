@@ -1570,7 +1570,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .interactive-input-part {
 	margin: 0px 12px;
-	padding: 4px 0 8px 0px;
+	padding: 4px 0 12px 0px;
 	display: flex;
 	flex-direction: column;
 	gap: 4px;
@@ -2736,7 +2736,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .chat-row-disabled-overlay,
-.interactive-item-container .chat-edit-input-container .chat-editing-session {
+.interactive-item-container .chat-edit-input-container .chat-editing-session,
+.chat-input-overlay {
 	display: none;
 }
 
