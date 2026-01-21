@@ -168,6 +168,9 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 	}
 
 	protected _isVisible(type: AgentSessionProviders): boolean {
+		if (this.delegate.isSessionTypeVisible) {
+			return this.delegate.isSessionTypeVisible(type);
+		}
 		return true;
 	}
 

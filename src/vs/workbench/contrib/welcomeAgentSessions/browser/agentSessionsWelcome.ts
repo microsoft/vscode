@@ -44,6 +44,7 @@ import { AgentSessionsControl, IAgentSessionsControlOptions } from '../../chat/b
 import { IAgentSessionsFilter } from '../../chat/browser/agentSessions/agentSessionsViewer.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { IResolvedWalkthrough, IWalkthroughsService } from '../../welcomeGettingStarted/browser/gettingStartedService.js';
+import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 
 const configurationKey = 'workbench.startupEditor';
 const MAX_SESSIONS = 6;
@@ -79,6 +80,7 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		@IProductService private readonly productService: IProductService,
 		@IWalkthroughsService private readonly walkthroughsService: IWalkthroughsService,
 		@IChatService private readonly chatService: IChatService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 	) {
 		super(AgentSessionsWelcomePage.ID, group, telemetryService, themeService, storageService);
 
@@ -178,6 +180,12 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		const scopedContextKeyService = this.contentDisposables.add(this.contextService.createScoped(chatWidgetContainer));
 		const scopedInstantiationService = this.contentDisposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService])));
 
+		// If workspace is empty and we're currently on Local, switch to a different provider
+		const isEmptyWorkspace = this.workspaceContextService.getWorkbenchState() === WorkbenchState.EMPTY;
+		if (isEmptyWorkspace && this._selectedSessionProvider === AgentSessionProviders.Local) {
+			this._selectedSessionProvider = AgentSessionProviders.Cloud;
+		}
+
 		// Create a delegate for the session target picker with independent local state
 		const onDidChangeActiveSessionProvider = this.contentDisposables.add(new Emitter<AgentSessionProviders>());
 		const sessionTypePickerDelegate: ISessionTypePickerDelegate = {
@@ -186,7 +194,14 @@ export class AgentSessionsWelcomePage extends EditorPane {
 				this._selectedSessionProvider = provider;
 				onDidChangeActiveSessionProvider.fire(provider);
 			},
-			onDidChangeActiveSessionProvider: onDidChangeActiveSessionProvider.event
+			onDidChangeActiveSessionProvider: onDidChangeActiveSessionProvider.event,
+			isSessionTypeVisible: (provider: AgentSessionProviders) => {
+				// Hide Local provider for empty workspaces
+				if (provider === AgentSessionProviders.Local && isEmptyWorkspace) {
+					return false;
+				}
+				return true;
+			}
 		};
 
 		this.chatWidget = this.contentDisposables.add(scopedInstantiationService.createInstance(
