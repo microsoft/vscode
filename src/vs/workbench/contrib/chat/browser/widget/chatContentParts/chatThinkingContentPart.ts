@@ -711,6 +711,31 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		this.updateDropdownClickability();
 	}
 
+	/**
+	 * removes/re-establishes a lazy item from the thinking container
+	 * this is needed so we can check if there are confirmations still needed
+	 */
+	public removeLazyItem(toolInvocationId: string): boolean {
+		const index = this.lazyItems.findIndex(item => item.toolInvocationId === toolInvocationId);
+		if (index === -1) {
+			return false;
+		}
+
+		this.lazyItems.splice(index, 1);
+		this.appendedItemCount--;
+		this.toolInvocationCount--;
+
+		const toolInvocationsIndex = this.toolInvocations.findIndex(t =>
+			(t.kind === 'toolInvocation' || t.kind === 'toolInvocationSerialized') && t.toolId === toolInvocationId
+		);
+		if (toolInvocationsIndex !== -1) {
+			this.toolInvocations.splice(toolInvocationsIndex, 1);
+		}
+
+		this.updateDropdownClickability();
+		return true;
+	}
+
 	private trackToolMetadata(
 		toolInvocationId?: string,
 		toolInvocationOrMarkdown?: IChatToolInvocation | IChatToolInvocationSerialized | IChatMarkdownContent
