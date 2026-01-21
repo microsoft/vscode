@@ -10,9 +10,9 @@
 .monaco-workbench.activitybar-right .part.activitybar { box-shadow: 0 0 6px rgba(0, 0, 0, 0.08); }
 
 /* Sidebar */
-.monaco-workbench .part.sidebar { box-shadow: 0 0 6px rgba(0, 0, 0, 0.08); z-index: 40; position: relative; }
+.monaco-workbench .part.sidebar { box-shadow: 0 0 6px rgba(0, 0, 0, 0.08); }
 .monaco-workbench.sidebar-right .part.sidebar { box-shadow: 0 0 6px rgba(0, 0, 0, 0.08); }
-.monaco-workbench .part.auxiliarybar { box-shadow: 0 0 6px rgba(0, 0, 0, 0.08); z-index: 40; position: relative; }
+.monaco-workbench .part.auxiliarybar { box-shadow: 0 0 6px rgba(0, 0, 0, 0.08); }
 
 /* Panel */
 .monaco-workbench .part.panel { box-shadow: 0 0 6px rgba(0, 0, 0, 0.08); z-index: 35; position: relative; }
