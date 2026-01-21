@@ -13,46 +13,11 @@ class _vsCodeXonsh:
 
 		if 'VSCODE_INJECTION' in __xonsh__.env:
 			self.stdout = sys.stdout
-			self.vsc_apply_env()
 			self.vsc_apply_xonshrc()
 			self.vsc_wrapped_prompt()
 			self.add_vsc_events()
 			__xonsh__.env['VSCODE_SHELL_INTEGRATION'] = '1'
 			del __xonsh__.env['VSCODE_INJECTION']
-
-	def _vsc_apply_env_replace(self):
-		"""Apply VSCODE_ENV_REPLACE mutations"""
-		env_replace = __xonsh__.env.get('VSCODE_ENV_REPLACE', '')
-		if env_replace:
-			for item in env_replace:
-				if '=' in item:
-					varname, value = item.split('=', 1)
-					os.environ[varname] = value
-
-	def _vsc_apply_env_prepend(self):
-		"""Apply VSCODE_ENV_PREPEND mutations"""
-		env_prepend = __xonsh__.env.get('VSCODE_ENV_PREPEND', '')
-		if env_prepend:
-			for item in env_prepend:
-				if '=' in item:
-					varname, value = item.split('=', 1)
-					current = os.environ.get(varname, '')
-					os.environ[varname] = value + current
-
-	def _vsc_apply_env_append(self):
-		"""Apply VSCODE_ENV_APPEND mutations"""
-		env_append = __xonsh__.env.get('VSCODE_ENV_APPEND', '')
-		if env_append:
-			for item in env_append:
-				if '=' in item:
-					varname, value = item.split('=', 1)
-					current = os.environ.get(varname, '')
-					os.environ[varname] = current + value
-
-	def vsc_apply_env(self):
-		self._vsc_apply_env_replace()
-		self._vsc_apply_env_prepend()
-		self._vsc_apply_env_append()
 
 	def vsc_apply_xonshrc(self):
 		vscode_xonshrc = __xonsh__.env.get('XONSHRC', '')
