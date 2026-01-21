@@ -1159,11 +1159,7 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 			executeImmediately: true,
 			locations: [ChatAgentLocation.Chat]
 		}, async (_prompt, _progress, _history, _location, sessionResource) => {
-			// Archive the current session before creating a new one
-			const currentSession = agentSessionsService.getSession(sessionResource);
-			if (currentSession && !currentSession.isArchived()) {
-				currentSession.setArchived(true);
-			}
+			agentSessionsService.getSession(sessionResource)?.setArchived(true);
 			commandService.executeCommand(ACTION_ID_NEW_CHAT);
 		}));
 		this._store.add(slashCommandService.registerSlashCommand({
