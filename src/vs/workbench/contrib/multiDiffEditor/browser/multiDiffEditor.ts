@@ -9,7 +9,6 @@ import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '..
 import { MultiDiffEditorWidget } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidget.js';
 import { IResourceLabel, IWorkbenchUIElementFactory } from '../../../../editor/browser/widget/multiDiffEditor/workbenchUIElementFactory.js';
 import { ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration.js';
-import { FloatingClickMenu } from '../../../../platform/actions/browser/floatingMenu.js';
 import { IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { InstantiationService } from '../../../../platform/instantiation/common/instantiationService.js';
@@ -33,6 +32,8 @@ import { IDiffEditor } from '../../../../editor/common/editorCommon.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { MultiDiffEditorItem } from './multiDiffSourceResolverService.js';
 import { IEditorProgressService } from '../../../../platform/progress/common/progress.js';
+import { constObservable } from '../../../../base/common/observable.js';
+import { FloatingEditorToolbarWidget } from '../../../../editor/contrib/floatingMenu/browser/floatingMenu.js';
 import { ResourceContextKey } from '../../../common/contextkeys.js';
 
 export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEditorViewState> {
@@ -57,7 +58,7 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
 		@IEditorProgressService private editorProgressService: IEditorProgressService,
-		@IMenuService private readonly menuService: IMenuService,
+		@IMenuService private menuService: IMenuService,
 	) {
 		super(
 			MultiDiffEditor.ID,
@@ -212,17 +213,19 @@ class MultiDiffEditorContentMenuOverlay extends Disposable {
 				return;
 			}
 
-			const container = DOM.h('div.floating-menu-overlay-widget.multi-diff-root-floating-menu');
-			root.appendChild(container.root);
-			const floatingMenu = instantiationService.createInstance(FloatingClickMenu, {
-				container: container.root,
-				menuId: MenuId.MultiDiffEditorContent,
-				getActionArg: () => this.currentResource,
-			});
+			// Widget
+			const floatingMenu = instantiationService.createInstance(
+				FloatingEditorToolbarWidget,
+				MenuId.MultiDiffEditorContent,
+				contextKeyService,
+				constObservable(this.currentResource));
+
+			floatingMenu.element.classList.add('multi-diff-root-floating-menu');
+			root.appendChild(floatingMenu.element);
 
 			const store = new DisposableStore();
 			store.add(floatingMenu);
-			store.add(toDisposable(() => container.root.remove()));
+			store.add(toDisposable(() => floatingMenu.element.remove()));
 			this.overlayStore.value = store;
 		};
 
@@ -243,7 +246,6 @@ class MultiDiffEditorContentMenuOverlay extends Disposable {
 		this.rebuild();
 	}
 }
-
 
 class WorkbenchUIElementFactory implements IWorkbenchUIElementFactory {
 	constructor(
