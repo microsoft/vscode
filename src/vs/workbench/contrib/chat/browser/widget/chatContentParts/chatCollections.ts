@@ -5,7 +5,7 @@
 
 import { IDisposable } from '../../../../../../base/common/lifecycle.js';
 
-export class ResourcePool<T extends IDisposable> {
+export class ResourcePool<T extends IDisposable> implements IDisposable {
 	private readonly pool: T[] = [];
 
 	private _inUse = new Set<T>;
