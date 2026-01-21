@@ -101,21 +101,22 @@ async function main(buildDir?: string, outDir?: string): Promise<void> {
 		title,
 		icon: appIconPath,
 		background: backgroundPath,
-		format: 'ULFO',
+		format: 'ULMO',
+		'text-size': 12,
 		window: {
 			position: { x: 100, y: 400 },
-			size: { width: 480, height: 342 }
+			size: { width: 480, height: 320 }
 		},
 		contents: [
 			{
 				path: appPath,
-				x: 140,
+				x: 120,
 				y: 160,
 				type: 'file'
 			},
 			{
 				path: '/Applications',
-				x: 340,
+				x: 360,
 				y: 160,
 				type: 'link'
 			}
