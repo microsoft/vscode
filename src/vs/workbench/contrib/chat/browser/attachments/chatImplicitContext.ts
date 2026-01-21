@@ -304,7 +304,7 @@ export class ChatImplicitContexts extends Disposable {
 			return;
 		}
 
-		const definedValues = values.filter(value => value !== undefined);
+		const definedValues = values.filter(value => value.value !== undefined);
 		for (const value of definedValues) {
 			const implicitContext = new ChatImplicitContext();
 			implicitContext.setValue(value.value, value.isSelection);
@@ -312,6 +312,7 @@ export class ChatImplicitContexts extends Disposable {
 			disposableStore.add(implicitContext.onDidChangeValue(() => {
 				this._onDidChangeValue.fire();
 			}));
+			disposableStore.add(implicitContext);
 			this._values.set(implicitContext, disposableStore);
 		}
 		this._onDidChangeValue.fire();

@@ -2123,6 +2123,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		if (isSuggestedEnabled && this.implicitContext?.hasValue) {
 			this._implicitContextWidget.value = this.instantiationService.createInstance(ImplicitContextAttachmentWidget, () => this._widget, (targetUri: URI | undefined, targetRange: IRange | undefined, targetHandle: number | undefined) => this.isAttachmentAlreadyAttached(targetUri, targetRange, targetHandle, attachments.map(([, a]) => a)), this.implicitContext, this._contextResourceLabels, this._attachmentModel, container);
+		} else {
+			this._implicitContextWidget.clear();
 		}
 
 		this.addFilesButton?.setShowLabel(this._attachmentModel.size === 0 && !this._implicitContextWidget.value?.hasRenderedContexts);
