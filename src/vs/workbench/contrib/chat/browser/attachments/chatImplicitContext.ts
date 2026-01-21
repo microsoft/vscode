@@ -121,7 +121,7 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 				return;
 			}
 			if (this._implicitContextEnablement[widget.location] === 'first' && widget.viewModel?.getItems().length !== 0) {
-				widget.input.implicitContext.setValues([], false);
+				widget.input.implicitContext.setValues([]);
 			}
 		}));
 		this._register(this.chatWidgetService.onDidAddWidget(async (widget) => {
@@ -268,9 +268,9 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 			const setting = this._implicitContextEnablement[widget.location];
 			const isFirstInteraction = widget.viewModel?.getItems().length === 0;
 			if ((setting === 'always' || setting === 'first' && isFirstInteraction) && !isPromptFile) { // disable implicit context for prompt files
-				widget.input.implicitContext.setValues([newValue, providerContext], isSelection);
+				widget.input.implicitContext.setValues([{ value: newValue, isSelection }, { value: providerContext, isSelection: false }]);
 			} else {
-				widget.input.implicitContext.setValues([], false);
+				widget.input.implicitContext.setValues([]);
 			}
 		}
 	}
@@ -283,6 +283,11 @@ function isEntireCellVisible(cellModel: ITextModel, visibleRanges: IRange[]): bo
 	return false;
 }
 
+interface ImplicitContextWithSelection {
+	value: Location | URI | StringChatContextValue | undefined;
+	isSelection: boolean;
+}
+
 export class ChatImplicitContexts extends Disposable {
 	private _onDidChangeValue = this._register(new Emitter<void>());
 	readonly onDidChangeValue = this._onDidChangeValue.event;
@@ -290,7 +295,7 @@ export class ChatImplicitContexts extends Disposable {
 	private _values: DisposableMap<ChatImplicitContext, DisposableStore> = new DisposableMap();
 	private readonly _valuesDisposables: DisposableStore = this._register(new DisposableStore());
 
-	setValues(values: (Location | URI | StringChatContextValue | undefined)[], isSelection: boolean): void {
+	setValues(values: ImplicitContextWithSelection[]): void {
 		this._valuesDisposables.clear();
 		this._values.clearAndDisposeAll();
 
@@ -302,7 +307,7 @@ export class ChatImplicitContexts extends Disposable {
 		const definedValues = values.filter(value => value !== undefined);
 		for (const value of definedValues) {
 			const implicitContext = new ChatImplicitContext();
-			implicitContext.setValue(value, isSelection);
+			implicitContext.setValue(value.value, value.isSelection);
 			const disposableStore = new DisposableStore();
 			disposableStore.add(implicitContext.onDidChangeValue(() => {
 				this._onDidChangeValue.fire();

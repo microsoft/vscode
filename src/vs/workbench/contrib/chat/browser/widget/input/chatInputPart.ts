@@ -2068,10 +2068,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		const isSuggestedEnabled = this.configurationService.getValue<boolean>('chat.implicitContext.suggestedContext');
 
-		if (this.implicitContext?.hasValue && !isSuggestedEnabled) {
-			this._implicitContextWidget.value = this.instantiationService.createInstance(ImplicitContextAttachmentWidget, () => this._widget, (targetUri: URI | undefined, targetRange: IRange | undefined, targetHandle: number | undefined) => this.isAttachmentAlreadyAttached(targetUri, targetRange, targetHandle, attachments.map(([, a]) => a)), this.implicitContext, this._contextResourceLabels, this.attachmentModel, container);
-		}
-
 		for (const [index, attachment] of attachments) {
 			const resource = URI.isUri(attachment.value) ? attachment.value : isLocation(attachment.value) ? attachment.value.uri : undefined;
 			const range = isLocation(attachment.value) ? attachment.value.range : undefined;

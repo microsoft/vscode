@@ -247,8 +247,8 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 			this.attachmentModel.addContext(context);
 		} else {
 			const file = URI.isUri(attachment.value) ? attachment.value : attachment.value.uri;
-			if (file.scheme === Schemas.vscodeNotebookCell && isLocation(attachment)) {
-				this.attachmentModel.addFile(file, attachment.range);
+			if (file.scheme === Schemas.vscodeNotebookCell && isLocation(attachment.value)) {
+				this.attachmentModel.addFile(file, attachment.value.range);
 			} else {
 				this.attachmentModel.addFile(file);
 			}
@@ -259,7 +259,7 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 	private async pinSelection(): Promise<void> {
 		for (const attachment of this.attachment.values) {
 			if (!attachment.value || !attachment.isSelection) {
-				return;
+				continue;
 			}
 
 			if (!URI.isUri(attachment.value) && !isStringImplicitContextValue(attachment.value)) {
