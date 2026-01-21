@@ -64,7 +64,7 @@ export class AgentSessionsWelcomePage extends EditorPane {
 	private readonly contentDisposables = this._register(new DisposableStore());
 	private contextService: IContextKeyService;
 	private walkthroughs: IResolvedWalkthrough[] = [];
-	private _selectedSessionProvider: AgentSessionProviders = AgentSessionProviders.Local;
+	private _selectedSessionProvider: AgentSessionProviders = AgentSessionProviders.Cloud;
 
 	constructor(
 		group: IEditorGroup,
@@ -180,28 +180,24 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		const scopedContextKeyService = this.contentDisposables.add(this.contextService.createScoped(chatWidgetContainer));
 		const scopedInstantiationService = this.contentDisposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService])));
 
-		// If workspace is empty and we're currently on Local, switch to a different provider
+		// // If workspace is empty and we're currently on Local, switch to a different provider
 		const isEmptyWorkspace = this.workspaceContextService.getWorkbenchState() === WorkbenchState.EMPTY;
-		if (isEmptyWorkspace && this._selectedSessionProvider === AgentSessionProviders.Local) {
-			this._selectedSessionProvider = AgentSessionProviders.Cloud;
-		}
+		// if (isEmptyWorkspace && this._selectedSessionProvider === AgentSessionProviders.Local) {
+		// 	this._selectedSessionProvider = AgentSessionProviders.Cloud;
+		// }
 
 		// Create a delegate for the session target picker with independent local state
 		const onDidChangeActiveSessionProvider = this.contentDisposables.add(new Emitter<AgentSessionProviders>());
 		const sessionTypePickerDelegate: ISessionTypePickerDelegate = {
-			getActiveSessionProvider: () => this._selectedSessionProvider,
+			excludedTargets: isEmptyWorkspace ? [AgentSessionProviders.Local] : undefined,
+			getActiveSessionProvider: () => {
+				return this._selectedSessionProvider;
+			},
 			setActiveSessionProvider: (provider: AgentSessionProviders) => {
 				this._selectedSessionProvider = provider;
 				onDidChangeActiveSessionProvider.fire(provider);
 			},
-			onDidChangeActiveSessionProvider: onDidChangeActiveSessionProvider.event,
-			isSessionTypeVisible: (provider: AgentSessionProviders) => {
-				// Hide Local provider for empty workspaces
-				if (provider === AgentSessionProviders.Local && isEmptyWorkspace) {
-					return false;
-				}
-				return true;
-			}
+			onDidChangeActiveSessionProvider: onDidChangeActiveSessionProvider.event
 		};
 
 		this.chatWidget = this.contentDisposables.add(scopedInstantiationService.createInstance(
@@ -224,6 +220,7 @@ export class AgentSessionsWelcomePage extends EditorPane {
 				enableWorkingSet: 'explicit',
 				supportsChangingModes: true,
 				sessionTypePickerDelegate,
+				excludedTargets: isEmptyWorkspace ? [AgentSessionProviders.Local] : undefined,
 			},
 			{
 				listForeground: SIDE_BAR_FOREGROUND,

@@ -1640,7 +1640,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			dndContainer: this.viewOptions.dndContainer,
 			widgetViewKindTag: this.getWidgetViewKindTag(),
 			defaultMode: this.viewOptions.defaultMode,
-			sessionTypePickerDelegate: this.viewOptions.sessionTypePickerDelegate
+			sessionTypePickerDelegate: this.viewOptions.sessionTypePickerDelegate,
+			excludedTargets: this.viewOptions.excludedTargets
 		};
 
 		if (this.viewModel?.editing) {

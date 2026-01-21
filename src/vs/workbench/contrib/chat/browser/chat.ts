@@ -58,11 +58,11 @@ export interface ISessionTypePickerDelegate {
 	 */
 	onDidChangeActiveSessionProvider?: Event<AgentSessionProviders>;
 	/**
-	 * Optional visibility check for session providers.
-	 * When provided, allows the delegate to control which session types are visible in the picker.
-	 * This can be used to hide certain providers in specific contexts (e.g., hide Local in empty workspace).
+	 * Optional list of builtin session providers to exclude from the picker.
+	 * Extension-contributed targets are not affected by this setting.
+	 * Use this for static exclusions like hiding Local in empty workspace.
 	 */
-	isSessionTypeVisible?(provider: AgentSessionProviders): boolean;
+	excludedTargets?: AgentSessionProviders[];
 }
 
 export const IChatWidgetService = createDecorator<IChatWidgetService>('chatWidgetService');
@@ -227,6 +227,12 @@ export interface IChatWidgetViewOptions {
 	 * immediately open a new session.
 	 */
 	sessionTypePickerDelegate?: ISessionTypePickerDelegate;
+	/**
+	 * Optional list of builtin session providers to exclude from the picker.
+	 * Extension-contributed targets are not affected by this setting.
+	 * Use this for static exclusions like hiding Local in empty workspace.
+	 */
+	excludedTargets?: AgentSessionProviders[];
 }
 
 export interface IChatViewViewContext {

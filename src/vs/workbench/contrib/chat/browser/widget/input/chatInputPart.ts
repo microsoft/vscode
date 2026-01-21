@@ -153,6 +153,11 @@ export interface IChatInputPartOptions {
 	 * When provided, allows the input part to maintain independent state for the selected session type.
 	 */
 	sessionTypePickerDelegate?: ISessionTypePickerDelegate;
+	/**
+	 * Optional list of builtin session providers to exclude from the picker.
+	 * Extension-contributed targets are not affected by this setting.
+	 */
+	excludedTargets?: AgentSessionProviders[];
 }
 
 export interface IWorkingSetEntry {
@@ -436,6 +441,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private _emptyInputState: ObservableMemento<IChatModelInputState | undefined>;
 	private _chatSessionIsEmpty = false;
 	private _pendingDelegationTarget: AgentSessionProviders | undefined = undefined;
+	private isLocalSupported: boolean = true;
 
 	constructor(
 		// private readonly editorOptions: ChatEditorOptions, // TODO this should be used
@@ -611,14 +617,21 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this._inputEditor?.updateOptions({ ariaLabel: this._getAriaLabel() });
 		}));
 		this._register(this.chatModeService.onDidChangeChatModes(() => this.validateCurrentChatMode()));
-		this._register(autorun(r => {
-			const mode = this._currentModeObservable.read(r);
-			this.chatModeKindKey.set(mode.kind);
-			const model = mode.model?.read(r);
-			if (model) {
-				this.switchModelByQualifiedName(model);
-			}
-		}));
+
+
+		if (this.options.sessionTypePickerDelegate && this.options.sessionTypePickerDelegate.excludedTargets) {
+			this.isLocalSupported = !this.options.sessionTypePickerDelegate.excludedTargets.includes(AgentSessionProviders.Local);
+		}
+		if (this.isLocalSupported) {
+			this._register(autorun(r => {
+				const mode = this._currentModeObservable.read(r);
+				this.chatModeKindKey.set(mode.kind);
+				const model = mode.model?.read(r);
+				if (model) {
+					this.switchModelByQualifiedName(model);
+				}
+			}));
+		}
 
 		// Validate the initial mode - if Agent mode is set by default but disabled by policy, switch to Ask
 		this.validateCurrentChatMode();
@@ -1381,14 +1394,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			return undefined;
 		}
 
-		// Early exit: if Local session type is hidden via delegate, also hide option groups
-		// This supports scenarios like empty workspace where Local-related features should be hidden
-		if (this.options.sessionTypePickerDelegate?.isSessionTypeVisible) {
-			if (!this.options.sessionTypePickerDelegate.isSessionTypeVisible(AgentSessionProviders.Local)) {
-				setNoOptions();
-				return undefined;
-			}
-		}
+		// // Early exit: if Local session type is excluded, also hide option groups
+		// // This supports scenarios like empty workspace where Local-related features should be hidden
+		// if (this.options.excludedTargets?.includes(AgentSessionProviders.Local)) {
+		// 	setNoOptions();
+		// 	return undefined;
+		// }
 
 		// Step 2: Get option groups for this session type
 		const optionGroups = this.chatSessionsService.getOptionGroupsForSessionType(effectiveSessionType);
@@ -1853,13 +1864,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		this._register(dom.addStandardDisposableListener(toolbarsContainer, dom.EventType.CLICK, e => this.inputEditor.focus()));
 		this._register(dom.addStandardDisposableListener(this.attachmentsContainer, dom.EventType.CLICK, e => this.inputEditor.focus()));
-
-		// Helper to check if Local session type is hidden via delegate (e.g., empty workspace)
-		const isLocalSessionTypeHidden = () => {
-			const delegate = this.options.sessionTypePickerDelegate;
-			return delegate?.isSessionTypeVisible && !delegate.isSessionTypeVisible(AgentSessionProviders.Local);
-		};
-
 		this.inputActionsToolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, this.options.renderInputToolbarBelowInput ? this.attachmentsContainer : toolbarsContainer, MenuId.ChatInput, {
 			telemetrySource: this.options.menus.telemetrySource,
 			menuOptions: { shouldForwardArgs: true },
@@ -1873,11 +1877,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			},
 			actionViewItemProvider: (action, options) => {
 				if (action.id === OpenModelPickerAction.ID && action instanceof MenuItemAction) {
-					// Hide model picker when Local session type is hidden (e.g., empty workspace)
-					if (isLocalSessionTypeHidden()) {
-						return new HiddenActionViewItem(null, action);
+					if (!this.isLocalSupported) {
+						const emptyView = new BaseActionViewItem(null, action);
+						if (emptyView.element) {
+							emptyView.element.style.display = 'none';
+						}
+						return emptyView;
 					}
-
 					if (!this._currentLanguageModel) {
 						this.setCurrentLanguageModelToDefault();
 					}
@@ -1894,11 +1900,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					};
 					return this.modelWidget = this.instantiationService.createInstance(ModelPickerActionItem, action, this._currentLanguageModel, undefined, itemDelegate, pickerOptions);
 				} else if (action.id === OpenModePickerAction.ID && action instanceof MenuItemAction) {
-					// Hide mode picker when Local session type is hidden (e.g., empty workspace)
-					if (isLocalSessionTypeHidden()) {
-						return new HiddenActionViewItem(null, action);
+					if (!this.isLocalSupported) {
+						const emptyView = new BaseActionViewItem(null, action);
+						if (emptyView.element) {
+							emptyView.element.style.display = 'none';
+						}
+						return emptyView;
 					}
-
 					const delegate: IModePickerDelegate = {
 						currentMode: this._currentModeObservable,
 						sessionResource: () => this._widget?.viewModel?.sessionResource,
@@ -1927,7 +1935,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					};
 					const chatSessionPosition = isIChatResourceViewContext(widget.viewContext) ? 'editor' : 'sidebar';
 					const Picker = action.id === OpenSessionTargetPickerAction.ID ? SessionTypePickerActionItem : DelegationSessionPickerActionItem;
-					return this.sessionTargetWidget = this.instantiationService.createInstance(Picker, action, chatSessionPosition, delegate, pickerOptions);
+					return this.sessionTargetWidget = this.instantiationService.createInstance(Picker, action, chatSessionPosition, delegate, pickerOptions, this.options.excludedTargets);
 				} else if (action.id === ChatSessionPrimaryPickerAction.ID && action instanceof MenuItemAction) {
 					// Create all pickers and return a container action view item
 					const widgets = this.createChatSessionPickerWidgets(action);
@@ -2758,17 +2766,6 @@ const chatInputEditorContainerSelector = '.interactive-input-editor';
 setupSimpleEditorSelectionStyling(chatInputEditorContainerSelector);
 
 type ChatSessionPickerWidget = ChatSessionPickerActionItem | SearchableOptionPickerActionItem;
-
-/**
- * An action view item that renders nothing and takes up no space.
- * Used to hide actions from the toolbar without removing them from the menu.
- */
-class HiddenActionViewItem extends BaseActionViewItem {
-	override render(container: HTMLElement): void {
-		super.render(container);
-		container.style.display = 'none';
-	}
-}
 
 class ChatSessionPickersContainerActionItem extends ActionViewItem {
 	constructor(

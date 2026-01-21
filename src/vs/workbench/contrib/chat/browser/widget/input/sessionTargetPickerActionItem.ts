@@ -44,6 +44,7 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 		protected readonly chatSessionPosition: 'sidebar' | 'editor',
 		protected readonly delegate: ISessionTypePickerDelegate,
 		pickerOptions: IChatInputPickerOptions,
+		protected readonly excludedTargets: AgentSessionProviders[] | undefined,
 		@IActionWidgetService actionWidgetService: IActionWidgetService,
 		@IKeybindingService protected readonly keybindingService: IKeybindingService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -163,12 +164,13 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 					`workbench.action.chat.openNewChatSessionExternal.${contribution.type}`,
 			});
 		}
-		this._sessionTypeItems = agentSessionItems;
+		this._sessionTypeItems = agentSessionItems.filter(item => !this.excludedTargets?.includes(item.type));
 	}
 
 	protected _isVisible(type: AgentSessionProviders): boolean {
-		if (this.delegate.isSessionTypeVisible) {
-			return this.delegate.isSessionTypeVisible(type);
+		// Check declarative exclusion first (for builtin targets)
+		if (this.excludedTargets?.includes(type)) {
+			return false;
 		}
 		return true;
 	}
