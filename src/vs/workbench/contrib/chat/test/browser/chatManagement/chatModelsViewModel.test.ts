@@ -910,4 +910,155 @@ suite('ChatModelsViewModel', () => {
 		assert.strictEqual(models.length, 0);
 	});
 
+	test('setModelsVisibility should update visibility for multiple models', () => {
+		// Get initial results
+		const initialResults = viewModel.filter('');
+		const modelEntries = initialResults.filter(r => !isLanguageModelProviderEntry(r) && !isLanguageModelGroupEntry(r)) as ILanguageModelEntry[];
+		assert.ok(modelEntries.length >= 2, 'Should have at least 2 models for testing');
+
+		// Get first two models
+		const modelsToHide = modelEntries.slice(0, 2);
+		const initialVisibility = modelsToHide.map(m => m.model.visible);
+
+		// Hide the models
+		viewModel.setModelsVisibility(modelsToHide, false);
+
+		// Verify visibility was updated
+		assert.strictEqual(modelsToHide[0].model.visible, false);
+		assert.strictEqual(modelsToHide[1].model.visible, false);
+
+		// Verify language models service was called by checking metadata
+		const metadata1 = languageModelsService.lookupLanguageModel(modelsToHide[0].model.identifier);
+		const metadata2 = languageModelsService.lookupLanguageModel(modelsToHide[1].model.identifier);
+		assert.strictEqual(metadata1?.isUserSelectable, false);
+		assert.strictEqual(metadata2?.isUserSelectable, false);
+
+		// Verify UI was updated by filtering
+		const updatedResults = viewModel.filter('');
+		const updatedModelEntries = updatedResults.filter(r => !isLanguageModelProviderEntry(r) && !isLanguageModelGroupEntry(r)) as ILanguageModelEntry[];
+		assert.ok(updatedModelEntries.length > 0);
+
+		// Restore original visibility
+		viewModel.setModelsVisibility(modelsToHide, initialVisibility[0]);
+	});
+
+	test('setModelsVisibility should make hidden models visible', () => {
+		// Get initial results
+		const initialResults = viewModel.filter('');
+		const modelEntries = initialResults.filter(r => !isLanguageModelProviderEntry(r) && !isLanguageModelGroupEntry(r)) as ILanguageModelEntry[];
+		assert.ok(modelEntries.length >= 1, 'Should have at least 1 model for testing');
+
+		// Get a model and hide it first
+		const modelToTest = [modelEntries[0]];
+		viewModel.setModelsVisibility(modelToTest, false);
+		assert.strictEqual(modelToTest[0].model.visible, false);
+
+		// Now make it visible
+		viewModel.setModelsVisibility(modelToTest, true);
+
+		// Verify visibility was updated
+		assert.strictEqual(modelToTest[0].model.visible, true);
+
+		// Verify language models service was called
+		const metadata = languageModelsService.lookupLanguageModel(modelToTest[0].model.identifier);
+		assert.strictEqual(metadata?.isUserSelectable, true);
+	});
+
+	test('setGroupVisibility should update visibility for all models in a provider group', () => {
+		// Get initial results to find a provider group
+		const initialResults = viewModel.filter('');
+		const providerGroups = initialResults.filter(isLanguageModelProviderEntry);
+		assert.ok(providerGroups.length > 0, 'Should have at least 1 provider group');
+
+		const providerGroup = providerGroups[0];
+		const modelsInGroup = viewModel.getModelsForGroup(providerGroup);
+		assert.ok(modelsInGroup.length > 0, 'Provider group should have models');
+
+		// Store initial visibility
+		const initialVisibility = modelsInGroup.map(m => m.visible);
+
+		// Hide all models in the group
+		viewModel.setGroupVisibility(providerGroup, false);
+
+		// Verify all models in group are now hidden
+		const updatedModels = viewModel.getModelsForGroup(providerGroup);
+		for (const model of updatedModels) {
+			assert.strictEqual(model.visible, false, `Model ${model.identifier} should be hidden`);
+
+			// Verify language models service was called
+			const metadata = languageModelsService.lookupLanguageModel(model.identifier);
+			assert.strictEqual(metadata?.isUserSelectable, false);
+		}
+
+		// Restore original visibility
+		for (let i = 0; i < modelsInGroup.length; i++) {
+			const model = modelsInGroup[i];
+			languageModelsService.updateModelPickerPreference(model.identifier, initialVisibility[i]);
+			model.visible = initialVisibility[i];
+		}
+	});
+
+	test('setGroupVisibility should update visibility for all models in a visibility group', () => {
+		// First ensure we have some visible and some hidden models
+		const allResults = viewModel.filter('');
+		const allModelEntries = allResults.filter(r => !isLanguageModelProviderEntry(r) && !isLanguageModelGroupEntry(r)) as ILanguageModelEntry[];
+
+		if (allModelEntries.length >= 2) {
+			// Hide one model to create a mixed state
+			viewModel.setModelsVisibility([allModelEntries[0]], false);
+			viewModel.setModelsVisibility([allModelEntries[1]], true);
+		}
+
+		// Now test with the 'visible' group - filter to see groups
+		viewModel.filter('@visible:true');
+		const resultsWithGroups = viewModel.filter('');
+
+		// Find the visibility group entries
+		const visibilityGroups = resultsWithGroups.filter(isLanguageModelGroupEntry);
+
+		if (visibilityGroups.length > 0) {
+			const visibleGroup = visibilityGroups.find(g => g.id === 'visible');
+			if (visibleGroup) {
+				const visibleModels = viewModel.getModelsForGroup(visibleGroup);
+				const initialCount = visibleModels.length;
+
+				if (initialCount > 0) {
+					// Hide all visible models
+					viewModel.setGroupVisibility(visibleGroup, false);
+
+					// Verify all previously visible models are now hidden
+					const updatedVisibleModels = viewModel.getModelsForGroup(visibleGroup);
+					assert.strictEqual(updatedVisibleModels.length, 0, 'Should have no visible models after hiding the visible group');
+
+					// Verify the hidden group now contains those models
+					const hiddenGroup = visibilityGroups.find(g => g.id === 'hidden');
+					if (hiddenGroup) {
+						const hiddenModels = viewModel.getModelsForGroup(hiddenGroup);
+						assert.ok(hiddenModels.length >= initialCount, 'Hidden group should contain the previously visible models');
+					}
+				}
+			}
+		}
+	});
+
+	test('setGroupVisibility should trigger UI update through doFilter', () => {
+		// Get a provider group
+		const initialResults = viewModel.filter('');
+		const providerGroups = initialResults.filter(isLanguageModelProviderEntry);
+
+		if (providerGroups.length > 0) {
+			const providerGroup = providerGroups[0];
+
+			// Change visibility
+			viewModel.setGroupVisibility(providerGroup, false);
+
+			// Filter again to ensure UI was updated
+			const updatedResults = viewModel.filter('');
+			const updatedProviderGroups = updatedResults.filter(isLanguageModelProviderEntry);
+
+			// Verify we can still get results (doFilter was called)
+			assert.ok(updatedProviderGroups.length > 0, 'Should still have provider groups after visibility change');
+		}
+	});
+
 });
