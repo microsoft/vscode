@@ -6,6 +6,11 @@ on:
     branches:
       - copilot/add-github-actions-workflow
 
+permissions: {}
+
+env:
+  VSCODE_QUALITY: 'oss'
+
 jobs:
   linux:
     name: Linux x64
@@ -14,55 +19,71 @@ jobs:
     env:
       VSCODE_ARCH: x64
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout microsoft/vscode
+        uses: actions/checkout@v6
 
-      - uses: actions/setup-node@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
         with:
           node-version-file: .nvmrc
 
-      - name: Compute node modules cache key
-        id: nodeModulesCacheKey
-        run: echo "value=$(node build/azure-pipelines/common/computeNodeModulesCacheKey.js)" >> $GITHUB_OUTPUT
+      - name: Prepare node_modules cache key
+        run: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.ts linux x64 $(node -p process.arch) > .build/packagelockhash
 
-      - name: Cache node modules
-        id: cacheNodeModules
-        uses: actions/cache@v4
+      - name: Restore node_modules cache
+        id: cache-node-modules
+        uses: actions/cache/restore@v5
         with:
-          path: '**/node_modules'
-          key: ${{ runner.os }}-cacheNodeModulesLinux-${{ steps.nodeModulesCacheKey.outputs.value }}
-          restore-keys: ${{ runner.os }}-cacheNodeModulesLinux-
+          path: .build/node_modules_cache
+          key: "node_modules-linux-${{ hashFiles('.build/packagelockhash') }}"
 
-      - name: Get yarn cache directory path
-        id: yarnCacheDirPath
-        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
-        run: echo "dir=$(yarn cache dir)" >> $GITHUB_OUTPUT
+      - name: Extract node_modules cache
+        if: steps.cache-node-modules.outputs.cache-hit == 'true'
+        run: tar -xzf .build/node_modules_cache/cache.tgz
 
-      - name: Cache yarn directory
-        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
-        uses: actions/cache@v4
-        with:
-          path: ${{ steps.yarnCacheDirPath.outputs.dir }}
-          key: ${{ runner.os }}-yarnCacheDir-${{ steps.nodeModulesCacheKey.outputs.value }}
-          restore-keys: ${{ runner.os }}-yarnCacheDir-
+      - name: Install build tools
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        run: sudo apt update -y && sudo apt install -y build-essential pkg-config libx11-dev libx11-xcb-dev libxkbfile-dev libnotify-bin libkrb5-dev
 
-      - name: Execute yarn
-        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
+      - name: Install dependencies
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        run: |
+          set -e
+
+          for i in {1..5}; do # try 5 times
+            npm ci && break
+            if [ $i -eq 5 ]; then
+              echo "Npm install failed too many times" >&2
+              exit 1
+            fi
+            echo "Npm install failed $i, trying again..."
+          done
         env:
-          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
-        run: yarn --frozen-lockfile --network-timeout 180000
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Compute builtin extensions cache key
-        id: builtInExtensionsCacheKey
-        run: echo "value=$(node build/azure-pipelines/common/computeBuiltInDepsCacheKey.js)" >> $GITHUB_OUTPUT
+      - name: Create node_modules archive
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        run: |
+          set -e
+          node build/azure-pipelines/common/listNodeModules.ts .build/node_modules_list.txt
+          mkdir -p .build/node_modules_cache
+          tar -czf .build/node_modules_cache/cache.tgz --files-from .build/node_modules_list.txt
 
-      - name: Cache builtin extensions
+      - name: Prepare built-in extensions cache key
+        run: |
+          set -e
+          mkdir -p .build
+          node build/azure-pipelines/common/computeBuiltInDepsCacheKey.ts > .build/builtindepshash
+
+      - name: Restore built-in extensions cache
         id: cache-builtin-extensions
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v5
         with:
+          enableCrossOsArchive: true
           path: .build/builtInExtensions
-          key: builtInExtensions-${{ steps.builtInExtensionsCacheKey.outputs.value }}
-          restore-keys: builtInExtensions-
+          key: "builtin-extensions-${{ hashFiles('.build/builtindepshash') }}"
 
       - name: Download built-in extensions
         if: steps.cache-builtin-extensions.outputs.cache-hit != 'true'
@@ -100,55 +121,67 @@ jobs:
     env:
       VSCODE_ARCH: arm64
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout microsoft/vscode
+        uses: actions/checkout@v6
 
-      - uses: actions/setup-node@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
         with:
           node-version-file: .nvmrc
 
-      - name: Compute node modules cache key
-        id: nodeModulesCacheKey
-        run: echo "value=$(node build/azure-pipelines/common/computeNodeModulesCacheKey.js)" >> $GITHUB_OUTPUT
+      - name: Prepare node_modules cache key
+        run: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.ts darwin arm64 $(node -p process.arch) > .build/packagelockhash
 
-      - name: Cache node modules
-        id: cacheNodeModules
-        uses: actions/cache@v4
+      - name: Restore node_modules cache
+        id: cache-node-modules
+        uses: actions/cache/restore@v5
         with:
-          path: '**/node_modules'
-          key: ${{ runner.os }}-cacheNodeModulesLinux-${{ steps.nodeModulesCacheKey.outputs.value }}
-          restore-keys: ${{ runner.os }}-cacheNodeModulesLinux-
+          path: .build/node_modules_cache
+          key: "node_modules-darwin-${{ hashFiles('.build/packagelockhash') }}"
 
-      - name: Get yarn cache directory path
-        id: yarnCacheDirPath
-        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
-        run: echo "dir=$(yarn cache dir)" >> $GITHUB_OUTPUT
+      - name: Extract node_modules cache
+        if: steps.cache-node-modules.outputs.cache-hit == 'true'
+        run: tar -xzf .build/node_modules_cache/cache.tgz
 
-      - name: Cache yarn directory
-        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
-        uses: actions/cache@v4
-        with:
-          path: ${{ steps.yarnCacheDirPath.outputs.dir }}
-          key: ${{ runner.os }}-yarnCacheDir-${{ steps.nodeModulesCacheKey.outputs.value }}
-          restore-keys: ${{ runner.os }}-yarnCacheDir-
+      - name: Install dependencies
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        run: |
+          set -e
 
-      - name: Execute yarn
-        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
+          for i in {1..5}; do # try 5 times
+            npm ci && break
+            if [ $i -eq 5 ]; then
+              echo "Npm install failed too many times" >&2
+              exit 1
+            fi
+            echo "Npm install failed $i, trying again..."
+          done
         env:
-          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
-        run: yarn --frozen-lockfile --network-timeout 180000
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Compute builtin extensions cache key
-        id: builtInExtensionsCacheKey
-        run: echo "value=$(node build/azure-pipelines/common/computeBuiltInDepsCacheKey.js)" >> $GITHUB_OUTPUT
+      - name: Create node_modules archive
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        run: |
+          set -e
+          node build/azure-pipelines/common/listNodeModules.ts .build/node_modules_list.txt
+          mkdir -p .build/node_modules_cache
+          tar -czf .build/node_modules_cache/cache.tgz --files-from .build/node_modules_list.txt
 
-      - name: Cache builtin extensions
+      - name: Prepare built-in extensions cache key
+        run: |
+          set -e
+          mkdir -p .build
+          node build/azure-pipelines/common/computeBuiltInDepsCacheKey.ts > .build/builtindepshash
+
+      - name: Restore built-in extensions cache
         id: cache-builtin-extensions
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v5
         with:
+          enableCrossOsArchive: true
           path: .build/builtInExtensions
-          key: builtInExtensions-${{ steps.builtInExtensionsCacheKey.outputs.value }}
-          restore-keys: builtInExtensions-
+          key: "builtin-extensions-${{ hashFiles('.build/builtindepshash') }}"
 
       - name: Download built-in extensions
         if: steps.cache-builtin-extensions.outputs.cache-hit != 'true'
@@ -186,55 +219,82 @@ jobs:
     env:
       VSCODE_ARCH: x64
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout microsoft/vscode
+        uses: actions/checkout@v6
 
-      - uses: actions/setup-node@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
         with:
           node-version-file: .nvmrc
 
-      - name: Compute node modules cache key
-        id: nodeModulesCacheKey
-        run: echo "value=$(node build/azure-pipelines/common/computeNodeModulesCacheKey.js)" >> $env:GITHUB_OUTPUT
+      - name: Prepare node_modules cache key
+        shell: pwsh
+        run: |
+          mkdir .build -ea 0
+          node build/azure-pipelines/common/computeNodeModulesCacheKey.ts win32 x64 $(node -p process.arch) > .build/packagelockhash
 
-      - name: Cache node modules
-        id: cacheNodeModules
-        uses: actions/cache@v4
+      - name: Restore node_modules cache
+        id: cache-node-modules
+        uses: actions/cache/restore@v5
         with:
-          path: '**/node_modules'
-          key: ${{ runner.os }}-cacheNodeModulesLinux-${{ steps.nodeModulesCacheKey.outputs.value }}
-          restore-keys: ${{ runner.os }}-cacheNodeModulesLinux-
+          path: .build/node_modules_cache
+          key: "node_modules-windows-${{ hashFiles('.build/packagelockhash') }}"
 
-      - name: Get yarn cache directory path
-        id: yarnCacheDirPath
-        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
-        run: echo "dir=$(yarn cache dir)" >> $env:GITHUB_OUTPUT
+      - name: Extract node_modules cache
+        if: steps.cache-node-modules.outputs.cache-hit == 'true'
+        shell: pwsh
+        run: 7z.exe x .build/node_modules_cache/cache.7z -aoa
 
-      - name: Cache yarn directory
-        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
-        uses: actions/cache@v4
-        with:
-          path: ${{ steps.yarnCacheDirPath.outputs.dir }}
-          key: ${{ runner.os }}-yarnCacheDir-${{ steps.nodeModulesCacheKey.outputs.value }}
-          restore-keys: ${{ runner.os }}-yarnCacheDir-
+      - name: Install dependencies
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: |
+          . build/azure-pipelines/win32/exec.ps1
+          $ErrorActionPreference = "Stop"
 
-      - name: Execute yarn
-        if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
+          for ($i = 1; $i -le 5; $i++) {
+            try {
+              exec { npm ci }
+              break
+            }
+            catch {
+              if ($i -eq 5) {
+                Write-Error "npm ci failed after 5 attempts"
+                throw
+              }
+              Write-Host "npm ci failed attempt $i, retrying..."
+              Start-Sleep -Seconds 2
+            }
+          }
         env:
-          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+          npm_config_arch: x64
+          npm_config_foreground_scripts: "true"
+          VSCODE_ARCH: x64
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
-        run: yarn --frozen-lockfile --network-timeout 180000
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Compute builtin extensions cache key
-        id: builtInExtensionsCacheKey
-        run: echo "value=$(node build/azure-pipelines/common/computeBuiltInDepsCacheKey.js)" >> $env:GITHUB_OUTPUT
+      - name: Create node_modules archive
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: |
+          node build/azure-pipelines/common/listNodeModules.ts .build/node_modules_list.txt
+          mkdir -Force .build/node_modules_cache
+          7z.exe a .build/node_modules_cache/cache.7z -tzip `@.build/node_modules_list.txt -aoa
 
-      - name: Cache builtin extensions
+      - name: Prepare built-in extensions cache key
+        shell: pwsh
+        run: |
+          mkdir .build -ea 0
+          node build/azure-pipelines/common/computeBuiltInDepsCacheKey.ts > .build/builtindepshash
+
+      - name: Restore built-in extensions cache
         id: cache-builtin-extensions
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v5
         with:
+          enableCrossOsArchive: true
           path: .build/builtInExtensions
-          key: builtInExtensions-${{ steps.builtInExtensionsCacheKey.outputs.value }}
-          restore-keys: builtInExtensions-
+          key: "builtin-extensions-${{ hashFiles('.build/builtindepshash') }}"
 
       - name: Download built-in extensions
         if: steps.cache-builtin-extensions.outputs.cache-hit != 'true'
