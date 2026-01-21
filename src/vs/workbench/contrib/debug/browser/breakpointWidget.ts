@@ -337,7 +337,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		// Try to preserve the current selection if the breakpoint still exists
 		let selectedIndex = 0; // Default to "None"
 		if (this.triggeredByBreakpointInput) {
-			const newIndex = this.availableBreakpoints.findIndex(bp => bp.getId() === this.triggeredByBreakpointInput!.getId());
+			const newIndex = this.availableBreakpoints.findIndex(bp => bp.getId() === this.triggeredByBreakpointInput?.getId());
 			if (newIndex !== -1) {
 				selectedIndex = newIndex + 1;
 			} else {
