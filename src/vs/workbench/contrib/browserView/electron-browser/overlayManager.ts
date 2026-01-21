@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { Emitter, Event } from '../../../../base/common/event.js';
+import { Event, MicrotaskEmitter } from '../../../../base/common/event.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { getDomNodePagePosition, IDomNodePagePosition } from '../../../../base/browser/dom.js';
 import { CodeWindow } from '../../../../base/browser/window.js';
@@ -53,7 +53,7 @@ export interface IBrowserOverlayManager {
 export class BrowserOverlayManager extends Disposable implements IBrowserOverlayManager {
 	declare readonly _serviceBrand: undefined;
 
-	private readonly _onDidChangeOverlayState = this._register(new Emitter<void>({
+	private readonly _onDidChangeOverlayState = this._register(new MicrotaskEmitter<void>({
 		onWillAddFirstListener: () => {
 			// Start observing the document for structural changes
 			this._observerIsConnected = true;
@@ -68,7 +68,10 @@ export class BrowserOverlayManager extends Disposable implements IBrowserOverlay
 			this._observerIsConnected = false;
 			this._structuralObserver.disconnect();
 			this.stopTrackingElements();
-		}
+		},
+
+		// Must be passed to prevent duplicate emits
+		merge: () => { }
 	}));
 	readonly onDidChangeOverlayState = this._onDidChangeOverlayState.event;
 
@@ -77,7 +80,6 @@ export class BrowserOverlayManager extends Disposable implements IBrowserOverlay
 	private _elementObservers = new WeakMap<HTMLElement, MutationObserver>();
 	private _structuralObserver: MutationObserver;
 	private _observerIsConnected: boolean = false;
-	private _overlayStateChangePending: boolean = false;
 
 	constructor(
 		private readonly targetWindow: CodeWindow
@@ -123,22 +125,6 @@ export class BrowserOverlayManager extends Disposable implements IBrowserOverlay
 		}
 	}
 
-	/**
-	 * Since we have multiple MutationObservers, we may get changes to multiple elements at once.
-	 * In order to minimize layout recalculations and event handling, we batch change events
-	 * using a microtask (so that event effects still happen before the next render).
-	 */
-	private scheduleOverlayStateChange(): void {
-		if (this._overlayStateChangePending) {
-			return;
-		}
-		this._overlayStateChangePending = true;
-		queueMicrotask(() => {
-			this._overlayStateChangePending = false;
-			this._onDidChangeOverlayState.fire();
-		});
-	}
-
 	private updateTrackedElements(shouldEmit = false): void {
 		// Scan all overlay collections for elements and ensure they have observers
 		for (const overlay of this.overlays()) {
@@ -146,7 +132,7 @@ export class BrowserOverlayManager extends Disposable implements IBrowserOverlay
 			if (!this._elementObservers.has(overlay.element)) {
 				const observer = new MutationObserver(() => {
 					this._overlayRectangles.delete(overlay.element);
-					this.scheduleOverlayStateChange();
+					this._onDidChangeOverlayState.fire();
 				});
 
 				// Store the observer in the WeakMap
@@ -165,7 +151,7 @@ export class BrowserOverlayManager extends Disposable implements IBrowserOverlay
 		}
 
 		if (shouldEmit) {
-			this.scheduleOverlayStateChange();
+			this._onDidChangeOverlayState.fire();
 		}
 	}
 

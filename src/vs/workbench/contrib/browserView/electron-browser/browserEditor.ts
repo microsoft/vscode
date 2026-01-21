@@ -439,7 +439,7 @@ export class BrowserEditor extends EditorPane {
 		this._overlayPauseContainer.classList.toggle('show-message', hasNotificationOverlay);
 
 		if (hasNotificationOverlay) {
-			this._overlayPauseHeading.textContent = localize('browser.overlayPauseHeading.notification', "Paused due to notification");
+			this._overlayPauseHeading.textContent = localize('browser.overlayPauseHeading.notification', "Paused due to Notification");
 			this._overlayPauseDetail.textContent = localize('browser.overlayPauseDetail.notification', "Dismiss the notification to continue using the browser.");
 		} else {
 			this._overlayPauseHeading.textContent = '';
