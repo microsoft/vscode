@@ -3,9 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// Increase the number of stack frames (from the default 10, https://github.com/v8/v8/wiki/Stack-Trace-API)
-Error.stackTraceLimit = 100;
-
 import { isStandalone } from '../../../base/browser/browser.js';
 import { addDisposableListener } from '../../../base/browser/dom.js';
 import { mainWindow } from '../../../base/browser/window.js';
