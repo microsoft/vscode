@@ -358,7 +358,7 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		}
 
 		const providers = this.productService.defaultChatAgent?.provider;
-		if (!providers || !this.productService.defaultChatAgent?.termsStatementUrl || !this.productService.defaultChatAgent?.privacyStatementUrl) {
+		if (!providers || !providers.default || !this.productService.defaultChatAgent?.termsStatementUrl || !this.productService.defaultChatAgent?.privacyStatementUrl) {
 			return;
 		}
 
