@@ -71,8 +71,9 @@ export interface IAgentSessionProjectionService {
 
 	/**
 	 * Exit projection mode.
+	 * @param options.startNewChat If true (default), starts a new chat after exiting. Set to false to keep the current chat open.
 	 */
-	exitProjection(): Promise<void>;
+	exitProjection(options?: { startNewChat?: boolean }): Promise<void>;
 }
 
 export const IAgentSessionProjectionService = createDecorator<IAgentSessionProjectionService>('agentSessionProjectionService');
@@ -166,7 +167,7 @@ export class AgentSessionProjectionService extends Disposable implements IAgentS
 		// If the session is now in progress, exit projection mode
 		if (isSessionInProgressStatus(updatedSession.status)) {
 			this.logService.trace('[AgentSessionProjection] Active session transitioned to in-progress, exiting projection mode');
-			this.exitProjection();
+			this.exitProjection({ startNewChat: false });
 		}
 	}
 
@@ -328,10 +329,12 @@ export class AgentSessionProjectionService extends Disposable implements IAgentS
 		}
 	}
 
-	async exitProjection(): Promise<void> {
+	async exitProjection(options?: { startNewChat?: boolean }): Promise<void> {
 		if (!this._isActive) {
 			return;
 		}
+
+		const startNewChat = options?.startNewChat ?? true;
 
 		// Save the current session's working set before exiting
 		if (this._activeSession) {
@@ -364,8 +367,10 @@ export class AgentSessionProjectionService extends Disposable implements IAgentS
 		this._onDidChangeProjectionMode.fire(false);
 		this._onDidChangeActiveSession.fire(undefined);
 
-		// Start a new chat to clear the sidebar
-		await this.commandService.executeCommand(ACTION_ID_NEW_CHAT);
+		// Start a new chat to clear the sidebar (unless caller wants to keep current chat)
+		if (startNewChat) {
+			await this.commandService.executeCommand(ACTION_ID_NEW_CHAT);
+		}
 	}
 }
 
