@@ -40,6 +40,7 @@ import { AgentSessionsWelcomeEditorOptions, AgentSessionsWelcomeInput } from './
 import { IChatService } from '../../chat/common/chatService/chatService.js';
 import { IChatModel } from '../../chat/common/model/chatModel.js';
 import { ISessionTypePickerDelegate } from '../../chat/browser/chat.js';
+import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 import { AgentSessionsControl, IAgentSessionsControlOptions } from '../../chat/browser/agentSessions/agentSessionsControl.js';
 import { IAgentSessionsFilter } from '../../chat/browser/agentSessions/agentSessionsViewer.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
@@ -79,6 +80,7 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		@IProductService private readonly productService: IProductService,
 		@IWalkthroughsService private readonly walkthroughsService: IWalkthroughsService,
 		@IChatService private readonly chatService: IChatService,
+		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 	) {
 		super(AgentSessionsWelcomePage.ID, group, telemetryService, themeService, storageService);
 
@@ -349,7 +351,51 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		}
 	}
 
+	private buildPrivacyNotice(container: HTMLElement): void {
+		// TOS/Privacy notice for users who are not signed in - reusing walkthrough card design
+		if (!this.chatEntitlementService.anonymous) {
+			return;
+		}
+
+		const providers = this.productService.defaultChatAgent?.provider;
+		if (!providers || !this.productService.defaultChatAgent?.termsStatementUrl || !this.productService.defaultChatAgent?.privacyStatementUrl) {
+			return;
+		}
+
+		const tosCard = append(container, $('.agentSessionsWelcome-walkthroughCard.agentSessionsWelcome-tosCard'));
+
+		// Icon
+		const iconContainer = append(tosCard, $('.agentSessionsWelcome-walkthroughCard-icon'));
+		iconContainer.appendChild(renderIcon(Codicon.commentDiscussion));
+
+		// Content
+		const content = append(tosCard, $('.agentSessionsWelcome-walkthroughCard-content'));
+		const title = append(content, $('.agentSessionsWelcome-walkthroughCard-title'));
+		title.textContent = localize('tosTitle', "AI Feature Trial is Active");
+
+		const desc = append(content, $('.agentSessionsWelcome-walkthroughCard-description'));
+		desc.textContent = localize(
+			{ key: 'tosDescription', comment: ['{Locked="]"}'] },
+			"By continuing, you agree to {0}'s ",
+			providers.default.name
+		);
+		const termsLink = append(desc, $<HTMLAnchorElement>('a.agentSessionsWelcome-tosLink'));
+		termsLink.textContent = localize('terms', "Terms");
+		termsLink.href = this.productService.defaultChatAgent.termsStatementUrl;
+		termsLink.target = '_blank';
+		desc.appendChild(document.createTextNode(localize('and', " and ")));
+		const privacyLink = append(desc, $<HTMLAnchorElement>('a.agentSessionsWelcome-tosLink'));
+		privacyLink.textContent = localize('privacyStatement', "Privacy statement");
+		privacyLink.href = this.productService.defaultChatAgent.privacyStatementUrl;
+		privacyLink.target = '_blank';
+		desc.appendChild(document.createTextNode('.'));
+	}
+
 	private buildFooter(container: HTMLElement): void {
+
+		// Privacy notice
+		this.buildPrivacyNotice(container);
+
 		// Learning link
 		const learningLink = append(container, $('button.agentSessionsWelcome-footerLink'));
 		learningLink.appendChild(renderIcon(Codicon.mortarBoard));
