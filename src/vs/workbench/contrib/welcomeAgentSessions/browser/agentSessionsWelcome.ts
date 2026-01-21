@@ -379,9 +379,8 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		const desc = append(content, $('.agentSessionsWelcome-walkthroughCard-description'));
 		const descriptionMarkdown = new MarkdownString(
 			localize(
-				{ key: 'tosDescription', comment: ['{Locked="]({2})"}', '{Locked="]({3})"}'] },
-				"By continuing, you agree to {0}'s [Terms]({2}) and [Privacy Statement]({3}).",
-				providers.default.name,
+				{ key: 'tosDescription', comment: ['{Locked="]({1})"}', '{Locked="]({2})"}'] },
+				"By continuing, you agree to {0}'s [Terms]({1}) and [Privacy Statement]({2}).",
 				providers.default.name,
 				this.productService.defaultChatAgent.termsStatementUrl,
 				this.productService.defaultChatAgent.privacyStatementUrl
