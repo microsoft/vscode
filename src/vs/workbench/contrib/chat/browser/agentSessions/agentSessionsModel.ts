@@ -28,14 +28,6 @@ import { AgentSessionProviders, getAgentSessionProvider, getAgentSessionProvider
 
 export { ChatSessionStatus as AgentSessionStatus, isSessionInProgressStatus } from '../../common/chatSessionsService.js';
 
-/**
- * Returns true if the session is in progress and not archived.
- * Use this when filtering or displaying "active" sessions.
- */
-export function isSessionActiveAndNotArchived(session: IAgentSession): boolean {
-	return isSessionInProgressStatus(session.status) && !session.isArchived();
-}
-
 export interface IAgentSessionsModel {
 
 	readonly onWillResolve: Event<void>;
