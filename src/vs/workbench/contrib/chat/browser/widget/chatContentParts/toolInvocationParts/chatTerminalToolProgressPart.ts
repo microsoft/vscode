@@ -8,7 +8,7 @@ import { ActionBar } from '../../../../../../../base/browser/ui/actionbar/action
 import { isMarkdownString, MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
-import { ChatConfiguration } from '../../../../common/constants.js';
+import { ChatConfiguration, TerminalOutputExpansionMode } from '../../../../common/constants.js';
 import { migrateLegacyTerminalToolSpecificData } from '../../../../common/chat.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized, type IChatMarkdownContent, type IChatTerminalToolInvocationData, type ILegacyChatTerminalToolInvocationData } from '../../../../common/chatService/chatService.js';
 import { CodeBlockModelCollection } from '../../../../common/widget/codeBlockModelCollection.js';
@@ -504,8 +504,13 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		if (!showOutputAction) {
 			showOutputAction = this._instantiationService.createInstance(ToggleChatTerminalOutputAction, () => this._toggleOutputFromAction());
 			this._showOutputAction.value = showOutputAction;
+			const expansionMode = this._configurationService.getValue<TerminalOutputExpansionMode>(ChatConfiguration.TerminalOutputExpansion);
 			const exitCode = resolvedCommand?.exitCode ?? this._terminalData.terminalCommandState?.exitCode;
-			if (exitCode) {
+			const hasExitCode = exitCode !== undefined;
+			const shouldExpand = expansionMode === TerminalOutputExpansionMode.Always
+				? hasExitCode
+				: expansionMode === TerminalOutputExpansionMode.OnError && exitCode;
+			if (shouldExpand) {
 				this._toggleOutput(true);
 			}
 		}
@@ -585,11 +590,13 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 				return receivedDataCount > 1;
 			};
 
+			const expansionMode = this._configurationService.getValue<TerminalOutputExpansionMode>(ChatConfiguration.TerminalOutputExpansion);
+
 			// Use the extracted auto-expand logic
 			const autoExpand = store.add(new TerminalToolAutoExpand({
 				commandDetection,
 				onWillData: terminalInstance.onWillData,
-				shouldAutoExpand: () => !this._outputView.isExpanded && !this._userToggledOutput && !this._store.isDisposed && !expandedStateByInvocation.get(this.toolInvocation),
+				shouldAutoExpand: () => expansionMode !== TerminalOutputExpansionMode.Never && !this._outputView.isExpanded && !this._userToggledOutput && !this._store.isDisposed && !expandedStateByInvocation.get(this.toolInvocation),
 				hasRealOutput,
 			}));
 			store.add(autoExpand.onDidRequestExpand(() => {
@@ -612,8 +619,8 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 				this._addActions(terminalInstance, this._terminalData.terminalToolSessionId);
 				const resolvedCommand = this._getResolvedCommand(terminalInstance);
 
-				// Auto-collapse on success
-				if (resolvedCommand?.exitCode === 0 && this._outputView.isExpanded && !this._userToggledOutput) {
+				// Auto-collapse on success (only when mode is 'onError')
+				if (expansionMode === TerminalOutputExpansionMode.OnError && resolvedCommand?.exitCode === 0 && this._outputView.isExpanded && !this._userToggledOutput) {
 					this._toggleOutput(false);
 				}
 				// keep outer wrapper expanded on error
@@ -629,8 +636,8 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			const resolvedImmediately = await tryResolveCommand();
 			if (resolvedImmediately?.endMarker) {
 				commandDetectionListener.clear();
-				// Auto-collapse on success
-				if (resolvedImmediately.exitCode === 0 && this._outputView.isExpanded && !this._userToggledOutput) {
+				// Auto-collapse on success (only when mode is 'onError')
+				if (expansionMode === TerminalOutputExpansionMode.OnError && resolvedImmediately.exitCode === 0 && this._outputView.isExpanded && !this._userToggledOutput) {
 					this._toggleOutput(false);
 				}
 				// keep outer wrapper expanded on error

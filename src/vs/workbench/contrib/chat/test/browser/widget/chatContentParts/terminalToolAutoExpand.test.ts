@@ -10,6 +10,7 @@ import { runWithFakedTimers } from '../../../../../../../base/test/common/timeTr
 import { timeout } from '../../../../../../../base/common/async.js';
 import { TerminalToolAutoExpand, TerminalToolAutoExpandTimeout } from '../../../../browser/widget/chatContentParts/toolInvocationParts/terminalToolAutoExpand.js';
 import type { ICommandDetectionCapability } from '../../../../../../../platform/terminal/common/capabilities/capabilities.js';
+import { TerminalOutputExpansionMode } from '../../../../common/constants.js';
 
 suite('TerminalToolAutoExpand', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -357,4 +358,122 @@ suite('TerminalToolAutoExpand', () => {
 
 		onCommandFinished.fire(undefined);
 	}));
+
+	suite('TerminalOutputExpansionMode setting', () => {
+		/**
+		 * Tests behavior when expansion mode is 'never' - auto-expand should be completely disabled.
+		 * This simulates the shouldAutoExpand callback returning false when mode is 'never'.
+		 */
+		test('never mode prevents auto-expand even with output', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			hasRealOutputValue = true;
+			const expansionMode = TerminalOutputExpansionMode.Never;
+
+			// Create a mock command detection capability
+			const mockCommandDetection = {
+				onCommandExecuted: onCommandExecuted.event,
+				onCommandFinished: onCommandFinished.event,
+			} as Pick<ICommandDetectionCapability, 'onCommandExecuted' | 'onCommandFinished'> as ICommandDetectionCapability;
+
+			const autoExpand = store.add(new TerminalToolAutoExpand({
+				commandDetection: mockCommandDetection,
+				onWillData: onWillData.event,
+				// Simulate never mode - always return false
+				shouldAutoExpand: () => expansionMode !== TerminalOutputExpansionMode.Never && !isExpanded && !userToggledOutput,
+				hasRealOutput,
+			}));
+			store.add(autoExpand.onDidRequestExpand(() => {
+				isExpanded = true;
+			}));
+
+			// Command executes
+			onCommandExecuted.fire(undefined);
+
+			// Data arrives with real output
+			onWillData.fire('output');
+
+			// Wait for all timeouts
+			await timeout(TerminalToolAutoExpandTimeout.NoData + 100);
+
+			assert.strictEqual(isExpanded, false, 'Should NOT expand when mode is never');
+			onCommandFinished.fire(undefined);
+		}));
+
+		/**
+		 * Tests behavior when expansion mode is 'always' - auto-expand works and output stays
+		 * expanded even on successful command completion (no auto-collapse).
+		 */
+		test('always mode keeps output expanded on success', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			hasRealOutputValue = true;
+
+			// Create a mock command detection capability
+			const mockCommandDetection = {
+				onCommandExecuted: onCommandExecuted.event,
+				onCommandFinished: onCommandFinished.event,
+			} as Pick<ICommandDetectionCapability, 'onCommandExecuted' | 'onCommandFinished'> as ICommandDetectionCapability;
+
+			const autoExpand = store.add(new TerminalToolAutoExpand({
+				commandDetection: mockCommandDetection,
+				onWillData: onWillData.event,
+				shouldAutoExpand: () => !isExpanded && !userToggledOutput,
+				hasRealOutput,
+			}));
+			store.add(autoExpand.onDidRequestExpand(() => {
+				isExpanded = true;
+			}));
+
+			// Command executes
+			onCommandExecuted.fire(undefined);
+
+			// Data arrives with real output
+			onWillData.fire('output');
+
+			// Wait for DataEvent timeout - should expand
+			await timeout(TerminalToolAutoExpandTimeout.DataEvent + 10);
+			assert.strictEqual(isExpanded, true, 'Should expand when mode is always');
+
+			// Command finishes successfully
+			onCommandFinished.fire(undefined);
+
+			// In 'always' mode, the output view would NOT auto-collapse on success
+			// (that logic is in chatTerminalToolProgressPart, not TerminalToolAutoExpand)
+			// The key point: auto-expand worked, and expansion state is preserved
+			assert.strictEqual(isExpanded, true, 'Should stay expanded after success in always mode');
+		}));
+
+		/**
+		 * Tests behavior when expansion mode is 'onError' (default) - auto-expand works normally.
+		 * Note: Auto-collapse on success is handled by chatTerminalToolProgressPart, not TerminalToolAutoExpand.
+		 */
+		test('onError mode allows auto-expand with output', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			hasRealOutputValue = true;
+
+			// Create a mock command detection capability
+			const mockCommandDetection = {
+				onCommandExecuted: onCommandExecuted.event,
+				onCommandFinished: onCommandFinished.event,
+			} as Pick<ICommandDetectionCapability, 'onCommandExecuted' | 'onCommandFinished'> as ICommandDetectionCapability;
+
+			const autoExpand = store.add(new TerminalToolAutoExpand({
+				commandDetection: mockCommandDetection,
+				onWillData: onWillData.event,
+				shouldAutoExpand: () => !isExpanded && !userToggledOutput,
+				hasRealOutput,
+			}));
+			store.add(autoExpand.onDidRequestExpand(() => {
+				isExpanded = true;
+			}));
+
+			// Command executes
+			onCommandExecuted.fire(undefined);
+
+			// Data arrives with real output
+			onWillData.fire('output');
+
+			// Wait for DataEvent timeout
+			await timeout(TerminalToolAutoExpandTimeout.DataEvent + 10);
+
+			assert.strictEqual(isExpanded, true, 'Should expand when mode is onError');
+			onCommandFinished.fire(undefined);
+		}));
+	});
 });

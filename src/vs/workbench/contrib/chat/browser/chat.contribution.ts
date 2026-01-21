@@ -433,6 +433,17 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.checkpoints.showFileChanges', "Controls whether to show chat checkpoint file changes."),
 			default: false
 		},
+		[ChatConfiguration.TerminalOutputExpansion]: {
+			type: 'string',
+			enum: ['onError', 'always', 'never'],
+			enumDescriptions: [
+				nls.localize('chat.terminalOutput.expansion.onError', "Expand terminal output when output is received and collapse on success (default)."),
+				nls.localize('chat.terminalOutput.expansion.always', "Always keep terminal output expanded."),
+				nls.localize('chat.terminalOutput.expansion.never', "Never auto-expand terminal output.")
+			],
+			default: 'onError',
+			markdownDescription: nls.localize('chat.terminalOutput.expansion', "Controls when terminal output is automatically expanded in chat responses. See also {0}.", '`#chat.agent.thinking.terminalTools#`'),
+		},
 		[mcpAccessConfig]: {
 			type: 'string',
 			description: nls.localize('chat.mcp.access', "Controls access to installed Model Context Protocol servers."),

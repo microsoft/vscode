@@ -28,6 +28,7 @@ export enum ChatConfiguration {
 	ThinkingStyle = 'chat.agent.thinkingStyle',
 	ThinkingGenerateTitles = 'chat.agent.thinking.generateTitles',
 	TerminalToolsInThinking = 'chat.agent.thinking.terminalTools',
+	TerminalOutputExpansion = 'chat.terminalOutput.expansion',
 	TodosShowWidget = 'chat.tools.todos.showWidget',
 	NotifyWindowOnResponseReceived = 'chat.notifyWindowOnResponseReceived',
 	ChatViewSessionsEnabled = 'chat.viewSessions.enabled',
@@ -38,6 +39,21 @@ export enum ChatConfiguration {
 	RestoreLastPanelSession = 'chat.restoreLastPanelSession',
 	ExitAfterDelegation = 'chat.exitAfterDelegation',
 	CommandCenterTriStateToggle = 'chat.commandCenter.triStateToggle',
+}
+
+export enum TerminalOutputExpansionMode {
+	/**
+	 * Auto-expand when command starts, collapse on success (default behavior).
+	 */
+	OnError = 'onError',
+	/**
+	 * Always keep terminal output expanded.
+	 */
+	Always = 'always',
+	/**
+	 * Never auto-expand terminal output.
+	 */
+	Never = 'never',
 }
 
 /**
