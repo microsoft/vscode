@@ -426,6 +426,8 @@ export interface IChatTerminalToolInvocationData {
 		timestamp?: number;
 		duration?: number;
 	};
+	/** Whether the user chose to continue in background for this tool invocation */
+	didContinueInBackground?: boolean;
 	autoApproveInfo?: IMarkdownString;
 }
 

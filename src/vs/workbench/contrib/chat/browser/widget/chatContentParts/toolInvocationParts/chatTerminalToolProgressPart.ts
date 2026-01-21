@@ -211,7 +211,6 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 	private _showOutputActionAdded = false;
 	private readonly _focusAction = this._register(new MutableDisposable<FocusChatInstanceAction>());
 	private readonly _continueInBackgroundAction = this._register(new MutableDisposable<ContinueInBackgroundAction>());
-	private _didContinueInBackground = false;
 
 	private readonly _terminalData: IChatTerminalToolInvocationData;
 	private _terminalCommandUri: URI | undefined;
@@ -463,6 +462,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		// Listen for continue in background to remove the button
 		this._store.add(this._terminalChatService.onDidContinueInBackground(sessionId => {
 			if (sessionId === terminalToolSessionId) {
+				this._terminalData.didContinueInBackground = true;
 				this._removeContinueInBackgroundAction();
 			}
 		}));
@@ -486,11 +486,11 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			// Add continue in background action - only for foreground executions with running commands
 			// Note: isBackground refers to whether the tool was invoked with isBackground=true (background execution),
 			// not whether the terminal is hidden from the user
-			if (terminalToolSessionId && !this._terminalData.isBackground && !this._didContinueInBackground) {
+			if (terminalToolSessionId && !this._terminalData.isBackground && !this._terminalData.didContinueInBackground) {
 				const isStillRunning = resolvedCommand?.exitCode === undefined && this._terminalData.terminalCommandState?.exitCode === undefined;
 				if (isStillRunning) {
 					const continueAction = this._instantiationService.createInstance(ContinueInBackgroundAction, terminalToolSessionId, () => {
-						this._didContinueInBackground = true;
+						this._terminalData.didContinueInBackground = true;
 						this._removeContinueInBackgroundAction();
 					});
 					this._continueInBackgroundAction.value = continueAction;
