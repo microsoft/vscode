@@ -773,7 +773,6 @@ export interface IChatSubagentToolInvocationData {
 
 export interface IChatTodoListContent {
 	kind: 'todoList';
-	sessionId: string;
 	todoList: Array<{
 		id: string;
 		title: string;

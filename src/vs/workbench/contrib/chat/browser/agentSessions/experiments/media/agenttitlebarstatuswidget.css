@@ -3,30 +3,56 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* Hide command center search box when agent status enabled */
-.agent-status-enabled .command-center .action-item.command-center-center {
+/*
+ * Command Center Integration
+ * Hide default search box when enhanced agent status replaces it.
+ */
+.unified-agents-bar .command-center .action-item.command-center-center {
 	display: none !important;
 }
 
-/* Give agent status same width as search box */
-.agent-status-enabled .command-center .action-item.agent-status-container {
+.agent-status-enabled .command-center {
+	overflow: visible !important;
+}
+
+/*
+ * Enhanced mode layout - full-width pill replacing command center search.
+ */
+.unified-agents-bar .command-center .action-item.agent-status-container {
 	width: 38vw;
 	max-width: 600px;
 	display: flex;
 	flex-direction: row;
 	flex-wrap: nowrap;
 	align-items: center;
-	justify-content: center;
+	justify-content: flex-start;
 }
 
+/*
+ * Badge-only mode layout - compact badge next to command center.
+ */
+.agent-status-enabled:not(.unified-agents-bar) .command-center .action-item.agent-status-container {
+	display: flex;
+	flex-direction: row;
+	flex-wrap: nowrap;
+	align-items: center;
+	overflow: visible;
+}
+
+/*
+ * Container - holds pill and/or badge.
+ * Right padding reserves space for badge chevron expansion.
+ */
 .agent-status-container {
 	display: flex;
 	flex-direction: row;
 	flex-wrap: nowrap;
 	align-items: center;
-	justify-content: center;
+	justify-content: flex-start;
 	gap: 4px;
+	padding-right: 22px;
 	-webkit-app-region: no-drag;
+	overflow: visible;
 }
 
 /* Pill - shared styles */
@@ -283,26 +309,27 @@
 	align-items: center;
 }
 
-/* Status badge (separate rectangle on right of pill) */
+/*
+ * Status Badge
+ * Split UI showing: [Sparkle + Chevron] | [Unread] | [Active]
+ * Expands rightward when chevron appears on hover.
+ */
 .agent-status-badge {
 	display: flex;
 	align-items: center;
 	gap: 0;
 	height: 22px;
 	border-radius: 6px;
-	overflow: hidden;
-	background-color: color-mix(in srgb, var(--vscode-progressBar-background) 15%, transparent);
-	border: 1px solid color-mix(in srgb, var(--vscode-progressBar-background) 50%, transparent);
+	background-color: var(--vscode-quickInput-background);
+	border: 1px solid var(--vscode-commandCenter-border, transparent);
 	flex-shrink: 0;
 	-webkit-app-region: no-drag;
+	position: relative;
+	overflow: visible;
+	margin-left: auto;
 }
 
-/* Empty badge - completely hidden */
-.agent-status-badge.empty {
-	display: none;
-}
-
-/* Badge section (for split UI) */
+/* Badge sections - clickable segments with hover states */
 .agent-status-badge-section {
 	display: flex;
 	align-items: center;
@@ -310,9 +337,29 @@
 	padding: 0 8px;
 	height: 100%;
 	position: relative;
+	cursor: pointer;
 }
 
-/* Separator between sections */
+.agent-status-badge-section:hover {
+	background-color: var(--vscode-chat-requestBubbleBackground);
+}
+
+.agent-status-badge-section:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+/* Active filter state - highlighted when filter is applied */
+.agent-status-badge-section.filtered {
+	background-color: var(--vscode-inputOption-activeBackground);
+}
+
+.agent-status-badge-section.filtered:hover {
+	background-color: var(--vscode-inputOption-activeBackground);
+	filter: brightness(1.1);
+}
+
+/* Vertical separator between badge sections */
 .agent-status-badge-section + .agent-status-badge-section::before {
 	content: '';
 	position: absolute;
@@ -320,10 +367,95 @@
 	top: 4px;
 	bottom: 4px;
 	width: 1px;
-	background-color: color-mix(in srgb, var(--vscode-progressBar-background) 40%, transparent);
+	background-color: var(--vscode-commandCenter-border, rgba(128, 128, 128, 0.35));
 }
 
-/* Unread section styling */
+/* Sparkle section - primary chat action with expandable chevron */
+.agent-status-badge-section.sparkle {
+	color: var(--vscode-foreground);
+	gap: 0;
+	padding: 0;
+}
+
+/* Disable hover on sparkle section itself since children handle it */
+.agent-status-badge-section.sparkle:hover {
+	background-color: transparent;
+}
+
+/* Dropdown button inside sparkle section */
+.agent-status-badge-section.sparkle .monaco-dropdown-with-primary {
+	display: flex;
+	align-items: center;
+	height: 100%;
+}
+
+.agent-status-badge-section.sparkle .action-container {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 0 6px;
+	height: 100%;
+}
+
+.agent-status-badge-section.sparkle .action-container:hover {
+	background-color: var(--vscode-chat-requestBubbleBackground);
+}
+
+.agent-status-badge-section.sparkle .action-container:focus-within {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.agent-status-badge-section.sparkle .action-container .action-label {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: none !important;
+	width: 16px;
+	height: 16px;
+}
+
+/*
+ * Chevron dropdown - slides out from sparkle section on hover.
+ * Badge expands rightward into reserved container padding.
+ */
+.agent-status-badge-section.sparkle .dropdown-action-container {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 0;
+	height: 100%;
+	overflow: hidden;
+	transition: width 0.15s ease-out 0.3s; /* Linger 300ms before collapsing */
+}
+
+.agent-status-badge-section.sparkle:hover .dropdown-action-container,
+.agent-status-badge-section.sparkle .dropdown-action-container:hover {
+	width: 22px;
+	transition: width 0.15s ease-out 0.1s;
+}
+
+.agent-status-badge-section.sparkle .dropdown-action-container:hover {
+	background-color: var(--vscode-chat-requestBubbleBackground);
+}
+
+.agent-status-badge-section.sparkle .dropdown-action-container:focus-within {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.agent-status-badge-section.sparkle .dropdown-action-container .action-label {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 18px;
+	height: 18px;
+	font-size: 18px;
+	background-position: center !important;
+	background-size: 18px !important;
+}
+
+/* Unread section - blue dot indicator with count */
 .agent-status-badge-section.unread {
 	color: var(--vscode-foreground);
 }
@@ -333,7 +465,7 @@
 	color: var(--vscode-notificationsInfoIcon-foreground);
 }
 
-/* Active/in-progress section styling */
+/* Active section - in-progress indicator with count */
 .agent-status-badge-section.active {
 	color: var(--vscode-foreground);
 }

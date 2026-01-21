@@ -20,6 +20,7 @@ import { Dto, SerializableObjectWithBuffers } from '../../services/extensions/co
 import { ExtHostLanguageModelToolsShape, IMainContext, IToolDataDto, MainContext, MainThreadLanguageModelToolsShape } from './extHost.protocol.js';
 import { ExtHostLanguageModels } from './extHostLanguageModels.js';
 import * as typeConvert from './extHostTypeConverters.js';
+import { URI } from '../../../base/common/uri.js';
 
 class Tool {
 
@@ -184,6 +185,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 			options.chatRequestId = dto.chatRequestId;
 			options.chatInteractionId = dto.chatInteractionId;
 			options.chatSessionId = dto.context?.sessionId;
+			options.chatSessionResource = URI.revive(dto.context?.sessionResource);
 			options.subAgentInvocationId = dto.subAgentInvocationId;
 		}
 
@@ -262,6 +264,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 			rawInput: context.rawInput,
 			chatRequestId: context.chatRequestId,
 			chatSessionId: context.chatSessionId,
+			chatSessionResource: context.chatSessionResource,
 			chatInteractionId: context.chatInteractionId
 		};
 
@@ -285,6 +288,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 			input: context.parameters,
 			chatRequestId: context.chatRequestId,
 			chatSessionId: context.chatSessionId,
+			chatSessionResource: context.chatSessionResource,
 			chatInteractionId: context.chatInteractionId
 		};
 		if (item.tool.prepareInvocation) {

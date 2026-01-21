@@ -282,13 +282,11 @@ export class ChatLanguageModelsDataContribution extends Disposable implements IW
 
 	constructor(
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
-		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
-		@IUriIdentityService uriIdentityService: IUriIdentityService,
+		@ILanguageModelsConfigurationService languageModelsConfigurationService: ILanguageModelsConfigurationService,
 	) {
 		super();
-		const modelsConfigurationFile = uriIdentityService.extUri.joinPath(userDataProfileService.currentProfile.location, 'models.json');
 		const registry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
-		this._register(registry.registerSchemaAssociation(languageModelsSchemaId, modelsConfigurationFile.toString()));
+		this._register(registry.registerSchemaAssociation(languageModelsSchemaId, languageModelsConfigurationService.configurationFile.toString()));
 
 		this.updateSchema(registry);
 		this._register(this.languageModelsService.onDidChangeLanguageModels(() => this.updateSchema(registry)));

@@ -10,16 +10,14 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { ChatMessageRole, languageModelChatProviderExtensionPoint, LanguageModelsService, IChatMessage, IChatResponsePart, ILanguageModelChatMetadata } from '../../common/languageModels.js';
+import { ChatMessageRole, LanguageModelsService, IChatMessage, IChatResponsePart, ILanguageModelChatMetadata } from '../../common/languageModels.js';
 import { IExtensionService, nullExtensionDescription } from '../../../../services/extensions/common/extensions.js';
-import { ExtensionsRegistry } from '../../../../services/extensions/common/extensionsRegistry.js';
 import { DEFAULT_MODEL_PICKER_CATEGORY } from '../../common/widget/input/modelPickerWidget.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 import { StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { Event } from '../../../../../base/common/event.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
-import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyExpression } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ILanguageModelsConfigurationService } from '../../common/languageModelsConfiguration.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
@@ -44,7 +42,6 @@ suite('LanguageModels', function () {
 			new NullLogService(),
 			new TestStorageService(),
 			new MockContextKeyService(),
-			new TestConfigurationService(),
 			new class extends mock<ILanguageModelsConfigurationService>() {
 				override onDidChangeLanguageModelGroups = Event.None;
 				override getLanguageModelsProviderGroups() {
@@ -55,17 +52,10 @@ suite('LanguageModels', function () {
 			new TestSecretStorageService(),
 		);
 
-		const ext = ExtensionsRegistry.getExtensionPoints().find(e => e.name === languageModelChatProviderExtensionPoint.name)!;
-
-		ext.acceptUsers([{
-			description: { ...nullExtensionDescription },
-			value: { vendor: 'test-vendor' },
-			collector: null!
-		}, {
-			description: { ...nullExtensionDescription },
-			value: { vendor: 'actual-vendor' },
-			collector: null!
-		}]);
+		languageModels.deltaLanguageModelChatProviderDescriptors([
+			{ vendor: 'test-vendor', displayName: 'Test Vendor', configuration: undefined, managementCommand: undefined, when: undefined },
+			{ vendor: 'actual-vendor', displayName: 'Actual Vendor', configuration: undefined, managementCommand: undefined, when: undefined }
+		], []);
 
 		store.add(languageModels.registerLanguageModelProvider('test-vendor', {
 			onDidChange: Event.None,
@@ -191,12 +181,9 @@ suite('LanguageModels', function () {
 		}));
 
 		// Register the extension point for the actual vendor
-		const ext = ExtensionsRegistry.getExtensionPoints().find(e => e.name === languageModelChatProviderExtensionPoint.name)!;
-		ext.acceptUsers([{
-			description: { ...nullExtensionDescription },
-			value: { vendor: 'actual-vendor' },
-			collector: null!
-		}]);
+		languageModels.deltaLanguageModelChatProviderDescriptors([
+			{ vendor: 'actual-vendor', displayName: 'Actual Vendor', configuration: undefined, managementCommand: undefined, when: undefined }
+		], []);
 
 		const models = await languageModels.selectLanguageModels({ id: 'actual-lm' });
 		assert.ok(models.length === 1);
@@ -259,7 +246,6 @@ suite('LanguageModels - When Clause', function () {
 			new NullLogService(),
 			new TestStorageService(),
 			contextKeyService,
-			new TestConfigurationService(),
 			new class extends mock<ILanguageModelsConfigurationService>() {
 				override onDidChangeLanguageModelGroups = Event.None;
 			},
@@ -267,21 +253,11 @@ suite('LanguageModels - When Clause', function () {
 			new TestSecretStorageService(),
 		);
 
-		const ext = ExtensionsRegistry.getExtensionPoints().find(e => e.name === languageModelChatProviderExtensionPoint.name)!;
-
-		ext.acceptUsers([{
-			description: { ...nullExtensionDescription },
-			value: { vendor: 'visible-vendor', displayName: 'Visible Vendor' },
-			collector: null!
-		}, {
-			description: { ...nullExtensionDescription },
-			value: { vendor: 'conditional-vendor', displayName: 'Conditional Vendor', when: 'testKey' },
-			collector: null!
-		}, {
-			description: { ...nullExtensionDescription },
-			value: { vendor: 'hidden-vendor', displayName: 'Hidden Vendor', when: 'falseKey' },
-			collector: null!
-		}]);
+		languageModelsWithWhen.deltaLanguageModelChatProviderDescriptors([
+			{ vendor: 'visible-vendor', displayName: 'Visible Vendor', configuration: undefined, managementCommand: undefined, when: undefined },
+			{ vendor: 'conditional-vendor', displayName: 'Conditional Vendor', configuration: undefined, managementCommand: undefined, when: 'testKey' },
+			{ vendor: 'hidden-vendor', displayName: 'Hidden Vendor', configuration: undefined, managementCommand: undefined, when: 'falseKey' }
+		], []);
 	});
 
 	teardown(function () {
@@ -307,6 +283,7 @@ suite('LanguageModels - When Clause', function () {
 		const vendors = languageModelsWithWhen.getVendors();
 		assert.ok(!vendors.some(v => v.vendor === 'hidden-vendor'), 'hidden-vendor should be hidden when falseKey is false');
 	});
+
 });
 
 suite('LanguageModels - Model Picker Preferences Storage', function () {
@@ -327,7 +304,6 @@ suite('LanguageModels - Model Picker Preferences Storage', function () {
 			new NullLogService(),
 			storageService,
 			new MockContextKeyService(),
-			new TestConfigurationService(),
 			new class extends mock<ILanguageModelsConfigurationService>() {
 				override onDidChangeLanguageModelGroups = Event.None;
 				override getLanguageModelsProviderGroups() {
@@ -339,12 +315,9 @@ suite('LanguageModels - Model Picker Preferences Storage', function () {
 		);
 
 		// Register vendor1 used in most tests
-		const ext = ExtensionsRegistry.getExtensionPoints().find(e => e.name === languageModelChatProviderExtensionPoint.name)!;
-		ext.acceptUsers([{
-			description: { ...nullExtensionDescription },
-			value: { vendor: 'vendor1' },
-			collector: null!
-		}]);
+		languageModelsService.deltaLanguageModelChatProviderDescriptors([
+			{ vendor: 'vendor1', displayName: 'Vendor 1', configuration: undefined, managementCommand: undefined, when: undefined }
+		], []);
 
 		disposables.add(languageModelsService.registerLanguageModelProvider('vendor1', {
 			onDidChange: Event.None,
@@ -450,12 +423,9 @@ suite('LanguageModels - Model Picker Preferences Storage', function () {
 
 	test('only fires onChange event for affected vendors', async function () {
 		// Register vendor2
-		const ext = ExtensionsRegistry.getExtensionPoints().find(e => e.name === languageModelChatProviderExtensionPoint.name)!;
-		ext.acceptUsers([{
-			description: { ...nullExtensionDescription },
-			value: { vendor: 'vendor2' },
-			collector: null!
-		}]);
+		languageModelsService.deltaLanguageModelChatProviderDescriptors([
+			{ vendor: 'vendor2', displayName: 'Vendor 2', configuration: undefined, managementCommand: undefined, when: undefined }
+		], []);
 
 		disposables.add(languageModelsService.registerLanguageModelProvider('vendor2', {
 			onDidChange: Event.None,
@@ -560,12 +530,6 @@ suite('LanguageModels - Model Change Events', function () {
 
 	setup(async function () {
 		storageService = new TestStorageService();
-		const ext = ExtensionsRegistry.getExtensionPoints().find(e => e.name === languageModelChatProviderExtensionPoint.name)!;
-		ext.acceptUsers([{
-			description: { ...nullExtensionDescription },
-			value: { vendor: 'test-vendor' },
-			collector: null!
-		}]);
 
 		languageModelsService = new LanguageModelsService(
 			new class extends mock<IExtensionService>() {
@@ -576,7 +540,6 @@ suite('LanguageModels - Model Change Events', function () {
 			new NullLogService(),
 			storageService,
 			new MockContextKeyService(),
-			new TestConfigurationService(),
 			new class extends mock<ILanguageModelsConfigurationService>() {
 				override onDidChangeLanguageModelGroups = Event.None;
 				override getLanguageModelsProviderGroups() {
@@ -586,6 +549,11 @@ suite('LanguageModels - Model Change Events', function () {
 			new class extends mock<IQuickInputService>() { },
 			new TestSecretStorageService(),
 		);
+
+		// Register the vendor first
+		languageModelsService.deltaLanguageModelChatProviderDescriptors([
+			{ vendor: 'test-vendor', displayName: 'Test Vendor', configuration: undefined, managementCommand: undefined, when: undefined }
+		], []);
 	});
 
 	teardown(function () {
@@ -901,5 +869,115 @@ suite('LanguageModels - Model Change Events', function () {
 		await languageModelsService.selectLanguageModels({ vendor: 'test-vendor' });
 
 		assert.strictEqual(eventFired, true, 'Should fire event when models change even without provider change event');
+	});
+});
+
+suite('LanguageModels - Vendor Change Events', function () {
+
+	let languageModelsService: LanguageModelsService;
+	const disposables = new DisposableStore();
+
+	setup(function () {
+		languageModelsService = new LanguageModelsService(
+			new class extends mock<IExtensionService>() {
+				override activateByEvent(name: string) {
+					return Promise.resolve();
+				}
+			},
+			new NullLogService(),
+			new TestStorageService(),
+			new MockContextKeyService(),
+			new class extends mock<ILanguageModelsConfigurationService>() {
+				override onDidChangeLanguageModelGroups = Event.None;
+				override getLanguageModelsProviderGroups() {
+					return [];
+				}
+			},
+			new class extends mock<IQuickInputService>() { },
+			new TestSecretStorageService(),
+		);
+	});
+
+	teardown(function () {
+		languageModelsService.dispose();
+		disposables.clear();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('fires onDidChangeLanguageModelVendors when a vendor is added', async function () {
+		const eventPromise = new Promise<readonly string[]>((resolve) => {
+			disposables.add(languageModelsService.onDidChangeLanguageModelVendors(vendors => resolve(vendors)));
+		});
+
+		languageModelsService.deltaLanguageModelChatProviderDescriptors([
+			{ vendor: 'added-vendor', displayName: 'Added Vendor', configuration: undefined, managementCommand: undefined, when: undefined }
+		], []);
+
+		const vendors = await eventPromise;
+		assert.ok(vendors.includes('added-vendor'));
+	});
+
+	test('fires onDidChangeLanguageModelVendors when a vendor is removed', async function () {
+		languageModelsService.deltaLanguageModelChatProviderDescriptors([
+			{ vendor: 'removed-vendor', displayName: 'Removed Vendor', configuration: undefined, managementCommand: undefined, when: undefined }
+		], []);
+
+		const eventPromise = new Promise<readonly string[]>((resolve) => {
+			disposables.add(languageModelsService.onDidChangeLanguageModelVendors(vendors => resolve(vendors)));
+		});
+
+		languageModelsService.deltaLanguageModelChatProviderDescriptors([], [
+			{ vendor: 'removed-vendor', displayName: 'Removed Vendor', configuration: undefined, managementCommand: undefined, when: undefined }
+		]);
+
+		const vendors = await eventPromise;
+		assert.ok(vendors.includes('removed-vendor'));
+	});
+
+	test('fires onDidChangeLanguageModelVendors when multiple vendors are added and removed', async function () {
+		// Add multiple vendors
+		const addEventPromise = new Promise<readonly string[]>((resolve) => {
+			disposables.add(languageModelsService.onDidChangeLanguageModelVendors(vendors => resolve(vendors)));
+		});
+
+		languageModelsService.deltaLanguageModelChatProviderDescriptors([
+			{ vendor: 'vendor-a', displayName: 'Vendor A', configuration: undefined, managementCommand: undefined, when: undefined },
+			{ vendor: 'vendor-b', displayName: 'Vendor B', configuration: undefined, managementCommand: undefined, when: undefined }
+		], []);
+
+		const addedVendors = await addEventPromise;
+		assert.ok(addedVendors.includes('vendor-a'));
+		assert.ok(addedVendors.includes('vendor-b'));
+
+		// Remove one vendor
+		const removeEventPromise = new Promise<readonly string[]>((resolve) => {
+			disposables.add(languageModelsService.onDidChangeLanguageModelVendors(vendors => resolve(vendors)));
+		});
+
+		languageModelsService.deltaLanguageModelChatProviderDescriptors([], [
+			{ vendor: 'vendor-a', displayName: 'Vendor A', configuration: undefined, managementCommand: undefined, when: undefined }
+		]);
+
+		const removedVendors = await removeEventPromise;
+		assert.ok(removedVendors.includes('vendor-a'));
+	});
+
+	test('does not fire onDidChangeLanguageModelVendors when no vendors are added or removed', async function () {
+		// Add initial vendor
+		languageModelsService.deltaLanguageModelChatProviderDescriptors([
+			{ vendor: 'stable-vendor', displayName: 'Stable Vendor', configuration: undefined, managementCommand: undefined, when: undefined }
+		], []);
+
+		// Listen for change event
+		let eventFired = false;
+		disposables.add(languageModelsService.onDidChangeLanguageModelVendors(() => {
+			eventFired = true;
+		}));
+
+		// Call with empty arrays - should not fire event
+		languageModelsService.deltaLanguageModelChatProviderDescriptors([], []);
+
+		assert.strictEqual(eventFired, false, 'Should not fire event when vendor list is unchanged');
 	});
 });
