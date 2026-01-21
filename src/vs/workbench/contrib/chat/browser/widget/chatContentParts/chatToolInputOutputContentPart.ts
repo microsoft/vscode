@@ -14,6 +14,8 @@ import { autorun, ISettableObservable, observableValue } from '../../../../../..
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
+import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
+import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { localize } from '../../../../../../nls.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
@@ -29,7 +31,7 @@ import { ChatToolOutputContentSubPart } from './chatToolOutputContentSubPart.js'
 
 export interface IChatCollapsibleIOCodePart {
 	kind: 'code';
-	textModel: ITextModel;
+	textModel: ITextModel | string; // Can be either an existing model or the data to create one
 	languageId: string;
 	options: ICodeBlockRenderOptions;
 	codeBlockInfo: IChatCodeBlockInfo;
@@ -98,6 +100,8 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IHoverService hoverService: IHoverService,
+		@IModelService private readonly modelService: IModelService,
+		@ILanguageService private readonly languageService: ILanguageService,
 	) {
 		super();
 		this._currentWidth = context.currentWidth.get();
@@ -218,9 +222,25 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 	}
 
 	private addCodeBlock(part: IChatCollapsibleIOCodePart, container: HTMLElement) {
+		// Lazily create the text model if it's a string
+		const textModel = typeof part.textModel === 'string'
+			? this._register(this.modelService.createModel(
+				part.textModel,
+				this.languageService.createById(part.languageId),
+				undefined,
+				true
+			))
+			: part.textModel;
+
+		// Update codeBlockInfo with the model's URI if it was just created
+		if (typeof part.textModel === 'string') {
+			part.codeBlockInfo.uri = textModel.uri;
+			part.codeBlockInfo.uriPromise = Promise.resolve(textModel.uri);
+		}
+
 		const data: ICodeBlockData = {
 			languageId: part.languageId,
-			textModel: Promise.resolve(part.textModel),
+			textModel: Promise.resolve(textModel),
 			codeBlockIndex: part.codeBlockInfo.codeBlockIndex,
 			codeBlockPartIndex: 0,
 			element: this.context.element,

@@ -50,18 +50,13 @@ export class ChatInputOutputMarkdownProgressPart extends BaseChatToolInvocationS
 		super(toolInvocation);
 
 		let codeBlockIndex = codeBlockStartIndex;
-		const toCodePart = (data: string): IChatCollapsibleIOCodePart => {
-			const model = this._register(modelService.createModel(
-				data,
-				languageService.createById('json'),
-				undefined,
-				true
-			));
-
+		
+		// Create a factory function that will be called lazily when content is expanded
+		const createCodePart = (data: string): IChatCollapsibleIOCodePart => {
 			return {
 				kind: 'code',
-				textModel: model,
-				languageId: model.getLanguageId(),
+				textModel: data, // Pass the data string, not a created model
+				languageId: 'json',
 				options: {
 					hideToolbar: true,
 					reserveWidth: 19,
@@ -77,9 +72,9 @@ export class ChatInputOutputMarkdownProgressPart extends BaseChatToolInvocationS
 					elementId: context.element.id,
 					focus: () => { },
 					ownerMarkdownPartId: this.codeblocksPartId,
-					uri: model.uri,
+					uri: undefined, // Will be set when model is created
 					chatSessionResource: context.element.sessionResource,
-					uriPromise: Promise.resolve(model.uri)
+					uriPromise: undefined, // Will be set when model is created
 				}
 			};
 		};
@@ -95,7 +90,7 @@ export class ChatInputOutputMarkdownProgressPart extends BaseChatToolInvocationS
 			subtitle,
 			this.getAutoApproveMessageContent(),
 			context,
-			toCodePart(input),
+			createCodePart(input),
 			processedOutput && processedOutput.length > 0 ? {
 				parts: processedOutput.map((o, i): ChatCollapsibleIOPart => {
 					const permalinkBasename = o.type === 'ref' || o.uri
@@ -108,7 +103,7 @@ export class ChatInputOutputMarkdownProgressPart extends BaseChatToolInvocationS
 					if (o.type === 'ref') {
 						return { kind: 'data', uri: o.uri, mimeType: o.mimeType };
 					} else if (o.isText && !o.asResource) {
-						return toCodePart(o.value);
+						return createCodePart(o.value);
 					} else {
 						let decoded: Uint8Array | undefined;
 						try {
