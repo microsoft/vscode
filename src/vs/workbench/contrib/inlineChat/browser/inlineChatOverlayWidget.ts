@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../base/browser/dom.js';
-import { IAction } from '../../../../base/common/actions.js';
+import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
+import { IAction, Separator } from '../../../../base/common/actions.js';
 import { ActionBar, ActionsOrientation } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
@@ -144,6 +145,16 @@ export class InlineChatOverlayWidget extends Disposable implements IOverlayWidge
 			orientation: ActionsOrientation.VERTICAL,
 			preventLoopNavigation: true,
 		}));
+
+		// Handle ArrowUp on first action bar item to focus input editor
+		this._store.add(dom.addDisposableListener(this._actionBar.domNode, 'keydown', e => {
+			const event = new StandardKeyboardEvent(e);
+			if (event.equals(KeyCode.UpArrow) && this._actionBar.isFocused(this._actionBar.viewItems.findIndex(item => item.action.id !== Separator.ID))) {
+				event.preventDefault();
+				event.stopPropagation();
+				this._input.focus();
+			}
+		}, true));
 
 		// Track focus - hide when focus leaves
 		const focusTracker = this._store.add(dom.trackFocus(this._domNode));
