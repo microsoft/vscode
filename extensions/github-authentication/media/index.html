@@ -48,9 +48,9 @@
 			document.querySelector('body').classList.add('error');
 		} else if (!redirectUri) {
 			// Portable mode: authentication succeeded, no redirect needed
-			document.querySelector('title').innerHTML =  appName + ' - Signed In';
-			document.querySelector('.success-message > .subtitle').innerHTML = 'You have successfully signed in.';
-			document.querySelector('.success-message > .detail').innerHTML = 'You can now close this window.';
+			document.querySelector('title').textContent =  'Signed In - ';
+			document.querySelector('.success-message > .subtitle').textContent = 'You have successfully signed in.';
+			document.querySelector('.success-message > .detail').textContent = 'You can now close this window.';
 		} else {
 			// Wrap the redirect URI so that the browser remembers who triggered the redirect
 			const wrappedRedirectUri = `https://vscode.dev/redirect?url=${encodeURIComponent(redirectUri)}`;
