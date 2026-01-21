@@ -1689,10 +1689,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.chatInputTodoListWidgetContainer = elements.chatInputTodoListWidgetContainer;
 		this.chatInputWidgetsContainer = elements.chatInputWidgetsContainer;
 
-		this._contextUsageWidget.value = this.instantiationService.createInstance(ChatContextUsageWidget);
-		elements.editorContainer.appendChild(this._contextUsageWidget.value.domNode);
-		if (this._widget?.viewModel) {
-			this._contextUsageWidget.value.setModel(this._widget.viewModel.model);
+		const isInline = isIChatResourceViewContext(widget.viewContext) && widget.viewContext.isInlineChat;
+		if (this.location !== ChatAgentLocation.EditorInline && !isInline) {
+			this._contextUsageWidget.value = this.instantiationService.createInstance(ChatContextUsageWidget);
+			elements.editorContainer.appendChild(this._contextUsageWidget.value.domNode);
+			if (this._widget?.viewModel) {
+				this._contextUsageWidget.value.setModel(this._widget.viewModel.model);
+			}
 		}
 
 		if (this.options.enableImplicitContext && !this._implicitContext) {
