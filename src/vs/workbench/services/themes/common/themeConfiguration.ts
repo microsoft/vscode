@@ -302,7 +302,15 @@ export class ThemeConfiguration {
 	}
 
 	public get tokenColorCustomizations(): ITokenColorCustomizations {
-		return this.configurationService.getValue<ITokenColorCustomizations>(ThemeSettings.TOKEN_COLOR_CUSTOMIZATIONS) || {};
+		const tokenColorCustomization = this.configurationService.getValue<ITokenColorCustomizations>(ThemeSettings.TOKEN_COLOR_CUSTOMIZATIONS) || {};
+		tokenColorCustomization.textMateRules?.forEach(rule => {
+			const fontSize = rule.settings.fontSize;
+			const lineHeight = rule.settings.lineHeight;
+			if (fontSize !== undefined && (lineHeight === undefined || lineHeight < fontSize)) {
+				rule.settings.lineHeight = fontSize;
+			}
+		});
+		return tokenColorCustomization;
 	}
 
 	public get semanticTokenColorCustomizations(): ISemanticTokenColorCustomizations | undefined {
