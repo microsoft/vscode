@@ -423,7 +423,6 @@ abstract class BaseChatConfirmationWidget<T> extends Disposable {
 				} satisfies IChatMarkdownContentPartOptions,
 			));
 			renderFileWidgets(part.domNode, this.instantiationService, this.chatMarkdownAnchorService, this._store);
-			this._register(part.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 
 			this.markdownContentPart.value = part;
 			element = part.domNode;
