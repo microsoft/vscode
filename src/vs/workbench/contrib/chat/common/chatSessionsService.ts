@@ -236,4 +236,12 @@ export function isSessionInProgressStatus(state: ChatSessionStatus): boolean {
 	return state === ChatSessionStatus.InProgress || state === ChatSessionStatus.NeedsInput;
 }
 
+/**
+ * Returns true if the session item is in progress and not archived.
+ * Use this when filtering or displaying "active" sessions from IChatSessionItem.
+ */
+export function isChatSessionItemActiveAndNotArchived(item: IChatSessionItem): boolean {
+	return !!item.status && isSessionInProgressStatus(item.status) && !item.archived;
+}
+
 export const IChatSessionsService = createDecorator<IChatSessionsService>('chatSessionsService');

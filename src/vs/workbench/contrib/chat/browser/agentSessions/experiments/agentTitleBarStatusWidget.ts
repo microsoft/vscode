@@ -16,7 +16,7 @@ import { ICommandService } from '../../../../../../platform/commands/common/comm
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { ExitAgentSessionProjectionAction } from './agentSessionProjectionActions.js';
 import { IAgentSessionsService } from '../agentSessionsService.js';
-import { AgentSessionStatus, IAgentSession, isSessionInProgressStatus } from '../agentSessionsModel.js';
+import { AgentSessionStatus, IAgentSession, isSessionActiveAndNotArchived } from '../agentSessionsModel.js';
 import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IAction, SubmenuAction, toAction } from '../../../../../../base/common/actions.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
@@ -259,7 +259,7 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 		hasAttentionNeeded: boolean;
 	} {
 		const sessions = this.agentSessionsService.model.sessions;
-		const activeSessions = sessions.filter(s => isSessionInProgressStatus(s.status));
+		const activeSessions = sessions.filter(s => isSessionActiveAndNotArchived(s));
 		const unreadSessions = sessions.filter(s => !s.isRead());
 		// Sessions that need user attention (approval/confirmation/input)
 		const attentionNeededSessions = sessions.filter(s => s.status === AgentSessionStatus.NeedsInput);
