@@ -820,13 +820,25 @@ class AgentSessionsCache {
 			read: state.read
 		}));
 
-		this.storageService.store(AgentSessionsCache.STATE_STORAGE_KEY, JSON.stringify(serialized), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		this.storageService.store(AgentSessionsCache.STATE_STORAGE_KEY, JSON.stringify(serialized), StorageScope.PROFILE, StorageTarget.MACHINE);
 	}
 
 	loadSessionStates(): ResourceMap<IAgentSessionState> {
 		const states = new ResourceMap<IAgentSessionState>();
 
-		const statesCache = this.storageService.get(AgentSessionsCache.STATE_STORAGE_KEY, StorageScope.WORKSPACE);
+		// Try to load from profile scope first (new location)
+		let statesCache = this.storageService.get(AgentSessionsCache.STATE_STORAGE_KEY, StorageScope.PROFILE);
+
+		// Migration: check workspace scope (old location) and migrate if found
+		if (!statesCache) {
+			statesCache = this.storageService.get(AgentSessionsCache.STATE_STORAGE_KEY, StorageScope.WORKSPACE);
+			if (statesCache) {
+				// Migrate: store in profile scope and remove from workspace scope
+				this.storageService.store(AgentSessionsCache.STATE_STORAGE_KEY, statesCache, StorageScope.PROFILE, StorageTarget.MACHINE);
+				this.storageService.remove(AgentSessionsCache.STATE_STORAGE_KEY, StorageScope.WORKSPACE);
+			}
+		}
+
 		if (!statesCache) {
 			return states;
 		}
