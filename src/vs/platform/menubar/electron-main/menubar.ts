@@ -21,7 +21,7 @@ import { INativeHostMainService } from '../../native/electron-main/nativeHostMai
 import { IProductService } from '../../product/common/productService.js';
 import { IStateService } from '../../state/node/state.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
-import { IUpdateService, StateType, formatDownloadingUpdateLabel } from '../../update/common/update.js';
+import { IUpdateService, StateType } from '../../update/common/update.js';
 import { INativeRunActionInWindowRequest, INativeRunKeybindingInWindowRequest, IWindowOpenable, hasNativeMenu } from '../../window/common/window.js';
 import { IWindowsCountChangedEvent, IWindowsMainService, OpenContext } from '../../windows/electron-main/windows.js';
 import { IWorkspacesHistoryMainService } from '../../workspaces/electron-main/workspacesHistoryMainService.js';
@@ -648,7 +648,7 @@ export class Menubar extends Disposable {
 				})];
 
 			case StateType.Downloading:
-				return [new MenuItem({ label: formatDownloadingUpdateLabel(state), enabled: false })];
+				return [new MenuItem({ label: nls.localize('miDownloadingUpdate', "Downloading Update..."), enabled: false })];
 
 			case StateType.Downloaded:
 				return isMacintosh ? [] : [new MenuItem({
