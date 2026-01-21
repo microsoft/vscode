@@ -235,6 +235,7 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 				actionButton.className = 'action-label ' + (action.class || '');
 				actionButton.tabIndex = 0;
 				actionButton.title = action.tooltip || action.label;
+				actionButton.setAttribute('aria-label', action.label || action.tooltip || '');
 				actionButton.setAttribute('role', 'button');
 				data.actionsContainer.appendChild(actionButton);
 
