@@ -38,7 +38,7 @@ export function assertIsResponseVM(item: unknown): asserts item is IChatResponse
 	}
 }
 
-export type IChatViewModelChangeEvent = IChatAddRequestEvent | IChangePlaceholderEvent | IChatSessionInitEvent | IChatSetHiddenEvent | IChatSetCheckpointEvent | null;
+export type IChatViewModelChangeEvent = IChatAddRequestEvent | IChangePlaceholderEvent | IChatSessionInitEvent | IChatSetHiddenEvent | null;
 
 export interface IChatAddRequestEvent {
 	kind: 'addRequest';
@@ -54,10 +54,6 @@ export interface IChatSessionInitEvent {
 
 export interface IChatSetHiddenEvent {
 	kind: 'setHidden';
-}
-
-export interface IChatSetCheckpointEvent {
-	kind: 'setCheckpoint';
 }
 
 export interface IChatViewModel {
