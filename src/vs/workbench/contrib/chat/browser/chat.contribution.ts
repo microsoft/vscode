@@ -821,6 +821,12 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.agent.thinking.generateTitles', "Controls whether to use an LLM to generate summary titles for thinking sections."),
 			tags: ['experimental'],
 		},
+		[ChatConfiguration.ThinkingKeepOpenOnHover]: {
+			type: 'boolean',
+			default: false,
+			description: nls.localize('chat.agent.thinking.keepOpenOnHover', "When enabled, thinking sections will not auto-collapse if the mouse is hovering over them. A manual 'Collapse' button will be shown instead."),
+			tags: ['experimental'],
+		},
 		'chat.agent.thinking.collapsedTools': {
 			type: 'string',
 			default: 'always',

@@ -25,6 +25,7 @@ export enum ChatConfiguration {
 	CheckpointsEnabled = 'chat.checkpoints.enabled',
 	ThinkingStyle = 'chat.agent.thinkingStyle',
 	ThinkingGenerateTitles = 'chat.agent.thinking.generateTitles',
+	ThinkingKeepOpenOnHover = 'chat.agent.thinking.keepOpenOnHover',
 	TerminalToolsInThinking = 'chat.agent.thinking.terminalTools',
 	TodosShowWidget = 'chat.tools.todos.showWidget',
 	NotifyWindowOnResponseReceived = 'chat.notifyWindowOnResponseReceived',

@@ -332,8 +332,9 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	}
 
 	public collapseContent(): void {
-		// If user is reading (mouse is over the widget), show a collapse button instead of auto-collapsing
-		if (this.isMouseOver) {
+		// If setting is enabled and user is reading (mouse is over the widget), show a collapse button instead of auto-collapsing
+		const keepOpenOnHover = this.configurationService.getValue<boolean>(ChatConfiguration.ThinkingKeepOpenOnHover) ?? false;
+		if (keepOpenOnHover && this.isMouseOver) {
 			this.showManualCollapseButton();
 			return;
 		}
