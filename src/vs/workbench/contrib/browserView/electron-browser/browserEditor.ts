@@ -26,7 +26,7 @@ import { IEditorGroup } from '../../../services/editor/common/editorGroupsServic
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
-import { BrowserOverlayManager } from './overlayManager.js';
+import { BrowserOverlayManager, BrowserOverlayType, IBrowserOverlayInfo } from './overlayManager.js';
 import { getZoomFactor, onDidChangeZoomLevel } from '../../../../base/browser/browser.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -162,6 +162,9 @@ export class BrowserEditor extends EditorPane {
 	private _navigationBar!: BrowserNavigationBar;
 	private _browserContainer!: HTMLElement;
 	private _placeholderScreenshot!: HTMLElement;
+	private _overlayPauseContainer!: HTMLElement;
+	private _overlayPauseHeading!: HTMLElement;
+	private _overlayPauseDetail!: HTMLElement;
 	private _errorContainer!: HTMLElement;
 	private _welcomeContainer!: HTMLElement;
 	private _canGoBackContext!: IContextKey<boolean>;
@@ -229,6 +232,16 @@ export class BrowserEditor extends EditorPane {
 		// Create placeholder screenshot (background placeholder when WebContentsView is hidden)
 		this._placeholderScreenshot = $('.browser-placeholder-screenshot');
 		this._browserContainer.appendChild(this._placeholderScreenshot);
+
+		// Create overlay pause container (hidden by default via CSS)
+		this._overlayPauseContainer = $('.browser-overlay-paused');
+		const overlayPauseMessage = $('.browser-overlay-paused-message');
+		this._overlayPauseHeading = $('.browser-overlay-paused-heading');
+		this._overlayPauseDetail = $('.browser-overlay-paused-detail');
+		overlayPauseMessage.appendChild(this._overlayPauseHeading);
+		overlayPauseMessage.appendChild(this._overlayPauseDetail);
+		this._overlayPauseContainer.appendChild(overlayPauseMessage);
+		this._browserContainer.appendChild(this._overlayPauseContainer);
 
 		// Create error container (hidden by default)
 		this._errorContainer = $('.browser-error-container');
@@ -382,7 +395,8 @@ export class BrowserEditor extends EditorPane {
 	private updateVisibility(): void {
 		const hasUrl = !!this._model?.url;
 		const hasError = !!this._model?.error;
-		const shouldShowPlaceholder = this._editorVisible && this._overlayVisible && !hasError && hasUrl;
+		const isViewingPage = !hasError && hasUrl;
+		const isPaused = isViewingPage && this._editorVisible && this._overlayVisible;
 
 		// Welcome container: shown when no URL is loaded
 		this._welcomeContainer.style.display = hasUrl ? 'none' : '';
@@ -390,9 +404,11 @@ export class BrowserEditor extends EditorPane {
 		// Error container: shown when there's a load error
 		this._errorContainer.style.display = hasError ? '' : 'none';
 
-		// Placeholder screenshot: shown when the view is hidden due to overlays
-		this._placeholderScreenshot.style.display = shouldShowPlaceholder ? '' : 'none';
-		this._placeholderScreenshot.classList.toggle('blur', shouldShowPlaceholder);
+		// Placeholder screenshot: shown when there is a page loaded (even when the view is not hidden, so hiding is smooth)
+		this._placeholderScreenshot.style.display = isViewingPage ? '' : 'none';
+
+		// Pause overlay: fades in when an overlay is detected
+		this._overlayPauseContainer.classList.toggle('visible', isPaused);
 
 		if (this._model) {
 			// Blur the background placeholder screenshot if the view is hidden due to an overlay.
@@ -408,10 +424,26 @@ export class BrowserEditor extends EditorPane {
 		if (!this.overlayManager) {
 			return;
 		}
-		const hasOverlappingOverlay = this.overlayManager.isOverlappingWithOverlays(this._browserContainer);
+		const overlappingOverlays = this.overlayManager.getOverlappingOverlays(this._browserContainer);
+		const hasOverlappingOverlay = overlappingOverlays.length > 0;
+		this.updateOverlayPauseMessage(overlappingOverlays);
 		if (hasOverlappingOverlay !== this._overlayVisible) {
 			this._overlayVisible = hasOverlappingOverlay;
 			this.updateVisibility();
+		}
+	}
+
+	private updateOverlayPauseMessage(overlappingOverlays: readonly IBrowserOverlayInfo[]): void {
+		// Only show the pause message for notification overlays
+		const hasNotificationOverlay = overlappingOverlays.some(overlay => overlay.type === BrowserOverlayType.Notification);
+		this._overlayPauseContainer.classList.toggle('show-message', hasNotificationOverlay);
+
+		if (hasNotificationOverlay) {
+			this._overlayPauseHeading.textContent = localize('browser.overlayPauseHeading.notification', "Paused due to Notification");
+			this._overlayPauseDetail.textContent = localize('browser.overlayPauseDetail.notification', "Dismiss the notification to continue using the browser.");
+		} else {
+			this._overlayPauseHeading.textContent = '';
+			this._overlayPauseDetail.textContent = '';
 		}
 	}
 

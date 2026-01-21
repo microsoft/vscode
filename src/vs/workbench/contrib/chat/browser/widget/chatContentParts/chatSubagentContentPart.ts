@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../../base/browser/dom.js';
-import { $, AnimationFrameScheduler } from '../../../../../../base/browser/dom.js';
+import { $, AnimationFrameScheduler, DisposableResizeObserver } from '../../../../../../base/browser/dom.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { rcut } from '../../../../../../base/common/strings.js';
@@ -159,6 +159,10 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		// Scheduler for coalescing layout operations
 		this.layoutScheduler = this._register(new AnimationFrameScheduler(this.domNode, () => this.performLayout()));
 
+		// Use ResizeObserver to trigger layout when wrapper content changes
+		const resizeObserver = this._register(new DisposableResizeObserver(() => this.layoutScheduler.schedule()));
+		this._register(resizeObserver.observe(this.wrapper));
+
 		// Render the prompt section at the start if available (must be after wrapper is initialized)
 		this.renderPromptSection();
 
@@ -221,7 +225,6 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 			this.context,
 			this.chatContentMarkdownRenderer
 		));
-		this._register(collapsiblePart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 
 		// Wrap in a container for chain of thought line styling
 		this.promptContainer = $('.chat-thinking-tool-wrapper.chat-subagent-section');
@@ -250,7 +253,6 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		this.finalizeTitle();
 		// Collapse when done
 		this.setExpanded(false);
-		this._onDidChangeHeight.fire();
 	}
 
 	public finalizeTitle(): void {
@@ -360,7 +362,6 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 			this.context,
 			this.chatContentMarkdownRenderer
 		));
-		this._register(collapsiblePart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 
 		// Wrap in a container for chain of thought line styling
 		this.resultContainer = $('.chat-thinking-tool-wrapper.chat-subagent-section');
@@ -373,8 +374,6 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		if (this.wrapper.style.display === 'none') {
 			this.wrapper.style.display = '';
 		}
-
-		this._onDidChangeHeight.fire();
 	}
 
 	/**
@@ -425,21 +424,6 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		);
 
 		this._register(part);
-		this._register(part.onDidChangeHeight(() => {
-			this.layoutScheduler.schedule();
-			this._onDidChangeHeight.fire();
-		}));
-
-		// Watch for tool completion to update height when label changes
-		if (toolInvocation.kind === 'toolInvocation') {
-			this._register(autorun(r => {
-				const state = toolInvocation.state.read(r);
-				if (state.type === IChatToolInvocation.StateKind.Completed) {
-					this._onDidChangeHeight.fire();
-				}
-			}));
-		}
-
 		return part;
 	}
 
@@ -504,8 +488,6 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 			this.pendingResultText = undefined;
 			this.doRenderResultText(resultText);
 		}
-
-		this._onDidChangeHeight.fire();
 	}
 
 	private performLayout(): void {
@@ -522,8 +504,6 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 			const scrollHeight = this.wrapper.scrollHeight;
 			this.wrapper.scrollTop = scrollHeight;
 		}
-
-		this._onDidChangeHeight.fire();
 	}
 
 	hasSameContent(other: IChatRendererContent, _followingContent: IChatRendererContent[], _element: ChatTreeItem): boolean {

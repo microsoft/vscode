@@ -175,6 +175,7 @@ export interface ILanguageModelChatMetadata {
 	readonly version: string;
 	readonly tooltip?: string;
 	readonly detail?: string;
+	readonly multiplier?: string;
 	readonly family: string;
 	readonly maxInputTokens: number;
 	readonly maxOutputTokens: number;
@@ -292,7 +293,7 @@ export interface ILanguageModelsService {
 
 	getLanguageModelIds(): string[];
 
-	getVendors(): IUserFriendlyLanguageModel[];
+	getVendors(): ILanguageModelProviderDescriptor[];
 
 	lookupLanguageModel(modelId: string): ILanguageModelChatMetadata | undefined;
 
@@ -384,6 +385,10 @@ const languageModelChatProviderType = {
 
 export type IUserFriendlyLanguageModel = TypeFromJsonSchema<typeof languageModelChatProviderType>;
 
+export interface ILanguageModelProviderDescriptor extends IUserFriendlyLanguageModel {
+	readonly isDefault: boolean;
+}
+
 export const languageModelChatProviderExtensionPoint = ExtensionsRegistry.registerExtensionPoint<IUserFriendlyLanguageModel | IUserFriendlyLanguageModel[]>({
 	extensionPoint: 'languageModelChatProviders',
 	jsonSchema: {
@@ -415,7 +420,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 	private readonly _store = new DisposableStore();
 
 	private readonly _providers = new Map<string, ILanguageModelChatProvider>();
-	private readonly _vendors = new Map<string, IUserFriendlyLanguageModel>();
+	private readonly _vendors = new Map<string, ILanguageModelProviderDescriptor>();
 
 	private readonly _onDidChangeLanguageModelVendors = this._store.add(new Emitter<string[]>());
 	readonly onDidChangeLanguageModelVendors = this._onDidChangeLanguageModelVendors.event;
@@ -494,13 +499,13 @@ export class LanguageModelsService implements ILanguageModelsService {
 				this._logService.error('The vendor field cannot start or end with whitespace.');
 				continue;
 			}
-			// Cast to IUserFriendlyLanguageModel - fill in optional properties with undefined
-			const vendor: IUserFriendlyLanguageModel = {
+			const vendor: ILanguageModelProviderDescriptor = {
 				vendor: item.vendor,
 				displayName: item.displayName,
 				configuration: item.configuration,
 				managementCommand: item.managementCommand,
-				when: item.when
+				when: item.when,
+				isDefault: item.vendor === 'copilot'
 			};
 			this._vendors.set(item.vendor, vendor);
 			addedVendorIds.push(item.vendor);
@@ -609,14 +614,15 @@ export class LanguageModelsService implements ILanguageModelsService {
 		this._logService.trace(`[LM] Updated model picker preference for ${modelIdentifier} to ${showInModelPicker}`);
 	}
 
-	getVendors(): IUserFriendlyLanguageModel[] {
-		return Array.from(this._vendors.values()).filter(vendor => {
-			if (!vendor.when) {
-				return true; // No when clause means always visible
-			}
-			const whenClause = ContextKeyExpr.deserialize(vendor.when);
-			return whenClause ? this._contextKeyService.contextMatchesRules(whenClause) : false;
-		});
+	getVendors(): ILanguageModelProviderDescriptor[] {
+		return Array.from(this._vendors.values())
+			.filter(vendor => {
+				if (!vendor.when) {
+					return true; // No when clause means always visible
+				}
+				const whenClause = ContextKeyExpr.deserialize(vendor.when);
+				return whenClause ? this._contextKeyService.contextMatchesRules(whenClause) : false;
+			});
 	}
 
 	getLanguageModelIds(): string[] {
@@ -659,7 +665,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 					allModels.push(...models);
 					const modelIdentifiers = [];
 					for (const m of models) {
-						if (vendorId === 'copilot') {
+						if (vendor.isDefault) {
 							// Special case for copilot models - they are all user selectable unless marked otherwise
 							if (m.metadata.isUserSelectable || this._modelPickerUserPreferences[m.identifier] === true) {
 								modelIdentifiers.push(m.identifier);

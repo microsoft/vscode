@@ -4,11 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { h } from '../../../../base/browser/dom.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
-import { autorun, constObservable, derived, observableFromEvent } from '../../../../base/common/observable.js';
-import { MenuEntryActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { getActionBarActions, MenuEntryActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { autorun, constObservable, derived, IObservable, observableFromEvent } from '../../../../base/common/observable.js';
+import { URI } from '../../../../base/common/uri.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { IMenuService, MenuId, MenuItemAction } from '../../../../platform/actions/common/actions.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { ICodeEditor, OverlayWidgetPositionPreference } from '../../../browser/editorBrowser.js';
@@ -27,48 +29,78 @@ export class FloatingEditorToolbar extends Disposable implements IEditorContribu
 		super();
 
 		const editorObs = this._register(observableCodeEditor(editor));
+		const editorUriObs = derived(reader => editorObs.model.read(reader)?.uri);
 
-		const menu = this._register(menuService.createMenu(MenuId.EditorContent, editor.contextKeyService));
-		const menuActionsObs = observableFromEvent(this, menu.onDidChange, () => menu.getActions());
-		const menuPrimaryActionIdObs = derived(reader => {
-			const menuActions = menuActionsObs.read(reader);
-			if (menuActions.length === 0) {
-				return undefined;
-			}
+		// Widget
+		const widget = this._register(instantiationService.createInstance(
+			FloatingEditorToolbarWidget,
+			MenuId.EditorContent,
+			editor.contextKeyService,
+			editorUriObs));
 
-			// Navigation group
-			const navigationGroup = menuActions
-				.find((group) => group[0] === 'navigation');
-
-			// First action in navigation group
-			if (navigationGroup && navigationGroup[1].length > 0) {
-				return navigationGroup[1][0].id;
-			}
-
-			// Fallback to first group/action
-			for (const [, actions] of menuActions) {
-				if (actions.length > 0) {
-					return actions[0].id;
-				}
-			}
-
-			return undefined;
-		});
-
+		// Render widget
 		this._register(autorun(reader => {
-			const menuPrimaryActionId = menuPrimaryActionIdObs.read(reader);
-			if (!menuPrimaryActionId) {
+			const hasActions = widget.hasActions.read(reader);
+			if (!hasActions) {
 				return;
 			}
 
-			const container = h('div.floating-menu-overlay-widget');
+			// Overlay widget
+			reader.store.add(editorObs.createOverlayWidget({
+				allowEditorOverflow: false,
+				domNode: widget.element,
+				minContentWidthInPx: constObservable(0),
+				position: constObservable({
+					preference: OverlayWidgetPositionPreference.BOTTOM_RIGHT_CORNER
+				})
+			}));
+		}));
+	}
+}
 
-			// Set height explicitly to ensure that the floating menu element
-			// is rendered in the lower right corner at the correct position.
-			container.root.style.height = '26px';
+export class FloatingEditorToolbarWidget extends Disposable {
+	readonly element: HTMLElement;
+	readonly hasActions: IObservable<boolean>;
+
+	constructor(
+		_menuId: MenuId,
+		_scopedContextKeyService: IContextKeyService,
+		_toolbarContext: IObservable<URI | undefined>,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IMenuService menuService: IMenuService
+	) {
+		super();
+
+		const menu = this._register(menuService.createMenu(_menuId, _scopedContextKeyService));
+		const menuGroupsObs = observableFromEvent(this, menu.onDidChange, () => menu.getActions());
+
+		const menuPrimaryActionIdObs = derived(reader => {
+			const menuGroups = menuGroupsObs.read(reader);
+
+			const { primary } = getActionBarActions(menuGroups, () => true);
+			return primary.length > 0 ? primary[0].id : undefined;
+		});
+
+		this.hasActions = derived(reader => menuGroupsObs.read(reader).length > 0);
+
+		this.element = h('div.floating-menu-overlay-widget').root;
+		this._register(toDisposable(() => this.element.remove()));
+
+		// Set height explicitly to ensure that the floating menu element
+		// is rendered in the lower right corner at the correct position.
+		this.element.style.height = '26px';
+
+		this._register(autorun(reader => {
+			const hasActions = this.hasActions.read(reader);
+			const menuPrimaryActionId = menuPrimaryActionIdObs.read(reader);
+
+			if (!hasActions) {
+				return;
+			}
 
 			// Toolbar
-			const toolbar = instantiationService.createInstance(MenuWorkbenchToolBar, container.root, MenuId.EditorContent, {
+			const toolbar = instantiationService.createInstance(MenuWorkbenchToolBar, this.element, _menuId, {
 				actionViewItemProvider: (action, options) => {
 					if (!(action instanceof MenuItemAction)) {
 						return undefined;
@@ -109,18 +141,8 @@ export class FloatingEditorToolbar extends Disposable implements IEditorContribu
 
 			reader.store.add(toolbar);
 			reader.store.add(autorun(reader => {
-				const model = editorObs.model.read(reader);
-				toolbar.context = model?.uri;
-			}));
-
-			// Overlay widget
-			reader.store.add(editorObs.createOverlayWidget({
-				allowEditorOverflow: false,
-				domNode: container.root,
-				minContentWidthInPx: constObservable(0),
-				position: constObservable({
-					preference: OverlayWidgetPositionPreference.BOTTOM_RIGHT_CORNER
-				})
+				const context = _toolbarContext.read(reader);
+				toolbar.context = context;
 			}));
 		}));
 	}

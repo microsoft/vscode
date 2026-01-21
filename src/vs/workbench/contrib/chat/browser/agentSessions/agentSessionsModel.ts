@@ -21,7 +21,7 @@ import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { Extensions, IOutputChannelRegistry, IOutputService } from '../../../../services/output/common/output.js';
-import { ChatSessionStatus as AgentSessionStatus, IChatSessionFileChange, IChatSessionItem, IChatSessionsExtensionPoint, IChatSessionsService, isSessionInProgressStatus } from '../../common/chatSessionsService.js';
+import { ChatSessionStatus as AgentSessionStatus, IChatSessionFileChange, IChatSessionItem, IChatSessionsExtensionPoint, IChatSessionsService } from '../../common/chatSessionsService.js';
 import { AgentSessionProviders, getAgentSessionProvider, getAgentSessionProviderIcon, getAgentSessionProviderName } from './agentSessions.js';
 
 //#region Interfaces, Types
@@ -57,10 +57,7 @@ interface IAgentSessionData extends Omit<IChatSessionItem, 'archived' | 'iconPat
 	readonly badge?: string | IMarkdownString;
 	readonly icon: ThemeIcon;
 
-	readonly timing: IChatSessionItem['timing'] & {
-		readonly inProgressTime?: number;
-		readonly finishedOrFailedTime?: number;
-	};
+	readonly timing: IChatSessionItem['timing'];
 
 	readonly changes?: IChatSessionItem['changes'];
 }
@@ -199,19 +196,12 @@ function statusToString(status: AgentSessionStatus): string {
 	}
 }
 
-interface ISessionToStateEntry {
-	status: AgentSessionStatus;
-	inProgressTime?: number;
-	finishedOrFailedTime?: number;
-}
-
 class AgentSessionsLogger extends Disposable {
 
 	constructor(
 		private readonly getSessionsData: () => {
 			sessions: Iterable<IInternalAgentSession>;
 			sessionStates: ResourceMap<IAgentSessionState>;
-			mapSessionToState: ResourceMap<ISessionToStateEntry>;
 		},
 		@ILogService private readonly logService: ILogService,
 		@IOutputService private readonly outputService: IOutputService,
@@ -233,27 +223,29 @@ class AgentSessionsLogger extends Disposable {
 	private registerListeners(): void {
 		this._register(this.logService.onDidChangeLogLevel(level => {
 			if (level === LogLevel.Trace) {
-				this.logIfTrace('Log level changed to trace');
+				this.logAllStatsIfTrace('Log level changed to trace');
 			}
 		}));
 	}
 
-	logIfTrace(reason: string): void {
+	logIfTrace(msg: string): void {
+		if (this.logService.getLevel() !== LogLevel.Trace) {
+			return;
+		}
+
+		this.trace(`[Agent Sessions] ${msg}`);
+	}
+
+	logAllStatsIfTrace(reason: string): void {
 		if (this.logService.getLevel() !== LogLevel.Trace) {
 			return;
 		}
 
 		this.logAllSessions(reason);
 		this.logSessionStates();
-		this.logMapSessionToState();
 	}
 
 	private logAllSessions(reason: string): void {
-		const channel = this.outputService.getChannel(agentSessionsOutputChannelId);
-		if (!channel) {
-			return;
-		}
-
 		const { sessions, sessionStates } = this.getSessionsData();
 
 		const lines: string[] = [];
@@ -286,12 +278,6 @@ class AgentSessionsLogger extends Disposable {
 			lines.push(`    Created: ${session.timing.created ? new Date(session.timing.created).toISOString() : 'N/A'}`);
 			lines.push(`    Last Request Started: ${session.timing.lastRequestStarted ? new Date(session.timing.lastRequestStarted).toISOString() : 'N/A'}`);
 			lines.push(`    Last Request Ended: ${session.timing.lastRequestEnded ? new Date(session.timing.lastRequestEnded).toISOString() : 'N/A'}`);
-			if (session.timing.inProgressTime) {
-				lines.push(`    In Progress Time: ${new Date(session.timing.inProgressTime).toISOString()}`);
-			}
-			if (session.timing.finishedOrFailedTime) {
-				lines.push(`    Finished/Failed Time: ${new Date(session.timing.finishedOrFailedTime).toISOString()}`);
-			}
 
 			// Changes info
 			if (session.changes) {
@@ -316,15 +302,10 @@ class AgentSessionsLogger extends Disposable {
 
 		lines.push(`=== End Agent Sessions ===`);
 
-		channel.append(lines.join('\n') + '\n');
+		this.trace(lines.join('\n'));
 	}
 
 	private logSessionStates(): void {
-		const channel = this.outputService.getChannel(agentSessionsOutputChannelId);
-		if (!channel) {
-			return;
-		}
-
 		const { sessionStates } = this.getSessionsData();
 
 		const lines: string[] = [];
@@ -341,33 +322,16 @@ class AgentSessionsLogger extends Disposable {
 
 		lines.push(`=== End Session States ===`);
 
-		channel.append(lines.join('\n') + '\n');
+		this.trace(lines.join('\n'));
 	}
 
-	private logMapSessionToState(): void {
+	private trace(msg: string): void {
 		const channel = this.outputService.getChannel(agentSessionsOutputChannelId);
 		if (!channel) {
 			return;
 		}
 
-		const { mapSessionToState } = this.getSessionsData();
-
-		const lines: string[] = [];
-		lines.push(`=== Map Session To State (Status Tracking) ===`);
-		lines.push(`Total entries: ${mapSessionToState.size}`);
-		lines.push('');
-
-		for (const [resource, state] of mapSessionToState) {
-			lines.push(`URI: ${resource.toString()}`);
-			lines.push(`  Status: ${statusToString(state.status)}`);
-			lines.push(`  In Progress Time: ${state.inProgressTime ? new Date(state.inProgressTime).toISOString() : 'N/A'}`);
-			lines.push(`  Finished/Failed Time: ${state.finishedOrFailedTime ? new Date(state.finishedOrFailedTime).toISOString() : 'N/A'}`);
-			lines.push('');
-		}
-
-		lines.push(`=== End Map Session To State ===`);
-
-		channel.append(lines.join('\n') + '\n');
+		channel.append(`${msg}\n`);
 	}
 }
 
@@ -389,13 +353,6 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 
 	private readonly resolver = this._register(new ThrottledDelayer<void>(300));
 	private readonly providersToResolve = new Set<string | undefined>();
-
-	private readonly mapSessionToState = new ResourceMap<{
-		status: AgentSessionStatus;
-
-		inProgressTime?: number;
-		finishedOrFailedTime?: number;
-	}>();
 
 	private readonly cache: AgentSessionsCache;
 	private readonly logger: AgentSessionsLogger;
@@ -422,10 +379,9 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 			() => ({
 				sessions: this._sessions.values(),
 				sessionStates: this.sessionStates,
-				mapSessionToState: this.mapSessionToState
 			})
 		));
-		this.logger.logIfTrace('Loaded cached sessions');
+		this.logger.logAllStatsIfTrace('Loaded cached sessions');
 
 		this.registerListeners();
 
@@ -481,10 +437,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 			mapSessionContributionToType.set(contribution.type, contribution);
 		}
 
-		const providerFilter = providersToResolve.includes(undefined)
-			? undefined
-			: coalesce(providersToResolve);
-
+		const providerFilter = providersToResolve.includes(undefined) ? undefined : coalesce(providersToResolve);
 		const providerResults = await this.chatSessionsService.getChatSessionItems(providerFilter, token);
 
 		const resolvedProviders = new Set<string>();
@@ -511,36 +464,6 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 					icon = session.iconPath ?? Codicon.terminal;
 				}
 
-				// State + Timings
-				// TODO@bpasero this is a workaround for not having precise timing info in sessions
-				// yet: we only track the time when a transition changes because then we can say with
-				// confidence that the time is correct by assuming `Date.now()`. A better approach would
-				// be to get all this information directly from the session.
-				const status = session.status ?? AgentSessionStatus.Completed;
-				const state = this.mapSessionToState.get(session.resource);
-				let inProgressTime = state?.inProgressTime;
-				let finishedOrFailedTime = state?.finishedOrFailedTime;
-
-				// No previous state, just add it
-				if (!state) {
-					this.mapSessionToState.set(session.resource, {
-						status,
-						inProgressTime: isSessionInProgressStatus(status) ? Date.now() : undefined, // this is not accurate but best effort
-					});
-				}
-
-				// State changed, update it
-				else if (status !== state.status) {
-					inProgressTime = isSessionInProgressStatus(status) ? Date.now() : state.inProgressTime;
-					finishedOrFailedTime = !isSessionInProgressStatus(status) ? Date.now() : state.finishedOrFailedTime;
-
-					this.mapSessionToState.set(session.resource, {
-						status,
-						inProgressTime,
-						finishedOrFailedTime
-					});
-				}
-
 				const changes = session.changes;
 				const normalizedChanges = changes && !(changes instanceof Array)
 					? { files: changes.files, insertions: changes.insertions, deletions: changes.deletions }
@@ -549,9 +472,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 				// Times: it is important to always provide timing information to track
 				// unread/read state for example.
 				// If somehow the provider does not provide any, fallback to last known
-				let created = session.timing.created;
-				let lastRequestStarted = session.timing.lastRequestStarted;
-				let lastRequestEnded = session.timing.lastRequestEnded;
+				let { created, lastRequestStarted, lastRequestEnded } = session.timing;
 				if (!created || !lastRequestEnded) {
 					const existing = this._sessions.get(session.resource);
 					if (!created && existing?.timing.created) {
@@ -567,6 +488,8 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 					}
 				}
 
+				this.logger.logIfTrace(`Resolved session ${session.resource.toString()} with timings: created=${created}, lastRequestStarted=${lastRequestStarted}, lastRequestEnded=${lastRequestEnded}`);
+
 				sessions.set(session.resource, this.toAgentSession({
 					providerType: chatSessionType,
 					providerLabel,
@@ -576,15 +499,9 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 					icon,
 					badge: session.badge,
 					tooltip: session.tooltip,
-					status,
+					status: session.status ?? AgentSessionStatus.Completed,
 					archived: session.archived,
-					timing: {
-						created,
-						lastRequestStarted,
-						lastRequestEnded,
-						inProgressTime,
-						finishedOrFailedTime
-					},
+					timing: { created, lastRequestStarted, lastRequestEnded, },
 					changes: normalizedChanges,
 				}));
 			}
@@ -598,19 +515,13 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 
 		this._sessions = sessions;
 
-		for (const [resource] of this.mapSessionToState) {
-			if (!sessions.has(resource)) {
-				this.mapSessionToState.delete(resource); // clean up tracking for removed sessions
-			}
-		}
-
 		for (const [resource] of this.sessionStates) {
 			if (!sessions.has(resource)) {
 				this.sessionStates.delete(resource); // clean up states for removed sessions
 			}
 		}
 
-		this.logger.logIfTrace('Sessions resolved from providers');
+		this.logger.logAllStatsIfTrace('Sessions resolved from providers');
 
 		this._onDidChangeSessions.fire();
 	}
@@ -745,11 +656,7 @@ class AgentSessionsCache {
 			status: session.status,
 			archived: session.archived,
 
-			timing: {
-				created: session.timing.created,
-				lastRequestStarted: session.timing.lastRequestStarted,
-				lastRequestEnded: session.timing.lastRequestEnded,
-			},
+			timing: session.timing,
 
 			changes: session.changes,
 		} satisfies ISerializedAgentSession));

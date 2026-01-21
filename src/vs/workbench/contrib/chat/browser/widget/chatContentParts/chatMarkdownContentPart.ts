@@ -13,7 +13,6 @@ import { DomScrollableElement } from '../../../../../../base/browser/ui/scrollba
 import { coalesce } from '../../../../../../base/common/arrays.js';
 import { findLast } from '../../../../../../base/common/arraysFind.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
-import { Emitter } from '../../../../../../base/common/event.js';
 import { Lazy } from '../../../../../../base/common/lazy.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, autorunSelfDisposable, derived } from '../../../../../../base/common/observable.js';
@@ -91,9 +90,6 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 	readonly domNode: HTMLElement;
 
 	private readonly allRefs: IDisposableReference<CodeBlockPart | CollapsedCodeBlock | MarkdownDiffBlockPart>[] = [];
-
-	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
-	readonly onDidChangeHeight = this._onDidChangeHeight.event;
 
 	private readonly _codeblocks: IMarkdownPartCodeBlockInfo[] = [];
 	public get codeblocks(): IChatCodeBlockInfo[] {
@@ -200,14 +196,12 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 								dispose: () => diffPart.dispose()
 							};
 							this.allRefs.push(ref);
-							this._register(diffPart.onDidChangeContentHeight(() => this._onDidChangeHeight.fire()));
 							orderedDisposablesList.push(ref);
 							return diffPart.element;
 						}
 					}
 					if (languageId === 'vscode-extensions') {
 						const chatExtensions = this._register(instantiationService.createInstance(ChatExtensionsContentPart, { kind: 'extensions', extensions: text.split(',') }));
-						this._register(chatExtensions.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 						return chatExtensions.domNode;
 					}
 					const globalIndex = globalCodeBlockIndexStart++;
@@ -249,10 +243,6 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 						const ref = this.renderCodeBlock(codeBlockInfo, text, isCodeBlockComplete, currentWidth);
 						this.allRefs.push(ref);
 
-						// Attach this after updating text/layout of the editor, so it should only be fired when the size updates later (horizontal scrollbar, wrapping)
-						// not during a renderElement OR a progressive render (when we will be firing this event anyway at the end of the render)
-						this._register(ref.object.onDidChangeContentHeight(() => this._onDidChangeHeight.fire()));
-
 						const ownerMarkdownPartId = this.codeblocksPartId;
 						const info: IMarkdownPartCodeBlockInfo = new class implements IMarkdownPartCodeBlockInfo {
 							readonly ownerMarkdownPartId = ownerMarkdownPartId;
@@ -284,7 +274,6 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 							this.codeBlockModelCollection.update(codeBlockInfo.element.sessionResource, codeBlockInfo.element, codeBlockInfo.codeBlockIndex, { text, languageId: codeBlockInfo.languageId, isComplete: isCodeBlockComplete }).then((e) => {
 								// Update the existing object's codemapperUri
 								this._codeblocks[codeBlockInfo.codeBlockPartIndex].codemapperUri = e.codemapperUri;
-								this._onDidChangeHeight.fire();
 							});
 						}
 						this.allRefs.push(ref);
@@ -311,7 +300,6 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 						return ref.object.element;
 					}
 				},
-				asyncRenderCallback: () => this._onDidChangeHeight.fire(),
 				markedOptions: markedOpts,
 				markedExtensions,
 				...markdownRenderOptions,
@@ -373,9 +361,6 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 					console.error('Failed to load MarkedKatexSupport extension:', e);
 				}).finally(() => {
 					doRenderMarkdown();
-					if (!this._store.isDisposed) {
-						this._onDidChangeHeight.fire();
-					}
 				});
 		} else {
 			doRenderMarkdown();
@@ -401,13 +386,10 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 			this.codeBlockModelCollection.update(data.element.sessionResource, data.element, data.codeBlockIndex, { text, languageId: data.languageId, isComplete }).then((e) => {
 				// Update the existing object's codemapperUri
 				this._codeblocks[data.codeBlockPartIndex].codemapperUri = e.codemapperUri;
-				this._onDidChangeHeight.fire();
 			});
 		}
 
-		editorInfo.render(data, currentWidth).then(() => {
-			this._onDidChangeHeight.fire();
-		});
+		editorInfo.render(data, currentWidth);
 
 		return ref;
 	}
