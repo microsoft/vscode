@@ -24,6 +24,7 @@ import { localize } from '../../../../../../nls.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { Lazy } from '../../../../../../base/common/lazy.js';
+import { Emitter } from '../../../../../../base/common/event.js';
 import { IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../../base/common/observable.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
@@ -101,6 +102,9 @@ const THINKING_SCROLL_MAX_HEIGHT = 200;
 export class ChatThinkingContentPart extends ChatCollapsibleContentPart implements IChatContentPart {
 	public readonly codeblocks: undefined;
 	public readonly codeblocksPartId: undefined;
+
+	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
+	public readonly onDidChangeHeight = this._onDidChangeHeight.event;
 
 	private id: string | undefined;
 	private content: IChatThinkingPart;
@@ -188,15 +192,16 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			}
 		}));
 
-		// Materialize lazy items when first expanded
 		this._register(autorun(r => {
+			// Materialize lazy items when first expanded
 			if (this._isExpanded.read(r) && !this.hasExpandedOnce && this.lazyItems.length > 0) {
 				this.hasExpandedOnce = true;
 				for (const item of this.lazyItems) {
 					this.materializeLazyItem(item);
 				}
-				this._onDidChangeHeight.fire();
 			}
+			// Fire when expanded/collapsed
+			this._onDidChangeHeight.fire();
 		}));
 
 		if (this._collapseButton && !this.streamingCompleted && !this.element.isComplete) {
