@@ -784,6 +784,7 @@ suite('Agent Sessions', () => {
 			mockChatSessionsService = new MockChatSessionsService();
 			instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
 			instantiationService.stub(IChatSessionsService, mockChatSessionsService);
+			instantiationService.stub(ILogService, new NullLogService());
 		});
 
 		teardown(() => {
@@ -2205,6 +2206,7 @@ suite('Agent Sessions', () => {
 			mockChatSessionsService = new MockChatSessionsService();
 			instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
 			instantiationService.stub(IChatSessionsService, mockChatSessionsService);
+			instantiationService.stub(ILogService, new NullLogService());
 		});
 
 		teardown(() => {
