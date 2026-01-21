@@ -527,7 +527,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 					let inProgressTime: number | undefined;
 					if (isInProgress) {
 						inProgressTime = Date.now();
-						this.logService.trace(`[agent sessions] Setting inProgressTime for session ${session.resource.toString()} to ${inProgressTime} (status: ${status})`);
+						this.logger.logIfTrace(`[agent sessions] Setting inProgressTime for session ${session.resource.toString()} to ${inProgressTime} (status: ${status})`);
 					}
 					this.mapSessionToState.set(session.resource, {
 						status,
@@ -573,7 +573,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 					}
 				}
 
-				this.logService.trace(`[agent sessions] Resolved session ${session.resource.toString()} with timings: created=${created}, lastRequestStarted=${lastRequestStarted}, lastRequestEnded=${lastRequestEnded}`);
+				this.logger.logIfTrace(`[agent sessions] Resolved session ${session.resource.toString()} with timings: created=${created}, lastRequestStarted=${lastRequestStarted}, lastRequestEnded=${lastRequestEnded}`);
 
 				sessions.set(session.resource, this.toAgentSession({
 					providerType: chatSessionType,
