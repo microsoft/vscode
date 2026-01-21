@@ -129,6 +129,8 @@ export const CTX_INLINE_CHAT_V2_ENABLED = ContextKeyExpr.or(
 	ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, CTX_INLINE_CHAT_HAS_NOTEBOOK_AGENT)
 );
 
+export const CTX_HOVER_MODE = ContextKeyExpr.equals('config.inlineChat.renderMode', 'hover');
+
 // --- (selected) action identifier
 
 export const ACTION_START = 'inlineChat.start';

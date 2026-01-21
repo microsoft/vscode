@@ -3,23 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import './media/inlineChatSessionOverlay.css';
 import * as dom from '../../../../base/browser/dom.js';
+import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
+import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IAction, Separator } from '../../../../base/common/actions.js';
 import { ActionBar, ActionsOrientation } from '../../../../base/browser/ui/actionbar/actionbar.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { autorun, derived, IObservable, observableFromEventOpts, observableValue } from '../../../../base/common/observable.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
-import { IObservable, observableValue } from '../../../../base/common/observable.js';
-import { IActiveCodeEditor, ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from '../../../../editor/browser/editorBrowser.js';
+import { ContentWidgetPositionPreference, IActiveCodeEditor, ICodeEditor, IContentWidgetPosition, IOverlayWidget, IOverlayWidgetPosition } from '../../../../editor/browser/editorBrowser.js';
+import { ObservableCodeEditor } from '../../../../editor/browser/observableCodeEditor.js';
 import { EditorOption } from '../../../../editor/common/config/editorOptions.js';
 import { EditorExtensionsRegistry } from '../../../../editor/browser/editorExtensions.js';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from '../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
+import { localize } from '../../../../nls.js';
+import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
+import { IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { localize } from '../../../../nls.js';
-import { IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
+import { ChatEditingAcceptRejectActionViewItem } from '../../chat/browser/chatEditing/chatEditingEditorOverlay.js';
 import { ACTION_START } from '../common/inlineChat.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { getFlatActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
@@ -27,7 +35,11 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { getSimpleEditorOptions } from '../../codeEditor/browser/simpleEditorOptions.js';
 import { PlaceholderTextContribution } from '../../../../editor/contrib/placeholderText/browser/placeholderTextContribution.js';
 import { InlineChatRunOptions } from './inlineChatController.js';
+import { IInlineChatSession2 } from './inlineChatSessionService.js';
 import { Position } from '../../../../editor/common/core/position.js';
+import { SelectionDirection } from '../../../../editor/common/core/selection.js';
+import { CancelChatActionId } from '../../chat/browser/actions/chatExecuteActions.js';
+import { assertType } from '../../../../base/common/types.js';
 
 /**
  * Overlay widget that displays a vertical action bar menu.
@@ -270,5 +282,160 @@ export class InlineChatInputOverlayWidget extends Disposable implements IOverlay
 			this._editor.removeOverlayWidget(this);
 		}
 		super.dispose();
+	}
+}
+
+/**
+ * Overlay widget that displays progress messages during inline chat requests.
+ */
+export class InlineChatSessionOverlayWidget extends Disposable {
+
+	private readonly _domNode: HTMLElement;
+	private readonly _progressNode: HTMLElement;
+	private readonly _progressMessage: HTMLElement;
+	private readonly _toolbarNode: HTMLElement;
+
+	private readonly _showStore = this._store.add(new DisposableStore());
+	private readonly _session = observableValue<IInlineChatSession2 | undefined>(this, undefined);
+	private readonly _position = observableValue<IContentWidgetPosition | null>(this, null);
+
+	constructor(
+		private readonly _editorObs: ObservableCodeEditor,
+		@IInstantiationService private readonly _instaService: IInstantiationService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+	) {
+		super();
+
+		// Create container with styling for session overlay
+		this._domNode = document.createElement('div');
+		this._domNode.classList.add('inline-chat-session-overlay-widget');
+
+		// Create progress node
+		this._progressNode = document.createElement('div');
+		this._progressNode.classList.add('progress');
+		dom.append(this._progressNode, renderIcon(ThemeIcon.modify(Codicon.loading, 'spin')));
+		this._progressMessage = dom.append(this._progressNode, dom.$('span.progress-message'));
+		this._domNode.appendChild(this._progressNode);
+
+		// Create toolbar node
+		this._toolbarNode = document.createElement('div');
+		this._toolbarNode.classList.add('toolbar');
+
+		// Set up progress message observable
+		const requestMessage = derived(r => {
+			const session = this._session.read(r);
+			const chatModel = session?.chatModel;
+			if (!session || !chatModel) {
+				return undefined;
+			}
+
+			const response = chatModel.lastRequestObs.read(r)?.response;
+			if (!response) {
+				return { message: localize('working', "Working...") };
+			}
+
+			const lastPart = observableFromEventOpts({ equalsFn: () => false }, response.onDidChange, () => response.response.value)
+				.read(r)
+				.filter(part => part.kind === 'progressMessage' || part.kind === 'toolInvocation')
+				.at(-1);
+
+			if (lastPart?.kind === 'toolInvocation') {
+				return { message: lastPart.invocationMessage };
+			} else if (lastPart?.kind === 'progressMessage') {
+				return { message: lastPart.content };
+			} else {
+				return { message: localize('working', "Working...") };
+			}
+		});
+
+		this._store.add(autorun(r => {
+			const value = requestMessage.read(r);
+			if (value) {
+				this._progressMessage.innerText = renderAsPlaintext(value.message);
+			} else {
+				this._progressMessage.innerText = '';
+			}
+		}));
+	}
+
+	show(session: IInlineChatSession2): void {
+		assertType(this._editorObs.editor.hasModel());
+		this._showStore.clear();
+
+		this._session.set(session, undefined);
+
+		// Derived entry observable for this session
+		const entry = derived(r => session.editingSession.readEntry(session.uri, r));
+
+		// Keep busy class in sync with whether edits are being streamed
+		this._showStore.add(autorun(r => {
+			const e = entry.read(r);
+			const isBusy = !e || !!e.isCurrentlyBeingModifiedBy.read(r);
+			this._domNode.classList.toggle('busy', isBusy);
+		}));
+
+		// Add toolbar
+		this._domNode.appendChild(this._toolbarNode);
+		this._showStore.add(toDisposable(() => this._toolbarNode.remove()));
+
+		const that = this;
+
+		this._showStore.add(this._instaService.createInstance(MenuWorkbenchToolBar, this._toolbarNode, MenuId.ChatEditorInlineExecute, {
+			telemetrySource: 'inlineChatProgress.overlayToolbar',
+			hiddenItemStrategy: HiddenItemStrategy.Ignore,
+			toolbarOptions: {
+				primaryGroup: () => true,
+				useSeparatorsInPrimaryActions: true
+			},
+			menuOptions: { renderShortTitle: true },
+			actionViewItemProvider: (action, options) => {
+				const primaryActions = [CancelChatActionId, 'inlineChat2.keep'];
+				const labeledActions = primaryActions.concat(['inlineChat2.undo']);
+
+				if (!labeledActions.includes(action.id)) {
+					return undefined; // use default action view item with label
+				}
+
+				return new ChatEditingAcceptRejectActionViewItem(action, options, entry, undefined, that._keybindingService, primaryActions);
+			}
+		}));
+
+		// Position based on diff info, updating as changes stream in
+		const selection = this._editorObs.cursorSelection.get()!;
+		const above = selection.getDirection() === SelectionDirection.RTL;
+
+		this._showStore.add(autorun(r => {
+			let newPosition = selection.getPosition();
+			const e = entry.read(r);
+			const diffInfo = e?.diffInfo?.read(r);
+			const position = that._position.read(undefined)?.position;
+			if (diffInfo && position) {
+				for (const change of diffInfo.changes) {
+					if (change.modified.contains(position.lineNumber)) {
+						newPosition = new Position(change.modified.startLineNumber - 1, 1);
+						break;
+					}
+				}
+			}
+
+			this._position.set({
+				position: newPosition,
+				preference: [above ? ContentWidgetPositionPreference.ABOVE : ContentWidgetPositionPreference.BELOW]
+			}, undefined);
+		}));
+
+		// Create content widget
+		this._showStore.add(this._editorObs.createContentWidget({
+			domNode: this._domNode,
+			position: this._position,
+			allowEditorOverflow: true,
+		}));
+	}
+
+	hide(): void {
+		this._position.set(null, undefined);
+		this._domNode.classList.remove('busy');
+		this._session.set(undefined, undefined);
+		this._showStore.clear();
 	}
 }
