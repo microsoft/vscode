@@ -2330,7 +2330,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 						kind: 'reference',
 						options: {
 							status: undefined,
-							diffMeta: { added: linesAdded ?? 0, removed: linesRemoved ?? 0 }
+							diffMeta: { added: linesAdded ?? 0, removed: linesRemoved ?? 0 },
+							isDeletion: !!entry.isDeletion,
+							originalUri: entry.isDeletion ? entry.originalURI : undefined,
 						}
 					});
 				}
@@ -2541,6 +2543,14 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				if (e.element?.kind === 'reference' && URI.isUri(e.element.reference)) {
 					const modifiedFileUri = e.element.reference;
 					const originalUri = e.element.options?.originalUri;
+
+					if (e.element.options?.isDeletion && originalUri) {
+						await this.editorService.openEditor({
+							resource: originalUri, // instead of modified, because modified will not exist
+							options: e.editorOptions
+						}, e.sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
+						return;
+					}
 
 					// If there's a originalUri, open as diff editor
 					if (originalUri) {
