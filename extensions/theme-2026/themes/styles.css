@@ -91,10 +91,21 @@
 .monaco-workbench .notifications-toasts {
 	box-shadow: 0 0 12px rgba(0, 0, 0, 0.14);
 	border-radius: 4px;
-	/* backdrop-filter: blur(20px) saturate(180%);
-	-webkit-backdrop-filter: blur(20px) saturate(180%); */
 }
 .monaco-workbench .notification-toast { box-shadow: none !important; margin: 0 !important;}
+
+.monaco-workbench .notification-toast-container {
+	backdrop-filter: blur(20px) saturate(180%);
+	-webkit-backdrop-filter: blur(20px) saturate(180%);
+}
+
+.monaco-workbench.vs-dark .notification-toast-container .notification-toast {
+	background-color: rgba(10, 10, 11, 0.6) !important;
+}
+.monaco-workbench.vs .notification-toast-container .notification-toast {
+	background-color: rgba(255, 255, 255, 0.6) !important;
+}
+
 .monaco-workbench .notifications-center {
 	backdrop-filter: blur(20px) saturate(180%);
 	-webkit-backdrop-filter: blur(20px) saturate(180%);
