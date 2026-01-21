@@ -1,13 +1,96 @@
-import os
+# ---------------------------------------------------------------------------------------------
+#   Copyright (c) Microsoft Corporation. All rights reserved.
+#   Licensed under the MIT License. See License.txt in the project root for license information.
+# ---------------------------------------------------------------------------------------------
 import sys
+import os
 
-# Prevent the script from running multiple times
-if 'VSCODE_SHELL_INTEGRATION' not in __xonsh__.env:
+class _vsCodeXonsh:
+	"""vscode shell integration for xonsh shell."""
 
-	__xonsh__.env['VSCODE_SHELL_INTEGRATION'] = '1'
-	_vscode_nonce = os.environ.pop('VSCODE_NONCE', '')
+	def __init__(self):
+		self._vscode_nonce = __xonsh__.env.get('VSCODE_NONCE', '')
 
-	def _vsc_escape_value(value: str) -> str:
+		if 'VSCODE_INJECTION' in __xonsh__.env:
+			self.stdout = sys.stdout
+			self.vsc_apply_env()
+			self.vsc_apply_xonshrc()
+			self.vsc_wrapped_prompt()
+			self.add_vsc_events()
+			__xonsh__.env['VSCODE_SHELL_INTEGRATION'] = '1'
+			del __xonsh__.env['VSCODE_INJECTION']
+
+	def _vsc_apply_env_replace(self):
+		"""Apply VSCODE_ENV_REPLACE mutations"""
+		env_replace = __xonsh__.env.get('VSCODE_ENV_REPLACE', '')
+		if env_replace:
+			for item in env_replace:
+				if '=' in item:
+					varname, value = item.split('=', 1)
+					os.environ[varname] = value
+
+	def _vsc_apply_env_prepend(self):
+		"""Apply VSCODE_ENV_PREPEND mutations"""
+		env_prepend = __xonsh__.env.get('VSCODE_ENV_PREPEND', '')
+		if env_prepend:
+			for item in env_prepend:
+				if '=' in item:
+					varname, value = item.split('=', 1)
+					current = os.environ.get(varname, '')
+					os.environ[varname] = value + current
+
+	def _vsc_apply_env_append(self):
+		"""Apply VSCODE_ENV_APPEND mutations"""
+		env_append = __xonsh__.env.get('VSCODE_ENV_APPEND', '')
+		if env_append:
+			for item in env_append:
+				if '=' in item:
+					varname, value = item.split('=', 1)
+					current = os.environ.get(varname, '')
+					os.environ[varname] = current + value
+
+	def vsc_apply_env(self):
+		self._vsc_apply_env_replace()
+		self._vsc_apply_env_prepend()
+		self._vsc_apply_env_append()
+
+	def vsc_apply_xonshrc(self):
+		vscode_xonshrc = __xonsh__.env.get('XONSHRC', '')
+		if vscode_xonshrc:
+			for _vsc_rc_file in vscode_xonshrc:
+				if _vsc_rc_file and os.path.isfile(_vsc_rc_file):
+					try:
+						source @(_vsc_rc_file)
+					except Exception:
+						pass
+
+	def _write_begin_osc(self):
+		self.stdout.write("\x1b]")
+
+	def _write_end_osc(self):
+		self.stdout.write("\x07")
+		self.stdout.flush()
+
+	def write_osc(self, msg):
+		self._write_begin_osc()
+		self.stdout.write(f"{msg}")
+		self._write_end_osc()
+
+	def vsc_wrapped_prompt(self):
+		"""Generate prompt with A marker before it"""
+		_vsc_orig_prompt = $PROMPT
+
+		if callable(_vsc_orig_prompt):
+			original = _vsc_orig_prompt()
+		else:
+			original = str(_vsc_orig_prompt)
+
+		if '\001' in original:
+			return original
+
+		$PROMPT = f'\001\x1b]633;A\x07\002{original}\001\x1b]633;B\x07\002'
+
+	def _vsc_escape_value(self, value):
 		"""
 		Escape a value for use in OSC sequences.
 		Backslashes are doubled, semicolons and control chars are hex-escaped.
@@ -29,118 +112,39 @@ if 'VSCODE_SHELL_INTEGRATION' not in __xonsh__.env:
 
 		return ''.join(result)
 
-	def _vsc_command_executed(cmd: str):
-		"""Send OSC 633 ; E and C - Command line and execution started"""
-		# Trim whitespace to match how VS Code stores commands in history
+	def _vsc_command_executed(self, cmd):
+		"""
+			Send OSC 633 ; E and C - Command line and execution started
+			note: When sending E before C - vscode is overriding the sent command
+		"""
 		trimmed_cmd = cmd.strip() if cmd else ''
-		escaped_cmd = _vsc_escape_value(trimmed_cmd)
-		# Send command executed marker first (VS Code indiscriminately reads buffer here)
-		print('\x1b]633;C\x07', end='', flush=True)
-		# Then send command line (overwriting the buffer reading with the correct command)
-		print(f'\x1b]633;E;{escaped_cmd};{_vscode_nonce}\x07', end='', flush=True)
+		escaped_cmd = self._vsc_escape_value(trimmed_cmd)
+		self.write_osc(f'633;C')
+		self.write_osc(f'633;E;{escaped_cmd};{self._vscode_nonce}')
 
-	def _vsc_command_finished(cmd, exit_code=None):
+	def _vsc_command_finished(self, cmd, exit_code=None):
 		"""Send OSC 633 ; D - Command finished with exit code"""
-		if not cmd or cmd == '':
+		if not cmd or cmd.strip() == '' or exit_code is None:
 			# Empty command (just pressed Enter)
-			print('\x1b]633;D\x07', end='', flush=True)
+			self.write_osc('633;D')
 		else:
-			# Command with exit code
-			print(f'\x1b]633;D;{exit_code};{_vscode_nonce}\x07', end='', flush=True)
+			self.write_osc(f'633;D;{exit_code}')
+
+	def add_vsc_events(self):
+		@events.on_precommand
+		def _vsc_on_precommand(cmd, **kwargs):
+			"""Called before a command is executed"""
+			self._vsc_command_executed(cmd)
+
+		@events.on_postcommand
+		def _vsc_on_postcommand(cmd, rtn, out, ts, **kwargs):
+			"""Called after a command is executed"""
+			self._vsc_command_finished(cmd, rtn if rtn is not None else 0)
+
+		@events.on_pre_prompt
+		def _vsc_on_pre_prompt(**kwargs):
+			self.vsc_wrapped_prompt()
 
 
-
-	# --- Apply Environment Variable Collections ---
-
-	def _vsc_apply_env_replace():
-		"""Apply VSCODE_ENV_REPLACE mutations"""
-		env_replace = os.environ.pop('VSCODE_ENV_REPLACE', '')
-		if env_replace:
-			for item in env_replace.split(':'):
-				if '=' in item:
-					varname, value = item.split('=', 1)
-					os.environ[varname] = value
-
-	def _vsc_apply_env_prepend():
-		"""Apply VSCODE_ENV_PREPEND mutations"""
-		env_prepend = os.environ.pop('VSCODE_ENV_PREPEND', '')
-		if env_prepend:
-			for item in env_prepend.split(':'):
-				if '=' in item:
-					varname, value = item.split('=', 1)
-					current = os.environ.get(varname, '')
-					os.environ[varname] = value + current
-
-	def _vsc_apply_env_append():
-		"""Apply VSCODE_ENV_APPEND mutations"""
-		env_append = os.environ.pop('VSCODE_ENV_APPEND', '')
-		if env_append:
-			for item in env_append.split(':'):
-				if '=' in item:
-					varname, value = item.split('=', 1)
-					current = os.environ.get(varname, '')
-					os.environ[varname] = current + value
-
-	# Apply environment variable collections
-	_vsc_apply_env_replace()
-	_vsc_apply_env_prepend()
-	_vsc_apply_env_append()
-
-	# --- Hook into Xonsh Events ---
-
-	@events.on_precommand
-	def _vsc_on_precommand(cmd, **kwargs):
-		"""Called before a command is executed"""
-		_vsc_command_executed(cmd)
-
-	@events.on_postcommand
-	def _vsc_on_postcommand(cmd, rtn, out, ts, **kwargs):
-		"""Called after a command is executed"""
-		_vsc_command_finished(cmd, rtn if rtn is not None else 0)
-
-	# --- Source User's RC Files ---
-	# Since VS Code uses --rc to inject this script, xonsh's normal rc files
-	# are not loaded. We need to source them manually from $XONSHRC.
-
-	_vsc_xonshrc = os.environ.get('XONSHRC', '')
-	if _vsc_xonshrc:
-		for _vsc_rc_file in _vsc_xonshrc.split(':'):
-			if _vsc_rc_file and os.path.isfile(_vsc_rc_file):
-				try:
-					source @(_vsc_rc_file)
-				except Exception:
-					# Silently ignore errors in rc files to avoid breaking the terminal
-					pass
-
-	# Apply path prefix fix (for macOS path_helper issue)
-	_vsc_path_prefix = os.environ.pop('VSCODE_PATH_PREFIX', '')
-	if _vsc_path_prefix:
-		$PATH = _vsc_path_prefix + $PATH
-
-	if 'VSCODE_INJECTION' in os.environ:
-		del os.environ['VSCODE_INJECTION']
-
-
-	# print("\001\x1b]633;A\x07\002", end="", flush=True)
-	# Report shell properties
-	print('\x1b]633;P;HasRichCommandDetection=True\x07', end='', flush=True)
-
-	# --- Set Up Prompts ---
-	# Print A before prompt and B after prompt
-
-	_vsc_orig_prompt = $PROMPT
-
-	def _vsc_wrapped_prompt():
-		"""Generate prompt with A marker before it"""
-		global _vsc_orig_prompt
-		# Get the original prompt value
-		if callable(_vsc_orig_prompt):
-			original = _vsc_orig_prompt()
-		else:
-			original = str(_vsc_orig_prompt)
-		# Return prompt with A and B markers wrapped in \001 and \002
-		# \001 and \002 mark non-printing characters for readline to avoid wrapping issues
-		return f'\001\x1b]633;A\x07\002{original}\001\x1b]633;B\x07\002'
-
-	$PROMPT = _vsc_wrapped_prompt
-
+if 'VSCODE_SHELL_INTEGRATION' not in __xonsh__.env:
+	__xonsh__.vsc = _vsCodeXonsh()
