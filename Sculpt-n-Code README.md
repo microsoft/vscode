@@ -26,6 +26,10 @@ Front-end code is at: `src/vs/editor/contrib/snc`
 
 Back-end runner is at: `src/vs/platform/snc`
 
+The Python visualizers are at: `src/vs/platform/snc/common/node/visualizers`
+
+Visualizers use the Elm architecture (albeit a custom implementation in Python). They take in a Python value and a visualizer-specific model state and render HTML which is delivered to the VS Code front-end for display. They may specify events on that HTML which are routed to a visualizer-specific Python update function which updates the model (and thereby the displayed HTML).
+
 ## Committing
 
 Currently, one big commit to streamline rebasing. Amend that commit.
@@ -60,22 +64,3 @@ How to get the Python path etc: https://github.com/microsoft/vscode-python-debug
 All together: https://github.com/microsoft/vscode-python-debugger/blob/main/src/extension/debugger/configuration/resolvers/launch.ts
 
 Process spawning/killing: debugpy-main/src/debugpy/launcher/handlers.py debugpy-main/src/debugpy/launcher/debuggee.py
-
-Inspiration from projection boxes: https://github.com/microsoft/vscode/compare/main...UCSD-PL:vscode:main
-
-
-CS1 because it's simpler
-RNA/DNA is concrete
-D3 is hard for students, particular the interactive parts
-pandas and relation tables (mini visualizations of trucks) (dev thinks data science is too different)
-data structures: advent of code, there are patterns that might be nice for semi-abstraction
-
-what about understanding and changing AI code? how to nudge students to *think*; talk to Lisa
-
-can you even design semiabstractions for e.g. tables? our grant examples are convenient
-
-Paper 1: Manipations on Abstractions, that can (a) re-represent (b) change
-Paper 1: DMP w/o semiabstraction
-Paper 2: Combine the above
-(Paper 1: Live Shapes of Abstraction)
-(Paper 1: Need-finding)

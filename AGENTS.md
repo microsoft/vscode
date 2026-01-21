@@ -10,4 +10,4 @@ Run the tool and inspect the returned screenshot to see if changes worked.
 
 ### Having the User Check Work Instead
 
-If, instead, the user needs to check work manually, they are already running `npm run watch` so any changes you make are already instantly built. Run `./scripts/code.sh . ./snc_test.py` and ask the user to verify that changes are working as expected. That will boot the app in the current folder and open `./snc_test.py` automatically (you can change that file's contents as necessary to test, or open a different file).
+If, instead, the user needs to check work manually, they are already running `npm run watch` so any changes you make are already instantly built. Ask the user to verify that changes are working as expected and run `./scripts/code.sh $(pwd) $(pwd)/snc_test.py`, not in the background. That will boot the app in the current folder and open `./snc_test.py` automatically (you can change that file's contents as necessary to test, or open a different file). The user will test the feature and then quit the app, at which point you may ask the user if the feature worked.
