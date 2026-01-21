@@ -42,7 +42,7 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { mainWindow } from '../../../../../../base/browser/window.js';
 import { LayoutSettings } from '../../../../../services/layout/browser/layoutService.js';
 import { ChatConfiguration } from '../../../common/constants.js';
-import { IAgentsQuickChatService } from '../agentsQuickChatService.js';
+import { IAgentsQuickChatService } from './agentsQuickChatService.js';
 
 // Action IDs
 const QUICK_CHAT_ACTION_ID = 'workbench.action.quickchat.toggle';

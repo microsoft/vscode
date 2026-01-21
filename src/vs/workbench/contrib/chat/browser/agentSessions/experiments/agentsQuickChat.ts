@@ -5,26 +5,26 @@
 
 import './media/agentsQuickChat.css';
 
-import * as dom from '../../../../../base/browser/dom.js';
-import { Emitter } from '../../../../../base/common/event.js';
-import { Disposable, DisposableStore, IReference, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
-import { IQuickInputService, IQuickWidget } from '../../../../../platform/quickinput/common/quickInput.js';
-import { ChatWidget } from '../widget/chatWidget.js';
-import { IChatService } from '../../common/chatService/chatService.js';
-import { IChatModel } from '../../common/model/chatModel.js';
-import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
-import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
-import { editorBackground } from '../../../../../platform/theme/common/colorRegistry.js';
-import { SIDE_BAR_FOREGROUND } from '../../../../common/theme.js';
-import { AgentSessionsControl, IAgentSessionsControlOptions } from './agentSessionsControl.js';
-import { IAgentSessionsFilter } from './agentSessionsViewer.js';
-import { IAgentSession } from './agentSessionsModel.js';
-import { IAgentSessionsService } from './agentSessionsService.js';
-import { getListStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
-import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
+import * as dom from '../../../../../../base/browser/dom.js';
+import { Emitter } from '../../../../../../base/common/event.js';
+import { Disposable, DisposableStore, IReference, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { ServiceCollection } from '../../../../../../platform/instantiation/common/serviceCollection.js';
+import { IQuickInputService, IQuickWidget } from '../../../../../../platform/quickinput/common/quickInput.js';
+import { ChatWidget } from '../../widget/chatWidget.js';
+import { IChatService } from '../../../common/chatService/chatService.js';
+import { IChatModel } from '../../../common/model/chatModel.js';
+import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
+import { IWorkbenchLayoutService } from '../../../../../services/layout/browser/layoutService.js';
+import { editorBackground } from '../../../../../../platform/theme/common/colorRegistry.js';
+import { SIDE_BAR_FOREGROUND } from '../../../../../common/theme.js';
+import { AgentSessionsControl, IAgentSessionsControlOptions } from '../agentSessionsControl.js';
+import { IAgentSessionsFilter } from '../agentSessionsViewer.js';
+import { IAgentSession } from '../agentSessionsModel.js';
+import { IAgentSessionsService } from '../agentSessionsService.js';
+import { getListStyles } from '../../../../../../platform/theme/browser/defaultStyles.js';
+import { HoverPosition } from '../../../../../../base/browser/ui/hover/hoverWidget.js';
 
 const { $, getWindow } = dom;
 
