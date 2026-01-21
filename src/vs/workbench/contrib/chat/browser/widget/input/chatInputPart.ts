@@ -18,6 +18,7 @@ import { equals as arraysEqual } from '../../../../../../base/common/arrays.js';
 import { DeferredPromise, RunOnceScheduler } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
+import { stringHash } from '../../../../../../base/common/hash.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Iterable } from '../../../../../../base/common/iterator.js';
 import { KeyCode } from '../../../../../../base/common/keyCodes.js';
@@ -698,8 +699,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	/**
-	 * Check if a model can be switched to by ID or name without actually switching.
+	 * Check if a model can be switched to by ID, name, or hashed ID without actually switching.
 	 * Uses the same lookup logic as switchModelByIdOrName.
+	 * Supports: direct model ID, qualified name, model name, or hashed model ID (via hashModelId()).
 	 */
 	public canSwitchToModel(idOrName: string): boolean {
 		return this.findModelByIdOrName(idOrName) !== undefined;
@@ -715,7 +717,14 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	/**
-	 * Find a model by ID, qualified name, or model name.
+	 * Generate a hashed model ID for  lookups.
+	 */
+	public static hashModelId(modelId: string): string {
+		return String(stringHash(modelId, 0));
+	}
+
+	/**
+	 * Find a model by ID, qualified name, model name, or hashed model ID.
 	 * Returns undefined if no matching model is found in the available models.
 	 */
 	private findModelByIdOrName(idOrName: string): ILanguageModelChatMetadataAndIdentifier | undefined {
@@ -729,11 +738,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}
 		}
 
-		// Fall back to searching by qualified name or model name in available models
+		// Fall back to searching by qualified name, model name, or hashed ID in available models
 		const models = this.getModels();
 		return models.find(m =>
 			ILanguageModelChatMetadata.matchesQualifiedName(idOrName, m.metadata) ||
-			m.metadata.name === idOrName
+			m.metadata.name === idOrName ||
+			ChatInputPart.hashModelId(m.identifier) === idOrName
 		);
 	}
 
