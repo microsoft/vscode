@@ -784,9 +784,8 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		if (!lineProjection) {
 			// Return a fallback empty ViewLineData when the projection is not available
 			// This can happen during race conditions when the model is being updated
-			const lineCount = this.model.getLineCount();
-			const safeLineNumber = Math.max(1, Math.min(lineCount, 1));
-			const lineTokens = this.model.tokenization.getLineTokens(safeLineNumber);
+			// Use line 1 for tokens since we're returning empty content anyway
+			const lineTokens = this.model.tokenization.getLineTokens(1);
 			return new ViewLineData('', false, 1, 1, 0, lineTokens.inflate(), null);
 		}
 		return lineProjection.getViewLineData(this.model, info.modelLineNumber, info.modelLineWrappedLineIdx);
