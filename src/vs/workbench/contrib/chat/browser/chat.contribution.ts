@@ -499,7 +499,7 @@ configurationRegistry.registerConfiguration({
 		[mcpAppsEnabledConfig]: {
 			type: 'boolean',
 			description: nls.localize('chat.mcp.ui.enabled', "Controls whether MCP servers can provide custom UI for tool invocations."),
-			default: false,
+			default: true,
 			tags: ['experimental'],
 		},
 		[mcpServerSamplingSection]: {

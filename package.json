@@ -211,7 +211,7 @@
     "source-map": "0.6.1",
     "source-map-support": "^0.3.2",
     "style-loader": "^3.3.2",
-    "tar": "^7.5.2",
+    "tar": "^7.5.4",
     "ts-loader": "^9.5.1",
     "tsec": "0.2.7",
     "tslib": "^2.6.3",
