@@ -223,8 +223,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		const contextArr = this.getAttachedContext(sessionResource);
 
-		if ((this.implicitContext?.hasEnabled() && this.implicitContext?.hasValue()) || (this.implicitContext && this.implicitContext.hasNonUri() && this.implicitContext.hasNonStringContext() && this.configurationService.getValue<boolean>('chat.implicitContext.suggestedContext'))) {
-			const implicitChatVariables = this.implicitContext.enabledBaseEntries();
+		if ((this.implicitContext?.hasEnabled && this.implicitContext?.hasValue) || (this.implicitContext && this.implicitContext.hasNonUri && this.implicitContext.hasNonStringContext && this.configurationService.getValue<boolean>('chat.implicitContext.suggestedContext'))) {
+			const implicitChatVariables = this.implicitContext.enabledBaseEntries;
 			contextArr.add(...implicitChatVariables);
 		}
 		return contextArr;
@@ -2058,7 +2058,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}));
 
 		const attachments = [...this.attachmentModel.attachments.entries()];
-		const hasAttachments = Boolean(attachments.length) || Boolean(this.implicitContext?.hasValue());
+		const hasAttachments = Boolean(attachments.length) || Boolean(this.implicitContext?.hasValue);
 		dom.setVisibility(Boolean(this.options.renderInputToolbarBelowInput || hasAttachments || (this.addFilesToolbar && !this.addFilesToolbar.isEmpty())), this.attachmentsContainer);
 		dom.setVisibility(hasAttachments, this.attachedContextContainer);
 		if (!attachments.length) {
@@ -2068,7 +2068,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		const isSuggestedEnabled = this.configurationService.getValue<boolean>('chat.implicitContext.suggestedContext');
 
-		if (this.implicitContext?.hasValue() && !isSuggestedEnabled) {
+		if (this.implicitContext?.hasValue && !isSuggestedEnabled) {
 			this._implicitContextWidget.value = this.instantiationService.createInstance(ImplicitContextAttachmentWidget, () => this._widget, (targetUri: URI | undefined, targetRange: IRange | undefined, targetHandle: number | undefined) => this.isAttachmentAlreadyAttached(targetUri, targetRange, targetHandle, attachments.map(([, a]) => a)), this.implicitContext, this._contextResourceLabels, this.attachmentModel, container);
 		}
 
@@ -2125,7 +2125,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}));
 		}
 
-		if (isSuggestedEnabled && this.implicitContext?.hasValue()) {
+		if (isSuggestedEnabled && this.implicitContext?.hasValue) {
 			this._implicitContextWidget.value = this.instantiationService.createInstance(ImplicitContextAttachmentWidget, () => this._widget, (targetUri: URI | undefined, targetRange: IRange | undefined, targetHandle: number | undefined) => this.isAttachmentAlreadyAttached(targetUri, targetRange, targetHandle, attachments.map(([, a]) => a)), this.implicitContext, this._contextResourceLabels, this._attachmentModel, container);
 		}
 

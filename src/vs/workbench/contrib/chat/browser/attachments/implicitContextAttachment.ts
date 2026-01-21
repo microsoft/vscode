@@ -225,7 +225,7 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 	}
 
 	private async convertToRegularAttachment(attachment: ChatImplicitContext): Promise<void> {
-		if (attachment.value === undefined) {
+		if (!attachment.value) {
 			return;
 		}
 		if (isStringImplicitContextValue(attachment.value)) {
@@ -253,7 +253,6 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 				this.attachmentModel.addFile(file);
 			}
 		}
-
 		this.widgetRef()?.focusInput();
 	}
 
