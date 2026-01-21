@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { autorun, debouncedObservable, derived, observableValue, runOnChange } from '../../../../base/common/observable.js';
+import { autorun, debouncedObservable, derived, observableValue, runOnChange, waitForState } from '../../../../base/common/observable.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { observableCodeEditor } from '../../../../editor/browser/observableCodeEditor.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -13,30 +13,24 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 import { InlineChatEditorAffordance } from './inlineChatEditorAffordance.js';
-import { InlineChatOverlayWidget } from './inlineChatOverlayWidget.js';
+import { InlineChatInputOverlayWidget } from './inlineChatOverlayWidget.js';
 import { InlineChatGutterAffordance } from './inlineChatGutterAffordance.js';
 import { Selection, SelectionDirection } from '../../../../editor/common/core/selection.js';
 import { assertType } from '../../../../base/common/types.js';
-import { Event } from '../../../../base/common/event.js';
 import { CursorChangeReason } from '../../../../editor/common/cursorEvents.js';
 
 export class InlineChatAffordance extends Disposable {
 
-	private readonly _overlayWidget: InlineChatOverlayWidget;
-
 	private _menuData = observableValue<{ rect: DOMRect; above: boolean } | undefined>(this, undefined);
-
 
 	constructor(
 		private readonly _editor: ICodeEditor,
+		private readonly _overlayWidget: InlineChatInputOverlayWidget,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IChatEntitlementService chatEntiteldService: IChatEntitlementService,
 	) {
 		super();
-
-		// Create the overlay widget once, owned by this class
-		this._overlayWidget = this._store.add(this._instantiationService.createInstance(InlineChatOverlayWidget, this._editor));
 
 		const affordance = observableConfigValue<'off' | 'gutter' | 'editor'>(InlineChatConfigKeys.Affordance, 'off', configurationService);
 
@@ -124,10 +118,13 @@ export class InlineChatAffordance extends Disposable {
 			this._overlayWidget.show(top, left, data.above);
 		}));
 
-		this._store.add(this._overlayWidget.onDidHide(() => {
-			suppressGutter.set(true, undefined);
-			this._menuData.set(undefined, undefined);
-			this._editor.focus();
+		this._store.add(autorun(r => {
+			const pos = this._overlayWidget.position.read(r);
+			if (pos === null) {
+				suppressGutter.set(true, undefined);
+				this._menuData.set(undefined, undefined);
+				this._editor.focus();
+			}
 		}));
 	}
 
@@ -147,6 +144,6 @@ export class InlineChatAffordance extends Disposable {
 			above: direction === SelectionDirection.RTL
 		}, undefined);
 
-		await Event.toPromise(this._overlayWidget.onDidHide);
+		await waitForState(this._overlayWidget.position, pos => pos === null);
 	}
 }

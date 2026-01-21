@@ -52,6 +52,7 @@ import { CellUri, ICellEditOperation } from '../../notebook/common/notebookCommo
 import { INotebookService } from '../../notebook/common/notebookService.js';
 import { CTX_INLINE_CHAT_VISIBLE, InlineChatConfigKeys } from '../common/inlineChat.js';
 import { InlineChatAffordance } from './inlineChatAffordance.js';
+import { InlineChatInputOverlayWidget } from './inlineChatOverlayWidget.js';
 import { IInlineChatSession2, IInlineChatSessionService } from './inlineChatSessionService.js';
 import { EditorBasedInlineChatWidget } from './inlineChatWidget.js';
 import { InlineChatZoneWidget } from './inlineChatZoneWidget.js';
@@ -143,7 +144,8 @@ export class InlineChatController implements IEditorContribution {
 		const notebookAgentConfig = observableConfigValue(InlineChatConfigKeys.notebookAgent, false, this._configurationService);
 		this._renderMode = observableConfigValue(InlineChatConfigKeys.RenderMode, 'zone', this._configurationService);
 
-		this._gutterIndicator = this._store.add(this._instaService.createInstance(InlineChatAffordance, this._editor));
+		const overlayWidget = this._store.add(this._instaService.createInstance(InlineChatInputOverlayWidget, this._editor));
+		this._gutterIndicator = this._store.add(this._instaService.createInstance(InlineChatAffordance, this._editor, overlayWidget));
 
 		this._zone = new Lazy<InlineChatZoneWidget>(() => {
 

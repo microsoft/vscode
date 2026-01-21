@@ -10,7 +10,7 @@ import { ActionBar, ActionsOrientation } from '../../../../base/browser/ui/actio
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
-import { Emitter } from '../../../../base/common/event.js';
+import { IObservable, observableValue } from '../../../../base/common/observable.js';
 import { IActiveCodeEditor, ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from '../../../../editor/browser/editorBrowser.js';
 import { EditorOption } from '../../../../editor/common/config/editorOptions.js';
 import { EditorExtensionsRegistry } from '../../../../editor/browser/editorExtensions.js';
@@ -32,18 +32,17 @@ import { Position } from '../../../../editor/common/core/position.js';
 /**
  * Overlay widget that displays a vertical action bar menu.
  */
-export class InlineChatOverlayWidget extends Disposable implements IOverlayWidget {
+export class InlineChatInputOverlayWidget extends Disposable implements IOverlayWidget {
 
 	private static _idPool = 0;
 
-	private readonly _id = `inline-chat-gutter-menu-${InlineChatOverlayWidget._idPool++}`;
+	private readonly _id = `inline-chat-gutter-menu-${InlineChatInputOverlayWidget._idPool++}`;
 	private readonly _domNode: HTMLElement;
 	private readonly _inputContainer: HTMLElement;
 	private readonly _actionBar: ActionBar;
 	private readonly _input: IActiveCodeEditor;
-	private _position: IOverlayWidgetPosition | null = null;
-	private readonly _onDidHide = this._store.add(new Emitter<void>());
-	readonly onDidHide = this._onDidHide.event;
+	private readonly _position = observableValue<IOverlayWidgetPosition | null>(this, null);
+	readonly position: IObservable<IOverlayWidgetPosition | null> = this._position;
 
 	private _isVisible = false;
 	private _inlineStartAction: IAction | undefined;
@@ -182,10 +181,10 @@ export class InlineChatOverlayWidget extends Disposable implements IOverlayWidge
 		this._refreshActions();
 
 		// Set initial position
-		this._position = {
+		this._position.set({
 			preference: { top, left },
 			stackOrdinal: 10000,
-		};
+		}, undefined);
 
 		// Add widget to editor
 		if (!this._isVisible) {
@@ -199,10 +198,10 @@ export class InlineChatOverlayWidget extends Disposable implements IOverlayWidge
 		// If anchoring above, adjust position after render to account for widget height
 		if (anchorAbove) {
 			const widgetHeight = this._domNode.offsetHeight;
-			this._position = {
+			this._position.set({
 				preference: { top: top - widgetHeight, left },
 				stackOrdinal: 10000,
-			};
+			}, undefined);
 			this._editor.layoutOverlayWidget(this);
 		}
 
@@ -218,8 +217,8 @@ export class InlineChatOverlayWidget extends Disposable implements IOverlayWidge
 			return;
 		}
 		this._isVisible = false;
+		this._position.set(null, undefined);
 		this._editor.removeOverlayWidget(this);
-		this._onDidHide.fire();
 	}
 
 	private _refreshActions(): void {
@@ -263,7 +262,7 @@ export class InlineChatOverlayWidget extends Disposable implements IOverlayWidge
 	}
 
 	getPosition(): IOverlayWidgetPosition | null {
-		return this._position;
+		return this._position.get();
 	}
 
 	override dispose(): void {
