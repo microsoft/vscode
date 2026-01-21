@@ -102,7 +102,7 @@ export function extractEditor(options: tss.ITreeShakingOptions & { destRoot: str
 				}
 
 				if (/\.css$/.test(importedFilePath)) {
-					transportCSS(importedFilePath, options.sourcesRoot, copyFile, writeOutputFile);
+					transportCSS(importedFilePath, copyFile, writeOutputFile);
 				} else {
 					const pathToCopy = path.join(options.sourcesRoot, importedFilePath);
 					if (fs.existsSync(pathToCopy) && !fs.statSync(pathToCopy).isDirectory()) {
@@ -124,7 +124,7 @@ export function extractEditor(options: tss.ITreeShakingOptions & { destRoot: str
 	copyFile('../node_modules/@vscode/tree-sitter-wasm/wasm/web-tree-sitter.d.ts', '@vscode/tree-sitter-wasm.d.ts');
 }
 
-function transportCSS(module: string, sourcesRoot: string, enqueue: (module: string) => void, write: (path: string, contents: string | Buffer) => void): boolean {
+function transportCSS(module: string, enqueue: (module: string) => void, write: (path: string, contents: string | Buffer) => void): boolean {
 
 	if (!/\.css/.test(module)) {
 		return false;
@@ -139,25 +139,17 @@ function transportCSS(module: string, sourcesRoot: string, enqueue: (module: str
 
 	function _rewriteOrInlineUrls(contents: string, forceBase64: boolean): string {
 		return _replaceURL(contents, (url) => {
-			// Handle ~ prefix for node_modules paths (e.g., ~@vscode/codicons/dist/codicon.ttf)
-			let resolvedUrl = url;
-			let basePath = path.dirname(module);
-			if (url.startsWith('~')) {
-				resolvedUrl = url.substring(1); // Remove the ~ prefix
-				basePath = path.join(sourcesRoot, '..', 'node_modules');
-			}
-
-			const fontMatch = resolvedUrl.match(/^(.*).ttf\?(.*)$/);
+			const fontMatch = url.match(/^(.*).ttf\?(.*)$/);
 			if (fontMatch) {
 				const relativeFontPath = `${fontMatch[1]}.ttf`; // trim the query parameter
-				const fontPath = path.join(basePath, relativeFontPath);
+				const fontPath = path.join(path.dirname(module), relativeFontPath);
 				enqueue(fontPath);
 				return relativeFontPath;
 			}
 
-			const imagePath = path.join(basePath, resolvedUrl);
+			const imagePath = path.join(path.dirname(module), url);
 			const fileContents = fs.readFileSync(imagePath);
-			const MIME = /\.svg$/.test(resolvedUrl) ? 'image/svg+xml' : 'image/png';
+			const MIME = /\.svg$/.test(url) ? 'image/svg+xml' : 'image/png';
 			let DATA = ';base64,' + fileContents.toString('base64');
 
 			if (!forceBase64 && /\.svg$/.test(url)) {

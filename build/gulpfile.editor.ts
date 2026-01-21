@@ -166,9 +166,7 @@ const finalEditorResourcesTask = task.define('final-editor-resources', () => {
 					throw new Error(`Failed to read cgmanifest.json files for monaco-editor-core dependencies: ${error.message}`);
 				}
 
-				const codiconsVersion = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).dependencies['@vscode/codicons'];
 				setUnsetField(json, 'dependencies', {
-					'@vscode/codicons': codiconsVersion,
 					'marked': markedVersion,
 					'dompurify': dompurifyVersion
 				});

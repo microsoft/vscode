@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import './common/media/index.css';
 import { EditorOptions, WrappingIndent, EditorAutoIndentStrategy } from './common/config/editorOptions.js';
 import { createMonacoBaseAPI } from './common/services/editorBaseApi.js';
 import { createMonacoEditorAPI } from './standalone/browser/standaloneEditor.js';
