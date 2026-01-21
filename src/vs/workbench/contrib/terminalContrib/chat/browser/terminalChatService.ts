@@ -35,6 +35,9 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 	private readonly _chatSessionListenersByTerminalInstance = this._register(new DisposableMap<ITerminalInstance, IDisposable>());
 	private readonly _onDidRegisterTerminalInstanceForToolSession = new Emitter<ITerminalInstance>();
 	readonly onDidRegisterTerminalInstanceWithToolSession: Event<ITerminalInstance> = this._onDidRegisterTerminalInstanceForToolSession.event;
+
+	private readonly _onDidContinueInBackground = new Emitter<string>();
+	readonly onDidContinueInBackground: Event<string> = this._onDidContinueInBackground.event;
 	private readonly _activeProgressParts = new Set<IChatTerminalToolProgressPart>();
 	private _focusedProgressPart: IChatTerminalToolProgressPart | undefined;
 	private _mostRecentProgressPart: IChatTerminalToolProgressPart | undefined;
@@ -344,5 +347,9 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 
 	getSessionAutoApproveRules(chatSessionResource: URI): Readonly<Record<string, boolean | { approve: boolean; matchCommandLine?: boolean }>> {
 		return this._sessionAutoApproveRules.get(chatSessionResource) ?? {};
+	}
+
+	continueInBackground(terminalToolSessionId: string): void {
+		this._onDidContinueInBackground.fire(terminalToolSessionId);
 	}
 }
