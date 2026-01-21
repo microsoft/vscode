@@ -13,10 +13,10 @@ import { createInstantHoverDelegate } from '../../../../../base/browser/ui/hover
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import * as event from '../../../../../base/common/event.js';
-import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { basename, dirname } from '../../../../../base/common/path.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -547,6 +547,9 @@ export class PasteAttachmentWidget extends AbstractChatAttachmentWidget {
 }
 
 export class DefaultChatAttachmentWidget extends AbstractChatAttachmentWidget {
+
+	private readonly _tooltipHover: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
+
 	constructor(
 		resource: URI | undefined,
 		range: IRange | undefined,
@@ -560,6 +563,7 @@ export class DefaultChatAttachmentWidget extends AbstractChatAttachmentWidget {
 		@IOpenerService openerService: IOpenerService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IHoverService private readonly hoverService: IHoverService,
 	) {
 		super(attachment, options, container, contextResourceLabels, currentLanguageModel, commandService, openerService);
 
@@ -595,9 +599,21 @@ export class DefaultChatAttachmentWidget extends AbstractChatAttachmentWidget {
 			}));
 		}
 
+		// Setup tooltip hover for string context attachments
+		if (isStringVariableEntry(attachment) && attachment.tooltip) {
+			this._setupTooltipHover(attachment.tooltip);
+		}
+
 		if (resource) {
 			this.addResourceOpenHandlers(resource, range);
 		}
+	}
+
+	private _setupTooltipHover(tooltip: IMarkdownString): void {
+		this._tooltipHover.value = this.hoverService.setupDelayedHover(this.element, {
+			content: tooltip,
+			appearance: { showPointer: true },
+		});
 	}
 }
 

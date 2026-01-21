@@ -274,6 +274,18 @@ suite('PromptHoverProvider', () => {
 			const hover = await getHover(content, 4, 1, PromptsType.agent);
 			assert.strictEqual(hover, 'Whether the agent can be used as a subagent.');
 		});
+
+		test('hover on agents attribute shows description', async () => {
+			const content = [
+				'---',
+				'name: "Test Agent"',
+				'description: "Test agent"',
+				'agents: ["*"]',
+				'---',
+			].join('\n');
+			const hover = await getHover(content, 4, 1, PromptsType.agent);
+			assert.strictEqual(hover, 'One or more agents that this agent can use as subagents. Use \'*\' to specify all available agents.');
+		});
 	});
 
 	suite('prompt hovers', () => {
@@ -377,6 +389,42 @@ suite('PromptHoverProvider', () => {
 			].join('\n');
 			const hover = await getHover(content, 2, 1, PromptsType.instructions);
 			assert.strictEqual(hover, 'The name of the instruction file as shown in the UI. If not set, the name is derived from the file name.');
+		});
+	});
+
+	suite('skill hovers', () => {
+		test('hover on name attribute', async () => {
+			const content = [
+				'---',
+				'name: "My Skill"',
+				'description: "Test skill"',
+				'---',
+			].join('\n');
+			const hover = await getHover(content, 2, 1, PromptsType.skill);
+			assert.strictEqual(hover, 'The name of the skill.');
+		});
+
+		test('hover on description attribute', async () => {
+			const content = [
+				'---',
+				'name: "Test Skill"',
+				'description: "Test skill description"',
+				'---',
+			].join('\n');
+			const hover = await getHover(content, 3, 1, PromptsType.skill);
+			assert.strictEqual(hover, 'The description of the skill. The description is added to every request and will be used by the agent to decide when to load the skill.');
+		});
+
+		test('hover on file attribute', async () => {
+			const content = [
+				'---',
+				'name: "Test Skill"',
+				'description: "Test skill"',
+				'file: "SKILL.md"',
+				'---',
+			].join('\n');
+			const hover = await getHover(content, 4, 1, PromptsType.skill);
+			assert.strictEqual(hover, undefined);
 		});
 	});
 });

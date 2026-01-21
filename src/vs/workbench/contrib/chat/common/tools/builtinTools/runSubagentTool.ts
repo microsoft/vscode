@@ -14,7 +14,7 @@ import { localize } from '../../../../../../nls.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
-import { IChatAgentRequest, IChatAgentService, UserSelectedTools } from '../../participants/chatAgents.js';
+import { IChatAgentRequest, IChatAgentService } from '../../participants/chatAgents.js';
 import { ChatModel, IChatRequestModeInstructions } from '../../model/chatModel.js';
 import { IChatModeService } from '../../chatModes.js';
 import { IChatProgress, IChatService } from '../../chatService/chatService.js';
@@ -34,7 +34,6 @@ import {
 	ToolProgress,
 	ToolSet,
 	VSCodeToolReference,
-	IToolAndToolSetEnablementMap
 } from '../languageModelToolsService.js';
 import { ComputeAutomaticInstructions } from '../../promptSyntax/computeAutomaticInstructions.js';
 import { ManageTodoListToolToolId } from './manageTodoListTool.js';
@@ -219,7 +218,9 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 				modeTools[ManageTodoListToolToolId] = false;
 			}
 
-			const variableSet = await this.collectVariables(modeTools, token);
+			const variableSet = new ChatRequestVariableSet();
+			const computer = this.instantiationService.createInstance(ComputeAutomaticInstructions, modeTools, undefined); // agents can not call subagents
+			await computer.collect(variableSet, token);
 
 			// Build the agent request
 			const agentRequest: IChatAgentRequest = {
@@ -229,7 +230,8 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 				message: args.prompt,
 				variables: { variables: variableSet.asArray() },
 				location: ChatAgentLocation.Chat,
-				subAgentInvocationId: invocation.chatStreamToolCallId,
+				subAgentInvocationId: invocation.callId,
+				subAgentName: args.agentName,
 				userSelectedModelId: modeModelId,
 				userSelectedTools: modeTools,
 				modeInstructions,
@@ -277,27 +279,5 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 				prompt: args.prompt,
 			},
 		};
-	}
-
-	private async collectVariables(modeTools: UserSelectedTools | undefined, token: CancellationToken): Promise<ChatRequestVariableSet> {
-		let enabledTools: IToolAndToolSetEnablementMap | undefined;
-
-		if (modeTools) {
-			// Convert tool IDs to full reference names
-
-			const enabledToolIds = Object.entries(modeTools).filter(([, enabled]) => enabled).map(([id]) => id);
-			const tools = enabledToolIds.map(id => this.languageModelToolsService.getTool(id)).filter(tool => !!tool);
-
-			const fullReferenceNames = tools.map(tool => this.languageModelToolsService.getFullReferenceName(tool));
-			if (fullReferenceNames.length > 0) {
-				enabledTools = this.languageModelToolsService.toToolAndToolSetEnablementMap(fullReferenceNames, undefined, undefined);
-			}
-		}
-
-		const variableSet = new ChatRequestVariableSet();
-		const computer = this.instantiationService.createInstance(ComputeAutomaticInstructions, enabledTools);
-		await computer.collect(variableSet, token);
-
-		return variableSet;
 	}
 }

@@ -277,6 +277,11 @@ export class TextAreaEditContext extends AbstractEditContext {
 			isSafari: browser.isSafari,
 		}));
 
+		// Relay clipboard events from TextAreaInput
+		this._register(this._textAreaInput.onWillCopy(e => this._onWillCopy.fire(e)));
+		this._register(this._textAreaInput.onWillCut(e => this._onWillCut.fire(e)));
+		this._register(this._textAreaInput.onWillPaste(e => this._onWillPaste.fire(e)));
+
 		this._register(this._textAreaInput.onKeyDown((e: IKeyboardEvent) => {
 			this._viewController.emitKeyDown(e);
 		}));

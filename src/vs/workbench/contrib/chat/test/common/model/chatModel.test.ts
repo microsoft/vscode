@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import * as sinon from 'sinon';
+import { Codicon } from '../../../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -22,6 +23,7 @@ import { IStorageService } from '../../../../../../platform/storage/common/stora
 import { IExtensionService } from '../../../../../services/extensions/common/extensions.js';
 import { TestExtensionService, TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
 import { CellUri } from '../../../../notebook/common/notebookCommon.js';
+import { IChatRequestImplicitVariableEntry, IChatRequestStringVariableEntry, IChatRequestFileEntry, StringChatContextValue } from '../../../common/attachments/chatVariableEntries.js';
 import { ChatAgentService, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatModel, IExportableChatData, ISerializableChatData1, ISerializableChatData2, ISerializableChatData3, isExportableSessionData, isSerializableSessionData, normalizeSerializableChatData, Response } from '../../../common/model/chatModel.js';
 import { ChatRequestTextPart } from '../../../common/requestParser/chatParserTypes.js';
@@ -163,6 +165,69 @@ suite('ChatModel', () => {
 		assert.strictEqual(request1.response!.isCompleteAddedRequest, true);
 		assert.strictEqual(request1.shouldBeRemovedOnSend, undefined);
 		assert.strictEqual(request1.response!.shouldBeRemovedOnSend, undefined);
+	});
+
+	test('inputModel.toJSON filters extension-contributed contexts', async function () {
+		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+
+		const fileAttachment: IChatRequestFileEntry = {
+			kind: 'file',
+			value: URI.parse('file:///test.ts'),
+			id: 'file-id',
+			name: 'test.ts',
+		};
+
+		const stringContextValue: StringChatContextValue = {
+			value: 'pr-content',
+			name: 'PR #123',
+			icon: Codicon.gitPullRequest,
+			uri: URI.parse('pr://123'),
+			handle: 1
+		};
+
+		const stringAttachment: IChatRequestStringVariableEntry = {
+			kind: 'string',
+			value: 'pr-content',
+			id: 'string-id',
+			name: 'PR #123',
+			icon: Codicon.gitPullRequest,
+			uri: URI.parse('pr://123'),
+			handle: 1
+		};
+
+		const implicitWithStringContext: IChatRequestImplicitVariableEntry = {
+			kind: 'implicit',
+			isFile: true,
+			value: stringContextValue,
+			uri: URI.parse('pr://123'),
+			isSelection: false,
+			enabled: true,
+			id: 'implicit-string-id',
+			name: 'PR Context',
+		};
+
+		const implicitWithUri: IChatRequestImplicitVariableEntry = {
+			kind: 'implicit',
+			isFile: true,
+			value: URI.parse('file:///current.ts'),
+			uri: URI.parse('file:///current.ts'),
+			isSelection: false,
+			enabled: true,
+			id: 'implicit-uri-id',
+			name: 'current.ts',
+		};
+
+		model.inputModel.setState({
+			attachments: [fileAttachment, stringAttachment, implicitWithStringContext, implicitWithUri],
+			inputText: 'test'
+		});
+
+		const serialized = model.inputModel.toJSON();
+		assert.ok(serialized);
+
+		// Should filter out string attachments and implicit attachments with StringChatContextValue
+		// Should keep file attachments and implicit attachments with URI values
+		assert.deepStrictEqual(serialized.attachments, [fileAttachment, implicitWithUri]);
 	});
 });
 
