@@ -5,6 +5,8 @@
 
 import { $, clearNode, hide } from '../../../../../../base/browser/dom.js';
 import { alert } from '../../../../../../base/browser/ui/aria/aria.js';
+import { DomScrollableElement } from '../../../../../../base/browser/ui/scrollbar/scrollableElement.js';
+import { ScrollbarVisibility } from '../../../../../../base/common/scrollable.js';
 import { IChatMarkdownContent, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized } from '../../../common/chatService/chatService.js';
 import { IChatContentPartRenderContext, IChatContentPart } from './chatContentParts.js';
 import { IChatRendererContent } from '../../../common/model/chatViewModel.js';
@@ -64,7 +66,7 @@ export function getToolInvocationIcon(toolId: string): ThemeIcon {
 		lowerToolId.includes('edit') ||
 		lowerToolId.includes('create')
 	) {
-		return Codicon.wand;
+		return Codicon.pencil;
 	}
 
 	if (
@@ -94,6 +96,7 @@ interface ILazyItem {
 	toolInvocationOrMarkdown?: IChatToolInvocation | IChatToolInvocationSerialized | IChatMarkdownContent;
 	originalParent?: HTMLElement;
 }
+const THINKING_SCROLL_MAX_HEIGHT = 200;
 
 export class ChatThinkingContentPart extends ChatCollapsibleContentPart implements IChatContentPart {
 	public readonly codeblocks: undefined;
@@ -108,6 +111,8 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	private markdownResult: IRenderedMarkdown | undefined;
 	private wrapper!: HTMLElement;
 	private fixedScrollingMode: boolean = false;
+	private autoScrollEnabled: boolean = true;
+	private scrollableElement: DomScrollableElement | undefined;
 	private lastExtractedTitle: string | undefined;
 	private extractedTitles: string[] = [];
 	private toolInvocationCount: number = 0;
@@ -233,8 +238,93 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			this.wrapper.appendChild(this.textContainer);
 			this.renderMarkdown(this.currentThinkingValue);
 		}
+
+		// wrap content in scrollable element for fixed scrolling mode
+		if (this.fixedScrollingMode) {
+			this.scrollableElement = this._register(new DomScrollableElement(this.wrapper, {
+				vertical: ScrollbarVisibility.Auto,
+				horizontal: ScrollbarVisibility.Hidden,
+				handleMouseWheel: true,
+				alwaysConsumeMouseWheel: false
+			}));
+			this._register(this.scrollableElement.onScroll(e => this.handleScroll(e.scrollTop)));
+
+			this._register(this._onDidChangeHeight.event(() => {
+				setTimeout(() => this.scrollToBottomIfEnabled(), 0);
+			}));
+
+			setTimeout(() => this.scrollToBottomIfEnabled(), 0);
+
+			this.updateDropdownClickability();
+			return this.scrollableElement.getDomNode();
+		}
+
 		this.updateDropdownClickability();
 		return this.wrapper;
+	}
+
+	private handleScroll(scrollTop: number): void {
+		if (!this.scrollableElement) {
+			return;
+		}
+
+		const scrollDimensions = this.scrollableElement.getScrollDimensions();
+		const maxScrollTop = scrollDimensions.scrollHeight - scrollDimensions.height;
+		const isAtBottom = maxScrollTop <= 0 || scrollTop >= maxScrollTop - 10;
+
+		if (isAtBottom) {
+			this.autoScrollEnabled = true;
+		} else {
+			this.autoScrollEnabled = false;
+		}
+	}
+
+	private scrollToBottomIfEnabled(): void {
+		if (!this.scrollableElement || !this.autoScrollEnabled) {
+			return;
+		}
+
+		const isCollapsed = this.domNode.classList.contains('chat-used-context-collapsed');
+		if (!isCollapsed) {
+			return;
+		}
+
+		const contentHeight = this.wrapper.scrollHeight;
+		const viewportHeight = Math.min(contentHeight, THINKING_SCROLL_MAX_HEIGHT);
+
+		this.scrollableElement.setScrollDimensions({
+			width: this.scrollableElement.getDomNode().clientWidth,
+			scrollWidth: this.wrapper.scrollWidth,
+			height: viewportHeight,
+			scrollHeight: contentHeight
+		});
+
+		if (contentHeight > viewportHeight) {
+			this.scrollableElement.setScrollPosition({ scrollTop: contentHeight - viewportHeight });
+		}
+	}
+
+	/**
+	 * updates scroll dimensions when streaming is complete.
+	 */
+	private updateScrollDimensionsForCompletion(): void {
+		if (!this.scrollableElement || !this.fixedScrollingMode) {
+			return;
+		}
+
+		const contentHeight = this.wrapper.scrollHeight;
+		const viewportHeight = Math.min(contentHeight, THINKING_SCROLL_MAX_HEIGHT);
+
+		this.scrollableElement.setScrollDimensions({
+			width: this.scrollableElement.getDomNode().clientWidth,
+			scrollWidth: this.wrapper.scrollWidth,
+			height: viewportHeight,
+			scrollHeight: contentHeight
+		});
+
+		if (contentHeight <= THINKING_SCROLL_MAX_HEIGHT) {
+			this.scrollableElement.setScrollPosition({ scrollTop: 0 });
+		}
 	}
 
 	private renderMarkdown(content: string, reuseExisting?: boolean): void {
@@ -337,8 +427,8 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		this.currentThinkingValue = next;
 		this.renderMarkdown(next, reuseExisting);
 
-		if (this.fixedScrollingMode && this.wrapper) {
-			this.wrapper.scrollTop = this.wrapper.scrollHeight;
+		if (this.fixedScrollingMode && this.scrollableElement) {
+			setTimeout(() => this.scrollToBottomIfEnabled(), 0);
 		}
 
 		const extractedTitle = extractTitleFromThinkingContent(raw);
@@ -376,6 +466,10 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		if (this._collapseButton) {
 			this._collapseButton.icon = Codicon.check;
 		}
+
+		// Update scroll dimensions now that streaming is complete
+		// This removes unnecessary scrollbar when content fits
+		this.updateScrollDimensionsForCompletion();
 
 		this.updateDropdownClickability();
 
@@ -632,7 +726,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 
 		let icon: ThemeIcon;
 		if (isMarkdownEdit) {
-			icon = Codicon.wand;
+			icon = Codicon.pencil;
 		} else if (isTerminalTool) {
 			const terminalData = (toolInvocationOrMarkdown as IChatToolInvocation | IChatToolInvocationSerialized).toolSpecificData as { kind: 'terminal'; terminalCommandState?: { exitCode?: number } };
 			const exitCode = terminalData?.terminalCommandState?.exitCode;
@@ -647,8 +741,8 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 
 		this.wrapper.appendChild(itemWrapper);
 
-		if (this.fixedScrollingMode && this.wrapper) {
-			this.wrapper.scrollTop = this.wrapper.scrollHeight;
+		if (this.fixedScrollingMode && this.scrollableElement) {
+			setTimeout(() => this.scrollToBottomIfEnabled(), 0);
 		}
 	}
 

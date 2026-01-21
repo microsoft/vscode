@@ -467,9 +467,11 @@ export class BrowserEditor extends EditorPane {
 		if (this._model) {
 			this.group.pinEditor(this.input); // pin editor on navigation
 
-			const scheme = URL.parse(url)?.protocol;
-			if (!scheme) {
-				// If no scheme provided, default to http (to support localhost etc -- sites will generally upgrade to https)
+			// Special case localhost URLs (e.g., "localhost:3000") to add http://
+			if (/^localhost(:|\/|$)/i.test(url)) {
+				url = 'http://' + url;
+			} else if (!URL.parse(url)?.protocol) {
+				// If no scheme provided, default to http (sites will generally upgrade to https)
 				url = 'http://' + url;
 			}
 
