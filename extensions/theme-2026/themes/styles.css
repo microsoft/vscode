@@ -247,10 +247,6 @@
 .monaco-workbench .monaco-editor:has(.sticky-widget:focus-within) .sticky-widget { background: rgba(252, 252, 253, 0.75) !important; backdrop-filter: blur(40px) saturate(180%) !important; -webkit-backdrop-filter: blur(40px) saturate(180%) !important; box-shadow: 0 0 8px rgba(0, 0, 0, 0.12) !important; }
 .monaco-workbench.vs-dark .monaco-editor:has(.sticky-widget:focus-within) .sticky-widget { background: rgba(0, 0, 0, 0.4) !important; backdrop-filter: blur(40px) saturate(180%) !important; -webkit-backdrop-filter: blur(40px) saturate(180%) !important; box-shadow: 0 0 8px rgba(0, 0, 0, 0.12) !important; }
 
-.monaco-workbench .monaco-editor .sticky-widget .sticky-widget-lines-scrollable {
-
-}
-
 .monaco-editor .sticky-widget .sticky-line-content,
 .monaco-workbench .monaco-editor .sticky-widget .sticky-line-number {
 	backdrop-filter: blur(40px) saturate(180%) !important; -webkit-backdrop-filter: blur(40px) saturate(180%) !important;
