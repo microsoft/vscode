@@ -6,7 +6,7 @@
 import { h } from '../../../../base/browser/dom.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, observableFromEvent } from '../../../../base/common/observable.js';
-import { MenuEntryActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { getActionBarActions, MenuEntryActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { IMenuService, MenuId, MenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -29,30 +29,13 @@ export class FloatingEditorToolbar extends Disposable implements IEditorContribu
 		const editorObs = this._register(observableCodeEditor(editor));
 
 		const menu = this._register(menuService.createMenu(MenuId.EditorContent, editor.contextKeyService));
-		const menuActionsObs = observableFromEvent(this, menu.onDidChange, () => menu.getActions());
+		const menuGroupsObs = observableFromEvent(this, menu.onDidChange, () => menu.getActions());
+
 		const menuPrimaryActionIdObs = derived(reader => {
-			const menuActions = menuActionsObs.read(reader);
-			if (menuActions.length === 0) {
-				return undefined;
-			}
+			const menuGroups = menuGroupsObs.read(reader);
 
-			// Navigation group
-			const navigationGroup = menuActions
-				.find((group) => group[0] === 'navigation');
-
-			// First action in navigation group
-			if (navigationGroup && navigationGroup[1].length > 0) {
-				return navigationGroup[1][0].id;
-			}
-
-			// Fallback to first group/action
-			for (const [, actions] of menuActions) {
-				if (actions.length > 0) {
-					return actions[0].id;
-				}
-			}
-
-			return undefined;
+			const { primary } = getActionBarActions(menuGroups, () => true);
+			return primary.length > 0 ? primary[0].id : undefined;
 		});
 
 		this._register(autorun(reader => {
