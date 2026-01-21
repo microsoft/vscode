@@ -1449,7 +1449,6 @@ export class ContinueInBackgroundAction extends Action implements IAction {
 		private readonly _terminalToolSessionId: string,
 		private readonly _onContinueInBackground: () => void,
 		@ITerminalChatService private readonly _terminalChatService: ITerminalChatService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super(
 			TerminalContribCommandId.ContinueInBackground,
@@ -1460,13 +1459,6 @@ export class ContinueInBackgroundAction extends Action implements IAction {
 	}
 
 	public override async run(): Promise<void> {
-		type ContinueInBackgroundTelemetryEvent = {};
-		type ContinueInBackgroundTelemetryClassification = {
-			owner: 'Tyriar';
-			comment: 'Track usage of the continue in background action.';
-		};
-		this._telemetryService.publicLog2<ContinueInBackgroundTelemetryEvent, ContinueInBackgroundTelemetryClassification>('terminal/chatContinueInBackground', {});
-
 		this._onContinueInBackground();
 		this._terminalChatService.continueInBackground(this._terminalToolSessionId);
 	}
