@@ -24,7 +24,6 @@ import { KeybindingWeight } from '../../../../platform/keybinding/common/keybind
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { PanelFocusContext } from '../../../common/contextkeys.js';
 import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
-import { CTX_INLINE_CHAT_GUTTER_VISIBLE } from '../../inlineChat/common/inlineChat.js';
 import { openBreakpointSource } from './breakpointsView.js';
 import { DisassemblyView, IDisassembledInstructionEntry } from './disassemblyView.js';
 import { Repl } from './repl.js';
@@ -55,11 +54,6 @@ class ToggleBreakpointAction extends Action2 {
 				id: MenuId.MenubarDebugMenu,
 				when: CONTEXT_DEBUGGERS_AVAILABLE,
 				group: '4_new_breakpoint',
-				order: 1
-			}, {
-				id: MenuId.ChatEditorInlineGutter,
-				when: ContextKeyExpr.and(CONTEXT_DEBUGGERS_AVAILABLE, CTX_INLINE_CHAT_GUTTER_VISIBLE),
-				group: '4_debug',
 				order: 1
 			}]
 		});

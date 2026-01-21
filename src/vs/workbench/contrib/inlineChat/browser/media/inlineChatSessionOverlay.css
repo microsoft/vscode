@@ -52,7 +52,10 @@
 	max-width: 13em;
 	overflow: hidden;
 	text-overflow: ellipsis;
-	padding-right: 8px;
+}
+
+.inline-chat-session-overlay-widget .progress .progress-message:not(:empty) {
+	padding-right: 2em;
 }
 
 .inline-chat-session-overlay-widget.busy .progress .codicon {

@@ -13,10 +13,10 @@ import { ActionBar, ActionsOrientation } from '../../../../base/browser/ui/actio
 import { Codicon } from '../../../../base/common/codicons.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, derived, IObservable, observableFromEventOpts, observableValue } from '../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, observableFromEventOpts, observableValue } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
-import { ContentWidgetPositionPreference, IActiveCodeEditor, ICodeEditor, IContentWidgetPosition, IOverlayWidget, IOverlayWidgetPosition } from '../../../../editor/browser/editorBrowser.js';
+import { ContentWidgetPositionPreference, IActiveCodeEditor, IContentWidgetPosition, IOverlayWidgetPosition } from '../../../../editor/browser/editorBrowser.js';
 import { ObservableCodeEditor } from '../../../../editor/browser/observableCodeEditor.js';
 import { EditorOption } from '../../../../editor/common/config/editorOptions.js';
 import { EditorExtensionsRegistry } from '../../../../editor/browser/editorExtensions.js';
@@ -44,25 +44,26 @@ import { assertType } from '../../../../base/common/types.js';
 /**
  * Overlay widget that displays a vertical action bar menu.
  */
-export class InlineChatInputOverlayWidget extends Disposable implements IOverlayWidget {
+export class InlineChatInputWidget extends Disposable {
 
-	private static _idPool = 0;
-
-	private readonly _id = `inline-chat-gutter-menu-${InlineChatInputOverlayWidget._idPool++}`;
 	private readonly _domNode: HTMLElement;
 	private readonly _inputContainer: HTMLElement;
 	private readonly _actionBar: ActionBar;
 	private readonly _input: IActiveCodeEditor;
 	private readonly _position = observableValue<IOverlayWidgetPosition | null>(this, null);
 	readonly position: IObservable<IOverlayWidgetPosition | null> = this._position;
+	readonly minContentWidthInPx = constObservable(0);
 
-	private _isVisible = false;
+	private readonly _showStore = this._store.add(new DisposableStore());
 	private _inlineStartAction: IAction | undefined;
+	private _anchorLineNumber: number = 0;
+	private _anchorLeft: number = 0;
+	private _anchorAbove: boolean = false;
 
 	readonly allowEditorOverflow = true;
 
 	constructor(
-		private readonly _editor: ICodeEditor,
+		private readonly _editorObs: ObservableCodeEditor,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IMenuService private readonly _menuService: IMenuService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
@@ -177,12 +178,13 @@ export class InlineChatInputOverlayWidget extends Disposable implements IOverlay
 	}
 
 	/**
-	 * Show the widget at the specified position.
-	 * @param top Top offset relative to editor
+	 * Show the widget at the specified line.
+	 * @param lineNumber The line number to anchor the widget to
 	 * @param left Left offset relative to editor
 	 * @param anchorAbove Whether to anchor above the position (widget grows upward)
 	 */
-	show(top: number, left: number, anchorAbove: boolean): void {
+	show(lineNumber: number, left: number, anchorAbove: boolean): void {
+		this._showStore.clear();
 
 		// Clear input state
 		this._input.getModel().setValue('');
@@ -192,45 +194,66 @@ export class InlineChatInputOverlayWidget extends Disposable implements IOverlay
 		// Refresh actions from menu
 		this._refreshActions();
 
+		// Store anchor info for scroll updates
+		this._anchorLineNumber = lineNumber;
+		this._anchorLeft = left;
+		this._anchorAbove = anchorAbove;
+
 		// Set initial position
-		this._position.set({
-			preference: { top, left },
-			stackOrdinal: 10000,
-		}, undefined);
+		this._updatePosition();
 
-		// Add widget to editor
-		if (!this._isVisible) {
-			this._editor.addOverlayWidget(this);
-			this._isVisible = true;
-
-		} else if (!anchorAbove) {
-			this._editor.layoutOverlayWidget(this);
-		}
+		// Create overlay widget via observable pattern
+		this._showStore.add(this._editorObs.createOverlayWidget({
+			domNode: this._domNode,
+			position: this._position,
+			minContentWidthInPx: this.minContentWidthInPx,
+			allowEditorOverflow: this.allowEditorOverflow,
+		}));
 
 		// If anchoring above, adjust position after render to account for widget height
 		if (anchorAbove) {
-			const widgetHeight = this._domNode.offsetHeight;
-			this._position.set({
-				preference: { top: top - widgetHeight, left },
-				stackOrdinal: 10000,
-			}, undefined);
-			this._editor.layoutOverlayWidget(this);
+			this._updatePosition();
 		}
+
+		// Update position on scroll, hide if anchor line is out of view
+		this._showStore.add(this._editorObs.editor.onDidScrollChange(() => {
+			const visibleRanges = this._editorObs.editor.getVisibleRanges();
+			const isLineVisible = visibleRanges.some(range =>
+				this._anchorLineNumber >= range.startLineNumber && this._anchorLineNumber <= range.endLineNumber
+			);
+			if (!isLineVisible) {
+				this._hide();
+			} else {
+				this._updatePosition();
+			}
+		}));
 
 		// Focus the input editor
 		setTimeout(() => this._input.focus(), 0);
+	}
+
+	private _updatePosition(): void {
+		const editor = this._editorObs.editor;
+		const top = editor.getTopForLineNumber(this._anchorLineNumber) - editor.getScrollTop();
+		let adjustedTop = top;
+
+		if (this._anchorAbove) {
+			const widgetHeight = this._domNode.offsetHeight;
+			adjustedTop = top - widgetHeight;
+		}
+
+		this._position.set({
+			preference: { top: adjustedTop, left: this._anchorLeft },
+			stackOrdinal: 10000,
+		}, undefined);
 	}
 
 	/**
 	 * Hide the widget (removes from editor but does not dispose).
 	 */
 	private _hide(): void {
-		if (!this._isVisible) {
-			return;
-		}
-		this._isVisible = false;
 		this._position.set(null, undefined);
-		this._editor.removeOverlayWidget(this);
+		this._showStore.clear();
 	}
 
 	private _refreshActions(): void {
@@ -260,28 +283,6 @@ export class InlineChatInputOverlayWidget extends Disposable implements IOverlay
 
 		this._inputContainer.style.height = `${clampedHeight + containerPadding}px`;
 		this._input.layout({ width: 200, height: clampedHeight });
-		if (this._isVisible) {
-			this._editor.layoutOverlayWidget(this);
-		}
-	}
-
-	getId(): string {
-		return this._id;
-	}
-
-	getDomNode(): HTMLElement {
-		return this._domNode;
-	}
-
-	getPosition(): IOverlayWidgetPosition | null {
-		return this._position.get();
-	}
-
-	override dispose(): void {
-		if (this._isVisible) {
-			this._editor.removeOverlayWidget(this);
-		}
-		super.dispose();
 	}
 }
 
@@ -290,7 +291,8 @@ export class InlineChatInputOverlayWidget extends Disposable implements IOverlay
  */
 export class InlineChatSessionOverlayWidget extends Disposable {
 
-	private readonly _domNode: HTMLElement;
+	private readonly _domNode: HTMLElement = document.createElement('div');
+	private readonly _container: HTMLElement;
 	private readonly _progressNode: HTMLElement;
 	private readonly _progressMessage: HTMLElement;
 	private readonly _toolbarNode: HTMLElement;
@@ -306,16 +308,16 @@ export class InlineChatSessionOverlayWidget extends Disposable {
 	) {
 		super();
 
-		// Create container with styling for session overlay
-		this._domNode = document.createElement('div');
-		this._domNode.classList.add('inline-chat-session-overlay-widget');
+		this._container = document.createElement('div');
+		this._domNode.appendChild(this._container);
+		this._container.classList.add('inline-chat-session-overlay-widget');
 
 		// Create progress node
 		this._progressNode = document.createElement('div');
 		this._progressNode.classList.add('progress');
 		dom.append(this._progressNode, renderIcon(ThemeIcon.modify(Codicon.loading, 'spin')));
 		this._progressMessage = dom.append(this._progressNode, dom.$('span.progress-message'));
-		this._domNode.appendChild(this._progressNode);
+		this._container.appendChild(this._progressNode);
 
 		// Create toolbar node
 		this._toolbarNode = document.createElement('div');
@@ -371,11 +373,11 @@ export class InlineChatSessionOverlayWidget extends Disposable {
 		this._showStore.add(autorun(r => {
 			const e = entry.read(r);
 			const isBusy = !e || !!e.isCurrentlyBeingModifiedBy.read(r);
-			this._domNode.classList.toggle('busy', isBusy);
+			this._container.classList.toggle('busy', isBusy);
 		}));
 
 		// Add toolbar
-		this._domNode.appendChild(this._toolbarNode);
+		this._container.appendChild(this._toolbarNode);
 		this._showStore.add(toDisposable(() => this._toolbarNode.remove()));
 
 		const that = this;
@@ -434,7 +436,6 @@ export class InlineChatSessionOverlayWidget extends Disposable {
 
 	hide(): void {
 		this._position.set(null, undefined);
-		this._domNode.classList.remove('busy');
 		this._session.set(undefined, undefined);
 		this._showStore.clear();
 	}

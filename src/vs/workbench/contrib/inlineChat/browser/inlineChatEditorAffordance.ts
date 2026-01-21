@@ -35,7 +35,7 @@ export class InlineChatEditorAffordance extends Disposable implements IContentWi
 		private readonly _editor: ICodeEditor,
 		selection: IObservable<Selection | undefined>,
 		suppressAffordance: ISettableObservable<boolean>,
-		private readonly _hover: ISettableObservable<{ rect: DOMRect; above: boolean } | undefined>
+		private readonly _hover: ISettableObservable<{ rect: DOMRect; above: boolean; lineNumber: number } | undefined>
 	) {
 		super();
 
@@ -112,7 +112,8 @@ export class InlineChatEditorAffordance extends Disposable implements IContentWi
 		this._hide();
 		this._hover.set({
 			rect: new DOMRect(x, y, 0, scrolledPosition.height),
-			above: this._position.preference[0] === ContentWidgetPositionPreference.ABOVE
+			above: this._position.preference[0] === ContentWidgetPositionPreference.ABOVE,
+			lineNumber: position.lineNumber
 		}, undefined);
 	}
 

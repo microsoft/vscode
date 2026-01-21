@@ -10,27 +10,27 @@ import { LineRange } from '../../../../editor/common/core/ranges/lineRange.js';
 import { Selection, SelectionDirection } from '../../../../editor/common/core/selection.js';
 import { InlineEditsGutterIndicator, InlineEditsGutterIndicatorData, InlineSuggestionGutterMenuData, SimpleInlineSuggestModel } from '../../../../editor/contrib/inlineCompletions/browser/view/inlineEdits/components/gutterIndicatorView.js';
 import { InlineEditTabAction } from '../../../../editor/contrib/inlineCompletions/browser/view/inlineEdits/inlineEditsViewInterface.js';
+import { localize } from '../../../../nls.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
-import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { HoverService } from '../../../../platform/hover/browser/hoverService.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { CTX_INLINE_CHAT_GUTTER_VISIBLE } from '../common/inlineChat.js';
+import { ACTION_START } from '../common/inlineChat.js';
 
 export class InlineChatGutterAffordance extends InlineEditsGutterIndicator {
-
 
 	constructor(
 		private readonly _myEditorObs: ObservableCodeEditor,
 		selection: IObservable<Selection | undefined>,
 		suppressAffordance: ISettableObservable<boolean>,
-		private readonly _hover: ISettableObservable<{ rect: DOMRect; above: boolean } | undefined>,
+		private readonly _hover: ISettableObservable<{ rect: DOMRect; above: boolean; lineNumber: number } | undefined>,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IHoverService hoverService: HoverService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
 		@IThemeService themeService: IThemeService,
-		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		const data = derived<InlineEditsGutterIndicatorData | undefined>(r => {
 			const value = selection.read(r);
@@ -55,7 +55,7 @@ export class InlineChatGutterAffordance extends InlineEditsGutterIndicator {
 			return new InlineEditsGutterIndicatorData(
 				gutterMenuData,
 				lineRange,
-				new SimpleInlineSuggestModel(() => { }, () => { }),
+				new SimpleInlineSuggestModel(() => { }, () => this._doShowHover()),
 				undefined, // altAction
 				{
 					icon: Codicon.sparkle,
@@ -74,18 +74,17 @@ export class InlineChatGutterAffordance extends InlineEditsGutterIndicator {
 			const element = _hover.read(r);
 			this._hoverVisible.set(!!element, undefined);
 		}));
-
-		// Update context key when gutter visibility changes
-		const gutterVisibleCtxKey = CTX_INLINE_CHAT_GUTTER_VISIBLE.bindTo(contextKeyService);
-		this._store.add({ dispose: () => gutterVisibleCtxKey.reset() });
-		this._store.add(autorun(reader => {
-			const isVisible = data.read(reader) !== undefined;
-			gutterVisibleCtxKey.set(isVisible);
-		}));
 	}
 
 	protected override _showHover(): void {
+		this._hoverService.showInstantHover({
+			target: this._iconRef.element,
+			content: this._keybindingService.appendKeybinding(localize('inlineChatGutterHover', "Inline Chat"), ACTION_START),
+			// appearance: { showPointer: true }
+		});
+	}
 
+	private _doShowHover(): void {
 		if (this._hoverVisible.get()) {
 			return;
 		}
@@ -99,8 +98,8 @@ export class InlineChatGutterAffordance extends InlineEditsGutterIndicator {
 
 		const selection = this._myEditorObs.cursorSelection.get();
 		const direction = selection?.getDirection() ?? SelectionDirection.LTR;
-		this._hover.set({ rect: iconElement.getBoundingClientRect(), above: direction === SelectionDirection.RTL }, undefined);
+		const lineNumber = selection?.getPosition().lineNumber ?? 1;
+		this._hover.set({ rect: iconElement.getBoundingClientRect(), above: direction === SelectionDirection.RTL, lineNumber }, undefined);
 	}
-
 
 }
