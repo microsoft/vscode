@@ -3,260 +3,311 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/* Hide the default quick input header/titlebar when agents quick chat is shown */
+.quick-input-widget.agents-quick-chat-visible .quick-input-titlebar,
+.quick-input-widget.agents-quick-chat-visible .quick-input-header,
+.quick-input-widget.agents-quick-chat-visible .quick-input-description,
+.quick-input-widget.agents-quick-chat-visible .quick-input-progress,
+.quick-input-widget.agents-quick-chat-visible .quick-input-list {
+	display: none !important;
+}
+
+/* Make the html widget container take full width */
+.quick-input-widget.agents-quick-chat-visible .quick-input-html-widget {
+	display: block !important;
+	width: 100% !important;
+}
+
 /* Main Container */
 .agents-quick-chat {
-	display: flex;
-	flex-direction: column;
-	width: 100%;
-	max-width: 700px;
-	min-width: 500px;
-	background-color: var(--vscode-quickInput-background);
-	color: var(--vscode-quickInput-foreground);
-	border-radius: 6px;
-	overflow: hidden;
+	display: flex !important;
+	flex-direction: column !important;
+	width: 100% !important;
+	max-width: 700px !important;
+	min-width: 500px !important;
+	background-color: var(--vscode-quickInput-background) !important;
+	color: var(--vscode-quickInput-foreground) !important;
+	border-radius: 6px !important;
+	overflow: hidden !important;
+	box-sizing: border-box !important;
 }
 
 /* Header */
 .agents-quick-chat-header {
-	display: flex;
-	align-items: center;
-	padding: 8px 12px;
-	gap: 8px;
+	display: flex !important;
+	flex-direction: row !important;
+	align-items: center !important;
+	padding: 8px 12px !important;
+	gap: 8px !important;
+	box-sizing: border-box !important;
 }
 
 /* Navigation Buttons */
 .agents-quick-chat-nav {
-	display: flex;
-	gap: 2px;
+	display: inline-flex !important;
+	flex-direction: row !important;
+	gap: 2px !important;
+	flex-shrink: 0 !important;
 }
 
 .agents-quick-chat-nav-button {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	background: transparent;
-	border: none;
-	color: var(--vscode-foreground);
-	cursor: pointer;
-	padding: 4px 6px;
-	border-radius: 4px;
-	opacity: 0.5;
+	display: inline-flex !important;
+	align-items: center !important;
+	justify-content: center !important;
+	background: transparent !important;
+	border: none !important;
+	color: var(--vscode-foreground) !important;
+	cursor: pointer !important;
+	padding: 4px 6px !important;
+	border-radius: 4px !important;
+	opacity: 0.5 !important;
 }
 
 .agents-quick-chat-nav-button:disabled {
-	opacity: 0.3;
-	cursor: default;
+	opacity: 0.3 !important;
+	cursor: default !important;
 }
 
 .agents-quick-chat-nav-button:not(:disabled):hover {
-	background-color: var(--vscode-toolbar-hoverBackground);
-	opacity: 1;
+	background-color: var(--vscode-toolbar-hoverBackground) !important;
+	opacity: 1 !important;
 }
 
 /* Input Container */
 .agents-quick-chat-input-container {
-	flex: 1;
-	display: flex;
-	align-items: center;
-	background: var(--vscode-input-background);
-	border: 1px solid var(--vscode-input-border, var(--vscode-widget-border));
-	border-radius: 4px;
-	padding: 0 8px;
-	min-height: 32px;
+	flex: 1 1 auto !important;
+	display: inline-flex !important;
+	flex-direction: row !important;
+	align-items: center !important;
+	background: var(--vscode-input-background) !important;
+	border: 1px solid var(--vscode-input-border, var(--vscode-widget-border)) !important;
+	border-radius: 4px !important;
+	padding: 0 8px !important;
+	min-height: 32px !important;
+	box-sizing: border-box !important;
 }
 
 .agents-quick-chat-input-container:focus-within {
-	border-color: var(--vscode-focusBorder);
-	outline: none;
+	border-color: var(--vscode-focusBorder) !important;
+	outline: none !important;
 }
 
 .agents-quick-chat-input {
-	flex: 1;
-	background: transparent;
-	border: none;
-	color: var(--vscode-input-foreground);
-	font-size: 13px;
-	padding: 6px 0;
-	outline: none;
+	flex: 1 1 auto !important;
+	width: 100% !important;
+	background: transparent !important;
+	border: none !important;
+	color: var(--vscode-input-foreground) !important;
+	font-size: 13px !important;
+	padding: 6px 0 !important;
+	outline: none !important;
 }
 
 .agents-quick-chat-input::placeholder {
-	color: var(--vscode-input-placeholderForeground);
+	color: var(--vscode-input-placeholderForeground) !important;
 }
 
 /* Action Buttons Container */
 .agents-quick-chat-actions {
-	display: flex;
-	align-items: center;
-	gap: 2px;
+	display: inline-flex !important;
+	flex-direction: row !important;
+	align-items: center !important;
+	gap: 2px !important;
+	flex-shrink: 0 !important;
 }
 
 /* Action Buttons */
 .agents-quick-chat-action-button {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	background: transparent;
-	border: none;
-	color: var(--vscode-foreground);
-	cursor: pointer;
-	padding: 6px;
-	border-radius: 4px;
-	opacity: 0.7;
+	display: inline-flex !important;
+	align-items: center !important;
+	justify-content: center !important;
+	background: transparent !important;
+	border: none !important;
+	color: var(--vscode-foreground) !important;
+	cursor: pointer !important;
+	padding: 6px !important;
+	border-radius: 4px !important;
+	opacity: 0.7 !important;
 }
 
 .agents-quick-chat-action-button:hover {
-	background-color: var(--vscode-toolbar-hoverBackground);
-	opacity: 1;
+	background-color: var(--vscode-toolbar-hoverBackground) !important;
+	opacity: 1 !important;
 }
 
 /* Close Button */
 .agents-quick-chat-close {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	background: transparent;
-	border: none;
-	color: var(--vscode-foreground);
-	cursor: pointer;
-	padding: 6px;
-	border-radius: 4px;
-	opacity: 0.7;
+	display: inline-flex !important;
+	align-items: center !important;
+	justify-content: center !important;
+	background: transparent !important;
+	border: none !important;
+	color: var(--vscode-foreground) !important;
+	cursor: pointer !important;
+	padding: 6px !important;
+	border-radius: 4px !important;
+	opacity: 0.7 !important;
+	flex-shrink: 0 !important;
 }
 
 .agents-quick-chat-close:hover {
-	opacity: 1;
-	background-color: var(--vscode-toolbar-hoverBackground);
+	opacity: 1 !important;
+	background-color: var(--vscode-toolbar-hoverBackground) !important;
 }
 
 /* Content Area */
 .agents-quick-chat-content {
-	flex: 1;
-	overflow: hidden;
-	border-top: 1px solid var(--vscode-widget-border);
+	flex: 1 1 auto !important;
+	overflow: hidden !important;
+	border-top: 1px solid var(--vscode-widget-border) !important;
 }
 
 /* Items List */
 .agents-quick-chat-items-list {
-	display: flex;
-	flex-direction: column;
-	max-height: 400px;
-	overflow-y: auto;
-	padding: 4px 0;
+	display: flex !important;
+	flex-direction: column !important;
+	max-height: 400px !important;
+	overflow-y: auto !important;
+	padding: 4px 0 !important;
 }
 
 /* Item Row */
 .agents-quick-chat-item-row {
-	display: flex;
-	align-items: center;
-	gap: 8px;
-	padding: 6px 12px;
-	cursor: pointer;
-	min-height: 22px;
+	display: flex !important;
+	flex-direction: row !important;
+	align-items: center !important;
+	gap: 8px !important;
+	padding: 6px 12px !important;
+	cursor: pointer !important;
+	min-height: 22px !important;
+	box-sizing: border-box !important;
 }
 
 .agents-quick-chat-item-row:hover,
 .agents-quick-chat-item-row.selected {
-	background-color: var(--vscode-list-hoverBackground);
+	background-color: var(--vscode-list-hoverBackground) !important;
 }
 
 .agents-quick-chat-item-row.selected {
-	background-color: var(--vscode-quickInputList-focusBackground);
+	background-color: var(--vscode-quickInputList-focusBackground) !important;
 }
 
 /* Item Icon */
 .agents-quick-chat-item-icon {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	width: 16px;
-	flex-shrink: 0;
-	color: var(--vscode-descriptionForeground);
+	display: inline-flex !important;
+	align-items: center !important;
+	justify-content: center !important;
+	width: 16px !important;
+	flex-shrink: 0 !important;
+	color: var(--vscode-descriptionForeground) !important;
 }
 
 .agents-quick-chat-item-icon .codicon {
-	font-size: 14px;
+	font-size: 14px !important;
+}
+
+/* Item Label - takes remaining space */
+.agents-quick-chat-item-label {
+	flex: 1 1 auto !important;
+	font-size: 13px !important;
+	color: var(--vscode-foreground) !important;
+	white-space: nowrap !important;
+	overflow: hidden !important;
+	text-overflow: ellipsis !important;
+	min-width: 0 !important;
+}
+
+/* Item Action Button - only visible on hover/selected */
+.agents-quick-chat-item-action {
+	display: none !important;
+	align-items: center !important;
+	justify-content: center !important;
+	background: transparent !important;
+	border: none !important;
+	color: var(--vscode-foreground) !important;
+	cursor: pointer !important;
+	padding: 2px !important;
+	border-radius: 3px !important;
+	flex-shrink: 0 !important;
+	opacity: 0.7 !important;
+}
+
+.agents-quick-chat-item-row:hover .agents-quick-chat-item-action,
+.agents-quick-chat-item-row.selected .agents-quick-chat-item-action {
+	display: inline-flex !important;
+}
+
+.agents-quick-chat-item-action:hover {
+	background-color: var(--vscode-toolbar-hoverBackground) !important;
+	opacity: 1 !important;
 }
 
 /* Status Icon Colors */
 .agents-quick-chat-item-icon .status-icon.in-progress {
-	color: var(--vscode-progressBar-background);
+	color: var(--vscode-progressBar-background) !important;
 }
 
 .agents-quick-chat-item-icon .status-icon.failed {
-	color: var(--vscode-errorForeground);
+	color: var(--vscode-errorForeground) !important;
 }
 
 .agents-quick-chat-item-icon .status-icon.needs-input {
-	color: var(--vscode-notificationsWarningIcon-foreground);
+	color: var(--vscode-notificationsWarningIcon-foreground) !important;
 }
 
 .agents-quick-chat-item-icon .status-icon.unread {
-	color: var(--vscode-activityBarBadge-background, var(--vscode-badge-background));
+	color: var(--vscode-activityBarBadge-background, var(--vscode-badge-background)) !important;
 }
 
 .agents-quick-chat-item-icon .status-icon.read {
-	color: var(--vscode-descriptionForeground);
-	opacity: 0.5;
+	color: var(--vscode-descriptionForeground) !important;
+	opacity: 0.5 !important;
 }
 
-/* Item Main Content */
+/* Item Main Content - for sessions with two lines */
 .agents-quick-chat-item-main {
-	flex: 1;
-	min-width: 0;
-	display: flex;
-	flex-direction: column;
-	gap: 2px;
+	flex: 1 1 auto !important;
+	min-width: 0 !important;
+	display: flex !important;
+	flex-direction: column !important;
+	gap: 2px !important;
 }
 
-/* Item Label */
-.agents-quick-chat-item-label {
-	font-size: 13px;
-	color: var(--vscode-foreground);
-	white-space: nowrap;
-	overflow: hidden;
-	text-overflow: ellipsis;
-}
-
-/* Item Details */
+/* Item Details - session metadata */
 .agents-quick-chat-item-details {
-	font-size: 11px;
-	color: var(--vscode-descriptionForeground);
-	white-space: nowrap;
-	overflow: hidden;
-	text-overflow: ellipsis;
-}
-
-/* Item Spacer */
-.agents-quick-chat-item-spacer {
-	flex: 1;
+	font-size: 11px !important;
+	color: var(--vscode-descriptionForeground) !important;
+	white-space: nowrap !important;
+	overflow: hidden !important;
+	text-overflow: ellipsis !important;
 }
 
 /* Keybinding */
 .agents-quick-chat-keybinding {
-	display: flex;
-	align-items: center;
-	gap: 2px;
-	flex-shrink: 0;
+	display: inline-flex !important;
+	flex-direction: row !important;
+	align-items: center !important;
+	gap: 2px !important;
+	flex-shrink: 0 !important;
+	margin-left: auto !important;
 }
 
 .agents-quick-chat-keybinding .keybinding-key {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	min-width: 20px;
-	height: 20px;
-	padding: 0 4px;
-	font-size: 11px;
-	font-family: var(--vscode-font-family);
-	color: var(--vscode-keybindingLabel-foreground);
-	background-color: var(--vscode-keybindingLabel-background);
-	border: 1px solid var(--vscode-keybindingLabel-border);
-	border-radius: 3px;
-	box-shadow: inset 0 -1px 0 var(--vscode-keybindingLabel-bottomBorder);
+	display: inline-flex !important;
+	align-items: center !important;
+	justify-content: center !important;
+	min-width: 18px !important;
+	height: 18px !important;
+	padding: 0 4px !important;
+	font-size: 11px !important;
+	color: var(--vscode-keybindingLabel-foreground) !important;
+	background-color: var(--vscode-keybindingLabel-background) !important;
+	border: 1px solid var(--vscode-keybindingLabel-border) !important;
+	border-radius: 3px !important;
+	box-shadow: inset 0 -1px 0 var(--vscode-keybindingLabel-bottomBorder) !important;
 }
 
 .agents-quick-chat-keybinding .keybinding-separator {
-	color: var(--vscode-descriptionForeground);
-	font-size: 11px;
+	color: var(--vscode-descriptionForeground) !important;
+	font-size: 11px !important;
 }

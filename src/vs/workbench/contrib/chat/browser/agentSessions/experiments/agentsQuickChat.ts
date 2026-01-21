@@ -5,31 +5,23 @@
 
 import './media/agentsQuickChat.css';
 
-import * as dom from '../../../../../../base/browser/dom.js';
 import { Emitter } from '../../../../../../base/common/event.js';
-import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { IContextKeyService, RawContextKey } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { IQuickInputService, IQuickWidget } from '../../../../../../platform/quickinput/common/quickInput.js';
-import { Extensions as QuickAccessExtensions, IQuickAccessProviderDescriptor, IQuickAccessRegistry } from '../../../../../../platform/quickinput/common/quickAccess.js';
-import { Registry } from '../../../../../../platform/registry/common/platform.js';
+import { IQuickInputButton, IQuickInputService, IQuickPick, IQuickPickItem, IQuickPickItemButtonEvent, IQuickPickSeparator } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { spinningLoading } from '../../../../../../platform/theme/common/iconRegistry.js';
 import { fromNow } from '../../../../../../base/common/date.js';
-import { renderIcon } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { localize } from '../../../../../../nls.js';
 import { AgentSessionStatus, getAgentChangesSummary, hasValidDiff, IAgentSession, isSessionInProgressStatus } from '../agentSessionsModel.js';
 import { IAgentSessionsService } from '../agentSessionsService.js';
 import { getAgentSessionProviderName } from '../agentSessions.js';
 import { openSession } from '../agentSessionsOpener.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
-import { renderAsPlaintext } from '../../../../../../base/browser/markdownRenderer.js';
-import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { MenuId, IMenuService } from '../../../../../../platform/actions/common/actions.js';
-
-const { $, addDisposableListener, EventType } = dom;
 
 /** Context key for when AgentsQuickChat is visible */
 export const AgentsQuickChatVisibleContext = new RawContextKey<boolean>('agentsQuickChatVisible', false);
@@ -44,16 +36,29 @@ export interface IAgentsQuickChatOpenOptions {
 	preserveValue?: boolean;
 }
 
-/**
- * Mode for the quick chat content area.
- */
-const enum QuickChatMode {
-	Commands = 'commands',
-	Sessions = 'sessions',
-	QuickAccess = 'quickAccess'
+/** Custom quick pick item for commands */
+interface IAgentCommandQuickPickItem extends IQuickPickItem {
+	type?: 'item';
+	commandId: string;
 }
 
-const MAX_VISIBLE_ITEMS = 8;
+/** Custom quick pick item for sessions */
+interface IAgentSessionQuickPickItem extends IQuickPickItem {
+	type?: 'item';
+	session: IAgentSession;
+}
+
+type IAgentQuickPickItem = IAgentCommandQuickPickItem | IAgentSessionQuickPickItem;
+
+function isCommandItem(item: IAgentQuickPickItem): item is IAgentCommandQuickPickItem {
+	return 'commandId' in item;
+}
+
+function isSessionItem(item: IAgentQuickPickItem): item is IAgentSessionQuickPickItem {
+	return 'session' in item;
+}
+
+const MAX_VISIBLE_SESSIONS = 3;
 
 /**
  * AgentsQuickChat - A unified quick-access overlay combining search, commands, and agent sessions.
@@ -69,22 +74,16 @@ export class AgentsQuickChat extends Disposable {
 	private readonly _onDidChangeVisibility = this._register(new Emitter<boolean>());
 	readonly onDidChangeVisibility = this._onDidChangeVisibility.event;
 
-	private _widget: IQuickWidget | undefined;
+	private _picker: IQuickPick<IAgentQuickPickItem, { useSeparators: true }> | undefined;
 	private _isVisible = false;
-	private _container: HTMLElement | undefined;
-	private _inputElement: HTMLInputElement | undefined;
-	private _contentArea: HTMLElement | undefined;
-	private _itemRows: HTMLElement[] = [];
-	private _currentMode: QuickChatMode = QuickChatMode.Commands;
-	private _selectedIndex = 0;
-
-	get mode(): QuickChatMode {
-		return this._currentMode;
-	}
 
 	private readonly _widgetDisposables = this._register(new MutableDisposable<DisposableStore>());
-	private readonly _quickAccessRegistry = Registry.as<IQuickAccessRegistry>(QuickAccessExtensions.Quickaccess);
-	private readonly _sessionTimers = this._register(new DisposableStore());
+
+	// Gear button for command items
+	private readonly _gearButton: IQuickInputButton = {
+		iconClass: ThemeIcon.asClassName(Codicon.gear),
+		tooltip: localize('configure', "Configure")
+	};
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -104,7 +103,7 @@ export class AgentsQuickChat extends Disposable {
 
 	show(options?: IAgentsQuickChatOpenOptions): void {
 		if (this._isVisible) {
-			this.focus();
+			this._picker?.show();
 			return;
 		}
 
@@ -116,223 +115,142 @@ export class AgentsQuickChat extends Disposable {
 		// Set context key
 		const contextKey = AgentsQuickChatVisibleContext.bindTo(this.contextKeyService);
 		contextKey.set(true);
-		disposables.add(toDisposable(() => contextKey.set(false)));
+		disposables.add({ dispose: () => contextKey.set(false) });
 
-		// Create the quick widget overlay
-		this._widget = this.quickInputService.createQuickWidget();
-		this._widget.ignoreFocusOut = true;
-		disposables.add(this._widget);
+		// Create the quick pick using the native API
+		const picker = this._picker = this.quickInputService.createQuickPick<IAgentQuickPickItem>({ useSeparators: true });
+		disposables.add(picker);
 
-		// Create container
-		this._container = $('.agents-quick-chat');
-		this._widget.widget = this._container;
+		// Configure the picker
+		picker.placeholder = localize('searchPlaceholder', "Search for files, keywords, and commands");
+		picker.matchOnDescription = true;
+		picker.matchOnDetail = true;
 
-		// Show the widget first
-		this._widget.show();
+		// Title bar buttons (Search, Run, Sparkle)
+		picker.buttons = this._createTitleBarButtons();
 
-		// Render content
-		this._render(disposables, options);
+		// Populate items
+		picker.items = this._createItems();
 
-		// Handle hide
-		disposables.add(this._widget.onDidHide(() => {
-			this._dispose();
+		// Handle title bar button clicks
+		disposables.add(picker.onDidTriggerButton(button => {
+			this._handleTitleButton(button, picker);
 		}));
 
-		// Focus the input
-		setTimeout(() => this.focus(), 50);
+		// Handle item button clicks (gear)
+		disposables.add(picker.onDidTriggerItemButton(context => {
+			this._handleItemButton(context);
+		}));
+
+		// Handle item selection
+		disposables.add(picker.onDidAccept(() => {
+			const selected = picker.selectedItems[0];
+			if (selected) {
+				this._handleAccept(selected);
+			}
+		}));
+
+		// Handle input changes (for filtering already done by picker, but we check for Quick Access prefixes)
+		disposables.add(picker.onDidChangeValue(value => {
+			this._handleValueChange(value, picker);
+		}));
+
+		// Handle hide
+		disposables.add(picker.onDidHide(() => {
+			this._handleHide();
+		}));
+
+		// Set initial value if provided
+		if (options?.query) {
+			picker.value = options.query;
+		}
+
+		// Show the picker
+		picker.show();
 
 		this._onDidChangeVisibility.fire(true);
 	}
 
 	hide(): void {
-		this._widget?.hide();
+		this._picker?.hide();
 	}
 
 	focus(): void {
-		this._inputElement?.focus();
+		this._picker?.show();
 	}
 
 	setValue(value: string): void {
-		if (this._inputElement) {
-			this._inputElement.value = value;
-			this._handleInputChange(value);
+		if (this._picker) {
+			this._picker.value = value;
 		}
 	}
 
-	private _render(disposables: DisposableStore, options?: IAgentsQuickChatOpenOptions): void {
-		if (!this._container) {
-			return;
-		}
-
-		// Header with nav, input, and action buttons
-		const header = this._renderHeader(disposables);
-		this._container.appendChild(header);
-
-		// Content area (commands list by default)
-		this._contentArea = $('.agents-quick-chat-content');
-		this._renderCommandsMode(disposables);
-		this._container.appendChild(this._contentArea);
-
-		// Set initial value if provided
-		if (options?.query && this._inputElement) {
-			this._inputElement.value = options.query;
-			this._handleInputChange(options.query);
-		}
+	private _createTitleBarButtons(): IQuickInputButton[] {
+		return [
+			{
+				iconClass: ThemeIcon.asClassName(Codicon.arrowLeft),
+				tooltip: localize('back', "Back"),
+			},
+			{
+				iconClass: ThemeIcon.asClassName(Codicon.arrowRight),
+				tooltip: localize('forward', "Forward"),
+			},
+			{
+				iconClass: ThemeIcon.asClassName(Codicon.search),
+				tooltip: localize('search', "Search"),
+			},
+			{
+				iconClass: ThemeIcon.asClassName(Codicon.play),
+				tooltip: localize('run', "Run"),
+			},
+			{
+				iconClass: ThemeIcon.asClassName(Codicon.sparkle),
+				tooltip: localize('ai', "AI"),
+			},
+		];
 	}
 
-	private _renderHeader(disposables: DisposableStore): HTMLElement {
-		const header = $('.agents-quick-chat-header');
+	private _createItems(): (IAgentQuickPickItem | IQuickPickSeparator)[] {
+		const items: (IAgentQuickPickItem | IQuickPickSeparator)[] = [];
 
-		// Navigation buttons
-		const navButtons = $('.agents-quick-chat-nav');
-
-		const backButton = $('button.agents-quick-chat-nav-button') as HTMLButtonElement;
-		backButton.setAttribute('aria-label', localize('back', "Back"));
-		backButton.disabled = true;
-		backButton.appendChild(renderIcon(Codicon.arrowLeft));
-		navButtons.appendChild(backButton);
-
-		const forwardButton = $('button.agents-quick-chat-nav-button') as HTMLButtonElement;
-		forwardButton.setAttribute('aria-label', localize('forward', "Forward"));
-		forwardButton.disabled = true;
-		forwardButton.appendChild(renderIcon(Codicon.arrowRight));
-		navButtons.appendChild(forwardButton);
-
-		header.appendChild(navButtons);
-
-		// Input container
-		const inputContainer = $('.agents-quick-chat-input-container');
-
-		this._inputElement = $('input.agents-quick-chat-input') as HTMLInputElement;
-		this._inputElement.type = 'text';
-		this._inputElement.placeholder = localize('searchPlaceholder', "Search for files, keywords, and commands");
-		this._inputElement.setAttribute('aria-label', localize('searchInput', "Search input"));
-		inputContainer.appendChild(this._inputElement);
-
-		// Handle input changes for filtering and prefix detection
-		disposables.add(addDisposableListener(this._inputElement, EventType.INPUT, () => {
-			this._handleInputChange(this._inputElement!.value);
-		}));
-
-		// Handle keyboard navigation
-		disposables.add(addDisposableListener(this._inputElement, EventType.KEY_DOWN, (e: KeyboardEvent) => {
-			if (e.key === 'Enter' && !e.shiftKey) {
-				e.preventDefault();
-				this._handleSubmit();
-			} else if (e.key === 'Escape') {
-				e.preventDefault();
-				this.hide();
-			} else if (e.key === 'ArrowDown') {
-				e.preventDefault();
-				this._selectNext();
-			} else if (e.key === 'ArrowUp') {
-				e.preventDefault();
-				this._selectPrevious();
-			}
-		}));
-
-		header.appendChild(inputContainer);
-
-		// Action buttons container
-		const actionButtons = $('.agents-quick-chat-actions');
-
-		// Search button
-		const searchButton = $('button.agents-quick-chat-action-button') as HTMLButtonElement;
-		searchButton.setAttribute('aria-label', localize('search', "Search"));
-		searchButton.appendChild(renderIcon(Codicon.search));
-		disposables.add(addDisposableListener(searchButton, EventType.CLICK, () => {
-			this._handleSubmit();
-		}));
-		actionButtons.appendChild(searchButton);
-
-		// Run/Play button
-		const runButton = $('button.agents-quick-chat-action-button') as HTMLButtonElement;
-		runButton.setAttribute('aria-label', localize('run', "Run"));
-		runButton.appendChild(renderIcon(Codicon.play));
-		disposables.add(addDisposableListener(runButton, EventType.CLICK, () => {
-			this._executeSelectedItem();
-		}));
-		actionButtons.appendChild(runButton);
-
-		// AI/Sparkle button
-		const aiButton = $('button.agents-quick-chat-action-button') as HTMLButtonElement;
-		aiButton.setAttribute('aria-label', localize('ai', "AI"));
-		aiButton.appendChild(renderIcon(Codicon.sparkle));
-		disposables.add(addDisposableListener(aiButton, EventType.CLICK, () => {
-			// Open chat with current query
-			const value = this._inputElement?.value?.trim() || '';
-			this.hide();
-			this.commandService.executeCommand('workbench.action.chat.open', { query: value });
-		}));
-		actionButtons.appendChild(aiButton);
-
-		header.appendChild(actionButtons);
-
-		// Close button
-		const closeButton = $('button.agents-quick-chat-close');
-		closeButton.setAttribute('aria-label', localize('close', "Close"));
-		closeButton.appendChild(renderIcon(Codicon.close));
-		disposables.add(addDisposableListener(closeButton, EventType.CLICK, () => this.hide()));
-		header.appendChild(closeButton);
-
-		return header;
-	}
-
-	private _renderCommandsMode(disposables: DisposableStore): void {
-		if (!this._contentArea) {
-			return;
-		}
-
-		this._currentMode = QuickChatMode.Commands;
-		this._selectedIndex = 0;
-		dom.clearNode(this._contentArea);
-		this._itemRows = [];
-
-		// Get commands from command palette menu
+		// Get commands
 		const commands = this._getRecentCommands();
-		const itemsList = $('.agents-quick-chat-items-list');
-
-		commands.forEach((item, index) => {
-			const row = this._renderCommandRow(item, index, disposables);
-			itemsList.appendChild(row);
-			this._itemRows.push(row);
-		});
-
-		// Add recent sessions
-		const sessions = this.agentSessionsService.model.sessions.slice(0, 3);
-		if (sessions.length > 0) {
-			sessions.forEach((session, i) => {
-				const index = this._itemRows.length;
-				const row = this._renderSessionRow(session, index, disposables);
-				itemsList.appendChild(row);
-				this._itemRows.push(row);
-			});
+		for (const cmd of commands) {
+			items.push(cmd);
 		}
 
-		this._contentArea.appendChild(itemsList);
-		this._updateSelection();
+		// Add sessions separator and items
+		const sessions = this.agentSessionsService.model.sessions.slice(0, MAX_VISIBLE_SESSIONS);
+		if (sessions.length > 0) {
+			items.push({ type: 'separator', label: localize('recentSessions', "Recent Sessions") });
+			for (const session of sessions) {
+				items.push(this._createSessionItem(session));
+			}
+		}
+
+		return items;
 	}
 
-	private _getRecentCommands(): Array<{ id: string; label: string; keybinding?: string }> {
-		// Get commands from the command palette menu
+	private _getRecentCommands(): IAgentCommandQuickPickItem[] {
+		const commands: IAgentCommandQuickPickItem[] = [];
 		const menu = this.menuService.getMenuActions(MenuId.CommandPalette, this.contextKeyService, { shouldForwardArgs: true });
-		const commands: Array<{ id: string; label: string; keybinding?: string }> = [];
 
 		for (const [, actions] of menu) {
 			for (const action of actions) {
-				if ('id' in action && 'label' in action) {
+				if (this._isMenuAction(action)) {
 					const keybinding = this.keybindingService.lookupKeybinding(action.id);
 					commands.push({
-						id: action.id,
 						label: action.label,
-						keybinding: keybinding?.getLabel() || undefined,
+						commandId: action.id,
+						keybinding: keybinding ?? undefined,
+						buttons: [this._gearButton],
 					});
 				}
-				if (commands.length >= MAX_VISIBLE_ITEMS) {
+				if (commands.length >= 8) {
 					break;
 				}
 			}
-			if (commands.length >= MAX_VISIBLE_ITEMS) {
+			if (commands.length >= 8) {
 				break;
 			}
 		}
@@ -340,192 +258,37 @@ export class AgentsQuickChat extends Disposable {
 		return commands;
 	}
 
-	private _renderCommandRow(item: { id: string; label: string; keybinding?: string }, index: number, disposables: DisposableStore): HTMLElement {
-		const row = $('.agents-quick-chat-item-row');
-		row.setAttribute('tabindex', '-1');
-		row.setAttribute('role', 'option');
-		row.setAttribute('data-index', String(index));
-		row.setAttribute('data-command-id', item.id);
-
-		// Icon (settings gear for now)
-		const iconContainer = $('.agents-quick-chat-item-icon');
-		iconContainer.appendChild(renderIcon(Codicon.gear));
-		row.appendChild(iconContainer);
-
-		// Label
-		const label = $('.agents-quick-chat-item-label');
-		label.textContent = item.label;
-		row.appendChild(label);
-
-		// Spacer
-		row.appendChild($('.agents-quick-chat-item-spacer'));
-
-		// Keybinding
-		if (item.keybinding) {
-			const keybindingEl = this._renderKeybinding(item.keybinding);
-			row.appendChild(keybindingEl);
-		}
-
-		// Click handler
-		disposables.add(addDisposableListener(row, EventType.CLICK, () => {
-			this._selectedIndex = index;
-			this._executeSelectedItem();
-		}));
-
-		// Hover handler
-		disposables.add(addDisposableListener(row, EventType.MOUSE_ENTER, () => {
-			this._selectedIndex = index;
-			this._updateSelection();
-		}));
-
-		return row;
+	private _isMenuAction(action: unknown): action is { id: string; label: string } {
+		return typeof action === 'object' && action !== null && typeof (action as { id?: string }).id === 'string' && typeof (action as { label?: string }).label === 'string';
 	}
 
-	private _renderKeybinding(keybinding: string): HTMLElement {
-		const container = $('.agents-quick-chat-keybinding');
+	private _createSessionItem(session: IAgentSession): IAgentSessionQuickPickItem {
+		const statusIcon = this._getStatusIconClass(session);
+		const description = this._getSessionDescription(session);
 
-		// Split by + or space to get individual keys
-		const keys = keybinding.split(/(?<=[^+])\s+/);
-
-		keys.forEach((key, i) => {
-			if (i > 0) {
-				const separator = $('span.keybinding-separator');
-				separator.textContent = ' ';
-				container.appendChild(separator);
-			}
-
-			// Handle modifier combinations like "Cmd+K"
-			const parts = key.split('+');
-			parts.forEach((part, j) => {
-				if (j > 0 && parts.length > 1) {
-					// No separator needed for modifier combinations
-				}
-				const keyEl = $('span.keybinding-key');
-				keyEl.textContent = part.trim();
-				container.appendChild(keyEl);
-			});
-		});
-
-		return container;
+		return {
+			label: session.label,
+			description,
+			iconClass: statusIcon,
+			session,
+		};
 	}
 
-	private _selectNext(): void {
-		if (this._itemRows.length === 0) {
-			return;
-		}
-		this._selectedIndex = (this._selectedIndex + 1) % this._itemRows.length;
-		this._updateSelection();
-	}
-
-	private _selectPrevious(): void {
-		if (this._itemRows.length === 0) {
-			return;
-		}
-		this._selectedIndex = (this._selectedIndex - 1 + this._itemRows.length) % this._itemRows.length;
-		this._updateSelection();
-	}
-
-	private _updateSelection(): void {
-		this._itemRows.forEach((row, i) => {
-			row.classList.toggle('selected', i === this._selectedIndex);
-			row.setAttribute('aria-selected', String(i === this._selectedIndex));
-		});
-	}
-
-	private _executeSelectedItem(): void {
-		const selectedRow = this._itemRows[this._selectedIndex];
-		if (!selectedRow) {
-			return;
-		}
-
-		const commandId = selectedRow.getAttribute('data-command-id');
-		const sessionResource = selectedRow.getAttribute('data-session-resource');
-
-		if (commandId) {
-			this.hide();
-			this.commandService.executeCommand(commandId);
-		} else if (sessionResource) {
-			// Find and open session
-			const session = this.agentSessionsService.model.sessions.find(s => s.resource.toString() === sessionResource);
-			if (session) {
-				this.hide();
-				this.instantiationService.invokeFunction(openSession, session);
-			}
-		}
-	}
-
-	private _renderSessionRow(session: IAgentSession, index: number, disposables: DisposableStore): HTMLElement {
-		const row = $('.agents-quick-chat-item-row');
-		row.setAttribute('tabindex', '-1');
-		row.setAttribute('role', 'option');
-		row.setAttribute('data-index', String(index));
-		row.setAttribute('data-session-resource', session.resource.toString());
-
-		// Status icon
-		const iconContainer = $('.agents-quick-chat-item-icon');
-		iconContainer.appendChild(this._getStatusIcon(session));
-		row.appendChild(iconContainer);
-
-		// Main content
-		const mainContent = $('.agents-quick-chat-item-main');
-
-		// Title
-		const title = $('.agents-quick-chat-item-label');
-		const markdownTitle = new MarkdownString(session.label);
-		title.textContent = renderAsPlaintext(markdownTitle);
-		mainContent.appendChild(title);
-
-		// Details (diff stats, provider, time)
-		const details = $('.agents-quick-chat-item-details');
-		this._renderSessionDetails(session, details, disposables);
-		mainContent.appendChild(details);
-
-		row.appendChild(mainContent);
-
-		// Spacer
-		row.appendChild($('.agents-quick-chat-item-spacer'));
-
-		// Click handler
-		disposables.add(addDisposableListener(row, EventType.CLICK, () => {
-			this._openSession(session);
-		}));
-
-		// Hover handler
-		disposables.add(addDisposableListener(row, EventType.MOUSE_ENTER, () => {
-			this._selectedIndex = index;
-			this._updateSelection();
-		}));
-
-		return row;
-	}
-
-	private _getStatusIcon(session: IAgentSession): HTMLElement {
-		let icon: ThemeIcon;
-		let className = '';
-
+	private _getStatusIconClass(session: IAgentSession): string {
 		if (isSessionInProgressStatus(session.status)) {
-			icon = spinningLoading;
-			className = 'in-progress';
+			return ThemeIcon.asClassName(spinningLoading);
 		} else if (session.status === AgentSessionStatus.Failed) {
-			icon = Codicon.error;
-			className = 'failed';
+			return ThemeIcon.asClassName(Codicon.error);
 		} else if (session.status === AgentSessionStatus.NeedsInput) {
-			icon = Codicon.bell;
-			className = 'needs-input';
+			return ThemeIcon.asClassName(Codicon.bell);
 		} else if (!session.isRead()) {
-			icon = Codicon.circleFilled;
-			className = 'unread';
+			return ThemeIcon.asClassName(Codicon.circleFilled);
 		} else {
-			icon = Codicon.circleSmallFilled;
-			className = 'read';
+			return ThemeIcon.asClassName(Codicon.circleSmallFilled);
 		}
-
-		const iconElement = renderIcon(icon);
-		iconElement.classList.add('status-icon', className);
-		return iconElement;
 	}
 
-	private _renderSessionDetails(session: IAgentSession, container: HTMLElement, _disposables: DisposableStore): void {
+	private _getSessionDescription(session: IAgentSession): string {
 		const parts: string[] = [];
 
 		// Diff stats
@@ -546,108 +309,70 @@ export class AgentsQuickChat extends Disposable {
 		const time = session.timing.lastRequestEnded ?? session.timing.lastRequestStarted ?? session.timing.created;
 		parts.push(fromNow(time, true));
 
-		container.textContent = parts.join(' • ');
+		return parts.join(' • ');
 	}
 
-	private _openSession(session: IAgentSession): void {
+	private _handleTitleButton(button: IQuickInputButton, picker: IQuickPick<IAgentQuickPickItem, { useSeparators: true }>): void {
+		const tooltip = button.tooltip;
+
+		if (tooltip === localize('search', "Search")) {
+			// Execute search with current value
+			const value = picker.value.trim();
+			if (value) {
+				this.hide();
+				this.commandService.executeCommand('workbench.action.quickOpen', value);
+			}
+		} else if (tooltip === localize('run', "Run")) {
+			// Run selected item
+			const selected = picker.activeItems[0];
+			if (selected) {
+				this._handleAccept(selected);
+			}
+		} else if (tooltip === localize('ai', "AI")) {
+			// Open chat with current query
+			const value = picker.value.trim();
+			this.hide();
+			this.commandService.executeCommand('workbench.action.chat.open', { query: value });
+		}
+	}
+
+	private _handleItemButton(context: IQuickPickItemButtonEvent<IAgentQuickPickItem>): void {
+		const item = context.item;
+		if (isCommandItem(item)) {
+			// Open keyboard shortcut editor for this command
+			this.hide();
+			this.commandService.executeCommand('workbench.action.openGlobalKeybindings', item.commandId);
+		}
+	}
+
+	private _handleAccept(item: IAgentQuickPickItem): void {
 		this.hide();
-		this.instantiationService.invokeFunction(openSession, session);
-	}
 
-	private _handleInputChange(value: string): void {
-		// Check for Quick Access prefix (>, @, #, etc.)
-		const provider = this._quickAccessRegistry.getQuickAccessProvider(value, this.contextKeyService);
-
-		if (provider && provider.prefix !== '' && value.startsWith(provider.prefix)) {
-			// Delegate to native Quick Access
-			this._renderQuickAccessMode(provider, value);
-		} else if (value.trim() === '') {
-			// Empty input - show commands
-			this._renderCommandsMode(this._widgetDisposables.value!);
-		} else {
-			// Filter commands based on input
-			this._filterCommands(value);
+		if (isCommandItem(item)) {
+			this.commandService.executeCommand(item.commandId);
+		} else if (isSessionItem(item)) {
+			this.instantiationService.invokeFunction(openSession, item.session);
 		}
 	}
 
-	private _filterCommands(query: string): void {
-		const lowerQuery = query.toLowerCase();
-
-		this._itemRows.forEach((row, index) => {
-			const label = row.querySelector('.agents-quick-chat-item-label');
-			const text = label?.textContent?.toLowerCase() || '';
-			const visible = text.includes(lowerQuery);
-			row.style.display = visible ? '' : 'none';
-
-			// Update selection if current selection is hidden
-			if (!visible && index === this._selectedIndex) {
-				this._selectNextVisible();
-			}
-		});
-	}
-
-	private _selectNextVisible(): void {
-		for (let i = 0; i < this._itemRows.length; i++) {
-			if (this._itemRows[i].style.display !== 'none') {
-				this._selectedIndex = i;
-				this._updateSelection();
-				return;
-			}
-		}
-	}
-
-	private _renderQuickAccessMode(_provider: IQuickAccessProviderDescriptor, value: string): void {
-		this._currentMode = QuickChatMode.QuickAccess;
-
-		// Delegate to native Quick Access
-		setTimeout(() => {
+	private _handleValueChange(value: string, picker: IQuickPick<IAgentQuickPickItem, { useSeparators: true }>): void {
+		// Check for Quick Access prefixes (>, @, #, etc.)
+		// If detected, switch to native quick access
+		if (value.startsWith('>') || value.startsWith('@') || value.startsWith('#') || value.startsWith('%')) {
 			this.hide();
 			this.quickInputService.quickAccess.show(value, { preserveValue: true });
-		}, 50);
+		}
 	}
 
-	private _handleSubmit(): void {
-		const value = this._inputElement?.value?.trim();
-
-		// If there's a selected item, execute it
-		if (this._itemRows.length > 0) {
-			this._executeSelectedItem();
-			return;
-		}
-
-		if (!value) {
-			return;
-		}
-
-		// Check if it's a Quick Access prefix
-		const provider = this._quickAccessRegistry.getQuickAccessProvider(value, this.contextKeyService);
-		if (provider && provider.prefix !== '' && value.startsWith(provider.prefix)) {
-			this.hide();
-			this.quickInputService.quickAccess.show(value, { preserveValue: true });
-			return;
-		}
-
-		// Submit as a chat message
-		this.hide();
-		this.commandService.executeCommand('workbench.action.chat.open', { query: value });
-	}
-
-	private _dispose(): void {
+	private _handleHide(): void {
 		this._isVisible = false;
-		this._widget = undefined;
-		this._container = undefined;
-		this._inputElement = undefined;
-		this._contentArea = undefined;
-		this._itemRows = [];
-		this._currentMode = QuickChatMode.Commands;
-		this._selectedIndex = 0;
+		this._picker = undefined;
 		this._widgetDisposables.clear();
-		this._sessionTimers.clear();
 		this._onDidChangeVisibility.fire(false);
 	}
 
 	override dispose(): void {
-		this._dispose();
+		this._handleHide();
 		super.dispose();
 	}
 }
