@@ -5,6 +5,7 @@
 import * as dom from '../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../base/browser/keyboardEvent.js';
 import { IAction } from '../../../base/common/actions.js';
+import { onUnexpectedError } from '../../../base/common/errors.js';
 import { KeybindingLabel } from '../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
 import { IListEvent, IListMouseEvent, IListRenderer, IListVirtualDelegate } from '../../../base/browser/ui/list/list.js';
 import { IListAccessibilityProvider, List } from '../../../base/browser/ui/list/listWidget.js';
@@ -249,7 +250,7 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 					e.stopPropagation();
 					e.stopImmediatePropagation();
 					e.preventDefault();
-					action.run();
+					Promise.resolve(action.run()).catch(onUnexpectedError);
 				}, true));
 				data.elementDisposables.add(dom.addDisposableListener(actionButton, dom.EventType.CLICK, e => {
 					e.stopPropagation();
@@ -260,7 +261,7 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 					const event = new StandardKeyboardEvent(e);
 					if (event.keyCode === KeyCode.Enter || event.keyCode === KeyCode.Space) {
 						dom.EventHelper.stop(e, true);
-						action.run();
+						Promise.resolve(action.run()).catch(onUnexpectedError);
 					}
 				}));
 			}
