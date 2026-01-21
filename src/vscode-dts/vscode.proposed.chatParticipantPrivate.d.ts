@@ -61,9 +61,16 @@ declare module 'vscode' {
 		readonly attempt: number;
 
 		/**
-		 * The session identifier for this chat request
+		 * The session identifier for this chat request.
+		 *
+		 * @deprecated Use {@link chatSessionResource} instead.
 		 */
 		readonly sessionId: string;
+
+		/**
+		 * The resource URI for the chat session this request belongs to.
+		 */
+		readonly sessionResource: Uri;
 
 		/**
 		 * If automatic command detection is enabled.
@@ -239,7 +246,9 @@ declare module 'vscode' {
 
 	export interface LanguageModelToolInvocationOptions<T> {
 		chatRequestId?: string;
+		/** @deprecated Use {@link chatSessionResource} instead */
 		chatSessionId?: string;
+		chatSessionResource?: Uri;
 		chatInteractionId?: string;
 		terminalCommand?: string;
 		/**
@@ -254,7 +263,9 @@ declare module 'vscode' {
 		 */
 		input: T;
 		chatRequestId?: string;
+		/** @deprecated Use {@link chatSessionResource} instead */
 		chatSessionId?: string;
+		chatSessionResource?: Uri;
 		chatInteractionId?: string;
 	}
 

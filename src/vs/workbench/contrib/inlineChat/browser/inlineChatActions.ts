@@ -11,7 +11,7 @@ import { EmbeddedDiffEditorWidget } from '../../../../editor/browser/widget/diff
 import { EmbeddedCodeEditorWidget } from '../../../../editor/browser/widget/codeEditor/embeddedCodeEditorWidget.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { InlineChatController, InlineChatRunOptions } from './inlineChatController.js';
-import { ACTION_ACCEPT_CHANGES, CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_VISIBLE, CTX_INLINE_CHAT_OUTER_CURSOR_POSITION, CTX_INLINE_CHAT_POSSIBLE, ACTION_START, CTX_INLINE_CHAT_V2_ENABLED, CTX_INLINE_CHAT_V1_ENABLED } from '../common/inlineChat.js';
+import { ACTION_ACCEPT_CHANGES, CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_VISIBLE, CTX_INLINE_CHAT_OUTER_CURSOR_POSITION, CTX_INLINE_CHAT_POSSIBLE, ACTION_START, CTX_INLINE_CHAT_V2_ENABLED, CTX_INLINE_CHAT_V1_ENABLED, CTX_HOVER_MODE } from '../common/inlineChat.js';
 import { ctxHasEditorModification, ctxHasRequestInProgress } from '../../chat/browser/chatEditing/chatEditingEditorContextKeys.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, IAction2Options, MenuId } from '../../../../platform/actions/common/actions.js';
@@ -269,16 +269,15 @@ export class KeepSessionAction2 extends KeepOrUndoSessionAction {
 	}
 }
 
-
-export class UndoAndCloseSessionAction2 extends KeepOrUndoSessionAction {
+export class UndoSessionAction2 extends KeepOrUndoSessionAction {
 
 	constructor() {
 		super(false, {
-			id: 'inlineChat2.close',
-			title: localize2('close2', "Close"),
+			id: 'inlineChat2.undo',
+			title: localize2('undo', "Undo"),
 			f1: true,
-			icon: Codicon.close,
-			precondition: CTX_INLINE_CHAT_VISIBLE,
+			icon: Codicon.discard,
+			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_VISIBLE, CTX_HOVER_MODE),
 			keybinding: [{
 				when: ContextKeyExpr.or(
 					ContextKeyExpr.and(EditorContextKeys.focus, ctxHasEditorModification.negate()),
@@ -290,7 +289,41 @@ export class UndoAndCloseSessionAction2 extends KeepOrUndoSessionAction {
 			menu: [{
 				id: MenuId.ChatEditorInlineExecute,
 				group: 'navigation',
-				order: 100
+				order: 100,
+				when: ContextKeyExpr.and(
+					CTX_HOVER_MODE,
+					ctxHasRequestInProgress.negate(),
+					ctxHasEditorModification,
+				)
+			}]
+		});
+	}
+}
+
+
+
+export class UndoAndCloseSessionAction2 extends KeepOrUndoSessionAction {
+
+	constructor() {
+		super(false, {
+			id: 'inlineChat2.close',
+			title: localize2('close2', "Close"),
+			f1: true,
+			icon: Codicon.close,
+			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_VISIBLE, CTX_HOVER_MODE.negate()),
+			keybinding: [{
+				when: ContextKeyExpr.or(
+					ContextKeyExpr.and(EditorContextKeys.focus, ctxHasEditorModification.negate()),
+					ChatContextKeys.inputHasFocus,
+				),
+				weight: KeybindingWeight.WorkbenchContrib + 1,
+				primary: KeyCode.Escape,
+			}],
+			menu: [{
+				id: MenuId.ChatEditorInlineExecute,
+				group: 'navigation',
+				order: 100,
+				when: CTX_HOVER_MODE.negate()
 			}]
 		});
 	}

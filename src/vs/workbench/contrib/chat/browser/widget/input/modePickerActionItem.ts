@@ -76,7 +76,8 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 				class: isDisabledViaPolicy ? 'disabled-by-policy' : undefined,
 				enabled: !isDisabledViaPolicy,
 				checked: !isDisabledViaPolicy && currentMode.id === mode.id,
-				tooltip,
+				tooltip: '',
+				hover: { content: tooltip },
 				run: async () => {
 					if (isDisabledViaPolicy) {
 						return; // Block interaction if disabled by policy
@@ -97,7 +98,8 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 		const makeActionFromCustomMode = (mode: IChatMode, currentMode: IChatMode): IActionWidgetDropdownAction => {
 			return {
 				...makeAction(mode, currentMode),
-				tooltip: mode.description.get() ?? chatAgentService.getDefaultAgent(ChatAgentLocation.Chat, mode.kind)?.description ?? action.tooltip,
+				tooltip: '',
+				hover: { content: mode.description.get() ?? chatAgentService.getDefaultAgent(ChatAgentLocation.Chat, mode.kind)?.description ?? action.tooltip },
 				icon: mode.icon.get() ?? (isModeConsideredBuiltIn(mode, this._productService) ? builtinDefaultIcon : undefined),
 				category: agentModeDisabledViaPolicy ? policyDisabledCategory : customCategory
 			};

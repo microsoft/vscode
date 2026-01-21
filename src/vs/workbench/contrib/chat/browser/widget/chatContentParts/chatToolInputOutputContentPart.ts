@@ -7,7 +7,6 @@ import * as dom from '../../../../../../base/browser/dom.js';
 import { ButtonWithIcon } from '../../../../../../base/browser/ui/button/button.js';
 import { HoverStyle } from '../../../../../../base/browser/ui/hover/hover.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
-import { Emitter } from '../../../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
@@ -55,9 +54,6 @@ export interface IChatCollapsibleOutputData {
 }
 
 export class ChatCollapsibleInputOutputContentPart extends Disposable {
-	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
-	public readonly onDidChangeHeight = this._onDidChangeHeight.event;
-
 	private _currentWidth: number = 0;
 	private readonly _editorReferences: IDisposableReference<CodeBlockPart>[] = [];
 	private readonly _titlePart: ChatQueryTitlePart;
@@ -110,14 +106,12 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 		this.domNode = container.root;
 		container.root.appendChild(elements.root);
 
-		const titlePart = this._titlePart = this._register(_instantiationService.createInstance(
+		this._titlePart = this._register(_instantiationService.createInstance(
 			ChatQueryTitlePart,
 			titleEl.root,
 			title,
 			subtitle,
 		));
-		this._register(titlePart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
-
 		const spacer = document.createElement('span');
 		spacer.style.flexGrow = '1';
 
@@ -157,7 +151,6 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 				elements.root.appendChild(this._messageContainer.root);
 			}
 
-			this._onDidChangeHeight.fire();
 		}));
 
 		const toggle = (e: Event) => {
@@ -212,7 +205,6 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 				output.parts,
 			));
 			this._outputSubPart = outputSubPart;
-			this._register(outputSubPart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 			contents.output.appendChild(outputSubPart.domNode);
 		}
 
@@ -240,7 +232,6 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 		};
 		const editorReference = this._register(this.context.editorPool.get());
 		editorReference.object.render(data, this._currentWidth || 300);
-		this._register(editorReference.object.onDidChangeContentHeight(() => this._onDidChangeHeight.fire()));
 		container.appendChild(editorReference.object.element);
 		this._editorReferences.push(editorReference);
 	}

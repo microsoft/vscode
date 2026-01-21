@@ -5,6 +5,7 @@
 
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { URI } from '../../../../../../base/common/uri.js';
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
 
 //#region Agent Status Mode
@@ -17,7 +18,7 @@ export enum AgentStatusMode {
 }
 
 export interface IAgentStatusSessionInfo {
-	readonly sessionId: string;
+	readonly sessionResource: URI;
 	readonly title: string;
 }
 
@@ -52,7 +53,7 @@ export interface IAgentTitleBarStatusService {
 	 * Enter session mode, showing the session title and escape button.
 	 * Used by Agent Session Projection when entering a focused session view.
 	 */
-	enterSessionMode(sessionId: string, title: string): void;
+	enterSessionMode(sessionResource: URI, title: string): void;
 
 	/**
 	 * Exit session mode, returning to the default mode with workspace name and stats.
@@ -88,8 +89,8 @@ export class AgentTitleBarStatusService extends Disposable implements IAgentTitl
 	private readonly _onDidChangeSessionInfo = this._register(new Emitter<IAgentStatusSessionInfo | undefined>());
 	readonly onDidChangeSessionInfo = this._onDidChangeSessionInfo.event;
 
-	enterSessionMode(sessionId: string, title: string): void {
-		const newInfo: IAgentStatusSessionInfo = { sessionId, title };
+	enterSessionMode(sessionResource: URI, title: string): void {
+		const newInfo: IAgentStatusSessionInfo = { sessionResource, title };
 		const modeChanged = this._mode !== AgentStatusMode.Session;
 
 		this._mode = AgentStatusMode.Session;
