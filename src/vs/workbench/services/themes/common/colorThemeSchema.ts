@@ -180,7 +180,7 @@ const textmateColorSchema: IJSONSchema = {
 				},
 				lineHeight: {
 					type: 'number',
-					description: nls.localize('schema.token.lineHeight', 'Line height multiplier for the token (e.g., 1.2 will use 1.2 times the default height).')
+					description: nls.localize('schema.token.lineHeight', 'Line height multiplier for the token (e.g., 1.2 will use 1.2 times the default height). Should be at least as high as the font size multiplier.')
 				}
 			},
 			additionalProperties: false,
