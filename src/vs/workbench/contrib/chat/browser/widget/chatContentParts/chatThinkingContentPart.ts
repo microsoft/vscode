@@ -4,6 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { $, clearNode, hide } from '../../../../../../base/browser/dom.js';
+import { alert } from '../../../../../../base/browser/ui/aria/aria.js';
+import { DomScrollableElement } from '../../../../../../base/browser/ui/scrollbar/scrollableElement.js';
+import { ScrollbarVisibility } from '../../../../../../base/common/scrollable.js';
 import { IChatMarkdownContent, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized } from '../../../common/chatService/chatService.js';
 import { IChatContentPartRenderContext, IChatContentPart } from './chatContentParts.js';
 import { IChatRendererContent } from '../../../common/model/chatViewModel.js';
@@ -20,6 +23,9 @@ import { ChatCollapsibleContentPart } from './chatCollapsibleContentPart.js';
 import { localize } from '../../../../../../nls.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
+import { Lazy } from '../../../../../../base/common/lazy.js';
+import { Emitter } from '../../../../../../base/common/event.js';
+import { IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../../base/common/observable.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
@@ -34,7 +40,7 @@ function extractTextFromPart(content: IChatThinkingPart): string {
 	return raw.trim();
 }
 
-function getToolInvocationIcon(toolId: string): ThemeIcon {
+export function getToolInvocationIcon(toolId: string): ThemeIcon {
 	const lowerToolId = toolId.toLowerCase();
 
 	if (
@@ -54,7 +60,7 @@ function getToolInvocationIcon(toolId: string): ThemeIcon {
 		lowerToolId.includes('get_file') ||
 		lowerToolId.includes('problems')
 	) {
-		return Codicon.eye;
+		return Codicon.book;
 	}
 
 	if (
@@ -64,11 +70,17 @@ function getToolInvocationIcon(toolId: string): ThemeIcon {
 		return Codicon.pencil;
 	}
 
+	if (
+		lowerToolId.includes('terminal')
+	) {
+		return Codicon.terminal;
+	}
+
 	// default to generic tool icon
 	return Codicon.tools;
 }
 
-function createThinkingIcon(icon: ThemeIcon): HTMLElement {
+export function createThinkingIcon(icon: ThemeIcon): HTMLElement {
 	const iconElement = $('span.chat-thinking-icon');
 	iconElement.classList.add(...ThemeIcon.asClassNameArray(icon));
 	return iconElement;
@@ -79,9 +91,20 @@ function extractTitleFromThinkingContent(content: string): string | undefined {
 	return headerMatch ? headerMatch[1] : undefined;
 }
 
+interface ILazyItem {
+	lazy: Lazy<{ domNode: HTMLElement; disposable?: IDisposable }>;
+	toolInvocationId?: string;
+	toolInvocationOrMarkdown?: IChatToolInvocation | IChatToolInvocationSerialized | IChatMarkdownContent;
+	originalParent?: HTMLElement;
+}
+const THINKING_SCROLL_MAX_HEIGHT = 200;
+
 export class ChatThinkingContentPart extends ChatCollapsibleContentPart implements IChatContentPart {
 	public readonly codeblocks: undefined;
 	public readonly codeblocksPartId: undefined;
+
+	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
+	public readonly onDidChangeHeight = this._onDidChangeHeight.event;
 
 	private id: string | undefined;
 	private content: IChatThinkingPart;
@@ -92,19 +115,23 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	private markdownResult: IRenderedMarkdown | undefined;
 	private wrapper!: HTMLElement;
 	private fixedScrollingMode: boolean = false;
+	private autoScrollEnabled: boolean = true;
+	private scrollableElement: DomScrollableElement | undefined;
 	private lastExtractedTitle: string | undefined;
 	private extractedTitles: string[] = [];
 	private toolInvocationCount: number = 0;
 	private appendedItemCount: number = 0;
-	private streamingCompleted: boolean = false;
 	private isActive: boolean = true;
 	private toolInvocations: (IChatToolInvocation | IChatToolInvocationSerialized)[] = [];
 	private singleItemInfo: { element: HTMLElement; originalParent: HTMLElement; originalNextSibling: Node | null } | undefined;
+	private lazyItems: ILazyItem[] = [];
+	private hasExpandedOnce: boolean = false;
 
 	constructor(
 		content: IChatThinkingPart,
 		context: IChatContentPartRenderContext,
 		private readonly chatContentMarkdownRenderer: IMarkdownRenderer,
+		private streamingCompleted: boolean,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IChatMarkdownAnchorService private readonly chatMarkdownAnchorService: IChatMarkdownAnchorService,
@@ -129,13 +156,15 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		}
 		this.currentThinkingValue = initialText;
 
+		// Alert screen reader users that thinking has started
+		alert(localize('chat.thinking.started', 'Thinking'));
+
 		if (configuredMode === ThinkingDisplayMode.Collapsed) {
 			this.setExpanded(false);
+		} else if (configuredMode === ThinkingDisplayMode.CollapsedPreview) {
+			// Start expanded if still in progress
+			this.setExpanded(!this.element.isComplete);
 		} else {
-			this.setExpanded(true);
-		}
-
-		if (this.fixedScrollingMode) {
 			this.setExpanded(false);
 		}
 
@@ -146,7 +175,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		if (this.fixedScrollingMode) {
 			node.classList.add('chat-thinking-fixed-mode');
 			this.currentTitle = this.defaultTitle;
-			if (this._collapseButton && !this.context.element.isComplete) {
+			if (this._collapseButton && !this.element.isComplete) {
 				this._collapseButton.icon = ThemeIcon.modify(Codicon.loading, 'spin');
 			}
 		}
@@ -155,7 +184,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		this._register(autorun(r => {
 			this.expanded.read(r);
 			if (this._collapseButton && this.wrapper) {
-				if (this.wrapper.classList.contains('chat-thinking-streaming') && !this.context.element.isComplete) {
+				if (this.wrapper.classList.contains('chat-thinking-streaming') && !this.element.isComplete) {
 					this._collapseButton.icon = ThemeIcon.modify(Codicon.loading, 'spin');
 				} else {
 					this._collapseButton.icon = Codicon.check;
@@ -163,7 +192,19 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			}
 		}));
 
-		if (this._collapseButton && !this.streamingCompleted && !this.context.element.isComplete) {
+		this._register(autorun(r => {
+			// Materialize lazy items when first expanded
+			if (this._isExpanded.read(r) && !this.hasExpandedOnce && this.lazyItems.length > 0) {
+				this.hasExpandedOnce = true;
+				for (const item of this.lazyItems) {
+					this.materializeLazyItem(item);
+				}
+			}
+			// Fire when expanded/collapsed
+			this._onDidChangeHeight.fire();
+		}));
+
+		if (this._collapseButton && !this.streamingCompleted && !this.element.isComplete) {
 			this._collapseButton.icon = ThemeIcon.modify(Codicon.loading, 'spin');
 		}
 
@@ -194,14 +235,102 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	// @TODO: @justschen Convert to template for each setting?
 	protected override initContent(): HTMLElement {
 		this.wrapper = $('.chat-used-context-list.chat-thinking-collapsible');
-		this.wrapper.classList.add('chat-thinking-streaming');
+		if (!this.streamingCompleted) {
+			this.wrapper.classList.add('chat-thinking-streaming');
+		}
+
 		if (this.currentThinkingValue) {
 			this.textContainer = $('.chat-thinking-item.markdown-content');
 			this.wrapper.appendChild(this.textContainer);
 			this.renderMarkdown(this.currentThinkingValue);
 		}
+
+		// wrap content in scrollable element for fixed scrolling mode
+		if (this.fixedScrollingMode) {
+			this.scrollableElement = this._register(new DomScrollableElement(this.wrapper, {
+				vertical: ScrollbarVisibility.Auto,
+				horizontal: ScrollbarVisibility.Hidden,
+				handleMouseWheel: true,
+				alwaysConsumeMouseWheel: false
+			}));
+			this._register(this.scrollableElement.onScroll(e => this.handleScroll(e.scrollTop)));
+
+			this._register(this._onDidChangeHeight.event(() => {
+				setTimeout(() => this.scrollToBottomIfEnabled(), 0);
+			}));
+
+			setTimeout(() => this.scrollToBottomIfEnabled(), 0);
+
+			this.updateDropdownClickability();
+			return this.scrollableElement.getDomNode();
+		}
+
 		this.updateDropdownClickability();
 		return this.wrapper;
+	}
+
+	private handleScroll(scrollTop: number): void {
+		if (!this.scrollableElement) {
+			return;
+		}
+
+		const scrollDimensions = this.scrollableElement.getScrollDimensions();
+		const maxScrollTop = scrollDimensions.scrollHeight - scrollDimensions.height;
+		const isAtBottom = maxScrollTop <= 0 || scrollTop >= maxScrollTop - 10;
+
+		if (isAtBottom) {
+			this.autoScrollEnabled = true;
+		} else {
+			this.autoScrollEnabled = false;
+		}
+	}
+
+	private scrollToBottomIfEnabled(): void {
+		if (!this.scrollableElement || !this.autoScrollEnabled) {
+			return;
+		}
+
+		const isCollapsed = this.domNode.classList.contains('chat-used-context-collapsed');
+		if (!isCollapsed) {
+			return;
+		}
+
+		const contentHeight = this.wrapper.scrollHeight;
+		const viewportHeight = Math.min(contentHeight, THINKING_SCROLL_MAX_HEIGHT);
+
+		this.scrollableElement.setScrollDimensions({
+			width: this.scrollableElement.getDomNode().clientWidth,
+			scrollWidth: this.wrapper.scrollWidth,
+			height: viewportHeight,
+			scrollHeight: contentHeight
+		});
+
+		if (contentHeight > viewportHeight) {
+			this.scrollableElement.setScrollPosition({ scrollTop: contentHeight - viewportHeight });
+		}
+	}
+
+	/**
+	 * updates scroll dimensions when streaming is complete.
+	 */
+	private updateScrollDimensionsForCompletion(): void {
+		if (!this.scrollableElement || !this.fixedScrollingMode) {
+			return;
+		}
+
+		const contentHeight = this.wrapper.scrollHeight;
+		const viewportHeight = Math.min(contentHeight, THINKING_SCROLL_MAX_HEIGHT);
+
+		this.scrollableElement.setScrollDimensions({
+			width: this.scrollableElement.getDomNode().clientWidth,
+			scrollWidth: this.wrapper.scrollWidth,
+			height: viewportHeight,
+			scrollHeight: contentHeight
+		});
+
+		if (contentHeight <= THINKING_SCROLL_MAX_HEIGHT) {
+			this.scrollableElement.setScrollPosition({ scrollTop: 0 });
+		}
 	}
 
 	private renderMarkdown(content: string, reuseExisting?: boolean): void {
@@ -305,8 +434,8 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		this.currentThinkingValue = next;
 		this.renderMarkdown(next, reuseExisting);
 
-		if (this.fixedScrollingMode && this.wrapper) {
-			this.wrapper.scrollTop = this.wrapper.scrollHeight;
+		if (this.fixedScrollingMode && this.scrollableElement) {
+			setTimeout(() => this.scrollToBottomIfEnabled(), 0);
 		}
 
 		const extractedTitle = extractTitleFromThinkingContent(raw);
@@ -344,6 +473,10 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		if (this._collapseButton) {
 			this._collapseButton.icon = Codicon.check;
 		}
+
+		// Update scroll dimensions now that streaming is complete
+		// This removes unnecessary scrollbar when content fits
+		this.updateScrollDimensionsForCompletion();
 
 		this.updateDropdownClickability();
 
@@ -409,12 +542,41 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 				context = this.currentThinkingValue.substring(0, 1000);
 			}
 
-			const prompt = `Summarize the following actions in 6-7 words using past tense. Be very concise - focus on the main action only. No subjects, quotes, or punctuation.
+			const prompt = `Summarize the following actions concisely (6-10 words) using past tense. Follow these rules strictly:
 
-			Examples:
-			- "Preparing to create new page file, Read HomePage.tsx, Creating new TypeScript file" → "Created new page file"
-			- "Searching for files, Reading configuration, Analyzing dependencies" → "Analyzed project structure"
-			- "Invoked terminal command, Checked build output, Fixed errors" → "Ran build and fixed errors"
+			GENERAL:
+			- The actions may include tool calls (file edits, reads, searches, terminal commands) AND non-tool reasoning/analysis
+			- Summarize ALL actions, not just tool calls. If there's reasoning or analysis without tool calls, summarize that too
+			- Examples of non-tool actions: "Analyzing code structure", "Planning implementation", "Reviewing dependencies"
+
+			RULES FOR TOOL CALLS:
+			1. If the SAME file was both edited AND read: Start with "Read and edited <filename>"
+			2. If exactly ONE file was edited: Start with "Edited <filename>" (include actual filename)
+			3. If exactly ONE file was read: Start with "Read <filename>" (include actual filename)
+			4. If MULTIPLE files were edited: Start with "Edited X files"
+			5. If MULTIPLE files were read: Start with "Read X files"
+			6. If BOTH edits AND reads occurred on DIFFERENT files: Start with "Edited <filename> and read <filename>" if one each, otherwise "Edited X files and read Y files"
+			7. For searches: Say "searched for <term>" with the actual search term, NOT "searched for files"
+			8. After the file info, you may add a brief summary of other actions (e.g., ran terminal, searched for X) if space permits
+			9. NEVER say "1 file" - always use the actual filename when there's only one file
+
+			EXAMPLES:
+			- "Read HomePage.tsx, Edited HomePage.tsx" → "Read and edited HomePage.tsx"
+			- "Edited HomePage.tsx" → "Edited HomePage.tsx"
+			- "Read config.json, Read package.json" → "Read 2 files"
+			- "Edited App.tsx, Read utils.ts" → "Edited App.tsx and read utils.ts"
+			- "Edited App.tsx, Read utils.ts, Read types.ts" → "Edited App.tsx and read 2 files"
+			- "Edited index.ts, Edited styles.css, Ran terminal command" → "Edited 2 files and ran command"
+			- "Read README.md, Searched for AuthService" → "Read README.md and searched for AuthService"
+			- "Searched for login, Searched for authentication" → "Searched for login and authentication"
+			- "Edited api.ts, Edited models.ts, Read schema.json" → "Edited 2 files and read schema.json"
+			- "Edited Button.tsx, Edited Button.css, Edited index.ts" → "Edited 3 files"
+			- "Searched codebase for error handling" → "Searched for error handling"
+			- "Grep search for useState, Read App.tsx" → "Read App.tsx and searched for useState"
+			- "Analyzing component architecture" → "Analyzed component architecture"
+			- "Planning refactor strategy, Read utils.ts" → "Planned refactor and read utils.ts"
+
+			No quotes, no trailing punctuation. Never say "searched for files" - always include the actual search term.
 
 			Actions: ${context}`;
 
@@ -498,13 +660,93 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		this.updateDropdownClickability();
 	}
 
-	public appendItem(content: HTMLElement, toolInvocationId?: string, toolInvocationOrMarkdown?: IChatToolInvocation | IChatToolInvocationSerialized | IChatMarkdownContent, originalParent?: HTMLElement): void {
+	/**
+	 * Appends a tool invocation or content item to the thinking group.
+	 * The factory is called lazily - only when the thinking section is expanded.
+	 * If already expanded, the factory is called immediately.
+	 */
+	public appendItem(
+		factory: () => { domNode: HTMLElement; disposable?: IDisposable },
+		toolInvocationId?: string,
+		toolInvocationOrMarkdown?: IChatToolInvocation | IChatToolInvocationSerialized | IChatMarkdownContent,
+		originalParent?: HTMLElement
+	): void {
+		// Track tool invocation metadata immediately (for title generation)
+		this.trackToolMetadata(toolInvocationId, toolInvocationOrMarkdown);
+		this.appendedItemCount++;
+
+		// If expanded or has been expanded once, render immediately
+		if (this.isExpanded() || this.hasExpandedOnce || (this.fixedScrollingMode && !this.streamingCompleted)) {
+			const result = factory();
+			this.appendItemToDOM(result.domNode, toolInvocationId, toolInvocationOrMarkdown, originalParent);
+			if (result.disposable) {
+				this._register(result.disposable);
+			}
+		} else {
+			// Defer rendering until expanded
+			const item: ILazyItem = {
+				lazy: new Lazy(factory),
+				toolInvocationId,
+				toolInvocationOrMarkdown,
+				originalParent
+			};
+			this.lazyItems.push(item);
+		}
+
+		this.updateDropdownClickability();
+	}
+
+	private trackToolMetadata(
+		toolInvocationId?: string,
+		toolInvocationOrMarkdown?: IChatToolInvocation | IChatToolInvocationSerialized | IChatMarkdownContent
+	): void {
+		if (!toolInvocationId) {
+			return;
+		}
+
+		this.toolInvocationCount++;
+		let toolCallLabel: string;
+
+		const isToolInvocation = toolInvocationOrMarkdown && (toolInvocationOrMarkdown.kind === 'toolInvocation' || toolInvocationOrMarkdown.kind === 'toolInvocationSerialized');
+		if (isToolInvocation && toolInvocationOrMarkdown.invocationMessage) {
+			const message = typeof toolInvocationOrMarkdown.invocationMessage === 'string' ? toolInvocationOrMarkdown.invocationMessage : toolInvocationOrMarkdown.invocationMessage.value;
+			toolCallLabel = message;
+
+			this.toolInvocations.push(toolInvocationOrMarkdown);
+		} else if (toolInvocationOrMarkdown?.kind === 'markdownContent') {
+			const codeblockInfo = extractCodeblockUrisFromText(toolInvocationOrMarkdown.content.value);
+			if (codeblockInfo?.uri) {
+				const filename = basename(codeblockInfo.uri);
+				toolCallLabel = localize('chat.thinking.editedFile', 'Edited {0}', filename);
+			} else {
+				toolCallLabel = localize('chat.thinking.editingFile', 'Edited file');
+			}
+		} else {
+			toolCallLabel = `Invoked \`${toolInvocationId}\``;
+		}
+
+		// Add tool call to extracted titles for LLM title generation
+		if (!this.extractedTitles.includes(toolCallLabel)) {
+			this.extractedTitles.push(toolCallLabel);
+		}
+
+		if (!this.fixedScrollingMode && !this._isExpanded.get()) {
+			this.setTitle(toolCallLabel);
+		}
+	}
+
+	private appendItemToDOM(
+		content: HTMLElement,
+		toolInvocationId?: string,
+		toolInvocationOrMarkdown?: IChatToolInvocation | IChatToolInvocationSerialized | IChatMarkdownContent,
+		originalParent?: HTMLElement
+	): void {
 		if (!content.hasChildNodes() || content.textContent?.trim() === '') {
 			return;
 		}
 
-		// save the first item info for potential restoration later
-		if (this.appendedItemCount === 0 && originalParent) {
+		// Save the first item info for potential restoration later
+		if (this.appendedItemCount === 1 && originalParent) {
 			this.singleItemInfo = {
 				element: content,
 				originalParent,
@@ -514,55 +756,47 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			this.singleItemInfo = undefined;
 		}
 
-		this.appendedItemCount++;
-
 		const itemWrapper = $('.chat-thinking-tool-wrapper');
 		const isMarkdownEdit = toolInvocationOrMarkdown?.kind === 'markdownContent';
-		const icon = isMarkdownEdit ? Codicon.pencil : (toolInvocationId ? getToolInvocationIcon(toolInvocationId) : Codicon.tools);
+		const isTerminalTool = toolInvocationOrMarkdown && (toolInvocationOrMarkdown.kind === 'toolInvocation' || toolInvocationOrMarkdown.kind === 'toolInvocationSerialized') && toolInvocationOrMarkdown.toolSpecificData?.kind === 'terminal';
+
+		let icon: ThemeIcon;
+		if (isMarkdownEdit) {
+			icon = Codicon.pencil;
+		} else if (isTerminalTool) {
+			const terminalData = (toolInvocationOrMarkdown as IChatToolInvocation | IChatToolInvocationSerialized).toolSpecificData as { kind: 'terminal'; terminalCommandState?: { exitCode?: number } };
+			const exitCode = terminalData?.terminalCommandState?.exitCode;
+			icon = exitCode !== undefined && exitCode !== 0 ? Codicon.error : Codicon.terminal;
+		} else {
+			icon = toolInvocationId ? getToolInvocationIcon(toolInvocationId) : Codicon.tools;
+		}
+
 		const iconElement = createThinkingIcon(icon);
 		itemWrapper.appendChild(iconElement);
 		itemWrapper.appendChild(content);
 
 		this.wrapper.appendChild(itemWrapper);
-		if (toolInvocationId) {
-			this.toolInvocationCount++;
-			let toolCallLabel: string;
 
-			const isToolInvocation = toolInvocationOrMarkdown && (toolInvocationOrMarkdown.kind === 'toolInvocation' || toolInvocationOrMarkdown.kind === 'toolInvocationSerialized');
-			if (isToolInvocation && toolInvocationOrMarkdown.invocationMessage) {
-				const message = typeof toolInvocationOrMarkdown.invocationMessage === 'string' ? toolInvocationOrMarkdown.invocationMessage : toolInvocationOrMarkdown.invocationMessage.value;
-				toolCallLabel = message;
-
-				this.toolInvocations.push(toolInvocationOrMarkdown);
-			} else if (toolInvocationOrMarkdown?.kind === 'markdownContent') {
-				const codeblockInfo = extractCodeblockUrisFromText(toolInvocationOrMarkdown.content.value);
-				if (codeblockInfo?.uri) {
-					const filename = basename(codeblockInfo.uri);
-					toolCallLabel = localize('chat.thinking.editedFile', 'Edited {0}', filename);
-				} else {
-					toolCallLabel = localize('chat.thinking.editingFile', 'Edited file');
-				}
-			} else {
-				toolCallLabel = `Invoked \`${toolInvocationId}\``;
-			}
-
-			// Add tool call to extracted titles for LLM title generation
-			if (!this.extractedTitles.includes(toolCallLabel)) {
-				this.extractedTitles.push(toolCallLabel);
-			}
-
-			if (!this.fixedScrollingMode && !this._isExpanded.get()) {
-				this.setTitle(toolCallLabel);
-			}
+		if (this.fixedScrollingMode && this.scrollableElement) {
+			setTimeout(() => this.scrollToBottomIfEnabled(), 0);
 		}
-		if (this.fixedScrollingMode && this.wrapper) {
-			this.wrapper.scrollTop = this.wrapper.scrollHeight;
+	}
+
+	private materializeLazyItem(item: ILazyItem): void {
+		if (item.lazy.hasValue) {
+			return; // Already materialized
 		}
-		this.updateDropdownClickability();
+
+		const result = item.lazy.value;
+		this.appendItemToDOM(result.domNode, item.toolInvocationId, item.toolInvocationOrMarkdown, item.originalParent);
+
+		if (result.disposable) {
+			this._register(result.disposable);
+		}
 	}
 
 	// makes a new text container. when we update, we now update this container.
-	public setupThinkingContainer(content: IChatThinkingPart, context: IChatContentPartRenderContext) {
+	public setupThinkingContainer(content: IChatThinkingPart) {
 		// Avoid creating new containers after disposal
 		if (this._store.isDisposed) {
 			return;
@@ -577,7 +811,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	}
 
 	protected override setTitle(title: string, omitPrefix?: boolean): void {
-		if (!title || this.context.element.isComplete) {
+		if (!title || this.element.isComplete) {
 			return;
 		}
 

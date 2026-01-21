@@ -25,12 +25,13 @@ import { ServiceCollection } from '../../../../../platform/instantiation/common/
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { EditorResourceAccessor, SideBySideEditor } from '../../../../common/editor.js';
 import { IInlineChatSessionService } from '../../../inlineChat/browser/inlineChatSessionService.js';
+import { InlineChatConfigKeys } from '../../../inlineChat/common/inlineChat.js';
 import { isEqual } from '../../../../../base/common/resources.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ObservableEditorSession } from './chatEditingEditorContextKeys.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
-import * as arrays from '../../../../../base/common/arrays.js';
 import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 
@@ -71,12 +72,17 @@ class ChatEditorOverlayWidget extends Disposable {
 				return undefined;
 			}
 
-			const response = this._entry.read(r)?.lastModifyingResponse.read(r);
+			// For inline chat (non-global sessions), get progress directly from the chat model's current request/response
+			// This ensures progress messages appear immediately when streaming starts, before lastModifyingResponse is set
+			const response = session.isGlobalEditingSession
+				? this._entry.read(r)?.lastModifyingResponse.read(r)
+				: chatModel.lastRequestObs.read(r)?.response;
+
 			if (!response) {
 				return { message: localize('working', "Working...") };
 			}
 
-			const lastPart = observableFromEventOpts({ equalsFn: arrays.equals }, response.onDidChange, () => response.response.value)
+			const lastPart = observableFromEventOpts({ equalsFn: () => false }, response.onDidChange, () => response.response.value)
 				.read(r)
 				.filter(part => part.kind === 'progressMessage' || part.kind === 'toolInvocation')
 				.at(-1);
@@ -239,6 +245,7 @@ class ChatEditorOverlayWidget extends Disposable {
 							super.render(container);
 
 							if (action.id === AcceptAction.ID) {
+								this.element?.classList.add('primary');
 
 								const listener = this._store.add(new MutableDisposable());
 
@@ -280,11 +287,7 @@ class ChatEditorOverlayWidget extends Disposable {
 							if (!value) {
 								return value;
 							}
-							const kb = that._keybindingService.lookupKeybinding(this.action.id);
-							if (!kb) {
-								return value;
-							}
-							return localize('tooltip', "{0} ({1})", value, kb.getLabel());
+							return that._keybindingService.appendKeybinding(value, action.id);
 						}
 					};
 				}
@@ -317,7 +320,8 @@ class ChatEditingOverlayController {
 		@IInstantiationService instaService: IInstantiationService,
 		@IChatService chatService: IChatService,
 		@IChatEditingService chatEditingService: IChatEditingService,
-		@IInlineChatSessionService inlineChatService: IInlineChatSessionService
+		@IInlineChatSessionService inlineChatService: IInlineChatSessionService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 
 		this._domNode.classList.add('chat-editing-editor-overlay');
@@ -390,8 +394,8 @@ class ChatEditingOverlayController {
 
 			const { session, entry } = data;
 
-			if (!session.isGlobalEditingSession) {
-				// inline chat - no chat overlay unless hideOnRequest is on
+			if (!session.isGlobalEditingSession && !configurationService.getValue<boolean>(InlineChatConfigKeys.ShowGutterMenu)) {
+				// inline chat with zone UI - no need for chat overlay
 				hide();
 				return;
 			}

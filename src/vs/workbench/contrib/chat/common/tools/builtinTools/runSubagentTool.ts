@@ -14,7 +14,7 @@ import { localize } from '../../../../../../nls.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
-import { IChatAgentRequest, IChatAgentService, UserSelectedTools } from '../../participants/chatAgents.js';
+import { IChatAgentRequest, IChatAgentService } from '../../participants/chatAgents.js';
 import { ChatModel, IChatRequestModeInstructions } from '../../model/chatModel.js';
 import { IChatModeService } from '../../chatModes.js';
 import { IChatProgress, IChatService } from '../../chatService/chatService.js';
@@ -34,13 +34,10 @@ import {
 	ToolProgress,
 	ToolSet,
 	VSCodeToolReference,
-	IToolAndToolSetEnablementMap
 } from '../languageModelToolsService.js';
 import { ComputeAutomaticInstructions } from '../../promptSyntax/computeAutomaticInstructions.js';
 import { ManageTodoListToolToolId } from './manageTodoListTool.js';
 import { createToolSimpleTextResult } from './toolHelpers.js';
-
-export const RunSubagentToolId = 'runSubagent';
 
 const BaseModelDescription = `Launch a new agent to handle complex, multi-step tasks autonomously. This tool is good at researching complex questions, searching for code, and executing multi-step tasks. When you are searching for a keyword or file and are not confident that you will find the right match in the first few tries, use this agent to perform the search for you.
 
@@ -50,13 +47,15 @@ const BaseModelDescription = `Launch a new agent to handle complex, multi-step t
 - The agent's outputs should generally be trusted
 - Clearly tell the agent whether you expect it to write code or just to do research (search, file reads, web fetches, etc.), since it is not aware of the user\'s intent`;
 
-interface IRunSubagentToolInputParams {
+export interface IRunSubagentToolInputParams {
 	prompt: string;
 	description: string;
 	agentName?: string;
 }
 
 export class RunSubagentTool extends Disposable implements IToolImpl {
+
+	static readonly Id = 'runSubagent';
 
 	readonly onDidUpdateToolData: Event<IConfigurationChangeEvent>;
 
@@ -100,7 +99,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 			modelDescription += `\n- If the user asks for a certain agent, you MUST provide that EXACT agent name (case-sensitive) to invoke that specific agent.`;
 		}
 		const runSubagentToolData: IToolData = {
-			id: RunSubagentToolId,
+			id: RunSubagentTool.Id,
 			toolReferenceName: VSCodeToolReference.runSubagent,
 			icon: ThemeIcon.fromId(Codicon.organization.id),
 			displayName: localize('tool.runSubagent.displayName', 'Run Subagent'),
@@ -184,27 +183,27 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 				}
 			}
 
-			// Track whether we should collect markdown (after the last prepare tool invocation)
+			// Track whether we should collect markdown (after the last tool invocation)
 			const markdownParts: string[] = [];
 
 			let inEdit = false;
 			const progressCallback = (parts: IChatProgress[]) => {
 				for (const part of parts) {
 					// Write certain parts immediately to the model
-					if (part.kind === 'prepareToolInvocation' || part.kind === 'textEdit' || part.kind === 'notebookEdit' || part.kind === 'codeblockUri') {
+					if (part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized' || part.kind === 'textEdit' || part.kind === 'notebookEdit' || part.kind === 'codeblockUri') {
 						if (part.kind === 'codeblockUri' && !inEdit) {
 							inEdit = true;
-							model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('```\n'), fromSubagent: true });
+							model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('```\n') });
 						}
 						model.acceptResponseProgress(request, part);
 
-						// When we see a prepare tool invocation, reset markdown collection
-						if (part.kind === 'prepareToolInvocation') {
+						// When we see a tool invocation starting, reset markdown collection
+						if (part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') {
 							markdownParts.length = 0; // Clear previously collected markdown
 						}
 					} else if (part.kind === 'markdownContent') {
 						if (inEdit) {
-							model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('\n```\n\n'), fromSubagent: true });
+							model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('\n```\n\n') });
 							inEdit = false;
 						}
 
@@ -215,11 +214,13 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 			};
 
 			if (modeTools) {
-				modeTools[RunSubagentToolId] = false;
+				modeTools[RunSubagentTool.Id] = false;
 				modeTools[ManageTodoListToolToolId] = false;
 			}
 
-			const variableSet = await this.collectVariables(modeTools, token);
+			const variableSet = new ChatRequestVariableSet();
+			const computer = this.instantiationService.createInstance(ComputeAutomaticInstructions, modeTools, undefined); // agents can not call subagents
+			await computer.collect(variableSet, token);
 
 			// Build the agent request
 			const agentRequest: IChatAgentRequest = {
@@ -229,7 +230,8 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 				message: args.prompt,
 				variables: { variables: variableSet.asArray() },
 				location: ChatAgentLocation.Chat,
-				isSubagent: true,
+				subAgentInvocationId: invocation.callId,
+				subAgentName: args.agentName,
 				userSelectedModelId: modeModelId,
 				userSelectedTools: modeTools,
 				modeInstructions,
@@ -249,7 +251,14 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 				return createToolSimpleTextResult(`Agent error: ${result.errorDetails.message}`);
 			}
 
-			return createToolSimpleTextResult(markdownParts.join('') || 'Agent completed with no output');
+			const resultText = markdownParts.join('') || 'Agent completed with no output';
+
+			// Store result in toolSpecificData for serialization
+			if (invocation.toolSpecificData?.kind === 'subagent') {
+				invocation.toolSpecificData.result = resultText;
+			}
+
+			return createToolSimpleTextResult(resultText);
 
 		} catch (error) {
 			const errorMessage = `Error invoking subagent: ${error instanceof Error ? error.message : 'Unknown error'}`;
@@ -263,28 +272,12 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 
 		return {
 			invocationMessage: args.description,
+			toolSpecificData: {
+				kind: 'subagent',
+				description: args.description,
+				agentName: args.agentName,
+				prompt: args.prompt,
+			},
 		};
-	}
-
-	private async collectVariables(modeTools: UserSelectedTools | undefined, token: CancellationToken): Promise<ChatRequestVariableSet> {
-		let enabledTools: IToolAndToolSetEnablementMap | undefined;
-
-		if (modeTools) {
-			// Convert tool IDs to full reference names
-
-			const enabledToolIds = Object.entries(modeTools).filter(([, enabled]) => enabled).map(([id]) => id);
-			const tools = enabledToolIds.map(id => this.languageModelToolsService.getTool(id)).filter(tool => !!tool);
-
-			const fullReferenceNames = tools.map(tool => this.languageModelToolsService.getFullReferenceName(tool));
-			if (fullReferenceNames.length > 0) {
-				enabledTools = this.languageModelToolsService.toToolAndToolSetEnablementMap(fullReferenceNames, undefined);
-			}
-		}
-
-		const variableSet = new ChatRequestVariableSet();
-		const computer = this.instantiationService.createInstance(ComputeAutomaticInstructions, enabledTools);
-		await computer.collect(variableSet, token);
-
-		return variableSet;
 	}
 }

@@ -14,7 +14,6 @@ import { chatSessionResourceToId } from '../model/chatUri.js';
 export interface IChatTodo {
 	id: number;
 	title: string;
-	description?: string;
 	status: 'not-started' | 'in-progress' | 'completed';
 }
 

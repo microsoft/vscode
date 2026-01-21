@@ -15,8 +15,8 @@ import { IOpenerService } from '../../../../../../platform/opener/common/opener.
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { getCleanPromptName } from '../../../common/promptSyntax/config/promptFileLocations.js';
-import { PromptsType, INSTRUCTIONS_DOCUMENTATION_URL, AGENT_DOCUMENTATION_URL, PROMPT_DOCUMENTATION_URL } from '../../../common/promptSyntax/promptTypes.js';
-import { NEW_PROMPT_COMMAND_ID, NEW_INSTRUCTIONS_COMMAND_ID, NEW_AGENT_COMMAND_ID } from '../newPromptFileActions.js';
+import { PromptsType, INSTRUCTIONS_DOCUMENTATION_URL, AGENT_DOCUMENTATION_URL, PROMPT_DOCUMENTATION_URL, SKILL_DOCUMENTATION_URL } from '../../../common/promptSyntax/promptTypes.js';
+import { NEW_PROMPT_COMMAND_ID, NEW_INSTRUCTIONS_COMMAND_ID, NEW_AGENT_COMMAND_ID, NEW_SKILL_COMMAND_ID } from '../newPromptFileActions.js';
 import { IKeyMods, IQuickInputButton, IQuickInputService, IQuickPick, IQuickPickItem, IQuickPickItemButtonEvent, IQuickPickSeparator } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { askForPromptFileName } from './askForPromptName.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -88,6 +88,12 @@ function newHelpButton(type: PromptsType): IQuickInputButton & { helpURI: URI } 
 			return {
 				tooltip: localize('help.agent', "Show help on custom agent files"),
 				helpURI: URI.parse(AGENT_DOCUMENTATION_URL),
+				iconClass
+			};
+		case PromptsType.skill:
+			return {
+				tooltip: localize('help.skill', "Show help on skill files"),
+				helpURI: URI.parse(SKILL_DOCUMENTATION_URL),
 				iconClass
 			};
 	}
@@ -176,6 +182,21 @@ const NEW_AGENT_FILE_OPTION: IPromptPickerQuickPickItem = {
 	alwaysShow: true,
 	buttons: [newHelpButton(PromptsType.agent)],
 	commandId: NEW_AGENT_COMMAND_ID,
+};
+
+/**
+ * A quick pick item that starts the 'New Skill' command.
+ */
+const NEW_SKILL_FILE_OPTION: IPromptPickerQuickPickItem = {
+	type: 'item',
+	label: `$(plus) ${localize(
+		'commands.new-skill.select-dialog.label',
+		'New skill...',
+	)}`,
+	pickable: false,
+	alwaysShow: true,
+	buttons: [newHelpButton(PromptsType.skill)],
+	commandId: NEW_SKILL_COMMAND_ID,
 };
 
 /**
@@ -352,10 +373,12 @@ export class PromptFilePickers {
 			getVisibility = p => !disabled.has(p.uri);
 		}
 
+		const sortByLabel = (items: IPromptPickerQuickPickItem[]): IPromptPickerQuickPickItem[] => items.sort((a, b) => a.label.localeCompare(b.label));
+
 		const locals = await this._promptsService.listPromptFilesForStorage(options.type, PromptsStorage.local, token);
 		if (locals.length) {
 			result.push({ type: 'separator', label: localize('separator.workspace', "Workspace") });
-			result.push(...await Promise.all(locals.map(l => this._createPromptPickItem(l, buttons, getVisibility(l), token))));
+			result.push(...sortByLabel(await Promise.all(locals.map(l => this._createPromptPickItem(l, buttons, getVisibility(l), token)))));
 		}
 
 		// Agent instruction files (copilot-instructions.md and AGENTS.md) are added here and not included in the output of
@@ -382,7 +405,7 @@ export class PromptFilePickers {
 		if (agentInstructionFiles.length) {
 			const agentButtons = buttons.filter(b => b !== RENAME_BUTTON);
 			result.push({ type: 'separator', label: localize('separator.workspace-agent-instructions', "Agent Instructions") });
-			result.push(...await Promise.all(agentInstructionFiles.map(l => this._createPromptPickItem(l, agentButtons, getVisibility(l), token))));
+			result.push(...sortByLabel(await Promise.all(agentInstructionFiles.map(l => this._createPromptPickItem(l, agentButtons, getVisibility(l), token)))));
 		}
 
 		const exts = await this._promptsService.listPromptFilesForStorage(options.type, PromptsStorage.extension, token);
@@ -395,12 +418,12 @@ export class PromptFilePickers {
 			if (options.optionCopy !== false) {
 				extButtons.push(COPY_BUTTON);
 			}
-			result.push(...await Promise.all(exts.map(e => this._createPromptPickItem(e, extButtons, getVisibility(e), token))));
+			result.push(...sortByLabel(await Promise.all(exts.map(e => this._createPromptPickItem(e, extButtons, getVisibility(e), token)))));
 		}
 		const users = await this._promptsService.listPromptFilesForStorage(options.type, PromptsStorage.user, token);
 		if (users.length) {
 			result.push({ type: 'separator', label: localize('separator.user', "User Data") });
-			result.push(...await Promise.all(users.map(u => this._createPromptPickItem(u, buttons, getVisibility(u), token))));
+			result.push(...sortByLabel(await Promise.all(users.map(u => this._createPromptPickItem(u, buttons, getVisibility(u), token)))));
 		}
 		return result;
 	}
@@ -413,6 +436,8 @@ export class PromptFilePickers {
 				return [NEW_INSTRUCTIONS_FILE_OPTION, UPDATE_INSTRUCTIONS_OPTION];
 			case PromptsType.agent:
 				return [NEW_AGENT_FILE_OPTION];
+			case PromptsType.skill:
+				return [NEW_SKILL_FILE_OPTION];
 			default:
 				throw new Error(`Unknown prompt type '${type}'.`);
 		}

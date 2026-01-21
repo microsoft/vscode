@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import './experiments/agentSessionsExperiments.contribution.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -15,8 +16,9 @@ import { IAgentSessionsService, AgentSessionsService } from './agentSessionsServ
 import { LocalAgentsSessionsProvider } from './localAgentSessionsProvider.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
 import { ISubmenuItem, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
-import { ArchiveAgentSessionAction, ArchiveAgentSessionSectionAction, UnarchiveAgentSessionAction, OpenAgentSessionInEditorGroupAction, OpenAgentSessionInNewEditorGroupAction, OpenAgentSessionInNewWindowAction, ShowAgentSessionsSidebar, HideAgentSessionsSidebar, ToggleAgentSessionsSidebar, RefreshAgentSessionsViewerAction, FindAgentSessionInViewerAction, MarkAgentSessionUnreadAction, MarkAgentSessionReadAction, FocusAgentSessionsAction, SetAgentSessionsOrientationStackedAction, SetAgentSessionsOrientationSideBySideAction, ToggleChatViewSessionsAction, PickAgentSessionAction, ArchiveAllAgentSessionsAction, RenameAgentSessionAction, DeleteAgentSessionAction, DeleteAllLocalSessionsAction } from './agentSessionsActions.js';
+import { ArchiveAgentSessionAction, ArchiveAgentSessionSectionAction, UnarchiveAgentSessionAction, OpenAgentSessionInEditorGroupAction, OpenAgentSessionInNewEditorGroupAction, OpenAgentSessionInNewWindowAction, ShowAgentSessionsSidebar, HideAgentSessionsSidebar, ToggleAgentSessionsSidebar, RefreshAgentSessionsViewerAction, FindAgentSessionInViewerAction, MarkAgentSessionUnreadAction, MarkAgentSessionReadAction, FocusAgentSessionsAction, SetAgentSessionsOrientationStackedAction, SetAgentSessionsOrientationSideBySideAction, PickAgentSessionAction, ArchiveAllAgentSessionsAction, RenameAgentSessionAction, DeleteAgentSessionAction, DeleteAllLocalSessionsAction, HideAgentSessionsAction, MarkAgentSessionSectionReadAction, ShowAllAgentSessionsAction, ShowRecentAgentSessionsAction, UnarchiveAgentSessionSectionAction } from './agentSessionsActions.js';
 import { AgentSessionsQuickAccessProvider, AGENT_SESSIONS_QUICK_ACCESS_PREFIX } from './agentSessionsQuickAccess.js';
+import { AuxiliaryBarMaximizedContext } from '../../../../common/contextkeys.js';
 
 //#region Actions and Menus
 
@@ -24,6 +26,8 @@ registerAction2(FocusAgentSessionsAction);
 registerAction2(PickAgentSessionAction);
 registerAction2(ArchiveAllAgentSessionsAction);
 registerAction2(ArchiveAgentSessionSectionAction);
+registerAction2(UnarchiveAgentSessionSectionAction);
+registerAction2(MarkAgentSessionSectionReadAction);
 registerAction2(ArchiveAgentSessionAction);
 registerAction2(UnarchiveAgentSessionAction);
 registerAction2(RenameAgentSessionAction);
@@ -39,7 +43,9 @@ registerAction2(FindAgentSessionInViewerAction);
 registerAction2(ShowAgentSessionsSidebar);
 registerAction2(HideAgentSessionsSidebar);
 registerAction2(ToggleAgentSessionsSidebar);
-registerAction2(ToggleChatViewSessionsAction);
+registerAction2(ShowAllAgentSessionsAction);
+registerAction2(ShowRecentAgentSessionsAction);
+registerAction2(HideAgentSessionsAction);
 registerAction2(SetAgentSessionsOrientationStackedAction);
 registerAction2(SetAgentSessionsOrientationSideBySideAction);
 
@@ -64,7 +70,8 @@ MenuRegistry.appendMenuItem(MenuId.AgentSessionsToolbar, {
 	order: 5,
 	when: ContextKeyExpr.and(
 		ChatContextKeys.agentSessionsViewerOrientation.isEqualTo(AgentSessionsViewerOrientation.Stacked),
-		ChatContextKeys.agentSessionsViewerPosition.isEqualTo(AgentSessionsViewerPosition.Right)
+		ChatContextKeys.agentSessionsViewerPosition.isEqualTo(AgentSessionsViewerPosition.Right),
+		AuxiliaryBarMaximizedContext.negate()
 	)
 });
 
@@ -78,7 +85,8 @@ MenuRegistry.appendMenuItem(MenuId.AgentSessionsToolbar, {
 	order: 5,
 	when: ContextKeyExpr.and(
 		ChatContextKeys.agentSessionsViewerOrientation.isEqualTo(AgentSessionsViewerOrientation.Stacked),
-		ChatContextKeys.agentSessionsViewerPosition.isEqualTo(AgentSessionsViewerPosition.Left)
+		ChatContextKeys.agentSessionsViewerPosition.isEqualTo(AgentSessionsViewerPosition.Left),
+		AuxiliaryBarMaximizedContext.negate()
 	)
 });
 
@@ -92,7 +100,8 @@ MenuRegistry.appendMenuItem(MenuId.AgentSessionsToolbar, {
 	order: 5,
 	when: ContextKeyExpr.and(
 		ChatContextKeys.agentSessionsViewerOrientation.isEqualTo(AgentSessionsViewerOrientation.SideBySide),
-		ChatContextKeys.agentSessionsViewerPosition.isEqualTo(AgentSessionsViewerPosition.Right)
+		ChatContextKeys.agentSessionsViewerPosition.isEqualTo(AgentSessionsViewerPosition.Right),
+		AuxiliaryBarMaximizedContext.negate()
 	)
 });
 
@@ -106,7 +115,8 @@ MenuRegistry.appendMenuItem(MenuId.AgentSessionsToolbar, {
 	order: 5,
 	when: ContextKeyExpr.and(
 		ChatContextKeys.agentSessionsViewerOrientation.isEqualTo(AgentSessionsViewerOrientation.SideBySide),
-		ChatContextKeys.agentSessionsViewerPosition.isEqualTo(AgentSessionsViewerPosition.Left)
+		ChatContextKeys.agentSessionsViewerPosition.isEqualTo(AgentSessionsViewerPosition.Left),
+		AuxiliaryBarMaximizedContext.negate()
 	)
 });
 
@@ -154,6 +164,7 @@ Registry.as<IQuickAccessRegistry>(QuickAccessExtensions.Quickaccess).registerQui
 	ctor: AgentSessionsQuickAccessProvider,
 	prefix: AGENT_SESSIONS_QUICK_ACCESS_PREFIX,
 	contextKey: 'inAgentSessionsPicker',
+	when: ChatContextKeys.enabled,
 	placeholder: localize('agentSessionsQuickAccessPlaceholder', "Search agent sessions by name"),
 	helpEntries: [{
 		description: localize('agentSessionsQuickAccessHelp', "Show All Agent Sessions"),
@@ -166,6 +177,7 @@ Registry.as<IQuickAccessRegistry>(QuickAccessExtensions.Quickaccess).registerQui
 //#region Workbench Contributions
 
 registerWorkbenchContribution2(LocalAgentsSessionsProvider.ID, LocalAgentsSessionsProvider, WorkbenchPhase.AfterRestored);
+
 registerSingleton(IAgentSessionsService, AgentSessionsService, InstantiationType.Delayed);
 
 //#endregion

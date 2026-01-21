@@ -13,10 +13,10 @@ import { createInstantHoverDelegate } from '../../../../../base/browser/ui/hover
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import * as event from '../../../../../base/common/event.js';
-import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { basename, dirname } from '../../../../../base/common/path.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -57,10 +57,11 @@ import { toHistoryItemHoverContent } from '../../../scm/browser/scmHistory.js';
 import { getHistoryItemEditorTitle } from '../../../scm/browser/util.js';
 import { ITerminalService } from '../../../terminal/browser/terminal.js';
 import { IChatContentReference } from '../../common/chatService/chatService.js';
-import { IChatRequestPasteVariableEntry, IChatRequestVariableEntry, IElementVariableEntry, INotebookOutputVariableEntry, IPromptFileVariableEntry, IPromptTextVariableEntry, ISCMHistoryItemVariableEntry, OmittedState, PromptFileVariableKind, ChatRequestToolReferenceEntry, ISCMHistoryItemChangeVariableEntry, ISCMHistoryItemChangeRangeVariableEntry, ITerminalVariableEntry } from '../../common/attachments/chatVariableEntries.js';
+import { IChatRequestPasteVariableEntry, IChatRequestVariableEntry, IElementVariableEntry, INotebookOutputVariableEntry, IPromptFileVariableEntry, IPromptTextVariableEntry, ISCMHistoryItemVariableEntry, OmittedState, PromptFileVariableKind, ChatRequestToolReferenceEntry, ISCMHistoryItemChangeVariableEntry, ISCMHistoryItemChangeRangeVariableEntry, ITerminalVariableEntry, isStringVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../common/languageModels.js';
 import { ILanguageModelToolsService, ToolSet } from '../../common/tools/languageModelToolsService.js';
 import { getCleanPromptName } from '../../common/promptSyntax/config/promptFileLocations.js';
+import { IChatContextService } from '../contextContrib/chatContextService.js';
 
 const commonHoverOptions: Partial<IHoverOptions> = {
 	style: HoverStyle.Pointer,
@@ -546,6 +547,9 @@ export class PasteAttachmentWidget extends AbstractChatAttachmentWidget {
 }
 
 export class DefaultChatAttachmentWidget extends AbstractChatAttachmentWidget {
+
+	private readonly _tooltipHover: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
+
 	constructor(
 		resource: URI | undefined,
 		range: IRange | undefined,
@@ -559,6 +563,7 @@ export class DefaultChatAttachmentWidget extends AbstractChatAttachmentWidget {
 		@IOpenerService openerService: IOpenerService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IHoverService private readonly hoverService: IHoverService,
 	) {
 		super(attachment, options, container, contextResourceLabels, currentLanguageModel, commandService, openerService);
 
@@ -584,9 +589,31 @@ export class DefaultChatAttachmentWidget extends AbstractChatAttachmentWidget {
 			this._register(this.instantiationService.invokeFunction(hookUpSymbolAttachmentDragAndContextMenu, this.element, scopedContextKeyService, { ...attachment, kind: attachment.symbolKind }, MenuId.ChatInputSymbolAttachmentContext));
 		}
 
+		// Handle click for string context attachments with context commands
+		if (isStringVariableEntry(attachment) && attachment.commandId) {
+			this.element.style.cursor = 'pointer';
+			const contextItemHandle = attachment.handle;
+			this._register(dom.addDisposableListener(this.element, dom.EventType.CLICK, async () => {
+				const chatContextService = this.instantiationService.invokeFunction(accessor => accessor.get(IChatContextService));
+				await chatContextService.executeChatContextItemCommand(contextItemHandle);
+			}));
+		}
+
+		// Setup tooltip hover for string context attachments
+		if (isStringVariableEntry(attachment) && attachment.tooltip) {
+			this._setupTooltipHover(attachment.tooltip);
+		}
+
 		if (resource) {
 			this.addResourceOpenHandlers(resource, range);
 		}
+	}
+
+	private _setupTooltipHover(tooltip: IMarkdownString): void {
+		this._tooltipHover.value = this.hoverService.setupDelayedHover(this.element, {
+			content: tooltip,
+			appearance: { showPointer: true },
+		});
 	}
 }
 

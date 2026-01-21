@@ -72,11 +72,16 @@ export class ChatToolPostExecuteConfirmationPart extends AbstractToolConfirmatio
 	protected override additionalPrimaryActions() {
 		const actions = super.additionalPrimaryActions();
 
+		const state = this.toolInvocation.state.get();
+		if (state.type !== IChatToolInvocation.StateKind.WaitingForPostApproval) {
+			return actions;
+		}
+
 		// Get actions from confirmation service
 		const confirmActions = this.confirmationService.getPostConfirmActions({
 			toolId: this.toolInvocation.toolId,
 			source: this.toolInvocation.source,
-			parameters: this.toolInvocation.parameters
+			parameters: state.parameters
 		});
 
 		for (const action of confirmActions) {
@@ -262,7 +267,6 @@ export class ChatToolPostExecuteConfirmationPart extends AbstractToolConfirmatio
 			));
 
 			this._codeblocks.push(...outputSubPart.codeblocks);
-			this._register(outputSubPart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 			outputSubPart.domNode.classList.add('tool-postconfirm-display');
 			return outputSubPart.domNode;
 		}

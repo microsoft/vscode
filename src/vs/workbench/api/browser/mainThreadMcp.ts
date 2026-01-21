@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { mapFindFirst } from '../../../base/common/arraysFind.js';
-import { disposableTimeout } from '../../../base/common/async.js';
+import { disposableTimeout, RunOnceScheduler } from '../../../base/common/async.js';
 import { CancellationError } from '../../../base/common/errors.js';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
-import { ISettableObservable, observableValue } from '../../../base/common/observable.js';
+import { autorun, ISettableObservable, observableValue } from '../../../base/common/observable.js';
 import Severity from '../../../base/common/severity.js';
 import { URI } from '../../../base/common/uri.js';
 import * as nls from '../../../nls.js';
@@ -29,7 +29,7 @@ import { ExtensionHostKind, extensionHostKindToString } from '../../services/ext
 import { IExtensionService } from '../../services/extensions/common/extensions.js';
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
 import { Proxied } from '../../services/extensions/common/proxyIdentifier.js';
-import { ExtHostContext, ExtHostMcpShape, IMcpAuthenticationDetails, IMcpAuthenticationOptions, IMcpAuthSetupTelemetry, MainContext, MainThreadMcpShape } from '../common/extHost.protocol.js';
+import { ExtHostContext, ExtHostMcpShape, IMcpAuthenticationDetails, IMcpAuthenticationOptions, IAuthMetadataSource, MainContext, MainThreadMcpShape } from '../common/extHost.protocol.js';
 
 @extHostNamedCustomer(MainContext.MainThreadMcp)
 export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
@@ -98,6 +98,36 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 				return launch;
 			},
 		}));
+
+		// Subscribe to MCP server definition changes and notify ext host
+		const onDidChangeMcpServerDefinitionsTrigger = this._register(new RunOnceScheduler(() => this._publishServerDefinitions(), 500));
+		this._register(autorun(reader => {
+			const collections = this._mcpRegistry.collections.read(reader);
+			// Read all server definitions to track changes
+			for (const collection of collections) {
+				collection.serverDefinitions.read(reader);
+			}
+			// Notify ext host that definitions changed (it will re-fetch if needed)
+			if (!onDidChangeMcpServerDefinitionsTrigger.isScheduled()) {
+				onDidChangeMcpServerDefinitionsTrigger.schedule();
+			}
+		}));
+
+		onDidChangeMcpServerDefinitionsTrigger.schedule();
+	}
+
+	private _publishServerDefinitions() {
+		const collections = this._mcpRegistry.collections.get();
+		const allServers: McpServerDefinition.Serialized[] = [];
+
+		for (const collection of collections) {
+			const servers = collection.serverDefinitions.get();
+			for (const server of servers) {
+				allServers.push(McpServerDefinition.toSerialized(server));
+			}
+		}
+
+		this._proxy.$onDidChangeMcpServerDefinitions(allServers);
 	}
 
 	$upsertMcpCollection(collection: McpCollectionDefinition.FromExtHost, serversDto: McpServerDefinition.Serialized[]): void {
@@ -357,14 +387,14 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 		}
 	}
 
-	$logMcpAuthSetup(data: IMcpAuthSetupTelemetry): void {
+	$logMcpAuthSetup(data: IAuthMetadataSource): void {
 		type McpAuthSetupClassification = {
 			owner: 'TylerLeonhardt';
 			comment: 'Tracks how MCP OAuth authentication setup was discovered and configured';
 			resourceMetadataSource: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How resource metadata was discovered (header, wellKnown, or none)' };
 			serverMetadataSource: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How authorization server metadata was discovered (resourceMetadata, wellKnown, or default)' };
 		};
-		this._telemetryService.publicLog2<IMcpAuthSetupTelemetry, McpAuthSetupClassification>('mcp/authSetup', data);
+		this._telemetryService.publicLog2<IAuthMetadataSource, McpAuthSetupClassification>('mcp/authSetup', data);
 	}
 
 	private async loginPrompt(mcpLabel: string, providerLabel: string, recreatingSession: boolean): Promise<boolean> {

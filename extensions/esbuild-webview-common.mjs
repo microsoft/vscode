@@ -82,7 +82,7 @@ export async function run(config, args, didBuild) {
 	const isWatch = args.indexOf('--watch') >= 0;
 	if (isWatch) {
 		await tryBuild(resolvedOptions, didBuild);
-		const watcher = await import('@vscode/watcher');
+		const watcher = await import('@parcel/watcher');
 		watcher.subscribe(config.srcDir, () => tryBuild(resolvedOptions, didBuild));
 	} else {
 		return build(resolvedOptions, didBuild).catch(() => process.exit(1));
