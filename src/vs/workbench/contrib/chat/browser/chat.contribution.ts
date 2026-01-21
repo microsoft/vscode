@@ -579,6 +579,9 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.editMode.hidden', "When enabled, hides the Edit mode from the chat mode picker."),
 			default: false,
 			tags: ['experimental'],
+			experiment: {
+				mode: 'auto'
+			}
 		},
 		[ChatConfiguration.EnableMath]: {
 			type: 'boolean',
