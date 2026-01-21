@@ -126,31 +126,6 @@ body.error .detail {
 	color: var(--vscode-error-foreground);
 }
 
-/* Hide elements by default based on state */
-.title-action-success,
-.success-no-redirect-message,
-.error-message {
+body:not(.error) .error-message {
 	display: none;
-}
-
-body.error .success-message {
-	display: none;
-}
-
-body.error .error-message {
-	display: block;
-}
-
-/* Success without redirect (portable mode) */
-body.success-no-redirect .title-action-launch,
-body.success-no-redirect .success-message {
-	display: none;
-}
-
-body.success-no-redirect .title-action-success {
-	display: inline;
-}
-
-body.success-no-redirect .success-no-redirect-message {
-	display: block;
 }
