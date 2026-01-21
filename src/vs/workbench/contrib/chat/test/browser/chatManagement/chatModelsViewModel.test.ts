@@ -938,9 +938,14 @@ suite('ChatModelsViewModel', () => {
 		const updatedModelEntries = updatedResults.filter(r => !isLanguageModelProviderEntry(r) && !isLanguageModelGroupEntry(r)) as ILanguageModelEntry[];
 		assert.ok(updatedModelEntries.length > 0);
 
-		// Restore original visibility for each model
-		for (let i = 0; i < modelsToHide.length; i++) {
-			viewModel.setModelsVisibility([modelsToHide[i]], initialVisibility[i]);
+		// Restore original visibility - group by visibility state for efficient restoration
+		const modelsToMakeVisible = modelsToHide.filter((_, i) => initialVisibility[i]);
+		const modelsToMakeHidden = modelsToHide.filter((_, i) => !initialVisibility[i]);
+		if (modelsToMakeVisible.length > 0) {
+			viewModel.setModelsVisibility(modelsToMakeVisible, true);
+		}
+		if (modelsToMakeHidden.length > 0) {
+			viewModel.setModelsVisibility(modelsToMakeHidden, false);
 		}
 	});
 
@@ -992,19 +997,22 @@ suite('ChatModelsViewModel', () => {
 			assert.strictEqual(metadata?.isUserSelectable, false);
 		}
 
-		// Restore original visibility
-		for (let i = 0; i < modelsInGroup.length; i++) {
-			const model = modelsInGroup[i];
-			languageModelsService.updateModelPickerPreference(model.identifier, initialVisibility[i]);
-			model.visible = initialVisibility[i];
+		// Restore original visibility using setGroupVisibility for models that were visible
+		const modelsToRestore = modelsInGroup.filter((_, i) => initialVisibility[i]);
+		if (modelsToRestore.length > 0) {
+			const modelEntries = initialResults.filter(r => !isLanguageModelProviderEntry(r) && !isLanguageModelGroupEntry(r)) as ILanguageModelEntry[];
+			const entriesToRestore = modelEntries.filter(e => modelsToRestore.some(m => m.identifier === e.model.identifier));
+			viewModel.setModelsVisibility(entriesToRestore, true);
 		}
 	});
 
 	test('setGroupVisibility should update visibility for all models in a visibility group', () => {
-		// First ensure we have some visible and some hidden models
+		// Store initial visibility state
 		const allResults = viewModel.filter('');
 		const allModelEntries = allResults.filter(r => !isLanguageModelProviderEntry(r) && !isLanguageModelGroupEntry(r)) as ILanguageModelEntry[];
+		const initialModelStates = allModelEntries.map(m => ({ entry: m, visible: m.model.visible }));
 
+		// First ensure we have some visible and some hidden models
 		if (allModelEntries.length >= 2) {
 			// Hide one model to create a mixed state
 			viewModel.setModelsVisibility([allModelEntries[0]], false);
@@ -1041,6 +1049,16 @@ suite('ChatModelsViewModel', () => {
 					}
 				}
 			}
+		}
+
+		// Restore original visibility state
+		const modelsToMakeVisible = initialModelStates.filter(s => s.visible).map(s => s.entry);
+		const modelsToMakeHidden = initialModelStates.filter(s => !s.visible).map(s => s.entry);
+		if (modelsToMakeVisible.length > 0) {
+			viewModel.setModelsVisibility(modelsToMakeVisible, true);
+		}
+		if (modelsToMakeHidden.length > 0) {
+			viewModel.setModelsVisibility(modelsToMakeHidden, false);
 		}
 	});
 
