@@ -93,7 +93,6 @@ import { ChatAgentLocation, ChatConfiguration, ChatModeKind, validateChatMode } 
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../common/languageModels.js';
 import { ILanguageModelToolsService } from '../../../common/tools/languageModelToolsService.js';
 import { ChatSessionPrimaryPickerAction, ChatSubmitAction, IChatExecuteActionContext, OpenDelegationPickerAction, OpenModelPickerAction, OpenModePickerAction, OpenSessionTargetPickerAction } from '../../actions/chatExecuteActions.js';
-import { IAgentSessionsService } from '../../agentSessions/agentSessionsService.js';
 import { AgentSessionProviders, getAgentSessionProvider } from '../../agentSessions/agentSessions.js';
 import { ImplicitContextAttachmentWidget } from '../../attachments/implicitContextAttachment.js';
 import { IChatWidget, ISessionTypePickerDelegate, isIChatResourceViewContext } from '../../chat.js';
@@ -466,7 +465,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		@IChatService private readonly chatService: IChatService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@IChatContextService private readonly chatContextService: IChatContextService,
-		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
 	) {
 		super();
 
@@ -2346,31 +2344,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			return entries;
 		});
 
-		const sessionFileChanges = observableFromEvent(
-			this,
-			this.agentSessionsService.model.onDidChangeSessions,
-			() => {
-				const sessionResource = this._widget?.viewModel?.model?.sessionResource;
-				if (!sessionResource) {
-					return Iterable.empty();
-				}
-				const model = this.agentSessionsService.getSession(sessionResource);
-				return model?.changes instanceof Array ? model.changes : Iterable.empty();
-			},
-		);
-
-		const sessionFiles = derived(reader =>
-			sessionFileChanges.read(reader).map((entry): IChatCollapsibleListItem => ({
-				reference: entry.modifiedUri,
-				state: ModifiedFileEntryState.Accepted,
-				kind: 'reference',
-				options: {
-					status: undefined,
-					diffMeta: { added: entry.insertions, removed: entry.deletions },
-					originalUri: entry.originalUri,
-				}
-			}))
-		);
+		// Session file changes from agent sessions are not currently supported for rendering.
+		// Background/cloud chat sessions would use this, but we don't render the working set
+		// for those session types. Local sessions use the editing session entries instead.
+		const sessionFiles = derived<readonly IChatCollapsibleListItem[]>(() => []);
 
 		const shouldRender = derived(reader =>
 			editSessionEntries.read(reader).length > 0 || sessionFiles.read(reader).length > 0);
