@@ -170,14 +170,13 @@ export class ChatModelsViewModel extends Disposable {
 
 	filter(searchValue: string): readonly IViewModelEntry[] {
 		if (searchValue !== this.searchValue) {
+			this.searchValue = searchValue;
 			this.collapsedGroups.clear();
+			if (!this.modelsSorted) {
+				this.languageModelGroups = this.groupModels(this.languageModels);
+			}
+			this.doFilter();
 		}
-		this.searchValue = searchValue;
-		if (!this.modelsSorted) {
-			this.languageModelGroups = this.groupModels(this.languageModels);
-		}
-
-		this.doFilter();
 		return this.viewModelEntries;
 	}
 
@@ -612,7 +611,7 @@ export class ChatModelsViewModel extends Disposable {
 				this.collapsedGroups.add(entry.id);
 			}
 		}
-		this.filter(this.searchValue);
+		this.doFilter(this.searchValue);
 	}
 
 	getConfiguredVendors(): ILanguageModelProvider[] {

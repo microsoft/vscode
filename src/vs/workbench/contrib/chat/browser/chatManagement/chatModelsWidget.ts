@@ -217,8 +217,7 @@ class ModelsSearchFilterDropdownMenuActionViewItem extends DropdownMenuActionVie
 	private toggleFilterAndSearch(query: string, alternativeQueries: string[] = []): void {
 		const currentQuery = this.searchWidget.getValue();
 		const newQuery = toggleFilter(currentQuery, query, alternativeQueries);
-		this.searchWidget.setValue(newQuery);
-		this.searchWidget.focus();
+		this.search(newQuery);
 	}
 
 	private getActions(): IAction[] {
@@ -930,10 +929,7 @@ export class ChatModelsWidget extends Disposable {
 			localize('clearSearch', "Clear Search"),
 			ThemeIcon.asClassName(preferencesClearInputIcon),
 			false,
-			() => {
-				this.searchWidget.setValue('');
-				this.searchWidget.focus();
-			}
+			() => this.clearSearch()
 		));
 		const collapseAllAction = this._register(new Action(
 			'workbench.models.collapseAll',
@@ -1012,8 +1008,7 @@ export class ChatModelsWidget extends Disposable {
 			const currentQuery = this.searchWidget.getValue();
 			const query = `@capability:${capability}`;
 			const newQuery = toggleFilter(currentQuery, query);
-			this.searchWidget.setValue(newQuery);
-			this.searchWidget.focus();
+			this.search(newQuery);
 		}));
 
 		const columns = [
@@ -1313,9 +1308,11 @@ export class ChatModelsWidget extends Disposable {
 	public search(filter: string): void {
 		this.focusSearch();
 		this.searchWidget.setValue(filter);
+		this.viewModel.filter(filter);
 	}
 
 	public clearSearch(): void {
+		this.focusSearch();
 		this.searchWidget.setValue('');
 	}
 
