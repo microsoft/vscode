@@ -261,7 +261,7 @@ suite('TerminalToolAutoExpand', () => {
 		await timeout(TerminalToolAutoExpandTimeout.DataEvent + 10);
 		assert.strictEqual(isExpanded, false, 'Should NOT expand when DataEvent fires without real output');
 
-		// Now real output appears before NoData timeout
+		// Now real output appears during the NoData timeout window (after DataEvent timeout but before NoData timeout completes)
 		hasRealOutputValue = true;
 
 		// Wait for NoData timeout to fire (500ms from command executed)
