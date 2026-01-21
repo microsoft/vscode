@@ -52,7 +52,7 @@
 .monaco-workbench .part.statusbar { box-shadow: 0 0 6px rgba(0, 0, 0, 0.08); z-index: 55; position: relative; }
 
 /* Quick Input (Command Palette) */
-.monaco-workbench .quick-input-widget { box-shadow: 0 0 20px rgba(0, 0, 0, 0.15) !important; border-radius: 12px; overflow: hidden; background: rgba(252, 252, 253, 0.5) !important; backdrop-filter: blur(20px) saturate(100%); -webkit-backdrop-filter: blur(40px) saturate(180%); }
+.monaco-workbench .quick-input-widget { box-shadow: 0 0 20px rgba(0, 0, 0, 0.15) !important; border-radius: 12px; overflow: hidden; backdrop-filter: blur(20px) saturate(100%); -webkit-backdrop-filter: blur(40px) saturate(180%); }
 .monaco-workbench.vs-dark .quick-input-widget,
 .monaco-workbench.hc-black .quick-input-widget { background: rgba(10, 10, 11, 0.5) !important; backdrop-filter: blur(40px) saturate(180%); -webkit-backdrop-filter: blur(40px) saturate(180%); box-shadow: 0 0 20px rgba(0, 0, 0, 0.15) !important; }
 .monaco-workbench .quick-input-widget .monaco-list-rows { background-color: transparent !important; }
