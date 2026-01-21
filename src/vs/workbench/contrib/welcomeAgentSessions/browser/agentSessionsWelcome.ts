@@ -383,11 +383,13 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		termsLink.textContent = localize('terms', "Terms");
 		termsLink.href = this.productService.defaultChatAgent.termsStatementUrl;
 		termsLink.target = '_blank';
+		termsLink.rel = 'noopener';
 		desc.appendChild(document.createTextNode(localize('and', " and ")));
 		const privacyLink = append(desc, $<HTMLAnchorElement>('a.agentSessionsWelcome-tosLink'));
 		privacyLink.textContent = localize('privacyStatement', "Privacy statement");
 		privacyLink.href = this.productService.defaultChatAgent.privacyStatementUrl;
 		privacyLink.target = '_blank';
+		privacyLink.rel = 'noopener';
 		desc.appendChild(document.createTextNode('.'));
 	}
 
