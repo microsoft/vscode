@@ -13,7 +13,7 @@ declare module 'vscode' {
 	 */
 	export interface ChatResource {
 		/**
-		 * Uri to the chat resource.
+		 * Uri to the chat resource. This is typically a `.agent.md`, `.instructions.md`, `.prompt.md`, or `SKILL.md` file.
 		 */
 		readonly uri: Uri;
 	}
