@@ -739,8 +739,18 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 
 	/**
 	 * Save the current user filter before we override it with a badge filter.
+	 * Only saves if the current filter is NOT already a badge filter (unread or in-progress).
+	 * This preserves the original user filter when switching between badge filters.
 	 */
 	private _saveUserFilter(): void {
+		const { isFilteredToUnread, isFilteredToInProgress } = this._getCurrentFilterState();
+
+		// Don't overwrite the saved filter if we're already in a badge-filtered state
+		// The previous user filter should already be saved
+		if (isFilteredToUnread || isFilteredToInProgress) {
+			return;
+		}
+
 		const currentFilter = this._getStoredFilter();
 		if (currentFilter) {
 			this.storageService.store(PREVIOUS_FILTER_STORAGE_KEY, JSON.stringify(currentFilter), StorageScope.PROFILE, StorageTarget.USER);
