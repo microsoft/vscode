@@ -5,18 +5,17 @@
 
 import './media/chatEditingEditorOverlay.css';
 import { combinedDisposable, Disposable, DisposableMap, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, derived, derivedOpts, IObservable, observableFromEvent, observableFromEventOpts, observableSignalFromEvent, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { autorun, derived, derivedOpts, IObservable, observableFromEvent, observableSignalFromEvent, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IChatEditingService, IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../../common/editing/chatEditingService.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
-import { ActionViewItem } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
-import { IActionRunner } from '../../../../../base/common/actions.js';
+import { ActionViewItem, IBaseActionViewItemOptions } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { IAction, IActionRunner } from '../../../../../base/common/actions.js';
 import { $, addDisposableGenericMouseMoveListener, append } from '../../../../../base/browser/dom.js';
 import { assertType } from '../../../../../base/common/types.js';
 import { localize } from '../../../../../nls.js';
 import { AcceptAction, navigationBearingFakeActionId, RejectAction } from './chatEditingEditorActions.js';
-import { IChatService } from '../../common/chatService/chatService.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { EditorGroupView } from '../../../../browser/parts/editor/editorGroupView.js';
@@ -24,16 +23,81 @@ import { Event } from '../../../../../base/common/event.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { EditorResourceAccessor, SideBySideEditor } from '../../../../common/editor.js';
-import { IInlineChatSessionService } from '../../../inlineChat/browser/inlineChatSessionService.js';
-import { InlineChatConfigKeys } from '../../../inlineChat/common/inlineChat.js';
 import { isEqual } from '../../../../../base/common/resources.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { ObservableEditorSession } from './chatEditingEditorContextKeys.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+
+export class ChatEditingAcceptRejectActionViewItem extends ActionViewItem {
+
+	private readonly _reveal = this._store.add(new MutableDisposable());
+
+	constructor(
+		action: IAction,
+		options: IBaseActionViewItemOptions,
+		private readonly _entry: IObservable<IModifiedFileEntry | undefined>,
+		private readonly _editor: { focus(): void } | undefined,
+		private readonly _keybindingService: IKeybindingService,
+		private readonly _primaryActionIds: readonly string[] = [AcceptAction.ID],
+	) {
+		super(undefined, action, { ...options, icon: false, label: true, keybindingNotRenderedWithLabel: true });
+	}
+
+	override render(container: HTMLElement): void {
+		super.render(container);
+
+		if (this._primaryActionIds.includes(this._action.id)) {
+			this.element?.classList.add('primary');
+		}
+
+		if (this._action.id === AcceptAction.ID) {
+
+			const listener = this._store.add(new MutableDisposable());
+
+			this._store.add(autorun(r => {
+
+				assertType(this.label);
+				assertType(this.element);
+
+				const ctrl = this._entry.read(r)?.autoAcceptController.read(r);
+				if (ctrl) {
+
+					const ratio = -100 * (ctrl.remaining / ctrl.total);
+
+					this.element.style.setProperty('--vscode-action-item-auto-timeout', `${ratio}%`);
+
+					this.element.classList.toggle('auto', true);
+					listener.value = addDisposableGenericMouseMoveListener(this.element, () => ctrl.cancel());
+				} else {
+					this.element.classList.toggle('auto', false);
+					listener.clear();
+				}
+			}));
+		}
+	}
+
+	override set actionRunner(actionRunner: IActionRunner) {
+		super.actionRunner = actionRunner;
+		if (this._editor) {
+			this._reveal.value = actionRunner.onWillRun(_e => {
+				this._editor!.focus();
+			});
+		}
+	}
+
+	override get actionRunner(): IActionRunner {
+		return super.actionRunner;
+	}
+
+	protected override getTooltip(): string | undefined {
+		const value = super.getTooltip();
+		if (!value) {
+			return value;
+		}
+		return this._keybindingService.appendKeybinding(value, this._action.id);
+	}
+}
 
 class ChatEditorOverlayWidget extends Disposable {
 
@@ -50,7 +114,6 @@ class ChatEditorOverlayWidget extends Disposable {
 
 	constructor(
 		private readonly _editor: { focus(): void },
-		@IChatService private readonly _chatService: IChatService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 	) {
@@ -60,42 +123,7 @@ class ChatEditorOverlayWidget extends Disposable {
 
 		this._isBusy = derived(r => {
 			const entry = this._entry.read(r);
-			const session = this._session.read(r);
-			return entry?.waitsForLastEdits.read(r) ?? !session?.isGlobalEditingSession; // aka inline chat
-		});
-
-		const requestMessage = derived(r => {
-
-			const session = this._session.read(r);
-			const chatModel = session?.chatSessionResource && this._chatService.getSession(session?.chatSessionResource);
-			if (!session || !chatModel) {
-				return undefined;
-			}
-
-			// For inline chat (non-global sessions), get progress directly from the chat model's current request/response
-			// This ensures progress messages appear immediately when streaming starts, before lastModifyingResponse is set
-			const response = session.isGlobalEditingSession
-				? this._entry.read(r)?.lastModifyingResponse.read(r)
-				: chatModel.lastRequestObs.read(r)?.response;
-
-			if (!response) {
-				return { message: localize('working', "Working...") };
-			}
-
-			const lastPart = observableFromEventOpts({ equalsFn: () => false }, response.onDidChange, () => response.response.value)
-				.read(r)
-				.filter(part => part.kind === 'progressMessage' || part.kind === 'toolInvocation')
-				.at(-1);
-
-			if (lastPart?.kind === 'toolInvocation') {
-				return { message: lastPart.invocationMessage };
-
-			} else if (lastPart?.kind === 'progressMessage') {
-				return { message: lastPart.content };
-
-			} else {
-				return { message: localize('working', "Working...") };
-			}
+			return entry?.waitsForLastEdits.read(r);
 		});
 
 
@@ -106,16 +134,10 @@ class ChatEditorOverlayWidget extends Disposable {
 		this._domNode.appendChild(progressNode);
 
 		this._store.add(autorun(r => {
-			const value = requestMessage.read(r);
 			const busy = this._isBusy.read(r);
 
 			this._domNode.classList.toggle('busy', busy);
-
-			if (!busy || !value || this._session.read(r)?.isGlobalEditingSession) {
-				textProgress.innerText = '';
-			} else if (value) {
-				textProgress.innerText = renderAsPlaintext(value.message);
-			}
+			textProgress.innerText = '';
 		}));
 
 		this._toolbarNode = document.createElement('div');
@@ -233,63 +255,7 @@ class ChatEditorOverlayWidget extends Disposable {
 				}
 
 				if (action.id === AcceptAction.ID || action.id === RejectAction.ID) {
-					return new class extends ActionViewItem {
-
-						private readonly _reveal = this._store.add(new MutableDisposable());
-
-						constructor() {
-							super(undefined, action, { ...options, icon: false, label: true, keybindingNotRenderedWithLabel: true });
-						}
-
-						override render(container: HTMLElement): void {
-							super.render(container);
-
-							if (action.id === AcceptAction.ID) {
-								this.element?.classList.add('primary');
-
-								const listener = this._store.add(new MutableDisposable());
-
-								this._store.add(autorun(r => {
-
-									assertType(this.label);
-									assertType(this.element);
-
-									const ctrl = that._entry.read(r)?.autoAcceptController.read(r);
-									if (ctrl) {
-
-										const r = -100 * (ctrl.remaining / ctrl.total);
-
-										this.element.style.setProperty('--vscode-action-item-auto-timeout', `${r}%`);
-
-										this.element.classList.toggle('auto', true);
-										listener.value = addDisposableGenericMouseMoveListener(this.element, () => ctrl.cancel());
-									} else {
-										this.element.classList.toggle('auto', false);
-										listener.clear();
-									}
-								}));
-							}
-						}
-
-						override set actionRunner(actionRunner: IActionRunner) {
-							super.actionRunner = actionRunner;
-							this._reveal.value = actionRunner.onWillRun(_e => {
-								that._editor.focus();
-							});
-						}
-
-						override get actionRunner(): IActionRunner {
-							return super.actionRunner;
-						}
-
-						protected override getTooltip(): string | undefined {
-							const value = super.getTooltip();
-							if (!value) {
-								return value;
-							}
-							return that._keybindingService.appendKeybinding(value, action.id);
-						}
-					};
+					return new ChatEditingAcceptRejectActionViewItem(action, options, that._entry, that._editor, that._keybindingService);
 				}
 
 				return undefined;
@@ -318,10 +284,7 @@ class ChatEditingOverlayController {
 		container: HTMLElement,
 		group: IEditorGroup,
 		@IInstantiationService instaService: IInstantiationService,
-		@IChatService chatService: IChatService,
 		@IChatEditingService chatEditingService: IChatEditingService,
-		@IInlineChatSessionService inlineChatService: IInlineChatSessionService,
-		@IConfigurationService configurationService: IConfigurationService,
 	) {
 
 		this._domNode.classList.add('chat-editing-editor-overlay');
@@ -369,18 +332,17 @@ class ChatEditingOverlayController {
 				return undefined;
 			}
 
-			return new ObservableEditorSession(uri, chatEditingService, inlineChatService).value.read(r);
-		});
-
-		const isInProgress = derived(r => {
-
-			const session = sessionAndEntry.read(r)?.session;
-			if (!session) {
-				return false;
+			// Directly query global editing sessions (inline chat has its own overlay)
+			for (const session of chatEditingService.editingSessionsObs.read(r)) {
+				if (!session.isGlobalEditingSession) {
+					continue;
+				}
+				const entry = session.readEntry(uri, r);
+				if (entry) {
+					return { session, entry };
+				}
 			}
-
-			const chatModel = chatService.getSession(session.chatSessionResource)!;
-			return chatModel.requestInProgress.read(r);
+			return undefined;
 		});
 
 		this._store.add(autorun(r => {
@@ -394,16 +356,7 @@ class ChatEditingOverlayController {
 
 			const { session, entry } = data;
 
-			if (!session.isGlobalEditingSession && !configurationService.getValue<boolean>(InlineChatConfigKeys.ShowGutterMenu)) {
-				// inline chat with zone UI - no need for chat overlay
-				hide();
-				return;
-			}
-
-			if (
-				entry?.state.read(r) === ModifiedFileEntryState.Modified // any entry changing
-				|| (!session.isGlobalEditingSession && isInProgress.read(r)) // inline chat request
-			) {
+			if (entry?.state.read(r) === ModifiedFileEntryState.Modified) {
 				// any session with changes
 				const editorPane = group.activeEditorPane;
 				assertType(editorPane);

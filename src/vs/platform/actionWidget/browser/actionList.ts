@@ -193,13 +193,13 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 		const actionTitle = this._keybindingService.lookupKeybinding(acceptSelectedActionCommand)?.getLabel();
 		const previewTitle = this._keybindingService.lookupKeybinding(previewSelectedActionCommand)?.getLabel();
 		data.container.classList.toggle('option-disabled', element.disabled);
-		if (element.tooltip) {
+		if (element.hover !== undefined) {
+			// Don't show tooltip when hover content is configured - the rich hover will show instead
+			data.container.title = '';
+		} else if (element.tooltip) {
 			data.container.title = element.tooltip;
 		} else if (element.disabled) {
 			data.container.title = element.label;
-		} else if (element.hover?.content) {
-			// Don't show tooltip when hover content is configured - the rich hover will show instead
-			data.container.title = '';
 		} else if (actionTitle && previewTitle) {
 			if (this._supportsPreview && element.canPreview) {
 				data.container.title = localize({ key: 'label-preview', comment: ['placeholders are keybindings, e.g "F2 to Apply, Shift+F2 to Preview"'] }, "{0} to Apply, {1} to Preview", actionTitle, previewTitle);

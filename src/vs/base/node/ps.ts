@@ -49,18 +49,12 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 		function findName(cmd: string): string {
 			const UTILITY_NETWORK_HINT = /--utility-sub-type=network/i;
 			const WINDOWS_CRASH_REPORTER = /--crashes-directory/i;
-			const WINPTY = /\\pipe\\winpty-control/i;
 			const CONPTY = /conhost\.exe.+--headless/i;
 			const TYPE = /--type=([a-zA-Z-]+)/;
 
 			// find windows crash reporter
 			if (WINDOWS_CRASH_REPORTER.exec(cmd)) {
 				return 'electron-crash-reporter';
-			}
-
-			// find winpty process
-			if (WINPTY.exec(cmd)) {
-				return 'winpty-agent';
 			}
 
 			// find conpty process

@@ -108,7 +108,6 @@ export class ChatMcpAppSubPart extends BaseChatToolInvocationSubPart {
 		// Subscribe to model height changes
 		this._register(this._model.onDidChangeHeight(() => {
 			this._updateContainerHeight();
-			this._onDidChangeHeight.fire();
 		}));
 
 		this._register(context.onDidChangeVisibility(visible => {
@@ -150,7 +149,6 @@ export class ChatMcpAppSubPart extends BaseChatToolInvocationSubPart {
 			case 'loaded': {
 				// Show the webview container
 				container.style.display = '';
-				this._onDidChangeHeight.fire();
 				break;
 			}
 			case 'error': {
@@ -190,6 +188,5 @@ export class ChatMcpAppSubPart extends BaseChatToolInvocationSubPart {
 
 		container.appendChild(errorNode);
 		this._errorNode = errorNode;
-		this._onDidChangeHeight.fire();
 	}
 }

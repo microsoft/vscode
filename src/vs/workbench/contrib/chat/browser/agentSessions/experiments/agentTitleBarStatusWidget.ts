@@ -259,7 +259,7 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 		hasAttentionNeeded: boolean;
 	} {
 		const sessions = this.agentSessionsService.model.sessions;
-		const activeSessions = sessions.filter(s => isSessionInProgressStatus(s.status));
+		const activeSessions = sessions.filter(s => isSessionInProgressStatus(s.status) && !s.isArchived());
 		const unreadSessions = sessions.filter(s => !s.isRead());
 		// Sessions that need user attention (approval/confirmation/input)
 		const attentionNeededSessions = sessions.filter(s => s.status === AgentSessionStatus.NeedsInput);

@@ -1508,7 +1508,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.inputPart.dnd.setDisabledOverlay(!isInput);
 			this.input.renderAttachedContext();
 			this.input.setValue(currentElement.messageText, false);
-			this.listWidget.updateItemHeightOnRender(currentElement, item);
 			this.onDidChangeItems();
 			this.input.inputEditor.focus();
 
@@ -1589,9 +1588,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.inputPart?.setEditing(!!this.viewModel?.editing && isInput);
 
 		this.onDidChangeItems();
-		if (editedRequest?.currentElement) {
-			this.listWidget.updateItemHeightOnRender(editedRequest.currentElement, editedRequest);
-		}
 
 		type CancelRequestEditEvent = {
 			editRequestType: string;
@@ -1652,18 +1648,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this.styles,
 				true
 			);
-			this._register(autorun(reader => {
-				this.inlineInputPart.height.read(reader);
-				if (!this.listWidget) {
-					// This is set up before the list/renderer are created
-					return;
-				}
-
-				const editedRequest = this.listWidget.getTemplateDataForRequestId(this.viewModel?.editing?.id);
-				if (isRequestVM(editedRequest?.currentElement) && this.viewModel?.editing) {
-					this.listWidget.updateItemHeightOnRender(editedRequest?.currentElement, editedRequest);
-				}
-			}));
 		} else {
 			this.inputPartDisposable.value = this.instantiationService.createInstance(ChatInputPart,
 				this.location,
