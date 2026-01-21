@@ -12,7 +12,7 @@ import { IInstantiationService, ServicesAccessor } from '../../../../platform/in
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { IUpdateService, State as UpdateState, StateType, IUpdate, DisablementReason, formatDownloadingUpdateLabel, Downloading } from '../../../../platform/update/common/update.js';
+import { IUpdateService, State as UpdateState, StateType, IUpdate, DisablementReason } from '../../../../platform/update/common/update.js';
 import { INotificationService, NotificationPriority, Severity } from '../../../../platform/notification/common/notification.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IBrowserWorkbenchEnvironmentService } from '../../../services/environment/browser/environmentService.js';
@@ -161,7 +161,6 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 
 	private state: UpdateState;
 	private readonly badgeDisposable = this._register(new MutableDisposable());
-	private readonly downloadingMenuItemDisposable = this._register(new MutableDisposable());
 	private updateStateContextKey: IContextKey<string>;
 	private majorMinorUpdateAvailableContextKey: IContextKey<boolean>;
 
@@ -273,13 +272,6 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 
 		if (badge) {
 			this.badgeDisposable.value = this.activityService.showGlobalActivity({ badge });
-		}
-
-		// Update downloading menu item with progress
-		if (state.type === StateType.Downloading) {
-			this.updateDownloadingMenuItem(state);
-		} else {
-			this.downloadingMenuItemDisposable.clear();
 		}
 
 		this.state = state;
@@ -406,18 +398,6 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 		);
 	}
 
-	private updateDownloadingMenuItem(state: Downloading): void {
-		this.downloadingMenuItemDisposable.value = MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
-			group: '7_update',
-			command: {
-				id: 'update.downloading',
-				title: formatDownloadingUpdateLabel(state),
-				precondition: ContextKeyExpr.false()
-			},
-			when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Downloading)
-		});
-	}
-
 	private shouldShowNotification(): boolean {
 		const currentVersion = this.productService.commit;
 		const currentMillis = new Date().getTime();
@@ -467,9 +447,16 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 			when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.AvailableForDownload)
 		});
 
-		// Note: The 'update.downloading' menu item is registered dynamically in updateDownloadingMenuItem()
-		// to show actual download progress
 		CommandsRegistry.registerCommand('update.downloading', () => { });
+		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
+			group: '7_update',
+			command: {
+				id: 'update.downloading',
+				title: nls.localize('DownloadingUpdate', "Downloading Update..."),
+				precondition: ContextKeyExpr.false()
+			},
+			when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Downloading)
+		});
 
 		CommandsRegistry.registerCommand('update.install', () => this.updateService.applyUpdate());
 		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
