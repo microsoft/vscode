@@ -1607,7 +1607,8 @@ export default tseslint.config(
 						'vs/base/parts/*/~',
 						'vs/platform/*/~',
 						'vs/editor/~',
-						'vs/editor/contrib/*/~'
+						'vs/editor/contrib/*/~',
+						'vs/editor/*'
 					]
 				},
 				{

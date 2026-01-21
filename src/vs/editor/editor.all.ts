@@ -71,3 +71,4 @@ import './common/standaloneStrings.js';
 
 import '../base/browser/ui/codicons/codiconStyles.js'; // The codicons are defined here and must be loaded
 
+import './common/media/index.css';
