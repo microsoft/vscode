@@ -7,7 +7,7 @@ import assert from 'assert';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelChatProvider, ILanguageModelChatSelector, ILanguageModelsGroup, ILanguageModelsService, IUserFriendlyLanguageModel } from '../../../common/languageModels.js';
+import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelChatProvider, ILanguageModelChatSelector, ILanguageModelsGroup, ILanguageModelsService, IUserFriendlyLanguageModel, ILanguageModelProviderDescriptor } from '../../../common/languageModels.js';
 import { ChatModelGroup, ChatModelsViewModel, ILanguageModelEntry, ILanguageModelProviderEntry, isLanguageModelProviderEntry, isLanguageModelGroupEntry, ILanguageModelGroupEntry } from '../../../browser/chatManagement/chatModelsViewModel.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { IStringDictionary } from '../../../../../../base/common/collections.js';
@@ -70,8 +70,8 @@ class MockLanguageModelsService implements ILanguageModelsService {
 		}
 	}
 
-	getVendors(): IUserFriendlyLanguageModel[] {
-		return this.vendors;
+	getVendors(): ILanguageModelProviderDescriptor[] {
+		return this.vendors.map(v => ({ ...v, isDefault: v.vendor === 'copilot' }));
 	}
 
 	getLanguageModelIds(): string[] {
@@ -340,7 +340,7 @@ suite('ChatModelsViewModel', () => {
 
 		const models = results.filter(r => !isLanguageModelProviderEntry(r) && !isLanguageModelGroupEntry(r)) as ILanguageModelEntry[];
 		assert.strictEqual(models.length, 3);
-		assert.ok(models.every(m => m.model.metadata.isUserSelectable === true));
+		assert.ok(models.every(m => m.model.visible === true));
 	});
 
 	test('should filter by visibility - visible:false', () => {
@@ -348,7 +348,7 @@ suite('ChatModelsViewModel', () => {
 
 		const models = results.filter(r => !isLanguageModelProviderEntry(r) && !isLanguageModelGroupEntry(r)) as ILanguageModelEntry[];
 		assert.strictEqual(models.length, 1);
-		assert.strictEqual(models[0].model.metadata.isUserSelectable, false);
+		assert.strictEqual(models[0].model.visible, false);
 	});
 
 	test('should combine provider and capability filters', () => {
