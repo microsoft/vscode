@@ -122,7 +122,7 @@ export class AgentSessionHoverWidget extends Disposable {
 				rendererOptions: {
 					renderStyle: 'compact',
 					noHeader: true,
-					editableCodeBlock: false,
+					editable: false,
 				},
 				currentChatMode: () => ChatModeKind.Ask,
 			}
