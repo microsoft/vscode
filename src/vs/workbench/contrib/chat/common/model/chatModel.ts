@@ -864,6 +864,10 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 	}
 
 	public set shouldBeRemovedOnSend(disablement: IChatRequestDisablement | undefined) {
+		if (this._shouldBeRemovedOnSend === disablement) {
+			return;
+		}
+
 		this._shouldBeRemovedOnSend = disablement;
 		this._onDidChange.fire(defaultChatResponseModelChangeReason);
 	}

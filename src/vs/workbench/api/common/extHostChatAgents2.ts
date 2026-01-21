@@ -574,20 +574,42 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		}
 
 		// Convert ChatResourceDescriptor to IPromptFileResource format
-		return resources?.map(r => this.convertChatResourceDescriptorToPromptFileResource(r.resource, providerData.extension.identifier.value));
+		return resources?.map(r => this.convertChatResourceDescriptorToPromptFileResource(r.resource, providerData.extension.identifier.value, type));
 	}
 
 	/**
 	 * Creates a virtual URI for a prompt file.
+	 * Format varies by type:
+	 * - Skills: /${extensionId}/skills/${id}/SKILL.md
+	 * - Agents: /${extensionId}/agents/${id}.agent.md
+	 * - Instructions: /${extensionId}/instructions/${id}.instructions.md
+	 * - Prompts: /${extensionId}/prompts/${id}.prompt.md
 	 */
-	createVirtualPromptUri(id: string, extensionId: string): URI {
+	createVirtualPromptUri(id: string, extensionId: string, type: PromptsType): URI {
+		let path: string;
+		switch (type) {
+			case PromptsType.skill:
+				path = `/${extensionId}/skills/${id}/SKILL.md`;
+				break;
+			case PromptsType.agent:
+				path = `/${extensionId}/agents/${id}.agent.md`;
+				break;
+			case PromptsType.instructions:
+				path = `/${extensionId}/instructions/${id}.instructions.md`;
+				break;
+			case PromptsType.prompt:
+				path = `/${extensionId}/prompts/${id}.prompt.md`;
+				break;
+			default:
+				throw new Error(`Unsupported PromptsType: ${type}`);
+		}
 		return URI.from({
 			scheme: Schemas.vscodeChatPrompt,
-			path: `/${extensionId}/${id}`
+			path
 		});
 	}
 
-	convertChatResourceDescriptorToPromptFileResource(resource: vscode.ChatResourceDescriptor | vscode.ChatResourceUriDescriptor, extensionId: string): IPromptFileResource {
+	convertChatResourceDescriptorToPromptFileResource(resource: vscode.ChatResourceDescriptor, extensionId: string, type: PromptsType): IPromptFileResource {
 		if (URI.isUri(resource)) {
 			// Plain URI
 			return { uri: resource };
@@ -595,7 +617,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 			// { id, content }
 			return {
 				content: resource.content,
-				uri: this.createVirtualPromptUri(resource.id, extensionId),
+				uri: this.createVirtualPromptUri(resource.id, extensionId, type),
 				isEditable: undefined
 			};
 		} else if ('uri' in resource && URI.isUri(resource.uri)) {
