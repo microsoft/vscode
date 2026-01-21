@@ -15,6 +15,6 @@ declare module 'vscode' {
 		/**
 		 * Event that fires when the metered connection status changes.
 		 */
-		export const onDidChangeIsConnectionMetered: Event<boolean>;
+		export const onDidChangeMeteredConnection: Event<boolean>;
 	}
 }

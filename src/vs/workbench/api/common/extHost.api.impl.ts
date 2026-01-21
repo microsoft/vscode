@@ -425,7 +425,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'envIsConnectionMetered');
 				return extHostMeteredConnection.isConnectionMetered;
 			},
-			get onDidChangeIsConnectionMetered(): vscode.Event<boolean> {
+			get onDidChangeMeteredConnection(): vscode.Event<boolean> {
 				checkProposedApiEnabled(extension, 'envIsConnectionMetered');
 				return _asExtensionEvent(extHostMeteredConnection.onDidChangeIsConnectionMetered);
 			},

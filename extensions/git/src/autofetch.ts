@@ -30,7 +30,7 @@ export class AutoFetcher {
 		const onFirstGoodRemoteOperation = onceEvent(onGoodRemoteOperation);
 		onFirstGoodRemoteOperation(this.onFirstGoodRemoteOperation, this, this.disposables);
 
-		env.onDidChangeIsConnectionMetered(() => this.onConfiguration(), this, this.disposables);
+		env.onDidChangeMeteredConnection(() => this.onConfiguration(), this, this.disposables);
 	}
 
 	private async onFirstGoodRemoteOperation(): Promise<void> {
