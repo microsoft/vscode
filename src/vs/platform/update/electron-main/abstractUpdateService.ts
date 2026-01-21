@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IntervalTimer, timeout } from '../../../base/common/async.js';
-import { CancellationToken } from '../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
@@ -227,7 +227,19 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		}
 
 		const pendingUpdateCommit = this._state.update.version;
-		const isLatest = await this.isLatestVersion(pendingUpdateCommit);
+
+		let isLatest: boolean | undefined;
+
+		try {
+			const cts = new CancellationTokenSource();
+			const timeoutPromise = timeout(2000).then(() => { cts.cancel(); return undefined; });
+			isLatest = await Promise.race([this.isLatestVersion(pendingUpdateCommit, cts.token), timeoutPromise]);
+			cts.dispose();
+		} catch (error) {
+			this.logService.warn('update#checkForOverwriteUpdates(): failed to check for updates, proceeding with restart');
+			this.logService.warn(error);
+			return false;
+		}
 
 		if (isLatest === false && this._state.type === StateType.Ready) {
 			this.logService.info('update#readyStateCheck: newer update available, restarting update machinery');
@@ -241,7 +253,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		return false;
 	}
 
-	async isLatestVersion(commit?: string): Promise<boolean | undefined> {
+	async isLatestVersion(commit?: string, token: CancellationToken = CancellationToken.None): Promise<boolean | undefined> {
 		if (!this.quality) {
 			return undefined;
 		}
@@ -259,7 +271,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		}
 
 		try {
-			const context = await this.requestService.request({ url }, CancellationToken.None);
+			const context = await this.requestService.request({ url }, token);
 			// The update server replies with 204 (No Content) when no
 			// update is available - that's all we want to know.
 			return context.res.statusCode === 204;
