@@ -310,7 +310,7 @@ export class ChatMcpAppModel extends Disposable {
 					if (type === 'message') {
 						const originalListener = listener;
 						const wrappedListener = (event) => {
-							if (event.source.origin === document.location.origin && event.source !== window) { event = setMessageSource(event, window.parent); }
+							if (event.origin === document.location.origin && event.source !== window) { event = setMessageSource(event, window.parent); }
 							originalListener(event);
 						};
 						wrappedFns.set(originalListener, wrappedListener);
