@@ -8,9 +8,8 @@ import { upcast } from '../../../base/common/types.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 
 export interface IUpdate {
-	// Windows and Linux: 9a19815253d91900be5ec1016e0ecc7cc9a6950 (Commit Hash). Mac: 1.54.0 (Product Version)
-	version: string;
-	productVersion?: string;
+	version: string; // Build commit ID
+	productVersion?: string; // Product version like 1.2.3
 	timestamp?: number;
 	url?: string;
 	sha256hash?: string;

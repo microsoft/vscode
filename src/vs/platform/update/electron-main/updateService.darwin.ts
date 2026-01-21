@@ -25,7 +25,7 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 	@memoize private get onRawError(): Event<string> { return Event.fromNodeEventEmitter(electron.autoUpdater, 'error', (_, message) => message); }
 	@memoize private get onRawUpdateNotAvailable(): Event<void> { return Event.fromNodeEventEmitter<void>(electron.autoUpdater, 'update-not-available'); }
 	@memoize private get onRawUpdateAvailable(): Event<void> { return Event.fromNodeEventEmitter(electron.autoUpdater, 'update-available'); }
-	@memoize private get onRawUpdateDownloaded(): Event<IUpdate> { return Event.fromNodeEventEmitter(electron.autoUpdater, 'update-downloaded', (_, releaseNotes, version, timestamp) => ({ version, productVersion: version, timestamp })); }
+	@memoize private get onRawUpdateDownloaded(): Event<IUpdate> { return Event.fromNodeEventEmitter(electron.autoUpdater, 'update-downloaded', (_, version: string, productVersion: string, timestamp: number) => ({ version, productVersion, timestamp })); }
 
 	constructor(
 		@ILifecycleMainService lifecycleMainService: ILifecycleMainService,
@@ -132,13 +132,6 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 
 		this.setState(State.Downloaded(update, this._explicit, this._overwrite));
 		this.logService.info(`Update downloaded: ${JSON.stringify(update)}`);
-
-		type UpdateDownloadedClassification = {
-			owner: 'joaomoreno';
-			newVersion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The version number of the new VS Code that has been downloaded.' };
-			comment: 'This is used to know how often VS Code has successfully downloaded the update.';
-		};
-		this.telemetryService.publicLog2<{ newVersion: String }, UpdateDownloadedClassification>('update:downloaded', { newVersion: update.version });
 
 		this.setState(State.Ready(update, this._explicit, this._overwrite));
 	}
