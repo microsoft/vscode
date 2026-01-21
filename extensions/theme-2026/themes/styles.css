@@ -24,8 +24,8 @@
 .monaco-workbench .monaco-sash.vertical { z-index: 45; }
 .monaco-workbench .monaco-sash.horizontal { z-index: 45; }
 
-.monaco-workbench .activitybar.left.bordered::before,
-.monaco-workbench .activitybar.right.bordered::before {
+.monaco-workbench.vs .activitybar.left.bordered::before,
+.monaco-workbench.vs .activitybar.right.bordered::before {
 	border: none;
 }
 
@@ -98,8 +98,12 @@
 .monaco-workbench .notifications-center {
 	backdrop-filter: blur(20px) saturate(180%);
 	-webkit-backdrop-filter: blur(20px) saturate(180%);
+}
+.monaco-workbench.vs .notifications-center {
 	background-color: rgba(255, 255, 255, 0.6) !important;
-
+}
+.monaco-workbench.vs-dark .notifications-center {
+	background-color: rgba(10, 10, 11, 0.6) !important;
 }
 .monaco-workbench .notifications-list-container,
 .monaco-workbench > .notifications-center > .notifications-center-header,
