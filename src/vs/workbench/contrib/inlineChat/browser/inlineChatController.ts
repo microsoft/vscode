@@ -435,7 +435,7 @@ export class InlineChatController implements IEditorContribution {
 
 		// Select the language model for this session:
 		// 1. If user chose to persist their model choice, respect that
-		// 2. Otherwise, try to use a preferred inline chat model (e.g., GLM 4.7)
+		// 2. Otherwise, try to use a preferred inline chat model
 		// 3. Fall back to the vendor's default model for this location
 		const persistModelChoice = this._configurationService.getValue<boolean>(InlineChatConfigKeys.PersistModelChoice);
 
