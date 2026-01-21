@@ -197,7 +197,7 @@ export class PromptFilesLocator {
 		const configuredLocations = PromptsConfig.promptSourceFolders(this.configService, type);
 		const absoluteLocations = this.toAbsoluteLocations(type, configuredLocations, userHome).map(l => l.uri);
 
-		// For anything taht doesn't support glob patterns, we can return
+		// For anything that doesn't support glob patterns, we can return
 		if (type !== PromptsType.prompt && type !== PromptsType.instructions) {
 			return absoluteLocations;
 		}
@@ -270,34 +270,8 @@ export class PromptFilesLocator {
 			configuredLocations.push(...DEFAULT_AGENT_SOURCE_FOLDERS);
 		}
 
-		// Log warnings for glob patterns in prompt and instructions locations
-		this.warnForGlobPatterns(configuredLocations, type);
-
 		const absoluteLocations = this.toAbsoluteLocations(type, configuredLocations, undefined);
 		return absoluteLocations.map((location) => firstNonGlobParentAndPattern(location.uri));
-	}
-
-	/**
-	 * Logs warnings when glob patterns (* or **) are used in prompt or instructions file locations.
-	 * - For prompt file locations: logs a deprecation warning (glob patterns are deprecated but still supported)
-	 * - For instructions file locations: logs an info warning
-	 */
-	private warnForGlobPatterns(configuredLocations: readonly IPromptSourceFolder[], type: PromptsType): void {
-		// Only warn for prompt and instructions types
-		if (type !== PromptsType.prompt && type !== PromptsType.instructions) {
-			return;
-		}
-
-		for (const sourceFolder of configuredLocations) {
-			const path = sourceFolder.path;
-			if (hasGlobPattern(path)) {
-				if (type === PromptsType.prompt) {
-					this.logService.warn(`[Deprecated] Glob patterns (* and **) in prompt file locations are deprecated: "${path}". Consider using explicit paths instead.`);
-				} else if (type === PromptsType.instructions) {
-					this.logService.info(`Glob patterns (* and **) detected in instruction file location: "${path}". Consider using explicit paths for better performance.`);
-				}
-			}
-		}
 	}
 
 	/**
@@ -316,6 +290,14 @@ export class PromptFilesLocator {
 		const validLocations = configuredLocations.filter(sourceFolder => {
 			// TODO: deprecate glob patterns for prompts and instructions in the future
 			if (type === PromptsType.instructions || type === PromptsType.prompt) {
+				const path = sourceFolder.path;
+				if (hasGlobPattern(path)) {
+					if (type === PromptsType.prompt) {
+						this.logService.warn(`[Deprecated] Glob patterns (* and **) in prompt file locations are deprecated: "${path}". Consider using explicit paths instead.`);
+					} else if (type === PromptsType.instructions) {
+						this.logService.info(`Glob patterns (* and **) detected in instruction file location: "${path}". Consider using explicit paths for better performance.`);
+					}
+				}
 				return true;
 			}
 			const configuredLocation = sourceFolder.path;
@@ -714,8 +696,8 @@ function firstNonGlobParentAndPattern(location: URI): { parent: URI; filePattern
 
 
 /**
- * Regex pattern string for validating simplified paths for all prompt files.
- * Simplified paths only support:
+ * Regex pattern string for validating paths for all prompt files.
+ * Paths only support:
  * - Relative paths: someFolder, ./someFolder
  * - User home paths: ~/folder (only forward slash, not backslash for cross-platform sharing)
  * - Parent relative paths for monorepos: ../folder
