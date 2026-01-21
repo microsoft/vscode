@@ -3340,6 +3340,13 @@ export class ChatResponseNotebookEditPart implements vscode.ChatResponseNotebook
 	}
 }
 
+export class ChatResponseWorkspaceEditPart implements vscode.ChatResponseWorkspaceEditPart {
+	edits: vscode.ChatWorkspaceFileEdit[];
+	constructor(edits: vscode.ChatWorkspaceFileEdit[]) {
+		this.edits = edits;
+	}
+}
+
 export interface ChatTerminalToolInvocationData2 {
 	commandLine: {
 		original: string;

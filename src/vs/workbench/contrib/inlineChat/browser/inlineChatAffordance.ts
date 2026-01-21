@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { autorun, debouncedObservable, derived, observableValue } from '../../../../base/common/observable.js';
-import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
+import { autorun, debouncedObservable, derived, observableValue, runOnChange, waitForState } from '../../../../base/common/observable.js';
+import { ICodeEditor, isIOverlayWidgetPositionCoordinates } from '../../../../editor/browser/editorBrowser.js';
 import { observableCodeEditor } from '../../../../editor/browser/observableCodeEditor.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { InlineChatConfigKeys } from '../common/inlineChat.js';
@@ -13,90 +13,78 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 import { InlineChatEditorAffordance } from './inlineChatEditorAffordance.js';
-import { InlineChatOverlayWidget } from './inlineChatOverlayWidget.js';
+import { InlineChatInputWidget } from './inlineChatOverlayWidget.js';
 import { InlineChatGutterAffordance } from './inlineChatGutterAffordance.js';
 import { Selection, SelectionDirection } from '../../../../editor/common/core/selection.js';
 import { assertType } from '../../../../base/common/types.js';
-import { Event } from '../../../../base/common/event.js';
+import { CursorChangeReason } from '../../../../editor/common/cursorEvents.js';
 
 export class InlineChatAffordance extends Disposable {
 
-	private readonly _overlayWidget: InlineChatOverlayWidget;
-
-	private _menuData = observableValue<{ rect: DOMRect; above: boolean } | undefined>(this, undefined);
-
+	private _menuData = observableValue<{ rect: DOMRect; above: boolean; lineNumber: number } | undefined>(this, undefined);
 
 	constructor(
 		private readonly _editor: ICodeEditor,
+		private readonly _inputWidget: InlineChatInputWidget,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IChatEntitlementService chatEntiteldService: IChatEntitlementService,
 	) {
 		super();
 
-		// Create the overlay widget once, owned by this class
-		this._overlayWidget = this._store.add(this._instantiationService.createInstance(InlineChatOverlayWidget, this._editor));
-
-		const affordance = observableConfigValue<'off' | 'gutter' | 'editor'>(InlineChatConfigKeys.Affordance, 'off', configurationService);
-
 		const editorObs = observableCodeEditor(this._editor);
-
-		const suppressGutter = observableValue<boolean>(this, false);
-
+		const affordance = observableConfigValue<'off' | 'gutter' | 'editor'>(InlineChatConfigKeys.Affordance, 'off', configurationService);
+		const suppressAffordance = observableValue<boolean>(this, false);
 		const debouncedSelection = debouncedObservable(editorObs.cursorSelection, 500);
 
-		const selection = observableValue<Selection | undefined>(this, undefined);
+		const selectionData = observableValue<Selection | undefined>(this, undefined);
 
+		let explicitSelection = false;
 
-		this._store.add(autorun(r => {
-			const value = editorObs.cursorSelection.read(r);
-			if (!value || value.isEmpty()) {
-				selection.set(undefined, undefined);
+		this._store.add(runOnChange(editorObs.selections, (value, _prev, events) => {
+			explicitSelection = events.every(e => e.reason === CursorChangeReason.Explicit);
+			if (!value || value.length !== 1 || value[0].isEmpty() || !explicitSelection) {
+				selectionData.set(undefined, undefined);
 			}
 		}));
 
+		this._store.add(autorun(r => {
+			const value = debouncedSelection.read(r);
+			if (!value || value.isEmpty() || !explicitSelection) {
+				selectionData.set(undefined, undefined);
+				return;
+			}
+			selectionData.set(value, undefined);
+		}));
 
 		this._store.add(autorun(r => {
 			if (chatEntiteldService.sentimentObs.read(r).hidden) {
-				selection.set(undefined, undefined);
-				return;
+				selectionData.set(undefined, undefined);
 			}
-			if (suppressGutter.read(r)) {
-				selection.set(undefined, undefined);
-				return;
+			if (suppressAffordance.read(r)) {
+				selectionData.set(undefined, undefined);
 			}
-			const value = debouncedSelection.read(r);
-			if (!value || value.isEmpty()) {
-				selection.set(undefined, undefined);
-				return;
-			}
-			selection.set(value, undefined);
 		}));
 
-
-
-		// Instantiate the gutter indicator
 		this._store.add(this._instantiationService.createInstance(
 			InlineChatGutterAffordance,
 			editorObs,
-			derived(r => affordance.read(r) === 'gutter' ? selection.read(r) : undefined),
-			suppressGutter,
+			derived(r => affordance.read(r) === 'gutter' ? selectionData.read(r) : undefined),
+			suppressAffordance,
 			this._menuData
 		));
 
-		// Create content widget (alternative to gutter indicator)
 		this._store.add(this._instantiationService.createInstance(
 			InlineChatEditorAffordance,
 			this._editor,
-			derived(r => affordance.read(r) === 'editor' ? selection.read(r) : undefined),
-			suppressGutter,
+			derived(r => affordance.read(r) === 'editor' ? selectionData.read(r) : undefined),
+			suppressAffordance,
 			this._menuData
 		));
 
-		// Reset suppressGutter when the selection changes
 		this._store.add(autorun(reader => {
 			editorObs.cursorSelection.read(reader);
-			suppressGutter.set(false, undefined);
+			suppressAffordance.set(false, undefined);
 		}));
 
 		this._store.add(autorun(r => {
@@ -107,26 +95,22 @@ export class InlineChatAffordance extends Disposable {
 
 			const editorDomNode = this._editor.getDomNode()!;
 			const editorRect = editorDomNode.getBoundingClientRect();
-			const padding = 1;
-
-			let top: number;
-			if (data.above) {
-				// Pass the top of the gutter indicator minus padding
-				top = data.rect.top - editorRect.top - padding;
-			} else {
-				// Menu appears below - position at bottom of gutter indicator
-				top = data.rect.bottom - editorRect.top + padding;
-			}
 			const left = data.rect.left - editorRect.left;
 
 			// Show the overlay widget
-			this._overlayWidget.show(top, left, data.above);
+			this._inputWidget.show(data.lineNumber, left, data.above);
 		}));
 
-		this._store.add(this._overlayWidget.onDidHide(() => {
-			suppressGutter.set(true, undefined);
-			this._menuData.set(undefined, undefined);
-			this._editor.focus();
+		this._store.add(autorun(r => {
+			const pos = this._inputWidget.position.read(r);
+			if (pos === null) {
+				suppressAffordance.set(true, undefined);
+				this._menuData.set(undefined, undefined);
+				this._editor.focus();
+
+			} else if (isIOverlayWidgetPositionCoordinates(pos.preference) && pos.preference.left >= _editor.getLayoutInfo().contentLeft) {
+				suppressAffordance.set(true, undefined);
+			}
 		}));
 	}
 
@@ -143,9 +127,10 @@ export class InlineChatAffordance extends Disposable {
 
 		this._menuData.set({
 			rect: new DOMRect(x, y, 0, scrolledPosition.height),
-			above: direction === SelectionDirection.RTL
+			above: direction === SelectionDirection.RTL,
+			lineNumber: position.lineNumber
 		}, undefined);
 
-		await Event.toPromise(this._overlayWidget.onDidHide);
+		await waitForState(this._inputWidget.position, pos => pos === null);
 	}
 }
