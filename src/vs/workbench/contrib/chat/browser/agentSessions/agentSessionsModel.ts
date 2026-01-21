@@ -332,7 +332,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 					}
 					this.mapSessionToState.set(session.resource, {
 						status,
-						inProgressTime: isSessionInProgressStatus(status) ? Date.now() : undefined, // this is not accurate but best effort
+						inProgressTime,
 					});
 				}
 
