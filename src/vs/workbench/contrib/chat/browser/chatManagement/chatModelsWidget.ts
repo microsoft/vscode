@@ -64,9 +64,9 @@ export function getModelHoverContent(model: ILanguageModel): MarkdownString {
 		markdown.appendText(`\n`);
 	}
 
-	if (model.metadata.detail) {
+	if (model.metadata.multiplier) {
 		markdown.appendMarkdown(`${localize('models.cost', 'Multiplier')}: `);
-		markdown.appendMarkdown(model.metadata.detail);
+		markdown.appendMarkdown(model.metadata.multiplier);
 		markdown.appendText(`\n`);
 	}
 
@@ -538,7 +538,7 @@ class MultiplierColumnRenderer extends ModelsTableColumnRenderer<IMultiplierColu
 	}
 
 	override renderModelElement(entry: ILanguageModelEntry, index: number, templateData: IMultiplierColumnTemplateData): void {
-		const multiplierText = (entry.model.metadata.detail && entry.model.metadata.detail.trim().toLowerCase() !== entry.model.provider.group.name.trim().toLowerCase()) ? entry.model.metadata.detail : '-';
+		const multiplierText = entry.model.metadata.multiplier ?? '-';
 		templateData.multiplierElement.textContent = multiplierText;
 
 		if (multiplierText !== '-') {
@@ -1059,15 +1059,15 @@ export class ChatModelsWidget extends Disposable {
 			{
 				label: localize('capabilities', 'Capabilities'),
 				tooltip: '',
-				weight: 0.25,
+				weight: 0.2,
 				minimumWidth: 180,
 				templateId: CapabilitiesColumnRenderer.TEMPLATE_ID,
 				project(row: IViewModelEntry): IViewModelEntry { return row; }
 			},
 			{
-				label: localize('cost', 'Multiplier'),
+				label: localize('cost', 'Request Multiplier'),
 				tooltip: '',
-				weight: 0.05,
+				weight: 0.1,
 				minimumWidth: 60,
 				templateId: MultiplierColumnRenderer.TEMPLATE_ID,
 				project(row: IViewModelEntry): IViewModelEntry { return row; }
@@ -1118,7 +1118,7 @@ export class ChatModelsWidget extends Disposable {
 						if (e.model.metadata.capabilities) {
 							ariaLabels.push(localize('model.capabilities', 'Capabilities: {0}', Object.keys(e.model.metadata.capabilities).join(', ')));
 						}
-						const multiplierText = (e.model.metadata.detail && e.model.metadata.detail.trim().toLowerCase() !== e.model.provider.vendor.vendor.trim().toLowerCase()) ? e.model.metadata.detail : '-';
+						const multiplierText = e.model.metadata.multiplier ?? '-';
 						if (multiplierText !== '-') {
 							ariaLabels.push(localize('multiplier.tooltip', "Every chat message counts {0} towards your premium model request quota", multiplierText));
 						}
