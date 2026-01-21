@@ -17,9 +17,6 @@ export abstract class BaseChatToolInvocationSubPart extends Disposable {
 	protected _onNeedsRerender = this._register(new Emitter<void>());
 	public readonly onNeedsRerender = this._onNeedsRerender.event;
 
-	protected _onDidChangeHeight = this._register(new Emitter<void>());
-	public readonly onDidChangeHeight = this._onDidChangeHeight.event;
-
 	public abstract codeblocks: IChatCodeBlockInfo[];
 
 	private readonly _codeBlocksPartId = 'tool-' + (BaseChatToolInvocationSubPart.idPool++);

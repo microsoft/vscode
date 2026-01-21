@@ -30,7 +30,7 @@
 		overflow: hidden;
 
 		.chat-tool-invocation-part {
-			padding: 3px 12px 4px 18px;
+			padding: 4px 12px 4px 18px;
 			position: relative;
 
 			.chat-used-context {
@@ -79,7 +79,7 @@
 		}
 
 		.chat-thinking-item.markdown-content {
-			padding: 5px 12px 6px 24px;
+			padding: 6px 12px 6px 24px;
 			position: relative;
 			font-size: var(--vscode-chat-font-size-body-s);
 
@@ -191,6 +191,10 @@
 .interactive-session .interactive-response .value .chat-thinking-fixed-mode {
 	outline: none;
 
+	&.chat-used-context-collapsed > .monaco-scrollable-element:has(.chat-used-context-list.chat-thinking-collapsible:not(.chat-thinking-streaming)) {
+		display: none;
+	}
+
 	&.chat-used-context-collapsed .chat-used-context-list.chat-thinking-collapsible.chat-thinking-streaming {
 		max-height: 200px;
 		overflow: hidden;
@@ -206,6 +210,10 @@
 	.chat-used-context-list.chat-thinking-collapsible:not(.chat-thinking-streaming) {
 		max-height: none;
 		overflow: visible;
+	}
+
+	.chat-thinking-tool-wrapper .chat-used-context:not(.chat-used-context-collapsed) .chat-used-context-list {
+		display: block;
 	}
 }
 

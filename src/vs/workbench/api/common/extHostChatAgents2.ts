@@ -280,6 +280,15 @@ export class ChatAgentResponseStream {
 					_report(dto);
 					return this;
 				},
+				workspaceEdit(edits) {
+					throwIfDone(this.workspaceEdit);
+					checkProposedApiEnabled(that._extension, 'chatParticipantAdditions');
+
+					const part = new extHostTypes.ChatResponseWorkspaceEditPart(edits);
+					const dto = typeConvert.ChatResponseWorkspaceEditPart.from(part);
+					_report(dto);
+					return this;
+				},
 				async externalEdit(target, callback) {
 					throwIfDone(this.externalEdit);
 					const resources = Array.isArray(target) ? target : [target];
@@ -313,7 +322,7 @@ export class ChatAgentResponseStream {
 						streamData: streamData ? {
 							partialInput: streamData.partialInput
 						} : undefined,
-						subagentInvocationId: streamData?.subagentInvocationId
+						subagentInvocationId: streamData?.subagentInvocationId,
 					};
 					_report(dto);
 					return this;
@@ -417,7 +426,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 	private readonly _relatedFilesProviders = new Map<number, ExtHostRelatedFilesProvider>();
 
 	private static _contributionsProviderIdPool = 0;
-	private readonly _promptFileProviders = new Map<number, { extension: IExtensionDescription; provider: vscode.CustomAgentProvider | vscode.InstructionsProvider | vscode.PromptFileProvider }>();
+	private readonly _promptFileProviders = new Map<number, { extension: IExtensionDescription; provider: vscode.CustomAgentProvider | vscode.InstructionsProvider | vscode.PromptFileProvider | vscode.SkillProvider }>();
 
 	private readonly _sessionDisposables: DisposableResourceMap<DisposableStore> = this._register(new DisposableResourceMap());
 	private readonly _completionDisposables: DisposableMap<number, DisposableStore> = this._register(new DisposableMap());
@@ -499,9 +508,9 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 
 	/**
 	 * Internal method that handles all prompt file provider types.
-	 * Routes custom agents, instructions, and prompt files to the unified internal implementation.
+	 * Routes custom agents, instructions, prompt files, and skills to the unified internal implementation.
 	 */
-	registerPromptFileProvider(extension: IExtensionDescription, type: PromptsType, provider: vscode.CustomAgentProvider | vscode.InstructionsProvider | vscode.PromptFileProvider): vscode.Disposable {
+	registerPromptFileProvider(extension: IExtensionDescription, type: PromptsType, provider: vscode.CustomAgentProvider | vscode.InstructionsProvider | vscode.PromptFileProvider | vscode.SkillProvider): vscode.Disposable {
 		const handle = ExtHostChatAgents2._contributionsProviderIdPool++;
 		this._promptFileProviders.set(handle, { extension, provider });
 		this._proxy.$registerPromptFileProvider(handle, type, extension.identifier);
@@ -520,6 +529,9 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 				break;
 			case PromptsType.prompt:
 				changeEvent = (provider as vscode.PromptFileProvider).onDidChangePromptFiles;
+				break;
+			case PromptsType.skill:
+				changeEvent = (provider as vscode.SkillProvider).onDidChangeSkills;
 				break;
 		}
 
@@ -554,7 +566,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		}
 
 		const provider = providerData.provider;
-		let resources: vscode.CustomAgentChatResource[] | vscode.InstructionsChatResource[] | vscode.PromptFileChatResource[] | undefined;
+		let resources: vscode.CustomAgentChatResource[] | vscode.InstructionsChatResource[] | vscode.PromptFileChatResource[] | vscode.SkillChatResource[] | undefined;
 		switch (type) {
 			case PromptsType.agent:
 				resources = await (provider as vscode.CustomAgentProvider).provideCustomAgents(context, token) ?? undefined;
@@ -566,24 +578,47 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 				resources = await (provider as vscode.PromptFileProvider).providePromptFiles(context, token) ?? undefined;
 				break;
 			case PromptsType.skill:
-				throw new Error('Skills prompt file provider not implemented yet');
+				resources = await (provider as vscode.SkillProvider).provideSkills(context, token) ?? undefined;
+				break;
 		}
 
 		// Convert ChatResourceDescriptor to IPromptFileResource format
-		return resources?.map(r => this.convertChatResourceDescriptorToPromptFileResource(r.resource, providerData.extension.identifier.value));
+		return resources?.map(r => this.convertChatResourceDescriptorToPromptFileResource(r.resource, providerData.extension.identifier.value, type));
 	}
 
 	/**
 	 * Creates a virtual URI for a prompt file.
+	 * Format varies by type:
+	 * - Skills: /${extensionId}/skills/${id}/SKILL.md
+	 * - Agents: /${extensionId}/agents/${id}.agent.md
+	 * - Instructions: /${extensionId}/instructions/${id}.instructions.md
+	 * - Prompts: /${extensionId}/prompts/${id}.prompt.md
 	 */
-	createVirtualPromptUri(id: string, extensionId: string): URI {
+	createVirtualPromptUri(id: string, extensionId: string, type: PromptsType): URI {
+		let path: string;
+		switch (type) {
+			case PromptsType.skill:
+				path = `/${extensionId}/skills/${id}/SKILL.md`;
+				break;
+			case PromptsType.agent:
+				path = `/${extensionId}/agents/${id}.agent.md`;
+				break;
+			case PromptsType.instructions:
+				path = `/${extensionId}/instructions/${id}.instructions.md`;
+				break;
+			case PromptsType.prompt:
+				path = `/${extensionId}/prompts/${id}.prompt.md`;
+				break;
+			default:
+				throw new Error(`Unsupported PromptsType: ${type}`);
+		}
 		return URI.from({
 			scheme: Schemas.vscodeChatPrompt,
-			path: `/${extensionId}/${id}`
+			path
 		});
 	}
 
-	convertChatResourceDescriptorToPromptFileResource(resource: vscode.ChatResourceDescriptor, extensionId: string): IPromptFileResource {
+	convertChatResourceDescriptorToPromptFileResource(resource: vscode.ChatResourceDescriptor, extensionId: string, type: PromptsType): IPromptFileResource {
 		if (URI.isUri(resource)) {
 			// Plain URI
 			return { uri: resource };
@@ -591,7 +626,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 			// { id, content }
 			return {
 				content: resource.content,
-				uri: this.createVirtualPromptUri(resource.id, extensionId),
+				uri: this.createVirtualPromptUri(resource.id, extensionId, type),
 				isEditable: undefined
 			};
 		} else if ('uri' in resource && URI.isUri(resource.uri)) {

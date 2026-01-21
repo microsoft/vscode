@@ -78,6 +78,7 @@ const responsePartSchema = Adapt.v<IChatProgressResponseContent, SerializedChatR
 				case 'undoStop':
 				case 'warning':
 				case 'treeData':
+				case 'workspaceEdit':
 					return a.kind === b.kind;
 
 				default: {

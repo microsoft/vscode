@@ -3,28 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import './media/agentSessionProjection.css';
-
-import { Emitter, Event } from '../../../../../base/common/event.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { localize } from '../../../../../nls.js';
-import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
-import { ILogService } from '../../../../../platform/log/common/log.js';
-import { IEditorGroupsService, IEditorWorkingSet } from '../../../../services/editor/common/editorGroupsService.js';
-import { IEditorService } from '../../../../services/editor/common/editorService.js';
-import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { IAgentSession } from './agentSessionsModel.js';
-import { ChatViewPaneTarget, IChatWidgetService } from '../chat.js';
-import { AgentSessionProviders } from './agentSessions.js';
-import { IChatSessionsService } from '../../common/chatSessionsService.js';
-import { ChatConfiguration } from '../../common/constants.js';
-import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
-import { ACTION_ID_NEW_CHAT } from '../actions/chatActions.js';
-import { IChatEditingService, ModifiedFileEntryState } from '../../common/editing/chatEditingService.js';
-import { IAgentStatusService } from './agentStatusService.js';
+import './media/agentsessionprojection.css';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { localize } from '../../../../../../nls.js';
+import { IContextKey, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../../../../../platform/log/common/log.js';
+import { IEditorGroupsService, IEditorWorkingSet } from '../../../../../services/editor/common/editorGroupsService.js';
+import { IEditorService } from '../../../../../services/editor/common/editorService.js';
+import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { IAgentSession } from '../agentSessionsModel.js';
+import { ChatViewPaneTarget, IChatWidgetService } from '../../chat.js';
+import { AgentSessionProviders } from '../agentSessions.js';
+import { IChatSessionsService } from '../../../common/chatSessionsService.js';
+import { IWorkbenchLayoutService } from '../../../../../services/layout/browser/layoutService.js';
+import { ACTION_ID_NEW_CHAT } from '../../actions/chatActions.js';
+import { IChatEditingService, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
+import { IAgentTitleBarStatusService } from './agentTitleBarStatusService.js';
+import { IWorkbenchContribution } from '../../../../../common/contributions.js';
+import { inAgentSessionProjection } from './agentSessionProjection.js';
+import { ChatConfiguration } from '../../../common/constants.js';
+import { ISessionOpenOptions, sessionOpenerRegistry } from '../agentSessionsOpener.js';
+import { ServicesAccessor } from '../../../../../../editor/browser/editorExtensions.js';
 
 //#region Configuration
 
@@ -113,11 +115,11 @@ export class AgentSessionProjectionService extends Disposable implements IAgentS
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IChatEditingService private readonly chatEditingService: IChatEditingService,
-		@IAgentStatusService private readonly agentStatusService: IAgentStatusService,
+		@IAgentTitleBarStatusService private readonly agentTitleBarStatusService: IAgentTitleBarStatusService,
 	) {
 		super();
 
-		this._inProjectionModeContextKey = ChatContextKeys.inAgentSessionProjection.bindTo(contextKeyService);
+		this._inProjectionModeContextKey = inAgentSessionProjection.bindTo(contextKeyService);
 
 		// Listen for editor close events to exit projection mode when all editors are closed
 		this._register(this.editorService.onDidCloseEditor(() => this._checkForEmptyEditors()));
@@ -142,7 +144,11 @@ export class AgentSessionProjectionService extends Disposable implements IAgentS
 		}
 	}
 
-	private async _openSessionFiles(session: IAgentSession): Promise<void> {
+	/**
+	 * Open the session's files in a multi-diff editor.
+	 * @returns true if any files were opened, false if nothing to display
+	 */
+	private async _openSessionFiles(session: IAgentSession): Promise<boolean> {
 		// Clear editors first
 		await this.editorGroupsService.applyWorkingSet('empty', { preserveFocus: true });
 
@@ -178,11 +184,14 @@ export class AgentSessionProjectionService extends Disposable implements IAgentS
 				const sessionKey = session.resource.toString();
 				const newWorkingSet = this.editorGroupsService.saveWorkingSet(`agent-session-projection-${sessionKey}`);
 				this._sessionWorkingSets.set(sessionKey, newWorkingSet);
+				return true;
 			} else {
 				this.logService.trace(`[AgentSessionProjection] No files with diffs to display (all changes missing originalUri)`);
+				return false;
 			}
 		} else {
 			this.logService.trace(`[AgentSessionProjection] Session has no changes to display`);
+			return false;
 		}
 	}
 
@@ -222,24 +231,45 @@ export class AgentSessionProjectionService extends Disposable implements IAgentS
 				this._sessionWorkingSets.set(previousSessionKey, previousWorkingSet);
 			}
 
-			// Always open session files to ensure they're displayed
-			await this._openSessionFiles(session);
-
-			// Set active state
-			const wasActive = this._isActive;
-			this._isActive = true;
-			this._activeSession = session;
-			this._inProjectionModeContextKey.set(true);
-			this.layoutService.mainContainer.classList.add('agent-session-projection-active');
-
-			// Update the agent status to show session mode
-			this.agentStatusService.enterSessionMode(session.resource.toString(), session.label);
-
-			if (!wasActive) {
-				this._onDidChangeProjectionMode.fire(true);
+			// For local sessions, changes are shown via chatEditing.viewChanges, not _openSessionFiles
+			// For other providers, try to open session files from session.changes
+			let filesOpened = false;
+			if (session.providerType === AgentSessionProviders.Local) {
+				// Local sessions use editing session for changes - we already verified hasUndecidedChanges above
+				// Clear editors to prepare for the changes view
+				await this.editorGroupsService.applyWorkingSet('empty', { preserveFocus: true });
+				filesOpened = true;
+			} else {
+				// Try to open session files - only continue with projection if files were displayed
+				filesOpened = await this._openSessionFiles(session);
 			}
-			// Always fire session change event (for title updates when switching sessions)
-			this._onDidChangeActiveSession.fire(session);
+
+			if (!filesOpened) {
+				this.logService.trace('[AgentSessionProjection] No files to display, opening chat without projection mode');
+				// Restore the working set we just saved if this was our first attempt
+				if (!this._isActive && this._preProjectionWorkingSet) {
+					await this.editorGroupsService.applyWorkingSet(this._preProjectionWorkingSet);
+					this.editorGroupsService.deleteWorkingSet(this._preProjectionWorkingSet);
+					this._preProjectionWorkingSet = undefined;
+				}
+				// Fall through to just open the chat panel
+			} else {
+				// Set active state
+				const wasActive = this._isActive;
+				this._isActive = true;
+				this._activeSession = session;
+				this._inProjectionModeContextKey.set(true);
+				this.layoutService.mainContainer.classList.add('agent-session-projection-active');
+
+				// Update the agent status to show session mode
+				this.agentTitleBarStatusService.enterSessionMode(session.resource, session.label);
+
+				if (!wasActive) {
+					this._onDidChangeProjectionMode.fire(true);
+				}
+				// Always fire session change event (for title updates when switching sessions)
+				this._onDidChangeActiveSession.fire(session);
+			}
 		}
 
 		// Open the session in the chat panel (always, even without changes)
@@ -288,13 +318,44 @@ export class AgentSessionProjectionService extends Disposable implements IAgentS
 		this.layoutService.mainContainer.classList.remove('agent-session-projection-active');
 
 		// Update the agent status to exit session mode
-		this.agentStatusService.exitSessionMode();
+		this.agentTitleBarStatusService.exitSessionMode();
 
 		this._onDidChangeProjectionMode.fire(false);
 		this._onDidChangeActiveSession.fire(undefined);
 
 		// Start a new chat to clear the sidebar
 		await this.commandService.executeCommand(ACTION_ID_NEW_CHAT);
+	}
+}
+
+//#endregion
+
+//#region Agent Session Projection Opener Contribution
+
+export class AgentSessionProjectionOpenerContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.agentSessionProjectionOpener';
+
+	constructor(
+		@IAgentSessionProjectionService private readonly agentSessionProjectionService: IAgentSessionProjectionService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+	) {
+		super();
+
+		this._register(sessionOpenerRegistry.registerParticipant({
+			handleOpenSession: async (_accessor: ServicesAccessor, session: IAgentSession, _openOptions?: ISessionOpenOptions): Promise<boolean> => {
+				// Only handle if projection mode is enabled
+				if (this.configurationService.getValue<boolean>(ChatConfiguration.AgentSessionProjectionEnabled) !== true) {
+					return false;
+				}
+
+				// Enter projection mode for the session
+				await this.agentSessionProjectionService.enterProjection(session);
+
+				// Return true to indicate we handled the session (projection mode opens the chat itself)
+				return true;
+			}
+		}));
 	}
 }
 
