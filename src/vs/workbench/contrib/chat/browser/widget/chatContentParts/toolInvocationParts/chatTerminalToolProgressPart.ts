@@ -494,7 +494,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 						this._removeContinueInBackgroundAction();
 					});
 					this._continueInBackgroundAction.value = continueAction;
-					actionBar.push(continueAction, { icon: true, label: false, index: 1 });
+					actionBar.push(continueAction, { icon: true, label: false, index: 0 });
 				}
 			}
 		}
