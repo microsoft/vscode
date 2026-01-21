@@ -3166,6 +3166,15 @@ export class ChatResponseMultiDiffPart {
 	}
 }
 
+export class McpToolInvocationContentData {
+	mimeType: string;
+	data: Uint8Array;
+	constructor(data: Uint8Array, mimeType: string) {
+		this.data = data;
+		this.mimeType = mimeType;
+	}
+}
+
 export class ChatResponseExternalEditPart {
 	applied: Thenable<string>;
 	didGetApplied!: (value: string) => void;
