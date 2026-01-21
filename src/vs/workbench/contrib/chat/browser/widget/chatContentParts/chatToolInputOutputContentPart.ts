@@ -12,7 +12,6 @@ import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { ITextModel } from '../../../../../../editor/common/model.js';
 import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { localize } from '../../../../../../nls.js';
@@ -59,7 +58,6 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 	private readonly _titlePart: ChatQueryTitlePart;
 	private _outputSubPart: ChatToolOutputContentSubPart | undefined;
 	public readonly domNode: HTMLElement;
-	private _messageContainer?: HTMLElement;
 	private _contentInitialized = false;
 
 	get codeblocks(): IChatCodeBlockInfo[] {
@@ -146,9 +144,9 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 			// Lazy initialization: render content only when expanded for the first time
 			if (value && !this._contentInitialized) {
 				this._contentInitialized = true;
-				this._messageContainer = dom.h('.chat-confirmation-widget-message');
-				this._messageContainer.root.appendChild(this.createMessageContents());
-				elements.root.appendChild(this._messageContainer.root);
+				const messageContainer = dom.h('.chat-confirmation-widget-message');
+				messageContainer.root.appendChild(this.createMessageContents());
+				elements.root.appendChild(messageContainer.root);
 			}
 
 		}));
