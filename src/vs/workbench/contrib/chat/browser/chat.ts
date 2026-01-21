@@ -57,6 +57,11 @@ export interface ISessionTypePickerDelegate {
 	 * and update pickers accordingly.
 	 */
 	onDidChangeActiveSessionProvider?: Event<AgentSessionProviders>;
+	/**
+	 * Optional getter for the current session resource URI.
+	 * Used to pass proper context when executing commands like new chat.
+	 */
+	getSessionResource?(): URI | undefined;
 }
 
 export const IChatWidgetService = createDecorator<IChatWidgetService>('chatWidgetService');
