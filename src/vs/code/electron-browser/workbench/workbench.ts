@@ -5,6 +5,9 @@
 
 /* eslint-disable no-restricted-globals */
 
+// Increase the number of stack frames (from the default 10, https://github.com/v8/v8/wiki/Stack-Trace-API)
+Error.stackTraceLimit = 100;
+
 (async function () {
 
 	// Add a perf entry right from the top
