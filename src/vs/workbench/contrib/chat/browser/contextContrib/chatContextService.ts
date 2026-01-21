@@ -133,6 +133,7 @@ export class ChatContextService extends Disposable {
 			icon: context.icon,
 			uri: uri,
 			modelDescription: context.modelDescription,
+			tooltip: context.tooltip,
 			commandId: context.command?.id,
 			handle: context.handle
 		};
@@ -151,12 +152,14 @@ export class ChatContextService extends Disposable {
 			const resolved = await this._contextForResource(context.uri, true);
 			context.value = resolved?.value;
 			context.modelDescription = resolved?.modelDescription;
+			context.tooltip = resolved?.tooltip;
 			return context;
 		} else if (item.provider.resolveChatContext) {
 			const resolved = await item.provider.resolveChatContext(item.originalItem, CancellationToken.None);
 			if (resolved) {
 				context.value = resolved.value;
 				context.modelDescription = resolved.modelDescription;
+				context.tooltip = resolved.tooltip;
 				return context;
 			}
 		}

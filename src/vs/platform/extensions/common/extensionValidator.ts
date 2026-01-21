@@ -35,7 +35,7 @@ export interface INormalizedVersion {
 }
 
 const VERSION_REGEXP = /^(\^|>=)?((\d+)|x)\.((\d+)|x)\.((\d+)|x)(\-.*)?$/;
-const NOT_BEFORE_REGEXP = /^-(\d{4})(\d{2})(\d{2})$/;
+const NOT_BEFORE_REGEXP = /^-(\d{4})(\d{2})(\d{2})(\d{2})?(\d{2})?$/;
 
 export function isValidVersionStr(version: string): boolean {
 	version = version.trim();
@@ -105,8 +105,8 @@ export function normalizeVersion(version: IParsedVersion | null): INormalizedVer
 	if (version.preRelease) {
 		const match = NOT_BEFORE_REGEXP.exec(version.preRelease);
 		if (match) {
-			const [, year, month, day] = match;
-			notBefore = Date.UTC(Number(year), Number(month) - 1, Number(day));
+			const [, year, month, day, hours, minutes] = match;
+			notBefore = Date.UTC(Number(year), Number(month) - 1, Number(day), Number(hours) || 0, Number(minutes) || 0);
 		}
 	}
 

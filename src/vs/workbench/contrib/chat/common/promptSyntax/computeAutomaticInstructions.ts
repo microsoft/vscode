@@ -17,14 +17,15 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { ChatRequestVariableSet, IChatRequestVariableEntry, isPromptFileVariableEntry, toPromptFileVariableEntry, toPromptTextVariableEntry, PromptFileVariableKind, IPromptTextVariableEntry, ChatRequestToolReferenceEntry, toToolVariableEntry } from '../attachments/chatVariableEntries.js';
-import { ILanguageModelToolsService, IToolAndToolSetEnablementMap, IToolData, VSCodeToolReference } from '../tools/languageModelToolsService.js';
+import { ILanguageModelToolsService, IToolData, VSCodeToolReference } from '../tools/languageModelToolsService.js';
 import { PromptsConfig } from './config/config.js';
 import { isPromptOrInstructionsFile } from './config/promptFileLocations.js';
 import { PromptsType } from './promptTypes.js';
 import { ParsedPromptFile } from './promptFileParser.js';
-import { IPromptPath, IPromptsService } from './service/promptsService.js';
+import { ICustomAgent, IPromptPath, IPromptsService } from './service/promptsService.js';
 import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
 import { ChatConfiguration } from '../constants.js';
+import { UserSelectedTools } from '../participants/chatAgents.js';
 
 export type InstructionsCollectionEvent = {
 	applyingInstructionsCount: number;
@@ -52,7 +53,8 @@ export class ComputeAutomaticInstructions {
 	private _parseResults: ResourceMap<ParsedPromptFile> = new ResourceMap();
 
 	constructor(
-		private readonly _enabledTools: IToolAndToolSetEnablementMap | undefined,
+		private readonly _enabledTools: UserSelectedTools | undefined,
+		private readonly _enabledSubagents: (readonly string[]) | undefined,
 		@IPromptsService private readonly _promptsService: IPromptsService,
 		@ILogService public readonly _logService: ILogService,
 		@ILabelService private readonly _labelService: ILabelService,
@@ -241,7 +243,7 @@ export class ComputeAutomaticInstructions {
 			return undefined;
 		}
 		const tool = this._languageModelToolsService.getToolByName(referenceName);
-		if (tool && this._enabledTools.get(tool)) {
+		if (tool && this._enabledTools[tool.id]) {
 			return { tool, variable: `#tool:${this._languageModelToolsService.getFullReferenceName(tool)}` };
 		}
 		return undefined;
@@ -322,20 +324,23 @@ export class ComputeAutomaticInstructions {
 				entries.push('</skills>', '', ''); // add trailing newline
 			}
 		}
-		if (runSubagentTool) {
-			const subagentToolCustomAgents = this._configurationService.getValue(ChatConfiguration.SubagentToolCustomAgents);
-			if (subagentToolCustomAgents) {
-				const agents = await this._promptsService.getCustomAgents(token);
-				if (agents.length > 0) {
-					entries.push('<agents>');
-					entries.push('Here is a list of agents that can be used when running a subagent.');
-					entries.push('Each agent has optionally a description with the agent\'s purpose and expertise. When asked to run a subagent, choose the most appropriate agent from this list.');
-					entries.push(`Use the ${runSubagentTool.variable} tool with the agent name to run the subagent.`);
-					for (const agent of agents) {
-						if (agent.infer === false) {
-							// skip agents that are not meant for subagent use
-							continue;
-						}
+		if (runSubagentTool && this._configurationService.getValue(ChatConfiguration.SubagentToolCustomAgents)) {
+			const canUseAgent = (() => {
+				if (!this._enabledSubagents || this._enabledSubagents.includes('*')) {
+					return (agent: ICustomAgent) => (agent.infer !== false);
+				} else {
+					const subagents = this._enabledSubagents;
+					return (agent: ICustomAgent) => subagents.includes(agent.name);
+				}
+			})();
+			const agents = await this._promptsService.getCustomAgents(token);
+			if (agents.length > 0) {
+				entries.push('<agents>');
+				entries.push('Here is a list of agents that can be used when running a subagent.');
+				entries.push('Each agent has optionally a description with the agent\'s purpose and expertise. When asked to run a subagent, choose the most appropriate agent from this list.');
+				entries.push(`Use the ${runSubagentTool.variable} tool with the agent name to run the subagent.`);
+				for (const agent of agents) {
+					if (canUseAgent(agent)) {
 						entries.push('<agent>');
 						entries.push(`<name>${agent.name}</name>`);
 						if (agent.description) {
@@ -346,8 +351,8 @@ export class ComputeAutomaticInstructions {
 						}
 						entries.push('</agent>');
 					}
-					entries.push('</agents>', '', ''); // add trailing newline
 				}
+				entries.push('</agents>', '', ''); // add trailing newline
 			}
 		}
 		if (entries.length === 0) {

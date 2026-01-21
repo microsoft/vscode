@@ -4,22 +4,37 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { Emitter, Event } from '../../../../base/common/event.js';
+import { Event, MicrotaskEmitter } from '../../../../base/common/event.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { getDomNodePagePosition, IDomNodePagePosition } from '../../../../base/browser/dom.js';
 import { CodeWindow } from '../../../../base/browser/window.js';
 
-const OVERLAY_CLASSES: string[] = [
-	'monaco-menu-container',
-	'quick-input-widget',
-	'monaco-hover',
-	'monaco-dialog-modal-block',
-	'notifications-center',
-	'notification-toast-container',
-	'context-view'
+export enum BrowserOverlayType {
+	Menu = 'menu',
+	QuickInput = 'quickInput',
+	Hover = 'hover',
+	Dialog = 'dialog',
+	Notification = 'notification',
+	Unknown = 'unknown'
+}
+
+const OVERLAY_DEFINITIONS: ReadonlyArray<{ className: string; type: BrowserOverlayType }> = [
+	{ className: 'monaco-menu-container', type: BrowserOverlayType.Menu },
+	{ className: 'quick-input-widget', type: BrowserOverlayType.QuickInput },
+	{ className: 'monaco-hover', type: BrowserOverlayType.Hover },
+	{ className: 'monaco-dialog-modal-block', type: BrowserOverlayType.Dialog },
+	{ className: 'notifications-center', type: BrowserOverlayType.Notification },
+	{ className: 'notification-toast-container', type: BrowserOverlayType.Notification },
+	// Context view is very generic, so treat the content as unknown
+	{ className: 'context-view', type: BrowserOverlayType.Unknown }
 ];
 
 export const IBrowserOverlayManager = createDecorator<IBrowserOverlayManager>('browserOverlayManager');
+
+export interface IBrowserOverlayInfo {
+	type: BrowserOverlayType;
+	rect: IDomNodePagePosition;
+}
 
 export interface IBrowserOverlayManager {
 	readonly _serviceBrand: undefined;
@@ -30,15 +45,15 @@ export interface IBrowserOverlayManager {
 	readonly onDidChangeOverlayState: Event<void>;
 
 	/**
-	 * Check if the given element overlaps with any overlay
+	 * Get overlays overlapping with the given element
 	 */
-	isOverlappingWithOverlays(element: HTMLElement): boolean;
+	getOverlappingOverlays(element: HTMLElement): IBrowserOverlayInfo[];
 }
 
 export class BrowserOverlayManager extends Disposable implements IBrowserOverlayManager {
 	declare readonly _serviceBrand: undefined;
 
-	private readonly _onDidChangeOverlayState = this._register(new Emitter<void>({
+	private readonly _onDidChangeOverlayState = this._register(new MicrotaskEmitter<void>({
 		onWillAddFirstListener: () => {
 			// Start observing the document for structural changes
 			this._observerIsConnected = true;
@@ -53,11 +68,14 @@ export class BrowserOverlayManager extends Disposable implements IBrowserOverlay
 			this._observerIsConnected = false;
 			this._structuralObserver.disconnect();
 			this.stopTrackingElements();
-		}
+		},
+
+		// Must be passed to prevent duplicate emits
+		merge: () => { }
 	}));
 	readonly onDidChangeOverlayState = this._onDidChangeOverlayState.event;
 
-	private readonly _overlayCollections = new Map<string, HTMLCollectionOf<Element>>();
+	private readonly _overlayCollections = new Map<string, { type: BrowserOverlayType; collection: HTMLCollectionOf<Element> }>();
 	private _overlayRectangles = new WeakMap<HTMLElement, IDomNodePagePosition>();
 	private _elementObservers = new WeakMap<HTMLElement, MutationObserver>();
 	private _structuralObserver: MutationObserver;
@@ -69,10 +87,13 @@ export class BrowserOverlayManager extends Disposable implements IBrowserOverlay
 		super();
 
 		// Initialize live collections for each overlay selector
-		for (const className of OVERLAY_CLASSES) {
-			// We need dynamic collections for overlay detection, using getElementsByClassName is intentional here
-			// eslint-disable-next-line no-restricted-syntax
-			this._overlayCollections.set(className, this.targetWindow.document.getElementsByClassName(className));
+		for (const overlayDefinition of OVERLAY_DEFINITIONS) {
+			this._overlayCollections.set(overlayDefinition.className, {
+				type: overlayDefinition.type,
+				// We need dynamic collections for overlay detection, using getElementsByClassName is intentional here
+				// eslint-disable-next-line no-restricted-syntax
+				collection: this.targetWindow.document.getElementsByClassName(overlayDefinition.className)
+			});
 		}
 
 		// Setup structural observer to watch for element additions/removals
@@ -96,10 +117,10 @@ export class BrowserOverlayManager extends Disposable implements IBrowserOverlay
 		});
 	}
 
-	private *overlays(): Iterable<HTMLElement> {
-		for (const collection of this._overlayCollections.values()) {
-			for (const element of collection) {
-				yield element as HTMLElement;
+	private *overlays(): Iterable<{ element: HTMLElement; type: BrowserOverlayType }> {
+		for (const entry of this._overlayCollections.values()) {
+			for (const element of entry.collection) {
+				yield { element: element as HTMLElement, type: entry.type };
 			}
 		}
 	}
@@ -108,17 +129,17 @@ export class BrowserOverlayManager extends Disposable implements IBrowserOverlay
 		// Scan all overlay collections for elements and ensure they have observers
 		for (const overlay of this.overlays()) {
 			// Create a new observer for this specific element if we don't already have one
-			if (!this._elementObservers.has(overlay)) {
+			if (!this._elementObservers.has(overlay.element)) {
 				const observer = new MutationObserver(() => {
-					this._overlayRectangles.delete(overlay);
+					this._overlayRectangles.delete(overlay.element);
 					this._onDidChangeOverlayState.fire();
 				});
 
 				// Store the observer in the WeakMap
-				this._elementObservers.set(overlay, observer);
+				this._elementObservers.set(overlay.element, observer);
 
 				// Start observing this element
-				observer.observe(overlay, {
+				observer.observe(overlay.element, {
 					attributes: true,
 					attributeFilter: ['style', 'class'],
 					childList: true,
@@ -146,18 +167,22 @@ export class BrowserOverlayManager extends Disposable implements IBrowserOverlay
 		return this._overlayRectangles.get(element)!;
 	}
 
-	isOverlappingWithOverlays(element: HTMLElement): boolean {
+	getOverlappingOverlays(element: HTMLElement): IBrowserOverlayInfo[] {
 		const elementRect = getDomNodePagePosition(element);
+		const overlappingOverlays: IBrowserOverlayInfo[] = [];
 
 		// Check against all precomputed overlay rectangles
 		for (const overlay of this.overlays()) {
-			const overlayRect = this.getRect(overlay);
+			const overlayRect = this.getRect(overlay.element);
 			if (overlayRect && this.isRectanglesOverlapping(elementRect, overlayRect)) {
-				return true;
+				overlappingOverlays.push({
+					type: overlay.type,
+					rect: overlayRect
+				});
 			}
 		}
 
-		return false;
+		return overlappingOverlays;
 	}
 
 	private isRectanglesOverlapping(rect1: IDomNodePagePosition, rect2: IDomNodePagePosition): boolean {
@@ -174,7 +199,7 @@ export class BrowserOverlayManager extends Disposable implements IBrowserOverlay
 
 	private stopTrackingElements(): void {
 		for (const overlay of this.overlays()) {
-			const observer = this._elementObservers.get(overlay);
+			const observer = this._elementObservers.get(overlay.element);
 			observer?.disconnect();
 		}
 		this._overlayRectangles = new WeakMap();

@@ -5,16 +5,24 @@
 
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { Event } from '../../../base/common/event.js';
-import { IDefaultAccount } from '../../../base/common/defaultAccount.js';
+import { IDefaultAccount, IDefaultAccountAuthenticationProvider } from '../../../base/common/defaultAccount.js';
+
+export interface IDefaultAccountProvider {
+	readonly defaultAccount: IDefaultAccount | null;
+	readonly onDidChangeDefaultAccount: Event<IDefaultAccount | null>;
+	getDefaultAccountAuthenticationProvider(): IDefaultAccountAuthenticationProvider;
+	refresh(): Promise<IDefaultAccount | null>;
+	signIn(options?: { additionalScopes?: readonly string[];[key: string]: unknown }): Promise<IDefaultAccount | null>;
+}
 
 export const IDefaultAccountService = createDecorator<IDefaultAccountService>('defaultAccountService');
 
 export interface IDefaultAccountService {
-
 	readonly _serviceBrand: undefined;
-
 	readonly onDidChangeDefaultAccount: Event<IDefaultAccount | null>;
-
 	getDefaultAccount(): Promise<IDefaultAccount | null>;
-	setDefaultAccount(account: IDefaultAccount | null): void;
+	getDefaultAccountAuthenticationProvider(): IDefaultAccountAuthenticationProvider;
+	setDefaultAccountProvider(provider: IDefaultAccountProvider): void;
+	refresh(): Promise<IDefaultAccount | null>;
+	signIn(options?: { additionalScopes?: readonly string[];[key: string]: unknown }): Promise<IDefaultAccount | null>;
 }

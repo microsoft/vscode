@@ -188,7 +188,7 @@ class ConfigureToolsAction extends Action2 {
 		});
 
 		try {
-			const result = await instaService.invokeFunction(showToolsPicker, placeholder, description, () => entriesMap.get(), cts.token);
+			const result = await instaService.invokeFunction(showToolsPicker, placeholder, 'chatInput', description, () => entriesMap.get(), cts.token);
 			if (result) {
 				widget.input.selectedToolsModel.set(result, false);
 			}

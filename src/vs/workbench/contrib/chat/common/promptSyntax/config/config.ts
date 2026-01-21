@@ -56,8 +56,14 @@ export namespace PromptsConfig {
 	export const INSTRUCTIONS_LOCATION_KEY = 'chat.instructionsFilesLocations';
 	/**
 	 * Configuration key for the locations of mode files.
+	 * @deprecated Use {@link AGENTS_LOCATION_KEY} instead
 	 */
 	export const MODE_LOCATION_KEY = 'chat.modeFilesLocations';
+
+	/**
+	 * Configuration key for the locations of agent files (with simplified path support).
+	 */
+	export const AGENTS_LOCATION_KEY = 'chat.agentFilesLocations';
 
 	/**
 	 * Configuration key for the locations of skill folders.
@@ -221,7 +227,7 @@ export function getPromptFileLocationsConfigKey(type: PromptsType): string {
 		case PromptsType.prompt:
 			return PromptsConfig.PROMPT_LOCATIONS_KEY;
 		case PromptsType.agent:
-			return PromptsConfig.MODE_LOCATION_KEY;
+			return PromptsConfig.AGENTS_LOCATION_KEY;
 		case PromptsType.skill:
 			return PromptsConfig.SKILLS_LOCATION_KEY;
 		default:
@@ -260,11 +266,12 @@ export function asBoolean(value: unknown): boolean | undefined {
 
 /**
  * Helper to check if a path starts with tilde (user home).
- * Supports both Unix-style (`~/`) and Windows-style (`~\`) paths.
+ * Only supports Unix-style (`~/`) paths for cross-platform sharing.
+ * Backslash paths (`~\`) are not supported to ensure paths are shareable in repos.
  *
  * @param path - path to check
- * @returns `true` if the path starts with `~/` or `~\`
+ * @returns `true` if the path starts with `~/`
  */
 export function isTildePath(path: string): boolean {
-	return path.startsWith('~/') || path.startsWith('~\\');
+	return path.startsWith('~/');
 }

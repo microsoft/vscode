@@ -12,15 +12,16 @@ import { Event } from '../../../../../../base/common/event.js';
 import { MarkdownString, type IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
-import { basename } from '../../../../../../base/common/path.js';
+import { basename, posix, win32 } from '../../../../../../base/common/path.js';
 import { OperatingSystem, OS } from '../../../../../../base/common/platform.js';
 import { count } from '../../../../../../base/common/strings.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { localize } from '../../../../../../nls.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService, type ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
-import { TerminalCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
+import { ICommandDetectionCapability, TerminalCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { ITerminalLogService, ITerminalProfile } from '../../../../../../platform/terminal/common/terminal.js';
 import { IRemoteAgentService } from '../../../../../services/remote/common/remoteAgentService.js';
 import { TerminalToolConfirmationStorageKeys } from '../../../../chat/browser/widget/chatContentParts/toolInvocationParts/chatTerminalToolConfirmationSubPart.js';
@@ -36,7 +37,11 @@ import type { ITerminalExecuteStrategy } from '../executeStrategy/executeStrateg
 import { NoneExecuteStrategy } from '../executeStrategy/noneExecuteStrategy.js';
 import { RichExecuteStrategy } from '../executeStrategy/richExecuteStrategy.js';
 import { getOutput } from '../outputHelpers.js';
-import { isFish, isPowerShell, isWindowsPowerShell, isZsh } from '../runInTerminalHelpers.js';
+import { extractCdPrefix, isFish, isPowerShell, isWindowsPowerShell, isZsh } from '../runInTerminalHelpers.js';
+import type { ICommandLinePresenter } from './commandLinePresenter/commandLinePresenter.js';
+import { NodeCommandLinePresenter } from './commandLinePresenter/nodeCommandLinePresenter.js';
+import { PythonCommandLinePresenter } from './commandLinePresenter/pythonCommandLinePresenter.js';
+import { RubyCommandLinePresenter } from './commandLinePresenter/rubyCommandLinePresenter.js';
 import { RunInTerminalToolTelemetry } from '../runInTerminalToolTelemetry.js';
 import { ShellIntegrationQuality, ToolTerminalCreator, type IToolTerminal } from '../toolTerminalCreator.js';
 import { TreeSitterCommandParser, TreeSitterCommandParserLanguage } from '../treeSitterCommandParser.js';
@@ -45,6 +50,7 @@ import { CommandLineAutoApproveAnalyzer } from './commandLineAnalyzer/commandLin
 import { CommandLineFileWriteAnalyzer } from './commandLineAnalyzer/commandLineFileWriteAnalyzer.js';
 import { OutputMonitor } from './monitoring/outputMonitor.js';
 import { IPollingResult, OutputMonitorState } from './monitoring/types.js';
+import { ITerminalSandboxService } from '../../common/terminalSandboxService.js';
 import { chatSessionResourceToId, LocalChatSessionUri } from '../../../../chat/common/model/chatUri.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import type { ICommandLineRewriter } from './commandLineRewriter/commandLineRewriter.js';
@@ -280,6 +286,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 	private readonly _commandLineRewriters: ICommandLineRewriter[];
 	private readonly _commandLineAnalyzers: ICommandLineAnalyzer[];
+	private readonly _commandLinePresenters: ICommandLinePresenter[];
 
 	protected readonly _sessionTerminalAssociations = new ResourceMap<IToolTerminal>();
 
@@ -300,6 +307,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IHistoryService private readonly _historyService: IHistoryService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@ILabelService private readonly _labelService: ILabelService,
 		@ILanguageModelToolsService private readonly _languageModelToolsService: ILanguageModelToolsService,
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
 		@IStorageService private readonly _storageService: IStorageService,
@@ -308,6 +316,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
+		@ITerminalSandboxService private readonly _sandboxService: ITerminalSandboxService,
 	) {
 		super();
 
@@ -328,6 +337,11 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			this._register(this._instantiationService.createInstance(CommandLineFileWriteAnalyzer, this._treeSitterCommandParser, (message, args) => this._logService.info(`RunInTerminalTool#CommandLineFileWriteAnalyzer: ${message}`, args))),
 			this._register(this._instantiationService.createInstance(CommandLineAutoApproveAnalyzer, this._treeSitterCommandParser, this._telemetry, (message, args) => this._logService.info(`RunInTerminalTool#CommandLineAutoApproveAnalyzer: ${message}`, args))),
 		];
+		this._commandLinePresenters = [
+			new NodeCommandLinePresenter(),
+			new PythonCommandLinePresenter(),
+			new RubyCommandLinePresenter(),
+		];
 
 		// Clear out warning accepted state if the setting is disabled
 		this._register(Event.runAndSubscribe(this._configurationService.onDidChangeConfiguration, e => {
@@ -335,6 +349,15 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				if (this._configurationService.getValue(TerminalChatAgentToolsSettingId.EnableAutoApprove) !== true) {
 					this._storageService.remove(TerminalToolConfirmationStorageKeys.TerminalAutoApproveWarningAccepted, StorageScope.APPLICATION);
 				}
+			}
+			// If terminal sandbox settings changed, update sandbox config.
+			if (
+				e?.affectsConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxEnabled) ||
+				e?.affectsConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxNetwork) ||
+				e?.affectsConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxLinuxFileSystem) ||
+				e?.affectsConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxMacFileSystem)
+			) {
+				this._sandboxService.setNeedsForceUpdateConfigFile();
 			}
 		}));
 
@@ -402,6 +425,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				original: args.command,
 				toolEdited: rewrittenCommand === args.command ? undefined : rewrittenCommand
 			},
+			cwd,
 			language,
 		};
 
@@ -414,6 +438,15 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				confirmationMessages: undefined,
 				presentation: ToolInvocationPresentation.Hidden,
 				toolSpecificData,
+			};
+		}
+
+		// If in sandbox mode, skip confirmation logic. In sandbox mode, commands are run in a restricted environment and explicit
+		// user confirmation is not required.
+		if (this._sandboxService.isEnabled()) {
+			toolSpecificData.autoApproveInfo = new MarkdownString(localize('autoApprove.sandbox', 'In sandbox mode'));
+			return {
+				toolSpecificData
 			};
 		}
 
@@ -498,10 +531,64 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			toolSpecificData.autoApproveInfo = commandLineAnalyzerResults.find(e => e.autoApproveInfo)?.autoApproveInfo;
 		}
 
+		// Extract cd prefix for display - show directory in title, command suffix in editor
+		const commandToDisplay = (toolSpecificData.commandLine.toolEdited ?? toolSpecificData.commandLine.original).trimStart();
+		const extractedCd = extractCdPrefix(commandToDisplay, shell, os);
+		let confirmationTitle: string;
+		if (extractedCd && cwd) {
+			// Construct the full directory path using the cwd's scheme/authority
+			const isAbsolutePath = os === OperatingSystem.Windows
+				? win32.isAbsolute(extractedCd.directory)
+				: posix.isAbsolute(extractedCd.directory);
+			const directoryUri = isAbsolutePath
+				? URI.from({ scheme: cwd.scheme, authority: cwd.authority, path: extractedCd.directory })
+				: URI.joinPath(cwd, extractedCd.directory);
+			const directoryLabel = this._labelService.getUriLabel(directoryUri);
+			const cdPrefix = commandToDisplay.substring(0, commandToDisplay.length - extractedCd.command.length);
+
+			toolSpecificData.confirmation = {
+				commandLine: extractedCd.command,
+				cwdLabel: directoryLabel,
+				cdPrefix,
+			};
+
+			confirmationTitle = args.isBackground
+				? localize('runInTerminal.background.inDirectory', "Run `{0}` command in background within `{1}`?", shellType, directoryLabel)
+				: localize('runInTerminal.inDirectory', "Run `{0}` command within `{1}`?", shellType, directoryLabel);
+		} else {
+			toolSpecificData.confirmation = {
+				commandLine: commandToDisplay,
+			};
+			confirmationTitle = args.isBackground
+				? localize('runInTerminal.background', "Run `{0}` command in background?", shellType)
+				: localize('runInTerminal', "Run `{0}` command?", shellType);
+		}
+
+		// Check for presentation overrides (e.g., Python -c command extraction)
+		// Use the command after cd prefix extraction if available, since that's what's displayed in the editor
+		const commandForPresenter = extractedCd?.command ?? commandToDisplay;
+		for (const presenter of this._commandLinePresenters) {
+			const presenterResult = presenter.present({ commandLine: commandForPresenter, shell, os });
+			if (presenterResult) {
+				toolSpecificData.presentationOverrides = {
+					commandLine: presenterResult.commandLine,
+					language: presenterResult.language,
+				};
+				if (extractedCd && toolSpecificData.confirmation?.cwdLabel) {
+					confirmationTitle = args.isBackground
+						? localize('runInTerminal.presentationOverride.background.inDirectory', "Run `{0}` command in `{1}` in background within `{2}`?", presenterResult.languageDisplayName, shellType, toolSpecificData.confirmation.cwdLabel)
+						: localize('runInTerminal.presentationOverride.inDirectory', "Run `{0}` command in `{1}` within `{2}`?", presenterResult.languageDisplayName, shellType, toolSpecificData.confirmation.cwdLabel);
+				} else {
+					confirmationTitle = args.isBackground
+						? localize('runInTerminal.presentationOverride.background', "Run `{0}` command in `{1}` in background?", presenterResult.languageDisplayName, shellType)
+						: localize('runInTerminal.presentationOverride', "Run `{0}` command in `{1}`?", presenterResult.languageDisplayName, shellType);
+				}
+				break;
+			}
+		}
+
 		const confirmationMessages = isFinalAutoApproved ? undefined : {
-			title: args.isBackground
-				? localize('runInTerminal.background', "Run `{0}` command? (background terminal)", shellType)
-				: localize('runInTerminal', "Run `{0}` command?", shellType),
+			title: confirmationTitle,
 			message: new MarkdownString(args.explanation),
 			disclaimer,
 			terminalCustomActions: customActions,
@@ -530,11 +617,11 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 		const args = invocation.parameters as IRunInTerminalInputParams;
 		this._logService.debug(`RunInTerminalTool: Invoking with options ${JSON.stringify(args)}`);
-		let toolResultMessage: string | undefined;
+		let toolResultMessage: string | IMarkdownString | undefined;
 
 		const chatSessionResource = invocation.context?.sessionResource ?? LocalChatSessionUri.forSession(invocation.context?.sessionId ?? 'no-chat-session');
 		const chatSessionId = chatSessionResourceToId(chatSessionResource);
-		const command = toolSpecificData.commandLine.userEdited ?? toolSpecificData.commandLine.toolEdited ?? toolSpecificData.commandLine.original;
+		let command = toolSpecificData.commandLine.userEdited ?? toolSpecificData.commandLine.toolEdited ?? toolSpecificData.commandLine.original;
 		const didUserEditCommand = (
 			toolSpecificData.commandLine.userEdited !== undefined &&
 			toolSpecificData.commandLine.userEdited !== toolSpecificData.commandLine.original
@@ -544,6 +631,12 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			toolSpecificData.commandLine.toolEdited !== undefined &&
 			toolSpecificData.commandLine.toolEdited !== toolSpecificData.commandLine.original
 		);
+
+		if (this._sandboxService.isEnabled()) {
+			await this._sandboxService.getSandboxConfigPath();
+			this._logService.info(`RunInTerminalTool: Sandboxing is enabled, wrapping command with srt.`);
+			command = this._sandboxService.wrapCommand(command);
+		}
 
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
@@ -688,21 +781,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			}
 
 			try {
-				let strategy: ITerminalExecuteStrategy;
-				switch (toolTerminal.shellIntegrationQuality) {
-					case ShellIntegrationQuality.None: {
-						strategy = this._instantiationService.createInstance(NoneExecuteStrategy, toolTerminal.instance, () => toolTerminal.receivedUserInput ?? false);
-						toolResultMessage = '$(info) Enable [shell integration](https://code.visualstudio.com/docs/terminal/shell-integration) to improve command detection';
-						break;
-					}
-					case ShellIntegrationQuality.Basic: {
-						strategy = this._instantiationService.createInstance(BasicExecuteStrategy, toolTerminal.instance, () => toolTerminal.receivedUserInput ?? false, commandDetection!);
-						break;
-					}
-					case ShellIntegrationQuality.Rich: {
-						strategy = this._instantiationService.createInstance(RichExecuteStrategy, toolTerminal.instance, commandDetection!);
-						break;
-					}
+				const strategy: ITerminalExecuteStrategy = this._getExecuteStrategy(toolTerminal.shellIntegrationQuality, toolTerminal, commandDetection!);
+				if (toolTerminal.shellIntegrationQuality === ShellIntegrationQuality.None) {
+					toolResultMessage = '$(info) Enable [shell integration](https://code.visualstudio.com/docs/terminal/shell-integration) to improve command detection';
 				}
 				this._logService.debug(`RunInTerminalTool: Using \`${strategy.type}\` execute strategy for command \`${command}\``);
 				store.add(strategy.onDidCreateStartMarker(startMarker => {
@@ -762,7 +843,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					}
 					terminalResult = resultArr.join('\n\n');
 				}
-
 			} catch (e) {
 				// Handle timeout case - get output collected so far and return it
 				if (didTimeout && e instanceof CancellationError) {
@@ -1006,6 +1086,21 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		}
 	}
 
+	private _getExecuteStrategy(shellIntegrationQuality: ShellIntegrationQuality, toolTerminal: IToolTerminal, commandDetection: ICommandDetectionCapability): ITerminalExecuteStrategy {
+		let strategy: ITerminalExecuteStrategy;
+		switch (shellIntegrationQuality) {
+			case ShellIntegrationQuality.None:
+				strategy = this._instantiationService.createInstance(NoneExecuteStrategy, toolTerminal.instance, () => toolTerminal.receivedUserInput ?? false);
+				break;
+			case ShellIntegrationQuality.Basic:
+				strategy = this._instantiationService.createInstance(BasicExecuteStrategy, toolTerminal.instance, () => toolTerminal.receivedUserInput ?? false, commandDetection!);
+				break;
+			case ShellIntegrationQuality.Rich:
+				strategy = this._instantiationService.createInstance(RichExecuteStrategy, toolTerminal.instance, commandDetection!);
+				break;
+		}
+		return strategy;
+	}
 	// #endregion
 }
 

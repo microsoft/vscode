@@ -297,7 +297,7 @@ class ToggleScreencastModeAction extends Action2 {
 				keyboardMarker.innerText = '';
 				append(keyboardMarker, $('span.key', {}, `Backspace`));
 			}
-			clearKeyboardScheduler.schedule();
+			clearKeyboardScheduler.schedule(keyboardMarkerTimeout);
 		}));
 
 		disposables.add(onCompositionEnd.event(e => {
@@ -315,7 +315,7 @@ class ToggleScreencastModeAction extends Action2 {
 				} else {
 					imeBackSpace = true;
 				}
-				clearKeyboardScheduler.schedule();
+				clearKeyboardScheduler.schedule(keyboardMarkerTimeout);
 				return;
 			}
 
@@ -381,7 +381,7 @@ class ToggleScreencastModeAction extends Action2 {
 			}
 
 			length++;
-			clearKeyboardScheduler.schedule();
+			clearKeyboardScheduler.schedule(keyboardMarkerTimeout);
 		}));
 
 		ToggleScreencastModeAction.disposable = disposables;

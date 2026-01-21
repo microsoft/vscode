@@ -9,7 +9,7 @@ import { IAction } from '../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { createHotClass } from '../../../../../base/common/hotReloadHelpers.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { autorun, derived } from '../../../../../base/common/observable.js';
+import { autorun, derived, observableValue } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -18,10 +18,13 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { IStatusbarService, StatusbarAlignment } from '../../../../services/statusbar/browser/statusbar.js';
 import { AI_STATS_SETTING_ID } from '../settingIds.js';
 import type { AiStatsFeature } from './aiStatsFeature.js';
+import { ChartViewMode, createAiStatsChart } from './aiStatsChart.js';
 import './media.css';
 
 export class AiStatsStatusBar extends Disposable {
 	public static readonly hot = createHotClass(this);
+
+	private readonly _chartViewMode = observableValue<ChartViewMode>(this, 'days');
 
 	constructor(
 		private readonly _aiStatsFeature: AiStatsFeature,
@@ -129,7 +132,7 @@ export class AiStatsStatusBar extends Disposable {
 			n.div({
 				class: 'header',
 				style: {
-					minWidth: '200px',
+					minWidth: '280px',
 				}
 			},
 				[
@@ -154,27 +157,88 @@ export class AiStatsStatusBar extends Disposable {
 				n.div({ style: { flex: 1, paddingRight: '4px' } }, [
 					localize('text1', "AI vs Typing Average: {0}", aiRatePercent.get()),
 				]),
-				/*
-				TODO: Write article that explains the ratio and link to it.
-
-				n.div({ style: { marginLeft: 'auto' } }, actionBar([
-					{
-						action: {
-							id: 'aiStatsStatusBar.openSettings',
-							label: '',
-							enabled: true,
-							run: () => { },
-							class: ThemeIcon.asClassName(Codicon.info),
-							tooltip: ''
-						},
-						options: { icon: true, label: true, }
-					}
-				]))*/
 			]),
 			n.div({ style: { flex: 1, paddingRight: '4px' } }, [
 				localize('text2', "Accepted inline suggestions today: {0}", this._aiStatsFeature.acceptedInlineSuggestionsToday.get()),
 			]),
+
+			// Chart section
+			n.div({
+				style: {
+					marginTop: '8px',
+					borderTop: '1px solid var(--vscode-widget-border)',
+					paddingTop: '8px',
+				}
+			}, [
+				// Chart header with toggle
+				n.div({
+					class: 'header',
+					style: {
+						display: 'flex',
+						alignItems: 'center',
+						marginBottom: '4px',
+					}
+				}, [
+					n.div({ style: { flex: 1 } }, [
+						this._chartViewMode.map(mode =>
+							mode === 'days'
+								? localize('chartHeaderDays', "AI Rate by Day")
+								: localize('chartHeaderSessions', "AI Rate by Session")
+						)
+					]),
+					n.div({
+						class: 'chart-view-toggle',
+						style: { marginLeft: 'auto', display: 'flex', gap: '2px' }
+					}, [
+						this._createToggleButton('days', localize('viewByDays', "Days"), Codicon.calendar),
+						this._createToggleButton('sessions', localize('viewBySessions', "Sessions"), Codicon.listFlat),
+					])
+				]),
+
+				// Chart container
+				derived(reader => {
+					const sessions = this._aiStatsFeature.sessions.read(reader);
+					const viewMode = this._chartViewMode.read(reader);
+					return n.div({
+						ref: (container) => {
+							const chart = createAiStatsChart({
+								sessions,
+								viewMode,
+							});
+							container.appendChild(chart);
+						}
+					});
+				}),
+			]),
 		]);
+	}
+
+	private _createToggleButton(mode: ChartViewMode, tooltip: string, icon: ThemeIcon) {
+		return derived(reader => {
+			const currentMode = this._chartViewMode.read(reader);
+			const isActive = currentMode === mode;
+
+			return n.div({
+				class: ['chart-toggle-button', isActive ? 'active' : ''],
+				style: {
+					padding: '2px 4px',
+					borderRadius: '3px',
+					cursor: 'pointer',
+					display: 'flex',
+					alignItems: 'center',
+					justifyContent: 'center',
+				},
+				onclick: () => {
+					this._chartViewMode.set(mode, undefined);
+				},
+				title: tooltip,
+			}, [
+				n.div({
+					class: ThemeIcon.asClassName(icon),
+					style: { fontSize: '14px' }
+				})
+			]);
+		});
 	}
 }
 

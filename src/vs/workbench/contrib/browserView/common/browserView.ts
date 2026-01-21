@@ -79,6 +79,7 @@ export interface IBrowserViewModel extends IDisposable {
 	readonly favicon: string | undefined;
 	readonly screenshot: VSBuffer | undefined;
 	readonly loading: boolean;
+	readonly focused: boolean;
 	readonly canGoBack: boolean;
 	readonly isDevToolsOpen: boolean;
 	readonly canGoForward: boolean;
@@ -117,6 +118,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	private _favicon: string | undefined = undefined;
 	private _screenshot: VSBuffer | undefined = undefined;
 	private _loading: boolean = false;
+	private _focused: boolean = false;
 	private _isDevToolsOpen: boolean = false;
 	private _canGoBack: boolean = false;
 	private _canGoForward: boolean = false;
@@ -141,6 +143,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	get title(): string { return this._title; }
 	get favicon(): string | undefined { return this._favicon; }
 	get loading(): boolean { return this._loading; }
+	get focused(): boolean { return this._focused; }
 	get isDevToolsOpen(): boolean { return this._isDevToolsOpen; }
 	get canGoBack(): boolean { return this._canGoBack; }
 	get canGoForward(): boolean { return this._canGoForward; }
@@ -207,6 +210,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		this._url = state.url;
 		this._title = state.title;
 		this._loading = state.loading;
+		this._focused = state.focused;
 		this._isDevToolsOpen = state.isDevToolsOpen;
 		this._canGoBack = state.canGoBack;
 		this._canGoForward = state.canGoForward;
@@ -243,6 +247,10 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 
 		this._register(this.onDidChangeFavicon(e => {
 			this._favicon = e.favicon;
+		}));
+
+		this._register(this.onDidChangeFocus(({ focused }) => {
+			this._focused = focused;
 		}));
 	}
 

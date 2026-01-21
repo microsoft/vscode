@@ -300,6 +300,7 @@ export class HoverService extends Disposable implements IHoverService {
 			new HoverContextViewDelegate(hover, focus),
 			options.container
 		);
+		options.onDidShow?.();
 	}
 
 	hideHover(force?: boolean): void {

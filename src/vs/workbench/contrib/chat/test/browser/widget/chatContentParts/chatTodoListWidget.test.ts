@@ -25,7 +25,7 @@ suite('ChatTodoListWidget Accessibility', () => {
 
 	const sampleTodos: IChatTodo[] = [
 		{ id: 1, title: 'First task', status: 'not-started' },
-		{ id: 2, title: 'Second task', status: 'in-progress', description: 'This is a task description' },
+		{ id: 2, title: 'Second task', status: 'in-progress' },
 		{ id: 3, title: 'Third task', status: 'completed' }
 	];
 
@@ -39,7 +39,7 @@ suite('ChatTodoListWidget Accessibility', () => {
 		};
 
 		// Mock the configuration service
-		const mockConfigurationService = new TestConfigurationService({ 'chat.todoListTool.descriptionField': true });
+		const mockConfigurationService = new TestConfigurationService();
 
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		instantiationService.stub(IChatTodoListService, mockTodoListService);
@@ -84,11 +84,10 @@ suite('ChatTodoListWidget Accessibility', () => {
 		assert.ok(firstItem.getAttribute('aria-label')?.includes('First task'));
 		assert.ok(firstItem.getAttribute('aria-label')?.includes('not started'));
 
-		// Check second item (in-progress with description)
+		// Check second item (in-progress)
 		const secondItem = todoItems[1] as HTMLElement;
 		assert.ok(secondItem.getAttribute('aria-label')?.includes('Second task'));
 		assert.ok(secondItem.getAttribute('aria-label')?.includes('in progress'));
-		assert.ok(secondItem.getAttribute('aria-label')?.includes('This is a task description'));
 
 		// Check third item (completed)
 		const thirdItem = todoItems[2] as HTMLElement;
@@ -139,12 +138,11 @@ suite('ChatTodoListWidget Accessibility', () => {
 		assert.ok(firstAriaLabel?.includes('First task'), 'First item aria-label should include title');
 		assert.ok(firstAriaLabel?.includes('not started'), 'First item aria-label should include status');
 
-		// Check second item (in-progress with description) - aria-label should include title, status, and description
+		// Check second item (in-progress) - aria-label should include title and status
 		const secondItem = todoItems[1] as HTMLElement;
 		const secondAriaLabel = secondItem.getAttribute('aria-label');
 		assert.ok(secondAriaLabel?.includes('Second task'), 'Second item aria-label should include title');
 		assert.ok(secondAriaLabel?.includes('in progress'), 'Second item aria-label should include status');
-		assert.ok(secondAriaLabel?.includes('This is a task description'), 'Second item aria-label should include description');
 
 		// Check third item (completed) - aria-label should include title and status
 		const thirdItem = todoItems[2] as HTMLElement;
@@ -162,7 +160,7 @@ suite('ChatTodoListWidget Accessibility', () => {
 			setTodos: (sessionResource: URI, todos: IChatTodo[]) => { }
 		};
 
-		const emptyConfigurationService = new TestConfigurationService({ 'chat.todoListTool.descriptionField': true });
+		const emptyConfigurationService = new TestConfigurationService();
 
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		instantiationService.stub(IChatTodoListService, emptyTodoListService);

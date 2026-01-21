@@ -35,7 +35,7 @@ import { ILabelService } from '../../../../../../platform/label/common/label.js'
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { FolderThemeIcon, IThemeService } from '../../../../../../platform/theme/common/themeService.js';
 import { fillEditorsDragData } from '../../../../../browser/dnd.js';
-import { ResourceContextKey } from '../../../../../common/contextkeys.js';
+import { StaticResourceContextKey } from '../../../../../common/contextkeys.js';
 import { IEditorService, SIDE_GROUP } from '../../../../../services/editor/common/editorService.js';
 import { INotebookDocumentService } from '../../../../../services/notebook/common/notebookDocumentService.js';
 import { ExplorerFolderContext } from '../../../../files/common/files.js';
@@ -44,6 +44,8 @@ import { IChatContentInlineReference } from '../../../common/chatService/chatSer
 import { IChatWidgetService } from '../../chat.js';
 import { chatAttachmentResourceContextKey, hookUpSymbolAttachmentDragAndContextMenu } from '../../attachments/chatAttachmentWidgets.js';
 import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { ChatConfiguration } from '../../../common/constants.js';
 
 type ContentRefData =
 	| { readonly kind: 'symbol'; readonly symbol: IWorkspaceSymbol }
@@ -113,6 +115,7 @@ export class InlineAnchorWidget extends Disposable {
 		private readonly element: HTMLAnchorElement | HTMLElement,
 		public readonly inlineReference: IChatContentInlineReference,
 		private readonly metadata: InlineAnchorWidgetMetadata | undefined,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IContextKeyService originalContextKeyService: IContextKeyService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IFileService fileService: IFileService,
@@ -233,7 +236,7 @@ export class InlineAnchorWidget extends Disposable {
 			}
 		}
 
-		const resourceContextKey = this._register(new ResourceContextKey(contextKeyService, fileService, languageService, modelService));
+		const resourceContextKey = new StaticResourceContextKey(contextKeyService, fileService, languageService, modelService);
 		resourceContextKey.set(location.uri);
 		this._chatResourceContext.set(location.uri.toString());
 
@@ -247,6 +250,14 @@ export class InlineAnchorWidget extends Disposable {
 		// Hover
 		const relativeLabel = labelService.getUriLabel(location.uri, { relative: true });
 		this._register(hoverService.setupManagedHover(getDefaultHoverDelegate('element'), element, relativeLabel));
+
+		// Apply link-style if configured
+		this.updateAppearance();
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(ChatConfiguration.InlineReferencesStyle)) {
+				this.updateAppearance();
+			}
+		}));
 
 		// Drag and drop
 		if (this.data.kind !== 'symbol') {
@@ -266,6 +277,12 @@ export class InlineAnchorWidget extends Disposable {
 
 	getHTMLElement(): HTMLElement {
 		return this.element;
+	}
+
+	private updateAppearance(): void {
+		const style = this.configurationService.getValue<string>(ChatConfiguration.InlineReferencesStyle);
+		const useLinkStyle = style === 'link';
+		this.element.classList.toggle('link-style', useLinkStyle);
 	}
 
 	private getCellIndex(location: URI) {

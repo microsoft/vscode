@@ -8,7 +8,6 @@ import { $ } from '../../../../../../base/browser/dom.js';
 import { ButtonWithIcon } from '../../../../../../base/browser/ui/button/button.js';
 import { IListRenderer, IListVirtualDelegate } from '../../../../../../base/browser/ui/list/list.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
-import { Emitter } from '../../../../../../base/common/event.js';
 import { Iterable } from '../../../../../../base/common/iterator.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../../../../base/common/observable.js';
@@ -40,9 +39,6 @@ export class ChatCheckpointFileChangesSummaryContentPart extends Disposable impl
 
 	public readonly ELEMENT_HEIGHT = 22;
 	public readonly MAX_ITEMS_SHOWN = 6;
-
-	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
-	public readonly onDidChangeHeight = this._onDidChangeHeight.event;
 
 	private readonly diffsBetweenRequests = new Map<string, IObservable<IEditSessionEntryDiff | undefined>>();
 
@@ -101,7 +97,6 @@ export class ChatCheckpointFileChangesSummaryContentPart extends Disposable impl
 		const setExpansionState = () => {
 			viewListButton.icon = this.isCollapsed ? Codicon.chevronRight : Codicon.chevronDown;
 			this.domNode.classList.toggle('chat-file-changes-collapsed', this.isCollapsed);
-			this._onDidChangeHeight.fire();
 		};
 		setExpansionState();
 

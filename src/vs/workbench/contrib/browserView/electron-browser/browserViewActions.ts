@@ -145,18 +145,19 @@ class AddElementToChatAction extends Action2 {
 	static readonly ID = 'workbench.action.browser.addElementToChat';
 
 	constructor() {
+		const enabled = ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('config.chat.sendElementsToChat.enabled', true));
 		super({
 			id: AddElementToChatAction.ID,
 			title: localize2('browser.addElementToChatAction', 'Add Element to Chat'),
 			icon: Codicon.inspect,
-			f1: true,
-			precondition: ChatContextKeys.enabled,
+			f1: false,
+			precondition: enabled,
 			toggled: CONTEXT_BROWSER_ELEMENT_SELECTION_ACTIVE,
 			menu: {
 				id: MenuId.BrowserActionsToolbar,
 				group: 'actions',
 				order: 1,
-				when: ChatContextKeys.enabled
+				when: enabled
 			},
 			keybinding: [{
 				when: BROWSER_EDITOR_ACTIVE,

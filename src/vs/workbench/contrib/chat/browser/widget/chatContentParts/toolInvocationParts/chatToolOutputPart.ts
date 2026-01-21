@@ -117,9 +117,7 @@ export class ChatToolOutputSubPart extends BaseChatToolInvocationSubPart {
 
 			progressPart.domNode.remove();
 
-			this._onDidChangeHeight.fire();
 			this._register(renderedItem.onDidChangeHeight(newHeight => {
-				this._onDidChangeHeight.fire();
 				partState.height = newHeight;
 			}));
 

@@ -248,6 +248,21 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			jsonEditor: options.jsonEditor ?? this.shouldOpenJsonByDefault()
 		};
 
+		if (options.jsonEditor && options.query && !options.revealSetting) {
+			const query = options.query.trim();
+			const idMatch = query.match(/^@id:(.+)$/);
+			let key: string | undefined;
+			if (idMatch) {
+				key = idMatch[1].trim();
+			} else if (Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties()[query.trim()]) {
+				key = query.trim();
+			}
+			options.query = undefined;
+			if (key) {
+				options.revealSetting = { key };
+			}
+		}
+
 		return options.jsonEditor ?
 			this.openSettingsJson(settingsResource, options) :
 			this.openSettings2(options);

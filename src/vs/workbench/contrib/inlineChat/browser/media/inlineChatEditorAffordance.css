@@ -1,0 +1,22 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.inline-chat-content-widget {
+	background-color: var(--vscode-editor-background);
+	padding: 2px;
+	border-radius: 8px;
+	display: flex;
+	align-items: center;
+	box-shadow: 0 4px 8px var(--vscode-widget-shadow);
+	cursor: pointer;
+	min-width: var(--vscode-inline-chat-affordance-height);
+	min-height: var(--vscode-inline-chat-affordance-height);
+	line-height: var(--vscode-inline-chat-affordance-height);
+}
+
+.inline-chat-content-widget .icon.codicon {
+	margin: 0;
+	color: var(--vscode-editorLightBulb-foreground);
+}

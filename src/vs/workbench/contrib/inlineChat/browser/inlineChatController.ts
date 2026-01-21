@@ -51,6 +51,8 @@ import { INotebookEditorService } from '../../notebook/browser/services/notebook
 import { CellUri, ICellEditOperation } from '../../notebook/common/notebookCommon.js';
 import { INotebookService } from '../../notebook/common/notebookService.js';
 import { CTX_INLINE_CHAT_VISIBLE, InlineChatConfigKeys } from '../common/inlineChat.js';
+import { InlineChatAffordance } from './inlineChatAffordance.js';
+import { InlineChatInputWidget, InlineChatSessionOverlayWidget } from './inlineChatOverlayWidget.js';
 import { IInlineChatSession2, IInlineChatSessionService } from './inlineChatSessionService.js';
 import { EditorBasedInlineChatWidget } from './inlineChatWidget.js';
 import { InlineChatZoneWidget } from './inlineChatZoneWidget.js';
@@ -108,7 +110,9 @@ export class InlineChatController implements IEditorContribution {
 
 	private readonly _store = new DisposableStore();
 	private readonly _isActiveController = observableValue(this, false);
+	private readonly _renderMode: IObservable<'zone' | 'hover'>;
 	private readonly _zone: Lazy<InlineChatZoneWidget>;
+	private readonly _gutterIndicator: InlineChatAffordance;
 
 	private readonly _currentSession: IObservable<IInlineChatSession2 | undefined>;
 
@@ -135,9 +139,16 @@ export class InlineChatController implements IEditorContribution {
 		@IMarkerDecorationsService private readonly _markerDecorationsService: IMarkerDecorationsService,
 		@ILanguageModelsService private readonly _languageModelService: ILanguageModelsService,
 	) {
+		const editorObs = observableCodeEditor(_editor);
+
 
 		const ctxInlineChatVisible = CTX_INLINE_CHAT_VISIBLE.bindTo(contextKeyService);
 		const notebookAgentConfig = observableConfigValue(InlineChatConfigKeys.notebookAgent, false, this._configurationService);
+		this._renderMode = observableConfigValue(InlineChatConfigKeys.RenderMode, 'zone', this._configurationService);
+
+		const overlayWidget = this._store.add(this._instaService.createInstance(InlineChatInputWidget, editorObs));
+		const sessionOverlayWidget = this._store.add(this._instaService.createInstance(InlineChatSessionOverlayWidget, editorObs));
+		this._gutterIndicator = this._store.add(this._instaService.createInstance(InlineChatAffordance, this._editor, overlayWidget));
 
 		this._zone = new Lazy<InlineChatZoneWidget>(() => {
 
@@ -210,7 +221,6 @@ export class InlineChatController implements IEditorContribution {
 		});
 
 
-		const editorObs = observableCodeEditor(_editor);
 
 		const sessionsSignal = observableSignalFromEvent(this, _inlineChatSessionService.onDidChangeSessions);
 
@@ -279,11 +289,17 @@ export class InlineChatController implements IEditorContribution {
 
 			// HIDE/SHOW
 			const session = visibleSessionObs.read(r);
+			const renderMode = this._renderMode.read(r);
 			if (!session) {
 				this._zone.rawValue?.hide();
 				this._zone.rawValue?.widget.chatWidget.setModel(undefined);
 				_editor.focus();
 				ctxInlineChatVisible.reset();
+			} else if (renderMode === 'hover') {
+				// hover mode: set model but don't show zone, keep focus in editor
+				this._zone.value.widget.chatWidget.setModel(session.chatModel);
+				this._zone.rawValue?.hide();
+				ctxInlineChatVisible.set(true);
 			} else {
 				ctxInlineChatVisible.set(true);
 				this._zone.value.widget.chatWidget.setModel(session.chatModel);
@@ -294,6 +310,25 @@ export class InlineChatController implements IEditorContribution {
 				}
 				this._zone.value.reveal(this._zone.value.position!);
 				this._zone.value.widget.focus();
+			}
+		}));
+
+		// Show progress overlay widget in hover mode when a request is in progress or edits are not yet settled
+		this._store.add(autorun(r => {
+			const session = visibleSessionObs.read(r);
+			const renderMode = this._renderMode.read(r);
+			if (!session || renderMode !== 'hover') {
+				sessionOverlayWidget.hide();
+				return;
+			}
+			const lastRequest = session.chatModel.lastRequestObs.read(r);
+			const isInProgress = lastRequest?.response?.isInProgress.read(r);
+			const entry = session.editingSession.readEntry(session.uri, r);
+			const isNotSettled = !entry || entry.state.read(r) === ModifiedFileEntryState.Modified;
+			if (isInProgress || isNotSettled) {
+				sessionOverlayWidget.show(session);
+			} else {
+				sessionOverlayWidget.hide();
 			}
 		}));
 
@@ -418,13 +453,19 @@ export class InlineChatController implements IEditorContribution {
 
 	async run(arg?: InlineChatRunOptions): Promise<boolean> {
 		assertType(this._editor.hasModel());
-
 		const uri = this._editor.getModel().uri;
 
 		const existingSession = this._inlineChatSessionService.getSessionByTextModel(uri);
 		if (existingSession) {
 			await existingSession.editingSession.accept();
 			existingSession.dispose();
+		}
+
+		// use hover overlay to ask for input
+		if (!arg?.message && this._configurationService.getValue<string>(InlineChatConfigKeys.RenderMode) === 'hover') {
+			// show menu and RETURN because the menu is re-entrant
+			await this._gutterIndicator.showMenuAtSelection();
+			return true;
 		}
 
 		this._isActiveController.set(true, undefined);

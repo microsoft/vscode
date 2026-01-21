@@ -999,7 +999,8 @@
 		"--comment-thread-state-color",
 		"--comment-thread-state-background-color",
 		"--inline-edit-border-radius",
-		"--chat-subagent-last-item-height"
+		"--chat-subagent-last-item-height",
+		"--vscode-inline-chat-affordance-height"
 	],
 	"sizes": [
 		"--vscode-bodyFontSize",

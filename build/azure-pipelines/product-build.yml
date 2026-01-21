@@ -6,6 +6,11 @@ schedules:
     branches:
       include:
         - main
+  - cron: "0 17 * * Mon-Fri"
+    displayName: Mon-Fri at 19:00
+    branches:
+      include:
+        - main
 
 trigger:
   batch: true

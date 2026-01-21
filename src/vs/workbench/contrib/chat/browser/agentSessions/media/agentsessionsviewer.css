@@ -47,10 +47,11 @@
 	.monaco-list-row .agent-session-title-toolbar {
 		/* for the absolute positioning of the toolbar below */
 		position: relative;
+		height: 16px;
 
 		.monaco-toolbar {
 			/* this is required because the overal height (including the padding needed for hover feedback) would push down the title otherwise */
-			position: absolute;
+			position: relative;
 			right: 0;
 			top: 0;
 			display: none;
@@ -59,7 +60,6 @@
 
 	.monaco-list-row:hover .agent-session-title-toolbar,
 	.monaco-list-row.focused .agent-session-title-toolbar {
-		width: 22px;
 
 		.monaco-toolbar {
 			display: block;

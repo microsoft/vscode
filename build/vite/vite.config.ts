@@ -51,7 +51,7 @@ function injectBuiltinExtensionsPlugin(): Plugin {
 	const prebuiltExtensionsLocation = '.build/builtInExtensions';
 	async function getScannedBuiltinExtensions(vsCodeDevLocation: string) {
 		// use the build utility as to not duplicate the code
-		const extensionsUtil = await import(pathToFileURL(path.join(vsCodeDevLocation, 'build', 'lib', 'extensions.js')).toString());
+		const extensionsUtil = await import(pathToFileURL(path.join(vsCodeDevLocation, 'build', 'lib', 'extensions.ts')).toString());
 		const localExtensions = extensionsUtil.scanBuiltinExtensions(path.join(vsCodeDevLocation, 'extensions'));
 		const prebuiltExtensions = extensionsUtil.scanBuiltinExtensions(path.join(vsCodeDevLocation, prebuiltExtensionsLocation));
 		for (const ext of localExtensions) {

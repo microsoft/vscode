@@ -82,9 +82,9 @@ export async function getShellIntegrationInjection(
 	if (shellLaunchConfig.ignoreShellIntegration) {
 		return { type: 'failure', reason: ShellIntegrationInjectionFailureReason.IgnoreShellIntegrationFlag };
 	}
-	// Shell integration doesn't work with winpty
-	if (isWindows && (!options.windowsEnableConpty || getWindowsBuildNumber() < 18309)) {
-		return { type: 'failure', reason: ShellIntegrationInjectionFailureReason.Winpty };
+	// Shell integration requires Windows 10 build 18309+ (ConPTY support)
+	if (isWindows && getWindowsBuildNumber() < 18309) {
+		return { type: 'failure', reason: ShellIntegrationInjectionFailureReason.UnsupportedWindowsBuild };
 	}
 
 	const originalArgs = shellLaunchConfig.args;
@@ -103,7 +103,7 @@ export async function getShellIntegrationInjection(
 	const scopedDownShellEnvs = ['PATH', 'VIRTUAL_ENV', 'HOME', 'SHELL', 'PWD'];
 	if (shellLaunchConfig.shellIntegrationEnvironmentReporting) {
 		if (isWindows) {
-			const enableWindowsEnvReporting = options.windowsUseConptyDll || options.windowsEnableConpty && getWindowsBuildNumber() >= 22631 && shell !== 'bash.exe';
+			const enableWindowsEnvReporting = options.windowsUseConptyDll || getWindowsBuildNumber() >= 22631 && shell !== 'bash.exe';
 			if (enableWindowsEnvReporting) {
 				envMixin['VSCODE_SHELL_ENV_REPORTING'] = scopedDownShellEnvs.join(',');
 			}

@@ -5,7 +5,6 @@
 
 import * as dom from '../../../../../../base/browser/dom.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
-import { Emitter } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { basename, joinPath } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -40,9 +39,6 @@ import { ChatCollapsibleIOPart, IChatCollapsibleIOCodePart, IChatCollapsibleIODa
  * This is used by both ChatCollapsibleInputOutputContentPart and ChatToolPostExecuteConfirmationPart.
  */
 export class ChatToolOutputContentSubPart extends Disposable {
-	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
-	public readonly onDidChangeHeight = this._onDidChangeHeight.event;
-
 	private _currentWidth: number = 0;
 	private readonly _editorReferences: IDisposableReference<CodeBlockPart>[] = [];
 	public readonly domNode: HTMLElement;
@@ -75,7 +71,12 @@ export class ChatToolOutputContentSubPart extends Disposable {
 		for (let i = 0; i < this.parts.length; i++) {
 			const part = this.parts[i];
 			if (part.kind === 'code') {
-				this.addCodeBlock(part, container);
+				// Collect adjacent code parts and combine their contents
+				const codeParts = [part];
+				while (i + 1 < this.parts.length && this.parts[i + 1].kind === 'code') {
+					codeParts.push(this.parts[++i] as IChatCollapsibleIOCodePart);
+				}
+				this.addCodeBlock(codeParts, container);
 				continue;
 			}
 
@@ -101,7 +102,7 @@ export class ChatToolOutputContentSubPart extends Disposable {
 			dom.h('.chat-collapsible-io-resource-actions@actions'),
 		]);
 
-		this.fillInResourceGroup(parts, el.items, el.actions).then(() => this._onDidChangeHeight.fire());
+		this.fillInResourceGroup(parts, el.items, el.actions);
 
 		container.appendChild(el.root);
 		return el.root;
@@ -116,6 +117,10 @@ export class ChatToolOutputContentSubPart extends Disposable {
 				return { kind: 'file', id: generateUuid(), name: basename(part.uri), fullName: part.uri.path, value: part.uri };
 			}
 		}));
+
+		if (this._store.isDisposed) {
+			return;
+		}
 
 		const attachments = this._register(this._instantiationService.createInstance(
 			ChatAttachmentsContentPart,
@@ -153,30 +158,34 @@ export class ChatToolOutputContentSubPart extends Disposable {
 		toolbar.context = { parts } satisfies IChatToolOutputResourceToolbarContext;
 	}
 
-	private addCodeBlock(part: IChatCollapsibleIOCodePart, container: HTMLElement) {
-		if (part.title) {
+	private addCodeBlock(parts: IChatCollapsibleIOCodePart[], container: HTMLElement): void {
+		const firstPart = parts[0];
+		if (firstPart.title) {
 			const title = dom.$('div.chat-confirmation-widget-title');
-			const renderedTitle = this._register(this._markdownRendererService.render(this.toMdString(part.title)));
+			const renderedTitle = this._register(this._markdownRendererService.render(this.toMdString(firstPart.title)));
 			title.appendChild(renderedTitle.element);
 			container.appendChild(title);
 		}
 
+		// Combine text from all adjacent code parts
+		const combinedText = parts.map(p => p.textModel.getValue()).join('\n');
+		firstPart.textModel.setValue(combinedText);
+
 		const data: ICodeBlockData = {
-			languageId: part.languageId,
-			textModel: Promise.resolve(part.textModel),
-			codeBlockIndex: part.codeBlockInfo.codeBlockIndex,
+			languageId: firstPart.languageId,
+			textModel: Promise.resolve(firstPart.textModel),
+			codeBlockIndex: firstPart.codeBlockInfo.codeBlockIndex,
 			codeBlockPartIndex: 0,
 			element: this.context.element,
 			parentContextKeyService: this.contextKeyService,
-			renderOptions: part.options,
+			renderOptions: firstPart.options,
 			chatSessionResource: this.context.element.sessionResource,
 		};
 		const editorReference = this._register(this.context.editorPool.get());
 		editorReference.object.render(data, this._currentWidth || 300);
-		this._register(editorReference.object.onDidChangeContentHeight(() => this._onDidChangeHeight.fire()));
 		container.appendChild(editorReference.object.element);
 		this._editorReferences.push(editorReference);
-		this.codeblocks.push(part.codeBlockInfo);
+		this.codeblocks.push(firstPart.codeBlockInfo);
 	}
 
 	layout(width: number): void {

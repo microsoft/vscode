@@ -162,7 +162,10 @@ function asListOptions<T, TFilterData, TRef>(modelProvider: () => ITreeModel<T, 
 		identityProvider: options.identityProvider && {
 			getId(el) {
 				return options.identityProvider!.getId(el.element);
-			}
+			},
+			getGroupId: options.identityProvider!.getGroupId ? (el) => {
+				return options.identityProvider!.getGroupId!(el.element);
+			} : undefined
 		},
 		dnd: options.dnd && disposableStore.add(new TreeNodeListDragAndDrop(modelProvider, options.dnd)),
 		multipleSelectionController: options.multipleSelectionController && {

@@ -17,16 +17,17 @@ import { localize } from '../../../nls.js';
 import { IDialogService } from '../../../platform/dialogs/common/dialogs.js';
 import { ILogService } from '../../../platform/log/common/log.js';
 import { hasValidDiff, IAgentSession } from '../../contrib/chat/browser/agentSessions/agentSessionsModel.js';
+import { IAgentSessionsService } from '../../contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { ChatViewPaneTarget, IChatWidgetService, isIChatViewViewContext } from '../../contrib/chat/browser/chat.js';
 import { IChatEditorOptions } from '../../contrib/chat/browser/widgetHosts/editor/chatEditor.js';
 import { ChatEditorInput } from '../../contrib/chat/browser/widgetHosts/editor/chatEditorInput.js';
+import { IChatRequestVariableEntry } from '../../contrib/chat/common/attachments/chatVariableEntries.js';
 import { awaitStatsForSession } from '../../contrib/chat/common/chat.js';
-import { IChatAgentRequest } from '../../contrib/chat/common/participants/chatAgents.js';
-import { IChatModel } from '../../contrib/chat/common/model/chatModel.js';
 import { IChatContentInlineReference, IChatProgress, IChatService, ResponseModelState } from '../../contrib/chat/common/chatService/chatService.js';
 import { ChatSessionStatus, IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionItemProvider, IChatSessionProviderOptionItem, IChatSessionsService } from '../../contrib/chat/common/chatSessionsService.js';
-import { IChatRequestVariableEntry } from '../../contrib/chat/common/attachments/chatVariableEntries.js';
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
+import { IChatModel } from '../../contrib/chat/common/model/chatModel.js';
+import { IChatAgentRequest } from '../../contrib/chat/common/participants/chatAgents.js';
 import { IEditorGroupsService } from '../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../services/editor/common/editorService.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
@@ -334,6 +335,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 
 	constructor(
 		private readonly _extHostContext: IExtHostContext,
+		@IAgentSessionsService private readonly _agentSessionsService: IAgentSessionsService,
 		@IChatSessionsService private readonly _chatSessionsService: IChatSessionsService,
 		@IChatService private readonly _chatService: IChatService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
@@ -352,6 +354,14 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 				await this.notifyOptionsChange(handle, sessionResource, updates);
 			}
 		});
+
+		this._register(this._agentSessionsService.model.onDidChangeSessionArchivedState(session => {
+			for (const [handle, { provider }] of this._itemProvidersRegistrations) {
+				if (provider.chatSessionType === session.providerType) {
+					this._proxy.$onDidChangeChatSessionItemState(handle, session.resource, session.isArchived());
+				}
+			}
+		}));
 	}
 
 	private _getHandleForSessionType(chatSessionType: string): number | undefined {

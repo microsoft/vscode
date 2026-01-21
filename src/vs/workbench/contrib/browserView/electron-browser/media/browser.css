@@ -59,14 +59,54 @@
 		background-image: none;
 		background-size: contain;
 		background-repeat: no-repeat;
-		filter: blur(0px);
-		transition: opacity 300ms ease-out, filter 300ms ease-out;
-		opacity: 1.0;
+	}
 
-		&.blur {
-			opacity: 0.8;
-			filter: blur(2px);
+	.browser-overlay-paused {
+		position: absolute;
+		top: 0;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		pointer-events: none;
+		color: var(--vscode-foreground);
+		background-color: color-mix(in srgb, var(--vscode-editor-background) 60%, transparent);
+		opacity: 0;
+		visibility: hidden;
+		transition: opacity 200ms ease-out;
+
+		&.visible {
+			opacity: 1;
+			visibility: visible;
 		}
+	}
+
+	.browser-overlay-paused-message {
+		padding: 20px 40px;
+		border-radius: 4px;
+		border: 1px solid var(--vscode-editorWidget-border);
+		background-color: var(--vscode-editor-background);
+		box-shadow: 0 2px 8px var(--vscode-widget-shadow);
+		max-width: 80%;
+		text-align: center;
+		display: none;
+	}
+
+	.browser-overlay-paused.show-message .browser-overlay-paused-message {
+		display: block;
+	}
+
+	.browser-overlay-paused-heading {
+		font-size: 18px;
+		font-weight: 600;
+		margin-bottom: 8px;
+	}
+
+	.browser-overlay-paused-detail {
+		font-size: 14px;
+		color: var(--vscode-descriptionForeground);
 	}
 
 	.browser-error-container {

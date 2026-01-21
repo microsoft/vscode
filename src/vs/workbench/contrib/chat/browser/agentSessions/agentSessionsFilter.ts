@@ -262,7 +262,7 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 			return overrideExclude;
 		}
 
-		if (this.excludes.read && (session.isArchived() || session.isRead())) {
+		if (this.excludes.read && session.isRead()) {
 			return true;
 		}
 

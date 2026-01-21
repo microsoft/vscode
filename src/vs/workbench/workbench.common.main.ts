@@ -186,7 +186,7 @@ registerSingleton(IAllowedMcpServersService, AllowedMcpServersService, Instantia
 //#region --- workbench contributions
 
 // Default Account
-import './services/accounts/common/defaultAccount.js';
+import './services/accounts/browser/defaultAccount.js';
 
 // Telemetry
 import './contrib/telemetry/browser/telemetry.contribution.js';
@@ -350,6 +350,7 @@ import './contrib/surveys/browser/languageSurveys.contribution.js';
 
 // Welcome
 import './contrib/welcomeGettingStarted/browser/gettingStarted.contribution.js';
+import './contrib/welcomeAgentSessions/browser/agentSessionsWelcome.contribution.js';
 import './contrib/welcomeWalkthrough/browser/walkThrough.contribution.js';
 import './contrib/welcomeViews/common/viewsWelcome.contribution.js';
 import './contrib/welcomeViews/common/newFile.contribution.js';

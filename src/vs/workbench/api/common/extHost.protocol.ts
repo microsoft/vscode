@@ -3163,6 +3163,8 @@ export interface IStartMcpOptions {
 	errorOnUserInteraction?: boolean;
 }
 
+
+
 export interface ExtHostMcpShape {
 	$substituteVariables(workspaceFolder: UriComponents | undefined, value: McpServerLaunch.Serialized): Promise<McpServerLaunch.Serialized>;
 	$resolveMcpLaunch(collectionId: string, label: string): Promise<McpServerLaunch.Serialized | undefined>;
@@ -3170,6 +3172,7 @@ export interface ExtHostMcpShape {
 	$stopMcp(id: number): void;
 	$sendMessage(id: number, message: string): void;
 	$waitForInitialCollectionProviders(): Promise<void>;
+	$onDidChangeMcpServerDefinitions(servers: McpServerDefinition.Serialized[]): void;
 }
 
 export interface IMcpAuthenticationDetails {
@@ -3360,6 +3363,7 @@ export interface MainThreadChatSessionsShape extends IDisposable {
 
 export interface ExtHostChatSessionsShape {
 	$provideChatSessionItems(providerHandle: number, token: CancellationToken): Promise<Dto<IChatSessionItem>[]>;
+	$onDidChangeChatSessionItemState(providerHandle: number, sessionResource: UriComponents, archived: boolean): void;
 
 	$provideChatSessionContent(providerHandle: number, sessionResource: UriComponents, token: CancellationToken): Promise<ChatSessionDto>;
 	$interruptChatSessionActiveResponse(providerHandle: number, sessionResource: UriComponents, requestId: string): Promise<void>;

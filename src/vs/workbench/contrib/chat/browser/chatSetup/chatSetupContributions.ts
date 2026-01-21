@@ -371,7 +371,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				if (focus) {
 					windowFocusListener.clear();
 
-					const entitlements = await requests.forceResolveEntitlement(undefined);
+					const entitlements = await requests.forceResolveEntitlement();
 					if (entitlements?.entitlement && isProUser(entitlements?.entitlement)) {
 						refreshTokens(commandService);
 					}

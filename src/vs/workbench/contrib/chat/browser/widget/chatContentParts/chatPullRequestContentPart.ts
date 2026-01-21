@@ -5,7 +5,6 @@
 
 import './media/chatPullRequestContent.css';
 import * as dom from '../../../../../../base/browser/dom.js';
-import { Emitter } from '../../../../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { IChatPullRequestContent } from '../../../common/chatService/chatService.js';
 import { IChatRendererContent } from '../../../common/model/chatViewModel.js';
@@ -20,9 +19,6 @@ import { renderAsPlaintext } from '../../../../../../base/browser/markdownRender
 
 export class ChatPullRequestContentPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
-
-	private _onDidChangeHeight = this._register(new Emitter<void>());
-	public readonly onDidChangeHeight = this._onDidChangeHeight.event;
 
 	constructor(
 		private readonly pullRequestContent: IChatPullRequestContent,
@@ -47,7 +43,7 @@ export class ChatPullRequestContentPart extends Disposable implements IChatConte
 
 		const seeMoreContainer = dom.append(descriptionElement, dom.$('.see-more'));
 		const seeMore: HTMLAnchorElement = dom.append(seeMoreContainer, dom.$('a'));
-		seeMore.textContent = localize('chatPullRequest.seeMore', 'See more');
+		seeMore.textContent = localize('chatPullRequest.seeMore', 'Show pull request');
 		this._register(addDisposableListener(seeMore, 'click', (e) => {
 			e.preventDefault();
 			e.stopPropagation();

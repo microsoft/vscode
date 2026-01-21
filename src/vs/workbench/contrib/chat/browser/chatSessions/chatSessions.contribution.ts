@@ -49,6 +49,7 @@ import { BugIndicatingError } from '../../../../../base/common/errors.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { LocalChatSessionUri } from '../../common/model/chatUri.js';
 import { assertNever } from '../../../../../base/common/assert.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 
 const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsExtensionPoint[]>({
 	extensionPoint: 'chatSessions',
@@ -516,12 +517,18 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		const disposables = new DisposableStore();
 
 		// Mirror all create submenu actions into the global Chat New menu
-		for (const action of menuActions) {
+		for (let i = 0; i < menuActions.length; i++) {
+			const action = menuActions[i];
 			if (action instanceof MenuItemAction) {
-				disposables.add(MenuRegistry.appendMenuItem(MenuId.ChatNewMenu, {
-					command: action.item,
-					group: '4_externally_contributed',
-				}));
+				// TODO: This is an odd way to do this, but the best we can do currently
+				if (i === 0 && !contribution.canDelegate) {
+					disposables.add(registerNewSessionExternalAction(contribution.type, contribution.displayName, action.item.id));
+				} else {
+					disposables.add(MenuRegistry.appendMenuItem(MenuId.ChatNewMenu, {
+						command: action.item,
+						group: '4_externally_contributed',
+					}));
+				}
 			}
 		}
 		return {
@@ -756,6 +763,9 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 	public async getChatSessionItems(providersToResolve: readonly string[] | undefined, token: CancellationToken): Promise<Array<{ readonly chatSessionType: string; readonly items: IChatSessionItem[] }>> {
 		const results: Array<{ readonly chatSessionType: string; readonly items: IChatSessionItem[] }> = [];
+		const resolvedProviderTypes = new Set<string>();
+
+		// First, iterate over extension point contributions
 		for (const contrib of this.getAllChatSessionContributions()) {
 			if (providersToResolve && !providersToResolve.includes(contrib.type)) {
 				continue; // skip: not considered for resolving
@@ -774,9 +784,30 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 				const providerSessions = await raceCancellationError(provider.provideChatSessionItems(token), token);
 				this._logService.trace(`[ChatSessionsService] Resolved ${providerSessions.length} sessions for provider ${provider.chatSessionType}`);
 				results.push({ chatSessionType: provider.chatSessionType, items: providerSessions });
+				resolvedProviderTypes.add(provider.chatSessionType);
 			} catch (error) {
 				// Log error but continue with other providers
 				this._logService.error(`[ChatSessionsService] Failed to resolve sessions for provider ${provider.chatSessionType}`, error);
+				continue;
+			}
+		}
+
+		// Also include registered items providers that don't have corresponding contributions
+		// (e.g., the local session provider which is built-in and not an extension contribution)
+		for (const [chatSessionType, provider] of this._itemsProviders) {
+			if (resolvedProviderTypes.has(chatSessionType)) {
+				continue; // already resolved via contribution
+			}
+			if (providersToResolve && !providersToResolve.includes(chatSessionType)) {
+				continue; // skip: not considered for resolving
+			}
+
+			try {
+				const providerSessions = await raceCancellationError(provider.provideChatSessionItems(token), token);
+				this._logService.trace(`[ChatSessionsService] Resolved ${providerSessions.length} sessions for built-in provider ${chatSessionType}`);
+				results.push({ chatSessionType, items: providerSessions });
+			} catch (error) {
+				this._logService.error(`[ChatSessionsService] Failed to resolve sessions for built-in provider ${chatSessionType}`, error);
 				continue;
 			}
 		}
@@ -1101,6 +1132,24 @@ function registerNewSessionInPlaceAction(type: string, displayName: string): IDi
 	});
 }
 
+function registerNewSessionExternalAction(type: string, displayName: string, commandId: string): IDisposable {
+	return registerAction2(class NewChatSessionExternalAction extends Action2 {
+		constructor() {
+			super({
+				id: `workbench.action.chat.openNewChatSessionExternal.${type}`,
+				title: localize2('interactiveSession.openNewChatSessionExternal', "New {0}", displayName),
+				category: CHAT_CATEGORY,
+				f1: false,
+				precondition: ChatContextKeys.enabled,
+			});
+		}
+		async run(accessor: ServicesAccessor): Promise<void> {
+			const commandService = accessor.get(ICommandService);
+			await commandService.executeCommand(commandId);
+		}
+	});
+}
+
 enum ChatSessionPosition {
 	Editor = 'editor',
 	Sidebar = 'sidebar'
@@ -1134,7 +1183,11 @@ async function openChatSession(accessor: ServicesAccessor, openOptions: NewChatS
 		switch (openOptions.position) {
 			case ChatSessionPosition.Sidebar: {
 				const view = await viewsService.openView(ChatViewId) as ChatViewPane;
-				await view.loadSession(resource);
+				if (openOptions.type === AgentSessionProviders.Local) {
+					await view.widget.clear();
+				} else {
+					await view.loadSession(resource);
+				}
 				view.focus();
 				break;
 			}

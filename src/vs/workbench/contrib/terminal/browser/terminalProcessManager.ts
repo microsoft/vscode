@@ -68,7 +68,7 @@ const enum ProcessType {
  *
  * Internal definitions:
  * - Process: The process launched with the terminalProcess.ts file, or the pty as a whole
- * - Pty Process: The pseudoterminal parent process (or the conpty/winpty agent process)
+ * - Pty Process: The pseudoterminal parent process (or the conpty agent process)
  * - Shell Process: The pseudoterminal child process (ie. the shell)
  */
 export class TerminalProcessManager extends Disposable implements ITerminalProcessManager {
@@ -302,7 +302,6 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 							suggestEnabled: this._configurationService.getValue(TerminalContribSettingId.SuggestEnabled),
 							nonce: this.shellIntegrationNonce
 						},
-						windowsEnableConpty: this._terminalConfigurationService.config.windowsEnableConpty,
 						windowsUseConptyDll: this._terminalConfigurationService.config.windowsUseConptyDll ?? false,
 						environmentVariableCollections: this._extEnvironmentVariableCollection?.collections ? serializeEnvironmentVariableCollections(this._extEnvironmentVariableCollection.collections) : undefined,
 						workspaceFolder: this._cwdWorkspaceFolder,
@@ -509,7 +508,6 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 				suggestEnabled: this._configurationService.getValue(TerminalContribSettingId.SuggestEnabled),
 				nonce: this.shellIntegrationNonce
 			},
-			windowsEnableConpty: this._terminalConfigurationService.config.windowsEnableConpty,
 			windowsUseConptyDll: this._terminalConfigurationService.config.windowsUseConptyDll ?? false,
 			environmentVariableCollections: this._extEnvironmentVariableCollection ? serializeEnvironmentVariableCollections(this._extEnvironmentVariableCollection.collections) : undefined,
 			workspaceFolder: this._cwdWorkspaceFolder,

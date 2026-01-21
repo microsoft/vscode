@@ -103,6 +103,10 @@ function determineChangeType(resource: ISCMResource, groupId: string): 'added' |
 
 /**
  * Generates a unified diff string compatible with `git apply`.
+ *
+ * Note: This implementation has a known limitation - if the only change between
+ * files is the presence/absence of a trailing newline (content otherwise identical),
+ * no diff will be generated because VS Code's diff algorithm treats the lines as equal.
  */
 async function generateUnifiedDiff(
 	fileService: IFileService,
@@ -137,6 +141,21 @@ async function generateUnifiedDiff(
 
 		const originalLines = originalContent.split('\n');
 		const modifiedLines = modifiedContent.split('\n');
+
+		// Track whether files end with newline for git apply compatibility
+		// split('\n') on "line1\nline2\n" gives ["line1", "line2", ""]
+		// split('\n') on "line1\nline2" gives ["line1", "line2"]
+		const originalEndsWithNewline = originalContent.length > 0 && originalContent.endsWith('\n');
+		const modifiedEndsWithNewline = modifiedContent.length > 0 && modifiedContent.endsWith('\n');
+
+		// Remove trailing empty element if file ends with newline
+		if (originalEndsWithNewline && originalLines.length > 0 && originalLines[originalLines.length - 1] === '') {
+			originalLines.pop();
+		}
+		if (modifiedEndsWithNewline && modifiedLines.length > 0 && modifiedLines[modifiedLines.length - 1] === '') {
+			modifiedLines.pop();
+		}
+
 		const diffLines: string[] = [];
 		const aPath = changeType === 'added' ? '/dev/null' : `a/${relPath}`;
 		const bPath = changeType === 'deleted' ? '/dev/null' : `b/${relPath}`;
@@ -150,6 +169,9 @@ async function generateUnifiedDiff(
 				for (const line of modifiedLines) {
 					diffLines.push(`+${line}`);
 				}
+				if (!modifiedEndsWithNewline) {
+					diffLines.push('\\ No newline at end of file');
+				}
 			}
 		} else if (changeType === 'deleted') {
 			if (originalLines.length > 0) {
@@ -157,9 +179,12 @@ async function generateUnifiedDiff(
 				for (const line of originalLines) {
 					diffLines.push(`-${line}`);
 				}
+				if (!originalEndsWithNewline) {
+					diffLines.push('\\ No newline at end of file');
+				}
 			}
 		} else {
-			const hunks = computeDiffHunks(originalLines, modifiedLines);
+			const hunks = computeDiffHunks(originalLines, modifiedLines, originalEndsWithNewline, modifiedEndsWithNewline);
 			for (const hunk of hunks) {
 				diffLines.push(hunk);
 			}
@@ -175,7 +200,12 @@ async function generateUnifiedDiff(
  * Computes unified diff hunks using VS Code's diff algorithm.
  * Merges adjacent/overlapping hunks to produce a valid patch.
  */
-function computeDiffHunks(originalLines: string[], modifiedLines: string[]): string[] {
+function computeDiffHunks(
+	originalLines: string[],
+	modifiedLines: string[],
+	originalEndsWithNewline: boolean,
+	modifiedEndsWithNewline: boolean
+): string[] {
 	const contextSize = 3;
 	const result: string[] = [];
 
@@ -227,6 +257,10 @@ function computeDiffHunks(originalLines: string[], modifiedLines: string[]): str
 		const hunkModStart = Math.max(1, firstChange.modified.startLineNumber - contextSize);
 
 		const hunkLines: string[] = [];
+		// Track which line in hunkLines corresponds to the last line of each file
+		let lastOriginalLineIndex = -1;
+		let lastModifiedLineIndex = -1;
+
 		let origLineNum = hunkOrigStart;
 		let origCount = 0;
 		let modCount = 0;
@@ -240,7 +274,16 @@ function computeDiffHunks(originalLines: string[], modifiedLines: string[]): str
 
 			// Emit context lines before this change
 			while (origLineNum < origStart) {
+				const idx = hunkLines.length;
 				hunkLines.push(` ${originalLines[origLineNum - 1]}`);
+				// Context lines are in both files
+				if (origLineNum === originalLines.length) {
+					lastOriginalLineIndex = idx;
+				}
+				const modLineNum = hunkModStart + modCount;
+				if (modLineNum === modifiedLines.length) {
+					lastModifiedLineIndex = idx;
+				}
 				origLineNum++;
 				origCount++;
 				modCount++;
@@ -248,28 +291,67 @@ function computeDiffHunks(originalLines: string[], modifiedLines: string[]): str
 
 			// Emit deleted lines
 			for (let i = origStart; i < origEnd; i++) {
+				const idx = hunkLines.length;
 				hunkLines.push(`-${originalLines[i - 1]}`);
+				if (i === originalLines.length) {
+					lastOriginalLineIndex = idx;
+				}
 				origLineNum++;
 				origCount++;
 			}
 
 			// Emit added lines
 			for (let i = modStart; i < modEnd; i++) {
+				const idx = hunkLines.length;
 				hunkLines.push(`+${modifiedLines[i - 1]}`);
+				if (i === modifiedLines.length) {
+					lastModifiedLineIndex = idx;
+				}
 				modCount++;
 			}
 		}
 
 		// Emit trailing context lines
 		while (origLineNum <= hunkOrigEnd) {
+			const idx = hunkLines.length;
 			hunkLines.push(` ${originalLines[origLineNum - 1]}`);
+			// Context lines are in both files
+			if (origLineNum === originalLines.length) {
+				lastOriginalLineIndex = idx;
+			}
+			const modLineNum = hunkModStart + modCount;
+			if (modLineNum === modifiedLines.length) {
+				lastModifiedLineIndex = idx;
+			}
 			origLineNum++;
 			origCount++;
 			modCount++;
 		}
 
 		result.push(`@@ -${hunkOrigStart},${origCount} +${hunkModStart},${modCount} @@`);
-		result.push(...hunkLines);
+
+		// Add "No newline at end of file" markers for git apply compatibility
+		// The marker must appear immediately after the line that lacks a newline
+		for (let i = 0; i < hunkLines.length; i++) {
+			result.push(hunkLines[i]);
+
+			const isLastOriginal = i === lastOriginalLineIndex;
+			const isLastModified = i === lastModifiedLineIndex;
+
+			if (isLastOriginal && isLastModified) {
+				// Context line is the last line of both files
+				// If either lacks newline, we need a marker (but only one)
+				if (!originalEndsWithNewline || !modifiedEndsWithNewline) {
+					result.push('\\ No newline at end of file');
+				}
+			} else if (isLastOriginal && !originalEndsWithNewline) {
+				// Deletion or context line that's only the last of original
+				result.push('\\ No newline at end of file');
+			} else if (isLastModified && !modifiedEndsWithNewline) {
+				// Addition or context line that's only the last of modified
+				result.push('\\ No newline at end of file');
+			}
+		}
 	}
 
 	return result;

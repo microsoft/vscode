@@ -650,4 +650,6 @@ export const codiconsLibrary = {
 	removeSmall: register('remove-small', 0xec7c),
 	worktreeSmall: register('worktree-small', 0xec7d),
 	worktree: register('worktree', 0xec7e),
+	screenCut: register('screen-cut', 0xec7f),
+	ask: register('ask', 0xec80),
 } as const;

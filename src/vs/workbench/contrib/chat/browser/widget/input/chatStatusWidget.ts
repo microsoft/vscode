@@ -52,18 +52,16 @@ export class ChatStatusWidget extends Disposable implements IChatInputPartWidget
 	}
 
 	private initializeIfEnabled(): void {
-		const enabledSku = this.configurationService.getValue<string | null>('chat.statusWidget.sku');
-		if (enabledSku !== 'free' && enabledSku !== 'anonymous') {
-			return;
-		}
-
 		const entitlement = this.chatEntitlementService.entitlement;
 		const isAnonymous = this.chatEntitlementService.anonymous;
 
-		if (enabledSku === 'anonymous' && isAnonymous) {
-			this.createWidgetContent(enabledSku);
-		} else if (enabledSku === 'free' && entitlement === ChatEntitlement.Free) {
-			this.createWidgetContent(enabledSku);
+		// Free tier is always enabled, anonymous is controlled by experiment via chat.statusWidget.sku
+		const enabledSku = this.configurationService.getValue<string | null>('chat.statusWidget.sku');
+
+		if (isAnonymous && enabledSku === 'anonymous') {
+			this.createWidgetContent('anonymous');
+		} else if (entitlement === ChatEntitlement.Free) {
+			this.createWidgetContent('free');
 		} else {
 			return;
 		}

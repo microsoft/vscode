@@ -122,10 +122,16 @@ export class ChatSessionPickerActionItem extends ActionWidgetDropdownActionViewI
 		const domChildren = [];
 		element.classList.add('chat-session-option-picker');
 
+		// If the current option is the default and has an icon, collapse the text and show only the icon
+		const isDefaultWithIcon = this.currentOption?.default && this.currentOption?.icon;
+
 		if (this.currentOption?.icon) {
 			domChildren.push(renderIcon(this.currentOption.icon));
 		}
-		domChildren.push(dom.$('span.chat-session-option-label', undefined, this.currentOption?.name ?? localize('chat.sessionPicker.label', "Pick Option")));
+
+		if (!isDefaultWithIcon) {
+			domChildren.push(dom.$('span.chat-session-option-label', undefined, this.currentOption?.name ?? localize('chat.sessionPicker.label', "Pick Option")));
+		}
 
 		domChildren.push(...renderLabelWithIcons(`$(chevron-down)`));
 

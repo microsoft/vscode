@@ -7,7 +7,6 @@ import { $ } from '../../../../../../base/browser/dom.js';
 import { ButtonWithIcon } from '../../../../../../base/browser/ui/button/button.js';
 import { HoverStyle } from '../../../../../../base/browser/ui/hover/hover.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
-import { Emitter } from '../../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable, IDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, IObservable, observableValue } from '../../../../../../base/common/observable.js';
@@ -27,9 +26,6 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 
 	private _domNode?: HTMLElement;
 	private readonly _renderedTitleWithWidgets = this._register(new MutableDisposable<IRenderedMarkdown>());
-
-	protected readonly _onDidChangeHeight = this._register(new Emitter<void>());
-	public readonly onDidChangeHeight = this._onDidChangeHeight.event;
 
 	protected readonly hasFollowingContent: boolean;
 	protected _isExpanded = observableValue<boolean>(this, false);
@@ -100,12 +96,6 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 			collapseButton.icon = this._overrideIcon.read(r) ?? (expanded ? Codicon.chevronDown : Codicon.chevronRight);
 			this._domNode?.classList.toggle('chat-used-context-collapsed', !expanded);
 			this.updateAriaLabel(collapseButton.element, typeof referencesLabel === 'string' ? referencesLabel : referencesLabel.value, expanded);
-
-			if (this._domNode?.isConnected) {
-				queueMicrotask(() => {
-					this._onDidChangeHeight.fire();
-				});
-			}
 		}));
 
 		const content = this.initContent();

@@ -199,6 +199,12 @@ export interface IMcpCollectionContribution {
 	readonly when?: string;
 }
 
+export interface IChatFileContribution {
+	readonly path: string;
+	readonly name?: string;
+	readonly description?: string;
+}
+
 export interface IExtensionContributions {
 	commands?: ICommand[];
 	configuration?: any;
@@ -226,6 +232,9 @@ export interface IExtensionContributions {
 	readonly notebookRenderer?: INotebookRendererContribution[];
 	readonly debugVisualizers?: IDebugVisualizationContribution[];
 	readonly chatParticipants?: ReadonlyArray<IChatParticipantContribution>;
+	readonly chatPromptFiles?: ReadonlyArray<IChatFileContribution>;
+	readonly chatInstructions?: ReadonlyArray<IChatFileContribution>;
+	readonly chatAgents?: ReadonlyArray<IChatFileContribution>;
 	readonly languageModelTools?: ReadonlyArray<IToolContribution>;
 	readonly languageModelToolSets?: ReadonlyArray<IToolSetContribution>;
 	readonly mcpServerDefinitionProviders?: ReadonlyArray<IMcpCollectionContribution>;

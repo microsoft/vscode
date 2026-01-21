@@ -1819,8 +1819,8 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		const range = new Range(startLineNumber, 1, endLineNumber, endColumn);
 
 		const decorations = this._getDecorationsInRange(range, ownerId, filterOutValidation, filterFontDecorations, onlyMarginDecorations);
-		pushMany(decorations, this._decorationProvider.getDecorationsInRange(range, ownerId, filterOutValidation));
-		pushMany(decorations, this._fontTokenDecorationsProvider.getDecorationsInRange(range, ownerId, filterOutValidation));
+		pushMany(decorations, this._decorationProvider.getDecorationsInRange(range, ownerId, filterOutValidation, filterFontDecorations));
+		pushMany(decorations, this._fontTokenDecorationsProvider.getDecorationsInRange(range, ownerId, filterOutValidation, filterFontDecorations));
 		return decorations;
 	}
 
@@ -1828,8 +1828,8 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		const validatedRange = this.validateRange(range);
 
 		const decorations = this._getDecorationsInRange(validatedRange, ownerId, filterOutValidation, filterFontDecorations, onlyMarginDecorations);
-		pushMany(decorations, this._decorationProvider.getDecorationsInRange(validatedRange, ownerId, filterOutValidation, onlyMinimapDecorations));
-		pushMany(decorations, this._fontTokenDecorationsProvider.getDecorationsInRange(validatedRange, ownerId, filterOutValidation, onlyMinimapDecorations));
+		pushMany(decorations, this._decorationProvider.getDecorationsInRange(validatedRange, ownerId, filterOutValidation, filterFontDecorations, onlyMinimapDecorations));
+		pushMany(decorations, this._fontTokenDecorationsProvider.getDecorationsInRange(validatedRange, ownerId, filterOutValidation, filterFontDecorations, onlyMinimapDecorations));
 		return decorations;
 	}
 
@@ -1842,7 +1842,9 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	}
 
 	public getCustomLineHeightsDecorations(ownerId: number = 0): model.IModelDecoration[] {
-		return this._decorationsTree.getAllCustomLineHeights(this, ownerId);
+		const decs = this._decorationsTree.getAllCustomLineHeights(this, ownerId);
+		pushMany(decs, this._fontTokenDecorationsProvider.getAllDecorations(ownerId));
+		return decs;
 	}
 
 	private _getInjectedTextInLine(lineNumber: number): LineInjectedText[] {

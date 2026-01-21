@@ -26,6 +26,7 @@ export interface IBrowserViewState {
 	canGoBack: boolean;
 	canGoForward: boolean;
 	loading: boolean;
+	focused: boolean;
 	isDevToolsOpen: boolean;
 	lastScreenshot: VSBuffer | undefined;
 	lastFavicon: string | undefined;
