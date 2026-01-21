@@ -10,7 +10,7 @@ declare module 'vscode' {
 		 * Whether the current network connection is metered (such as mobile data or tethering).
 		 * Always returns `false` if the `update.respectMeteredConnections` setting is disabled.
 		 */
-		export const isConnectionMetered: boolean;
+		export const isMeteredConnection: boolean;
 
 		/**
 		 * Event that fires when the metered connection status changes.

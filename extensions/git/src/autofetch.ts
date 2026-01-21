@@ -68,7 +68,7 @@ export class AutoFetcher {
 			return;
 		}
 
-		if (env.isConnectionMetered) {
+		if (env.isMeteredConnection) {
 			this.disable();
 			return;
 		}

@@ -421,7 +421,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'telemetry');
 				return _asExtensionEvent(extHostTelemetry.onDidChangeTelemetryConfiguration);
 			},
-			get isConnectionMetered(): boolean {
+			get isMeteredConnection(): boolean {
 				checkProposedApiEnabled(extension, 'envIsConnectionMetered');
 				return extHostMeteredConnection.isConnectionMetered;
 			},
