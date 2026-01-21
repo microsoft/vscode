@@ -213,7 +213,7 @@ export class InlineChatOverlayWidget extends Disposable implements IOverlayWidge
 	/**
 	 * Hide the widget (removes from editor but does not dispose).
 	 */
-	hide(): void {
+	private hide(): void {
 		if (!this._isVisible) {
 			return;
 		}
