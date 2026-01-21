@@ -889,7 +889,6 @@ class ChatTerminalToolOutputSection extends Disposable {
 			return true;
 		}
 
-		// For expanding, prepare content first but don't show until we have something to display
 		if (!this._scrollableContainer) {
 			await this._createScrollableContainer();
 		}
