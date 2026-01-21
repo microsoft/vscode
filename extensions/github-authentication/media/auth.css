@@ -126,6 +126,10 @@ body.error .detail {
 	color: var(--vscode-error-foreground);
 }
 
+body.error .success-message {
+	display: none;
+}
+
 body:not(.error) .error-message {
 	display: none;
 }
