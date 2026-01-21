@@ -1547,7 +1547,7 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 		}
 		const url = format2(resource, { publisher, name, version, statTypeName: type });
 
-		const Accept = isWeb ? 'api-version=6.1-preview.1' : '*/*;api-version=4.0-preview.1';
+		const Accept = '*/*;api-version=4.0-preview.1';
 		const commonHeaders = await this.commonHeadersPromise;
 		const headers = { ...commonHeaders, Accept };
 		try {
