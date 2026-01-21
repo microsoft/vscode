@@ -44,6 +44,10 @@
 	color: inherit !important;
 }
 
+.monaco-text-button .codicon + span {
+	margin-right: 0.2em;
+}
+
 .monaco-text-button.monaco-text-button-with-short-label {
 	flex-direction: row;
 	flex-wrap: wrap;
