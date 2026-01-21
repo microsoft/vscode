@@ -99,20 +99,32 @@ export class PlaywrightDriver {
 
 	/**
 	 * Switch to a different window by index or URL pattern.
-	 * @param indexOrUrl - Window index (0-based) or a string to match against the URL
+	 * @param indexOrUrl - Window index (0-based) or a string to match against the URL.
+	 *                     When using a string, it first tries to find an exact URL match,
+	 *                     then falls back to finding the first URL that contains the pattern.
 	 * @returns The switched-to page, or undefined if not found
+	 * @note When switching windows, any existing CDP session will be cleared since it
+	 *       remains attached to the previous page and cannot be used with the new page.
 	 */
 	switchToWindow(indexOrUrl: number | string): playwright.Page | undefined {
 		const windows = this.getAllWindows();
 		if (typeof indexOrUrl === 'number') {
 			if (indexOrUrl >= 0 && indexOrUrl < windows.length) {
 				this._currentPage = windows[indexOrUrl];
+				// Clear CDP session as it's attached to the previous page
+				this._cdpSession = undefined;
 				return this._currentPage;
 			}
 		} else {
-			const found = windows.find(w => w.url().includes(indexOrUrl));
+			// First try exact match, then fall back to substring match
+			let found = windows.find(w => w.url() === indexOrUrl);
+			if (!found) {
+				found = windows.find(w => w.url().includes(indexOrUrl));
+			}
 			if (found) {
 				this._currentPage = found;
+				// Clear CDP session as it's attached to the previous page
+				this._cdpSession = undefined;
 				return this._currentPage;
 			}
 		}
