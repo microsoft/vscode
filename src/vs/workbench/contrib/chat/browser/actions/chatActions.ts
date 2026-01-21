@@ -463,11 +463,24 @@ export function registerChatActions() {
 			const viewsService = accessor.get(IViewsService);
 			const viewDescriptorService = accessor.get(IViewDescriptorService);
 			const widgetService = accessor.get(IChatWidgetService);
+			const configurationService = accessor.get(IConfigurationService);
 
 			const chatLocation = viewDescriptorService.getViewLocationById(ChatViewId);
+			const triStateEnabled = configurationService.getValue<boolean>(ChatConfiguration.CommandCenterTriStateToggle);
 
 			if (viewsService.isViewVisible(ChatViewId)) {
-				this.updatePartVisibility(layoutService, chatLocation, false);
+				// Chat is visible - check if we should maximize first (tri-state mode)
+				if (triStateEnabled && chatLocation === ViewContainerLocation.AuxiliaryBar && !layoutService.isAuxiliaryBarMaximized()) {
+					// Tri-state mode: visible but not maximized -> maximize
+					layoutService.setAuxiliaryBarMaximized(true);
+				} else {
+					// Hide the chat (either tri-state with maximized or normal mode)
+					if (triStateEnabled && chatLocation === ViewContainerLocation.AuxiliaryBar && layoutService.isAuxiliaryBarMaximized()) {
+						// Restore from maximized state before hiding
+						layoutService.setAuxiliaryBarMaximized(false);
+					}
+					this.updatePartVisibility(layoutService, chatLocation, false);
+				}
 			} else {
 				this.updatePartVisibility(layoutService, chatLocation, true);
 				(await widgetService.revealWidget())?.focusInput();

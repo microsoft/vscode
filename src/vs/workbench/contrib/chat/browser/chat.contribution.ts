@@ -193,6 +193,12 @@ configurationRegistry.registerConfiguration({
 			markdownDescription: nls.localize('chat.commandCenter.enabled', "Controls whether the command center shows a menu for actions to control chat (requires {0}).", '`#window.commandCenter#`'),
 			default: true
 		},
+		[ChatConfiguration.CommandCenterTriStateToggle]: {
+			type: 'boolean',
+			markdownDescription: nls.localize('chat.commandCenter.experimentalTriStateToggle', "When enabled, clicking the chat icon in the command center cycles through: show chat, maximize chat, hide chat."),
+			default: false,
+			tags: ['experimental']
+		},
 		[ChatConfiguration.AgentStatusEnabled]: {
 			type: 'boolean',
 			markdownDescription: nls.localize('chat.agentsControl.enabled', "Controls whether the Agent Status indicator is shown in the title bar command center. Enabling this setting will automatically enable {0}.", '`#window.commandCenter#`'),
