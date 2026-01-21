@@ -75,7 +75,12 @@ export class ChatToolOutputContentSubPart extends Disposable {
 		for (let i = 0; i < this.parts.length; i++) {
 			const part = this.parts[i];
 			if (part.kind === 'code') {
-				this.addCodeBlock(part, container);
+				// Collect adjacent code parts and combine their contents
+				const codeParts = [part];
+				while (i + 1 < this.parts.length && this.parts[i + 1].kind === 'code') {
+					codeParts.push(this.parts[++i] as IChatCollapsibleIOCodePart);
+				}
+				this.addCodeBlock(codeParts, container);
 				continue;
 			}
 
@@ -153,22 +158,27 @@ export class ChatToolOutputContentSubPart extends Disposable {
 		toolbar.context = { parts } satisfies IChatToolOutputResourceToolbarContext;
 	}
 
-	private addCodeBlock(part: IChatCollapsibleIOCodePart, container: HTMLElement) {
-		if (part.title) {
+	private addCodeBlock(parts: IChatCollapsibleIOCodePart[], container: HTMLElement): void {
+		const firstPart = parts[0];
+		if (firstPart.title) {
 			const title = dom.$('div.chat-confirmation-widget-title');
-			const renderedTitle = this._register(this._markdownRendererService.render(this.toMdString(part.title)));
+			const renderedTitle = this._register(this._markdownRendererService.render(this.toMdString(firstPart.title)));
 			title.appendChild(renderedTitle.element);
 			container.appendChild(title);
 		}
 
+		// Combine text from all adjacent code parts
+		const combinedText = parts.map(p => p.textModel.getValue()).join('\n');
+		firstPart.textModel.setValue(combinedText);
+
 		const data: ICodeBlockData = {
-			languageId: part.languageId,
-			textModel: Promise.resolve(part.textModel),
-			codeBlockIndex: part.codeBlockInfo.codeBlockIndex,
+			languageId: firstPart.languageId,
+			textModel: Promise.resolve(firstPart.textModel),
+			codeBlockIndex: firstPart.codeBlockInfo.codeBlockIndex,
 			codeBlockPartIndex: 0,
 			element: this.context.element,
 			parentContextKeyService: this.contextKeyService,
-			renderOptions: part.options,
+			renderOptions: firstPart.options,
 			chatSessionResource: this.context.element.sessionResource,
 		};
 		const editorReference = this._register(this.context.editorPool.get());
@@ -176,7 +186,7 @@ export class ChatToolOutputContentSubPart extends Disposable {
 		this._register(editorReference.object.onDidChangeContentHeight(() => this._onDidChangeHeight.fire()));
 		container.appendChild(editorReference.object.element);
 		this._editorReferences.push(editorReference);
-		this.codeblocks.push(part.codeBlockInfo);
+		this.codeblocks.push(firstPart.codeBlockInfo);
 	}
 
 	layout(width: number): void {
