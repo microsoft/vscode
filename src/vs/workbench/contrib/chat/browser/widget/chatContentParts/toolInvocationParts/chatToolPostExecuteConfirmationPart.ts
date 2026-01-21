@@ -116,13 +116,6 @@ export class ChatToolPostExecuteConfirmationPart extends AbstractToolConfirmatio
 		for (const [i, part] of contentForModel.entries()) {
 			if (part.kind === 'text') {
 				// Display text parts
-				const model = this._register(this.modelService.createModel(
-					part.value,
-					this.languageService.createById('plaintext'),
-					undefined,
-					true
-				));
-
 				parts.push({
 					kind: 'code',
 					title: part.title,
@@ -141,12 +134,6 @@ export class ChatToolPostExecuteConfirmationPart extends AbstractToolConfirmatio
 			} else if (part.kind === 'promptTsx') {
 				// Display TSX parts as JSON-stringified
 				const stringified = stringifyPromptTsxPart(part);
-				const model = this._register(this.modelService.createModel(
-					stringified,
-					this.languageService.createById('json'),
-					undefined,
-					true
-				));
 
 				parts.push({
 					kind: 'code',
@@ -177,12 +164,6 @@ export class ChatToolPostExecuteConfirmationPart extends AbstractToolConfirmatio
 					const decoder = new TextDecoder('utf-8', { fatal: true });
 					try {
 						const text = decoder.decode(data.buffer);
-						const model = this._register(this.modelService.createModel(
-							text,
-							this.languageService.createById('plaintext'),
-							undefined,
-							true
-						));
 
 						parts.push({
 							kind: 'code',
