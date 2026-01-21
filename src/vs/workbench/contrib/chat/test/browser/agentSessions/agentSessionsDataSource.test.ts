@@ -54,6 +54,7 @@ suite('AgentSessionsDataSource', () => {
 			onWillResolve: Event.None,
 			onDidResolve: Event.None,
 			onDidChangeSessions: Event.None,
+			onDidChangeSessionArchivedState: Event.None,
 			resolve: async () => { },
 		};
 	}
