@@ -7,6 +7,8 @@ import { getDomNodePagePosition, h } from '../../../../../../../base/browser/dom
 import { KeybindingLabel, unthemedKeybindingLabelOptions } from '../../../../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
 import { numberComparator } from '../../../../../../../base/common/arrays.js';
 import { findFirstMin } from '../../../../../../../base/common/arraysFind.js';
+import { CharCode } from '../../../../../../../base/common/charCode.js';
+import { BugIndicatingError } from '../../../../../../../base/common/errors.js';
 import { DisposableStore, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { DebugLocation, derived, derivedObservableWithCache, derivedOpts, IObservable, IReader, observableSignalFromEvent, observableValue, transaction } from '../../../../../../../base/common/observable.js';
 import { OS } from '../../../../../../../base/common/platform.js';
@@ -15,20 +17,18 @@ import { URI } from '../../../../../../../base/common/uri.js';
 import { MenuEntryActionViewItem } from '../../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { ICodeEditor } from '../../../../../../browser/editorBrowser.js';
 import { observableCodeEditor, ObservableCodeEditor } from '../../../../../../browser/observableCodeEditor.js';
+import { EditorOption } from '../../../../../../common/config/editorOptions.js';
 import { Point } from '../../../../../../common/core/2d/point.js';
 import { Rect } from '../../../../../../common/core/2d/rect.js';
-import { EditorOption } from '../../../../../../common/config/editorOptions.js';
-import { LineRange } from '../../../../../../common/core/ranges/lineRange.js';
-import { OffsetRange } from '../../../../../../common/core/ranges/offsetRange.js';
+import { Size2D } from '../../../../../../common/core/2d/size.js';
+import { TextEdit, TextReplacement } from '../../../../../../common/core/edits/textEdit.js';
 import { Position } from '../../../../../../common/core/position.js';
 import { Range } from '../../../../../../common/core/range.js';
-import { TextReplacement, TextEdit } from '../../../../../../common/core/edits/textEdit.js';
+import { LineRange } from '../../../../../../common/core/ranges/lineRange.js';
+import { OffsetRange } from '../../../../../../common/core/ranges/offsetRange.js';
 import { RangeMapping } from '../../../../../../common/diff/rangeMapping.js';
 import { ITextModel } from '../../../../../../common/model.js';
 import { indentOfLine } from '../../../../../../common/model/textModel.js';
-import { CharCode } from '../../../../../../../base/common/charCode.js';
-import { BugIndicatingError } from '../../../../../../../base/common/errors.js';
-import { Size2D } from '../../../../../../common/core/2d/size.js';
 
 /**
  * Warning: might return 0.
@@ -43,13 +43,14 @@ export function maxContentWidthInRange(editor: ObservableCodeEditor, range: Line
 
 	editor.scrollTop.read(reader);
 	for (let i = range.startLineNumber; i < range.endLineNumberExclusive; i++) {
-		const lineContentWidth = editor.editor.getWidthOfLine(i);
+		let lineContentWidth = editor.editor.getWidthOfLine(i);
+		if (lineContentWidth === -1) {
+			// Line not laid out yet - use font-based approximation
+			const column = model.getLineMaxColumn(i);
+			const typicalHalfwidthCharacterWidth = editor.editor.getOption(EditorOption.fontInfo).typicalHalfwidthCharacterWidth;
+			lineContentWidth = column * typicalHalfwidthCharacterWidth;
+		}
 		maxContentWidth = Math.max(maxContentWidth, lineContentWidth);
-	}
-	const lines = range.mapToLineArray(l => model.getLineContent(l));
-
-	if (maxContentWidth < 5 && lines.some(l => l.length > 0) && model.uri.scheme !== 'file') {
-		console.error('unexpected width');
 	}
 	return maxContentWidth;
 }

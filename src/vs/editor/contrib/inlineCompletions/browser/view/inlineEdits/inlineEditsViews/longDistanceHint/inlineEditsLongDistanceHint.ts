@@ -3,42 +3,42 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { ChildNode, n, ObserverNode, ObserverNodeWithElement } from '../../../../../../../../base/browser/dom.js';
+import { renderIcon } from '../../../../../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { Codicon } from '../../../../../../../../base/common/codicons.js';
 import { Event } from '../../../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../../../base/common/lifecycle.js';
-import { IObservable, IReader, autorun, constObservable, debouncedObservable2, derived, derivedDisposable, observableFromEvent } from '../../../../../../../../base/common/observable.js';
+import { autorun, constObservable, debouncedObservable2, derived, derivedDisposable, IObservable, IReader, observableFromEvent } from '../../../../../../../../base/common/observable.js';
 import { IInstantiationService } from '../../../../../../../../platform/instantiation/common/instantiation.js';
-import { ICodeEditor } from '../../../../../../../browser/editorBrowser.js';
-import { observableCodeEditor } from '../../../../../../../browser/observableCodeEditor.js';
-import { Rect } from '../../../../../../../common/core/2d/rect.js';
-import { Position } from '../../../../../../../common/core/position.js';
-import { ITextModel } from '../../../../../../../common/model.js';
-import { IInlineEditsView, InlineEditTabAction } from '../../inlineEditsViewInterface.js';
-import { InlineEditWithChanges } from '../../inlineEditWithChanges.js';
-import { getContentSizeOfLines, rectToProps } from '../../utils/utils.js';
-import { DetailedLineRangeMapping } from '../../../../../../../common/diff/rangeMapping.js';
-import { OffsetRange } from '../../../../../../../common/core/ranges/offsetRange.js';
-import { LineRange } from '../../../../../../../common/core/ranges/lineRange.js';
-import { HideUnchangedRegionsFeature } from '../../../../../../../browser/widget/diffEditor/features/hideUnchangedRegionsFeature.js';
-import { Codicon } from '../../../../../../../../base/common/codicons.js';
-import { renderIcon } from '../../../../../../../../base/browser/ui/iconLabel/iconLabels.js';
-import { SymbolKinds } from '../../../../../../../common/languages.js';
-import { debugLogHorizontalOffsetRanges, debugLogRects, debugView } from '../debugVisualization.js';
-import { distributeFlexBoxLayout } from '../../utils/flexBoxLayout.js';
-import { Point } from '../../../../../../../common/core/2d/point.js';
-import { Size2D } from '../../../../../../../common/core/2d/size.js';
-import { IThemeService } from '../../../../../../../../platform/theme/common/themeService.js';
 import { IKeybindingService } from '../../../../../../../../platform/keybinding/common/keybinding.js';
-import { getEditorBackgroundColor, getEditorBlendedColor, inlineEditIndicatorPrimaryBackground, inlineEditIndicatorSecondaryBackground, inlineEditIndicatorSuccessfulBackground, observeColor } from '../../theme.js';
 import { asCssVariable, descriptionForeground, editorWidgetBackground } from '../../../../../../../../platform/theme/common/colorRegistry.js';
 import { editorWidgetBorder } from '../../../../../../../../platform/theme/common/colors/editorColors.js';
-import { ILongDistancePreviewProps, LongDistancePreviewEditor } from './longDistancePreviewEditor.js';
-import { InlineSuggestionGutterMenuData, SimpleInlineSuggestModel } from '../../components/gutterIndicatorView.js';
+import { IThemeService } from '../../../../../../../../platform/theme/common/themeService.js';
+import { ICodeEditor } from '../../../../../../../browser/editorBrowser.js';
+import { observableCodeEditor } from '../../../../../../../browser/observableCodeEditor.js';
+import { HideUnchangedRegionsFeature } from '../../../../../../../browser/widget/diffEditor/features/hideUnchangedRegionsFeature.js';
+import { Point } from '../../../../../../../common/core/2d/point.js';
+import { Rect } from '../../../../../../../common/core/2d/rect.js';
+import { Size2D } from '../../../../../../../common/core/2d/size.js';
+import { Position } from '../../../../../../../common/core/position.js';
+import { LineRange } from '../../../../../../../common/core/ranges/lineRange.js';
+import { OffsetRange } from '../../../../../../../common/core/ranges/offsetRange.js';
+import { DetailedLineRangeMapping } from '../../../../../../../common/diff/rangeMapping.js';
+import { SymbolKinds } from '../../../../../../../common/languages.js';
+import { ITextModel } from '../../../../../../../common/model.js';
 import { jumpToNextInlineEditId } from '../../../../controller/commandIds.js';
-import { splitIntoContinuousLineRanges, WidgetLayoutConstants, WidgetOutline, WidgetPlacementContext } from './longDistnaceWidgetPlacement.js';
 import { InlineCompletionEditorType } from '../../../../model/provideInlineCompletions.js';
+import { InlineSuggestionGutterMenuData, SimpleInlineSuggestModel } from '../../components/gutterIndicatorView.js';
+import { IInlineEditsView, InlineEditTabAction } from '../../inlineEditsViewInterface.js';
+import { InlineEditWithChanges } from '../../inlineEditWithChanges.js';
+import { getEditorBackgroundColor, getEditorBlendedColor, inlineEditIndicatorPrimaryBackground, inlineEditIndicatorSecondaryBackground, inlineEditIndicatorSuccessfulBackground, observeColor } from '../../theme.js';
+import { distributeFlexBoxLayout } from '../../utils/flexBoxLayout.js';
+import { getContentSizeOfLines, rectToProps } from '../../utils/utils.js';
+import { debugLogHorizontalOffsetRanges, debugLogRects, debugView } from '../debugVisualization.js';
+import { ILongDistancePreviewProps, LongDistancePreviewEditor } from './longDistancePreviewEditor.js';
+import { splitIntoContinuousLineRanges, WidgetLayoutConstants, WidgetOutline, WidgetPlacementContext } from './longDistnaceWidgetPlacement.js';
 
 const BORDER_RADIUS = 6;
-const MAX_WIDGET_WIDTH = { EMPTY_SPACE: 425, OVERLAY: 375 };
+const MAX_WIDGET_WIDTH = { EMPTY_SPACE: 600, OVERLAY: 500 };
 const MIN_WIDGET_WIDTH = 250;
 
 const DEFAULT_WIDGET_LAYOUT_CONSTANTS: WidgetLayoutConstants = {
@@ -291,8 +291,13 @@ export class InlineEditsLongDistanceHint extends Disposable implements IInlineEd
 			debugView(debugLogRects({ rectAvailableSpace }, this._editor.getDomNode()!), reader);
 		}
 
-		const { previewEditorMargin, widgetPadding, widgetBorder, lowerBarHeight } = layoutConstants;
-		const maxWidgetWidth = Math.min(position === 'overlay' ? MAX_WIDGET_WIDTH.OVERLAY : MAX_WIDGET_WIDTH.EMPTY_SPACE, previewEditorContentLayout.maxEditorWidth + previewEditorMargin + widgetPadding);
+		const { previewEditorMargin, widgetPadding, widgetBorder, lowerBarHeight, minWidgetWidth } = layoutConstants;
+		// Ensure maxEditorWidth is at least minWidgetWidth to prevent collapsed widget when font metrics are stale
+		const effectiveMaxEditorWidth = Math.max(previewEditorContentLayout.maxEditorWidth, minWidgetWidth);
+		// Use available space when in empty-space mode, respecting reasonable max caps
+		const availableWidth = possibleWidgetOutline.horizontalWidgetRange.length;
+		const preferredMaxWidth = position === 'overlay' ? MAX_WIDGET_WIDTH.OVERLAY : MAX_WIDGET_WIDTH.EMPTY_SPACE;
+		const maxWidgetWidth = Math.min(availableWidth, Math.max(preferredMaxWidth, effectiveMaxEditorWidth + previewEditorMargin + widgetPadding));
 
 		const layout = distributeFlexBoxLayout(rectAvailableSpace.width, {
 			spaceBefore: { min: 0, max: 10, priority: 1 },
