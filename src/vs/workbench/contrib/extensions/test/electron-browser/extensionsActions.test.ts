@@ -961,6 +961,18 @@ suite('ExtensionsActions', () => {
 			});
 	});
 
+	test('Test DisableGloballyAction when extension is disabled globally but enabled in workspace', async () => {
+		const local = aLocalExtension('a');
+		const enablementService = instantiationService.get(IWorkbenchExtensionEnablementService);
+		await enablementService.setEnablement([local], EnablementState.DisabledGlobally);
+		await enablementService.setEnablement([local], EnablementState.EnabledWorkspace);
+		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
+		const extensions = await instantiationService.get(IExtensionsWorkbenchService).queryLocal();
+		const testObject: ExtensionsActions.DisableGloballyAction = disposables.add(instantiationService.createInstance(ExtensionsActions.DisableGloballyAction));
+		testObject.extension = extensions[0];
+		assert.ok(!testObject.enabled);
+	});
+
 });
 
 suite('ExtensionRuntimeStateAction', () => {
