@@ -1,4 +1,65 @@
-"""String visualizer for Sculpt-n-Code."""
+"""
+String visualizer for Sculpt-n-Code.
+
+This visualizer displays Python string values with interactive selection capabilities,
+allowing users to build regex patterns by demonstration.
+
+================================================================================
+ARCHITECTURE OVERVIEW
+================================================================================
+
+This visualizer follows the Elm architecture with three core functions:
+
+1. visualize(value, model) -> HTML string
+   - Renders the string value as interactive HTML
+   - Each character is wrapped in a <span> with mouse event handlers
+   - Selection highlighting is applied based on model state
+
+2. init_model() -> dict
+   - Returns the initial model state for a new visualization
+
+3. update(event, source_code, source_line, model) -> (new_model, commands)
+   - Processes UI events (mouse, keyboard) and returns updated model
+   - May return commands (like NewCode) for VS Code to execute
+
+================================================================================
+HOW IT WORKS
+================================================================================
+
+RENDERING:
+- The string is displayed character-by-character inside a <div>
+- Special characters (\n, \t) are shown as escape sequences
+- Regex anchors \A and ^ are shown as prefix markers
+- Each <span> has snc-mouse-* attributes containing Python code strings
+  that get eval'd in the update() function to create typed event objects
+
+INTERNAL INDEXING:
+- Characters use "internal indices" that differ from string indices
+- Index 0: \A marker, Index 1: ^ marker, Index 2+: actual characters
+- Newlines expand to 3 indices: $ (end-of-line), \n, ^ (start-of-line)
+- The build_internal_to_string_mapping() function converts between systems
+
+SELECTION (Programming by Demonstration):
+- Users can create regex patterns by selecting parts of the string
+- Dragging the TOP half of characters creates "literal" selections (yellow)
+- Dragging the BOTTOM half creates "fuzzy" selections (purple = .*?)
+- Multiple segments can be chained by starting a new drag at the end of
+  the previous selection
+- Pressing Enter generates regex code: re.search(r'pattern', var).group(0)
+
+MODEL STATE:
+- completedSegments: List of finalized selection segments
+- anchorIdx/cursorIdx: Current drag start/end positions (internal indices)
+- anchorType: 'literal' or 'fuzzy' based on where the drag started
+- dragging: Whether a drag is in progress
+- stringValue: The actual Python string being visualized
+
+COMMANDS:
+- NewCode(code): Tells VS Code to replace the file contents with new code
+  (used when Enter is pressed to insert the generated regex line)
+
+================================================================================
+"""
 
 import html
 import re
@@ -80,8 +141,18 @@ def plain_char(char):
 #     else:
 #         return plain_char(char)
 
-def char_span(string, index, is_special, is_selected=False):
-    background_style = 'background-color: rgba(255,255,0,0.35);' if is_selected else ''
+def char_span(string, index, is_special, selection_type=None):
+    """Render a character span with optional selection highlighting.
+
+    Args:
+        selection_type: None, 'literal', or 'fuzzy'
+    """
+    if selection_type == 'literal':
+        background_style = 'background-color: rgba(255,255,0,0.35);'  # Yellow for literal
+    elif selection_type == 'fuzzy':
+        background_style = 'background-color: rgba(150,100,255,0.35);'  # Purple for fuzzy
+    else:
+        background_style = ''
     color = GRAY if is_special else STRING
 
     return f'<span data-snc-idx="{index}" snc-mouse-move="{html.escape(repr(MouseMove(index)))}" snc-mouse-down="{html.escape(repr(MouseDown(index)))}" snc-mouse-up="{html.escape(repr(MouseUp(index)))}" style="color: {color}; {background_style}">{html.escape(string)}</span>'
@@ -242,46 +313,143 @@ def generate_slice_code(source_code: str, line_number: int, string_value: str,
     return '\n'.join(lines)
 
 
-def vis_char_with_index(char, i, selected_indices):
-    """Visualize a character with data-snc-idx attribute and optional highlighting."""
+def generate_regex_code(source_code: str, line_number: int, string_value: str,
+                        segments: List[dict]) -> str:
+    """
+    Generate new source code with a regex search expression inserted after the current line.
 
+    Args:
+        source_code: The full source code
+        line_number: Line where the string is visualized (1-indexed)
+        string_value: The actual string value
+        segments: List of {"start": int, "end": int, "type": "literal"|"fuzzy"}
+
+    Returns:
+        New source code with regex search line inserted
+    """
+    # Check if 'import re' is needed
+    needs_import = 'import re' not in source_code
+    
+    expr, var_name = extract_expression_from_line(source_code, line_number)
+    mapping = build_internal_to_string_mapping(string_value)
+
+    # Build regex pattern from segments
+    pattern_parts = []
+    for seg in segments:
+        # Convert internal indices to string slice
+        seg_start = seg['start']
+        seg_end = seg['end']
+
+        # Map internal indices to string indices
+        slice_start = mapping[seg_start] if seg_start < len(mapping) else len(string_value)
+        slice_end = mapping[seg_end - 1] + 1 if seg_end - 1 < len(mapping) else len(string_value)
+        slice_end = min(slice_end, len(string_value))
+
+        text = string_value[slice_start:slice_end]
+
+        if seg['type'] == 'literal':
+            pattern_parts.append(re.escape(text))
+        else:  # fuzzy
+            pattern_parts.append('.*?')
+
+    regex_pattern = ''.join(pattern_parts)
+
+    # Generate the regex expression
+    var_to_search = var_name if var_name else f"({expr})"
+    if var_name:
+        new_var = f"{var_name}_match"
+        regex_expr = f"{new_var} = re.search(r'{regex_pattern}', {var_to_search}).group(0)"
+    else:
+        regex_expr = f"result_match = re.search(r'{regex_pattern}', {var_to_search}).group(0)"
+
+    # Insert the new line after the current line
+    lines = source_code.split('\n')
+
+    # Detect indentation of the current line
+    if line_number >= 1 and line_number <= len(lines):
+        current_line = lines[line_number - 1]
+        indent = len(current_line) - len(current_line.lstrip())
+        indent_str = current_line[:indent]
+    else:
+        indent_str = ""
+
+    # Insert new line
+    new_line = indent_str + regex_expr
+    lines.insert(line_number, new_line)
+
+    # Add 'import re' at the top if needed
+    if needs_import:
+        # Find the right place to insert the import (after any existing imports or at top)
+        import_line = 0
+        for i, line in enumerate(lines):
+            stripped = line.strip()
+            if stripped.startswith('import ') or stripped.startswith('from '):
+                import_line = i + 1
+            elif stripped and not stripped.startswith('#'):
+                # Stop at first non-import, non-comment line
+                break
+        lines.insert(import_line, 'import re')
+
+    return '\n'.join(lines)
+
+
+def vis_char_with_index(char, i, selection_type_by_index):
+    """Visualize a character with data-snc-idx attribute and optional highlighting.
+
+    Args:
+        selection_type_by_index: dict mapping index -> 'literal' | 'fuzzy' | None
+    """
     if char == '\n':
-        return (char_span('$', i, True, i in selected_indices) + (char_span('\\n', i+1, True, i+1 in selected_indices) + '\n   ' + char_span('^', i+2, True, i+2 in selected_indices)), i + 3)
+        return (char_span('$', i, True, selection_type_by_index.get(i)) + (char_span('\\n', i+1, True, selection_type_by_index.get(i+1)) + '\n   ' + char_span('^', i+2, True, selection_type_by_index.get(i+2))), i + 3)
     elif char == '\t':
-        return (char_span('\\t', i, True, i in selected_indices), i + 1)
+        return (char_span('\\t', i, True, selection_type_by_index.get(i)), i + 1)
 
-    return (char_span(char, i, False, i in selected_indices), i + 1)
+    return (char_span(char, i, False, selection_type_by_index.get(i)), i + 1)
+
+
+def get_all_segments(model):
+    """Get all segments including the in-progress one for display."""
+    completed = model.get('completedSegments', [])
+    
+    # Compute current in-progress segment from anchor/cursor
+    a = model.get('anchorIdx')
+    c = model.get('cursorIdx')
+    anchor_type = model.get('anchorType', 'literal')
+    
+    if isinstance(a, int) and isinstance(c, int):
+        start = min(a, c)
+        end = max(a, c) + 1
+        current_segment = {"start": start, "end": end, "type": anchor_type}
+        return completed + [current_segment]
+    
+    return completed
 
 
 def visualize(value, model=None):
-    # chars_html = ''.join(vis_char(c) for c in value)
-    # return f'''<div style="color: {GRAY}; white-space: pre;">'{chars_html}'</div>'''
-
     if model is None:
         model = init_model()
 
     # Store the string value in the model for use by update()
     model['stringValue'] = value
 
-    # Extract selection ranges from model
-    selection_ranges = model.get('stringSelectionRanges', [])
-
-    # Create a set of selected indices for fast lookup
-    selected_indices = set()
-    for start, end in selection_ranges:
-        for i in range(start, end):
-            selected_indices.add(i)
+    # Build selection_type_by_index from all segments (completed + in-progress)
+    segments = get_all_segments(model)
+    selection_type_by_index = {}
+    for seg in segments:
+        seg_type = seg.get('type', 'literal')
+        for i in range(seg['start'], seg['end']):
+            selection_type_by_index[i] = seg_type
 
     # Build character sequence with data-snc-idx attributes and highlighting
     char_elements = []
 
-    # Prefix markers are selectable with internal indices -2 (\\A) and -1 (^)
-    char_elements.append(char_span('\\A', 0, True, 0 in selected_indices))
-    char_elements.append(char_span('^', 1, True, 1 in selected_indices))
+    # Prefix markers are selectable with internal indices 0 (\A) and 1 (^)
+    char_elements.append(char_span('\\A', 0, True, selection_type_by_index.get(0)))
+    char_elements.append(char_span('^', 1, True, selection_type_by_index.get(1)))
 
     index = 2
     for char in value:
-        char_html, index = vis_char_with_index(char, index, selected_indices)
+        char_html, index = vis_char_with_index(char, index, selection_type_by_index)
         char_elements.append(char_html)
 
     chars_html = ''.join(char_elements)
@@ -289,7 +457,21 @@ def visualize(value, model=None):
     return f'''<div tabindex="0" snc-key-down="{html.escape(repr(KeyDown()))}" style="color: {STRING}; white-space: pre; user-select: none; outline: none;">"{chars_html}"</div>'''
 
 def init_model():
-    return {"stringSelectionRanges": [], "anchorIdx": None, "cursorIdx": None, "dragging": False, "stringValue": None}
+    return {
+        "completedSegments": [],  # Finalized segments from previous drags
+        "anchorIdx": None,
+        "anchorType": None,       # "literal" or "fuzzy" - determined when drag starts
+        "cursorIdx": None,
+        "dragging": False,
+        "stringValue": None
+    }
+
+
+def is_top_half(event_json):
+    """Determine if mouse click was in top half of the target element."""
+    offset_y = event_json.get('offsetY', 0)
+    height = event_json.get('elementHeight', 1)
+    return offset_y <= height / 2
 
 def update(event=None, source_code=None, source_line=None, model=None) -> Tuple[dict, List[Any]]:
     """
@@ -306,50 +488,80 @@ def update(event=None, source_code=None, source_line=None, model=None) -> Tuple[
         model = init_model()
 
     make_python_event = eval(event['pythonEventStr'])
-    msg = make_python_event(event['eventJSON']) if callable(make_python_event) else make_python_event
+    event_json = event['eventJSON']
+    msg = make_python_event(event_json) if callable(make_python_event) else make_python_event
 
     match msg:
         case MouseDown(index=idx):
-            # Start a fresh selection on each new drag, but preserve stringValue
             string_value = model.get('stringValue')
-            model = init_model()
-            model['stringValue'] = string_value
-            if isinstance(idx, int):
-                model['anchorIdx'] = idx
+            completed_segments = model.get('completedSegments', [])
+
+            # Determine selection type based on top/bottom half of character
+            anchor_type = 'literal' if is_top_half(event_json) else 'fuzzy'
+
+            # Check if we're extending from the end of existing segments
+            extending = False
+            if completed_segments and isinstance(idx, int):
+                last_segment = completed_segments[-1]
+                # If clicking at or adjacent to the end of the last segment, extend
+                if idx == last_segment['end'] or idx == last_segment['end'] - 1:
+                    extending = True
+
+            if extending:
+                # Keep existing segments, start new segment from end of last
+                model['anchorIdx'] = completed_segments[-1]['end']
+                model['anchorType'] = anchor_type
                 model['cursorIdx'] = idx
+            else:
+                # Fresh start: reset segments
+                model = init_model()
+                model['stringValue'] = string_value
+                if isinstance(idx, int):
+                    model['anchorIdx'] = idx
+                    model['anchorType'] = anchor_type
+                    model['cursorIdx'] = idx
+
             model['dragging'] = True
 
         case MouseMove(index=idx):
-            if event['eventJSON'].get('buttons') == 0: # Mouse may have been released outside the widget and we didn't get MouseUp
+            if event_json.get('buttons') == 0:  # Mouse released outside widget
+                # Finalize the current segment
+                a = model.get('anchorIdx')
+                c = model.get('cursorIdx')
+                if isinstance(a, int) and isinstance(c, int):
+                    start = min(a, c)
+                    end = max(a, c) + 1
+                    current_segment = {"start": start, "end": end, "type": model.get('anchorType', 'literal')}
+                    model['completedSegments'] = model.get('completedSegments', []) + [current_segment]
+                    model['anchorIdx'] = None
+                    model['cursorIdx'] = None
                 model['dragging'] = False
-
-            if model['dragging']:
+            elif model.get('dragging'):
                 model['cursorIdx'] = idx
 
         case MouseUp(index=idx):
-            if model['dragging']:
+            if model.get('dragging'):
                 model['cursorIdx'] = idx
+                # Finalize the current segment
+                a = model.get('anchorIdx')
+                c = model.get('cursorIdx')
+                if isinstance(a, int) and isinstance(c, int):
+                    start = min(a, c)
+                    end = max(a, c) + 1
+                    current_segment = {"start": start, "end": end, "type": model.get('anchorType', 'literal')}
+                    model['completedSegments'] = model.get('completedSegments', []) + [current_segment]
+                    model['anchorIdx'] = None
+                    model['cursorIdx'] = None
                 model['dragging'] = False
 
         case KeyDown():
-            if event['eventJSON'].get('key') == 'Enter':
-                # Generate slice code if we have a selection
-                selection_ranges = model.get('stringSelectionRanges', [])
+            if event_json.get('key') == 'Enter':
+                # Generate regex code if we have segments
+                segments = get_all_segments(model)
                 string_value = model.get('stringValue')
 
-                if selection_ranges and string_value is not None and source_code and source_line:
-                    start, end = selection_ranges[0]
-                    new_code = generate_slice_code(source_code, source_line, string_value, start, end)
+                if segments and string_value is not None and source_code and source_line:
+                    new_code = generate_regex_code(source_code, source_line, string_value, segments)
                     commands.append(NewCode(code=new_code))
-
-    # Compute selection ranges from anchor/cursor (end-exclusive)
-    a = model.get('anchorIdx')
-    c = model.get('cursorIdx')
-    if isinstance(a, int) and isinstance(c, int):
-        start = a if a <= c else c
-        end = (c if a <= c else a) + 1
-        model['stringSelectionRanges'] = [(start, end)]
-    else:
-        model['stringSelectionRanges'] = []
 
     return (model, commands)
