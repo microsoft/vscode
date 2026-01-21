@@ -229,7 +229,6 @@
 /* Sticky Scroll */
 .monaco-workbench .monaco-editor .sticky-widget { box-shadow: 0 0 6px rgba(0, 0, 0, 0.10) !important; border-bottom: none !important; background: rgba(252, 252, 253, 0.65) !important; backdrop-filter: blur(40px) saturate(180%) !important; -webkit-backdrop-filter: blur(40px) saturate(180%) !important; }
 .monaco-workbench.vs-dark .monaco-editor .sticky-widget { border-bottom: none !important; background: rgba(0, 0, 0, 0.3) !important; backdrop-filter: blur(40px) saturate(180%) !important; -webkit-backdrop-filter: blur(40px) saturate(180%) !important; }
-.monaco-workbench .monaco-editor .sticky-widget .sticky-widget-line-numbers,
 .monaco-workbench .monaco-editor .sticky-widget .sticky-widget-lines
 { background-color: transparent !important; background: transparent !important; }
 .monaco-workbench.vs-dark .monaco-editor .sticky-widget,
@@ -247,7 +246,7 @@
 
 .monaco-workbench.vs-dark .monaco-editor .sticky-widget .sticky-line-content,
 .monaco-workbench.vs-dark .monaco-editor .sticky-widget .sticky-line-number {
-	background-color: color-mix(in srgb, var(--vscode-list-hoverBackground) 30%, transparent)
+	background-color: color-mix(in srgb, var(--vscode-editor-background) 30%, transparent)
 }
 
 
