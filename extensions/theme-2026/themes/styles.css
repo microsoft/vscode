@@ -70,7 +70,6 @@
 .monaco-workbench .quick-input-widget .monaco-list,
 .monaco-workbench .quick-input-widget .monaco-list-row { border-color: transparent !important; outline: none !important; }
 .monaco-workbench .quick-input-widget .monaco-inputbox { box-shadow: none !important; background: transparent !important; }
-.monaco-workbench .quick-input-widget .quick-input-filter .monaco-inputbox { background: rgba(249, 250, 251, 0.4) !important; border-radius: 6px; }
 .monaco-workbench.vs-dark .quick-input-widget .quick-input-filter .monaco-inputbox,
 
 .monaco-workbench .quick-input-widget .monaco-list.list_id_6:not(.drop-target):not(.dragging) .monaco-list-row:hover:not(.selected):not(.focused) { background-color: color-mix(in srgb, var(--vscode-list-hoverBackground) 40%, transparent); }
@@ -214,11 +213,8 @@
 .monaco-workbench .monaco-editor .sticky-widget-focus-preview,
 .monaco-workbench .monaco-editor .sticky-scroll-focus-line,
 .monaco-workbench .monaco-editor .focused .sticky-widget,
-.monaco-workbench .monaco-editor:has(.sticky-widget:focus-within) .sticky-widget { background: rgba(252, 252, 253, 0.75) !important; backdrop-filter: blur(40px) saturate(180%) !important; -webkit-backdrop-filter: blur(40px) saturate(180%) !important; box-shadow: 0 0 8px rgba(0, 0, 0, 0.12) !important; border-radius: 0 0 8px 8px !important; }
-.monaco-workbench.vs-dark .monaco-editor .sticky-widget-focus-preview,
-.monaco-workbench.vs-dark .monaco-editor .sticky-scroll-focus-line,
-.monaco-workbench.vs-dark .monaco-editor .focused .sticky-widget,
-.monaco-workbench.vs-dark .monaco-editor:has(.sticky-widget:focus-within) .sticky-widget,
+.monaco-workbench .monaco-editor:has(.sticky-widget:focus-within) .sticky-widget { background: rgba(252, 252, 253, 0.75) !important; backdrop-filter: blur(40px) saturate(180%) !important; -webkit-backdrop-filter: blur(40px) saturate(180%) !important; box-shadow: 0 0 8px rgba(0, 0, 0, 0.12) !important; }
+.monaco-workbench.vs-dark .monaco-editor:has(.sticky-widget:focus-within) .sticky-widget { background: rgba(0, 0, 0, 0.4) !important; backdrop-filter: blur(40px) saturate(180%) !important; -webkit-backdrop-filter: blur(40px) saturate(180%) !important; box-shadow: 0 0 8px rgba(0, 0, 0, 0.12) !important; }
 
 /* Notebook */
 .monaco-workbench .notebookOverlay .monaco-list .cell-focus-indicator { box-shadow: 0 0 4px rgba(0, 0, 0, 0.08); border-radius: 6px; }
