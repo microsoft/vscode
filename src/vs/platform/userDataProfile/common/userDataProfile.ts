@@ -565,12 +565,12 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 		});
 	}
 
-	private systemPrfilesTemplatesPromise: Promise<ResourceMap<ISystemProfileTemplate>> | undefined;
+	private systemProfilesTemplatesPromise: Promise<ResourceMap<ISystemProfileTemplate>> | undefined;
 	private async getSystemProfileTemplates(): Promise<ResourceMap<ISystemProfileTemplate>> {
-		if (!this.systemPrfilesTemplatesPromise) {
-			this.systemPrfilesTemplatesPromise = this.doGetSystemProfileTemplates();
+		if (!this.systemProfilesTemplatesPromise) {
+			this.systemProfilesTemplatesPromise = this.doGetSystemProfileTemplates();
 		}
-		return this.systemPrfilesTemplatesPromise;
+		return this.systemProfilesTemplatesPromise;
 	}
 
 	private async doGetSystemProfileTemplates(): Promise<ResourceMap<ISystemProfileTemplate>> {
