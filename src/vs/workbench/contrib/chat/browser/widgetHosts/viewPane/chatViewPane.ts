@@ -939,11 +939,18 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	}
 
 	private computeEffectiveStackedSessionsHeight(availableHeight: number, sessionsViewerStackedHeight = this.sessionsViewerStackedHeight): number {
+		// Compute the actual content height based on the number of sessions plus section headers.
+		// We estimate section headers by adding one header per session (upper bound, since sessions
+		// in the same time period share a section, but this ensures we don't clip content).
+		const sectionHeaderHeight = AgentSessionsListDelegate.SECTION_HEIGHT;
+		const contentHeight = this.sessionsCount * (AgentSessionsListDelegate.ITEM_HEIGHT + sectionHeaderHeight);
+
 		return Math.max(
 			ChatViewPane.SESSIONS_STACKED_MIN_HEIGHT,			// never smaller than min height for stacked sessions
 			Math.min(
 				sessionsViewerStackedHeight,
-				availableHeight									// never taller than available height
+				availableHeight,								// never taller than available height
+				contentHeight									// never taller than actual content
 			)
 		);
 	}
