@@ -106,6 +106,7 @@ export class ChatEditor extends EditorPane {
 					enableImplicitContext: true,
 					enableWorkingSet: 'explicit',
 					supportsChangingModes: true,
+					dndContainer: parent,
 				},
 				{
 					listForeground: editorForeground,
