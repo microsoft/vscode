@@ -14,10 +14,17 @@ import { IContextKeyService } from '../../../../../../platform/contextkey/common
 
 const $ = dom.$;
 
+export interface IChatContextUsagePromptTokenDetail {
+	category: string;
+	label: string;
+	percentageOfPrompt: number;
+}
+
 export interface IChatContextUsageData {
 	promptTokens: number;
 	maxInputTokens: number;
 	percentage: number;
+	promptTokenDetails?: readonly IChatContextUsagePromptTokenDetail[];
 }
 
 /**
@@ -31,6 +38,7 @@ export class ChatContextUsageDetails extends Disposable {
 	private readonly quotaItem: HTMLElement;
 	private readonly percentageLabel: HTMLElement;
 	private readonly progressFill: HTMLElement;
+	private readonly tokenDetailsContainer: HTMLElement;
 	private readonly warningMessage: HTMLElement;
 	private readonly actionsSection: HTMLElement;
 
@@ -56,6 +64,9 @@ export class ChatContextUsageDetails extends Disposable {
 		// Progress bar - using same structure as chat usage widget
 		const progressBar = this.quotaItem.appendChild($('.quota-bar'));
 		this.progressFill = progressBar.appendChild($('.quota-bit'));
+
+		// Token details container (for category breakdown)
+		this.tokenDetailsContainer = this.domNode.appendChild($('.token-details-container'));
 
 		// Warning message (shown when usage is high)
 		this.warningMessage = this.domNode.appendChild($('.warning-message'));
@@ -87,7 +98,7 @@ export class ChatContextUsageDetails extends Disposable {
 	}
 
 	update(data: IChatContextUsageData): void {
-		const { percentage } = data;
+		const { percentage, promptTokenDetails } = data;
 
 		// Update percentage label
 		this.percentageLabel.textContent = `${percentage.toFixed(0)}%`;
@@ -103,8 +114,66 @@ export class ChatContextUsageDetails extends Disposable {
 			this.quotaItem.classList.add('warning');
 		}
 
+		// Render token details breakdown if available
+		this.renderTokenDetails(promptTokenDetails, percentage);
+
 		// Show/hide warning message
 		this.warningMessage.style.display = percentage >= 75 ? '' : 'none';
+	}
+
+	private renderTokenDetails(details: readonly IChatContextUsagePromptTokenDetail[] | undefined, contextWindowPercentage: number): void {
+		// Clear previous content
+		dom.clearNode(this.tokenDetailsContainer);
+
+		if (!details || details.length === 0) {
+			this.tokenDetailsContainer.style.display = 'none';
+			return;
+		}
+
+		this.tokenDetailsContainer.style.display = '';
+
+		// Group details by category
+		const categoryMap = new Map<string, { label: string; percentageOfPrompt: number }[]>();
+		let totalPercentage = 0;
+
+		for (const detail of details) {
+			const existing = categoryMap.get(detail.category) || [];
+			existing.push({ label: detail.label, percentageOfPrompt: detail.percentageOfPrompt });
+			categoryMap.set(detail.category, existing);
+			totalPercentage += detail.percentageOfPrompt;
+		}
+
+		// Add uncategorized if percentages don't sum to 100%
+		if (totalPercentage < 100) {
+			const uncategorizedPercentage = 100 - totalPercentage;
+			categoryMap.set(localize('uncategorized', "Uncategorized"), [
+				{ label: localize('other', "Other"), percentageOfPrompt: uncategorizedPercentage }
+			]);
+		}
+
+		// Render each category
+		for (const [category, items] of categoryMap) {
+			const categorySection = this.tokenDetailsContainer.appendChild($('.token-category'));
+
+			// Category header
+			const categoryHeader = categorySection.appendChild($('.token-category-header'));
+			categoryHeader.textContent = category;
+
+			// Category items
+			for (const item of items) {
+				const itemRow = categorySection.appendChild($('.token-detail-item'));
+
+				const itemLabel = itemRow.appendChild($('.token-detail-label'));
+				itemLabel.textContent = item.label;
+
+				// Calculate percentage relative to context window
+				// E.g., if context window is at 10% and item uses 10% of prompt, show 1%
+				const contextRelativePercentage = (item.percentageOfPrompt / 100) * contextWindowPercentage;
+
+				const itemValue = itemRow.appendChild($('.token-detail-value'));
+				itemValue.textContent = `${contextRelativePercentage.toFixed(1)}%`;
+			}
+		}
 	}
 
 	focus(): void {

@@ -73,6 +73,36 @@
 	margin-bottom: 8px;
 }
 
+/* Token details breakdown */
+.chat-context-usage-details .token-details-container {
+	margin-top: 8px;
+}
+
+.chat-context-usage-details .token-category {
+	margin-bottom: 8px;
+}
+
+.chat-context-usage-details .token-category-header {
+	font-weight: 600;
+	color: var(--vscode-foreground);
+	margin-bottom: 4px;
+}
+
+.chat-context-usage-details .token-detail-item {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	padding-left: 8px;
+}
+
+.chat-context-usage-details .token-detail-label {
+	color: var(--vscode-foreground);
+}
+
+.chat-context-usage-details .token-detail-value {
+	color: var(--vscode-descriptionForeground);
+}
+
 .chat-context-usage-details .actions-section .separator {
 	border-top: 1px solid var(--vscode-editorHoverWidget-border);
 	margin: 8px 0;

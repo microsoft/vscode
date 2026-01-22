@@ -220,15 +220,16 @@ export class ChatContextUsageWidget extends Disposable {
 		}
 
 		const promptTokens = usage.promptTokens;
+		const promptTokenDetails = usage.promptTokenDetails;
 		const percentage = Math.min(100, (promptTokens / maxInputTokens) * 100);
 
-		this.render(percentage, promptTokens, maxInputTokens);
+		this.render(percentage, promptTokens, maxInputTokens, promptTokenDetails);
 		this.show();
 	}
 
-	private render(percentage: number, promptTokens: number, maxTokens: number): void {
+	private render(percentage: number, promptTokens: number, maxTokens: number, promptTokenDetails?: readonly { category: string; label: string; percentageOfPrompt: number }[]): void {
 		// Store current data for use in details popup
-		this.currentData = { promptTokens, maxInputTokens: maxTokens, percentage };
+		this.currentData = { promptTokens, maxInputTokens: maxTokens, percentage, promptTokenDetails };
 
 		// Update pie chart progress
 		this.progressIndicator.setProgress(percentage);
