@@ -2367,7 +2367,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const modifiedEntries = derivedOpts<IModifiedFileEntry[]>({ equalsFn: arraysEqual }, r => {
 			// Background chat sessions render the working set based on the session files, and not the editing session
 			const sessionResource = chatEditingSession?.chatSessionResource ?? this._widget?.viewModel?.model.sessionResource;
-			if (sessionResource && getChatSessionType(sessionResource) !== localChatSessionType) {
+			if (sessionResource && getChatSessionType(sessionResource) === AgentSessionProviders.Background) {
 				return [];
 			}
 
