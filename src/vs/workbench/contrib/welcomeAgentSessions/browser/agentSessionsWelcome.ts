@@ -32,7 +32,7 @@ import { IEditorOpenContext, IEditorSerializer } from '../../../common/editor.js
 import { SIDE_BAR_FOREGROUND } from '../../../common/theme.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
-import { ChatAgentLocation, ChatModeKind } from '../../chat/common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../chat/common/constants.js';
 import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
 import { ChatWidget } from '../../chat/browser/widget/chatWidget.js';
 import { IAgentSessionsService } from '../../chat/browser/agentSessions/agentSessionsService.js';
@@ -41,7 +41,7 @@ import { IAgentSession } from '../../chat/browser/agentSessions/agentSessionsMod
 import { AgentSessionsWelcomeEditorOptions, AgentSessionsWelcomeInput } from './agentSessionsWelcomeInput.js';
 import { IChatService } from '../../chat/common/chatService/chatService.js';
 import { IChatModel } from '../../chat/common/model/chatModel.js';
-import { ISessionTypePickerDelegate, IWorkspacePickerDelegate, IWorkspacePickerItem } from '../../chat/browser/chat.js';
+import { ChatViewId, ISessionTypePickerDelegate, IWorkspacePickerDelegate, IWorkspacePickerItem } from '../../chat/browser/chat.js';
 import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 import { AgentSessionsControl, IAgentSessionsControlOptions } from '../../chat/browser/agentSessions/agentSessionsControl.js';
 import { IAgentSessionsFilter } from '../../chat/browser/agentSessions/agentSessionsViewer.js';
@@ -52,6 +52,7 @@ import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { IWorkspacesService, IRecentFolder, IRecentWorkspace, isRecentFolder, isRecentWorkspace } from '../../../../platform/workspaces/common/workspaces.js';
 import { IHostService } from '../../../services/host/browser/host.js';
+import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
 
 const configurationKey = 'workbench.startupEditor';
 const MAX_SESSIONS = 6;
@@ -97,6 +98,7 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IWorkspacesService private readonly workspacesService: IWorkspacesService,
 		@IHostService private readonly hostService: IHostService,
+		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
 	) {
 		super(AgentSessionsWelcomePage.ID, group, telemetryService, themeService, storageService);
 
@@ -451,7 +453,12 @@ export class AgentSessionsWelcomePage extends EditorPane {
 			getHoverPosition: () => HoverPosition.BELOW,
 			trackActiveEditorSession: () => false,
 			source: 'welcomeView',
-			notifySessionOpened: () => this.layoutService.setAuxiliaryBarMaximized(true) // TODO@osortega what if the session did not open in the 2nd sidebar?
+			notifySessionOpened: () => {
+				const isProjectionEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.AgentSessionProjectionEnabled);
+				if (!isProjectionEnabled) {
+					this.revealMaximizedChat();
+				}
+			}
 		};
 
 		this.sessionsControl = this.sessionsControlDisposables.add(this.instantiationService.createInstance(
@@ -478,10 +485,7 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		const openButton = append(container, $('button.agentSessionsWelcome-openSessionsButton'));
 		openButton.textContent = localize('openAgentSessions', "Open Agent Sessions");
 		openButton.onclick = () => {
-			this.commandService.executeCommand('workbench.action.chat.open');
-			if (!this.layoutService.isAuxiliaryBarMaximized()) {
-				this.layoutService.toggleMaximizedAuxiliaryBar();
-			}
+			this.revealMaximizedChat();
 		};
 	}
 
@@ -660,6 +664,14 @@ export class AgentSessionsWelcomePage extends EditorPane {
 	override focus(): void {
 		super.focus();
 		this.chatWidget?.focusInput();
+	}
+
+	private revealMaximizedChat(): void {
+		this.commandService.executeCommand('workbench.action.chat.open');
+		const chatViewLocation = this.viewDescriptorService.getViewLocationById(ChatViewId);
+		if (chatViewLocation === ViewContainerLocation.AuxiliaryBar) {
+			this.layoutService.setAuxiliaryBarMaximized(true);
+		}
 	}
 }
 
