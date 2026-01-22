@@ -539,7 +539,7 @@ export class RenameSymbolProcessor extends Disposable {
 	private async checkRenamePrecondition(suggestItem: InlineSuggestionItem, textModel: ITextModel, position: Position, oldName: string, newName: string, lastSymbolRename: IRange | undefined): Promise<PrepareNesRenameResult> {
 		const no: PrepareNesRenameResult.No = { canRename: RenameKind.no, timedOut: false };
 		try {
-			const result = await this._commandService.executeCommand<RenameKind | PrepareNesRenameResult>('github.copilot.nes.prepareRename', textModel.uri, position, oldName, newName, lastSymbolRename, suggestItem.requestUuid);
+			const result = await this._commandService.executeCommand<RenameKind | PrepareNesRenameResult>('github.copilot.nes.prepareRename', textModel.uri, position, oldName, newName, suggestItem.requestUuid, lastSymbolRename);
 			if (result === undefined) {
 				return no;
 			} else if (typeof result === 'string') {
