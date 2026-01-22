@@ -126,11 +126,11 @@
 
 	/* Base padding: left-aligned content */
 	.agent-sessions-title-container {
-		padding: 0 8px 0 20px;
+		padding: 0 8px 0 8px;
 	}
 
 	.agent-session-section {
-		padding: 0 12px 0 20px;
+		padding: 0 12px 0 8px;
 	}
 
 	/* Right position: symmetric padding */
