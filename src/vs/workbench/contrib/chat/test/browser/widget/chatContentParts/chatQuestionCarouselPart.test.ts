@@ -34,8 +34,6 @@ suite('ChatQuestionCarouselPart', () => {
 	function createWidget(carousel: IChatQuestionCarousel): ChatQuestionCarouselPart {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		const options: IChatQuestionCarouselOptions = {
-			questions: carousel.questions,
-			allowSkip: carousel.allowSkip,
 			onSubmit: (answers) => {
 				submittedAnswers = answers;
 			}

@@ -26,8 +26,6 @@ import { ChatTreeItem } from '../../chat.js';
 import './media/chatQuestionCarousel.css';
 
 export interface IChatQuestionCarouselOptions {
-	questions: IChatQuestion[];
-	allowSkip: boolean;
 	onSubmit: (answers: Map<string, unknown> | undefined) => void;
 }
 
@@ -57,7 +55,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 
 	constructor(
 		private readonly carousel: IChatQuestionCarousel,
-		context: IChatContentPartRenderContext,
+		_context: IChatContentPartRenderContext,
 		private readonly _options: IChatQuestionCarouselOptions,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
@@ -428,7 +426,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		switch (question.type) {
 			case 'text': {
 				const inputBox = this._textInputBoxes.get(question.id);
-				return inputBox?.value || question.defaultValue;
+				return inputBox?.value ?? question.defaultValue;
 			}
 
 			case 'singleSelect': {

@@ -809,6 +809,17 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 				this._inFlightRequests.delete(inFlightRequest);
 			}
 			stream?.close();
+
+			// Clean up any pending carousel resolvers for this request to prevent memory leaks
+			const requestId = requestDto.requestId;
+			const pendingCarousels = this._pendingCarouselResolvers.get(requestId);
+			if (pendingCarousels) {
+				// Complete all pending carousel promises with undefined (indicating cancellation)
+				for (const deferred of pendingCarousels.values()) {
+					deferred.complete(undefined);
+				}
+				this._pendingCarouselResolvers.delete(requestId);
+			}
 		}
 	}
 
