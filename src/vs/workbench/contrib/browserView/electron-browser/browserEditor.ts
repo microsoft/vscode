@@ -41,6 +41,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { IChatRequestVariableEntry } from '../../chat/common/attachments/chatVariableEntries.js';
 import { IBrowserTargetLocator, getDisplayNameFromOuterHTML } from '../../../../platform/browserElements/common/browserElements.js';
+import { logBrowserOpen } from './browserViewTelemetry.js';
 
 export const CONTEXT_BROWSER_CAN_GO_BACK = new RawContextKey<boolean>('browserCanGoBack', false, localize('browser.canGoBack', "Whether the browser can go back"));
 export const CONTEXT_BROWSER_CAN_GO_FORWARD = new RawContextKey<boolean>('browserCanGoForward', false, localize('browser.canGoForward', "Whether the browser can go forward"));
@@ -337,22 +338,7 @@ export class BrowserEditor extends EditorPane {
 		}));
 
 		this._inputDisposables.add(this._model.onDidRequestNewPage(({ url, name, background }) => {
-			type IntegratedBrowserNewPageRequestEvent = {
-				background: boolean;
-			};
-
-			type IntegratedBrowserNewPageRequestClassification = {
-				background: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether page was requested to open in background' };
-				owner: 'kycutler';
-				comment: 'Tracks new page requests from integrated browser';
-			};
-
-			this.telemetryService.publicLog2<IntegratedBrowserNewPageRequestEvent, IntegratedBrowserNewPageRequestClassification>(
-				'integratedBrowser.newPageRequest',
-				{
-					background
-				}
-			);
+			logBrowserOpen(this.telemetryService, background ? 'browserLinkBackground' : 'browserLinkForeground');
 
 			// Open a new browser tab for the requested URL
 			const browserUri = BrowserViewUri.forUrl(url, name ? `${input.id}-${name}` : undefined);

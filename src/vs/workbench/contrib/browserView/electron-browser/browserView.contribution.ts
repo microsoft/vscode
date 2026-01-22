@@ -27,6 +27,8 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { logBrowserOpen } from './browserViewTelemetry.js';
 
 // Register actions
 import './browserViewActions.js';
@@ -52,7 +54,8 @@ class BrowserEditorResolverContribution implements IWorkbenchContribution {
 
 	constructor(
 		@IEditorResolverService editorResolverService: IEditorResolverService,
-		@IInstantiationService instantiationService: IInstantiationService
+		@IInstantiationService instantiationService: IInstantiationService,
+		@ITelemetryService telemetryService: ITelemetryService
 	) {
 		editorResolverService.registerEditor(
 			`${Schemas.vscodeBrowser}:/**`,
@@ -71,6 +74,8 @@ class BrowserEditorResolverContribution implements IWorkbenchContribution {
 					if (!parsed) {
 						throw new Error(`Invalid browser view resource: ${resource.toString()}`);
 					}
+
+					logBrowserOpen(telemetryService, 'editorResolver');
 
 					const browserInput = instantiationService.createInstance(BrowserEditorInput, {
 						id: parsed.id,
@@ -105,7 +110,8 @@ class LocalhostLinkOpenerContribution extends Disposable implements IWorkbenchCo
 	constructor(
 		@IOpenerService openerService: IOpenerService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IEditorService private readonly editorService: IEditorService
+		@IEditorService private readonly editorService: IEditorService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService
 	) {
 		super();
 
@@ -129,6 +135,8 @@ class LocalhostLinkOpenerContribution extends Disposable implements IWorkbenchCo
 		} catch {
 			return false;
 		}
+
+		logBrowserOpen(this.telemetryService, 'localhostLinkOpener');
 
 		const browserUri = BrowserViewUri.forUrl(url);
 		await this.editorService.openEditor({ resource: browserUri, options: { pinned: true } });
