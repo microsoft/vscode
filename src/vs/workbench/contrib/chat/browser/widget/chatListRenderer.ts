@@ -1784,7 +1784,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				wasStreaming = false;
 				if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation) {
 					// Expand the subagent to show the confirmation
-					subagentPart.expandForConfirmation();
+					subagentPart.expand();
 				}
 			}
 		});
