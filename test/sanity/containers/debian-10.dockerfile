@@ -46,6 +46,7 @@ ENV DISPLAY=:99
 
 # VS Code dependencies
 RUN apt-get install -y \
+	libatomic1 \
 	libasound2 \
 	libgbm1 \
 	libgtk-3-0 \
