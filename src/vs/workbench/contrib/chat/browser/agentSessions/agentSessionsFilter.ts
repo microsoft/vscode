@@ -119,6 +119,10 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 				continue; // already added
 			}
 
+			if (!provider.name) {
+				continue; // skip providers without a label
+			}
+
 			providers.push({ id: provider.type, label: provider.name });
 		}
 
