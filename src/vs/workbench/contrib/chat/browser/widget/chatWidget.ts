@@ -69,6 +69,7 @@ import { IHandOff, PromptHeader, Target } from '../../common/promptSyntax/prompt
 import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
 import { handleModeSwitch } from '../actions/chatActions.js';
 import { ChatTreeItem, IChatAcceptInputOptions, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidget, IChatWidgetService, IChatWidgetViewContext, IChatWidgetViewModelChangeEvent, IChatWidgetViewOptions, isIChatResourceViewContext, isIChatViewViewContext } from '../chat.js';
+import { IChatProcessingTipsService } from '../chatProcessingTipsService.js';
 import { ChatAttachmentModel } from '../attachments/chatAttachmentModel.js';
 import { ChatSuggestNextWidget } from './chatContentParts/chatSuggestNextWidget.js';
 import { ChatInputPart, IChatInputPartOptions, IChatInputStyles } from './input/chatInputPart.js';
@@ -364,7 +365,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
 		@IChatTodoListService private readonly chatTodoListService: IChatTodoListService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@ILifecycleService private readonly lifecycleService: ILifecycleService
+		@ILifecycleService private readonly lifecycleService: ILifecycleService,
+		@IChatProcessingTipsService private readonly chatProcessingTipsService: IChatProcessingTipsService
 	) {
 		super();
 
@@ -2120,6 +2122,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.chatAccessibilityService.acceptRequest(this._viewModel!.sessionResource);
 		}
 
+		// Start showing rotating tips while processing
+		this.chatProcessingTipsService.startTips(this);
+
 		const result = await this.chatService.sendRequest(this.viewModel.sessionResource, requestInputs.input, {
 			userSelectedModelId: this.input.currentLanguageModel,
 			location: this.location,
@@ -2134,6 +2139,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		if (!result) {
 			this.chatAccessibilityService.disposeRequest(this.viewModel.sessionResource);
+			// Stop tips if request failed to start
+			this.chatProcessingTipsService.stopTips();
 			return;
 		}
 
@@ -2144,6 +2151,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._onDidSubmitAgent.fire({ agent: result.agent, slashCommand: result.slashCommand });
 		this.handleDelegationExitIfNeeded(this._lockedAgent, result.agent);
 		this.currentRequest = result.responseCompletePromise.then(() => {
+			// Stop tips when response completes
+			this.chatProcessingTipsService.stopTips();
 			const responses = this.viewModel?.getItems().filter(isResponseVM);
 			const lastResponse = responses?.[responses.length - 1];
 			this.chatAccessibilityService.acceptResponse(this, this.container, lastResponse, this.viewModel?.sessionResource, options?.isVoiceInput);

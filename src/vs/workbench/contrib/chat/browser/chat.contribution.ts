@@ -88,6 +88,7 @@ import './agentSessions/agentSessions.contribution.js';
 import { IAgentSessionsService } from './agentSessions/agentSessionsService.js';
 import { IChatAccessibilityService, IChatCodeBlockContextProviderService, IChatWidgetService, IQuickChatService } from './chat.js';
 import { ChatAccessibilityService } from './accessibility/chatAccessibilityService.js';
+import { ChatProcessingTipsService, IChatProcessingTipsService } from './chatProcessingTipsService.js';
 import './attachments/chatAttachmentModel.js';
 import './widget/input/chatStatusWidget.js';
 import { ChatAttachmentResolveService, IChatAttachmentResolveService } from './attachments/chatAttachmentResolveService.js';
@@ -1349,5 +1350,6 @@ registerSingleton(IChatAttachmentResolveService, ChatAttachmentResolveService, I
 registerSingleton(IChatTodoListService, ChatTodoListService, InstantiationType.Delayed);
 registerSingleton(IChatOutputRendererService, ChatOutputRendererService, InstantiationType.Delayed);
 registerSingleton(IChatLayoutService, ChatLayoutService, InstantiationType.Delayed);
+registerSingleton(IChatProcessingTipsService, ChatProcessingTipsService, InstantiationType.Delayed);
 
 ChatWidget.CONTRIBS.push(ChatDynamicVariableModel);
