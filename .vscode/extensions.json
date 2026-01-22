@@ -9,6 +9,7 @@
 		"ms-vscode.extension-test-runner",
 		"jrieken.vscode-pr-pinger",
 		"typescriptteam.native-preview",
-		"ms-vscode.ts-customized-language-service"
+		"ms-vscode.ts-customized-language-service",
+		"google.gemini-cli-vscode-ide-companion"
 	]
 }
