@@ -36,6 +36,7 @@ type ToolSetPick = IQuickPickItem & { picked: boolean; toolset: ToolSet; parent:
 type ToolPick = IQuickPickItem & { picked: boolean; tool: IToolData; parent: BucketPick };
 type ActionableButton = IQuickInputButton & { action: () => void };
 
+
 // New QuickTree types for tree-based implementation
 
 /**
@@ -148,7 +149,7 @@ function createToolTreeItemFromData(tool: IToolData, checked: boolean): IToolTre
 	};
 }
 
-function createToolSetTreeItem(toolset: ToolSet, checked: boolean, editorService: IEditorService): IToolSetTreeItem {
+function createToolSetTreeItem(toolset: ToolSet, checked: boolean, editorService: IEditorService, telemetryService: ITelemetryService): IToolSetTreeItem {
 	const iconProps = mapIconToTreeItem(toolset.icon);
 	const buttons = [];
 	if (toolset.source.type === 'user') {
@@ -156,7 +157,12 @@ function createToolSetTreeItem(toolset: ToolSet, checked: boolean, editorService
 		buttons.push({
 			iconClass: ThemeIcon.asClassName(Codicon.edit),
 			tooltip: localize('editUserBucket', "Edit Tool Set"),
-			action: () => editorService.openEditor({ resource })
+			action: () => {
+				telemetryService.publicLog2<ToolPickerActionData, ToolPickerActionClassification>('chat.toolPicker.action', {
+					action: 'editUserToolSet'
+				});
+				editorService.openEditor({ resource });
+			}
 		});
 	}
 	return {
@@ -215,6 +221,27 @@ export async function showToolsPicker(
 		}
 	}
 
+	// Helper function to send telemetry for MCP server toggles
+	const sendMcpServerTelemetry = (serverId: string, serverLabel: string, enabled: boolean, virtualMode: boolean) => {
+		telemetryService.publicLog2<McpServerToggleData, McpServerToggleClassification>('chat.toolPicker.mcpServerToggle', {
+			serverId,
+			serverLabel,
+			enabled,
+			virtualMode
+		});
+	};
+
+	// Helper function to send telemetry for tool toggles
+	const sendToolTelemetry = (toolId: string, toolName: string, toolSource: string, enabled: boolean, virtualMode: boolean) => {
+		telemetryService.publicLog2<ToolToggleData, ToolToggleClassification>('chat.toolPicker.toolToggle', {
+			toolId,
+			toolName,
+			toolSource,
+			enabled,
+			virtualMode
+		});
+	};
+
 	function computeItems(previousToolsEntries?: ReadonlyMap<ToolSet | IToolData, boolean>) {
 		// Create default entries if none provided
 		let toolsEntries = getToolsEntries ? new Map(getToolsEntries()) : undefined;
@@ -269,22 +296,43 @@ export async function showToolsPicker(
 					buttons.push({
 						iconClass: ThemeIcon.asClassName(Codicon.settingsGear),
 						tooltip: localize('configMcpCol', "Configure {0}", collection.label),
-						action: () => collection.source ? collection.source instanceof ExtensionIdentifier ? extensionsWorkbenchService.open(collection.source.value, { tab: ExtensionEditorTab.Features, feature: 'mcp' }) : mcpWorkbenchService.open(collection.source, { tab: McpServerEditorTab.Configuration }) : undefined
+						action: () => {
+							telemetryService.publicLog2<ToolPickerActionData, ToolPickerActionClassification>('chat.toolPicker.action', {
+								action: 'configureMcpServer'
+							});
+							if (collection.source) {
+								if (collection.source instanceof ExtensionIdentifier) {
+									extensionsWorkbenchService.open(collection.source.value, { tab: ExtensionEditorTab.Features, feature: 'mcp' });
+								} else {
+									mcpWorkbenchService.open(collection.source, { tab: McpServerEditorTab.Configuration });
+								}
+							}
+						}
 					});
 				} else if (collection?.presentation?.origin) {
 					buttons.push({
 						iconClass: ThemeIcon.asClassName(Codicon.settingsGear),
 						tooltip: localize('configMcpCol', "Configure {0}", collection.label),
-						action: () => editorService.openEditor({
-							resource: collection!.presentation!.origin,
-						})
+						action: () => {
+							telemetryService.publicLog2<ToolPickerActionData, ToolPickerActionClassification>('chat.toolPicker.action', {
+								action: 'configureMcpServer'
+							});
+							editorService.openEditor({
+								resource: collection!.presentation!.origin,
+							});
+						}
 					});
 				}
 				if (mcpServer.connectionState.get().state === McpConnectionState.Kind.Error) {
 					buttons.push({
 						iconClass: ThemeIcon.asClassName(Codicon.warning),
 						tooltip: localize('mcpShowOutput', "Show Output"),
-						action: () => mcpServer.showOutput(),
+						action: () => {
+							telemetryService.publicLog2<ToolPickerActionData, ToolPickerActionClassification>('chat.toolPicker.action', {
+								action: 'showMcpOutput'
+							});
+							mcpServer.showOutput();
+						},
 					});
 				}
 				const cacheState = mcpServer.cacheState.get();
@@ -298,6 +346,9 @@ export async function showToolsPicker(
 						label: localize('mcpUpdate', "Update Tools"),
 						pickable: false,
 						run: () => {
+							telemetryService.publicLog2<ToolPickerActionData, ToolPickerActionClassification>('chat.toolPicker.action', {
+								action: 'updateMcpTools'
+							});
 							treePicker.busy = true;
 							(async () => {
 								const ok = await startServerAndWaitForLiveTools(mcpServer, { promptType: 'all-untrusted' });
@@ -400,7 +451,7 @@ export async function showToolsPicker(
 				}
 				// all mcp tools are part of toolsService.getTools()
 			} else {
-				const treeItem = createToolSetTreeItem(toolSet, toolSetChecked, editorService);
+				const treeItem = createToolSetTreeItem(toolSet, toolSetChecked, editorService, telemetryService);
 				bucket.children.push(treeItem);
 				const children = [];
 				for (const tool of toolSet.getTools()) {
@@ -470,44 +521,10 @@ export async function showToolsPicker(
 	treePicker.matchOnLabel = true;
 	treePicker.sortByLabel = false;
 
-	computeItems();
-
-	// Handle button triggers
-	store.add(treePicker.onDidTriggerItemButton(e => {
-		if (e.button && typeof (e.button as ActionableButton).action === 'function') {
-			(e.button as ActionableButton).action();
-			store.dispose();
-		}
-	}));
-
-	const updateToolLimitMessage = () => {
-		if (toolLimit) {
-			let count = 0;
-			const traverse = (items: readonly AnyTreeItem[]) => {
-				for (const item of items) {
-					if (isBucketTreeItem(item) || isToolSetTreeItem(item)) {
-						if (item.children) {
-							traverse(item.children);
-						}
-					} else if (isToolTreeItem(item) && item.checked) {
-						count++;
-					}
-				}
-			};
-			traverse(treePicker.itemTree);
-			if (count > toolLimit) {
-				treePicker.severity = Severity.Warning;
-				treePicker.validationMessage = localize('toolLimitExceeded', "{0} tools are enabled. You may experience degraded tool calling above {1} tools.", count, createMarkdownCommandLink({ title: String(toolLimit), id: '_chat.toolPicker.closeAndOpenVirtualThreshold' }));
-			} else {
-				treePicker.severity = Severity.Ignore;
-				treePicker.validationMessage = undefined;
-			}
-		}
-	};
-	updateToolLimitMessage();
+	// Track previous results for telemetry comparison
+	let previousResults: ReadonlyMap<ToolSet | IToolData, boolean> = new Map();
 
 	const collectResults = () => {
-
 		const result = new Map<IToolData | ToolSet, boolean>();
 		const traverse = (items: readonly AnyTreeItem[]) => {
 			for (const item of items) {
@@ -533,6 +550,48 @@ export async function showToolsPicker(
 		return result;
 	};
 
+	computeItems();
+
+	// Initialize previous results for telemetry tracking
+	previousResults = collectResults();
+
+	// Handle button triggers
+	store.add(treePicker.onDidTriggerItemButton(e => {
+		if (e.button && typeof (e.button as ActionableButton).action === 'function') {
+			(e.button as ActionableButton).action();
+			store.dispose();
+		}
+	}));
+
+	const updateToolLimitMessage = (): boolean => {
+		if (toolLimit) {
+			let count = 0;
+			const traverse = (items: readonly AnyTreeItem[]) => {
+				for (const item of items) {
+					if (isBucketTreeItem(item) || isToolSetTreeItem(item)) {
+						if (item.children) {
+							traverse(item.children);
+						}
+					} else if (isToolTreeItem(item) && item.checked) {
+						count++;
+					}
+				}
+			};
+			traverse(treePicker.itemTree);
+			if (count > toolLimit) {
+				treePicker.severity = Severity.Warning;
+				treePicker.validationMessage = localize('toolLimitExceeded', "{0} tools are enabled. You may experience degraded tool calling above {1} tools.", count, createMarkdownCommandLink({ title: String(toolLimit), id: '_chat.toolPicker.closeAndOpenVirtualThreshold' }));
+				return true;
+			} else {
+				treePicker.severity = Severity.Ignore;
+				treePicker.validationMessage = undefined;
+				return false;
+			}
+		}
+		return false;
+	};
+	updateToolLimitMessage();
+
 	// Temporary command to close the picker and open settings, for use in the validation message
 	store.add(CommandsRegistry.registerCommand({
 		id: '_chat.toolPicker.closeAndOpenVirtualThreshold',
@@ -543,7 +602,53 @@ export async function showToolsPicker(
 	}));
 
 	// Handle checkbox state changes
-	store.add(treePicker.onDidChangeCheckedLeafItems(() => updateToolLimitMessage()));
+	store.add(treePicker.onDidChangeCheckedLeafItems(() => {
+		const virtualMode = updateToolLimitMessage();
+
+		// Track changes for telemetry
+		const currentResults = collectResults();
+
+		// Track changes by comparing current state with previous state
+		for (const [item, currentEnabled] of currentResults.entries()) {
+			const previousEnabled = previousResults.get(item) ?? false;
+
+			if (currentEnabled !== previousEnabled) {
+				if (item instanceof ToolSet) {
+					// This is a ToolSet toggle (MCP server or user-defined tool set)
+					if (item.source.type === 'mcp') {
+						sendMcpServerTelemetry(
+							item.id,
+							item.referenceName,
+							currentEnabled,
+							virtualMode
+						);
+					} else {
+						// Non-MCP tool set (user-defined, etc.)
+						telemetryService.publicLog2<ToolSetToggleData, ToolSetToggleClassification>('chat.toolPicker.toolSetToggle', {
+							toolSetId: item.id,
+							toolSetName: item.referenceName,
+							toolSetSource: item.source.type,
+							enabled: currentEnabled,
+							virtualMode
+						});
+					}
+				} else {
+					// This is an individual tool toggle
+					const toolSource = item.source.type;
+					sendToolTelemetry(
+						item.id,
+						item.displayName,
+						toolSource,
+						currentEnabled,
+						virtualMode
+					);
+				}
+			}
+		}
+
+		// Update previous results for next comparison
+		previousResults = new Map(currentResults);
+	}));
 
 	// Handle acceptance
 	let didAccept = false;
@@ -579,13 +684,24 @@ export async function showToolsPicker(
 	treePicker.title = localize('configureTools', "Configure Tools");
 	treePicker.buttons = [addMcpServerButton, installExtension, configureToolSets];
 	store.add(treePicker.onDidTriggerButton(button => {
+		let actionName = '';
 		if (button === addMcpServerButton) {
+			actionName = 'addMcpServer';
 			commandService.executeCommand(McpCommandIds.AddConfiguration);
 		} else if (button === installExtension) {
+			actionName = 'installExtension';
 			extensionsWorkbenchService.openSearch('@tag:language-model-tools');
 		} else if (button === configureToolSets) {
+			actionName = 'configureToolSets';
 			commandService.executeCommand(ConfigureToolSets.ID);
 		}
+
+		if (actionName) {
+			telemetryService.publicLog2<ToolPickerActionData, ToolPickerActionClassification>('chat.toolPicker.action', {
+				action: actionName
+			});
+		}
+
 		treePicker.hide();
 	}));
 
@@ -638,3 +754,71 @@ function sendDidChangeEvent(source: string, telemetryService: ITelemetryService,
 		changed,
 	});
 }
+
+/**
+ * Telemetry events for tool picker interactions:
+ * - chat.toolPicker.mcpServerToggle: When MCP servers are enabled/disabled
+ * - chat.toolPicker.toolSetToggle: When non-MCP tool sets (user-defined, etc.) are enabled/disabled
+ * - chat.toolPicker.toolToggle: When individual tools are enabled/disabled
+ * - chat.toolPicker.action: When action buttons are clicked (add server, configure, etc.)
+ * All events include virtualMode flag to indicate if tool count exceeded threshold
+ */
+
+// Telemetry event definitions
+type McpServerToggleData = {
+	serverId: string;
+	serverLabel: string;
+	enabled: boolean;
+	virtualMode: boolean;
+};
+type McpServerToggleClassification = {
+	owner: 'digitarald';
+	comment: 'Tracks when MCP servers are enabled/disabled in tool picker';
+	serverId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Hashed MCP server ID' };
+	serverLabel: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'MCP server display label' };
+	enabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the server was enabled or disabled' };
+	virtualMode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether virtual mode was active during toggling' };
+};
+
+type ToolToggleData = {
+	toolId: string;
+	toolName: string;
+	toolSource: string;
+	enabled: boolean;
+	virtualMode: boolean;
+};
+type ToolToggleClassification = {
+	owner: 'digitarald';
+	comment: 'Tracks when individual tools are enabled/disabled in tool picker';
+	toolId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Hashed tool ID' };
+	toolName: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Tool display name' };
+	toolSource: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Source type of the tool (mcp, extension, internal, user)' };
+	enabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the tool was enabled or disabled' };
+	virtualMode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether virtual mode was active during toggling' };
+};
+
+type ToolSetToggleData = {
+	toolSetId: string;
+	toolSetName: string;
+	toolSetSource: string;
+	enabled: boolean;
+	virtualMode: boolean;
+};
+type ToolSetToggleClassification = {
+	owner: 'digitarald';
+	comment: 'Tracks when non-MCP tool sets are enabled/disabled in tool picker';
+	toolSetId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Tool set ID' };
+	toolSetName: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Tool set display name' };
+	toolSetSource: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Source type of the tool set (user, internal, extension)' };
+	enabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the tool set was enabled or disabled' };
+	virtualMode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether virtual mode was active during toggling' };
+};
+
+type ToolPickerActionData = {
+	action: string;
+};
+type ToolPickerActionClassification = {
+	owner: 'digitarald';
+	comment: 'Tracks when tool picker action buttons are used';
+	action: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The action that was triggered (addMcpServer, installExtension, configureToolSets, editUserToolSet, showMcpOutput, updateMcpTools, configureMcpServer)' };
+};
