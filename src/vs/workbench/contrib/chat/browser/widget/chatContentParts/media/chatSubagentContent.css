@@ -6,22 +6,16 @@
 /* Subagent-specific styles */
 .interactive-session .interactive-response .value .chat-thinking-fixed-mode.chat-subagent-part {
 
-	/* Collapsed + streaming: show only the last item with max-height */
-	&.chat-used-context-collapsed .chat-used-context-list.chat-thinking-collapsible.chat-thinking-streaming {
-		max-height: var(--chat-subagent-last-item-height, 200px);
-		overflow: hidden;
-		display: block;
-	}
-
-	/* Collapsed + NOT streaming: hide the content completely */
-	&.chat-used-context-collapsed .chat-used-context-list.chat-thinking-collapsible:not(.chat-thinking-streaming) {
+	/* Collapsed: hide all content, show only the title button */
+	&.chat-used-context-collapsed .chat-used-context-list.chat-thinking-collapsible {
 		display: none;
 	}
 
-	/* Expanded: show all content, no max-height, no scrolling */
+	/* Expanded: show all content */
 	&:not(.chat-used-context-collapsed) .chat-used-context-list.chat-thinking-collapsible {
 		max-height: none;
 		overflow: visible;
+		display: block;
 	}
 
 	/* Prompt and result section styling */
