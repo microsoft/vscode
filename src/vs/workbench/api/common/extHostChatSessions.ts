@@ -6,6 +6,7 @@
 
 import type * as vscode from 'vscode';
 import { coalesce } from '../../../base/common/arrays.js';
+import { DeferredPromise } from '../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { CancellationError } from '../../../base/common/errors.js';
 import { Emitter } from '../../../base/common/event.js';
@@ -204,6 +205,8 @@ class ChatSessionItemCollectionImpl implements vscode.ChatSessionItemCollection 
 
 class ExtHostChatSession {
 	private _stream: ChatAgentResponseStream;
+	// Empty map since question carousel is designed for chat agents, not chat sessions
+	private readonly _pendingCarouselResolvers = new Map<string, Map<string, DeferredPromise<Record<string, unknown> | undefined>>>();
 
 	constructor(
 		public readonly session: vscode.ChatSession,
@@ -213,7 +216,7 @@ class ExtHostChatSession {
 		public readonly commandsConverter: CommandsConverter,
 		public readonly sessionDisposables: DisposableStore
 	) {
-		this._stream = new ChatAgentResponseStream(extension, request, proxy, commandsConverter, sessionDisposables);
+		this._stream = new ChatAgentResponseStream(extension, request, proxy, commandsConverter, sessionDisposables, this._pendingCarouselResolvers);
 	}
 
 	get activeResponseStream() {
@@ -221,7 +224,7 @@ class ExtHostChatSession {
 	}
 
 	getActiveRequestStream(request: IChatAgentRequest) {
-		return new ChatAgentResponseStream(this.extension, request, this.proxy, this.commandsConverter, this.sessionDisposables);
+		return new ChatAgentResponseStream(this.extension, request, this.proxy, this.commandsConverter, this.sessionDisposables, this._pendingCarouselResolvers);
 	}
 }
 

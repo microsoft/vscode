@@ -511,12 +511,14 @@ declare module 'vscode' {
 		confirmation(title: string, message: string | MarkdownString, data: any, buttons?: string[]): void;
 
 		/**
+		/**
 		 * Show an inline carousel of questions to gather information from the user.
-		 * The UI is displayed but does not block the chat input.
+		 * This is a blocking call that waits for the user to submit or skip the questions.
 		 * @param questions Array of questions to display to the user
 		 * @param allowSkip Whether the user can skip questions without answering
+		 * @returns A promise that resolves with the user's answers, or undefined if skipped
 		 */
-		questionCarousel(questions: ChatQuestion[], allowSkip?: boolean): void;
+		questionCarousel(questions: ChatQuestion[], allowSkip?: boolean): Thenable<Record<string, unknown> | undefined>;
 
 		/**
 		 * Push a warning to this stream. Short-hand for
