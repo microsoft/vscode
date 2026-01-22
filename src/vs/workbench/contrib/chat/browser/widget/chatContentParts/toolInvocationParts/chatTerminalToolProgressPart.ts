@@ -528,7 +528,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			this._showOutputAction.value = showOutputAction;
 			const autoExpandFailures = this._configurationService.getValue<boolean>(ChatConfiguration.AutoExpandToolFailures);
 			const exitCode = resolvedCommand?.exitCode ?? this._terminalData.terminalCommandState?.exitCode;
-			if (exitCode && autoExpandFailures) {
+			if (exitCode !== undefined && exitCode !== 0 && autoExpandFailures) {
 				this._toggleOutput(true);
 			}
 		}
