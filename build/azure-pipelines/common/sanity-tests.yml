@@ -54,21 +54,6 @@ jobs:
         workingDirectory: $(TEST_DIR)
         displayName: Install NPM Dependencies
 
-      # Native host: Install Playwright browser
-      - ${{ if eq(parameters.container, '') }}:
-        - ${{ if eq(parameters.os, 'windows') }}:
-          - script: ./node_modules/.bin/playwright install --with-deps chromium
-            workingDirectory: $(TEST_DIR)
-            displayName: Install Playwright Browser
-        - ${{ elseif eq(parameters.os, 'macOS') }}:
-          - script: ./node_modules/.bin/playwright install --with-deps webkit
-            workingDirectory: $(TEST_DIR)
-            displayName: Install Playwright Browser
-        - ${{ else }}:
-          - script: ./node_modules/.bin/playwright install --with-deps firefox
-            workingDirectory: $(TEST_DIR)
-            displayName: Install Playwright Browser
-
       - script: npm run compile
         workingDirectory: $(TEST_DIR)
         displayName: Compile Sanity Tests

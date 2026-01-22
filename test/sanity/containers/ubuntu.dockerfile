@@ -19,9 +19,9 @@ ENV DISPLAY=:99
 
 # VS Code dependencies
 RUN apt-get install -y libasound2t64 || apt-get install -y libasound2
+RUN apt-get install -y libgtk-3-0t64 || apt-get install -y libgtk-3-0
 RUN apt-get install -y \
 	libgbm1 \
-	libgtk-3-0 \
 	libnss3 \
 	libxkbcommon0 \
 	xdg-utils

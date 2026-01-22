@@ -1,8 +1,8 @@
 ARG BASE_IMAGE=quay.io/centos/centos:stream9
-FROM --platform=amd64 ${BASE_IMAGE}
+FROM ${BASE_IMAGE}
 
 # Node.js 22
-RUN curl -fsSL https://rpm.nodesource.com/setup_22.x | bash - && \
+RUN dnf module enable -y nodejs:22 && \
 	dnf install -y nodejs
 
 # Chromium

@@ -11,6 +11,7 @@ import fetch, { Response } from 'node-fetch';
 import os from 'os';
 import path from 'path';
 import { Browser, chromium, firefox, webkit } from 'playwright';
+import { Capability, detectCapabilities } from './detectors';
 
 /**
  * Response from https://update.code.visualstudio.com/api/versions/commit:<commit>/<target>/<quality>
@@ -25,12 +26,6 @@ interface ITargetMetadata {
 	sha256hash: string;
 	supportsFastUpdate: boolean;
 }
-
-type Capability =
-	| 'linux' | 'darwin' | 'windows' | 'alpine'
-	| 'x64' | 'arm64' | 'arm32'
-	| 'deb' | 'rpm' | 'snap'
-	| 'desktop' | 'browser';
 
 /**
  * Provides context and utilities for VS Code sanity tests.
@@ -58,78 +53,7 @@ export class TestContext {
 	 * Returns the detected capabilities of the current system.
 	 */
 	public get capabilities(): ReadonlySet<Capability> {
-		if (!this._capabilities) {
-			this._capabilities = new Set<Capability>();
-			if (fs.existsSync('/etc/alpine-release')) {
-				this._capabilities.add('alpine');
-			} else {
-				switch (os.platform()) {
-					case 'darwin':
-						this._capabilities.add('darwin');
-						this._capabilities.add('desktop');
-						break;
-					case 'linux':
-						this._capabilities.add('linux');
-						if (process.env['DISPLAY']) {
-							this._capabilities.add('desktop');
-						}
-						break;
-					case 'win32':
-						this._capabilities.add('windows');
-						this._capabilities.add('desktop');
-						break;
-				}
-			}
-			switch (os.arch()) {
-				case 'arm':
-					this._capabilities.add('arm32');
-					break;
-				case 'arm64':
-					this._capabilities.add('arm64');
-					break;
-				case 'x64':
-					this._capabilities.add('x64');
-					break;
-			}
-			if (fs.existsSync('/usr/bin/dpkg')) {
-				this._capabilities.add('deb');
-			}
-			if (fs.existsSync('/usr/bin/dnf') || fs.existsSync('/usr/bin/yum')) {
-				this._capabilities.add('rpm');
-			}
-			if (fs.existsSync('/run/snapd.socket')) {
-				this._capabilities.add('snap');
-			}
-			if (this.getBrowserType()) {
-				this._capabilities.add('browser');
-			}
-		}
-		return this._capabilities;
-	}
-
-	/**
-	 * Returns the available browser type for the current platform.
-	 */
-	public getBrowserType(): 'chromium' | 'firefox' | 'webkit' | undefined {
-		try {
-			switch (os.platform()) {
-				case 'darwin':
-					return fs.existsSync(webkit.executablePath()) ? 'webkit' : undefined;
-				case 'linux':
-					if (process.env['PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH']) {
-						return 'chromium';
-					} else if (process.env['PLAYWRIGHT_FIREFOX_EXECUTABLE_PATH']) {
-						return 'firefox';
-					}
-					return fs.existsSync(chromium.executablePath()) ? 'chromium' :
-						fs.existsSync(firefox.executablePath()) ? 'firefox' :
-							undefined;
-				case 'win32':
-					return fs.existsSync(chromium.executablePath()) ? 'chromium' : undefined;
-			}
-		} catch {
-			return undefined;
-		}
+		return this._capabilities ??= detectCapabilities();
 	}
 
 	/**
