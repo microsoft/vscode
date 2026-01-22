@@ -34,7 +34,6 @@ import { PromptFileParser, ParsedPromptFile, PromptHeaderAttributes } from '../p
 import { IAgentInstructions, IAgentSource, IChatPromptSlashCommand, ICustomAgent, IExtensionPromptPath, ILocalPromptPath, IPromptPath, IPromptsService, IAgentSkill, IUserPromptPath, PromptsStorage, ExtensionAgentSourceType, CUSTOM_AGENT_PROVIDER_ACTIVATION_EVENT, INSTRUCTIONS_PROVIDER_ACTIVATION_EVENT, IPromptFileContext, IPromptFileResource, PROMPT_FILE_PROVIDER_ACTIVATION_EVENT, SKILL_PROVIDER_ACTIVATION_EVENT } from './promptsService.js';
 import { Delayer } from '../../../../../../base/common/async.js';
 import { Schemas } from '../../../../../../base/common/network.js';
-import { IChatPromptContentStore } from '../chatPromptContentStore.js';
 
 /**
  * Error thrown when a skill file is missing the required name attribute.
@@ -129,7 +128,6 @@ export class PromptsService extends Disposable implements IPromptsService {
 		@IStorageService private readonly storageService: IStorageService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IChatPromptContentStore private readonly chatPromptContentStore: IChatPromptContentStore
 	) {
 		super();
 
@@ -298,15 +296,6 @@ export class PromptsService extends Disposable implements IPromptsService {
 				}
 
 				for (const file of files) {
-					if (!file.isEditable) {
-						try {
-							await this.filesConfigService.updateReadonly(file.uri, true);
-						} catch (e) {
-							const msg = e instanceof Error ? e.message : String(e);
-							this.logger.error(`[listFromProviders] Failed to make file readonly: ${file.uri}`, msg);
-						}
-					}
-
 					result.push({
 						uri: file.uri,
 						storage: PromptsStorage.extension,
@@ -541,15 +530,6 @@ export class PromptsService extends Disposable implements IPromptsService {
 		const model = this.modelService.getModel(uri);
 		if (model) {
 			return this.getParsedPromptFile(model);
-		}
-
-		// Handle virtual prompt URIs - get content from the content store
-		if (uri.scheme === Schemas.vscodeChatPrompt) {
-			const content = this.chatPromptContentStore.getContent(uri);
-			if (content !== undefined) {
-				return new PromptFileParser().parse(uri, content);
-			}
-			throw new Error(`Content not found in store for virtual prompt URI: ${uri.toString()}`);
 		}
 
 		const fileContent = await this.fileService.readFile(uri);

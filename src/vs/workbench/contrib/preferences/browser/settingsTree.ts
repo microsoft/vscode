@@ -1517,7 +1517,7 @@ class SettingObjectRenderer extends AbstractSettingObjectRenderer implements ITr
 
 	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingObjectItemTemplate, onChange: (value: Record<string, unknown> | undefined) => void): void {
 		const items = getObjectDisplayValue(dataElement);
-		const { key, objectProperties, objectPatternProperties, objectAdditionalProperties } = dataElement.setting;
+		const { key, objectProperties, objectPatternProperties, objectAdditionalProperties, propertyNames } = dataElement.setting;
 
 		template.objectDropdownWidget!.setValue(items, {
 			settingKey: key,
@@ -1528,7 +1528,8 @@ class SettingObjectRenderer extends AbstractSettingObjectRenderer implements ITr
 				)
 				: true,
 			keySuggester: createObjectKeySuggester(dataElement),
-			valueSuggester: createObjectValueSuggester(dataElement)
+			valueSuggester: createObjectValueSuggester(dataElement),
+			propertyNames
 		});
 
 		template.context = dataElement;

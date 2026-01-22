@@ -7,7 +7,6 @@ import { $ } from '../../../../../../base/browser/dom.js';
 import { ButtonWithIcon } from '../../../../../../base/browser/ui/button/button.js';
 import { HoverStyle } from '../../../../../../base/browser/ui/hover/hover.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
-import { Emitter } from '../../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable, IDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, IObservable, observableValue } from '../../../../../../base/common/observable.js';
@@ -28,14 +27,13 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 	private _domNode?: HTMLElement;
 	private readonly _renderedTitleWithWidgets = this._register(new MutableDisposable<IRenderedMarkdown>());
 
-	protected readonly _onDidChangeHeight = this._register(new Emitter<void>());
-	public readonly onDidChangeHeight = this._onDidChangeHeight.event;
-
 	protected readonly hasFollowingContent: boolean;
 	protected _isExpanded = observableValue<boolean>(this, false);
 	protected _collapseButton: ButtonWithIcon | undefined;
 
 	private readonly _overrideIcon = observableValue<ThemeIcon | undefined>(this, undefined);
+	private _contentElement?: HTMLElement;
+	private _contentInitialized = false;
 
 	public get icon(): ThemeIcon | undefined {
 		return this._overrideIcon.get();
@@ -95,21 +93,23 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 			this._isExpanded.set(!value, undefined);
 		}));
 
+		// Initialize the expanded state based on the subclass's isExpanded() method
+		this._isExpanded.set(this.isExpanded(), undefined);
+
 		this._register(autorun(r => {
 			const expanded = this._isExpanded.read(r);
 			collapseButton.icon = this._overrideIcon.read(r) ?? (expanded ? Codicon.chevronDown : Codicon.chevronRight);
 			this._domNode?.classList.toggle('chat-used-context-collapsed', !expanded);
 			this.updateAriaLabel(collapseButton.element, typeof referencesLabel === 'string' ? referencesLabel : referencesLabel.value, expanded);
 
-			if (this._domNode?.isConnected) {
-				queueMicrotask(() => {
-					this._onDidChangeHeight.fire();
-				});
+			// Lazy initialization: render content only when expanded for the first time
+			if (expanded && !this._contentInitialized) {
+				this._contentInitialized = true;
+				this._contentElement = this.initContent();
+				this._domNode?.appendChild(this._contentElement);
 			}
 		}));
 
-		const content = this.initContent();
-		this._domNode.appendChild(content);
 		return this._domNode;
 	}
 

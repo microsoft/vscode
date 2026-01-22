@@ -10,7 +10,7 @@ import { IActionViewItemOptions } from '../../../../../base/browser/ui/actionbar
 import { alert } from '../../../../../base/browser/ui/aria/aria.js';
 import { DropdownMenuActionViewItem, IDropdownMenuActionViewItemOptions } from '../../../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
-import { IListElementRenderDetails, IListVirtualDelegate } from '../../../../../base/browser/ui/list/list.js';
+import { CachedListVirtualDelegate, IListElementRenderDetails } from '../../../../../base/browser/ui/list/list.js';
 import { ITreeNode, ITreeRenderer } from '../../../../../base/browser/ui/tree/tree.js';
 import { IAction } from '../../../../../base/common/actions.js';
 import { coalesce, distinct } from '../../../../../base/common/arrays.js';
@@ -91,6 +91,7 @@ import { ChatTextEditContentPart } from './chatContentParts/chatTextEditContentP
 import { ChatThinkingContentPart } from './chatContentParts/chatThinkingContentPart.js';
 import { ChatSubagentContentPart } from './chatContentParts/chatSubagentContentPart.js';
 import { ChatTreeContentPart, TreePool } from './chatContentParts/chatTreeContentPart.js';
+import { ChatWorkspaceEditContentPart } from './chatContentParts/chatWorkspaceEditContentPart.js';
 import { ChatToolInvocationPart } from './chatContentParts/toolInvocationParts/chatToolInvocationPart.js';
 import { ChatMarkdownDecorationsRenderer } from './chatContentParts/chatMarkdownDecorationsRenderer.js';
 import { ChatEditorOptions } from './chatOptions.js';
@@ -307,6 +308,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		this.codeBlocksByResponseId.clear();
 		this.fileTreesByResponseId.clear();
 		this.focusedFileTreesByResponseId.clear();
+		this._editorPool.clear();
+		this._toolEditorPool.clear();
+		this._diffEditorPool.clear();
+		this._treePool.clear();
+		this._contentReferencesListPool.clear();
 		this._onDidUpdateViewModel.fire();
 	}
 
@@ -533,6 +539,29 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				this._onDidFocusOutside.fire();
 			}
 		}));
+
+		const resizeObserver = templateDisposables.add(new dom.DisposableResizeObserver((entries) => {
+			if (!template.currentElement) {
+				return;
+			}
+
+			const entry = entries[0];
+			if (entry) {
+				const height = entry.borderBoxSize.at(0)?.blockSize;
+				if (height === 0 || !height || !template.rowContainer.isConnected) {
+					// Don't fire for changes that happen from the row being removed from the DOM
+					return;
+				}
+
+				const normalizedHeight = Math.ceil(height);
+				template.currentElement.currentRenderedHeight = normalizedHeight;
+				if (template.currentElement !== this._elementBeingRendered) {
+					this._onDidChangeItemHeight.fire({ element: template.currentElement, height: normalizedHeight });
+				}
+			}
+		}));
+		templateDisposables.add(resizeObserver.observe(rowContainer));
+
 		return template;
 	}
 
@@ -545,23 +574,36 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 	}
 
+	/**
+	 * Dispose the rendered parts in the template, which aren't done in disposeElement
+	 * so they can be reused when a new render is started.
+	 */
 	private clearRenderedParts(templateData: IChatListItemTemplate): void {
 		if (templateData.renderedParts) {
 			dispose(coalesce(templateData.renderedParts));
 			templateData.renderedParts = undefined;
 			dom.clearNode(templateData.value);
 		}
+
+		// This template item is no longer in use, or having another element rendered into it,
+		// clear the context on toolbars so it doesn't retain the viewmodel.
+		if (templateData.titleToolbar) {
+			templateData.titleToolbar.context = undefined;
+		}
+		templateData.footerToolbar.context = undefined;
+		templateData.checkpointToolbar.context = undefined;
+		templateData.checkpointRestoreToolbar.context = undefined;
 	}
 
 	private renderChatTreeItem(element: ChatTreeItem, index: number, templateData: IChatListItemTemplate): void {
 		if (templateData.currentElement && templateData.currentElement.id !== element.id) {
 			this.traceLayout('renderChatTreeItem', `Rendering a different element into the template, index=${index}`);
-			this.clearRenderedParts(templateData);
-
 			const mappedTemplateData = this.templateDataByRequestId.get(templateData.currentElement.id);
 			if (mappedTemplateData && (mappedTemplateData.currentElement?.id !== templateData.currentElement.id)) {
 				this.templateDataByRequestId.delete(templateData.currentElement.id);
 			}
+
+			this.clearRenderedParts(templateData);
 		}
 
 		templateData.currentElement = element;
@@ -639,7 +681,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		templateData.rowContainer.classList.toggle('editing', editing && !isInput);
 		templateData.rowContainer.classList.toggle('editing-input', editing && isInput);
 		templateData.requestHover.classList.toggle('editing', editing && isInput);
-		templateData.requestHover.classList.toggle('hidden', (!!this.viewModel?.editing && !editing) || isResponseVM(element));
+		templateData.requestHover.classList.toggle('hidden', (!!this.viewModel?.editing && !editing) || isResponseVM(element) || !this.rendererOptions.editable);
 		templateData.requestHover.classList.toggle('expanded', this.configService.getValue<string>('chat.editRequests') === 'hover');
 		templateData.requestHover.classList.toggle('checkpoints-enabled', checkpointEnabled);
 		templateData.elementDisposables.add(dom.addStandardDisposableListener(templateData.rowContainer, dom.EventType.CLICK, (e) => {
@@ -788,8 +830,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		const diff = this.diff(templateData.renderedParts ?? [], content, element);
 		this.renderChatContentDiff(diff, content, element, index, templateData);
-
-		this.updateItemHeightOnRender(element, templateData);
 	}
 
 	private shouldShowWorkingProgress(element: IChatResponseViewModel, partsToRender: IChatRendererContent[], templateData: IChatListItemTemplate): boolean {
@@ -943,37 +983,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			}
 			templateData.elementDisposables.add(newPart);
 		}
-
-		this.updateItemHeightOnRender(element, templateData);
-	}
-
-	updateItemHeightOnRender(element: ChatTreeItem, templateData: IChatListItemTemplate) {
-		const newHeight = templateData.rowContainer.offsetHeight;
-		const fireEvent = !element.currentRenderedHeight || element.currentRenderedHeight !== newHeight;
-		element.currentRenderedHeight = newHeight;
-		if (fireEvent) {
-			const disposable = templateData.elementDisposables.add(dom.scheduleAtNextAnimationFrame(dom.getWindow(templateData.value), () => {
-				// Have to recompute the height here because codeblock rendering is currently async and it may have changed.
-				// If it becomes properly sync, then this could be removed.
-				if (templateData.rowContainer.isConnected) {
-					element.currentRenderedHeight = templateData.rowContainer.offsetHeight;
-					this._onDidChangeItemHeight.fire({ element, height: element.currentRenderedHeight });
-				}
-				disposable.dispose();
-			}));
-		}
-	}
-
-	private updateItemHeight(templateData: IChatListItemTemplate): void {
-		if (!templateData.currentElement || templateData.currentElement === this._elementBeingRendered) {
-			return;
-		}
-
-		if (templateData.rowContainer.isConnected) {
-			const newHeight = templateData.rowContainer.offsetHeight;
-			templateData.currentElement.currentRenderedHeight = newHeight;
-			this._onDidChangeItemHeight.fire({ element: templateData.currentElement, height: newHeight });
-		}
 	}
 
 	/**
@@ -1011,13 +1020,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			} else {
 				// Nothing new to render, stop rendering until next model update
 				this.traceLayout('doNextProgressiveRender', 'caught up with the stream- no new content to render');
-
-				if (!templateData.renderedParts) {
-					// First render? Initialize currentRenderedHeight. https://github.com/microsoft/vscode/issues/232096
-					const height = templateData.rowContainer.offsetHeight;
-					element.currentRenderedHeight = height;
-				}
-
 				return true;
 			}
 		}
@@ -1025,12 +1027,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		// Do an actual progressive render
 		this.traceLayout('doNextProgressiveRender', `doing progressive render, ${partsToRender.length} parts to render`);
 		this.renderChatContentDiff(partsToRender, contentForThisTurn.content, element, index, templateData);
-
-		const height = templateData.rowContainer.offsetHeight;
-		element.currentRenderedHeight = height;
-		if (!isInRenderElement) {
-			this._onDidChangeItemHeight.fire({ element, height });
-		}
 
 		return false;
 	}
@@ -1430,9 +1426,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		if (toolInvocation.toolId !== RunSubagentTool.Id) {
 			subagentPart.appendToolInvocation(toolInvocation, codeBlockStartIndex);
 		}
-		subagentPart.addDisposable(subagentPart.onDidChangeHeight(() => {
-			this.updateItemHeight(templateData);
-		}));
 		return subagentPart;
 	}
 
@@ -1529,6 +1522,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				return this.renderMcpServersInteractionRequired(content, context, templateData);
 			} else if (content.kind === 'thinking') {
 				return this.renderThinkingPart(content, context, templateData);
+			} else if (content.kind === 'workspaceEdit') {
+				return this.instantiationService.createInstance(ChatWorkspaceEditContentPart, content, context, this.chatContentMarkdownRenderer);
 			}
 
 			return this.renderNoContent(other => content.kind === other.kind);
@@ -1558,7 +1553,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const isLast = context.elementIndex === this.delegate.getListLength() - 1;
 		if (content.errorDetails.isQuotaExceeded) {
 			const renderedError = this.instantiationService.createInstance(ChatQuotaExceededPart, context.element, content, this.chatContentMarkdownRenderer);
-			renderedError.addDisposable(renderedError.onDidChangeHeight(() => this.updateItemHeight(templateData)));
 			return renderedError;
 		} else if (content.errorDetails.isRateLimited && this.chatEntitlementService.anonymous) {
 			const renderedError = this.instantiationService.createInstance(ChatAnonymousRateLimitedPart, content);
@@ -1566,7 +1560,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		} else if (content.errorDetails.confirmationButtons && isLast) {
 			const level = content.errorDetails.level ?? ChatErrorLevel.Error;
 			const errorConfirmation = this.instantiationService.createInstance(ChatErrorConfirmationContentPart, level, new MarkdownString(content.errorDetails.message), content, content.errorDetails.confirmationButtons, this.chatContentMarkdownRenderer, context);
-			errorConfirmation.addDisposable(errorConfirmation.onDidChangeHeight(() => this.updateItemHeight(templateData)));
 			return errorConfirmation;
 		} else {
 			const level = content.errorDetails.level ?? ChatErrorLevel.Error;
@@ -1589,10 +1582,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private renderTreeData(content: IChatTreeData, templateData: IChatListItemTemplate, context: IChatContentPartRenderContext): IChatContentPart {
 		const data = content.treeData;
 		const treePart = this.instantiationService.createInstance(ChatTreeContentPart, data, this._treePool);
-
-		treePart.addDisposable(treePart.onDidChangeHeight(() => {
-			this.updateItemHeight(templateData);
-		}));
 
 		if (isResponseVM(context.element)) {
 			const fileTreeFocusInfo = {
@@ -1619,17 +1608,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	private renderMultiDiffData(content: IChatMultiDiffData | IChatMultiDiffDataSerialized, templateData: IChatListItemTemplate, context: IChatContentPartRenderContext): IChatContentPart {
 		const multiDiffPart = this.instantiationService.createInstance(ChatMultiDiffContentPart, content, context.element);
-		multiDiffPart.addDisposable(multiDiffPart.onDidChangeHeight(() => {
-			this.updateItemHeight(templateData);
-		}));
 		return multiDiffPart;
 	}
 
 	private renderContentReferencesListData(references: IChatReferences, labelOverride: string | undefined, context: IChatContentPartRenderContext, templateData: IChatListItemTemplate): ChatCollapsibleListContentPart {
 		const referencesPart = this.instantiationService.createInstance(ChatUsedReferencesListContentPart, references.references, labelOverride, context, this._contentReferencesListPool, { expandedWhenEmptyResponse: checkModeOption(this.delegate.currentChatMode(), this.rendererOptions.referencesExpandedWhenEmptyResponse) });
-		referencesPart.addDisposable(referencesPart.onDidChangeHeight(() => {
-			this.updateItemHeight(templateData);
-		}));
 
 		return referencesPart;
 	}
@@ -1689,32 +1672,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		let lazilyCreatedPart: ChatToolInvocationPart | undefined = undefined;
 		const createToolPart = (): { domNode: HTMLElement; part: ChatToolInvocationPart } => {
 			lazilyCreatedPart = this.instantiationService.createInstance(ChatToolInvocationPart, toolInvocation, context, this.chatContentMarkdownRenderer, this._contentReferencesListPool, this._toolEditorPool, () => this._currentLayoutWidth.get(), this._toolInvocationCodeBlockCollection, this._announcedToolProgressKeys, codeBlockStartIndex);
-			lazilyCreatedPart.addDisposable(lazilyCreatedPart.onDidChangeHeight(() => {
-				this.updateItemHeight(templateData);
-			}));
 			this.handleRenderedCodeblocks(context.element, lazilyCreatedPart, codeBlockStartIndex);
-
-			// watch for streaming -> confirmation transition to finalize thinking
-			if (toolInvocation.kind === 'toolInvocation' && IChatToolInvocation.isStreaming(toolInvocation)) {
-				let wasStreaming = true;
-				lazilyCreatedPart.addDisposable(autorun(reader => {
-					const state = toolInvocation.state.read(reader);
-					if (wasStreaming && state.type !== IChatToolInvocation.StateKind.Streaming) {
-						wasStreaming = false;
-						if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation) {
-							if (lazilyCreatedPart!.domNode) {
-								const wrapper = lazilyCreatedPart!.domNode.parentElement;
-								if (wrapper?.classList.contains('chat-thinking-tool-wrapper')) {
-									wrapper.remove();
-								}
-								templateData.value.appendChild(lazilyCreatedPart!.domNode);
-							}
-							this.finalizeCurrentThinkingPart(context, templateData);
-						}
-					}
-				}));
-			}
-
 			return { domNode: lazilyCreatedPart.domNode, part: lazilyCreatedPart };
 		};
 
@@ -1732,9 +1690,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				if (thinkingPart instanceof ChatThinkingContentPart) {
 					// Append using factory - thinking part decides whether to render lazily
 					thinkingPart.appendItem(createToolPart, toolInvocation.toolId, toolInvocation, templateData.value);
-					thinkingPart.addDisposable(thinkingPart.onDidChangeHeight(() => {
-						this.updateItemHeight(templateData);
-					}));
+					this.setupConfirmationTransitionWatcher(toolInvocation, thinkingPart, () => lazilyCreatedPart, createToolPart, context, templateData);
 				}
 
 				return thinkingPart;
@@ -1744,6 +1700,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				if (lastThinking && toolInvocation.presentation !== 'hidden') {
 					// Append using factory - thinking part decides whether to render lazily
 					lastThinking.appendItem(createToolPart, toolInvocation.toolId, toolInvocation, templateData.value);
+					this.setupConfirmationTransitionWatcher(toolInvocation, lastThinking, () => lazilyCreatedPart, createToolPart, context, templateData);
 					return this.renderNoContent((other, followingContent, element) => lazilyCreatedPart ?
 						lazilyCreatedPart.hasSameContent(other, followingContent, element) :
 						toolInvocation.kind === other.kind);
@@ -1765,15 +1722,53 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		return part;
 	}
 
+	// watch for confirmation part transition when tool invocation is streaming
+	private setupConfirmationTransitionWatcher(
+		toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized,
+		thinkingPart: ChatThinkingContentPart,
+		getCreatedPart: () => ChatToolInvocationPart | undefined,
+		createToolPart: () => { domNode: HTMLElement; part: ChatToolInvocationPart },
+		context: IChatContentPartRenderContext,
+		templateData: IChatListItemTemplate
+	): void {
+		if (toolInvocation.kind !== 'toolInvocation' || !IChatToolInvocation.isStreaming(toolInvocation)) {
+			return;
+		}
+
+		let wasStreaming = true;
+		const disposable = autorun(reader => {
+			const state = toolInvocation.state.read(reader);
+			if (wasStreaming && state.type !== IChatToolInvocation.StateKind.Streaming) {
+				wasStreaming = false;
+				if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation) {
+					const createdPart = getCreatedPart();
+					// move the created part out of thinking and into the main template
+					if (createdPart?.domNode) {
+						const wrapper = createdPart.domNode.parentElement;
+						if (wrapper?.classList.contains('chat-thinking-tool-wrapper')) {
+							wrapper.remove();
+						}
+						templateData.value.appendChild(createdPart.domNode);
+					} else {
+						thinkingPart.removeLazyItem(toolInvocation.toolId);
+						const { domNode } = createToolPart();
+						templateData.value.appendChild(domNode);
+					}
+					this.finalizeCurrentThinkingPart(context, templateData);
+				}
+			}
+		});
+
+		thinkingPart.addDisposable(disposable);
+	}
+
 	private renderExtensionsContent(extensionsContent: IChatExtensionsContent, context: IChatContentPartRenderContext, templateData: IChatListItemTemplate): IChatContentPart | undefined {
 		const part = this.instantiationService.createInstance(ChatExtensionsContentPart, extensionsContent);
-		part.addDisposable(part.onDidChangeHeight(() => this.updateItemHeight(templateData)));
 		return part;
 	}
 
 	private renderPullRequestContent(pullRequestContent: IChatPullRequestContent, context: IChatContentPartRenderContext, templateData: IChatListItemTemplate): IChatContentPart | undefined {
 		const part = this.instantiationService.createInstance(ChatPullRequestContentPart, pullRequestContent);
-		part.addDisposable(part.onDidChangeHeight(() => this.updateItemHeight(templateData)));
 		return part;
 	}
 
@@ -1783,16 +1778,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		const taskPart = this.instantiationService.createInstance(ChatTaskContentPart, task, this._contentReferencesListPool, this.chatContentMarkdownRenderer, context);
-		taskPart.addDisposable(taskPart.onDidChangeHeight(() => {
-			this.updateItemHeight(templateData);
-		}));
 		return taskPart;
 	}
 
 
 	private renderConfirmation(context: IChatContentPartRenderContext, confirmation: IChatConfirmation, templateData: IChatListItemTemplate): IChatContentPart {
 		const part = this.instantiationService.createInstance(ChatConfirmationContentPart, confirmation, context);
-		part.addDisposable(part.onDidChangeHeight(() => this.updateItemHeight(templateData)));
 		return part;
 	}
 
@@ -1802,13 +1793,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		const part = this.instantiationService.createInstance(ChatElicitationContentPart, elicitation, context);
-		part.addDisposable(part.onDidChangeHeight(() => this.updateItemHeight(templateData)));
 		return part;
 	}
 
 	private renderChangesSummary(content: IChatChangesSummaryPart, context: IChatContentPartRenderContext, templateData: IChatListItemTemplate): IChatContentPart {
 		const part = this.instantiationService.createInstance(ChatCheckpointFileChangesSummaryContentPart, content, context);
-		part.addDisposable(part.onDidChangeHeight(() => { this.updateItemHeight(templateData); }));
 		return part;
 	}
 
@@ -1822,11 +1811,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	private renderTextEdit(context: IChatContentPartRenderContext, chatTextEdit: IChatTextEditGroup, templateData: IChatListItemTemplate): IChatContentPart {
 		const textEditPart = this.instantiationService.createInstance(ChatTextEditContentPart, chatTextEdit, context, this.rendererOptions, this._diffEditorPool, this._currentLayoutWidth.get());
-		textEditPart.addDisposable(textEditPart.onDidChangeHeight(() => {
-			textEditPart.layout(this._currentLayoutWidth.get());
-			this.updateItemHeight(templateData);
-		}));
-
 		return textEditPart;
 	}
 
@@ -1885,11 +1869,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			}));
 		}
 
-		markdownPart.addDisposable(markdownPart.onDidChangeHeight(() => {
-			markdownPart.layout(this._currentLayoutWidth.get());
-			this.updateItemHeight(templateData);
-		}));
-
 		this.handleRenderedCodeblocks(element, markdownPart, codeBlockStartIndex);
 
 		const collapsedToolsMode = this.configService.getValue<CollapsedToolsDisplayMode>('chat.agent.thinking.collapsedTools');
@@ -1913,9 +1892,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 						markdown,
 						templateData.value
 					);
-					thinkingPart.addDisposable(thinkingPart.onDidChangeHeight(() => {
-						this.updateItemHeight(templateData);
-					}));
 				}
 
 				return thinkingPart;
@@ -1961,7 +1937,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					} else {
 						const itemContent = { ...content, value: item };
 						const itemPart = templateData.instantiationService.createInstance(ChatThinkingContentPart, itemContent, context, this.chatContentMarkdownRenderer, context.element.isComplete);
-						itemPart.addDisposable(itemPart.onDidChangeHeight(() => this.updateItemHeight(templateData)));
 						lastPart = itemPart;
 					}
 				}
@@ -1975,7 +1950,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				return lastActiveThinking;
 			} else {
 				const part = templateData.instantiationService.createInstance(ChatThinkingContentPart, content, context, this.chatContentMarkdownRenderer, context.element.isComplete);
-				part.addDisposable(part.onDidChangeHeight(() => this.updateItemHeight(templateData)));
 				return part;
 			}
 
@@ -2000,6 +1974,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			templateData.titleToolbar.context = undefined;
 		}
 		templateData.footerToolbar.context = undefined;
+		templateData.checkpointToolbar.context = undefined;
+		templateData.checkpointRestoreToolbar.context = undefined;
 	}
 
 	private renderMcpServersInteractionRequired(content: IChatMcpServersStarting | IChatMcpServersStartingSerialized, context: IChatContentPartRenderContext, templateData: IChatListItemTemplate): IChatContentPart {
@@ -2021,25 +1997,16 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 }
 
-export class ChatListDelegate implements IListVirtualDelegate<ChatTreeItem> {
+export class ChatListDelegate extends CachedListVirtualDelegate<ChatTreeItem> {
 	constructor(
 		private readonly defaultElementHeight: number,
-		@ILogService private readonly logService: ILogService
-	) { }
-
-	private _traceLayout(method: string, message: string) {
-		if (forceVerboseLayoutTracing) {
-			this.logService.info(`ChatListDelegate#${method}: ${message}`);
-		} else {
-			this.logService.trace(`ChatListDelegate#${method}: ${message}`);
-		}
+	) {
+		super();
 	}
 
-	getHeight(element: ChatTreeItem): number {
-		const kind = isRequestVM(element) ? 'request' : 'response';
-		const height = element.currentRenderedHeight ?? this.defaultElementHeight;
-		this._traceLayout('getHeight', `${kind}, height=${height}`);
-		return height;
+	protected estimateHeight(element: ChatTreeItem): number {
+		// currentRenderedHeight is not load-bearing here- probably if it's ever set, then the superclass cache will have the height.
+		return element.currentRenderedHeight ?? this.defaultElementHeight;
 	}
 
 	getTemplateId(element: ChatTreeItem): string {

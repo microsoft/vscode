@@ -2655,4 +2655,342 @@ suite('LanguageModelToolsService', () => {
 		const result = await promise;
 		assert.strictEqual(result.content[0].value, 'commit blocked');
 	});
+
+	test('isPermitted allows tools in permitted toolsets when agent mode is disabled', () => {
+		// Disable agent mode
+		configurationService.setUserConfiguration(ChatConfiguration.AgentEnabled, false);
+
+		// Create tool in the 'read' toolset (permitted)
+		const readTool: IToolData = {
+			id: 'readToolInSet',
+			toolReferenceName: 'readToolRef',
+			modelDescription: 'Read Tool in Set',
+			displayName: 'Read Tool',
+			source: ToolDataSource.Internal,
+		};
+		store.add(service.registerToolData(readTool));
+		store.add(service.readToolSet.addTool(readTool));
+
+		// Create standalone tool not in any permitted toolset
+		const standaloneTool: IToolData = {
+			id: 'standaloneTool',
+			toolReferenceName: 'standaloneRef',
+			modelDescription: 'Standalone Tool',
+			displayName: 'Standalone Tool',
+			source: ToolDataSource.Internal,
+		};
+		store.add(service.registerToolData(standaloneTool));
+
+		// Get tools - should include the tool in the read toolset but not the standalone tool
+		const tools = Array.from(service.getTools());
+		const toolIds = tools.map(t => t.id);
+
+		assert.ok(toolIds.includes('readToolInSet'), 'Tool in read toolset should be permitted when agent mode is disabled');
+		assert.ok(!toolIds.includes('standaloneTool'), 'Standalone tool not in permitted toolset should NOT be permitted when agent mode is disabled');
+	});
+
+	test('isPermitted allows all tools when agent mode is enabled', () => {
+		// Enable agent mode (default)
+		configurationService.setUserConfiguration(ChatConfiguration.AgentEnabled, true);
+
+		// Create tool in the 'read' toolset
+		const readTool: IToolData = {
+			id: 'readToolEnabled',
+			toolReferenceName: 'readToolEnabledRef',
+			modelDescription: 'Read Tool',
+			displayName: 'Read Tool',
+			source: ToolDataSource.Internal,
+		};
+		store.add(service.registerToolData(readTool));
+		store.add(service.readToolSet.addTool(readTool));
+
+		// Create standalone tool not in any permitted toolset
+		const standaloneTool: IToolData = {
+			id: 'standaloneToolEnabled',
+			toolReferenceName: 'standaloneEnabledRef',
+			modelDescription: 'Standalone Tool',
+			displayName: 'Standalone Tool',
+			source: ToolDataSource.Internal,
+		};
+		store.add(service.registerToolData(standaloneTool));
+
+		// Get tools - both should be available when agent mode is enabled
+		const tools = Array.from(service.getTools());
+		const toolIds = tools.map(t => t.id);
+
+		assert.ok(toolIds.includes('readToolEnabled'), 'Tool in read toolset should be permitted when agent mode is enabled');
+		assert.ok(toolIds.includes('standaloneToolEnabled'), 'Standalone tool should be permitted when agent mode is enabled');
+	});
+
+	test('isPermitted filters toolsets when agent mode is disabled', () => {
+		// Disable agent mode
+		configurationService.setUserConfiguration(ChatConfiguration.AgentEnabled, false);
+
+		// Create a custom internal toolset that is NOT in the permitted list
+		const customToolSet = store.add(service.createToolSet(
+			ToolDataSource.Internal,
+			'customToolSet',
+			'customToolSetRef',
+			{ description: 'Custom Tool Set' }
+		));
+
+		const customTool: IToolData = {
+			id: 'customToolInSet',
+			toolReferenceName: 'customToolRef',
+			modelDescription: 'Custom Tool',
+			displayName: 'Custom Tool',
+			source: ToolDataSource.Internal,
+		};
+		store.add(service.registerToolData(customTool));
+		store.add(customToolSet.addTool(customTool));
+
+		// Get toolsets - read/search/web should be available, custom should not
+		const toolSets = Array.from(service.toolSets.get());
+		const toolSetIds = Array.from(toolSets).map(ts => ts.id);
+
+		assert.ok(toolSetIds.includes('read'), 'read toolset should be permitted when agent mode is disabled');
+		assert.ok(!toolSetIds.includes('customToolSet'), 'custom toolset should NOT be permitted when agent mode is disabled');
+	});
+
+	test('isPermitted allows execute toolset tools when agent mode is enabled', () => {
+		// Enable agent mode
+		configurationService.setUserConfiguration(ChatConfiguration.AgentEnabled, true);
+
+		// Create tool in the 'execute' toolset (only permitted when agent mode is enabled)
+		const executeTool: IToolData = {
+			id: 'executeToolInSet',
+			toolReferenceName: 'executeToolRef',
+			modelDescription: 'Execute Tool',
+			displayName: 'Execute Tool',
+			source: ToolDataSource.Internal,
+		};
+		store.add(service.registerToolData(executeTool));
+		store.add(service.executeToolSet.addTool(executeTool));
+
+		// Get tools - execute tool should be available when agent mode is enabled
+		const tools = Array.from(service.getTools());
+		const toolIds = tools.map(t => t.id);
+
+		assert.ok(toolIds.includes('executeToolInSet'), 'Tool in execute toolset should be permitted when agent mode is enabled');
+	});
+
+	test('isPermitted blocks execute toolset tools when agent mode is disabled', () => {
+		// Disable agent mode
+		configurationService.setUserConfiguration(ChatConfiguration.AgentEnabled, false);
+
+		// Create tool in the 'execute' toolset (NOT permitted when agent mode is disabled)
+		const executeTool: IToolData = {
+			id: 'executeToolBlocked',
+			toolReferenceName: 'executeToolBlockedRef',
+			modelDescription: 'Execute Tool',
+			displayName: 'Execute Tool',
+			source: ToolDataSource.Internal,
+		};
+		store.add(service.registerToolData(executeTool));
+		store.add(service.executeToolSet.addTool(executeTool));
+
+		// Get tools - execute tool should NOT be available when agent mode is disabled
+		const tools = Array.from(service.getTools());
+		const toolIds = tools.map(t => t.id);
+
+		assert.ok(!toolIds.includes('executeToolBlocked'), 'Tool in execute toolset should NOT be permitted when agent mode is disabled');
+	});
+
+	test('isPermitted allows search toolset tools when agent mode is disabled', () => {
+		// Disable agent mode
+		configurationService.setUserConfiguration(ChatConfiguration.AgentEnabled, false);
+
+		// Create a 'search' toolset (permitted when agent mode is disabled)
+		const searchToolSet = store.add(service.createToolSet(
+			ToolDataSource.Internal,
+			'search',
+			SpecedToolAliases.search,
+			{ description: 'Search Tool Set' }
+		));
+
+		const searchTool: IToolData = {
+			id: 'searchToolInSet',
+			toolReferenceName: 'searchToolRef',
+			modelDescription: 'Search Tool',
+			displayName: 'Search Tool',
+			source: ToolDataSource.Internal,
+		};
+		store.add(service.registerToolData(searchTool));
+		store.add(searchToolSet.addTool(searchTool));
+
+		// Get tools - search tool should be available when agent mode is disabled
+		const tools = Array.from(service.getTools());
+		const toolIds = tools.map(t => t.id);
+
+		assert.ok(toolIds.includes('searchToolInSet'), 'Tool in search toolset should be permitted when agent mode is disabled');
+	});
+
+	test('isPermitted allows web toolset tools when agent mode is disabled', () => {
+		// Disable agent mode
+		configurationService.setUserConfiguration(ChatConfiguration.AgentEnabled, false);
+
+		// Create a 'web' toolset (permitted when agent mode is disabled)
+		const webToolSet = store.add(service.createToolSet(
+			ToolDataSource.Internal,
+			'web',
+			SpecedToolAliases.web,
+			{ description: 'Web Tool Set' }
+		));
+
+		const webTool: IToolData = {
+			id: 'webToolInSet',
+			toolReferenceName: 'webToolRef',
+			modelDescription: 'Web Tool',
+			displayName: 'Web Tool',
+			source: ToolDataSource.Internal,
+		};
+		store.add(service.registerToolData(webTool));
+		store.add(webToolSet.addTool(webTool));
+
+		// Get tools - web tool should be available when agent mode is disabled
+		const tools = Array.from(service.getTools());
+		const toolIds = tools.map(t => t.id);
+
+		assert.ok(toolIds.includes('webToolInSet'), 'Tool in web toolset should be permitted when agent mode is disabled');
+	});
+
+	test('isPermitted allows vscode_fetchWebPage_internal special case when agent mode is disabled', () => {
+		// Disable agent mode
+		configurationService.setUserConfiguration(ChatConfiguration.AgentEnabled, false);
+
+		// Register the special-cased fetch tool (not added to any toolset)
+		const fetchTool: IToolData = {
+			id: 'vscode_fetchWebPage_internal',
+			toolReferenceName: 'fetchWebPage',
+			modelDescription: 'Fetch Web Page',
+			displayName: 'Fetch Web Page',
+			source: ToolDataSource.Internal,
+		};
+		store.add(service.registerToolData(fetchTool));
+
+		// Get tools - this special tool should be available even when not in a toolset
+		const tools = Array.from(service.getTools());
+		const toolIds = tools.map(t => t.id);
+
+		assert.ok(toolIds.includes('vscode_fetchWebPage_internal'), 'vscode_fetchWebPage_internal should be permitted as special case when agent mode is disabled');
+	});
+
+	test('isPermitted blocks extension tools not in permitted toolsets when agent mode is disabled', () => {
+		// Disable agent mode
+		configurationService.setUserConfiguration(ChatConfiguration.AgentEnabled, false);
+
+		// Create extension tool not in any permitted toolset
+		const extensionTool: IToolData = {
+			id: 'extensionToolBlocked',
+			toolReferenceName: 'extensionToolRef',
+			modelDescription: 'Extension Tool',
+			displayName: 'Extension Tool',
+			source: { type: 'extension', label: 'Test Extension', extensionId: new ExtensionIdentifier('test.extension') },
+			canBeReferencedInPrompt: true,
+		};
+		store.add(service.registerToolData(extensionTool));
+
+		// Get tools - extension tool should NOT be available when agent mode is disabled
+		const tools = Array.from(service.getTools());
+		const toolIds = tools.map(t => t.id);
+
+		assert.ok(!toolIds.includes('extensionToolBlocked'), 'Extension tool not in permitted toolset should NOT be permitted when agent mode is disabled');
+	});
+
+	test('isPermitted blocks MCP tools not in permitted toolsets when agent mode is disabled', () => {
+		// Disable agent mode
+		configurationService.setUserConfiguration(ChatConfiguration.AgentEnabled, false);
+
+		// Create MCP toolset (not in permitted list)
+		const mcpToolSet = store.add(service.createToolSet(
+			{ type: 'mcp', label: 'Test MCP', serverLabel: 'Test MCP Server', instructions: undefined, collectionId: 'testMcp', definitionId: 'testMcpDef' },
+			'mcpToolSetBlocked',
+			'mcpToolSetBlockedRef',
+			{ description: 'MCP Tool Set' }
+		));
+
+		const mcpTool: IToolData = {
+			id: 'mcpToolBlocked',
+			toolReferenceName: 'mcpToolRef',
+			modelDescription: 'MCP Tool',
+			displayName: 'MCP Tool',
+			source: { type: 'mcp', label: 'Test MCP', serverLabel: 'Test MCP Server', instructions: undefined, collectionId: 'testMcp', definitionId: 'testMcpDef' },
+			canBeReferencedInPrompt: true,
+		};
+		store.add(service.registerToolData(mcpTool));
+		store.add(mcpToolSet.addTool(mcpTool));
+
+		// Get tools - MCP tool should NOT be available when agent mode is disabled
+		const tools = Array.from(service.getTools());
+		const toolIds = tools.map(t => t.id);
+
+		assert.ok(!toolIds.includes('mcpToolBlocked'), 'MCP tool should NOT be permitted when agent mode is disabled');
+
+		// Get toolsets - MCP toolset should NOT be available
+		const toolSets = Array.from(service.toolSets.get());
+		const toolSetIds = Array.from(toolSets).map(ts => ts.id);
+
+		assert.ok(!toolSetIds.includes('mcpToolSetBlocked'), 'MCP toolset should NOT be permitted when agent mode is disabled');
+	});
+
+	test('isPermitted blocks agent toolset tools when agent mode is disabled', () => {
+		// Disable agent mode
+		configurationService.setUserConfiguration(ChatConfiguration.AgentEnabled, false);
+
+		// Create tool in the 'agent' toolset (NOT permitted when agent mode is disabled)
+		const agentTool: IToolData = {
+			id: 'agentToolBlocked',
+			toolReferenceName: 'agentToolBlockedRef',
+			modelDescription: 'Agent Tool',
+			displayName: 'Agent Tool',
+			source: ToolDataSource.Internal,
+		};
+		store.add(service.registerToolData(agentTool));
+		store.add(service.agentToolSet.addTool(agentTool));
+
+		// Get tools - agent tool should NOT be available when agent mode is disabled
+		const tools = Array.from(service.getTools());
+		const toolIds = tools.map(t => t.id);
+
+		assert.ok(!toolIds.includes('agentToolBlocked'), 'Tool in agent toolset should NOT be permitted when agent mode is disabled');
+
+		// Get toolsets - agent toolset should NOT be available
+		const toolSets = Array.from(service.toolSets.get());
+		const toolSetIds = Array.from(toolSets).map(ts => ts.id);
+
+		assert.ok(!toolSetIds.includes('agent'), 'agent toolset should NOT be permitted when agent mode is disabled');
+	});
+
+	test('isPermitted includes tool in multiple toolsets if one is permitted', () => {
+		// Disable agent mode
+		configurationService.setUserConfiguration(ChatConfiguration.AgentEnabled, false);
+
+		// Create a tool that is added to both a permitted toolset (read) and a non-permitted toolset
+		const multiSetTool: IToolData = {
+			id: 'multiSetTool',
+			toolReferenceName: 'multiSetToolRef',
+			modelDescription: 'Multi Set Tool',
+			displayName: 'Multi Set Tool',
+			source: ToolDataSource.Internal,
+		};
+		store.add(service.registerToolData(multiSetTool));
+
+		// Add to read toolset (permitted)
+		store.add(service.readToolSet.addTool(multiSetTool));
+
+		// Also create and add to a non-permitted toolset
+		const customToolSet = store.add(service.createToolSet(
+			ToolDataSource.Internal,
+			'customMultiSet',
+			'customMultiSetRef',
+			{ description: 'Custom Multi Set' }
+		));
+		store.add(customToolSet.addTool(multiSetTool));
+
+		// Get tools - tool should be available because it's in the 'read' toolset
+		const tools = Array.from(service.getTools());
+		const toolIds = tools.map(t => t.id);
+
+		assert.ok(toolIds.includes('multiSetTool'), 'Tool should be permitted if it belongs to at least one permitted toolset');
+	});
 });

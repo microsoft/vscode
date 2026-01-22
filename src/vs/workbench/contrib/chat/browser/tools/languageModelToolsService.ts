@@ -204,6 +204,24 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			this._logService.trace(`LanguageModelToolsService#isPermitted: ToolSet ${toolOrToolSet.id} (${toolOrToolSet.referenceName}) permitted=${permitted}`);
 			return permitted;
 		}
+		for (const toolSet of this._toolSets) {
+			if (toolSet.source.type === 'internal' && permittedInternalToolSetIds.includes(toolSet.referenceName)) {
+				for (const memberTool of toolSet.getTools()) {
+					if (memberTool.id === toolOrToolSet.id) {
+						this._logService.trace(`LanguageModelToolsService#isPermitted: Tool ${toolOrToolSet.id} (${toolOrToolSet.toolReferenceName}) permitted=true (member of ${toolSet.referenceName})`);
+						return true;
+					}
+				}
+			}
+		}
+
+		// Special case for 'vscode_fetchWebPage_internal', which is allowed if we allow 'web' tools
+		// Fetch is implemented with two tools, this one and 'copilot_fetchWebPage'
+		if (toolOrToolSet.id === 'vscode_fetchWebPage_internal' && permittedInternalToolSetIds.includes(SpecedToolAliases.web)) {
+			this._logService.trace(`LanguageModelToolsService#isPermitted: Tool ${toolOrToolSet.id} (${toolOrToolSet.toolReferenceName}) permitted=true (special case)`);
+			return true;
+		}
+
 		this._logService.trace(`LanguageModelToolsService#isPermitted: Tool ${toolOrToolSet.id} (${toolOrToolSet.toolReferenceName}) permitted=false`);
 		return false;
 	}

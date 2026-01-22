@@ -12,7 +12,7 @@ import { autorunSelfDisposable, IObservable, IReader } from '../../../../../base
 import { hasKey } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IDocumentDiff } from '../../../../../editor/common/diff/documentDiffProvider.js';
-import { Location, TextEdit } from '../../../../../editor/common/languages.js';
+import { TextEdit } from '../../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { EditSuggestionId } from '../../../../../editor/common/textModelEditSource.js';
 import { localize } from '../../../../../nls.js';
@@ -20,9 +20,9 @@ import { RawContextKey } from '../../../../../platform/contextkey/common/context
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IEditorPane } from '../../../../common/editor.js';
 import { ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
-import { IChatAgentResult } from '../participants/chatAgents.js';
+import { IChatMultiDiffData, IChatMultiDiffDataSerialized, IChatProgress, IChatWorkspaceEdit } from '../chatService/chatService.js';
 import { ChatModel, IChatRequestDisablement, IChatResponseModel } from '../model/chatModel.js';
-import { IChatMultiDiffData, IChatMultiDiffDataSerialized, IChatProgress } from '../chatService/chatService.js';
+import { IChatAgentResult } from '../participants/chatAgents.js';
 
 export const IChatEditingService = createDecorator<IChatEditingService>('chatEditingService');
 
@@ -110,6 +110,8 @@ export interface ISnapshotEntry {
 	readonly current: string;
 	readonly state: ModifiedFileEntryState;
 	telemetryInfo: IModifiedEntryTelemetryInfo;
+	/** True if this entry represents a deleted file */
+	readonly isDeleted?: boolean;
 }
 
 export interface IChatEditingSession extends IDisposable {
@@ -159,6 +161,14 @@ export interface IChatEditingSession extends IDisposable {
 	 * @param inUndoStop The undo stop the edits will be grouped in
 	 */
 	startStreamingEdits(resource: URI, responseModel: IChatResponseModel, inUndoStop: string | undefined): IStreamingEdits;
+
+	/**
+	 * Applies a workspace edit (file deletions, creations, renames).
+	 * @param edit The workspace edit containing file operations
+	 * @param responseModel The response model making the edit
+	 * @param undoStopId The undo stop ID for this edit
+	 */
+	applyWorkspaceEdit(edit: IChatWorkspaceEdit, responseModel: IChatResponseModel, undoStopId: string): void;
 
 	/**
 	 * Gets the document diff of a change made to a URI between one undo stop and
@@ -370,6 +380,7 @@ export interface IModifiedFileEntry {
 	readonly entryId: string;
 	readonly originalURI: URI;
 	readonly modifiedURI: URI;
+	readonly isDeletion?: boolean;
 
 	readonly lastModifyingRequestId: string;
 
@@ -408,7 +419,6 @@ export interface IModifiedFileEntry {
 	readonly linesRemoved?: IObservable<number>;
 
 	getEditorIntegration(editor: IEditorPane): IModifiedFileEntryEditorIntegration;
-	hasModificationAt(location: Location): boolean;
 	/**
 	 * Gets the document diff info, waiting for any ongoing promises to flush.
 	 */
@@ -444,6 +454,7 @@ export const defaultChatEditingMaxFileLimit = 10;
 export const enum ChatEditKind {
 	Created,
 	Modified,
+	Deleted,
 }
 
 export interface IChatEditingActionContext {
