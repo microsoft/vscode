@@ -310,7 +310,7 @@ export class ThemeConfiguration {
 		const updatedRules = textMateRules.map(rule => {
 			const fontSize = rule.settings?.fontSize;
 			const lineHeight = rule.settings?.lineHeight;
-			if (fontSize !== undefined && (lineHeight === undefined || lineHeight < fontSize)) {
+			if (fontSize !== undefined && lineHeight === undefined) {
 				return {
 					...rule,
 					settings: {
