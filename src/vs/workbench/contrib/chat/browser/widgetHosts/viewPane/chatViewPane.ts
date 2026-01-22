@@ -175,8 +175,24 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		return {
 			position: sideSessionsOnRightPosition ? Position.RIGHT : Position.LEFT,
-			location: viewLocation ?? ViewContainerLocation.AuxiliaryBar
+			location: viewLocation ?? ViewContainerLocation.AuxiliaryBar,
 		};
+	}
+
+	private getSessionHoverPosition() {
+		const viewLocation = this.viewDescriptorService.getViewLocationById(this.id);
+		const sideBarPosition = this.layoutService.getSideBarPosition();
+
+		if (this.sessionsViewerOrientation === AgentSessionsViewerOrientation.SideBySide) {
+			return viewLocation === ViewContainerLocation.Sidebar && sideBarPosition === Position.RIGHT ? HoverPosition.LEFT : HoverPosition.RIGHT;
+		}
+
+		return {
+			[Position.LEFT]: HoverPosition.RIGHT,
+			[Position.RIGHT]: HoverPosition.LEFT,
+			[Position.TOP]: HoverPosition.BELOW,
+			[Position.BOTTOM]: HoverPosition.ABOVE
+		}[viewLocation === ViewContainerLocation.Panel ? this.layoutService.getPanelPosition() : sideBarPosition];
 	}
 
 	private updateViewPaneClasses(fromEvent: boolean): void {
@@ -304,7 +320,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private static readonly SESSIONS_SIDEBAR_MIN_WIDTH = 200;
 	private static readonly SESSIONS_SIDEBAR_DEFAULT_WIDTH = 300;
 	private static readonly SESSIONS_STACKED_MIN_HEIGHT = AgentSessionsListDelegate.ITEM_HEIGHT;
-	private static readonly SESSIONS_STACKED_DEFAULT_HEIGHT = 3 * AgentSessionsListDelegate.ITEM_HEIGHT;
+	private static readonly SESSIONS_STACKED_DEFAULT_HEIGHT = 5 * AgentSessionsListDelegate.ITEM_HEIGHT;
 	private static readonly CHAT_WIDGET_DEFAULT_WIDTH = 300;
 	private static readonly SESSIONS_SIDEBAR_VIEW_MIN_WIDTH = this.CHAT_WIDGET_DEFAULT_WIDTH + this.SESSIONS_SIDEBAR_DEFAULT_WIDTH;
 
@@ -369,10 +385,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			source: 'chatViewPane',
 			filter: sessionsFilter,
 			overrideStyles: this.getLocationBasedColors().listOverrideStyles,
-			getHoverPosition: () => {
-				const { position } = this.getViewPositionAndLocation();
-				return position === Position.RIGHT ? HoverPosition.LEFT : HoverPosition.RIGHT;
-			},
+			getHoverPosition: () => this.getSessionHoverPosition(),
 			trackActiveEditorSession: () => {
 				return !this._widget || this._widget.isEmpty(); // only track and reveal if chat widget is empty
 			},

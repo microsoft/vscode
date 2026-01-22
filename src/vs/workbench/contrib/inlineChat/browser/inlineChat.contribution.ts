@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { EditorContributionInstantiation, registerEditorContribution } from '../../../../editor/browser/editorExtensions.js';
-import { MenuId, IMenuItem, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { IMenuItem, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { InlineChatController } from './inlineChatController.js';
 import * as InlineChatActions from './inlineChatActions.js';
-import { CTX_INLINE_CHAT_EDITING, CTX_INLINE_CHAT_GUTTER_VISIBLE, CTX_INLINE_CHAT_V1_ENABLED, CTX_INLINE_CHAT_REQUEST_IN_PROGRESS, MENU_INLINE_CHAT_WIDGET_STATUS } from '../common/inlineChat.js';
+import { CTX_INLINE_CHAT_EDITING, CTX_INLINE_CHAT_V1_ENABLED, CTX_INLINE_CHAT_REQUEST_IN_PROGRESS, MENU_INLINE_CHAT_WIDGET_STATUS } from '../common/inlineChat.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
@@ -21,12 +21,11 @@ import { localize } from '../../../../nls.js';
 import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { InlineChatAccessibilityHelp } from './inlineChatAccessibilityHelp.js';
-import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
-import { refactorCommandId, sourceActionCommandId } from '../../../../editor/contrib/codeAction/browser/codeAction.js';
 
 registerEditorContribution(InlineChatController.ID, InlineChatController, EditorContributionInstantiation.Eager); // EAGER because of notebook dispose/create of editors
 
 registerAction2(InlineChatActions.KeepSessionAction2);
+registerAction2(InlineChatActions.UndoSessionAction2);
 registerAction2(InlineChatActions.UndoAndCloseSessionAction2);
 
 // --- browser
@@ -95,24 +94,3 @@ workbenchContributionsRegistry.registerWorkbenchContribution(InlineChatNotebookC
 registerWorkbenchContribution2(InlineChatEnabler.Id, InlineChatEnabler, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(InlineChatEscapeToolContribution.Id, InlineChatEscapeToolContribution, WorkbenchPhase.AfterRestored);
 AccessibleViewRegistry.register(new InlineChatAccessibilityHelp());
-
-// Register Refactor and Source Action to the ChatEditorInlineGutter menu
-MenuRegistry.appendMenuItem(MenuId.ChatEditorInlineGutter, {
-	command: {
-		id: refactorCommandId,
-		title: localize('refactor.label', "Refactor..."),
-	},
-	when: ContextKeyExpr.and(EditorContextKeys.writable, CTX_INLINE_CHAT_GUTTER_VISIBLE),
-	group: '3_codeAction',
-	order: 1,
-});
-
-MenuRegistry.appendMenuItem(MenuId.ChatEditorInlineGutter, {
-	command: {
-		id: sourceActionCommandId,
-		title: localize('source.label', "Source Action..."),
-	},
-	when: ContextKeyExpr.and(EditorContextKeys.writable, CTX_INLINE_CHAT_GUTTER_VISIBLE),
-	group: '3_codeAction',
-	order: 2,
-});

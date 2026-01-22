@@ -4,14 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/inlineChatEditorAffordance.css';
+import { IDimension } from '../../../../base/browser/dom.js';
 import * as dom from '../../../../base/browser/dom.js';
-import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { ThemeIcon } from '../../../../base/common/themables.js';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from '../../../../editor/browser/editorBrowser.js';
+import { EditorOption } from '../../../../editor/common/config/editorOptions.js';
 import { Selection, SelectionDirection } from '../../../../editor/common/core/selection.js';
 import { autorun, IObservable, ISettableObservable } from '../../../../base/common/observable.js';
-import { assertType } from '../../../../base/common/types.js';
+import { MenuId } from '../../../../platform/actions/common/actions.js';
+import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 
 /**
  * Content widget that shows a small sparkle icon at the cursor position.
@@ -33,22 +35,20 @@ export class InlineChatEditorAffordance extends Disposable implements IContentWi
 		private readonly _editor: ICodeEditor,
 		selection: IObservable<Selection | undefined>,
 		suppressAffordance: ISettableObservable<boolean>,
-		private readonly _hover: ISettableObservable<{ rect: DOMRect; above: boolean } | undefined>
+		_hover: ISettableObservable<{ rect: DOMRect; above: boolean; lineNumber: number } | undefined>,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
 
 		// Create the widget DOM
 		this._domNode = dom.$('.inline-chat-content-widget');
 
-		// Add sparkle icon
-		const icon = dom.append(this._domNode, dom.$('.icon'));
-		icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.sparkle));
-
-		// Handle click to show overlay widget
-		this._store.add(dom.addDisposableListener(this._domNode, dom.EventType.CLICK, (e) => {
-			e.preventDefault();
-			e.stopPropagation();
-			this._showOverlayWidget();
+		// Create toolbar with the inline chat start action
+		this._store.add(instantiationService.createInstance(MenuWorkbenchToolBar, this._domNode, MenuId.InlineChatEditorAffordance, {
+			telemetrySource: 'inlineChatEditorAffordance',
+			hiddenItemStrategy: HiddenItemStrategy.Ignore,
+			menuOptions: { renderShortTitle: true },
+			toolbarOptions: { primaryGroup: () => true },
 		}));
 
 		this._store.add(autorun(r => {
@@ -93,27 +93,6 @@ export class InlineChatEditorAffordance extends Disposable implements IContentWi
 		}
 	}
 
-	private _showOverlayWidget(): void {
-		assertType(this._editor.hasModel());
-
-		if (!this._position || !this._position.position) {
-			return;
-		}
-
-		const position = this._position.position;
-		const editorDomNode = this._editor.getDomNode();
-		const scrolledPosition = this._editor.getScrolledVisiblePosition(position);
-		const editorRect = editorDomNode.getBoundingClientRect();
-		const x = editorRect.left + scrolledPosition.left;
-		const y = editorRect.top + scrolledPosition.top;
-
-		this._hide();
-		this._hover.set({
-			rect: new DOMRect(x, y, 0, scrolledPosition.height),
-			above: this._position.preference[0] === ContentWidgetPositionPreference.ABOVE
-		}, undefined);
-	}
-
 	getId(): string {
 		return this._id;
 	}
@@ -124,6 +103,15 @@ export class InlineChatEditorAffordance extends Disposable implements IContentWi
 
 	getPosition(): IContentWidgetPosition | null {
 		return this._position;
+	}
+
+	beforeRender(): IDimension | null {
+		const position = this._editor.getPosition();
+		const lineHeight = position ? this._editor.getLineHeightForPosition(position) : this._editor.getOption(EditorOption.lineHeight);
+
+		this._domNode.style.setProperty('--vscode-inline-chat-affordance-height', `${lineHeight}px`);
+
+		return null;
 	}
 
 	override dispose(): void {

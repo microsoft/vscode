@@ -31,6 +31,10 @@
 .monaco-workbench.panel-position-left .part.panel { box-shadow: 0 0 6px rgba(0, 0, 0, 0.08); }
 .monaco-workbench.panel-position-right .part.panel { box-shadow: 0 0 6px rgba(0, 0, 0, 0.08); }
 
+.monaco-pane-view .split-view-view:first-of-type > .pane > .pane-header {
+	border-top: 1px solid var(--vscode-sideBarSectionHeader-border) !important;
+}
+
 /* Sashes - ensure they extend full height and are above other panels */
 .monaco-workbench .monaco-sash { z-index: 45; }
 .monaco-workbench .monaco-sash.vertical { z-index: 45; }
@@ -68,8 +72,6 @@
 .monaco-workbench.vs-dark .quick-input-widget,
 .monaco-workbench.hc-black .quick-input-widget { background: rgba(10, 10, 11, 0.5) !important; backdrop-filter: blur(40px) saturate(180%); -webkit-backdrop-filter: blur(40px) saturate(180%); box-shadow: 0 0 20px rgba(0, 0, 0, 0.15) !important; }
 .monaco-workbench .quick-input-widget .monaco-list-rows { background-color: transparent !important; }
-/* .monaco-workbench .quick-input-widget, */
-/* .monaco-workbench .quick-input-widget *, */
 .monaco-workbench .quick-input-widget .quick-input-header,
 .monaco-workbench .quick-input-widget .quick-input-list,
 .monaco-workbench .quick-input-widget .quick-input-titlebar,
@@ -78,7 +80,6 @@
 .monaco-workbench .quick-input-widget .quick-input-filter,
 .monaco-workbench .quick-input-widget .quick-input-action,
 .monaco-workbench .quick-input-widget .quick-input-message,
-/* .monaco-workbench .quick-input-widget .monaco-inputbox, */
 .monaco-workbench .quick-input-widget .monaco-list,
 .monaco-workbench .quick-input-widget .monaco-list-row { border-color: transparent !important; outline: none !important; }
 .monaco-workbench .quick-input-widget .monaco-inputbox { box-shadow: none !important; background: transparent !important; }
@@ -155,7 +156,11 @@
 .monaco-workbench.vs .monaco-editor .suggest-widget { background: rgba(252, 252, 253, 0.85) !important; }
 
 /* Find Widget */
-.monaco-workbench .monaco-editor .find-widget { box-shadow: 0 0 8px rgba(0, 0, 0, 0.12); border: none; border-radius: 8px; }
+.monaco-workbench .monaco-editor .find-widget {
+	box-shadow: 0 0 8px rgba(0, 0, 0, 0.12); border: none; border-radius: 8px;
+	backdrop-filter: blur(20px) saturate(180%); -webkit-backdrop-filter: blur(20px) saturate(180%);
+	top: 4px !important;
+}
 
 /* Dialog */
 .monaco-workbench .monaco-dialog-box { box-shadow: 0 0 20px rgba(0, 0, 0, 0.18); border: none; border-radius: 12px; overflow: hidden; }
@@ -181,7 +186,6 @@
 .monaco-workbench .extensions-list .extension-list-item:hover { box-shadow: 0 0 6px rgba(0, 0, 0, 0.10); }
 
 /* Breadcrumbs */
-.monaco-workbench .part.editor > .content .editor-group-container > .title .breadcrumbs-control { box-shadow: 0 0 6px rgba(0, 0, 0, 0.08) !important; background: rgba(252, 252, 253, 0.65) !important; backdrop-filter: blur(40px) saturate(180%) !important; -webkit-backdrop-filter: blur(40px) saturate(180%) !important; }
 .monaco-workbench.vs-dark .part.editor > .content .editor-group-container > .title .breadcrumbs-control,
 
 /* Input Boxes */
@@ -228,20 +232,26 @@
 /* Sticky Scroll */
 .monaco-workbench .monaco-editor .sticky-widget { box-shadow: 0 0 6px rgba(0, 0, 0, 0.10) !important; border-bottom: none !important; background: rgba(252, 252, 253, 0.65) !important; backdrop-filter: blur(40px) saturate(180%) !important; -webkit-backdrop-filter: blur(40px) saturate(180%) !important; }
 .monaco-workbench.vs-dark .monaco-editor .sticky-widget { border-bottom: none !important; background: rgba(0, 0, 0, 0.3) !important; backdrop-filter: blur(40px) saturate(180%) !important; -webkit-backdrop-filter: blur(40px) saturate(180%) !important; }
-.monaco-workbench .monaco-editor .sticky-widget *,
-.monaco-workbench .monaco-editor .sticky-widget > *,
-.monaco-workbench .monaco-editor .sticky-widget .sticky-widget-line-numbers,
-.monaco-workbench .monaco-editor .sticky-widget .sticky-widget-lines-scrollable,
-.monaco-workbench .monaco-editor .sticky-widget .sticky-widget-lines,
-.monaco-workbench .monaco-editor .sticky-widget .sticky-line-number,
-.monaco-workbench .monaco-editor .sticky-widget .sticky-line-content,
-.monaco-workbench .monaco-editor .sticky-widget .sticky-line-content:hover { background-color: transparent !important; background: transparent !important; }
+.monaco-workbench .monaco-editor .sticky-widget .sticky-widget-lines
+{ background-color: transparent !important; background: transparent !important; }
 .monaco-workbench.vs-dark .monaco-editor .sticky-widget,
 .monaco-workbench .monaco-editor .sticky-widget-focus-preview,
 .monaco-workbench .monaco-editor .sticky-scroll-focus-line,
 .monaco-workbench .monaco-editor .focused .sticky-widget,
 .monaco-workbench .monaco-editor:has(.sticky-widget:focus-within) .sticky-widget { background: rgba(252, 252, 253, 0.75) !important; backdrop-filter: blur(40px) saturate(180%) !important; -webkit-backdrop-filter: blur(40px) saturate(180%) !important; box-shadow: 0 0 8px rgba(0, 0, 0, 0.12) !important; }
 .monaco-workbench.vs-dark .monaco-editor:has(.sticky-widget:focus-within) .sticky-widget { background: rgba(0, 0, 0, 0.4) !important; backdrop-filter: blur(40px) saturate(180%) !important; -webkit-backdrop-filter: blur(40px) saturate(180%) !important; box-shadow: 0 0 8px rgba(0, 0, 0, 0.12) !important; }
+
+.monaco-editor .sticky-widget .sticky-line-content,
+.monaco-workbench .monaco-editor .sticky-widget .sticky-line-number {
+	backdrop-filter: blur(40px) saturate(180%) !important; -webkit-backdrop-filter: blur(40px) saturate(180%) !important;
+	background-color: color-mix(in srgb, var(--vscode-editor-background) 70%, transparent)
+}
+
+.monaco-workbench.vs-dark .monaco-editor .sticky-widget .sticky-line-content,
+.monaco-workbench.vs-dark .monaco-editor .sticky-widget .sticky-line-number {
+	background-color: color-mix(in srgb, var(--vscode-editor-background) 30%, transparent)
+}
+
 
 /* Notebook */
 .monaco-workbench .notebookOverlay .monaco-list .cell-focus-indicator { box-shadow: 0 0 4px rgba(0, 0, 0, 0.08); border-radius: 6px; }
