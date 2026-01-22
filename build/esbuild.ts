@@ -130,6 +130,27 @@ const resourcePatterns = [
 	'vs/editor/common/languages/injections/*.scm',
 ];
 
+// Test fixtures (only copied for development builds, not production)
+const testFixturePatterns = [
+	'**/test/**/*.json',
+	'**/test/**/*.txt',
+	'**/test/**/*.snap',
+	'**/test/**/*.tst',
+	'**/test/**/*.html',
+	'**/test/**/*.js',
+	'**/test/**/*.jxs',
+	'**/test/**/*.tsx',
+	'**/test/**/*.png',
+	'**/test/**/*.md',
+	'**/test/**/*.zip',
+	'**/test/**/*.pdf',
+	'**/test/**/*.qwoff',
+	'**/test/**/*.wuff',
+	'**/test/**/*.less',
+	// Files without extensions (executables, etc.)
+	'**/test/**/fixtures/executable/*',
+];
+
 // ============================================================================
 // Utilities
 // ============================================================================
@@ -141,11 +162,11 @@ async function cleanDir(dir: string): Promise<void> {
 	await fs.promises.mkdir(fullPath, { recursive: true });
 }
 
-async function copyCssFiles(outDir: string): Promise<number> {
+async function copyCssFiles(outDir: string, excludeTests = false): Promise<number> {
 	// Copy all CSS files from src to output (they're imported by JS)
 	const cssFiles = await globAsync('**/*.css', {
 		cwd: path.join(REPO_ROOT, SRC_DIR),
-		ignore: ['**/test/**'],
+		ignore: excludeTests ? ['**/test/**'] : [],
 	});
 
 	for (const file of cssFiles) {
@@ -159,11 +180,14 @@ async function copyCssFiles(outDir: string): Promise<number> {
 	return cssFiles.length;
 }
 
-async function copyResources(outDir: string, excludeDevFiles = false): Promise<void> {
+async function copyResources(outDir: string, excludeDevFiles = false, excludeTests = false): Promise<void> {
 	console.log(`[resources] Copying to ${outDir}...`);
 	let copied = 0;
 
-	const ignorePatterns = ['**/test/**'];
+	const ignorePatterns: string[] = [];
+	if (excludeTests) {
+		ignorePatterns.push('**/test/**');
+	}
 	if (excludeDevFiles) {
 		ignorePatterns.push('**/*-dev.html');
 	}
@@ -184,8 +208,26 @@ async function copyResources(outDir: string, excludeDevFiles = false): Promise<v
 		}
 	}
 
+	// Copy test fixtures (only for development builds)
+	if (!excludeTests) {
+		for (const pattern of testFixturePatterns) {
+			const files = await globAsync(pattern, {
+				cwd: path.join(REPO_ROOT, SRC_DIR),
+			});
+
+			for (const file of files) {
+				const srcPath = path.join(REPO_ROOT, SRC_DIR, file);
+				const destPath = path.join(REPO_ROOT, outDir, file);
+
+				await fs.promises.mkdir(path.dirname(destPath), { recursive: true });
+				await fs.promises.copyFile(srcPath, destPath);
+				copied++;
+			}
+		}
+	}
+
 	// Copy CSS files
-	const cssCount = await copyCssFiles(outDir);
+	const cssCount = await copyCssFiles(outDir, excludeTests);
 	copied += cssCount;
 
 	console.log(`[resources] Copied ${copied} files (${cssCount} CSS)`);
@@ -233,10 +275,15 @@ async function transpile(): Promise<void> {
 	console.log(`[transpile] ${SRC_DIR} → ${outDir}`);
 	const t1 = Date.now();
 
-	// Find all .ts files
+	// Find all .ts files (exclude tests only when bundling for production)
+	const ignorePatterns = ['**/*.d.ts'];
+	if (isBundle) {
+		ignorePatterns.push('**/test/**');
+	}
+
 	const files = await globAsync('**/*.ts', {
 		cwd: path.join(REPO_ROOT, SRC_DIR),
-		ignore: ['**/test/**', '**/*.d.ts'],
+		ignore: ignorePatterns,
 	});
 
 	// Transpile with esbuild
@@ -259,8 +306,8 @@ async function transpile(): Promise<void> {
 		}),
 	});
 
-	// Copy resources
-	await copyResources(outDir);
+	// Copy resources (exclude tests only when bundling for production)
+	await copyResources(outDir, false, isBundle);
 
 	console.log(`[transpile] Done in ${Date.now() - t1}ms (${files.length} files)`);
 }
@@ -361,8 +408,8 @@ ${tslib}`,
 		bundled++;
 	}
 
-	// Copy resources (exclude dev files for production)
-	await copyResources(OUT_VSCODE_DIR, true);
+	// Copy resources (exclude dev files and tests for production)
+	await copyResources(OUT_VSCODE_DIR, true, true);
 
 	console.log(`[bundle] Done in ${Date.now() - t1}ms (${bundled} bundles)`);
 }
