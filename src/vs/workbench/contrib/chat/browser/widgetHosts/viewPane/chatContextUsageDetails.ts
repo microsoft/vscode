@@ -68,7 +68,12 @@ export class ChatContextUsageDetails extends Disposable {
 		const actionsHeader = this.actionsSection.appendChild($('.actions-header'));
 		actionsHeader.textContent = localize('actions', "Actions");
 		const buttonBarContainer = this.actionsSection.appendChild($('.button-bar-container'));
-		this._register(this.instantiationService.createInstance(MenuWorkbenchButtonBar, buttonBarContainer, MenuId.ChatContextUsageActions, {}));
+		this._register(this.instantiationService.createInstance(MenuWorkbenchButtonBar, buttonBarContainer, MenuId.ChatContextUsageActions, {
+			toolbarOptions: {
+				primaryGroup: () => true
+			},
+			buttonConfigProvider: () => ({ isSecondary: true })
+		}));
 
 		// Listen to menu changes to show/hide actions section
 		const menu = this._register(this.menuService.createMenu(MenuId.ChatContextUsageActions, this.contextKeyService));
