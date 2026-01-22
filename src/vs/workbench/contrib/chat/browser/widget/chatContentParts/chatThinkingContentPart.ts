@@ -5,6 +5,8 @@
 
 import { $, clearNode, hide } from '../../../../../../base/browser/dom.js';
 import { alert } from '../../../../../../base/browser/ui/aria/aria.js';
+import { DomScrollableElement } from '../../../../../../base/browser/ui/scrollbar/scrollableElement.js';
+import { ScrollbarVisibility } from '../../../../../../base/common/scrollable.js';
 import { IChatMarkdownContent, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized } from '../../../common/chatService/chatService.js';
 import { IChatContentPartRenderContext, IChatContentPart } from './chatContentParts.js';
 import { IChatRendererContent } from '../../../common/model/chatViewModel.js';
@@ -22,6 +24,7 @@ import { localize } from '../../../../../../nls.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { Lazy } from '../../../../../../base/common/lazy.js';
+import { Emitter } from '../../../../../../base/common/event.js';
 import { IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../../base/common/observable.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
@@ -64,7 +67,7 @@ export function getToolInvocationIcon(toolId: string): ThemeIcon {
 		lowerToolId.includes('edit') ||
 		lowerToolId.includes('create')
 	) {
-		return Codicon.wand;
+		return Codicon.pencil;
 	}
 
 	if (
@@ -94,10 +97,13 @@ interface ILazyItem {
 	toolInvocationOrMarkdown?: IChatToolInvocation | IChatToolInvocationSerialized | IChatMarkdownContent;
 	originalParent?: HTMLElement;
 }
+const THINKING_SCROLL_MAX_HEIGHT = 200;
 
 export class ChatThinkingContentPart extends ChatCollapsibleContentPart implements IChatContentPart {
 	public readonly codeblocks: undefined;
 	public readonly codeblocksPartId: undefined;
+
+	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
 
 	private id: string | undefined;
 	private content: IChatThinkingPart;
@@ -108,6 +114,8 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	private markdownResult: IRenderedMarkdown | undefined;
 	private wrapper!: HTMLElement;
 	private fixedScrollingMode: boolean = false;
+	private autoScrollEnabled: boolean = true;
+	private scrollableElement: DomScrollableElement | undefined;
 	private lastExtractedTitle: string | undefined;
 	private extractedTitles: string[] = [];
 	private toolInvocationCount: number = 0;
@@ -183,15 +191,16 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			}
 		}));
 
-		// Materialize lazy items when first expanded
 		this._register(autorun(r => {
+			// Materialize lazy items when first expanded
 			if (this._isExpanded.read(r) && !this.hasExpandedOnce && this.lazyItems.length > 0) {
 				this.hasExpandedOnce = true;
 				for (const item of this.lazyItems) {
 					this.materializeLazyItem(item);
 				}
-				this._onDidChangeHeight.fire();
 			}
+			// Fire when expanded/collapsed
+			this._onDidChangeHeight.fire();
 		}));
 
 		if (this._collapseButton && !this.streamingCompleted && !this.element.isComplete) {
@@ -234,8 +243,93 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			this.wrapper.appendChild(this.textContainer);
 			this.renderMarkdown(this.currentThinkingValue);
 		}
+
+		// wrap content in scrollable element for fixed scrolling mode
+		if (this.fixedScrollingMode) {
+			this.scrollableElement = this._register(new DomScrollableElement(this.wrapper, {
+				vertical: ScrollbarVisibility.Auto,
+				horizontal: ScrollbarVisibility.Hidden,
+				handleMouseWheel: true,
+				alwaysConsumeMouseWheel: false
+			}));
+			this._register(this.scrollableElement.onScroll(e => this.handleScroll(e.scrollTop)));
+
+			this._register(this._onDidChangeHeight.event(() => {
+				setTimeout(() => this.scrollToBottomIfEnabled(), 0);
+			}));
+
+			setTimeout(() => this.scrollToBottomIfEnabled(), 0);
+
+			this.updateDropdownClickability();
+			return this.scrollableElement.getDomNode();
+		}
+
 		this.updateDropdownClickability();
 		return this.wrapper;
+	}
+
+	private handleScroll(scrollTop: number): void {
+		if (!this.scrollableElement) {
+			return;
+		}
+
+		const scrollDimensions = this.scrollableElement.getScrollDimensions();
+		const maxScrollTop = scrollDimensions.scrollHeight - scrollDimensions.height;
+		const isAtBottom = maxScrollTop <= 0 || scrollTop >= maxScrollTop - 10;
+
+		if (isAtBottom) {
+			this.autoScrollEnabled = true;
+		} else {
+			this.autoScrollEnabled = false;
+		}
+	}
+
+	private scrollToBottomIfEnabled(): void {
+		if (!this.scrollableElement || !this.autoScrollEnabled) {
+			return;
+		}
+
+		const isCollapsed = this.domNode.classList.contains('chat-used-context-collapsed');
+		if (!isCollapsed) {
+			return;
+		}
+
+		const contentHeight = this.wrapper.scrollHeight;
+		const viewportHeight = Math.min(contentHeight, THINKING_SCROLL_MAX_HEIGHT);
+
+		this.scrollableElement.setScrollDimensions({
+			width: this.scrollableElement.getDomNode().clientWidth,
+			scrollWidth: this.wrapper.scrollWidth,
+			height: viewportHeight,
+			scrollHeight: contentHeight
+		});
+
+		if (contentHeight > viewportHeight) {
+			this.scrollableElement.setScrollPosition({ scrollTop: contentHeight - viewportHeight });
+		}
+	}
+
+	/**
+	 * updates scroll dimensions when streaming is complete.
+	 */
+	private updateScrollDimensionsForCompletion(): void {
+		if (!this.scrollableElement || !this.fixedScrollingMode) {
+			return;
+		}
+
+		const contentHeight = this.wrapper.scrollHeight;
+		const viewportHeight = Math.min(contentHeight, THINKING_SCROLL_MAX_HEIGHT);
+
+		this.scrollableElement.setScrollDimensions({
+			width: this.scrollableElement.getDomNode().clientWidth,
+			scrollWidth: this.wrapper.scrollWidth,
+			height: viewportHeight,
+			scrollHeight: contentHeight
+		});
+
+		if (contentHeight <= THINKING_SCROLL_MAX_HEIGHT) {
+			this.scrollableElement.setScrollPosition({ scrollTop: 0 });
+		}
 	}
 
 	private renderMarkdown(content: string, reuseExisting?: boolean): void {
@@ -277,7 +371,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		this.markdownResult = rendered;
 		if (!target) {
 			clearNode(this.textContainer);
-			this.textContainer.appendChild(createThinkingIcon(Codicon.comment));
+			this.textContainer.appendChild(createThinkingIcon(Codicon.circleFilled));
 			this.textContainer.appendChild(rendered.element);
 		}
 	}
@@ -339,8 +433,8 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		this.currentThinkingValue = next;
 		this.renderMarkdown(next, reuseExisting);
 
-		if (this.fixedScrollingMode && this.wrapper) {
-			this.wrapper.scrollTop = this.wrapper.scrollHeight;
+		if (this.fixedScrollingMode && this.scrollableElement) {
+			setTimeout(() => this.scrollToBottomIfEnabled(), 0);
 		}
 
 		const extractedTitle = extractTitleFromThinkingContent(raw);
@@ -372,12 +466,19 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	}
 
 	public finalizeTitleIfDefault(): void {
-		this.wrapper.classList.remove('chat-thinking-streaming');
+		// With lazy rendering, wrapper may not be created yet if content hasn't been expanded
+		if (this.wrapper) {
+			this.wrapper.classList.remove('chat-thinking-streaming');
+		}
 		this.streamingCompleted = true;
 
 		if (this._collapseButton) {
 			this._collapseButton.icon = Codicon.check;
 		}
+
+		// Update scroll dimensions now that streaming is complete
+		// This removes unnecessary scrollbar when content fits
+		this.updateScrollDimensionsForCompletion();
 
 		this.updateDropdownClickability();
 
@@ -443,12 +544,56 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 				context = this.currentThinkingValue.substring(0, 1000);
 			}
 
-			const prompt = `Summarize the following actions in 6-7 words using past tense. Be very concise - focus on the main action only. No subjects, quotes, or punctuation.
+			const prompt = `Summarize the following actions concisely (6-10 words) using past tense. Follow these rules strictly:
 
-			Examples:
-			- "Preparing to create new page file, Read HomePage.tsx, Creating new TypeScript file" → "Created new page file"
-			- "Searching for files, Reading configuration, Analyzing dependencies" → "Analyzed project structure"
-			- "Invoked terminal command, Checked build output, Fixed errors" → "Ran build and fixed errors"
+			GENERAL:
+			- The actions may include tool calls (file edits, reads, searches, terminal commands) AND non-tool reasoning/analysis
+			- Summarize ALL actions, not just tool calls. If there's reasoning or analysis without tool calls, summarize that too
+			- Examples of non-tool actions: "Analyzing code structure", "Planning implementation", "Reviewing dependencies"
+
+			TOOL NAME FILTERING:
+			- NEVER include tool names like "Replace String in File", "Multi Replace String in File", "Create File", "Read File", etc. in the output
+			- If an action says "Edited X and used Replace String in File", output ONLY the action on X
+			- Tool names describe HOW something was done, not WHAT was done - always omit them
+
+			VOCABULARY - Use varied synonyms for natural-sounding summaries:
+			- For edits: "Updated", "Modified", "Changed", "Refactored", "Fixed", "Adjusted"
+			- For reads: "Reviewed", "Examined", "Checked", "Inspected", "Analyzed", "Explored"
+			- For creates: "Created", "Added", "Generated"
+			- For searches: "Searched for", "Looked up", "Investigated"
+			- For terminal: "Ran command", "Executed"
+			- Choose the synonym that best fits the context of what was done
+
+			RULES FOR TOOL CALLS:
+			1. If the SAME file was both edited AND read: Use a combined phrase like "Reviewed and updated <filename>"
+			2. If exactly ONE file was edited: Start with an edit synonym + "<filename>" (include actual filename)
+			3. If exactly ONE file was read: Start with a read synonym + "<filename>" (include actual filename)
+			4. If MULTIPLE files were edited: Start with an edit synonym + "X files"
+			5. If MULTIPLE files were read: Start with a read synonym + "X files"
+			6. If BOTH edits AND reads occurred on DIFFERENT files: Combine them naturally
+			7. For searches: Say "searched for <term>" or "looked up <term>" with the actual search term, NOT "searched for files"
+			8. After the file info, you may add a brief summary of other actions if space permits
+			9. NEVER say "1 file" - always use the actual filename when there's only one file
+
+			EXAMPLES:
+			- "Read HomePage.tsx, Edited HomePage.tsx" → "Reviewed and updated HomePage.tsx"
+			- "Edited HomePage.tsx" → "Updated HomePage.tsx"
+			- "Edited config.css and used Replace String in File" → "Modified config.css"
+			- "Edited App.tsx, used Multi Replace String in File" → "Refactored App.tsx"
+			- "Read config.json, Read package.json" → "Reviewed 2 files"
+			- "Edited App.tsx, Read utils.ts" → "Updated App.tsx and checked utils.ts"
+			- "Edited App.tsx, Read utils.ts, Read types.ts" → "Updated App.tsx and reviewed 2 files"
+			- "Edited index.ts, Edited styles.css, Ran terminal command" → "Modified 2 files and ran command"
+			- "Read README.md, Searched for AuthService" → "Checked README.md and searched for AuthService"
+			- "Searched for login, Searched for authentication" → "Searched for login and authentication"
+			- "Edited api.ts, Edited models.ts, Read schema.json" → "Updated 2 files and reviewed schema.json"
+			- "Edited Button.tsx, Edited Button.css, Edited index.ts" → "Modified 3 files"
+			- "Searched codebase for error handling" → "Looked up error handling"
+			- "Grep search for useState, Read App.tsx" → "Examined App.tsx and searched for useState"
+			- "Analyzing component architecture" → "Analyzed component architecture"
+			- "Planning refactor strategy, Read utils.ts" → "Planned refactor and reviewed utils.ts"
+
+			No quotes, no trailing punctuation. Never say "searched for files" - always include the actual search term. Never include tool names.
 
 			Actions: ${context}`;
 
@@ -521,7 +666,10 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			: localize('chat.thinking.finished', 'Finished Working');
 
 		this.currentTitle = finalLabel;
-		this.wrapper.classList.remove('chat-thinking-streaming');
+		// With lazy rendering, wrapper may not be created yet if content hasn't been expanded
+		if (this.wrapper) {
+			this.wrapper.classList.remove('chat-thinking-streaming');
+		}
 		this.streamingCompleted = true;
 
 		if (this._collapseButton) {
@@ -566,6 +714,31 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		}
 
 		this.updateDropdownClickability();
+	}
+
+	/**
+	 * removes/re-establishes a lazy item from the thinking container
+	 * this is needed so we can check if there are confirmations still needed
+	 */
+	public removeLazyItem(toolInvocationId: string): boolean {
+		const index = this.lazyItems.findIndex(item => item.toolInvocationId === toolInvocationId);
+		if (index === -1) {
+			return false;
+		}
+
+		this.lazyItems.splice(index, 1);
+		this.appendedItemCount--;
+		this.toolInvocationCount--;
+
+		const toolInvocationsIndex = this.toolInvocations.findIndex(t =>
+			(t.kind === 'toolInvocation' || t.kind === 'toolInvocationSerialized') && t.toolId === toolInvocationId
+		);
+		if (toolInvocationsIndex !== -1) {
+			this.toolInvocations.splice(toolInvocationsIndex, 1);
+		}
+
+		this.updateDropdownClickability();
+		return true;
 	}
 
 	private trackToolMetadata(
@@ -634,7 +807,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 
 		let icon: ThemeIcon;
 		if (isMarkdownEdit) {
-			icon = Codicon.wand;
+			icon = Codicon.pencil;
 		} else if (isTerminalTool) {
 			const terminalData = (toolInvocationOrMarkdown as IChatToolInvocation | IChatToolInvocationSerialized).toolSpecificData as { kind: 'terminal'; terminalCommandState?: { exitCode?: number } };
 			const exitCode = terminalData?.terminalCommandState?.exitCode;
@@ -647,10 +820,15 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		itemWrapper.appendChild(iconElement);
 		itemWrapper.appendChild(content);
 
+		// With lazy rendering, wrapper may not be created yet if content hasn't been expanded
+		if (!this.wrapper) {
+			return;
+		}
+
 		this.wrapper.appendChild(itemWrapper);
 
-		if (this.fixedScrollingMode && this.wrapper) {
-			this.wrapper.scrollTop = this.wrapper.scrollHeight;
+		if (this.fixedScrollingMode && this.scrollableElement) {
+			setTimeout(() => this.scrollToBottomIfEnabled(), 0);
 		}
 	}
 
@@ -675,7 +853,10 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		}
 		this.textContainer = $('.chat-thinking-item.markdown-content');
 		if (content.value) {
-			this.wrapper.appendChild(this.textContainer);
+			// With lazy rendering, wrapper may not be created yet if content hasn't been expanded
+			if (this.wrapper) {
+				this.wrapper.appendChild(this.textContainer);
+			}
 			this.id = content.id;
 			this.updateThinking(content);
 		}
