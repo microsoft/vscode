@@ -1802,8 +1802,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	private renderQuestionCarousel(context: IChatContentPartRenderContext, carousel: IChatQuestionCarousel, templateData: IChatListItemTemplate): IChatContentPart {
 		const part = this.instantiationService.createInstance(ChatQuestionCarouselPart, carousel, context, {
-			questions: carousel.questions,
-			allowSkip: carousel.allowSkip,
 			onSubmit: (answers) => {
 				// Mark the carousel as used and store the answers
 				carousel.isUsed = true;

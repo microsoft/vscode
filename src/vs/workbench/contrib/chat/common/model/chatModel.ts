@@ -453,6 +453,7 @@ class AbstractResponse implements IResponse {
 				case 'thinking':
 				case 'multiDiffData':
 				case 'mcpServersStarting':
+				case 'questionCarousel':
 					// Ignore
 					continue;
 				case 'toolInvocation':
