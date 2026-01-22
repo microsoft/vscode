@@ -11,7 +11,7 @@ if command -v dbus-daemon > /dev/null 2>&1; then
 	dbus-daemon --system --fork
 fi
 
-set PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+export PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 
 echo "Running sanity tests"
 node /root/out/index.js "$@"

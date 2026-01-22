@@ -34,9 +34,10 @@ export function detectCapabilities(): Set<Capability> {
 function detectOS(capabilities: Set<Capability>) {
 	switch (process.platform) {
 		case 'linux':
-			capabilities.add('linux');
 			if (fs.existsSync('/etc/alpine-release')) {
 				capabilities.add('alpine');
+			} else {
+				capabilities.add('linux');
 			}
 			break;
 		case 'darwin':
