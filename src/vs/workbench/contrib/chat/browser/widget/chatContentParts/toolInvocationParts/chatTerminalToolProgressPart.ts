@@ -303,7 +303,6 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 
 		this._outputView = this._register(this._instantiationService.createInstance(
 			ChatTerminalToolOutputSection,
-			() => { },
 			() => this._ensureTerminalInstance(),
 			() => this._getResolvedCommand(),
 			() => this._terminalData.terminalCommandOutput,
@@ -809,7 +808,6 @@ class ChatTerminalToolOutputSection extends Disposable {
 
 	private readonly _outputBody: HTMLElement;
 	private _scrollableContainer: DomScrollableElement | undefined;
-	private _renderedOutputHeight: number | undefined;
 	private _isAtBottom: boolean = true;
 	private _isProgrammaticScroll: boolean = false;
 	private _mirror: DetachedTerminalCommandMirror | undefined;
@@ -826,7 +824,6 @@ class ChatTerminalToolOutputSection extends Disposable {
 	public get onDidBlur() { return this._onDidBlurEmitter.event; }
 
 	constructor(
-		private readonly _onDidChangeHeight: () => void,
 		private readonly _ensureTerminalInstance: () => Promise<ITerminalInstance | undefined>,
 		private readonly _resolveCommand: () => ITerminalCommand | undefined,
 		private readonly _getTerminalCommandOutput: () => IChatTerminalToolInvocationData['terminalCommandOutput'] | undefined,
@@ -879,9 +876,7 @@ class ChatTerminalToolOutputSection extends Disposable {
 
 		if (!expanded) {
 			this._setExpanded(false);
-			this._renderedOutputHeight = undefined;
 			this._isAtBottom = true;
-			this._onDidChangeHeight();
 			return true;
 		}
 
@@ -1199,10 +1194,6 @@ class ChatTerminalToolOutputSection extends Disposable {
 		const appliedHeight = Math.min(clampedHeight, measuredBodyHeight);
 		scrollableDomNode.style.height = appliedHeight < maxHeight ? `${appliedHeight}px` : '';
 		this._scrollableContainer.scanDomNode();
-		if (this._renderedOutputHeight !== appliedHeight) {
-			this._renderedOutputHeight = appliedHeight;
-			this._onDidChangeHeight();
-		}
 	}
 
 	private _computeIsAtBottom(): boolean {
@@ -1460,7 +1451,7 @@ export class FocusChatInstanceAction extends Action implements IAction {
 }
 
 class ChatTerminalThinkingCollapsibleWrapper extends ChatCollapsibleContentPart {
-	private readonly _contentElement: HTMLElement;
+	private readonly _terminalContentElement: HTMLElement;
 	private readonly _commandText: string;
 
 	constructor(
@@ -1473,7 +1464,7 @@ class ChatTerminalThinkingCollapsibleWrapper extends ChatCollapsibleContentPart 
 		const title = `Ran \`${commandText}\``;
 		super(title, context, undefined, hoverService);
 
-		this._contentElement = contentElement;
+		this._terminalContentElement = contentElement;
 		this._commandText = commandText;
 
 		this.domNode.classList.add('chat-terminal-thinking-collapsible');
@@ -1500,7 +1491,7 @@ class ChatTerminalThinkingCollapsibleWrapper extends ChatCollapsibleContentPart 
 
 	protected override initContent(): HTMLElement {
 		const listWrapper = dom.$('.chat-used-context-list.chat-terminal-thinking-content');
-		listWrapper.appendChild(this._contentElement);
+		listWrapper.appendChild(this._terminalContentElement);
 		return listWrapper;
 	}
 
@@ -1508,7 +1499,7 @@ class ChatTerminalThinkingCollapsibleWrapper extends ChatCollapsibleContentPart 
 		this.setExpanded(true);
 	}
 
-	hasSameContent(_other: IChatRendererContent, _followingContent: IChatRendererContent[], _element: ChatTreeItem): boolean {
+	override hasSameContent(_other: IChatRendererContent, _followingContent: IChatRendererContent[], _element: ChatTreeItem): boolean {
 		return false;
 	}
 }

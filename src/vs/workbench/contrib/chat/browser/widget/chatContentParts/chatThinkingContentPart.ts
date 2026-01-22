@@ -104,7 +104,6 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	public readonly codeblocksPartId: undefined;
 
 	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
-	public readonly onDidChangeHeight = this._onDidChangeHeight.event;
 
 	private id: string | undefined;
 	private content: IChatThinkingPart;
@@ -467,7 +466,10 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	}
 
 	public finalizeTitleIfDefault(): void {
-		this.wrapper.classList.remove('chat-thinking-streaming');
+		// With lazy rendering, wrapper may not be created yet if content hasn't been expanded
+		if (this.wrapper) {
+			this.wrapper.classList.remove('chat-thinking-streaming');
+		}
 		this.streamingCompleted = true;
 
 		if (this._collapseButton) {
@@ -664,7 +666,10 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			: localize('chat.thinking.finished', 'Finished Working');
 
 		this.currentTitle = finalLabel;
-		this.wrapper.classList.remove('chat-thinking-streaming');
+		// With lazy rendering, wrapper may not be created yet if content hasn't been expanded
+		if (this.wrapper) {
+			this.wrapper.classList.remove('chat-thinking-streaming');
+		}
 		this.streamingCompleted = true;
 
 		if (this._collapseButton) {
@@ -815,6 +820,11 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		itemWrapper.appendChild(iconElement);
 		itemWrapper.appendChild(content);
 
+		// With lazy rendering, wrapper may not be created yet if content hasn't been expanded
+		if (!this.wrapper) {
+			return;
+		}
+
 		this.wrapper.appendChild(itemWrapper);
 
 		if (this.fixedScrollingMode && this.scrollableElement) {
@@ -843,7 +853,10 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		}
 		this.textContainer = $('.chat-thinking-item.markdown-content');
 		if (content.value) {
-			this.wrapper.appendChild(this.textContainer);
+			// With lazy rendering, wrapper may not be created yet if content hasn't been expanded
+			if (this.wrapper) {
+				this.wrapper.appendChild(this.textContainer);
+			}
 			this.id = content.id;
 			this.updateThinking(content);
 		}

@@ -108,9 +108,6 @@ abstract class BaseSimpleChatConfirmationWidget<T> extends Disposable {
 	private _onDidClick = this._register(new Emitter<IChatConfirmationButton<T>>());
 	get onDidClick(): Event<IChatConfirmationButton<T>> { return this._onDidClick.event; }
 
-	protected _onDidChangeHeight = this._register(new Emitter<void>());
-	get onDidChangeHeight(): Event<void> { return this._onDidChangeHeight.event; }
-
 	private _domNode: HTMLElement;
 	get domNode(): HTMLElement {
 		return this._domNode;
@@ -149,14 +146,12 @@ abstract class BaseSimpleChatConfirmationWidget<T> extends Disposable {
 		configureAccessibilityContainer(elements.container, title, message);
 		this._domNode = elements.root;
 
-		const titlePart = this._register(instantiationService.createInstance(
+		this._register(instantiationService.createInstance(
 			ChatQueryTitlePart,
 			elements.title,
 			title,
 			subtitle
 		));
-
-		this._register(titlePart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 
 		this.messageElement = elements.message;
 
@@ -205,7 +200,7 @@ abstract class BaseSimpleChatConfirmationWidget<T> extends Disposable {
 				['chatConfirmationPartSource', options.toolbarData.partSource],
 			]);
 			const nestedInsta = this._register(instantiationService.createChild(new ServiceCollection([IContextKeyService, overlay])));
-			const toolbar = this._register(nestedInsta.createInstance(
+			this._register(nestedInsta.createInstance(
 				MenuWorkbenchToolBar,
 				elements.toolbar,
 				MenuId.ChatConfirmationMenu,
@@ -217,8 +212,6 @@ abstract class BaseSimpleChatConfirmationWidget<T> extends Disposable {
 					}
 				}
 			));
-
-			this._register(toolbar.onDidChangeMenuItems(() => this._onDidChangeHeight.fire()));
 		}
 	}
 
@@ -247,7 +240,6 @@ export class SimpleChatConfirmationWidget<T> extends BaseSimpleChatConfirmationW
 		this._renderedMessage?.remove();
 		const renderedMessage = this._register(this._markdownRendererService.render(
 			typeof message === 'string' ? new MarkdownString(message) : message,
-			{ asyncRenderCallback: () => this._onDidChangeHeight.fire() }
 		));
 		this.renderMessage(renderedMessage.element);
 		this._renderedMessage = renderedMessage.element;
@@ -266,9 +258,6 @@ export interface IChatConfirmationWidget2Options<T> {
 abstract class BaseChatConfirmationWidget<T> extends Disposable {
 	private _onDidClick = this._register(new Emitter<IChatConfirmationButton<T>>());
 	get onDidClick(): Event<IChatConfirmationButton<T>> { return this._onDidClick.event; }
-
-	protected _onDidChangeHeight = this._register(new Emitter<void>());
-	get onDidChangeHeight(): Event<void> { return this._onDidChangeHeight.event; }
 
 	private _domNode: HTMLElement;
 	get domNode(): HTMLElement {
@@ -323,14 +312,12 @@ abstract class BaseChatConfirmationWidget<T> extends Disposable {
 		this._domNode = elements.root;
 		this._buttonsDomNode = elements.buttons;
 
-		const titlePart = this._register(instantiationService.createInstance(
+		this._register(instantiationService.createInstance(
 			ChatQueryTitlePart,
 			elements.title,
 			new MarkdownString(icon ? `$(${icon.id}) ${typeof title === 'string' ? title : title.value}` : typeof title === 'string' ? title : title.value),
 			subtitle,
 		));
-
-		this._register(titlePart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 
 		this.messageElement = elements.message;
 
@@ -454,7 +441,6 @@ export class ChatConfirmationWidget<T> extends BaseChatConfirmationWidget<T> {
 		this._renderedMessage?.remove();
 		const renderedMessage = this._register(this.markdownRendererService.render(
 			typeof message === 'string' ? new MarkdownString(message) : message,
-			{ asyncRenderCallback: () => this._onDidChangeHeight.fire() }
 		));
 		this.renderMessage(renderedMessage.element);
 		this._renderedMessage = renderedMessage.element;
