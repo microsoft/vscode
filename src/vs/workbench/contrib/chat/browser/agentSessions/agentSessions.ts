@@ -15,7 +15,8 @@ export enum AgentSessionProviders {
 	Local = localChatSessionType,
 	Background = 'copilotcli',
 	Cloud = 'copilot-cloud-agent',
-	ClaudeCode = 'claude-code',
+	Claude = 'claude-code',
+	Codex = 'openai-codex',
 }
 
 export function getAgentSessionProvider(sessionResource: URI | string): AgentSessionProviders | undefined {
@@ -24,7 +25,8 @@ export function getAgentSessionProvider(sessionResource: URI | string): AgentSes
 		case AgentSessionProviders.Local:
 		case AgentSessionProviders.Background:
 		case AgentSessionProviders.Cloud:
-		case AgentSessionProviders.ClaudeCode:
+		case AgentSessionProviders.Claude:
+		case AgentSessionProviders.Codex:
 			return type;
 		default:
 			return undefined;
@@ -39,8 +41,10 @@ export function getAgentSessionProviderName(provider: AgentSessionProviders): st
 			return localize('chat.session.providerLabel.background', "Background");
 		case AgentSessionProviders.Cloud:
 			return localize('chat.session.providerLabel.cloud', "Cloud");
-		case AgentSessionProviders.ClaudeCode:
-			return localize('chat.session.providerLabel.claude', "Claude");
+		case AgentSessionProviders.Claude:
+			return 'Claude';
+		case AgentSessionProviders.Codex:
+			return 'Codex';
 	}
 }
 
@@ -52,7 +56,8 @@ export function getAgentSessionProviderIcon(provider: AgentSessionProviders): Th
 			return Codicon.worktree;
 		case AgentSessionProviders.Cloud:
 			return Codicon.cloud;
-		case AgentSessionProviders.ClaudeCode:
+		case AgentSessionProviders.Codex:
+		case AgentSessionProviders.Claude:
 			return Codicon.code;
 	}
 }
@@ -63,8 +68,36 @@ export function isFirstPartyAgentSessionProvider(provider: AgentSessionProviders
 		case AgentSessionProviders.Background:
 		case AgentSessionProviders.Cloud:
 			return true;
-		case AgentSessionProviders.ClaudeCode:
+		case AgentSessionProviders.Claude:
+		case AgentSessionProviders.Codex:
 			return false;
+	}
+}
+
+export function getAgentCanContinueIn(provider: AgentSessionProviders): boolean {
+	switch (provider) {
+		case AgentSessionProviders.Local:
+		case AgentSessionProviders.Background:
+		case AgentSessionProviders.Cloud:
+			return true;
+		case AgentSessionProviders.Claude:
+		case AgentSessionProviders.Codex:
+			return false;
+	}
+}
+
+export function getAgentSessionProviderDescription(provider: AgentSessionProviders): string {
+	switch (provider) {
+		case AgentSessionProviders.Local:
+			return localize('chat.session.providerDescription.local', "Run tasks within VS Code chat. The agent iterates via chat and works interactively to implement changes on your main workspace.");
+		case AgentSessionProviders.Background:
+			return localize('chat.session.providerDescription.background', "Delegate tasks to a background agent running locally on your machine. The agent iterates via chat and works asynchronously in a Git worktree to implement changes isolated from your main workspace using the GitHub Copilot CLI.");
+		case AgentSessionProviders.Cloud:
+			return localize('chat.session.providerDescription.cloud', "Delegate tasks to the GitHub Copilot coding agent. The agent iterates via chat and works asynchronously in the cloud to implement changes and pull requests as needed.");
+		case AgentSessionProviders.Claude:
+			return localize('chat.session.providerDescription.claude', "Delegate tasks to the Claude SDK running locally on your machine. The agent iterates via chat and works asynchronously to implement changes.");
+		case AgentSessionProviders.Codex:
+			return localize('chat.session.providerDescription.codex', "Opens a new Codex session in the editor. Codex sessions can be managed from the chat sessions view.");
 	}
 }
 

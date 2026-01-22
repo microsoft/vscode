@@ -14,7 +14,7 @@ import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IEditorGroupsService, IEditorWorkingSet } from '../../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
-import { IAgentSession } from '../agentSessionsModel.js';
+import { IAgentSession, isSessionInProgressStatus } from '../agentSessionsModel.js';
 import { ChatViewPaneTarget, IChatWidgetService } from '../../chat.js';
 import { AgentSessionProviders } from '../agentSessions.js';
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
@@ -27,6 +27,7 @@ import { inAgentSessionProjection } from './agentSessionProjection.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { ISessionOpenOptions, sessionOpenerRegistry } from '../agentSessionsOpener.js';
 import { ServicesAccessor } from '../../../../../../editor/browser/editorExtensions.js';
+import { IAgentSessionsService } from '../agentSessionsService.js';
 
 //#region Configuration
 
@@ -34,7 +35,7 @@ import { ServicesAccessor } from '../../../../../../editor/browser/editorExtensi
  * Provider types that support agent session projection mode.
  * Only sessions from these providers will trigger projection mode.
  */
-const AGENT_SESSION_PROJECTION_ENABLED_PROVIDERS: Set<string> = new Set(Object.values(AgentSessionProviders));
+export const AGENT_SESSION_PROJECTION_ENABLED_PROVIDERS: Set<string> = new Set(Object.values(AgentSessionProviders));
 
 //#endregion
 
@@ -70,8 +71,9 @@ export interface IAgentSessionProjectionService {
 
 	/**
 	 * Exit projection mode.
+	 * @param options.startNewChat If true (default), starts a new chat after exiting. Set to false to keep the current chat open.
 	 */
-	exitProjection(): Promise<void>;
+	exitProjection(options?: { startNewChat?: boolean }): Promise<void>;
 }
 
 export const IAgentSessionProjectionService = createDecorator<IAgentSessionProjectionService>('agentSessionProjectionService');
@@ -116,6 +118,7 @@ export class AgentSessionProjectionService extends Disposable implements IAgentS
 		@ICommandService private readonly commandService: ICommandService,
 		@IChatEditingService private readonly chatEditingService: IChatEditingService,
 		@IAgentTitleBarStatusService private readonly agentTitleBarStatusService: IAgentTitleBarStatusService,
+		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
 	) {
 		super();
 
@@ -123,6 +126,11 @@ export class AgentSessionProjectionService extends Disposable implements IAgentS
 
 		// Listen for editor close events to exit projection mode when all editors are closed
 		this._register(this.editorService.onDidCloseEditor(() => this._checkForEmptyEditors()));
+
+		// Listen for session changes to exit projection mode if active session becomes in progress
+		// Note: onDidChangeSessions fires for any session change, but _checkForInProgressSession()
+		// has early exit guards and only checks when projection mode is active, making this efficient
+		this._register(this.agentSessionsService.model.onDidChangeSessions(() => this._checkForInProgressSession()));
 	}
 
 	private _isEnabled(): boolean {
@@ -142,6 +150,37 @@ export class AgentSessionProjectionService extends Disposable implements IAgentS
 			this.logService.trace('[AgentSessionProjection] All editors closed, exiting projection mode');
 			this.exitProjection();
 		}
+	}
+
+	private _checkForInProgressSession(): void {
+		// Only check if we're in projection mode
+		if (!this._isActive || !this._activeSession) {
+			return;
+		}
+
+		// Get the updated session from the model
+		const updatedSession = this.agentSessionsService.getSession(this._activeSession.resource);
+		if (!updatedSession) {
+			return;
+		}
+
+		// If the session is now in progress, exit projection mode
+		if (isSessionInProgressStatus(updatedSession.status)) {
+			this.logService.trace('[AgentSessionProjection] Active session transitioned to in-progress, exiting projection mode');
+			this.exitProjection({ startNewChat: false });
+		}
+	}
+
+	/**
+	 * Opens a session in the chat panel without entering projection mode.
+	 */
+	private async _openSessionInChatPanel(session: IAgentSession): Promise<void> {
+		session.setRead(true);
+		await this.chatSessionsService.activateChatSessionItemProvider(session.providerType);
+		await this.chatWidgetService.openSession(session.resource, ChatViewPaneTarget, {
+			title: { preferred: session.label },
+			revealIfOpened: true
+		});
 	}
 
 	/**
@@ -208,6 +247,14 @@ export class AgentSessionProjectionService extends Disposable implements IAgentS
 			return;
 		}
 
+		// Never enter projection mode for sessions that are in progress
+		// The user should only be in projection mode when reviewing completed code
+		if (isSessionInProgressStatus(session.status)) {
+			this.logService.trace('[AgentSessionProjection] Session is in progress, opening chat without projection mode');
+			await this._openSessionInChatPanel(session);
+			return;
+		}
+
 		// For local sessions, check if there are pending edits to show
 		// If there's nothing to focus, just open the chat without entering projection mode
 		let hasUndecidedChanges = true;
@@ -262,7 +309,7 @@ export class AgentSessionProjectionService extends Disposable implements IAgentS
 				this.layoutService.mainContainer.classList.add('agent-session-projection-active');
 
 				// Update the agent status to show session mode
-				this.agentTitleBarStatusService.enterSessionMode(session.resource.toString(), session.label);
+				this.agentTitleBarStatusService.enterSessionMode(session.resource, session.label);
 
 				if (!wasActive) {
 					this._onDidChangeProjectionMode.fire(true);
@@ -273,12 +320,7 @@ export class AgentSessionProjectionService extends Disposable implements IAgentS
 		}
 
 		// Open the session in the chat panel (always, even without changes)
-		session.setRead(true);
-		await this.chatSessionsService.activateChatSessionItemProvider(session.providerType);
-		await this.chatWidgetService.openSession(session.resource, ChatViewPaneTarget, {
-			title: { preferred: session.label },
-			revealIfOpened: true
-		});
+		await this._openSessionInChatPanel(session);
 
 		// For local sessions with changes, also pop open the edit session's changes view
 		// Must be after openSession so the editing session context is available
@@ -287,10 +329,12 @@ export class AgentSessionProjectionService extends Disposable implements IAgentS
 		}
 	}
 
-	async exitProjection(): Promise<void> {
+	async exitProjection(options?: { startNewChat?: boolean }): Promise<void> {
 		if (!this._isActive) {
 			return;
 		}
+
+		const startNewChat = options?.startNewChat ?? true;
 
 		// Save the current session's working set before exiting
 		if (this._activeSession) {
@@ -323,8 +367,10 @@ export class AgentSessionProjectionService extends Disposable implements IAgentS
 		this._onDidChangeProjectionMode.fire(false);
 		this._onDidChangeActiveSession.fire(undefined);
 
-		// Start a new chat to clear the sidebar
-		await this.commandService.executeCommand(ACTION_ID_NEW_CHAT);
+		// Start a new chat to clear the sidebar (unless caller wants to keep current chat)
+		if (startNewChat) {
+			await this.commandService.executeCommand(ACTION_ID_NEW_CHAT);
+		}
 	}
 }
 

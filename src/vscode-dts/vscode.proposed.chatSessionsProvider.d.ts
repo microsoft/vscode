@@ -100,11 +100,9 @@ declare module 'vscode' {
 		refreshHandler: () => Thenable<void>;
 
 		/**
-		 * Fired when an item is archived by the editor
-		 *
-		 * TODO: expose archive state on the item too?
+		 * Fired when an item's archived state changes.
 		 */
-		readonly onDidArchiveChatSessionItem: Event<ChatSessionItem>;
+		readonly onDidChangeChatSessionItemState: Event<ChatSessionItem>;
 	}
 
 	/**
@@ -233,7 +231,7 @@ declare module 'vscode' {
 		/**
 		 * Statistics about the chat session.
 		 */
-		changes?: readonly ChatSessionChangedFile[] | {
+		changes?: readonly ChatSessionChangedFile[] | readonly ChatSessionChangedFile2[] | {
 			/**
 			 * Number of files edited during the session.
 			 */
@@ -273,6 +271,35 @@ declare module 'vscode' {
 		deletions: number;
 
 		constructor(modifiedUri: Uri, insertions: number, deletions: number, originalUri?: Uri);
+	}
+
+	export class ChatSessionChangedFile2 {
+		/**
+		 * URI of the file.
+		 */
+		readonly uri: Uri;
+
+		/**
+		 * URI of the original file. Undefined if the file was created.
+		 */
+		readonly originalUri: Uri | undefined;
+
+		/**
+		 * URI of the modified file. Undefined if the file was deleted.
+		 */
+		readonly modifiedUri: Uri | undefined;
+
+		/**
+		 * Number of insertions made during the session.
+		 */
+		insertions: number;
+
+		/**
+		 * Number of deletions made during the session.
+		 */
+		deletions: number;
+
+		constructor(uri: Uri, originalUri: Uri | undefined, modifiedUri: Uri | undefined, insertions: number, deletions: number);
 	}
 
 	export interface ChatSession {
