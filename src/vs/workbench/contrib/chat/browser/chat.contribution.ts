@@ -815,6 +815,24 @@ configurationRegistry.registerConfiguration({
 			disallowConfigurationDefault: true,
 			tags: ['prompts', 'reusable prompts', 'prompt snippets', 'instructions']
 		},
+		[PromptsConfig.INCLUDE_APPLYING_INSTRUCTIONS]: {
+			type: 'boolean',
+			title: nls.localize('chat.includeApplyingInstructions.title', "Include Applying Instructions",),
+			markdownDescription: nls.localize('chat.includeApplyingInstructions.description', "Controls whether instructions with a matching 'applyTo' attribute are automatically included in chat requests.",),
+			default: true,
+			restricted: true,
+			disallowConfigurationDefault: true,
+			tags: ['prompts', 'reusable prompts', 'prompt snippets', 'instructions']
+		},
+		[PromptsConfig.INCLUDE_REFERENCED_INSTRUCTIONS]: {
+			type: 'boolean',
+			title: nls.localize('chat.includeReferencedInstructions.title', "Include Referenced Instructions",),
+			markdownDescription: nls.localize('chat.includeReferencedInstructions.description', "Controls whether referenced instructions are automatically included in chat requests.",),
+			default: false,
+			restricted: true,
+			disallowConfigurationDefault: true,
+			tags: ['prompts', 'reusable prompts', 'prompt snippets', 'instructions']
+		},
 		[PromptsConfig.SKILLS_LOCATION_KEY]: {
 			type: 'object',
 			title: nls.localize('chat.agentSkillsLocations.title', "Agent Skills Locations",),
