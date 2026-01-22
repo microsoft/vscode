@@ -138,6 +138,10 @@ export class TreePool extends Disposable {
 			}
 		};
 	}
+
+	clear(): void {
+		this._pool.clear();
+	}
 }
 
 class ChatListTreeDelegate implements IListVirtualDelegate<IChatResponseProgressFileTreeData> {
