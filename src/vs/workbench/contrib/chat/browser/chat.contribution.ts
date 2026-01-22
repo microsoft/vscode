@@ -202,9 +202,9 @@ configurationRegistry.registerConfiguration({
 			default: false,
 			tags: ['experimental']
 		},
-		[ChatConfiguration.UnifiedAgentsBar]: {
+		[ChatConfiguration.AgentInput]: {
 			type: 'boolean',
-			markdownDescription: nls.localize('chat.unifiedAgentsBar.enabled', "When enabled alongside {0}, replaces the command center search box with a unified chat and search widget.", '`#chat.agentsControl.enabled#`'),
+			markdownDescription: nls.localize('chat.agentInput.enabled', "When enabled alongside {0}, replaces the command center search box with Agent Quick Input widget.", '`#chat.agentsControl.enabled#`'),
 			default: false,
 			tags: ['experimental']
 		},

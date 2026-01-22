@@ -6,7 +6,7 @@
 import { registerSingleton, InstantiationType } from '../../../../../../platform/instantiation/common/extensions.js';
 import { MenuId, MenuRegistry, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
 import { IAgentSessionProjectionService, AgentSessionProjectionService, AGENT_SESSION_PROJECTION_ENABLED_PROVIDERS } from './agentSessionProjectionService.js';
-import { EnterAgentSessionProjectionAction, ExitAgentSessionProjectionAction, ToggleAgentStatusAction, ToggleUnifiedAgentsBarAction } from './agentSessionProjectionActions.js';
+import { EnterAgentSessionProjectionAction, ExitAgentSessionProjectionAction, ToggleAgentStatusAction, ToggleAgentInputAction } from './agentSessionProjectionActions.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../common/contributions.js';
 import { AgentTitleBarStatusRendering } from './agentTitleBarStatusWidget.js';
 import { AgentTitleBarStatusService, IAgentTitleBarStatusService } from './agentTitleBarStatusService.js';
@@ -195,7 +195,7 @@ class AgentSessionReadyContribution extends Disposable implements IWorkbenchCont
 registerAction2(EnterAgentSessionProjectionAction);
 registerAction2(ExitAgentSessionProjectionAction);
 registerAction2(ToggleAgentStatusAction);
-registerAction2(ToggleUnifiedAgentsBarAction);
+registerAction2(ToggleAgentInputAction);
 
 registerSingleton(IAgentSessionProjectionService, AgentSessionProjectionService, InstantiationType.Delayed);
 registerSingleton(IAgentTitleBarStatusService, AgentTitleBarStatusService, InstantiationType.Delayed);
@@ -210,7 +210,7 @@ MenuRegistry.appendMenuItem(MenuId.CommandCenter, {
 	icon: Codicon.chatSparkle,
 	when: ContextKeyExpr.or(
 		ContextKeyExpr.has(`config.${ChatConfiguration.AgentStatusEnabled}`),
-		ContextKeyExpr.has(`config.${ChatConfiguration.UnifiedAgentsBar}`)
+		ContextKeyExpr.has(`config.${ChatConfiguration.AgentInput}`)
 	),
 	order: 10002 // to the right of the chat button
 });
@@ -223,18 +223,18 @@ MenuRegistry.appendMenuItem(MenuId.AgentsTitleBarControlMenu, {
 	},
 	when: ContextKeyExpr.or(
 		ContextKeyExpr.has(`config.${ChatConfiguration.AgentStatusEnabled}`),
-		ContextKeyExpr.has(`config.${ChatConfiguration.UnifiedAgentsBar}`)
+		ContextKeyExpr.has(`config.${ChatConfiguration.AgentInput}`)
 	),
 	group: 'a_open',
 	order: 1
 });
 
-// Toggle for Unified Agents Bar (Insiders only)
+// Toggle for Agent Quick Input (Insiders only)
 MenuRegistry.appendMenuItem(MenuId.AgentsTitleBarControlMenu, {
 	command: {
-		id: `toggle.${ChatConfiguration.UnifiedAgentsBar}`,
-		title: localize('toggleUnifiedAgentsBar', "Unified Agents Bar"),
-		toggled: ContextKeyExpr.has(`config.${ChatConfiguration.UnifiedAgentsBar}`),
+		id: `toggle.${ChatConfiguration.AgentInput}`,
+		title: localize('toggleAgentInput', "Agent Quick Input (Experimental)"),
+		toggled: ContextKeyExpr.has(`config.${ChatConfiguration.AgentInput}`),
 	},
 	when: ProductQualityContext.notEqualsTo('stable'),
 	group: 'z_experimental',

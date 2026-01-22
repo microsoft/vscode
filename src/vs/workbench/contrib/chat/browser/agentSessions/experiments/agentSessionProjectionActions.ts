@@ -109,14 +109,14 @@ export class ToggleAgentStatusAction extends ToggleTitleBarConfigAction {
 
 //#endregion
 
-//#region Toggle Unified Agents Bar
+//#region Toggle Agent Quick Input
 
-export class ToggleUnifiedAgentsBarAction extends ToggleTitleBarConfigAction {
+export class ToggleAgentInputAction extends ToggleTitleBarConfigAction {
 	constructor() {
 		super(
-			ChatConfiguration.UnifiedAgentsBar,
-			localize('toggle.unifiedAgentsBar', 'Unified Agents Bar'),
-			localize('toggle.unifiedAgentsBarDescription', "Toggle Unified Agents Bar, replacing the classic command center search box."), 7,
+			ChatConfiguration.AgentInput,
+			localize('toggle.agentInput', 'Agent Quick Input'),
+			localize('toggle.agentInputDescription', "Toggle Agent Quick Input, replacing the classic command center search box."), 7,
 			ContextKeyExpr.and(
 				ChatContextKeys.enabled,
 				IsCompactTitleBarContext.negate(),

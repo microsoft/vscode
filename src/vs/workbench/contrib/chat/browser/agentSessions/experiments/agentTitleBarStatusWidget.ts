@@ -151,7 +151,7 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 
 		// Re-render when settings change
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(ChatConfiguration.UnifiedAgentsBar) || e.affectsConfiguration(ChatConfiguration.AgentStatusEnabled)) {
+			if (e.affectsConfiguration(ChatConfiguration.AgentInput) || e.affectsConfiguration(ChatConfiguration.AgentStatusEnabled)) {
 				this._lastRenderState = undefined; // Force re-render
 				this._render();
 			}
@@ -204,7 +204,7 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 			const { isFilteredToUnread, isFilteredToInProgress } = this._getCurrentFilterState();
 
 			// Check which settings are enabled (these are independent settings)
-			const unifiedAgentsBarEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.UnifiedAgentsBar) === true;
+			const agentInputEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.AgentInput) === true;
 			const agentStatusEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.AgentStatusEnabled) === true;
 
 			// Build state key for comparison
@@ -218,7 +218,7 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 				label,
 				isFilteredToUnread,
 				isFilteredToInProgress,
-				unifiedAgentsBarEnabled,
+				agentInputEnabled,
 				agentStatusEnabled,
 			});
 
@@ -240,8 +240,8 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 			} else if (this.agentTitleBarStatusService.mode === AgentStatusMode.SessionReady) {
 				// Session ready mode - show session title + enter projection button
 				this._renderSessionReadyMode(this._dynamicDisposables);
-			} else if (unifiedAgentsBarEnabled) {
-				// Unified Agents Bar - show full pill with label + status badge
+			} else if (agentInputEnabled) {
+				// Agent Quick Input - show full pill with label + status badge
 				this._renderChatInputMode(this._dynamicDisposables);
 			} else if (agentStatusEnabled) {
 				// Agent Status - show only the status badge (sparkle + unread/active counts)
@@ -1121,27 +1121,27 @@ export class AgentTitleBarStatusRendering extends Disposable implements IWorkben
 		}, undefined));
 
 		// Add/remove CSS classes on workbench based on settings
-		// Force enable command center and disable chat controls when agent status or unified agents bar is enabled
+		// Force enable command center and disable chat controls when agent status or agent quick input is enabled
 		const updateClass = () => {
 			const enabled = configurationService.getValue<boolean>(ChatConfiguration.AgentStatusEnabled) === true;
-			const enhanced = configurationService.getValue<boolean>(ChatConfiguration.UnifiedAgentsBar) === true;
+			const enhanced = configurationService.getValue<boolean>(ChatConfiguration.AgentInput) === true;
 
 			mainWindow.document.body.classList.toggle('agent-status-enabled', enabled);
-			mainWindow.document.body.classList.toggle('unified-agents-bar', enhanced);
+			mainWindow.document.body.classList.toggle('agent-input', enhanced);
 
-			// Force enable command center when agent status or unified agents bar is enabled
+			// Force enable command center when agent status or agent quick input is enabled
 			if ((enabled || enhanced) && configurationService.getValue<boolean>(LayoutSettings.COMMAND_CENTER) !== true) {
 				configurationService.updateValue(LayoutSettings.COMMAND_CENTER, true);
 			}
 
-			// Turn off chat controls when agent status or unified agents bar is enabled (they would be duplicates)
+			// Turn off chat controls when agent status or agent quick input is enabled (they would be duplicates)
 			if ((enabled || enhanced) && configurationService.getValue<boolean>('chat.commandCenter.enabled') === true) {
 				configurationService.updateValue('chat.commandCenter.enabled', false);
 			}
 		};
 		updateClass();
 		this._register(configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(ChatConfiguration.AgentStatusEnabled) || e.affectsConfiguration(ChatConfiguration.UnifiedAgentsBar)) {
+			if (e.affectsConfiguration(ChatConfiguration.AgentStatusEnabled) || e.affectsConfiguration(ChatConfiguration.AgentInput)) {
 				updateClass();
 			}
 		}));
