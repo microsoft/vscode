@@ -3,13 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as dom from '../../../base/browser/dom.js';
+import { StandardKeyboardEvent } from '../../../base/browser/keyboardEvent.js';
+import { IAction } from '../../../base/common/actions.js';
+import { onUnexpectedError } from '../../../base/common/errors.js';
 import { KeybindingLabel } from '../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
 import { IListEvent, IListMouseEvent, IListRenderer, IListVirtualDelegate } from '../../../base/browser/ui/list/list.js';
 import { IListAccessibilityProvider, List } from '../../../base/browser/ui/list/listWidget.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { Codicon } from '../../../base/common/codicons.js';
+import { KeyCode } from '../../../base/common/keyCodes.js';
 import { ResolvedKeybinding } from '../../../base/common/keybindings.js';
-import { Disposable, MutableDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { OS } from '../../../base/common/platform.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import './actionWidget.css';
@@ -59,6 +63,10 @@ export interface IActionListItem<T> {
 	canPreview?: boolean | undefined;
 	readonly hideIcon?: boolean;
 	readonly tooltip?: string;
+	/**
+	 * Optional inline actions shown on the right side of the item on hover.
+	 */
+	readonly actions?: readonly IAction[];
 }
 
 interface IActionMenuTemplateData {
@@ -67,6 +75,8 @@ interface IActionMenuTemplateData {
 	readonly text: HTMLElement;
 	readonly description?: HTMLElement;
 	readonly keybinding: KeybindingLabel;
+	readonly actionsContainer: HTMLElement;
+	readonly elementDisposables: DisposableStore;
 }
 
 export const enum ActionListItemKind {
@@ -155,10 +165,19 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 
 		const keybinding = new KeybindingLabel(container, OS);
 
-		return { container, icon, text, description, keybinding };
+		const actionsContainer = document.createElement('div');
+		actionsContainer.className = 'actions';
+		container.append(actionsContainer);
+
+		const elementDisposables = new DisposableStore();
+
+		return { container, icon, text, description, keybinding, actionsContainer, elementDisposables };
 	}
 
 	renderElement(element: IActionListItem<T>, _index: number, data: IActionMenuTemplateData): void {
+		data.elementDisposables.clear();
+		dom.clearNode(data.actionsContainer);
+
 		if (element.group?.icon) {
 			data.icon.className = ThemeIcon.asClassName(element.group.icon);
 			if (element.group.icon.color) {
@@ -209,10 +228,53 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 		} else {
 			data.container.title = '';
 		}
+
+		if (element.actions && element.actions.length > 0) {
+			data.container.classList.add('has-actions');
+			for (const action of element.actions) {
+				const actionButton = document.createElement('div');
+				actionButton.className = 'action-label ' + (action.class || '');
+				actionButton.tabIndex = 0;
+				actionButton.title = action.tooltip || action.label;
+				actionButton.setAttribute('aria-label', action.label || action.tooltip || '');
+				actionButton.setAttribute('role', 'button');
+				data.actionsContainer.appendChild(actionButton);
+
+				// Use capture phase to handle events before the list processes them
+				// Note: These must use direct addEventListener (not disposable) because
+				// elementDisposables is cleared on re-render which can happen during hover
+				actionButton.addEventListener('mousedown', e => {
+					e.stopPropagation();
+					e.stopImmediatePropagation();
+					e.preventDefault();
+				}, true);
+				actionButton.addEventListener('mouseup', e => {
+					e.stopPropagation();
+					e.stopImmediatePropagation();
+					e.preventDefault();
+					Promise.resolve(action.run()).catch(onUnexpectedError);
+				}, true);
+				actionButton.addEventListener('click', e => {
+					e.stopPropagation();
+					e.stopImmediatePropagation();
+					e.preventDefault();
+				}, true);
+				data.elementDisposables.add(dom.addDisposableListener(actionButton, dom.EventType.KEY_DOWN, e => {
+					const event = new StandardKeyboardEvent(e);
+					if (event.keyCode === KeyCode.Enter || event.keyCode === KeyCode.Space) {
+						dom.EventHelper.stop(e, true);
+						Promise.resolve(action.run()).catch(onUnexpectedError);
+					}
+				}));
+			}
+		} else {
+			data.container.classList.remove('has-actions');
+		}
 	}
 
 	disposeTemplate(templateData: IActionMenuTemplateData): void {
 		templateData.keybinding.dispose();
+		templateData.elementDisposables.dispose();
 	}
 }
 

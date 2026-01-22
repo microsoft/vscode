@@ -21,6 +21,10 @@ export interface IActionWidgetDropdownAction extends IAction {
 	 * Optional flyout hover configuration shown when focusing/hovering over the action.
 	 */
 	hover?: IActionListItemHover;
+	/**
+	 * Optional inline actions shown on the right side of the item on hover.
+	 */
+	actions?: readonly IAction[];
 }
 
 // TODO @lramos15 - Should we just make IActionProvider templated?
@@ -114,6 +118,7 @@ export class ActionWidgetDropdown extends BaseDropdown {
 					disabled: !action.enabled,
 					hideIcon: false,
 					label: action.label,
+					actions: action.actions,
 					keybinding: this._options.showItemKeybindings ?
 						this.keybindingService.lookupKeybinding(action.id) :
 						undefined,
