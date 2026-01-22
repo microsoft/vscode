@@ -244,7 +244,7 @@ suite('ComputeAutomaticInstructions', () => {
 				const instructionFiles = variables.asArray().filter(v => isPromptFileVariableEntry(v));
 				const paths = instructionFiles.map(i => isPromptFileVariableEntry(i) ? i.value.path : undefined);
 
-				assert.ok(!paths.includes(`${rootFolder}/.github/instructions/typescript.instructions.md`), 'Should include applying instruction');
+				assert.ok(!paths.includes(`${rootFolder}/.github/instructions/typescript.instructions.md`), 'Should not include applying instruction');
 				assert.ok(paths.includes(`${rootFolder}/.github/copilot-instructions.md`), 'Should include copilot-instructions');
 				assert.ok(paths.includes(`${rootFolder}/AGENTS.md`), 'Should include AGENTS.md');
 			}
@@ -262,7 +262,7 @@ suite('ComputeAutomaticInstructions', () => {
 				const paths = instructionFiles.map(i => isPromptFileVariableEntry(i) ? i.value.path : undefined);
 
 				assert.ok(paths.includes(`${rootFolder}/.github/instructions/typescript.instructions.md`), 'Should include applying instruction');
-				assert.ok(!paths.includes(`${rootFolder}/.github/copilot-instructions.md`), 'Should include copilot-instructions');
+				assert.ok(!paths.includes(`${rootFolder}/.github/copilot-instructions.md`), 'Should not include copilot-instructions');
 				assert.ok(paths.includes(`${rootFolder}/AGENTS.md`), 'Should include AGENTS.md');
 			}
 			{
@@ -280,7 +280,7 @@ suite('ComputeAutomaticInstructions', () => {
 
 				assert.ok(paths.includes(`${rootFolder}/.github/instructions/typescript.instructions.md`), 'Should include applying instruction');
 				assert.ok(paths.includes(`${rootFolder}/.github/copilot-instructions.md`), 'Should include copilot-instructions');
-				assert.ok(!paths.includes(`${rootFolder}/AGENTS.md`), 'Should include AGENTS.md');
+				assert.ok(!paths.includes(`${rootFolder}/AGENTS.md`), 'Should not include AGENTS.md');
 			}
 		});
 
