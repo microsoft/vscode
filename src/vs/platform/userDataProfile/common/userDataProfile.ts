@@ -19,7 +19,7 @@ import { IUriIdentityService } from '../../uriIdentity/common/uriIdentity.js';
 import { Promises } from '../../../base/common/async.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { escapeRegExpCharacters } from '../../../base/common/strings.js';
-import { isString, Mutable } from '../../../base/common/types.js';
+import { isString, isUndefined, Mutable } from '../../../base/common/types.js';
 
 export const enum ProfileResourceType {
 	Settings = 'settings',
@@ -37,6 +37,14 @@ export const enum ProfileResourceType {
  */
 export type UseDefaultProfileFlags = { [key in ProfileResourceType]?: boolean };
 export type ProfileResourceTypeFlags = UseDefaultProfileFlags;
+export type SettingValue = string | boolean | number | undefined | null | object;
+export type ISettingsDictionary = Record<string, SettingValue>;
+
+export interface ITemplateData {
+	readonly resource: URI;
+	readonly icon?: string;
+	readonly settings?: ISettingsDictionary;
+}
 
 export interface IUserDataProfile {
 	readonly id: string;
@@ -56,6 +64,7 @@ export interface IUserDataProfile {
 	readonly useDefaultFlags?: UseDefaultProfileFlags;
 	readonly isTransient?: boolean;
 	readonly workspaces?: readonly URI[];
+	readonly templateData?: ITemplateData;
 }
 
 export function isUserDataProfile(thing: unknown): thing is IUserDataProfile {
@@ -77,6 +86,37 @@ export function isUserDataProfile(thing: unknown): thing is IUserDataProfile {
 	);
 }
 
+export interface ISystemProfileTemplate {
+	readonly id: string;
+	readonly name: string;
+	readonly icon?: string;
+	readonly settings?: ISettingsDictionary;
+	readonly globalState?: IStringDictionary<string>;
+}
+
+export interface IUserDataProfileTemplate {
+	readonly id?: string;
+	readonly name: string;
+	readonly icon?: string;
+	readonly settings?: string;
+	readonly keybindings?: string;
+	readonly tasks?: string;
+	readonly snippets?: string;
+	readonly globalState?: string;
+	readonly extensions?: string;
+	readonly mcp?: string;
+}
+
+export function isUserDataProfileTemplate(thing: unknown): thing is IUserDataProfileTemplate {
+	const candidate = thing as IUserDataProfileTemplate | undefined;
+
+	return !!(candidate && typeof candidate === 'object'
+		&& (isUndefined(candidate.settings) || typeof candidate.settings === 'string')
+		&& (isUndefined(candidate.globalState) || typeof candidate.globalState === 'string')
+		&& (isUndefined(candidate.extensions) || typeof candidate.extensions === 'string')
+		&& (isUndefined(candidate.mcp) || typeof candidate.mcp === 'string'));
+}
+
 export type DidChangeProfilesEvent = { readonly added: readonly IUserDataProfile[]; readonly removed: readonly IUserDataProfile[]; readonly updated: readonly IUserDataProfile[]; readonly all: readonly IUserDataProfile[] };
 
 export type WillCreateProfileEvent = {
@@ -94,9 +134,10 @@ export interface IUserDataProfileOptions {
 	readonly useDefaultFlags?: UseDefaultProfileFlags;
 	readonly transient?: boolean;
 	readonly workspaces?: readonly URI[];
+	readonly templateData?: ITemplateData;
 }
 
-export interface IUserDataProfileUpdateOptions extends Omit<IUserDataProfileOptions, 'icon'> {
+export interface IUserDataProfileUpdateOptions extends Omit<IUserDataProfileOptions, 'icon' | 'defaultSettings'> {
 	readonly name?: string;
 	readonly icon?: string | null;
 }
@@ -145,6 +186,10 @@ export function reviveProfile(profile: UriDto<IUserDataProfile>, scheme: string)
 		useDefaultFlags: profile.useDefaultFlags,
 		isTransient: profile.isTransient,
 		workspaces: profile.workspaces?.map(w => URI.revive(w)),
+		templateData: profile.templateData ? {
+			...profile.templateData,
+			resource: URI.revive(profile.templateData?.resource),
+		} : undefined,
 	};
 }
 
@@ -167,6 +212,7 @@ export function toUserDataProfile(id: string, name: string, location: URI, profi
 		useDefaultFlags: options?.useDefaultFlags,
 		isTransient: options?.transient,
 		workspaces: options?.workspaces,
+		templateData: options?.templateData,
 	};
 }
 
@@ -180,6 +226,7 @@ export type StoredUserDataProfile = {
 	location: URI;
 	icon?: string;
 	useDefaultFlags?: UseDefaultProfileFlags;
+	templateData?: ITemplateData;
 };
 
 export type StoredProfileAssociations = {
@@ -245,7 +292,7 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 						this.logService.warn('Skipping the invalid stored profile', storedProfile.location || storedProfile.name);
 						continue;
 					}
-					profiles.push(toUserDataProfile(basename(storedProfile.location), storedProfile.name, storedProfile.location, this.profilesCacheHome, { icon: storedProfile.icon, useDefaultFlags: storedProfile.useDefaultFlags }, defaultProfile));
+					profiles.push(toUserDataProfile(basename(storedProfile.location), storedProfile.name, storedProfile.location, this.profilesCacheHome, { icon: storedProfile.icon, useDefaultFlags: storedProfile.useDefaultFlags, templateData: storedProfile.templateData }, defaultProfile));
 				}
 			} catch (error) {
 				this.logService.error(error);
@@ -366,6 +413,10 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 						transient: options.transient ?? existing.isTransient,
 						useDefaultFlags: options.useDefaultFlags ?? existing.useDefaultFlags,
 						workspaces: options.workspaces ?? existing.workspaces,
+						templateData: existing.templateData ? {
+							...existing.templateData,
+							...options.templateData,
+						} : undefined,
 					}, this.defaultProfile);
 				} else if (options.workspaces) {
 					profileToUpdate = existing;
@@ -609,7 +660,7 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 				continue;
 			}
 			if (!profile.isDefault) {
-				storedProfiles.push({ location: profile.location, name: profile.name, icon: profile.icon, useDefaultFlags: profile.useDefaultFlags });
+				storedProfiles.push({ location: profile.location, name: profile.name, icon: profile.icon, useDefaultFlags: profile.useDefaultFlags, templateData: profile.templateData });
 			}
 			if (profile.workspaces) {
 				for (const workspace of profile.workspaces) {

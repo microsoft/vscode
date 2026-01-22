@@ -93,7 +93,6 @@ import './services/extensionManagement/common/extensionFeaturesManagemetService.
 import './services/notification/common/notificationService.js';
 import './services/userDataSync/common/userDataSyncUtil.js';
 import './services/userDataProfile/browser/userDataProfileImportExportService.js';
-import './services/userDataProfile/browser/userDataProfileManagement.js';
 import './services/userDataProfile/common/remoteUserDataProfiles.js';
 import './services/remote/common/remoteExplorerService.js';
 import './services/remote/common/remoteExtensionsScanner.js';

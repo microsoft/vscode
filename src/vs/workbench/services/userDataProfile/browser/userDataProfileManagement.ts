@@ -6,17 +6,17 @@
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../../base/common/map.js';
 import { equals } from '../../../../base/common/objects.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
-import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IRequestService, asJson } from '../../../../platform/request/common/request.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
-import { IUserDataProfile, IUserDataProfileOptions, IUserDataProfilesService, IUserDataProfileUpdateOptions } from '../../../../platform/userDataProfile/common/userDataProfile.js';
+import { IUserDataProfile, IUserDataProfileOptions, IUserDataProfilesService, IUserDataProfileTemplate, IUserDataProfileUpdateOptions } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { isEmptyWorkspaceIdentifier, IWorkspaceContextService, toWorkspaceIdentifier } from '../../../../platform/workspace/common/workspace.js';
 import { CONFIG_NEW_WINDOW_PROFILE } from '../../../common/configuration.js';
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
@@ -38,8 +38,8 @@ export class UserDataProfileManagementService extends Disposable implements IUse
 		@IProductService private readonly productService: IProductService,
 		@IRequestService private readonly requestService: IRequestService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
-		@ILogService private readonly logService: ILogService,
+		@IUriIdentityService protected readonly uriIdentityService: IUriIdentityService,
+		@ILogService protected readonly logService: ILogService,
 	) {
 		super();
 		this._register(userDataProfileService.onDidChangeCurrentProfile(e => this.onDidChangeCurrentProfile(e)));
@@ -158,6 +158,10 @@ export class UserDataProfileManagementService extends Disposable implements IUse
 		}
 	}
 
+	async getSystemProfileTemplates(): Promise<ResourceMap<IUserDataProfileTemplate>> {
+		return new ResourceMap();
+	}
+
 	async getBuiltinProfileTemplates(): Promise<IProfileTemplateInfo[]> {
 		if (this.productService.profileTemplatesUrl) {
 			try {
@@ -210,4 +214,3 @@ export class UserDataProfileManagementService extends Disposable implements IUse
 	}
 }
 
-registerSingleton(IUserDataProfileManagementService, UserDataProfileManagementService, InstantiationType.Eager /* Eager because it updates the current window profile by listening to profiles changes */);

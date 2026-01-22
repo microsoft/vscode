@@ -252,6 +252,11 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 		return undefined;
 	}
 
+	@memoize
+	get agentSessionsWorkspace(): URI {
+		return joinPath(this.appSettingsHome, 'agent-sessions.code-workspace');
+	}
+
 	get editSessionId(): string | undefined { return this.args['editSessionId']; }
 
 	get exportPolicyData(): string | undefined {

@@ -67,15 +67,33 @@ export class SettingsResource implements IProfileResource {
 		}
 	}
 
-	async apply(content: string, profile: IUserDataProfile): Promise<void> {
+	getSettingsFromTemplateContent(content: string): Record<string, string | boolean | number | undefined | null | object> | undefined {
 		const settingsContent: ISettingsContent = JSON.parse(content);
 		if (settingsContent.settings === null) {
+			return undefined;
+		}
+		try {
+			return JSON.parse(settingsContent.settings);
+		} catch (error) {
+			this.logService.error('Error parsing settings from template content', error);
+			return undefined;
+		}
+	}
+
+	private getSettingsContentFromTemplateContent(content: string): string | null {
+		const settingsContent: ISettingsContent = JSON.parse(content);
+		return settingsContent.settings;
+	}
+
+	async apply(content: string, profile: IUserDataProfile): Promise<void> {
+		const settingsContent = this.getSettingsContentFromTemplateContent(content);
+		if (settingsContent === null) {
 			this.logService.info(`Importing Profile (${profile.name}): No settings to apply...`);
 			return;
 		}
 		const localSettingsContent = await this.getLocalFileContent(profile);
 		const formattingOptions = await this.userDataSyncUtilService.resolveFormattingOptions(profile.settingsResource);
-		const contentToUpdate = updateIgnoredSettings(settingsContent.settings, localSettingsContent || '{}', this.getIgnoredSettings(), formattingOptions);
+		const contentToUpdate = updateIgnoredSettings(settingsContent, localSettingsContent || '{}', this.getIgnoredSettings(), formattingOptions);
 		await this.fileService.writeFile(profile.settingsResource, VSBuffer.fromString(contentToUpdate));
 	}
 

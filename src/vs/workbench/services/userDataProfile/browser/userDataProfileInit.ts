@@ -10,7 +10,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { Barrier, Promises } from '../../../../base/common/async.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IUserDataInitializer } from '../../userData/browser/userDataInit.js';
-import { IProfileResourceInitializer, IUserDataProfileService, IUserDataProfileTemplate } from '../common/userDataProfile.js';
+import { IProfileResourceInitializer, IUserDataProfileService } from '../common/userDataProfile.js';
 import { SettingsResourceInitializer } from './settingsResource.js';
 import { GlobalStateResourceInitializer } from './globalStateResource.js';
 import { KeybindingsResourceInitializer } from './keybindingsResource.js';
@@ -23,7 +23,7 @@ import { isString } from '../../../../base/common/types.js';
 import { IRequestService, asJson } from '../../../../platform/request/common/request.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { URI } from '../../../../base/common/uri.js';
-import { ProfileResourceType } from '../../../../platform/userDataProfile/common/userDataProfile.js';
+import { ProfileResourceType, IUserDataProfileTemplate } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 
 export class UserDataProfileInitializer implements IUserDataInitializer {
 
