@@ -75,6 +75,8 @@ export class DefaultConfiguration extends BaseDefaultConfiguration {
 		if (configurationDefaults) {
 			this.profileDefaults = { overrides: configurationDefaults };
 			this.configurationRegistry.registerDefaultConfigurations([this.profileDefaults]);
+		} else {
+			this.profileDefaults = undefined;
 		}
 	}
 

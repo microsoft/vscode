@@ -121,11 +121,6 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 	}
 
 	@memoize
-	get builtinProfilesPath(): string {
-		return join(this.appRoot, 'resources', 'profiles');
-	}
-
-	@memoize
 	get extensionsDownloadLocation(): URI {
 		const cliExtensionsDownloadDir = this.args['extensions-download-dir'];
 		if (cliExtensionsDownloadDir) {

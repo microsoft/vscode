@@ -10,8 +10,8 @@ import { INativeEnvironmentService } from '../../../../../platform/environment/c
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { INativeHostService } from '../../../../../platform/native/common/native.js';
 import { IUserDataProfilesService } from '../../../../../platform/userDataProfile/common/userDataProfile.js';
+import { ChatEntitlementContextKeys } from '../../../../services/chat/common/chatEntitlementService.js';
 import { CHAT_CATEGORY } from '../../browser/actions/chatActions.js';
-import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 
 export class OpenAgentSessionsWindowAction extends Action2 {
 	constructor() {
@@ -19,7 +19,7 @@ export class OpenAgentSessionsWindowAction extends Action2 {
 			id: 'workbench.action.openAgentSessionsWindow',
 			title: localize2('openAgentSessionsWindow', "Open Agent Sessions Window"),
 			category: CHAT_CATEGORY,
-			precondition: ChatContextKeys.enabled,
+			precondition: ChatEntitlementContextKeys.Setup.hidden.negate(),
 			f1: true,
 		});
 	}
