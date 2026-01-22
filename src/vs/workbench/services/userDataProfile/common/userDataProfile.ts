@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isUndefined } from '../../../../base/common/types.js';
 import { Event } from '../../../../base/common/event.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { IUserDataProfile, IUserDataProfileOptions, IUserDataProfileUpdateOptions, ProfileResourceType, ProfileResourceTypeFlags, IUserDataProfileTemplate } from '../../../../platform/userDataProfile/common/userDataProfile.js';
+import { IUserDataProfile, IUserDataProfileOptions, IUserDataProfileUpdateOptions, ProfileResourceType, ProfileResourceTypeFlags } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { URI } from '../../../../base/common/uri.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
@@ -15,7 +16,6 @@ import { ITreeItem, ITreeItemLabel } from '../../../common/views.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
-import { ResourceMap } from '../../../../base/common/map.js';
 
 export interface DidChangeUserDataProfileEvent {
 	readonly previous: IUserDataProfile;
@@ -46,9 +46,30 @@ export interface IUserDataProfileManagementService {
 	removeProfile(profile: IUserDataProfile): Promise<void>;
 	updateProfile(profile: IUserDataProfile, updateOptions: IUserDataProfileUpdateOptions): Promise<IUserDataProfile>;
 	switchProfile(profile: IUserDataProfile): Promise<void>;
-	getSystemProfileTemplates(): Promise<ResourceMap<IUserDataProfileTemplate>>;
 	getBuiltinProfileTemplates(): Promise<IProfileTemplateInfo[]>;
 	getDefaultProfileToUse(): IUserDataProfile;
+}
+
+export interface IUserDataProfileTemplate {
+	readonly name: string;
+	readonly icon?: string;
+	readonly settings?: string;
+	readonly keybindings?: string;
+	readonly tasks?: string;
+	readonly snippets?: string;
+	readonly globalState?: string;
+	readonly extensions?: string;
+	readonly mcp?: string;
+}
+
+export function isUserDataProfileTemplate(thing: unknown): thing is IUserDataProfileTemplate {
+	const candidate = thing as IUserDataProfileTemplate | undefined;
+
+	return !!(candidate && typeof candidate === 'object'
+		&& (isUndefined(candidate.settings) || typeof candidate.settings === 'string')
+		&& (isUndefined(candidate.globalState) || typeof candidate.globalState === 'string')
+		&& (isUndefined(candidate.extensions) || typeof candidate.extensions === 'string')
+		&& (isUndefined(candidate.mcp) || typeof candidate.mcp === 'string'));
 }
 
 export const PROFILE_URL_AUTHORITY = 'profile';
@@ -68,10 +89,12 @@ export function isProfileURL(uri: URI): boolean {
 export interface IUserDataProfileCreateOptions extends IUserDataProfileOptions {
 	readonly name?: string;
 	readonly resourceTypeFlags?: ProfileResourceTypeFlags;
-	readonly templateOptions?: {
-		readonly template: URI;
-		readonly storeSettingsAsDefault?: boolean;
-	};
+}
+
+export interface IProfileImportOptions extends IUserDataProfileCreateOptions {
+	readonly name?: string;
+	readonly icon?: string;
+	readonly mode?: 'apply';
 }
 
 export const IUserDataProfileImportExportService = createDecorator<IUserDataProfileImportExportService>('IUserDataProfileImportExportService');
@@ -131,4 +154,3 @@ export const PROFILE_FILTER = [{ name: localize('profile', "Profile"), extension
 export const CURRENT_PROFILE_CONTEXT = new RawContextKey<string>('currentProfile', '');
 export const IS_CURRENT_PROFILE_TRANSIENT_CONTEXT = new RawContextKey<boolean>('isCurrentProfileTransient', false);
 export const HAS_PROFILES_CONTEXT = new RawContextKey<boolean>('hasProfiles', false);
-

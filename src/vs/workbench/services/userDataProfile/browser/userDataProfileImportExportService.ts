@@ -9,7 +9,7 @@ import { isMarkdownString } from '../../../../base/common/htmlContent.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { Emitter } from '../../../../base/common/event.js';
-import { IUserDataProfileImportExportService, PROFILE_FILTER, PROFILE_EXTENSION, IUserDataProfileContentHandler, IUserDataProfileService, IProfileResourceTreeItem, PROFILES_CATEGORY, IUserDataProfileManagementService, ISaveProfileResult, PROFILE_URL_AUTHORITY, toUserDataProfileUri, IUserDataProfileCreateOptions, isProfileURL, PROFILE_URL_AUTHORITY_PREFIX } from '../common/userDataProfile.js';
+import { IUserDataProfileImportExportService, PROFILE_FILTER, PROFILE_EXTENSION, IUserDataProfileContentHandler, IUserDataProfileService, IProfileResourceTreeItem, PROFILES_CATEGORY, IUserDataProfileManagementService, ISaveProfileResult, IProfileImportOptions, PROFILE_URL_AUTHORITY, toUserDataProfileUri, IUserDataProfileCreateOptions, isProfileURL, PROFILE_URL_AUTHORITY_PREFIX } from '../common/userDataProfile.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { IDialogService, IFileDialogService, IPromptButton } from '../../../../platform/dialogs/common/dialogs.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
@@ -17,7 +17,7 @@ import { ITextFileService } from '../../textfile/common/textfiles.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ITreeItem, ITreeViewDataProvider } from '../../../common/views.js';
-import { ITemplateData, IUserDataProfile, IUserDataProfileOptions, IUserDataProfilesService, ProfileResourceType, ProfileResourceTypeFlags } from '../../../../platform/userDataProfile/common/userDataProfile.js';
+import { IUserDataProfile, IUserDataProfileOptions, IUserDataProfilesService, ProfileResourceType, ProfileResourceTypeFlags } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { SettingsResource, SettingsResourceTreeItem } from './settingsResource.js';
 import { KeybindingsResource, KeybindingsResourceTreeItem } from './keybindingsResource.js';
 import { SnippetsResource, SnippetsResourceTreeItem } from './snippetsResource.js';
@@ -178,7 +178,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 	}
 
 	private async applyProfileTemplate(profileTemplate: IUserDataProfileTemplate, profile: IUserDataProfile, options: IUserDataProfileCreateOptions, reportProgress: (message: string) => void, token: CancellationToken): Promise<void> {
-		if (profileTemplate.settings && (options.resourceTypeFlags?.settings ?? true) && !profile.useDefaultFlags?.settings && !options.templateOptions) {
+		if (profileTemplate.settings && (options.resourceTypeFlags?.settings ?? true) && !profile.useDefaultFlags?.settings) {
 			reportProgress(localize('creating settings', "Creating Settings..."));
 			await this.instantiationService.createInstance(SettingsResource).apply(profileTemplate.settings, profile);
 		}
@@ -316,7 +316,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 		}
 	}
 
-	async resolveProfileTemplate(uri: URI): Promise<IUserDataProfileTemplate | null> {
+	async resolveProfileTemplate(uri: URI, options?: IProfileImportOptions): Promise<IUserDataProfileTemplate | null> {
 		const profileContent = await this.resolveProfileContent(uri);
 		if (profileContent === null) {
 			return null;
@@ -332,6 +332,38 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 
 		if (!isUserDataProfileTemplate(profileTemplate)) {
 			throw new Error(localize('invalid profile content', "This profile is not valid."));
+		}
+
+		if (options?.name) {
+			profileTemplate.name = options.name;
+		}
+
+		if (options?.icon) {
+			profileTemplate.icon = options.icon;
+		}
+
+		if (options?.resourceTypeFlags?.settings === false) {
+			profileTemplate.settings = undefined;
+		}
+
+		if (options?.resourceTypeFlags?.keybindings === false) {
+			profileTemplate.keybindings = undefined;
+		}
+
+		if (options?.resourceTypeFlags?.snippets === false) {
+			profileTemplate.snippets = undefined;
+		}
+
+		if (options?.resourceTypeFlags?.tasks === false) {
+			profileTemplate.tasks = undefined;
+		}
+
+		if (options?.resourceTypeFlags?.globalState === false) {
+			profileTemplate.globalState = undefined;
+		}
+
+		if (options?.resourceTypeFlags?.extensions === false) {
+			profileTemplate.extensions = undefined;
 		}
 
 		return profileTemplate;
@@ -426,23 +458,12 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 		return result?.id;
 	}
 
-	private async getProfileToImport(profileTemplate: IUserDataProfileTemplate, temp: boolean, options: IUserDataProfileCreateOptions | undefined): Promise<IUserDataProfile | undefined> {
+	private async getProfileToImport(profileTemplate: IUserDataProfileTemplate, temp: boolean, options: IUserDataProfileOptions | undefined): Promise<IUserDataProfile | undefined> {
 		const profileName = profileTemplate.name;
 		const profile = this.userDataProfilesService.profiles.find(p => p.name === profileName);
-		let templateData: ITemplateData | undefined;
-		if (options?.templateOptions) {
-			let settings: Record<string, string | boolean | number | undefined | null | object> | undefined;
-			if (options.templateOptions.storeSettingsAsDefault && profileTemplate.settings) {
-				const settingsResource = this.instantiationService.createInstance(SettingsResource);
-				settings = settingsResource.getSettingsFromTemplateContent(profileTemplate.settings) ?? undefined;
-			}
-			templateData = { resource: options.templateOptions.template, settings, icon: profileTemplate.icon };
-		}
-		const profileOptions: Mutable<IUserDataProfileCreateOptions> = { ...options, templateData };
-
 		if (profile) {
 			if (temp) {
-				return this.userDataProfilesService.createNamedProfile(`${profileName} ${this.getProfileNameIndex(profileName)}`, { ...profileOptions, transient: temp });
+				return this.userDataProfilesService.createNamedProfile(`${profileName} ${this.getProfileNameIndex(profileName)}`, { ...options, transient: temp });
 			}
 			const { confirmed } = await this.dialogService.confirm({
 				type: Severity.Info,
@@ -452,9 +473,9 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 			if (!confirmed) {
 				return undefined;
 			}
-			return profile.isDefault ? profile : this.userDataProfilesService.updateProfile(profile, profileOptions);
+			return profile.isDefault ? profile : this.userDataProfilesService.updateProfile(profile, options);
 		} else {
-			return this.userDataProfilesService.createNamedProfile(profileName, { ...profileOptions, transient: temp });
+			return this.userDataProfilesService.createNamedProfile(profileName, { ...options, transient: temp });
 		}
 	}
 

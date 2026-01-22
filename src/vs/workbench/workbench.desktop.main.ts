@@ -92,13 +92,10 @@ import '../platform/extensionManagement/electron-browser/extensionsProfileScanne
 import '../platform/webContentExtractor/electron-browser/webContentExtractorService.js';
 import './services/process/electron-browser/processService.js';
 
-import { InstantiationType, registerSingleton } from '../platform/instantiation/common/extensions.js';
+import { registerSingleton } from '../platform/instantiation/common/extensions.js';
 import { IUserDataInitializationService, UserDataInitializationService } from './services/userData/browser/userDataInit.js';
 import { SyncDescriptor } from '../platform/instantiation/common/descriptors.js';
-import { IUserDataProfileManagementService } from './services/userDataProfile/common/userDataProfile.js';
-import { NativeUserDataProfileManagementService } from './services/userDataProfile/electron-browser/userDataProfileManagement.js';
 
-registerSingleton(IUserDataProfileManagementService, NativeUserDataProfileManagementService, InstantiationType.Eager /* Eager because it updates the current window profile by listening to profiles changes */);
 registerSingleton(IUserDataInitializationService, new SyncDescriptor(UserDataInitializationService, [[]], true));
 
 

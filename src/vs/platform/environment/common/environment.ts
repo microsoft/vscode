@@ -58,6 +58,7 @@ export interface IEnvironmentService {
 	workspaceStorageHome: URI;
 	localHistoryHome: URI;
 	cacheHome: URI;
+	builtinProfilesHome: URI;
 
 	// --- settings sync
 	userDataSyncHome: URI;
@@ -138,7 +139,6 @@ export interface INativeEnvironmentService extends IEnvironmentService {
 	appSettingsHome: URI;
 	tmpDir: URI;
 	userDataPath: string;
-	builtinProfilesPath: string;
 
 	// --- extensions
 	extensionsPath: string;

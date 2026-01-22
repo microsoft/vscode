@@ -1,5 +1,4 @@
 {
-	"id": "agent-sessions",
 	"name": "Agent Sessions",
 	"icon": "copilot",
 	"settings": {
@@ -14,7 +13,7 @@
 		"chat.agentsControl.enabled": true,
 		"files.autoSave": "afterDelay",
 		"chat.commandCenter.enabled": false,
-		"window.title": "Agent Sessions",
+		"window.title": "Hello World",
 		"workbench.editor.showTabs": "single"
 	}
 }

@@ -108,6 +108,9 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 	get untitledWorkspacesHome(): URI { return URI.file(join(this.userDataPath, 'Workspaces')); }
 
 	@memoize
+	get builtinProfilesHome(): URI { return joinPath(URI.file(this.appRoot), 'resources', 'profiles'); }
+
+	@memoize
 	get builtinExtensionsPath(): string {
 		const cliBuiltinExtensionsDir = this.args['builtin-extensions-dir'];
 		if (cliBuiltinExtensionsDir) {
