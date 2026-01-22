@@ -321,6 +321,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private static readonly SESSIONS_SIDEBAR_DEFAULT_WIDTH = 300;
 	private static readonly SESSIONS_STACKED_MIN_HEIGHT = AgentSessionsListDelegate.ITEM_HEIGHT;
 	private static readonly SESSIONS_STACKED_DEFAULT_HEIGHT = 5 * AgentSessionsListDelegate.ITEM_HEIGHT;
+	private static readonly SESSIONS_NEW_BUTTON_HEIGHT = 48; // button + padding
 	private static readonly CHAT_WIDGET_DEFAULT_WIDTH = 300;
 	private static readonly SESSIONS_SIDEBAR_VIEW_MIN_WIDTH = this.CHAT_WIDGET_DEFAULT_WIDTH + this.SESSIONS_SIDEBAR_DEFAULT_WIDTH;
 
@@ -899,7 +900,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			// In side-by-side mode, hide the "New Session" button when height is limited
 			// to make more room for sessions. Show button only when there's enough space
 			// for at least 2 session items plus the button itself.
-			const buttonHeight = this.sessionsNewButtonContainer.offsetHeight;
+			// Use constant for button height since offsetHeight is 0 when button is hidden.
+			const buttonHeight = ChatViewPane.SESSIONS_NEW_BUTTON_HEIGHT;
 			const minHeightForButton = 2 * AgentSessionsListDelegate.ITEM_HEIGHT + buttonHeight;
 			const showNewButton = availableSessionsHeight >= minHeightForButton;
 			setVisibility(showNewButton, this.sessionsNewButtonContainer);
