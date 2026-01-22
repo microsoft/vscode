@@ -70,7 +70,7 @@
 .monaco-workbench .quick-input-widget .monaco-list,
 .monaco-workbench .quick-input-widget .monaco-list-row { border-color: transparent !important; outline: none !important; }
 .monaco-workbench .quick-input-widget .monaco-inputbox { box-shadow: none !important; background: transparent !important; }
-.monaco-workbench .quick-input-widget .quick-input-filter .monaco-inputbox { background: rgba(255, 255, 255, 0.4) !important; border-radius: 6px; }
+.monaco-workbench .quick-input-widget .quick-input-filter .monaco-inputbox { background: rgba(249, 250, 251, 0.4) !important; border-radius: 6px; }
 .monaco-workbench.vs-dark .quick-input-widget .quick-input-filter .monaco-inputbox,
 
 .monaco-workbench .quick-input-widget .monaco-list.list_id_6:not(.drop-target):not(.dragging) .monaco-list-row:hover:not(.selected):not(.focused) { background-color: color-mix(in srgb, var(--vscode-list-hoverBackground) 40%, transparent); }
@@ -135,10 +135,10 @@
 .monaco-workbench .monaco-dialog-box { box-shadow: 0 0 20px rgba(0, 0, 0, 0.18); border: none; border-radius: 12px; overflow: hidden; }
 
 /* Peek View */
-.monaco-workbench .monaco-editor .peekview-widget { box-shadow: 0 0 8px rgba(0, 0, 0, 0.12); border: none; background: var(--vscode-editor-background, #F5F6F8) !important; backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-radius: 8px; overflow: hidden; }
+.monaco-workbench .monaco-editor .peekview-widget { box-shadow: 0 0 8px rgba(0, 0, 0, 0.12); border: none; background: var(--vscode-editor-background, #EDEDED) !important; backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-radius: 8px; overflow: hidden; }
 .monaco-workbench .monaco-editor .peekview-widget .head,
 .monaco-workbench .monaco-editor .peekview-widget .body { background: transparent !important; }
-.monaco-workbench .monaco-editor .peekview-widget .ref-tree { background: var(--vscode-editor-background, #F5F6F8) !important; }
+.monaco-workbench .monaco-editor .peekview-widget .ref-tree { background: var(--vscode-editor-background, #EDEDED) !important; }
 
 
 .monaco-editor .monaco-hover { box-shadow: 0 0 4px rgba(0, 0, 0, 0.18); border-radius: 8px; overflow: hidden; backdrop-filter: blur(20px) saturate(180%); -webkit-backdrop-filter: blur(20px) saturate(180%); }
@@ -227,8 +227,8 @@
 .monaco-workbench .monaco-editor .inline-chat { box-shadow: 0 0 12px rgba(0, 0, 0, 0.14); border: none; border-radius: 12px; }
 
 /* Command Center */
-.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center .action-item.command-center-center { box-shadow: inset 0 0 8px rgba(0, 0, 0, 0.09) !important; border-radius: 8px !important; background: rgba(255, 255, 255, 0.55) !important; backdrop-filter: blur(24px) saturate(150%); -webkit-backdrop-filter: blur(24px) saturate(150%); overflow: visible !important; }
-.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center .action-item.command-center-center:hover { box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.11) !important; background: rgba(255, 255, 255, 0.70) !important; }
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center .action-item.command-center-center { box-shadow: inset 0 0 8px rgba(0, 0, 0, 0.09) !important; border-radius: 8px !important; background: rgba(249, 250, 251, 0.55) !important; backdrop-filter: blur(24px) saturate(150%); -webkit-backdrop-filter: blur(24px) saturate(150%); overflow: visible !important; }
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center .action-item.command-center-center:hover { box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.11) !important; background: rgba(249, 250, 251, 0.70) !important; }
 .monaco-workbench.vs-dark .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center .action-item.command-center-center,
 .monaco-workbench.vs-dark .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center .action-item.command-center-center:hover,
 .monaco-workbench .part.titlebar .command-center .agent-status-pill {
