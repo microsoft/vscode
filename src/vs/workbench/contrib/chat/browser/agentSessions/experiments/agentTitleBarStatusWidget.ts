@@ -15,6 +15,7 @@ import { AgentStatusMode, IAgentTitleBarStatusService } from './agentTitleBarSta
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { EnterAgentSessionProjectionAction, ExitAgentSessionProjectionAction } from './agentSessionProjectionActions.js';
+import { UNIFIED_QUICK_ACCESS_ACTION_ID } from './unifiedQuickAccessActions.js';
 import { IAgentSessionsService } from '../agentSessionsService.js';
 import { AgentSessionStatus, IAgentSession, isSessionInProgressStatus } from '../agentSessionsModel.js';
 import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../../../base/browser/ui/actionbar/actionViewItems.js';
@@ -44,7 +45,6 @@ import { LayoutSettings } from '../../../../../services/layout/browser/layoutSer
 import { ChatConfiguration } from '../../../common/constants.js';
 
 // Action IDs
-const QUICK_CHAT_ACTION_ID = 'workbench.action.quickchat.toggle';
 const TOGGLE_CHAT_ACTION_ID = 'workbench.action.chat.toggle';
 const QUICK_OPEN_ACTION_ID = 'workbench.action.quickOpenWithModes';
 
@@ -313,7 +313,7 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 			pill.classList.add('needs-attention');
 		}
 		pill.setAttribute('role', 'button');
-		pill.setAttribute('aria-label', localize('openQuickChat', "Open Quick Chat"));
+		pill.setAttribute('aria-label', localize('openQuickAccess', "Open Quick Access"));
 		pill.tabIndex = 0;
 		this._container.appendChild(pill);
 
@@ -379,13 +379,13 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 			if (this._displayedSession) {
 				return localize('openSessionTooltip', "Open session: {0}", this._displayedSession.label);
 			}
-			const kbForTooltip = this.keybindingService.lookupKeybinding(QUICK_CHAT_ACTION_ID)?.getLabel();
+			const kbForTooltip = this.keybindingService.lookupKeybinding(UNIFIED_QUICK_ACCESS_ACTION_ID)?.getLabel();
 			return kbForTooltip
-				? localize('askTooltip', "Open Quick Chat ({0})", kbForTooltip)
-				: localize('askTooltip2', "Open Quick Chat");
+				? localize('askTooltip', "Open Quick Access ({0})", kbForTooltip)
+				: localize('askTooltip2', "Open Quick Access");
 		}));
 
-		// Click handler - open displayed session if showing progress, otherwise open quick chat
+		// Click handler - open displayed session if showing progress, otherwise open unified quick access
 		disposables.add(addDisposableListener(pill, EventType.CLICK, (e) => {
 			e.preventDefault();
 			e.stopPropagation();
@@ -992,13 +992,13 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 	// #region Click Handlers
 
 	/**
-	 * Handle pill click - opens the displayed session if showing progress, otherwise executes default action
+	 * Handle pill click - opens the displayed session if showing progress, otherwise opens unified quick access
 	 */
 	private _handlePillClick(): void {
 		if (this._displayedSession) {
 			this.instantiationService.invokeFunction(openSession, this._displayedSession);
 		} else {
-			this.commandService.executeCommand(QUICK_CHAT_ACTION_ID);
+			this.commandService.executeCommand(UNIFIED_QUICK_ACCESS_ACTION_ID);
 		}
 	}
 
