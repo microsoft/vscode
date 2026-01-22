@@ -5,6 +5,23 @@
 
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 
+/**
+ * Source of an Integrated Browser open event.
+ *
+ * - `'commandWithoutUrl'`: opened via the "Open Integrated Browser" command without a URL argument.
+ *   This typically means the user ran the command manually from the Command Palette.
+ * - `'commandWithUrl'`: opened via the "Open Integrated Browser" command with a URL argument.
+ *   This typically means another extension or component invoked the command programmatically.
+ * - `'localhostLinkOpener'`: opened via the localhost link opener when the
+ *   `workbench.browser.openLocalhostLinks` setting is enabled. This happens when clicking
+ *   localhost links from the terminal, chat, or other sources.
+ * - `'editorResolver'`: opened via the editor resolver when directly navigating to a
+ *   `vscode-browser://` scheme URL.
+ * - `'browserLinkForeground'`: opened when clicking a link inside the Integrated Browser that
+ *   opens in a new focused editor (e.g., links with target="_blank").
+ * - `'browserLinkBackground'`: opened when clicking a link inside the Integrated Browser that
+ *   opens in a new background editor (e.g., Ctrl/Cmd+click).
+ */
 export type IntegratedBrowserOpenSource = 'commandWithoutUrl' | 'commandWithUrl' | 'localhostLinkOpener' | 'editorResolver' | 'browserLinkForeground' | 'browserLinkBackground';
 
 type IntegratedBrowserOpenEvent = {
