@@ -37,7 +37,7 @@ export class TerminalSandboxService implements ITerminalSandboxService {
 	private _needsForceUpdateConfigFile = true;
 	private _tempDir: URI | undefined;
 	private _sandboxSettingsId: string | undefined;
-	private _os: OperatingSystem = OS;
+	private _os: OperatingSystem | undefined;
 
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -49,12 +49,13 @@ export class TerminalSandboxService implements ITerminalSandboxService {
 		const appRoot = dirname(FileAccess.asFileUri('').fsPath);
 		this._srtPath = join(appRoot, 'node_modules', '.bin', 'srt');
 		this._sandboxSettingsId = generateUuid();
-		this._initTempDir();
-		this._remoteAgentService.getEnvironment().then(remoteEnv => this._os = remoteEnv?.os ?? OS);
+		this._remoteAgentService.getEnvironment().then(remoteEnv => {
+			this._os = remoteEnv?.os ?? OS;
+		});
 	}
 
 	public isEnabled(): boolean {
-		if (this._os === OperatingSystem.Windows) {
+		if (!this._os || this._os === OperatingSystem.Windows) {
 			return false;
 		}
 		return this._configurationService.getValue<boolean>(TerminalChatAgentToolsSettingId.TerminalSandboxEnabled);
@@ -89,6 +90,9 @@ export class TerminalSandboxService implements ITerminalSandboxService {
 			this._initTempDir();
 		}
 		if (this._tempDir) {
+			if (!this._os) {
+				return undefined;
+			}
 			const networkSetting = this._configurationService.getValue<ITerminalSandboxSettings['network']>(TerminalChatAgentToolsSettingId.TerminalSandboxNetwork) ?? {};
 			const linuxFileSystemSetting = this._os === OperatingSystem.Linux
 				? this._configurationService.getValue<ITerminalSandboxSettings['filesystem']>(TerminalChatAgentToolsSettingId.TerminalSandboxLinuxFileSystem) ?? {}
@@ -122,7 +126,6 @@ export class TerminalSandboxService implements ITerminalSandboxService {
 			this._tempDir = environmentService.tmpDir;
 			if (!this._tempDir) {
 				this._logService.warn('TerminalSandboxService: Cannot create sandbox settings file because no tmpDir is available in this environment');
-				return;
 			}
 		}
 	}
