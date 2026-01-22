@@ -5,7 +5,7 @@
 
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 
-export type IntegratedBrowserOpenSource = 'command' | 'localhostLinkOpener' | 'editorResolver' | 'browserLinkForeground' | 'browserLinkBackground';
+export type IntegratedBrowserOpenSource = 'commandWithoutUrl' | 'commandWithUrl' | 'localhostLinkOpener' | 'editorResolver' | 'browserLinkForeground' | 'browserLinkBackground';
 
 type IntegratedBrowserOpenEvent = {
 	source: IntegratedBrowserOpenSource;

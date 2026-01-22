@@ -41,7 +41,7 @@ class OpenIntegratedBrowserAction extends Action2 {
 		const telemetryService = accessor.get(ITelemetryService);
 		const resource = BrowserViewUri.forUrl(url);
 
-		logBrowserOpen(telemetryService, 'command');
+		logBrowserOpen(telemetryService, url ? 'commandWithUrl' : 'commandWithoutUrl');
 
 		await editorService.openEditor({ resource });
 	}
