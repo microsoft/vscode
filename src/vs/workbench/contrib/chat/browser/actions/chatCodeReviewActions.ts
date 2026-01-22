@@ -8,7 +8,6 @@ import { Action2, MenuId, registerAction2 } from '../../../../../platform/action
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { CHAT_CATEGORY } from './chatActions.js';
-import { IChatWidgetService } from '../chat.js';
 import { IChatModeService } from '../../common/chatModes.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ChatModeKind } from '../../common/constants.js';
@@ -41,7 +40,6 @@ export class RunCodeReviewAction extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
-		const chatWidgetService = accessor.get(IChatWidgetService);
 		const chatModeService = accessor.get(IChatModeService);
 		const commandService = accessor.get(ICommandService);
 
@@ -57,7 +55,7 @@ export class RunCodeReviewAction extends Action2 {
 		} else {
 			// Fallback: Open chat in agent mode with a code review prompt
 			await commandService.executeCommand('workbench.action.openChat', {
-				query: 'Please review the current code changes',
+				query: localize('chat.codeReview.defaultPrompt', "Please review the current code changes"),
 				mode: ChatModeKind.Agent
 			});
 		}
