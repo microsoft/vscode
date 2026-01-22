@@ -427,6 +427,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			},
 			cwd,
 			language,
+			isBackground: args.isBackground,
 		};
 
 		// HACK: Exit early if there's an alternative recommendation, this is a little hacky but
@@ -676,12 +677,13 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			inputUserSigint ||= data === '\x03';
 		}));
 
+		let didMoveToBackground = false;
 		let outputMonitor: OutputMonitor | undefined;
 		if (args.isBackground) {
 			let pollingResult: IPollingResult & { pollDurationMs: number } | undefined;
 			try {
 				this._logService.debug(`RunInTerminalTool: Starting background execution \`${command}\``);
-				const execution = new BackgroundTerminalExecution(toolTerminal.instance, xterm, command, chatSessionId, commandId);
+				const execution = BackgroundTerminalExecution.start(toolTerminal.instance, xterm, command, chatSessionId, commandId!);
 				RunInTerminalTool._backgroundExecutions.set(termId, execution);
 
 				outputMonitor = store.add(this._instantiationService.createInstance(OutputMonitor, execution, undefined, invocation.context!, token, command));
@@ -763,6 +765,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			let exitCode: number | undefined;
 			let altBufferResult: IToolResult | undefined;
 			let didTimeout = false;
+			let didContinueInBackground = false;
 			let timeoutPromise: CancelablePromise<void> | undefined;
 			const executeCancellation = store.add(new CancellationTokenSource(token));
 
@@ -780,15 +783,33 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				}
 			}
 
+			// Set up continue in background listener
+			if (terminalToolSessionId) {
+				store.add(this._terminalChatService.onDidContinueInBackground(sessionId => {
+					if (sessionId === terminalToolSessionId) {
+						didContinueInBackground = true;
+						if (!executeCancellation.token.isCancellationRequested) {
+							executeCancellation.cancel();
+						}
+					}
+				}));
+			}
+
+			let startMarker: IXtermMarker | undefined;
 			try {
 				const strategy: ITerminalExecuteStrategy = this._getExecuteStrategy(toolTerminal.shellIntegrationQuality, toolTerminal, commandDetection!);
 				if (toolTerminal.shellIntegrationQuality === ShellIntegrationQuality.None) {
 					toolResultMessage = '$(info) Enable [shell integration](https://code.visualstudio.com/docs/terminal/shell-integration) to improve command detection';
 				}
 				this._logService.debug(`RunInTerminalTool: Using \`${strategy.type}\` execute strategy for command \`${command}\``);
-				store.add(strategy.onDidCreateStartMarker(startMarker => {
+				store.add(strategy.onDidCreateStartMarker(startMarker_ => {
+					if (startMarker_) {
+						// Duplicate marker for use even if the execution strategy one gets disposed.
+						// Don't add to store - we may need to transfer ownership to BackgroundTerminalExecution.
+						startMarker = xterm.raw.registerMarker(startMarker_.line - (xterm.raw.buffer.active.cursorY + xterm.raw.buffer.active.baseY));
+					}
 					if (!outputMonitor) {
-						outputMonitor = store.add(this._instantiationService.createInstance(OutputMonitor, { instance: toolTerminal.instance, sessionId: invocation.context?.sessionId, getOutput: (marker?: IXtermMarker) => getOutput(toolTerminal.instance, marker ?? startMarker) }, undefined, invocation.context, token, command));
+						outputMonitor = store.add(this._instantiationService.createInstance(OutputMonitor, { instance: toolTerminal.instance, sessionId: invocation.context?.sessionId, getOutput: (marker?: IXtermMarker) => getOutput(toolTerminal.instance, marker ?? startMarker_) }, undefined, invocation.context, token, command));
 					}
 				}));
 				const executeResult = await strategy.execute(command, executeCancellation.token, commandId);
@@ -851,6 +872,21 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					const timeoutOutput = getOutput(toolTerminal.instance, undefined);
 					outputLineCount = timeoutOutput ? count(timeoutOutput.trim(), '\n') + 1 : 0;
 					terminalResult = timeoutOutput ?? '';
+				} else if (didContinueInBackground && e instanceof CancellationError) {
+					// Handle continue in background case - get output collected so far and return it
+					this._logService.debug(`RunInTerminalTool: Continue in background triggered, returning output collected so far`);
+					error = 'continueInBackground';
+					didMoveToBackground = true;
+					if (!startMarker) {
+						this._logService.debug(`RunInTerminalTool: Start marker is undefined`);
+					} else if (startMarker.isDisposed) {
+						this._logService.debug(`RunInTerminalTool: Start marker is disposed`);
+					}
+					const execution = BackgroundTerminalExecution.adopt(toolTerminal.instance, xterm, command, chatSessionId, startMarker);
+					RunInTerminalTool._backgroundExecutions.set(termId, execution);
+					const backgroundOutput = execution.getOutput();
+					outputLineCount = backgroundOutput ? count(backgroundOutput.trim(), '\n') + 1 : 0;
+					terminalResult = backgroundOutput ?? '';
 				} else {
 					this._logService.debug(`RunInTerminalTool: Threw exception`);
 					toolTerminal.instance.dispose();
@@ -860,6 +896,10 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			} finally {
 				timeoutPromise?.cancel();
 				store.dispose();
+				// Clean up the marker if we didn't move to background (which takes ownership)
+				if (!didMoveToBackground) {
+					startMarker?.dispose();
+				}
 				const timingExecuteMs = Date.now() - timingStart;
 				this._telemetry.logInvoke(toolTerminal.instance, {
 					terminalToolSessionId: toolSpecificData.terminalToolSessionId,
@@ -897,6 +937,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				resultText.push(`Note: The user manually edited the command to \`${command}\`, and this is the output of running that command instead:\n`);
 			} else if (didToolEditCommand) {
 				resultText.push(`Note: The tool simplified the command to \`${command}\`, and this is the output of running that command instead:\n`);
+			}
+			if (didMoveToBackground) {
+				resultText.push(`Note: This terminal execution was moved to the background using the ID ${termId}\n`);
 			}
 			resultText.push(terminalResult);
 
@@ -1107,7 +1150,31 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 class BackgroundTerminalExecution extends Disposable {
 	private _startMarker?: IXtermMarker;
 
-	constructor(
+	static start(
+		instance: ITerminalInstance,
+		xterm: XtermTerminal,
+		commandLine: string,
+		sessionId: string,
+		commandId: string,
+	): BackgroundTerminalExecution {
+		return new BackgroundTerminalExecution(instance, xterm, commandLine, sessionId, commandId);
+	}
+
+	static adopt(
+		instance: ITerminalInstance,
+		xterm: XtermTerminal,
+		commandLine: string,
+		sessionId: string,
+		existingMarker?: IXtermMarker,
+	): BackgroundTerminalExecution {
+		const execution = new BackgroundTerminalExecution(instance, xterm, commandLine, sessionId);
+		if (existingMarker) {
+			execution._startMarker = execution._register(existingMarker);
+		}
+		return execution;
+	}
+
+	private constructor(
 		readonly instance: ITerminalInstance,
 		private readonly _xterm: XtermTerminal,
 		private readonly _commandLine: string,
@@ -1116,9 +1183,12 @@ class BackgroundTerminalExecution extends Disposable {
 	) {
 		super();
 
-		this._startMarker = this._register(this._xterm.raw.registerMarker());
-		this.instance.runCommand(this._commandLine, true, commandId);
+		if (commandId !== undefined) {
+			this._startMarker = this._register(this._xterm.raw.registerMarker());
+			this.instance.runCommand(this._commandLine, true, commandId);
+		}
 	}
+
 	getOutput(marker?: IXtermMarker): string {
 		return getOutput(this.instance, marker ?? this._startMarker);
 	}
