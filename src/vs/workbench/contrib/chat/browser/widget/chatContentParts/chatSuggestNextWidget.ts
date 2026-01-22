@@ -12,7 +12,6 @@ import { localize } from '../../../../../../nls.js';
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { IChatMode } from '../../../common/chatModes.js';
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
-import { ILanguageModelsService } from '../../../common/languageModels.js';
 import { IHandOff } from '../../../common/promptSyntax/promptFileParser.js';
 import { AgentSessionProviders, getAgentSessionProviderIcon, getAgentSessionProviderName } from '../../agentSessions/agentSessions.js';
 
@@ -37,8 +36,7 @@ export class ChatSuggestNextWidget extends Disposable {
 
 	constructor(
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
-		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
-		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService
+		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService
 	) {
 		super();
 		this.domNode = this.createSuggestNextWidget();
@@ -66,34 +64,10 @@ export class ChatSuggestNextWidget extends Disposable {
 		return container;
 	}
 
-	/**
-	 * Render the widget with the given mode's handoffs.
-	 * @param mode The current chat mode containing handoffs to display.
-	 * @param isModelAvailable Optional callback to check if a model is available for switching.
-	 *        If provided, handoffs with models that aren't available will be filtered out.
-	 */
-	public render(mode: IChatMode, isModelAvailable?: (model: string) => boolean): void {
+	public render(mode: IChatMode): void {
 		const handoffs = mode.handOffs?.get();
 
 		if (!handoffs || handoffs.length === 0) {
-			this.hide();
-			return;
-		}
-
-		// Filter handoffs: if a model is specified, only show if that model is available
-		const visibleHandoffs = handoffs.filter(handoff => {
-			if (handoff.model) {
-				// Use the callback if provided, otherwise fall back to basic existence check
-				if (isModelAvailable) {
-					return isModelAvailable(handoff.model);
-				}
-				// Fallback: basic existence check (less accurate but works when callback not provided)
-				return this.languageModelsService.lookupLanguageModel(handoff.model) !== undefined;
-			}
-			return true;
-		});
-
-		if (visibleHandoffs.length === 0) {
 			this.hide();
 			return;
 		}
@@ -118,7 +92,7 @@ export class ChatSuggestNextWidget extends Disposable {
 			this.promptsContainer.removeChild(child);
 		}
 
-		for (const handoff of visibleHandoffs) {
+		for (const handoff of handoffs) {
 			const promptButton = this.createPromptButton(handoff);
 			this.promptsContainer.appendChild(promptButton);
 		}

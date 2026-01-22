@@ -238,7 +238,7 @@ export class PromptHeader {
 			return undefined;
 		}
 		if (handoffsAttribute.value.type === 'array') {
-			// Array format: list of objects: { agent, label, prompt, send?, showContinueOn?, model? }
+			// Array format: list of objects: { agent, label, prompt, send?, showContinueOn? }
 			const handoffs: IHandOff[] = [];
 			for (const item of handoffsAttribute.value.items) {
 				if (item.type === 'object') {
@@ -247,7 +247,6 @@ export class PromptHeader {
 					let prompt: string | undefined;
 					let send: boolean | undefined;
 					let showContinueOn: boolean | undefined;
-					let model: string | undefined;
 					for (const prop of item.properties) {
 						if (prop.key.value === 'agent' && prop.value.type === 'string') {
 							agent = prop.value.value;
@@ -259,8 +258,6 @@ export class PromptHeader {
 							send = prop.value.value;
 						} else if (prop.key.value === 'showContinueOn' && prop.value.type === 'boolean') {
 							showContinueOn = prop.value.value;
-						} else if (prop.key.value === 'model' && prop.value.type === 'string') {
-							model = prop.value.value;
 						}
 					}
 					if (agent && label && prompt !== undefined) {
@@ -269,8 +266,7 @@ export class PromptHeader {
 							label,
 							prompt,
 							...(send !== undefined ? { send } : {}),
-							...(showContinueOn !== undefined ? { showContinueOn } : {}),
-							...(model !== undefined ? { model } : {})
+							...(showContinueOn !== undefined ? { showContinueOn } : {})
 						};
 						handoffs.push(handoff);
 					}
@@ -309,7 +305,6 @@ export interface IHandOff {
 	readonly prompt: string;
 	readonly send?: boolean;
 	readonly showContinueOn?: boolean; // treated exactly like send (optional boolean)
-	readonly model?: string; // optional model to switch to - handoff only visible if this model exists
 }
 
 export interface IHeaderAttribute {

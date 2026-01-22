@@ -165,69 +165,6 @@ suite('NewPromptsParser', () => {
 		assert.deepEqual(result.header.handOffs[0].showContinueOn, undefined);
 	});
 
-	test('mode with handoff and model parameter', async () => {
-		const uri = URI.parse('file:///test/test.agent.md');
-		const content = [
-			/* 01 */'---',
-			/* 02 */`description: "Agent test"`,
-			/* 03 */'handoffs:',
-			/* 04 */'  - label: "Implement with GPT-4"',
-			/* 05 */'    agent: Default',
-			/* 06 */'    prompt: "Implement the plan"',
-			/* 07 */'    model: "gpt-4"',
-			/* 08 */'  - label: "Save"',
-			/* 09 */'    agent: Default',
-			/* 10 */'    prompt: "Save the plan"',
-			/* 11 */'---',
-		].join('\n');
-		const result = new PromptFileParser().parse(uri, content);
-		assert.deepEqual(result.uri, uri);
-		assert.ok(result.header);
-		assert.ok(result.header.handOffs);
-		assert.deepEqual(result.header.handOffs, [
-			{ label: 'Implement with GPT-4', agent: 'Default', prompt: 'Implement the plan', model: 'gpt-4' },
-			{ label: 'Save', agent: 'Default', prompt: 'Save the plan' }
-		]);
-	});
-
-	test('model defaults to undefined when not specified per handoff', async () => {
-		const uri = URI.parse('file:///test/test.agent.md');
-		const content = [
-			/* 01 */'---',
-			/* 02 */`description: "Agent test"`,
-			/* 03 */'handoffs:',
-			/* 04 */'  - label: "Save"',
-			/* 05 */'    agent: Default',
-			/* 06 */'    prompt: "Save the plan"',
-			/* 07 */'---',
-		].join('\n');
-		const result = new PromptFileParser().parse(uri, content);
-		assert.deepEqual(result.uri, uri);
-		assert.ok(result.header);
-		assert.ok(result.header.handOffs);
-		assert.deepEqual(result.header.handOffs[0].model, undefined);
-	});
-
-	test('ignores model when value is not a string', async () => {
-		const uri = URI.parse('file:///test/test.agent.md');
-		const content = [
-			/* 01 */'---',
-			/* 02 */`description: "Agent test"`,
-			/* 03 */'handoffs:',
-			/* 04 */'  - label: "Save"',
-			/* 05 */'    agent: Default',
-			/* 06 */'    prompt: "Save the plan"',
-			/* 07 */'    model: true',
-			/* 08 */'---',
-		].join('\n');
-		const result = new PromptFileParser().parse(uri, content);
-		assert.deepEqual(result.uri, uri);
-		assert.ok(result.header);
-		assert.ok(result.header.handOffs);
-		// model should be undefined because 'true' is a boolean, not a string
-		assert.deepEqual(result.header.handOffs[0].model, undefined);
-	});
-
 	test('instructions', async () => {
 		const uri = URI.parse('file:///test/prompt1.md');
 		const content = [

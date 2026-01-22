@@ -18,7 +18,6 @@ import { equals as arraysEqual } from '../../../../../../base/common/arrays.js';
 import { DeferredPromise, RunOnceScheduler } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
-import { stringHash } from '../../../../../../base/common/hash.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Iterable } from '../../../../../../base/common/iterator.js';
 import { KeyCode } from '../../../../../../base/common/keyCodes.js';
@@ -617,7 +616,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this.chatModeKindKey.set(mode.kind);
 			const model = mode.model?.read(r);
 			if (model) {
-				this.switchModelByIdOrName(model);
+				this.switchModelByQualifiedName(model);
 			}
 		}));
 
@@ -698,61 +697,14 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 	}
 
-	/**
-	 * Check if a model can be switched to by ID, name, or hashed ID without actually switching.
-	 * Uses the same lookup logic as switchModelByIdOrName.
-	 * Supports: direct model ID, qualified name, model name, or hashed model ID (via hashModelId()).
-	 */
-	public canSwitchToModel(idOrName: string): boolean {
-		return this.findModelByIdOrName(idOrName) !== undefined;
-	}
-
-	public switchModelByIdOrName(idOrName: string): boolean {
-		const model = this.findModelByIdOrName(idOrName);
+	public switchModelByQualifiedName(qualifiedModelName: string): boolean {
+		const models = this.getModels();
+		const model = models.find(m => ILanguageModelChatMetadata.matchesQualifiedName(qualifiedModelName, m.metadata));
 		if (model) {
 			this.setCurrentLanguageModel(model);
 			return true;
 		}
 		return false;
-	}
-
-	/**
-	 * Generate a hashed model ID for  lookups.
-	 */
-	public static hashModelId(modelId: string): string {
-		return String(stringHash(modelId, 0));
-	}
-
-	/**
-	 * Find a model by ID, qualified name, or hashed model ID.
-	 * Returns undefined if no matching model is found in the available models.
-	 */
-	private findModelByIdOrName(idOrName: string): ILanguageModelChatMetadataAndIdentifier | undefined {
-		// First try direct lookup by ID, but only if the model is in our filtered list
-		const metadata = this.languageModelsService.lookupLanguageModel(idOrName);
-		if (metadata) {
-			const candidate = { identifier: idOrName, metadata };
-			// Verify the model is available (passes all filters)
-			if (this.isModelAvailable(candidate)) {
-				return candidate;
-			}
-		}
-
-		// Fall back to searching by qualified name or hashed ID in available models
-		const models = this.getModels();
-		return models.find(m =>
-			ILanguageModelChatMetadata.matchesQualifiedName(idOrName, m.metadata) ||
-			ChatInputPart.hashModelId(m.identifier) === idOrName
-		);
-	}
-
-	/**
-	 * Check if a model is available (passes all filters: isUserSelectable, modelSupportedForDefaultAgent, modelSupportedForInlineChat).
-	 */
-	private isModelAvailable(model: ILanguageModelChatMetadataAndIdentifier): boolean {
-		return !!model.metadata?.isUserSelectable &&
-			this.modelSupportedForDefaultAgent(model) &&
-			this.modelSupportedForInlineChat(model);
 	}
 
 	public switchToNextModel(): void {
@@ -2378,9 +2330,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 						kind: 'reference',
 						options: {
 							status: undefined,
-							diffMeta: { added: linesAdded ?? 0, removed: linesRemoved ?? 0 },
-							isDeletion: !!entry.isDeletion,
-							originalUri: entry.isDeletion ? entry.originalURI : undefined,
+							diffMeta: { added: linesAdded ?? 0, removed: linesRemoved ?? 0 }
 						}
 					});
 				}
@@ -2591,14 +2541,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				if (e.element?.kind === 'reference' && URI.isUri(e.element.reference)) {
 					const modifiedFileUri = e.element.reference;
 					const originalUri = e.element.options?.originalUri;
-
-					if (e.element.options?.isDeletion && originalUri) {
-						await this.editorService.openEditor({
-							resource: originalUri, // instead of modified, because modified will not exist
-							options: e.editorOptions
-						}, e.sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
-						return;
-					}
 
 					// If there's a originalUri, open as diff editor
 					if (originalUri) {
