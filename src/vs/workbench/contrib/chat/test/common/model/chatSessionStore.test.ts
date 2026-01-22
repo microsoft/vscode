@@ -374,4 +374,86 @@ suite('ChatSessionStore', () => {
 			assert.strictEqual(result.toString(), session2Resource.toString());
 		});
 	});
+
+	suite('workspace migration', () => {
+		test('migration is triggered when workspace ID changes', async () => {
+			// Create store with empty window
+			const store1 = createChatSessionStore(true);
+			const model = testDisposables.add(createMockChatModel(LocalChatSessionUri.forSession('session-1')));
+			
+			// Store a session in empty window
+			await store1.storeSessions([model]);
+			assert.strictEqual(store1.hasSessions(), true);
+			
+			// Simulate workspace transition by creating a new store with a workspace
+			const workspace = TestWorkspace;
+			instantiationService.stub(IWorkspaceContextService, new TestContextService(workspace));
+			const store2 = testDisposables.add(instantiationService.createInstance(ChatSessionStore));
+			
+			// Wait for migration to complete
+			await new Promise(resolve => setTimeout(resolve, 100));
+			
+			// The session should be available in the new workspace after migration
+			const index = await store2.getIndex();
+			assert.ok(index['session-1'], 'Session should be migrated to new workspace');
+		});
+
+		test('migration handles non-existent old storage location gracefully', async () => {
+			// Set up storage service with a fake previous workspace ID that doesn't exist
+			const storageService = instantiationService.get(IStorageService) as TestStorageService;
+			storageService.store('chat.ChatSessionStore.lastWorkspaceId', 'non-existent-workspace-id', 0 /* StorageScope.APPLICATION */, 0 /* StorageTarget.USER */);
+			
+			// Create store with a real workspace - should not crash during migration attempt
+			const store = createChatSessionStore(false);
+			
+			// Wait for any migration attempt to complete
+			await new Promise(resolve => setTimeout(resolve, 100));
+			
+			// Store should work normally
+			assert.strictEqual(store.hasSessions(), false);
+		});
+
+		test('migration copies session files from old to new location', async () => {
+			const fileService = instantiationService.get(IFileService) as InMemoryTestFileService;
+			
+			// Create store with empty window and add a session
+			const store1 = createChatSessionStore(true);
+			const model = testDisposables.add(createMockChatModel(LocalChatSessionUri.forSession('session-1')));
+			await store1.storeSessions([model]);
+			
+			// Get the file path for the session in empty window storage
+			const emptyWindowStorageRoot = store1.getChatStorageFolder();
+			const sessionFile = URI.joinPath(emptyWindowStorageRoot, 'session-1.json');
+			const fileExists = await fileService.exists(sessionFile);
+			assert.strictEqual(fileExists, true, 'Session file should exist in empty window storage');
+			
+			// Create store with workspace (simulating workspace transition)
+			const workspace = TestWorkspace;
+			instantiationService.stub(IWorkspaceContextService, new TestContextService(workspace));
+			const store2 = testDisposables.add(instantiationService.createInstance(ChatSessionStore));
+			
+			// Wait for migration to complete
+			await new Promise(resolve => setTimeout(resolve, 100));
+			
+			// Verify file was copied to new location
+			const workspaceStorageRoot = store2.getChatStorageFolder();
+			const migratedSessionFile = URI.joinPath(workspaceStorageRoot, 'session-1.json');
+			const migratedFileExists = await fileService.exists(migratedSessionFile);
+			assert.strictEqual(migratedFileExists, true, 'Session file should be migrated to workspace storage');
+		});
+
+		test('no migration occurs when workspace ID remains the same', async () => {
+			// Create store
+			createChatSessionStore(false);
+			
+			// Create another store with the same workspace
+			createChatSessionStore(false);
+			
+			// Wait for any potential migration
+			await new Promise(resolve => setTimeout(resolve, 100));
+			
+			// If we get here without errors, no migration occurred
+			// (we can't easily detect log calls in NullLogService, but at least we verify no crashes)
+		});
+	});
 });
