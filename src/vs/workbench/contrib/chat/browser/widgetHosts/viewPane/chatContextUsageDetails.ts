@@ -55,6 +55,8 @@ export class ChatContextUsageDetails extends Disposable {
 		this.warningMessage.textContent = localize('qualityWarning', "Quality may decline as limit nears.");
 		this.warningMessage.style.display = 'none';
 
+		this.domNode.appendChild($('.separator'));
+
 		// Action button (placeholder for future functionality)
 		const buttonContainer = this.domNode.appendChild($('.button-container'));
 		const button = this._register(new Button(buttonContainer, {

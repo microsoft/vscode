@@ -18,6 +18,75 @@ import { ChatContextUsageDetails, IChatContextUsageData } from './chatContextUsa
 const $ = dom.$;
 
 /**
+ * A reusable circular progress indicator that displays a pie chart.
+ * The pie fills clockwise from the top based on the percentage value.
+ */
+export class CircularProgressIndicator {
+
+	readonly domNode: SVGSVGElement;
+
+	private readonly progressPie: SVGPathElement;
+
+	private static readonly CENTER_X = 18;
+	private static readonly CENTER_Y = 18;
+	private static readonly RADIUS = 16;
+
+	constructor() {
+		this.domNode = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+		this.domNode.setAttribute('viewBox', '0 0 36 36');
+		this.domNode.classList.add('circular-progress');
+
+		// Background circle (outline only)
+		const bgCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+		bgCircle.setAttribute('cx', String(CircularProgressIndicator.CENTER_X));
+		bgCircle.setAttribute('cy', String(CircularProgressIndicator.CENTER_Y));
+		bgCircle.setAttribute('r', String(CircularProgressIndicator.RADIUS));
+		bgCircle.classList.add('progress-bg');
+		this.domNode.appendChild(bgCircle);
+
+		// Progress pie (filled arc)
+		this.progressPie = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+		this.progressPie.classList.add('progress-pie');
+		this.domNode.appendChild(this.progressPie);
+	}
+
+	/**
+	 * Updates the pie chart to display the given percentage (0-100).
+	 * @param percentage The percentage of the pie to fill (clamped to 0-100)
+	 */
+	setProgress(percentage: number): void {
+		const cx = CircularProgressIndicator.CENTER_X;
+		const cy = CircularProgressIndicator.CENTER_Y;
+		const r = CircularProgressIndicator.RADIUS;
+
+		if (percentage >= 100) {
+			// Full circle - use a circle element's path equivalent
+			this.progressPie.setAttribute('d', `M ${cx} ${cy - r} A ${r} ${r} 0 1 1 ${cx - 0.001} ${cy - r} Z`);
+		} else if (percentage <= 0) {
+			// Empty - no path
+			this.progressPie.setAttribute('d', '');
+		} else {
+			// Calculate the arc endpoint
+			const angle = (percentage / 100) * 360;
+			const radians = (angle - 90) * (Math.PI / 180); // Start from top (-90 degrees)
+			const x = cx + r * Math.cos(radians);
+			const y = cy + r * Math.sin(radians);
+			const largeArcFlag = angle > 180 ? 1 : 0;
+
+			// Create pie slice path: move to center, line to top, arc to endpoint, close
+			const d = [
+				`M ${cx} ${cy}`,           // Move to center
+				`L ${cx} ${cy - r}`,       // Line to top
+				`A ${r} ${r} 0 ${largeArcFlag} 1 ${x} ${y}`, // Arc to endpoint
+				'Z'                         // Close path back to center
+			].join(' ');
+
+			this.progressPie.setAttribute('d', d);
+		}
+	}
+}
+
+/**
  * Widget that displays the context/token usage for the current chat session.
  * Shows a circular progress icon that expands on hover/focus to show token counts,
  * and on click shows the detailed context usage widget.
@@ -29,9 +98,8 @@ export class ChatContextUsageWidget extends Disposable {
 
 	readonly domNode: HTMLElement;
 
-	private readonly iconContainer: HTMLElement;
 	private readonly tokenLabel: HTMLElement;
-	private progressPie: SVGPathElement;
+	private readonly progressIndicator: CircularProgressIndicator;
 
 	private readonly _isVisible = observableValue<boolean>(this, false);
 	get isVisible(): IObservable<boolean> { return this._isVisible; }
@@ -53,27 +121,9 @@ export class ChatContextUsageWidget extends Disposable {
 		this.domNode.setAttribute('aria-label', localize('contextUsageLabel', "Context window usage"));
 
 		// Icon container (always visible, contains the pie chart)
-		this.iconContainer = this.domNode.appendChild($('.icon-container'));
-
-		// Create the circular progress indicator
-		const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-		svg.setAttribute('viewBox', '0 0 36 36');
-		svg.classList.add('circular-progress');
-
-		// Background circle (outline only)
-		const bgCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-		bgCircle.setAttribute('cx', '18');
-		bgCircle.setAttribute('cy', '18');
-		bgCircle.setAttribute('r', '16');
-		bgCircle.classList.add('progress-bg');
-		svg.appendChild(bgCircle);
-
-		// Progress pie (filled arc)
-		this.progressPie = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-		this.progressPie.classList.add('progress-pie');
-		svg.appendChild(this.progressPie);
-
-		this.iconContainer.appendChild(svg);
+		const iconContainer = this.domNode.appendChild($('.icon-container'));
+		this.progressIndicator = new CircularProgressIndicator();
+		iconContainer.appendChild(this.progressIndicator.domNode);
 
 		// Token label (shown on hover/focus)
 		this.tokenLabel = this.domNode.appendChild($('.token-label'));
@@ -179,34 +229,7 @@ export class ChatContextUsageWidget extends Disposable {
 		this.currentData = { promptTokens, maxInputTokens: maxTokens, percentage };
 
 		// Update pie chart progress
-		const cx = 18;
-		const cy = 18;
-		const r = 16;
-
-		if (percentage >= 100) {
-			// Full circle - use a circle element's path equivalent
-			this.progressPie.setAttribute('d', `M ${cx} ${cy - r} A ${r} ${r} 0 1 1 ${cx - 0.001} ${cy - r} Z`);
-		} else if (percentage <= 0) {
-			// Empty - no path
-			this.progressPie.setAttribute('d', '');
-		} else {
-			// Calculate the arc endpoint
-			const angle = (percentage / 100) * 360;
-			const radians = (angle - 90) * (Math.PI / 180); // Start from top (-90 degrees)
-			const x = cx + r * Math.cos(radians);
-			const y = cy + r * Math.sin(radians);
-			const largeArcFlag = angle > 180 ? 1 : 0;
-
-			// Create pie slice path: move to center, line to top, arc to endpoint, close
-			const d = [
-				`M ${cx} ${cy}`,           // Move to center
-				`L ${cx} ${cy - r}`,       // Line to top
-				`A ${r} ${r} 0 ${largeArcFlag} 1 ${x} ${y}`, // Arc to endpoint
-				'Z'                         // Close path back to center
-			].join(' ');
-
-			this.progressPie.setAttribute('d', d);
-		}
+		this.progressIndicator.setProgress(percentage);
 
 		// Update color based on usage level
 		this.domNode.classList.remove('warning', 'error');
