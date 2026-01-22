@@ -15,7 +15,7 @@ import { localize } from '../../../../../../nls.js';
 import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { ProductQualityContext } from '../../../../../../platform/contextkey/common/contextkeys.js';
 import { ChatAgentLocation, ChatConfiguration } from '../../../common/constants.js';
-import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { IChatWidget, IChatWidgetService } from '../../chat.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IAgentSessionsService } from '../agentSessionsService.js';
@@ -32,6 +32,8 @@ class AgentSessionReadyContribution extends Disposable implements IWorkbenchCont
 	static readonly ID = 'chat.agentSessionReady';
 
 	private readonly _widgetDisposables = this._register(new DisposableStore());
+	private _entriesWatcher: IDisposable | undefined;
+	private _watchedSessionResource: URI | undefined;
 
 	constructor(
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
@@ -99,21 +101,30 @@ class AgentSessionReadyContribution extends Disposable implements IWorkbenchCont
 		this._updateSessionReadyState(sessionResource);
 	}
 
+	private _clearEntriesWatcher(): void {
+		this._entriesWatcher?.dispose();
+		this._entriesWatcher = undefined;
+		this._watchedSessionResource = undefined;
+	}
+
 	private _updateSessionReadyState(sessionResource: URI | undefined): void {
 		// Check if projection is enabled
 		const isEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.AgentSessionProjectionEnabled);
 		if (!isEnabled) {
+			this._clearEntriesWatcher();
 			this.agentTitleBarStatusService.exitSessionReadyMode();
 			return;
 		}
 
 		// Check if already in projection mode
 		if (this.agentSessionProjectionService.isActive) {
+			this._clearEntriesWatcher();
 			this.agentTitleBarStatusService.exitSessionReadyMode();
 			return;
 		}
 
 		if (!sessionResource) {
+			this._clearEntriesWatcher();
 			this.agentTitleBarStatusService.exitSessionReadyMode();
 			return;
 		}
@@ -121,18 +132,21 @@ class AgentSessionReadyContribution extends Disposable implements IWorkbenchCont
 		// Get the session
 		const session = this.agentSessionsService.getSession(sessionResource);
 		if (!session) {
+			this._clearEntriesWatcher();
 			this.agentTitleBarStatusService.exitSessionReadyMode();
 			return;
 		}
 
 		// Check if this is a projection-capable provider
 		if (!AGENT_SESSION_PROJECTION_ENABLED_PROVIDERS.has(session.providerType)) {
+			this._clearEntriesWatcher();
 			this.agentTitleBarStatusService.exitSessionReadyMode();
 			return;
 		}
 
 		// Check if session is in progress
 		if (isSessionInProgressStatus(session.status)) {
+			this._clearEntriesWatcher();
 			this.agentTitleBarStatusService.exitSessionReadyMode();
 			return;
 		}
@@ -140,6 +154,7 @@ class AgentSessionReadyContribution extends Disposable implements IWorkbenchCont
 		// Check if session has undecided changes
 		const editingSession = this.chatEditingService.getEditingSession(sessionResource);
 		if (!editingSession) {
+			this._clearEntriesWatcher();
 			this.agentTitleBarStatusService.exitSessionReadyMode();
 			return;
 		}
@@ -151,15 +166,22 @@ class AgentSessionReadyContribution extends Disposable implements IWorkbenchCont
 			// Enter session-ready mode
 			this.agentTitleBarStatusService.enterSessionReadyMode(session.resource, session.label);
 
-			// Monitor the entries for changes
-			this._widgetDisposables.add(autorun(reader => {
-				const currentEntries = editingSession.entries.read(reader);
-				const stillHasChanges = currentEntries.some(entry => entry.state.read(reader) === ModifiedFileEntryState.Modified);
-				if (!stillHasChanges) {
-					this.agentTitleBarStatusService.exitSessionReadyMode();
-				}
-			}));
+			// Only set up the watcher if we're not already watching this session
+			if (!this._watchedSessionResource || this._watchedSessionResource.toString() !== sessionResource.toString()) {
+				this._clearEntriesWatcher();
+				this._watchedSessionResource = sessionResource;
+
+				// Monitor the entries for changes
+				this._entriesWatcher = autorun(reader => {
+					const currentEntries = editingSession.entries.read(reader);
+					const stillHasChanges = currentEntries.some(entry => entry.state.read(reader) === ModifiedFileEntryState.Modified);
+					if (!stillHasChanges) {
+						this.agentTitleBarStatusService.exitSessionReadyMode();
+					}
+				});
+			}
 		} else {
+			this._clearEntriesWatcher();
 			this.agentTitleBarStatusService.exitSessionReadyMode();
 		}
 	}
@@ -194,6 +216,7 @@ MenuRegistry.appendMenuItem(MenuId.AgentsTitleBarControlMenu, {
 		title: localize('openChat', "Open Chat"),
 	},
 	when: ContextKeyExpr.has(`config.${ChatConfiguration.AgentStatusEnabled}`),
+	group: 'a_open',
 	order: 1
 });
 
@@ -205,6 +228,7 @@ MenuRegistry.appendMenuItem(MenuId.AgentsTitleBarControlMenu, {
 		toggled: ContextKeyExpr.has(`config.${ChatConfiguration.UnifiedAgentsBar}`),
 	},
 	when: ProductQualityContext.notEqualsTo('stable'),
+	group: 'z_experimental',
 	order: 10
 });
 
