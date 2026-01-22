@@ -17,7 +17,7 @@ import { IContextKeyService } from '../../../../../../platform/contextkey/common
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
-import { AgentSessionProviders, getAgentSessionProvider, getAgentSessionProviderIcon, getAgentSessionProviderName, isFirstPartyAgentSessionProvider } from '../../agentSessions/agentSessions.js';
+import { AgentSessionProviders, getAgentSessionProvider, getAgentSessionProviderDescription, getAgentSessionProviderIcon, getAgentSessionProviderName, isFirstPartyAgentSessionProvider } from '../../agentSessions/agentSessions.js';
 import { ChatInputPickerActionViewItem, IChatInputPickerOptions } from './chatInputPickerActionItem.js';
 import { ISessionTypePickerDelegate } from '../../chat.js';
 import { IActionProvider } from '../../../../../../base/browser/ui/dropdown/dropdown.js';
@@ -25,7 +25,7 @@ import { IActionProvider } from '../../../../../../base/browser/ui/dropdown/drop
 export interface ISessionTypeItem {
 	type: AgentSessionProviders;
 	label: string;
-	description: string;
+	hoverDescription: string;
 	commandId: string;
 }
 
@@ -56,7 +56,7 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 			getActions: () => {
 				const currentType = this._getSelectedSessionType();
 
-				const actions: IActionWidgetDropdownAction[] = [...this._getAdditionalActions()];
+				const actions: IActionWidgetDropdownAction[] = [...this._getAdditionalActions().map(a => ({ ...action, ...a }))];
 				for (const sessionTypeItem of this._sessionTypeItems) {
 					if (!this._isVisible(sessionTypeItem.type)) {
 						continue;
@@ -66,12 +66,13 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 						...action,
 						id: sessionTypeItem.commandId,
 						label: sessionTypeItem.label,
-						tooltip: sessionTypeItem.description,
 						checked: currentType === sessionTypeItem.type,
 						icon: getAgentSessionProviderIcon(sessionTypeItem.type),
 						enabled: this._isSessionTypeEnabled(sessionTypeItem.type),
 						category: this._getSessionCategory(sessionTypeItem),
 						description: this._getSessionDescription(sessionTypeItem),
+						tooltip: '',
+						hover: { content: sessionTypeItem.hoverDescription },
 						run: async () => {
 							this._run(sessionTypeItem);
 						},
@@ -141,7 +142,7 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 		const localSessionItem: ISessionTypeItem = {
 			type: AgentSessionProviders.Local,
 			label: getAgentSessionProviderName(AgentSessionProviders.Local),
-			description: localize('chat.sessionTarget.local.description', "Local chat session"),
+			hoverDescription: getAgentSessionProviderDescription(AgentSessionProviders.Local),
 			commandId: `workbench.action.chat.openNewChatSessionInPlace.${AgentSessionProviders.Local}`,
 		};
 
@@ -157,7 +158,7 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 			agentSessionItems.push({
 				type: agentSessionType,
 				label: getAgentSessionProviderName(agentSessionType),
-				description: contribution.description,
+				hoverDescription: getAgentSessionProviderDescription(agentSessionType),
 				commandId: contribution.canDelegate ?
 					`workbench.action.chat.openNewChatSessionInPlace.${contribution.type}` :
 					`workbench.action.chat.openNewChatSessionExternal.${contribution.type}`,

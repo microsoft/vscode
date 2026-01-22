@@ -9,7 +9,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { IRange } from '../../../../../editor/common/core/range.js';
 import { isLocation } from '../../../../../editor/common/languages.js';
 import { IChatProgressRenderableResponseContent, IChatProgressResponseContent, appendMarkdownString, canMergeMarkdownStrings } from '../model/chatModel.js';
-import { IChatAgentVulnerabilityDetails } from '../chatService/chatService.js';
+import { IChatAgentVulnerabilityDetails, IChatMarkdownContent } from '../chatService/chatService.js';
 
 export const contentRefUrl = 'http://_vscodecontentref_'; // must be lowercase for URI
 
@@ -79,6 +79,31 @@ export interface IMarkdownVulnerability {
 	readonly description: string;
 	readonly range: IRange;
 }
+
+export function annotateVulnerabilitiesInText(response: ReadonlyArray<IChatProgressResponseContent>): readonly IChatMarkdownContent[] {
+	const result: IChatMarkdownContent[] = [];
+	for (const item of response) {
+		const previousItem = result[result.length - 1];
+		if (item.kind === 'markdownContent') {
+			if (previousItem?.kind === 'markdownContent') {
+				result[result.length - 1] = { content: new MarkdownString(previousItem.content.value + item.content.value, { isTrusted: previousItem.content.isTrusted }), kind: 'markdownContent' };
+			} else {
+				result.push(item);
+			}
+		} else if (item.kind === 'markdownVuln') {
+			const vulnText = encodeURIComponent(JSON.stringify(item.vulnerabilities));
+			const markdownText = `<vscode_annotation details='${vulnText}'>${item.content.value}</vscode_annotation>`;
+			if (previousItem?.kind === 'markdownContent') {
+				result[result.length - 1] = { content: new MarkdownString(previousItem.content.value + markdownText, { isTrusted: previousItem.content.isTrusted }), kind: 'markdownContent' };
+			} else {
+				result.push({ content: new MarkdownString(markdownText), kind: 'markdownContent' });
+			}
+		}
+	}
+
+	return result;
+}
+
 export function extractCodeblockUrisFromText(text: string): { uri: URI; isEdit?: boolean; textWithoutResult: string } | undefined {
 	const match = /<vscode_codeblock_uri( isEdit)?>(.*?)<\/vscode_codeblock_uri>/ms.exec(text);
 	if (match) {

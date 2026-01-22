@@ -3166,6 +3166,15 @@ export class ChatResponseMultiDiffPart {
 	}
 }
 
+export class McpToolInvocationContentData {
+	mimeType: string;
+	data: Uint8Array;
+	constructor(data: Uint8Array, mimeType: string) {
+		this.data = data;
+		this.mimeType = mimeType;
+	}
+}
+
 export class ChatResponseExternalEditPart {
 	applied: Thenable<string>;
 	didGetApplied!: (value: string) => void;
@@ -3340,6 +3349,13 @@ export class ChatResponseNotebookEditPart implements vscode.ChatResponseNotebook
 	}
 }
 
+export class ChatResponseWorkspaceEditPart implements vscode.ChatResponseWorkspaceEditPart {
+	edits: vscode.ChatWorkspaceFileEdit[];
+	constructor(edits: vscode.ChatWorkspaceFileEdit[]) {
+		this.edits = edits;
+	}
+}
+
 export interface ChatTerminalToolInvocationData2 {
 	commandLine: {
 		original: string;
@@ -3419,6 +3435,10 @@ export enum ChatSessionStatus {
 
 export class ChatSessionChangedFile {
 	constructor(public readonly modifiedUri: vscode.Uri, public readonly insertions: number, public readonly deletions: number, public readonly originalUri?: vscode.Uri) { }
+}
+
+export class ChatSessionChangedFile2 {
+	constructor(public readonly uri: vscode.Uri, public readonly originalUri: vscode.Uri | undefined, public readonly modifiedUri: vscode.Uri | undefined, public readonly insertions: number, public readonly deletions: number) { }
 }
 
 export enum ChatResponseReferencePartStatusKind {
@@ -3888,24 +3908,4 @@ export class McpHttpServerDefinition implements vscode.McpHttpServerDefinition {
 //#endregion
 
 //#region Chat Prompt Files
-
-@es5ClassCompat
-export class CustomAgentChatResource implements vscode.CustomAgentChatResource {
-	constructor(public readonly resource: vscode.ChatResourceDescriptor) { }
-}
-
-@es5ClassCompat
-export class InstructionsChatResource implements vscode.InstructionsChatResource {
-	constructor(public readonly resource: vscode.ChatResourceDescriptor) { }
-}
-
-@es5ClassCompat
-export class PromptFileChatResource implements vscode.PromptFileChatResource {
-	constructor(public readonly resource: vscode.ChatResourceDescriptor) { }
-}
-
-@es5ClassCompat
-export class SkillChatResource implements vscode.SkillChatResource {
-	constructor(public readonly resource: vscode.ChatResourceUriDescriptor) { }
-}
 //#endregion
