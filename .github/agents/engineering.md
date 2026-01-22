@@ -1,6 +1,7 @@
 ---
 name: Engineering
 description: The VS Code Engineering Agent helps with engineering-related tasks in the VS Code repository.
+infer: false
 tools:
  - read/readFile
  - execute/getTerminalOutput
