@@ -13,14 +13,12 @@ import { createInstantHoverDelegate } from '../../../../../base/browser/ui/hover
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import * as event from '../../../../../base/common/event.js';
-import * as glob from '../../../../../base/common/glob.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { basename, dirname } from '../../../../../base/common/path.js';
-import { basename as resourceBasename } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IRange } from '../../../../../editor/common/core/range.js';
@@ -48,6 +46,7 @@ import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IOpenerService, OpenInternalOptions } from '../../../../../platform/opener/common/opener.js';
 import { FolderThemeIcon, IThemeService } from '../../../../../platform/theme/common/themeService.js';
+import { globMatchesResource } from '../../../../services/editor/common/editorResolverService.js';
 import { fillEditorsDragData } from '../../../../browser/dnd.js';
 import { IFileLabelOptions, IResourceLabel, ResourceLabels } from '../../../../browser/labels.js';
 import { ResourceContextKey } from '../../../../common/contextkeys.js';
@@ -84,11 +83,10 @@ const commonHoverLifecycleOptions: IHoverLifecycleOptions = {
  */
 export function getEditorOverrideForChatResource(resource: URI, configurationService: IConfigurationService): string | undefined {
 	const associations = configurationService.getValue<Record<string, string>>(ChatConfiguration.EditorAssociations) ?? {};
+	// Sort patterns by length (longer patterns are more specific)
 	const sortedPatterns = Object.keys(associations).sort((a, b) => b.length - a.length);
 	for (const pattern of sortedPatterns) {
-		const matchOnPath = pattern.indexOf('/') >= 0;
-		const target = matchOnPath ? resource.path : resourceBasename(resource);
-		if (glob.match(pattern, target, { ignoreCase: true })) {
+		if (globMatchesResource(pattern, resource)) {
 			return associations[pattern];
 		}
 	}
