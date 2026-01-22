@@ -14,10 +14,7 @@
 		"chat.agentsControl.enabled": true,
 		"files.autoSave": "afterDelay",
 		"chat.commandCenter.enabled": false,
-		"chat.tools.terminal.outputLocation": "chat",
-		"window.title": "${profileName}",
-		"workbench.editor.showTabs": "single",
-		"breadcrumbs.enabled": false,
-		"workbench.colorTheme": "Default Light Modern"
+		"window.title": "Agent Sessions",
+		"workbench.editor.showTabs": "single"
 	}
 }
