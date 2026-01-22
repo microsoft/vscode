@@ -895,8 +895,17 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		let availableSessionsHeight = height - this.sessionsTitleContainer.offsetHeight;
 		if (this.sessionsViewerOrientation === AgentSessionsViewerOrientation.Stacked) {
 			availableSessionsHeight -= Math.max(ChatViewPane.MIN_CHAT_WIDGET_HEIGHT, this._widget?.input?.height.get() ?? 0);
-		} else {
-			availableSessionsHeight -= this.sessionsNewButtonContainer?.offsetHeight ?? 0;
+		} else if (this.sessionsNewButtonContainer) {
+			// In side-by-side mode, hide the "New Session" button when height is limited
+			// to make more room for sessions. Show button only when there's enough space
+			// for at least 2 session items plus the button itself.
+			const buttonHeight = this.sessionsNewButtonContainer.offsetHeight;
+			const minHeightForButton = 2 * AgentSessionsListDelegate.ITEM_HEIGHT + buttonHeight;
+			const showNewButton = availableSessionsHeight >= minHeightForButton;
+			setVisibility(showNewButton, this.sessionsNewButtonContainer);
+			if (showNewButton) {
+				availableSessionsHeight -= buttonHeight;
+			}
 		}
 
 		// Show as sidebar
