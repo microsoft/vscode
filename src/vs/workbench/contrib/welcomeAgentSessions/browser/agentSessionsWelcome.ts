@@ -55,6 +55,7 @@ import { IHostService } from '../../../services/host/browser/host.js';
 
 const configurationKey = 'workbench.startupEditor';
 const MAX_SESSIONS = 6;
+const MAX_PICK = 10;
 
 export class AgentSessionsWelcomePage extends EditorPane {
 
@@ -135,7 +136,7 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		this._isEmptyWorkspace = this.workspaceContextService.getWorkbenchState() === WorkbenchState.EMPTY;
 		if (this._isEmptyWorkspace) {
 			const recentlyOpened = await this.workspacesService.getRecentlyOpened();
-			this._recentWorkspaces = recentlyOpened.workspaces.slice(0, 10);
+			this._recentWorkspaces = recentlyOpened.workspaces.slice(0, MAX_PICK);
 		}
 
 		// Get walkthroughs

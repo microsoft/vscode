@@ -1917,14 +1917,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				} else if (action.id === OpenWorkspacePickerAction.ID && action instanceof MenuItemAction) {
 					if (this.workspaceContextService.getWorkspace().folders.length === 0 && this.options.workspacePickerDelegate) {
 						return this.instantiationService.createInstance(WorkspacePickerActionItem, action, this.options.workspacePickerDelegate, pickerOptions);
-						// empty view
 					} else {
 						const empty = new BaseActionViewItem(undefined, action);
 						if (empty.element) {
 							empty.element.style.display = 'none';
 						}
 						return empty;
-
 					}
 				} else if (action.id === ChatSessionPrimaryPickerAction.ID && action instanceof MenuItemAction) {
 					// Create all pickers and return a container action view item

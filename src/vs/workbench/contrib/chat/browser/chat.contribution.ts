@@ -22,7 +22,6 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { McpAccessValue, McpAutoStartValue, mcpAccessConfig, mcpAutoStartConfig, mcpGalleryServiceEnablementConfig, mcpGalleryServiceUrlConfig, mcpAppsEnabledConfig } from '../../../../platform/mcp/common/mcpManagement.js';
 import product from '../../../../platform/product/common/product.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
-import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/editor.js';
 import { Extensions, IConfigurationMigrationRegistry } from '../../../common/configuration.js';
 import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
@@ -1180,29 +1179,6 @@ class ToolReferenceNamesContribution extends Disposable implements IWorkbenchCon
 	}
 }
 
-/**
- * Contribution that reads and applies chat prefill data from storage when a workspace is opened.
- * This is used by the welcome page's workspace picker feature to transfer chat input
- * when opening a new workspace.
- */
-class ChatPrefillContribution extends Disposable implements IWorkbenchContribution {
-
-	static readonly ID = 'workbench.contrib.chatPrefill';
-
-	constructor(
-		@IStorageService storageService: IStorageService,
-	) {
-		super();
-		// The welcome view handles prefill directly when it's shown.
-		// This contribution only clears stale prefill data if the welcome view wasn't opened.
-		// The actual prefill is handled in agentSessionsWelcome.ts buildChatWidget()
-		// We keep this contribution to ensure prefill data doesn't persist across sessions
-		// if the welcome view is not shown (e.g., user has different startup editor configured).
-		// Note: We don't clear immediately here because the welcome view may still load.
-		// The welcome view will clear the data when it consumes it.
-	}
-}
-
 AccessibleViewRegistry.register(new ChatTerminalOutputAccessibleView());
 AccessibleViewRegistry.register(new ChatThinkingAccessibleView());
 AccessibleViewRegistry.register(new ChatResponseAccessibleView());
@@ -1322,7 +1298,6 @@ registerWorkbenchContribution2(ChatEditingEditorContextKeys.ID, ChatEditingEdito
 registerWorkbenchContribution2(ChatTransferContribution.ID, ChatTransferContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatContextContributions.ID, ChatContextContributions, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatResponseResourceFileSystemProvider.ID, ChatResponseResourceFileSystemProvider, WorkbenchPhase.AfterRestored);
-registerWorkbenchContribution2(ChatPrefillContribution.ID, ChatPrefillContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(PromptUrlHandler.ID, PromptUrlHandler, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatEditingNotebookFileSystemProviderContrib.ID, ChatEditingNotebookFileSystemProviderContrib, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(UserToolSetsContributions.ID, UserToolSetsContributions, WorkbenchPhase.Eventually);
