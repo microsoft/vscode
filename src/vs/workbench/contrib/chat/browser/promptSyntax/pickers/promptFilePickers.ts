@@ -7,7 +7,7 @@ import { localize } from '../../../../../../nls.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
-import { IPromptPath, IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
+import { IExtensionPromptPath, IPromptPath, IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { dirname, extUri, joinPath } from '../../../../../../base/common/resources.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
@@ -25,6 +25,8 @@ import { askForPromptSourceFolder } from './askForPromptSourceFolder.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { PromptsConfig } from '../../../common/promptSyntax/config/config.js';
+import { IProductService } from '../../../../../../platform/product/common/productService.js';
+import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { PromptFileRewriter } from '../promptFileRewriter.js';
 
 /**
@@ -259,6 +261,7 @@ export class PromptFilePickers {
 		@IPromptsService private readonly _promptsService: IPromptsService,
 		@ILabelService private readonly _labelService: ILabelService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IProductService private readonly _productService: IProductService,
 	) {
 	}
 
@@ -408,9 +411,8 @@ export class PromptFilePickers {
 			result.push(...sortByLabel(await Promise.all(agentInstructionFiles.map(l => this._createPromptPickItem(l, agentButtons, getVisibility(l), token)))));
 		}
 
-		const exts = await this._promptsService.listPromptFilesForStorage(options.type, PromptsStorage.extension, token);
+		const exts = await this._promptsService.listPromptFilesForStorage(options.type, PromptsStorage.extension, token) as IExtensionPromptPath[];
 		if (exts.length) {
-			result.push({ type: 'separator', label: localize('separator.extensions', "Extensions") });
 			const extButtons: IQuickInputButton[] = [];
 			if (options.optionEdit !== false) {
 				extButtons.push(EDIT_BUTTON);
@@ -418,7 +420,20 @@ export class PromptFilePickers {
 			if (options.optionCopy !== false) {
 				extButtons.push(COPY_BUTTON);
 			}
-			result.push(...sortByLabel(await Promise.all(exts.map(e => this._createPromptPickItem(e, extButtons, getVisibility(e), token)))));
+
+			const groupedExts = new Map<string, IPromptPath[]>();
+			for (const ext of exts) {
+				const groupLabel = this._getExtensionGroupLabel(ext);
+				if (!groupedExts.has(groupLabel)) {
+					groupedExts.set(groupLabel, []);
+				}
+				groupedExts.get(groupLabel)!.push(ext);
+			}
+
+			for (const [groupLabel, groupExts] of groupedExts) {
+				result.push({ type: 'separator', label: groupLabel });
+				result.push(...sortByLabel(await Promise.all(groupExts.map(e => this._createPromptPickItem(e, extButtons, getVisibility(e), token)))));
+			}
 		}
 		const users = await this._promptsService.listPromptFilesForStorage(options.type, PromptsStorage.user, token);
 		if (users.length) {
@@ -426,6 +441,19 @@ export class PromptFilePickers {
 			result.push(...sortByLabel(await Promise.all(users.map(u => this._createPromptPickItem(u, buttons, getVisibility(u), token)))));
 		}
 		return result;
+	}
+
+	private _getExtensionGroupLabel(extPath: IExtensionPromptPath): string {
+		// Hack: if the prompt file comes from the built-in chat extension and is under a `/github/` path it's an organization-provided prompt file.
+		const chatExtensionId = this._productService.defaultChatAgent?.chatExtensionId;
+		const isFromBuiltinChatExtension = chatExtensionId && ExtensionIdentifier.equals(extPath.extension.identifier, chatExtensionId);
+		const pathContainsGithub = extPath.uri.path.includes('/github/');
+		if (isFromBuiltinChatExtension && pathContainsGithub) {
+			return localize('separator.organization', "Organization");
+		}
+
+		// By default, extension prompt files are grouped under "Extensions"
+		return localize('separator.extensions', "Extensions");
 	}
 
 	private _getNewItems(type: PromptsType): IPromptPickerQuickPickItem[] {

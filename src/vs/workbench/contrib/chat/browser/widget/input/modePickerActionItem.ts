@@ -26,7 +26,7 @@ import { IProductService } from '../../../../../../platform/product/common/produ
 import { IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatMode, IChatMode, IChatModeService } from '../../../common/chatModes.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../common/constants.js';
-import { ExtensionAgentSourceType, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
+import { PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { getOpenChatActionIdForMode } from '../../actions/chatActions.js';
 import { IToggleChatModeArgs, ToggleAgentModeActionId } from '../../actions/chatExecuteActions.js';
 import { ChatInputPickerActionViewItem, IChatInputPickerOptions } from './chatInputPickerActionItem.js';
@@ -230,5 +230,14 @@ function isModeConsideredBuiltIn(mode: IChatMode, productService: IProductServic
 	if (mode.isBuiltin) {
 		return true;
 	}
-	return mode.source?.storage === PromptsStorage.extension && mode.source.extensionId.value === productService.defaultChatAgent?.chatExtensionId && mode.source.type === ExtensionAgentSourceType.contribution;
+	// Not built-in if not from the built-in chat extension
+	const chatExtensionId = productService.defaultChatAgent?.chatExtensionId;
+	const isFromBuiltinChatExtension = mode.source?.storage === PromptsStorage.extension &&
+		mode.source.extensionId.value === chatExtensionId;
+	if (!isFromBuiltinChatExtension) {
+		return false;
+	}
+	// Organization-provided agents (under /github/ path) are also not considered built-in
+	const modeUriPath = mode.uri?.get()?.path;
+	return Boolean(modeUriPath && !modeUriPath.includes('/github/'));
 }
