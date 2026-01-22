@@ -123,6 +123,42 @@ suite('LanguageModels', function () {
 		assert.deepStrictEqual(result1[0], 'test-id-1');
 	});
 
+	test('selector.id matches internal model identifier', async function () {
+
+		store.add(languageModels.registerLanguageModelProvider('actual-vendor', {
+			onDidChange: Event.None,
+			provideLanguageModelChatInfo: async () => {
+				const modelMetadata = [
+					{
+						extension: nullExtensionDescription.identifier,
+						name: 'Pretty Name',
+						vendor: 'actual-vendor',
+						family: 'actual-family',
+						version: 'actual-version',
+						modelPickerCategory: DEFAULT_MODEL_PICKER_CATEGORY,
+						id: 'actual-lm',
+						maxInputTokens: 100,
+						maxOutputTokens: 100,
+						isDefaultForLocation: {}
+					} satisfies ILanguageModelChatMetadata
+				];
+				return modelMetadata.map(m => ({
+					metadata: m,
+					identifier: `${m.vendor}/Azure/${m.id}`,
+				}));
+			},
+			sendChatRequest: async () => {
+				throw new Error();
+			},
+			provideTokenCount: async () => {
+				throw new Error();
+			}
+		}));
+
+		const result = await languageModels.selectLanguageModels({ id: 'actual-vendor/Azure/actual-lm' });
+		assert.deepStrictEqual(result, ['actual-vendor/Azure/actual-lm']);
+	});
+
 	test('no warning that a matching model was not found #213716', async function () {
 		const result1 = await languageModels.selectLanguageModels({ vendor: 'test-vendor' });
 		assert.deepStrictEqual(result1.length, 2);

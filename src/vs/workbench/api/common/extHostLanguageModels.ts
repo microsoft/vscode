@@ -124,7 +124,6 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 	private readonly _languageModelProviders = new Map<string, LanguageModelProviderData>();
 	// TODO @lramos15 - Remove the need for both info and metadata as it's a lot of redundancy. Should just need one
 	private readonly _localModels = new Map<string, { metadata: ILanguageModelChatMetadata; info: vscode.LanguageModelChatInformation }>();
-	private readonly _localModelIdentifiersByVendorAndGroup = new Map<string, Map<string, Set<string>>>();
 	private readonly _modelAccessList = new ExtensionIdentifierMap<ExtensionIdentifierSet>();
 	private readonly _pendingRequest = new Map<number, { languageModelId: string; res: LanguageModelResponse }>();
 	private readonly _ignoredFileProviders = new Map<number, vscode.LanguageModelIgnoredFileProvider>();
@@ -171,7 +170,19 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 				this._localModels.delete(key);
 			}
 		});
-		this._localModelIdentifiersByVendorAndGroup.delete(vendor);
+	}
+
+	private _modelIdentifierMatchesVendorAndGroup(identifier: string, vendor: string, group: string | undefined): boolean {
+		const vendorPrefix = `${vendor}/`;
+		if (!identifier.startsWith(vendorPrefix)) {
+			return false;
+		}
+		if (!group) {
+			// Ungrouped identifiers have the form: vendor/id
+			return identifier.indexOf('/', vendorPrefix.length) === -1;
+		}
+		// Grouped identifiers have the form: vendor/group/id
+		return identifier.startsWith(`${vendor}/${group}/`);
 	}
 
 	async $provideLanguageModelChatInfo(vendor: string, options: ILanguageModelChatInfoOptions, token: CancellationToken): Promise<ILanguageModelChatMetadataAndIdentifier[]> {
@@ -238,21 +249,15 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 			};
 		});
 
-		const groupKey = options.group ?? '';
-		let identifiersByGroup = this._localModelIdentifiersByVendorAndGroup.get(vendor);
-		if (!identifiersByGroup) {
-			identifiersByGroup = new Map();
-			this._localModelIdentifiersByVendorAndGroup.set(vendor, identifiersByGroup);
-		}
-
+		// Refresh the cache scoped to this vendor+group only:
+		// remove stale identifiers from previous resolves, but do NOT evict other groups for the same vendor
+		// (e.g. an ungrouped resolve returning 0 models must not clear grouped models). Snapshot keys before deleting.
 		const newIdentifiers = new Set(modelMetadataAndIdentifier.map(m => m.identifier));
-		const previousIdentifiers = identifiersByGroup.get(groupKey) ?? new Set<string>();
-		for (const previousIdentifier of previousIdentifiers) {
-			if (!newIdentifiers.has(previousIdentifier)) {
-				this._localModels.delete(previousIdentifier);
+		for (const existingIdentifier of Array.from(this._localModels.keys())) {
+			if (this._modelIdentifierMatchesVendorAndGroup(existingIdentifier, vendor, options.group) && !newIdentifiers.has(existingIdentifier)) {
+				this._localModels.delete(existingIdentifier);
 			}
 		}
-		identifiersByGroup.set(groupKey, newIdentifiers);
 
 		for (let i = 0; i < modelMetadataAndIdentifier.length; i++) {
 			this._localModels.set(modelMetadataAndIdentifier[i].identifier, {
