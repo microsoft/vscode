@@ -53,8 +53,13 @@ export class UserDataProfileTemplatesWatcher extends Disposable {
 			return;
 		}
 
-		this.logService.trace(`UserDataProfileTemplateService: Watching template file for profile '${profile.name}'`, templateResource.toString());
+		try {
+			await this.onDidChangeProfileTemplate(profile); // Apply any changes on startup
+		} catch (error) {
+			this.logService.error(`UserDataProfileTemplateService: Failed to apply template changes on startup for profile '${profile.name}'`, error);
+		}
 
+		this.logService.trace(`UserDataProfileTemplateService: Watching template file for profile '${profile.name}'`, templateResource.toString());
 		const watcher = this.fileService.createWatcher(templateResource, { recursive: false, excludes: [] });
 		const disposable = watcher.onDidChange(() => {
 			this.logService.trace(`UserDataProfileTemplateService: Template file changed for profile '${profile.name}'`, templateResource.toString());
