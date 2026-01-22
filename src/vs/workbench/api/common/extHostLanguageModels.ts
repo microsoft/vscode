@@ -124,6 +124,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 	private readonly _languageModelProviders = new Map<string, LanguageModelProviderData>();
 	// TODO @lramos15 - Remove the need for both info and metadata as it's a lot of redundancy. Should just need one
 	private readonly _localModels = new Map<string, { metadata: ILanguageModelChatMetadata; info: vscode.LanguageModelChatInformation }>();
+	private readonly _localModelIdentifiersByVendorAndGroup = new Map<string, Map<string, Set<string>>>();
 	private readonly _modelAccessList = new ExtensionIdentifierMap<ExtensionIdentifierSet>();
 	private readonly _pendingRequest = new Map<number, { languageModelId: string; res: LanguageModelResponse }>();
 	private readonly _ignoredFileProviders = new Map<number, vscode.LanguageModelIgnoredFileProvider>();
@@ -170,6 +171,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 				this._localModels.delete(key);
 			}
 		});
+		this._localModelIdentifiersByVendorAndGroup.delete(vendor);
 	}
 
 	async $provideLanguageModelChatInfo(vendor: string, options: ILanguageModelChatInfoOptions, token: CancellationToken): Promise<ILanguageModelChatMetadataAndIdentifier[]> {
@@ -236,7 +238,24 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 			};
 		});
 
-		this._clearModelCache(vendor);
+		this._logService.info('[LM][extHost] _localModels (bc)', { reason: '$provideLanguageModelChatInfo', vendor: vendor, keysSample: Array.from(this._localModels.keys()).slice(0, 200) });
+
+		const groupKey = options.group ?? '';
+		let identifiersByGroup = this._localModelIdentifiersByVendorAndGroup.get(vendor);
+		if (!identifiersByGroup) {
+			identifiersByGroup = new Map();
+			this._localModelIdentifiersByVendorAndGroup.set(vendor, identifiersByGroup);
+		}
+
+		const newIdentifiers = new Set(modelMetadataAndIdentifier.map(m => m.identifier));
+		const previousIdentifiers = identifiersByGroup.get(groupKey) ?? new Set<string>();
+		for (const previousIdentifier of previousIdentifiers) {
+			if (!newIdentifiers.has(previousIdentifier)) {
+				this._localModels.delete(previousIdentifier);
+			}
+		}
+		identifiersByGroup.set(groupKey, newIdentifiers);
+
 		for (let i = 0; i < modelMetadataAndIdentifier.length; i++) {
 			this._localModels.set(modelMetadataAndIdentifier[i].identifier, {
 				metadata: modelMetadataAndIdentifier[i].metadata,
@@ -244,12 +263,14 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 			});
 		}
 
+		this._logService.info('[LM][extHost] _localModels (as)', { reason: '$provideLanguageModelChatInfo', vendor: vendor, keysSample: Array.from(this._localModels.keys()).slice(0, 200) });
+
 		return modelMetadataAndIdentifier;
 	}
 
 	async $startChatRequest(modelId: string, requestId: number, from: ExtensionIdentifier, messages: SerializableObjectWithBuffers<IChatMessage[]>, options: vscode.LanguageModelChatRequestOptions, token: CancellationToken): Promise<void> {
 		const knownModel = this._localModels.get(modelId);
-		this._logService.trace('[LM][extHost] _localModels.get', { reason: '$startChatRequest', modelId, hit: !!knownModel, size: this._localModels.size, keysSample: Array.from(this._localModels.keys()).slice(0, 200) });
+		this._logService.info('[LM][extHost] _localModels.get', { reason: '$startChatRequest', modelId, hit: !!knownModel, size: this._localModels.size, keysSample: Array.from(this._localModels.keys()).slice(0, 200) });
 		if (!knownModel) {
 			throw new Error('Model not found');
 		}
@@ -332,7 +353,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 
 	$provideTokenLength(modelId: string, value: string, token: CancellationToken): Promise<number> {
 		const knownModel = this._localModels.get(modelId);
-		this._logService.trace('[LM][extHost] _localModels.get', { reason: '$provideTokenLength', modelId, hit: !!knownModel, size: this._localModels.size, keysSample: Array.from(this._localModels.keys()).slice(0, 200) });
+		this._logService.info('[LM][extHost] _localModels.get', { reason: '$provideTokenLength', modelId, hit: !!knownModel, size: this._localModels.size, keysSample: Array.from(this._localModels.keys()).slice(0, 200) });
 		if (!knownModel) {
 			return Promise.resolve(0);
 		}
@@ -372,7 +393,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		}
 
 		const model = this._localModels.get(modelId);
-		this._logService.trace('[LM][extHost] _localModels.get', { reason: 'getLanguageModelByIdentifier', modelId, hit: !!model, size: this._localModels.size, keysSample: Array.from(this._localModels.keys()).slice(0, 200) });
+		this._logService.info('[LM][extHost] _localModels.get', { reason: 'getLanguageModelByIdentifier', modelId, hit: !!model, size: this._localModels.size, keysSample: Array.from(this._localModels.keys()).slice(0, 200) });
 		if (!model) {
 			// model gone? is this an error on us? Try to resolve model again
 			return (await this.selectLanguageModels(extension, { id: modelId }))[0];
@@ -400,7 +421,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 				maxInputTokens: model.metadata.maxInputTokens,
 				countTokens(text, token) {
 					const hasModel = that._localModels.has(modelId);
-					that._logService.trace('[LM][extHost] _localModels.has', { reason: 'LanguageModelChat.countTokens', modelId, hasModel, size: that._localModels.size, keysSample: Array.from(that._localModels.keys()).slice(0, 200) });
+					that._logService.info('[LM][extHost] _localModels.has', { reason: 'LanguageModelChat.countTokens', modelId, hasModel, size: that._localModels.size, keysSample: Array.from(that._localModels.keys()).slice(0, 200) });
 					if (!hasModel) {
 						throw extHostTypes.LanguageModelError.NotFound(modelId);
 					}
@@ -408,7 +429,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 				},
 				sendRequest(messages, options, token) {
 					const hasModel = that._localModels.has(modelId);
-					that._logService.trace('[LM][extHost] _localModels.has', { reason: 'LanguageModelChat.sendRequest', modelId, hasModel, size: that._localModels.size, keysSample: Array.from(that._localModels.keys()).slice(0, 200) });
+					that._logService.info('[LM][extHost] _localModels.has', { reason: 'LanguageModelChat.sendRequest', modelId, hasModel, size: that._localModels.size, keysSample: Array.from(that._localModels.keys()).slice(0, 200) });
 					if (!hasModel) {
 						throw extHostTypes.LanguageModelError.NotFound(modelId);
 					}
@@ -446,9 +467,9 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 
 		const from = extension.identifier;
 		const model = this._localModels.get(languageModelId);
-		this._logService.trace('[LM][extHost] _localModels.get', { reason: '_sendChatRequest', modelId: languageModelId, hit: !!model, size: this._localModels.size, keysSample: Array.from(this._localModels.keys()).slice(0, 200) });
+		this._logService.info('[LM][extHost] _localModels.get', { reason: '_sendChatRequest', modelId: languageModelId, hit: !!model, size: this._localModels.size, keysSample: Array.from(this._localModels.keys()).slice(0, 200) });
 		const hasModel = this._localModels.has(languageModelId);
-		this._logService.trace('[LM][extHost] _localModels.has', { reason: '_sendChatRequest', modelId: languageModelId, hasModel, size: this._localModels.size, keysSample: Array.from(this._localModels.keys()).slice(0, 200) });
+		this._logService.info('[LM][extHost] _localModels.has', { reason: '_sendChatRequest', modelId: languageModelId, hasModel, size: this._localModels.size, keysSample: Array.from(this._localModels.keys()).slice(0, 200) });
 		const metadata = model?.metadata;
 
 		if (!metadata || !hasModel) {
@@ -568,7 +589,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 	private async _computeTokenLength(modelId: string, value: string | vscode.LanguageModelChatMessage2, token: vscode.CancellationToken): Promise<number> {
 
 		const data = this._localModels.get(modelId);
-		this._logService.trace('[LM][extHost] _localModels.get', { reason: '_computeTokenLength', modelId, hit: !!data, size: this._localModels.size, keysSample: Array.from(this._localModels.keys()).slice(0, 200) });
+		this._logService.info('[LM][extHost] _localModels.get', { reason: '_computeTokenLength', modelId, hit: !!data, size: this._localModels.size, keysSample: Array.from(this._localModels.keys()).slice(0, 200) });
 		if (!data) {
 			throw extHostTypes.LanguageModelError.NotFound(`Language model '${modelId}' is unknown.`);
 		}
