@@ -560,7 +560,7 @@ export class PromptFilesLocator {
 							}
 						}
 					} catch (error) {
-						// Ignore errors for individual files/folders (e.g., permission denied)`
+						// Ignore errors for individual files/folders (e.g., permission denied)
 					}
 				}
 			}
