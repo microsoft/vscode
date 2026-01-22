@@ -72,7 +72,7 @@ async function createModel(context: ExtensionContext, logger: LogOutputChannel, 
 		logger.error(`[main] Failed to create git IPC: ${err}`);
 	}
 
-	const askpassPaths = await getAskpassPaths(__dirname, context.storageUri, logger);
+	const askpassPaths = await getAskpassPaths(__dirname, context.globalStorageUri.fsPath, logger);
 	const askpass = new Askpass(ipcServer, logger, askpassPaths);
 	disposables.push(askpass);
 

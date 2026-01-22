@@ -210,13 +210,13 @@ async function ensureAskpassScripts(
  */
 export async function getAskpassPaths(
 	sourceDir: string,
-	storageUri: { fsPath: string } | undefined,
+	storagePath: string | undefined,
 	logger: LogOutputChannel
 ): Promise<AskpassPaths> {
 	// Try content-addressed paths on Windows user/system setups
-	if (storageUri && isWindowsUserOrSystemSetup()) {
+	if (storagePath && isWindowsUserOrSystemSetup()) {
 		try {
-			return await ensureAskpassScripts(sourceDir, storageUri.fsPath, logger);
+			return await ensureAskpassScripts(sourceDir, storagePath, logger);
 		} catch (err) {
 			logger.error(`[askpassManager] Failed to create content-addressed askpass scripts: ${err}`);
 		}
