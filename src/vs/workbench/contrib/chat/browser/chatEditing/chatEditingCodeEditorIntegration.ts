@@ -36,12 +36,16 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { EditorsOrder, IEditorIdentifier, isDiffEditorInput } from '../../../../common/editor.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { minimapGutterAddedBackground, minimapGutterDeletedBackground, minimapGutterModifiedBackground, overviewRulerAddedForeground, overviewRulerDeletedForeground, overviewRulerModifiedForeground } from '../../../scm/common/quickDiff.js';
-import { IModifiedFileEntry, IModifiedFileEntryChangeHunk, IModifiedFileEntryEditorIntegration, ModifiedFileEntryState } from '../../common/editing/chatEditingService.js';
+import { IChatEditingService, IModifiedFileEntry, IModifiedFileEntryChangeHunk, IModifiedFileEntryEditorIntegration, ModifiedFileEntryState } from '../../common/editing/chatEditingService.js';
 import { isTextDiffEditorForEntry } from './chatEditing.js';
 import { ActionViewItem } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ctxCursorInChangeRange } from './chatEditingEditorContextKeys.js';
 import { LinkedList } from '../../../../../base/common/linkedList.js';
+import { ChatEditingExplanationWidgetManager } from './chatEditingExplanationWidget.js';
+import { ILanguageModelsService } from '../../common/languageModels.js';
+import { IChatWidgetService } from '../chat.js';
+import { IViewsService } from '../../../../services/views/common/viewsService.js';
 
 export interface IDocumentDiff2 extends IDocumentDiff {
 
@@ -90,6 +94,8 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 
 	private readonly _accessibleDiffViewVisible = observableValue<boolean>(this, false);
 
+	private _explanationWidgetManager: ChatEditingExplanationWidgetManager | undefined = undefined;
+
 	constructor(
 		private readonly _entry: IModifiedFileEntry,
 		private readonly _editor: ICodeEditor,
@@ -99,12 +105,31 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 		@IAccessibilitySignalService private readonly _accessibilitySignalsService: IAccessibilitySignalService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IChatEditingService private readonly _chatEditingService: IChatEditingService,
+		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
+		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
+		@IViewsService private readonly _viewsService: IViewsService,
 	) {
 		this._diffLineDecorations = _editor.createDecorationsCollection();
 		const codeEditorObs = observableCodeEditor(_editor);
 
 		this._diffLineDecorations = this._editor.createDecorationsCollection(); // tracks the line range w/o visuals (used for navigate)
 		this._diffVisualDecorations = this._editor.createDecorationsCollection(); // tracks the real diff with character level inserts
+
+		this._store.add(autorun(r => {
+			const visible = this._entry.explanationWidgetVisible?.read(r) ?? false;
+			if (visible) {
+				if (!this._explanationWidgetManager) {
+					this._explanationWidgetManager = this._store.add(new ChatEditingExplanationWidgetManager(this._editor, this._languageModelsService, this._chatWidgetService, this._viewsService));
+					// Pass the current diff info when creating lazily (untracked - diff changes handled separately)
+					const diff = documentDiffInfo.read(undefined);
+					this._explanationWidgetManager.update(diff, true);
+				}
+				this._explanationWidgetManager.show();
+			} else {
+				this._explanationWidgetManager?.hide();
+			}
+		}));
 
 		const enabledObs = derived(r => {
 			if (!isEqual(codeEditorObs.model.read(r)?.uri, documentDiffInfo.read(r).modifiedModel.uri)) {
@@ -465,6 +490,17 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 		for (const extraWidget of this._diffHunkWidgetPool.free) {
 			extraWidget.remove();
 		}
+
+		// Update explanation widgets for chat changes
+		// Get visibility from session that owns this entry
+		let explanationVisible = false;
+		for (const session of this._chatEditingService.editingSessionsObs.get()) {
+			if (session.entries.get().some((e: IModifiedFileEntry) => e.entryId === this._entry.entryId)) {
+				explanationVisible = session.explanationWidgetVisible.get();
+				break;
+			}
+		}
+		this._explanationWidgetManager?.update(diff, explanationVisible);
 
 		const positionObs = observableFromEvent(this._editor.onDidChangeCursorPosition, _ => this._editor.getPosition());
 

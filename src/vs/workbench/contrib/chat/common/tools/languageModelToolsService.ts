@@ -22,12 +22,23 @@ import { ExtensionIdentifier } from '../../../../../platform/extensions/common/e
 import { ByteSize } from '../../../../../platform/files/common/files.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IProgress } from '../../../../../platform/progress/common/progress.js';
-import { UserSelectedTools } from '../participants/chatAgents.js';
+import { ChatRequestToolReferenceEntry } from '../attachments/chatVariableEntries.js';
 import { IVariableReference } from '../chatModes.js';
 import { IChatExtensionsContent, IChatSubagentToolInvocationData, IChatTodoListContent, IChatToolInputInvocationData, IChatToolInvocation, type IChatTerminalToolInvocationData } from '../chatService/chatService.js';
-import { ChatRequestToolReferenceEntry } from '../attachments/chatVariableEntries.js';
-import { LanguageModelPartAudience } from '../languageModels.js';
+import { ILanguageModelChatMetadata, LanguageModelPartAudience } from '../languageModels.js';
+import { UserSelectedTools } from '../participants/chatAgents.js';
 import { PromptElementJSON, stringifyPromptElementJSON } from './promptTsxTypes.js';
+
+/**
+ * Selector for matching language models by vendor, family, version, or id.
+ * Used to filter tools to specific models or model families.
+ */
+export interface ILanguageModelChatSelector {
+	readonly vendor?: string;
+	readonly family?: string;
+	readonly version?: string;
+	readonly id?: string;
+}
 
 export interface IToolData {
 	readonly id: string;
@@ -52,6 +63,34 @@ export interface IToolData {
 	readonly canRequestPreApproval?: boolean;
 	/** True if this tool might ask for post-approval */
 	readonly canRequestPostApproval?: boolean;
+	/**
+	 * Model selectors that this tool is available for.
+	 * If defined, the tool is only available when the selected model matches one of the selectors.
+	 */
+	readonly models?: readonly ILanguageModelChatSelector[];
+}
+
+/**
+ * Check if a tool matches the given model metadata based on the tool's `models` selectors.
+ * If the tool has no `models` defined, it matches all models.
+ * If model is undefined, model-specific filtering is skipped (tool is included).
+ */
+export function toolMatchesModel(toolData: IToolData, model: ILanguageModelChatMetadata | undefined): boolean {
+	// If no model selectors are defined, the tool is available for all models
+	if (!toolData.models || toolData.models.length === 0) {
+		return true;
+	}
+	// If model is undefined, skip model-specific filtering
+	if (!model) {
+		return true;
+	}
+	// Check if any selector matches the model (OR logic)
+	return toolData.models.some(selector =>
+		(!selector.id || selector.id === model.id) &&
+		(!selector.vendor || selector.vendor === model.vendor) &&
+		(!selector.family || selector.family === model.family) &&
+		(!selector.version || selector.version === model.version)
+	);
 }
 
 export interface IToolProgressStep {
@@ -319,13 +358,28 @@ export interface IToolImpl {
 	handleToolStream?(context: IToolInvocationStreamContext, token: CancellationToken): Promise<IStreamedToolInvocation | undefined>;
 }
 
-export type IToolAndToolSetEnablementMap = ReadonlyMap<IToolData | ToolSet, boolean>;
+export interface IToolSet {
+	readonly id: string;
+	readonly referenceName: string;
+	readonly icon: ThemeIcon;
+	readonly source: ToolDataSource;
+	readonly description?: string;
+	readonly legacyFullNames?: string[];
 
-export class ToolSet {
+	getTools(r?: IReader): Iterable<IToolData>;
+}
+
+export type IToolAndToolSetEnablementMap = ReadonlyMap<IToolData | IToolSet, boolean>;
+
+export function isToolSet(obj: IToolData | IToolSet | undefined): obj is IToolSet {
+	return (obj as IToolSet).getTools !== undefined;
+}
+
+export class ToolSet implements IToolSet {
 
 	protected readonly _tools = new ObservableSet<IToolData>();
 
-	protected readonly _toolSets = new ObservableSet<ToolSet>();
+	protected readonly _toolSets = new ObservableSet<IToolSet>();
 
 	/**
 	 * A homogenous tool set only contains tools from the same source as the tool set itself
@@ -354,7 +408,7 @@ export class ToolSet {
 		});
 	}
 
-	addToolSet(toolSet: ToolSet, tx?: ITransaction): IDisposable {
+	addToolSet(toolSet: IToolSet, tx?: ITransaction): IDisposable {
 		if (toolSet === this) {
 			return Disposable.None;
 		}
@@ -369,6 +423,41 @@ export class ToolSet {
 			this._tools.observable.read(r),
 			...Iterable.map(this._toolSets.observable.read(r), toolSet => toolSet.getTools(r))
 		);
+	}
+}
+
+export class ToolSetForModel {
+	public get id() {
+		return this._toolSet.id;
+	}
+
+	public get referenceName() {
+		return this._toolSet.referenceName;
+	}
+
+	public get icon() {
+		return this._toolSet.icon;
+	}
+
+	public get source() {
+		return this._toolSet.source;
+	}
+
+	public get description() {
+		return this._toolSet.description;
+	}
+
+	public get legacyFullNames() {
+		return this._toolSet.legacyFullNames;
+	}
+
+	constructor(
+		private readonly _toolSet: IToolSet,
+		private readonly model: ILanguageModelChatMetadata | undefined,
+	) { }
+
+	public getTools(r?: IReader): Iterable<IToolData> {
+		return Iterable.filter(this._toolSet.getTools(r), toolData => toolMatchesModel(toolData, this.model));
 	}
 }
 
@@ -396,10 +485,43 @@ export interface ILanguageModelToolsService {
 	registerToolData(toolData: IToolData): IDisposable;
 	registerToolImplementation(id: string, tool: IToolImpl): IDisposable;
 	registerTool(toolData: IToolData, tool: IToolImpl): IDisposable;
-	getTools(): Iterable<IToolData>;
-	readonly toolsObservable: IObservable<readonly IToolData[]>;
+
+	/**
+	 * Get all tools currently enabled (matching `when` clauses and model).
+	 * @param model The language model metadata to filter tools by. If undefined, model-specific filtering is skipped.
+	 */
+	getTools(model: ILanguageModelChatMetadata | undefined): Iterable<IToolData>;
+
+	/**
+	 * Creats an observable of enabled tools in the context. Note the observable
+	 * should be created and reused, not created per reader, for example:
+	 *
+	 * ```
+	 * const toolsObs = toolsService.observeTools(model);
+	 * autorun(reader => {
+	 *  const tools = toolsObs.read(reader);
+	 *  ...
+	 * });
+	 * ```
+	 * @param model The language model metadata to filter tools by. If undefined, model-specific filtering is skipped.
+	 */
+	observeTools(model: ILanguageModelChatMetadata | undefined): IObservable<readonly IToolData[]>;
+
+	/**
+	 * Get all registered tools regardless of enablement state.
+	 * Use this for configuration UIs, completions, etc. where all tools should be visible.
+	 */
+	getAllToolsIncludingDisabled(): Iterable<IToolData>;
+
+	/**
+	 * Get a tool by its ID. Does not check when clauses.
+	 */
 	getTool(id: string): IToolData | undefined;
-	getToolByName(name: string, includeDisabled?: boolean): IToolData | undefined;
+
+	/**
+	 * Get a tool by its reference name. Does not check when clauses.
+	 */
+	getToolByName(name: string): IToolData | undefined;
 
 	/**
 	 * Begin a tool call in the streaming phase.
@@ -419,21 +541,35 @@ export interface ILanguageModelToolsService {
 	/** Flush any pending tool updates to the extension hosts. */
 	flushToolUpdates(): void;
 
-	readonly toolSets: IObservable<Iterable<ToolSet>>;
-	getToolSet(id: string): ToolSet | undefined;
-	getToolSetByName(name: string): ToolSet | undefined;
+	readonly toolSets: IObservable<Iterable<IToolSet>>;
+	getToolSetsForModel(model: ILanguageModelChatMetadata | undefined, reader?: IReader): Iterable<IToolSet>;
+	getToolSet(id: string): IToolSet | undefined;
+	getToolSetByName(name: string): IToolSet | undefined;
 	createToolSet(source: ToolDataSource, id: string, referenceName: string, options?: { icon?: ThemeIcon; description?: string; legacyFullNames?: string[] }): ToolSet & IDisposable;
 
 	// tool names in prompt and agent files ('full reference names')
 	getFullReferenceNames(): Iterable<string>;
-	getFullReferenceName(tool: IToolData, toolSet?: ToolSet): string;
-	getToolByFullReferenceName(fullReferenceName: string): IToolData | ToolSet | undefined;
+	getFullReferenceName(tool: IToolData, toolSet?: IToolSet): string;
+	getToolByFullReferenceName(fullReferenceName: string): IToolData | IToolSet | undefined;
 	getDeprecatedFullReferenceNames(): Map<string, Set<string>>;
 
-	toToolAndToolSetEnablementMap(fullReferenceNames: readonly string[], target: string | undefined): IToolAndToolSetEnablementMap;
+	/**
+	 * Gets the enablement maps based on the given set of references.
+	 * @param fullReferenceNames The full reference names of the tools and tool sets to enable.
+	 * @param target Optional target to filter tools by.
+	 * @param model Optional language model metadata to filter tools by.
+	 * If undefined is passed, all tools will be returned, even if normally disabled.
+	 */
+	toToolAndToolSetEnablementMap(
+		fullReferenceNames: readonly string[],
+		target: string | undefined,
+		model: ILanguageModelChatMetadata | undefined,
+	): IToolAndToolSetEnablementMap;
+
 	toFullReferenceNames(map: IToolAndToolSetEnablementMap): string[];
 	toToolReferences(variableReferences: readonly IVariableReference[]): ChatRequestToolReferenceEntry[];
 }
+
 
 export function createToolInputUri(toolCallId: string): URI {
 	return URI.from({ scheme: Schemas.inMemory, path: `/lm/tool/${toolCallId}/tool_input.json` });

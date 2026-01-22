@@ -231,6 +231,10 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		}
 	}
 
+	protected override shouldInitEarly(): boolean {
+		return this.fixedScrollingMode;
+	}
+
 	// @TODO: @justschen Convert to template for each setting?
 	protected override initContent(): HTMLElement {
 		this.wrapper = $('.chat-used-context-list.chat-thinking-collapsible');
@@ -343,7 +347,9 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 				this.markdownResult.dispose();
 				this.markdownResult = undefined;
 			}
-			clearNode(this.textContainer);
+			if (this.textContainer) {
+				clearNode(this.textContainer);
+			}
 			return;
 		}
 
@@ -370,9 +376,11 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		}, target));
 		this.markdownResult = rendered;
 		if (!target) {
-			clearNode(this.textContainer);
-			this.textContainer.appendChild(createThinkingIcon(Codicon.circleFilled));
-			this.textContainer.appendChild(rendered.element);
+			if (this.textContainer) {
+				clearNode(this.textContainer);
+				this.textContainer.appendChild(createThinkingIcon(Codicon.circleFilled));
+				this.textContainer.appendChild(rendered.element);
+			}
 		}
 	}
 

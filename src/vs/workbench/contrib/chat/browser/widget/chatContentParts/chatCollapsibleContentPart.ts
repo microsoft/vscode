@@ -103,7 +103,7 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 			this.updateAriaLabel(collapseButton.element, typeof referencesLabel === 'string' ? referencesLabel : referencesLabel.value, expanded);
 
 			// Lazy initialization: render content only when expanded for the first time
-			if (expanded && !this._contentInitialized) {
+			if ((expanded || this.shouldInitEarly()) && !this._contentInitialized) {
 				this._contentInitialized = true;
 				this._contentElement = this.initContent();
 				this._domNode?.appendChild(this._contentElement);
@@ -114,6 +114,10 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 	}
 
 	protected abstract initContent(): HTMLElement;
+
+	protected shouldInitEarly(): boolean {
+		return false;
+	}
 
 	abstract hasSameContent(other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatTreeItem): boolean;
 
