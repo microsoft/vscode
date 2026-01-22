@@ -32,6 +32,8 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 	protected _collapseButton: ButtonWithIcon | undefined;
 
 	private readonly _overrideIcon = observableValue<ThemeIcon | undefined>(this, undefined);
+	private _contentElement?: HTMLElement;
+	private _contentInitialized = false;
 
 	public get icon(): ThemeIcon | undefined {
 		return this._overrideIcon.get();
@@ -91,15 +93,23 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 			this._isExpanded.set(!value, undefined);
 		}));
 
+		// Initialize the expanded state based on the subclass's isExpanded() method
+		this._isExpanded.set(this.isExpanded(), undefined);
+
 		this._register(autorun(r => {
 			const expanded = this._isExpanded.read(r);
 			collapseButton.icon = this._overrideIcon.read(r) ?? (expanded ? Codicon.chevronDown : Codicon.chevronRight);
 			this._domNode?.classList.toggle('chat-used-context-collapsed', !expanded);
 			this.updateAriaLabel(collapseButton.element, typeof referencesLabel === 'string' ? referencesLabel : referencesLabel.value, expanded);
+
+			// Lazy initialization: render content only when expanded for the first time
+			if (expanded && !this._contentInitialized) {
+				this._contentInitialized = true;
+				this._contentElement = this.initContent();
+				this._domNode?.appendChild(this._contentElement);
+			}
 		}));
 
-		const content = this.initContent();
-		this._domNode.appendChild(content);
 		return this._domNode;
 	}
 

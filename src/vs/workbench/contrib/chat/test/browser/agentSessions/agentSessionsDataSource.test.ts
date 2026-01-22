@@ -50,6 +50,7 @@ suite('AgentSessionsDataSource', () => {
 	function createMockModel(sessions: IAgentSession[]): IAgentSessionsModel {
 		return {
 			sessions,
+			resolved: true,
 			getSession: () => undefined,
 			onWillResolve: Event.None,
 			onDidResolve: Event.None,
