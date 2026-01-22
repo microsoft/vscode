@@ -334,7 +334,7 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 				const date = session.timing.lastRequestEnded ?? session.timing.lastRequestStarted ?? session.timing.created;
 				const seconds = Math.round((new Date().getTime() - date) / 1000);
 				if (seconds < 60) {
-					timeLabel = localize('justNow', "now");
+					timeLabel = localize('secondsDuration', "now");
 				} else {
 					timeLabel = fromNow(date, true);
 				}
