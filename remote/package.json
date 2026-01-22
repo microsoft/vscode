@@ -9,7 +9,7 @@
     "@vscode/deviceid": "^0.1.1",
     "@vscode/iconv-lite-umd": "0.7.1",
     "@vscode/native-watchdog": "^1.4.6",
-    "@vscode/proxy-agent": "^0.36.0",
+    "@vscode/proxy-agent": "^0.37.0",
     "@vscode/ripgrep": "^1.15.13",
     "@vscode/spdlog": "^0.15.2",
     "@vscode/tree-sitter-wasm": "^0.3.0",

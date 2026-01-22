@@ -56,6 +56,7 @@ export class StartSessionAction extends Action2 {
 		super({
 			id: ACTION_START,
 			title: localize2('run', 'Open Inline Chat'),
+			shortTitle: localize2('runShort', 'Inline Chat'),
 			category: AbstractInlineChatAction.category,
 			f1: true,
 			precondition: inlineChatContextKey,
@@ -76,6 +77,10 @@ export class StartSessionAction extends Action2 {
 				order: 3,
 			}, {
 				id: MenuId.ChatEditorInlineGutter,
+				group: '1_chat',
+				order: 1,
+			}, {
+				id: MenuId.InlineChatEditorAffordance,
 				group: '1_chat',
 				order: 1,
 			}]

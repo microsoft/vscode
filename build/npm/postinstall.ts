@@ -184,3 +184,21 @@ for (const dir of dirs) {
 
 child_process.execSync('git config pull.rebase merges');
 child_process.execSync('git config blame.ignoreRevsFile .git-blame-ignore-revs');
+
+// Copy codicon.ttf from @vscode/codicons package
+const codiconSource = path.join(root, 'node_modules', '@vscode', 'codicons', 'dist', 'codicon.ttf');
+const codiconDest = path.join(root, 'src', 'vs', 'base', 'browser', 'ui', 'codicons', 'codicon', 'codicon.ttf');
+
+if (!fs.existsSync(codiconSource)) {
+	console.error(`ERR codicon.ttf not found at ${codiconSource}`);
+	process.exit(1);
+}
+
+try {
+	fs.mkdirSync(path.dirname(codiconDest), { recursive: true });
+	fs.copyFileSync(codiconSource, codiconDest);
+	log('.', `Copied codicon.ttf to ${codiconDest}`);
+} catch (error) {
+	console.error(`ERR Failed to copy codicon.ttf from ${codiconSource} to ${codiconDest}:`, error);
+	process.exit(1);
+}
