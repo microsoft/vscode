@@ -99,8 +99,8 @@ registerWorkbenchContribution2(BrowserEditorResolverContribution.ID, BrowserEdit
 /**
  * Opens localhost URLs in the Integrated Browser when the setting is enabled.
  */
-class LocalhostOpenerContribution extends Disposable implements IWorkbenchContribution, IOpener {
-	static readonly ID = 'workbench.contrib.localhostOpener';
+class LocalhostLinkOpenerContribution extends Disposable implements IWorkbenchContribution, IOpener {
+	static readonly ID = 'workbench.contrib.localhostLinkOpener';
 
 	constructor(
 		@IOpenerService openerService: IOpenerService,
@@ -136,7 +136,7 @@ class LocalhostOpenerContribution extends Disposable implements IWorkbenchContri
 	}
 }
 
-registerWorkbenchContribution2(LocalhostOpenerContribution.ID, LocalhostOpenerContribution, WorkbenchPhase.BlockStartup);
+registerWorkbenchContribution2(LocalhostLinkOpenerContribution.ID, LocalhostLinkOpenerContribution, WorkbenchPhase.BlockStartup);
 
 registerSingleton(IBrowserViewWorkbenchService, BrowserViewWorkbenchService, InstantiationType.Delayed);
 
