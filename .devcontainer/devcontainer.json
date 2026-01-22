@@ -33,7 +33,8 @@
 				"ms-vscode.vscode-github-issue-notebooks",
 				"ms-vscode.vscode-selfhost-test-provider",
 				"mutantdino.resourcemonitor",
-				"google.gemini-cli-vscode-ide-companion"
+				"google.gemini-cli-vscode-ide-companion",
+				"Google.geminicodeassist"
 			]
 		}
 	},

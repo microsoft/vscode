@@ -10,6 +10,7 @@
 		"jrieken.vscode-pr-pinger",
 		"typescriptteam.native-preview",
 		"ms-vscode.ts-customized-language-service",
-		"google.gemini-cli-vscode-ide-companion"
+		"google.gemini-cli-vscode-ide-companion",
+		"google.geminicodeassist"
 	]
 }
