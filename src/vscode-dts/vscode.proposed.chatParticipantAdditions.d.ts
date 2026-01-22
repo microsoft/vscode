@@ -182,9 +182,9 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * A carousel view for presenting multiple questions inline in the chat. This part is blocking -
-	 * when pushed to the response stream, it returns a Promise that resolves when the user submits
-	 * or rejects if ignored/dismissed.
+	 * A carousel view for presenting multiple questions inline in the chat.
+	 * When pushed to the response stream, default values are returned immediately
+	 * without blocking the chat input.
 	 */
 	export class ChatResponseQuestionCarouselPart {
 		/**
@@ -513,12 +513,13 @@ declare module 'vscode' {
 
 		/**
 		 * Show an inline carousel of questions to gather information from the user.
-		 * This is a blocking call that waits for the user to submit or skip the questions.
+		 * This method returns immediately with default values from the questions.
+		 * The UI is displayed but does not block the chat input.
 		 * @param questions Array of questions to display to the user
 		 * @param allowSkip Whether the user can skip questions without answering
-		 * @returns A promise that resolves with the user's answers, or undefined if skipped
+		 * @returns Default values extracted from the questions
 		 */
-		questionCarousel(questions: ChatQuestion[], allowSkip?: boolean): Thenable<Record<string, unknown> | undefined>;
+		questionCarousel(questions: ChatQuestion[], allowSkip?: boolean): Record<string, unknown>;
 
 		/**
 		 * Push a warning to this stream. Short-hand for

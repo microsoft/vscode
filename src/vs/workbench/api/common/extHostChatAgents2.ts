@@ -5,7 +5,7 @@
 
 import type * as vscode from 'vscode';
 import { coalesce } from '../../../base/common/arrays.js';
-import { DeferredPromise, timeout } from '../../../base/common/async.js';
+import { timeout } from '../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { Emitter } from '../../../base/common/event.js';
@@ -51,8 +51,7 @@ export class ChatAgentResponseStream {
 		private readonly _request: IChatAgentRequest,
 		private readonly _proxy: IChatAgentProgressShape,
 		private readonly _commandsConverter: CommandsConverter,
-		private readonly _sessionDisposables: DisposableStore,
-		private readonly _pendingCarouselResolvers: Map<string, Map<string, DeferredPromise<Record<string, unknown> | undefined>>>
+		private readonly _sessionDisposables: DisposableStore
 	) { }
 
 	close() {
@@ -311,7 +310,7 @@ export class ChatAgentResponseStream {
 					_report(dto);
 					return this;
 				},
-				async questionCarousel(questions: vscode.ChatQuestion[], allowSkip = true): Promise<Record<string, unknown> | undefined> {
+				questionCarousel(questions: vscode.ChatQuestion[], allowSkip = true): Record<string, unknown> {
 					throwIfDone(this.questionCarousel);
 					checkProposedApiEnabled(that._extension, 'chatParticipantAdditions');
 
@@ -320,19 +319,35 @@ export class ChatAgentResponseStream {
 					const dto = typeConvert.ChatResponseQuestionCarouselPart.from(part);
 					dto.resolveId = resolveId;
 
-					// Create a deferred promise to wait for the answer
-					const deferred = new DeferredPromise<Record<string, unknown> | undefined>();
-
-					// Store the deferred promise for later resolution
-					if (!that._pendingCarouselResolvers.has(that._request.requestId)) {
-						that._pendingCarouselResolvers.set(that._request.requestId, new Map());
-					}
-					that._pendingCarouselResolvers.get(that._request.requestId)!.set(resolveId, deferred);
-
 					_report(dto);
 
-					// Wait for the user to submit answers
-					return deferred.p;
+					// Return default values immediately - never block the chat input
+					// If the user provides actual answers, they can be captured via events
+					const defaults: Record<string, unknown> = {};
+					for (const q of questions) {
+						if (q.defaultValue !== undefined && q.options) {
+							if (q.type === extHostTypes.ChatQuestionType.MultiSelect) {
+								// For multi-select, defaultValue is array of option ids
+								const defaultIds = Array.isArray(q.defaultValue) ? q.defaultValue : [q.defaultValue];
+								const defaultValues = q.options
+									.filter(opt => defaultIds.includes(opt.id))
+									.map(opt => opt.value);
+								defaults[q.id] = defaultValues;
+							} else if (q.type === extHostTypes.ChatQuestionType.SingleSelect) {
+								// For single-select, defaultValue is an option id
+								const defaultId = typeof q.defaultValue === 'string' ? q.defaultValue : q.defaultValue[0];
+								const defaultOption = q.options.find(opt => opt.id === defaultId);
+								defaults[q.id] = defaultOption?.value;
+							} else {
+								// Text type - defaultValue is the actual value
+								defaults[q.id] = q.defaultValue;
+							}
+						} else if (q.defaultValue !== undefined) {
+							// No options, defaultValue is the actual value (for text type)
+							defaults[q.id] = q.defaultValue;
+						}
+					}
+					return defaults;
 				},
 				beginToolInvocation(toolCallId, toolName, streamData) {
 					throwIfDone(this.beginToolInvocation);
@@ -462,8 +477,6 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 
 	private readonly _onDidDisposeChatSession = this._register(new Emitter<string>());
 	readonly onDidDisposeChatSession = this._onDidDisposeChatSession.event;
-
-	private readonly _pendingCarouselResolvers = new Map</* requestId */string, Map</* resolveId */ string, DeferredPromise<Record<string, unknown> | undefined>>>();
 
 	constructor(
 		mainContext: IMainContext,
@@ -692,28 +705,6 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		this._onDidChangeChatRequestTools.fire(request.extRequest);
 	}
 
-	/**
-	 * Handles question carousel answers sent back from the main thread.
-	 * Resolves the corresponding deferred promise with the answers.
-	 */
-	$handleQuestionCarouselAnswer(requestId: string, resolveId: string, answers: Record<string, unknown> | undefined): void {
-		const requestResolvers = this._pendingCarouselResolvers.get(requestId);
-		if (!requestResolvers) {
-			return;
-		}
-
-		const deferred = requestResolvers.get(resolveId);
-		if (!deferred) {
-			return;
-		}
-
-		requestResolvers.delete(resolveId);
-		if (requestResolvers.size === 0) {
-			this._pendingCarouselResolvers.delete(requestId);
-		}
-		deferred.complete(answers);
-	}
-
 	async $invokeAgent(handle: number, requestDto: Dto<IChatAgentRequest>, context: { history: IChatAgentHistoryEntryDto[]; chatSessionContext?: IChatSessionContextDto }, token: CancellationToken): Promise<IChatAgentResult | undefined> {
 		const agent = this._agents.get(handle);
 		if (!agent) {
@@ -733,7 +724,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 				this._sessionDisposables.set(request.sessionResource, sessionDisposables);
 			}
 
-			stream = new ChatAgentResponseStream(agent.extension, request, this._proxy, this._commands.converter, sessionDisposables, this._pendingCarouselResolvers);
+			stream = new ChatAgentResponseStream(agent.extension, request, this._proxy, this._commands.converter, sessionDisposables);
 
 			const model = await this.getModelForRequest(request, agent.extension);
 			const tools = await this.getToolsForRequest(agent.extension, request.userSelectedTools, model.id, token);
@@ -809,17 +800,6 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 				this._inFlightRequests.delete(inFlightRequest);
 			}
 			stream?.close();
-
-			// Clean up any pending carousel resolvers for this request to prevent memory leaks
-			const requestId = requestDto.requestId;
-			const pendingCarousels = this._pendingCarouselResolvers.get(requestId);
-			if (pendingCarousels) {
-				// Complete all pending carousel promises with undefined (indicating cancellation)
-				for (const deferred of pendingCarousels.values()) {
-					deferred.complete(undefined);
-				}
-				this._pendingCarouselResolvers.delete(requestId);
-			}
 		}
 	}
 
