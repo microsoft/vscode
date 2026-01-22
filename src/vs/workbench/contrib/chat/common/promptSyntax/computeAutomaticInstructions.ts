@@ -296,15 +296,14 @@ export class ComputeAutomaticInstructions {
 
 			const agentsMdFiles = await agentsMdPromise;
 			for (const uri of agentsMdFiles) {
-				if (uri) {
-					const folderName = this._labelService.getUriLabel(dirname(uri), { relative: true });
-					const description = folderName.trim().length === 0 ? localize('instruction.file.description.agentsmd.root', 'Instructions for the workspace') : localize('instruction.file.description.agentsmd.folder', 'Instructions for folder \'{0}\'', folderName);
-					entries.push('<instruction>');
-					entries.push(`<description>${description}</description>`);
-					entries.push(`<file>${getFilePath(uri)}</file>`);
-					entries.push('</instruction>');
-					hasContent = true;
-				}
+				const folderName = this._labelService.getUriLabel(dirname(uri), { relative: true });
+				const description = folderName.trim().length === 0 ? localize('instruction.file.description.agentsmd.root', 'Instructions for the workspace') : localize('instruction.file.description.agentsmd.folder', 'Instructions for folder \'{0}\'', folderName);
+				entries.push('<instruction>');
+				entries.push(`<description>${description}</description>`);
+				entries.push(`<file>${getFilePath(uri)}</file>`);
+				entries.push('</instruction>');
+				hasContent = true;
+
 			}
 
 			if (!hasContent) {
