@@ -18,22 +18,6 @@
 	overflow: hidden;
 }
 
-@keyframes inline-chat-session-pulse {
-	0% {
-		box-shadow: 0 2px 8px 0 var(--vscode-widget-shadow);
-	}
-	50% {
-		box-shadow: 0 2px 8px 4px var(--vscode-widget-shadow);
-	}
-	100% {
-		box-shadow: 0 2px 8px 0 var(--vscode-widget-shadow);
-	}
-}
-
-.inline-chat-session-overlay-widget.busy {
-	animation: inline-chat-session-pulse ease-in 2.3s infinite;
-}
-
 .inline-chat-session-overlay-widget .progress {
 	align-items: center;
 	display: none;

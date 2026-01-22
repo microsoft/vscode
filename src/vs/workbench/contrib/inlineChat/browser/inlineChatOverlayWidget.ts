@@ -7,7 +7,6 @@ import './media/inlineChatSessionOverlay.css';
 import * as dom from '../../../../base/browser/dom.js';
 import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
-import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IAction, Separator } from '../../../../base/common/actions.js';
 import { ActionBar, ActionsOrientation } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { Codicon } from '../../../../base/common/codicons.js';
@@ -308,11 +307,11 @@ export class InlineChatSessionOverlayWidget extends Disposable {
 	private readonly _domNode: HTMLElement = document.createElement('div');
 	private readonly _container: HTMLElement;
 	private readonly _progressNode: HTMLElement;
+	private readonly _progressIcon: HTMLElement;
 	private readonly _progressMessage: HTMLElement;
 	private readonly _toolbarNode: HTMLElement;
 
 	private readonly _showStore = this._store.add(new DisposableStore());
-	private readonly _session = observableValue<IInlineChatSession2 | undefined>(this, undefined);
 	private readonly _position = observableValue<IContentWidgetPosition | null>(this, null);
 
 	constructor(
@@ -329,17 +328,24 @@ export class InlineChatSessionOverlayWidget extends Disposable {
 		// Create progress node
 		this._progressNode = document.createElement('div');
 		this._progressNode.classList.add('progress');
-		dom.append(this._progressNode, renderIcon(ThemeIcon.modify(Codicon.loading, 'spin')));
+		this._progressIcon = dom.append(this._progressNode, dom.$('span'));
 		this._progressMessage = dom.append(this._progressNode, dom.$('span.progress-message'));
 		this._container.appendChild(this._progressNode);
 
 		// Create toolbar node
 		this._toolbarNode = document.createElement('div');
 		this._toolbarNode.classList.add('toolbar');
+	}
+
+	show(session: IInlineChatSession2): void {
+		assertType(this._editorObs.editor.hasModel());
+		this._showStore.clear();
+
+		// Derived entry observable for this session
+		const entry = derived(r => session.editingSession.readEntry(session.uri, r));
 
 		// Set up progress message observable
 		const requestMessage = derived(r => {
-			const session = this._session.read(r);
 			const chatModel = session?.chatModel;
 			if (!session || !chatModel) {
 				return undefined;
@@ -348,6 +354,17 @@ export class InlineChatSessionOverlayWidget extends Disposable {
 			const response = chatModel.lastRequestObs.read(r)?.response;
 			if (!response) {
 				return { message: localize('working', "Working...") };
+			}
+
+			if (response.isComplete) {
+				const changes = entry.read(r)?.changesCount.read(r) ?? 0;
+				return {
+					message: changes === 0
+						? localize('done', "Done")
+						: changes === 1
+							? localize('done1', "Done, 1 change")
+							: localize('doneN', "Done, {0} changes", changes)
+				};
 			}
 
 			const lastPart = observableFromEventOpts({ equalsFn: () => false }, response.onDidChange, () => response.response.value)
@@ -364,7 +381,7 @@ export class InlineChatSessionOverlayWidget extends Disposable {
 			}
 		});
 
-		this._store.add(autorun(r => {
+		this._showStore.add(autorun(r => {
 			const value = requestMessage.read(r);
 			if (value) {
 				this._progressMessage.innerText = renderAsPlaintext(value.message);
@@ -372,22 +389,16 @@ export class InlineChatSessionOverlayWidget extends Disposable {
 				this._progressMessage.innerText = '';
 			}
 		}));
-	}
-
-	show(session: IInlineChatSession2): void {
-		assertType(this._editorObs.editor.hasModel());
-		this._showStore.clear();
-
-		this._session.set(session, undefined);
-
-		// Derived entry observable for this session
-		const entry = derived(r => session.editingSession.readEntry(session.uri, r));
 
 		// Keep busy class in sync with whether edits are being streamed
 		this._showStore.add(autorun(r => {
 			const e = entry.read(r);
 			const isBusy = !e || !!e.isCurrentlyBeingModifiedBy.read(r);
-			this._container.classList.toggle('busy', isBusy);
+			const isDone = e?.lastModifyingResponse.read(r)?.isComplete;
+			this._container.classList.toggle('busy', isBusy || isDone);
+
+			this._progressIcon.className = '';
+			this._progressIcon.classList.add(...ThemeIcon.asClassNameArray(isDone ? Codicon.check : ThemeIcon.modify(Codicon.loading, 'spin')));
 		}));
 
 		// Add toolbar
@@ -456,7 +467,6 @@ export class InlineChatSessionOverlayWidget extends Disposable {
 
 	hide(): void {
 		this._position.set(null, undefined);
-		this._session.set(undefined, undefined);
 		this._showStore.clear();
 	}
 }
