@@ -13,8 +13,13 @@
 		display: block;
 	}
 
+	/* Collapsed + NOT streaming: hide the content completely */
+	&.chat-used-context-collapsed .chat-used-context-list.chat-thinking-collapsible:not(.chat-thinking-streaming) {
+		display: none;
+	}
+
 	/* Expanded: show all content, no max-height, no scrolling */
-	.chat-used-context-list.chat-thinking-collapsible {
+	&:not(.chat-used-context-collapsed) .chat-used-context-list.chat-thinking-collapsible {
 		max-height: none;
 		overflow: visible;
 	}
