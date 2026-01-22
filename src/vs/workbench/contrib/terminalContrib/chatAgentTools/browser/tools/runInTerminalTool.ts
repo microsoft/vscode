@@ -786,9 +786,11 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			// Set up continue in background listener
 			if (terminalToolSessionId) {
 				store.add(this._terminalChatService.onDidContinueInBackground(sessionId => {
-					if (sessionId === terminalToolSessionId && !executeCancellation.token.isCancellationRequested) {
+					if (sessionId === terminalToolSessionId) {
 						didContinueInBackground = true;
-						executeCancellation.cancel();
+						if (!executeCancellation.token.isCancellationRequested) {
+							executeCancellation.cancel();
+						}
 					}
 				}));
 			}
@@ -875,6 +877,11 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					this._logService.debug(`RunInTerminalTool: Continue in background triggered, returning output collected so far`);
 					error = 'continueInBackground';
 					didMoveToBackground = true;
+					if (!startMarker) {
+						this._logService.debug(`RunInTerminalTool: Start marker is undefined`);
+					} else if (startMarker.isDisposed) {
+						this._logService.debug(`RunInTerminalTool: Start marker is disposed`);
+					}
 					const execution = BackgroundTerminalExecution.adopt(toolTerminal.instance, xterm, command, chatSessionId, startMarker);
 					RunInTerminalTool._backgroundExecutions.set(termId, execution);
 					const backgroundOutput = execution.getOutput();

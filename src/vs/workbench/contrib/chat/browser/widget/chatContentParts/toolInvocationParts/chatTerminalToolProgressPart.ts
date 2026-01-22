@@ -489,10 +489,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			if (terminalToolSessionId && !this._terminalData.isBackground && !this._terminalData.didContinueInBackground) {
 				const isStillRunning = resolvedCommand?.exitCode === undefined && this._terminalData.terminalCommandState?.exitCode === undefined;
 				if (isStillRunning) {
-					const continueAction = this._instantiationService.createInstance(ContinueInBackgroundAction, terminalToolSessionId, () => {
-						this._terminalData.didContinueInBackground = true;
-						this._removeContinueInBackgroundAction();
-					});
+					const continueAction = this._instantiationService.createInstance(ContinueInBackgroundAction, terminalToolSessionId);
 					this._continueInBackgroundAction.value = continueAction;
 					actionBar.push(continueAction, { icon: true, label: false, index: 0 });
 				}
@@ -1447,7 +1444,6 @@ export class FocusChatInstanceAction extends Action implements IAction {
 export class ContinueInBackgroundAction extends Action implements IAction {
 	constructor(
 		private readonly _terminalToolSessionId: string,
-		private readonly _onContinueInBackground: () => void,
 		@ITerminalChatService private readonly _terminalChatService: ITerminalChatService,
 	) {
 		super(
@@ -1459,7 +1455,6 @@ export class ContinueInBackgroundAction extends Action implements IAction {
 	}
 
 	public override async run(): Promise<void> {
-		this._onContinueInBackground();
 		this._terminalChatService.continueInBackground(this._terminalToolSessionId);
 	}
 }
