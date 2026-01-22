@@ -262,11 +262,15 @@ export class AgentSessionsWelcomePage extends EditorPane {
 	}
 
 	private buildLoadingSkeleton(container: HTMLElement): HTMLElement {
-		const loadingContainer = append(container, $('.agentSessionsWelcome-sessionsLoading'));
+		const loadingContainer = append(container, $('.agentSessionsWelcome-sessionsLoading', {
+			'role': 'status',
+			'aria-busy': 'true',
+			'aria-label': localize('loadingSessions', "Loading sessions...")
+		}));
 
 		// Create skeleton items to match MAX_SESSIONS (6 items, arranged in 2 columns)
 		for (let i = 0; i < MAX_SESSIONS; i++) {
-			const skeleton = append(loadingContainer, $('.agentSessionsWelcome-sessionSkeleton'));
+			const skeleton = append(loadingContainer, $('.agentSessionsWelcome-sessionSkeleton', { 'aria-hidden': 'true' }));
 			append(skeleton, $('.agentSessionsWelcome-sessionSkeleton-icon'));
 			const content = append(skeleton, $('.agentSessionsWelcome-sessionSkeleton-content'));
 			append(content, $('.agentSessionsWelcome-sessionSkeleton-title'));
@@ -332,6 +336,10 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		this.sessionsControlDisposables.add(this.agentSessionsService.model.onDidResolve(() => {
 			this.hideLoadingSkeleton();
 		}));
+
+		if (this.agentSessionsService.model.resolved()) {
+			this.hideLoadingSkeleton();
+		}
 
 		// Schedule layout at next animation frame to ensure proper rendering
 		this.sessionsControlDisposables.add(scheduleAtNextAnimationFrame(getWindow(this.sessionsControlContainer), () => {
