@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from '../../../../../../base/common/event.js';
 import { IMarkdownString, isMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../../base/common/observable.js';
@@ -21,9 +20,6 @@ import { IAction } from '../../../../../../base/common/actions.js';
 
 export class ChatElicitationContentPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
-
-	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
-	public readonly onDidChangeHeight = this._onDidChangeHeight.event;
 
 	private readonly _confirmWidget: ChatConfirmationWidget<unknown>;
 
@@ -88,8 +84,6 @@ export class ChatElicitationContentPart extends Disposable implements IChatConte
 		this._confirmWidget = confirmationWidget;
 		confirmationWidget.setShowButtons(elicitation.kind === 'elicitation2' && elicitation.state.get() === ElicitationState.Pending);
 
-		this._register(confirmationWidget.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
-
 		this._register(confirmationWidget.onDidClick(async e => {
 			if (elicitation.kind !== 'elicitation2') {
 				return;
@@ -111,8 +105,6 @@ export class ChatElicitationContentPart extends Disposable implements IChatConte
 
 			confirmationWidget.setShowButtons(false);
 			confirmationWidget.updateMessage(this.getMessageToRender(elicitation));
-
-			this._onDidChangeHeight.fire();
 		}));
 
 		this.domNode = confirmationWidget.domNode;

@@ -382,6 +382,11 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'description': localize('sharedViewState', "Preserves the most recent editor view state (such as scroll position) across all editor groups and restores that if no specific editor view state is found for the editor group."),
 				'default': false
 			},
+			'workbench.editor.restoreEditors': {
+				'type': 'boolean',
+				'description': localize('restoreOnStartup', "Controls whether editors are restored on startup. When disabled, only dirty editors will be restored from the previous session."),
+				'default': true
+			},
 			'workbench.editor.splitInGroupLayout': {
 				'type': 'string',
 				'enum': ['vertical', 'horizontal'],
@@ -579,6 +584,11 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 					localize('workbench.secondarySideBar.defaultVisibility.maximizedInWorkspace', "The secondary side bar is visible and maximized by default if a workspace is opened."),
 					localize('workbench.secondarySideBar.defaultVisibility.maximized', "The secondary side bar is visible and maximized by default.")
 				]
+			},
+			'workbench.secondarySideBar.restoreMaximized': {
+				'type': 'boolean',
+				'default': false,
+				'description': localize('secondarySideBarRestoreMaximized', "Controls whether the secondary side bar restores to a maximized state after startup, irrespective of its previous state."),
 			},
 			'workbench.secondarySideBar.showLabels': {
 				'type': 'boolean',

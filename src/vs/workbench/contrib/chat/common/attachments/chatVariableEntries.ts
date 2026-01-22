@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { basename } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -40,6 +41,7 @@ interface IBaseChatRequestVariableEntry {
 
 export interface IGenericChatRequestVariableEntry extends IBaseChatRequestVariableEntry {
 	kind: 'generic';
+	tooltip?: IMarkdownString;
 }
 
 export interface IChatRequestDirectoryEntry extends IBaseChatRequestVariableEntry {
@@ -73,6 +75,12 @@ export interface StringChatContextValue {
 	modelDescription?: string;
 	icon: ThemeIcon;
 	uri: URI;
+	tooltip?: IMarkdownString;
+	/**
+	 * Command ID to execute when this context item is clicked.
+	 */
+	readonly commandId?: string;
+	readonly handle: number;
 }
 
 export interface IChatRequestImplicitVariableEntry extends IBaseChatRequestVariableEntry {
@@ -90,6 +98,12 @@ export interface IChatRequestStringVariableEntry extends IBaseChatRequestVariabl
 	readonly modelDescription?: string;
 	readonly icon: ThemeIcon;
 	readonly uri: URI;
+	readonly tooltip?: IMarkdownString;
+	/**
+	 * Command ID to execute when this context item is clicked.
+	 */
+	readonly commandId?: string;
+	readonly handle: number;
 }
 
 export interface IChatRequestWorkspaceVariableEntry extends IBaseChatRequestVariableEntry {
@@ -328,7 +342,6 @@ export namespace IChatRequestVariableEntry {
 		}
 	}
 }
-
 
 export function isImplicitVariableEntry(obj: IChatRequestVariableEntry): obj is IChatRequestImplicitVariableEntry {
 	return obj.kind === 'implicit';

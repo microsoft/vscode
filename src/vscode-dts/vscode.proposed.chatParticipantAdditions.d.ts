@@ -65,6 +65,29 @@ declare module 'vscode' {
 		constructor(uri: Uri, edits: NotebookEdit | NotebookEdit[]);
 	}
 
+	/**
+	 * Represents a file-level edit (creation, deletion, or rename).
+	 */
+	export interface ChatWorkspaceFileEdit {
+		/**
+		 * The original file URI (undefined for new files).
+		 */
+		oldResource?: Uri;
+
+		/**
+		 * The new file URI (undefined for deleted files).
+		 */
+		newResource?: Uri;
+	}
+
+	/**
+	 * Represents a workspace edit containing file-level operations.
+	 */
+	export class ChatResponseWorkspaceEditPart {
+		edits: ChatWorkspaceFileEdit[];
+		constructor(edits: ChatWorkspaceFileEdit[]);
+	}
+
 	export class ChatResponseConfirmationPart {
 		title: string;
 		message: string | MarkdownString;
@@ -80,9 +103,12 @@ declare module 'vscode' {
 		constructor(value: Uri, license: string, snippet: string);
 	}
 
-	export class ChatPrepareToolInvocationPart {
-		toolName: string;
-		constructor(toolName: string);
+	export interface ChatToolInvocationStreamData {
+		/**
+		 * Partial or not-yet-validated arguments that have streamed from the language model.
+		 * Tools may use this to render interim UI while the full invocation input is collected.
+		 */
+		readonly partialInput?: unknown;
 	}
 
 	export interface ChatTerminalToolInvocationData {
@@ -94,6 +120,30 @@ declare module 'vscode' {
 		language: string;
 	}
 
+	export class McpToolInvocationContentData {
+		/**
+		 * The mime type which determines how the data property is interpreted.
+		 */
+		mimeType: string;
+
+		/**
+		 * The byte data for this part.
+		 */
+		data: Uint8Array;
+
+		/**
+		 * Construct a generic data part with the given content.
+		 * @param data The byte data for this part.
+		 * @param mimeType The mime type of the data.
+		 */
+		constructor(data: Uint8Array, mimeType: string);
+	}
+
+	export interface ChatMcpToolInvocationData {
+		input: string;
+		output: McpToolInvocationContentData[];
+	}
+
 	export class ChatToolInvocationPart {
 		toolName: string;
 		toolCallId: string;
@@ -103,8 +153,8 @@ declare module 'vscode' {
 		pastTenseMessage?: string | MarkdownString;
 		isConfirmed?: boolean;
 		isComplete?: boolean;
-		toolSpecificData?: ChatTerminalToolInvocationData;
-		fromSubAgent?: boolean;
+		toolSpecificData?: ChatTerminalToolInvocationData | ChatMcpToolInvocationData;
+		subAgentInvocationId?: string;
 		presentation?: 'hidden' | 'hiddenAfterComplete' | undefined;
 
 		constructor(toolName: string, toolCallId: string, isError?: boolean);
@@ -176,7 +226,7 @@ declare module 'vscode' {
 		constructor(uris: Uri[], callback: () => Thenable<unknown>);
 	}
 
-	export type ExtendedChatResponsePart = ChatResponsePart | ChatResponseTextEditPart | ChatResponseNotebookEditPart | ChatResponseConfirmationPart | ChatResponseCodeCitationPart | ChatResponseReferencePart2 | ChatResponseMovePart | ChatResponseExtensionsPart | ChatResponsePullRequestPart | ChatPrepareToolInvocationPart | ChatToolInvocationPart | ChatResponseMultiDiffPart | ChatResponseThinkingProgressPart | ChatResponseExternalEditPart;
+	export type ExtendedChatResponsePart = ChatResponsePart | ChatResponseTextEditPart | ChatResponseNotebookEditPart | ChatResponseWorkspaceEditPart | ChatResponseConfirmationPart | ChatResponseCodeCitationPart | ChatResponseReferencePart2 | ChatResponseMovePart | ChatResponseExtensionsPart | ChatResponsePullRequestPart | ChatToolInvocationPart | ChatResponseMultiDiffPart | ChatResponseThinkingProgressPart | ChatResponseExternalEditPart;
 	export class ChatResponseWarningPart {
 		value: MarkdownString;
 		constructor(value: string | MarkdownString);
@@ -311,6 +361,12 @@ declare module 'vscode' {
 		notebookEdit(target: Uri, isDone: true): void;
 
 		/**
+		 * Push a workspace edit containing file-level operations (create, delete, rename).
+		 * @param edits Array of file-level edits to apply
+		 */
+		workspaceEdit(edits: ChatWorkspaceFileEdit[]): void;
+
+		/**
 		 * Makes an external edit to one or more resources. Changes to the
 		 * resources made within the `callback` and before it resolves will be
 		 * tracked as agent edits. This can be used to track edits made from
@@ -349,7 +405,21 @@ declare module 'vscode' {
 
 		codeCitation(value: Uri, license: string, snippet: string): void;
 
-		prepareToolInvocation(toolName: string): void;
+		/**
+		 * Begin a tool invocation in streaming mode. This creates a tool invocation that will
+		 * display streaming progress UI until the tool is actually invoked.
+		 * @param toolCallId Unique identifier for this tool call, used to correlate streaming updates and final invocation.
+		 * @param toolName The name of the tool being invoked.
+		 * @param streamData Optional initial streaming data with partial arguments.
+		 */
+		beginToolInvocation(toolCallId: string, toolName: string, streamData?: ChatToolInvocationStreamData & { subagentInvocationId?: string }): void;
+
+		/**
+		 * Update the streaming data for a tool invocation that was started with `beginToolInvocation`.
+		 * @param toolCallId The tool call ID that was passed to `beginToolInvocation`.
+		 * @param streamData New streaming data with updated partial arguments.
+		 */
+		updateToolInvocation(toolCallId: string, streamData: ChatToolInvocationStreamData): void;
 
 		push(part: ExtendedChatResponsePart): void;
 
@@ -668,6 +738,39 @@ declare module 'vscode' {
 
 	export interface LanguageModelToolInvocationOptions<T> {
 		model?: LanguageModelChat;
+		chatStreamToolCallId?: string;
+	}
+
+	export interface LanguageModelToolInvocationStreamOptions<T> {
+		/**
+		 * Raw argument payload, such as the streamed JSON fragment from the language model.
+		 */
+		readonly rawInput?: unknown;
+
+		readonly chatRequestId?: string;
+		/** @deprecated Use {@link chatSessionResource} instead */
+		readonly chatSessionId?: string;
+		readonly chatSessionResource?: Uri;
+		readonly chatInteractionId?: string;
+	}
+
+	export interface LanguageModelToolStreamResult {
+		/**
+		 * A customized progress message to show while the tool runs.
+		 */
+		invocationMessage?: string | MarkdownString;
+	}
+
+	export interface LanguageModelTool<T> {
+		/**
+		 * Called zero or more times before {@link LanguageModelTool.prepareInvocation} while the
+		 * language model streams argument data for the invocation. Use this to update progress
+		 * or UI with the partial arguments that have been generated so far.
+		 *
+		 * Implementations must be free of side-effects and should be resilient to receiving
+		 * malformed or incomplete input.
+		 */
+		handleToolStream?(options: LanguageModelToolInvocationStreamOptions<T>, token: CancellationToken): ProviderResult<LanguageModelToolStreamResult>;
 	}
 
 	export interface ChatRequest {

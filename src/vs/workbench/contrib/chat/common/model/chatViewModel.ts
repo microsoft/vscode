@@ -5,10 +5,10 @@
 
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { hash } from '../../../../../base/common/hash.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, dispose } from '../../../../../base/common/lifecycle.js';
 import * as marked from '../../../../../base/common/marked/marked.js';
+import { IObservable } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -40,7 +40,7 @@ export function assertIsResponseVM(item: unknown): asserts item is IChatResponse
 	}
 }
 
-export type IChatViewModelChangeEvent = IChatAddRequestEvent | IChangePlaceholderEvent | IChatSessionInitEvent | IChatSetHiddenEvent | IChatSetCheckpointEvent | null;
+export type IChatViewModelChangeEvent = IChatAddRequestEvent | IChangePlaceholderEvent | IChatSessionInitEvent | IChatSetHiddenEvent | null;
 
 export interface IChatAddRequestEvent {
 	kind: 'addRequest';
@@ -58,10 +58,6 @@ export interface IChatSetHiddenEvent {
 	kind: 'setHidden';
 }
 
-export interface IChatSetCheckpointEvent {
-	kind: 'setCheckpoint';
-}
-
 export interface IChatViewModel {
 	readonly model: IChatModel;
 	readonly sessionResource: URI;
@@ -77,8 +73,6 @@ export interface IChatViewModel {
 
 export interface IChatRequestViewModel {
 	readonly id: string;
-	/** @deprecated */
-	readonly sessionId: string;
 	readonly sessionResource: URI;
 	/** This ID updates every time the underlying data changes */
 	readonly dataId: string;
@@ -96,7 +90,7 @@ export interface IChatRequestViewModel {
 	readonly isCompleteAddedRequest: boolean;
 	readonly slashCommand: IChatAgentCommand | undefined;
 	readonly agentOrSlashCommandDetected: boolean;
-	readonly shouldBeBlocked?: boolean;
+	readonly shouldBeBlocked: IObservable<boolean>;
 	readonly modelId?: string;
 }
 
@@ -189,15 +183,12 @@ export interface IChatResponseViewModel {
 	readonly model: IChatResponseModel;
 	readonly id: string;
 	readonly session: IChatViewModel;
-	/** @deprecated */
-	readonly sessionId: string;
 	readonly sessionResource: URI;
 	/** This ID updates every time the underlying data changes */
 	readonly dataId: string;
 	/** The ID of the associated IChatRequestViewModel */
 	readonly requestId: string;
 	readonly username: string;
-	readonly avatarIcon?: URI | ThemeIcon;
 	readonly agent?: IChatAgentData;
 	readonly slashCommand?: IChatAgentCommand;
 	readonly agentOrSlashCommandDetected: boolean;
@@ -224,7 +215,15 @@ export interface IChatResponseViewModel {
 	usedReferencesExpanded?: boolean;
 	vulnerabilitiesListExpanded: boolean;
 	setEditApplied(edit: IChatTextEditGroup, editCount: number): void;
-	readonly shouldBeBlocked: boolean;
+	readonly shouldBeBlocked: IObservable<boolean>;
+}
+
+export interface IChatViewModelOptions {
+	/**
+	 * Maximum number of items to return from getItems().
+	 * When set, only the last N items are returned (most recent request/response pairs).
+	 */
+	readonly maxVisibleItems?: number;
 }
 
 export class ChatViewModel extends Disposable implements IChatViewModel {
@@ -263,6 +262,7 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 	constructor(
 		private readonly _model: IChatModel,
 		public readonly codeBlockModelCollection: CodeBlockModelCollection,
+		private readonly _options: IChatViewModelOptions | undefined,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
@@ -327,7 +327,11 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 	}
 
 	getItems(): (IChatRequestViewModel | IChatResponseViewModel)[] {
-		return this._items.filter((item) => !item.shouldBeRemovedOnSend || item.shouldBeRemovedOnSend.afterUndoStop);
+		const items = this._items.filter((item) => !item.shouldBeRemovedOnSend || item.shouldBeRemovedOnSend.afterUndoStop);
+		if (this._options?.maxVisibleItems !== undefined && items.length > this._options.maxVisibleItems) {
+			return items.slice(-this._options.maxVisibleItems);
+		}
+		return items;
 	}
 
 
@@ -368,26 +372,16 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 	}
 }
 
-const variablesHash = new WeakMap<readonly IChatRequestVariableEntry[], number>();
-
 export class ChatRequestViewModel implements IChatRequestViewModel {
 	get id() {
 		return this._model.id;
 	}
 
+	/**
+	 * An ID that changes when the request should be re-rendered.
+	 */
 	get dataId() {
-		let varsHash = variablesHash.get(this.variables);
-		if (typeof varsHash !== 'number') {
-			varsHash = hash(this.variables);
-			variablesHash.set(this.variables, varsHash);
-		}
-
-		return `${this.id}_${this.isComplete ? '1' : '0'}_${varsHash}`;
-	}
-
-	/** @deprecated */
-	get sessionId() {
-		return this._model.session.sessionId;
+		return `${this.id}_${this._model.version + (this._model.response?.isComplete ? 1 : 0)}`;
 	}
 
 	get sessionResource() {
@@ -481,11 +475,6 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 			(this.isLast ? '_last' : '');
 	}
 
-	/** @deprecated */
-	get sessionId() {
-		return this._model.session.sessionId;
-	}
-
 	get sessionResource(): URI {
 		return this._model.session.sessionResource;
 	}
@@ -501,10 +490,6 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 		}
 
 		return this._model.username;
-	}
-
-	get avatarIcon() {
-		return this._model.avatarIcon;
 	}
 
 	get agent() {

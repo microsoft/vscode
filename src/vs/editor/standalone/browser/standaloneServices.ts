@@ -99,7 +99,7 @@ import { IDataChannelService, NullDataChannelService } from '../../../platform/d
 import { IWebWorkerService } from '../../../platform/webWorker/browser/webWorkerService.js';
 import { StandaloneWebWorkerService } from './services/standaloneWebWorkerService.js';
 import { IDefaultAccountService } from '../../../platform/defaultAccount/common/defaultAccount.js';
-import { IDefaultAccount } from '../../../base/common/defaultAccount.js';
+import { IDefaultAccount, IDefaultAccountAuthenticationProvider } from '../../../base/common/defaultAccount.js';
 
 class SimpleModel implements IResolvedTextEditorModel {
 
@@ -1118,8 +1118,20 @@ class StandaloneDefaultAccountService implements IDefaultAccountService {
 		return null;
 	}
 
-	setDefaultAccount(account: IDefaultAccount | null): void {
+	setDefaultAccountProvider(): void {
 		// no-op
+	}
+
+	async refresh(): Promise<IDefaultAccount | null> {
+		return null;
+	}
+
+	getDefaultAccountAuthenticationProvider(): IDefaultAccountAuthenticationProvider {
+		return { id: 'default', name: 'Default', enterprise: false };
+	}
+
+	async signIn(): Promise<IDefaultAccount | null> {
+		return null;
 	}
 }
 

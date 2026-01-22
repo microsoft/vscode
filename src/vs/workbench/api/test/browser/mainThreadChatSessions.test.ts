@@ -32,6 +32,9 @@ import { MainThreadChatSessions, ObservableChatSession } from '../../browser/mai
 import { ExtHostChatSessionsShape, IChatProgressDto, IChatSessionProviderOptions } from '../../common/extHost.protocol.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { MockChatService } from '../../../contrib/chat/test/common/chatService/mockChatService.js';
+import { IAgentSessionsService } from '../../../contrib/chat/browser/agentSessions/agentSessionsService.js';
+import { IAgentSessionsModel } from '../../../contrib/chat/browser/agentSessions/agentSessionsModel.js';
+import { Event } from '../../../../base/common/event.js';
 
 suite('ObservableChatSession', function () {
 	let disposables: DisposableStore;
@@ -53,10 +56,12 @@ suite('ObservableChatSession', function () {
 			$provideChatSessionContent: sinon.stub(),
 			$provideChatSessionProviderOptions: sinon.stub<[providerHandle: number, token: CancellationToken], Promise<IChatSessionProviderOptions | undefined>>().resolves(undefined),
 			$provideHandleOptionsChange: sinon.stub(),
+			$invokeOptionGroupSearch: sinon.stub().resolves([]),
 			$interruptChatSessionActiveResponse: sinon.stub(),
 			$invokeChatSessionRequestHandler: sinon.stub(),
 			$disposeChatSessionContent: sinon.stub(),
 			$provideChatSessionItems: sinon.stub(),
+			$onDidChangeChatSessionItemState: sinon.stub(),
 		};
 	});
 
@@ -348,10 +353,12 @@ suite('MainThreadChatSessions', function () {
 			$provideChatSessionContent: sinon.stub(),
 			$provideChatSessionProviderOptions: sinon.stub<[providerHandle: number, token: CancellationToken], Promise<IChatSessionProviderOptions | undefined>>().resolves(undefined),
 			$provideHandleOptionsChange: sinon.stub(),
+			$invokeOptionGroupSearch: sinon.stub().resolves([]),
 			$interruptChatSessionActiveResponse: sinon.stub(),
 			$invokeChatSessionRequestHandler: sinon.stub(),
 			$disposeChatSessionContent: sinon.stub(),
 			$provideChatSessionItems: sinon.stub(),
+			$onDidChangeChatSessionItemState: sinon.stub(),
 		};
 
 		const extHostContext = new class implements IExtHostContext {
@@ -385,6 +392,14 @@ suite('MainThreadChatSessions', function () {
 			}
 		});
 		instantiationService.stub(IChatService, new MockChatService());
+		instantiationService.stub(IAgentSessionsService, new class extends mock<IAgentSessionsService>() {
+			override get model(): IAgentSessionsModel {
+				return new class extends mock<IAgentSessionsModel>() {
+					override onDidChangeSessionArchivedState = Event.None;
+				};
+			}
+
+		});
 
 		chatSessionsService = disposables.add(instantiationService.createInstance(ChatSessionsService));
 		instantiationService.stub(IChatSessionsService, chatSessionsService);

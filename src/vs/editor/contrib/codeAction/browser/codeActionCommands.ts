@@ -8,15 +8,17 @@ import { IJSONSchema, TypeFromJsonSchema } from '../../../../base/common/jsonSch
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { escapeRegExpCharacters } from '../../../../base/common/strings.js';
 import { ICodeEditor } from '../../../browser/editorBrowser.js';
-import { EditorAction, EditorCommand, ServicesAccessor } from '../../../browser/editorExtensions.js';
+import { EditorAction, EditorAction2, EditorCommand, ServicesAccessor } from '../../../browser/editorExtensions.js';
 import { EditorContextKeys } from '../../../common/editorContextKeys.js';
 import { autoFixCommandId, codeActionCommandId, fixAllCommandId, organizeImportsCommandId, quickFixCommandId, refactorCommandId, sourceActionCommandId } from './codeAction.js';
 import * as nls from '../../../../nls.js';
+import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { CodeActionAutoApply, CodeActionCommandArgs, CodeActionFilter, CodeActionKind, CodeActionTriggerSource } from '../common/types.js';
 import { CodeActionController } from './codeActionController.js';
 import { SUPPORTED_CODE_ACTIONS } from './codeActionModel.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 
 function contextKeyForSupportedActions(kind: HierarchicalKind) {
 	return ContextKeyExpr.regex(
@@ -64,22 +66,30 @@ function triggerCodeActionsForEditorSelection(
 	}
 }
 
-export class QuickFixAction extends EditorAction {
+export class QuickFixAction extends EditorAction2 {
 
 	constructor() {
 		super({
 			id: quickFixCommandId,
-			label: nls.localize2('quickfix.trigger.label', "Quick Fix..."),
+			title: nls.localize2('quickfix.trigger.label', "Quick Fix..."),
 			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasCodeActionsProvider),
-			kbOpts: {
-				kbExpr: EditorContextKeys.textInputFocus,
+			icon: Codicon.lightBulb,
+			f1: true,
+			keybinding: {
+				when: EditorContextKeys.textInputFocus,
 				primary: KeyMod.CtrlCmd | KeyCode.Period,
 				weight: KeybindingWeight.EditorContrib
+			},
+			menu: {
+				id: MenuId.InlineChatEditorAffordance,
+				group: '0_quickfix',
+				order: 0,
+				when: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasCodeActionsProvider)
 			}
 		});
 	}
 
-	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
+	override runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor): void {
 		return triggerCodeActionsForEditorSelection(editor, nls.localize('editor.action.quickFix.noneMessage', "No code actions available"), undefined, undefined, CodeActionTriggerSource.QuickFix);
 	}
 }

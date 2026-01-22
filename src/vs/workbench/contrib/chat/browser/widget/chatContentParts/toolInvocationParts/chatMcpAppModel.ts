@@ -9,6 +9,8 @@ import { disposableTimeout } from '../../../../../../../base/common/async.js';
 import { decodeBase64 } from '../../../../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
+import { hash } from '../../../../../../../base/common/hash.js';
+import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import { autorun, autorunSelfDisposable, derived, IObservable, observableValue } from '../../../../../../../base/common/observable.js';
 import { basename } from '../../../../../../../base/common/resources.js';
@@ -61,6 +63,9 @@ export class ChatMcpAppModel extends Disposable {
 
 	/** Whether ui/initialize has been called and capabilities announced */
 	private _announcedCapabilities = false;
+
+	/** Latest CSP used for the frame */
+	private _latestCsp: McpApps.McpUiResourceCsp | undefined = undefined;
 
 	/** Current height of the webview */
 	private _height: number = 300;
@@ -216,6 +221,7 @@ export class ChatMcpAppModel extends Disposable {
 
 			// Reset the state
 			this._announcedCapabilities = false;
+			this._latestCsp = resourceContent.csp;
 
 			// Set the HTML content
 			this._webview.setHtml(htmlWithCsp);
@@ -251,15 +257,15 @@ export class ChatMcpAppModel extends Disposable {
 
 		const cspContent = `
 			default-src 'none';
-			script-src 'self' 'unsafe-inline';
-			style-src 'self' 'unsafe-inline';
+			script-src 'self' 'unsafe-inline' ${cleanDomains(csp?.resourceDomains)};
+			style-src 'self' 'unsafe-inline' ${cleanDomains(csp?.resourceDomains)};
 			connect-src 'self' ${cleanDomains(csp?.connectDomains)};
 			img-src 'self' data: ${cleanDomains(csp?.resourceDomains)};
 			font-src 'self' ${cleanDomains(csp?.resourceDomains)};
 			media-src 'self' data: ${cleanDomains(csp?.resourceDomains)};
-			frame-src 'none';
+			frame-src ${cleanDomains(csp?.frameDomains) || `'none'`};
 			object-src 'none';
-			base-uri 'self';
+			base-uri ${cleanDomains(csp?.baseUriDomains) || `'self'`};
 		`;
 
 		const cspTag = `<meta http-equiv="Content-Security-Policy" content="${cspContent}">`;
@@ -283,10 +289,19 @@ export class ChatMcpAppModel extends Disposable {
 
 				const wrappedFns = new WeakMap();
 
+				let patchedPostMessage = (message, transfer) => api.postMessage(message, transfer);
 				const wrap = target => new Proxy(target, {
+					set: (obj, prop, value) => {
+						if (prop === 'postMessage') {
+							patchedPostMessage = (message, transfer) => value.call(target, message, transfer);
+						} else {
+							obj[prop] = value;
+						}
+						return true;
+					},
 					get: (obj, prop) => {
 						if (prop === 'postMessage') {
-							return (message, transfer) => api.postMessage(message, transfer);
+							return patchedPostMessage;
 						}
 						return obj[prop];
 					},
@@ -297,7 +312,7 @@ export class ChatMcpAppModel extends Disposable {
 					if (type === 'message') {
 						const originalListener = listener;
 						const wrappedListener = (event) => {
-							if (event.source.origin === document.location.origin && event.source !== window) { event = setMessageSource(event, window.parent); }
+							if (event.origin === document.location.origin && event.source !== window) { event = setMessageSource(event, window.parent); }
 							originalListener(event);
 						};
 						wrappedFns.set(originalListener, wrappedListener);
@@ -383,8 +398,12 @@ export class ChatMcpAppModel extends Disposable {
 					result = await this._handleUiMessage(request.params);
 					break;
 
+				case 'ui/update-model-context':
+					result = await this._handleUpdateModelContext(request.params);
+					break;
+
 				case 'notifications/message':
-					await this._mcpToolCallUI.log(request.params);
+					await this._mcpToolCallUI.log(request.params as MCP.LoggingMessageNotification['params']);
 					break;
 
 				default: {
@@ -459,6 +478,17 @@ export class ChatMcpAppModel extends Disposable {
 				serverTools: { listChanged: true },
 				serverResources: { listChanged: true },
 				logging: {},
+				sandbox: {
+					csp: this._latestCsp,
+					permissions: { clipboardWrite: {} },
+				},
+				updateModelContext: {
+					audio: {},
+					image: {},
+					resourceLink: {},
+					resource: {},
+					structuredContent: {},
+				}
 			},
 			hostContext: this.hostContext.get(),
 		} satisfies Required<McpApps.McpUiInitializeResult>;
@@ -501,6 +531,68 @@ export class ChatMcpAppModel extends Disposable {
 		widget.focusInput();
 
 		return { isError: false };
+	}
+
+	private async _handleUpdateModelContext(params: McpApps.McpUiUpdateModelContextRequest['params']): Promise<MCP.EmptyResult> {
+		const widget = this._chatWidgetService.getWidgetBySessionResource(this.renderData.sessionResource);
+		if (!widget) {
+			return {};
+		}
+
+		const idPrefix = `mcpui-context-${hash(this.renderData.serverDefinitionId)}-`;
+		const toDelete = widget.attachmentModel.getAttachmentIDs();
+		const idsToDelete = Array.from(toDelete).filter(id => id.startsWith(idPrefix));
+		const entries: IChatRequestVariableEntry[] = [];
+		let entryIndex = 0;
+
+		if (params.content) {
+			for (const block of params.content) {
+				const id = `${idPrefix}${entryIndex++}`;
+				if (block.type === 'image') {
+					entries.push({
+						kind: 'image',
+						value: decodeBase64(block.data).buffer,
+						id,
+						name: 'Image',
+						mimeType: block.mimeType,
+					});
+				} else if (block.type === 'resource_link') {
+					const uri = McpResourceURI.fromServer({ id: this.renderData.serverDefinitionId, label: '' }, block.uri);
+					entries.push({
+						kind: 'file',
+						value: uri,
+						id,
+						name: basename(uri),
+					});
+				} else if (block.type === 'text') {
+					const preview = block.text.replaceAll(/\s+/g, ' ').trim();
+					const truncateTo = 20;
+					entries.push({
+						kind: 'generic',
+						value: block.text,
+						id,
+						tooltip: new MarkdownString().appendCodeblock('plaintext', block.text),
+						name: preview.length > truncateTo ? preview.slice(0, truncateTo) + '…' : preview,
+					});
+				}
+			}
+		}
+
+		if (params.structuredContent && Object.keys(params.structuredContent).length > 0) {
+			const id = `${idPrefix}structured`;
+			const value = JSON.stringify(params.structuredContent, null, 2);
+			entries.push({
+				kind: 'generic',
+				value,
+				tooltip: new MarkdownString().appendCodeblock('json', value),
+				id,
+				name: 'UI Data',
+			});
+		}
+
+		widget.attachmentModel.updateContext(idsToDelete, entries);
+
+		return {};
 	}
 
 	private _handleSizeChanged(params: McpApps.McpUiSizeChangedNotification['params']): void {

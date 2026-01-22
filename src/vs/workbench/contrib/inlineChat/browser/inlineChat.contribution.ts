@@ -23,9 +23,9 @@ import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextke
 import { InlineChatAccessibilityHelp } from './inlineChatAccessibilityHelp.js';
 
 registerEditorContribution(InlineChatController.ID, InlineChatController, EditorContributionInstantiation.Eager); // EAGER because of notebook dispose/create of editors
-registerEditorContribution(InlineChatController.ID, InlineChatController, EditorContributionInstantiation.Eager); // EAGER because of notebook dispose/create of editors
 
 registerAction2(InlineChatActions.KeepSessionAction2);
+registerAction2(InlineChatActions.UndoSessionAction2);
 registerAction2(InlineChatActions.UndoAndCloseSessionAction2);
 
 // --- browser

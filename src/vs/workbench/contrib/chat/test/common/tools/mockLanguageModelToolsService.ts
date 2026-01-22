@@ -11,19 +11,22 @@ import { constObservable, IObservable } from '../../../../../../base/common/obse
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { IProgressStep } from '../../../../../../platform/progress/common/progress.js';
 import { IVariableReference } from '../../../common/chatModes.js';
+import { IChatToolInvocation } from '../../../common/chatService/chatService.js';
 import { ChatRequestToolReferenceEntry } from '../../../common/attachments/chatVariableEntries.js';
-import { CountTokensCallback, ILanguageModelToolsService, IToolAndToolSetEnablementMap, IToolData, IToolImpl, IToolInvocation, IToolResult, ToolDataSource, ToolSet } from '../../../common/tools/languageModelToolsService.js';
+import { CountTokensCallback, IBeginToolCallOptions, ILanguageModelToolsService, IToolAndToolSetEnablementMap, IToolData, IToolImpl, IToolInvocation, IToolResult, ToolDataSource, ToolSet } from '../../../common/tools/languageModelToolsService.js';
+import { URI } from '../../../../../../base/common/uri.js';
 
 export class MockLanguageModelToolsService implements ILanguageModelToolsService {
 	_serviceBrand: undefined;
 	vscodeToolSet: ToolSet = new ToolSet('vscode', 'vscode', ThemeIcon.fromId(Codicon.code.id), ToolDataSource.Internal);
 	executeToolSet: ToolSet = new ToolSet('execute', 'execute', ThemeIcon.fromId(Codicon.terminal.id), ToolDataSource.Internal);
-	readToolSet: ToolSet = new ToolSet('read', 'read', ThemeIcon.fromId(Codicon.eye.id), ToolDataSource.Internal);
+	readToolSet: ToolSet = new ToolSet('read', 'read', ThemeIcon.fromId(Codicon.book.id), ToolDataSource.Internal);
+	agentToolSet: ToolSet = new ToolSet('agent', 'agent', ThemeIcon.fromId(Codicon.agent.id), ToolDataSource.Internal);
 
 	constructor() { }
 
 	readonly onDidChangeTools: Event<void> = Event.None;
-	readonly onDidPrepareToolCallBecomeUnresponsive: Event<{ sessionId: string; toolData: IToolData }> = Event.None;
+	readonly onDidPrepareToolCallBecomeUnresponsive: Event<{ sessionResource: URI; toolData: IToolData }> = Event.None;
 
 	registerToolData(toolData: IToolData): IDisposable {
 		return Disposable.None;
@@ -90,6 +93,15 @@ export class MockLanguageModelToolsService implements ILanguageModelToolsService
 		};
 	}
 
+	beginToolCall(_options: IBeginToolCallOptions): IChatToolInvocation | undefined {
+		// Mock implementation - return undefined
+		return undefined;
+	}
+
+	async updateToolStream(_toolCallId: string, _partialInput: unknown, _token: CancellationToken): Promise<void> {
+		// Mock implementation - do nothing
+	}
+
 	toolSets: IObservable<readonly ToolSet[]> = constObservable([]);
 
 	getToolSetByName(name: string): ToolSet | undefined {
@@ -104,7 +116,7 @@ export class MockLanguageModelToolsService implements ILanguageModelToolsService
 		throw new Error('Method not implemented.');
 	}
 
-	toToolAndToolSetEnablementMap(toolOrToolSetNames: readonly string[]): IToolAndToolSetEnablementMap {
+	toToolAndToolSetEnablementMap(toolOrToolSetNames: readonly string[], target: string | undefined): IToolAndToolSetEnablementMap {
 		throw new Error('Method not implemented.');
 	}
 

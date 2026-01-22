@@ -16,6 +16,7 @@ import { IConfigurationMigrationRegistry, Extensions as ConfigurationMigrationEx
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { EditorExtensions } from '../../../common/editor.js';
 import { mcpSchemaId } from '../../../services/configuration/common/configuration.js';
+import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
 import { ExtensionMcpDiscovery } from '../common/discovery/extensionMcpDiscovery.js';
 import { InstalledMcpServersDiscovery } from '../common/discovery/installedMcpServersDiscovery.js';
 import { mcpDiscoveryRegistry } from '../common/discovery/mcpDiscovery.js';
@@ -108,6 +109,7 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 Registry.as<IQuickAccessRegistry>(QuickAccessExtensions.Quickaccess).registerQuickAccessProvider({
 	ctor: McpResourceQuickAccess,
 	prefix: McpResourceQuickAccess.PREFIX,
+	when: ChatContextKeys.enabled,
 	placeholder: localize('mcp.quickaccess.placeholder', "Filter to an MCP resource"),
 	helpEntries: [{
 		description: localize('mcp.quickaccess.add', "MCP Server Resources"),

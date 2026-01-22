@@ -9,7 +9,7 @@ import { IContextMenuService } from '../../../../../platform/contextview/browser
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IOpenEvent, WorkbenchCompressibleAsyncDataTree } from '../../../../../platform/list/browser/listService.js';
 import { $, append, EventHelper } from '../../../../../base/browser/dom.js';
-import { IAgentSession, IAgentSessionsModel, IMarshalledAgentSessionContext, isAgentSession, isAgentSessionSection } from './agentSessionsModel.js';
+import { AgentSessionSection, IAgentSession, IAgentSessionSection, IAgentSessionsModel, IMarshalledAgentSessionContext, isAgentSession, isAgentSessionSection } from './agentSessionsModel.js';
 import { AgentSessionListItem, AgentSessionRenderer, AgentSessionsAccessibilityProvider, AgentSessionsCompressionDelegate, AgentSessionsDataSource, AgentSessionsDragAndDrop, AgentSessionsIdentityProvider, AgentSessionsKeyboardNavigationLabelProvider, AgentSessionsListDelegate, AgentSessionSectionRenderer, AgentSessionsSorter, IAgentSessionsFilter, IAgentSessionsSorterOptions } from './agentSessionsViewer.js';
 import { FuzzyScore } from '../../../../../base/common/filters.js';
 import { IMenuService, MenuId } from '../../../../../platform/actions/common/actions.js';
@@ -29,38 +29,50 @@ import { IStyleOverride } from '../../../../../platform/theme/browser/defaultSty
 import { IAgentSessionsControl } from './agentSessions.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { openSession } from './agentSessionsOpener.js';
+import { ISessionOpenOptions, openSession } from './agentSessionsOpener.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ChatEditorInput } from '../widgetHosts/editor/chatEditorInput.js';
+import { IMouseEvent } from '../../../../../base/browser/mouseEvent.js';
+import { IChatWidget } from '../chat.js';
 
 export interface IAgentSessionsControlOptions extends IAgentSessionsSorterOptions {
-	readonly overrideStyles?: IStyleOverride<IListStyles>;
-	readonly filter?: IAgentSessionsFilter;
+	readonly overrideStyles: IStyleOverride<IListStyles>;
+	readonly filter: IAgentSessionsFilter;
+	readonly source: string;
 
 	getHoverPosition(): HoverPosition;
 	trackActiveEditorSession(): boolean;
+
+	overrideSessionOpenOptions?(openEvent: IOpenEvent<AgentSessionListItem | undefined>): ISessionOpenOptions;
+	notifySessionOpened?(resource: URI, widget: IChatWidget): void;
 }
 
 type AgentSessionOpenedClassification = {
 	owner: 'bpasero';
 	providerType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The provider type of the opened agent session.' };
+	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The source of the opened agent session.' };
 	comment: 'Event fired when a agent session is opened from the agent sessions control.';
 };
 
 type AgentSessionOpenedEvent = {
 	providerType: string;
+	source: string;
 };
 
 export class AgentSessionsControl extends Disposable implements IAgentSessionsControl {
 
 	private sessionsContainer: HTMLElement | undefined;
+	get element(): HTMLElement | undefined { return this.sessionsContainer; }
+
 	private sessionsList: WorkbenchCompressibleAsyncDataTree<IAgentSessionsModel, AgentSessionListItem, FuzzyScore> | undefined;
+	private sessionsListFindIsOpen = false;
 
 	private visible: boolean = true;
 
 	private focusedAgentSessionArchivedContextKey: IContextKey<boolean>;
 	private focusedAgentSessionReadContextKey: IContextKey<boolean>;
 	private focusedAgentSessionTypeContextKey: IContextKey<string>;
+	private hasMultipleAgentSessionsSelectedContextKey: IContextKey<boolean>;
 
 	constructor(
 		private readonly container: HTMLElement,
@@ -80,6 +92,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		this.focusedAgentSessionArchivedContextKey = ChatContextKeys.isArchivedAgentSession.bindTo(this.contextKeyService);
 		this.focusedAgentSessionReadContextKey = ChatContextKeys.isReadAgentSession.bindTo(this.contextKeyService);
 		this.focusedAgentSessionTypeContextKey = ChatContextKeys.agentSessionType.bindTo(this.contextKeyService);
+		this.hasMultipleAgentSessionsSelectedContextKey = ChatContextKeys.hasMultipleAgentSessionsSelected.bindTo(this.contextKeyService);
 
 		this.createList(this.container);
 
@@ -125,7 +138,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 			new AgentSessionsListDelegate(),
 			new AgentSessionsCompressionDelegate(),
 			[
-				this.instantiationService.createInstance(AgentSessionRenderer, this.options),
+				this._register(this.instantiationService.createInstance(AgentSessionRenderer, this.options)),
 				this.instantiationService.createInstance(AgentSessionSectionRenderer),
 			],
 			new AgentSessionsDataSource(this.options.filter, sorter),
@@ -134,14 +147,14 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 				dnd: this.instantiationService.createInstance(AgentSessionsDragAndDrop),
 				identityProvider: new AgentSessionsIdentityProvider(),
 				horizontalScrolling: false,
-				multipleSelectionSupport: false,
+				multipleSelectionSupport: true,
 				findWidgetEnabled: true,
 				defaultFindMode: TreeFindMode.Filter,
 				keyboardNavigationLabelProvider: new AgentSessionsKeyboardNavigationLabelProvider(),
 				overrideStyles: this.options.overrideStyles,
-				expandOnlyOnTwistieClick: true,
+				expandOnlyOnTwistieClick: (element: unknown) => !(isAgentSessionSection(element) && element.section === AgentSessionSection.Archived && this.options.filter.getExcludes().archived),
 				twistieAdditionalCssClass: () => 'force-no-twistie',
-				collapseByDefault: () => false,
+				collapseByDefault: (element: unknown) => isAgentSessionSection(element) && element.section === AgentSessionSection.Archived && this.options.filter.getExcludes().archived,
 				renderIndentGuides: RenderIndentGuides.None,
 			}
 		)) as WorkbenchCompressibleAsyncDataTree<IAgentSessionsModel, AgentSessionListItem, FuzzyScore>;
@@ -150,10 +163,14 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 
 		const model = this.agentSessionsService.model;
 
-		this._register(Event.any(
-			this.options.filter?.onDidChange ?? Event.None,
-			model.onDidChangeSessions
-		)(() => {
+		this._register(this.options.filter.onDidChange(async () => {
+			if (this.visible) {
+				this.updateArchivedSectionCollapseState();
+				list.updateChildren();
+			}
+		}));
+
+		this._register(model.onDidChangeSessions(() => {
 			if (this.visible) {
 				list.updateChildren();
 			}
@@ -170,7 +187,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 			}
 		}));
 
-		this._register(Event.any(list.onDidChangeFocus, model.onDidChangeSessions)(() => {
+		this._register(Event.any(list.onDidChangeFocus, list.onDidChangeSelection, model.onDidChangeSessions)(() => {
 			const focused = list.getFocus().at(0);
 			if (focused && isAgentSession(focused)) {
 				this.focusedAgentSessionArchivedContextKey.set(focused.isArchived());
@@ -181,6 +198,15 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 				this.focusedAgentSessionReadContextKey.reset();
 				this.focusedAgentSessionTypeContextKey.reset();
 			}
+
+			const selection = list.getSelection().filter(isAgentSession);
+			this.hasMultipleAgentSessionsSelectedContextKey.set(selection.length > 1);
+		}));
+
+		this._register(list.onDidChangeFindOpenState(open => {
+			this.sessionsListFindIsOpen = open;
+
+			this.updateArchivedSectionCollapseState();
 		}));
 	}
 
@@ -191,32 +217,67 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		}
 
 		this.telemetryService.publicLog2<AgentSessionOpenedEvent, AgentSessionOpenedClassification>('agentSessionOpened', {
-			providerType: element.providerType
+			providerType: element.providerType,
+			source: this.options.source
 		});
 
-		await this.instantiationService.invokeFunction(openSession, element, e);
+		const options = this.options.overrideSessionOpenOptions?.(e) ?? e;
+		const widget = await this.instantiationService.invokeFunction(openSession, element, options);
+		if (widget) {
+			this.options.notifySessionOpened?.(element.resource, widget);
+		}
 	}
 
 	private async showContextMenu({ element, anchor, browserEvent }: ITreeContextMenuEvent<AgentSessionListItem>): Promise<void> {
-		if (!element || isAgentSessionSection(element)) {
-			return; // No context menu for section headers
+		if (!element) {
+			return;
 		}
 
 		EventHelper.stop(browserEvent, true);
 
-		await this.chatSessionsService.activateChatSessionItemProvider(element.providerType);
+		if (isAgentSessionSection(element)) {
+			this.showAgentSessionSectionContextMenu(element, anchor);
+		} else {
+			this.showAgentSessionContextMenu(element, anchor);
+		}
+	}
+
+	private async showAgentSessionSectionContextMenu(section: IAgentSessionSection, anchor: HTMLElement | IMouseEvent): Promise<void> {
+		const contextOverlay: Array<[string, boolean | string]> = [];
+		contextOverlay.push([ChatContextKeys.agentSessionSection.key, section.section]);
+
+		const menu = this.menuService.createMenu(MenuId.AgentSessionSectionContext, this.contextKeyService.createOverlay(contextOverlay));
+
+		this.contextMenuService.showContextMenu({
+			getActions: () => Separator.join(...menu.getActions({ arg: section, shouldForwardArgs: true }).map(([, actions]) => actions)),
+			getAnchor: () => anchor,
+			getActionsContext: () => section,
+		});
+
+		menu.dispose();
+	}
+
+	private async showAgentSessionContextMenu(session: IAgentSession, anchor: HTMLElement | IMouseEvent): Promise<void> {
+		await this.chatSessionsService.activateChatSessionItemProvider(session.providerType);
 
 		const contextOverlay: Array<[string, boolean | string]> = [];
-		contextOverlay.push([ChatContextKeys.isArchivedAgentSession.key, element.isArchived()]);
-		contextOverlay.push([ChatContextKeys.isReadAgentSession.key, element.isRead()]);
-		contextOverlay.push([ChatContextKeys.agentSessionType.key, element.providerType]);
+		contextOverlay.push([ChatContextKeys.isArchivedAgentSession.key, session.isArchived()]);
+		contextOverlay.push([ChatContextKeys.isReadAgentSession.key, session.isRead()]);
+		contextOverlay.push([ChatContextKeys.agentSessionType.key, session.providerType]);
+
 		const menu = this.menuService.createMenu(MenuId.AgentSessionsContext, this.contextKeyService.createOverlay(contextOverlay));
 
-		const marshalledSession: IMarshalledAgentSessionContext = { session: element, $mid: MarshalledId.AgentSessionContext };
+		const selection = this.sessionsList?.getSelection().filter(isAgentSession) ?? [];
+		const marshalledContext: IMarshalledAgentSessionContext = {
+			session,
+			sessions: selection.length > 1 && selection.includes(session) ? selection : [session],
+			$mid: MarshalledId.AgentSessionContext
+		};
+
 		this.contextMenuService.showContextMenu({
-			getActions: () => Separator.join(...menu.getActions({ arg: marshalledSession, shouldForwardArgs: true }).map(([, actions]) => actions)),
+			getActions: () => Separator.join(...menu.getActions({ arg: marshalledContext, shouldForwardArgs: true }).map(([, actions]) => actions)),
 			getAnchor: () => anchor,
-			getActionsContext: () => marshalledSession,
+			getActionsContext: () => marshalledContext,
 		});
 
 		menu.dispose();
@@ -224,6 +285,30 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 
 	openFind(): void {
 		this.sessionsList?.openFind();
+	}
+
+	private updateArchivedSectionCollapseState(): void {
+		if (!this.sessionsList) {
+			return;
+		}
+
+		const model = this.agentSessionsService.model;
+		for (const child of this.sessionsList.getNode(model).children) {
+			if (!isAgentSessionSection(child.element) || child.element.section !== AgentSessionSection.Archived) {
+				continue;
+			}
+
+			const shouldCollapseArchived =
+				!this.sessionsListFindIsOpen &&				// always expand when find is open
+				this.options.filter.getExcludes().archived;	// only collapse when archived are excluded from filter
+
+			if (shouldCollapseArchived && !child.collapsed) {
+				this.sessionsList.collapse(child.element);
+			} else if (!shouldCollapseArchived && child.collapsed) {
+				this.sessionsList.expand(child.element);
+			}
+			break;
+		}
 	}
 
 	refresh(): Promise<void> {
