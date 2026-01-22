@@ -1595,6 +1595,11 @@ export interface ITextSearchComplete {
 	message?: TextSearchCompleteMessage | TextSearchCompleteMessage[];
 }
 
+export interface ResourceTrustRequestOptionsDto {
+	readonly uri: UriComponents;
+	readonly message?: string;
+}
+
 export interface MainThreadWorkspaceShape extends IDisposable {
 	$startFileSearch(includeFolder: UriComponents | null, options: IFileQueryBuilderOptions, token: CancellationToken): Promise<UriComponents[] | null>;
 	$startTextSearch(query: search.IPatternInfo, folder: UriComponents | null, options: ITextQueryBuilderOptions, requestId: number, token: CancellationToken): Promise<ITextSearchComplete | null>;
@@ -1606,6 +1611,7 @@ export interface MainThreadWorkspaceShape extends IDisposable {
 	$lookupAuthorization(authInfo: AuthInfo): Promise<Credentials | undefined>;
 	$lookupKerberosAuthorization(url: string): Promise<string | undefined>;
 	$loadCertificates(): Promise<string[]>;
+	$requestResourceTrust(options: ResourceTrustRequestOptionsDto): Promise<boolean | undefined>;
 	$requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Promise<boolean | undefined>;
 	$registerEditSessionIdentityProvider(handle: number, scheme: string): void;
 	$unregisterEditSessionIdentityProvider(handle: number): void;
