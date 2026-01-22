@@ -308,6 +308,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		this.codeBlocksByResponseId.clear();
 		this.fileTreesByResponseId.clear();
 		this.focusedFileTreesByResponseId.clear();
+		this._editorPool.clear();
+		this._toolEditorPool.clear();
+		this._diffEditorPool.clear();
+		this._treePool.clear();
+		this._contentReferencesListPool.clear();
 		this._onDidUpdateViewModel.fire();
 	}
 
@@ -569,23 +574,36 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 	}
 
+	/**
+	 * Dispose the rendered parts in the template, which aren't done in disposeElement
+	 * so they can be reused when a new render is started.
+	 */
 	private clearRenderedParts(templateData: IChatListItemTemplate): void {
 		if (templateData.renderedParts) {
 			dispose(coalesce(templateData.renderedParts));
 			templateData.renderedParts = undefined;
 			dom.clearNode(templateData.value);
 		}
+
+		// This template item is no longer in use, or having another element rendered into it,
+		// clear the context on toolbars so it doesn't retain the viewmodel.
+		if (templateData.titleToolbar) {
+			templateData.titleToolbar.context = undefined;
+		}
+		templateData.footerToolbar.context = undefined;
+		templateData.checkpointToolbar.context = undefined;
+		templateData.checkpointRestoreToolbar.context = undefined;
 	}
 
 	private renderChatTreeItem(element: ChatTreeItem, index: number, templateData: IChatListItemTemplate): void {
 		if (templateData.currentElement && templateData.currentElement.id !== element.id) {
 			this.traceLayout('renderChatTreeItem', `Rendering a different element into the template, index=${index}`);
-			this.clearRenderedParts(templateData);
-
 			const mappedTemplateData = this.templateDataByRequestId.get(templateData.currentElement.id);
 			if (mappedTemplateData && (mappedTemplateData.currentElement?.id !== templateData.currentElement.id)) {
 				this.templateDataByRequestId.delete(templateData.currentElement.id);
 			}
+
+			this.clearRenderedParts(templateData);
 		}
 
 		templateData.currentElement = element;
@@ -663,7 +681,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		templateData.rowContainer.classList.toggle('editing', editing && !isInput);
 		templateData.rowContainer.classList.toggle('editing-input', editing && isInput);
 		templateData.requestHover.classList.toggle('editing', editing && isInput);
-		templateData.requestHover.classList.toggle('hidden', (!!this.viewModel?.editing && !editing) || isResponseVM(element));
+		templateData.requestHover.classList.toggle('hidden', (!!this.viewModel?.editing && !editing) || isResponseVM(element) || !this.rendererOptions.editable);
 		templateData.requestHover.classList.toggle('expanded', this.configService.getValue<string>('chat.editRequests') === 'hover');
 		templateData.requestHover.classList.toggle('checkpoints-enabled', checkpointEnabled);
 		templateData.elementDisposables.add(dom.addStandardDisposableListener(templateData.rowContainer, dom.EventType.CLICK, (e) => {
@@ -1655,28 +1673,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const createToolPart = (): { domNode: HTMLElement; part: ChatToolInvocationPart } => {
 			lazilyCreatedPart = this.instantiationService.createInstance(ChatToolInvocationPart, toolInvocation, context, this.chatContentMarkdownRenderer, this._contentReferencesListPool, this._toolEditorPool, () => this._currentLayoutWidth.get(), this._toolInvocationCodeBlockCollection, this._announcedToolProgressKeys, codeBlockStartIndex);
 			this.handleRenderedCodeblocks(context.element, lazilyCreatedPart, codeBlockStartIndex);
-
-			// watch for streaming -> confirmation transition to finalize thinking
-			if (toolInvocation.kind === 'toolInvocation' && IChatToolInvocation.isStreaming(toolInvocation)) {
-				let wasStreaming = true;
-				lazilyCreatedPart.addDisposable(autorun(reader => {
-					const state = toolInvocation.state.read(reader);
-					if (wasStreaming && state.type !== IChatToolInvocation.StateKind.Streaming) {
-						wasStreaming = false;
-						if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation) {
-							if (lazilyCreatedPart!.domNode) {
-								const wrapper = lazilyCreatedPart!.domNode.parentElement;
-								if (wrapper?.classList.contains('chat-thinking-tool-wrapper')) {
-									wrapper.remove();
-								}
-								templateData.value.appendChild(lazilyCreatedPart!.domNode);
-							}
-							this.finalizeCurrentThinkingPart(context, templateData);
-						}
-					}
-				}));
-			}
-
 			return { domNode: lazilyCreatedPart.domNode, part: lazilyCreatedPart };
 		};
 
@@ -1694,6 +1690,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				if (thinkingPart instanceof ChatThinkingContentPart) {
 					// Append using factory - thinking part decides whether to render lazily
 					thinkingPart.appendItem(createToolPart, toolInvocation.toolId, toolInvocation, templateData.value);
+					this.setupConfirmationTransitionWatcher(toolInvocation, thinkingPart, () => lazilyCreatedPart, createToolPart, context, templateData);
 				}
 
 				return thinkingPart;
@@ -1703,6 +1700,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				if (lastThinking && toolInvocation.presentation !== 'hidden') {
 					// Append using factory - thinking part decides whether to render lazily
 					lastThinking.appendItem(createToolPart, toolInvocation.toolId, toolInvocation, templateData.value);
+					this.setupConfirmationTransitionWatcher(toolInvocation, lastThinking, () => lazilyCreatedPart, createToolPart, context, templateData);
 					return this.renderNoContent((other, followingContent, element) => lazilyCreatedPart ?
 						lazilyCreatedPart.hasSameContent(other, followingContent, element) :
 						toolInvocation.kind === other.kind);
@@ -1722,6 +1720,46 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const { part } = createToolPart();
 
 		return part;
+	}
+
+	// watch for confirmation part transition when tool invocation is streaming
+	private setupConfirmationTransitionWatcher(
+		toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized,
+		thinkingPart: ChatThinkingContentPart,
+		getCreatedPart: () => ChatToolInvocationPart | undefined,
+		createToolPart: () => { domNode: HTMLElement; part: ChatToolInvocationPart },
+		context: IChatContentPartRenderContext,
+		templateData: IChatListItemTemplate
+	): void {
+		if (toolInvocation.kind !== 'toolInvocation' || !IChatToolInvocation.isStreaming(toolInvocation)) {
+			return;
+		}
+
+		let wasStreaming = true;
+		const disposable = autorun(reader => {
+			const state = toolInvocation.state.read(reader);
+			if (wasStreaming && state.type !== IChatToolInvocation.StateKind.Streaming) {
+				wasStreaming = false;
+				if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation) {
+					const createdPart = getCreatedPart();
+					// move the created part out of thinking and into the main template
+					if (createdPart?.domNode) {
+						const wrapper = createdPart.domNode.parentElement;
+						if (wrapper?.classList.contains('chat-thinking-tool-wrapper')) {
+							wrapper.remove();
+						}
+						templateData.value.appendChild(createdPart.domNode);
+					} else {
+						thinkingPart.removeLazyItem(toolInvocation.toolId);
+						const { domNode } = createToolPart();
+						templateData.value.appendChild(domNode);
+					}
+					this.finalizeCurrentThinkingPart(context, templateData);
+				}
+			}
+		});
+
+		thinkingPart.addDisposable(disposable);
 	}
 
 	private renderExtensionsContent(extensionsContent: IChatExtensionsContent, context: IChatContentPartRenderContext, templateData: IChatListItemTemplate): IChatContentPart | undefined {
@@ -1936,6 +1974,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			templateData.titleToolbar.context = undefined;
 		}
 		templateData.footerToolbar.context = undefined;
+		templateData.checkpointToolbar.context = undefined;
+		templateData.checkpointRestoreToolbar.context = undefined;
 	}
 
 	private renderMcpServersInteractionRequired(content: IChatMcpServersStarting | IChatMcpServersStartingSerialized, context: IChatContentPartRenderContext, templateData: IChatListItemTemplate): IChatContentPart {
