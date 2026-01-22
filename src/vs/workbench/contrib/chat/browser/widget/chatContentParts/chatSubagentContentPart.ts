@@ -158,10 +158,6 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		// Scheduler for coalescing layout operations
 		this.layoutScheduler = this._register(new AnimationFrameScheduler(this.domNode, () => this.performLayout()));
 
-		// Use ResizeObserver to trigger layout when wrapper content changes
-		const resizeObserver = this._register(new DisposableResizeObserver(() => this.layoutScheduler.schedule()));
-		this._register(resizeObserver.observe(this.wrapper));
-
 		// Render the prompt section at the start if available (must be after wrapper is initialized)
 		this.renderPromptSection();
 
@@ -180,6 +176,10 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		if (!this.hasToolItems) {
 			this.wrapper.style.display = 'none';
 		}
+
+		// Use ResizeObserver to trigger layout when wrapper content changes
+		const resizeObserver = this._register(new DisposableResizeObserver(() => this.layoutScheduler.schedule()));
+		this._register(resizeObserver.observe(this.wrapper));
 
 		return this.wrapper;
 	}
