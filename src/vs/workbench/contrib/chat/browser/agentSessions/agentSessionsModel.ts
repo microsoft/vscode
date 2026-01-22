@@ -21,7 +21,7 @@ import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { Extensions, IOutputChannelRegistry, IOutputService } from '../../../../services/output/common/output.js';
-import { ChatSessionStatus as AgentSessionStatus, IChatSessionFileChange, IChatSessionItem, IChatSessionsExtensionPoint, IChatSessionsService } from '../../common/chatSessionsService.js';
+import { ChatSessionStatus as AgentSessionStatus, IChatSessionFileChange, IChatSessionFileChange2, IChatSessionItem, IChatSessionsExtensionPoint, IChatSessionsService } from '../../common/chatSessionsService.js';
 import { AgentSessionProviders, getAgentSessionProvider, getAgentSessionProviderIcon, getAgentSessionProviderName } from './agentSessions.js';
 
 //#region Interfaces, Types
@@ -523,13 +523,6 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 		}
 
 		this._sessions = sessions;
-
-		for (const [resource] of this.sessionStates) {
-			if (!sessions.has(resource)) {
-				this.sessionStates.delete(resource); // clean up states for removed sessions
-			}
-		}
-
 		this._resolved = true;
 
 		this.logger.logAllStatsIfTrace('Sessions resolved from providers');
@@ -634,7 +627,7 @@ interface ISerializedAgentSession {
 		readonly endTime?: number;
 	};
 
-	readonly changes?: readonly IChatSessionFileChange[] | {
+	readonly changes?: readonly IChatSessionFileChange[] | readonly IChatSessionFileChange2[] | {
 		readonly files: number;
 		readonly insertions: number;
 		readonly deletions: number;
