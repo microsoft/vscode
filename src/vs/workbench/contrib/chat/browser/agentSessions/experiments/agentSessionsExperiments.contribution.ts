@@ -24,6 +24,8 @@ import { isSessionInProgressStatus } from '../agentSessionsModel.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { autorun } from '../../../../../../base/common/observable.js';
 
+import './unifiedQuickAccessActions.js'; // Register unified quick access actions
+
 /**
  * Contribution that watches for projection-capable sessions and shows
  * the "session ready" state in the title bar when changes are available for review.
