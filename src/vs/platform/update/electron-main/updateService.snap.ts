@@ -162,7 +162,7 @@ export class SnapUpdateService extends AbstractUpdateService {
 		this.setState(State.CheckingForUpdates(false));
 		this.isUpdateAvailable().then(result => {
 			if (result) {
-				this.setState(State.Ready({ version: 'something' }));
+				this.setState(State.Ready({ version: 'something' }, false, false));
 			} else {
 				this.setState(State.Idle(UpdateType.Snap));
 			}
