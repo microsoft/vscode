@@ -46,6 +46,13 @@
 		"inputValidation.warningBackground": "#FFFFFF",
 		"inputValidation.warningBorder": "#ECEDEEFF",
 		"inputValidation.warningForeground": "#202020",
+		"gauge.foreground": "#1A5CFF",
+		"gauge.background": "#1A5CFF4D",
+		"gauge.border": "#ECEDEEFF",
+		"gauge.warningForeground": "#B69500",
+		"gauge.warningBackground": "#B695004D",
+		"gauge.errorForeground": "#ad0707",
+		"gauge.errorBackground": "#ad07074D",
 		"scrollbar.shadow": "#F5F6F84D",
 		"scrollbarSlider.background": "#1A5CFF33",
 		"scrollbarSlider.hoverBackground": "#1A5CFF4D",
@@ -230,7 +237,15 @@
 		"quickInputTitle.background": "#FFFFFF",
 		"quickInput.border": "#D6D7D8",
 		"chat.requestBubbleBackground": "#1A5CFF1A",
-		"chat.requestBubbleHoverBackground": "#1A5CFF26"
+		"chat.requestBubbleHoverBackground": "#1A5CFF26",
+		"charts.foreground": "#202020",
+		"charts.lines": "#20202080",
+		"charts.blue": "#1A5CFF",
+		"charts.red": "#ad0707",
+		"charts.yellow": "#667309",
+		"charts.orange": "#d18616",
+		"charts.green": "#388A34",
+		"charts.purple": "#652D90"
 	},
 	"tokenColors": [
 		{
