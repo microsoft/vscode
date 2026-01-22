@@ -35,6 +35,10 @@ export class OpenAgentSessionsWindowAction extends Action2 {
 
 		// Create workspace file if it doesn't exist
 		const workspaceUri = environmentService.agentSessionsWorkspace;
+		if (!workspaceUri) {
+			throw new Error('Agent Sessions workspace is not configured');
+		}
+
 		const workspaceExists = await fileService.exists(workspaceUri);
 		if (!workspaceExists) {
 			const emptyWorkspaceContent = JSON.stringify({ folders: [] }, null, '\t');
