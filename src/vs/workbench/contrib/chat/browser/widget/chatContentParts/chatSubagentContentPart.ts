@@ -424,6 +424,10 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		}
 	}
 
+	protected override shouldInitEarly(): boolean {
+		return !this.isInitiallyComplete;
+	}
+
 	/**
 	 * Creates a ChatToolInvocationPart for the given tool invocation.
 	 */
