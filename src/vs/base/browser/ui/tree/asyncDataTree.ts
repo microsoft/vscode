@@ -424,7 +424,10 @@ function asObjectTreeOptions<TInput, T, TFilterData>(options?: IAsyncDataTreeOpt
 		identityProvider: options.identityProvider && {
 			getId(el) {
 				return options.identityProvider!.getId(el.element as T);
-			}
+			},
+			getGroupId: options.identityProvider!.getGroupId ? (el) => {
+				return options.identityProvider!.getGroupId!(el.element as T);
+			} : undefined
 		},
 		dnd: options.dnd && new AsyncDataTreeNodeListDragAndDrop(options.dnd),
 		multipleSelectionController: options.multipleSelectionController && {

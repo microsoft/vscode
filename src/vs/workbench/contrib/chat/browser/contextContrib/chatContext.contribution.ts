@@ -41,7 +41,12 @@ const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatContextExt
 			},
 			required: ['id', 'icon', 'displayName'],
 		}
-	}
+	},
+	activationEventsGenerator: function* (contributions: readonly IChatContextExtensionPoint[]) {
+		for (const contrib of contributions) {
+			yield `onChatContextProvider:${contrib.id}`;
+		}
+	},
 });
 
 export class ChatContextContribution extends Disposable implements IWorkbenchContribution {
@@ -61,7 +66,12 @@ export class ChatContextContribution extends Disposable implements IWorkbenchCon
 				}
 				for (const contribution of ext.value) {
 					const icon = contribution.icon ? ThemeIcon.fromString(contribution.icon) : undefined;
+					if (!icon && contribution.icon) {
+						ext.collector.error(localize('chatContextExtPoint.invalidIcon', "Invalid icon format for chat context contribution '{0}'. Icon must be in the format '$(iconId)' or '$(iconId~spin)', e.g. '$(copilot)'.", contribution.id));
+						continue;
+					}
 					if (!icon) {
+						// Icon is required by schema, but handle defensively
 						continue;
 					}
 

@@ -322,6 +322,13 @@
         "enablement": "!operationInProgress"
       },
       {
+        "command": "git.delete",
+        "title": "%command.delete%",
+        "category": "Git",
+        "icon": "$(trash)",
+        "enablement": "!operationInProgress"
+      },
+      {
         "command": "git.commit",
         "title": "%command.commit%",
         "category": "Git",
@@ -1296,6 +1303,10 @@
         {
           "command": "git.rename",
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && resourceScheme == file && scmActiveResourceRepository"
+        },
+        {
+          "command": "git.delete",
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && resourceScheme == file"
         },
         {
           "command": "git.commit",
@@ -3303,6 +3314,11 @@
           "description": "%config.confirmSync%",
           "default": true
         },
+        "git.confirmCommittedDelete": {
+          "type": "boolean",
+          "description": "%config.confirmCommittedDelete%",
+          "default": true
+        },
         "git.countBadge": {
           "type": "string",
           "enum": [
@@ -3576,11 +3592,12 @@
           "items": {
             "type": "string"
           },
-          "default": [
-            "**/node_modules/**"
-          ],
+          "default": [],
+          "markdownDescription": "%config.worktreeIncludeFiles%",
           "scope": "resource",
-          "markdownDescription": "%config.worktreeIncludeFiles%"
+          "tags": [
+            "experimental"
+          ]
         },
         "git.alwaysShowStagedChangesResourceGroup": {
           "type": "boolean",

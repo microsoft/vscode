@@ -142,7 +142,9 @@
 		"resolveMergeConflictsCommand": "github.copilot.git.resolveMergeConflicts",
 		"completionsAdvancedSetting": "github.copilot.advanced",
 		"completionsEnablementSetting": "github.copilot.enable",
-		"nextEditSuggestionsSetting": "github.copilot.nextEditSuggestions.enabled"
+		"nextEditSuggestionsSetting": "github.copilot.nextEditSuggestions.enabled",
+		"tokenEntitlementUrl": "https://api.github.com/copilot_internal/v2/token",
+		"mcpRegistryDataUrl": "https://api.github.com/copilot/mcp_registry"
 	},
 	"trustedExtensionAuthAccess": {
 		"github": [

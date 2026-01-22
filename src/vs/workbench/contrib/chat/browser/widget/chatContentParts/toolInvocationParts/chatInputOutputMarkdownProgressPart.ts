@@ -5,6 +5,7 @@
 
 import { ProgressBar } from '../../../../../../../base/browser/ui/progressbar/progressbar.js';
 import { decodeBase64 } from '../../../../../../../base/common/buffer.js';
+import { Emitter } from '../../../../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { Lazy } from '../../../../../../../base/common/lazy.js';
 import { toDisposable } from '../../../../../../../base/common/lifecycle.js';
@@ -28,10 +29,12 @@ export class ChatInputOutputMarkdownProgressPart extends BaseChatToolInvocationS
 	private static readonly _expandedByDefault = new WeakMap<IChatToolInvocation | IChatToolInvocationSerialized, boolean>();
 
 	public readonly domNode: HTMLElement;
+	private readonly collapsibleListPart: ChatCollapsibleInputOutputContentPart;
 
-	private _codeblocks: IChatCodeBlockInfo[] = [];
+	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
+
 	public get codeblocks(): IChatCodeBlockInfo[] {
-		return this._codeblocks;
+		return this.collapsibleListPart.codeblocks;
 	}
 
 	constructor(
@@ -50,52 +53,37 @@ export class ChatInputOutputMarkdownProgressPart extends BaseChatToolInvocationS
 		super(toolInvocation);
 
 		let codeBlockIndex = codeBlockStartIndex;
-		const toCodePart = (data: string): IChatCollapsibleIOCodePart => {
-			const model = this._register(modelService.createModel(
-				data,
-				languageService.createById('json'),
-				undefined,
-				true
-			));
 
-			return {
-				kind: 'code',
-				textModel: model,
-				languageId: model.getLanguageId(),
-				options: {
-					hideToolbar: true,
-					reserveWidth: 19,
-					maxHeightInLines: 13,
-					verticalPadding: 5,
-					editorOptions: {
-						wordWrap: 'on'
-					}
-				},
-				codeBlockInfo: {
-					codeBlockIndex: codeBlockIndex++,
-					codemapperUri: undefined,
-					elementId: context.element.id,
-					focus: () => { },
-					ownerMarkdownPartId: this.codeblocksPartId,
-					uri: model.uri,
-					chatSessionResource: context.element.sessionResource,
-					uriPromise: Promise.resolve(model.uri)
+		// Simple factory to create code part data objects
+		const createCodePart = (data: string): IChatCollapsibleIOCodePart => ({
+			kind: 'code',
+			data,
+			languageId: 'json',
+			codeBlockIndex: codeBlockIndex++,
+			ownerMarkdownPartId: this.codeblocksPartId,
+			options: {
+				hideToolbar: true,
+				reserveWidth: 19,
+				maxHeightInLines: 13,
+				verticalPadding: 5,
+				editorOptions: {
+					wordWrap: 'on'
 				}
-			};
-		};
+			}
+		});
 
 		let processedOutput = output;
 		if (typeof output === 'string') { // back compat with older stored versions
 			processedOutput = [{ type: 'embed', value: output, isText: true }];
 		}
 
-		const collapsibleListPart = this._register(instantiationService.createInstance(
+		const collapsibleListPart = this.collapsibleListPart = this._register(instantiationService.createInstance(
 			ChatCollapsibleInputOutputContentPart,
 			message,
 			subtitle,
 			this.getAutoApproveMessageContent(),
 			context,
-			toCodePart(input),
+			createCodePart(input),
 			processedOutput && processedOutput.length > 0 ? {
 				parts: processedOutput.map((o, i): ChatCollapsibleIOPart => {
 					const permalinkBasename = o.type === 'ref' || o.uri
@@ -108,7 +96,7 @@ export class ChatInputOutputMarkdownProgressPart extends BaseChatToolInvocationS
 					if (o.type === 'ref') {
 						return { kind: 'data', uri: o.uri, mimeType: o.mimeType };
 					} else if (o.isText && !o.asResource) {
-						return toCodePart(o.value);
+						return createCodePart(o.value);
 					} else {
 						let decoded: Uint8Array | undefined;
 						try {
@@ -126,9 +114,9 @@ export class ChatInputOutputMarkdownProgressPart extends BaseChatToolInvocationS
 				}),
 			} : undefined,
 			isError,
-			ChatInputOutputMarkdownProgressPart._expandedByDefault.get(toolInvocation) ?? false,
+			// Expand by default when the tool is running, otherwise use the stored expanded state (defaulting to false)
+			!IChatToolInvocation.isComplete(toolInvocation) || (ChatInputOutputMarkdownProgressPart._expandedByDefault.get(toolInvocation) ?? false),
 		));
-		this._codeblocks.push(...collapsibleListPart.codeblocks);
 		this._register(collapsibleListPart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 		this._register(toDisposable(() => ChatInputOutputMarkdownProgressPart._expandedByDefault.set(toolInvocation, collapsibleListPart.expanded)));
 
