@@ -476,7 +476,7 @@ export class InlineChatController implements IEditorContribution {
 		// fallback to the default model of the selected vendor unless an explicit selection was made for the session
 		// or unless the user has chosen to persist their model choice
 		const persistModelChoice = this._configurationService.getValue<boolean>(InlineChatConfigKeys.PersistModelChoice);
-		const model = this._zone.value.widget.chatWidget.input.selectedLanguageModel;
+		const model = this._zone.value.widget.chatWidget.input.selectedLanguageModel.get();
 		if (!persistModelChoice && InlineChatController._selectVendorDefaultLanguageModel && model && !model.metadata.isDefaultForLocation[session.chatModel.initialLocation]) {
 			const ids = await this._languageModelService.selectLanguageModels({ vendor: model.metadata.vendor });
 			for (const identifier of ids) {
@@ -488,7 +488,12 @@ export class InlineChatController implements IEditorContribution {
 			}
 		}
 
-		store.add(this._zone.value.widget.chatWidget.input.onDidChangeCurrentLanguageModel(newModel => {
+		store.add(autorun(r => {
+			const newModel = this._zone.value.widget.chatWidget.input.selectedLanguageModel.read(r);
+			if (!newModel) {
+				return;
+			}
+
 			InlineChatController._selectVendorDefaultLanguageModel = Boolean(newModel.metadata.isDefaultForLocation[session.chatModel.initialLocation]);
 		}));
 

@@ -30,9 +30,9 @@ import {
 	IToolInvocation,
 	IToolInvocationPreparationContext,
 	IToolResult,
+	isToolSet,
 	ToolDataSource,
 	ToolProgress,
-	ToolSet,
 	VSCodeToolReference,
 } from '../languageModelToolsService.js';
 import { ComputeAutomaticInstructions } from '../../promptSyntax/computeAutomaticInstructions.js';
@@ -161,11 +161,11 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 					const modeCustomTools = mode.customTools?.get();
 					if (modeCustomTools) {
 						// Convert the mode's custom tools (array of qualified names) to UserSelectedTools format
-						const enablementMap = this.languageModelToolsService.toToolAndToolSetEnablementMap(modeCustomTools, mode.target?.get());
+						const enablementMap = this.languageModelToolsService.toToolAndToolSetEnablementMap(modeCustomTools, mode.target?.get(), undefined);
 						// Convert enablement map to UserSelectedTools (Record<string, boolean>)
 						modeTools = {};
 						for (const [tool, enabled] of enablementMap) {
-							if (!(tool instanceof ToolSet)) {
+							if (!isToolSet(tool)) {
 								modeTools[tool.id] = enabled;
 							}
 						}
