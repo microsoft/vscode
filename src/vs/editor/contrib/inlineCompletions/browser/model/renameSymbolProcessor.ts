@@ -303,16 +303,48 @@ export class RenameInferenceEngine {
 	}
 }
 
+class EditorState {
+
+	public static create(codeEditorService: ICodeEditorService, textModel: ITextModel): EditorState | undefined {
+		const editor = codeEditorService.getFocusedCodeEditor();
+		if (editor === null) {
+			return undefined;
+		}
+
+		if (editor.getModel() !== textModel) {
+			return undefined;
+		}
+
+		return new EditorState(editor, textModel.getVersionId());
+	}
+
+	private constructor(
+		private readonly editor: ICodeEditor,
+		private readonly versionId: number,
+	) { }
+
+	public equals(other: EditorState | undefined): boolean {
+		if (other === undefined) {
+			return false;
+		}
+		return this.editor === other.editor && this.versionId === other.versionId;
+	}
+}
+
 class RenameSymbolRunnable {
 
 	private readonly _commandService: ICommandService;
 	private readonly _requestUuid: string;
+	private readonly _textModel: ITextModel;
+	private readonly _state: EditorState;
 	private readonly _cancellationTokenSource: CancellationTokenSource;
 	private readonly _promise: Promise<WorkspaceEdit & Rejection>;
 	private _result: WorkspaceEdit & Rejection | undefined = undefined;
 
-	constructor(languageFeaturesService: ILanguageFeaturesService, commandService: ICommandService, requestUuid: string, textModel: ITextModel, position: Position, newName: string, lastSymbolRename: IRange | undefined, oldName: string | undefined) {
+	constructor(languageFeaturesService: ILanguageFeaturesService, commandService: ICommandService, requestUuid: string, textModel: ITextModel, state: EditorState, position: Position, newName: string, lastSymbolRename: IRange | undefined, oldName: string | undefined) {
 		this._commandService = commandService;
+		this._textModel = textModel;
+		this._state = state;
 		this._requestUuid = requestUuid;
 		this._cancellationTokenSource = new CancellationTokenSource();
 		if (lastSymbolRename === undefined || oldName === undefined) {
@@ -325,6 +357,10 @@ class RenameSymbolRunnable {
 
 	public get requestUuid(): string {
 		return this._requestUuid;
+	}
+
+	public isValid(codeEditorService: ICodeEditorService): boolean {
+		return this._state.equals(EditorState.create(codeEditorService, this._textModel));
 	}
 
 	public cancel(): void {
@@ -381,34 +417,6 @@ class RenameSymbolRunnable {
 	}
 }
 
-class EditorState {
-
-	public static create(codeEditorService: ICodeEditorService, textModel: ITextModel): EditorState | undefined {
-		const editor = codeEditorService.getFocusedCodeEditor();
-		if (editor === null) {
-			return undefined;
-		}
-
-		if (editor.getModel() !== textModel) {
-			return undefined;
-		}
-
-		return new EditorState(editor, textModel.getVersionId());
-	}
-
-	private constructor(
-		private readonly editor: ICodeEditor,
-		private readonly versionId: number,
-	) { }
-
-	public equals(other: EditorState | undefined): boolean {
-		if (other === undefined) {
-			return false;
-		}
-		return this.editor === other.editor && this.versionId === other.versionId;
-	}
-}
-
 export class RenameSymbolProcessor extends Disposable {
 
 	private readonly _renameInferenceEngine = new RenameInferenceEngine();
@@ -425,7 +433,7 @@ export class RenameSymbolProcessor extends Disposable {
 	) {
 		super();
 		this._register(CommandsRegistry.registerCommand(renameSymbolCommandId, async (_: ServicesAccessor, source: TextModelEditSource, renameRunnable: RenameSymbolRunnable | undefined) => {
-			if (renameRunnable === undefined) {
+			if (renameRunnable === undefined || !renameRunnable.isValid(this._codeEditorService)) {
 				return;
 			}
 
@@ -494,7 +502,7 @@ export class RenameSymbolProcessor extends Disposable {
 
 		// Prepare the rename edits
 		if (this._renameRunnable === undefined) {
-			this._renameRunnable = new RenameSymbolRunnable(this._languageFeaturesService, this._commandService, suggestItem.requestUuid, textModel, position, newName, lastSymbolRename, lastSymbolRename !== undefined ? oldName : undefined);
+			this._renameRunnable = new RenameSymbolRunnable(this._languageFeaturesService, this._commandService, suggestItem.requestUuid, textModel, state, position, newName, lastSymbolRename, lastSymbolRename !== undefined ? oldName : undefined);
 		}
 
 		// Create alternative action
