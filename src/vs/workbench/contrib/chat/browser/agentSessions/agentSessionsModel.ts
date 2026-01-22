@@ -523,13 +523,6 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 		}
 
 		this._sessions = sessions;
-
-		for (const [resource] of this.sessionStates) {
-			if (!sessions.has(resource)) {
-				this.sessionStates.delete(resource); // clean up states for removed sessions
-			}
-		}
-
 		this._resolved = true;
 
 		this.logger.logAllStatsIfTrace('Sessions resolved from providers');
