@@ -229,11 +229,11 @@ MenuRegistry.appendMenuItem(MenuId.AgentsTitleBarControlMenu, {
 	order: 1
 });
 
-// Toggle for Unified Agents Bar (Insiders only)
+// Toggle for Agent Quick Input (Insiders only)
 MenuRegistry.appendMenuItem(MenuId.AgentsTitleBarControlMenu, {
 	command: {
 		id: `toggle.${ChatConfiguration.UnifiedAgentsBar}`,
-		title: localize('toggleUnifiedAgentsBar', "Unified Agents Bar"),
+		title: localize('toggleAgentQuickInput', "Agent Quick Input (Experimental)"),
 		toggled: ContextKeyExpr.has(`config.${ChatConfiguration.UnifiedAgentsBar}`),
 	},
 	when: ProductQualityContext.notEqualsTo('stable'),
