@@ -102,16 +102,16 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Create archive
-        working-directory: ..
         run: |
+          set -e
           mkdir -p .build/linux/archive
-          tar -czf .build/linux/archive/VSCode-linux-$VSCODE_ARCH.tar.gz VSCode-linux-$VSCODE_ARCH
+          tar -czf .build/linux/archive/VSCode-linux-$VSCODE_ARCH.tar.gz -C .. VSCode-linux-$VSCODE_ARCH
 
       - name: Upload archive
         uses: actions/upload-artifact@v4
         with:
           name: vscode-linux-${{ env.VSCODE_ARCH }}
-          path: ../.build/linux/archive/VSCode-linux-${{ env.VSCODE_ARCH }}.tar.gz
+          path: .build/linux/archive/VSCode-linux-${{ env.VSCODE_ARCH }}.tar.gz
           retention-days: 7
 
   darwin:
@@ -200,16 +200,16 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Create archive
-        working-directory: ..
         run: |
+          set -e
           mkdir -p .build/darwin/archive
-          tar -czf .build/darwin/archive/VSCode-darwin-$VSCODE_ARCH.tar.gz VSCode-darwin-$VSCODE_ARCH
+          tar -czf .build/darwin/archive/VSCode-darwin-$VSCODE_ARCH.tar.gz -C .. VSCode-darwin-$VSCODE_ARCH
 
       - name: Upload archive
         uses: actions/upload-artifact@v4
         with:
           name: vscode-darwin-${{ env.VSCODE_ARCH }}
-          path: ../.build/darwin/archive/VSCode-darwin-${{ env.VSCODE_ARCH }}.tar.gz
+          path: .build/darwin/archive/VSCode-darwin-${{ env.VSCODE_ARCH }}.tar.gz
           retention-days: 7
 
   windows:
@@ -317,15 +317,14 @@ jobs:
 
       - name: Create archive
         shell: pwsh
-        working-directory: ..
         run: |
           New-Item -ItemType Directory -Force -Path .build/win32-$env:VSCODE_ARCH/archive
           $archivePath = ".build/win32-$env:VSCODE_ARCH/archive/VSCode-win32-$env:VSCODE_ARCH.zip"
-          7z.exe a -tzip $archivePath VSCode-win32-$env:VSCODE_ARCH/* "-xr!CodeSignSummary*.md"
+          7z.exe a -tzip $archivePath ../VSCode-win32-$env:VSCODE_ARCH/* "-xr!CodeSignSummary*.md"
 
       - name: Upload archive
         uses: actions/upload-artifact@v4
         with:
           name: vscode-win32-${{ env.VSCODE_ARCH }}
-          path: ../.build/win32-${{ env.VSCODE_ARCH }}/archive/VSCode-win32-${{ env.VSCODE_ARCH }}.zip
+          path: .build/win32-${{ env.VSCODE_ARCH }}/archive/VSCode-win32-${{ env.VSCODE_ARCH }}.zip
           retention-days: 7
