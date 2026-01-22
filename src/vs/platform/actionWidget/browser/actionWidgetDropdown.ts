@@ -21,6 +21,10 @@ export interface IActionWidgetDropdownAction extends IAction {
 	 * Optional flyout hover configuration shown when focusing/hovering over the action.
 	 */
 	hover?: IActionListItemHover;
+	/**
+	 * Optional toolbar actions shown when the item is focused or hovered.
+	 */
+	toolbarActions?: IAction[];
 }
 
 // TODO @lramos15 - Should we just make IActionProvider templated?
@@ -108,6 +112,7 @@ export class ActionWidgetDropdown extends BaseDropdown {
 					tooltip: action.tooltip,
 					description: action.description,
 					hover: action.hover,
+					toolbarActions: action.toolbarActions,
 					kind: ActionListItemKind.Action,
 					canPreview: false,
 					group: { title: '', icon: action.icon ?? ThemeIcon.fromId(action.checked ? Codicon.check.id : Codicon.blank.id) },

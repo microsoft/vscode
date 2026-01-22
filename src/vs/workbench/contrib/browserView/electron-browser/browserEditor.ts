@@ -544,6 +544,15 @@ export class BrowserEditor extends EditorPane {
 		this._elementSelectionCts = cts;
 		this._elementSelectionActiveContext.set(true);
 
+		type IntegratedBrowserAddElementToChatStartEvent = {};
+
+		type IntegratedBrowserAddElementToChatStartClassification = {
+			owner: 'jruales';
+			comment: 'The user initiated an Add Element to Chat action in Integrated Browser.';
+		};
+
+		this.telemetryService.publicLog2<IntegratedBrowserAddElementToChatStartEvent, IntegratedBrowserAddElementToChatStartClassification>('integratedBrowser.addElementToChat.start', {});
+
 		try {
 			// Get the resource URI for this editor
 			const resourceUri = this.input?.resource;
@@ -588,7 +597,8 @@ export class BrowserEditor extends EditorPane {
 			});
 
 			// Attach screenshot if enabled
-			if (this.configurationService.getValue('chat.sendElementsToChat.attachImages') && this._model) {
+			const attachImages = this.configurationService.getValue<boolean>('chat.sendElementsToChat.attachImages');
+			if (attachImages && this._model) {
 				const screenshotBuffer = await this._model.captureScreenshot({
 					quality: 90,
 					rect: bounds
@@ -606,6 +616,23 @@ export class BrowserEditor extends EditorPane {
 			// Attach to chat widget
 			const widget = await this.chatWidgetService.revealWidget() ?? this.chatWidgetService.lastFocusedWidget;
 			widget?.attachmentModel?.addContext(...toAttach);
+
+			type IntegratedBrowserAddElementToChatAddedEvent = {
+				attachCss: boolean;
+				attachImages: boolean;
+			};
+
+			type IntegratedBrowserAddElementToChatAddedClassification = {
+				attachCss: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether chat.sendElementsToChat.attachCSS was enabled.' };
+				attachImages: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether chat.sendElementsToChat.attachImages was enabled.' };
+				owner: 'jruales';
+				comment: 'An element was successfully added to chat from Integrated Browser.';
+			};
+
+			this.telemetryService.publicLog2<IntegratedBrowserAddElementToChatAddedEvent, IntegratedBrowserAddElementToChatAddedClassification>('integratedBrowser.addElementToChat.added', {
+				attachCss,
+				attachImages
+			});
 
 		} catch (error) {
 			if (!cts.token.isCancellationRequested) {

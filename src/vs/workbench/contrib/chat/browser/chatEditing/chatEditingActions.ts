@@ -255,6 +255,34 @@ export class ChatEditingDiscardAllAction extends EditingSessionAction {
 }
 registerAction2(ChatEditingDiscardAllAction);
 
+export class ToggleExplanationWidgetAction extends EditingSessionAction {
+
+	static readonly ID = 'chatEditing.toggleExplanationWidget';
+
+	constructor() {
+		super({
+			id: ToggleExplanationWidgetAction.ID,
+			title: localize('explainButton', 'Explain'),
+			tooltip: localize('toggleExplanationTooltip', 'Toggle Change Explanations'),
+			precondition: hasUndecidedChatEditingResourceContextKey,
+			menu: [
+				{
+					id: MenuId.ChatEditingWidgetToolbar,
+					group: 'navigation',
+					order: 2,
+					when: ContextKeyExpr.and(hasUndecidedChatEditingResourceContextKey, ContextKeyExpr.has(`config.${ChatConfiguration.ExplainChangesEnabled}`))
+				}
+			],
+		});
+	}
+
+	override async runEditingSessionAction(accessor: ServicesAccessor, editingSession: IChatEditingSession, chatWidget: IChatWidget, ...args: unknown[]) {
+		const current = editingSession.explanationWidgetVisible.get();
+		editingSession.explanationWidgetVisible.set(!current, undefined);
+	}
+}
+registerAction2(ToggleExplanationWidgetAction);
+
 export async function discardAllEditsWithConfirmation(accessor: ServicesAccessor, currentEditingSession: IChatEditingSession): Promise<boolean> {
 
 	const dialogService = accessor.get(IDialogService);
