@@ -26,8 +26,8 @@ import { ILabelService } from '../../../../../../platform/label/common/label.js'
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { PromptsConfig } from '../../../common/promptSyntax/config/config.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
-import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { PromptFileRewriter } from '../promptFileRewriter.js';
+import { isOrganizationPromptFile } from '../../../common/promptSyntax/utils/promptsServiceUtils.js';
 
 /**
  * Options for the {@link askToSelectInstructions} function.
@@ -444,16 +444,13 @@ export class PromptFilePickers {
 	}
 
 	private _getExtensionGroupLabel(extPath: IExtensionPromptPath): string {
-		// Hack: if the prompt file comes from the built-in chat extension and is under a `/github/` path it's an organization-provided prompt file.
-		const chatExtensionId = this._productService.defaultChatAgent?.chatExtensionId;
-		const isFromBuiltinChatExtension = chatExtensionId && ExtensionIdentifier.equals(extPath.extension.identifier, chatExtensionId);
-		const pathContainsGithub = extPath.uri.path.includes('/github/');
-		if (isFromBuiltinChatExtension && pathContainsGithub) {
+		if (isOrganizationPromptFile(extPath.uri, extPath.extension.identifier, this._productService)) {
 			return localize('separator.organization', "Organization");
 		}
 
 		// By default, extension prompt files are grouped under "Extensions"
 		return localize('separator.extensions', "Extensions");
+
 	}
 
 	private _getNewItems(type: PromptsType): IPromptPickerQuickPickItem[] {
