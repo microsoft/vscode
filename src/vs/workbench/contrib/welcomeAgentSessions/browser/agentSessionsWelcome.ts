@@ -465,7 +465,7 @@ export class AgentSessionsWelcomePage extends EditorPane {
 			this.hideLoadingSkeleton();
 		}));
 
-		if (this.agentSessionsService.model.resolved()) {
+		if (this.agentSessionsService.model.resolved) {
 			this.hideLoadingSkeleton();
 		}
 
