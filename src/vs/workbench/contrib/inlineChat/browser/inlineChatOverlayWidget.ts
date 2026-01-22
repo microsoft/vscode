@@ -421,18 +421,24 @@ export class InlineChatSessionOverlayWidget extends Disposable {
 		const above = selection.getDirection() === SelectionDirection.RTL;
 
 		this._showStore.add(autorun(r => {
-			let newPosition = selection.getPosition();
 			const e = entry.read(r);
 			const diffInfo = e?.diffInfo?.read(r);
-			const position = that._position.read(undefined)?.position;
-			if (diffInfo && position) {
+
+			// Build combined range from selection and all diff changes
+			let startLine = selection.startLineNumber;
+			let endLineExclusive = selection.endLineNumber + 1;
+
+			if (diffInfo) {
 				for (const change of diffInfo.changes) {
-					if (change.modified.contains(position.lineNumber)) {
-						newPosition = new Position(change.modified.startLineNumber - 1, 1);
-						break;
-					}
+					startLine = Math.min(startLine, change.modified.startLineNumber);
+					endLineExclusive = Math.max(endLineExclusive, change.modified.endLineNumberExclusive);
 				}
 			}
+
+			// Position at start (above) or end (below) of the combined range
+			const newPosition = above
+				? new Position(startLine, 1)
+				: new Position(endLineExclusive - 1, 1);
 
 			this._position.set({
 				position: newPosition,
