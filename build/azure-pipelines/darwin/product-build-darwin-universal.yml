@@ -116,7 +116,6 @@ jobs:
           mkdir -p $DMG_OUT
           node build/darwin/create-dmg.ts $(agent.builddirectory) $DMG_OUT
           echo "##vso[task.setvariable variable=DMG_PATH]$DMG_OUT/VSCode-darwin-$(VSCODE_ARCH).dmg"
-        condition: eq(variables['BUILT_CLIENT'], 'true')
         displayName: Create DMG installer
 
       - script: |
