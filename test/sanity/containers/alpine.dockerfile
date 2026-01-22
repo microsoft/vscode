@@ -3,7 +3,6 @@ FROM ${BASE_IMAGE}
 
 # Chromium
 RUN apk add --no-cache chromium
-ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 ENV PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium-browser
 
 COPY entrypoint.sh /entrypoint.sh

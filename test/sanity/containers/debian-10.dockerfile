@@ -23,7 +23,6 @@ RUN if [ "$TARGETARCH" = "amd64" ]; then \
 	apt-get install -y google-chrome-stable; \
 	fi
 
-ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 ENV PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/google-chrome-stable
 
 # Desktop Bus

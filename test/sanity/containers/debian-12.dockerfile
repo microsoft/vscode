@@ -6,7 +6,6 @@ RUN apt-get update
 
 # Chromium
 RUN apt-get install -y chromium
-ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 ENV PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium
 
 # Desktop Bus

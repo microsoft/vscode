@@ -13,7 +13,6 @@ RUN curl -fsSL https://dl.google.com/linux/linux_signing_key.pub -o /tmp/google.
 	zypper ar http://dl.google.com/linux/chrome/rpm/stable/x86_64 Google-Chrome && \
 	zypper install -y google-chrome-stable
 
-ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 ENV PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/google-chrome-stable
 
 # X11 Server
