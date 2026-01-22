@@ -86,7 +86,7 @@ export class InlineChatInputWidget extends Disposable {
 
 		// Create editor options
 		const options = getSimpleEditorOptions(configurationService);
-		options.wordWrap = 'off';
+		options.wordWrap = 'on';
 		options.lineNumbers = 'off';
 		options.glyphMargin = false;
 		options.lineDecorationsWidth = 0;
@@ -95,7 +95,6 @@ export class InlineChatInputWidget extends Disposable {
 		options.minimap = { enabled: false };
 		options.scrollbar = { vertical: 'auto', horizontal: 'hidden', alwaysConsumeMouseWheel: true, verticalSliderSize: 6 };
 		options.renderLineHighlight = 'none';
-		options.placeholder = this._keybindingService.appendKeybinding(localize('placeholderWithSelection', "Edit selection"), ACTION_START);
 
 		const codeEditorWidgetOptions: ICodeEditorWidgetOptions = {
 			isSimpleWidget: true,
@@ -109,6 +108,18 @@ export class InlineChatInputWidget extends Disposable {
 		const model = this._store.add(modelService.createModel('', null, URI.parse(`gutter-input:${Date.now()}`), true));
 		this._input.setModel(model);
 		this._input.layout({ width: 200, height: 18 });
+
+		// Update placeholder based on selection state
+		this._store.add(autorun(r => {
+			const selection = this._editorObs.cursorSelection.read(r);
+			const hasSelection = selection && !selection.isEmpty();
+			const placeholderText = hasSelection
+				? localize('placeholderWithSelection', "Edit selection")
+				: localize('placeholderNoSelection', "Generate code");
+			this._input.updateOptions({
+				placeholder: this._keybindingService.appendKeybinding(placeholderText, ACTION_START)
+			});
+		}));
 
 		// Listen to content size changes and resize the input editor (max 3 lines)
 		this._store.add(this._input.onDidContentSizeChange(e => {

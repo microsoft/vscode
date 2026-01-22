@@ -3166,6 +3166,15 @@ export class ChatResponseMultiDiffPart {
 	}
 }
 
+export class McpToolInvocationContentData {
+	mimeType: string;
+	data: Uint8Array;
+	constructor(data: Uint8Array, mimeType: string) {
+		this.data = data;
+		this.mimeType = mimeType;
+	}
+}
+
 export class ChatResponseExternalEditPart {
 	applied: Thenable<string>;
 	didGetApplied!: (value: string) => void;
@@ -3426,6 +3435,10 @@ export enum ChatSessionStatus {
 
 export class ChatSessionChangedFile {
 	constructor(public readonly modifiedUri: vscode.Uri, public readonly insertions: number, public readonly deletions: number, public readonly originalUri?: vscode.Uri) { }
+}
+
+export class ChatSessionChangedFile2 {
+	constructor(public readonly uri: vscode.Uri, public readonly originalUri: vscode.Uri | undefined, public readonly modifiedUri: vscode.Uri | undefined, public readonly insertions: number, public readonly deletions: number) { }
 }
 
 export enum ChatResponseReferencePartStatusKind {
