@@ -18,7 +18,7 @@ import { EnterAgentSessionProjectionAction, ExitAgentSessionProjectionAction } f
 import { IAgentSessionsService } from '../agentSessionsService.js';
 import { AgentSessionStatus, IAgentSession, isSessionInProgressStatus } from '../agentSessionsModel.js';
 import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../../../base/browser/ui/actionbar/actionViewItems.js';
-import { IAction, SubmenuAction, toAction } from '../../../../../../base/common/actions.js';
+import { IAction, Separator, SubmenuAction, toAction } from '../../../../../../base/common/actions.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IBrowserWorkbenchEnvironmentService } from '../../../../../services/environment/browser/environmentService.js';
@@ -632,11 +632,8 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 		const sparkleContainer = $('span.agent-status-badge-section.sparkle');
 		badge.appendChild(sparkleContainer);
 
-		// Get menu actions for dropdown
-		const menuActions: IAction[] = [];
-		for (const [, actions] of this._chatTitleBarMenu.getActions({ shouldForwardArgs: true })) {
-			menuActions.push(...actions);
-		}
+		// Get menu actions for dropdown with proper group separators
+		const menuActions: IAction[] = Separator.join(...this._chatTitleBarMenu.getActions({ shouldForwardArgs: true }).map(([, actions]) => actions));
 
 		// Create primary action (toggle chat)
 		const primaryAction = this.instantiationService.createInstance(MenuItemAction, {
