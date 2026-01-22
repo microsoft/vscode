@@ -26,6 +26,7 @@ import { CollapsibleListPool } from './chatReferencesContentPart.js';
 import { EditorPool } from './chatContentCodePools.js';
 import { CodeBlockModelCollection } from '../../../common/widget/codeBlockModelCollection.js';
 import { ChatToolInvocationPart } from './toolInvocationParts/chatToolInvocationPart.js';
+import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
 import './media/chatSubagentContent.css';
 
 const MAX_TITLE_LENGTH = 100;
@@ -109,6 +110,7 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		private readonly codeBlockModelCollection: CodeBlockModelCollection,
 		private readonly announcedToolProgressKeys: Set<string>,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IChatMarkdownAnchorService private readonly chatMarkdownAnchorService: IChatMarkdownAnchorService,
 		@IHoverService hoverService: IHoverService,
 	) {
 		// Extract description, agentName, and prompt from toolInvocation

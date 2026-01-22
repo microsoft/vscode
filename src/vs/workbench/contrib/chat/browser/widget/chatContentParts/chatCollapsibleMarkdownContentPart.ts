@@ -7,11 +7,14 @@ import { $ } from '../../../../../../base/browser/dom.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IChatRendererContent } from '../../../common/model/chatViewModel.js';
 import { ChatTreeItem } from '../../chat.js';
 import { ChatCollapsibleContentPart } from './chatCollapsibleContentPart.js';
 import { IChatContentPartRenderContext } from './chatContentParts.js';
+import { renderFileWidgets } from './chatInlineAnchorWidget.js';
+import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
 
 /**
  * A collapsible content part that displays markdown content.
@@ -26,6 +29,8 @@ export class ChatCollapsibleMarkdownContentPart extends ChatCollapsibleContentPa
 		private readonly markdownContent: string,
 		context: IChatContentPartRenderContext,
 		private readonly chatContentMarkdownRenderer: IMarkdownRenderer,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IChatMarkdownAnchorService private readonly chatMarkdownAnchorService: IChatMarkdownAnchorService,
 		@IHoverService hoverService: IHoverService,
 	) {
 		super(title, context, undefined, hoverService);
@@ -38,6 +43,8 @@ export class ChatCollapsibleMarkdownContentPart extends ChatCollapsibleContentPa
 		if (this.markdownContent) {
 			this.contentElement = $('.chat-collapsible-markdown-body');
 			const rendered = this._register(this.chatContentMarkdownRenderer.render(new MarkdownString(this.markdownContent)));
+			// Render file widgets for file anchors in markdown
+			renderFileWidgets(rendered.element, this.instantiationService, this.chatMarkdownAnchorService, this._store);
 			this.contentElement.appendChild(rendered.element);
 			wrapper.appendChild(this.contentElement);
 		}
