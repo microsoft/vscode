@@ -28,6 +28,7 @@ import { NotificationsAlerts } from './parts/notifications/notificationsAlerts.j
 import { NotificationsStatus } from './parts/notifications/notificationsStatus.js';
 import { registerNotificationCommands } from './parts/notifications/notificationsCommands.js';
 import { NotificationsToasts } from './parts/notifications/notificationsToasts.js';
+import { FeatureAnnouncementToasts } from './parts/notifications/featureAnnouncementToasts.js';
 import { setARIAContainer } from '../../base/browser/ui/aria/aria.js';
 import { FontMeasurements } from '../../editor/browser/config/fontMeasurements.js';
 import { createBareFontInfoFromRawSettings } from '../../editor/common/config/fontInfoFromSettings.js';
@@ -381,6 +382,9 @@ export class Workbench extends Layout {
 		const notificationsToasts = this._register(instantiationService.createInstance(NotificationsToasts, this.mainContainer, notificationService.model));
 		this._register(instantiationService.createInstance(NotificationsAlerts, notificationService.model));
 		const notificationsStatus = instantiationService.createInstance(NotificationsStatus, notificationService.model);
+
+		// Instantiate Feature Announcement toasts
+		this._register(instantiationService.createInstance(FeatureAnnouncementToasts, this.mainContainer));
 
 		// Visibility
 		this._register(notificationsCenter.onDidChangeVisibility(() => {

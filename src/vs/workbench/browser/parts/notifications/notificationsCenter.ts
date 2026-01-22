@@ -5,6 +5,7 @@
 
 import './media/notificationsCenter.css';
 import './media/notificationsActions.css';
+import './media/featureAnnouncement.css';
 import { NOTIFICATIONS_CENTER_HEADER_FOREGROUND, NOTIFICATIONS_CENTER_HEADER_BACKGROUND, NOTIFICATIONS_CENTER_BORDER } from '../../../common/theme.js';
 import { IThemeService, Themable } from '../../../../platform/theme/common/themeService.js';
 import { INotificationsModel, INotificationChangeEvent, NotificationChangeType, NotificationViewItemContentChangeKind } from '../../../common/notifications.js';
@@ -14,7 +15,7 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { INotificationsCenterController, NotificationActionRunner } from './notificationsCommands.js';
 import { NotificationsList } from './notificationsList.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { $, Dimension, isAncestorOfActiveElement } from '../../../../base/browser/dom.js';
+import { $, Dimension, isAncestorOfActiveElement, addDisposableListener, EventType } from '../../../../base/browser/dom.js';
 import { widgetShadow } from '../../../../platform/theme/common/colorRegistry.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { localize } from '../../../../nls.js';
@@ -29,6 +30,11 @@ import { mainWindow } from '../../../../base/browser/window.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { DropdownMenuActionViewItem } from '../../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
+import { IFeatureAnnouncementService, IFeatureAnnouncement, FeatureAnnouncementChangeType } from '../../../services/notification/common/featureAnnouncement.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { URI } from '../../../../base/common/uri.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
 
 export class NotificationsCenter extends Themable implements INotificationsCenterController {
 
@@ -42,12 +48,15 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 	private notificationsCenterContainer: HTMLElement | undefined;
 	private notificationsCenterHeader: HTMLElement | undefined;
 	private notificationsCenterTitle: HTMLSpanElement | undefined;
+	private featureAnnouncementsContainer: HTMLElement | undefined;
 	private notificationsList: NotificationsList | undefined;
 	private _isVisible: boolean | undefined;
 	private workbenchDimensions: Dimension | undefined;
 	private readonly notificationsCenterVisibleContextKey;
 	private clearAllAction: ClearAllNotificationsAction | undefined;
 	private configureDoNotDisturbAction: ConfigureDoNotDisturbAction | undefined;
+	private readonly featureAnnouncementDisposables = new Map<string, DisposableStore>();
+	private readonly featureAnnouncementElements = new Map<string, HTMLElement>();
 
 	constructor(
 		private readonly container: HTMLElement,
@@ -60,7 +69,9 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IAccessibilitySignalService private readonly accessibilitySignalService: IAccessibilitySignalService,
-		@IContextMenuService private readonly contextMenuService: IContextMenuService
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IFeatureAnnouncementService private readonly featureAnnouncementService: IFeatureAnnouncementService,
+		@IOpenerService private readonly openerService: IOpenerService
 	) {
 		super(themeService);
 
@@ -73,6 +84,166 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 		this._register(this.model.onDidChangeNotification(e => this.onDidChangeNotification(e)));
 		this._register(this.layoutService.onDidLayoutMainContainer(dimension => this.layout(Dimension.lift(dimension))));
 		this._register(this.notificationService.onDidChangeFilter(() => this.onDidChangeFilter()));
+		this._register(this.featureAnnouncementService.onDidChangeAnnouncements(e => this.onDidChangeFeatureAnnouncement(e)));
+	}
+
+	private onDidChangeFeatureAnnouncement(e: { kind: FeatureAnnouncementChangeType; announcement: IFeatureAnnouncement }): void {
+		if (!this.featureAnnouncementsContainer) {
+			return;
+		}
+
+		switch (e.kind) {
+			case FeatureAnnouncementChangeType.ADD:
+				this.renderFeatureAnnouncement(e.announcement);
+				break;
+			case FeatureAnnouncementChangeType.REMOVE:
+				this.removeFeatureAnnouncement(e.announcement.id);
+				break;
+		}
+
+		this.updateTitle();
+	}
+
+	private renderFeatureAnnouncement(announcement: IFeatureAnnouncement): void {
+		if (!this.featureAnnouncementsContainer) {
+			return;
+		}
+
+		const disposables = new DisposableStore();
+		this.featureAnnouncementDisposables.set(announcement.id, disposables);
+
+		const card = this.createFeatureAnnouncementCard(announcement, disposables);
+		card.dataset.announcementId = announcement.id;
+		this.featureAnnouncementElements.set(announcement.id, card);
+		this.featureAnnouncementsContainer.appendChild(card);
+	}
+
+	private createFeatureAnnouncementCard(announcement: IFeatureAnnouncement, disposables: DisposableStore): HTMLElement {
+		const card = $('.feature-announcement-card');
+
+		// Header
+		const header = $('.announcement-header');
+		card.appendChild(header);
+
+		const headerText = $('.announcement-header-text');
+		header.appendChild(headerText);
+
+		const category = $('.announcement-category');
+		category.textContent = announcement.category;
+		headerText.appendChild(category);
+
+		const title = $('.announcement-title');
+		title.textContent = announcement.title;
+		headerText.appendChild(title);
+
+		// Close button
+		const closeButton = $('button.announcement-close');
+		closeButton.setAttribute('aria-label', 'Close');
+		const closeIcon = $('span.codicon.codicon-close');
+		closeButton.appendChild(closeIcon);
+		header.appendChild(closeButton);
+
+		disposables.add(addDisposableListener(closeButton, EventType.CLICK, () => {
+			this.featureAnnouncementService.close(announcement.id);
+		}));
+
+		// Features list
+		const features = $('.announcement-features');
+		card.appendChild(features);
+
+		for (const feature of announcement.features) {
+			const featureItem = $('.feature-item');
+			features.appendChild(featureItem);
+
+			const icon = $('.feature-icon');
+			icon.classList.add(...ThemeIcon.asClassNameArray(feature.icon));
+			featureItem.appendChild(icon);
+
+			const content = $('.feature-content');
+			featureItem.appendChild(content);
+
+			const featureTitle = $('.feature-title');
+			featureTitle.textContent = feature.title;
+			content.appendChild(featureTitle);
+
+			const description = $('.feature-description');
+			description.textContent = feature.description;
+			content.appendChild(description);
+		}
+
+		// Footer
+		if (announcement.learnMoreUrl || announcement.primaryAction) {
+			const footer = $('.announcement-footer');
+			card.appendChild(footer);
+
+			if (announcement.learnMoreUrl) {
+				const learnMore = $('a.announcement-learn-more');
+				learnMore.textContent = localize('fullReleaseNotes', "Full Release Notes");
+				learnMore.setAttribute('href', announcement.learnMoreUrl);
+				footer.appendChild(learnMore);
+
+				disposables.add(addDisposableListener(learnMore, EventType.CLICK, (e) => {
+					e.preventDefault();
+					this.openerService.open(URI.parse(announcement.learnMoreUrl!));
+				}));
+			} else {
+				footer.appendChild($('span'));
+			}
+
+			if (announcement.primaryAction) {
+				const primaryButton = $('button.announcement-primary-action');
+				primaryButton.textContent = announcement.primaryAction.label;
+				footer.appendChild(primaryButton);
+
+				const action = announcement.primaryAction;
+				disposables.add(addDisposableListener(primaryButton, EventType.CLICK, () => {
+					action.run();
+					this.featureAnnouncementService.close(announcement.id);
+				}));
+			}
+		}
+
+		return card;
+	}
+
+	private removeFeatureAnnouncement(id: string): void {
+		if (!this.featureAnnouncementsContainer) {
+			return;
+		}
+
+		// Remove DOM element
+		const cardElement = this.featureAnnouncementElements.get(id);
+		if (cardElement) {
+			cardElement.remove();
+			this.featureAnnouncementElements.delete(id);
+		}
+
+		// Dispose
+		const disposables = this.featureAnnouncementDisposables.get(id);
+		if (disposables) {
+			disposables.dispose();
+			this.featureAnnouncementDisposables.delete(id);
+		}
+	}
+
+	private renderAllFeatureAnnouncements(): void {
+		if (!this.featureAnnouncementsContainer) {
+			return;
+		}
+
+		// Clear existing
+		while (this.featureAnnouncementsContainer.firstChild) {
+			this.featureAnnouncementsContainer.removeChild(this.featureAnnouncementsContainer.firstChild);
+		}
+		for (const disposables of this.featureAnnouncementDisposables.values()) {
+			disposables.dispose();
+		}
+		this.featureAnnouncementDisposables.clear();
+
+		// Render all
+		for (const announcement of this.featureAnnouncementService.announcements) {
+			this.renderFeatureAnnouncement(announcement);
+		}
 	}
 
 	private onDidChangeFilter(): void {
@@ -118,6 +289,9 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 		// Show all notifications that are present now
 		notificationsList.updateNotificationsList(0, 0, this.model.notifications);
 
+		// Render feature announcements
+		this.renderAllFeatureAnnouncements();
+
 		// Focus first
 		notificationsList.focusFirst();
 
@@ -137,12 +311,15 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 	private updateTitle(): void {
 		const [notificationsCenterTitle, clearAllAction] = assertReturnsAllDefined(this.notificationsCenterTitle, this.clearAllAction);
 
-		if (this.model.notifications.length === 0) {
+		const featureAnnouncementCount = this.featureAnnouncementService.announcements.length;
+		const totalCount = this.model.notifications.length + featureAnnouncementCount;
+
+		if (totalCount === 0) {
 			notificationsCenterTitle.textContent = localize('notificationsEmpty', "No new notifications");
 			clearAllAction.enabled = false;
 		} else {
 			notificationsCenterTitle.textContent = localize('notifications', "Notifications");
-			clearAllAction.enabled = this.model.notifications.some(notification => !notification.hasProgress);
+			clearAllAction.enabled = this.model.notifications.some(notification => !notification.hasProgress) || featureAnnouncementCount > 0;
 		}
 	}
 
@@ -223,6 +400,10 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 
 		const hideAllAction = this._register(this.instantiationService.createInstance(HideNotificationsCenterAction, HideNotificationsCenterAction.ID, HideNotificationsCenterAction.LABEL));
 		notificationsToolBar.push(hideAllAction, { icon: true, label: false, keybinding: this.getKeybindingLabel(hideAllAction) });
+
+		// Feature Announcements Container (above regular notifications)
+		this.featureAnnouncementsContainer = $('.feature-announcements-container');
+		this.notificationsCenterContainer.appendChild(this.featureAnnouncementsContainer);
 
 		// Notifications List
 		this.notificationsList = this.instantiationService.createInstance(NotificationsList, this.notificationsCenterContainer, {

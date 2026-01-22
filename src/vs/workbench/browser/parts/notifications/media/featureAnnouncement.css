@@ -1,0 +1,170 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Feature Announcement Card Container */
+.monaco-workbench > .feature-announcements {
+	position: absolute;
+	z-index: 1000;
+	right: 12px;
+	bottom: 34px; /* 22px status bar height + 12px */
+	display: none;
+	overflow: hidden;
+}
+
+.monaco-workbench.nostatusbar > .feature-announcements {
+	bottom: 12px;
+}
+
+.monaco-workbench > .feature-announcements.visible {
+	display: flex;
+	flex-direction: column;
+}
+
+/* Feature Announcement Card */
+.monaco-workbench .feature-announcement-card {
+	width: 320px;
+	background-color: var(--vscode-notifications-background);
+	color: var(--vscode-notifications-foreground);
+	border: 1px solid var(--vscode-notifications-border);
+	border-radius: 8px;
+	box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+	overflow: hidden;
+	margin: 4px;
+	transform: translate3d(0px, 100%, 0px);
+	opacity: 0;
+	transition: transform 300ms ease-out, opacity 300ms ease-out;
+}
+
+.monaco-workbench.monaco-reduce-motion .feature-announcement-card {
+	transition: transform 0ms ease-out, opacity 0ms ease-out;
+}
+
+.monaco-workbench .feature-announcement-card.fade-in {
+	opacity: 1;
+	transform: none;
+}
+
+/* Card Header */
+.monaco-workbench .feature-announcement-card .announcement-header {
+	display: flex;
+	justify-content: space-between;
+	align-items: flex-start;
+	padding: 12px 12px 8px 12px;
+}
+
+.monaco-workbench .feature-announcement-card .announcement-header-text {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+
+.monaco-workbench .feature-announcement-card .announcement-category {
+	font-size: 10px;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.monaco-workbench .feature-announcement-card .announcement-title {
+	font-size: 14px;
+	font-weight: 600;
+	color: var(--vscode-foreground);
+}
+
+.monaco-workbench .feature-announcement-card .announcement-close {
+	background: transparent;
+	border: none;
+	cursor: pointer;
+	padding: 2px;
+	color: var(--vscode-icon-foreground);
+	border-radius: 4px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.monaco-workbench .feature-announcement-card .announcement-close:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+/* Feature List */
+.monaco-workbench .feature-announcement-card .announcement-features {
+	padding: 0 12px 12px 12px;
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+}
+
+.monaco-workbench .feature-announcement-card .feature-item {
+	display: flex;
+	gap: 10px;
+	align-items: flex-start;
+}
+
+.monaco-workbench .feature-announcement-card .feature-icon {
+	flex-shrink: 0;
+	width: 20px;
+	height: 20px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	color: var(--vscode-textLink-foreground);
+}
+
+.monaco-workbench .feature-announcement-card .feature-content {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	min-width: 0;
+}
+
+.monaco-workbench .feature-announcement-card .feature-title {
+	font-size: 12px;
+	font-weight: 600;
+	color: var(--vscode-foreground);
+}
+
+.monaco-workbench .feature-announcement-card .feature-description {
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
+	line-height: 1.4;
+}
+
+/* Card Footer */
+.monaco-workbench .feature-announcement-card .announcement-footer {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	padding: 8px 12px 12px 12px;
+	border-top: 1px solid var(--vscode-notifications-border);
+	background-color: var(--vscode-notifications-background);
+}
+
+.monaco-workbench .feature-announcement-card .announcement-learn-more {
+	font-size: 11px;
+	color: var(--vscode-textLink-foreground);
+	text-decoration: none;
+	cursor: pointer;
+}
+
+.monaco-workbench .feature-announcement-card .announcement-learn-more:hover {
+	text-decoration: underline;
+}
+
+.monaco-workbench .feature-announcement-card .announcement-primary-action {
+	background-color: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+	border: none;
+	border-radius: 4px;
+	padding: 6px 12px;
+	font-size: 12px;
+	font-weight: 500;
+	cursor: pointer;
+}
+
+.monaco-workbench .feature-announcement-card .announcement-primary-action:hover {
+	background-color: var(--vscode-button-hoverBackground);
+}
