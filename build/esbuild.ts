@@ -192,68 +192,8 @@ async function copyResources(outDir: string, excludeDevFiles = false): Promise<v
 }
 
 // ============================================================================
-// TS Boilerplate Removal (logic from build/lib/bundle.ts)
-// ============================================================================
-
-const BOILERPLATE = [
-	{ start: /^var __extends/, end: /^}\)\(\);$/ },
-	{ start: /^var __assign/, end: /^};$/ },
-	{ start: /^var __decorate/, end: /^};$/ },
-	{ start: /^var __metadata/, end: /^};$/ },
-	{ start: /^var __param/, end: /^};$/ },
-	{ start: /^var __awaiter/, end: /^};$/ },
-	{ start: /^var __generator/, end: /^};$/ },
-	{ start: /^var __createBinding/, end: /^}\)\);$/ },
-	{ start: /^var __setModuleDefault/, end: /^}\);$/ },
-	{ start: /^var __importStar/, end: /^};$/ },
-	{ start: /^var __addDisposableResource/, end: /^};$/ },
-	{ start: /^var __disposeResources/, end: /^}\);$/ },
-];
-
-function removeAllTSBoilerplate(source: string): string {
-	const seen = new Array<boolean>(BOILERPLATE.length).fill(true);
-	const lines = source.split(/\r\n|\n|\r/);
-	const newLines: string[] = [];
-	let isRemoving = false;
-	let endPattern: RegExp | undefined;
-
-	for (const line of lines) {
-		if (isRemoving) {
-			newLines.push('');
-			if (endPattern!.test(line)) {
-				isRemoving = false;
-			}
-		} else {
-			let shouldRemove = false;
-			for (let j = 0; j < BOILERPLATE.length; j++) {
-				if (BOILERPLATE[j].start.test(line) && seen[j]) {
-					shouldRemove = true;
-					isRemoving = true;
-					endPattern = BOILERPLATE[j].end;
-					break;
-				}
-			}
-			newLines.push(shouldRemove ? '' : line);
-		}
-	}
-	return newLines.join('\n');
-}
-
-// ============================================================================
 // Plugins
 // ============================================================================
-
-function tsBoilerplatePlugin(): esbuild.Plugin {
-	return {
-		name: 'ts-boilerplate-removal',
-		setup(build) {
-			build.onLoad({ filter: /\.js$/ }, async (args) => {
-				const contents = await fs.promises.readFile(args.path, 'utf-8');
-				return { contents: removeAllTSBoilerplate(contents) };
-			});
-		},
-	};
-}
 
 function inlineMinimistPlugin(): esbuild.Plugin {
 	return {
