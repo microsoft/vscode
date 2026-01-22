@@ -5,16 +5,165 @@
 
 import { registerSingleton, InstantiationType } from '../../../../../../platform/instantiation/common/extensions.js';
 import { MenuId, MenuRegistry, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
-import { IAgentSessionProjectionService, AgentSessionProjectionService, AgentSessionProjectionOpenerContribution } from './agentSessionProjectionService.js';
+import { IAgentSessionProjectionService, AgentSessionProjectionService, AGENT_SESSION_PROJECTION_ENABLED_PROVIDERS } from './agentSessionProjectionService.js';
 import { EnterAgentSessionProjectionAction, ExitAgentSessionProjectionAction, ToggleAgentStatusAction, ToggleUnifiedAgentsBarAction } from './agentSessionProjectionActions.js';
-import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../common/contributions.js';
+import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../common/contributions.js';
 import { AgentTitleBarStatusRendering } from './agentTitleBarStatusWidget.js';
 import { AgentTitleBarStatusService, IAgentTitleBarStatusService } from './agentTitleBarStatusService.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { localize } from '../../../../../../nls.js';
 import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { ProductQualityContext } from '../../../../../../platform/contextkey/common/contextkeys.js';
-import { ChatConfiguration } from '../../../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration } from '../../../common/constants.js';
+import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { IChatWidget, IChatWidgetService } from '../../chat.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IAgentSessionsService } from '../agentSessionsService.js';
+import { IChatEditingService, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
+import { isSessionInProgressStatus } from '../agentSessionsModel.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { autorun } from '../../../../../../base/common/observable.js';
+
+/**
+ * Contribution that watches for projection-capable sessions and shows
+ * the "session ready" state in the title bar when changes are available for review.
+ */
+class AgentSessionReadyContribution extends Disposable implements IWorkbenchContribution {
+	static readonly ID = 'chat.agentSessionReady';
+
+	private readonly _widgetDisposables = this._register(new DisposableStore());
+
+	constructor(
+		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IAgentTitleBarStatusService private readonly agentTitleBarStatusService: IAgentTitleBarStatusService,
+		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
+		@IAgentSessionProjectionService private readonly agentSessionProjectionService: IAgentSessionProjectionService,
+		@IChatEditingService private readonly chatEditingService: IChatEditingService,
+	) {
+		super();
+
+		// Monitor existing widgets
+		for (const widget of this.chatWidgetService.getAllWidgets()) {
+			if (widget.location === ChatAgentLocation.Chat) {
+				this._watchWidget(widget);
+			}
+		}
+
+		// Monitor new widgets
+		this._register(this.chatWidgetService.onDidAddWidget(widget => {
+			if (widget.location === ChatAgentLocation.Chat) {
+				this._watchWidget(widget);
+			}
+		}));
+
+		// When projection mode changes, re-check session state
+		this._register(this.agentTitleBarStatusService.onDidChangeMode(() => {
+			// If we entered projection mode, the title bar service already handles it
+			// If we exited projection mode, check if we should show session-ready state
+			if (!this.agentSessionProjectionService.isActive) {
+				const currentWidget = this.chatWidgetService.getAllWidgets().find(w => w.location === ChatAgentLocation.Chat);
+				if (currentWidget) {
+					this._checkSession(currentWidget.viewModel?.sessionResource);
+				}
+			}
+		}));
+
+		// Also watch for editing session changes - an editing session might be created after the chat is opened
+		this._register(autorun(reader => {
+			// Read the observable to track changes
+			this.chatEditingService.editingSessionsObs.read(reader);
+			// When editing sessions change, re-check the current session
+			const currentWidget = this.chatWidgetService.getAllWidgets().find(w => w.location === ChatAgentLocation.Chat);
+			if (currentWidget) {
+				this._checkSession(currentWidget.viewModel?.sessionResource);
+			}
+		}));
+	}
+
+	private _watchWidget(widget: IChatWidget): void {
+		// Clear previous disposables when switching widgets
+		this._widgetDisposables.clear();
+
+		// Check initial state
+		this._checkSession(widget.viewModel?.sessionResource);
+
+		// Watch for viewmodel changes
+		this._widgetDisposables.add(widget.onDidChangeViewModel(() => {
+			this._checkSession(widget.viewModel?.sessionResource);
+		}));
+	}
+
+	private _checkSession(sessionResource: URI | undefined): void {
+		// Update state based on current session
+		this._updateSessionReadyState(sessionResource);
+	}
+
+	private _updateSessionReadyState(sessionResource: URI | undefined): void {
+		// Check if projection is enabled
+		const isEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.AgentSessionProjectionEnabled);
+		if (!isEnabled) {
+			this.agentTitleBarStatusService.exitSessionReadyMode();
+			return;
+		}
+
+		// Check if already in projection mode
+		if (this.agentSessionProjectionService.isActive) {
+			this.agentTitleBarStatusService.exitSessionReadyMode();
+			return;
+		}
+
+		if (!sessionResource) {
+			this.agentTitleBarStatusService.exitSessionReadyMode();
+			return;
+		}
+
+		// Get the session
+		const session = this.agentSessionsService.getSession(sessionResource);
+		if (!session) {
+			this.agentTitleBarStatusService.exitSessionReadyMode();
+			return;
+		}
+
+		// Check if this is a projection-capable provider
+		if (!AGENT_SESSION_PROJECTION_ENABLED_PROVIDERS.has(session.providerType)) {
+			this.agentTitleBarStatusService.exitSessionReadyMode();
+			return;
+		}
+
+		// Check if session is in progress
+		if (isSessionInProgressStatus(session.status)) {
+			this.agentTitleBarStatusService.exitSessionReadyMode();
+			return;
+		}
+
+		// Check if session has undecided changes
+		const editingSession = this.chatEditingService.getEditingSession(sessionResource);
+		if (!editingSession) {
+			this.agentTitleBarStatusService.exitSessionReadyMode();
+			return;
+		}
+
+		const entries = editingSession.entries.get();
+		const hasUndecidedChanges = entries.some(entry => entry.state.get() === ModifiedFileEntryState.Modified);
+
+		if (hasUndecidedChanges) {
+			// Enter session-ready mode
+			this.agentTitleBarStatusService.enterSessionReadyMode(session.resource, session.label);
+
+			// Monitor the entries for changes
+			this._widgetDisposables.add(autorun(reader => {
+				const currentEntries = editingSession.entries.read(reader);
+				const stillHasChanges = currentEntries.some(entry => entry.state.read(reader) === ModifiedFileEntryState.Modified);
+				if (!stillHasChanges) {
+					this.agentTitleBarStatusService.exitSessionReadyMode();
+				}
+			}));
+		} else {
+			this.agentTitleBarStatusService.exitSessionReadyMode();
+		}
+	}
+}
 
 // #region Agent Session Projection & Status
 
@@ -26,8 +175,8 @@ registerAction2(ToggleUnifiedAgentsBarAction);
 registerSingleton(IAgentSessionProjectionService, AgentSessionProjectionService, InstantiationType.Delayed);
 registerSingleton(IAgentTitleBarStatusService, AgentTitleBarStatusService, InstantiationType.Delayed);
 
-registerWorkbenchContribution2(AgentSessionProjectionOpenerContribution.ID, AgentSessionProjectionOpenerContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(AgentTitleBarStatusRendering.ID, AgentTitleBarStatusRendering, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(AgentSessionReadyContribution.ID, AgentSessionReadyContribution, WorkbenchPhase.AfterRestored);
 
 // Register Agent Status as a menu item in the command center (alongside the search box, not replacing it)
 MenuRegistry.appendMenuItem(MenuId.CommandCenter, {
@@ -55,10 +204,7 @@ MenuRegistry.appendMenuItem(MenuId.AgentsTitleBarControlMenu, {
 		title: localize('toggleUnifiedAgentsBar', "Unified Agents Bar"),
 		toggled: ContextKeyExpr.has(`config.${ChatConfiguration.UnifiedAgentsBar}`),
 	},
-	when: ContextKeyExpr.and(
-		ContextKeyExpr.has(`config.${ChatConfiguration.AgentStatusEnabled}`),
-		ProductQualityContext.notEqualsTo('stable')
-	),
+	when: ProductQualityContext.notEqualsTo('stable'),
 	order: 10
 });
 

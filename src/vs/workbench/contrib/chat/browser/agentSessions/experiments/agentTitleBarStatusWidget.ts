@@ -14,7 +14,7 @@ import { getDefaultHoverDelegate } from '../../../../../../base/browser/ui/hover
 import { AgentStatusMode, IAgentTitleBarStatusService } from './agentTitleBarStatusService.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
-import { ExitAgentSessionProjectionAction } from './agentSessionProjectionActions.js';
+import { EnterAgentSessionProjectionAction, ExitAgentSessionProjectionAction } from './agentSessionProjectionActions.js';
 import { IAgentSessionsService } from '../agentSessionsService.js';
 import { AgentSessionStatus, IAgentSession, isSessionInProgressStatus } from '../agentSessionsModel.js';
 import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../../../base/browser/ui/actionbar/actionViewItems.js';
@@ -235,6 +235,9 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 			if (this.agentTitleBarStatusService.mode === AgentStatusMode.Session) {
 				// Agent Session Projection mode - show session title + close button
 				this._renderSessionMode(this._dynamicDisposables);
+			} else if (this.agentTitleBarStatusService.mode === AgentStatusMode.SessionReady) {
+				// Session ready mode - show session title + enter projection button
+				this._renderSessionReadyMode(this._dynamicDisposables);
 			} else if (isEnhanced) {
 				// Enhanced mode - show full pill with label + status badge
 				this._renderChatInputMode(this._dynamicDisposables);
@@ -419,6 +422,64 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 			const sessionInfo = this.agentTitleBarStatusService.sessionInfo;
 			return sessionInfo ? localize('agentSessionProjectionTooltip', "Agent Session Projection: {0}", sessionInfo.title) : localize('agentSessionProjection', "Agent Session Projection");
 		}));
+
+		// Click handler - clicking anywhere on container exits projection
+		const exitHandler = (e: Event) => {
+			e.preventDefault();
+			e.stopPropagation();
+			this.commandService.executeCommand(ExitAgentSessionProjectionAction.ID);
+		};
+		disposables.add(addDisposableListener(pill, EventType.CLICK, exitHandler));
+		disposables.add(addDisposableListener(pill, EventType.MOUSE_DOWN, exitHandler));
+
+		// Status badge (separate rectangle on right) - always rendered for smooth transitions
+		this._renderStatusBadge(disposables, activeSessions, unreadSessions);
+	}
+
+	/**
+	 * Render session ready mode - shows session title + enter projection button.
+	 * Used when a projection-capable session is available but not yet entered.
+	 */
+	private _renderSessionReadyMode(disposables: DisposableStore): void {
+		if (!this._container) {
+			return;
+		}
+
+		const { activeSessions, unreadSessions } = this._getSessionStats();
+
+		const pill = $('div.agent-status-pill.session-ready-mode');
+		this._container.appendChild(pill);
+
+		// Session title (left side)
+		const titleLabel = $('span.agent-status-title');
+		const sessionInfo = this.agentTitleBarStatusService.sessionInfo;
+		titleLabel.textContent = sessionInfo?.title ?? localize('agentSessionReady', "Review Changes");
+		pill.appendChild(titleLabel);
+
+		// Enter button (right side)
+		this._renderEnterButton(disposables, pill);
+
+		// Setup pill hover
+		const hoverDelegate = getDefaultHoverDelegate('mouse');
+		disposables.add(this.hoverService.setupManagedHover(hoverDelegate, pill, () => {
+			const sessionInfo = this.agentTitleBarStatusService.sessionInfo;
+			return sessionInfo ? localize('agentSessionReadyTooltip', "Review changes from: {0}", sessionInfo.title) : localize('agentSessionReadyGeneric', "Review agent session changes");
+		}));
+
+		// Click handler - clicking anywhere on pill enters projection
+		const enterHandler = (e: Event) => {
+			e.preventDefault();
+			e.stopPropagation();
+			const sessionInfo = this.agentTitleBarStatusService.sessionInfo;
+			if (sessionInfo) {
+				const session = this.agentSessionsService.getSession(sessionInfo.sessionResource);
+				if (session) {
+					this.commandService.executeCommand(EnterAgentSessionProjectionAction.ID, session);
+				}
+			}
+		};
+		disposables.add(addDisposableListener(pill, EventType.CLICK, enterHandler));
+		disposables.add(addDisposableListener(pill, EventType.MOUSE_DOWN, enterHandler));
 
 		// Status badge (separate rectangle on right) - always rendered for smooth transitions
 		this._renderStatusBadge(disposables, activeSessions, unreadSessions);
@@ -856,6 +917,51 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 				e.preventDefault();
 				e.stopPropagation();
 				this.commandService.executeCommand(ExitAgentSessionProjectionAction.ID);
+			}
+		}));
+	}
+
+	/**
+	 * Render the enter button for entering session projection mode.
+	 */
+	private _renderEnterButton(disposables: DisposableStore, parent: HTMLElement): void {
+		const enterButton = $('span.agent-status-enter-button');
+		// Get the keybinding for the enter action
+		const keybinding = this.keybindingService.lookupKeybinding(EnterAgentSessionProjectionAction.ID);
+		enterButton.textContent = keybinding?.getLabel() ?? localize('review', "Review");
+		enterButton.setAttribute('role', 'button');
+		enterButton.setAttribute('aria-label', localize('enterAgentSessionProjection', "Enter Agent Session Projection"));
+		enterButton.tabIndex = 0;
+		parent.appendChild(enterButton);
+
+		// Setup hover
+		const hoverDelegate = getDefaultHoverDelegate('mouse');
+		const hoverText = keybinding
+			? localize('enterAgentSessionProjectionTooltip', "Review Changes ({0})", keybinding.getLabel())
+			: localize('enterAgentSessionProjectionTooltipNoKey', "Review Changes");
+		disposables.add(this.hoverService.setupManagedHover(hoverDelegate, enterButton, hoverText));
+
+		// Enter projection handler - same as clicking the pill
+		const enterProjection = (e: Event) => {
+			e.preventDefault();
+			e.stopPropagation();
+			const sessionInfo = this.agentTitleBarStatusService.sessionInfo;
+			if (sessionInfo) {
+				const session = this.agentSessionsService.getSession(sessionInfo.sessionResource);
+				if (session) {
+					this.commandService.executeCommand(EnterAgentSessionProjectionAction.ID, session);
+				}
+			}
+		};
+
+		// Click handler
+		disposables.add(addDisposableListener(enterButton, EventType.MOUSE_DOWN, enterProjection));
+		disposables.add(addDisposableListener(enterButton, EventType.CLICK, enterProjection));
+
+		// Keyboard handler
+		disposables.add(addDisposableListener(enterButton, EventType.KEY_DOWN, (e) => {
+			if (e.key === 'Enter' || e.key === ' ') {
+				enterProjection(e);
 			}
 		}));
 	}
