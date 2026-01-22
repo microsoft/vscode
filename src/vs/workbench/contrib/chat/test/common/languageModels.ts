@@ -8,7 +8,7 @@ import { IStringDictionary } from '../../../../../base/common/collections.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
-import { IChatMessage, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelChatProvider, ILanguageModelChatResponse, ILanguageModelChatSelector, ILanguageModelsGroup, ILanguageModelsService, IUserFriendlyLanguageModel } from '../../common/languageModels.js';
+import { IChatMessage, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelChatProvider, ILanguageModelChatResponse, ILanguageModelChatSelector, ILanguageModelProviderDescriptor, ILanguageModelsGroup, ILanguageModelsService, IUserFriendlyLanguageModel } from '../../common/languageModels.js';
 import { ILanguageModelsProviderGroup } from '../../common/languageModelsConfiguration.js';
 
 export class NullLanguageModelsService implements ILanguageModelsService {
@@ -28,7 +28,7 @@ export class NullLanguageModelsService implements ILanguageModelsService {
 		return;
 	}
 
-	getVendors(): IUserFriendlyLanguageModel[] {
+	getVendors(): ILanguageModelProviderDescriptor[] {
 		return [];
 	}
 

@@ -216,6 +216,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 					detail: m.detail,
 					tooltip: m.tooltip,
 					version: m.version,
+					multiplier: m.multiplier,
 					maxInputTokens: m.maxInputTokens,
 					maxOutputTokens: m.maxOutputTokens,
 					auth,

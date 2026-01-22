@@ -463,11 +463,20 @@ export function registerChatActions() {
 			const viewsService = accessor.get(IViewsService);
 			const viewDescriptorService = accessor.get(IViewDescriptorService);
 			const widgetService = accessor.get(IChatWidgetService);
+			const configurationService = accessor.get(IConfigurationService);
 
 			const chatLocation = viewDescriptorService.getViewLocationById(ChatViewId);
 
 			if (viewsService.isViewVisible(ChatViewId)) {
-				this.updatePartVisibility(layoutService, chatLocation, false);
+				if (
+					chatLocation === ViewContainerLocation.AuxiliaryBar &&
+					configurationService.getValue<boolean>(ChatConfiguration.CommandCenterTriStateToggle) &&
+					!layoutService.isAuxiliaryBarMaximized()
+				) {
+					layoutService.setAuxiliaryBarMaximized(true);
+				} else {
+					this.updatePartVisibility(layoutService, chatLocation, false);
+				}
 			} else {
 				this.updatePartVisibility(layoutService, chatLocation, true);
 				(await widgetService.revealWidget())?.focusInput();

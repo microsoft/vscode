@@ -7,12 +7,14 @@ import * as dom from '../../../../../../base/browser/dom.js';
 import { ButtonWithIcon } from '../../../../../../base/browser/ui/button/button.js';
 import { HoverStyle } from '../../../../../../base/browser/ui/hover/hover.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
+import { Emitter } from '../../../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { ITextModel } from '../../../../../../editor/common/model.js';
+import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
+import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { localize } from '../../../../../../nls.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
@@ -28,10 +30,11 @@ import { ChatToolOutputContentSubPart } from './chatToolOutputContentSubPart.js'
 
 export interface IChatCollapsibleIOCodePart {
 	kind: 'code';
-	textModel: ITextModel;
+	data: string; // The text content to create a model from
 	languageId: string;
 	options: ICodeBlockRenderOptions;
-	codeBlockInfo: IChatCodeBlockInfo;
+	codeBlockIndex: number;
+	ownerMarkdownPartId: string;
 	title?: string | IMarkdownString;
 }
 
@@ -51,19 +54,19 @@ export interface IChatCollapsibleOutputData {
 }
 
 export class ChatCollapsibleInputOutputContentPart extends Disposable {
+	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
+	public readonly onDidChangeHeight = this._onDidChangeHeight.event;
+
 	private _currentWidth: number = 0;
 	private readonly _editorReferences: IDisposableReference<CodeBlockPart>[] = [];
 	private readonly _titlePart: ChatQueryTitlePart;
 	private _outputSubPart: ChatToolOutputContentSubPart | undefined;
 	public readonly domNode: HTMLElement;
+	private _contentInitialized = false;
 
 	get codeblocks(): IChatCodeBlockInfo[] {
-		const inputCodeblocks = this._editorReferences.map(ref => {
-			const cbi = this.input.codeBlockInfo;
-			return cbi;
-		});
 		const outputCodeblocks = this._outputSubPart?.codeblocks ?? [];
-		return [...inputCodeblocks, ...outputCodeblocks];
+		return outputCodeblocks;
 	}
 
 	public set title(s: string | IMarkdownString) {
@@ -92,6 +95,8 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IHoverService hoverService: IHoverService,
+		@IModelService private readonly modelService: IModelService,
+		@ILanguageService private readonly languageService: ILanguageService,
 	) {
 		super();
 		this._currentWidth = context.currentWidth.get();
@@ -108,6 +113,7 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 			title,
 			subtitle,
 		));
+		this._register(this._titlePart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 		const spacer = document.createElement('span');
 		spacer.style.flexGrow = '1';
 
@@ -138,6 +144,16 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 					? Codicon.check
 					: ThemeIcon.modify(Codicon.loading, 'spin');
 			elements.root.classList.toggle('collapsed', !value);
+
+			// Lazy initialization: render content only when expanded for the first time
+			if (value && !this._contentInitialized) {
+				this._contentInitialized = true;
+				const messageContainer = dom.h('.chat-confirmation-widget-message');
+				messageContainer.root.appendChild(this.createMessageContents());
+				elements.root.appendChild(messageContainer.root);
+			}
+
+			this._onDidChangeHeight.fire();
 		}));
 
 		const toggle = (e: Event) => {
@@ -149,10 +165,6 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 		};
 
 		this._register(btn.onDidClick(toggle));
-
-		const message = dom.h('.chat-confirmation-widget-message');
-		message.root.appendChild(this.createMessageContents());
-		elements.root.appendChild(message.root);
 
 		const topLevelResources = this.output?.parts
 			.filter(p => p.kind === 'data')
@@ -203,10 +215,18 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 	}
 
 	private addCodeBlock(part: IChatCollapsibleIOCodePart, container: HTMLElement) {
+		// Create the text model lazily when rendering
+		const textModel = this._register(this.modelService.createModel(
+			part.data,
+			this.languageService.createById(part.languageId),
+			undefined,
+			true
+		));
+
 		const data: ICodeBlockData = {
 			languageId: part.languageId,
-			textModel: Promise.resolve(part.textModel),
-			codeBlockIndex: part.codeBlockInfo.codeBlockIndex,
+			textModel: Promise.resolve(textModel),
+			codeBlockIndex: part.codeBlockIndex,
 			codeBlockPartIndex: 0,
 			element: this.context.element,
 			parentContextKeyService: this.contextKeyService,
@@ -215,6 +235,7 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 		};
 		const editorReference = this._register(this.context.editorPool.get());
 		editorReference.object.render(data, this._currentWidth || 300);
+		this._register(editorReference.object.onDidChangeContentHeight(() => this._onDidChangeHeight.fire()));
 		container.appendChild(editorReference.object.element);
 		this._editorReferences.push(editorReference);
 	}
