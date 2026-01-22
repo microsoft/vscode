@@ -37,7 +37,7 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { defaultButtonStyles, defaultCheckboxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { DomWidget } from '../../../../../platform/domWidget/browser/domWidget.js';
 import { EditorResourceAccessor, SideBySideEditor } from '../../../../common/editor.js';
-import { IChatEntitlementService, ChatEntitlementService, ChatEntitlement, IQuotaSnapshot } from '../../../../services/chat/common/chatEntitlementService.js';
+import { IChatEntitlementService, ChatEntitlementService, ChatEntitlement, IQuotaSnapshot, getChatPlanName } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
 import { isNewUser, isCompletionsEnabled } from './chatStatus.js';
@@ -167,10 +167,7 @@ export class ChatStatusDashboard extends DomWidget {
 		// Quota Indicator
 		const { chat: chatQuota, completions: completionsQuota, premiumChat: premiumChatQuota, resetDate, resetDateHasTime } = this.chatEntitlementService.quotas;
 		if (chatQuota || completionsQuota || premiumChatQuota) {
-			const skuLabel = this.getSkuLabel();
-			const usageTitle = skuLabel
-				? localize('usageTitleWithSku', "Copilot {0} Usage", skuLabel)
-				: localize('usageTitle', "Copilot Usage");
+			const usageTitle = this.getUsageTitle();
 			addSeparator(usageTitle, toAction({
 				id: 'workbench.action.manageCopilot',
 				label: localize('quotaLabel', "Manage Chat"),
@@ -391,21 +388,9 @@ export class ChatStatusDashboard extends DomWidget {
 		return true;
 	}
 
-	private getSkuLabel(): string | undefined {
-		switch (this.chatEntitlementService.entitlement) {
-			case ChatEntitlement.Free:
-				return localize('skuFree', "Free");
-			case ChatEntitlement.Pro:
-				return localize('skuPro', "Pro");
-			case ChatEntitlement.ProPlus:
-				return localize('skuProPlus', "Pro+");
-			case ChatEntitlement.Business:
-				return localize('skuBusiness', "Business");
-			case ChatEntitlement.Enterprise:
-				return localize('skuEnterprise', "Enterprise");
-			default:
-				return undefined;
-		}
+	private getUsageTitle(): string {
+		const planName = getChatPlanName(this.chatEntitlementService.entitlement);
+		return localize('usageTitleWithPlan', "{0} Usage", planName);
 	}
 
 	private renderHeader(container: HTMLElement, disposables: DisposableStore, label: string, action?: IAction): void {
