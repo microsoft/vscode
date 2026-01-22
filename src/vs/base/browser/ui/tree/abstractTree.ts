@@ -3245,8 +3245,9 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 
 		// Announce collapse state changes for screen readers (VoiceOver doesn't reliably
 		// announce aria-expanded changes on already-focused elements)
-		this.modelDisposables.add(model.onDidChangeCollapseState(({ node }) => {
-			if (node.collapsible && this.isDOMFocused()) {
+		this.modelDisposables.add(model.onDidChangeCollapseState(e => {
+			const { node, deep } = e;
+			if (node.collapsible && !deep && this.isDOMFocused()) {
 				alert(node.collapsed ? localize('treeNodeCollapsed', "collapsed") : localize('treeNodeExpanded', "expanded"));
 			}
 		}));
