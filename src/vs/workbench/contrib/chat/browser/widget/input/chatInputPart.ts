@@ -120,7 +120,6 @@ import { DelegationSessionPickerActionItem } from './delegationSessionPickerActi
 import { IChatInputPickerOptions } from './chatInputPickerActionItem.js';
 import { SearchableOptionPickerActionItem } from '../../chatSessions/searchableOptionPickerActionItem.js';
 import { mixin } from '../../../../../../base/common/objects.js';
-import { ChatContextUsageWidget } from './chatContextUsageWidget.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../../../platform/workspace/common/workspace.js';
 
 const $ = dom.$;
@@ -277,7 +276,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private chatInputTodoListWidgetContainer!: HTMLElement;
 	private chatInputWidgetsContainer!: HTMLElement;
 	private readonly _widgetController = this._register(new MutableDisposable<ChatInputPartWidgetController>());
-	private readonly _contextUsageWidget = this._register(new MutableDisposable<ChatContextUsageWidget>());
 
 	readonly height = observableValue<number>(this, 0);
 
@@ -1670,7 +1668,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this.updateAgentSessionTypeContextKey();
 			this.refreshChatSessionPickers();
 			this.tryUpdateWidgetController();
-			this._contextUsageWidget.value?.setModel(widget.viewModel?.model);
 		}));
 
 		let elements;
@@ -1735,15 +1732,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.chatEditingSessionWidgetContainer = elements.chatEditingSessionWidgetContainer;
 		this.chatInputTodoListWidgetContainer = elements.chatInputTodoListWidgetContainer;
 		this.chatInputWidgetsContainer = elements.chatInputWidgetsContainer;
-
-		const isInline = isIChatResourceViewContext(widget.viewContext) && widget.viewContext.isInlineChat;
-		if (this.location !== ChatAgentLocation.EditorInline && !isInline) {
-			this._contextUsageWidget.value = this.instantiationService.createInstance(ChatContextUsageWidget);
-			elements.editorContainer.appendChild(this._contextUsageWidget.value.domNode);
-			if (this._widget?.viewModel) {
-				this._contextUsageWidget.value.setModel(this._widget.viewModel.model);
-			}
-		}
 
 		if (this.options.enableImplicitContext && !this._implicitContext) {
 			this._implicitContext = this._register(

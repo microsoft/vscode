@@ -39,6 +39,7 @@ export enum ChatConfiguration {
 	RestoreLastPanelSession = 'chat.restoreLastPanelSession',
 	ExitAfterDelegation = 'chat.exitAfterDelegation',
 	CommandCenterTriStateToggle = 'chat.commandCenter.triStateToggle',
+	ExplainChangesEnabled = 'chat.editing.explainChanges.enabled',
 }
 
 /**
