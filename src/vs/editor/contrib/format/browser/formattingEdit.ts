@@ -8,7 +8,7 @@ import { EditOperation, ISingleEditOperation } from '../../../common/core/editOp
 import { Range } from '../../../common/core/range.js';
 import { EndOfLineSequence } from '../../../common/model.js';
 import { TextEdit } from '../../../common/languages.js';
-import { TextModelEditSource } from '../../../common/textModelEditSource.js';
+import { EditSources, TextModelEditSource } from '../../../common/textModelEditSource.js';
 import { StableEditorScrollState } from '../../../browser/stableEditorScroll.js';
 
 export class FormattingEdit {
