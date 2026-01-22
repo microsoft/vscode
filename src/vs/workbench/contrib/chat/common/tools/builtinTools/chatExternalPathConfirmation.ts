@@ -96,16 +96,4 @@ export class ChatExternalPathConfirmationContribution implements ILanguageModelT
 			}
 		];
 	}
-
-	/**
-	 * Clear the folder allowlist for a specific chat session.
-	 * Should be called when a chat session is disposed.
-	 */
-	clearSession(sessionResource: URI): void {
-		this._sessionFolderAllowlist.delete(sessionResource);
-	}
-
-	reset(): void {
-		this._sessionFolderAllowlist.clear();
-	}
 }
