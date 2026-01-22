@@ -107,6 +107,7 @@ class ViewWelcomeController {
 	private _enabled: boolean = false;
 	private element: HTMLElement | undefined;
 	private scrollableElement: DomScrollableElement | undefined;
+	private _wide: boolean = false;
 
 	private readonly disposables = new DisposableStore();
 	private readonly enabledDisposables = this.disposables.add(new DisposableStore());
@@ -131,7 +132,8 @@ class ViewWelcomeController {
 
 		this.element!.style.height = `${height}px`;
 		this.element!.style.width = `${width}px`;
-		this.element!.classList.toggle('wide', width > 640);
+		this._wide = width > 640;
+		this.element!.classList.toggle('wide', this._wide);
 		this.scrollableElement!.scanDomNode();
 	}
 
@@ -160,6 +162,9 @@ class ViewWelcomeController {
 		this.container.classList.add('welcome');
 		const viewWelcomeContainer = append(this.container, $('.welcome-view'));
 		this.element = $('.welcome-view-content', { tabIndex: 0 });
+		if (this._wide) {
+			this.element.classList.add('wide');
+		}
 		this.scrollableElement = new DomScrollableElement(this.element, { alwaysConsumeMouseWheel: true, horizontal: ScrollbarVisibility.Hidden, vertical: ScrollbarVisibility.Visible, });
 		append(viewWelcomeContainer, this.scrollableElement.getDomNode());
 

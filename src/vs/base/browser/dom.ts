@@ -2064,12 +2064,9 @@ export class DisposableResizeObserver extends Disposable {
 		this._register(toDisposable(() => this.observer.disconnect()));
 	}
 
-	observe(target: Element, options?: ResizeObserverOptions): void {
+	observe(target: Element, options?: ResizeObserverOptions): IDisposable {
 		this.observer.observe(target, options);
-	}
-
-	unobserve(target: Element): void {
-		this.observer.unobserve(target);
+		return toDisposable(() => this.observer.unobserve(target));
 	}
 }
 

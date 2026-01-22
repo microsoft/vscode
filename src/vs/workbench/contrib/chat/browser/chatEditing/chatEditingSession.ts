@@ -27,6 +27,7 @@ import { localize } from '../../../../../nls.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { EditorActivation } from '../../../../../platform/editor/common/editor.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { DiffEditorInput } from '../../../../common/editor/diffEditorInput.js';
@@ -38,16 +39,19 @@ import { CellUri, ICellEditOperation } from '../../../notebook/common/notebookCo
 import { INotebookService } from '../../../notebook/common/notebookService.js';
 import { chatEditingSessionIsReady, ChatEditingSessionState, ChatEditKind, getMultiDiffSourceUri, IChatEditingSession, IEditSessionEntryDiff, IModifiedEntryTelemetryInfo, IModifiedFileEntry, ISnapshotEntry, IStreamingEdits, ModifiedFileEntryState } from '../../common/editing/chatEditingService.js';
 import { IChatResponseModel } from '../../common/model/chatModel.js';
-import { IChatProgress } from '../../common/chatService/chatService.js';
+import { IChatProgress, IChatWorkspaceEdit } from '../../common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { IChatEditingCheckpointTimeline } from './chatEditingCheckpointTimeline.js';
 import { ChatEditingCheckpointTimelineImpl, IChatEditingTimelineFsDelegate } from './chatEditingCheckpointTimelineImpl.js';
+import { ChatEditingDeletedFileEntry } from './chatEditingDeletedFileEntry.js';
 import { ChatEditingModifiedDocumentEntry } from './chatEditingModifiedDocumentEntry.js';
 import { AbstractChatEditingModifiedFileEntry } from './chatEditingModifiedFileEntry.js';
 import { ChatEditingModifiedNotebookEntry } from './chatEditingModifiedNotebookEntry.js';
 import { FileOperation, FileOperationType } from './chatEditingOperations.js';
 import { ChatEditingSessionStorage, IChatEditingSessionStop, StoredSessionState } from './chatEditingSessionStorage.js';
 import { ChatEditingTextModelContentProvider } from './chatEditingTextModelContentProviders.js';
+import { getChatSessionType } from '../../common/model/chatUri.js';
+import { AgentSessionProviders } from '../agentSessions/agentSessions.js';
 
 const enum NotExistBehavior {
 	Create,
@@ -191,6 +195,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService,
 		@ILogService private readonly _logService: ILogService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IFileService private readonly _fileService: IFileService,
 	) {
 		super();
 		this._timeline = this._instantiationService.createInstance(
@@ -549,6 +554,85 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		};
 	}
 
+	startDeletion(resource: URI, responseModel: IChatResponseModel, undoStopId: string): void {
+		this._assertNotDisposed();
+
+		// Queue the deletion operation with proper locking
+		this._streamingEditLocks.queue(resource.toString(), async () => {
+			if (this.isDisposed) {
+				return;
+			}
+
+			await chatEditingSessionIsReady(this);
+
+			// Check if file exists
+			let fileContent: string;
+			try {
+				const content = await this._fileService.readFile(resource);
+				fileContent = content.value.toString();
+			} catch (e) {
+				// File doesn't exist, nothing to delete
+				this._logService.warn(`Cannot delete file ${resource.toString()}: file does not exist`);
+				return;
+			}
+
+			// Check if there's already an entry for this file
+			const existingEntry = this._getEntry(resource);
+			if (existingEntry) {
+				// If there's already an entry, we need to handle it differently
+				// For now, we'll just collapse it and proceed with deletion
+				existingEntry.dispose();
+				const entries = this._entriesObs.get().filter(e => e !== existingEntry);
+				this._entriesObs.set(entries, undefined);
+			}
+
+			// Store initial content for timeline restoration
+			if (!this._initialFileContents.has(resource)) {
+				this._initialFileContents.set(resource, fileContent);
+			}
+
+			// Delete the file on disk
+			await this._bulkEditService.apply({
+				edits: [{ oldResource: resource, options: { ignoreIfNotExists: true } }]
+			});
+
+			// Record the delete operation in the timeline
+			this._timeline.recordFileOperation({
+				type: FileOperationType.Delete,
+				uri: resource,
+				requestId: responseModel.requestId,
+				epoch: this._timeline.incrementEpoch(),
+				finalContent: fileContent
+			});
+
+			// Create a deleted file entry
+			const telemetryInfo = this._getTelemetryInfoForModel(responseModel);
+			const languageSelection = this._languageService.createByFilepathOrFirstLine(resource);
+			const entry = this._instantiationService.createInstance(
+				ChatEditingDeletedFileEntry,
+				resource,
+				fileContent,
+				{ collapse: (tx: ITransaction | undefined) => this._collapse(resource, tx) },
+				telemetryInfo,
+				languageSelection.languageId
+			);
+
+			// Add entry to the entries observable
+			const entries = [...this._entriesObs.get(), entry];
+			this._entriesObs.set(entries, undefined);
+		});
+	}
+
+	applyWorkspaceEdit(edit: IChatWorkspaceEdit, responseModel: IChatResponseModel, undoStopId: string): void {
+		for (const fileEdit of edit.edits) {
+			if (fileEdit.oldResource && !fileEdit.newResource) {
+				// File deletion
+				this.startDeletion(fileEdit.oldResource, responseModel, undoStopId);
+			}
+			// Future: handle file creations and renames
+		}
+	}
+
 	async startExternalEdits(responseModel: IChatResponseModel, operationId: number, resources: URI[], undoStopId: string): Promise<IChatProgress[]> {
 		const snapshots = new ResourceMap<string | undefined>();
 		const acquiredLockPromises: DeferredPromise<void>[] = [];
@@ -677,8 +761,10 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 				// Mark as no longer being modified
 				await entry.acceptStreamingEditsEnd();
 
-				// Accept the changes
-				await entry.accept();
+				// Accept the changes for background sessions
+				if (getChatSessionType(this.chatSessionResource) === AgentSessionProviders.Background) {
+					await entry.accept();
+				}
 
 				// Clear external edit mode
 				entry.stopExternalEdit();
@@ -791,10 +877,28 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		const entriesArr: AbstractChatEditingModifiedFileEntry[] = [];
 		// Restore all entries from the snapshot
 		for (const snapshotEntry of entries.values()) {
-			const entry = await this._getOrCreateModifiedFileEntry(snapshotEntry.resource, NotExistBehavior.Abort, snapshotEntry.telemetryInfo);
+			let entry: AbstractChatEditingModifiedFileEntry | undefined;
+
+			if (snapshotEntry.isDeleted) {
+				// Create a deleted file entry
+				entry = this._instantiationService.createInstance(
+					ChatEditingDeletedFileEntry,
+					snapshotEntry.resource,
+					snapshotEntry.original, // original content before deletion
+					{ collapse: (tx: ITransaction | undefined) => this._collapse(snapshotEntry.resource, tx) },
+					snapshotEntry.telemetryInfo,
+					snapshotEntry.languageId
+				);
+				await entry.restoreFromSnapshot(snapshotEntry, false);
+			} else {
+				entry = await this._getOrCreateModifiedFileEntry(snapshotEntry.resource, NotExistBehavior.Abort, snapshotEntry.telemetryInfo);
+				if (entry) {
+					const restoreToDisk = snapshotEntry.state === ModifiedFileEntryState.Modified;
+					await entry.restoreFromSnapshot(snapshotEntry, restoreToDisk);
+				}
+			}
+
 			if (entry) {
-				const restoreToDisk = snapshotEntry.state === ModifiedFileEntryState.Modified;
-				await entry.restoreFromSnapshot(snapshotEntry, restoreToDisk);
 				entriesArr.push(entry);
 			}
 		}

@@ -473,6 +473,12 @@ export class ActionBar extends Disposable implements IActionRunner {
 		return this.viewItems.length === 0;
 	}
 
+	isFocused(index?: number): boolean {
+		return index === undefined
+			? DOM.isAncestor(DOM.getActiveElement(), this.domNode)
+			: DOM.isAncestor(DOM.getActiveElement(), this.actionsList.children[index]);
+	}
+
 	focus(index?: number): void;
 	focus(selectFirst?: boolean): void;
 	focus(arg?: number | boolean): void {
