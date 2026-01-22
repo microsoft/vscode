@@ -20,11 +20,11 @@ ENV DISPLAY=:99
 # VS Code dependencies (arm32)
 ARG TARGETARCH
 RUN if [ "$TARGETARCH" = "arm" ]; then \
+	apt-get install -y libgtk-3-0 || true; \
+	apt-get install -y libcurl4 || true; \
 	apt-get install -y \
 		libasound2 \
 		libgbm1 \
-		libgtk-3-0 \
-		libcurl4 \
 		libnss3 \
 		libxkbcommon0 \
 		xdg-utils; \
@@ -33,11 +33,25 @@ RUN if [ "$TARGETARCH" = "arm" ]; then \
 # VS Code dependencies (arm64)
 RUN if [ "$TARGETARCH" = "arm64" ]; then \
 	apt-get install -y \
-		libasound2t64 \
-		libcurl4t64 \
 		libgbm1 \
-		libgtk-3-0t64 \
 		libnss3 \
+		libxkbcommon0 \
+		xdg-utils; \
+	fi
+
+# libasound2t64
+# libcurl4t64
+# libgtk-3-0t64
+
+# VS Code dependencies (amd64)
+RUN if [ "$TARGETARCH" = "amd64" ]; then \
+	apt-get install -y \
+		libasound2 \
+		libgtk-3-0 \
+		libnss3 \
+		libxcomposite1 \
+		libxdamage1 \
+		libxfixes3 \
 		libxkbcommon0 \
 		xdg-utils; \
 	fi
