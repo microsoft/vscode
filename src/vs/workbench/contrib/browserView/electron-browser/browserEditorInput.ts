@@ -7,6 +7,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { truncate } from '../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
 import { BrowserViewUri } from '../../../../platform/browserView/common/browserViewUri.js';
 import { EditorInputCapabilities, IEditorSerializer, IUntypedEditorInput } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
@@ -56,7 +57,8 @@ export class BrowserEditorInput extends EditorInput {
 		options: IBrowserEditorInputData,
 		@IThemeService private readonly themeService: IThemeService,
 		@IBrowserViewWorkbenchService private readonly browserViewWorkbenchService: IBrowserViewWorkbenchService,
-		@ILifecycleService private readonly lifecycleService: ILifecycleService
+		@ILifecycleService private readonly lifecycleService: ILifecycleService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
 		this._id = options.id;
@@ -203,6 +205,20 @@ export class BrowserEditorInput extends EditorInput {
 		}
 
 		return false;
+	}
+
+	/**
+	 * Creates a copy of this browser editor input with a new unique ID, creating an independent browser view with no linked state.
+	 * This is used during Copy into New Window.
+	 */
+	override copy(): EditorInput {
+		const currentUrl = this._model?.url ?? this._initialData.url;
+		return this.instantiationService.createInstance(BrowserEditorInput, {
+			id: generateUuid(),
+			url: currentUrl,
+			title: this._model?.title ?? this._initialData.title,
+			favicon: this._model?.favicon ?? this._initialData.favicon
+		});
 	}
 
 	override toUntyped(): IUntypedEditorInput {

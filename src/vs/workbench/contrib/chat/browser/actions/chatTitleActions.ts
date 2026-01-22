@@ -24,7 +24,7 @@ import { applyingChatEditsFailedContextKey, isChatEditingActionContext } from '.
 import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatService } from '../../common/chatService/chatService.js';
 import { isResponseVM } from '../../common/model/chatViewModel.js';
 import { ChatModeKind } from '../../common/constants.js';
-import { IChatWidgetService } from '../chat.js';
+import { IChatAccessibilityService, IChatWidgetService } from '../chat.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 
 export const MarkUnhelpfulActionId = 'workbench.action.chat.markUnhelpful';
@@ -260,6 +260,8 @@ export function registerChatTitleActions() {
 			const request = chatModel?.getRequests().find(candidate => candidate.id === item.requestId);
 			const languageModelId = widget?.input.currentLanguageModel;
 
+			const chatAccessibilityService = accessor.get(IChatAccessibilityService);
+			chatAccessibilityService.acceptRequest(item.sessionResource);
 			chatService.resendRequest(request!, {
 				userSelectedModelId: languageModelId,
 				attempt: (request?.attempt ?? -1) + 1,

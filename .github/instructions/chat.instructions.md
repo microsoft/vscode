@@ -1,5 +1,4 @@
 ---
-applyTo: '**/chat/**'
 description: Chat feature area coding guidelines
 ---
 
