@@ -11,7 +11,7 @@ import fetch, { Response } from 'node-fetch';
 import os from 'os';
 import path from 'path';
 import { Browser, chromium, firefox, webkit } from 'playwright';
-import { Capability, detectCapabilities } from './detectors';
+import { Capability, detectCapabilities } from './detectors.js';
 
 /**
  * Response from https://update.code.visualstudio.com/api/versions/commit:<commit>/<target>/<quality>

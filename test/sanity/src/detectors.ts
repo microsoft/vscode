@@ -91,11 +91,7 @@ function detectPackageManagers(capabilities: Set<Capability>) {
  * Detect if a desktop environment is available.
  */
 function detectDesktop(capabilities: Set<Capability>) {
-	if (process.platform === 'linux') {
-		if (process.env.DISPLAY) {
-			capabilities.add('desktop');
-		}
-	} else {
+	if (process.platform !== 'linux' || process.env.DISPLAY) {
 		capabilities.add('desktop');
 	}
 }
@@ -104,11 +100,7 @@ function detectDesktop(capabilities: Set<Capability>) {
  * Detect if a browser environment is available.
  */
 function detectBrowser(capabilities: Set<Capability>) {
-	if (process.platform === 'linux') {
-		if (process.env['PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH']) {
-			capabilities.add('browser');
-		}
-	} else {
+	if (process.platform !== 'linux' || process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH) {
 		capabilities.add('browser');
 	}
 }
