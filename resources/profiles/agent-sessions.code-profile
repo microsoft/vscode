@@ -13,7 +13,7 @@
 		"chat.agentsControl.enabled": true,
 		"files.autoSave": "afterDelay",
 		"chat.commandCenter.enabled": false,
-		"window.title": "Hello World",
+		"window.title": "Agent Sessions",
 		"workbench.editor.showTabs": "single"
 	}
 }
