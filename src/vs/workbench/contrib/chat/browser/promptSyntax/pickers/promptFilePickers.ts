@@ -430,7 +430,8 @@ export class PromptFilePickers {
 				groupedExts.get(groupLabel)!.push(ext);
 			}
 
-			for (const [groupLabel, groupExts] of groupedExts) {
+			const sortedGroupedExts = Array.from(groupedExts.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+			for (const [groupLabel, groupExts] of sortedGroupedExts) {
 				result.push({ type: 'separator', label: groupLabel });
 				result.push(...sortByLabel(await Promise.all(groupExts.map(e => this._createPromptPickItem(e, extButtons, getVisibility(e), token)))));
 			}
