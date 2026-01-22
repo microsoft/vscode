@@ -65,7 +65,7 @@ export class WorkspacePickerActionItem extends ChatInputPickerActionViewItem {
 					enabled: true,
 					tooltip: localize('openFolderTooltip', "Open Folder..."),
 					run: async () => {
-						this.commandService.executeCommand('workbench.action.files.openFolder');
+						this.commandService.executeCommand(this.delegate.openFolderCommand);
 					},
 				});
 

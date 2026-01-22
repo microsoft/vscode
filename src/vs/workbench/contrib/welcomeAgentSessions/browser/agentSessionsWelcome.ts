@@ -335,14 +335,18 @@ export class AgentSessionsWelcomePage extends EditorPane {
 			this.getWorkspaceUri(w).toString() === this._selectedWorkspace?.uri.toString());
 
 		if (workspace) {
-			if (isRecentFolder(workspace)) {
-				await this.hostService.openWindow([{ folderUri: workspace.folderUri }]);
-			} else if (isRecentWorkspace(workspace)) {
-				await this.hostService.openWindow([{ workspaceUri: workspace.workspace.configPath }]);
+			try {
+				if (isRecentFolder(workspace)) {
+					await this.hostService.openWindow([{ folderUri: workspace.folderUri }]);
+				} else if (isRecentWorkspace(workspace)) {
+					await this.hostService.openWindow([{ workspaceUri: workspace.workspace.configPath }]);
+				}
+				return true;
+			} catch (e) {
+				// Ignore errors
 			}
-			return true;
 		}
-
+		this.storageService.remove('chat.welcomeViewPrefill', StorageScope.APPLICATION);
 		return false;
 	}
 
