@@ -147,6 +147,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 			}
 		}));
 		this._register(this._chatService.onDidReceiveQuestionCarouselAnswer(e => {
+			console.log('[QuestionCarousel] MainThread received answer:', { requestId: e.requestId, resolveId: e.resolveId, hasAnswers: !!e.answers });
 			this._proxy.$handleQuestionCarouselAnswer(e.requestId, e.resolveId, e.answers);
 		}));
 	}

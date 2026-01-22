@@ -88,6 +88,8 @@
 	margin-top: 8px;
 }
 
-.chat-question-carousel-footer .monaco-button {
-	min-width: 80px;
+.chat-question-carousel-footer .monaco-button.chat-question-nav-arrow {
+	min-width: 32px;
+	width: 32px;
+	padding: 4px;
 }

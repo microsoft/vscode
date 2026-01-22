@@ -170,6 +170,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	private readonly templateDataByRequestId = new Map<string, IChatListItemTemplate>();
 
+	/** Track pending question carousels by session resource for auto-skip on chat submission */
+	private readonly pendingQuestionCarousels = new ResourceMap<Set<ChatQuestionCarouselPart>>();
+
 	private readonly chatContentMarkdownRenderer: IMarkdownRenderer;
 	private readonly markdownDecorationsRenderer: ChatMarkdownDecorationsRenderer;
 	protected readonly _onDidClickFollowup = this._register(new Emitter<IChatFollowup>());
@@ -249,6 +252,17 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		this._register(this.instantiationService.createInstance(ChatCodeBlockContentProvider));
 		this._toolInvocationCodeBlockCollection = this._register(this.instantiationService.createInstance(CodeBlockModelCollection, 'tools'));
+
+		// Auto-skip pending question carousels when user submits a new chat message
+		this._register(this.chatService.onDidSubmitRequest(e => {
+			const carousels = this.pendingQuestionCarousels.get(e.chatSessionResource);
+			if (carousels) {
+				for (const carousel of carousels) {
+					carousel.skip();
+				}
+				carousels.clear();
+			}
+		}));
 	}
 
 	public updateOptions(options: IChatListItemRendererOptions): void {
@@ -1812,12 +1826,42 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 				// Notify the extension about the carousel answers to resolve the deferred promise
 				const element = context.element;
+				console.log('[QuestionCarousel] UI onSubmit:', { isResponseVM: isResponseVM(element), hasResolveId: !!carousel.resolveId, resolveId: carousel.resolveId });
+				if (isResponseVM(element)) {
+					console.log('[QuestionCarousel] element.requestId:', element.requestId);
+				}
 				if (isResponseVM(element) && carousel.resolveId) {
 					this.chatService.notifyQuestionCarouselAnswer(element.requestId, carousel.resolveId, answersRecord);
 				}
+
+				// Remove from pending carousels
+				this.removeCarouselFromTracking(context, part);
 			}
 		});
+
+		// Track the carousel for auto-skip when user submits a new message
+		if (isResponseVM(context.element) && carousel.allowSkip && !carousel.isUsed) {
+			let carousels = this.pendingQuestionCarousels.get(context.element.sessionResource);
+			if (!carousels) {
+				carousels = new Set();
+				this.pendingQuestionCarousels.set(context.element.sessionResource, carousels);
+			}
+			carousels.add(part);
+
+			// Clean up when the part is disposed
+			part.addDisposable({ dispose: () => this.removeCarouselFromTracking(context, part) });
+		}
+
 		return part;
+	}
+
+	private removeCarouselFromTracking(context: IChatContentPartRenderContext, part: ChatQuestionCarouselPart): void {
+		if (isResponseVM(context.element)) {
+			const carousels = this.pendingQuestionCarousels.get(context.element.sessionResource);
+			if (carousels) {
+				carousels.delete(part);
+			}
+		}
 	}
 
 	private renderChangesSummary(content: IChatChangesSummaryPart, context: IChatContentPartRenderContext, templateData: IChatListItemTemplate): IChatContentPart {
