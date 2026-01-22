@@ -1,6 +1,9 @@
 ARG BASE_IMAGE=node:22-bookworm
 FROM ${BASE_IMAGE}
 
+# Utilities
+RUN apt-get update
+
 # Chromium
 RUN apt-get install -y chromium
 ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1

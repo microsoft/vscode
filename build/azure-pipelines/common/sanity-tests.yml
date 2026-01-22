@@ -101,13 +101,6 @@ jobs:
           workingDirectory: $(TEST_DIR)
           displayName: Run Sanity Tests
 
-      # Configure QEMU for cross-architecture builds
-      - ${{ if and(ne(parameters.container, ''), ne(parameters.arch, 'amd64')) }}:
-        - bash: |
-            docker run --privileged --rm tonistiigi/binfmt --uninstall '*'
-            docker run --pull always --privileged --rm tonistiigi/binfmt --install all
-          displayName: Setup QEMU for Multi-Architecture Support
-
       # Build test container image
       - ${{ if ne(parameters.container, '') }}:
         - bash: |
@@ -117,7 +110,7 @@ jobs:
               --file "containers/${{ parameters.container }}.dockerfile" \
               ./containers
           workingDirectory: $(TEST_DIR)
-          displayName: Build Test Container Image
+          displayName: Build Container Image
 
       # Run sanity tests in container
       - ${{ if ne(parameters.container, '') }}:
@@ -132,7 +125,7 @@ jobs:
               --test-results-path "/root/results.xml" \
               --verbose
           workingDirectory: $(TEST_DIR)
-          displayName: Run Sanity Tests in Container
+          displayName: Run Sanity Tests
 
       - task: PublishTestResults@2
         inputs:
