@@ -7,9 +7,10 @@ import './media/chatContextUsageDetails.css';
 import * as dom from '../../../../../../base/browser/dom.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../../nls.js';
-import { MenuId } from '../../../../../../platform/actions/common/actions.js';
+import { IMenuService, MenuId } from '../../../../../../platform/actions/common/actions.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { MenuWorkbenchButtonBar } from '../../../../../../platform/actions/browser/buttonbar.js';
+import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 
 const $ = dom.$;
 
@@ -31,9 +32,12 @@ export class ChatContextUsageDetails extends Disposable {
 	private readonly percentageLabel: HTMLElement;
 	private readonly progressFill: HTMLElement;
 	private readonly warningMessage: HTMLElement;
+	private readonly actionsSection: HTMLElement;
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IMenuService private readonly menuService: IMenuService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		super();
 
@@ -58,11 +62,23 @@ export class ChatContextUsageDetails extends Disposable {
 		this.warningMessage.textContent = localize('qualityWarning', "Quality may decline as limit nears.");
 		this.warningMessage.style.display = 'none';
 
-		this.domNode.appendChild($('.separator'));
-
-		// Action buttons contributed via menu
-		const buttonBarContainer = this.domNode.appendChild($('.button-bar-container'));
+		// Actions section with header, separator, and button bar
+		this.actionsSection = this.domNode.appendChild($('.actions-section'));
+		this.actionsSection.appendChild($('.separator'));
+		const actionsHeader = this.actionsSection.appendChild($('.actions-header'));
+		actionsHeader.textContent = localize('actions', "Actions");
+		const buttonBarContainer = this.actionsSection.appendChild($('.button-bar-container'));
 		this._register(this.instantiationService.createInstance(MenuWorkbenchButtonBar, buttonBarContainer, MenuId.ChatContextUsageActions, {}));
+
+		// Listen to menu changes to show/hide actions section
+		const menu = this._register(this.menuService.createMenu(MenuId.ChatContextUsageActions, this.contextKeyService));
+		const updateActionsVisibility = () => {
+			const actions = menu.getActions();
+			const hasActions = actions.length > 0 && actions.some(([, items]) => items.length > 0);
+			this.actionsSection.style.display = hasActions ? '' : 'none';
+		};
+		this._register(menu.onDidChange(updateActionsVisibility));
+		updateActionsVisibility();
 	}
 
 	update(data: IChatContextUsageData): void {
