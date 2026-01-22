@@ -21,6 +21,12 @@ import { Schemas } from '../../../../base/common/network.js';
 import { IBrowserViewWorkbenchService } from '../common/browserView.js';
 import { BrowserViewWorkbenchService } from './browserViewWorkbenchService.js';
 import { BrowserViewStorageScope } from '../../../../platform/browserView/common/browserView.js';
+import { IOpenerService, IOpener, OpenInternalOptions, OpenExternalOptions } from '../../../../platform/opener/common/opener.js';
+import { isLocalhostAuthority } from '../../../../platform/url/common/trustedDomains.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { URI } from '../../../../base/common/uri.js';
 
 // Register actions
 import './browserViewActions.js';
@@ -90,11 +96,61 @@ class BrowserEditorResolverContribution implements IWorkbenchContribution {
 
 registerWorkbenchContribution2(BrowserEditorResolverContribution.ID, BrowserEditorResolverContribution, WorkbenchPhase.BlockStartup);
 
+/**
+ * Opens localhost URLs in the Integrated Browser when the setting is enabled.
+ */
+class LocalhostOpenerContribution extends Disposable implements IWorkbenchContribution, IOpener {
+	static readonly ID = 'workbench.contrib.localhostOpener';
+
+	constructor(
+		@IOpenerService openerService: IOpenerService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IEditorService private readonly editorService: IEditorService
+	) {
+		super();
+
+		this._register(openerService.registerOpener(this));
+	}
+
+	async open(resource: URI | string, _options?: OpenInternalOptions | OpenExternalOptions): Promise<boolean> {
+		if (!this.configurationService.getValue<boolean>('workbench.browser.openLocalhost')) {
+			return false;
+		}
+
+		const url = typeof resource === 'string' ? resource : resource.toString(true);
+		try {
+			const parsed = new URL(url);
+			if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+				return false;
+			}
+			if (!isLocalhostAuthority(parsed.host)) {
+				return false;
+			}
+		} catch {
+			return false;
+		}
+
+		const browserUri = BrowserViewUri.forUrl(url);
+		await this.editorService.openEditor({ resource: browserUri, options: { pinned: true } });
+		return true;
+	}
+}
+
+registerWorkbenchContribution2(LocalhostOpenerContribution.ID, LocalhostOpenerContribution, WorkbenchPhase.BlockStartup);
+
 registerSingleton(IBrowserViewWorkbenchService, BrowserViewWorkbenchService, InstantiationType.Delayed);
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	...workbenchConfigurationNodeBase,
 	properties: {
+		'workbench.browser.openLocalhostLinks': {
+			type: 'boolean',
+			default: false,
+			markdownDescription: localize(
+				{ comment: ['This is the description for a setting.'], key: 'browser.openLocalhostLinks' },
+				'When enabled, localhost links from the terminal, chat, and other sources will open in the Integrated Browser instead of the system browser.'
+			)
+		},
 		'workbench.browser.dataStorage': {
 			type: 'string',
 			enum: [
