@@ -194,16 +194,17 @@ export class ViewModel extends Disposable implements IViewModel {
 		this._eventDispatcher.removeViewEventHandler(eventHandler);
 	}
 
-	private _getCustomLineHeights(): ICustomLineHeightData[] {
+	private _getCustomLineHeights(opts?: { startLine: number; endLine: number }): ICustomLineHeightData[] {
 		const allowVariableLineHeights = this._configuration.options.get(EditorOption.allowVariableLineHeights);
 		if (!allowVariableLineHeights) {
 			return [];
 		}
 		const defaultLineHeight = this._configuration.options.get(EditorOption.lineHeight);
-		const decorations = this.model.getCustomLineHeightsDecorations(this._editorId);
+		const decorations = opts ?
+			this.model.getCustomLineHeightsDecorationsInRange(new Range(opts.startLine, 1, opts.endLine, this.model.getLineMaxColumn(opts.endLine)), this._editorId)
+			: this.model.getCustomLineHeightsDecorations(this._editorId);
 		return decorations.map((d) => {
-			const lineNumber = d.range.startLineNumber;
-			const viewRange = this.coordinatesConverter.convertModelRangeToViewRange(new Range(lineNumber, 1, lineNumber, this.model.getLineMaxColumn(lineNumber)));
+			const viewRange = this.coordinatesConverter.convertModelRangeToViewRange(d.range);
 			return {
 				decorationId: d.id,
 				startLineNumber: viewRange.startLineNumber,
@@ -375,7 +376,7 @@ export class ViewModel extends Disposable implements IViewModel {
 							const linesInsertedEvent = this._lines.onModelLinesInserted(versionId, change.fromLineNumber, change.toLineNumber, insertedLineBreaks);
 							if (linesInsertedEvent !== null) {
 								eventsCollector.emitViewEvent(linesInsertedEvent);
-								this.viewLayout.onLinesInserted(linesInsertedEvent.fromLineNumber, linesInsertedEvent.toLineNumber);
+								this.viewLayout.onLinesInserted(linesInsertedEvent.fromLineNumber, linesInsertedEvent.toLineNumber, this._getCustomLineHeights({ startLine: linesInsertedEvent.fromLineNumber, endLine: linesInsertedEvent.toLineNumber }));
 							}
 							hadOtherModelChange = true;
 							break;
@@ -390,7 +391,7 @@ export class ViewModel extends Disposable implements IViewModel {
 							}
 							if (linesInsertedEvent) {
 								eventsCollector.emitViewEvent(linesInsertedEvent);
-								this.viewLayout.onLinesInserted(linesInsertedEvent.fromLineNumber, linesInsertedEvent.toLineNumber);
+								this.viewLayout.onLinesInserted(linesInsertedEvent.fromLineNumber, linesInsertedEvent.toLineNumber, this._getCustomLineHeights({ startLine: linesInsertedEvent.fromLineNumber, endLine: linesInsertedEvent.toLineNumber }));
 							}
 							if (linesDeletedEvent) {
 								eventsCollector.emitViewEvent(linesDeletedEvent);

@@ -1169,6 +1169,14 @@ export interface ITextModel {
 	 */
 	getCustomLineHeightsDecorations(ownerId?: number): IModelDecoration[];
 
+
+	/**
+	 * Gets all the decorations that contain custom line heights.
+	 * @param range The range to search in
+	 * @param ownerId If set, it will ignore decorations belonging to other owners.
+	 */
+	getCustomLineHeightsDecorationsInRange(range: Range, ownerId?: number): IModelDecoration[];
+
 	/**
 	 * @internal
 	 */

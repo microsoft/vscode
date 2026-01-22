@@ -353,8 +353,9 @@ export class LinesLayout {
 	 *
 	 * @param fromLineNumber The line number at which the insertion started, inclusive
 	 * @param toLineNumber The line number at which the insertion ended, inclusive.
+	 * @param lineHeightsAdded The custom line height data for the inserted lines.
 	 */
-	public onLinesInserted(fromLineNumber: number, toLineNumber: number): void {
+	public onLinesInserted(fromLineNumber: number, toLineNumber: number, lineHeightsAdded: ICustomLineHeightData[]): void {
 		fromLineNumber = fromLineNumber | 0;
 		toLineNumber = toLineNumber | 0;
 
@@ -366,7 +367,7 @@ export class LinesLayout {
 				this._arr[i].afterLineNumber += (toLineNumber - fromLineNumber + 1);
 			}
 		}
-		this._lineHeightsManager.onLinesInserted(fromLineNumber, toLineNumber);
+		this._lineHeightsManager.onLinesInserted(fromLineNumber, toLineNumber, lineHeightsAdded);
 	}
 
 	/**
