@@ -2852,7 +2852,7 @@ export namespace ChatToolInvocationPart {
 	}
 
 	function isChatMcpToolInvocationData(data: any): data is vscode.ChatMcpToolInvocationData {
-		return typeof data === 'object' &&
+		return data !== null && typeof data === 'object' &&
 			'input' in data && typeof data.input === 'string' &&
 			'output' in data && Array.isArray(data.output);
 	}
