@@ -51,8 +51,8 @@ export const DEFAULT_UNIFIED_QUICK_ACCESS_TABS: IUnifiedQuickAccessTab[] = [
 		id: 'agentSessions',
 		label: localize('agentSessionsTab', "Sessions"),
 		prefix: 'agent ',
-		placeholder: localize('agentSessionsPlaceholder', "Search sessions..."),
-		tooltip: localize('agentSessionsTooltip', "Search and manage sessions"),
+		placeholder: localize('agentSessionsPlaceholder', "Search sessions or type a message..."),
+		tooltip: localize('agentSessionsTooltip', "Search sessions or send a message to agent"),
 	},
 	{
 		id: 'commands',
@@ -67,13 +67,6 @@ export const DEFAULT_UNIFIED_QUICK_ACCESS_TABS: IUnifiedQuickAccessTab[] = [
 		prefix: '',
 		placeholder: localize('filesPlaceholder', "Search files..."),
 		tooltip: localize('filesTooltip', "Go to files"),
-	},
-	{
-		id: 'keywords',
-		label: localize('keywordsTab', "Keywords"),
-		prefix: '#',
-		placeholder: localize('keywordsPlaceholder', "Search by keyword..."),
-		tooltip: localize('keywordsTooltip', "Search by keyword in workspace"),
 	},
 ];
 
@@ -93,6 +86,8 @@ export class UnifiedQuickAccess extends Disposable {
 	private _providerCts: CancellationTokenSource | undefined;
 	private _tabBarContainer: HTMLElement | undefined;
 	private _isInternalValueChange = false; // Flag to prevent recursive tab detection
+	private _isUpdatingSendToAgent = false; // Guard to prevent infinite loop
+	private _sendToAgentTimeout: ReturnType<typeof setTimeout> | undefined;
 
 	private readonly _tabs: IUnifiedQuickAccessTab[];
 
@@ -141,8 +136,9 @@ export class UnifiedQuickAccess extends Disposable {
 		this._injectTabBar(picker);
 
 		// Set initial value and activate tab
+		// Start with empty value (don't prefill prefix) so user can type naturally
 		this._isInternalValueChange = true;
-		picker.value = initialValue ?? initialTab.prefix;
+		picker.value = initialValue ?? '';
 		picker.placeholder = initialTab.placeholder;
 		this._isInternalValueChange = false;
 
@@ -158,11 +154,11 @@ export class UnifiedQuickAccess extends Disposable {
 			if (matchingTab && matchingTab !== this._currentTab) {
 				this._switchTab(matchingTab, picker, true);
 			}
-			// Check for send-to-agent after delays to let provider finish
-			// Use multiple attempts since providers may take varying amounts of time
-			setTimeout(() => this._maybeShowSendToAgent(picker), 100);
-			setTimeout(() => this._maybeShowSendToAgent(picker), 300);
-			setTimeout(() => this._maybeShowSendToAgent(picker), 600);
+			// Debounce send-to-agent check to let provider finish
+			if (this._sendToAgentTimeout) {
+				clearTimeout(this._sendToAgentTimeout);
+			}
+			this._sendToAgentTimeout = setTimeout(() => this._maybeShowSendToAgent(picker), 150);
 		}));
 
 		// Handle accept - send to agent if no real items or send-to-agent is selected
@@ -192,11 +188,6 @@ export class UnifiedQuickAccess extends Disposable {
 			}
 		}));
 
-		// Monitor active items to show send-to-agent when empty
-		this._currentDisposables.add(picker.onDidChangeActive(() => {
-			this._maybeShowSendToAgent(picker);
-		}));
-
 		// Handle hide
 		this._currentDisposables.add(picker.onDidHide(() => {
 			this._providerDisposables.clear();
@@ -204,6 +195,11 @@ export class UnifiedQuickAccess extends Disposable {
 			this._providerCts = undefined;
 			this._currentPicker = undefined;
 			this._currentTab = undefined;
+			// Clear any pending timeout
+			if (this._sendToAgentTimeout) {
+				clearTimeout(this._sendToAgentTimeout);
+				this._sendToAgentTimeout = undefined;
+			}
 			// Remove the injected tab bar from DOM
 			this._tabBarContainer?.remove();
 			this._tabBarContainer = undefined;
@@ -375,16 +371,26 @@ export class UnifiedQuickAccess extends Disposable {
 	}
 
 	/**
-	 * Check if we should show the "send to agent" item (when no items match).
+	 * Check if we should show the "send to agent" item.
+	 * Always shows it as the first item when user has typed something.
 	 */
 	private _maybeShowSendToAgent(picker: IQuickPick<IQuickPickItem, { useSeparators: true }>): void {
+		// Guard against recursive calls
+		if (this._isUpdatingSendToAgent) {
+			return;
+		}
+
 		// Get the filter text (without prefix)
 		const filterText = this._currentTab
 			? picker.value.substring(this._currentTab.prefix.length).trim()
 			: picker.value.trim();
 
+		// Use full input if filter text is empty but there's input (user typed without prefix)
+		const fullInput = picker.value.trim();
+		const messageToSend = filterText || fullInput;
+
 		// Only show if user has typed something
-		if (!filterText) {
+		if (!messageToSend) {
 			return;
 		}
 
@@ -393,31 +399,44 @@ export class UnifiedQuickAccess extends Disposable {
 			return;
 		}
 
-		// Check if we already have send-to-agent as the only item
-		const alreadyShowingSendToAgent = picker.items.length === 1 &&
-			(picker.items[0] as IQuickPickItem & { id?: string }).id === SEND_TO_AGENT_ID;
-		if (alreadyShowingSendToAgent) {
-			return;
+		// Check if send-to-agent is already the first item with same description
+		const firstItem = picker.items[0] as IQuickPickItem & { id?: string };
+		if (firstItem?.id === SEND_TO_AGENT_ID && firstItem.description === fullInput) {
+			return; // Already showing correct send-to-agent item
 		}
 
-		// Check if there are any visible/active items (excluding our send-to-agent item)
-		const hasRealActiveItems = picker.activeItems.some(item => {
-			const itemWithId = item as IQuickPickItem & { id?: string };
-			return itemWithId.id !== SEND_TO_AGENT_ID;
-		});
+		// Create the send-to-agent item
+		const sendItem: IQuickPickItem & { id: string } = {
+			id: SEND_TO_AGENT_ID,
+			label: `$(send) ${localize('sendToAgentLabel', "Send to agent")}`,
+			description: fullInput,
+			alwaysShow: true,
+			ariaLabel: localize('sendToAgentAria', "Send message to agent: {0}", fullInput),
+		};
 
-		// If no real items visible, show send-to-agent
-		if (!hasRealActiveItems) {
-			const fullInput = picker.value.trim();
-			const sendItem: IQuickPickItem & { id: string } = {
-				id: SEND_TO_AGENT_ID,
-				label: `$(send) ${localize('sendToAgentLabel', "Send to agent")}`,
-				description: fullInput,
-				alwaysShow: true,
-				ariaLabel: localize('sendToAgentAria', "Send message to agent: {0}", fullInput),
-			};
-			picker.items = [sendItem];
-			picker.activeItems = [sendItem];
+		// Get current items, excluding any existing send-to-agent item
+		const currentItems = picker.items.filter(item =>
+			(item as IQuickPickItem & { id?: string }).id !== SEND_TO_AGENT_ID
+		);
+
+		// Determine if we should show send-to-agent as first item:
+		// - Always on Sessions tab (agent sessions)
+		// - Only if no other items exist on Commands/Files tabs
+		const isSessionsTab = this._currentTab?.id === 'agentSessions';
+		const hasOtherItems = currentItems.length > 0;
+		const showFirst = isSessionsTab || !hasOtherItems;
+
+		// Set guard and update items
+		this._isUpdatingSendToAgent = true;
+		try {
+			if (showFirst) {
+				picker.items = [sendItem, ...currentItems];
+			} else {
+				// Don't show send-to-agent on Commands/Files when there are matches
+				picker.items = currentItems;
+			}
+		} finally {
+			this._isUpdatingSendToAgent = false;
 		}
 	}
 
@@ -444,12 +463,18 @@ export class UnifiedQuickAccess extends Disposable {
 		// Update picker value (with flag to prevent recursive tab detection)
 		this._isInternalValueChange = true;
 		if (preserveFilterText && previousTab) {
-			// Keep the filter text, just change prefix
+			// User typed a prefix - keep the filter text, just change prefix
 			const filterText = picker.value.substring(previousTab.prefix.length);
 			picker.value = tab.prefix + filterText;
-		} else {
-			picker.value = tab.prefix;
+		} else if (previousTab) {
+			// User clicked tab - keep current text but strip old prefix (don't add new prefix)
+			const currentValue = picker.value;
+			if (currentValue.startsWith(previousTab.prefix)) {
+				picker.value = currentValue.substring(previousTab.prefix.length);
+			}
+			// else: keep current value as-is
 		}
+		// else: first tab activation, value already set
 		this._isInternalValueChange = false;
 
 		picker.placeholder = tab.placeholder;
