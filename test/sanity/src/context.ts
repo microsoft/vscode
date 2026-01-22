@@ -97,7 +97,7 @@ export class TestContext {
 			if (fs.existsSync('/usr/bin/dnf') || fs.existsSync('/usr/bin/yum')) {
 				this._capabilities.add('rpm');
 			}
-			if (fs.existsSync('/usr/bin/snap')) {
+			if (fs.existsSync('/run/snapd.socket')) {
 				this._capabilities.add('snap');
 			}
 			if (this.getBrowserType()) {
@@ -118,6 +118,8 @@ export class TestContext {
 				case 'linux':
 					if (process.env['PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH']) {
 						return 'chromium';
+					} else if (process.env['PLAYWRIGHT_FIREFOX_EXECUTABLE_PATH']) {
+						return 'firefox';
 					}
 					return fs.existsSync(chromium.executablePath()) ? 'chromium' :
 						fs.existsSync(firefox.executablePath()) ? 'firefox' :
@@ -927,6 +929,8 @@ export class TestContext {
 			default:
 				if (process.env['PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH']) {
 					return await chromium.launch({ headless, executablePath: process.env['PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH'] });
+				} else if (process.env['PLAYWRIGHT_FIREFOX_EXECUTABLE_PATH']) {
+					return await firefox.launch({ headless, executablePath: process.env['PLAYWRIGHT_FIREFOX_EXECUTABLE_PATH'] });
 				} else if (fs.existsSync(chromium.executablePath())) {
 					return await chromium.launch({ headless });
 				} else {

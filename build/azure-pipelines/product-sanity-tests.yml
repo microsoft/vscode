@@ -100,7 +100,7 @@ extends:
               name: alpine_amd64
               displayName: Alpine 3.23 amd64
               poolName: 1es-ubuntu-22.04-x64
-              container: alpine-3.23
+              container: alpine
               arch: amd64
 
           - template: build/azure-pipelines/common/sanity-tests.yml@self
@@ -108,7 +108,7 @@ extends:
               name: alpine_arm64
               displayName: Alpine 3.23 arm64
               poolName: 1es-mariner-2.0-arm64
-              container: alpine-3.23
+              container: alpine
               arch: arm64
 
           # CentOS Stream 9
@@ -117,7 +117,7 @@ extends:
               name: centos_stream9_amd64
               displayName: CentOS Stream 9 amd64
               poolName: 1es-ubuntu-22.04-x64
-              container: centos-stream9
+              container: centos
               arch: amd64
 
           - template: build/azure-pipelines/common/sanity-tests.yml@self
@@ -125,7 +125,7 @@ extends:
               name: centos_stream9_arm64
               displayName: CentOS Stream 9 arm64
               poolName: 1es-mariner-2.0-arm64
-              container: centos-stream9
+              container: centos
               arch: arm64
 
           # Debian 10
@@ -184,7 +184,8 @@ extends:
               name: fedora_36_amd64
               displayName: Fedora 36 amd64
               poolName: 1es-ubuntu-22.04-x64
-              container: fedora-36
+              container: fedora
+              baseImage: fedora:36
               arch: amd64
 
           - template: build/azure-pipelines/common/sanity-tests.yml@self
@@ -192,7 +193,8 @@ extends:
               name: fedora_36_arm64
               displayName: Fedora 36 arm64
               poolName: 1es-mariner-2.0-arm64
-              container: fedora-36
+              container: fedora
+              baseImage: fedora:36
               arch: arm64
 
           # Fedora 40
@@ -201,7 +203,8 @@ extends:
               name: fedora_40_amd64
               displayName: Fedora 40 amd64
               poolName: 1es-ubuntu-22.04-x64
-              container: fedora-40
+              container: fedora
+              baseImage: fedora:40
               arch: amd64
 
           - template: build/azure-pipelines/common/sanity-tests.yml@self
@@ -209,7 +212,8 @@ extends:
               name: fedora_40_arm64
               displayName: Fedora 40 arm64
               poolName: 1es-mariner-2.0-arm64
-              container: fedora-40
+              container: fedora
+              baseImage: fedora:40
               arch: arm64
 
           # openSUSE Leap 16.0
@@ -218,7 +222,7 @@ extends:
               name: opensuse_leap_amd64
               displayName: openSUSE Leap 16.0 amd64
               poolName: 1es-ubuntu-22.04-x64
-              container: opensuse-leap-16
+              container: opensuse
               arch: amd64
 
           - template: build/azure-pipelines/common/sanity-tests.yml@self
@@ -226,7 +230,7 @@ extends:
               name: opensuse_leap_arm64
               displayName: openSUSE Leap 16.0 arm64
               poolName: 1es-mariner-2.0-arm64
-              container: opensuse-leap-16
+              container: opensuse
               arch: arm64
 
           # Red Hat UBI 9
@@ -235,7 +239,7 @@ extends:
               name: redhat_ubi9_amd64
               displayName: Red Hat UBI 9 amd64
               poolName: 1es-ubuntu-22.04-x64
-              container: redhat-ubi-9.7
+              container: redhat
               arch: amd64
 
           - template: build/azure-pipelines/common/sanity-tests.yml@self
@@ -243,7 +247,7 @@ extends:
               name: redhat_ubi9_arm64
               displayName: Red Hat UBI 9 arm64
               poolName: 1es-mariner-2.0-arm64
-              container: redhat-ubi-9.7
+              container: redhat
               arch: arm64
 
           # Ubuntu 22.04 Native (Snap coverage)
@@ -260,7 +264,8 @@ extends:
               name: ubuntu_22_04_amd64
               displayName: Ubuntu 22.04 amd64
               poolName: 1es-ubuntu-22.04-x64
-              container: ubuntu-22.04
+              container: ubuntu
+              baseImage: ubuntu:22.04
               arch: amd64
 
           - template: build/azure-pipelines/common/sanity-tests.yml@self
@@ -268,7 +273,8 @@ extends:
               name: ubuntu_22_04_arm32
               displayName: Ubuntu 22.04 arm32
               poolName: 1es-mariner-2.0-arm64
-              container: ubuntu-22.04
+              container: ubuntu
+              baseImage: ubuntu:22.04
               arch: arm
 
           - template: build/azure-pipelines/common/sanity-tests.yml@self
@@ -276,7 +282,8 @@ extends:
               name: ubuntu_22_04_arm64
               displayName: Ubuntu 22.04 arm64
               poolName: 1es-mariner-2.0-arm64
-              container: ubuntu-22.04
+              container: ubuntu
+              baseImage: ubuntu:22.04
               arch: arm64
 
           # Ubuntu 24.04
@@ -285,7 +292,8 @@ extends:
               name: ubuntu_24_04_amd64
               displayName: Ubuntu 24.04 amd64
               poolName: 1es-ubuntu-22.04-x64
-              container: ubuntu-24.04
+              container: ubuntu
+              baseImage: ubuntu:24.04
               arch: amd64
 
           - template: build/azure-pipelines/common/sanity-tests.yml@self
@@ -293,7 +301,8 @@ extends:
               name: ubuntu_24_04_arm32
               displayName: Ubuntu 24.04 arm32
               poolName: 1es-mariner-2.0-arm64
-              container: ubuntu-24.04
+              container: ubuntu
+              baseImage: ubuntu:24.04
               arch: arm
 
           - template: build/azure-pipelines/common/sanity-tests.yml@self
@@ -301,5 +310,6 @@ extends:
               name: ubuntu_24_04_arm64
               displayName: Ubuntu 24.04 arm64
               poolName: 1es-mariner-2.0-arm64
-              container: ubuntu-24.04
+              container: ubuntu
+              baseImage: ubuntu:24.04
               arch: arm64

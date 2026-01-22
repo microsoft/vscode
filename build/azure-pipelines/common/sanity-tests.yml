@@ -14,6 +14,9 @@ parameters:
   - name: arch
     type: string
     default: amd64
+  - name: baseImage
+    type: string
+    default: ""
   - name: args
     type: string
     default: ""
@@ -106,6 +109,7 @@ jobs:
         - bash: |
             docker buildx build \
               --platform "linux/${{ parameters.arch }}" \
+              --build-arg "BASE_IMAGE=${{ parameters.baseImage }}" \
               --tag "${{ parameters.container }}" \
               --file "containers/${{ parameters.container }}.dockerfile" \
               ./containers
