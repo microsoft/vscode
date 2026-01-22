@@ -18,7 +18,7 @@
 	overflow: hidden;
 }
 
-.inline-chat-session-overlay-widget .progress {
+.inline-chat-session-overlay-widget .status {
 	align-items: center;
 	display: none;
 	padding: 5px 0 5px 5px;
@@ -27,22 +27,22 @@
 	gap: 6px;
 }
 
-.inline-chat-session-overlay-widget.busy .progress {
+.inline-chat-session-overlay-widget.active .status {
 	display: inline-flex;
 }
 
-.inline-chat-session-overlay-widget .progress .progress-message {
+.inline-chat-session-overlay-widget .status .message {
 	white-space: nowrap;
 	max-width: 13em;
 	overflow: hidden;
 	text-overflow: ellipsis;
 }
 
-.inline-chat-session-overlay-widget .progress .progress-message:not(:empty) {
+.inline-chat-session-overlay-widget .status .message:not(:empty) {
 	padding-right: 2em;
 }
 
-.inline-chat-session-overlay-widget.busy .progress .codicon {
+.inline-chat-session-overlay-widget .status .codicon {
 	color: var(--vscode-foreground);
 }
 

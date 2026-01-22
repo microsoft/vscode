@@ -306,9 +306,9 @@ export class InlineChatSessionOverlayWidget extends Disposable {
 
 	private readonly _domNode: HTMLElement = document.createElement('div');
 	private readonly _container: HTMLElement;
-	private readonly _progressNode: HTMLElement;
-	private readonly _progressIcon: HTMLElement;
-	private readonly _progressMessage: HTMLElement;
+	private readonly _statusNode: HTMLElement;
+	private readonly _icon: HTMLElement;
+	private readonly _message: HTMLElement;
 	private readonly _toolbarNode: HTMLElement;
 
 	private readonly _showStore = this._store.add(new DisposableStore());
@@ -325,12 +325,12 @@ export class InlineChatSessionOverlayWidget extends Disposable {
 		this._domNode.appendChild(this._container);
 		this._container.classList.add('inline-chat-session-overlay-widget');
 
-		// Create progress node
-		this._progressNode = document.createElement('div');
-		this._progressNode.classList.add('progress');
-		this._progressIcon = dom.append(this._progressNode, dom.$('span'));
-		this._progressMessage = dom.append(this._progressNode, dom.$('span.progress-message'));
-		this._container.appendChild(this._progressNode);
+		// Create status node with icon and message
+		this._statusNode = document.createElement('div');
+		this._statusNode.classList.add('status');
+		this._icon = dom.append(this._statusNode, dom.$('span'));
+		this._message = dom.append(this._statusNode, dom.$('span.message'));
+		this._container.appendChild(this._statusNode);
 
 		// Create toolbar node
 		this._toolbarNode = document.createElement('div');
@@ -344,7 +344,7 @@ export class InlineChatSessionOverlayWidget extends Disposable {
 		// Derived entry observable for this session
 		const entry = derived(r => session.editingSession.readEntry(session.uri, r));
 
-		// Set up progress message observable
+		// Set up status message observable
 		const requestMessage = derived(r => {
 			const chatModel = session?.chatModel;
 			if (!session || !chatModel) {
@@ -384,21 +384,21 @@ export class InlineChatSessionOverlayWidget extends Disposable {
 		this._showStore.add(autorun(r => {
 			const value = requestMessage.read(r);
 			if (value) {
-				this._progressMessage.innerText = renderAsPlaintext(value.message);
+				this._message.innerText = renderAsPlaintext(value.message);
 			} else {
-				this._progressMessage.innerText = '';
+				this._message.innerText = '';
 			}
 		}));
 
-		// Keep busy class in sync with whether edits are being streamed
+		// Keep active class in sync with whether edits are being streamed or done
 		this._showStore.add(autorun(r => {
 			const e = entry.read(r);
 			const isBusy = !e || !!e.isCurrentlyBeingModifiedBy.read(r);
 			const isDone = e?.lastModifyingResponse.read(r)?.isComplete;
-			this._container.classList.toggle('busy', isBusy || isDone);
+			this._container.classList.toggle('active', isBusy || isDone);
 
-			this._progressIcon.className = '';
-			this._progressIcon.classList.add(...ThemeIcon.asClassNameArray(isDone ? Codicon.check : ThemeIcon.modify(Codicon.loading, 'spin')));
+			this._icon.className = '';
+			this._icon.classList.add(...ThemeIcon.asClassNameArray(isDone ? Codicon.check : ThemeIcon.modify(Codicon.loading, 'spin')));
 		}));
 
 		// Add toolbar
