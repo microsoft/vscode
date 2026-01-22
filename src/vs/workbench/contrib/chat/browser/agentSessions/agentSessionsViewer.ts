@@ -194,7 +194,7 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 		template.diffContainer.classList.toggle('has-diff', hasDiff);
 
 		// TODO@lszomoru - Only show the "View All Changes" action if the changes are in an array. We have to revisit this
-		ChatContextKeys.hasAgentSessionChanges.bindTo(template.contextKeyService).set(Array.isArray(hasDiff) && hasDiff.length > 0);
+		ChatContextKeys.hasAgentSessionChanges.bindTo(template.contextKeyService).set(Array.isArray(diff) && diff.length > 0);
 
 		// Badge
 		let hasBadge = false;
