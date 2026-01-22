@@ -18,23 +18,7 @@
 	overflow: hidden;
 }
 
-@keyframes inline-chat-session-pulse {
-	0% {
-		box-shadow: 0 2px 8px 0 var(--vscode-widget-shadow);
-	}
-	50% {
-		box-shadow: 0 2px 8px 4px var(--vscode-widget-shadow);
-	}
-	100% {
-		box-shadow: 0 2px 8px 0 var(--vscode-widget-shadow);
-	}
-}
-
-.inline-chat-session-overlay-widget.busy {
-	animation: inline-chat-session-pulse ease-in 2.3s infinite;
-}
-
-.inline-chat-session-overlay-widget .progress {
+.inline-chat-session-overlay-widget .status {
 	align-items: center;
 	display: none;
 	padding: 5px 0 5px 5px;
@@ -43,22 +27,22 @@
 	gap: 6px;
 }
 
-.inline-chat-session-overlay-widget.busy .progress {
+.inline-chat-session-overlay-widget.active .status {
 	display: inline-flex;
 }
 
-.inline-chat-session-overlay-widget .progress .progress-message {
+.inline-chat-session-overlay-widget .status .message {
 	white-space: nowrap;
 	max-width: 13em;
 	overflow: hidden;
 	text-overflow: ellipsis;
 }
 
-.inline-chat-session-overlay-widget .progress .progress-message:not(:empty) {
+.inline-chat-session-overlay-widget .status .message:not(:empty) {
 	padding-right: 2em;
 }
 
-.inline-chat-session-overlay-widget.busy .progress .codicon {
+.inline-chat-session-overlay-widget .status .codicon {
 	color: var(--vscode-foreground);
 }
 
