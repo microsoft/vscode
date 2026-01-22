@@ -291,7 +291,7 @@ function isCachedChatModeData(data: unknown): data is IChatModeData {
 		(mode.description === undefined || typeof mode.description === 'string') &&
 		(mode.customTools === undefined || Array.isArray(mode.customTools)) &&
 		(mode.modeInstructions === undefined || (typeof mode.modeInstructions === 'object' && mode.modeInstructions !== null)) &&
-		(mode.model === undefined || typeof mode.model === 'string') &&
+		(mode.model === undefined || typeof mode.model === 'string' || Array.isArray(mode.model)) &&
 		(mode.argumentHint === undefined || typeof mode.argumentHint === 'string') &&
 		(mode.handOffs === undefined || Array.isArray(mode.handOffs)) &&
 		(mode.uri === undefined || (typeof mode.uri === 'object' && mode.uri !== null)) &&
