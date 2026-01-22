@@ -636,8 +636,33 @@ export class SNCController extends Disposable implements IEditorContribution {
 
 	/**
 	 * Handle keyboard event from VisualizationWidget
+	 *
+	 * If it's not a key the widget handles, let it pass through to VS Code.
 	 */
 	private onKeyboardEvent(lineNumber: number, visIndex: number, pythonEventStr: string, ev: KeyboardEvent): void {
+		// Look up the model for this visualization to get handledKeys
+		const visItem = this.visualizationItems.find(
+			item => item.line === lineNumber && item.visIndex === visIndex
+		);
+		const model = visItem?.model as { handledKeys?: string[] } | undefined;
+		const handledKeys = model?.handledKeys ?? [];
+
+		// Normalize a key string: sort modifiers alphabetically, keep the main key last
+		const normalizeKeyString = (s: string): string => {
+			const [mainKey, ...parts] = s.toLowerCase().split(' ').reverse();
+			return [...parts.sort(), mainKey].join(' ');
+		};
+
+		// Build key string from event: e.g. "cmd shift z", "escape", "enter"
+		const keyString = normalizeKeyString(`${ev.metaKey ? 'cmd ' : ''}${ev.ctrlKey ? 'ctrl ' : ''}${ev.altKey ? 'alt ' : ''}${ev.shiftKey ? 'shift ' : ''}${ev.key.toLowerCase()}`);
+
+		// Check if this key combo should be intercepted (normalize both sides)
+		const isHandled = handledKeys.some(hk => normalizeKeyString(hk) === keyString);
+		if (isHandled) {
+			ev.preventDefault();
+			ev.stopPropagation();
+		}
+
 		const eventJSON = {
 			type: ev.type,
 			key: ev.key,

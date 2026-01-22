@@ -329,7 +329,7 @@ def generate_regex_code(source_code: str, line_number: int, string_value: str,
     """
     # Check if 'import re' is needed
     needs_import = 'import re' not in source_code
-    
+
     expr, var_name = extract_expression_from_line(source_code, line_number)
     mapping = build_internal_to_string_mapping(string_value)
 
@@ -410,18 +410,18 @@ def vis_char_with_index(char, i, selection_type_by_index):
 def get_all_segments(model):
     """Get all segments including the in-progress one for display."""
     completed = model.get('completedSegments', [])
-    
+
     # Compute current in-progress segment from anchor/cursor
     a = model.get('anchorIdx')
     c = model.get('cursorIdx')
     anchor_type = model.get('anchorType', 'literal')
-    
+
     if isinstance(a, int) and isinstance(c, int):
         start = min(a, c)
         end = max(a, c) + 1
         current_segment = {"start": start, "end": end, "type": anchor_type}
         return completed + [current_segment]
-    
+
     return completed
 
 
@@ -463,7 +463,10 @@ def init_model():
         "anchorType": None,       # "literal" or "fuzzy" - determined when drag starts
         "cursorIdx": None,
         "dragging": False,
-        "stringValue": None
+        "stringValue": None,
+        "undoHistory": [],        # Stack of previous completedSegments states
+        "redoHistory": [],        # Stack for redo
+        "handledKeys": ["Escape", "Enter", "cmd z", "cmd shift z"]  # Keys to intercept from VS Code
     }
 
 
@@ -473,7 +476,7 @@ def is_top_half(event_json):
     height = event_json.get('elementHeight', 1)
     return offset_y <= height / 2
 
-def update(event=None, source_code=None, source_line=None, model=None) -> Tuple[dict, List[Any]]:
+def update(event, source_code:str, source_line:int, model:dict) -> Tuple[dict, List[Any]]:
     """
     Update model based on event. Returns (new_model, commands) tuple.
 
@@ -532,6 +535,9 @@ def update(event=None, source_code=None, source_line=None, model=None) -> Tuple[
                     start = min(a, c)
                     end = max(a, c) + 1
                     current_segment = {"start": start, "end": end, "type": model.get('anchorType', 'literal')}
+                    # Save to undo history before modifying
+                    model['undoHistory'] = model.get('undoHistory', []) + [model.get('completedSegments', [])]
+                    model['redoHistory'] = []  # Clear redo on new action
                     model['completedSegments'] = model.get('completedSegments', []) + [current_segment]
                     model['anchorIdx'] = None
                     model['cursorIdx'] = None
@@ -549,13 +555,20 @@ def update(event=None, source_code=None, source_line=None, model=None) -> Tuple[
                     start = min(a, c)
                     end = max(a, c) + 1
                     current_segment = {"start": start, "end": end, "type": model.get('anchorType', 'literal')}
+                    # Save to undo history before modifying
+                    model['undoHistory'] = model.get('undoHistory', []) + [model.get('completedSegments', [])]
+                    model['redoHistory'] = []  # Clear redo on new action
                     model['completedSegments'] = model.get('completedSegments', []) + [current_segment]
                     model['anchorIdx'] = None
                     model['cursorIdx'] = None
                 model['dragging'] = False
 
         case KeyDown():
-            if event_json.get('key') == 'Enter':
+            key = event_json.get('key')
+            meta_key = event_json.get('metaKey', False)
+            shift_key = event_json.get('shiftKey', False)
+
+            if key == 'Enter':
                 # Generate regex code if we have segments
                 segments = get_all_segments(model)
                 string_value = model.get('stringValue')
@@ -563,5 +576,44 @@ def update(event=None, source_code=None, source_line=None, model=None) -> Tuple[
                 if segments and string_value is not None and source_code and source_line:
                     new_code = generate_regex_code(source_code, source_line, string_value, segments)
                     commands.append(NewCode(code=new_code))
+
+            elif key == 'Escape':
+                # Clear all selections (save to undo first so it's recoverable)
+                current_segments = model.get('completedSegments', [])
+                if current_segments or model.get('anchorIdx') is not None:
+                    model['undoHistory'] = model.get('undoHistory', []) + [current_segments]
+                    model['redoHistory'] = []
+                model['completedSegments'] = []
+                model['anchorIdx'] = None
+                model['cursorIdx'] = None
+                model['dragging'] = False
+
+            elif key == 'z' and meta_key and not shift_key:
+                # Cmd-Z: Undo
+                undo_history = model.get('undoHistory', [])
+                if undo_history:
+                    # Push current to redo
+                    model['redoHistory'] = model.get('redoHistory', []) + [model.get('completedSegments', [])]
+                    # Pop from undo
+                    model['completedSegments'] = undo_history[-1]
+                    model['undoHistory'] = undo_history[:-1]
+                    # Clear any in-progress selection
+                    model['anchorIdx'] = None
+                    model['cursorIdx'] = None
+                    model['dragging'] = False
+
+            elif key == 'z' and meta_key and shift_key:
+                # Cmd-Shift-Z: Redo
+                redo_history = model.get('redoHistory', [])
+                if redo_history:
+                    # Push current to undo
+                    model['undoHistory'] = model.get('undoHistory', []) + [model.get('completedSegments', [])]
+                    # Pop from redo
+                    model['completedSegments'] = redo_history[-1]
+                    model['redoHistory'] = redo_history[:-1]
+                    # Clear any in-progress selection
+                    model['anchorIdx'] = None
+                    model['cursorIdx'] = None
+                    model['dragging'] = False
 
     return (model, commands)
