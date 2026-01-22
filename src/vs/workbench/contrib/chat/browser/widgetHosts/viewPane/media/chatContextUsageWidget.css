@@ -6,7 +6,7 @@
 .chat-context-usage-widget {
 	display: flex;
 	align-items: center;
-	justify-content: flex-start;
+	justify-content: flex-end;
 	height: 22px;
 	flex-shrink: 0;
 	cursor: pointer;
@@ -33,8 +33,9 @@
 	white-space: nowrap;
 	font-size: 11px;
 	color: var(--vscode-foreground);
-	transition: max-width 0.2s ease, opacity 0.2s ease, margin-left 0.2s ease;
-	margin-left: 0;
+	transition: max-width 0.2s ease, opacity 0.2s ease, margin-right 0.2s ease;
+	margin-right: 0;
+	order: -1;
 }
 
 /* Expand on hover, focus, or when details are shown (expanded class) */
@@ -44,7 +45,7 @@
 .chat-context-usage-widget.expanded .token-label {
 	max-width: 100px;
 	opacity: 1;
-	margin-left: 6px;
+	margin-right: 6px;
 }
 
 .chat-context-usage-widget:hover {
