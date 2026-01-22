@@ -232,13 +232,15 @@ export class PromptHeader {
 		return undefined;
 	}
 
+	/**
+	 * Parses the `handoffs` attribute from the YAML frontmatter.
+	 */
 	public get handOffs(): IHandOff[] | undefined {
 		const handoffsAttribute = this._parsedHeader.attributes.find(attr => attr.key === PromptHeaderAttributes.handOffs);
 		if (!handoffsAttribute) {
 			return undefined;
 		}
 		if (handoffsAttribute.value.type === 'array') {
-			// Array format: list of objects: { agent, label, prompt, send?, showContinueOn? }
 			const handoffs: IHandOff[] = [];
 			for (const item of handoffsAttribute.value.items) {
 				if (item.type === 'object') {
@@ -247,6 +249,9 @@ export class PromptHeader {
 					let prompt: string | undefined;
 					let send: boolean | undefined;
 					let showContinueOn: boolean | undefined;
+					let model: string | undefined;
+					let category: string | undefined;
+
 					for (const prop of item.properties) {
 						if (prop.key.value === 'agent' && prop.value.type === 'string') {
 							agent = prop.value.value;
@@ -258,15 +263,22 @@ export class PromptHeader {
 							send = prop.value.value;
 						} else if (prop.key.value === 'showContinueOn' && prop.value.type === 'boolean') {
 							showContinueOn = prop.value.value;
+						} else if (prop.key.value === 'model' && prop.value.type === 'string') {
+							model = prop.value.value;
+						} else if (prop.key.value === 'category' && prop.value.type === 'string') {
+							category = prop.value.value;
 						}
 					}
+
 					if (agent && label && prompt !== undefined) {
 						const handoff: IHandOff = {
 							agent,
 							label,
 							prompt,
 							...(send !== undefined ? { send } : {}),
-							...(showContinueOn !== undefined ? { showContinueOn } : {})
+							...(showContinueOn !== undefined ? { showContinueOn } : {}),
+							...(model !== undefined ? { model } : {}),
+							...(category !== undefined ? { category } : {})
 						};
 						handoffs.push(handoff);
 					}
@@ -299,12 +311,22 @@ export class PromptHeader {
 	}
 }
 
+/**
+ * Represents a handoff action defined in an agent mode's YAML frontmatter.
+ * Handoffs are buttons shown after a response that continue the conversation with a specific agent.
+ */
 export interface IHandOff {
 	readonly agent: string;
 	readonly label: string;
 	readonly prompt: string;
+	/** If true, automatically sends the prompt without user confirmation */
 	readonly send?: boolean;
-	readonly showContinueOn?: boolean; // treated exactly like send (optional boolean)
+	/** If false, hides "Continue in Cloud/Background" options in the dropdown */
+	readonly showContinueOn?: boolean;
+	/** Model to switch to; when this attribute is set, the handoff is only visible when this model is available */
+	readonly model?: string;
+	/** Groups handoffs with the same category under a single button with dropdown in UI*/
+	readonly category?: string;
 }
 
 export interface IHeaderAttribute {

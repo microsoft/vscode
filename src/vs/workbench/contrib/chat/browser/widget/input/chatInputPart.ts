@@ -697,14 +697,29 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 	}
 
-	public switchModelByQualifiedName(qualifiedModelName: string): boolean {
-		const models = this.getModels();
-		const model = models.find(m => ILanguageModelChatMetadata.matchesQualifiedName(qualifiedModelName, m.metadata));
+	/**
+	 * Check if a model can be switched to by qualified name without actually switching.
+	 */
+	public canSwitchToModel(qualifiedName: string): boolean {
+		return this.findModelByQualifiedName(qualifiedName) !== undefined;
+	}
+
+	public switchModelByQualifiedName(qualifiedName: string): boolean {
+		const model = this.findModelByQualifiedName(qualifiedName);
 		if (model) {
 			this.setCurrentLanguageModel(model);
 			return true;
 		}
 		return false;
+	}
+
+	/**
+	 * Find a model by qualified name (e.g., "GPT-4o (copilot)").
+	 * Returns undefined if no matching model is found in the available models.
+	 */
+	private findModelByQualifiedName(qualifiedName: string): ILanguageModelChatMetadataAndIdentifier | undefined {
+		const models = this.getModels();
+		return models.find(m => ILanguageModelChatMetadata.matchesQualifiedName(qualifiedName, m.metadata));
 	}
 
 	public switchToNextModel(): void {

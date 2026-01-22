@@ -4,14 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../../base/browser/dom.js';
-import { Action } from '../../../../../../base/common/actions.js';
+import { Action, IAction, Separator } from '../../../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../nls.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
+import { ChatConfiguration } from '../../../common/constants.js';
 import { IChatMode } from '../../../common/chatModes.js';
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
+import { ILanguageModelsService } from '../../../common/languageModels.js';
 import { IHandOff } from '../../../common/promptSyntax/promptFileParser.js';
 import { AgentSessionProviders, getAgentSessionProviderIcon, getAgentSessionProviderName } from '../../agentSessions/agentSessions.js';
 
@@ -35,8 +38,10 @@ export class ChatSuggestNextWidget extends Disposable {
 	private buttonDisposables = new Map<HTMLElement, DisposableStore>();
 
 	constructor(
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
-		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService
+		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
+		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService
 	) {
 		super();
 		this.domNode = this.createSuggestNextWidget();
@@ -44,6 +49,26 @@ export class ChatSuggestNextWidget extends Disposable {
 
 	public get height(): number {
 		return this.domNode.style.display === 'none' ? 0 : this.domNode.offsetHeight;
+	}
+
+	/**
+	 * Resolves model reference strings that use template syntax `${settingKey}`.
+	 * Returns undefined if the setting is empty or the template is unknown.
+	 */
+	public resolveModelReference(model: string): string | undefined {
+		const templateMatch = model.match(/^\$\{(.+)\}$/);
+		if (templateMatch) {
+			const settingKey = templateMatch[1];
+			if (settingKey === ChatConfiguration.FastImplementModel) {
+				const settingValue = this.configurationService.getValue<string>(ChatConfiguration.FastImplementModel);
+				if (!settingValue || settingValue.trim() === '') {
+					return undefined;
+				}
+				return settingValue;
+			}
+			return undefined;
+		}
+		return model;
 	}
 
 	public getCurrentMode(): IChatMode | undefined {
@@ -64,10 +89,29 @@ export class ChatSuggestNextWidget extends Disposable {
 		return container;
 	}
 
-	public render(mode: IChatMode): void {
+	public render(mode: IChatMode, isModelAvailable?: (model: string) => boolean): void {
 		const handoffs = mode.handOffs?.get();
 
 		if (!handoffs || handoffs.length === 0) {
+			this.hide();
+			return;
+		}
+		// Filter handoffs based on model availability
+		const visibleHandoffs = handoffs.filter(handoff => {
+			if (handoff.model) {
+				const resolvedModel = this.resolveModelReference(handoff.model);
+				if (resolvedModel === undefined) {
+					return false;
+				}
+				if (isModelAvailable) {
+					return isModelAvailable(resolvedModel);
+				}
+				return this.languageModelsService.lookupLanguageModel(resolvedModel) !== undefined;
+			}
+			return true;
+		});
+
+		if (visibleHandoffs.length === 0) {
 			this.hide();
 			return;
 		}
@@ -92,7 +136,55 @@ export class ChatSuggestNextWidget extends Disposable {
 			this.promptsContainer.removeChild(child);
 		}
 
-		for (const handoff of handoffs) {
+		// Group handoffs by category - handoffs with the same category share a button with dropdown
+		const categoryGroups = new Map<string, IHandOff[]>();
+		const uncategorized: IHandOff[] = [];
+
+		for (const handoff of visibleHandoffs) {
+			if (handoff.category) {
+				const group = categoryGroups.get(handoff.category) || [];
+				group.push(handoff);
+				categoryGroups.set(handoff.category, group);
+			} else {
+				uncategorized.push(handoff);
+			}
+		}
+
+		const hasAvailableModel = (h: IHandOff): boolean => {
+			if (!h.model) {
+				return false;
+			}
+			const resolvedModel = this.resolveModelReference(h.model);
+			if (resolvedModel === undefined) {
+				return false;
+			}
+			if (isModelAvailable) {
+				return isModelAvailable(resolvedModel);
+			}
+			return this.languageModelsService.lookupLanguageModel(resolvedModel) !== undefined;
+		};
+
+		// Sort each category so handoffs with available models come first (they become the main button)
+		for (const [, group] of categoryGroups) {
+			const sorted = [...group].sort((a, b) => {
+				const aHasModel = hasAvailableModel(a);
+				const bHasModel = hasAvailableModel(b);
+				if (aHasModel && !bHasModel) {
+					return -1;
+				}
+				if (!aHasModel && bHasModel) {
+					return 1;
+				}
+				return 0;
+			});
+
+			const mainHandoff = sorted[0];
+			const categoryHandoffs = sorted.slice(1);
+			const promptButton = this.createPromptButton(mainHandoff, categoryHandoffs);
+			this.promptsContainer.appendChild(promptButton);
+		}
+
+		for (const handoff of uncategorized) {
 			const promptButton = this.createPromptButton(handoff);
 			this.promptsContainer.appendChild(promptButton);
 		}
@@ -101,7 +193,7 @@ export class ChatSuggestNextWidget extends Disposable {
 		this._onDidChangeHeight.fire();
 	}
 
-	private createPromptButton(handoff: IHandOff): HTMLElement {
+	private createPromptButton(handoff: IHandOff, categoryHandoffs?: IHandOff[]): HTMLElement {
 		const disposables = new DisposableStore();
 
 		const button = dom.$('.chat-welcome-view-suggested-prompt');
@@ -112,14 +204,17 @@ export class ChatSuggestNextWidget extends Disposable {
 		const titleElement = dom.append(button, dom.$('.chat-welcome-view-suggested-prompt-title'));
 		titleElement.textContent = handoff.label;
 
-		// Optional showContinueOn behaves like send: only present if specified
-		const showContinueOn = handoff.showContinueOn ?? true;
+		const mainShowContinueOn = handoff.showContinueOn ?? true;
+		const anyInCategoryShowsContinueOn = categoryHandoffs?.some(h => h.showContinueOn !== false) ?? false;
+		const showContinueOn = mainShowContinueOn || anyInCategoryShowsContinueOn;
 
-		// Get chat session contributions to show in chevron dropdown
 		const contributions = this.chatSessionsService.getAllChatSessionContributions();
 		const availableContributions = contributions.filter(c => c.canDelegate);
 
-		if (showContinueOn && availableContributions.length > 0) {
+		const hasCategoryHandoffs = categoryHandoffs && categoryHandoffs.length > 0;
+		const hasContinueOnOptions = showContinueOn && availableContributions.length > 0;
+
+		if (hasCategoryHandoffs || hasContinueOnOptions) {
 			button.classList.add('chat-suggest-next-has-dropdown');
 			// Create a dropdown container that wraps separator and chevron for a larger hit area
 			const dropdownContainer = dom.append(button, dom.$('.chat-suggest-next-dropdown'));
@@ -137,20 +232,41 @@ export class ChatSuggestNextWidget extends Disposable {
 				e.preventDefault();
 				e.stopPropagation();
 
-				const actions = availableContributions.map(contrib => {
-					const provider = contrib.type === AgentSessionProviders.Background ? AgentSessionProviders.Background : AgentSessionProviders.Cloud;
-					const icon = getAgentSessionProviderIcon(provider);
-					const name = getAgentSessionProviderName(provider);
-					return new Action(
-						contrib.type,
-						localize('continueIn', "Continue in {0}", name),
-						ThemeIcon.isThemeIcon(icon) ? ThemeIcon.asClassName(icon) : undefined,
-						true,
-						() => {
-							this._onDidSelectPrompt.fire({ handoff, agentId: contrib.name });
-						}
-					);
-				});
+				const actions: IAction[] = [];
+
+				if (hasCategoryHandoffs) {
+					for (const h of categoryHandoffs!) {
+						actions.push(new Action(
+							`category-handoff-${h.label}`,
+							h.label,
+							undefined,
+							true,
+							() => {
+								this._onDidSelectPrompt.fire({ handoff: h });
+							}
+						));
+					}
+					if (hasContinueOnOptions) {
+						actions.push(new Separator());
+					}
+				}
+
+				if (hasContinueOnOptions) {
+					for (const contrib of availableContributions) {
+						const provider = contrib.type === AgentSessionProviders.Background ? AgentSessionProviders.Background : AgentSessionProviders.Cloud;
+						const icon = getAgentSessionProviderIcon(provider);
+						const name = getAgentSessionProviderName(provider);
+						actions.push(new Action(
+							contrib.type,
+							localize('continueIn', "Continue in {0}", name),
+							ThemeIcon.isThemeIcon(icon) ? ThemeIcon.asClassName(icon) : undefined,
+							true,
+							() => {
+								this._onDidSelectPrompt.fire({ handoff, agentId: contrib.name });
+							}
+						));
+					}
+				}
 
 				this.contextMenuService.showContextMenu({
 					getAnchor: () => anchor || dropdownContainer,
@@ -187,7 +303,6 @@ export class ChatSuggestNextWidget extends Disposable {
 			}
 		}));
 
-		// Store disposables for this button so they can be disposed when the button is removed
 		this.buttonDisposables.set(button, disposables);
 
 		return button;

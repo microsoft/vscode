@@ -1171,7 +1171,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (shouldShow) {
 			// Log telemetry only when widget transitions from hidden to visible
 			const wasHidden = this.chatSuggestNextWidget.domNode.style.display === 'none';
-			this.chatSuggestNextWidget.render(currentMode);
+			this.chatSuggestNextWidget.render(currentMode, (model) => this.input.canSwitchToModel(model));
 
 			if (wasHidden) {
 				this.telemetryService.publicLog2<ChatHandoffWidgetShownEvent, ChatHandoffWidgetShownClassification>('chat.handoffWidgetShown', {
@@ -1216,6 +1216,16 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		} else if (handoff.agent) {
 			// Regular handoff to specified agent
 			this._switchToAgentByName(handoff.agent);
+
+			// Switch to the specified model if provided
+			if (handoff.model) {
+				// Resolve template references (e.g., ${github.copilot.chat.fastImplement})
+				const resolvedModel = this.chatSuggestNextWidget.resolveModelReference(handoff.model);
+				if (resolvedModel) {
+					this.input.switchModelByQualifiedName(resolvedModel);
+				}
+			}
+
 			// Insert the handoff prompt into the input
 			this.input.setValue(promptToUse, false);
 			this.input.focus();

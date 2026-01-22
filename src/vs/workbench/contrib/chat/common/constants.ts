@@ -12,6 +12,7 @@ export enum ChatConfiguration {
 	AgentEnabled = 'chat.agent.enabled',
 	AgentStatusEnabled = 'chat.agentsControl.enabled',
 	UnifiedAgentsBar = 'chat.unifiedAgentsBar.enabled',
+	FastImplementModel = 'github.copilot.chat.fastImplement',
 	AgentSessionProjectionEnabled = 'chat.agentSessionProjection.enabled',
 	EditModeHidden = 'chat.editMode.hidden',
 	Edits2Enabled = 'chat.edits2.enabled',
