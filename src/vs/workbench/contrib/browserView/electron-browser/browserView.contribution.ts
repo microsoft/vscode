@@ -113,7 +113,7 @@ class LocalhostOpenerContribution extends Disposable implements IWorkbenchContri
 	}
 
 	async open(resource: URI | string, _options?: OpenInternalOptions | OpenExternalOptions): Promise<boolean> {
-		if (!this.configurationService.getValue<boolean>('workbench.browser.openLocalhost')) {
+		if (!this.configurationService.getValue<boolean>('workbench.browser.openLocalhostLinks')) {
 			return false;
 		}
 
