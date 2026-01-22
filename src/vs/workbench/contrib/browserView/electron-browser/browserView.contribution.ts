@@ -54,8 +54,7 @@ class BrowserEditorResolverContribution implements IWorkbenchContribution {
 
 	constructor(
 		@IEditorResolverService editorResolverService: IEditorResolverService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@ITelemetryService telemetryService: ITelemetryService
+		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		editorResolverService.registerEditor(
 			`${Schemas.vscodeBrowser}:/**`,
@@ -74,8 +73,6 @@ class BrowserEditorResolverContribution implements IWorkbenchContribution {
 					if (!parsed) {
 						throw new Error(`Invalid browser view resource: ${resource.toString()}`);
 					}
-
-					logBrowserOpen(telemetryService, 'editorResolver');
 
 					const browserInput = instantiationService.createInstance(BrowserEditorInput, {
 						id: parsed.id,
