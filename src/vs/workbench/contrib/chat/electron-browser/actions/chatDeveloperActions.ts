@@ -8,7 +8,7 @@ import { localize2 } from '../../../../../nls.js';
 import { Categories } from '../../../../../platform/action/common/actionCommonCategories.js';
 import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { INativeHostService } from '../../../../../platform/native/common/native.js';
-import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { ChatEntitlementContextKeys } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IChatService } from '../../common/chatService/chatService.js';
 
 export function registerChatDeveloperActions() {
@@ -25,7 +25,7 @@ class OpenChatStorageFolderAction extends Action2 {
 			icon: Codicon.attach,
 			category: Categories.Developer,
 			f1: true,
-			precondition: ChatContextKeys.enabled
+			precondition: ChatEntitlementContextKeys.Setup.hidden.negate(),
 		});
 	}
 

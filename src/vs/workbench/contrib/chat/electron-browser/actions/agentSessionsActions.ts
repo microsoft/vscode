@@ -14,18 +14,22 @@ import { INativeHostService } from '../../../../../platform/native/common/native
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IUserDataProfilesService, IUserDataProfileTemplate } from '../../../../../platform/userDataProfile/common/userDataProfile.js';
 import { IUserDataProfileImportExportService, IUserDataProfileManagementService } from '../../../../services/userDataProfile/common/userDataProfile.js';
+import { CHAT_CATEGORY } from '../../browser/actions/chatActions.js';
+import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 
 export class OpenAgentSessionsWindowAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.openAgentSessionsWindow',
 			title: localize2('openAgentSessionsWindow', "Open Agent Sessions Window"),
+			category: CHAT_CATEGORY,
+			precondition: ChatContextKeys.enabled,
 			f1: true,
 		});
 	}
 
 	async run(accessor: ServicesAccessor) {
-		const uriIdenitityService = accessor.get(IUriIdentityService);
+		const uriIdentityService = accessor.get(IUriIdentityService);
 		const environmentService = accessor.get(INativeEnvironmentService);
 		const nativeHostService = accessor.get(INativeHostService);
 		const userDataProfilesService = accessor.get(IUserDataProfilesService);
@@ -49,7 +53,7 @@ export class OpenAgentSessionsWindowAction extends Action2 {
 		let templateResource: URI | undefined;
 		let template: IUserDataProfileTemplate | undefined;
 		for (const [resource, value] of profileTemplates) {
-			if (uriIdenitityService.extUri.basename(resource) === 'agent-sessions.code-profile') {
+			if (uriIdentityService.extUri.basename(resource) === 'agent-sessions.code-profile') {
 				templateResource = resource;
 				template = value;
 				break;
@@ -60,7 +64,7 @@ export class OpenAgentSessionsWindowAction extends Action2 {
 			throw new Error('Unable to find Agent Sessions profile template');
 		}
 
-		const profile = userDataProfilesService.profiles.find(p => uriIdenitityService.extUri.isEqual(p.templateData?.resource, templateResource));
+		const profile = userDataProfilesService.profiles.find(p => uriIdentityService.extUri.isEqual(p.templateData?.resource, templateResource));
 		if (profile) {
 			await userDataProfileManagementService.updateProfile(profile, { workspaces: [workspaceUri] });
 		} else {
