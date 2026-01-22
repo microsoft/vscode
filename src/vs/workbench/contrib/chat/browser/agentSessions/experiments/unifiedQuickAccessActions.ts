@@ -7,6 +7,8 @@ import { Action2, registerAction2 } from '../../../../../../platform/actions/com
 import { ServicesAccessor, IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { localize2 } from '../../../../../../nls.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
+import { ChatConfiguration } from '../../../common/constants.js';
+import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { UnifiedQuickAccess, DEFAULT_UNIFIED_QUICK_ACCESS_TABS } from './unifiedQuickAccess.js';
 
 // Singleton instance for the unified quick access
@@ -34,9 +36,12 @@ export class ShowUnifiedQuickAccessAction extends Action2 {
 	constructor() {
 		super({
 			id: ShowUnifiedQuickAccessAction.ID,
-			title: localize2('showUnifiedQuickAccess', "Show Unified Quick Access"),
+			title: localize2('showAgentQuickAccess', "Show Agent Quick Access"),
 			f1: true,
-			precondition: ChatContextKeys.enabled,
+			precondition: ContextKeyExpr.and(
+				ChatContextKeys.enabled,
+				ContextKeyExpr.has(`config.${ChatConfiguration.UnifiedAgentsBar}`)
+			),
 		});
 	}
 
@@ -59,7 +64,10 @@ export class ShowAgentSessionsQuickAccessAction extends Action2 {
 			id: ShowAgentSessionsQuickAccessAction.ID,
 			title: localize2('showAgentSessionsQuickAccess', "Show Agent Sessions"),
 			f1: true,
-			precondition: ChatContextKeys.enabled,
+			precondition: ContextKeyExpr.and(
+				ChatContextKeys.enabled,
+				ContextKeyExpr.has(`config.${ChatConfiguration.UnifiedAgentsBar}`)
+			),
 		});
 	}
 
@@ -82,7 +90,10 @@ export class ShowCommandsQuickAccessAction extends Action2 {
 			id: ShowCommandsQuickAccessAction.ID,
 			title: localize2('showCommandsQuickAccess', "Show Commands (Unified)"),
 			f1: true,
-			precondition: ChatContextKeys.enabled,
+			precondition: ContextKeyExpr.and(
+				ChatContextKeys.enabled,
+				ContextKeyExpr.has(`config.${ChatConfiguration.UnifiedAgentsBar}`)
+			),
 		});
 	}
 
@@ -105,7 +116,10 @@ export class ShowFilesQuickAccessAction extends Action2 {
 			id: ShowFilesQuickAccessAction.ID,
 			title: localize2('showFilesQuickAccess', "Show Files (Unified)"),
 			f1: true,
-			precondition: ChatContextKeys.enabled,
+			precondition: ContextKeyExpr.and(
+				ChatContextKeys.enabled,
+				ContextKeyExpr.has(`config.${ChatConfiguration.UnifiedAgentsBar}`)
+			),
 		});
 	}
 
