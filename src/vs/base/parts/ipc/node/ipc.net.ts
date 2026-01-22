@@ -22,10 +22,12 @@ export function upgradeToISocket(req: http.IncomingMessage, socket: Socket, {
 	debugLabel,
 	skipWebSocketFrames = false,
 	disableWebSocketCompression = false,
+	enableMessageSplitting = true,
 }: {
 	debugLabel: string;
 	skipWebSocketFrames?: boolean;
 	disableWebSocketCompression?: boolean;
+	enableMessageSplitting?: boolean;
 }): NodeSocket | WebSocketNodeSocket | undefined {
 	if (req.headers.upgrade === undefined || req.headers.upgrade.toLowerCase() !== 'websocket') {
 		socket.end('HTTP/1.1 400 Bad Request');
@@ -78,7 +80,7 @@ export function upgradeToISocket(req: http.IncomingMessage, socket: Socket, {
 	if (skipWebSocketFrames) {
 		return new NodeSocket(socket, debugLabel);
 	} else {
-		return new WebSocketNodeSocket(new NodeSocket(socket, debugLabel), permessageDeflate, null, true);
+		return new WebSocketNodeSocket(new NodeSocket(socket, debugLabel), permessageDeflate, null, true, enableMessageSplitting);
 	}
 }
 
@@ -295,6 +297,7 @@ export class WebSocketNodeSocket extends Disposable implements ISocket, ISocketT
 	private readonly _incomingData: ChunkStream;
 	private readonly _onData = this._register(new Emitter<VSBuffer>());
 	private readonly _onClose = this._register(new Emitter<SocketCloseEvent>());
+	private readonly _maxSocketMessageLength: number;
 	private _isEnded = false;
 
 	private readonly _state = {
@@ -331,9 +334,10 @@ export class WebSocketNodeSocket extends Disposable implements ISocket, ISocketT
 	 * @param inflateBytes "Seed" zlib inflate with these bytes.
 	 * @param recordInflateBytes Record all bytes sent to inflate
 	 */
-	constructor(socket: NodeSocket, permessageDeflate: boolean, inflateBytes: VSBuffer | null, recordInflateBytes: boolean) {
+	constructor(socket: NodeSocket, permessageDeflate: boolean, inflateBytes: VSBuffer | null, recordInflateBytes: boolean, enableMessageSplitting = true) {
 		super();
 		this.socket = socket;
+		this._maxSocketMessageLength = enableMessageSplitting ? Constants.MaxWebSocketMessageLength : Infinity;
 		this.traceSocketEvent(SocketDiagnosticsEventType.Created, { type: 'WebSocketNodeSocket', permessageDeflate, inflateBytesLength: inflateBytes?.byteLength || 0, recordInflateBytes });
 		this._flowManager = this._register(new WebSocketFlowManager(
 			this,
@@ -404,8 +408,8 @@ export class WebSocketNodeSocket extends Disposable implements ISocket, ISocketT
 
 		let start = 0;
 		while (start < buffer.byteLength) {
-			this._flowManager.writeMessage(buffer.slice(start, Math.min(start + Constants.MaxWebSocketMessageLength, buffer.byteLength)), { compressed: true, opcode: 0x02 /* Binary frame */ });
-			start += Constants.MaxWebSocketMessageLength;
+			this._flowManager.writeMessage(buffer.slice(start, Math.min(start + this._maxSocketMessageLength, buffer.byteLength)), { compressed: true, opcode: 0x02 /* Binary frame */ });
+			start += this._maxSocketMessageLength;
 		}
 	}
 

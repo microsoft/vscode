@@ -868,7 +868,8 @@ export enum TerminalShellType {
 	Python = 10,
 	Julia = 11,
 	NuShell = 12,
-	Node = 13
+	Node = 13,
+	Xonsh = 14
 }
 
 export class TerminalLink implements vscode.TerminalLink {
@@ -990,7 +991,7 @@ export class TerminalCompletionList<T extends TerminalCompletionItem = TerminalC
 
 export interface TerminalCompletionResourceOptions {
 	showFiles?: boolean;
-	showFolders?: boolean;
+	showDirectories?: boolean;
 	fileExtensions?: string[];
 	cwd?: vscode.Uri;
 }
@@ -3165,6 +3166,15 @@ export class ChatResponseMultiDiffPart {
 	}
 }
 
+export class McpToolInvocationContentData {
+	mimeType: string;
+	data: Uint8Array;
+	constructor(data: Uint8Array, mimeType: string) {
+		this.data = data;
+		this.mimeType = mimeType;
+	}
+}
+
 export class ChatResponseExternalEditPart {
 	applied: Thenable<string>;
 	didGetApplied!: (value: string) => void;
@@ -3339,16 +3349,12 @@ export class ChatResponseNotebookEditPart implements vscode.ChatResponseNotebook
 	}
 }
 
-export class ChatPrepareToolInvocationPart {
-	toolName: string;
-	/**
-	 * @param toolName The name of the tool being prepared for invocation.
-	 */
-	constructor(toolName: string) {
-		this.toolName = toolName;
+export class ChatResponseWorkspaceEditPart implements vscode.ChatResponseWorkspaceEditPart {
+	edits: vscode.ChatWorkspaceFileEdit[];
+	constructor(edits: vscode.ChatWorkspaceFileEdit[]) {
+		this.edits = edits;
 	}
 }
-
 
 export interface ChatTerminalToolInvocationData2 {
 	commandLine: {
@@ -3369,7 +3375,9 @@ export class ChatToolInvocationPart {
 	isConfirmed?: boolean;
 	isComplete?: boolean;
 	toolSpecificData?: ChatTerminalToolInvocationData2;
-	fromSubAgent?: boolean;
+	subAgentInvocationId?: string;
+	subAgentName?: string;
+	presentation?: 'hidden' | 'hiddenAfterComplete' | undefined;
 
 	constructor(toolName: string,
 		toolCallId: string,
@@ -3423,6 +3431,14 @@ export enum ChatSessionStatus {
 	Failed = 0,
 	Completed = 1,
 	InProgress = 2
+}
+
+export class ChatSessionChangedFile {
+	constructor(public readonly modifiedUri: vscode.Uri, public readonly insertions: number, public readonly deletions: number, public readonly originalUri?: vscode.Uri) { }
+}
+
+export class ChatSessionChangedFile2 {
+	constructor(public readonly uri: vscode.Uri, public readonly originalUri: vscode.Uri | undefined, public readonly modifiedUri: vscode.Uri | undefined, public readonly insertions: number, public readonly deletions: number) { }
 }
 
 export enum ChatResponseReferencePartStatusKind {
@@ -3889,4 +3905,7 @@ export class McpHttpServerDefinition implements vscode.McpHttpServerDefinition {
 		public authentication?: { providerId: string; scopes: string[] },
 	) { }
 }
+//#endregion
+
+//#region Chat Prompt Files
 //#endregion

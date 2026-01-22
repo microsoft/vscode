@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { mapFindFirst } from '../../../base/common/arraysFind.js';
-import { disposableTimeout } from '../../../base/common/async.js';
+import { disposableTimeout, RunOnceScheduler } from '../../../base/common/async.js';
 import { CancellationError } from '../../../base/common/errors.js';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
-import { ISettableObservable, observableValue } from '../../../base/common/observable.js';
+import { autorun, ISettableObservable, observableValue } from '../../../base/common/observable.js';
 import Severity from '../../../base/common/severity.js';
 import { URI } from '../../../base/common/uri.js';
 import * as nls from '../../../nls.js';
@@ -16,6 +16,7 @@ import { ContextKeyExpr, IContextKeyService } from '../../../platform/contextkey
 import { IDialogService, IPromptButton } from '../../../platform/dialogs/common/dialogs.js';
 import { ExtensionIdentifier } from '../../../platform/extensions/common/extensions.js';
 import { LogLevel } from '../../../platform/log/common/log.js';
+import { ITelemetryService } from '../../../platform/telemetry/common/telemetry.js';
 import { IMcpMessageTransport, IMcpRegistry } from '../../contrib/mcp/common/mcpRegistryTypes.js';
 import { extensionPrefixedIdentifier, McpCollectionDefinition, McpConnectionState, McpServerDefinition, McpServerLaunch, McpServerTransportType, McpServerTrust, UserInteractionRequiredError } from '../../contrib/mcp/common/mcpTypes.js';
 import { MCP } from '../../contrib/mcp/common/modelContextProtocol.js';
@@ -28,7 +29,7 @@ import { ExtensionHostKind, extensionHostKindToString } from '../../services/ext
 import { IExtensionService } from '../../services/extensions/common/extensions.js';
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
 import { Proxied } from '../../services/extensions/common/proxyIdentifier.js';
-import { ExtHostContext, ExtHostMcpShape, IMcpAuthenticationDetails, IMcpAuthenticationOptions, MainContext, MainThreadMcpShape } from '../common/extHost.protocol.js';
+import { ExtHostContext, ExtHostMcpShape, IMcpAuthenticationDetails, IMcpAuthenticationOptions, IAuthMetadataSource, MainContext, MainThreadMcpShape } from '../common/extHost.protocol.js';
 
 @extHostNamedCustomer(MainContext.MainThreadMcp)
 export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
@@ -55,6 +56,7 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 		@IDynamicAuthenticationProviderStorageService private readonly _dynamicAuthenticationProviderStorageService: IDynamicAuthenticationProviderStorageService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
 		this._register(_authenticationService.onDidChangeSessions(e => this._onDidChangeAuthSessions(e.providerId, e.label)));
@@ -96,6 +98,36 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 				return launch;
 			},
 		}));
+
+		// Subscribe to MCP server definition changes and notify ext host
+		const onDidChangeMcpServerDefinitionsTrigger = this._register(new RunOnceScheduler(() => this._publishServerDefinitions(), 500));
+		this._register(autorun(reader => {
+			const collections = this._mcpRegistry.collections.read(reader);
+			// Read all server definitions to track changes
+			for (const collection of collections) {
+				collection.serverDefinitions.read(reader);
+			}
+			// Notify ext host that definitions changed (it will re-fetch if needed)
+			if (!onDidChangeMcpServerDefinitionsTrigger.isScheduled()) {
+				onDidChangeMcpServerDefinitionsTrigger.schedule();
+			}
+		}));
+
+		onDidChangeMcpServerDefinitionsTrigger.schedule();
+	}
+
+	private _publishServerDefinitions() {
+		const collections = this._mcpRegistry.collections.get();
+		const allServers: McpServerDefinition.Serialized[] = [];
+
+		for (const collection of collections) {
+			const servers = collection.serverDefinitions.get();
+			for (const server of servers) {
+				allServers.push(McpServerDefinition.toSerialized(server));
+			}
+		}
+
+		this._proxy.$onDidChangeMcpServerDefinitions(allServers);
 	}
 
 	$upsertMcpCollection(collection: McpCollectionDefinition.FromExtHost, serversDto: McpServerDefinition.Serialized[]): void {
@@ -353,6 +385,16 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 				// Ignore other errors to avoid disrupting other servers
 			}
 		}
+	}
+
+	$logMcpAuthSetup(data: IAuthMetadataSource): void {
+		type McpAuthSetupClassification = {
+			owner: 'TylerLeonhardt';
+			comment: 'Tracks how MCP OAuth authentication setup was discovered and configured';
+			resourceMetadataSource: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How resource metadata was discovered (header, wellKnown, or none)' };
+			serverMetadataSource: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How authorization server metadata was discovered (resourceMetadata, wellKnown, or default)' };
+		};
+		this._telemetryService.publicLog2<IAuthMetadataSource, McpAuthSetupClassification>('mcp/authSetup', data);
 	}
 
 	private async loginPrompt(mcpLabel: string, providerLabel: string, recreatingSession: boolean): Promise<boolean> {

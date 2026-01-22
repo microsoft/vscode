@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { assertNever } from '../../../../../base/common/assert.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { createMarkdownCommandLink } from '../../../../../base/common/htmlContent.js';
@@ -16,14 +17,15 @@ import { IContextKeyService } from '../../../../../platform/contextkey/common/co
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickTreeItem } from '../../../../../platform/quickinput/common/quickInput.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ExtensionEditorTab, IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { McpCommandIds } from '../../../mcp/common/mcpCommandIds.js';
 import { IMcpRegistry } from '../../../mcp/common/mcpRegistryTypes.js';
 import { IMcpServer, IMcpService, IMcpWorkbenchService, McpConnectionState, McpServerCacheState, McpServerEditorTab } from '../../../mcp/common/mcpTypes.js';
 import { startServerAndWaitForLiveTools } from '../../../mcp/common/mcpTypesUtils.js';
-import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { ILanguageModelToolsService, IToolData, ToolDataSource, ToolSet } from '../../common/languageModelToolsService.js';
+import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { ILanguageModelToolsService, IToolData, ToolDataSource, ToolSet } from '../../common/tools/languageModelToolsService.js';
 import { ConfigureToolSets } from '../tools/toolSetsContribution.js';
 
 const enum BucketOrdinal { User, BuiltIn, Mcp, Extension }
@@ -183,14 +185,16 @@ function createToolSetTreeItem(toolset: ToolSet, checked: boolean, editorService
  * @param placeHolder - Placeholder text shown in the picker
  * @param description - Optional description text shown in the picker
  * @param toolsEntries - Optional initial selection state for tools and toolsets
- * @param onUpdate - Optional callback fired when the selection changes
+ * @param token - Optional cancellation token to close the picker when cancelled
  * @returns Promise resolving to the final selection map, or undefined if cancelled
  */
 export async function showToolsPicker(
 	accessor: ServicesAccessor,
 	placeHolder: string,
+	source: string,
 	description?: string,
-	getToolsEntries?: () => ReadonlyMap<ToolSet | IToolData, boolean>
+	getToolsEntries?: () => ReadonlyMap<ToolSet | IToolData, boolean>,
+	token?: CancellationToken
 ): Promise<ReadonlyMap<ToolSet | IToolData, boolean> | undefined> {
 
 	const quickPickService = accessor.get(IQuickInputService);
@@ -201,6 +205,7 @@ export async function showToolsPicker(
 	const editorService = accessor.get(IEditorService);
 	const mcpWorkbenchService = accessor.get(IMcpWorkbenchService);
 	const toolsService = accessor.get(ILanguageModelToolsService);
+	const telemetryService = accessor.get(ITelemetryService);
 	const toolLimit = accessor.get(IContextKeyService).getContextKeyValue<number>(ChatContextKeys.chatToolGroupingThreshold.key);
 
 	const mcpServerByTool = new Map<string, IMcpServer>();
@@ -584,11 +589,52 @@ export async function showToolsPicker(
 		treePicker.hide();
 	}));
 
+	// Close picker when cancelled (e.g., when mode changes)
+	if (token) {
+		store.add(token.onCancellationRequested(() => {
+			treePicker.hide();
+		}));
+	}
+
+	// Capture initial state for telemetry comparison
+	const initialStateString = serializeToolsState(collectResults());
+
 	treePicker.show();
 
 	await Promise.race([Event.toPromise(Event.any(treePicker.onDidHide, didAcceptFinalItem.event), store)]);
 
+	// Send telemetry whether the tool selection changed
+	sendDidChangeEvent(source, telemetryService, initialStateString !== serializeToolsState(collectResults()));
+
 	store.dispose();
 
 	return didAccept ? collectResults() : undefined;
+}
+
+function serializeToolsState(state: ReadonlyMap<IToolData | ToolSet, boolean>): string {
+	const entries: [string, boolean][] = [];
+	state.forEach((value, key) => {
+		entries.push([key.id, value]);
+	});
+	entries.sort((a, b) => a[0].localeCompare(b[0]));
+	return JSON.stringify(entries);
+}
+
+function sendDidChangeEvent(source: string, telemetryService: ITelemetryService, changed: boolean): void {
+	type ToolPickerClosedEvent = {
+		changed: boolean;
+		source: string;
+	};
+
+	type ToolPickerClosedClassification = {
+		changed: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the user changed the tool selection from the initial state.' };
+		source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The source of the tool picker event.' };
+		owner: 'benibenj';
+		comment: 'Tracks whether users modify tool selection in the tool picker.';
+	};
+
+	telemetryService.publicLog2<ToolPickerClosedEvent, ToolPickerClosedClassification>('chatToolPickerClosed', {
+		source,
+		changed,
+	});
 }

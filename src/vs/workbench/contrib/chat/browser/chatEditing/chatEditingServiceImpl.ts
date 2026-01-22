@@ -37,10 +37,10 @@ import { ILifecycleService } from '../../../../services/lifecycle/common/lifecyc
 import { IMultiDiffSourceResolver, IMultiDiffSourceResolverService, IResolvedMultiDiffSource, MultiDiffEditorItem } from '../../../multiDiffEditor/browser/multiDiffSourceResolverService.js';
 import { CellUri, ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
 import { INotebookService } from '../../../notebook/common/notebookService.js';
-import { CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingAgentSupportsReadonlyReferencesContextKey, chatEditingResourceContextKey, ChatEditingSessionState, IChatEditingService, IChatEditingSession, IChatRelatedFile, IChatRelatedFilesProvider, IModifiedFileEntry, inChatEditingSessionContextKey, IStreamingEdits, ModifiedFileEntryState, parseChatMultiDiffUri } from '../../common/chatEditingService.js';
-import { ChatModel, ICellTextEditOperation, IChatResponseModel, isCellTextEditOperationArray } from '../../common/chatModel.js';
-import { IChatService } from '../../common/chatService.js';
-import { ChatEditorInput } from '../chatEditorInput.js';
+import { CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingAgentSupportsReadonlyReferencesContextKey, chatEditingResourceContextKey, ChatEditingSessionState, IChatEditingService, IChatEditingSession, IChatRelatedFile, IChatRelatedFilesProvider, IModifiedFileEntry, inChatEditingSessionContextKey, IStreamingEdits, ModifiedFileEntryState, parseChatMultiDiffUri } from '../../common/editing/chatEditingService.js';
+import { ChatModel, ICellTextEditOperation, IChatResponseModel, isCellTextEditOperationArray } from '../../common/model/chatModel.js';
+import { IChatService } from '../../common/chatService/chatService.js';
+import { ChatEditorInput } from '../widgetHosts/editor/chatEditorInput.js';
 import { AbstractChatEditingModifiedFileEntry } from './chatEditingModifiedFileEntry.js';
 import { ChatEditingSession } from './chatEditingSession.js';
 import { ChatEditingSnapshotTextModelContentProvider, ChatEditingTextModelContentProvider } from './chatEditingTextModelContentProviders.js';
@@ -89,7 +89,9 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 
 		this._register(this._chatService.onDidDisposeSession((e) => {
 			if (e.reason === 'cleared') {
-				this.getEditingSession(e.sessionResource)?.stop();
+				for (const resource of e.sessionResource) {
+					this.getEditingSession(resource)?.stop();
+				}
 			}
 		}));
 
@@ -219,7 +221,8 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		// that are edit groups, and then this tracks the edit application for
 		// each of them. Note that text edit groups can be updated
 		// multiple times during the process of response streaming.
-		const editsSeen: ({ seen: number; streaming: IStreamingEdits } | undefined)[] = [];
+		const enum K { Stream, Workspace }
+		const editsSeen: ({ kind: K.Stream; seen: number; stream: IStreamingEdits } | { kind: K.Workspace })[] = [];
 
 		let editorDidChange = false;
 		const editorListener = Event.once(this._editorService.onDidActiveEditorChange)(() => {
@@ -247,7 +250,9 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 
 		const onResponseComplete = () => {
 			for (const remaining of editsSeen) {
-				remaining?.streaming.complete();
+				if (remaining?.kind === K.Stream) {
+					remaining.stream.complete();
+				}
 			}
 
 			editsSeen.length = 0;
@@ -269,6 +274,15 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 					continue;
 				}
 
+				if (part.kind === 'workspaceEdit') {
+					// Track if we've already started processing this workspace edit
+					if (!editsSeen[i]) {
+						editsSeen[i] = { kind: K.Workspace };
+						session.applyWorkspaceEdit(part, responseModel, undoStop ?? responseModel.requestId);
+					}
+					continue;
+				}
+
 				if (part.kind !== 'textEditGroup' && part.kind !== 'notebookEditGroup') {
 					continue;
 				}
@@ -285,8 +299,12 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 				// get new edits and start editing session
 				let entry = editsSeen[i];
 				if (!entry) {
-					entry = { seen: 0, streaming: session.startStreamingEdits(CellUri.parse(part.uri)?.notebook ?? part.uri, responseModel, undoStop) };
+					entry = { kind: K.Stream, seen: 0, stream: session.startStreamingEdits(CellUri.parse(part.uri)?.notebook ?? part.uri, responseModel, undoStop) };
 					editsSeen[i] = entry;
+				}
+
+				if (entry.kind !== K.Stream) {
+					continue;
 				}
 
 				const isFirst = entry.seen === 0;
@@ -299,21 +317,21 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 						const done = part.done ? i === newEdits.length - 1 : false;
 
 						if (isTextEditOperationArray(edit)) {
-							entry.streaming.pushText(edit, done);
+							entry.stream.pushText(edit, done);
 						} else if (isCellTextEditOperationArray(edit)) {
 							for (const edits of Object.values(groupBy(edit, e => e.uri.toString()))) {
 								if (edits) {
-									entry.streaming.pushNotebookCellText(edits[0].uri, edits.map(e => e.edit), done);
+									entry.stream.pushNotebookCellText(edits[0].uri, edits.map(e => e.edit), done);
 								}
 							}
 						} else {
-							entry.streaming.pushNotebook(edit, done);
+							entry.stream.pushNotebook(edit, done);
 						}
 					}
 				}
 
 				if (part.done) {
-					entry.streaming.complete();
+					entry.stream.complete();
 				}
 			}
 		};

@@ -21,18 +21,18 @@ import { IQuickInputService, IQuickPick, IQuickPickItem, IQuickPickSeparator } f
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { IChatWidgetService } from '../../chat/browser/chat.js';
-import { IChatAttachmentResolveService } from '../../chat/browser/chatAttachmentResolveService.js';
-import { IChatRequestVariableEntry } from '../../chat/common/chatVariableEntries.js';
+import { IChatAttachmentResolveService } from '../../chat/browser/attachments/chatAttachmentResolveService.js';
+import { IChatRequestVariableEntry } from '../../chat/common/attachments/chatVariableEntries.js';
 import { IMcpResource, IMcpResourceTemplate, IMcpServer, IMcpService, isMcpResourceTemplate, McpCapability, McpConnectionState, McpResourceURI } from '../common/mcpTypes.js';
 import { McpIcons } from '../common/mcpIcons.js';
 import { IUriTemplateVariable } from '../common/uriTemplate.js';
 import { openPanelChatAndGetWidget } from './openPanelChatAndGetWidget.js';
 import { LinkedList } from '../../../../base/common/linkedList.js';
-import { ChatContextPickAttachment } from '../../chat/browser/chatContextPickService.js';
+import { ChatContextPickAttachment } from '../../chat/browser/attachments/chatContextPickService.js';
 import { asArray } from '../../../../base/common/arrays.js';
 
 export class McpResourcePickHelper extends Disposable {
-	private _resources = observableValue<{ picks: Map<IMcpServer, (IMcpResourceTemplate | IMcpResource)[]>; isBusy: boolean }>(this, { picks: new Map(), isBusy: false });
+	private _resources = observableValue<{ picks: Map<IMcpServer, (IMcpResourceTemplate | IMcpResource)[]>; isBusy: boolean }>(this, { picks: new Map(), isBusy: true });
 	private _pickItemsStack: LinkedList<{ server: IMcpServer; resources: (IMcpResource | IMcpResourceTemplate)[] }> = new LinkedList();
 	private _inDirectory = observableValue<undefined | { server: IMcpServer; resources: (IMcpResource | IMcpResourceTemplate)[] }>(this, undefined);
 	public static sep(server: IMcpServer): IQuickPickSeparator {
@@ -125,10 +125,11 @@ export class McpResourcePickHelper extends Disposable {
 	 * When returning true, statefully updates the picker state to display directory contents.
 	 */
 	public async navigate(resource: IMcpResource | IMcpResourceTemplate, server: IMcpServer): Promise<boolean> {
-		const uri = await this.toURI(resource);
-		if (!uri) {
+		if (isMcpResourceTemplate(resource)) {
 			return false;
 		}
+
+		const uri = resource.uri;
 		let stat: IFileStat | undefined = undefined;
 		try {
 			stat = await this._fileService.resolve(uri, { resolveMetadata: false });
@@ -297,7 +298,9 @@ export class McpResourcePickHelper extends Disposable {
 			input.items = items;
 		};
 
-		let changeCancellation = store.add(new CancellationTokenSource());
+		let changeCancellation = new CancellationTokenSource();
+		store.add(toDisposable(() => changeCancellation.dispose(true)));
+
 		const getCompletionItems = () => {
 			const inputValue = input.value;
 			let promise = completions.get(inputValue);
@@ -337,8 +340,7 @@ export class McpResourcePickHelper extends Disposable {
 			store.add(input.onDidChangeValue(value => {
 				input.busy = true;
 				changeCancellation.dispose(true);
-				store.delete(changeCancellation);
-				changeCancellation = store.add(new CancellationTokenSource());
+				changeCancellation = new CancellationTokenSource();
 				getCompletionItemsScheduler.cancel();
 				setItems(value);
 

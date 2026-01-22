@@ -773,10 +773,15 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Restore editors based on a set of rules:
 		// - never when running on temporary workspace
+		// - never when `workbench.editor.restoreEditors` is disabled
 		// - not when we have files to open, unless:
 		// - always when `window.restoreWindows: preserve`
 
 		if (isTemporaryWorkspace(contextService.getWorkspace())) {
+			return false;
+		}
+
+		if (this.configurationService.getValue<boolean>(WorkbenchLayoutSettings.EDITOR_RESTORE_EDITORS) === false) {
 			return false;
 		}
 
@@ -1118,6 +1123,15 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			this.whenReadyPromise.complete();
 
 			Promises.settled(layoutRestoredPromises).finally(() => {
+				if (
+					this.editorService.editors.length === 0 && 			// no editors opened or restored
+					this.isVisible(Parts.AUXILIARYBAR_PART) && 			// auxiliary bar is visible
+					!this.hasFocus(Parts.AUXILIARYBAR_PART) && 			// auxiliary bar does not have focus yet
+					!this.environmentService.enableSmokeTestDriver 		// not in smoke test mode (where focus is sensitive)
+				) {
+					this.focusPart(Parts.AUXILIARYBAR_PART);
+				}
+
 				this.restored = true;
 				this.whenRestoredPromise.complete();
 			});
@@ -1582,7 +1596,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 					if (part === sideBar) {
 						this.setSideBarHidden(!visible);
-					} else if (part === panelPart) {
+					} else if (part === panelPart && this.stateModel.getRuntimeValue(LayoutStateKeys.PANEL_HIDDEN) === visible) {
 						this.setPanelHidden(!visible, true);
 					} else if (part === auxiliaryBarPart) {
 						this.setAuxiliaryBarHidden(!visible, true);
@@ -1825,6 +1839,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			this.mainContainer.classList.remove(LayoutClasses.SIDEBAR_HIDDEN);
 		}
 
+		// Propagate to grid
+		this.workbenchGrid.setViewVisible(this.sideBarPartView, !hidden);
+
 		// If sidebar becomes hidden, also hide the current active Viewlet if any
 		if (hidden && this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.Sidebar)) {
 			this.paneCompositeService.hideActivePaneComposite(ViewContainerLocation.Sidebar);
@@ -1838,12 +1855,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		else if (!hidden && !this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.Sidebar)) {
 			const viewletToOpen = this.paneCompositeService.getLastActivePaneCompositeId(ViewContainerLocation.Sidebar);
 			if (viewletToOpen) {
-				this.openViewContainer(ViewContainerLocation.Sidebar, viewletToOpen, true);
+				this.openViewContainer(ViewContainerLocation.Sidebar, viewletToOpen);
 			}
 		}
-
-		// Propagate to grid
-		this.workbenchGrid.setViewVisible(this.sideBarPartView, !hidden);
 	}
 
 	private hasViews(id: string): boolean {
@@ -1952,10 +1966,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 
 		const wasHidden = !this.isVisible(Parts.PANEL_PART);
+		const isPanelMaximized = this.isPanelMaximized();
 
 		this.stateModel.setRuntimeValue(LayoutStateKeys.PANEL_HIDDEN, hidden);
 
-		const isPanelMaximized = this.isPanelMaximized();
 		const panelOpensMaximized = this.panelOpensMaximized();
 
 		// Adjust CSS
@@ -1964,6 +1978,16 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		} else {
 			this.mainContainer.classList.remove(LayoutClasses.PANEL_HIDDEN);
 		}
+
+		// If maximized and in process of hiding, unmaximize FIRST before
+		// changing visibility to prevent conflict with setEditorHidden
+		// which would force panel visible again (fixes #281772)
+		if (hidden && isPanelMaximized) {
+			this.toggleMaximizedPanel();
+		}
+
+		// Propagate layout changes to grid
+		this.workbenchGrid.setViewVisible(this.panelPartView, !hidden);
 
 		// If panel part becomes hidden, also hide the current active panel if any
 		let focusEditor = false;
@@ -1994,19 +2018,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			}
 		}
 
-		// If maximized and in process of hiding, unmaximize before
-		// hiding to allow caching of non-maximized size
-		if (hidden && isPanelMaximized) {
-			this.toggleMaximizedPanel();
-		}
-
 		// Don't proceed if we have already done this before
 		if (wasHidden === hidden) {
 			return;
 		}
-
-		// Propagate layout changes to grid
-		this.workbenchGrid.setViewVisible(this.panelPartView, !hidden);
 
 		// If in process of showing, toggle whether or not panel is maximized
 		if (!hidden) {
@@ -2158,6 +2173,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			this.mainContainer.classList.remove(LayoutClasses.AUXILIARYBAR_HIDDEN);
 		}
 
+		// Propagate to grid
+		this.workbenchGrid.setViewVisible(this.auxiliaryBarPartView, !hidden);
+
 		// If auxiliary bar becomes hidden, also hide the current active pane composite if any
 		if (hidden && this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.AuxiliaryBar)) {
 			this.paneCompositeService.hideActivePaneComposite(ViewContainerLocation.AuxiliaryBar);
@@ -2180,9 +2198,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				this.openViewContainer(ViewContainerLocation.AuxiliaryBar, viewletToOpen, !skipLayout);
 			}
 		}
-
-		// Propagate to grid
-		this.workbenchGrid.setViewVisible(this.auxiliaryBarPartView, !hidden);
 	}
 
 	setPartHidden(hidden: boolean, part: Parts): void {
@@ -2632,6 +2647,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			panelPosition: positionToString(this.stateModel.getRuntimeValue(LayoutStateKeys.PANEL_POSITION)),
 		};
 
+		// WARNING: Do not remove this event, it's used to track build rollout progress
+		// Talk to @joaomoreno, @lszomoru or @jruales before doing so
 		this.telemetryService.publicLog2<StartupLayoutEvent, StartupLayoutEventClassification>('startupLayout', layoutDescriptor);
 
 		return result;
@@ -2754,11 +2771,13 @@ interface ILayoutStateChangeEvent<T extends StorageKeyType> {
 
 enum WorkbenchLayoutSettings {
 	AUXILIARYBAR_DEFAULT_VISIBILITY = 'workbench.secondarySideBar.defaultVisibility',
+	AUXILIARYBAR_RESTORE_MAXIMIZED = 'workbench.secondarySideBar.restoreMaximized',
 	ACTIVITY_BAR_VISIBLE = 'workbench.activityBar.visible',
 	PANEL_POSITION = 'workbench.panel.defaultLocation',
 	PANEL_OPENS_MAXIMIZED = 'workbench.panel.opensMaximized',
 	ZEN_MODE_CONFIG = 'zenMode',
 	EDITOR_CENTERED_LAYOUT_AUTO_RESIZE = 'workbench.editor.centeredLayoutAutoResize',
+	EDITOR_RESTORE_EDITORS = 'workbench.editor.restoreEditors',
 }
 
 enum LegacyWorkbenchLayoutSettings {
@@ -2860,7 +2879,7 @@ class LayoutStateModel extends Disposable {
 		LayoutStateKeys.AUXILIARYBAR_SIZE.defaultValue = Math.min(300, mainContainerDimension.width / 4);
 		LayoutStateKeys.AUXILIARYBAR_HIDDEN.defaultValue = (() => {
 			if (isWeb && !this.environmentService.remoteAuthority) {
-				return true; // TODO@bpasero remove this condition once Chat web support lands
+				return true; // not required in web if unsupported
 			}
 
 			const configuration = this.configurationService.inspect(WorkbenchLayoutSettings.AUXILIARYBAR_DEFAULT_VISIBILITY);
@@ -2925,10 +2944,12 @@ class LayoutStateModel extends Disposable {
 
 	private applyOverrides(configuration: ILayoutStateLoadConfiguration): void {
 
-		// Auxiliary bar: Maximized setting (new workspaces)
-		if (this.isNew[StorageScope.WORKSPACE]) {
+		// Auxiliary bar: Maximized settings
+		const restoreAuxiliaryBarMaximized = this.configurationService.getValue(WorkbenchLayoutSettings.AUXILIARYBAR_RESTORE_MAXIMIZED);
+		if (this.isNew[StorageScope.WORKSPACE] || restoreAuxiliaryBarMaximized) {
 			const defaultAuxiliaryBarVisibility = this.configurationService.getValue(WorkbenchLayoutSettings.AUXILIARYBAR_DEFAULT_VISIBILITY);
 			if (
+				restoreAuxiliaryBarMaximized ||
 				defaultAuxiliaryBarVisibility === 'maximized' ||
 				(defaultAuxiliaryBarVisibility === 'maximizedInWorkspace' && this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY)
 			) {
@@ -3050,19 +3071,7 @@ class LayoutStateModel extends Disposable {
 	}
 
 	private loadKeyFromStorage<T extends StorageKeyType>(key: WorkbenchLayoutStateKey<T>): T | undefined {
-		let value = this.storageService.get(`${LayoutStateModel.STORAGE_PREFIX}${key.name}`, key.scope);
-
-		// TODO@bpasero remove this code in 1y when "pre-AI" workspaces have migrated
-		// Refs: https://github.com/microsoft/vscode-internalbacklog/issues/6168
-		if (
-			key.scope === StorageScope.WORKSPACE &&
-			key.name === LayoutStateKeys.AUXILIARYBAR_HIDDEN.name &&
-			this.configurationService.getValue('workbench.secondarySideBar.enableDefaultVisibilityInOldWorkspace') === true &&
-			this.storageService.get('workbench.panel.chat.numberOfVisibleViews', StorageScope.WORKSPACE) === undefined
-		) {
-			value = undefined;
-		}
-
+		const value = this.storageService.get(`${LayoutStateModel.STORAGE_PREFIX}${key.name}`, key.scope);
 		if (value !== undefined) {
 			this.isNew[key.scope] = false; // remember that we had previous state for this scope
 

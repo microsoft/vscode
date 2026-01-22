@@ -24,6 +24,7 @@ suite('Terminal Suggest Addon - Inline Completion, Shell Type Support', () => {
 		strictEqual(isInlineCompletionSupported(GeneralShellType.Julia), false);
 		strictEqual(isInlineCompletionSupported(GeneralShellType.Node), false);
 		strictEqual(isInlineCompletionSupported(GeneralShellType.Python), false);
+		strictEqual(isInlineCompletionSupported(GeneralShellType.Xonsh), false);
 		strictEqual(isInlineCompletionSupported(PosixShellType.Sh), false);
 		strictEqual(isInlineCompletionSupported(PosixShellType.Csh), false);
 		strictEqual(isInlineCompletionSupported(PosixShellType.Ksh), false);

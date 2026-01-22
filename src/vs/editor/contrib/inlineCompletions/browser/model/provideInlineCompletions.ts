@@ -16,7 +16,7 @@ import { OffsetRange } from '../../../../common/core/ranges/offsetRange.js';
 import { Position } from '../../../../common/core/position.js';
 import { Range } from '../../../../common/core/range.js';
 import { TextReplacement } from '../../../../common/core/edits/textEdit.js';
-import { InlineCompletionEndOfLifeReason, InlineCompletionEndOfLifeReasonKind, InlineCompletion, InlineCompletionContext, InlineCompletions, InlineCompletionsProvider, PartialAcceptInfo, InlineCompletionsDisposeReason, LifetimeSummary, ProviderId, IInlineCompletionHint, Command } from '../../../../common/languages.js';
+import { InlineCompletionEndOfLifeReason, InlineCompletionEndOfLifeReasonKind, InlineCompletion, InlineCompletionContext, InlineCompletions, InlineCompletionsProvider, PartialAcceptInfo, InlineCompletionsDisposeReason, LifetimeSummary, ProviderId, IInlineCompletionHint } from '../../../../common/languages.js';
 import { ILanguageConfigurationService } from '../../../../common/languages/languageConfigurationRegistry.js';
 import { ITextModel } from '../../../../common/model.js';
 import { fixBracketsInLine } from '../../../../common/model/bracketPairsTextModelPart/fixBrackets.js';
@@ -27,10 +27,11 @@ import { DirectedGraph } from './graph.js';
 import { CachedFunction } from '../../../../../base/common/cache.js';
 import { InlineCompletionViewData, InlineCompletionViewKind } from '../view/inlineEdits/inlineEditsViewInterface.js';
 import { isDefined } from '../../../../../base/common/types.js';
-import { inlineCompletionIsVisible } from './inlineSuggestionItem.js';
+import { inlineCompletionIsVisible } from './inlineCompletionIsVisible.js';
 import { EditDeltaInfo } from '../../../../common/textModelEditSource.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { InlineSuggestionEditKind } from './editKind.js';
+import { InlineSuggestAlternativeAction } from './InlineSuggestAlternativeAction.js';
 
 export type InlineCompletionContextWithoutUuid = Omit<InlineCompletionContext, 'requestUuid'>;
 
@@ -277,6 +278,8 @@ function toInlineSuggestData(
 	);
 }
 
+export type InlineSuggestSku = { type: string; plan: string };
+
 export type InlineSuggestRequestInfo = {
 	startTime: number;
 	editorType: InlineCompletionEditorType;
@@ -285,7 +288,7 @@ export type InlineSuggestRequestInfo = {
 	typingInterval: number;
 	typingIntervalCharacterCount: number;
 	availableProviders: ProviderId[];
-	sku: string | undefined;
+	sku: InlineSuggestSku | undefined;
 };
 
 export type InlineSuggestProviderRequestInfo = {
@@ -321,7 +324,7 @@ export interface IInlineSuggestDataActionEdit {
 	insertText: string;
 	snippetInfo: SnippetInfo | undefined;
 	uri: URI | undefined;
-	alternativeAction: Command | undefined;
+	alternativeAction: InlineSuggestAlternativeAction | undefined;
 }
 
 export interface IInlineSuggestDataActionJumpTo {
@@ -333,6 +336,7 @@ export interface IInlineSuggestDataActionJumpTo {
 export class InlineSuggestData {
 	private _didShow = false;
 	private _timeUntilShown: number | undefined = undefined;
+	private _timeUntilActuallyShown: number | undefined = undefined;
 	private _showStartTime: number | undefined = undefined;
 	private _shownDuration: number = 0;
 	private _showUncollapsedStartTime: number | undefined = undefined;
@@ -373,7 +377,7 @@ export class InlineSuggestData {
 	public get partialAccepts(): PartialAcceptance { return this._partiallyAcceptedSinceOriginal; }
 
 
-	public async reportInlineEditShown(commandService: ICommandService, updatedInsertText: string, viewKind: InlineCompletionViewKind, viewData: InlineCompletionViewData, editKind: InlineSuggestionEditKind | undefined): Promise<void> {
+	public async reportInlineEditShown(commandService: ICommandService, updatedInsertText: string, viewKind: InlineCompletionViewKind, viewData: InlineCompletionViewData, editKind: InlineSuggestionEditKind | undefined, timeWhenShown: number): Promise<void> {
 		this.updateShownDuration(viewKind);
 
 		if (this._didShow) {
@@ -384,7 +388,8 @@ export class InlineSuggestData {
 		this._editKind = editKind;
 		this._viewData.viewKind = viewKind;
 		this._viewData.renderData = viewData;
-		this._timeUntilShown = Date.now() - this._requestInfo.startTime;
+		this._timeUntilShown = timeWhenShown - this._requestInfo.startTime;
+		this._timeUntilActuallyShown = Date.now() - this._requestInfo.startTime;
 
 		const editDeltaInfo = new EditDeltaInfo(viewData.lineCountModified, viewData.lineCountOriginal, viewData.characterCountModified, viewData.characterCountOriginal);
 		this.source.provider.handleItemDidShow?.(this.source.inlineSuggestions, this.sourceInlineCompletion, updatedInsertText, editDeltaInfo);
@@ -443,6 +448,7 @@ export class InlineSuggestData {
 				editKind: this._editKind?.toString(),
 				preceeded: this._isPreceeded,
 				timeUntilShown: this._timeUntilShown,
+				timeUntilActuallyShown: this._timeUntilActuallyShown,
 				timeUntilProviderRequest: this._providerRequestInfo.startTime - this._requestInfo.startTime,
 				timeUntilProviderResponse: this._providerRequestInfo.endTime - this._requestInfo.startTime,
 				editorType: this._viewData.editorType,
@@ -451,14 +457,15 @@ export class InlineSuggestData {
 				viewKind: this._viewData.viewKind,
 				notShownReason: this._notShownReason,
 				performanceMarkers: this.performance.toString(),
-				renameCreated: this._renameInfo?.createdRename ?? false,
+				renameCreated: this._renameInfo?.createdRename,
 				renameDuration: this._renameInfo?.duration,
-				renameTimedOut: this._renameInfo?.timedOut ?? false,
+				renameTimedOut: this._renameInfo?.timedOut,
 				renameDroppedOtherEdits: this._renameInfo?.droppedOtherEdits,
 				renameDroppedRenameEdits: this._renameInfo?.droppedRenameEdits,
 				typingInterval: this._requestInfo.typingInterval,
 				typingIntervalCharacterCount: this._requestInfo.typingIntervalCharacterCount,
-				sku: this._requestInfo.sku,
+				skuPlan: this._requestInfo.sku?.plan,
+				skuType: this._requestInfo.sku?.type,
 				availableProviders: this._requestInfo.availableProviders.map(p => p.toString()).join(','),
 				...this._viewData.renderData?.getData(),
 			};

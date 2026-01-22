@@ -28,6 +28,7 @@ Visual Studio Code is built with a layered architecture using TypeScript, web AP
 The core architecture follows these principles:
 - **Layered architecture** - from `base`, `platform`, `editor`, to `workbench`
 - **Dependency injection** - Services are injected through constructor parameters
+    - If non-service parameters are needed, they need to come after the service parameters
 - **Contribution model** - Features contribute to registries and extension points
 - **Cross-platform compatibility** - Abstractions separate platform-specific code
 
@@ -134,3 +135,9 @@ function f(x: number, y: string): void { }
 - If you create any temporary new files, scripts, or helper files for iteration, clean up these files by removing them at the end of the task
 - Never duplicate imports. Always reuse existing imports if they are present.
 - Do not use `any` or `unknown` as the type for variables, parameters, or return values unless absolutely necessary. If they need type annotations, they should have proper types or interfaces defined.
+- When adding file watching, prefer correlated file watchers (via fileService.createWatcher) to shared ones.
+- When adding tooltips to UI elements, prefer the use of IHoverService service.
+- Do not duplicate code. Always look for existing utility functions, helpers, or patterns in the codebase before implementing new functionality. Reuse and extend existing code whenever possible.
+
+## Learnings
+- Minimize the amount of assertions in tests. Prefer one snapshot-style `assert.deepStrictEqual` over multiple precise assertions, as they are much more difficult to understand and to update.

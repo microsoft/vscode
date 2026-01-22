@@ -80,7 +80,7 @@ export abstract class CommontExtensionManagementService extends Disposable imple
 
 		if (!(await this.isExtensionPlatformCompatible(extension))) {
 			const learnLink = isWeb ? 'https://aka.ms/vscode-web-extensions-guide' : 'https://aka.ms/vscode-platform-specific-extensions';
-			return new MarkdownString(`${nls.localize('incompatible platform', "The '{0}' extension is not available in {1} for the {2}.",
+			return new MarkdownString(`${nls.localize('incompatible platform', "The '{0}' extension is not available in {1} for the {2} platform.",
 				extension.displayName ?? extension.identifier.id, this.productService.nameLong, TargetPlatformToString(await this.getTargetPlatform()))} [${nls.localize('learn why', "Learn Why")}](${learnLink})`);
 		}
 
@@ -428,12 +428,6 @@ export abstract class AbstractExtensionManagementService extends CommontExtensio
 						durationSinceUpdate,
 						source: task.options.context?.[EXTENSION_INSTALL_SOURCE_CONTEXT] as string | undefined
 					});
-					// In web, report extension install statistics explicitly. In Desktop, statistics are automatically updated while downloading the VSIX.
-					if (isWeb && task.operation !== InstallOperation.Update) {
-						try {
-							await this.galleryService.reportStatistic(local.manifest.publisher, local.manifest.name, local.manifest.version, StatisticType.Install);
-						} catch (error) { /* ignore */ }
-					}
 				}
 				installExtensionResultsMap.set(key, { local, identifier: task.identifier, operation: task.operation, source: task.source, context: task.options.context, profileLocation: task.options.profileLocation, applicationScoped: local.isApplicationScoped });
 			}));
@@ -678,7 +672,7 @@ export abstract class AbstractExtensionManagementService extends CommontExtensio
 		else {
 			if (await this.canInstall(extension) !== true) {
 				const targetPlatform = await this.getTargetPlatform();
-				throw new ExtensionManagementError(nls.localize('incompatible platform', "The '{0}' extension is not available in {1} for the {2}.", extension.identifier.id, this.productService.nameLong, TargetPlatformToString(targetPlatform)), ExtensionManagementErrorCode.IncompatibleTargetPlatform);
+				throw new ExtensionManagementError(nls.localize('incompatible platform', "The '{0}' extension is not available in {1} for the {2} platform.", extension.identifier.id, this.productService.nameLong, TargetPlatformToString(targetPlatform)), ExtensionManagementErrorCode.IncompatibleTargetPlatform);
 			}
 
 			compatibleExtension = await this.getCompatibleVersion(extension, sameVersion, installPreRelease, productVersion);
@@ -854,8 +848,8 @@ export abstract class AbstractExtensionManagementService extends CommontExtensio
 
 					await task.run();
 					await this.joinAllSettled(this.participants.map(participant => participant.postUninstall(task.extension, task.options, CancellationToken.None)));
-					// only report if extension has a mapped gallery extension. UUID identifies the gallery extension.
-					if (task.extension.identifier.uuid) {
+					// only report if extension has a mapped gallery extension and not in web. UUID identifies the gallery extension.
+					if (task.extension.identifier.uuid && !isWeb) {
 						try {
 							await this.galleryService.reportStatistic(task.extension.manifest.publisher, task.extension.manifest.name, task.extension.manifest.version, StatisticType.Uninstall);
 						} catch (error) { /* ignore */ }

@@ -5,7 +5,6 @@
 
 import { createLogger, defineConfig, Plugin } from 'vite';
 import path, { join } from 'path';
-/// @ts-ignore
 import { urlToEsmPlugin } from './rollup-url-to-module-plugin/index.mjs';
 import { statSync } from 'fs';
 import { pathToFileURL } from 'url';
@@ -52,7 +51,7 @@ function injectBuiltinExtensionsPlugin(): Plugin {
 	const prebuiltExtensionsLocation = '.build/builtInExtensions';
 	async function getScannedBuiltinExtensions(vsCodeDevLocation: string) {
 		// use the build utility as to not duplicate the code
-		const extensionsUtil = await import(pathToFileURL(path.join(vsCodeDevLocation, 'build', 'lib', 'extensions.js')).toString());
+		const extensionsUtil = await import(pathToFileURL(path.join(vsCodeDevLocation, 'build', 'lib', 'extensions.ts')).toString());
 		const localExtensions = extensionsUtil.scanBuiltinExtensions(path.join(vsCodeDevLocation, 'extensions'));
 		const prebuiltExtensions = extensionsUtil.scanBuiltinExtensions(path.join(vsCodeDevLocation, prebuiltExtensionsLocation));
 		for (const ext of localExtensions) {
@@ -185,7 +184,6 @@ export default defineConfig({
 		fs: {
 			allow: [
 				// To allow loading from sources, not needed when loading monaco-editor from npm package
-				/// @ts-ignore
 				join(import.meta.dirname, '../../../')
 			]
 		}

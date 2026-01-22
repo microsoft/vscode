@@ -8,6 +8,7 @@ import { derived, IObservable } from '../../../../../../base/common/observable.j
 import { setTimeout0 } from '../../../../../../base/common/platform.js';
 import { InlineCompletionsModel, isSuggestionInViewport } from '../../model/inlineCompletionsModel.js';
 import { InlineSuggestHint } from '../../model/inlineSuggestionItem.js';
+import { InlineCompletionEditorType } from '../../model/provideInlineCompletions.js';
 import { InlineCompletionViewData, InlineCompletionViewKind, InlineEditTabAction } from './inlineEditsViewInterface.js';
 import { InlineEditWithChanges } from './inlineEditWithChanges.js';
 
@@ -17,7 +18,7 @@ import { InlineEditWithChanges } from './inlineEditWithChanges.js';
 */
 export class ModelPerInlineEdit {
 
-	readonly isInDiffEditor: boolean;
+	readonly editorType: InlineCompletionEditorType;
 
 	readonly displayLocation: InlineSuggestHint | undefined;
 
@@ -32,7 +33,7 @@ export class ModelPerInlineEdit {
 		readonly inlineEdit: InlineEditWithChanges,
 		readonly tabAction: IObservable<InlineEditTabAction>,
 	) {
-		this.isInDiffEditor = this._model.isInDiffEditor;
+		this.editorType = this._model.editorType;
 
 		this.displayLocation = this.inlineEdit.inlineCompletion.hint;
 
@@ -46,9 +47,10 @@ export class ModelPerInlineEdit {
 
 	handleInlineEditShownNextFrame(viewKind: InlineCompletionViewKind, viewData: InlineCompletionViewData) {
 		const item = this.inlineEdit.inlineCompletion;
+		const timeWhenShown = Date.now();
 		item.addRef();
 		setTimeout0(() => {
-			this._model.handleInlineSuggestionShown(item, viewKind, viewData);
+			this._model.handleInlineSuggestionShown(item, viewKind, viewData, timeWhenShown);
 			item.removeRef();
 		});
 	}

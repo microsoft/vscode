@@ -606,7 +606,7 @@ export class DefaultSettings extends Disposable {
 				const groups = byId.get(property.section.id);
 				if (groups) {
 					const extensionId = property.section.extensionInfo?.id;
-					settingsGroup = groups.find(g => g.extensionInfo?.id === extensionId);
+					settingsGroup = groups.find(g => g.extensionInfo?.id === extensionId && !g.title);
 				}
 				if (settingsGroup && !settingsGroup?.title && property.section.title) {
 					settingsGroup.title = property.section.title;
@@ -683,6 +683,7 @@ export class DefaultSettings extends Disposable {
 		const objectProperties = prop.type === 'object' ? prop.properties : undefined;
 		const objectPatternProperties = prop.type === 'object' ? prop.patternProperties : undefined;
 		const objectAdditionalProperties = prop.type === 'object' ? prop.additionalProperties : undefined;
+		const propertyNames = prop.type === 'object' ? prop.propertyNames : undefined;
 
 		let enumToUse = prop.enum;
 		let enumDescriptions = prop.markdownEnumDescriptions ?? prop.enumDescriptions;
@@ -733,6 +734,7 @@ export class DefaultSettings extends Disposable {
 			objectProperties,
 			objectPatternProperties,
 			objectAdditionalProperties,
+			propertyNames,
 			enum: enumToUse,
 			enumDescriptions: enumDescriptions,
 			enumDescriptionsAreMarkdown: enumDescriptionsAreMarkdown,

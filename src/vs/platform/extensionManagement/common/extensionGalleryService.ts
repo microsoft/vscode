@@ -445,8 +445,8 @@ export function sortExtensionVersions(versions: IRawGalleryExtensionVersion[], p
 export function filterLatestExtensionVersionsForTargetPlatform(versions: IRawGalleryExtensionVersion[], targetPlatform: TargetPlatform, allTargetPlatforms: TargetPlatform[]): IRawGalleryExtensionVersion[] {
 	const latestVersions: IRawGalleryExtensionVersion[] = [];
 
-	let preReleaseVersionFoundForTargetPlatform: boolean = false;
-	let releaseVersionFoundForTargetPlatform: boolean = false;
+	let preReleaseVersionIndex: number = -1;
+	let releaseVersionIndex: number = -1;
 	for (const version of versions) {
 		const versionTargetPlatform = getTargetPlatformForExtensionVersion(version);
 		const isCompatibleWithTargetPlatform = isTargetPlatformCompatible(versionTargetPlatform, allTargetPlatforms, targetPlatform);
@@ -458,15 +458,20 @@ export function filterLatestExtensionVersionsForTargetPlatform(versions: IRawGal
 		}
 
 		// For compatible versions, only include the first (latest) of each type
+		// Prefer specific target platform matches over undefined/universal platforms
 		if (isPreReleaseVersion(version)) {
-			if (!preReleaseVersionFoundForTargetPlatform) {
-				preReleaseVersionFoundForTargetPlatform = true;
+			if (preReleaseVersionIndex === -1) {
+				preReleaseVersionIndex = latestVersions.length;
 				latestVersions.push(version);
+			} else if (versionTargetPlatform === targetPlatform) {
+				latestVersions[preReleaseVersionIndex] = version;
 			}
 		} else {
-			if (!releaseVersionFoundForTargetPlatform) {
-				releaseVersionFoundForTargetPlatform = true;
+			if (releaseVersionIndex === -1) {
+				releaseVersionIndex = latestVersions.length;
 				latestVersions.push(version);
+			} else if (versionTargetPlatform === targetPlatform) {
+				latestVersions[releaseVersionIndex] = version;
 			}
 		}
 	}
@@ -1526,28 +1531,23 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 	}
 
 	async reportStatistic(publisher: string, name: string, version: string, type: StatisticType): Promise<void> {
+		if (isWeb) {
+			this.logService.info('ExtensionGalleryService#reportStatistic: Skipped in web');
+			return undefined;
+		}
+
 		const manifest = await this.extensionGalleryManifestService.getExtensionGalleryManifest();
 		if (!manifest) {
 			return undefined;
 		}
 
-		let url: string;
-
-		if (isWeb) {
-			const resource = getExtensionGalleryManifestResourceUri(manifest, ExtensionGalleryResourceType.WebExtensionStatisticsUri);
-			if (!resource) {
-				return;
-			}
-			url = format2(resource, { publisher, name, version, statTypeValue: type === StatisticType.Install ? '1' : '3' });
-		} else {
-			const resource = getExtensionGalleryManifestResourceUri(manifest, ExtensionGalleryResourceType.ExtensionStatisticsUri);
-			if (!resource) {
-				return;
-			}
-			url = format2(resource, { publisher, name, version, statTypeName: type });
+		const resource = getExtensionGalleryManifestResourceUri(manifest, ExtensionGalleryResourceType.ExtensionStatisticsUri);
+		if (!resource) {
+			return;
 		}
+		const url = format2(resource, { publisher, name, version, statTypeName: type });
 
-		const Accept = isWeb ? 'api-version=6.1-preview.1' : '*/*;api-version=4.0-preview.1';
+		const Accept = '*/*;api-version=4.0-preview.1';
 		const commonHeaders = await this.commonHeadersPromise;
 		const headers = { ...commonHeaders, Accept };
 		try {

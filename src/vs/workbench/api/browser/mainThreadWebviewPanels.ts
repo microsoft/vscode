@@ -13,7 +13,7 @@ import { IStorageService } from '../../../platform/storage/common/storage.js';
 import { DiffEditorInput } from '../../common/editor/diffEditorInput.js';
 import { EditorInput } from '../../common/editor/editorInput.js';
 import { ExtensionKeyedWebviewOriginStore, WebviewOptions } from '../../contrib/webview/browser/webview.js';
-import { WebviewIcons, WebviewInput } from '../../contrib/webviewPanel/browser/webviewEditorInput.js';
+import { WebviewIconPath, WebviewInput } from '../../contrib/webviewPanel/browser/webviewEditorInput.js';
 import { IWebViewShowOptions, IWebviewWorkbenchService } from '../../contrib/webviewPanel/browser/webviewWorkbenchService.js';
 import { editorGroupToColumn } from '../../services/editor/common/editorGroupColumn.js';
 import { GroupLocation, GroupsOrder, IEditorGroup, IEditorGroupsService, preferredSideBySideGroupDirection } from '../../services/editor/common/editorGroupsService.js';
@@ -22,6 +22,7 @@ import { IExtensionService } from '../../services/extensions/common/extensions.j
 import { IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 import * as extHostProtocol from '../common/extHost.protocol.js';
 import { MainThreadWebviews, reviveWebviewContentOptions, reviveWebviewExtension } from './mainThreadWebviews.js';
+import { ThemeIcon } from '../../../base/common/themables.js';
 
 /**
  * Bi-directional map between webview handles and inputs.
@@ -336,10 +337,15 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 	}
 }
 
-function reviveWebviewIcon(value: extHostProtocol.IWebviewIconPath | undefined): WebviewIcons | undefined {
+function reviveWebviewIcon(value: extHostProtocol.IWebviewIconPath | undefined): WebviewIconPath | undefined {
 	if (!value) {
 		return undefined;
 	}
+
+	if (ThemeIcon.isThemeIcon(value)) {
+		return value;
+	}
+
 	return {
 		light: URI.revive(value.light),
 		dark: URI.revive(value.dark),

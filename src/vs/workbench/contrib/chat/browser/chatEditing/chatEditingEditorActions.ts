@@ -17,13 +17,13 @@ import { ActiveEditorContext } from '../../../../common/contextkeys.js';
 import { EditorResourceAccessor, SideBySideEditor, TEXT_DIFF_EDITOR_ID } from '../../../../common/editor.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { ACTIVE_GROUP, IEditorService } from '../../../../services/editor/common/editorService.js';
+import { CTX_HOVER_MODE } from '../../../inlineChat/common/inlineChat.js';
 import { MultiDiffEditorInput } from '../../../multiDiffEditor/browser/multiDiffEditorInput.js';
 import { NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_EDITOR_FOCUSED } from '../../../notebook/common/notebookContextKeys.js';
-import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, IChatEditingService, IChatEditingSession, IModifiedFileEntry, IModifiedFileEntryChangeHunk, IModifiedFileEntryEditorIntegration, ModifiedFileEntryState } from '../../common/chatEditingService.js';
-import { LocalChatSessionUri } from '../../common/chatUri.js';
+import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, IChatEditingService, IChatEditingSession, IModifiedFileEntry, IModifiedFileEntryChangeHunk, IModifiedFileEntryEditorIntegration, ModifiedFileEntryState, parseChatMultiDiffUri } from '../../common/editing/chatEditingService.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
-import { ctxCursorInChangeRange, ctxHasEditorModification, ctxIsCurrentlyBeingModified, ctxIsGlobalEditingSession, ctxReviewModeEnabled } from './chatEditingEditorContextKeys.js';
+import { ctxCursorInChangeRange, ctxHasEditorModification, ctxHasRequestInProgress, ctxIsCurrentlyBeingModified, ctxIsGlobalEditingSession, ctxReviewModeEnabled } from './chatEditingEditorContextKeys.js';
 
 
 abstract class ChatEditingEditorAction extends Action2 {
@@ -171,7 +171,7 @@ abstract class KeepOrUndoAction extends ChatEditingEditorAction {
 			tooltip: _keep
 				? localize2('accept3', 'Keep Chat Edits in this File')
 				: localize2('discard3', 'Undo Chat Edits in this File'),
-			precondition: ContextKeyExpr.and(ctxIsGlobalEditingSession, ctxHasEditorModification, ctxIsCurrentlyBeingModified.negate()),
+			precondition: ContextKeyExpr.and(ctxHasEditorModification, ctxIsCurrentlyBeingModified.negate()),
 			icon: _keep
 				? Codicon.check
 				: Codicon.discard,
@@ -187,7 +187,7 @@ abstract class KeepOrUndoAction extends ChatEditingEditorAction {
 				id: MenuId.ChatEditingEditorContent,
 				group: 'a_resolve',
 				order: _keep ? 0 : 1,
-				when: !_keep ? ctxReviewModeEnabled : undefined
+				when: ContextKeyExpr.and(!_keep ? ctxReviewModeEnabled : undefined, ContextKeyExpr.or(ctxIsGlobalEditingSession, ctxHasRequestInProgress.negate()))
 			}
 		});
 	}
@@ -311,6 +311,11 @@ class ToggleDiffAction extends ChatEditingEditorAction {
 				group: 'a_resolve',
 				order: 2,
 				when: ContextKeyExpr.and(ctxReviewModeEnabled)
+			}, {
+				id: MenuId.ChatEditorInlineExecute,
+				group: 'a_resolve',
+				order: 2,
+				when: ContextKeyExpr.and(ctxReviewModeEnabled, CTX_HOVER_MODE)
 			}]
 		});
 	}
@@ -351,7 +356,7 @@ export class ReviewChangesAction extends ChatEditingEditorAction {
 				id: MenuId.ChatEditingEditorContent,
 				group: 'a_resolve',
 				order: 3,
-				when: ContextKeyExpr.and(ctxReviewModeEnabled.negate(), ctxIsCurrentlyBeingModified.negate()),
+				when: ContextKeyExpr.and(ctxReviewModeEnabled.negate(), ctxIsCurrentlyBeingModified.negate(), ContextKeyExpr.or(ctxIsGlobalEditingSession, ctxHasRequestInProgress.negate())),
 			}]
 		});
 	}
@@ -423,11 +428,16 @@ abstract class MultiDiffAcceptDiscardAction extends Action2 {
 			return;
 		}
 
-		const session = chatEditingService.getEditingSession(LocalChatSessionUri.forSession(editor.resource.authority));
-		if (this.accept) {
-			await session?.accept();
-		} else {
-			await session?.reject();
+		const { chatSessionResource } = parseChatMultiDiffUri(editor.resource);
+		const session = chatEditingService.getEditingSession(chatSessionResource);
+		if (session) {
+			if (this.accept) {
+				await session.accept();
+			} else {
+				await session.reject();
+			}
+
+			editorService.closeEditor({ editor, groupId: groupContext.group.id });
 		}
 	}
 }

@@ -175,7 +175,7 @@ export function getVisbileViewContextKey(viewId: string): string { return `view.
 
 //#region < --- Resources --- >
 
-export class ResourceContextKey {
+abstract class AbstractResourceContextKey {
 
 	// NOTE: DO NOT CHANGE THE DEFAULT VALUE TO ANYTHING BUT
 	// UNDEFINED! IT IS IMPORTANT THAT DEFAULTS ARE INHERITED
@@ -191,57 +191,35 @@ export class ResourceContextKey {
 	static readonly HasResource = new RawContextKey<boolean>('resourceSet', undefined, { type: 'boolean', description: localize('resourceSet', "Whether a resource is present or not") });
 	static readonly IsFileSystemResource = new RawContextKey<boolean>('isFileSystemResource', undefined, { type: 'boolean', description: localize('isFileSystemResource', "Whether the resource is backed by a file system provider") });
 
-	private readonly _disposables = new DisposableStore();
-
-	private _value: URI | undefined;
-	private readonly _resourceKey: IContextKey<string | null>;
-	private readonly _schemeKey: IContextKey<string | null>;
-	private readonly _filenameKey: IContextKey<string | null>;
-	private readonly _dirnameKey: IContextKey<string | null>;
-	private readonly _pathKey: IContextKey<string | null>;
-	private readonly _langIdKey: IContextKey<string | null>;
-	private readonly _extensionKey: IContextKey<string | null>;
-	private readonly _hasResource: IContextKey<boolean>;
-	private readonly _isFileSystemResource: IContextKey<boolean>;
+	protected _value: URI | undefined;
+	protected readonly _resourceKey: IContextKey<string | null>;
+	protected readonly _schemeKey: IContextKey<string | null>;
+	protected readonly _filenameKey: IContextKey<string | null>;
+	protected readonly _dirnameKey: IContextKey<string | null>;
+	protected readonly _pathKey: IContextKey<string | null>;
+	protected readonly _langIdKey: IContextKey<string | null>;
+	protected readonly _extensionKey: IContextKey<string | null>;
+	protected readonly _hasResource: IContextKey<boolean>;
+	protected readonly _isFileSystemResource: IContextKey<boolean>;
 
 	constructor(
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@IFileService private readonly _fileService: IFileService,
-		@ILanguageService private readonly _languageService: ILanguageService,
-		@IModelService private readonly _modelService: IModelService
+		@IContextKeyService protected readonly _contextKeyService: IContextKeyService,
+		@IFileService protected readonly _fileService: IFileService,
+		@ILanguageService protected readonly _languageService: ILanguageService,
+		@IModelService protected readonly _modelService: IModelService
 	) {
-		this._schemeKey = ResourceContextKey.Scheme.bindTo(this._contextKeyService);
-		this._filenameKey = ResourceContextKey.Filename.bindTo(this._contextKeyService);
-		this._dirnameKey = ResourceContextKey.Dirname.bindTo(this._contextKeyService);
-		this._pathKey = ResourceContextKey.Path.bindTo(this._contextKeyService);
-		this._langIdKey = ResourceContextKey.LangId.bindTo(this._contextKeyService);
-		this._resourceKey = ResourceContextKey.Resource.bindTo(this._contextKeyService);
-		this._extensionKey = ResourceContextKey.Extension.bindTo(this._contextKeyService);
-		this._hasResource = ResourceContextKey.HasResource.bindTo(this._contextKeyService);
-		this._isFileSystemResource = ResourceContextKey.IsFileSystemResource.bindTo(this._contextKeyService);
-
-		this._disposables.add(_fileService.onDidChangeFileSystemProviderRegistrations(() => {
-			const resource = this.get();
-			this._isFileSystemResource.set(Boolean(resource && _fileService.hasProvider(resource)));
-		}));
-
-		this._disposables.add(_modelService.onModelAdded(model => {
-			if (isEqual(model.uri, this.get())) {
-				this._setLangId();
-			}
-		}));
-		this._disposables.add(_modelService.onModelLanguageChanged(e => {
-			if (isEqual(e.model.uri, this.get())) {
-				this._setLangId();
-			}
-		}));
+		this._schemeKey = AbstractResourceContextKey.Scheme.bindTo(this._contextKeyService);
+		this._filenameKey = AbstractResourceContextKey.Filename.bindTo(this._contextKeyService);
+		this._dirnameKey = AbstractResourceContextKey.Dirname.bindTo(this._contextKeyService);
+		this._pathKey = AbstractResourceContextKey.Path.bindTo(this._contextKeyService);
+		this._langIdKey = AbstractResourceContextKey.LangId.bindTo(this._contextKeyService);
+		this._resourceKey = AbstractResourceContextKey.Resource.bindTo(this._contextKeyService);
+		this._extensionKey = AbstractResourceContextKey.Extension.bindTo(this._contextKeyService);
+		this._hasResource = AbstractResourceContextKey.HasResource.bindTo(this._contextKeyService);
+		this._isFileSystemResource = AbstractResourceContextKey.IsFileSystemResource.bindTo(this._contextKeyService);
 	}
 
-	dispose(): void {
-		this._disposables.dispose();
-	}
-
-	private _setLangId(): void {
+	protected _setLangId(): void {
 		const value = this.get();
 		if (!value) {
 			this._langIdKey.set(null);
@@ -270,11 +248,10 @@ export class ResourceContextKey {
 		});
 	}
 
-	private uriToPath(uri: URI): string {
+	protected uriToPath(uri: URI): string {
 		if (uri.scheme === Schemas.file) {
 			return uri.fsPath;
 		}
-
 		return uri.path;
 	}
 
@@ -297,6 +274,45 @@ export class ResourceContextKey {
 		return this._value;
 	}
 }
+
+export class ResourceContextKey extends AbstractResourceContextKey {
+
+	private readonly _disposables = new DisposableStore();
+
+	constructor(
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IFileService fileService: IFileService,
+		@ILanguageService languageService: ILanguageService,
+		@IModelService modelService: IModelService
+	) {
+		super(contextKeyService, fileService, languageService, modelService);
+		this._disposables.add(fileService.onDidChangeFileSystemProviderRegistrations(() => {
+			const resource = this.get();
+			this._isFileSystemResource.set(Boolean(resource && fileService.hasProvider(resource)));
+		}));
+		this._disposables.add(modelService.onModelAdded(model => {
+			if (isEqual(model.uri, this.get())) {
+				this._setLangId();
+			}
+		}));
+		this._disposables.add(modelService.onModelLanguageChanged(e => {
+			if (isEqual(e.model.uri, this.get())) {
+				this._setLangId();
+			}
+		}));
+	}
+
+	dispose(): void {
+		this._disposables.dispose();
+	}
+}
+
+/**
+ * This is a version of ResourceContextKey that is not disposable and has no listeners for model change events.
+ * It will configure itself for the state/presence of a model only when created and not update.
+ */
+export class StaticResourceContextKey extends AbstractResourceContextKey { }
+
 
 //#endregion
 

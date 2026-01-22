@@ -29,7 +29,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Color, RGBA } from '../../../../base/common/color.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { combinedDisposable, Disposable, DisposableStore, dispose } from '../../../../base/common/lifecycle.js';
+import { combinedDisposable, Disposable, DisposableStore, dispose, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { setTimeout0 } from '../../../../base/common/platform.js';
 import { extname, isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -1516,16 +1516,17 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		}));
 
 		let hasPendingChangeContentHeight = false;
+		const renderScrollHeightDisposable = this._localStore.add(new MutableDisposable());
 		this._localStore.add(this._list.onDidChangeContentHeight(() => {
 			if (hasPendingChangeContentHeight) {
 				return;
 			}
 			hasPendingChangeContentHeight = true;
 
-			this._localStore.add(DOM.scheduleAtNextAnimationFrame(DOM.getWindow(this.getDomNode()), () => {
+			renderScrollHeightDisposable.value = DOM.scheduleAtNextAnimationFrame(DOM.getWindow(this.getDomNode()), () => {
 				hasPendingChangeContentHeight = false;
 				this._updateScrollHeight();
-			}, 100));
+			}, 100);
 		}));
 
 		this._localStore.add(this._list.onDidRemoveOutputs(outputs => {

@@ -11,7 +11,7 @@
 	overflow: hidden;
 	line-height: 19px;
 	transition: transform 200ms linear;
-	padding: 0 4px;
+	padding: 0 4px 0 9px;
 	box-sizing: border-box;
 	transform: translateY(calc(-100% - 10px)); /* shadow (10px) */
 	box-shadow: 0 0 8px 2px var(--vscode-widget-shadow);
@@ -151,8 +151,7 @@
 }
 
 .monaco-editor .find-widget .button.left {
-	margin-left: 0;
-	margin-right: 3px;
+	margin: 4px 0 4px 5px;
 }
 
 .monaco-editor .find-widget .button.wide {
@@ -164,10 +163,10 @@
 .monaco-editor .find-widget .button.toggle {
 	position: absolute;
 	top: 0;
-	left: 3px;
+	left: 0;
 	width: 18px;
-	height: 100%;
-	border-radius: 0;
+	height: -webkit-fill-available;
+	border-radius: var(--vscode-cornerRadius-small);
 	box-sizing: border-box;
 }
 

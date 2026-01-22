@@ -10,25 +10,35 @@ import { RawContextKey } from '../../../../platform/contextkey/common/contextkey
 
 export enum ChatConfiguration {
 	AgentEnabled = 'chat.agent.enabled',
+	AgentStatusEnabled = 'chat.agentsControl.enabled',
+	UnifiedAgentsBar = 'chat.unifiedAgentsBar.enabled',
+	AgentSessionProjectionEnabled = 'chat.agentSessionProjection.enabled',
+	EditModeHidden = 'chat.editMode.hidden',
 	Edits2Enabled = 'chat.edits2.enabled',
 	ExtensionToolsEnabled = 'chat.extensionTools.enabled',
+	RepoInfoEnabled = 'chat.repoInfo.enabled',
 	EditRequests = 'chat.editRequests',
+	InlineReferencesStyle = 'chat.inlineReferences.style',
 	GlobalAutoApprove = 'chat.tools.global.autoApprove',
 	AutoApproveEdits = 'chat.tools.edits.autoApprove',
 	AutoApprovedUrls = 'chat.tools.urls.autoApprove',
 	EligibleForAutoApproval = 'chat.tools.eligibleForAutoApproval',
 	EnableMath = 'chat.math.enabled',
 	CheckpointsEnabled = 'chat.checkpoints.enabled',
-	AgentSessionsViewLocation = 'chat.agentSessionsViewLocation',
 	ThinkingStyle = 'chat.agent.thinkingStyle',
+	ThinkingGenerateTitles = 'chat.agent.thinking.generateTitles',
+	TerminalToolsInThinking = 'chat.agent.thinking.terminalTools',
 	TodosShowWidget = 'chat.tools.todos.showWidget',
-	ShowAgentSessionsViewDescription = 'chat.showAgentSessionsViewDescription',
 	NotifyWindowOnResponseReceived = 'chat.notifyWindowOnResponseReceived',
-	ChatViewRecentSessionsEnabled = 'chat.recentSessions.enabled',
-	ChatViewWelcomeEnabled = 'chat.welcome.enabled',
+	ChatViewSessionsEnabled = 'chat.viewSessions.enabled',
+	ChatViewSessionsOrientation = 'chat.viewSessions.orientation',
+	ChatViewTitleEnabled = 'chat.viewTitle.enabled',
 	SubagentToolCustomAgents = 'chat.customAgentInSubagent.enabled',
 	ShowCodeBlockProgressAnimation = 'chat.agent.codeBlockProgress',
 	RestoreLastPanelSession = 'chat.restoreLastPanelSession',
+	ExitAfterDelegation = 'chat.exitAfterDelegation',
+	CommandCenterTriStateToggle = 'chat.commandCenter.triStateToggle',
+	ExplainChangesEnabled = 'chat.editing.explainChanges.enabled',
 }
 
 /**
@@ -128,8 +138,6 @@ export function isSupportedChatFileScheme(accessor: ServicesAccessor, scheme: st
 	return true;
 }
 
-/** @deprecated */
-export const LEGACY_AGENT_SESSIONS_VIEW_ID = 'workbench.view.chat.sessions'; // TODO@bpasero clear once settled
 export const MANAGE_CHAT_COMMAND_ID = 'workbench.action.chat.manage';
 export const ChatEditorTitleMaxLength = 30;
 

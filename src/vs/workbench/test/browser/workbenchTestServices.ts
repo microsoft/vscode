@@ -7,7 +7,7 @@ import { IContextMenuDelegate } from '../../../base/browser/contextmenu.js';
 import { IDimension } from '../../../base/browser/dom.js';
 import { Direction, IViewSize } from '../../../base/browser/ui/grid/grid.js';
 import { mainWindow } from '../../../base/browser/window.js';
-import { DeferredPromise, timeout } from '../../../base/common/async.js';
+import { timeout } from '../../../base/common/async.js';
 import { VSBuffer, VSBufferReadable, VSBufferReadableStream } from '../../../base/common/buffer.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Codicon } from '../../../base/common/codicons.js';
@@ -26,7 +26,6 @@ import { assertReturnsDefined, upcast } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { ICodeEditor } from '../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../editor/browser/services/codeEditorService.js';
-import { IMarkdownRendererService, MarkdownRendererService } from '../../../platform/markdown/browser/markdownRenderer.js';
 import { Position as EditorPosition, IPosition } from '../../../editor/common/core/position.js';
 import { Range } from '../../../editor/common/core/range.js';
 import { Selection } from '../../../editor/common/core/selection.js';
@@ -83,6 +82,7 @@ import { ILabelService } from '../../../platform/label/common/label.js';
 import { ILayoutOffsetInfo } from '../../../platform/layout/browser/layoutService.js';
 import { IListService } from '../../../platform/list/browser/listService.js';
 import { ILoggerService, ILogService, NullLogService } from '../../../platform/log/common/log.js';
+import { IMarkdownRendererService, MarkdownRendererService } from '../../../platform/markdown/browser/markdownRenderer.js';
 import { IMarkerService } from '../../../platform/markers/common/markers.js';
 import { INotificationService } from '../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../platform/notification/test/common/testNotificationService.js';
@@ -161,7 +161,7 @@ import { IHostService } from '../../services/host/browser/host.js';
 import { LabelService } from '../../services/label/common/labelService.js';
 import { ILanguageDetectionService } from '../../services/languageDetection/common/languageDetectionWorkerService.js';
 import { IWorkbenchLayoutService, PanelAlignment, Position as PartPosition, Parts } from '../../services/layout/browser/layoutService.js';
-import { BeforeShutdownErrorEvent, ILifecycleService, InternalBeforeShutdownEvent, IWillShutdownEventJoiner, LifecyclePhase, ShutdownReason, StartupKind, WillShutdownEvent } from '../../services/lifecycle/common/lifecycle.js';
+import { ILifecycleService, InternalBeforeShutdownEvent, IWillShutdownEventJoiner, ShutdownReason, WillShutdownEvent } from '../../services/lifecycle/common/lifecycle.js';
 import { IPaneCompositePartService } from '../../services/panecomposite/browser/panecomposite.js';
 import { IPathService } from '../../services/path/common/pathService.js';
 import { QuickInputService } from '../../services/quickinput/browser/quickInputService.js';
@@ -185,10 +185,10 @@ import { InMemoryWorkingCopyBackupService } from '../../services/workingCopy/com
 import { IWorkingCopyEditorService, WorkingCopyEditorService } from '../../services/workingCopy/common/workingCopyEditorService.js';
 import { IWorkingCopyFileService, WorkingCopyFileService } from '../../services/workingCopy/common/workingCopyFileService.js';
 import { IWorkingCopyService, WorkingCopyService } from '../../services/workingCopy/common/workingCopyService.js';
-import { TestChatEntitlementService, TestContextService, TestExtensionService, TestFileService, TestHistoryService, TestLoggerService, TestMarkerService, TestProductService, TestStorageService, TestTextResourcePropertiesService, TestWorkspaceTrustManagementService, TestWorkspaceTrustRequestService } from '../common/workbenchTestServices.js';
+import { TestChatEntitlementService, TestContextService, TestExtensionService, TestFileService, TestHistoryService, TestLifecycleService, TestLoggerService, TestMarkerService, TestProductService, TestStorageService, TestTextResourcePropertiesService, TestWorkspaceTrustManagementService, TestWorkspaceTrustRequestService } from '../common/workbenchTestServices.js';
 
 // Backcompat export
-export { TestFileService };
+export { TestFileService, TestLifecycleService };
 
 export function createFileEditorInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined, undefined, undefined, undefined, undefined);
@@ -487,7 +487,8 @@ export class TestTextFileService extends BrowserTextFileService {
 			value: await createTextBufferFactoryFromStream(content.value),
 			size: 10,
 			readonly: false,
-			locked: false
+			locked: false,
+			executable: false
 		};
 	}
 
@@ -1187,88 +1188,6 @@ export class InMemoryTestWorkingCopyBackupService extends BrowserWorkingCopyBack
 	}
 }
 
-export class TestLifecycleService extends Disposable implements ILifecycleService {
-
-	declare readonly _serviceBrand: undefined;
-
-	usePhases = false;
-	_phase!: LifecyclePhase;
-	get phase(): LifecyclePhase { return this._phase; }
-	set phase(value: LifecyclePhase) {
-		this._phase = value;
-		if (value === LifecyclePhase.Starting) {
-			this.whenStarted.complete();
-		} else if (value === LifecyclePhase.Ready) {
-			this.whenReady.complete();
-		} else if (value === LifecyclePhase.Restored) {
-			this.whenRestored.complete();
-		} else if (value === LifecyclePhase.Eventually) {
-			this.whenEventually.complete();
-		}
-	}
-
-	private readonly whenStarted = new DeferredPromise<void>();
-	private readonly whenReady = new DeferredPromise<void>();
-	private readonly whenRestored = new DeferredPromise<void>();
-	private readonly whenEventually = new DeferredPromise<void>();
-	async when(phase: LifecyclePhase): Promise<void> {
-		if (!this.usePhases) {
-			return;
-		}
-		if (phase === LifecyclePhase.Starting) {
-			await this.whenStarted.p;
-		} else if (phase === LifecyclePhase.Ready) {
-			await this.whenReady.p;
-		} else if (phase === LifecyclePhase.Restored) {
-			await this.whenRestored.p;
-		} else if (phase === LifecyclePhase.Eventually) {
-			await this.whenEventually.p;
-		}
-	}
-
-	startupKind!: StartupKind;
-	willShutdown = false;
-
-	private readonly _onBeforeShutdown = this._register(new Emitter<InternalBeforeShutdownEvent>());
-	get onBeforeShutdown(): Event<InternalBeforeShutdownEvent> { return this._onBeforeShutdown.event; }
-
-	private readonly _onBeforeShutdownError = this._register(new Emitter<BeforeShutdownErrorEvent>());
-	get onBeforeShutdownError(): Event<BeforeShutdownErrorEvent> { return this._onBeforeShutdownError.event; }
-
-	private readonly _onShutdownVeto = this._register(new Emitter<void>());
-	get onShutdownVeto(): Event<void> { return this._onShutdownVeto.event; }
-
-	private readonly _onWillShutdown = this._register(new Emitter<WillShutdownEvent>());
-	get onWillShutdown(): Event<WillShutdownEvent> { return this._onWillShutdown.event; }
-
-	private readonly _onDidShutdown = this._register(new Emitter<void>());
-	get onDidShutdown(): Event<void> { return this._onDidShutdown.event; }
-
-	shutdownJoiners: Promise<void>[] = [];
-
-	fireShutdown(reason = ShutdownReason.QUIT): void {
-		this.shutdownJoiners = [];
-
-		this._onWillShutdown.fire({
-			join: p => {
-				this.shutdownJoiners.push(typeof p === 'function' ? p() : p);
-			},
-			joiners: () => [],
-			force: () => { /* No-Op in tests */ },
-			token: CancellationToken.None,
-			reason
-		});
-	}
-
-	fireBeforeShutdown(event: InternalBeforeShutdownEvent): void { this._onBeforeShutdown.fire(event); }
-
-	fireWillShutdown(event: WillShutdownEvent): void { this._onWillShutdown.fire(event); }
-
-	async shutdown(): Promise<void> {
-		this.fireShutdown();
-	}
-}
-
 export class TestBeforeShutdownEvent implements InternalBeforeShutdownEvent {
 
 	value: boolean | Promise<boolean> | undefined;
@@ -1879,7 +1798,7 @@ export class TestTerminalEditorService implements ITerminalEditorService {
 	getInputFromResource(resource: URI): TerminalEditorInput { throw new Error('Method not implemented.'); }
 	setActiveInstance(instance: ITerminalInstance): void { throw new Error('Method not implemented.'); }
 	focusActiveInstance(): Promise<void> { throw new Error('Method not implemented.'); }
-	focusInstance(instance: ITerminalInstance): void { throw new Error('Method not implemented.'); }
+	async focusInstance(instance: ITerminalInstance): Promise<void> { throw new Error('Method not implemented.'); }
 	getInstanceFromResource(resource: URI | undefined): ITerminalInstance | undefined { throw new Error('Method not implemented.'); }
 	focusFindWidget(): void { throw new Error('Method not implemented.'); }
 	hideFindWidget(): void { throw new Error('Method not implemented.'); }
@@ -1925,7 +1844,7 @@ export class TestTerminalGroupService implements ITerminalGroupService {
 	focusHover(): void { throw new Error('Method not implemented.'); }
 	setActiveInstance(instance: ITerminalInstance): void { throw new Error('Method not implemented.'); }
 	focusActiveInstance(): Promise<void> { throw new Error('Method not implemented.'); }
-	focusInstance(instance: ITerminalInstance): void { throw new Error('Method not implemented.'); }
+	async focusInstance(instance: ITerminalInstance): Promise<void> { throw new Error('Method not implemented.'); }
 	getInstanceFromResource(resource: URI | undefined): ITerminalInstance | undefined { throw new Error('Method not implemented.'); }
 	focusFindWidget(): void { throw new Error('Method not implemented.'); }
 	hideFindWidget(): void { throw new Error('Method not implemented.'); }
