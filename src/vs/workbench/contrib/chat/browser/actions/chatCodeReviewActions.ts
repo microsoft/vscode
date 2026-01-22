@@ -12,6 +12,7 @@ import { IChatWidgetService } from '../chat.js';
 import { IChatModeService } from '../../common/chatModes.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ChatModeKind } from '../../common/constants.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 
 const CODE_REVIEW_ACTION_ID = 'workbench.action.chat.runCodeReview';
 
@@ -21,12 +22,19 @@ export class RunCodeReviewAction extends Action2 {
 			id: CODE_REVIEW_ACTION_ID,
 			title: localize2('chat.runCodeReview.label', "Run Code Review"),
 			category: CHAT_CATEGORY,
+			icon: Codicon.checklist,
 			f1: true,
 			precondition: ChatContextKeys.enabled,
 			menu: [
 				{
 					id: MenuId.CommandPalette,
 					when: ChatContextKeys.enabled
+				},
+				{
+					id: MenuId.SCMTitle,
+					when: ChatContextKeys.enabled,
+					group: 'navigation',
+					order: 100
 				}
 			]
 		});
