@@ -471,7 +471,6 @@ export class InlineChatController implements IEditorContribution {
 		this._isActiveController.set(true, undefined);
 
 		const session = this._inlineChatSessionService.createSession(this._editor);
-		const store = new DisposableStore();
 
 		// Check for default model setting
 		const defaultModelSetting = this._configurationService.getValue<string>(InlineChatConfigKeys.DefaultModel);
@@ -530,25 +529,20 @@ export class InlineChatController implements IEditorContribution {
 			}
 		}
 
-		try {
-			if (!arg?.resolveOnResponse) {
-				// DEFAULT: wait for the session to be accepted or rejected
-				await Event.toPromise(session.editingSession.onDidDispose);
-				const rejected = session.editingSession.getEntry(uri)?.state.get() === ModifiedFileEntryState.Rejected;
-				return !rejected;
+		if (!arg?.resolveOnResponse) {
+			// DEFAULT: wait for the session to be accepted or rejected
+			await Event.toPromise(session.editingSession.onDidDispose);
+			const rejected = session.editingSession.getEntry(uri)?.state.get() === ModifiedFileEntryState.Rejected;
+			return !rejected;
 
-			} else {
-				// resolveOnResponse: ONLY wait for the file to be modified
-				const modifiedObs = derived(r => {
-					const entry = session.editingSession.readEntry(uri, r);
-					return entry?.state.read(r) === ModifiedFileEntryState.Modified && !entry?.isCurrentlyBeingModifiedBy.read(r);
-				});
-				await waitForState(modifiedObs, state => state === true);
-				return true;
-			}
-
-		} finally {
-			store.dispose();
+		} else {
+			// resolveOnResponse: ONLY wait for the file to be modified
+			const modifiedObs = derived(r => {
+				const entry = session.editingSession.readEntry(uri, r);
+				return entry?.state.read(r) === ModifiedFileEntryState.Modified && !entry?.isCurrentlyBeingModifiedBy.read(r);
+			});
+			await waitForState(modifiedObs, state => state === true);
+			return true;
 		}
 	}
 
