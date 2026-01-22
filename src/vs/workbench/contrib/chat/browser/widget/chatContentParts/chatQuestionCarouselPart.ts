@@ -10,6 +10,7 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { KeyCode } from '../../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { observableValue, ISettableObservable, transaction } from '../../../../../../base/common/observable.js';
+import { hasKey } from '../../../../../../base/common/types.js';
 import { localize } from '../../../../../../nls.js';
 import { runAtThisOrScheduleAtNextAnimationFrame } from '../../../../../../base/browser/dom.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -51,6 +52,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	private readonly _textInputBoxes: Map<string, InputBox> = new Map();
 	private readonly _radioInputs: Map<string, HTMLInputElement[]> = new Map();
 	private readonly _checkboxInputs: Map<string, HTMLInputElement[]> = new Map();
+	private readonly _freeformInputBoxes: Map<string, InputBox> = new Map();
 	private readonly _inputBoxes: DisposableStore = this._register(new DisposableStore());
 
 	constructor(
@@ -149,16 +151,11 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 
 	/**
 	 * Handles the next/submit button action.
-	 * Validates required fields and either advances to the next question or submits.
+	 * Either advances to the next question or submits.
 	 */
 	private handleNext(): void {
 		const currentQuestion = this.carousel.questions[this._currentIndex.get()];
 		const answer = this.getCurrentAnswer();
-
-		if (currentQuestion.required && this.isAnswerEmpty(answer)) {
-			// Required question - cannot proceed
-			return;
-		}
 
 		// Use immutable map update for proper observable semantics
 		if (answer !== undefined) {
@@ -284,13 +281,19 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		const selectContainer = dom.$('.chat-question-options');
 		selectContainer.setAttribute('role', 'radiogroup');
 		selectContainer.setAttribute('aria-label', question.title);
-		if (question.required) {
-			selectContainer.setAttribute('aria-required', 'true');
-		}
 		container.appendChild(selectContainer);
 
 		// Restore previous answer if exists
 		const previousAnswer = this._answers.get().get(question.id);
+		const previousFreeform = typeof previousAnswer === 'object' && previousAnswer !== null && hasKey(previousAnswer, { freeformValue: true })
+			? (previousAnswer as { freeformValue?: string }).freeformValue
+			: undefined;
+		const previousSelectedValue = typeof previousAnswer === 'object' && previousAnswer !== null && hasKey(previousAnswer, { selectedValue: true })
+			? (previousAnswer as { selectedValue?: unknown }).selectedValue
+			: previousAnswer;
+
+		// Get default option id (for singleSelect, defaultValue is a single string)
+		const defaultOptionId = typeof question.defaultValue === 'string' ? question.defaultValue : undefined;
 
 		const radioInputs: HTMLInputElement[] = [];
 		options.forEach((option, index) => {
@@ -303,9 +306,9 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			radioInput.setAttribute('aria-describedby', `label-${question.id}-${index}`);
 
 			// Check if this was previously selected or is default
-			if (previousAnswer !== undefined) {
-				radioInput.checked = option.value === previousAnswer;
-			} else if (option.default) {
+			if (previousSelectedValue !== undefined) {
+				radioInput.checked = option.value === previousSelectedValue;
+			} else if (defaultOptionId !== undefined && option.id === defaultOptionId) {
 				radioInput.checked = true;
 			}
 
@@ -322,6 +325,26 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 
 		this._inputElements.set(question.id, selectContainer);
 		this._radioInputs.set(question.id, radioInputs);
+
+		// Add freeform input if allowed
+		if (question.allowFreeformInput) {
+			const freeformContainer = dom.$('.chat-question-freeform');
+			const freeformLabel = dom.$('.chat-question-freeform-label');
+			freeformLabel.textContent = localize('chat.questionCarousel.orEnterOwn', 'Or enter your own:');
+			freeformContainer.appendChild(freeformLabel);
+
+			const freeformInputBox = this._inputBoxes.add(new InputBox(freeformContainer, undefined, {
+				placeholder: localize('chat.questionCarousel.enterCustomAnswer', 'Enter custom answer'),
+				inputBoxStyles: defaultInputBoxStyles,
+			}));
+
+			if (previousFreeform !== undefined) {
+				freeformInputBox.value = previousFreeform;
+			}
+
+			container.appendChild(freeformContainer);
+			this._freeformInputBoxes.set(question.id, freeformInputBox);
+		}
 	}
 
 	private renderMultiSelect(container: HTMLElement, question: IChatQuestion): void {
@@ -329,14 +352,21 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		const selectContainer = dom.$('.chat-question-options');
 		selectContainer.setAttribute('role', 'group');
 		selectContainer.setAttribute('aria-label', question.title);
-		if (question.required) {
-			selectContainer.setAttribute('aria-required', 'true');
-		}
 		container.appendChild(selectContainer);
 
 		// Restore previous answer if exists
 		const previousAnswer = this._answers.get().get(question.id);
-		const previousValues = Array.isArray(previousAnswer) ? previousAnswer : [];
+		const previousFreeform = typeof previousAnswer === 'object' && previousAnswer !== null && hasKey(previousAnswer, { freeformValue: true })
+			? (previousAnswer as { freeformValue?: string }).freeformValue
+			: undefined;
+		const previousSelectedValues = typeof previousAnswer === 'object' && previousAnswer !== null && hasKey(previousAnswer, { selectedValues: true })
+			? (previousAnswer as { selectedValues?: unknown[] }).selectedValues
+			: (Array.isArray(previousAnswer) ? previousAnswer : []);
+
+		// Get default option ids (for multiSelect, defaultValue can be string or string[])
+		const defaultOptionIds: string[] = Array.isArray(question.defaultValue)
+			? question.defaultValue
+			: (typeof question.defaultValue === 'string' ? [question.defaultValue] : []);
 
 		const checkboxInputs: HTMLInputElement[] = [];
 		options.forEach((option, index) => {
@@ -348,9 +378,9 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			checkboxInput.setAttribute('aria-describedby', `label-${question.id}-${index}`);
 
 			// Check if this was previously selected or is default
-			if (previousValues.length > 0) {
-				checkboxInput.checked = previousValues.includes(option.value);
-			} else if (option.default) {
+			if (previousSelectedValues && previousSelectedValues.length > 0) {
+				checkboxInput.checked = previousSelectedValues.includes(option.value);
+			} else if (defaultOptionIds.includes(option.id)) {
 				checkboxInput.checked = true;
 			}
 
@@ -367,6 +397,26 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 
 		this._inputElements.set(question.id, selectContainer);
 		this._checkboxInputs.set(question.id, checkboxInputs);
+
+		// Add freeform input if allowed
+		if (question.allowFreeformInput) {
+			const freeformContainer = dom.$('.chat-question-freeform');
+			const freeformLabel = dom.$('.chat-question-freeform-label');
+			freeformLabel.textContent = localize('chat.questionCarousel.orEnterOwn', 'Or enter your own:');
+			freeformContainer.appendChild(freeformLabel);
+
+			const freeformInputBox = this._inputBoxes.add(new InputBox(freeformContainer, undefined, {
+				placeholder: localize('chat.questionCarousel.enterCustomAnswer', 'Enter custom answer'),
+				inputBoxStyles: defaultInputBoxStyles,
+			}));
+
+			if (previousFreeform !== undefined) {
+				freeformInputBox.value = previousFreeform;
+			}
+
+			container.appendChild(freeformContainer);
+			this._freeformInputBoxes.set(question.id, freeformInputBox);
+		}
 	}
 
 	private getCurrentAnswer(): unknown {
@@ -383,17 +433,33 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 
 			case 'singleSelect': {
 				const radioInputs = this._radioInputs.get(question.id);
+				let selectedValue: unknown = undefined;
 				if (radioInputs) {
 					for (const radio of radioInputs) {
 						if (radio.checked) {
 							const index = parseInt(radio.value);
-							return question.options?.[index]?.value;
+							selectedValue = question.options?.[index]?.value;
+							break;
 						}
 					}
 				}
-				// Find default option
-				const defaultOption = question.options?.find(opt => opt.default);
-				return defaultOption?.value;
+				// Find default option if nothing selected (defaultValue is the option id)
+				if (selectedValue === undefined && typeof question.defaultValue === 'string') {
+					const defaultOption = question.options?.find(opt => opt.id === question.defaultValue);
+					selectedValue = defaultOption?.value;
+				}
+
+				// Include freeform value if allowed
+				if (question.allowFreeformInput) {
+					const freeformInput = this._freeformInputBoxes.get(question.id);
+					const freeformValue = freeformInput?.value || undefined;
+					if (freeformValue || selectedValue !== undefined) {
+						return { selectedValue, freeformValue };
+					}
+					return undefined;
+				}
+
+				return selectedValue;
 			}
 
 			case 'multiSelect': {
@@ -410,27 +476,34 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 						}
 					}
 				}
-				// Include defaults if nothing selected
-				if (selectedValues.length === 0) {
-					const defaultValues = question.options?.filter(opt => opt.default).map(opt => opt.value);
-					return defaultValues?.filter(v => v !== undefined);
+				// Include defaults if nothing selected (defaultValue is option id or array of ids)
+				let finalSelectedValues = selectedValues;
+				if (selectedValues.length === 0 && question.defaultValue !== undefined) {
+					const defaultIds = Array.isArray(question.defaultValue)
+						? question.defaultValue
+						: [question.defaultValue];
+					const defaultValues = question.options
+						?.filter(opt => defaultIds.includes(opt.id))
+						.map(opt => opt.value);
+					finalSelectedValues = defaultValues?.filter(v => v !== undefined) || [];
 				}
-				return selectedValues;
+
+				// Include freeform value if allowed
+				if (question.allowFreeformInput) {
+					const freeformInput = this._freeformInputBoxes.get(question.id);
+					const freeformValue = freeformInput?.value || undefined;
+					if (freeformValue || finalSelectedValues.length > 0) {
+						return { selectedValues: finalSelectedValues, freeformValue };
+					}
+					return undefined;
+				}
+
+				return finalSelectedValues;
 			}
 
 			default:
 				return question.defaultValue;
 		}
-	}
-
-	private isAnswerEmpty(answer: unknown): boolean {
-		if (answer === undefined || answer === null || answer === '') {
-			return true;
-		}
-		if (Array.isArray(answer) && answer.length === 0) {
-			return true;
-		}
-		return false;
 	}
 
 	hasSameContent(other: IChatRendererContent, _followingContent: IChatRendererContent[], _element: ChatTreeItem): boolean {

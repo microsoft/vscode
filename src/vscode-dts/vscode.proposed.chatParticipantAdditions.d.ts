@@ -101,6 +101,10 @@ declare module 'vscode' {
 	 */
 	export interface ChatQuestionOption {
 		/**
+		 * Unique identifier for the option.
+		 */
+		id: string;
+		/**
 		 * The display label for the option.
 		 */
 		label: string;
@@ -108,10 +112,6 @@ declare module 'vscode' {
 		 * The value returned when this option is selected.
 		 */
 		value: unknown;
-		/**
-		 * Whether this option is selected by default.
-		 */
-		default?: boolean;
 	}
 
 	/**
@@ -157,13 +157,16 @@ declare module 'vscode' {
 		 */
 		options?: ChatQuestionOption[];
 		/**
-		 * Whether the question requires an answer before submission.
+		 * The id(s) of the default selected option(s).
+		 * For SingleSelect, this should be a single option id.
+		 * For MultiSelect, this can be an array of option ids.
 		 */
-		required?: boolean;
+		defaultValue?: string | string[];
 		/**
-		 * Default value for the question.
+		 * Whether to allow free-form text input in addition to predefined options.
+		 * When true, users can provide their own text answer even for SingleSelect or MultiSelect questions.
 		 */
-		defaultValue?: unknown;
+		allowFreeformInput?: boolean;
 
 		constructor(
 			id: string,
@@ -172,8 +175,8 @@ declare module 'vscode' {
 			options?: {
 				message?: string | MarkdownString;
 				options?: ChatQuestionOption[];
-				required?: boolean;
-				defaultValue?: unknown;
+				defaultValue?: string | string[];
+				allowFreeformInput?: boolean;
 			}
 		);
 	}

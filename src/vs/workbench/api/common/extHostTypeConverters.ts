@@ -2670,8 +2670,8 @@ export namespace ChatResponseQuestionCarouselPart {
 				title: q.title,
 				message: q.message ? MarkdownString.from(q.message) : undefined,
 				options: q.options,
-				required: q.required,
-				defaultValue: q.defaultValue
+				defaultValue: q.defaultValue,
+				allowFreeformInput: q.allowFreeformInput
 			})),
 			allowSkip: part.allowSkip
 		};
@@ -2685,12 +2685,12 @@ export namespace ChatResponseQuestionCarouselPart {
 			{
 				message: q.message ? MarkdownString.to(q.message) : undefined,
 				options: q.options?.map(opt => ({
+					id: opt.id,
 					label: opt.label,
-					value: opt.value,
-					default: opt.default
+					value: opt.value
 				})),
-				required: q.required,
-				defaultValue: q.defaultValue
+				defaultValue: q.defaultValue,
+				allowFreeformInput: q.allowFreeformInput
 			}
 		));
 		return new types.ChatResponseQuestionCarouselPart(questions, part.allowSkip);

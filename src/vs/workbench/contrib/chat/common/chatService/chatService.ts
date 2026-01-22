@@ -341,9 +341,9 @@ export interface IChatQuestion {
 	type: 'text' | 'singleSelect' | 'multiSelect';
 	title: string;
 	message?: string | IMarkdownString;
-	options?: { label: string; value: unknown; default?: boolean }[];
-	required?: boolean;
-	defaultValue?: unknown;
+	options?: { id: string; label: string; value: unknown }[];
+	defaultValue?: string | string[];
+	allowFreeformInput?: boolean;
 }
 
 /**

@@ -3351,11 +3351,11 @@ export class ChatQuestion {
 	/** Optional detailed message or description for the question. */
 	message?: string | vscode.MarkdownString;
 	/** Options for singleSelect or multiSelect questions. */
-	options?: { label: string; value: unknown; default?: boolean }[];
-	/** Whether the question requires an answer before submission. */
-	required?: boolean;
-	/** Default value for the question. */
-	defaultValue?: unknown;
+	options?: { id: string; label: string; value: unknown }[];
+	/** The id(s) of the default selected option(s). */
+	defaultValue?: string | string[];
+	/** Whether to allow free-form text input in addition to predefined options. */
+	allowFreeformInput?: boolean;
 
 	constructor(
 		id: string,
@@ -3363,9 +3363,9 @@ export class ChatQuestion {
 		title: string,
 		options?: {
 			message?: string | vscode.MarkdownString;
-			options?: { label: string; value: unknown; default?: boolean }[];
-			required?: boolean;
-			defaultValue?: unknown;
+			options?: { id: string; label: string; value: unknown }[];
+			defaultValue?: string | string[];
+			allowFreeformInput?: boolean;
 		}
 	) {
 		this.id = id;
@@ -3373,8 +3373,8 @@ export class ChatQuestion {
 		this.title = title;
 		this.message = options?.message;
 		this.options = options?.options;
-		this.required = options?.required;
 		this.defaultValue = options?.defaultValue;
+		this.allowFreeformInput = options?.allowFreeformInput;
 	}
 }
 
