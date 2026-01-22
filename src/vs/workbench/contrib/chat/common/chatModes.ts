@@ -307,7 +307,7 @@ export class CustomChatMode implements IChatMode {
 	private readonly _customToolsObservable: ISettableObservable<readonly string[] | undefined>;
 	private readonly _modeInstructions: ISettableObservable<IChatModeInstructions>;
 	private readonly _uriObservable: ISettableObservable<URI>;
-	private readonly _modelObservable: ISettableObservable<string | undefined>;
+	private readonly _modelObservable: ISettableObservable<string | string[] | undefined>;
 	private readonly _argumentHintObservable: ISettableObservable<string | undefined>;
 	private readonly _handoffsObservable: ISettableObservable<readonly IHandOff[] | undefined>;
 	private readonly _targetObservable: ISettableObservable<string | undefined>;
@@ -337,7 +337,7 @@ export class CustomChatMode implements IChatMode {
 		return this._customToolsObservable;
 	}
 
-	get model(): IObservable<string | undefined> {
+	get model(): IObservable<string | string[] | undefined> {
 		return this._modelObservable;
 	}
 

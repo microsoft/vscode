@@ -627,7 +627,16 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this.chatModeKindKey.set(mode.kind);
 			const model = mode.model?.read(r);
 			if (model) {
-				this.switchModelByQualifiedName(model);
+				if (Array.isArray(model)) {
+					// If model is an array, try each one until one succeeds
+					for (const m of model) {
+						if (this.switchModelByQualifiedName(m)) {
+							break;
+						}
+					}
+				} else {
+					this.switchModelByQualifiedName(model);
+				}
 			}
 		}));
 		this._register(autorun(r => {
