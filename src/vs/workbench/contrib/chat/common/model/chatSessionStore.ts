@@ -94,20 +94,29 @@ export class ChatSessionStore extends Disposable {
 	}
 
 	private checkAndMigrateWorkspaceSessions(currentWorkspaceId: string, isEmptyWindow: boolean): void {
-		// Get the last known workspace ID from storage
+		// Get the last known workspace state from storage
 		const lastWorkspaceId = this.storageService.get(ChatLastWorkspaceIdStorageKey, StorageScope.APPLICATION);
+		const wasEmptyWindow = lastWorkspaceId === 'empty-window';
 
-		// If there was a previous workspace ID and it's different from the current one, migrate
-		if (lastWorkspaceId && lastWorkspaceId !== currentWorkspaceId) {
-			this.logService.info(`ChatSessionStore: Detected workspace ID change from ${lastWorkspaceId} to ${currentWorkspaceId}`);
+		// Determine if this is a workspace transition that requires migration
+		const needsMigration = lastWorkspaceId && (
+			// Transition from empty window to workspace with folder(s)
+			(wasEmptyWindow && !isEmptyWindow) ||
+			// Transition between different non-empty workspaces
+			(!wasEmptyWindow && !isEmptyWindow && lastWorkspaceId !== currentWorkspaceId)
+		);
+
+		if (needsMigration) {
+			this.logService.info(`ChatSessionStore: Detected workspace transition from ${lastWorkspaceId} to ${currentWorkspaceId}`);
 			// Queue the migration to happen asynchronously
 			this.storeQueue.queue(async () => {
-				await this.migrateSessionsFromOldWorkspace(lastWorkspaceId, currentWorkspaceId, isEmptyWindow);
+				await this.migrateSessionsFromOldWorkspace(lastWorkspaceId, wasEmptyWindow, currentWorkspaceId, isEmptyWindow);
 			});
 		}
 
-		// Store the current workspace ID for future comparisons
-		this.storageService.store(ChatLastWorkspaceIdStorageKey, currentWorkspaceId, StorageScope.APPLICATION, StorageTarget.MACHINE);
+		// Store the current workspace state for future comparisons
+		const workspaceKey = isEmptyWindow ? 'empty-window' : currentWorkspaceId;
+		this.storageService.store(ChatLastWorkspaceIdStorageKey, workspaceKey, StorageScope.APPLICATION, StorageTarget.MACHINE);
 	}
 
 	private handleWorkspaceChange(): void {
@@ -115,12 +124,20 @@ export class ChatSessionStore extends Disposable {
 		const isEmptyWindow = !workspace.configuration && workspace.folders.length === 0;
 		const newWorkspaceId = workspace.id;
 
-		// Get the last known workspace ID
+		// Get the last known workspace state
 		const lastWorkspaceId = this.storageService.get(ChatLastWorkspaceIdStorageKey, StorageScope.APPLICATION);
+		const wasEmptyWindow = lastWorkspaceId === 'empty-window';
 
-		// If workspace ID changed, update storage root and migrate
-		if (lastWorkspaceId && lastWorkspaceId !== newWorkspaceId) {
-			this.logService.info(`ChatSessionStore: Workspace ID changed from ${lastWorkspaceId} to ${newWorkspaceId}`);
+		// Determine if this is a workspace transition that requires migration
+		const needsMigration = lastWorkspaceId && (
+			// Transition from empty window to workspace with folder(s)
+			(wasEmptyWindow && !isEmptyWindow) ||
+			// Transition between different non-empty workspaces
+			(!wasEmptyWindow && !isEmptyWindow && lastWorkspaceId !== newWorkspaceId)
+		);
+
+		if (needsMigration) {
+			this.logService.info(`ChatSessionStore: Workspace transition detected from ${lastWorkspaceId} to ${newWorkspaceId}`);
 
 			// Update storage root
 			this.storageRoot = isEmptyWindow ?
@@ -129,18 +146,19 @@ export class ChatSessionStore extends Disposable {
 
 			// Queue the migration
 			this.storeQueue.queue(async () => {
-				await this.migrateSessionsFromOldWorkspace(lastWorkspaceId, newWorkspaceId, isEmptyWindow);
+				await this.migrateSessionsFromOldWorkspace(lastWorkspaceId, wasEmptyWindow, newWorkspaceId, isEmptyWindow);
 			});
-
-			// Update the stored workspace ID
-			this.storageService.store(ChatLastWorkspaceIdStorageKey, newWorkspaceId, StorageScope.APPLICATION, StorageTarget.MACHINE);
 		}
+
+		// Update the stored workspace state
+		const workspaceKey = isEmptyWindow ? 'empty-window' : newWorkspaceId;
+		this.storageService.store(ChatLastWorkspaceIdStorageKey, workspaceKey, StorageScope.APPLICATION, StorageTarget.MACHINE);
 	}
 
-	private async migrateSessionsFromOldWorkspace(oldWorkspaceId: string, newWorkspaceId: string, isNewWorkspaceEmpty: boolean): Promise<void> {
+	private async migrateSessionsFromOldWorkspace(oldWorkspaceId: string, wasEmptyWindow: boolean, newWorkspaceId: string, isNewWorkspaceEmpty: boolean): Promise<void> {
 		try {
 			// Determine the old storage location
-			const oldStorageRoot = oldWorkspaceId === 'empty-window' ?
+			const oldStorageRoot = wasEmptyWindow ?
 				joinPath(this.userDataProfilesService.defaultProfile.globalStorageHome, 'emptyWindowChatSessions') :
 				joinPath(this.environmentService.workspaceStorageHome, oldWorkspaceId, 'chatSessions');
 
@@ -176,7 +194,7 @@ export class ChatSessionStore extends Disposable {
 				}
 			}
 
-			this.logService.info(`ChatSessionStore: Migrated ${migratedCount} chat session files from ${oldWorkspaceId} to ${newWorkspaceId}`);
+			this.logService.info(`ChatSessionStore: Migrated ${migratedCount} chat session files from ${wasEmptyWindow ? 'empty window' : oldWorkspaceId} to ${isNewWorkspaceEmpty ? 'empty window' : newWorkspaceId}`);
 
 			// Clear the index cache to force re-reading from the new location
 			this.indexCache = undefined;
