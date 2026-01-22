@@ -70,28 +70,13 @@ jobs:
           workingDirectory: $(TEST_DIR)
           displayName: Run Sanity Tests
 
-      # Build test container image
+      # Linux Docker container
       - ${{ if ne(parameters.container, '') }}:
         - bash: |
-            docker buildx build \
-              --platform "linux/${{ parameters.arch }}" \
-              ${BASE_IMAGE:+--build-arg "BASE_IMAGE=$BASE_IMAGE"} \
-              --tag "${{ parameters.container }}" \
-              --file "containers/${{ parameters.container }}.dockerfile" \
-              ./containers
-          workingDirectory: $(TEST_DIR)
-          env:
-            BASE_IMAGE: ${{ parameters.baseImage }}
-          displayName: Build Container Image
-
-      # Run sanity tests in container
-      - ${{ if ne(parameters.container, '') }}:
-        - bash: |
-            docker run \
-              --rm \
-              --platform "linux/${{ parameters.arch }}" \
-              --volume "$(TEST_DIR):/root" \
-              ${{ parameters.container }} \
+            $(TEST_DIR)/scripts/run-docker.sh \
+              --container "${{ parameters.container }}" \
+              --arch "${{ parameters.arch }}" \
+              --base-image "${{ parameters.baseImage }}" \
               --quality "$(BUILD_QUALITY)" \
               --commit "$(BUILD_COMMIT)" \
               --test-results "/root/results.xml" \
