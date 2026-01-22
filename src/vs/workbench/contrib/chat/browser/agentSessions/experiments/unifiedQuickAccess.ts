@@ -20,7 +20,10 @@ import { renderIcon } from '../../../../../../base/browser/ui/iconLabel/iconLabe
 import { Event } from '../../../../../../base/common/event.js';
 import { ILayoutService } from '../../../../../../platform/layout/browser/layoutService.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
-import { CHAT_OPEN_ACTION_ID, IChatViewOpenOptions } from '../../actions/chatActions.js';
+import { ACTION_ID_NEW_CHAT, CHAT_OPEN_ACTION_ID, IChatViewOpenOptions } from '../../actions/chatActions.js';
+
+/** Marker ID for the "send to agent" quick pick item */
+const SEND_TO_AGENT_ID = 'unified-quick-access-send-to-agent';
 
 /**
  * Tab configuration for the unified quick access widget.
@@ -46,10 +49,10 @@ export interface IUnifiedQuickAccessTab {
 export const DEFAULT_UNIFIED_QUICK_ACCESS_TABS: IUnifiedQuickAccessTab[] = [
 	{
 		id: 'agentSessions',
-		label: localize('agentSessionsTab', "Agent Sessions"),
+		label: localize('agentSessionsTab', "Sessions"),
 		prefix: 'agent ',
-		placeholder: localize('agentSessionsPlaceholder', "Search agent sessions..."),
-		tooltip: localize('agentSessionsTooltip', "Search and manage agent sessions"),
+		placeholder: localize('agentSessionsPlaceholder', "Search sessions..."),
+		tooltip: localize('agentSessionsTooltip', "Search and manage sessions"),
 	},
 	{
 		id: 'commands',
@@ -71,14 +74,6 @@ export const DEFAULT_UNIFIED_QUICK_ACCESS_TABS: IUnifiedQuickAccessTab[] = [
 		prefix: '#',
 		placeholder: localize('keywordsPlaceholder', "Search by keyword..."),
 		tooltip: localize('keywordsTooltip', "Search by keyword in workspace"),
-	},
-	{
-		id: 'send',
-		label: localize('sendTab', "Send"),
-		prefix: '',
-		placeholder: localize('sendPlaceholder', "Type a message to send to a new agent session..."),
-		tooltip: localize('sendTooltip', "Send message to new agent session"),
-		isSendTab: true,
 	},
 ];
 
@@ -163,6 +158,43 @@ export class UnifiedQuickAccess extends Disposable {
 			if (matchingTab && matchingTab !== this._currentTab) {
 				this._switchTab(matchingTab, picker, true);
 			}
+			// Check for send-to-agent after delays to let provider finish
+			// Use multiple attempts since providers may take varying amounts of time
+			setTimeout(() => this._maybeShowSendToAgent(picker), 100);
+			setTimeout(() => this._maybeShowSendToAgent(picker), 300);
+			setTimeout(() => this._maybeShowSendToAgent(picker), 600);
+		}));
+
+		// Handle accept - send to agent if no real items or send-to-agent is selected
+		this._currentDisposables.add(picker.onDidAccept(() => {
+			const selectedItems = picker.selectedItems;
+			const activeItems = picker.activeItems;
+
+			// Check if send-to-agent item is selected
+			const sendToAgentSelected = selectedItems.length > 0 &&
+				(selectedItems[0] as IQuickPickItem & { id?: string }).id === SEND_TO_AGENT_ID;
+
+			// Check if there are any real items active (not send-to-agent)
+			const hasRealActiveItem = activeItems.some(item =>
+				(item as IQuickPickItem & { id?: string }).id !== SEND_TO_AGENT_ID
+			);
+
+			// Get the filter text
+			const filterText = this._currentTab
+				? picker.value.substring(this._currentTab.prefix.length).trim()
+				: picker.value.trim();
+
+			// Send to agent if:
+			// 1. Send-to-agent item is explicitly selected, OR
+			// 2. No real items are active AND user has typed something
+			if (sendToAgentSelected || (!hasRealActiveItem && filterText)) {
+				this._sendMessage(picker.value);
+			}
+		}));
+
+		// Monitor active items to show send-to-agent when empty
+		this._currentDisposables.add(picker.onDidChangeActive(() => {
+			this._maybeShowSendToAgent(picker);
 		}));
 
 		// Handle hide
@@ -279,20 +311,43 @@ export class UnifiedQuickAccess extends Disposable {
 
 		container.appendChild(button);
 
-		// Click handler - send message
+		// Click handler - send message (send exact input, always new chat)
 		this._currentDisposables.add(addDisposableListener(button, EventType.CLICK, (e) => {
 			e.preventDefault();
 			e.stopPropagation();
-			this._sendMessage(picker.value);
+			this._sendMessageRaw(picker.value);
 		}));
 
 		return container;
 	}
 
 	/**
-	 * Send the current message to a new agent session.
+	 * Send the exact message to a new agent session (no prefix stripping).
 	 */
-	private _sendMessage(value: string): void {
+	private async _sendMessageRaw(value: string): Promise<void> {
+		const message = value.trim();
+		if (!message) {
+			return;
+		}
+
+		// Hide the picker first
+		this.hide();
+
+		// Always create a new chat first
+		await this.commandService.executeCommand(ACTION_ID_NEW_CHAT);
+
+		// Then send the message to the new chat
+		const options: IChatViewOpenOptions = {
+			query: message,
+			isPartialQuery: false,
+		};
+		this.commandService.executeCommand(CHAT_OPEN_ACTION_ID, options);
+	}
+
+	/**
+	 * Send the current message to a new agent session (strips prefix).
+	 */
+	private async _sendMessage(value: string): Promise<void> {
 		// Strip any prefix from the value
 		let message = value;
 		if (this._currentTab) {
@@ -308,12 +363,62 @@ export class UnifiedQuickAccess extends Disposable {
 		// Hide the picker first
 		this.hide();
 
-		// Open chat with the message as the query
+		// Always create a new chat first
+		await this.commandService.executeCommand(ACTION_ID_NEW_CHAT);
+
+		// Then send the message to the new chat
 		const options: IChatViewOpenOptions = {
 			query: message,
 			isPartialQuery: false,
 		};
 		this.commandService.executeCommand(CHAT_OPEN_ACTION_ID, options);
+	}
+
+	/**
+	 * Check if we should show the "send to agent" item (when no items match).
+	 */
+	private _maybeShowSendToAgent(picker: IQuickPick<IQuickPickItem, { useSeparators: true }>): void {
+		// Get the filter text (without prefix)
+		const filterText = this._currentTab
+			? picker.value.substring(this._currentTab.prefix.length).trim()
+			: picker.value.trim();
+
+		// Only show if user has typed something
+		if (!filterText) {
+			return;
+		}
+
+		// Don't show if picker is still loading
+		if (picker.busy) {
+			return;
+		}
+
+		// Check if we already have send-to-agent as the only item
+		const alreadyShowingSendToAgent = picker.items.length === 1 &&
+			(picker.items[0] as IQuickPickItem & { id?: string }).id === SEND_TO_AGENT_ID;
+		if (alreadyShowingSendToAgent) {
+			return;
+		}
+
+		// Check if there are any visible/active items (excluding our send-to-agent item)
+		const hasRealActiveItems = picker.activeItems.some(item => {
+			const itemWithId = item as IQuickPickItem & { id?: string };
+			return itemWithId.id !== SEND_TO_AGENT_ID;
+		});
+
+		// If no real items visible, show send-to-agent
+		if (!hasRealActiveItems) {
+			const fullInput = picker.value.trim();
+			const sendItem: IQuickPickItem & { id: string } = {
+				id: SEND_TO_AGENT_ID,
+				label: `$(send) ${localize('sendToAgentLabel', "Send to agent")}`,
+				description: fullInput,
+				alwaysShow: true,
+				ariaLabel: localize('sendToAgentAria', "Send message to agent: {0}", fullInput),
+			};
+			picker.items = [sendItem];
+			picker.activeItems = [sendItem];
+		}
 	}
 
 	/**
