@@ -318,6 +318,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	//#region Sessions Control
 
 	private static readonly SESSIONS_SIDEBAR_MIN_WIDTH = 200;
+	private static readonly SESSIONS_SIDEBAR_SNAP_THRESHOLD = ChatViewPane.SESSIONS_SIDEBAR_MIN_WIDTH / 2; // snap to hide when dragged below half of minimum width
 	private static readonly SESSIONS_SIDEBAR_DEFAULT_WIDTH = 300;
 	private static readonly SESSIONS_STACKED_MIN_HEIGHT = AgentSessionsListDelegate.ITEM_HEIGHT;
 	private static readonly SESSIONS_STACKED_DEFAULT_HEIGHT = 5 * AgentSessionsListDelegate.ITEM_HEIGHT;
@@ -989,8 +990,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			const newWidth = position === Position.RIGHT ? sashStartWidth - delta : sashStartWidth + delta;
 
 			// Snap to hide when dragged below threshold (similar to sidebar behavior)
-			const snapThreshold = ChatViewPane.SESSIONS_SIDEBAR_MIN_WIDTH / 2;
-			if (newWidth < snapThreshold) {
+			if (newWidth < ChatViewPane.SESSIONS_SIDEBAR_SNAP_THRESHOLD) {
 				this.updateConfiguredSessionsViewerOrientation('stacked');
 				return;
 			}
