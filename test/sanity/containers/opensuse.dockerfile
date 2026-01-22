@@ -7,11 +7,14 @@ RUN zypper install -y curl
 # Node.js 22.21.1
 RUN zypper install -y nodejs22
 
-# Google Chrome
-RUN curl -fsSL https://dl.google.com/linux/linux_signing_key.pub -o /tmp/google.pub && \
+# Google Chrome (amd64 only)
+ARG TARGETARCH
+RUN if [ "$TARGETARCH" = "amd64" ]; then \
+	curl -fsSL https://dl.google.com/linux/linux_signing_key.pub -o /tmp/google.pub && \
 	rpm --import /tmp/google.pub && \
 	zypper ar http://dl.google.com/linux/chrome/rpm/stable/x86_64 Google-Chrome && \
-	zypper install -y google-chrome-stable
+	zypper install -y google-chrome-stable; \
+	fi
 
 ENV PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/google-chrome-stable
 

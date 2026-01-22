@@ -10,7 +10,7 @@ import { test } from 'mocha';
 import fetch, { Response } from 'node-fetch';
 import os from 'os';
 import path from 'path';
-import { Browser, chromium, firefox, webkit } from 'playwright';
+import { Browser, chromium, webkit } from 'playwright';
 import { Capability, detectCapabilities } from './detectors.js';
 
 /**
@@ -846,20 +846,19 @@ export class TestContext {
 		this.log(`Launching web browser`);
 		const headless = this.options.headlessBrowser;
 		switch (os.platform()) {
-			case 'darwin':
-				return await webkit.launch({ headless });
-			case 'win32':
-				return await chromium.launch({ channel: 'msedge', headless });
-			default:
-				if (process.env['PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH']) {
-					return await chromium.launch({ headless, executablePath: process.env['PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH'] });
-				} else if (process.env['PLAYWRIGHT_FIREFOX_EXECUTABLE_PATH']) {
-					return await firefox.launch({ headless, executablePath: process.env['PLAYWRIGHT_FIREFOX_EXECUTABLE_PATH'] });
-				} else if (fs.existsSync(chromium.executablePath())) {
-					return await chromium.launch({ headless });
-				} else {
-					return await firefox.launch({ headless });
-				}
+			case 'darwin': {
+				const executablePath = process.env['PLAYWRIGHT_WEBKIT_EXECUTABLE_PATH'] ?? '/Applications/Safari.app/Contents/MacOS/Safari';
+				return await webkit.launch({ headless, executablePath });
+			}
+			case 'win32': {
+				const executablePath = process.env['PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH'] ?? 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe';
+				return await chromium.launch({ headless, executablePath });
+			}
+			case 'linux':
+			default: {
+				const executablePath = process.env['PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH'] ?? '/usr/bin/chromium-browser';
+				return await chromium.launch({ headless, executablePath });
+			}
 		}
 	}
 

@@ -22,8 +22,9 @@ RUN apt-get install -y libasound2t64 || true
 RUN apt-get install -y libasound2 || true
 RUN apt-get install -y libgtk-3-0t64 || true
 RUN apt-get install -y libgtk-3-0 || true
+RUN apt-get install -y libcurl4t64 || true
+RUN apt-get install -y libcurl4 || true
 RUN apt-get install -y \
-	libcurl4 \
 	libgbm1 \
 	libnss3 \
 	libxkbcommon0 \

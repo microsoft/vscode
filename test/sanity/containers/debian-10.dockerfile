@@ -16,9 +16,14 @@ RUN apt-get update && \
 # Upgrade libstdc++6 from bullseye (required by Node.js 22)
 RUN apt-get install -y -t bullseye libstdc++6
 
-# Node.js 22
-RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && \
-	apt-get install -y nodejs
+# Node.js 22 (NodeSource doesn't support armhf, use unofficial builds)
+ARG TARGETARCH
+RUN if [ "$TARGETARCH" = "arm" ]; then \
+	curl -fsSL https://unofficial-builds.nodejs.org/download/release/v22.21.1/node-v22.21.1-linux-armv7l.tar.gz | tar -xz -C /usr/local --strip-components=1; \
+	else \
+	curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && \
+	apt-get install -y nodejs; \
+	fi
 
 # Google Chrome (amd64 only)
 ARG TARGETARCH
@@ -47,7 +52,8 @@ RUN apt-get install -y \
 	libnss3 \
 	libxcomposite1 \
 	libxkbcommon0 \
-	libxrandr2
+	libxrandr2 \
+	xdg-utils
 
 # Install newer libxkbfile1 from Debian 11 since Debian 10 version is too old
 RUN apt-get install -y -t bullseye libxkbfile1

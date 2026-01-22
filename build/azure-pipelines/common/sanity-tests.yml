@@ -58,9 +58,15 @@ jobs:
         workingDirectory: $(TEST_DIR)
         displayName: Compile Sanity Tests
 
-      # Windows and macOS
-      - ${{ if and(eq(parameters.container, ''), ne(parameters.os, 'linux')) }}:
-        - script: node out/index.js -c $(BUILD_COMMIT) -q $(BUILD_QUALITY) -t $(LOG_FILE) -v ${{ parameters.args }}
+      # Windows
+      - ${{ if eq(parameters.os, 'windows') }}:
+        - script: $(TEST_DIR)/scripts/run-win32.cmd -c $(BUILD_COMMIT) -q $(BUILD_QUALITY) -t $(LOG_FILE) -v ${{ parameters.args }}
+          workingDirectory: $(TEST_DIR)
+          displayName: Run Sanity Tests
+
+      # macOS
+      - ${{ if eq(parameters.os, 'macOS') }}:
+        - bash: $(TEST_DIR)/scripts/run-macOS.sh -c $(BUILD_COMMIT) -q $(BUILD_QUALITY) -t $(LOG_FILE) -v ${{ parameters.args }}
           workingDirectory: $(TEST_DIR)
           displayName: Run Sanity Tests
 

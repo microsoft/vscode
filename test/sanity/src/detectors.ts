@@ -101,7 +101,27 @@ function detectDesktop(capabilities: Set<Capability>) {
  * Detect if a browser environment is available.
  */
 function detectBrowser(capabilities: Set<Capability>) {
-	if (process.platform !== 'linux' || process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH) {
-		capabilities.add('browser');
+	switch (process.platform) {
+		case 'linux': {
+			const path = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH ?? '/usr/bin/chromium-browser';
+			if (fs.existsSync(path)) {
+				capabilities.add('browser');
+			}
+			break;
+		}
+		case 'darwin': {
+			const path = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE_PATH ?? '/Applications/Safari.app/Contents/MacOS/Safari';
+			if (fs.existsSync(path)) {
+				capabilities.add('browser');
+			}
+			break;
+		}
+		case 'win32': {
+			const path = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH ?? 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe';
+			if (fs.existsSync(path)) {
+				capabilities.add('browser');
+			}
+			break;
+		}
 	}
 }

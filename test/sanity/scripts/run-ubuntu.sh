@@ -21,4 +21,4 @@ sudo systemctl start snapd.socket
 sudo systemctl start snapd.service
 
 echo "Running Tests"
-node $(dirname "$0")/../out/index.js "$@"
+node $(dirname "$0")/../out/index.js $@
