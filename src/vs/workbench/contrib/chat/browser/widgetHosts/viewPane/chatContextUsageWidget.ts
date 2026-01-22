@@ -11,6 +11,7 @@ import { Disposable, MutableDisposable } from '../../../../../../base/common/lif
 import { autorun, IObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { localize } from '../../../../../../nls.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IChatRequestModel, IChatResponseModel } from '../../../common/model/chatModel.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
 import { ChatContextUsageDetails, IChatContextUsageData } from './chatContextUsageDetails.js';
@@ -110,6 +111,7 @@ export class ChatContextUsageWidget extends Disposable {
 
 	constructor(
 		@IHoverService private readonly hoverService: IHoverService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 	) {
 		super();
@@ -150,7 +152,7 @@ export class ChatContextUsageWidget extends Disposable {
 		// Add expanded class to keep token label visible while details are shown
 		this.domNode.classList.add('expanded');
 
-		const details = new ChatContextUsageDetails();
+		const details = this.instantiationService.createInstance(ChatContextUsageDetails);
 		details.update(this.currentData);
 
 		const hover = this.hoverService.showInstantHover({

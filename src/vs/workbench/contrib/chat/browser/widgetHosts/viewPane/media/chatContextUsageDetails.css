@@ -73,15 +73,29 @@
 	margin-bottom: 8px;
 }
 
-.chat-context-usage-details .separator {
+.chat-context-usage-details .actions-section .separator {
 	border-top: 1px solid var(--vscode-editorHoverWidget-border);
 	margin: 8px 0;
 }
 
-.chat-context-usage-details .button-container {
-	margin-top: 4px;
+.chat-context-usage-details .actions-section .actions-header {
+	font-weight: 600;
+	color: var(--vscode-foreground);
+	margin-bottom: 8px;
 }
 
-.chat-context-usage-details .button-container .monaco-button {
+.chat-context-usage-details .actions-section .button-bar-container {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+
+.chat-context-usage-details .actions-section .button-bar-container .monaco-button-bar {
+	flex-direction: column;
+	gap: 6px;
+}
+
+.chat-context-usage-details .actions-section .button-bar-container .monaco-button {
 	width: 100%;
+	justify-content: center;
 }

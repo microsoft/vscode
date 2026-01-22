@@ -5,10 +5,11 @@
 
 import './media/chatContextUsageDetails.css';
 import * as dom from '../../../../../../base/browser/dom.js';
-import { Button } from '../../../../../../base/browser/ui/button/button.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../../nls.js';
-import { defaultButtonStyles } from '../../../../../../platform/theme/browser/defaultStyles.js';
+import { MenuId } from '../../../../../../platform/actions/common/actions.js';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { MenuWorkbenchButtonBar } from '../../../../../../platform/actions/browser/buttonbar.js';
 
 const $ = dom.$;
 
@@ -31,7 +32,9 @@ export class ChatContextUsageDetails extends Disposable {
 	private readonly progressFill: HTMLElement;
 	private readonly warningMessage: HTMLElement;
 
-	constructor() {
+	constructor(
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+	) {
 		super();
 
 		this.domNode = $('.chat-context-usage-details');
@@ -57,14 +60,9 @@ export class ChatContextUsageDetails extends Disposable {
 
 		this.domNode.appendChild($('.separator'));
 
-		// Action button (placeholder for future functionality)
-		const buttonContainer = this.domNode.appendChild($('.button-container'));
-		const button = this._register(new Button(buttonContainer, {
-			...defaultButtonStyles,
-			secondary: true
-		}));
-		button.label = localize('increaseContextWindow', "Increase context window");
-		button.element.title = localize('mayIncurCost', "May incur cost");
+		// Action buttons contributed via menu
+		const buttonBarContainer = this.domNode.appendChild($('.button-bar-container'));
+		this._register(this.instantiationService.createInstance(MenuWorkbenchButtonBar, buttonBarContainer, MenuId.ChatContextUsageActions, {}));
 	}
 
 	update(data: IChatContextUsageData): void {
