@@ -157,7 +157,13 @@ export class ChatContextUsageWidget extends Disposable {
 
 		const hover = this.hoverService.showInstantHover({
 			content: details.domNode,
-			target: this.domNode,
+			target: {
+				targetElements: [this.domNode],
+				dispose: () => {
+					this.domNode.classList.remove('expanded');
+					details.dispose();
+				}
+			},
 			persistence: { sticky: true, hideOnHover: false, hideOnKeyDown: false },
 			appearance: { showPointer: true }
 		}, true);
@@ -165,15 +171,8 @@ export class ChatContextUsageWidget extends Disposable {
 		// Focus the details widget
 		details.focus();
 
-		// Dispose details widget when hover is hidden and remove expanded class
-		if (hover) {
-			const originalDispose = hover.dispose.bind(hover);
-			hover.dispose = () => {
-				this.domNode.classList.remove('expanded');
-				details.dispose();
-				originalDispose();
-			};
-		} else {
+		// Handle case where hover couldn't be shown
+		if (!hover) {
 			this.domNode.classList.remove('expanded');
 			details.dispose();
 		}
@@ -195,18 +194,13 @@ export class ChatContextUsageWidget extends Disposable {
 		const response = lastRequest.response;
 		const modelId = lastRequest.modelId;
 
-		// Subscribe to response changes to update when the response completes
+		// Subscribe to response changes to update when the response completes.
 		this._lastRequestDisposable.value = autorun(reader => {
 			const isComplete = !response.isInProgress.read(reader);
 			if (isComplete) {
 				this.updateFromResponse(response, modelId);
 			}
 		});
-
-		// Also do an initial update if already complete
-		if (response.isComplete) {
-			this.updateFromResponse(response, modelId);
-		}
 	}
 
 	private updateFromResponse(response: IChatResponseModel, modelId: string): void {
