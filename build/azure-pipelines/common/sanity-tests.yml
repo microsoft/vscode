@@ -11,9 +11,9 @@ parameters:
   - name: container
     type: string
     default: ""
-  - name: containerPlatform
+  - name: arch
     type: string
-    default: ""
+    default: amd64
   - name: args
     type: string
     default: ""
@@ -26,8 +26,8 @@ jobs:
       os: ${{ parameters.os }}
     timeoutInMinutes: 30
     variables:
-      TEST_DIR: ./test/sanity
-      LOG_FILE: $(Build.SourcesDirectory)/.build/sanity-test-logs/results.xml
+      TEST_DIR: $(Build.SourcesDirectory)/test/sanity
+      LOG_FILE: $(Build.SourcesDirectory)/test/sanity/results.xml
     steps:
       - template: ./checkout.yml@self
 
@@ -97,204 +97,38 @@ jobs:
         displayName: Run Sanity Tests
         condition: eq('${{ parameters.container }}', '')
 
-      # Configure QEMU for ARM containers
+      # Configure QEMU for cross-architecture builds
       - bash: |
           docker run --privileged --rm tonistiigi/binfmt --uninstall '*'
           docker run --pull always --privileged --rm tonistiigi/binfmt --install all
         displayName: Setup QEMU for Multi-Architecture Support
-        condition: and(ne('${{ parameters.container }}', ''), contains('${{ parameters.containerPlatform }}', 'arm'), ne('${{ parameters.poolName }}', '1es-mariner-2.0-arm64'))
+        condition: and(ne('${{ parameters.container }}', ''), ne('${{ parameters.arch }}', 'amd64'))
 
-      # Ubuntu/Debian Linux
+      # Build test container image
       - bash: |
-          docker run --rm --platform ${{ parameters.containerPlatform }} \
-            -v "$(Build.SourcesDirectory):/workspace" \
-            -w /workspace \
-            ${{ parameters.container }} \
-            /bin/sh -c '
-              set -e
-              apt-get update
-              DEBIAN_FRONTEND=noninteractive
-              apt-get install -y \
-                ca-certificates \
-                curl \
-                dbus \
-                dbus-x11 \
-                libatomic1 \
-                libdrm2 \
-                libgbm1 \
-                libnss3 \
-                libxcomposite1 \
-                libxdamage1 \
-                libxkbcommon0 \
-                libxrandr2 \
-                libxss1 \
-                sudo \
-                x11-utils \
-                xdg-utils \
-                xvfb \
-                xz-utils
+          docker buildx build \
+            --platform "linux/${{ parameters.arch }}" \
+            --tag "${{ parameters.container }}" \
+            --file "containers/${{ parameters.container }}.dockerfile" \
+            ./containers
+        workingDirectory: $(TEST_DIR)
+        displayName: Build Test Container Image
+        condition: ne('${{ parameters.container }}', '')
 
-              apt-get install -y libcairo2 || true
-              apt-get install -y libpango-1.0-0 || true
-              apt-get install -y libgtk-4-1 || true
-
-              apt-get install -y libgtk-3-0t64 || apt-get install -y libgtk-3-0
-              apt-get install -y libatk-bridge2.0-0t64 || apt-get install -y libatk-bridge2.0-0
-              apt-get install -y libasound2t64 || apt-get install -y libasound2
-
-              if [ "$(arch)" = "armv7l" ] || [ "$(arch)" = "aarch64" ]; then
-                echo "Installing libatomic1 for ARM"
-                apt-get install -y libatomic1
-              fi
-
-              echo "Installing Node.js 22"
-              if [ "$(arch)" = "x86_64" ] || [ "$(arch)" = "aarch64" ]; then
-                curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
-                apt-get install -y nodejs
-              else
-                curl -fsSL https://nodejs.org/dist/v22.13.0/node-v22.13.0-linux-armv7l.tar.xz | tar -xJ -C /usr/local --strip-components=1
-              fi
-
-              echo "Starting Xvfb on display :99"
-              Xvfb :99 -screen 0 1280x960x24 -ac +extension GLX +render -noreset &
-              export DISPLAY=:99
-
-              echo "Starting D-Bus session"
-              mkdir -p /run/dbus && dbus-daemon --system --fork
-
-              echo "Running sanity tests"
-              node /workspace/test/sanity/out/index.js -c "$(BUILD_COMMIT)" -q "$(BUILD_QUALITY)" -t "/workspace/.build/sanity-test-logs/results.xml" -v
-          '
-        displayName: Run Sanity Tests
-        condition: or(contains('${{ parameters.container }}', 'ubuntu'), contains('${{ parameters.container }}', 'debian'))
-
-      # CentOS/Fedora/RedHat Linux
+      # Run sanity tests in container
       - bash: |
-          docker run --rm --platform ${{ parameters.containerPlatform }} \
-            -v "$(Build.SourcesDirectory):/workspace" \
-            -w /workspace \
+          docker run \
+            --rm \
+            --platform "linux/${{ parameters.arch }}" \
+            --volume "$(TEST_DIR):/root" \
             ${{ parameters.container }} \
-            /bin/sh -c '
-              set -e
-              dnf install -y \
-                alsa-lib \
-                at-spi2-atk \
-                atk \
-                dbus \
-                dbus-daemon \
-                gtk3 \
-                libdrm \
-                libXcomposite \
-                libXdamage \
-                libxkbcommon \
-                libXrandr \
-                libXScrnSaver \
-                mesa-libgbm \
-                nss
-
-              # Not available on RedHat
-              dnf install -y dbus-x11 || true
-              dnf install -y xdg-utils || true
-              dnf install -y xorg-x11-server-Xvfb || true
-
-              # Needed by CentOS
-              dnf install -y sudo || true
-
-              # xorg-x11-utils
-
-              echo "Installing Node.js 22"
-              curl -fsSL https://rpm.nodesource.com/setup_22.x | bash -
-              dnf install -y nodejs
-
-              echo "Starting Xvfb on display :99"
-              Xvfb :99 -screen 0 1280x960x24 -ac +extension GLX +render -noreset &
-              export DISPLAY=:99
-
-              echo "Starting D-Bus session"
-              mkdir -p /run/dbus && dbus-daemon --system --fork
-
-              echo "Running sanity tests"
-              node /workspace/test/sanity/out/index.js -c "$(BUILD_COMMIT)" -q "$(BUILD_QUALITY)" -t "/workspace/.build/sanity-test-logs/results.xml" -v
-          '
-        displayName: Run Sanity Tests
-        condition: or(contains('${{ parameters.container }}', 'centos'), contains('${{ parameters.container }}', 'fedora'), contains('${{ parameters.container }}', 'redhat'))
-
-      # OpenSUSE Linux
-      - bash: |
-          docker run --rm --platform ${{ parameters.containerPlatform }} \
-            -v "$(Build.SourcesDirectory):/workspace" \
-            -w /workspace \
-            ${{ parameters.container }} \
-            /bin/sh -c '
-              set -e
-              zypper install -y \
-                alsa \
-                chromium \
-                dbus-1 \
-                dbus-1-daemon \
-                dbus-1-x11 \
-                gzip \
-                libgbm1 \
-                libgtk-3-0 \
-                nodejs22 \
-                sudo \
-                tar \
-                xdg-utils \
-                xorg-x11 \
-                xorg-x11-server-Xvfb
-
-              # mozilla-nss \
-
-              echo "Starting Xvfb on display :99"
-              Xvfb :99 -screen 0 1280x960x24 -ac +extension GLX +render -noreset &
-              export DISPLAY=:99
-
-              echo "Starting D-Bus session"
-              mkdir -p /run/dbus && dbus-daemon --system --fork
-
-              echo "Running sanity tests"
-              node /workspace/test/sanity/out/index.js -c "$(BUILD_COMMIT)" -q "$(BUILD_QUALITY)" -t "/workspace/.build/sanity-test-logs/results.xml" -v
-            '
-        displayName: Run Sanity Tests
-        condition: contains('${{ parameters.container }}', 'opensuse')
-
-      # Alpine Linux
-      - bash: |
-          docker run --rm --platform ${{ parameters.containerPlatform }} \
-            -v "$(Build.SourcesDirectory):/workspace" \
-            -w /workspace \
-            ${{ parameters.container }} \
-            /bin/sh -c '
-              set -e
-              apk add --no-cache \
-                ca-certificates \
-                chromium \
-                dbus \
-                dbus-x11 \
-                freetype \
-                freetype-dev \
-                gtk+3.0 \
-                harfbuzz \
-                mesa-gbm \
-                nodejs \
-                nss \
-                sudo \
-                ttf-freefont \
-                xdpyinfo \
-                xvfb
-
-              echo "Starting Xvfb on display :99"
-              Xvfb :99 -screen 0 1280x960x24 -ac +extension GLX +render -noreset &
-              export DISPLAY=:99
-
-              echo "Starting D-Bus session"
-              mkdir -p /run/dbus && dbus-daemon --system --fork
-
-              echo "Running sanity tests"
-              node /workspace/test/sanity/out/index.js -c "$(BUILD_COMMIT)" -q "$(BUILD_QUALITY)" -t "/workspace/.build/sanity-test-logs/results.xml" -v
-            '
-        displayName: Run Sanity Tests
-        condition: contains('${{ parameters.container }}', 'alpine')
+            --quality "$(BUILD_QUALITY)" \
+            --commit "$(BUILD_COMMIT)" \
+            --test-results-path "/root/results.xml" \
+            --verbose
+        workingDirectory: $(TEST_DIR)
+        displayName: Run Sanity Tests in Container
+        condition: ne('${{ parameters.container }}', '')
 
       - task: PublishTestResults@2
         inputs:

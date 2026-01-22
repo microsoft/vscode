@@ -1,5 +1,8 @@
+.config
+.dotnet
 .DS_Store
-npm-debug.log
-Thumbs.db
+.pki
 node_modules/
+npm-debug.log
 out/
+Thumbs.db

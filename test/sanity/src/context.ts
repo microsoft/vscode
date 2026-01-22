@@ -30,7 +30,7 @@ type Capability =
 	| 'linux' | 'darwin' | 'windows' | 'alpine'
 	| 'x64' | 'arm64' | 'arm32'
 	| 'deb' | 'rpm' | 'snap'
-	| 'browser';
+	| 'desktop' | 'browser';
 
 /**
  * Provides context and utilities for VS Code sanity tests.
@@ -66,12 +66,17 @@ export class TestContext {
 				switch (os.platform()) {
 					case 'darwin':
 						this._capabilities.add('darwin');
+						this._capabilities.add('desktop');
 						break;
 					case 'linux':
 						this._capabilities.add('linux');
+						if (process.env['DISPLAY']) {
+							this._capabilities.add('desktop');
+						}
 						break;
 					case 'win32':
 						this._capabilities.add('windows');
+						this._capabilities.add('desktop');
 						break;
 				}
 			}
@@ -111,6 +116,9 @@ export class TestContext {
 				case 'darwin':
 					return fs.existsSync(webkit.executablePath()) ? 'webkit' : undefined;
 				case 'linux':
+					if (process.env['PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH']) {
+						return 'chromium';
+					}
 					return fs.existsSync(chromium.executablePath()) ? 'chromium' :
 						fs.existsSync(firefox.executablePath()) ? 'firefox' :
 							undefined;
@@ -488,7 +496,7 @@ export class TestContext {
 		const dir = this.createTempDir();
 
 		this.log(`Unpacking ${archivePath} to ${dir}`);
-		this.runNoErrors('tar', '-xzf', archivePath, '-C', dir);
+		this.runNoErrors('tar', '-xzf', archivePath, '-C', dir, '--no-same-permissions');
 		this.log(`Unpacked ${archivePath} to ${dir}`);
 
 		return dir;
@@ -621,7 +629,7 @@ export class TestContext {
 	 */
 	public installRpm(packagePath: string): string {
 		this.log(`Installing ${packagePath} using RPM package manager`);
-		this.runNoErrors('sudo', 'rpm', '-i', packagePath);
+		this.runNoErrors('rpm', '-i', packagePath);
 		this.log(`Installed ${packagePath} successfully`);
 
 		const binaryName = this.getLinuxBinaryName();
@@ -637,7 +645,7 @@ export class TestContext {
 	 */
 	public installDeb(packagePath: string): string {
 		this.log(`Installing ${packagePath} using DEB package manager`);
-		this.runNoErrors('sudo', 'dpkg', '-i', packagePath);
+		this.runNoErrors('dpkg', '-i', packagePath);
 		this.log(`Installed ${packagePath} successfully`);
 
 		const binaryName = this.getLinuxBinaryName();
@@ -653,7 +661,7 @@ export class TestContext {
 	 */
 	public installSnap(packagePath: string): string {
 		this.log(`Installing ${packagePath} using Snap package manager`);
-		this.runNoErrors('sudo', 'snap', 'install', packagePath, '--classic', '--dangerous');
+		this.runNoErrors('snap', 'install', packagePath, '--classic', '--dangerous');
 		this.log(`Installed ${packagePath} successfully`);
 
 		// Snap wrapper scripts are in /snap/bin, but actual Electron binary is in /snap/<package>/current/usr/share/
@@ -672,7 +680,7 @@ export class TestContext {
 		const entryPoint = path.join('/usr/bin', this.getLinuxBinaryName());
 
 		this.log(`Uninstalling RPM package ${packageName}`);
-		this.runNoErrors('sudo', 'rpm', '-e', packageName);
+		this.runNoErrors('rpm', '-e', packageName);
 		this.log(`Uninstalled RPM package ${packageName} successfully`);
 
 		await new Promise(resolve => setTimeout(resolve, 1000));
@@ -689,7 +697,7 @@ export class TestContext {
 		const entryPoint = path.join('/usr/bin', this.getLinuxBinaryName());
 
 		this.log(`Uninstalling DEB package ${packageName}`);
-		this.runNoErrors('sudo', 'dpkg', '-r', packageName);
+		this.runNoErrors('dpkg', '-r', packageName);
 		this.log(`Uninstalled DEB package ${packageName} successfully`);
 
 		await new Promise(resolve => setTimeout(resolve, 1000));
@@ -706,7 +714,7 @@ export class TestContext {
 		const entryPoint = path.join('/snap/bin', this.getLinuxBinaryName());
 
 		this.log(`Uninstalling Snap package ${packageName}`);
-		this.runNoErrors('sudo', 'snap', 'remove', packageName);
+		this.runNoErrors('snap', 'remove', packageName);
 		this.log(`Uninstalled Snap package ${packageName} successfully`);
 
 		await new Promise(resolve => setTimeout(resolve, 1000));
@@ -917,7 +925,9 @@ export class TestContext {
 			case 'win32':
 				return await chromium.launch({ channel: 'msedge', headless });
 			default:
-				if (fs.existsSync(chromium.executablePath())) {
+				if (process.env['PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH']) {
+					return await chromium.launch({ headless, executablePath: process.env['PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH'] });
+				} else if (fs.existsSync(chromium.executablePath())) {
 					return await chromium.launch({ headless });
 				} else {
 					return await firefox.launch({ headless });
