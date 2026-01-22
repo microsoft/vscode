@@ -65,7 +65,6 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 	private _contentInitialized = false;
 
 	get codeblocks(): IChatCodeBlockInfo[] {
-		// Codeblocks are only available after content is rendered
 		const outputCodeblocks = this._outputSubPart?.codeblocks ?? [];
 		return outputCodeblocks;
 	}
