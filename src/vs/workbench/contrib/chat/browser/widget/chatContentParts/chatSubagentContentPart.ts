@@ -55,6 +55,7 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 	private description: string;
 	private agentName: string | undefined;
 	private prompt: string | undefined;
+	private currentToolStatus: string | undefined;
 
 	// Lazy rendering support
 	private readonly lazyItems: ILazyToolItem[] = [];
@@ -250,6 +251,7 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		if (this._collapseButton) {
 			this._collapseButton.icon = Codicon.check;
 		}
+		this.currentToolStatus = undefined;
 		this.finalizeTitle();
 		// Collapse when done
 		this.setExpanded(false);
@@ -265,8 +267,12 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 	private updateTitle(): void {
 		if (this._collapseButton) {
 			const prefix = this.agentName || localize('chat.subagent.prefix', 'Subagent');
-			const finalLabel = `${prefix}: ${this.description}`;
-			this._collapseButton.label = finalLabel;
+			// Show current tool status when collapsed and streaming
+			if (!this.isExpanded() && this.currentToolStatus && this.isActive) {
+				this._collapseButton.label = `${prefix}: ${this.currentToolStatus}`;
+			} else {
+				this._collapseButton.label = `${prefix}: ${this.description}`;
+			}
 		}
 	}
 
@@ -388,6 +394,15 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 			this.wrapper.style.display = '';
 		}
 
+		// Update current tool status from invocation message
+		if (toolInvocation.invocationMessage && !this.isExpanded()) {
+			const message = typeof toolInvocation.invocationMessage === 'string'
+				? toolInvocation.invocationMessage
+				: toolInvocation.invocationMessage.value;
+			this.currentToolStatus = message;
+			this.updateTitle();
+		}
+
 		// Render immediately if:
 		// - The section is expanded
 		// - It has been expanded once before
@@ -453,6 +468,33 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 
 		// Schedule layout to measure last item and scroll
 		this.layoutScheduler.schedule();
+	}
+
+	/**
+	 * Removes a lazy item from the pending list (used when confirmation needs to be moved out).
+	 */
+	public removeLazyItem(toolInvocationId: string): boolean {
+		const index = this.lazyItems.findIndex(item => {
+			const invocation = item.toolInvocation;
+			const invocationToolId = invocation.kind === 'toolInvocation' || invocation.kind === 'toolInvocationSerialized'
+				? invocation.toolId
+				: undefined;
+			return invocationToolId === toolInvocationId;
+		});
+
+		if (index === -1) {
+			return false;
+		}
+
+		this.lazyItems.splice(index, 1);
+		return true;
+	}
+
+	/**
+	 * Expands the subagent section (e.g., when a confirmation appears).
+	 */
+	public expandForConfirmation(): void {
+		this.setExpanded(true);
 	}
 
 	/**
