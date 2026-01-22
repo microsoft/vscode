@@ -474,15 +474,17 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 	}
 
 	/**
-	 * Removes a lazy item from the pending list (used when confirmation needs to be moved out).
+	 * Removes a lazy item from the pending list by toolId.
+	 * Used when a confirmation needs to be rendered immediately rather than lazily.
+	 * Searches for lazy items matching the given toolId and removes the first match.
 	 */
-	public removeLazyItem(toolInvocationId: string): boolean {
+	public removeLazyItem(toolId: string): boolean {
 		const index = this.lazyItems.findIndex(item => {
 			const invocation = item.toolInvocation;
 			const invocationToolId = invocation.kind === 'toolInvocation' || invocation.kind === 'toolInvocationSerialized'
 				? invocation.toolId
 				: undefined;
-			return invocationToolId === toolInvocationId;
+			return invocationToolId === toolId;
 		});
 
 		if (index === -1) {
