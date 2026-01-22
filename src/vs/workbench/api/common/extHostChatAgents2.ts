@@ -310,44 +310,13 @@ export class ChatAgentResponseStream {
 					_report(dto);
 					return this;
 				},
-				questionCarousel(questions: vscode.ChatQuestion[], allowSkip = true): Record<string, unknown> {
+				questionCarousel(questions: vscode.ChatQuestion[], allowSkip = true): void {
 					throwIfDone(this.questionCarousel);
 					checkProposedApiEnabled(that._extension, 'chatParticipantAdditions');
 
-					const resolveId = generateUuid();
 					const part = new extHostTypes.ChatResponseQuestionCarouselPart(questions, allowSkip);
 					const dto = typeConvert.ChatResponseQuestionCarouselPart.from(part);
-					dto.resolveId = resolveId;
-
 					_report(dto);
-
-					// Return default values immediately - never block the chat input
-					// If the user provides actual answers, they can be captured via events
-					const defaults: Record<string, unknown> = {};
-					for (const q of questions) {
-						if (q.defaultValue !== undefined && q.options) {
-							if (q.type === extHostTypes.ChatQuestionType.MultiSelect) {
-								// For multi-select, defaultValue is array of option ids
-								const defaultIds = Array.isArray(q.defaultValue) ? q.defaultValue : [q.defaultValue];
-								const defaultValues = q.options
-									.filter(opt => defaultIds.includes(opt.id))
-									.map(opt => opt.value);
-								defaults[q.id] = defaultValues;
-							} else if (q.type === extHostTypes.ChatQuestionType.SingleSelect) {
-								// For single-select, defaultValue is an option id
-								const defaultId = typeof q.defaultValue === 'string' ? q.defaultValue : q.defaultValue[0];
-								const defaultOption = q.options.find(opt => opt.id === defaultId);
-								defaults[q.id] = defaultOption?.value;
-							} else {
-								// Text type - defaultValue is the actual value
-								defaults[q.id] = q.defaultValue;
-							}
-						} else if (q.defaultValue !== undefined) {
-							// No options, defaultValue is the actual value (for text type)
-							defaults[q.id] = q.defaultValue;
-						}
-					}
-					return defaults;
 				},
 				beginToolInvocation(toolCallId, toolName, streamData) {
 					throwIfDone(this.beginToolInvocation);

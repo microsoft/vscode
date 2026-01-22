@@ -3298,6 +3298,7 @@ export namespace ChatAgentRequest {
 			location: ChatLocation.to(request.location),
 			acceptedConfirmationData: request.acceptedConfirmationData,
 			rejectedConfirmationData: request.rejectedConfirmationData,
+			questionCarouselData: request.questionCarouselData,
 			location2,
 			toolInvocationToken: Object.freeze<IToolInvocationContext>({ sessionId, sessionResource: request.sessionResource }) as never,
 			tools,
@@ -3335,6 +3336,8 @@ export namespace ChatAgentRequest {
 		if (!isProposedApiEnabled(extension, 'chatParticipantAdditions')) {
 			delete requestWithAllProps.acceptedConfirmationData;
 			delete requestWithAllProps.rejectedConfirmationData;
+			// eslint-disable-next-line local/code-no-any-casts
+			delete (requestWithAllProps as any).questionCarouselData;
 			// eslint-disable-next-line local/code-no-any-casts
 			delete (requestWithAllProps as any).tools;
 		}

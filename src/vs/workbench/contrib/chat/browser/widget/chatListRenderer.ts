@@ -54,7 +54,7 @@ import { IChatAgentMetadata } from '../../common/participants/chatAgents.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatTextEditGroup } from '../../common/model/chatModel.js';
 import { chatSubcommandLeader } from '../../common/requestParser/chatParserTypes.js';
-import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatErrorLevel, IChatConfirmation, IChatContentReference, IChatElicitationRequest, IChatElicitationRequestSerialized, IChatExtensionsContent, IChatFollowup, IChatMarkdownContent, IChatMcpServersStarting, IChatMcpServersStartingSerialized, IChatMultiDiffData, IChatMultiDiffDataSerialized, IChatPullRequestContent, IChatQuestionCarousel, IChatService, IChatTask, IChatTaskSerialized, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, isChatFollowup } from '../../common/chatService/chatService.js';
+import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatErrorLevel, IChatConfirmation, IChatContentReference, IChatElicitationRequest, IChatElicitationRequestSerialized, IChatExtensionsContent, IChatFollowup, IChatMarkdownContent, IChatMcpServersStarting, IChatMcpServersStartingSerialized, IChatMultiDiffData, IChatMultiDiffDataSerialized, IChatPullRequestContent, IChatQuestionCarousel, IChatSendRequestOptions, IChatService, IChatTask, IChatTaskSerialized, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, isChatFollowup } from '../../common/chatService/chatService.js';
 import { localChatSessionType } from '../../common/chatSessionsService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { IChatRequestVariableEntry } from '../../common/attachments/chatVariableEntries.js';
@@ -1802,21 +1802,33 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	private renderQuestionCarousel(context: IChatContentPartRenderContext, carousel: IChatQuestionCarousel, templateData: IChatListItemTemplate): IChatContentPart {
 		const part = this.instantiationService.createInstance(ChatQuestionCarouselPart, carousel, context, {
-			onSubmit: (answers) => {
+			onSubmit: async (answers) => {
 				// Mark the carousel as used and store the answers
-				carousel.isUsed = true;
 				const answersRecord = answers ? Object.fromEntries(answers) : undefined;
 				if (answersRecord) {
 					carousel.data = answersRecord;
 				}
 
-				// Notify the extension about the carousel answers
-				if (isResponseVM(context.element) && carousel.resolveId) {
-					this.chatService.notifyQuestionCarouselAnswer(
-						context.element.requestId,
-						carousel.resolveId,
-						answersRecord
-					);
+				// Send a new request with the carousel answers
+				const element = context.element;
+				if (isResponseVM(element) && answersRecord) {
+					const prompt = 'Answered questions';
+					const options: IChatSendRequestOptions = { questionCarouselData: [answersRecord] };
+					options.agentId = element.agent?.id;
+					options.slashCommand = element.slashCommand?.name;
+					const widget = this.chatWidgetService.getWidgetBySessionResource(element.sessionResource);
+					options.userSelectedModelId = widget?.input.currentLanguageModel;
+					options.modeInfo = widget?.input.currentModeInfo;
+					options.location = widget?.location;
+					if (widget) {
+						Object.assign(options, widget.getModeRequestOptions());
+					}
+
+					if (await this.chatService.sendRequest(element.sessionResource, prompt, options)) {
+						carousel.isUsed = true;
+					}
+				} else {
+					carousel.isUsed = true;
 				}
 			}
 		});

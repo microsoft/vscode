@@ -1178,6 +1178,7 @@ export interface IChatSendRequestOptions {
 	acceptedConfirmationData?: any[];
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	rejectedConfirmationData?: any[];
+	questionCarouselData?: Record<string, unknown>[];
 	attachedContext?: IChatRequestVariableEntry[];
 
 	/** The target agent ID can be specified with this property instead of using @ in 'message' */
@@ -1258,19 +1259,6 @@ export interface IChatService {
 
 	readonly onDidPerformUserAction: Event<IChatUserActionEvent>;
 	notifyUserAction(event: IChatUserActionEvent): void;
-
-	/**
-	 * Event fired when a question carousel receives answers.
-	 */
-	readonly onDidReceiveQuestionCarouselAnswer: Event<{ requestId: string; resolveId: string; answers: Record<string, unknown> | undefined }>;
-
-	/**
-	 * Notifies that a question carousel has received answers from the user.
-	 * @param requestId The chat request ID
-	 * @param resolveId The carousel's unique resolve identifier
-	 * @param answers The user's answers, or undefined if skipped/dismissed
-	 */
-	notifyQuestionCarouselAnswer(requestId: string, resolveId: string, answers: Record<string, unknown> | undefined): void;
 
 	readonly onDidDisposeSession: Event<{ readonly sessionResource: URI[]; readonly reason: 'cleared' }>;
 
