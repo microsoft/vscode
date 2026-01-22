@@ -62,7 +62,7 @@ import { ChatRequestVariableSet, IChatRequestVariableEntry, isPromptFileVariable
 import { ChatViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
 import { CodeBlockModelCollection } from '../../common/widget/codeBlockModelCollection.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
-import { ILanguageModelToolsService, ToolSet } from '../../common/tools/languageModelToolsService.js';
+import { ILanguageModelToolsService, isToolSet } from '../../common/tools/languageModelToolsService.js';
 import { ComputeAutomaticInstructions } from '../../common/promptSyntax/computeAutomaticInstructions.js';
 import { PromptsConfig } from '../../common/promptSyntax/config/config.js';
 import { IHandOff, PromptHeader, Target } from '../../common/promptSyntax/promptFileParser.js';
@@ -1559,7 +1559,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		if (!isInput) {
 			this.inputPart.setChatMode(this.input.currentModeObs.get().id);
-			const currentModel = this.input.selectedLanguageModel;
+			const currentModel = this.input.selectedLanguageModel.get();
 			if (currentModel) {
 				this.inputPart.switchModel(currentModel.metadata);
 			}
@@ -1636,7 +1636,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			dndContainer: this.viewOptions.dndContainer,
 			widgetViewKindTag: this.getWidgetViewKindTag(),
 			defaultMode: this.viewOptions.defaultMode,
-			sessionTypePickerDelegate: this.viewOptions.sessionTypePickerDelegate
+			sessionTypePickerDelegate: this.viewOptions.sessionTypePickerDelegate,
+			workspacePickerDelegate: this.viewOptions.workspacePickerDelegate
 		};
 
 		if (this.viewModel?.editing) {
@@ -1739,7 +1740,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			const toolIds = new Set<string>();
 			for (const [entry, enabled] of this.input.selectedToolsModel.entriesMap.read(r)) {
 				if (enabled) {
-					if (entry instanceof ToolSet) {
+					if (isToolSet(entry)) {
 						toolSetIds.add(entry.id);
 					} else {
 						toolIds.add(entry.id);
@@ -2045,6 +2046,15 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		if (!this.viewModel) {
 			return;
+		}
+
+		// Check if a custom submit handler wants to handle this submission
+		if (this.viewOptions.submitHandler) {
+			const inputValue = !query ? this.getInput() : query.query;
+			const handled = await this.viewOptions.submitHandler(inputValue, this.input.currentModeKind);
+			if (handled) {
+				return;
+			}
 		}
 
 		this._onDidAcceptInput.fire();
@@ -2366,7 +2376,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		// if not tools to enable are present, we are done
 		if (tools !== undefined && this.input.currentModeKind === ChatModeKind.Agent) {
-			const enablementMap = this.toolsService.toToolAndToolSetEnablementMap(tools, Target.VSCode);
+			const enablementMap = this.toolsService.toToolAndToolSetEnablementMap(tools, Target.VSCode, this.input.selectedLanguageModel.get()?.metadata);
 			this.input.selectedToolsModel.set(enablementMap, true);
 		}
 

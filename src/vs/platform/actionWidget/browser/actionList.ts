@@ -3,13 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as dom from '../../../base/browser/dom.js';
+import { ActionBar } from '../../../base/browser/ui/actionbar/actionbar.js';
 import { KeybindingLabel } from '../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
 import { IListEvent, IListMouseEvent, IListRenderer, IListVirtualDelegate } from '../../../base/browser/ui/list/list.js';
 import { IListAccessibilityProvider, List } from '../../../base/browser/ui/list/listWidget.js';
+import { IAction } from '../../../base/common/actions.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { ResolvedKeybinding } from '../../../base/common/keybindings.js';
-import { Disposable, MutableDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { OS } from '../../../base/common/platform.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import './actionWidget.css';
@@ -59,6 +61,10 @@ export interface IActionListItem<T> {
 	canPreview?: boolean | undefined;
 	readonly hideIcon?: boolean;
 	readonly tooltip?: string;
+	/**
+	 * Optional toolbar actions shown when the item is focused or hovered.
+	 */
+	readonly toolbarActions?: IAction[];
 }
 
 interface IActionMenuTemplateData {
@@ -67,6 +73,8 @@ interface IActionMenuTemplateData {
 	readonly text: HTMLElement;
 	readonly description?: HTMLElement;
 	readonly keybinding: KeybindingLabel;
+	readonly toolbar: HTMLElement;
+	readonly elementDisposables: DisposableStore;
 }
 
 export const enum ActionListItemKind {
@@ -155,10 +163,19 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 
 		const keybinding = new KeybindingLabel(container, OS);
 
-		return { container, icon, text, description, keybinding };
+		const toolbar = document.createElement('div');
+		toolbar.className = 'action-list-item-toolbar';
+		container.append(toolbar);
+
+		const elementDisposables = new DisposableStore();
+
+		return { container, icon, text, description, keybinding, toolbar, elementDisposables };
 	}
 
 	renderElement(element: IActionListItem<T>, _index: number, data: IActionMenuTemplateData): void {
+		// Clear previous element disposables
+		data.elementDisposables.clear();
+
 		if (element.group?.icon) {
 			data.icon.className = ThemeIcon.asClassName(element.group.icon);
 			if (element.group.icon.color) {
@@ -209,10 +226,20 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 		} else {
 			data.container.title = '';
 		}
+
+		// Clear and render toolbar actions
+		dom.clearNode(data.toolbar);
+		data.container.classList.toggle('has-toolbar', !!element.toolbarActions?.length);
+		if (element.toolbarActions?.length) {
+			const actionBar = new ActionBar(data.toolbar);
+			data.elementDisposables.add(actionBar);
+			actionBar.push(element.toolbarActions, { icon: true, label: false });
+		}
 	}
 
 	disposeTemplate(templateData: IActionMenuTemplateData): void {
 		templateData.keybinding.dispose();
+		templateData.elementDisposables.dispose();
 	}
 }
 
@@ -467,6 +494,14 @@ export class ActionList<T> extends Disposable {
 		const element = e.element;
 
 		if (element && element.item && this.focusCondition(element)) {
+			// Check if the hover target is inside a toolbar - if so, skip the splice
+			// to avoid re-rendering which would destroy the toolbar mid-hover
+			const isHoveringToolbar = dom.isHTMLElement(e.browserEvent.target) && e.browserEvent.target.closest('.action-list-item-toolbar') !== null;
+			if (isHoveringToolbar) {
+				this._list.setFocus([]);
+				return;
+			}
+
 			if (this._delegate.onHover && !element.disabled && element.kind === ActionListItemKind.Action) {
 				const result = await this._delegate.onHover(element.item, this.cts.token);
 				element.canPreview = result ? result.canPreview : undefined;

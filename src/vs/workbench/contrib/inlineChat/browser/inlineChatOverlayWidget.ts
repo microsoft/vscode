@@ -7,7 +7,6 @@ import './media/inlineChatSessionOverlay.css';
 import * as dom from '../../../../base/browser/dom.js';
 import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
-import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IAction, Separator } from '../../../../base/common/actions.js';
 import { ActionBar, ActionsOrientation } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { Codicon } from '../../../../base/common/codicons.js';
@@ -86,7 +85,7 @@ export class InlineChatInputWidget extends Disposable {
 
 		// Create editor options
 		const options = getSimpleEditorOptions(configurationService);
-		options.wordWrap = 'off';
+		options.wordWrap = 'on';
 		options.lineNumbers = 'off';
 		options.glyphMargin = false;
 		options.lineDecorationsWidth = 0;
@@ -95,7 +94,6 @@ export class InlineChatInputWidget extends Disposable {
 		options.minimap = { enabled: false };
 		options.scrollbar = { vertical: 'auto', horizontal: 'hidden', alwaysConsumeMouseWheel: true, verticalSliderSize: 6 };
 		options.renderLineHighlight = 'none';
-		options.placeholder = this._keybindingService.appendKeybinding(localize('placeholderWithSelection', "Edit selection"), ACTION_START);
 
 		const codeEditorWidgetOptions: ICodeEditorWidgetOptions = {
 			isSimpleWidget: true,
@@ -109,6 +107,18 @@ export class InlineChatInputWidget extends Disposable {
 		const model = this._store.add(modelService.createModel('', null, URI.parse(`gutter-input:${Date.now()}`), true));
 		this._input.setModel(model);
 		this._input.layout({ width: 200, height: 18 });
+
+		// Update placeholder based on selection state
+		this._store.add(autorun(r => {
+			const selection = this._editorObs.cursorSelection.read(r);
+			const hasSelection = selection && !selection.isEmpty();
+			const placeholderText = hasSelection
+				? localize('placeholderWithSelection', "Edit selection")
+				: localize('placeholderNoSelection', "Generate code");
+			this._input.updateOptions({
+				placeholder: this._keybindingService.appendKeybinding(placeholderText, ACTION_START)
+			});
+		}));
 
 		// Listen to content size changes and resize the input editor (max 3 lines)
 		this._store.add(this._input.onDidContentSizeChange(e => {
@@ -240,6 +250,9 @@ export class InlineChatInputWidget extends Disposable {
 		if (this._anchorAbove) {
 			const widgetHeight = this._domNode.offsetHeight;
 			adjustedTop = top - widgetHeight;
+		} else {
+			const lineHeight = editor.getOption(EditorOption.lineHeight);
+			adjustedTop = top + lineHeight;
 		}
 
 		this._position.set({
@@ -293,12 +306,12 @@ export class InlineChatSessionOverlayWidget extends Disposable {
 
 	private readonly _domNode: HTMLElement = document.createElement('div');
 	private readonly _container: HTMLElement;
-	private readonly _progressNode: HTMLElement;
-	private readonly _progressMessage: HTMLElement;
+	private readonly _statusNode: HTMLElement;
+	private readonly _icon: HTMLElement;
+	private readonly _message: HTMLElement;
 	private readonly _toolbarNode: HTMLElement;
 
 	private readonly _showStore = this._store.add(new DisposableStore());
-	private readonly _session = observableValue<IInlineChatSession2 | undefined>(this, undefined);
 	private readonly _position = observableValue<IContentWidgetPosition | null>(this, null);
 
 	constructor(
@@ -312,20 +325,27 @@ export class InlineChatSessionOverlayWidget extends Disposable {
 		this._domNode.appendChild(this._container);
 		this._container.classList.add('inline-chat-session-overlay-widget');
 
-		// Create progress node
-		this._progressNode = document.createElement('div');
-		this._progressNode.classList.add('progress');
-		dom.append(this._progressNode, renderIcon(ThemeIcon.modify(Codicon.loading, 'spin')));
-		this._progressMessage = dom.append(this._progressNode, dom.$('span.progress-message'));
-		this._container.appendChild(this._progressNode);
+		// Create status node with icon and message
+		this._statusNode = document.createElement('div');
+		this._statusNode.classList.add('status');
+		this._icon = dom.append(this._statusNode, dom.$('span'));
+		this._message = dom.append(this._statusNode, dom.$('span.message'));
+		this._container.appendChild(this._statusNode);
 
 		// Create toolbar node
 		this._toolbarNode = document.createElement('div');
 		this._toolbarNode.classList.add('toolbar');
+	}
 
-		// Set up progress message observable
+	show(session: IInlineChatSession2): void {
+		assertType(this._editorObs.editor.hasModel());
+		this._showStore.clear();
+
+		// Derived entry observable for this session
+		const entry = derived(r => session.editingSession.readEntry(session.uri, r));
+
+		// Set up status message observable
 		const requestMessage = derived(r => {
-			const session = this._session.read(r);
 			const chatModel = session?.chatModel;
 			if (!session || !chatModel) {
 				return undefined;
@@ -334,6 +354,17 @@ export class InlineChatSessionOverlayWidget extends Disposable {
 			const response = chatModel.lastRequestObs.read(r)?.response;
 			if (!response) {
 				return { message: localize('working', "Working...") };
+			}
+
+			if (response.isComplete) {
+				const changes = entry.read(r)?.changesCount.read(r) ?? 0;
+				return {
+					message: changes === 0
+						? localize('done', "Done")
+						: changes === 1
+							? localize('done1', "Done, 1 change")
+							: localize('doneN', "Done, {0} changes", changes)
+				};
 			}
 
 			const lastPart = observableFromEventOpts({ equalsFn: () => false }, response.onDidChange, () => response.response.value)
@@ -350,30 +381,24 @@ export class InlineChatSessionOverlayWidget extends Disposable {
 			}
 		});
 
-		this._store.add(autorun(r => {
+		this._showStore.add(autorun(r => {
 			const value = requestMessage.read(r);
 			if (value) {
-				this._progressMessage.innerText = renderAsPlaintext(value.message);
+				this._message.innerText = renderAsPlaintext(value.message);
 			} else {
-				this._progressMessage.innerText = '';
+				this._message.innerText = '';
 			}
 		}));
-	}
 
-	show(session: IInlineChatSession2): void {
-		assertType(this._editorObs.editor.hasModel());
-		this._showStore.clear();
-
-		this._session.set(session, undefined);
-
-		// Derived entry observable for this session
-		const entry = derived(r => session.editingSession.readEntry(session.uri, r));
-
-		// Keep busy class in sync with whether edits are being streamed
+		// Keep active class in sync with whether edits are being streamed or done
 		this._showStore.add(autorun(r => {
 			const e = entry.read(r);
 			const isBusy = !e || !!e.isCurrentlyBeingModifiedBy.read(r);
-			this._container.classList.toggle('busy', isBusy);
+			const isDone = e?.lastModifyingResponse.read(r)?.isComplete;
+			this._container.classList.toggle('active', isBusy || isDone);
+
+			this._icon.className = '';
+			this._icon.classList.add(...ThemeIcon.asClassNameArray(isDone ? Codicon.check : ThemeIcon.modify(Codicon.loading, 'spin')));
 		}));
 
 		// Add toolbar
@@ -407,18 +432,24 @@ export class InlineChatSessionOverlayWidget extends Disposable {
 		const above = selection.getDirection() === SelectionDirection.RTL;
 
 		this._showStore.add(autorun(r => {
-			let newPosition = selection.getPosition();
 			const e = entry.read(r);
 			const diffInfo = e?.diffInfo?.read(r);
-			const position = that._position.read(undefined)?.position;
-			if (diffInfo && position) {
+
+			// Build combined range from selection and all diff changes
+			let startLine = selection.startLineNumber;
+			let endLineExclusive = selection.endLineNumber + 1;
+
+			if (diffInfo) {
 				for (const change of diffInfo.changes) {
-					if (change.modified.contains(position.lineNumber)) {
-						newPosition = new Position(change.modified.startLineNumber - 1, 1);
-						break;
-					}
+					startLine = Math.min(startLine, change.modified.startLineNumber);
+					endLineExclusive = Math.max(endLineExclusive, change.modified.endLineNumberExclusive);
 				}
 			}
+
+			// Position at start (above) or end (below) of the combined range
+			const newPosition = above
+				? new Position(startLine, 1)
+				: new Position(endLineExclusive - 1, 1);
 
 			this._position.set({
 				position: newPosition,
@@ -436,7 +467,6 @@ export class InlineChatSessionOverlayWidget extends Disposable {
 
 	hide(): void {
 		this._position.set(null, undefined);
-		this._session.set(undefined, undefined);
 		this._showStore.clear();
 	}
 }

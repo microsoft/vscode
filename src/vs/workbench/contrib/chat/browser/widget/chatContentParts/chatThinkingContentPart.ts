@@ -104,7 +104,6 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	public readonly codeblocksPartId: undefined;
 
 	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
-	public readonly onDidChangeHeight = this._onDidChangeHeight.event;
 
 	private id: string | undefined;
 	private content: IChatThinkingPart;
@@ -232,6 +231,10 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		}
 	}
 
+	protected override shouldInitEarly(): boolean {
+		return this.fixedScrollingMode;
+	}
+
 	// @TODO: @justschen Convert to template for each setting?
 	protected override initContent(): HTMLElement {
 		this.wrapper = $('.chat-used-context-list.chat-thinking-collapsible');
@@ -344,7 +347,9 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 				this.markdownResult.dispose();
 				this.markdownResult = undefined;
 			}
-			clearNode(this.textContainer);
+			if (this.textContainer) {
+				clearNode(this.textContainer);
+			}
 			return;
 		}
 
@@ -371,9 +376,11 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		}, target));
 		this.markdownResult = rendered;
 		if (!target) {
-			clearNode(this.textContainer);
-			this.textContainer.appendChild(createThinkingIcon(Codicon.comment));
-			this.textContainer.appendChild(rendered.element);
+			if (this.textContainer) {
+				clearNode(this.textContainer);
+				this.textContainer.appendChild(createThinkingIcon(Codicon.circleFilled));
+				this.textContainer.appendChild(rendered.element);
+			}
 		}
 	}
 
@@ -467,7 +474,10 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	}
 
 	public finalizeTitleIfDefault(): void {
-		this.wrapper.classList.remove('chat-thinking-streaming');
+		// With lazy rendering, wrapper may not be created yet if content hasn't been expanded
+		if (this.wrapper) {
+			this.wrapper.classList.remove('chat-thinking-streaming');
+		}
 		this.streamingCompleted = true;
 
 		if (this._collapseButton) {
@@ -664,7 +674,10 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			: localize('chat.thinking.finished', 'Finished Working');
 
 		this.currentTitle = finalLabel;
-		this.wrapper.classList.remove('chat-thinking-streaming');
+		// With lazy rendering, wrapper may not be created yet if content hasn't been expanded
+		if (this.wrapper) {
+			this.wrapper.classList.remove('chat-thinking-streaming');
+		}
 		this.streamingCompleted = true;
 
 		if (this._collapseButton) {
@@ -709,6 +722,31 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		}
 
 		this.updateDropdownClickability();
+	}
+
+	/**
+	 * removes/re-establishes a lazy item from the thinking container
+	 * this is needed so we can check if there are confirmations still needed
+	 */
+	public removeLazyItem(toolInvocationId: string): boolean {
+		const index = this.lazyItems.findIndex(item => item.toolInvocationId === toolInvocationId);
+		if (index === -1) {
+			return false;
+		}
+
+		this.lazyItems.splice(index, 1);
+		this.appendedItemCount--;
+		this.toolInvocationCount--;
+
+		const toolInvocationsIndex = this.toolInvocations.findIndex(t =>
+			(t.kind === 'toolInvocation' || t.kind === 'toolInvocationSerialized') && t.toolId === toolInvocationId
+		);
+		if (toolInvocationsIndex !== -1) {
+			this.toolInvocations.splice(toolInvocationsIndex, 1);
+		}
+
+		this.updateDropdownClickability();
+		return true;
 	}
 
 	private trackToolMetadata(
@@ -790,6 +828,11 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		itemWrapper.appendChild(iconElement);
 		itemWrapper.appendChild(content);
 
+		// With lazy rendering, wrapper may not be created yet if content hasn't been expanded
+		if (!this.wrapper) {
+			return;
+		}
+
 		this.wrapper.appendChild(itemWrapper);
 
 		if (this.fixedScrollingMode && this.scrollableElement) {
@@ -818,7 +861,10 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		}
 		this.textContainer = $('.chat-thinking-item.markdown-content');
 		if (content.value) {
-			this.wrapper.appendChild(this.textContainer);
+			// With lazy rendering, wrapper may not be created yet if content hasn't been expanded
+			if (this.wrapper) {
+				this.wrapper.appendChild(this.textContainer);
+			}
 			this.id = content.id;
 			this.updateThinking(content);
 		}
