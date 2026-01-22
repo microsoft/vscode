@@ -943,11 +943,17 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			}
 			resultText.push(terminalResult);
 
+			const isError = exitCode !== undefined && exitCode !== 0;
 			return {
 				toolResultMessage,
 				toolMetadata: {
 					exitCode: exitCode
 				},
+				toolResultDetails: isError ? {
+					input: command,
+					output: [{ type: 'embed', isText: true, value: terminalResult }],
+					isError: true
+				} : undefined,
 				content: [{
 					kind: 'text',
 					value: resultText.join(''),
