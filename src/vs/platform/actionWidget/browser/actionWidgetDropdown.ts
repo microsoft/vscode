@@ -18,6 +18,10 @@ export interface IActionWidgetDropdownAction extends IAction {
 	icon?: ThemeIcon;
 	description?: string;
 	/**
+	 * Optional aria label for accessibility. If provided, will be used instead of combining label and description.
+	 */
+	ariaLabel?: string;
+	/**
 	 * Optional flyout hover configuration shown when focusing/hovering over the action.
 	 */
 	hover?: IActionListItemHover;
@@ -107,6 +111,7 @@ export class ActionWidgetDropdown extends BaseDropdown {
 					item: action,
 					tooltip: action.tooltip,
 					description: action.description,
+					ariaLabel: action.ariaLabel,
 					hover: action.hover,
 					kind: ActionListItemKind.Action,
 					canPreview: false,

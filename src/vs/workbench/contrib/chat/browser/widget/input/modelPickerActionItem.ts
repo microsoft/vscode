@@ -66,6 +66,10 @@ function modelDelegateToWidgetActionsProvider(delegate: IModelPickerDelegate, te
 			}
 			return models.map(model => {
 				const hoverContent = model.metadata.tooltip;
+				const multiplierText = model.metadata.multiplier;
+				const ariaLabel = multiplierText
+					? localize('chat.modelPicker.ariaLabelWithMultiplier', "{0}, every chat message counts {1} towards your premium model request quota", model.metadata.name, multiplierText)
+					: model.metadata.name;
 				return {
 					id: model.metadata.id,
 					enabled: true,
@@ -74,6 +78,7 @@ function modelDelegateToWidgetActionsProvider(delegate: IModelPickerDelegate, te
 					category: model.metadata.modelPickerCategory || DEFAULT_MODEL_PICKER_CATEGORY,
 					class: undefined,
 					description: model.metadata.multiplier ?? model.metadata.detail,
+					ariaLabel,
 					tooltip: hoverContent ? '' : model.metadata.name,
 					hover: hoverContent ? { content: hoverContent } : undefined,
 					label: model.metadata.name,

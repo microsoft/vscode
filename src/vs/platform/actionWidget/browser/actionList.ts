@@ -52,6 +52,10 @@ export interface IActionListItem<T> {
 	readonly label?: string;
 	readonly description?: string;
 	/**
+	 * Optional aria label for accessibility. If provided, will be used instead of combining label and description.
+	 */
+	readonly ariaLabel?: string;
+	/**
 	 * Optional hover configuration shown when focusing/hovering over the item.
 	 */
 	readonly hover?: IActionListItemHover;
@@ -288,8 +292,10 @@ export class ActionList<T> extends Disposable {
 			accessibilityProvider: {
 				getAriaLabel: element => {
 					if (element.kind === ActionListItemKind.Action) {
-						let label = element.label ? stripNewlines(element?.label) : '';
-						if (element.description) {
+						let label = element.ariaLabel
+							? stripNewlines(element.ariaLabel)
+							: element.label ? stripNewlines(element.label) : '';
+						if (!element.ariaLabel && element.description) {
 							label = label + ', ' + stripNewlines(element.description);
 						}
 						if (element.disabled) {
