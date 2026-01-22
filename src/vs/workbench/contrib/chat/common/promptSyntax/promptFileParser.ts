@@ -305,7 +305,7 @@ export class PromptHeader {
 		if (attribute.value.type === 'array') {
 			const result: string[] = [];
 			for (const item of attribute.value.items) {
-				if (item.type === 'string' && item.value) {
+				if (item.type === 'string') {
 					result.push(item.value);
 				}
 			}
