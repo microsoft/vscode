@@ -433,7 +433,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				preparedInvocation = await this.prepareToolInvocation(tool, dto, token);
 				prepareTimeWatch.stop();
 
-				const autoConfirmed = await this.shouldAutoConfirm(tool.data.id, tool.data.runsInWorkspace, tool.data.source, dto.parameters);
+				const autoConfirmed = await this.shouldAutoConfirm(tool.data.id, tool.data.runsInWorkspace, tool.data.source, dto.parameters, dto.context?.sessionResource);
 
 
 				// Important: a tool invocation that will be autoconfirmed should never
@@ -480,7 +480,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				prepareTimeWatch = StopWatch.create(true);
 				preparedInvocation = await this.prepareToolInvocation(tool, dto, token);
 				prepareTimeWatch.stop();
-				if (preparedInvocation?.confirmationMessages?.title && !(await this.shouldAutoConfirm(tool.data.id, tool.data.runsInWorkspace, tool.data.source, dto.parameters))) {
+				if (preparedInvocation?.confirmationMessages?.title && !(await this.shouldAutoConfirm(tool.data.id, tool.data.runsInWorkspace, tool.data.source, dto.parameters, undefined))) {
 					const result = await this._dialogService.confirm({ message: renderAsPlaintext(preparedInvocation.confirmationMessages.title), detail: renderAsPlaintext(preparedInvocation.confirmationMessages.message!) });
 					if (!result.confirmed) {
 						throw new CancellationError();
@@ -503,7 +503,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			this.ensureToolDetails(dto, toolResult, tool.data);
 
 			if (toolInvocation?.didExecuteTool(toolResult).type === IChatToolInvocation.StateKind.WaitingForPostApproval) {
-				const autoConfirmedPost = await this.shouldAutoConfirmPostExecution(tool.data.id, tool.data.runsInWorkspace, tool.data.source, dto.parameters);
+				const autoConfirmedPost = await this.shouldAutoConfirmPostExecution(tool.data.id, tool.data.runsInWorkspace, tool.data.source, dto.parameters, dto.context?.sessionResource);
 				if (autoConfirmedPost) {
 					IChatToolInvocation.confirmWith(toolInvocation, autoConfirmedPost);
 				}
@@ -792,7 +792,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		return true;
 	}
 
-	private async shouldAutoConfirm(toolId: string, runsInWorkspace: boolean | undefined, source: ToolDataSource, parameters: unknown): Promise<ConfirmedReason | undefined> {
+	private async shouldAutoConfirm(toolId: string, runsInWorkspace: boolean | undefined, source: ToolDataSource, parameters: unknown, chatSessionResource: URI | undefined): Promise<ConfirmedReason | undefined> {
 		const tool = this._tools.get(toolId);
 		if (!tool) {
 			return undefined;
@@ -802,7 +802,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			return undefined;
 		}
 
-		const reason = this._confirmationService.getPreConfirmAction({ toolId, source, parameters });
+		const reason = this._confirmationService.getPreConfirmAction({ toolId, source, parameters, chatSessionResource });
 		if (reason) {
 			return reason;
 		}
@@ -829,12 +829,12 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		return undefined;
 	}
 
-	private async shouldAutoConfirmPostExecution(toolId: string, runsInWorkspace: boolean | undefined, source: ToolDataSource, parameters: unknown): Promise<ConfirmedReason | undefined> {
+	private async shouldAutoConfirmPostExecution(toolId: string, runsInWorkspace: boolean | undefined, source: ToolDataSource, parameters: unknown, chatSessionResource: URI | undefined): Promise<ConfirmedReason | undefined> {
 		if (this._configurationService.getValue<boolean>(ChatConfiguration.GlobalAutoApprove) && await this._checkGlobalAutoApprove()) {
 			return { type: ToolConfirmKind.Setting, id: ChatConfiguration.GlobalAutoApprove };
 		}
 
-		return this._confirmationService.getPostConfirmAction({ toolId, source, parameters });
+		return this._confirmationService.getPostConfirmAction({ toolId, source, parameters, chatSessionResource });
 	}
 
 	private async _checkGlobalAutoApprove(): Promise<boolean> {
