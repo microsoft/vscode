@@ -808,7 +808,7 @@ configurationRegistry.registerConfiguration({
 		[PromptsConfig.INCLUDE_REFERENCED_INSTRUCTIONS]: {
 			type: 'boolean',
 			title: nls.localize('chat.includeReferencedInstructions.title', "Include Referenced Instructions",),
-			markdownDescription: nls.localize('chat.includeReferencedInstructions.description', "Controls whether referenced instructions are included in chat requests.",),
+			markdownDescription: nls.localize('chat.includeReferencedInstructions.description', "Controls whether referenced instructions are automatically included in chat requests.",),
 			default: false,
 			restricted: true,
 			disallowConfigurationDefault: true,
