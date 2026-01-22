@@ -18,9 +18,12 @@ RUN apt-get install -y xvfb
 ENV DISPLAY=:99
 
 # VS Code dependencies
-RUN apt-get install -y libasound2t64 || apt-get install -y libasound2
-RUN apt-get install -y libgtk-3-0t64 || apt-get install -y libgtk-3-0
+RUN apt-get install -y libasound2t64 || true
+RUN apt-get install -y libasound2 || true
+RUN apt-get install -y libgtk-3-0t64 || true
+RUN apt-get install -y libgtk-3-0 || true
 RUN apt-get install -y \
+	libcurl4 \
 	libgbm1 \
 	libnss3 \
 	libxkbcommon0 \

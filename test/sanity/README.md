@@ -23,7 +23,7 @@ Use -g or -f command-line options to filter tests to match the host platform.
 |`--no-cleanup`||Do not cleanup downloaded files after each test|
 |`--no-signing-check`||Skip Authenticode and codesign signature checks|
 |`--no-headless`||Run tests with a visible UI (desktop tests only)|
-|`--no-runtime-check`||Enable all tests regardless of platform and skip executable runs|
+|`--no-detection`||Enable all tests regardless of platform and skip executable runs|
 |`--grep <pattern>`|`-g`|Only run tests matching the given <pattern>|
 |`--fgrep <string>`|`-f`|Only run tests containing the given <string>|
 |`--test-results <path>`|`-t`|Output test results in JUnit format to the specified path|

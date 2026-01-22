@@ -13,9 +13,9 @@ import { setup as setupServerWebTests } from './serverWeb.test.js';
 
 const options = minimist(process.argv.slice(2), {
 	string: ['commit', 'quality'],
-	boolean: ['cleanup', 'verbose', 'signing-check', 'headless', 'runtime-check'],
+	boolean: ['cleanup', 'verbose', 'signing-check', 'headless', 'detection'],
 	alias: { commit: 'c', quality: 'q', verbose: 'v' },
-	default: { cleanup: true, verbose: false, 'signing-check': true, headless: true, 'runtime-check': true },
+	default: { cleanup: true, verbose: false, 'signing-check': true, headless: true, 'detection': true },
 });
 
 if (!options.commit) {
@@ -33,7 +33,7 @@ const context = new TestContext({
 	cleanup: options.cleanup,
 	checkSigning: options['signing-check'],
 	headlessBrowser: options.headless,
-	downloadOnly: !options['runtime-check'],
+	downloadOnly: !options['detection'],
 });
 
 context.log(`Arguments: ${process.argv}`);

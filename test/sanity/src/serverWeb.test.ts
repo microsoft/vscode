@@ -120,7 +120,6 @@ export function setup(context: TestContext) {
 		}
 	}
 
-	// TODO: maybe use Chromium on linux
 	async function runUITest(url: string, test: UITest) {
 		const browser = await context.launchBrowser();
 		const page = await browser.newPage();

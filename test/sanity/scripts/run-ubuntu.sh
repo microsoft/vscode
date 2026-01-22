@@ -13,8 +13,8 @@ set PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium-browser
 echo "Starting X11 Server"
 Xvfb $DISPLAY -screen 0 1280x960x24 -ac +extension GLX +render -noreset &
 
-echo "Starting Desktop Bus"
-dbus-daemon --system --fork
+#echo "Starting Desktop Bus"
+#dbus-daemon --system --fork
 
 echo "Starting Snap Daemon"
 sudo systemctl start snapd.socket
