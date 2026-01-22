@@ -348,13 +348,23 @@
 	cursor: pointer;
 }
 
+/* Round corners on first and last sections to match parent badge */
+.agent-status-badge-section:first-child {
+	border-top-left-radius: 5px;
+	border-bottom-left-radius: 5px;
+}
+
+.agent-status-badge-section:last-child {
+	border-top-right-radius: 5px;
+	border-bottom-right-radius: 5px;
+}
+
 .agent-status-badge-section:hover {
 	background-color: var(--vscode-chat-requestBubbleBackground);
 }
 
 .agent-status-badge-section:focus {
-	outline: 1px solid var(--vscode-focusBorder);
-	outline-offset: -1px;
+	outline: none;
 }
 
 /* Active filter state - highlighted when filter is applied */
@@ -403,6 +413,8 @@
 	justify-content: center;
 	padding: 0 6px;
 	height: 100%;
+	border-top-left-radius: 5px;
+	border-bottom-left-radius: 5px;
 }
 
 .agent-status-badge-section.sparkle .action-container:hover {
@@ -410,8 +422,7 @@
 }
 
 .agent-status-badge-section.sparkle .action-container:focus-within {
-	outline: 1px solid var(--vscode-focusBorder);
-	outline-offset: -1px;
+	outline: none;
 }
 
 .agent-status-badge-section.sparkle .action-container .action-label {
@@ -441,8 +452,7 @@
 }
 
 .agent-status-badge-section.sparkle .dropdown-action-container:focus-within {
-	outline: 1px solid var(--vscode-focusBorder);
-	outline-offset: -1px;
+	outline: none;
 }
 
 .agent-status-badge-section.sparkle .dropdown-action-container .action-label {
@@ -454,6 +464,20 @@
 	font-size: 18px;
 	background-position: center !important;
 	background-size: 18px !important;
+}
+
+/* Override global toolbar hover/active styles for sparkle section action labels */
+.agent-status-badge-section.sparkle .action-container .action-label:hover,
+.agent-status-badge-section.sparkle .dropdown-action-container .action-label:hover {
+	outline: none !important;
+	background-color: transparent !important;
+}
+
+.agent-status-badge-section.sparkle .action-container .action-label:active,
+.agent-status-badge-section.sparkle .dropdown-action-container .action-label:active,
+.agent-status-badge-section.sparkle .action-item.active .action-label,
+.agent-status-badge-section.sparkle .monaco-dropdown.active .action-label {
+	background-color: transparent !important;
 }
 
 /* Unread section - blue dot indicator with count */
