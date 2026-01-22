@@ -251,6 +251,9 @@ export class InlineChatInputWidget extends Disposable {
 		if (this._anchorAbove) {
 			const widgetHeight = this._domNode.offsetHeight;
 			adjustedTop = top - widgetHeight;
+		} else {
+			const lineHeight = editor.getOption(EditorOption.lineHeight);
+			adjustedTop = top + lineHeight;
 		}
 
 		this._position.set({
