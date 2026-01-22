@@ -24,7 +24,7 @@ import {
 } from '../../../../platform/browserView/common/browserView.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { isLocalhost } from '../../../../platform/tunnel/common/tunnel.js';
+import { isLocalhostAuthority } from '../../../../platform/url/common/trustedDomains.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
 
@@ -309,7 +309,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	private logNavigationTelemetry(navigationType: IntegratedBrowserNavigationEvent['navigationType'], url: string): void {
 		let localhost: boolean;
 		try {
-			localhost = isLocalhost(new URL(url).hostname);
+			localhost = isLocalhostAuthority(new URL(url).host);
 		} catch {
 			localhost = false;
 		}
