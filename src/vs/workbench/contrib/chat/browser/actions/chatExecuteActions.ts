@@ -560,7 +560,10 @@ export class OpenWorkspacePickerAction extends Action2 {
 				{
 					id: MenuId.ChatInput,
 					order: 0.1,
-					when: ChatContextKeys.inAgentSessionsWelcome,
+					when: ContextKeyExpr.and(
+						ChatContextKeys.inAgentSessionsWelcome,
+						ChatContextKeys.chatSessionType.isEqualTo('local')
+					),
 					group: 'navigation',
 				},
 			]

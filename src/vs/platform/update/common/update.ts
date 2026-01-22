@@ -25,10 +25,10 @@ export interface IUpdate {
  *   Checking for Updates  →  Available for Download
  *         ↓
  *                     ←   Overwriting
- *     Downloading             ↑
- *                     →     Ready
- *         ↓               ↑      ↓
- *     Downloaded   →  Updating   Overwriting → Downloading
+ *     Downloading              ↑
+ *                     →      Ready
+ *         ↓                    ↑
+ *     Downloaded      →     Updating
  *
  * Available: There is an update available for download (linux).
  * Ready: Code will be updated as soon as it restarts (win32, darwin).
