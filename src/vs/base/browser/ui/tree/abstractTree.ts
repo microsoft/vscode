@@ -3242,6 +3242,14 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		this.onDidChangeCollapseStateRelay.input = model.onDidChangeCollapseState;
 		this.onDidChangeRenderNodeCountRelay.input = model.onDidChangeRenderNodeCount;
 		this.onDidSpliceModelRelay.input = model.onDidSpliceModel;
+
+		// Announce collapse state changes for screen readers (VoiceOver doesn't reliably
+		// announce aria-expanded changes on already-focused elements)
+		this.modelDisposables.add(model.onDidChangeCollapseState(({ node }) => {
+			if (node.collapsible && this.isDOMFocused()) {
+				alert(node.collapsed ? localize('treeNodeCollapsed', "collapsed") : localize('treeNodeExpanded', "expanded"));
+			}
+		}));
 	}
 
 	navigate(start?: TRef): ITreeNavigator<T> {
