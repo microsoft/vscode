@@ -333,7 +333,6 @@ export class AgentSessionsWelcomePage extends EditorPane {
 			this.hideLoadingSkeleton();
 		}));
 
-
 		// Schedule layout at next animation frame to ensure proper rendering
 		this.sessionsControlDisposables.add(scheduleAtNextAnimationFrame(getWindow(this.sessionsControlContainer), () => {
 			this.layoutSessionsControl();
