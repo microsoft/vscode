@@ -91,12 +91,21 @@ function extractTitleFromThinkingContent(content: string): string | undefined {
 	return headerMatch ? headerMatch[1] : undefined;
 }
 
-interface ILazyItem {
+interface ILazyToolItem {
+	kind: 'tool';
 	lazy: Lazy<{ domNode: HTMLElement; disposable?: IDisposable }>;
 	toolInvocationId?: string;
 	toolInvocationOrMarkdown?: IChatToolInvocation | IChatToolInvocationSerialized | IChatMarkdownContent;
 	originalParent?: HTMLElement;
 }
+
+interface ILazyThinkingItem {
+	kind: 'thinking';
+	textContainer: HTMLElement;
+	content: IChatThinkingPart;
+}
+
+type ILazyItem = ILazyToolItem | ILazyThinkingItem;
 const THINKING_SCROLL_MAX_HEIGHT = 200;
 
 export class ChatThinkingContentPart extends ChatCollapsibleContentPart implements IChatContentPart {
@@ -712,7 +721,8 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			}
 		} else {
 			// Defer rendering until expanded
-			const item: ILazyItem = {
+			const item: ILazyToolItem = {
+				kind: 'tool',
 				lazy: new Lazy(factory),
 				toolInvocationId,
 				toolInvocationOrMarkdown,
@@ -729,7 +739,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	 * this is needed so we can check if there are confirmations still needed
 	 */
 	public removeLazyItem(toolInvocationId: string): boolean {
-		const index = this.lazyItems.findIndex(item => item.toolInvocationId === toolInvocationId);
+		const index = this.lazyItems.findIndex(item => item.kind === 'tool' && item.toolInvocationId === toolInvocationId);
 		if (index === -1) {
 			return false;
 		}
@@ -841,6 +851,19 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	}
 
 	private materializeLazyItem(item: ILazyItem): void {
+		if (item.kind === 'thinking') {
+			// Materialize thinking container
+			if (this.wrapper) {
+				this.wrapper.appendChild(item.textContainer);
+			}
+			// Store reference to textContainer for updateThinking calls
+			this.textContainer = item.textContainer;
+			this.id = item.content.id;
+			this.updateThinking(item.content);
+			return;
+		}
+
+		// Handle tool items
 		if (item.lazy.hasValue) {
 			return; // Already materialized
 		}
@@ -861,12 +884,23 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		}
 		this.textContainer = $('.chat-thinking-item.markdown-content');
 		if (content.value) {
-			// With lazy rendering, wrapper may not be created yet if content hasn't been expanded
-			if (this.wrapper) {
-				this.wrapper.appendChild(this.textContainer);
+			// Use lazy rendering when collapsed to preserve order with tool items
+			if (this.isExpanded() || this.hasExpandedOnce || (this.fixedScrollingMode && !this.streamingCompleted)) {
+				// Render immediately when expanded
+				if (this.wrapper) {
+					this.wrapper.appendChild(this.textContainer);
+				}
+				this.id = content.id;
+				this.updateThinking(content);
+			} else {
+				// Defer rendering until expanded to preserve order
+				const lazyThinking: ILazyThinkingItem = {
+					kind: 'thinking',
+					textContainer: this.textContainer,
+					content
+				};
+				this.lazyItems.push(lazyThinking);
 			}
-			this.id = content.id;
-			this.updateThinking(content);
 		}
 		this.updateDropdownClickability();
 	}
