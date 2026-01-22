@@ -88,6 +88,9 @@ const resourcePatterns = [
 	'vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html',
 	'vs/workbench/contrib/webview/browser/pre/*.html',
 
+	// Fonts
+	'vs/base/browser/ui/codicons/codicon/codicon.ttf',
+
 	// Vendor JavaScript libraries (not transpiled)
 	'vs/base/common/marked/marked.js',
 	'vs/base/common/semver/semver.js',
