@@ -139,14 +139,15 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		this._isEmptyWorkspace = this.workspaceContextService.getWorkbenchState() === WorkbenchState.EMPTY;
 		if (this._isEmptyWorkspace) {
 			const recentlyOpened = await this.workspacesService.getRecentlyOpened();
-			const filteredWorkspaces: (IRecentWorkspace | IRecentFolder)[] = [];
-			for (const ws of recentlyOpened.workspaces) {
+			const trustInfoPromises = recentlyOpened.workspaces.map(async ws => {
 				const uri = isRecentWorkspace(ws) ? ws.workspace.configPath : ws.folderUri;
 				const trustInfo = await this.workspaceTrustManagementService.getUriTrustInfo(uri);
-				if (trustInfo.trusted) {
-					filteredWorkspaces.push(ws);
-				}
-			}
+				return { workspace: ws, trusted: trustInfo.trusted };
+			});
+			const trustInfoResults = await Promise.all(trustInfoPromises);
+			const filteredWorkspaces = trustInfoResults
+				.filter(result => result.trusted)
+				.map(result => result.workspace);
 			this._recentWorkspaces = filteredWorkspaces.slice(0, MAX_PICK);
 		}
 
