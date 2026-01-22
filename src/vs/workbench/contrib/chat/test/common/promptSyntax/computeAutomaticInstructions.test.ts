@@ -759,7 +759,7 @@ suite('ComputeAutomaticInstructions', () => {
 		}
 
 		function getFilePath(path: string): string {
-			return URI.file(path).path;
+			return URI.file(path).fsPath;
 		}
 
 		test('should generate instructions list when readFile tool available', async () => {
