@@ -383,6 +383,9 @@ export class AgentSessionsWelcomePage extends EditorPane {
 
 		const sessions = this.agentSessionsService.model.sessions;
 
+		// Toggle no-sessions class for proper margin handling
+		container.classList.toggle('no-sessions', sessions.length === 0);
+
 		if (sessions.length > 0) {
 			this.buildSessionsGrid(container, sessions);
 		} else {

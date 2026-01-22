@@ -108,6 +108,10 @@
 	margin-bottom: 24px;
 }
 
+.agentSessionsWelcome-sessionsSection.no-sessions {
+	margin-bottom: 0;
+}
+
 .agentSessionsWelcome-suggestedPrompts {
 	display: flex;
 	gap: 12px;
