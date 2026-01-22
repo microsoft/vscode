@@ -91,6 +91,7 @@ export class DelegationSessionPickerActionItem extends SessionTypePickerActionIt
 			class: undefined,
 			label: localize('chat.newChatSession', "New Chat Session"),
 			tooltip: '',
+			hover: { content: '' },
 			checked: false,
 			icon: Codicon.plus,
 			enabled: true,

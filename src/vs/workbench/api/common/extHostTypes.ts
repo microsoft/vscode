@@ -3166,6 +3166,15 @@ export class ChatResponseMultiDiffPart {
 	}
 }
 
+export class McpToolInvocationContentData {
+	mimeType: string;
+	data: Uint8Array;
+	constructor(data: Uint8Array, mimeType: string) {
+		this.data = data;
+		this.mimeType = mimeType;
+	}
+}
+
 export class ChatResponseExternalEditPart {
 	applied: Thenable<string>;
 	didGetApplied!: (value: string) => void;
@@ -3337,6 +3346,13 @@ export class ChatResponseNotebookEditPart implements vscode.ChatResponseNotebook
 			this.edits = Array.isArray(editsOrDone) ? editsOrDone : [editsOrDone];
 
 		}
+	}
+}
+
+export class ChatResponseWorkspaceEditPart implements vscode.ChatResponseWorkspaceEditPart {
+	edits: vscode.ChatWorkspaceFileEdit[];
+	constructor(edits: vscode.ChatWorkspaceFileEdit[]) {
+		this.edits = edits;
 	}
 }
 
@@ -3888,24 +3904,4 @@ export class McpHttpServerDefinition implements vscode.McpHttpServerDefinition {
 //#endregion
 
 //#region Chat Prompt Files
-
-@es5ClassCompat
-export class CustomAgentChatResource implements vscode.CustomAgentChatResource {
-	constructor(public readonly resource: vscode.ChatResourceDescriptor) { }
-}
-
-@es5ClassCompat
-export class InstructionsChatResource implements vscode.InstructionsChatResource {
-	constructor(public readonly resource: vscode.ChatResourceDescriptor) { }
-}
-
-@es5ClassCompat
-export class PromptFileChatResource implements vscode.PromptFileChatResource {
-	constructor(public readonly resource: vscode.ChatResourceDescriptor) { }
-}
-
-@es5ClassCompat
-export class SkillChatResource implements vscode.SkillChatResource {
-	constructor(public readonly resource: vscode.ChatResourceDescriptor) { }
-}
 //#endregion

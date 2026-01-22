@@ -688,6 +688,10 @@ export class View extends ViewEventHandler {
 		return width;
 	}
 
+	public resetLineWidthCaches(): void {
+		this._viewLines.resetLineWidthCaches();
+	}
+
 	public getTargetAtClientPoint(clientX: number, clientY: number): IMouseTarget | null {
 		const mouseTarget = this._pointerHandler.getTargetAtClientPoint(clientX, clientY);
 		if (!mouseTarget) {

@@ -127,8 +127,7 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		node.classList.add('chat-thinking-box', 'chat-thinking-fixed-mode', 'chat-subagent-part');
 		node.tabIndex = 0;
 
-		// Hide initially until there are tool calls
-		this.wrapper.style.display = 'none';
+		// Note: wrapper is created lazily in initContent(), so we can't set its style here
 
 		if (this._collapseButton && !this.element.isComplete) {
 			this._collapseButton.icon = ThemeIcon.modify(Codicon.loading, 'spin');
@@ -159,10 +158,6 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		// Scheduler for coalescing layout operations
 		this.layoutScheduler = this._register(new AnimationFrameScheduler(this.domNode, () => this.performLayout()));
 
-		// Use ResizeObserver to trigger layout when wrapper content changes
-		const resizeObserver = this._register(new DisposableResizeObserver(() => this.layoutScheduler.schedule()));
-		this._register(resizeObserver.observe(this.wrapper));
-
 		// Render the prompt section at the start if available (must be after wrapper is initialized)
 		this.renderPromptSection();
 
@@ -176,6 +171,16 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 			? baseClasses
 			: `${baseClasses}.chat-thinking-streaming`;
 		this.wrapper = $(classes);
+
+		// Hide initially until there are tool calls
+		if (!this.hasToolItems) {
+			this.wrapper.style.display = 'none';
+		}
+
+		// Use ResizeObserver to trigger layout when wrapper content changes
+		const resizeObserver = this._register(new DisposableResizeObserver(() => this.layoutScheduler.schedule()));
+		this._register(resizeObserver.observe(this.wrapper));
+
 		return this.wrapper;
 	}
 
@@ -233,10 +238,13 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		this.promptContainer.appendChild(collapsiblePart.domNode);
 
 		// Insert at the beginning of the wrapper
-		if (this.wrapper.firstChild) {
-			this.wrapper.insertBefore(this.promptContainer, this.wrapper.firstChild);
-		} else {
-			dom.append(this.wrapper, this.promptContainer);
+		// With lazy rendering, wrapper may not be created yet if content hasn't been expanded
+		if (this.wrapper) {
+			if (this.wrapper.firstChild) {
+				this.wrapper.insertBefore(this.promptContainer, this.wrapper.firstChild);
+			} else {
+				dom.append(this.wrapper, this.promptContainer);
+			}
 		}
 	}
 
@@ -246,7 +254,10 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 
 	public markAsInactive(): void {
 		this.isActive = false;
-		this.wrapper.classList.remove('chat-thinking-streaming');
+		// With lazy rendering, wrapper may not be created yet if content hasn't been expanded
+		if (this.wrapper) {
+			this.wrapper.classList.remove('chat-thinking-streaming');
+		}
 		if (this._collapseButton) {
 			this._collapseButton.icon = Codicon.check;
 		}
@@ -368,11 +379,15 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		const resultIcon = createThinkingIcon(Codicon.check);
 		this.resultContainer.appendChild(resultIcon);
 		this.resultContainer.appendChild(collapsiblePart.domNode);
-		dom.append(this.wrapper, this.resultContainer);
 
-		// Show the container if it was hidden
-		if (this.wrapper.style.display === 'none') {
-			this.wrapper.style.display = '';
+		// With lazy rendering, wrapper may not be created yet if content hasn't been expanded
+		if (this.wrapper) {
+			dom.append(this.wrapper, this.resultContainer);
+
+			// Show the container if it was hidden
+			if (this.wrapper.style.display === 'none') {
+				this.wrapper.style.display = '';
+			}
 		}
 	}
 
@@ -385,7 +400,10 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		// Show the container when first tool item is added
 		if (!this.hasToolItems) {
 			this.hasToolItems = true;
-			this.wrapper.style.display = '';
+			// With lazy rendering, wrapper may not be created yet if content hasn't been expanded
+			if (this.wrapper) {
+				this.wrapper.style.display = '';
+			}
 		}
 
 		// Render immediately if:
@@ -444,10 +462,13 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		itemWrapper.appendChild(content);
 
 		// Insert before result container if it exists, otherwise append
-		if (this.resultContainer) {
-			this.wrapper.insertBefore(itemWrapper, this.resultContainer);
-		} else {
-			this.wrapper.appendChild(itemWrapper);
+		// With lazy rendering, wrapper may not be created yet if content hasn't been expanded
+		if (this.wrapper) {
+			if (this.resultContainer) {
+				this.wrapper.insertBefore(itemWrapper, this.resultContainer);
+			} else {
+				this.wrapper.appendChild(itemWrapper);
+			}
 		}
 		this.lastItemWrapper = itemWrapper;
 
@@ -492,7 +513,7 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 
 	private performLayout(): void {
 		// Measure last item height once after layout, set CSS variable for collapsed max-height
-		if (this.lastItemWrapper) {
+		if (this.lastItemWrapper && this.wrapper) {
 			const height = this.lastItemWrapper.offsetHeight;
 			if (height > 0) {
 				this.wrapper.style.setProperty('--chat-subagent-last-item-height', `${height}px`);
@@ -500,7 +521,7 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		}
 
 		// Auto-scroll to bottom only when actively streaming (not for completed responses)
-		if (this.isActive && !this.isInitiallyComplete) {
+		if (this.isActive && !this.isInitiallyComplete && this.wrapper) {
 			const scrollHeight = this.wrapper.scrollHeight;
 			this.wrapper.scrollTop = scrollHeight;
 		}

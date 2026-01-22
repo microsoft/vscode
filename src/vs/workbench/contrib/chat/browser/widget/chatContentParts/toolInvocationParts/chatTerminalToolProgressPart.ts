@@ -24,6 +24,7 @@ import { IChatRendererContent } from '../../../../common/model/chatViewModel.js'
 import '../media/chatTerminalToolProgressPart.css';
 import type { ICodeBlockRenderOptions } from '../codeBlockPart.js';
 import { Action, IAction } from '../../../../../../../base/common/actions.js';
+import { timeout } from '../../../../../../../base/common/async.js';
 import { IChatTerminalToolProgressPart, ITerminalChatService, ITerminalConfigurationService, ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalService } from '../../../../../terminal/browser/terminal.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable, type IDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { Emitter } from '../../../../../../../base/common/event.js';
@@ -302,7 +303,6 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 
 		this._outputView = this._register(this._instantiationService.createInstance(
 			ChatTerminalToolOutputSection,
-			() => { },
 			() => this._ensureTerminalInstance(),
 			() => this._getResolvedCommand(),
 			() => this._terminalData.terminalCommandOutput,
@@ -558,6 +558,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			}
 
 			const store = new DisposableStore();
+			let receivedDataCount = 0;
 
 			const hasRealOutput = (): boolean => {
 				// Check for snapshot output
@@ -574,17 +575,33 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 					return false;
 				}
 				const cursorLine = buffer.baseY + buffer.cursorY;
-				return cursorLine > command.executedMarker.line;
+				if (cursorLine > command.executedMarker.line) {
+					return true;
+				}
+				// If we've received multiple data events, treat it as real output even if cursor
+				// hasn't moved past the marker (e.g., progress bars updating on same line)
+				// Shell integration sequences typically fire once, so multiple events indicate real data
+				return receivedDataCount > 1;
 			};
 
 			// Use the extracted auto-expand logic
 			const autoExpand = store.add(new TerminalToolAutoExpand({
 				commandDetection,
 				onWillData: terminalInstance.onWillData,
-				shouldAutoExpand: () => !this._outputView.isExpanded && !this._userToggledOutput && !this._store.isDisposed,
+				shouldAutoExpand: () => !this._outputView.isExpanded && !this._userToggledOutput && !this._store.isDisposed && !expandedStateByInvocation.get(this.toolInvocation),
 				hasRealOutput,
 			}));
-			store.add(autoExpand.onDidRequestExpand(() => this._toggleOutput(true)));
+			store.add(autoExpand.onDidRequestExpand(() => {
+				if (this._isInThinkingContainer) {
+					this.expandCollapsibleWrapper();
+				}
+				this._toggleOutput(true);
+			}));
+
+			// Track data events to help hasRealOutput detect progress-style output
+			store.add(terminalInstance.onWillData(() => {
+				receivedDataCount++;
+			}));
 
 			store.add(commandDetection.onCommandExecuted(() => {
 				this._addActions(terminalInstance, this._terminalData.terminalToolSessionId);
@@ -594,8 +611,8 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 				this._addActions(terminalInstance, this._terminalData.terminalToolSessionId);
 				const resolvedCommand = this._getResolvedCommand(terminalInstance);
 
-				// Auto-collapse on success (except for thinking)
-				if (resolvedCommand?.exitCode === 0 && this._outputView.isExpanded && !this._userToggledOutput && !this._isInThinkingContainer) {
+				// Auto-collapse on success
+				if (resolvedCommand?.exitCode === 0 && this._outputView.isExpanded && !this._userToggledOutput) {
 					this._toggleOutput(false);
 				}
 				// keep outer wrapper expanded on error
@@ -611,8 +628,8 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			const resolvedImmediately = await tryResolveCommand();
 			if (resolvedImmediately?.endMarker) {
 				commandDetectionListener.clear();
-				// Auto-collapse on success (except for thinking)
-				if (resolvedImmediately.exitCode === 0 && this._outputView.isExpanded && !this._userToggledOutput && !this._isInThinkingContainer) {
+				// Auto-collapse on success
+				if (resolvedImmediately.exitCode === 0 && this._outputView.isExpanded && !this._userToggledOutput) {
 					this._toggleOutput(false);
 				}
 				// keep outer wrapper expanded on error
@@ -791,7 +808,6 @@ class ChatTerminalToolOutputSection extends Disposable {
 
 	private readonly _outputBody: HTMLElement;
 	private _scrollableContainer: DomScrollableElement | undefined;
-	private _renderedOutputHeight: number | undefined;
 	private _isAtBottom: boolean = true;
 	private _isProgrammaticScroll: boolean = false;
 	private _mirror: DetachedTerminalCommandMirror | undefined;
@@ -808,7 +824,6 @@ class ChatTerminalToolOutputSection extends Disposable {
 	public get onDidBlur() { return this._onDidBlurEmitter.event; }
 
 	constructor(
-		private readonly _onDidChangeHeight: () => void,
 		private readonly _ensureTerminalInstance: () => Promise<ITerminalInstance | undefined>,
 		private readonly _resolveCommand: () => ITerminalCommand | undefined,
 		private readonly _getTerminalCommandOutput: () => IChatTerminalToolInvocationData['terminalCommandOutput'] | undefined,
@@ -859,12 +874,9 @@ class ChatTerminalToolOutputSection extends Disposable {
 			return false;
 		}
 
-		this._setExpanded(expanded);
-
 		if (!expanded) {
-			this._renderedOutputHeight = undefined;
+			this._setExpanded(false);
 			this._isAtBottom = true;
-			this._onDidChangeHeight();
 			return true;
 		}
 
@@ -872,6 +884,9 @@ class ChatTerminalToolOutputSection extends Disposable {
 			await this._createScrollableContainer();
 		}
 		await this._updateTerminalContent();
+
+		// Only now show the expanded state (after content is ready)
+		this._setExpanded(true);
 		this._layoutOutput();
 		this._scrollOutputToBottom();
 		this._scheduleOutputRelayout();
@@ -1009,6 +1024,10 @@ class ChatTerminalToolOutputSection extends Disposable {
 		const mirror = this._register(this._instantiationService.createInstance(DetachedTerminalCommandMirror, liveTerminalInstance.xterm, command));
 		this._mirror = mirror;
 		this._register(mirror.onDidUpdate(result => {
+			// Hide empty message as soon as we get output
+			if (result.lineCount && result.lineCount > 0) {
+				this._hideEmptyMessage();
+			}
 			this._layoutOutput(result.lineCount, result.maxColumnWidth);
 			if (this._isAtBottom) {
 				this._scrollOutputToBottom();
@@ -1021,9 +1040,40 @@ class ChatTerminalToolOutputSection extends Disposable {
 			}
 		}));
 		await mirror.attach(this._terminalContainer);
-		const result = await mirror.renderCommand();
-		if (!result || result.lineCount === 0) {
-			this._showEmptyMessage(localize('chat.terminalOutputEmpty', 'No output was produced by the command.'));
+		let result = await mirror.renderCommand();
+		// Only show "No output" message if:
+		// 1. Command has finished (has endMarker), AND
+		// 2. There's no output after retrying
+		// If command is still running, don't show the message - output may come later
+		let commandFinished = !!command.endMarker;
+		let hasOutput = result && result.lineCount && result.lineCount > 0;
+
+		// If we got no output, poll until either output appears or command finishes
+		// This handles cases where:
+		// 1. Command is running but executedMarker isn't set yet (renderCommand returns undefined)
+		// 2. Command finished quickly but buffer isn't ready yet
+		if (!hasOutput) {
+			const maxRetries = 10;
+			for (let retry = 0; retry < maxRetries && !hasOutput; retry++) {
+				await timeout(100);
+				if (this._store.isDisposed) {
+					return true;
+				}
+				result = await mirror.renderCommand();
+				hasOutput = result && result.lineCount && result.lineCount > 0;
+				commandFinished = !!command.endMarker;
+				// Stop polling if command finished (we'll show "no output" or output)
+				if (commandFinished) {
+					break;
+				}
+			}
+		}
+
+		if (!hasOutput) {
+			if (commandFinished) {
+				this._showEmptyMessage(localize('chat.terminalOutputEmpty', 'No output was produced by the command.'));
+			}
+			// If command is still running, leave content empty but don't show "no output" message
 		} else {
 			this._hideEmptyMessage();
 		}
@@ -1144,10 +1194,6 @@ class ChatTerminalToolOutputSection extends Disposable {
 		const appliedHeight = Math.min(clampedHeight, measuredBodyHeight);
 		scrollableDomNode.style.height = appliedHeight < maxHeight ? `${appliedHeight}px` : '';
 		this._scrollableContainer.scanDomNode();
-		if (this._renderedOutputHeight !== appliedHeight) {
-			this._renderedOutputHeight = appliedHeight;
-			this._onDidChangeHeight();
-		}
 	}
 
 	private _computeIsAtBottom(): boolean {
@@ -1405,7 +1451,7 @@ export class FocusChatInstanceAction extends Action implements IAction {
 }
 
 class ChatTerminalThinkingCollapsibleWrapper extends ChatCollapsibleContentPart {
-	private readonly _contentElement: HTMLElement;
+	private readonly _terminalContentElement: HTMLElement;
 	private readonly _commandText: string;
 
 	constructor(
@@ -1418,7 +1464,7 @@ class ChatTerminalThinkingCollapsibleWrapper extends ChatCollapsibleContentPart 
 		const title = `Ran \`${commandText}\``;
 		super(title, context, undefined, hoverService);
 
-		this._contentElement = contentElement;
+		this._terminalContentElement = contentElement;
 		this._commandText = commandText;
 
 		this.domNode.classList.add('chat-terminal-thinking-collapsible');
@@ -1445,7 +1491,7 @@ class ChatTerminalThinkingCollapsibleWrapper extends ChatCollapsibleContentPart 
 
 	protected override initContent(): HTMLElement {
 		const listWrapper = dom.$('.chat-used-context-list.chat-terminal-thinking-content');
-		listWrapper.appendChild(this._contentElement);
+		listWrapper.appendChild(this._terminalContentElement);
 		return listWrapper;
 	}
 
@@ -1453,7 +1499,7 @@ class ChatTerminalThinkingCollapsibleWrapper extends ChatCollapsibleContentPart 
 		this.setExpanded(true);
 	}
 
-	hasSameContent(_other: IChatRendererContent, _followingContent: IChatRendererContent[], _element: ChatTreeItem): boolean {
+	override hasSameContent(_other: IChatRendererContent, _followingContent: IChatRendererContent[], _element: ChatTreeItem): boolean {
 		return false;
 	}
 }
