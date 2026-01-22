@@ -69,7 +69,7 @@ async function main(buildDir?: string, outDir?: string): Promise<void> {
 	const appPath = path.join(appRoot, appName);
 	const dmgName = `VSCode-darwin-${arch}`;
 	const artifactPath = path.join(outDir, `${dmgName}.dmg`);
-	const backgroundPath = path.join(import.meta.dirname, 'dmg-background.tiff');
+	const backgroundPath = path.join(import.meta.dirname, `dmg-background-${quality}.tiff`);
 	const appIconPath = path.join(appPath, 'Contents', 'Resources', `${product.nameShort}.icns`);
 	let title = 'Code OSS';
 	switch (quality) {
