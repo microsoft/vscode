@@ -2683,7 +2683,7 @@ export namespace ChatResponseQuestionCarouselPart {
 			stringToQuestionType(q.type),
 			q.title,
 			{
-				message: q.message ? MarkdownString.to(q.message) : undefined,
+				message: q.message ? (typeof q.message === 'string' ? new types.MarkdownString(q.message) : MarkdownString.to(q.message)) : undefined,
 				options: q.options?.map(opt => ({
 					id: opt.id,
 					label: opt.label,

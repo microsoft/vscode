@@ -111,8 +111,8 @@ suite('ChatQuestionCarouselPart', () => {
 					type: 'singleSelect',
 					title: 'Choose one',
 					options: [
-						{ label: 'Option A', value: 'a' },
-						{ label: 'Option B', value: 'b' }
+						{ id: 'a', label: 'Option A', value: 'a' },
+						{ id: 'b', label: 'Option B', value: 'b' }
 					]
 				}
 			]);
@@ -129,9 +129,9 @@ suite('ChatQuestionCarouselPart', () => {
 					type: 'multiSelect',
 					title: 'Choose multiple',
 					options: [
-						{ label: 'Option A', value: 'a' },
-						{ label: 'Option B', value: 'b' },
-						{ label: 'Option C', value: 'c' }
+						{ id: 'a', label: 'Option A', value: 'a' },
+						{ id: 'b', label: 'Option B', value: 'b' },
+						{ id: 'c', label: 'Option C', value: 'c' }
 					]
 				}
 			]);
@@ -148,9 +148,10 @@ suite('ChatQuestionCarouselPart', () => {
 					type: 'singleSelect',
 					title: 'Choose one',
 					options: [
-						{ label: 'Option A', value: 'a' },
-						{ label: 'Option B', value: 'b', default: true }
-					]
+						{ id: 'a', label: 'Option A', value: 'a' },
+						{ id: 'b', label: 'Option B', value: 'b' }
+					],
+					defaultValue: 'b'
 				}
 			]);
 			createWidget(carousel);
@@ -167,10 +168,11 @@ suite('ChatQuestionCarouselPart', () => {
 					type: 'multiSelect',
 					title: 'Choose multiple',
 					options: [
-						{ label: 'Option A', value: 'a', default: true },
-						{ label: 'Option B', value: 'b' },
-						{ label: 'Option C', value: 'c', default: true }
-					]
+						{ id: 'a', label: 'Option A', value: 'a' },
+						{ id: 'b', label: 'Option B', value: 'b' },
+						{ id: 'c', label: 'Option C', value: 'c' }
+					],
+					defaultValue: ['a', 'c']
 				}
 			]);
 			createWidget(carousel);
@@ -264,8 +266,8 @@ suite('ChatQuestionCarouselPart', () => {
 					type: 'singleSelect',
 					title: 'Choose one',
 					options: [
-						{ label: 'Option A', value: 'a' },
-						{ label: 'Option B', value: 'b' }
+						{ id: 'a', label: 'Option A', value: 'a' },
+						{ id: 'b', label: 'Option B', value: 'b' }
 					]
 				}
 			]);
@@ -283,7 +285,7 @@ suite('ChatQuestionCarouselPart', () => {
 					type: 'singleSelect',
 					title: 'Choose one',
 					options: [
-						{ label: 'Option A', value: 'a' }
+						{ id: 'a', label: 'Option A', value: 'a' }
 					]
 				}
 			]);
@@ -303,7 +305,6 @@ suite('ChatQuestionCarouselPart', () => {
 			]);
 			createWidget(carousel);
 
-			const sameContent = { kind: 'questionCarousel' as const, questions: carousel.questions, allowSkip: carousel.allowSkip };
 			assert.strictEqual(widget.hasSameContent(carousel, [], {} as never), true);
 		});
 

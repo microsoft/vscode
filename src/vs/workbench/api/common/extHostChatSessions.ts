@@ -213,7 +213,7 @@ class ExtHostChatSession {
 		public readonly commandsConverter: CommandsConverter,
 		public readonly sessionDisposables: DisposableStore
 	) {
-		this._stream = new ChatAgentResponseStream(extension, request, proxy, commandsConverter, sessionDisposables);
+		this._stream = new ChatAgentResponseStream(extension, request, proxy, commandsConverter, sessionDisposables, new Map());
 	}
 
 	get activeResponseStream() {
@@ -221,7 +221,7 @@ class ExtHostChatSession {
 	}
 
 	getActiveRequestStream(request: IChatAgentRequest) {
-		return new ChatAgentResponseStream(this.extension, request, this.proxy, this.commandsConverter, this.sessionDisposables);
+		return new ChatAgentResponseStream(this.extension, request, this.proxy, this.commandsConverter, this.sessionDisposables, new Map());
 	}
 }
 
