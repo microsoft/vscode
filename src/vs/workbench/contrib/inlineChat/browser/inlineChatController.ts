@@ -45,7 +45,7 @@ import { IChatService } from '../../chat/common/chatService/chatService.js';
 import { IChatRequestVariableEntry, IDiagnosticVariableEntryFilterData } from '../../chat/common/attachments/chatVariableEntries.js';
 import { isResponseVM } from '../../chat/common/model/chatViewModel.js';
 import { ChatAgentLocation } from '../../chat/common/constants.js';
-import { ILanguageModelChatMetadata, ILanguageModelChatSelector, ILanguageModelsService, isILanguageModelChatSelector } from '../../chat/common/languageModels.js';
+import { ILanguageModelChatSelector, ILanguageModelsService, isILanguageModelChatSelector } from '../../chat/common/languageModels.js';
 import { isNotebookContainingCellEditor as isNotebookWithCellEditor } from '../../notebook/browser/notebookEditor.js';
 import { INotebookEditorService } from '../../notebook/browser/services/notebookEditorService.js';
 import { CellUri, ICellEditOperation } from '../../notebook/common/notebookCommon.js';
@@ -473,21 +473,8 @@ export class InlineChatController implements IEditorContribution {
 
 		// Check for default model setting
 		const defaultModelSetting = this._configurationService.getValue<string>(InlineChatConfigKeys.DefaultModel);
-		if (defaultModelSetting) {
-			// Try to find a model matching the setting
-			const allModels = await this._languageModelService.selectLanguageModels({});
-			let foundModel = false;
-			for (const identifier of allModels) {
-				const candidate = this._languageModelService.lookupLanguageModel(identifier);
-				if (candidate && ILanguageModelChatMetadata.matchesQualifiedName(defaultModelSetting, candidate)) {
-					this._zone.value.widget.chatWidget.input.setCurrentLanguageModel({ metadata: candidate, identifier });
-					foundModel = true;
-					break;
-				}
-			}
-			if (!foundModel) {
-				onUnexpectedError(new Error(`inlineChat.defaultModel setting value '${defaultModelSetting}' did not match any available model. Falling back to vendor default.`));
-			}
+		if (defaultModelSetting && !this._zone.value.widget.chatWidget.input.switchModelByQualifiedName(defaultModelSetting)) {
+			onUnexpectedError(new Error(`inlineChat.defaultModel setting value '${defaultModelSetting}' did not match any available model. Falling back to vendor default.`));
 		}
 
 		// ADD diagnostics
