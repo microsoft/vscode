@@ -548,7 +548,7 @@ export class BrowserEditor extends EditorPane {
 
 		type IntegratedBrowserAddElementToChatStartClassification = {
 			owner: 'jruales';
-			comment: 'Tracks when the user initiates the Add Element to Chat action in Integrated Browser.';
+			comment: 'The user initiated an Add Element to Chat action in Integrated Browser.';
 		};
 
 		this.telemetryService.publicLog2<IntegratedBrowserAddElementToChatStartEvent, IntegratedBrowserAddElementToChatStartClassification>('integratedBrowser.addElementToChat.start', {});
@@ -626,7 +626,7 @@ export class BrowserEditor extends EditorPane {
 				attachCss: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether chat.sendElementsToChat.attachCSS was enabled.' };
 				attachImages: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether chat.sendElementsToChat.attachImages was enabled.' };
 				owner: 'jruales';
-				comment: 'Tracks when an element is successfully added to chat in Integrated Browser.';
+				comment: 'An element was successfully added to chat from Integrated Browser.';
 			};
 
 			this.telemetryService.publicLog2<IntegratedBrowserAddElementToChatAddedEvent, IntegratedBrowserAddElementToChatAddedClassification>('integratedBrowser.addElementToChat.added', {
