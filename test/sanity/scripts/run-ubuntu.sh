@@ -11,7 +11,7 @@ export PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 export PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium-browser
 
 echo "Starting X11 Server"
-export DISPLAY=:99.0
+export DISPLAY=:99
 Xvfb $DISPLAY -screen 0 1280x960x24 -ac +extension GLX +render -noreset &
 
 echo "Starting Snap daemon"

@@ -39,20 +39,13 @@ RUN if [ "$TARGETARCH" = "arm64" ]; then \
 		xdg-utils; \
 	fi
 
-# libasound2t64
-# libcurl4t64
-# libgtk-3-0t64
-
 # VS Code dependencies (amd64)
 RUN if [ "$TARGETARCH" = "amd64" ]; then \
+	apt-get install libasound2 -y || apt-get install libasound2t64 -y; \
 	apt-get install -y \
-		libasound2 \
+		libgbm1 \
 		libgtk-3-0 \
 		libnss3 \
-		libxcomposite1 \
-		libxdamage1 \
-		libxfixes3 \
-		libxkbcommon0 \
 		xdg-utils; \
 	fi
 

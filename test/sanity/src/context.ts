@@ -587,7 +587,7 @@ export class TestContext {
 	 */
 	public installSnap(packagePath: string): string {
 		this.log(`Installing ${packagePath} using Snap package manager`);
-		this.runNoErrors('snap', 'install', packagePath, '--classic', '--dangerous');
+		this.runNoErrors('sudo', 'snap', 'install', packagePath, '--classic', '--dangerous');
 		this.log(`Installed ${packagePath} successfully`);
 
 		// Snap wrapper scripts are in /snap/bin, but actual Electron binary is in /snap/<package>/current/usr/share/
@@ -640,7 +640,7 @@ export class TestContext {
 		const entryPoint = path.join('/snap/bin', this.getLinuxBinaryName());
 
 		this.log(`Uninstalling Snap package ${packageName}`);
-		this.runNoErrors('snap', 'remove', packageName);
+		this.runNoErrors('sudo', 'snap', 'remove', packageName);
 		this.log(`Uninstalled Snap package ${packageName} successfully`);
 
 		await new Promise(resolve => setTimeout(resolve, 1000));

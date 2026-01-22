@@ -1,15 +1,13 @@
 ARG BASE_IMAGE=opensuse/leap:16.0
 FROM ${BASE_IMAGE}
 
-# Utilities
-RUN zypper install -y curl
-
-# Node.js 22.21.1
+# Node.js 22
 RUN zypper install -y nodejs22
 
 # Google Chrome (amd64 only)
 ARG TARGETARCH
 RUN if [ "$TARGETARCH" = "amd64" ]; then \
+	zypper install -y curl && \
 	curl -fsSL https://dl.google.com/linux/linux_signing_key.pub -o /tmp/google.pub && \
 	rpm --import /tmp/google.pub && \
 	zypper ar http://dl.google.com/linux/chrome/rpm/stable/x86_64 Google-Chrome && \
