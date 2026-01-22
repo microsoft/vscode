@@ -1,8 +1,8 @@
 #!/bin/sh
 set -e
 
-# Set WebKit browser path for Playwright
-export PLAYWRIGHT_WEBKIT_EXECUTABLE_PATH="/Applications/Safari.app/Contents/MacOS/Safari"
+echo "Installing Playwright WebKit browser"
+npx playwright install --with-deps webkit
 
 echo "Running sanity tests"
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)

@@ -110,10 +110,8 @@ function detectBrowser(capabilities: Set<Capability>) {
 			break;
 		}
 		case 'darwin': {
-			const path = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE_PATH ?? '/Applications/Safari.app/Contents/MacOS/Safari';
-			if (fs.existsSync(path)) {
-				capabilities.add('browser');
-			}
+			// Playwright installs its own WebKit browser via `playwright install webkit`
+			capabilities.add('browser');
 			break;
 		}
 		case 'win32': {

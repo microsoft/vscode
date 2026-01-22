@@ -26,6 +26,9 @@ ENV DISPLAY=:99
 RUN zypper install -y dbus-1-daemon && \
 	mkdir -p /run/dbus
 
+# VS Code dependencies
+RUN zypper install -y glib2
+
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 ENTRYPOINT [ "/entrypoint.sh" ]

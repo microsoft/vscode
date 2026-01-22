@@ -847,8 +847,7 @@ export class TestContext {
 		const headless = this.options.headlessBrowser;
 		switch (os.platform()) {
 			case 'darwin': {
-				const executablePath = process.env['PLAYWRIGHT_WEBKIT_EXECUTABLE_PATH'] ?? '/Applications/Safari.app/Contents/MacOS/Safari';
-				return await webkit.launch({ headless, executablePath });
+				return await webkit.launch({ headless });
 			}
 			case 'win32': {
 				const executablePath = process.env['PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH'] ?? 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe';

@@ -16,10 +16,10 @@ RUN apt-get update && \
 # Upgrade libstdc++6 from bullseye (required by Node.js 22)
 RUN apt-get install -y -t bullseye libstdc++6
 
-# Node.js 22 (NodeSource doesn't support armhf, use unofficial builds)
+# Node.js (arm32 uses Node.js 20 LTS from official builds, others use Node.js 22 from NodeSource)
 ARG TARGETARCH
 RUN if [ "$TARGETARCH" = "arm" ]; then \
-	curl -fsSL https://unofficial-builds.nodejs.org/download/release/v22.21.1/node-v22.21.1-linux-armv7l.tar.gz | tar -xz -C /usr/local --strip-components=1; \
+	curl -fsSL https://nodejs.org/dist/v20.18.3/node-v20.18.3-linux-armv7l.tar.gz | tar -xz -C /usr/local --strip-components=1; \
 	else \
 	curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && \
 	apt-get install -y nodejs; \
