@@ -49,6 +49,11 @@ jobs:
         shell: pwsh
         run: 7z.exe x .build/node_modules_cache/cache.7z -aoa
 
+      - name: Run copy codicons
+        if: steps.node-modules-cache.outputs.cache-hit == 'true'
+        shell: pwsh
+        run: npm run copy-codicons
+
       - name: Install dependencies
         if: steps.node-modules-cache.outputs.cache-hit != 'true'
         shell: pwsh

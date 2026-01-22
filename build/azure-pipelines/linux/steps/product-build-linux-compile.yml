@@ -79,6 +79,10 @@ steps:
     condition: and(succeeded(), eq(variables.NODE_MODULES_RESTORED, 'true'))
     displayName: Extract node_modules cache
 
+  - script: npm run copy-codicons
+    condition: and(succeeded(), eq(variables.NODE_MODULES_RESTORED, 'true'))
+    displayName: Run copy codicons
+
   - script: |
       set -e
       # Set the private NPM registry to the global npmrc file

@@ -34,6 +34,10 @@ jobs:
         if: steps.cache-node-modules.outputs.cache-hit == 'true'
         run: tar -xzf .build/node_modules_cache/cache.tgz
 
+      - name: Run copy codicons
+        if: steps.cache-node-modules.outputs.cache-hit == 'true'
+        run: npm run copy-codicons
+
       - name: Install build tools
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
         run: sudo apt update -y && sudo apt install -y build-essential pkg-config libx11-dev libx11-xcb-dev libxkbfile-dev libnotify-bin libkrb5-dev
