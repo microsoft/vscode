@@ -758,6 +758,10 @@ suite('ComputeAutomaticInstructions', () => {
 			return matches;
 		}
 
+		function getFilePath(path: string): string {
+			return URI.file(path).path;
+		}
+
 		test('should generate instructions list when readFile tool available', async () => {
 			const rootFolderName = 'instructions-list-test';
 			const rootFolder = `/${rootFolderName}`;
@@ -798,7 +802,7 @@ suite('ComputeAutomaticInstructions', () => {
 			assert.equal(instructions.length, 1, 'There should be one instruction');
 
 			assert.equal(xmlContents(instructions[0], 'description')[0], 'Test instructions');
-			assert.equal(xmlContents(instructions[0], 'file')[0], `${rootFolder}/.github/instructions/test.instructions.md`);
+			assert.equal(xmlContents(instructions[0], 'file')[0], getFilePath(`${rootFolder}/.github/instructions/test.instructions.md`));
 			assert.equal(xmlContents(instructions[0], 'applyTo')[0], '**/*.ts');
 		});
 
@@ -899,11 +903,11 @@ suite('ComputeAutomaticInstructions', () => {
 			assert.equal(skills.length, 2, 'There should be two skills');
 
 			assert.equal(xmlContents(skills[0], 'description')[0], 'JavaScript best practices');
-			assert.equal(xmlContents(skills[0], 'file')[0], `${rootFolder}/.claude/skills/javascript/SKILL.md`);
+			assert.equal(xmlContents(skills[0], 'file')[0], getFilePath(`${rootFolder}/.claude/skills/javascript/SKILL.md`));
 			assert.equal(xmlContents(skills[0], 'name')[0], 'javascript');
 
 			assert.equal(xmlContents(skills[1], 'description')[0], undefined);
-			assert.equal(xmlContents(skills[1], 'file')[0], `${rootFolder}/.claude/skills/typescript/SKILL.md`);
+			assert.equal(xmlContents(skills[1], 'file')[0], getFilePath(`${rootFolder}/.claude/skills/typescript/SKILL.md`));
 			assert.equal(xmlContents(skills[1], 'name')[0], 'typescript');
 		});
 
@@ -1036,11 +1040,11 @@ suite('ComputeAutomaticInstructions', () => {
 			assert.equal(skills.length, 2, 'There should be two skills');
 
 			assert.equal(xmlContents(skills[0], 'description')[0], 'A personal skill from home folder');
-			assert.equal(xmlContents(skills[0], 'file')[0], `/home/user/.copilot/skills/personal-skill/SKILL.md`);
+			assert.equal(xmlContents(skills[0], 'file')[0], getFilePath(`/home/user/.copilot/skills/personal-skill/SKILL.md`));
 			assert.equal(xmlContents(skills[0], 'name')[0], 'personal-skill');
 
 			assert.equal(xmlContents(skills[1], 'description')[0], 'A Claude personal skill');
-			assert.equal(xmlContents(skills[1], 'file')[0], `/home/user/.claude/skills/claude-personal/SKILL.md`);
+			assert.equal(xmlContents(skills[1], 'file')[0], getFilePath(`/home/user/.claude/skills/claude-personal/SKILL.md`));
 			assert.equal(xmlContents(skills[1], 'name')[0], 'claude-personal');
 		});
 	});
