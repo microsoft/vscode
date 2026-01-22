@@ -36,6 +36,8 @@ export interface IAgentSessionsModel {
 	readonly onDidChangeSessions: Event<void>;
 	readonly onDidChangeSessionArchivedState: Event<IAgentSession>;
 
+	readonly resolved: boolean;
+
 	readonly sessions: IAgentSession[];
 	getSession(resource: URI): IAgentSession | undefined;
 
@@ -352,6 +354,9 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 	private readonly _onDidChangeSessionArchivedState = this._register(new Emitter<IAgentSession>());
 	readonly onDidChangeSessionArchivedState = this._onDidChangeSessionArchivedState.event;
 
+	private _resolved = false;
+	get resolved(): boolean { return this._resolved; }
+
 	private _sessions: ResourceMap<IInternalAgentSession>;
 	get sessions(): IAgentSession[] { return Array.from(this._sessions.values()); }
 
@@ -524,6 +529,8 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 				this.sessionStates.delete(resource); // clean up states for removed sessions
 			}
 		}
+
+		this._resolved = true;
 
 		this.logger.logAllStatsIfTrace('Sessions resolved from providers');
 
