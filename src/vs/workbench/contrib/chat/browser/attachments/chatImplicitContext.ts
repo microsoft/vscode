@@ -350,8 +350,15 @@ export class ChatImplicitContexts extends Disposable {
 		return this.values.some(v => v.value !== undefined && !isStringImplicitContextValue(v.value));
 	}
 
-	get enabledBaseEntries(): IChatRequestVariableEntry[] {
-		return this.values.flatMap(v => v.enabled ? v.toBaseEntries() : []);
+	enabledBaseEntries(includeAllLocations: boolean): IChatRequestVariableEntry[] {
+		return this.values.flatMap(v => {
+			if (v.enabled) {
+				return v.toBaseEntries();
+			} else if (includeAllLocations && isLocation(v.value)) {
+				return v.toBaseEntries();
+			}
+			return [];
+		});
 	}
 }
 

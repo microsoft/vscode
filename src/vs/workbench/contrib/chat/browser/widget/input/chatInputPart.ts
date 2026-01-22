@@ -223,8 +223,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		const contextArr = this.getAttachedContext(sessionResource);
 
-		if ((this.implicitContext?.hasEnabled && this.implicitContext?.hasValue) || (this.implicitContext && this.implicitContext.hasNonUri && this.implicitContext.hasNonStringContext && this.configurationService.getValue<boolean>('chat.implicitContext.suggestedContext'))) {
-			const implicitChatVariables = this.implicitContext.enabledBaseEntries;
+		if (this.implicitContext) {
+			const implicitChatVariables = this.implicitContext.enabledBaseEntries(this.configurationService.getValue<boolean>('chat.implicitContext.suggestedContext'));
 			contextArr.add(...implicitChatVariables);
 		}
 		return contextArr;
