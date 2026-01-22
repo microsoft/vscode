@@ -17,7 +17,7 @@ import { InternalFetchWebPageToolId } from '../../contrib/chat/common/tools/buil
 import { SearchExtensionsToolId } from '../../contrib/extensions/common/searchExtensionsTool.js';
 import { checkProposedApiEnabled, isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 import { Dto, SerializableObjectWithBuffers } from '../../services/extensions/common/proxyIdentifier.js';
-import { ExtHostLanguageModelToolsShape, IMainContext, IToolDataDto, MainContext, MainThreadLanguageModelToolsShape } from './extHost.protocol.js';
+import { ExtHostLanguageModelToolsShape, IMainContext, IToolDataDto, IToolDefinitionDto, MainContext, MainThreadLanguageModelToolsShape } from './extHost.protocol.js';
 import { ExtHostLanguageModels } from './extHostLanguageModels.js';
 import * as typeConvert from './extHostTypeConverters.js';
 import { URI } from '../../../base/common/uri.js';
@@ -100,7 +100,8 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 		return await fn(input, token);
 	}
 
-	async invokeTool(extension: IExtensionDescription, toolId: string, options: vscode.LanguageModelToolInvocationOptions<any>, token?: CancellationToken): Promise<vscode.LanguageModelToolResult> {
+	async invokeTool(extension: IExtensionDescription, toolIdOrInfo: string | vscode.LanguageModelToolInformation, options: vscode.LanguageModelToolInvocationOptions<any>, token?: CancellationToken): Promise<vscode.LanguageModelToolResult> {
+		const toolId = typeof toolIdOrInfo === 'string' ? toolIdOrInfo : toolIdOrInfo.name;
 		const callId = generateUuid();
 		if (options.tokenizationOptions) {
 			this._tokenCountFuncs.set(callId, options.tokenizationOptions.countTokens);
@@ -318,6 +319,38 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 	registerTool(extension: IExtensionDescription, id: string, tool: vscode.LanguageModelTool<any>): IDisposable {
 		this._registeredTools.set(id, { extension, tool });
 		this._proxy.$registerTool(id, typeof tool.handleToolStream === 'function');
+
+		return toDisposable(() => {
+			this._registeredTools.delete(id);
+			this._proxy.$unregisterTool(id);
+		});
+	}
+
+	registerToolDefinition(extension: IExtensionDescription, definition: vscode.LanguageModelToolDefinition, tool: vscode.LanguageModelTool<any>): IDisposable {
+		checkProposedApiEnabled(extension, 'languageModelToolSupportsModel');
+
+		const id = definition.name;
+
+		// Convert the definition to a DTO
+		const dto: IToolDefinitionDto = {
+			id,
+			displayName: definition.displayName,
+			toolReferenceName: definition.toolReferenceName,
+			userDescription: definition.userDescription,
+			modelDescription: definition.description,
+			inputSchema: definition.inputSchema as object,
+			source: {
+				type: 'extension',
+				label: extension.displayName ?? extension.name,
+				extensionId: extension.identifier,
+			},
+			icon: typeConvert.IconPath.from(definition.icon),
+			models: definition.models,
+			toolSet: definition.toolSet,
+		};
+
+		this._registeredTools.set(id, { extension, tool });
+		this._proxy.$registerToolWithDefinition(extension.identifier, dto, typeof tool.handleToolStream === 'function');
 
 		return toDisposable(() => {
 			this._registeredTools.delete(id);

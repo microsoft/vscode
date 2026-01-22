@@ -11,7 +11,7 @@ import { Hover, HoverContext, HoverProvider } from '../../../../../../editor/com
 import { ITextModel } from '../../../../../../editor/common/model.js';
 import { localize } from '../../../../../../nls.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../languageModels.js';
-import { ILanguageModelToolsService, ToolSet } from '../../tools/languageModelToolsService.js';
+import { ILanguageModelToolsService, isToolSet, IToolSet } from '../../tools/languageModelToolsService.js';
 import { IChatModeService, isBuiltinChatMode } from '../../chatModes.js';
 import { getPromptsTypeForLanguageId, PromptsType } from '../promptTypes.js';
 import { IPromptsService } from '../service/promptsService.js';
@@ -163,7 +163,7 @@ export class PromptHoverProvider implements HoverProvider {
 	private getToolHoverByName(toolName: string, range: Range): Hover | undefined {
 		const tool = this.languageModelToolsService.getToolByFullReferenceName(toolName);
 		if (tool !== undefined) {
-			if (tool instanceof ToolSet) {
+			if (isToolSet(tool)) {
 				return this.getToolsetHover(tool, range);
 			} else {
 				return this.createHover(tool.userDescription ?? tool.modelDescription, range);
@@ -172,7 +172,7 @@ export class PromptHoverProvider implements HoverProvider {
 		return undefined;
 	}
 
-	private getToolsetHover(toolSet: ToolSet, range: Range): Hover | undefined {
+	private getToolsetHover(toolSet: IToolSet, range: Range): Hover | undefined {
 		const lines: string[] = [];
 		lines.push(localize('toolSetName', 'ToolSet: {0}\n\n', toolSet.referenceName));
 		if (toolSet.description) {

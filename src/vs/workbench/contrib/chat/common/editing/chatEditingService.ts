@@ -8,7 +8,7 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
 import { Event } from '../../../../../base/common/event.js';
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorunSelfDisposable, IObservable, IReader } from '../../../../../base/common/observable.js';
+import { autorunSelfDisposable, IObservable, IReader, ISettableObservable } from '../../../../../base/common/observable.js';
 import { hasKey } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IDocumentDiff } from '../../../../../editor/common/diff/documentDiffProvider.js';
@@ -122,6 +122,7 @@ export interface IChatEditingSession extends IDisposable {
 	readonly entries: IObservable<readonly IModifiedFileEntry[]>;
 	/** Requests disabled by undo/redo in the session */
 	readonly requestDisablement: IObservable<IChatRequestDisablement[]>;
+	readonly explanationWidgetVisible: ISettableObservable<boolean>;
 
 	show(previousChanges?: boolean): Promise<void>;
 	accept(...uris: URI[]): Promise<void>;
@@ -397,6 +398,11 @@ export interface IModifiedFileEntry {
 	reviewMode: IObservable<boolean>;
 	autoAcceptController: IObservable<{ total: number; remaining: number; cancel(): void } | undefined>;
 	enableReviewModeUntilSettled(): void;
+
+	/**
+	 * Whether explanation widgets should be visible for this entry
+	 */
+	readonly explanationWidgetVisible?: IObservable<boolean>;
 
 	/**
 	 * Number of changes for this file

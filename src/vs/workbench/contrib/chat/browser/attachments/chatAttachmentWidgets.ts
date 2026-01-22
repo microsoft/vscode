@@ -59,7 +59,7 @@ import { ITerminalService } from '../../../terminal/browser/terminal.js';
 import { IChatContentReference } from '../../common/chatService/chatService.js';
 import { IChatRequestPasteVariableEntry, IChatRequestVariableEntry, IElementVariableEntry, INotebookOutputVariableEntry, IPromptFileVariableEntry, IPromptTextVariableEntry, ISCMHistoryItemVariableEntry, OmittedState, PromptFileVariableKind, ChatRequestToolReferenceEntry, ISCMHistoryItemChangeVariableEntry, ISCMHistoryItemChangeRangeVariableEntry, ITerminalVariableEntry, isStringVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../common/languageModels.js';
-import { ILanguageModelToolsService, ToolSet } from '../../common/tools/languageModelToolsService.js';
+import { ILanguageModelToolsService, isToolSet } from '../../common/tools/languageModelToolsService.js';
 import { getCleanPromptName } from '../../common/promptSyntax/config/promptFileLocations.js';
 import { IChatContextService } from '../contextContrib/chatContextService.js';
 
@@ -748,17 +748,17 @@ export class ToolSetOrToolItemAttachmentWidget extends AbstractChatAttachmentWid
 		@ILanguageModelToolsService toolsService: ILanguageModelToolsService,
 		@ICommandService commandService: ICommandService,
 		@IOpenerService openerService: IOpenerService,
-		@IHoverService hoverService: IHoverService
+		@IHoverService hoverService: IHoverService,
 	) {
 		super(attachment, options, container, contextResourceLabels, currentLanguageModel, commandService, openerService);
 
 
-		const toolOrToolSet = Iterable.find(toolsService.getTools(), tool => tool.id === attachment.id) ?? Iterable.find(toolsService.toolSets.get(), toolSet => toolSet.id === attachment.id);
+		const toolOrToolSet = Iterable.find(toolsService.getTools(currentLanguageModel?.metadata), tool => tool.id === attachment.id) ?? Iterable.find(toolsService.getToolSetsForModel(currentLanguageModel?.metadata), toolSet => toolSet.id === attachment.id);
 
 		let name = attachment.name;
 		const icon = attachment.icon ?? Codicon.tools;
 
-		if (toolOrToolSet instanceof ToolSet) {
+		if (isToolSet(toolOrToolSet)) {
 			name = toolOrToolSet.referenceName;
 		} else if (toolOrToolSet) {
 			name = toolOrToolSet.toolReferenceName ?? name;
@@ -771,7 +771,7 @@ export class ToolSetOrToolItemAttachmentWidget extends AbstractChatAttachmentWid
 
 		let hoverContent: string | undefined;
 
-		if (toolOrToolSet instanceof ToolSet) {
+		if (isToolSet(toolOrToolSet)) {
 			hoverContent = localize('toolset', "{0} - {1}", toolOrToolSet.description ?? toolOrToolSet.referenceName, toolOrToolSet.source.label);
 		} else if (toolOrToolSet) {
 			hoverContent = localize('tool', "{0} - {1}", toolOrToolSet.userDescription ?? toolOrToolSet.modelDescription, toolOrToolSet.source.label);

@@ -16,7 +16,7 @@ import { MarkerSeverity, IMarker } from '../../../../../platform/markers/common/
 import { ISCMHistoryItem } from '../../../scm/common/history.js';
 import { IChatContentReference } from '../chatService/chatService.js';
 import { IChatRequestVariableValue } from './chatVariables.js';
-import { IToolData, ToolSet } from '../tools/languageModelToolsService.js';
+import { IToolData, IToolSet } from '../tools/languageModelToolsService.js';
 import { decodeBase64, encodeBase64, VSBuffer } from '../../../../../base/common/buffer.js';
 import { Mutable } from '../../../../../base/common/types.js';
 
@@ -491,7 +491,7 @@ export function toToolVariableEntry(entry: IToolData, range?: IOffsetRange): ICh
 	};
 }
 
-export function toToolSetVariableEntry(entry: ToolSet, range?: IOffsetRange): IChatRequestToolSetEntry {
+export function toToolSetVariableEntry(entry: IToolSet, range?: IOffsetRange): IChatRequestToolSetEntry {
 	return {
 		kind: 'toolset',
 		id: entry.id,

@@ -14,6 +14,7 @@ export enum ChatConfiguration {
 	UnifiedAgentsBar = 'chat.unifiedAgentsBar.enabled',
 	AgentSessionProjectionEnabled = 'chat.agentSessionProjection.enabled',
 	EditModeHidden = 'chat.editMode.hidden',
+	AlternativeToolAction = 'chat.alternativeToolAction.enabled',
 	Edits2Enabled = 'chat.edits2.enabled',
 	ExtensionToolsEnabled = 'chat.extensionTools.enabled',
 	RepoInfoEnabled = 'chat.repoInfo.enabled',
@@ -38,6 +39,7 @@ export enum ChatConfiguration {
 	RestoreLastPanelSession = 'chat.restoreLastPanelSession',
 	ExitAfterDelegation = 'chat.exitAfterDelegation',
 	CommandCenterTriStateToggle = 'chat.commandCenter.triStateToggle',
+	ExplainChangesEnabled = 'chat.editing.explainChanges.enabled',
 }
 
 /**

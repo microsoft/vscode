@@ -380,3 +380,63 @@
 .agentSessionsWelcome-tosLink:hover {
 	text-decoration: underline;
 }
+
+/* Loading skeleton */
+.agentSessionsWelcome-sessionsLoading {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 8px;
+	width: 100%;
+	margin-bottom: 12px;
+}
+
+.agentSessionsWelcome-sessionSkeleton {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	padding: 8px 12px;
+	border-radius: 4px;
+	height: 36px;
+	box-sizing: border-box;
+}
+
+.agentSessionsWelcome-sessionSkeleton-icon {
+	width: 20px;
+	height: 20px;
+	border-radius: 4px;
+	background: var(--vscode-welcomePage-tileBorder, var(--vscode-contrastBorder, rgba(128, 128, 128, 0.2)));
+	animation: agentSessionsWelcome-shimmer 1.5s ease-in-out infinite;
+}
+
+.agentSessionsWelcome-sessionSkeleton-content {
+	flex: 1;
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+
+.agentSessionsWelcome-sessionSkeleton-title {
+	height: 12px;
+	border-radius: 2px;
+	background: var(--vscode-welcomePage-tileBorder, var(--vscode-contrastBorder, rgba(128, 128, 128, 0.2)));
+	animation: agentSessionsWelcome-shimmer 1.5s ease-in-out infinite;
+	animation-delay: 0.1s;
+}
+
+.agentSessionsWelcome-sessionSkeleton-description {
+	height: 10px;
+	width: 60%;
+	border-radius: 2px;
+	background: var(--vscode-welcomePage-tileBorder, var(--vscode-contrastBorder, rgba(128, 128, 128, 0.2)));
+	animation: agentSessionsWelcome-shimmer 1.5s ease-in-out infinite;
+	animation-delay: 0.2s;
+}
+
+@keyframes agentSessionsWelcome-shimmer {
+	0%, 100% {
+		opacity: 0.3;
+	}
+	50% {
+		opacity: 0.6;
+	}
+}
