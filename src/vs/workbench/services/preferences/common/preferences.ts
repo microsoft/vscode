@@ -347,6 +347,8 @@ export interface IDefineKeybindingEditorContribution extends IEditorContribution
 }
 
 export const FOLDER_SETTINGS_PATH = '.vscode/settings.json';
+export const FOLDER_SETTINGS_JSONC_PATH = '.vscode/settings.jsonc';
+export const FOLDER_SETTINGS_PATH_CANDIDATES = [FOLDER_SETTINGS_PATH, FOLDER_SETTINGS_JSONC_PATH];
 export const DEFAULT_SETTINGS_EDITOR_SETTING = 'workbench.settings.openDefaultSettings';
 export const USE_SPLIT_JSON_SETTING = 'workbench.settings.useSplitJSON';
 export const ALWAYS_SHOW_ADVANCED_SETTINGS_SETTING = 'workbench.settings.alwaysShowAdvancedSettings';

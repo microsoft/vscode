@@ -879,11 +879,53 @@ suite('WorkspaceConfigurationService - Folder', () => {
 		assert.strictEqual(testObject.getValue('testworkbench.editor.icons'), true);
 	}));
 
+	test('workspace settings jsonc', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.jsonc'), VSBuffer.fromString('{ "testworkbench.editor.icons": true }'));
+		await testObject.reloadConfiguration();
+		assert.strictEqual(testObject.getValue('testworkbench.editor.icons'), true);
+	}));
+
+	test('workspace settings prefers json over jsonc', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const folder = workspaceService.getWorkspace().folders[0].uri;
+		await fileService.writeFile(joinPath(folder, '.vscode', 'settings.jsonc'), VSBuffer.fromString('{ "testworkbench.editor.icons": false }'));
+		await fileService.writeFile(joinPath(folder, '.vscode', 'settings.json'), VSBuffer.fromString('{ "testworkbench.editor.icons": true }'));
+		await testObject.reloadConfiguration();
+		assert.strictEqual(testObject.getValue('testworkbench.editor.icons'), true);
+	}));
+
 	test('workspace settings override user settings', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		await fileService.writeFile(userDataProfileService.currentProfile.settingsResource, VSBuffer.fromString('{ "configurationService.folder.testSetting": "userValue" }'));
 		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.testSetting": "workspaceValue" }'));
 		await testObject.reloadConfiguration();
 		assert.strictEqual(testObject.getValue('configurationService.folder.testSetting'), 'workspaceValue');
+	}));
+
+	test('tasks jsonc contributes to configuration', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const folder = workspaceService.getWorkspace().folders[0].uri;
+		await fileService.writeFile(joinPath(folder, '.vscode', 'tasks.jsonc'), VSBuffer.fromString('{ "version": "2.0.0", "tasks": [{ "label": "fromJsonc" }] }'));
+		await testObject.reloadConfiguration();
+		assert.strictEqual(testObject.getValue('tasks.version'), '2.0.0');
+		const tasks = testObject.getValue<{ label: string }[]>('tasks.tasks');
+		assert.ok(Array.isArray(tasks));
+		assert.strictEqual(tasks?.[0].label, 'fromJsonc');
+	}));
+
+	test('launch jsonc contributes to configuration', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const folder = workspaceService.getWorkspace().folders[0].uri;
+		await fileService.writeFile(joinPath(folder, '.vscode', 'launch.jsonc'), VSBuffer.fromString('{ "configurations": [{ "name": "Launch From Jsonc" }] }'));
+		await testObject.reloadConfiguration();
+		const launch = testObject.getValue<{ configurations: { name: string }[] }>('launch');
+		assert.ok(Array.isArray(launch?.configurations));
+		assert.strictEqual(launch?.configurations[0].name, 'Launch From Jsonc');
+	}));
+
+	test('mcp jsonc contributes to configuration', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const folder = workspaceService.getWorkspace().folders[0].uri;
+		await fileService.writeFile(joinPath(folder, '.vscode', 'mcp.jsonc'), VSBuffer.fromString('{ "servers": [{ "id": "jsonc-server" }] }'));
+		await testObject.reloadConfiguration();
+		const mcp = testObject.getValue<{ servers: { id: string }[] }>('mcp');
+		assert.ok(Array.isArray(mcp?.servers));
+		assert.strictEqual(mcp?.servers[0].id, 'jsonc-server');
 	}));
 
 	test('machine overridable settings override user Settings', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
