@@ -635,7 +635,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 						if (success) {
 							this.logService.debug(`[ChatInputPart] Applied chat.implementationAgentModel setting: '${implementModel}'`);
 						} else {
-							this.logService.warn(`chat.implementationAgentModel setting value '${implementModel}' did not match any available model. Defaulting to model already selected in Plan mode.`);
+							this.logService.warn(`chat.implementationAgentModel setting value '${implementModel}' did not match any available model. Defaulting to currently selected model.`);
 						}
 					}
 				}
