@@ -220,7 +220,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.FastImplementModel]: {
 			type: 'string',
-			markdownDescription: nls.localize('chat.fastImplementModel', "The model to use for fast implementation handoffs. The value can be the model's qualified name (e.g., `{0}`) or the model name for Copilot models (e.g., `{1}`). If not set, handoffs using `${{github.copilot.chat.fastImplement}}` will be hidden.", 'GPT-4o (copilot)', 'GPT-4o'),
+			markdownDescription: nls.localize('chat.fastImplementModel', "The model to use for fast implementation handoffs. The value can be the model's qualified name (e.g., `{0}`) or the model name for Copilot models (e.g., `{1}`). If not set, handoffs using `${github.copilot.chat.fastImplement}` will be hidden.", 'GPT-4o (copilot)', 'GPT-4o'),
 			default: '',
 			tags: ['experimental'],
 		},

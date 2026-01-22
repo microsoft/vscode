@@ -64,11 +64,29 @@ export class ChatSuggestNextWidget extends Disposable {
 				if (!settingValue || settingValue.trim() === '') {
 					return undefined;
 				}
-				return settingValue;
+				return settingValue.trim();
 			}
 			return undefined;
 		}
 		return model;
+	}
+
+	/**
+	 * Checks if a handoff's model is available.
+	 * Returns true if the handoff has no model requirement, or if the model is available.
+	 */
+	private isHandoffModelAvailable(handoff: IHandOff, isModelAvailable?: (model: string) => boolean): boolean {
+		if (!handoff.model) {
+			return true;
+		}
+		const resolvedModel = this.resolveModelReference(handoff.model);
+		if (resolvedModel === undefined) {
+			return false;
+		}
+		if (isModelAvailable) {
+			return isModelAvailable(resolvedModel);
+		}
+		return this.languageModelsService.lookupLanguageModel(resolvedModel) !== undefined;
 	}
 
 	public getCurrentMode(): IChatMode | undefined {
@@ -97,19 +115,7 @@ export class ChatSuggestNextWidget extends Disposable {
 			return;
 		}
 		// Filter handoffs based on model availability
-		const visibleHandoffs = handoffs.filter(handoff => {
-			if (handoff.model) {
-				const resolvedModel = this.resolveModelReference(handoff.model);
-				if (resolvedModel === undefined) {
-					return false;
-				}
-				if (isModelAvailable) {
-					return isModelAvailable(resolvedModel);
-				}
-				return this.languageModelsService.lookupLanguageModel(resolvedModel) !== undefined;
-			}
-			return true;
-		});
+		const visibleHandoffs = handoffs.filter(handoff => this.isHandoffModelAvailable(handoff, isModelAvailable));
 
 		if (visibleHandoffs.length === 0) {
 			this.hide();
@@ -151,32 +157,32 @@ export class ChatSuggestNextWidget extends Disposable {
 		}
 
 		const hasAvailableModel = (h: IHandOff): boolean => {
-			if (!h.model) {
-				return false;
-			}
-			const resolvedModel = this.resolveModelReference(h.model);
-			if (resolvedModel === undefined) {
-				return false;
-			}
-			if (isModelAvailable) {
-				return isModelAvailable(resolvedModel);
-			}
-			return this.languageModelsService.lookupLanguageModel(resolvedModel) !== undefined;
+			return h.model !== undefined && this.isHandoffModelAvailable(h, isModelAvailable);
 		};
 
 		// Sort each category so handoffs with available models come first (they become the main button)
+		// Secondary sort by label for deterministic ordering when model availability is equal
 		for (const [, group] of categoryGroups) {
-			const sorted = [...group].sort((a, b) => {
-				const aHasModel = hasAvailableModel(a);
-				const bHasModel = hasAvailableModel(b);
-				if (aHasModel && !bHasModel) {
-					return -1;
-				}
-				if (!aHasModel && bHasModel) {
-					return 1;
-				}
-				return 0;
-			});
+			const sorted = group
+				.map((handoff, index) => ({ handoff, index }))
+				.sort((a, b) => {
+					const aHasModel = hasAvailableModel(a.handoff);
+					const bHasModel = hasAvailableModel(b.handoff);
+					if (aHasModel && !bHasModel) {
+						return -1;
+					}
+					if (!aHasModel && bHasModel) {
+						return 1;
+					}
+					// Secondary sort by label for consistent ordering
+					const labelCompare = (a.handoff.label ?? '').localeCompare(b.handoff.label ?? '');
+					if (labelCompare !== 0) {
+						return labelCompare;
+					}
+					// Tertiary sort: preserve original order
+					return a.index - b.index;
+				})
+				.map(item => item.handoff);
 
 			const mainHandoff = sorted[0];
 			const categoryHandoffs = sorted.slice(1);

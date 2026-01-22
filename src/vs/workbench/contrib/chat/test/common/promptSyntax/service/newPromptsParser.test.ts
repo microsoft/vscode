@@ -228,6 +228,70 @@ suite('NewPromptsParser', () => {
 		assert.deepEqual(result.header.handOffs[0].model, undefined);
 	});
 
+	test('mode with handoff and category parameter', async () => {
+		const uri = URI.parse('file:///test/test.agent.md');
+		const content = [
+			/* 01 */'---',
+			/* 02 */`description: "Agent test"`,
+			/* 03 */'handoffs:',
+			/* 04 */'  - label: "Option A"',
+			/* 05 */'    agent: Default',
+			/* 06 */'    prompt: "Do A"',
+			/* 07 */'    category: "myCategory"',
+			/* 08 */'  - label: "Option B"',
+			/* 09 */'    agent: Default',
+			/* 10 */'    prompt: "Do B"',
+			/* 11 */'    category: "myCategory"',
+			/* 12 */'---',
+		].join('\n');
+		const result = new PromptFileParser().parse(uri, content);
+		assert.deepEqual(result.uri, uri);
+		assert.ok(result.header);
+		assert.ok(result.header.handOffs);
+		assert.deepEqual(result.header.handOffs, [
+			{ label: 'Option A', agent: 'Default', prompt: 'Do A', category: 'myCategory' },
+			{ label: 'Option B', agent: 'Default', prompt: 'Do B', category: 'myCategory' }
+		]);
+	});
+
+	test('category defaults to undefined when not specified', async () => {
+		const uri = URI.parse('file:///test/test.agent.md');
+		const content = [
+			/* 01 */'---',
+			/* 02 */`description: "Agent test"`,
+			/* 03 */'handoffs:',
+			/* 04 */'  - label: "Save"',
+			/* 05 */'    agent: Default',
+			/* 06 */'    prompt: "Save the plan"',
+			/* 07 */'---',
+		].join('\n');
+		const result = new PromptFileParser().parse(uri, content);
+		assert.deepEqual(result.uri, uri);
+		assert.ok(result.header);
+		assert.ok(result.header.handOffs);
+		assert.deepEqual(result.header.handOffs[0].category, undefined);
+	});
+
+	test('ignores category when value is not a string', async () => {
+		const uri = URI.parse('file:///test/test.agent.md');
+		const content = [
+			/* 01 */'---',
+			/* 02 */`description: "Agent test"`,
+			/* 03 */'handoffs:',
+			/* 04 */'  - label: "Save"',
+			/* 05 */'    agent: Default',
+			/* 06 */'    prompt: "Save the plan"',
+			/* 07 */'    category: 123',
+			/* 08 */'---',
+		].join('\n');
+		const result = new PromptFileParser().parse(uri, content);
+		assert.deepEqual(result.uri, uri);
+		assert.ok(result.header);
+		assert.ok(result.header.handOffs);
+		// category should be undefined because 123 is a number, not a string
+		assert.deepEqual(result.header.handOffs[0].category, undefined);
+	});
+
 	test('instructions', async () => {
 		const uri = URI.parse('file:///test/prompt1.md');
 		const content = [

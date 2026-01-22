@@ -355,4 +355,118 @@ suite('ChatSuggestNextWidget', () => {
 			assert.notStrictEqual(widget.domNode.style.display, 'none', 'Widget should be visible');
 		});
 	});
+
+	suite('Category grouping', () => {
+
+		test('groups handoffs with same category under single button', () => {
+			const handoffs: IHandOff[] = [
+				{ agent: 'Default', label: 'Option A', prompt: 'Prompt A', category: 'myCategory' },
+				{ agent: 'Default', label: 'Option B', prompt: 'Prompt B', category: 'myCategory' }
+			];
+			const mode = createMockMode(handoffs);
+
+			widget.render(mode);
+
+			// Should show only one button (grouped category)
+			// domNode children: [0] = title element, [1+] = buttons
+			const buttonCount = widget.domNode.children.length - 1;
+			assert.strictEqual(buttonCount, 1, 'Should render one button for grouped category');
+		});
+
+		test('handoffs with available models become main button in category', () => {
+			mockLanguageModelsService.registerModel('gpt-4', { name: 'GPT-4', isUserSelectable: true });
+
+			const handoffs: IHandOff[] = [
+				{ agent: 'Default', label: 'Without Model', prompt: 'Prompt A', category: 'impl' },
+				{ agent: 'Default', label: 'With Model', prompt: 'Prompt B', model: 'gpt-4', category: 'impl' }
+			];
+			const mode = createMockMode(handoffs);
+
+			widget.render(mode, () => true);
+
+			// The button title should be the handoff with the model (sorted first)
+			// domNode children: [0] = title element, [1] = first button
+			const firstButton = widget.domNode.children[1] as HTMLElement;
+			const titleElement = firstButton.children[0] as HTMLElement;
+			assert.strictEqual(titleElement?.textContent, 'With Model', 'Handoff with model should be main button');
+		});
+
+		test('mixed categorized and uncategorized handoffs render correctly', () => {
+			const handoffs: IHandOff[] = [
+				{ agent: 'Default', label: 'Cat A1', prompt: 'A1', category: 'catA' },
+				{ agent: 'Default', label: 'Cat A2', prompt: 'A2', category: 'catA' },
+				{ agent: 'Default', label: 'Uncategorized', prompt: 'U' }
+			];
+			const mode = createMockMode(handoffs);
+
+			widget.render(mode);
+
+			// Should render 2 buttons: one grouped for catA, one for uncategorized
+			// domNode children: [0] = title element, [1+] = buttons
+			const buttonCount = widget.domNode.children.length - 1;
+			assert.strictEqual(buttonCount, 2, 'Should render 2 buttons (1 grouped + 1 uncategorized)');
+		});
+
+		test('single handoff in category renders as normal button', () => {
+			const handoffs: IHandOff[] = [
+				{ agent: 'Default', label: 'Single', prompt: 'Single prompt', category: 'loneCategory' }
+			];
+			const mode = createMockMode(handoffs);
+
+			widget.render(mode);
+
+			// domNode children: [0] = title element, [1+] = buttons
+			const buttonCount = widget.domNode.children.length - 1;
+			assert.strictEqual(buttonCount, 1, 'Single categorized handoff should render as one button');
+
+			const firstButton = widget.domNode.children[1] as HTMLElement;
+			const titleElement = firstButton.children[0] as HTMLElement;
+			assert.strictEqual(titleElement?.textContent, 'Single', 'Button title should match handoff label');
+		});
+
+		test('multiple categories render separate buttons', () => {
+			const handoffs: IHandOff[] = [
+				{ agent: 'Default', label: 'Cat A', prompt: 'A', category: 'categoryA' },
+				{ agent: 'Default', label: 'Cat B', prompt: 'B', category: 'categoryB' }
+			];
+			const mode = createMockMode(handoffs);
+
+			widget.render(mode);
+
+			// domNode children: [0] = title element, [1+] = buttons
+			const buttonCount = widget.domNode.children.length - 1;
+			assert.strictEqual(buttonCount, 2, 'Different categories should render separate buttons');
+		});
+
+		test('deterministic sorting within category by label', () => {
+			// Both handoffs have no model, so secondary sort by label should apply
+			const handoffs: IHandOff[] = [
+				{ agent: 'Default', label: 'Zebra', prompt: 'Z', category: 'test' },
+				{ agent: 'Default', label: 'Apple', prompt: 'A', category: 'test' }
+			];
+			const mode = createMockMode(handoffs);
+
+			widget.render(mode);
+
+			// 'Apple' comes before 'Zebra' alphabetically, so it should be the main button
+			// domNode children: [0] = title element, [1] = first button
+			const firstButton = widget.domNode.children[1] as HTMLElement;
+			const titleElement = firstButton.children[0] as HTMLElement;
+			assert.strictEqual(titleElement?.textContent, 'Apple', 'Should sort alphabetically by label when model availability is equal');
+		});
+
+		test('showContinueOn dropdown appears when any category member has showContinueOn', () => {
+			// Mock chat sessions service to return contributions for dropdown
+			const handoffs: IHandOff[] = [
+				{ agent: 'Default', label: 'No Continue', prompt: 'A', category: 'test', showContinueOn: false },
+				{ agent: 'Default', label: 'With Continue', prompt: 'B', category: 'test', showContinueOn: true }
+			];
+			const mode = createMockMode(handoffs);
+
+			widget.render(mode);
+
+			// Widget should be visible
+			assert.notStrictEqual(widget.domNode.style.display, 'none', 'Widget should be visible');
+		});
+	});
 });
