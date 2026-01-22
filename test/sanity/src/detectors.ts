@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import fs from 'fs';
+import { webkit } from 'playwright';
 
 /**
  * The capabilities of the current environment.
@@ -103,15 +104,16 @@ function detectDesktop(capabilities: Set<Capability>) {
 function detectBrowser(capabilities: Set<Capability>) {
 	switch (process.platform) {
 		case 'linux': {
-			const path = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH ?? '/usr/bin/chromium-browser';
-			if (fs.existsSync(path)) {
+			const path = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH;
+			if (path && fs.existsSync(path)) {
 				capabilities.add('browser');
 			}
 			break;
 		}
 		case 'darwin': {
-			// Playwright installs its own WebKit browser via `playwright install webkit`
-			capabilities.add('browser');
+			if (fs.existsSync(webkit.executablePath())) {
+				capabilities.add('browser');
+			}
 			break;
 		}
 		case 'win32': {

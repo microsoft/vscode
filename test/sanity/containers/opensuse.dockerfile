@@ -26,8 +26,11 @@ ENV DISPLAY=:99
 RUN zypper install -y dbus-1-daemon && \
 	mkdir -p /run/dbus
 
-# VS Code dependencies
-RUN zypper install -y libglib-2_0-0
+# VS Code dependencies (arm64 only, amd64 gets them from Chrome)
+ARG TARGETARCH
+RUN if [ "$TARGETARCH" = "arm64" ]; then \
+	zypper install -y gtk3; \
+	fi
 
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
