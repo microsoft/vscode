@@ -42,6 +42,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 
 	private _state: State = State.Uninitialized;
 	protected _overwrite: boolean = false;
+	private _hasCheckedForOverwriteOnQuit: boolean = false;
 	private readonly overwriteUpdatesCheckInterval = new IntervalTimer();
 
 	private readonly _onStateChange = new Emitter<State>();
@@ -197,7 +198,8 @@ export abstract class AbstractUpdateService implements IUpdateService {
 			return undefined;
 		}
 
-		if (this.supportsUpdateOverwrite) {
+		if (this.supportsUpdateOverwrite && !this._hasCheckedForOverwriteOnQuit) {
+			this._hasCheckedForOverwriteOnQuit = true;
 			const didOverwrite = await this.checkForOverwriteUpdates(true);
 
 			if (didOverwrite) {
