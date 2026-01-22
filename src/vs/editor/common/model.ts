@@ -1241,11 +1241,8 @@ export interface ITextModel {
 	 * @param operations The edit operations.
 	 * @return If desired, the inverse edit operations, that, when applied, will bring the model back to the previous state.
 	 */
-	applyEdits(operations: readonly IIdentifiedSingleEditOperation[]): void;
-	/** @internal */
-	applyEdits(operations: readonly IIdentifiedSingleEditOperation[], reason: TextModelEditSource): void;
-	applyEdits(operations: readonly IIdentifiedSingleEditOperation[], computeUndoEdits: false): void;
-	applyEdits(operations: readonly IIdentifiedSingleEditOperation[], computeUndoEdits: true): IValidEditOperation[];
+	applyEdits(operations: readonly IIdentifiedSingleEditOperation[], computeUndoEdits?: false, reason?: TextModelEditSource): void;
+	applyEdits(operations: readonly IIdentifiedSingleEditOperation[], computeUndoEdits: true, reason?: TextModelEditSource): IValidEditOperation[];
 
 	/**
 	 * Change the end of line sequence without recording in the undo stack.
