@@ -14,6 +14,7 @@ import { ChatModeKind } from '../../common/constants.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 
 const CODE_REVIEW_ACTION_ID = 'workbench.action.chat.runCodeReview';
+const CODE_REVIEW_MODE_NAME = 'code-review';
 
 export class RunCodeReviewAction extends Action2 {
 	constructor() {
@@ -44,13 +45,13 @@ export class RunCodeReviewAction extends Action2 {
 		const commandService = accessor.get(ICommandService);
 
 		// Try to find code-review mode
-		const codeReviewMode = chatModeService.findModeByName('code-review');
-		
+		const codeReviewMode = chatModeService.findModeByName(CODE_REVIEW_MODE_NAME);
+
 		if (codeReviewMode) {
 			// Open chat with code-review mode
 			await commandService.executeCommand('workbench.action.openChat', {
 				query: '',
-				mode: 'code-review'
+				mode: CODE_REVIEW_MODE_NAME
 			});
 		} else {
 			// Fallback: Open chat in agent mode with a code review prompt
