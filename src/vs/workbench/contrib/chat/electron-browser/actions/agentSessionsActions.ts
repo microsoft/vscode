@@ -6,6 +6,8 @@ import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { localize2 } from '../../../../../nls.js';
 import { Action2 } from '../../../../../platform/actions/common/actions.js';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ProductQualityContext } from '../../../../../platform/contextkey/common/contextkeys.js';
 import { INativeEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { INativeHostService } from '../../../../../platform/native/common/native.js';
@@ -19,7 +21,7 @@ export class OpenAgentSessionsWindowAction extends Action2 {
 			id: 'workbench.action.openAgentSessionsWindow',
 			title: localize2('openAgentSessionsWindow', "Open Agent Sessions Window"),
 			category: CHAT_CATEGORY,
-			precondition: ChatEntitlementContextKeys.Setup.hidden.negate(),
+			precondition: ContextKeyExpr.and(ChatEntitlementContextKeys.Setup.hidden.negate(), ProductQualityContext.notEqualsTo('stable')),
 			f1: true,
 		});
 	}
