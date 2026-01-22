@@ -425,7 +425,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			terminalCommandId,
 			commandLine: {
 				original: args.command,
-				toolEdited: rewrittenCommand === args.command ? undefined : rewrittenCommand
+				toolEdited: rewrittenCommand === args.command ? undefined : rewrittenCommand,
+				sandboxWrapped: this._sandboxService.isEnabled() ? args.command : undefined,
 			},
 			cwd,
 			language,
@@ -442,16 +443,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				toolSpecificData,
 			};
 		}
-
-		// If in sandbox mode, skip confirmation logic. In sandbox mode, commands are run in a restricted environment and explicit
-		// user confirmation is not required.
-		if (this._sandboxService.isEnabled()) {
-			toolSpecificData.autoApproveInfo = new MarkdownString(localize('autoApprove.sandbox', 'In sandbox mode'));
-			return {
-				toolSpecificData
-			};
-		}
-
 		// Determine auto approval, this happens even when auto approve is off to that reasoning
 		// can be reviewed in the terminal channel. It also allows gauging the effective set of
 		// commands that would be auto approved if it were enabled.
@@ -534,7 +525,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		}
 
 		// Extract cd prefix for display - show directory in title, command suffix in editor
-		const commandToDisplay = (toolSpecificData.commandLine.toolEdited ?? toolSpecificData.commandLine.original).trimStart();
+		const commandToDisplay = (toolSpecificData.commandLine.sandboxWrapped ?? toolSpecificData.commandLine.userEdited ?? toolSpecificData.commandLine.toolEdited ?? toolSpecificData.commandLine.original).trimStart();
 		const extractedCd = extractCdPrefix(commandToDisplay, shell, os);
 		let confirmationTitle: string;
 		if (extractedCd && cwd) {
@@ -587,6 +578,16 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				}
 				break;
 			}
+		}
+
+		// If in sandbox mode, skip confirmation logic. In sandbox mode, commands are run in a restricted environment and explicit
+		// user confirmation is not required.
+		if (this._sandboxService.isEnabled()) {
+			// toolSpecificData.presentationOverrides = toolSpecificData.presentationOverrides ?? { commandLine: toolSpecificData.commandLine.original, language: '' };
+			toolSpecificData.autoApproveInfo = new MarkdownString(localize('autoApprove.sandbox', 'In sandbox mode'));
+			return {
+				toolSpecificData
+			};
 		}
 
 		const confirmationMessages = isFinalAutoApproved ? undefined : {

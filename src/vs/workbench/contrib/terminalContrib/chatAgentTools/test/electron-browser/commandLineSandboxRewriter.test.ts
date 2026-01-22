@@ -17,6 +17,23 @@ suite('CommandLineSandboxRewriter', () => {
 
 	let instantiationService: TestInstantiationService;
 
+	const stubSandboxService = (overrides: Partial<ITerminalSandboxService> = {}) => {
+		instantiationService.stub(ITerminalSandboxService, {
+			_serviceBrand: undefined,
+			isEnabled: () => false,
+			wrapCommand: command => command,
+			getSandboxConfigPath: async () => '/tmp/sandbox.json',
+			getTempDir: () => undefined,
+			setNeedsForceUpdateConfigFile: () => { },
+			...overrides
+		});
+	};
+
+	beforeEach(() => {
+		instantiationService = workbenchInstantiationService({}, store);
+		stubSandboxService();
+	});
+
 	function createRewriteOptions(command: string): ICommandLineRewriterOptions {
 		return {
 			commandLine: command,
@@ -27,30 +44,16 @@ suite('CommandLineSandboxRewriter', () => {
 	}
 
 	test('returns undefined when sandbox is disabled', async () => {
-		instantiationService = workbenchInstantiationService({}, store);
-		instantiationService.stub(ITerminalSandboxService, {
-			_serviceBrand: undefined,
-			isEnabled: () => false,
-			wrapCommand: command => command,
-			getSandboxConfigPath: async () => '/tmp/sandbox.json',
-			getTempDir: () => undefined,
-			setNeedsForceUpdateConfigFile: () => { }
-		});
-
 		const rewriter = store.add(instantiationService.createInstance(CommandLineSandboxRewriter));
 		const result = await rewriter.rewrite(createRewriteOptions('echo hello'));
 		strictEqual(result, undefined);
 	});
 
 	test('returns undefined when sandbox config is unavailable', async () => {
-		instantiationService = workbenchInstantiationService({}, store);
-		instantiationService.stub(ITerminalSandboxService, {
-			_serviceBrand: undefined,
+		stubSandboxService({
 			isEnabled: () => true,
 			wrapCommand: command => `wrapped:${command}`,
 			getSandboxConfigPath: async () => undefined,
-			getTempDir: () => undefined,
-			setNeedsForceUpdateConfigFile: () => { }
 		});
 
 		const rewriter = store.add(instantiationService.createInstance(CommandLineSandboxRewriter));
@@ -59,10 +62,8 @@ suite('CommandLineSandboxRewriter', () => {
 	});
 
 	test('wraps command when sandbox is enabled and config exists', async () => {
-		instantiationService = workbenchInstantiationService({}, store);
 		const calls: string[] = [];
-		instantiationService.stub(ITerminalSandboxService, {
-			_serviceBrand: undefined,
+		stubSandboxService({
 			isEnabled: () => true,
 			wrapCommand: command => {
 				calls.push('wrapCommand');
@@ -72,8 +73,6 @@ suite('CommandLineSandboxRewriter', () => {
 				calls.push('getSandboxConfigPath');
 				return '/tmp/sandbox.json';
 			},
-			getTempDir: () => undefined,
-			setNeedsForceUpdateConfigFile: () => { }
 		});
 
 		const rewriter = store.add(instantiationService.createInstance(CommandLineSandboxRewriter));
