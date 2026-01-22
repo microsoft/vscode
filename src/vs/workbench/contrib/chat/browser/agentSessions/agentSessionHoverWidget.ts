@@ -122,7 +122,7 @@ export class AgentSessionHoverWidget extends Disposable {
 				rendererOptions: {
 					renderStyle: 'compact',
 					noHeader: true,
-					editableCodeBlock: false,
+					editable: false,
 				},
 				currentChatMode: () => ChatModeKind.Ask,
 			}
@@ -168,8 +168,8 @@ export class AgentSessionHoverWidget extends Disposable {
 		dom.append(detailsRow, dom.$('span.separator', undefined, '•'));
 
 		// Duration or start time
-		if (session.timing.finishedOrFailedTime && session.timing.inProgressTime) {
-			const duration = this.toDuration(session.timing.inProgressTime, session.timing.finishedOrFailedTime, true);
+		if (session.timing.lastRequestEnded && session.timing.lastRequestStarted) {
+			const duration = this.toDuration(session.timing.lastRequestStarted, session.timing.lastRequestEnded, true);
 			if (duration) {
 				dom.append(detailsRow, dom.$('span', undefined, duration));
 			}
@@ -237,8 +237,8 @@ export class AgentSessionHoverWidget extends Disposable {
 		details.push(session.providerLabel);
 
 		// Duration or start time
-		if (session.timing.finishedOrFailedTime && session.timing.inProgressTime) {
-			const duration = this.toDuration(session.timing.inProgressTime, session.timing.finishedOrFailedTime, true);
+		if (session.timing.lastRequestEnded && session.timing.lastRequestStarted) {
+			const duration = this.toDuration(session.timing.lastRequestStarted, session.timing.lastRequestEnded, true);
 			if (duration) {
 				details.push(duration);
 			}
