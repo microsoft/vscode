@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../base/common/event.js';
+import { localize } from '../../../nls.js';
 import { upcast } from '../../../base/common/types.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 
@@ -66,7 +67,7 @@ export type Disabled = { type: StateType.Disabled; reason: DisablementReason };
 export type Idle = { type: StateType.Idle; updateType: UpdateType; error?: string };
 export type CheckingForUpdates = { type: StateType.CheckingForUpdates; explicit: boolean };
 export type AvailableForDownload = { type: StateType.AvailableForDownload; update: IUpdate };
-export type Downloading = { type: StateType.Downloading };
+export type Downloading = { type: StateType.Downloading; downloadedBytes?: number; totalBytes?: number; startTime?: number };
 export type Downloaded = { type: StateType.Downloaded; update: IUpdate };
 export type Updating = { type: StateType.Updating; update: IUpdate };
 export type Ready = { type: StateType.Ready; update: IUpdate };
@@ -79,7 +80,7 @@ export const State = {
 	Idle: (updateType: UpdateType, error?: string): Idle => ({ type: StateType.Idle, updateType, error }),
 	CheckingForUpdates: (explicit: boolean): CheckingForUpdates => ({ type: StateType.CheckingForUpdates, explicit }),
 	AvailableForDownload: (update: IUpdate): AvailableForDownload => ({ type: StateType.AvailableForDownload, update }),
-	Downloading: upcast<Downloading>({ type: StateType.Downloading }),
+	Downloading: (downloadedBytes?: number, totalBytes?: number, startTime?: number): Downloading => ({ type: StateType.Downloading, downloadedBytes, totalBytes, startTime }),
 	Downloaded: (update: IUpdate): Downloaded => ({ type: StateType.Downloaded, update }),
 	Updating: (update: IUpdate): Updating => ({ type: StateType.Updating, update }),
 	Ready: (update: IUpdate): Ready => ({ type: StateType.Ready, update }),
@@ -107,4 +108,72 @@ export interface IUpdateService {
 
 	isLatestVersion(): Promise<boolean | undefined>;
 	_applySpecificUpdate(packagePath: string): Promise<void>;
+}
+
+/**
+ * Computes an estimate of remaining download time in seconds.
+ * Returns undefined if not enough data is available.
+ *
+ * @param state The download state containing progress information.
+ */
+export function computeDownloadTimeRemaining(state: Downloading): number | undefined {
+	const { downloadedBytes, totalBytes, startTime } = state;
+	if (downloadedBytes === undefined || totalBytes === undefined || startTime === undefined) {
+		return undefined;
+	}
+
+	const elapsedMs = Date.now() - startTime;
+	if (downloadedBytes <= 0 || totalBytes <= 0 || elapsedMs <= 0) {
+		return undefined;
+	}
+
+	const remainingBytes = totalBytes - downloadedBytes;
+	if (remainingBytes <= 0) {
+		return 0;
+	}
+
+	const bytesPerMs = downloadedBytes / elapsedMs;
+	if (bytesPerMs <= 0) {
+		return undefined;
+	}
+
+	const remainingMs = remainingBytes / bytesPerMs;
+	return Math.ceil(remainingMs / 1000);
+}
+
+/**
+ * Formats the time remaining as a human-readable string.
+ * - If >= 1 hour: shows fractional hours (e.g., "1.5 hours")
+ * - If >= 1 minute but < 1 hour: shows minutes (e.g., "2 min")
+ * - Otherwise: shows seconds (e.g., "30s")
+ *
+ * @param seconds The time remaining in seconds.
+ * @returns A formatted string representing the time remaining.
+ */
+export function formatTimeRemaining(seconds: number): string {
+	const hours = seconds / 3600;
+	if (hours >= 1) {
+		const fractionalHours = Math.round(hours * 10) / 10; // Round to 1 decimal place
+		return localize('timeRemainingHours', "{0} hours", fractionalHours);
+	}
+	const minutes = Math.floor(seconds / 60);
+	if (minutes >= 1) {
+		return localize('timeRemainingMinutes', "{0} min", minutes);
+	}
+	return localize('timeRemainingSeconds', "{0}s", seconds);
+}
+
+/**
+ * Formats the download progress label with time remaining if available.
+ *
+ * @param state The download state containing progress information.
+ * @returns A localized string like "Downloading Update (10s remaining)..." or "Downloading Update..."
+ */
+export function formatDownloadingUpdateLabel(state: Downloading): string {
+	const timeRemaining = computeDownloadTimeRemaining(state);
+	if (timeRemaining !== undefined && timeRemaining > 0) {
+		const formattedTime = formatTimeRemaining(timeRemaining);
+		return localize('downloadingUpdateWithProgress', "Downloading Update ({0} remaining)...", formattedTime);
+	}
+	return localize('downloadingUpdate', "Downloading Update...");
 }
