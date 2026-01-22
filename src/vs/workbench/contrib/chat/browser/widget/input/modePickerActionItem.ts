@@ -147,17 +147,7 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 			return mode.source.storage === PromptsStorage.local || mode.source.storage === PromptsStorage.user;
 		};
 
-		const isImplementMode = (mode: IChatMode): boolean => {
-			// Only hide 'implement' mode if it's from the built-in chat extension
-			if (mode.name.get().toLowerCase() !== 'implement') {
-				return false;
-			}
-			if (mode.source?.storage !== PromptsStorage.extension) {
-				return false;
-			}
-			const chatExtensionId = this._productService.defaultChatAgent?.chatExtensionId;
-			return !!chatExtensionId && mode.source.extensionId.value === chatExtensionId;
-		};
+		const isImplementMode = (mode: IChatMode) => isBuiltinImplementMode(mode, this._productService);
 
 		const actionProviderWithCustomAgentTarget: IActionWidgetDropdownActionProvider = {
 			getActions: () => {
@@ -263,6 +253,21 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 		dom.reset(element, ...labelElements);
 		return null;
 	}
+}
+
+/**
+ * Returns true if the mode is the built-in 'implement' mode from the chat extension.
+ * This mode is hidden from the mode picker but available for handoffs.
+ */
+export function isBuiltinImplementMode(mode: IChatMode, productService: IProductService): boolean {
+	if (mode.name.get().toLowerCase() !== 'implement') {
+		return false;
+	}
+	if (mode.source?.storage !== PromptsStorage.extension) {
+		return false;
+	}
+	const chatExtensionId = productService.defaultChatAgent?.chatExtensionId;
+	return !!chatExtensionId && mode.source.extensionId.value === chatExtensionId;
 }
 
 function isModeConsideredBuiltIn(mode: IChatMode, productService: IProductService): boolean {
