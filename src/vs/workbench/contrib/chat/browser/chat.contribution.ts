@@ -420,6 +420,11 @@ configurationRegistry.registerConfiguration({
 			default: 'sideBySide',
 			description: nls.localize('chat.viewSessions.orientation', "Controls the orientation of the chat agent sessions view when it is shown alongside the chat."),
 		},
+		[ChatConfiguration.ChatViewSessionsMaximized]: {
+			type: 'boolean',
+			default: false,
+			description: nls.localize('chat.viewSessions.maximized', "When enabled, the sessions list will be maximized to fill available space above the chat input."),
+		},
 		[ChatConfiguration.ChatViewTitleEnabled]: {
 			type: 'boolean',
 			default: true,

@@ -32,6 +32,7 @@ export enum ChatConfiguration {
 	NotifyWindowOnResponseReceived = 'chat.notifyWindowOnResponseReceived',
 	ChatViewSessionsEnabled = 'chat.viewSessions.enabled',
 	ChatViewSessionsOrientation = 'chat.viewSessions.orientation',
+	ChatViewSessionsMaximized = 'chat.viewSessions.maximized',
 	ChatViewTitleEnabled = 'chat.viewTitle.enabled',
 	SubagentToolCustomAgents = 'chat.customAgentInSubagent.enabled',
 	ShowCodeBlockProgressAnimation = 'chat.agent.codeBlockProgress',

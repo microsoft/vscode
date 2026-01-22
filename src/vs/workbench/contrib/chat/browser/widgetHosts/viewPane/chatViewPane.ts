@@ -588,6 +588,11 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			this.notifySessionsControlCountChanged();
 		}));
 
+		// Handle maximized setting change
+		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ChatConfiguration.ChatViewSessionsMaximized))(() => {
+			this.relayout();
+		}));
+
 		// Track the active chat model and reveal it in the sessions control if side-by-side
 		this._register(chatWidget.onDidChangeViewModel(() => {
 			if (this.sessionsViewerOrientation === AgentSessionsViewerOrientation.Stacked) {
@@ -939,10 +944,12 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	}
 
 	private computeEffectiveStackedSessionsHeight(availableHeight: number, sessionsViewerStackedHeight = this.sessionsViewerStackedHeight): number {
+		const isMaximized = this.configurationService.getValue<boolean>(ChatConfiguration.ChatViewSessionsMaximized);
+		const targetHeight = isMaximized ? availableHeight : sessionsViewerStackedHeight;
 		return Math.max(
 			ChatViewPane.SESSIONS_STACKED_MIN_HEIGHT,			// never smaller than min height for stacked sessions
 			Math.min(
-				sessionsViewerStackedHeight,
+				targetHeight,
 				availableHeight									// never taller than available height
 			)
 		);
