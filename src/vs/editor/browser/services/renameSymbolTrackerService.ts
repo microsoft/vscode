@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IObservable } from '../../../base/common/observable.js';
+import { IObservable, observableValue } from '../../../base/common/observable.js';
 import { Position } from '../../common/core/position.js';
 import { Range } from '../../common/core/range.js';
 import { ITextModel } from '../../common/model.js';
@@ -48,4 +48,14 @@ export interface IRenameSymbolTrackerService {
 	 * Observable that emits the currently tracked word, or undefined if no word is being tracked.
 	 */
 	readonly trackedWord: IObservable<ITrackedWord | undefined>;
+}
+
+export class NullRenameSymbolTrackerService implements IRenameSymbolTrackerService {
+	declare readonly _serviceBrand: undefined;
+
+	private readonly _trackedWord = observableValue<ITrackedWord | undefined>(this, undefined);
+	public readonly trackedWord: IObservable<ITrackedWord | undefined> = this._trackedWord;
+	constructor() {
+		this._trackedWord.set(undefined, undefined);
+	}
 }
