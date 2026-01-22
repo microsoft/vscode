@@ -131,7 +131,7 @@
 		"editorCodeLens.foreground": "#666666",
 		"editorBracketMatch.background": "#1A5CFF55",
 		"editorBracketMatch.border": "#ECEDEEFF",
-		"editorWidget.background": "#FFFFFF",
+		"editorWidget.background": "#FFFFFF33",
 		"editorWidget.border": "#ECEDEEFF",
 		"editorWidget.foreground": "#202020",
 		"editorSuggestWidget.background": "#FFFFFF",

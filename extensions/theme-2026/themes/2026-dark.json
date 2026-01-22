@@ -4,7 +4,7 @@
 	"type": "dark",
 	"colors": {
 		"foreground": "#bfbfbf",
-		"disabledForeground": "#444444",
+		"disabledForeground": "#666666",
 		"errorForeground": "#f48771",
 		"descriptionForeground": "#888888",
 		"icon.foreground": "#888888",
@@ -131,7 +131,7 @@
 		"editorCodeLens.foreground": "#888888",
 		"editorBracketMatch.background": "#3994BC55",
 		"editorBracketMatch.border": "#2A2B2CFF",
-		"editorWidget.background": "#202122",
+		"editorWidget.background": "#20212266",
 		"editorWidget.border": "#2A2B2CFF",
 		"editorWidget.foreground": "#bfbfbf",
 		"editorSuggestWidget.background": "#202122",
