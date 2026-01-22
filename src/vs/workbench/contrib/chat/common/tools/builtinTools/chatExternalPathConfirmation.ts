@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { dirname } from '../../../../../../base/common/path.js';
-import { extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
+import { ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
+import { dirname, extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { ConfirmedReason, ToolConfirmKind } from '../../chatService/chatService.js';
@@ -27,8 +27,7 @@ export interface IExternalPathInfo {
 export class ChatExternalPathConfirmationContribution implements ILanguageModelToolConfirmationContribution {
 	readonly canUseDefaultApprovals = false;
 
-	// Map<sessionResourceString, Set<folderUriString>>
-	private readonly _sessionFolderAllowlist = new Map<string, Set<string>>();
+	private readonly _sessionFolderAllowlist = new ResourceMap<ResourceSet>();
 
 	constructor(
 		private readonly _getPathInfo: (ref: ILanguageModelToolConfirmationRef) => IExternalPathInfo | undefined,
@@ -40,8 +39,7 @@ export class ChatExternalPathConfirmationContribution implements ILanguageModelT
 			return undefined;
 		}
 
-		const sessionKey = ref.chatSessionResource.toString();
-		const allowedFolders = this._sessionFolderAllowlist.get(sessionKey);
+		const allowedFolders = this._sessionFolderAllowlist.get(ref.chatSessionResource);
 		if (!allowedFolders || allowedFolders.size === 0) {
 			return undefined;
 		}
@@ -55,8 +53,7 @@ export class ChatExternalPathConfirmationContribution implements ILanguageModelT
 		}
 
 		// Check if path is under any allowed folder
-		for (const folderUriStr of allowedFolders) {
-			const folderUri = URI.parse(folderUriStr);
+		for (const folderUri of allowedFolders) {
 			if (extUriBiasedIgnorePathCase.isEqualOrParent(pathUri, folderUri)) {
 				return { type: ToolConfirmKind.UserAction };
 			}
@@ -80,20 +77,20 @@ export class ChatExternalPathConfirmationContribution implements ILanguageModelT
 		}
 
 		// For directories, use the path itself; for files, use the parent directory
-		const folderUri = pathInfo.isDirectory ? pathUri : pathUri.with({ path: dirname(pathUri.path) });
-		const sessionKey = ref.chatSessionResource.toString();
+		const folderUri = pathInfo.isDirectory ? pathUri : dirname(pathUri);
+		const sessionResource = ref.chatSessionResource;
 
 		return [
 			{
 				label: localize('allowFolderSession', 'Allow this folder in this session'),
 				detail: localize('allowFolderSessionDetail', 'Allow reading files from this folder without further confirmation in this chat session'),
 				select: async () => {
-					let folders = this._sessionFolderAllowlist.get(sessionKey);
+					let folders = this._sessionFolderAllowlist.get(sessionResource);
 					if (!folders) {
-						folders = new Set();
-						this._sessionFolderAllowlist.set(sessionKey, folders);
+						folders = new ResourceSet();
+						this._sessionFolderAllowlist.set(sessionResource, folders);
 					}
-					folders.add(folderUri.toString());
+					folders.add(folderUri);
 					return true;
 				}
 			}
@@ -105,7 +102,7 @@ export class ChatExternalPathConfirmationContribution implements ILanguageModelT
 	 * Should be called when a chat session is disposed.
 	 */
 	clearSession(sessionResource: URI): void {
-		this._sessionFolderAllowlist.delete(sessionResource.toString());
+		this._sessionFolderAllowlist.delete(sessionResource);
 	}
 
 	reset(): void {
