@@ -367,7 +367,8 @@ export class WebClientServer {
 			folderUri: resolveWorkspaceURI(this._environmentService.args['default-folder']),
 			workspaceUri: resolveWorkspaceURI(this._environmentService.args['default-workspace']),
 			productConfiguration,
-			callbackRoute: callbackRoute
+			callbackRoute: callbackRoute,
+			remoteStorageEnabled: this._environmentService.args['enable-remote-storage'] ? true : undefined
 		};
 
 		const cookies = cookie.parse(req.headers.cookie || '');
