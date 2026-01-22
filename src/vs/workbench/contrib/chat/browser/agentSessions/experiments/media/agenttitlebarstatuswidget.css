@@ -466,6 +466,20 @@
 	background-size: 18px !important;
 }
 
+/* Override global toolbar hover/active styles for sparkle section action labels */
+.agent-status-badge-section.sparkle .action-container .action-label:hover,
+.agent-status-badge-section.sparkle .dropdown-action-container .action-label:hover {
+	outline: none !important;
+	background-color: transparent !important;
+}
+
+.agent-status-badge-section.sparkle .action-container .action-label:active,
+.agent-status-badge-section.sparkle .dropdown-action-container .action-label:active,
+.agent-status-badge-section.sparkle .action-item.active .action-label,
+.agent-status-badge-section.sparkle .monaco-dropdown.active .action-label {
+	background-color: transparent !important;
+}
+
 /* Unread section - blue dot indicator with count */
 .agent-status-badge-section.unread {
 	color: var(--vscode-foreground);

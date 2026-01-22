@@ -254,6 +254,7 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 
 	/**
 	 * Get computed session statistics for rendering.
+	 * Respects the current provider (session type) filter when calculating counts.
 	 */
 	private _getSessionStats(): {
 		activeSessions: IAgentSession[];
@@ -264,10 +265,20 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 		hasAttentionNeeded: boolean;
 	} {
 		const sessions = this.agentSessionsService.model.sessions;
-		const activeSessions = sessions.filter(s => isSessionInProgressStatus(s.status) && !s.isArchived());
-		const unreadSessions = sessions.filter(s => !s.isRead());
+
+		// Get excluded providers from current filter to respect session type filters
+		const currentFilter = this._getStoredFilter();
+		const excludedProviders = currentFilter?.providers ?? [];
+
+		// Filter sessions by provider type first (respects session type filters)
+		const filteredSessions = excludedProviders.length > 0
+			? sessions.filter(s => !excludedProviders.includes(s.providerType))
+			: sessions;
+
+		const activeSessions = filteredSessions.filter(s => isSessionInProgressStatus(s.status) && !s.isArchived());
+		const unreadSessions = filteredSessions.filter(s => !s.isRead());
 		// Sessions that need user attention (approval/confirmation/input)
-		const attentionNeededSessions = sessions.filter(s => s.status === AgentSessionStatus.NeedsInput);
+		const attentionNeededSessions = filteredSessions.filter(s => s.status === AgentSessionStatus.NeedsInput);
 
 		return {
 			activeSessions,
@@ -841,10 +852,14 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 
 	/**
 	 * Opens the agent sessions view with a specific filter applied, or restores previous filter if already applied.
+	 * Preserves session type (provider) filters while toggling only status filters.
 	 * @param filterType 'unread' to show only unread sessions, 'inProgress' to show only in-progress sessions
 	 */
 	private _openSessionsWithFilter(filterType: 'unread' | 'inProgress'): void {
 		const { isFilteredToUnread, isFilteredToInProgress } = this._getCurrentFilterState();
+		const currentFilter = this._getStoredFilter();
+		// Preserve existing provider filters (session type filters like Local, Background, etc.)
+		const preservedProviders = currentFilter?.providers ?? [];
 
 		// Toggle filter based on current state
 		if (filterType === 'unread') {
@@ -854,9 +869,9 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 			} else {
 				// Save current filter before applying our own
 				this._saveUserFilter();
-				// Exclude read sessions to show only unread
+				// Exclude read sessions to show only unread, preserving provider filters
 				this._storeFilter({
-					providers: [],
+					providers: preservedProviders,
 					states: [],
 					archived: true,
 					read: true
@@ -869,9 +884,9 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 			} else {
 				// Save current filter before applying our own
 				this._saveUserFilter();
-				// Exclude Completed and Failed to show InProgress and NeedsInput
+				// Exclude Completed and Failed to show InProgress and NeedsInput, preserving provider filters
 				this._storeFilter({
-					providers: [],
+					providers: preservedProviders,
 					states: [AgentSessionStatus.Completed, AgentSessionStatus.Failed],
 					archived: true,
 					read: false
