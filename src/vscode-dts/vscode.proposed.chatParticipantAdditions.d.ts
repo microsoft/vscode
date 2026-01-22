@@ -96,6 +96,106 @@ declare module 'vscode' {
 		constructor(title: string, message: string | MarkdownString, data: any, buttons?: string[]);
 	}
 
+	/**
+	 * An option for a question in a carousel.
+	 */
+	export interface ChatQuestionOption {
+		/**
+		 * The display label for the option.
+		 */
+		label: string;
+		/**
+		 * The value returned when this option is selected.
+		 */
+		value: unknown;
+		/**
+		 * Whether this option is selected by default.
+		 */
+		default?: boolean;
+	}
+
+	/**
+	 * The type of question for a chat question carousel.
+	 */
+	export enum ChatQuestionType {
+		/**
+		 * A free-form text input question.
+		 */
+		Text = 1,
+		/**
+		 * A single-select question with radio buttons.
+		 */
+		SingleSelect = 2,
+		/**
+		 * A multi-select question with checkboxes.
+		 */
+		MultiSelect = 3
+	}
+
+	/**
+	 * A question to be displayed in a question carousel.
+	 */
+	export class ChatQuestion {
+		/**
+		 * Unique identifier for the question.
+		 */
+		id: string;
+		/**
+		 * The type of question: Text for free-form input, SingleSelect for radio buttons, MultiSelect for checkboxes.
+		 */
+		type: ChatQuestionType;
+		/**
+		 * The title/header of the question.
+		 */
+		title: string;
+		/**
+		 * Optional detailed message or description for the question.
+		 */
+		message?: string | MarkdownString;
+		/**
+		 * Options for singleSelect or multiSelect questions.
+		 */
+		options?: ChatQuestionOption[];
+		/**
+		 * Whether the question requires an answer before submission.
+		 */
+		required?: boolean;
+		/**
+		 * Default value for the question.
+		 */
+		defaultValue?: unknown;
+
+		constructor(
+			id: string,
+			type: ChatQuestionType,
+			title: string,
+			options?: {
+				message?: string | MarkdownString;
+				options?: ChatQuestionOption[];
+				required?: boolean;
+				defaultValue?: unknown;
+			}
+		);
+	}
+
+	/**
+	 * A carousel view for presenting multiple questions inline in the chat. This part is blocking -
+	 * when pushed to the response stream, it returns a Promise that resolves when the user submits
+	 * or rejects if ignored/dismissed.
+	 */
+	export class ChatResponseQuestionCarouselPart {
+		/**
+		 * The questions to display in the carousel.
+		 */
+		questions: ChatQuestion[];
+		/**
+		 * Whether users can skip answering the questions.
+		 */
+		allowSkip: boolean;
+
+		constructor(questions: ChatQuestion[], allowSkip?: boolean);
+	}
+
 	export class ChatResponseCodeCitationPart {
 		value: Uri;
 		license: string;
@@ -244,7 +344,7 @@ declare module 'vscode' {
 		constructor(uris: Uri[], callback: () => Thenable<unknown>);
 	}
 
-	export type ExtendedChatResponsePart = ChatResponsePart | ChatResponseTextEditPart | ChatResponseNotebookEditPart | ChatResponseWorkspaceEditPart | ChatResponseConfirmationPart | ChatResponseCodeCitationPart | ChatResponseReferencePart2 | ChatResponseMovePart | ChatResponseExtensionsPart | ChatResponsePullRequestPart | ChatToolInvocationPart | ChatResponseMultiDiffPart | ChatResponseThinkingProgressPart | ChatResponseExternalEditPart;
+	export type ExtendedChatResponsePart = ChatResponsePart | ChatResponseTextEditPart | ChatResponseNotebookEditPart | ChatResponseWorkspaceEditPart | ChatResponseConfirmationPart | ChatResponseCodeCitationPart | ChatResponseReferencePart2 | ChatResponseMovePart | ChatResponseExtensionsPart | ChatResponsePullRequestPart | ChatToolInvocationPart | ChatResponseMultiDiffPart | ChatResponseThinkingProgressPart | ChatResponseExternalEditPart | ChatResponseQuestionCarouselPart;
 	export class ChatResponseWarningPart {
 		value: MarkdownString;
 		constructor(value: string | MarkdownString);
@@ -407,6 +507,15 @@ declare module 'vscode' {
 		 * TODO@API should actually be a more generic function that takes an array of buttons
 		 */
 		confirmation(title: string, message: string | MarkdownString, data: any, buttons?: string[]): void;
+
+		/**
+		 * Show an inline carousel of questions to gather information from the user.
+		 * This is a blocking call that waits for the user to submit or skip the questions.
+		 * @param questions Array of questions to display to the user
+		 * @param allowSkip Whether the user can skip questions without answering
+		 * @returns A promise that resolves with the user's answers, or undefined if skipped
+		 */
+		questionCarousel(questions: ChatQuestion[], allowSkip?: boolean): Thenable<Record<string, unknown> | undefined>;
 
 		/**
 		 * Push a warning to this stream. Short-hand for

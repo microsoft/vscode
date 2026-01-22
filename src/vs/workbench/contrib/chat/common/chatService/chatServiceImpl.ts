@@ -95,6 +95,9 @@ export class ChatService extends Disposable implements IChatService {
 	private readonly _onDidDisposeSession = this._register(new Emitter<{ readonly sessionResource: URI[]; reason: 'cleared' }>());
 	public readonly onDidDisposeSession = this._onDidDisposeSession.event;
 
+	private readonly _onDidReceiveQuestionCarouselAnswer = this._register(new Emitter<{ requestId: string; resolveId: string; answers: Record<string, unknown> | undefined }>());
+	public readonly onDidReceiveQuestionCarouselAnswer = this._onDidReceiveQuestionCarouselAnswer.event;
+
 	private readonly _sessionFollowupCancelTokens = this._register(new DisposableResourceMap<CancellationTokenSource>());
 	private readonly _chatServiceTelemetry: ChatServiceTelemetry;
 	private readonly _chatSessionStore: ChatSessionStore;
@@ -240,6 +243,10 @@ export class ChatService extends Disposable implements IChatService {
 				model.notifyEditingAction(action.action);
 			}
 		}
+	}
+
+	notifyQuestionCarouselAnswer(requestId: string, resolveId: string, answers: Record<string, unknown> | undefined): void {
+		this._onDidReceiveQuestionCarouselAnswer.fire({ requestId, resolveId, answers });
 	}
 
 	async setChatSessionTitle(sessionResource: URI, title: string): Promise<void> {

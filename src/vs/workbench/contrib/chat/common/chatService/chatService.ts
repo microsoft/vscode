@@ -333,6 +333,42 @@ export interface IChatConfirmation {
 	kind: 'confirmation';
 }
 
+/**
+ * Represents an individual question in a question carousel.
+ */
+export interface IChatQuestion {
+	id: string;
+	type: 'text' | 'singleSelect' | 'multiSelect';
+	title: string;
+	message?: string | IMarkdownString;
+	options?: { label: string; value: unknown; default?: boolean }[];
+	required?: boolean;
+	defaultValue?: unknown;
+}
+
+/**
+ * Represents the answers provided by the user for a question carousel.
+ * Maps question IDs to their corresponding answer values.
+ * Returns undefined if the user skipped/dismissed the carousel.
+ */
+export type IChatQuestionCarouselAnswers = Record<string, unknown> | undefined;
+
+/**
+ * A carousel for presenting multiple questions inline in the chat response.
+ * Users can navigate between questions and submit their answers.
+ */
+export interface IChatQuestionCarousel {
+	questions: IChatQuestion[];
+	allowSkip: boolean;
+	/** Unique identifier for resolving the carousel answers back to the extension */
+	resolveId?: string;
+	/** Storage for collected answers when user submits */
+	data?: Record<string, unknown>;
+	/** Whether the carousel has been submitted/skipped */
+	isUsed?: boolean;
+	kind: 'questionCarousel';
+}
+
 export const enum ElicitationState {
 	Pending = 'pending',
 	Accepted = 'accepted',
@@ -858,6 +894,7 @@ export type IChatProgress =
 	| IChatMoveMessage
 	| IChatResponseCodeblockUriPart
 	| IChatConfirmation
+	| IChatQuestionCarousel
 	| IChatClearToPreviousToolInvocation
 	| IChatToolInvocation
 	| IChatToolInvocationSerialized
@@ -1221,6 +1258,20 @@ export interface IChatService {
 
 	readonly onDidPerformUserAction: Event<IChatUserActionEvent>;
 	notifyUserAction(event: IChatUserActionEvent): void;
+
+	/**
+	 * Event fired when a question carousel receives answers.
+	 */
+	readonly onDidReceiveQuestionCarouselAnswer: Event<{ requestId: string; resolveId: string; answers: Record<string, unknown> | undefined }>;
+
+	/**
+	 * Notifies that a question carousel has received answers from the user.
+	 * @param requestId The chat request ID
+	 * @param resolveId The carousel's unique resolve identifier
+	 * @param answers The user's answers, or undefined if skipped/dismissed
+	 */
+	notifyQuestionCarouselAnswer(requestId: string, resolveId: string, answers: Record<string, unknown> | undefined): void;
+
 	readonly onDidDisposeSession: Event<{ readonly sessionResource: URI[]; readonly reason: 'cleared' }>;
 
 	transferChatSession(transferredSessionResource: URI, toWorkspace: URI): Promise<void>;

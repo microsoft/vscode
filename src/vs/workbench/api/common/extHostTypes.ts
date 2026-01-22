@@ -3318,6 +3318,82 @@ export class ChatResponsePullRequestPart {
 	}
 }
 
+/**
+ * The type of question for a chat question carousel.
+ */
+export enum ChatQuestionType {
+	/**
+	 * A free-form text input question.
+	 */
+	Text = 1,
+	/**
+	 * A single-select question with radio buttons.
+	 */
+	SingleSelect = 2,
+	/**
+	 * A multi-select question with checkboxes.
+	 */
+	MultiSelect = 3
+}
+
+/**
+ * Represents a question to be displayed in a chat question carousel.
+ * Questions can be of type 'text' for free-form input, 'singleSelect' for radio buttons,
+ * or 'multiSelect' for checkboxes.
+ */
+export class ChatQuestion {
+	/** Unique identifier for the question. */
+	id: string;
+	/** The type of question: Text for free-form input, SingleSelect for radio buttons, MultiSelect for checkboxes. */
+	type: ChatQuestionType;
+	/** The title/header of the question. */
+	title: string;
+	/** Optional detailed message or description for the question. */
+	message?: string | vscode.MarkdownString;
+	/** Options for singleSelect or multiSelect questions. */
+	options?: { label: string; value: unknown; default?: boolean }[];
+	/** Whether the question requires an answer before submission. */
+	required?: boolean;
+	/** Default value for the question. */
+	defaultValue?: unknown;
+
+	constructor(
+		id: string,
+		type: ChatQuestionType,
+		title: string,
+		options?: {
+			message?: string | vscode.MarkdownString;
+			options?: { label: string; value: unknown; default?: boolean }[];
+			required?: boolean;
+			defaultValue?: unknown;
+		}
+	) {
+		this.id = id;
+		this.type = type;
+		this.title = title;
+		this.message = options?.message;
+		this.options = options?.options;
+		this.required = options?.required;
+		this.defaultValue = options?.defaultValue;
+	}
+}
+
+/**
+ * A carousel view for presenting multiple questions inline in the chat response.
+ * Users can navigate between questions and submit their answers.
+ */
+export class ChatResponseQuestionCarouselPart {
+	/** The questions to display in the carousel. */
+	questions: ChatQuestion[];
+	/** Whether users can skip answering the questions. */
+	allowSkip: boolean;
+
+	constructor(questions: ChatQuestion[], allowSkip: boolean = true) {
+		this.questions = questions;
+		this.allowSkip = allowSkip;
+	}
+}
+
 export class ChatResponseTextEditPart implements vscode.ChatResponseTextEditPart {
 	uri: vscode.Uri;
 	edits: vscode.TextEdit[];
