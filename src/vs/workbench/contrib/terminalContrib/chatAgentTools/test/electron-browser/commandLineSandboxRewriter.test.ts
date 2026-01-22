@@ -18,6 +18,7 @@ suite('CommandLineSandboxRewriter', () => {
 	let instantiationService: TestInstantiationService;
 
 	const stubSandboxService = (overrides: Partial<ITerminalSandboxService> = {}) => {
+		instantiationService = workbenchInstantiationService({}, store);
 		instantiationService.stub(ITerminalSandboxService, {
 			_serviceBrand: undefined,
 			isEnabled: () => false,
@@ -29,11 +30,6 @@ suite('CommandLineSandboxRewriter', () => {
 		});
 	};
 
-	beforeEach(() => {
-		instantiationService = workbenchInstantiationService({}, store);
-		stubSandboxService();
-	});
-
 	function createRewriteOptions(command: string): ICommandLineRewriterOptions {
 		return {
 			commandLine: command,
@@ -44,6 +40,7 @@ suite('CommandLineSandboxRewriter', () => {
 	}
 
 	test('returns undefined when sandbox is disabled', async () => {
+		stubSandboxService();
 		const rewriter = store.add(instantiationService.createInstance(CommandLineSandboxRewriter));
 		const result = await rewriter.rewrite(createRewriteOptions('echo hello'));
 		strictEqual(result, undefined);
