@@ -122,7 +122,7 @@ suite('ViewModel', () => {
 	function assertGetPlainTextToCopy(text: string[], ranges: Range[], emptySelectionClipboard: boolean, expected: string | string[]): void {
 		testViewModel(text, {}, (viewModel, model) => {
 			const actual = viewModel.getPlainTextToCopy(ranges, emptySelectionClipboard, false);
-			assert.deepStrictEqual(actual, expected);
+			assert.deepStrictEqual(actual.sourceText, expected);
 		});
 	}
 
@@ -290,7 +290,7 @@ suite('ViewModel', () => {
 		testViewModel(USUAL_TEXT, {}, (viewModel, model) => {
 			model.setEOL(EndOfLineSequence.LF);
 			const actual = viewModel.getPlainTextToCopy([new Range(2, 1, 5, 1)], true, true);
-			assert.deepStrictEqual(actual, 'line2\r\nline3\r\nline4\r\n');
+			assert.deepStrictEqual(actual.sourceText, 'line2\r\nline3\r\nline4\r\n');
 		});
 	});
 

@@ -29,7 +29,7 @@ import { IStyleOverride } from '../../../../../platform/theme/browser/defaultSty
 import { IAgentSessionsControl } from './agentSessions.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { openSession } from './agentSessionsOpener.js';
+import { ISessionOpenOptions, openSession } from './agentSessionsOpener.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ChatEditorInput } from '../widgetHosts/editor/chatEditorInput.js';
 import { IMouseEvent } from '../../../../../base/browser/mouseEvent.js';
@@ -43,6 +43,7 @@ export interface IAgentSessionsControlOptions extends IAgentSessionsSorterOption
 	getHoverPosition(): HoverPosition;
 	trackActiveEditorSession(): boolean;
 
+	overrideSessionOpenOptions?(openEvent: IOpenEvent<AgentSessionListItem | undefined>): ISessionOpenOptions;
 	notifySessionOpened?(resource: URI, widget: IChatWidget): void;
 }
 
@@ -64,6 +65,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 	get element(): HTMLElement | undefined { return this.sessionsContainer; }
 
 	private sessionsList: WorkbenchCompressibleAsyncDataTree<IAgentSessionsModel, AgentSessionListItem, FuzzyScore> | undefined;
+	private sessionsListFindIsOpen = false;
 
 	private visible: boolean = true;
 
@@ -200,6 +202,12 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 			const selection = list.getSelection().filter(isAgentSession);
 			this.hasMultipleAgentSessionsSelectedContextKey.set(selection.length > 1);
 		}));
+
+		this._register(list.onDidChangeFindOpenState(open => {
+			this.sessionsListFindIsOpen = open;
+
+			this.updateArchivedSectionCollapseState();
+		}));
 	}
 
 	private async openAgentSession(e: IOpenEvent<AgentSessionListItem | undefined>): Promise<void> {
@@ -213,7 +221,8 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 			source: this.options.source
 		});
 
-		const widget = await this.instantiationService.invokeFunction(openSession, element, e);
+		const options = this.options.overrideSessionOpenOptions?.(e) ?? e;
+		const widget = await this.instantiationService.invokeFunction(openSession, element, options);
 		if (widget) {
 			this.options.notifySessionOpened?.(element.resource, widget);
 		}
@@ -289,7 +298,10 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 				continue;
 			}
 
-			const shouldCollapseArchived = this.options.filter.getExcludes().archived;
+			const shouldCollapseArchived =
+				!this.sessionsListFindIsOpen &&				// always expand when find is open
+				this.options.filter.getExcludes().archived;	// only collapse when archived are excluded from filter
+
 			if (shouldCollapseArchived && !child.collapsed) {
 				this.sessionsList.collapse(child.element);
 			} else if (!shouldCollapseArchived && child.collapsed) {

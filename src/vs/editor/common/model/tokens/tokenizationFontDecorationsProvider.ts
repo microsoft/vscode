@@ -118,30 +118,34 @@ export class TokenizationFontDecorationProvider extends Disposable implements De
 		this._onDidChangeFont.fire(affectedLineFonts);
 	}
 
-	public getDecorationsInRange(range: Range, ownerId?: number, filterOutValidation?: boolean, onlyMinimapDecorations?: boolean): IModelDecoration[] {
+	public getDecorationsInRange(range: Range, ownerId?: number, filterOutValidation?: boolean, filterFontDecorations?: boolean, onlyMinimapDecorations?: boolean): IModelDecoration[] {
 		const startOffsetOfRange = this.textModel.getOffsetAt(range.getStartPosition());
 		const endOffsetOfRange = this.textModel.getOffsetAt(range.getEndPosition());
 		const annotations = this._fontAnnotatedString.getAnnotationsIntersecting(new OffsetRange(startOffsetOfRange, endOffsetOfRange));
 
 		const decorations: IModelDecoration[] = [];
 		for (const annotation of annotations) {
-			const annotationStartPosition = this.textModel.getPositionAt(annotation.range.start);
-			const annotationEndPosition = this.textModel.getPositionAt(annotation.range.endExclusive);
-			const range = Range.fromPositions(annotationStartPosition, annotationEndPosition);
 			const anno = annotation.annotation;
-			const className = classNameForFontTokenDecorations(anno.fontToken.fontFamily ?? '', anno.fontToken.fontSizeMultiplier ?? 0);
 			const affectsFont = !!(anno.fontToken.fontFamily || anno.fontToken.fontSizeMultiplier);
-			const id = anno.decorationId;
-			decorations.push({
-				id: id,
-				options: {
-					description: 'FontOptionDecoration',
-					inlineClassName: className,
-					affectsFont
-				},
-				ownerId: 0,
-				range
-			});
+			if (!(affectsFont && filterFontDecorations)) {
+				const annotationStartPosition = this.textModel.getPositionAt(annotation.range.start);
+				const annotationEndPosition = this.textModel.getPositionAt(annotation.range.endExclusive);
+				const range = Range.fromPositions(annotationStartPosition, annotationEndPosition);
+				const anno = annotation.annotation;
+				const className = classNameForFontTokenDecorations(anno.fontToken.fontFamily ?? '', anno.fontToken.fontSizeMultiplier ?? 0);
+				const id = anno.decorationId;
+				decorations.push({
+					id: id,
+					options: {
+						description: 'FontOptionDecoration',
+						inlineClassName: className,
+						lineHeight: anno.fontToken.lineHeightMultiplier,
+						affectsFont
+					},
+					ownerId: 0,
+					range
+				});
+			}
 		}
 		return decorations;
 	}

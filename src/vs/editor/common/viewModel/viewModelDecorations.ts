@@ -29,7 +29,7 @@ export interface IViewDecorationsCollection {
 	/**
 	 * Whether the decorations affect the fonts.
 	 */
-	readonly hasVariableFonts: boolean;
+	readonly hasVariableFonts: boolean[];
 }
 
 export class ViewModelDecorations implements IDisposable {
@@ -131,11 +131,12 @@ export class ViewModelDecorations implements IDisposable {
 		const decorationsInViewport: ViewModelDecoration[] = [];
 		let decorationsInViewportLen = 0;
 		const inlineDecorations: InlineDecoration[][] = [];
+		const hasVariableFonts: boolean[] = [];
 		for (let j = startLineNumber; j <= endLineNumber; j++) {
 			inlineDecorations[j - startLineNumber] = [];
+			hasVariableFonts[j - startLineNumber] = false;
 		}
 
-		let hasVariableFonts = false;
 		for (let i = 0, len = modelDecorations.length; i < len; i++) {
 			const modelDecoration = modelDecorations[i];
 			const decorationOptions = modelDecoration.options;
@@ -155,6 +156,9 @@ export class ViewModelDecorations implements IDisposable {
 				const intersectedEndLineNumber = Math.min(endLineNumber, viewRange.endLineNumber);
 				for (let j = intersectedStartLineNumber; j <= intersectedEndLineNumber; j++) {
 					inlineDecorations[j - startLineNumber].push(inlineDecoration);
+					if (decorationOptions.affectsFont) {
+						hasVariableFonts[j - startLineNumber] = true;
+					}
 				}
 			}
 			if (decorationOptions.beforeContentClassName) {
@@ -165,6 +169,9 @@ export class ViewModelDecorations implements IDisposable {
 						InlineDecorationType.Before
 					);
 					inlineDecorations[viewRange.startLineNumber - startLineNumber].push(inlineDecoration);
+					if (decorationOptions.affectsFont) {
+						hasVariableFonts[viewRange.startLineNumber - startLineNumber] = true;
+					}
 				}
 			}
 			if (decorationOptions.afterContentClassName) {
@@ -175,10 +182,10 @@ export class ViewModelDecorations implements IDisposable {
 						InlineDecorationType.After
 					);
 					inlineDecorations[viewRange.endLineNumber - startLineNumber].push(inlineDecoration);
+					if (decorationOptions.affectsFont) {
+						hasVariableFonts[viewRange.endLineNumber - startLineNumber] = true;
+					}
 				}
-			}
-			if (decorationOptions.affectsFont) {
-				hasVariableFonts = true;
 			}
 		}
 

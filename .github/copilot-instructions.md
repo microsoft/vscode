@@ -28,6 +28,7 @@ Visual Studio Code is built with a layered architecture using TypeScript, web AP
 The core architecture follows these principles:
 - **Layered architecture** - from `base`, `platform`, `editor`, to `workbench`
 - **Dependency injection** - Services are injected through constructor parameters
+    - If non-service parameters are needed, they need to come after the service parameters
 - **Contribution model** - Features contribute to registries and extension points
 - **Cross-platform compatibility** - Abstractions separate platform-specific code
 

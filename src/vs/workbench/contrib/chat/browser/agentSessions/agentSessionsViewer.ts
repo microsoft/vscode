@@ -193,6 +193,9 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 		}
 		template.diffContainer.classList.toggle('has-diff', hasDiff);
 
+		// TODO@lszomoru - Only show the "View All Changes" action if the changes are in an array. We have to revisit this
+		ChatContextKeys.hasAgentSessionChanges.bindTo(template.contextKeyService).set(Array.isArray(diff) && diff.length > 0);
+
 		// Badge
 		let hasBadge = false;
 		if (!isSessionInProgressStatus(session.element.status)) {
@@ -293,15 +296,15 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 			} else if (hasBadge && session.element.status === AgentSessionStatus.Completed) {
 				template.description.textContent = ''; // no description if completed and has badge
 			} else if (
-				session.element.timing.finishedOrFailedTime &&
-				session.element.timing.inProgressTime &&
-				session.element.timing.finishedOrFailedTime > session.element.timing.inProgressTime
+				session.element.timing.lastRequestEnded &&
+				session.element.timing.lastRequestStarted &&
+				session.element.timing.lastRequestEnded > session.element.timing.lastRequestStarted
 			) {
-				const duration = this.toDuration(session.element.timing.inProgressTime, session.element.timing.finishedOrFailedTime, false);
+				const duration = this.toDuration(session.element.timing.lastRequestStarted, session.element.timing.lastRequestEnded, false, true);
 
 				template.description.textContent = session.element.status === AgentSessionStatus.Failed ?
-					localize('chat.session.status.failedAfter', "Failed after {0}.", duration ?? '1s') :
-					localize('chat.session.status.completedAfter', "Completed in {0}.", duration ?? '1s');
+					localize('chat.session.status.failedAfter', "Failed after {0}.", duration) :
+					localize('chat.session.status.completedAfter', "Completed in {0}.", duration);
 			} else {
 				template.description.textContent = session.element.status === AgentSessionStatus.Failed ?
 					localize('chat.session.status.failed', "Failed") :
@@ -310,10 +313,10 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 		}
 	}
 
-	private toDuration(startTime: number, endTime: number, useFullTimeWords: boolean): string | undefined {
-		const elapsed = Math.round((endTime - startTime) / 1000) * 1000;
-		if (elapsed < 1000) {
-			return undefined;
+	private toDuration(startTime: number, endTime: number, useFullTimeWords: boolean, disallowNow: boolean): string {
+		const elapsed = Math.max(Math.round((endTime - startTime) / 1000) * 1000, 1000 /* clamp to 1s */);
+		if (!disallowNow && elapsed < 60000) {
+			return localize('secondsDuration', "now");
 		}
 
 		return getDurationString(elapsed, useFullTimeWords);
@@ -323,12 +326,18 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 
 		const getTimeLabel = (session: IAgentSession) => {
 			let timeLabel: string | undefined;
-			if (session.status === AgentSessionStatus.InProgress && session.timing.inProgressTime) {
-				timeLabel = this.toDuration(session.timing.inProgressTime, Date.now(), false);
+			if (session.status === AgentSessionStatus.InProgress && session.timing.lastRequestStarted) {
+				timeLabel = this.toDuration(session.timing.lastRequestStarted, Date.now(), false, false);
 			}
 
 			if (!timeLabel) {
-				timeLabel = fromNow(session.timing.lastRequestEnded ?? session.timing.lastRequestStarted ?? session.timing.created);
+				const date = session.timing.lastRequestEnded ?? session.timing.lastRequestStarted ?? session.timing.created;
+				const seconds = Math.round((new Date().getTime() - date) / 1000);
+				if (seconds < 60) {
+					timeLabel = localize('secondsDuration', "now");
+				} else {
+					timeLabel = fromNow(date, true);
+				}
 			}
 
 			return timeLabel;
@@ -344,6 +353,10 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 	}
 
 	private renderHover(session: ITreeNode<IAgentSession, FuzzyScore>, template: IAgentSessionItemTemplate): void {
+		if (!isSessionInProgressStatus(session.element.status)) {
+			return; // the hover is complex and large, for now limit it to in-progress sessions only
+		}
+
 		template.elementDisposable.add(
 			this.hoverService.setupDelayedHover(template.element, () => this.buildHoverContent(session.element), { groupId: 'agent.sessions' })
 		);
@@ -668,10 +681,10 @@ export function groupAgentSessions(sessions: IAgentSession[]): Map<AgentSessionS
 	const archivedSessions: IAgentSession[] = [];
 
 	for (const session of sessions) {
-		if (isSessionInProgressStatus(session.status)) {
-			inProgressSessions.push(session);
-		} else if (session.isArchived()) {
+		if (session.isArchived()) {
 			archivedSessions.push(session);
+		} else if (isSessionInProgressStatus(session.status)) {
+			inProgressSessions.push(session);
 		} else {
 			const sessionTime = session.timing.lastRequestEnded ?? session.timing.lastRequestStarted ?? session.timing.created;
 			if (sessionTime >= startOfToday) {

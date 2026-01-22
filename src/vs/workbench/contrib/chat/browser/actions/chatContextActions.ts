@@ -58,6 +58,7 @@ export function registerChatContextActions() {
 	registerAction2(AttachFolderToChatAction);
 	registerAction2(AttachSelectionToChatAction);
 	registerAction2(AttachSearchResultAction);
+	registerAction2(AttachPinnedEditorsToChatAction);
 	registerPromptActions();
 }
 
@@ -173,7 +174,7 @@ class AttachFileToChatAction extends AttachResourceAction {
 				)
 			}, {
 				id: MenuId.ChatEditorInlineGutter,
-				group: '2_context',
+				group: '2_chat',
 				order: 2,
 				when: ContextKeyExpr.and(ChatContextKeys.enabled, EditorContextKeys.hasNonEmptySelection.negate())
 			}]
@@ -234,6 +235,52 @@ class AttachFolderToChatAction extends AttachResourceAction {
 	}
 }
 
+class AttachPinnedEditorsToChatAction extends Action2 {
+
+	static readonly ID = 'workbench.action.chat.attachPinnedEditors';
+
+	constructor() {
+		super({
+			id: AttachPinnedEditorsToChatAction.ID,
+			title: localize2('workbench.action.chat.attachPinnedEditors.label', "Add Pinned Editors to Chat"),
+			category: CHAT_CATEGORY,
+			precondition: ChatContextKeys.enabled,
+			f1: true,
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const editorGroupsService = accessor.get(IEditorGroupsService);
+		const instaService = accessor.get(IInstantiationService);
+
+		const widget = await instaService.invokeFunction(withChatView);
+		if (!widget) {
+			return;
+		}
+
+		const files: URI[] = [];
+		for (const group of editorGroupsService.groups) {
+			for (const editor of group.editors) {
+				if (group.isPinned(editor)) {
+					const uri = EditorResourceAccessor.getCanonicalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY });
+					if (uri && [Schemas.file, Schemas.vscodeRemote, Schemas.untitled].includes(uri.scheme)) {
+						files.push(uri);
+					}
+				}
+			}
+		}
+
+		if (!files.length) {
+			return;
+		}
+
+		widget.focusInput();
+		for (const file of files) {
+			widget.attachmentModel.addFile(file);
+		}
+	}
+}
+
 class AttachSelectionToChatAction extends Action2 {
 
 	static readonly ID = 'workbench.action.chat.attachSelection';
@@ -261,8 +308,8 @@ class AttachSelectionToChatAction extends Action2 {
 				)
 			}, {
 				id: MenuId.ChatEditorInlineGutter,
-				group: '2_context',
-				order: 2,
+				group: '2_chat',
+				order: 1,
 				when: ContextKeyExpr.and(ChatContextKeys.enabled, EditorContextKeys.hasNonEmptySelection)
 			}]
 		});

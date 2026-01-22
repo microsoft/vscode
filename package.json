@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.109.0",
-  "distro": "9f8bbb424a617246ab35c7c2a143a51fa0ba9ef0",
+  "distro": "6a99d1523914b4c2a7f354c085188a82aa38bb0e",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -78,14 +78,15 @@
     "@microsoft/1ds-post-js": "^3.2.13",
     "@parcel/watcher": "^2.5.4",
     "@types/semver": "^7.5.8",
+    "@vscode/codicons": "^0.0.44",
     "@vscode/deviceid": "^0.1.1",
     "@vscode/iconv-lite-umd": "0.7.1",
     "@vscode/native-watchdog": "^1.4.6",
     "@vscode/policy-watcher": "^1.3.2",
-    "@vscode/proxy-agent": "^0.36.0",
+    "@vscode/proxy-agent": "^0.37.0",
     "@vscode/ripgrep": "^1.15.13",
     "@vscode/spdlog": "^0.15.2",
-    "@vscode/sqlite3": "5.1.11-vscode",
+    "@vscode/sqlite3": "5.1.12-vscode",
     "@vscode/sudo-prompt": "9.3.2",
     "@vscode/tree-sitter-wasm": "^0.3.0",
     "@vscode/vscode-languagedetection": "1.0.21",
@@ -108,9 +109,9 @@
     "katex": "^0.16.22",
     "kerberos": "2.1.1",
     "minimist": "^1.2.8",
-    "native-is-elevated": "0.8.0",
+    "native-is-elevated": "0.9.0",
     "native-keymap": "^3.3.5",
-    "node-pty": "^1.2.0-beta.6",
+    "node-pty": "^1.2.0-beta.7",
     "open": "^10.1.2",
     "tas-client": "0.3.1",
     "undici": "^7.18.2",
@@ -211,7 +212,7 @@
     "source-map": "0.6.1",
     "source-map-support": "^0.3.2",
     "style-loader": "^3.3.2",
-    "tar": "^7.5.2",
+    "tar": "^7.5.4",
     "ts-loader": "^9.5.1",
     "tsec": "0.2.7",
     "tslib": "^2.6.3",
@@ -239,6 +240,6 @@
     "url": "https://github.com/microsoft/vscode/issues"
   },
   "optionalDependencies": {
-    "windows-foreground-love": "0.5.0"
+    "windows-foreground-love": "0.6.1"
   }
 }
