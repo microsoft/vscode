@@ -988,6 +988,13 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			const delta = e.currentX - e.startX;
 			const newWidth = position === Position.RIGHT ? sashStartWidth - delta : sashStartWidth + delta;
 
+			// Snap to hide when dragged below threshold (similar to sidebar behavior)
+			const snapThreshold = ChatViewPane.SESSIONS_SIDEBAR_MIN_WIDTH / 2;
+			if (newWidth < snapThreshold) {
+				this.updateConfiguredSessionsViewerOrientation('stacked');
+				return;
+			}
+
 			this.sessionsViewerSidebarWidth = this.computeEffectiveSideBySideSessionsSidebarWidth(this.lastDimensions.width, newWidth);
 			this.viewState.sessionsSidebarWidth = this.sessionsViewerSidebarWidth;
 
