@@ -30,7 +30,7 @@ jobs:
     timeoutInMinutes: 30
     variables:
       TEST_DIR: $(Build.SourcesDirectory)/test/sanity
-      LOG_FILE: $(Build.SourcesDirectory)/test/sanity/results.xml
+      LOG_FILE: $(TEST_DIR)/results.xml
     steps:
       - template: ./checkout.yml@self
 
@@ -73,34 +73,15 @@ jobs:
         workingDirectory: $(TEST_DIR)
         displayName: Compile Sanity Tests
 
-      # Native Linux host: Setup X11 and Snap
-      - ${{ if and(eq(parameters.container, ''), eq(parameters.os, 'linux')) }}:
-        - bash: |
-            set -e
-            echo "Installing X11 dependencies"
-            sudo apt-get update
-            sudo apt-get install -y \
-              dbus \
-              dbus-x11 \
-              snapd \
-              x11-utils \
-              xvfb
-
-            echo "Starting Xvfb on display :99"
-            sudo Xvfb :99 -screen 0 1280x960x24 -ac +extension GLX +render -noreset &
-            echo "##vso[task.setvariable variable=DISPLAY]:99"
-
-            echo "Starting D-Bus daemon"
-            sudo mkdir -p /var/run/dbus && sudo dbus-daemon --system --fork
-
-            echo "Starting snapd service"
-            sudo systemctl start snapd.socket
-            sudo systemctl start snapd.service
-          displayName: Setup X11 Display
-
-      # Native host
-      - ${{ if eq(parameters.container, '') }}:
+      # Windows and macOS
+      - ${{ if and(eq(parameters.container, ''), ne(parameters.os, 'linux')) }}:
         - script: node out/index.js -c $(BUILD_COMMIT) -q $(BUILD_QUALITY) -t $(LOG_FILE) -v ${{ parameters.args }}
+          workingDirectory: $(TEST_DIR)
+          displayName: Run Sanity Tests
+
+      # Native Linux host
+      - ${{ if and(eq(parameters.container, ''), eq(parameters.os, 'linux')) }}:
+        - bash: ./scripts/run-ubuntu.sh -c $(BUILD_COMMIT) -q $(BUILD_QUALITY) -t $(LOG_FILE) -v ${{ parameters.args }}
           workingDirectory: $(TEST_DIR)
           displayName: Run Sanity Tests
 
@@ -128,7 +109,7 @@ jobs:
               ${{ parameters.container }} \
               --quality "$(BUILD_QUALITY)" \
               --commit "$(BUILD_COMMIT)" \
-              --test-results-path "/root/results.xml" \
+              --test-results "/root/results.xml" \
               --verbose
           workingDirectory: $(TEST_DIR)
           displayName: Run Sanity Tests
