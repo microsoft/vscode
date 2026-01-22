@@ -124,6 +124,13 @@ function isPromptFileItem(item: IPromptPickerQuickPickItem | IQuickPickSeparator
 	return item.type === 'item' && !!item.promptFileUri;
 }
 
+/**
+ * Type guard for extension prompt paths.
+ */
+function isExtensionPromptPath(prompt: IPromptPath): prompt is IExtensionPromptPath {
+	return prompt.storage === PromptsStorage.extension && !!prompt.extension;
+}
+
 type IPromptQuickPick = IQuickPick<IPromptPickerQuickPickItem, { useSeparators: true }>;
 
 /**
@@ -411,7 +418,7 @@ export class PromptFilePickers {
 			result.push(...sortByLabel(await Promise.all(agentInstructionFiles.map(l => this._createPromptPickItem(l, agentButtons, getVisibility(l), token)))));
 		}
 
-		const exts = await this._promptsService.listPromptFilesForStorage(options.type, PromptsStorage.extension, token) as IExtensionPromptPath[];
+		const exts = (await this._promptsService.listPromptFilesForStorage(options.type, PromptsStorage.extension, token)).filter(isExtensionPromptPath);
 		if (exts.length) {
 			const extButtons: IQuickInputButton[] = [];
 			if (options.optionEdit !== false) {
