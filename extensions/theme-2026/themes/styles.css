@@ -186,7 +186,6 @@
 .monaco-workbench .extensions-list .extension-list-item:hover { box-shadow: 0 0 6px rgba(0, 0, 0, 0.10); }
 
 /* Breadcrumbs */
-.monaco-workbench .part.editor > .content .editor-group-container > .title .breadcrumbs-control { box-shadow: 0 0 6px rgba(0, 0, 0, 0.08) !important; background: rgba(252, 252, 253, 0.65) !important; backdrop-filter: blur(40px) saturate(180%) !important; -webkit-backdrop-filter: blur(40px) saturate(180%) !important; }
 .monaco-workbench.vs-dark .part.editor > .content .editor-group-container > .title .breadcrumbs-control,
 
 /* Input Boxes */
