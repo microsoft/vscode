@@ -375,7 +375,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 
 			// Update notification to show completion with restart action
 			handle.progress.done();
-			handle.updateMessage(nls.localize('newerUpdateReady', "The newer update has been downloaded and is ready to install."));
+			handle.updateMessage(nls.localize('newerUpdateReady', "The newer update is ready to install."));
 			handle.updateActions({
 				primary: [
 					toAction({
@@ -427,7 +427,8 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 		// Show notification with progress
 		this.overwriteNotificationHandle = this.notificationService.notify({
 			severity: Severity.Info,
-			message: nls.localize('newerUpdateDownloading', "There's a newer update available. Downloading now, please wait..."),
+			sticky: true,
+			message: nls.localize('newerUpdateDownloading', "We found a newer update available and have started to download it. We'll let you know as soon as it's ready to install."),
 			source: nls.localize('update service', "Update Service"),
 		});
 
