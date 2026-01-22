@@ -120,8 +120,7 @@ export class ToggleUnifiedAgentsBarAction extends ToggleTitleBarConfigAction {
 			ContextKeyExpr.and(
 				ChatContextKeys.enabled,
 				IsCompactTitleBarContext.negate(),
-				ChatContextKeys.supported,
-				ContextKeyExpr.has(`config.${ChatConfiguration.AgentStatusEnabled}`)
+				ChatContextKeys.supported
 			)
 		);
 	}

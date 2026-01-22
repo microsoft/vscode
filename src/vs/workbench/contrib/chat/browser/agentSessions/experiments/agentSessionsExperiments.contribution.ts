@@ -34,6 +34,7 @@ class AgentSessionReadyContribution extends Disposable implements IWorkbenchCont
 	private readonly _widgetDisposables = this._register(new DisposableStore());
 	private _entriesWatcher: IDisposable | undefined;
 	private _watchedSessionResource: URI | undefined;
+	private _suppressSessionReady = false; // Suppress re-showing session-ready after user explicitly exits projection
 
 	constructor(
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
@@ -59,15 +60,13 @@ class AgentSessionReadyContribution extends Disposable implements IWorkbenchCont
 			}
 		}));
 
-		// When projection mode changes, re-check session state
-		this._register(this.agentTitleBarStatusService.onDidChangeMode(() => {
-			// If we entered projection mode, the title bar service already handles it
-			// If we exited projection mode, check if we should show session-ready state
-			if (!this.agentSessionProjectionService.isActive) {
-				const currentWidget = this.chatWidgetService.getAllWidgets().find(w => w.location === ChatAgentLocation.Chat);
-				if (currentWidget) {
-					this._checkSession(currentWidget.viewModel?.sessionResource);
-				}
+		// When projection mode exits, suppress session-ready for the same session
+		this._register(this.agentSessionProjectionService.onDidChangeProjectionMode(isActive => {
+			if (!isActive) {
+				// User explicitly exited projection - suppress re-showing session-ready for this session
+				this._suppressSessionReady = true;
+				this._clearEntriesWatcher();
+				this.agentTitleBarStatusService.exitSessionReadyMode();
 			}
 		}));
 
@@ -97,6 +96,10 @@ class AgentSessionReadyContribution extends Disposable implements IWorkbenchCont
 	}
 
 	private _checkSession(sessionResource: URI | undefined): void {
+		// Clear the suppress flag when switching to a different session
+		if (sessionResource?.toString() !== this._watchedSessionResource?.toString()) {
+			this._suppressSessionReady = false;
+		}
 		// Update state based on current session
 		this._updateSessionReadyState(sessionResource);
 	}
@@ -162,7 +165,7 @@ class AgentSessionReadyContribution extends Disposable implements IWorkbenchCont
 		const entries = editingSession.entries.get();
 		const hasUndecidedChanges = entries.some(entry => entry.state.get() === ModifiedFileEntryState.Modified);
 
-		if (hasUndecidedChanges) {
+		if (hasUndecidedChanges && !this._suppressSessionReady) {
 			// Enter session-ready mode
 			this.agentTitleBarStatusService.enterSessionReadyMode(session.resource, session.label);
 
@@ -205,7 +208,10 @@ MenuRegistry.appendMenuItem(MenuId.CommandCenter, {
 	submenu: MenuId.AgentsTitleBarControlMenu,
 	title: localize('agentsControl', "Agents"),
 	icon: Codicon.chatSparkle,
-	when: ContextKeyExpr.has(`config.${ChatConfiguration.AgentStatusEnabled}`),
+	when: ContextKeyExpr.or(
+		ContextKeyExpr.has(`config.${ChatConfiguration.AgentStatusEnabled}`),
+		ContextKeyExpr.has(`config.${ChatConfiguration.UnifiedAgentsBar}`)
+	),
 	order: 10002 // to the right of the chat button
 });
 
@@ -215,7 +221,10 @@ MenuRegistry.appendMenuItem(MenuId.AgentsTitleBarControlMenu, {
 		id: 'workbench.action.chat.toggle',
 		title: localize('openChat', "Open Chat"),
 	},
-	when: ContextKeyExpr.has(`config.${ChatConfiguration.AgentStatusEnabled}`),
+	when: ContextKeyExpr.or(
+		ContextKeyExpr.has(`config.${ChatConfiguration.AgentStatusEnabled}`),
+		ContextKeyExpr.has(`config.${ChatConfiguration.UnifiedAgentsBar}`)
+	),
 	group: 'a_open',
 	order: 1
 });
