@@ -94,7 +94,7 @@ export interface IChatSessionItem {
 		files: number;
 		insertions: number;
 		deletions: number;
-	} | readonly IChatSessionFileChange[];
+	} | readonly IChatSessionFileChange[] | readonly IChatSessionFileChange2[];
 	archived?: boolean;
 }
 
@@ -103,6 +103,14 @@ export interface IChatSessionFileChange {
 	originalUri?: URI;
 	insertions: number;
 	deletions: number;
+}
+
+export interface IChatSessionFileChange2 {
+	readonly uri: URI;
+	readonly originalUri?: URI;
+	readonly modifiedUri?: URI;
+	readonly insertions: number;
+	readonly deletions: number;
 }
 
 export type IChatSessionHistoryItem = {
@@ -253,6 +261,11 @@ export interface IChatSessionsService {
 
 export function isSessionInProgressStatus(state: ChatSessionStatus): boolean {
 	return state === ChatSessionStatus.InProgress || state === ChatSessionStatus.NeedsInput;
+}
+
+export function isIChatSessionFileChange2(obj: unknown): obj is IChatSessionFileChange2 {
+	const candidate = obj as IChatSessionFileChange2;
+	return candidate && candidate.uri instanceof URI && typeof candidate.insertions === 'number' && typeof candidate.deletions === 'number';
 }
 
 export const IChatSessionsService = createDecorator<IChatSessionsService>('chatSessionsService');
