@@ -15,10 +15,11 @@ import { AgentStatusMode, IAgentTitleBarStatusService } from './agentTitleBarSta
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { EnterAgentSessionProjectionAction, ExitAgentSessionProjectionAction } from './agentSessionProjectionActions.js';
+import { UNIFIED_QUICK_ACCESS_ACTION_ID } from './unifiedQuickAccessActions.js';
 import { IAgentSessionsService } from '../agentSessionsService.js';
 import { AgentSessionStatus, IAgentSession, isSessionInProgressStatus } from '../agentSessionsModel.js';
 import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../../../base/browser/ui/actionbar/actionViewItems.js';
-import { IAction, SubmenuAction, toAction } from '../../../../../../base/common/actions.js';
+import { IAction, Separator, SubmenuAction, toAction } from '../../../../../../base/common/actions.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IBrowserWorkbenchEnvironmentService } from '../../../../../services/environment/browser/environmentService.js';
@@ -44,7 +45,6 @@ import { LayoutSettings } from '../../../../../services/layout/browser/layoutSer
 import { ChatConfiguration } from '../../../common/constants.js';
 
 // Action IDs
-const QUICK_CHAT_ACTION_ID = 'workbench.action.quickchat.toggle';
 const TOGGLE_CHAT_ACTION_ID = 'workbench.action.chat.toggle';
 const QUICK_OPEN_ACTION_ID = 'workbench.action.quickOpenWithModes';
 
@@ -149,9 +149,9 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 			this._render();
 		}));
 
-		// Re-render when enhanced setting changes
+		// Re-render when settings change
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(ChatConfiguration.UnifiedAgentsBar)) {
+			if (e.affectsConfiguration(ChatConfiguration.UnifiedAgentsBar) || e.affectsConfiguration(ChatConfiguration.AgentStatusEnabled)) {
 				this._lastRenderState = undefined; // Force re-render
 				this._render();
 			}
@@ -203,8 +203,9 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 			// Get current filter state for state key
 			const { isFilteredToUnread, isFilteredToInProgress } = this._getCurrentFilterState();
 
-			// Check if enhanced mode is enabled
-			const isEnhanced = this.configurationService.getValue<boolean>(ChatConfiguration.UnifiedAgentsBar) === true;
+			// Check which settings are enabled (these are independent settings)
+			const unifiedAgentsBarEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.UnifiedAgentsBar) === true;
+			const agentStatusEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.AgentStatusEnabled) === true;
 
 			// Build state key for comparison
 			const stateKey = JSON.stringify({
@@ -217,7 +218,8 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 				label,
 				isFilteredToUnread,
 				isFilteredToInProgress,
-				isEnhanced,
+				unifiedAgentsBarEnabled,
+				agentStatusEnabled,
 			});
 
 			// Skip re-render if state hasn't changed
@@ -238,13 +240,14 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 			} else if (this.agentTitleBarStatusService.mode === AgentStatusMode.SessionReady) {
 				// Session ready mode - show session title + enter projection button
 				this._renderSessionReadyMode(this._dynamicDisposables);
-			} else if (isEnhanced) {
-				// Enhanced mode - show full pill with label + status badge
+			} else if (unifiedAgentsBarEnabled) {
+				// Unified Agents Bar - show full pill with label + status badge
 				this._renderChatInputMode(this._dynamicDisposables);
-			} else {
-				// Basic mode - show only the status badge (sparkle + unread/active counts)
+			} else if (agentStatusEnabled) {
+				// Agent Status - show only the status badge (sparkle + unread/active counts)
 				this._renderBadgeOnlyMode(this._dynamicDisposables);
 			}
+			// If neither setting is enabled, nothing is rendered (container is already cleared)
 		} finally {
 			this._isRendering = false;
 		}
@@ -310,7 +313,7 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 			pill.classList.add('needs-attention');
 		}
 		pill.setAttribute('role', 'button');
-		pill.setAttribute('aria-label', localize('openQuickChat', "Open Quick Chat"));
+		pill.setAttribute('aria-label', localize('openQuickAccess', "Open Quick Access"));
 		pill.tabIndex = 0;
 		this._container.appendChild(pill);
 
@@ -376,13 +379,13 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 			if (this._displayedSession) {
 				return localize('openSessionTooltip', "Open session: {0}", this._displayedSession.label);
 			}
-			const kbForTooltip = this.keybindingService.lookupKeybinding(QUICK_CHAT_ACTION_ID)?.getLabel();
+			const kbForTooltip = this.keybindingService.lookupKeybinding(UNIFIED_QUICK_ACCESS_ACTION_ID)?.getLabel();
 			return kbForTooltip
-				? localize('askTooltip', "Open Quick Chat ({0})", kbForTooltip)
-				: localize('askTooltip2', "Open Quick Chat");
+				? localize('askTooltip', "Open Quick Access ({0})", kbForTooltip)
+				: localize('askTooltip2', "Open Quick Access");
 		}));
 
-		// Click handler - open displayed session if showing progress, otherwise open quick chat
+		// Click handler - open displayed session if showing progress, otherwise open unified quick access
 		disposables.add(addDisposableListener(pill, EventType.CLICK, (e) => {
 			e.preventDefault();
 			e.stopPropagation();
@@ -398,8 +401,10 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 			}
 		}));
 
-		// Status badge (separate rectangle on right) - always rendered for smooth transitions
-		this._renderStatusBadge(disposables, activeSessions, unreadSessions);
+		// Status badge (separate rectangle on right) - only when Agent Status is enabled
+		if (this.configurationService.getValue<boolean>(ChatConfiguration.AgentStatusEnabled) === true) {
+			this._renderStatusBadge(disposables, activeSessions, unreadSessions);
+		}
 	}
 
 	private _renderSessionMode(disposables: DisposableStore): void {
@@ -443,8 +448,10 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 		disposables.add(addDisposableListener(pill, EventType.CLICK, exitHandler));
 		disposables.add(addDisposableListener(pill, EventType.MOUSE_DOWN, exitHandler));
 
-		// Status badge (separate rectangle on right) - always rendered for smooth transitions
-		this._renderStatusBadge(disposables, activeSessions, unreadSessions);
+		// Status badge (separate rectangle on right) - only when Agent Status is enabled
+		if (this.configurationService.getValue<boolean>(ChatConfiguration.AgentStatusEnabled) === true) {
+			this._renderStatusBadge(disposables, activeSessions, unreadSessions);
+		}
 	}
 
 	/**
@@ -492,8 +499,10 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 		disposables.add(addDisposableListener(pill, EventType.CLICK, enterHandler));
 		disposables.add(addDisposableListener(pill, EventType.MOUSE_DOWN, enterHandler));
 
-		// Status badge (separate rectangle on right) - always rendered for smooth transitions
-		this._renderStatusBadge(disposables, activeSessions, unreadSessions);
+		// Status badge (separate rectangle on right) - only when Agent Status is enabled
+		if (this.configurationService.getValue<boolean>(ChatConfiguration.AgentStatusEnabled) === true) {
+			this._renderStatusBadge(disposables, activeSessions, unreadSessions);
+		}
 	}
 
 	/**
@@ -632,11 +641,8 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 		const sparkleContainer = $('span.agent-status-badge-section.sparkle');
 		badge.appendChild(sparkleContainer);
 
-		// Get menu actions for dropdown
-		const menuActions: IAction[] = [];
-		for (const [, actions] of this._chatTitleBarMenu.getActions({ shouldForwardArgs: true })) {
-			menuActions.push(...actions);
-		}
+		// Get menu actions for dropdown with proper group separators
+		const menuActions: IAction[] = Separator.join(...this._chatTitleBarMenu.getActions({ shouldForwardArgs: true }).map(([, actions]) => actions));
 
 		// Create primary action (toggle chat)
 		const primaryAction = this.instantiationService.createInstance(MenuItemAction, {
@@ -986,13 +992,13 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 	// #region Click Handlers
 
 	/**
-	 * Handle pill click - opens the displayed session if showing progress, otherwise executes default action
+	 * Handle pill click - opens the displayed session if showing progress, otherwise opens unified quick access
 	 */
 	private _handlePillClick(): void {
 		if (this._displayedSession) {
 			this.instantiationService.invokeFunction(openSession, this._displayedSession);
 		} else {
-			this.commandService.executeCommand(QUICK_CHAT_ACTION_ID);
+			this.commandService.executeCommand(UNIFIED_QUICK_ACCESS_ACTION_ID);
 		}
 	}
 
@@ -1115,21 +1121,21 @@ export class AgentTitleBarStatusRendering extends Disposable implements IWorkben
 		}, undefined));
 
 		// Add/remove CSS classes on workbench based on settings
-		// Force enable command center and disable chat controls when agent status is enabled
+		// Force enable command center and disable chat controls when agent status or unified agents bar is enabled
 		const updateClass = () => {
 			const enabled = configurationService.getValue<boolean>(ChatConfiguration.AgentStatusEnabled) === true;
 			const enhanced = configurationService.getValue<boolean>(ChatConfiguration.UnifiedAgentsBar) === true;
 
 			mainWindow.document.body.classList.toggle('agent-status-enabled', enabled);
-			mainWindow.document.body.classList.toggle('unified-agents-bar', enabled && enhanced);
+			mainWindow.document.body.classList.toggle('unified-agents-bar', enhanced);
 
-			// Force enable command center when agent status is enabled
-			if (enabled && configurationService.getValue<boolean>(LayoutSettings.COMMAND_CENTER) !== true) {
+			// Force enable command center when agent status or unified agents bar is enabled
+			if ((enabled || enhanced) && configurationService.getValue<boolean>(LayoutSettings.COMMAND_CENTER) !== true) {
 				configurationService.updateValue(LayoutSettings.COMMAND_CENTER, true);
 			}
 
-			// Turn off chat controls when agent status is enabled (they would be duplicates)
-			if (enabled && configurationService.getValue<boolean>('chat.commandCenter.enabled') === true) {
+			// Turn off chat controls when agent status or unified agents bar is enabled (they would be duplicates)
+			if ((enabled || enhanced) && configurationService.getValue<boolean>('chat.commandCenter.enabled') === true) {
 				configurationService.updateValue('chat.commandCenter.enabled', false);
 			}
 		};

@@ -11,7 +11,8 @@
 	display: none !important;
 }
 
-.agent-status-enabled .command-center {
+.agent-status-enabled .command-center,
+.unified-agents-bar .command-center {
 	overflow: visible !important;
 }
 
@@ -130,9 +131,9 @@
 	opacity: 1;
 }
 
-/* Session mode (viewing a session) */
+/* Session mode (viewing a session) - use hover color as default to show we're "inside" projection */
 .agent-status-pill.session-mode {
-	background-color: var(--vscode-quickInput-background);
+	background-color: var(--vscode-chat-requestBubbleBackground);
 	border: 1px solid var(--vscode-commandCenter-border, transparent);
 	padding: 0 12px;
 	cursor: pointer;
@@ -140,6 +141,7 @@
 
 .agent-status-pill.session-mode:hover {
 	background-color: var(--vscode-chat-requestBubbleBackground);
+	filter: brightness(1.1);
 	border-color: var(--vscode-commandCenter-border, transparent);
 }
 
@@ -411,7 +413,7 @@
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	padding: 0 6px;
+	padding: 0 4px;
 	height: 100%;
 	border-top-left-radius: 5px;
 	border-bottom-left-radius: 5px;
@@ -442,7 +444,7 @@
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	width: 22px;
+	width: 18px;
 	height: 100%;
 	padding: 0;
 }

@@ -9,6 +9,8 @@ import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { basename, joinPath } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
+import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
+import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { localize, localize2 } from '../../../../../../nls.js';
 import { MenuWorkbenchToolBar } from '../../../../../../platform/actions/browser/toolbar.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
@@ -52,6 +54,8 @@ export class ChatToolOutputContentSubPart extends Disposable {
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IFileService private readonly _fileService: IFileService,
 		@IMarkdownRendererService private readonly _markdownRendererService: IMarkdownRendererService,
+		@IModelService private readonly modelService: IModelService,
+		@ILanguageService private readonly languageService: ILanguageService,
 	) {
 		super();
 		this.domNode = this.createOutputContents();
@@ -167,14 +171,19 @@ export class ChatToolOutputContentSubPart extends Disposable {
 			container.appendChild(title);
 		}
 
-		// Combine text from all adjacent code parts
-		const combinedText = parts.map(p => p.textModel.getValue()).join('\n');
-		firstPart.textModel.setValue(combinedText);
+		// Combine text from all adjacent code parts and create model lazily
+		const combinedText = parts.map(p => p.data).join('\n');
+		const textModel = this._register(this.modelService.createModel(
+			combinedText,
+			this.languageService.createById(firstPart.languageId),
+			undefined,
+			true
+		));
 
 		const data: ICodeBlockData = {
 			languageId: firstPart.languageId,
-			textModel: Promise.resolve(firstPart.textModel),
-			codeBlockIndex: firstPart.codeBlockInfo.codeBlockIndex,
+			textModel: Promise.resolve(textModel),
+			codeBlockIndex: firstPart.codeBlockIndex,
 			codeBlockPartIndex: 0,
 			element: this.context.element,
 			parentContextKeyService: this.contextKeyService,
@@ -185,7 +194,18 @@ export class ChatToolOutputContentSubPart extends Disposable {
 		editorReference.object.render(data, this._currentWidth || 300);
 		container.appendChild(editorReference.object.element);
 		this._editorReferences.push(editorReference);
-		this.codeblocks.push(firstPart.codeBlockInfo);
+
+		// Track the codeblock
+		this.codeblocks.push({
+			ownerMarkdownPartId: firstPart.ownerMarkdownPartId,
+			codeBlockIndex: firstPart.codeBlockIndex,
+			elementId: this.context.element.id,
+			uri: textModel.uri,
+			uriPromise: Promise.resolve(textModel.uri),
+			codemapperUri: undefined,
+			chatSessionResource: this.context.element.sessionResource,
+			focus: () => { }
+		});
 	}
 
 	layout(width: number): void {

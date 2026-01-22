@@ -10,6 +10,7 @@ import { isDescendant } from './util';
 
 export interface RepositoryCacheInfo {
 	workspacePath: string; // path of the workspace folder or workspace file
+	lastTouchedTime?: number; // timestamp when the repository was last touched
 }
 
 function isRepositoryCacheInfo(obj: unknown): obj is RepositoryCacheInfo {
@@ -17,7 +18,8 @@ function isRepositoryCacheInfo(obj: unknown): obj is RepositoryCacheInfo {
 		return false;
 	}
 	const rec = obj as Record<string, unknown>;
-	return typeof rec.workspacePath === 'string';
+	return typeof rec.workspacePath === 'string' &&
+		(rec.lastOpenedTime === undefined || typeof rec.lastOpenedTime === 'number');
 }
 
 export class RepositoryCache {
@@ -70,7 +72,8 @@ export class RepositoryCache {
 		}
 
 		foldersLru.set(folderPathOrWorkspaceFile, {
-			workspacePath: folderPathOrWorkspaceFile
+			workspacePath: folderPathOrWorkspaceFile,
+			lastTouchedTime: Date.now()
 		}); // touch entry
 		this.lru.set(key, foldersLru);
 		this.save();
