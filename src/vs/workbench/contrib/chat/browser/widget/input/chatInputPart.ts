@@ -2093,7 +2093,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			const newHeight = this.container.offsetHeight;
 			this.height.set(newHeight, undefined);
 		}));
-		inputResizeObserver.observe(this.container);
+		this._register(inputResizeObserver.observe(this.container));
 	}
 
 	public toggleChatInputOverlay(editing: boolean): void {
