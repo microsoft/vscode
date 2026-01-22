@@ -35,7 +35,7 @@ import { IAgentSessionsService } from '../agentSessionsService.js';
  * Provider types that support agent session projection mode.
  * Only sessions from these providers will trigger projection mode.
  */
-const AGENT_SESSION_PROJECTION_ENABLED_PROVIDERS: Set<string> = new Set(Object.values(AgentSessionProviders));
+export const AGENT_SESSION_PROJECTION_ENABLED_PROVIDERS: Set<string> = new Set(Object.values(AgentSessionProviders));
 
 //#endregion
 
