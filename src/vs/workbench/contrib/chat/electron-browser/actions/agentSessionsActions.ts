@@ -45,7 +45,7 @@ export class OpenAgentSessionsWindowAction extends Action2 {
 		let templateResource: URI | undefined;
 		let template: IUserDataProfileTemplate | undefined;
 		for (const [resource, value] of profileTemplates) {
-			if (value.id === 'agent-sessions') {
+			if (uriIdenitityService.extUri.basename(resource) === 'agent-sessions.code-profile') {
 				templateResource = resource;
 				template = value;
 				break;

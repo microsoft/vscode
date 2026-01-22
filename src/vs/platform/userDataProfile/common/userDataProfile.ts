@@ -87,7 +87,6 @@ export function isUserDataProfile(thing: unknown): thing is IUserDataProfile {
 }
 
 export interface ISystemProfileTemplate {
-	readonly id: string;
 	readonly name: string;
 	readonly icon?: string;
 	readonly settings?: ISettingsDictionary;
@@ -95,7 +94,6 @@ export interface ISystemProfileTemplate {
 }
 
 export interface IUserDataProfileTemplate {
-	readonly id?: string;
 	readonly name: string;
 	readonly icon?: string;
 	readonly settings?: string;

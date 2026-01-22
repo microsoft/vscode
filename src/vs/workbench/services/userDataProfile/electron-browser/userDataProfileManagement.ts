@@ -5,7 +5,6 @@
 
 import { parse } from '../../../../base/common/jsonc.js';
 import { ResourceMap } from '../../../../base/common/map.js';
-import { joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
@@ -52,7 +51,7 @@ export class NativeUserDataProfileManagementService extends UserDataProfileManag
 
 	private async doGetBuiltinProfileTemplates(): Promise<ResourceMap<IUserDataProfileTemplate>> {
 		const result: ResourceMap<IUserDataProfileTemplate> = new ResourceMap();
-		const profilesFolder = joinPath(URI.file(this.nativeEnvironmentService.appRoot), 'profiles');
+		const profilesFolder = URI.file(this.nativeEnvironmentService.builtinProfilesPath);
 		try {
 			const stat = await this.fileService.resolve(profilesFolder);
 			if (!stat.children?.length) {
@@ -62,14 +61,13 @@ export class NativeUserDataProfileManagementService extends UserDataProfileManag
 				if (child.isDirectory) {
 					continue;
 				}
-				if (this.uriIdentityService.extUri.extname(child.resource) !== '.json') {
+				if (this.uriIdentityService.extUri.extname(child.resource) !== '.code-profile') {
 					continue;
 				}
 				try {
 					const content = (await this.fileService.readFile(child.resource)).value.toString();
 					const profile: ISystemProfileTemplate = parse(content);
 					result.set(child.resource, {
-						id: profile.id,
 						name: profile.name,
 						icon: profile.icon,
 						settings: profile.settings ? JSON.stringify({ settings: JSON.stringify(profile.settings) }) : undefined,

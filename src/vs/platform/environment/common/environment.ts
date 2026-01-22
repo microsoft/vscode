@@ -135,6 +135,7 @@ export interface INativeEnvironmentService extends IEnvironmentService {
 	appSettingsHome: URI;
 	tmpDir: URI;
 	userDataPath: string;
+	builtinProfilesPath: string;
 
 	// --- extensions
 	extensionsPath: string;
