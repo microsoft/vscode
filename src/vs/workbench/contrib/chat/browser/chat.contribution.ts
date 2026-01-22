@@ -584,7 +584,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.ImplementationAgentModel]: {
 			type: 'string',
-			description: nls.localize('chat.implementationAgentModel', "Specifies the model to use when switching to an 'implement' agent. When set, this model will be automatically selected instead of the user's current model selection."),
+			description: nls.localize('chat.implementationAgentModel', "Specifies the model to use when switching to an 'implement' agent following Plan mode. When set, this model will be automatically selected instead of the user's current model selection."),
 			default: '',
 			tags: ['experimental'],
 		},

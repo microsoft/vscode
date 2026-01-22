@@ -147,6 +147,18 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 			return mode.source.storage === PromptsStorage.local || mode.source.storage === PromptsStorage.user;
 		};
 
+		const isImplementMode = (mode: IChatMode): boolean => {
+			// Only hide 'implement' mode if it's from the built-in chat extension
+			if (mode.name.get().toLowerCase() !== 'implement') {
+				return false;
+			}
+			if (mode.source?.storage !== PromptsStorage.extension) {
+				return false;
+			}
+			const chatExtensionId = this._productService.defaultChatAgent?.chatExtensionId;
+			return !!chatExtensionId && mode.source.extensionId.value === chatExtensionId;
+		};
+
 		const actionProviderWithCustomAgentTarget: IActionWidgetDropdownActionProvider = {
 			getActions: () => {
 				const modes = chatModeService.getModes();
@@ -155,7 +167,6 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 					const target = mode.target?.get();
 					return isUserDefinedCustomAgent(mode) && (!target || target === customAgentTarget);
 				});
-
 				// Always include the default "Agent" option first
 				const checked = currentMode.id === ChatMode.Agent.id;
 				const defaultAction = { ...makeAction(ChatMode.Agent, ChatMode.Agent), checked };
@@ -175,8 +186,9 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 				const shouldHideEditMode = configurationService.getValue<boolean>(ChatConfiguration.EditModeHidden) && chatAgentService.hasToolsAgent && currentMode.id !== ChatMode.Edit.id;
 
 				const otherBuiltinModes = modes.builtin.filter(mode => mode.id !== ChatMode.Agent.id && !(shouldHideEditMode && mode.id === ChatMode.Edit.id));
+				// Filter out 'implement' mode from the dropdown - it's available for handoffs but not user-selectable
 				const customModes = groupBy(
-					modes.custom,
+					modes.custom.filter(mode => !isImplementMode(mode)),
 					mode => isModeConsideredBuiltIn(mode, this._productService) ? 'builtin' : 'custom');
 
 				const customBuiltinModeActions = customModes.builtin?.map(mode => {
