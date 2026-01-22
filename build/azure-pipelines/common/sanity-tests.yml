@@ -109,11 +109,13 @@ jobs:
         - bash: |
             docker buildx build \
               --platform "linux/${{ parameters.arch }}" \
-              ${{ if ne(parameters.baseImage, '') }}--build-arg "BASE_IMAGE=${{ parameters.baseImage }}" \
-              ${{ end }}--tag "${{ parameters.container }}" \
+              ${BASE_IMAGE:+--build-arg "BASE_IMAGE=$BASE_IMAGE"} \
+              --tag "${{ parameters.container }}" \
               --file "containers/${{ parameters.container }}.dockerfile" \
               ./containers
           workingDirectory: $(TEST_DIR)
+          env:
+            BASE_IMAGE: ${{ parameters.baseImage }}
           displayName: Build Container Image
 
       # Run sanity tests in container
