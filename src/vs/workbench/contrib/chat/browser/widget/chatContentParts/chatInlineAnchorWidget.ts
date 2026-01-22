@@ -280,14 +280,15 @@ export class InlineAnchorWidget extends Disposable {
 		this._register(dom.addDisposableListener(element, 'click', async (e) => {
 			dom.EventHelper.stop(e, true);
 			const editorOverride = getEditorOverrideForChatResource(location.uri, this.configurationService);
-			// Encode selection in URI fragment for editors that support it
-			const fragment = location.range ? `${location.range.startLineNumber},${location.range.startColumn}` : '';
-			const uriToOpen = fragment ? location.uri.with({ fragment }) : location.uri;
-			await this.openerService.open(uriToOpen, {
+			const editorOptions: { override: string | undefined; selection?: IRange } = {
+				override: editorOverride,
+			};
+			if (location.range) {
+				editorOptions.selection = location.range;
+			}
+			await this.openerService.open(location.uri, {
 				fromUserGesture: true,
-				editorOptions: {
-					override: editorOverride
-				}
+				editorOptions
 			});
 		}));
 	}
