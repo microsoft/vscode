@@ -282,14 +282,36 @@ export class PromptValidator {
 		if (!attribute) {
 			return;
 		}
-		if (attribute.value.type !== 'string') {
-			report(toMarker(localize('promptValidator.modelMustBeString', "The 'model' attribute must be a string."), attribute.value.range, MarkerSeverity.Error));
+		if (attribute.value.type !== 'string' && attribute.value.type !== 'array') {
+			report(toMarker(localize('promptValidator.modelMustBeStringOrArray', "The 'model' attribute must be a string or an array of strings."), attribute.value.range, MarkerSeverity.Error));
 			return;
 		}
-		const modelName = attribute.value.value.trim();
-		if (modelName.length === 0) {
-			report(toMarker(localize('promptValidator.modelMustBeNonEmpty', "The 'model' attribute must be a non-empty string."), attribute.value.range, MarkerSeverity.Error));
-			return;
+
+		const modelNames: string[] = [];
+		if (attribute.value.type === 'string') {
+			const modelName = attribute.value.value.trim();
+			if (modelName.length === 0) {
+				report(toMarker(localize('promptValidator.modelMustBeNonEmpty', "The 'model' attribute must be a non-empty string."), attribute.value.range, MarkerSeverity.Error));
+				return;
+			}
+			modelNames.push(modelName);
+		} else if (attribute.value.type === 'array') {
+			if (attribute.value.items.length === 0) {
+				report(toMarker(localize('promptValidator.modelArrayMustNotBeEmpty', "The 'model' array must not be empty."), attribute.value.range, MarkerSeverity.Error));
+				return;
+			}
+			for (const item of attribute.value.items) {
+				if (item.type !== 'string') {
+					report(toMarker(localize('promptValidator.modelArrayMustContainStrings', "The 'model' array must contain only strings."), item.range, MarkerSeverity.Error));
+					return;
+				}
+				const modelName = item.value.trim();
+				if (modelName.length === 0) {
+					report(toMarker(localize('promptValidator.modelArrayItemMustBeNonEmpty', "Model names in the array must be non-empty strings."), item.range, MarkerSeverity.Error));
+					return;
+				}
+				modelNames.push(modelName);
+			}
 		}
 
 		const languageModes = this.languageModelsService.getLanguageModelIds();
@@ -297,12 +319,14 @@ export class PromptValidator {
 			// likely the service is not initialized yet
 			return;
 		}
-		const modelMetadata = this.findModelByName(languageModes, modelName);
-		if (!modelMetadata) {
-			report(toMarker(localize('promptValidator.modelNotFound', "Unknown model '{0}'.", modelName), attribute.value.range, MarkerSeverity.Warning));
 
-		} else if (agentKind === ChatModeKind.Agent && !ILanguageModelChatMetadata.suitableForAgentMode(modelMetadata)) {
-			report(toMarker(localize('promptValidator.modelNotSuited', "Model '{0}' is not suited for agent mode.", modelName), attribute.value.range, MarkerSeverity.Warning));
+		for (const modelName of modelNames) {
+			const modelMetadata = this.findModelByName(languageModes, modelName);
+			if (!modelMetadata) {
+				report(toMarker(localize('promptValidator.modelNotFound', "Unknown model '{0}'.", modelName), attribute.value.range, MarkerSeverity.Warning));
+			} else if (agentKind === ChatModeKind.Agent && !ILanguageModelChatMetadata.suitableForAgentMode(modelMetadata)) {
+				report(toMarker(localize('promptValidator.modelNotSuited', "Model '{0}' is not suited for agent mode.", modelName), attribute.value.range, MarkerSeverity.Warning));
+			}
 		}
 	}
 
