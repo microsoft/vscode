@@ -109,8 +109,8 @@ jobs:
         - bash: |
             docker buildx build \
               --platform "linux/${{ parameters.arch }}" \
-              --build-arg "BASE_IMAGE=${{ parameters.baseImage }}" \
-              --tag "${{ parameters.container }}" \
+              ${{ if ne(parameters.baseImage, '') }}--build-arg "BASE_IMAGE=${{ parameters.baseImage }}" \
+              ${{ end }}--tag "${{ parameters.container }}" \
               --file "containers/${{ parameters.container }}.dockerfile" \
               ./containers
           workingDirectory: $(TEST_DIR)
