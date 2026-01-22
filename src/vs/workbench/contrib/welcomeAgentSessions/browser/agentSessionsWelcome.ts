@@ -52,6 +52,7 @@ import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { IWorkspacesService, IRecentFolder, IRecentWorkspace, isRecentFolder, isRecentWorkspace } from '../../../../platform/workspaces/common/workspaces.js';
 import { IHostService } from '../../../services/host/browser/host.js';
+import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
 
 const configurationKey = 'workbench.startupEditor';
 const MAX_SESSIONS = 6;
@@ -97,6 +98,7 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IWorkspacesService private readonly workspacesService: IWorkspacesService,
 		@IHostService private readonly hostService: IHostService,
+		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 	) {
 		super(AgentSessionsWelcomePage.ID, group, telemetryService, themeService, storageService);
 
@@ -137,7 +139,12 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		this._isEmptyWorkspace = this.workspaceContextService.getWorkbenchState() === WorkbenchState.EMPTY;
 		if (this._isEmptyWorkspace) {
 			const recentlyOpened = await this.workspacesService.getRecentlyOpened();
-			this._recentWorkspaces = recentlyOpened.workspaces.slice(0, MAX_PICK);
+			const trustedUris = this.workspaceTrustManagementService.getTrustedUris();
+			const filteredWorkspaces = recentlyOpened.workspaces.filter(ws => {
+				const uri = isRecentWorkspace(ws) ? ws.workspace.configPath : ws.folderUri;
+				return trustedUris.includes(uri) || trustedUris.some(trustedUri => uri.toString().startsWith(trustedUri.toString()));
+			});
+			this._recentWorkspaces = filteredWorkspaces.slice(0, MAX_PICK);
 		}
 
 		// Get walkthroughs
