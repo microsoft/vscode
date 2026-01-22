@@ -395,12 +395,15 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		}
 
 		// Update current tool status from invocation message
-		if (toolInvocation.invocationMessage && !this.isExpanded()) {
+		if (toolInvocation.invocationMessage) {
 			const message = typeof toolInvocation.invocationMessage === 'string'
 				? toolInvocation.invocationMessage
 				: toolInvocation.invocationMessage.value;
 			this.currentToolStatus = message;
-			this.updateTitle();
+			// Update title if currently collapsed
+			if (!this.isExpanded()) {
+				this.updateTitle();
+			}
 		}
 
 		// Render immediately if:
