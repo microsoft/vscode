@@ -3895,24 +3895,4 @@ export class McpHttpServerDefinition implements vscode.McpHttpServerDefinition {
 //#endregion
 
 //#region Chat Prompt Files
-
-@es5ClassCompat
-export class CustomAgentChatResource implements vscode.CustomAgentChatResource {
-	constructor(public readonly resource: vscode.ChatResourceDescriptor) { }
-}
-
-@es5ClassCompat
-export class InstructionsChatResource implements vscode.InstructionsChatResource {
-	constructor(public readonly resource: vscode.ChatResourceDescriptor) { }
-}
-
-@es5ClassCompat
-export class PromptFileChatResource implements vscode.PromptFileChatResource {
-	constructor(public readonly resource: vscode.ChatResourceDescriptor) { }
-}
-
-@es5ClassCompat
-export class SkillChatResource implements vscode.SkillChatResource {
-	constructor(public readonly resource: vscode.ChatResourceDescriptor) { }
-}
 //#endregion

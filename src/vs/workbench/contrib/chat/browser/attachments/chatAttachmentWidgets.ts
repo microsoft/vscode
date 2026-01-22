@@ -600,7 +600,7 @@ export class DefaultChatAttachmentWidget extends AbstractChatAttachmentWidget {
 		}
 
 		// Setup tooltip hover for string context attachments
-		if (isStringVariableEntry(attachment) && attachment.tooltip) {
+		if ((isStringVariableEntry(attachment) || attachment.kind === 'generic') && attachment.tooltip) {
 			this._setupTooltipHover(attachment.tooltip);
 		}
 

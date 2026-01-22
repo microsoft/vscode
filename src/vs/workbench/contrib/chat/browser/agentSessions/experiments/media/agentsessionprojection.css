@@ -5,12 +5,12 @@
 
 /* Style all tabs with the same background as the agent status */
 .monaco-workbench.agent-session-projection-active .part.editor > .content .editor-group-container > .title .tabs-container > .tab {
-	background-color: color-mix(in srgb, var(--vscode-progressBar-background) 15%, transparent) !important;
+	background-color: var(--vscode-quickInput-background) !important;
 }
 
 /* Active tab gets slightly stronger tint */
 .monaco-workbench.agent-session-projection-active .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active {
-	background-color: color-mix(in srgb, var(--vscode-progressBar-background) 25%, transparent) !important;
+	background-color: var(--vscode-chat-requestBubbleBackground) !important;
 }
 
 .hc-black .monaco-workbench.agent-session-projection-active .part.editor > .content .editor-group-container > .title .tabs-container > .tab,
@@ -27,15 +27,15 @@
 @keyframes agent-session-projection-glow-pulse {
 	0%, 100% {
 		box-shadow:
-			0 0 8px 2px color-mix(in srgb, var(--vscode-progressBar-background) 50%, transparent),
-			0 0 20px 4px color-mix(in srgb, var(--vscode-progressBar-background) 25%, transparent),
-			inset 0 0 15px 2px color-mix(in srgb, var(--vscode-progressBar-background) 15%, transparent);
+			0 0 8px 2px color-mix(in srgb, var(--vscode-chat-requestBubbleBackground) 50%, transparent),
+			0 0 20px 4px color-mix(in srgb, var(--vscode-chat-requestBubbleBackground) 25%, transparent),
+			inset 0 0 15px 2px color-mix(in srgb, var(--vscode-chat-requestBubbleBackground) 15%, transparent);
 	}
 	50% {
 		box-shadow:
-			0 0 15px 4px color-mix(in srgb, var(--vscode-progressBar-background) 70%, transparent),
-			0 0 35px 8px color-mix(in srgb, var(--vscode-progressBar-background) 35%, transparent),
-			inset 0 0 25px 4px color-mix(in srgb, var(--vscode-progressBar-background) 25%, transparent);
+			0 0 15px 4px color-mix(in srgb, var(--vscode-chat-requestBubbleBackground) 70%, transparent),
+			0 0 35px 8px color-mix(in srgb, var(--vscode-chat-requestBubbleBackground) 35%, transparent),
+			inset 0 0 25px 4px color-mix(in srgb, var(--vscode-chat-requestBubbleBackground) 25%, transparent);
 	}
 }
 
@@ -45,7 +45,7 @@
 	inset: 0;
 	pointer-events: none;
 	z-index: 1000;
-	border: 2px solid var(--vscode-progressBar-background);
+	border: 2px solid var(--vscode-chat-requestBubbleBackground);
 	border-radius: 4px;
 	animation: agent-session-projection-glow-pulse 2s ease-in-out infinite;
 }
