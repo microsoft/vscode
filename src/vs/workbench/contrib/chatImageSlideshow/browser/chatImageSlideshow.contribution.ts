@@ -20,10 +20,8 @@ import { IChatWidgetService } from '../../chat/browser/chat.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
 import { IChatResponseViewModel, isResponseVM } from '../../chat/common/model/chatViewModel.js';
 
-// Register the service
 registerSingleton(IChatImageSlideshowService, ChatImageSlideshowService, InstantiationType.Delayed);
 
-// Register the editor pane
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
 	EditorPaneDescriptor.create(
 		ChatImageSlideshowEditor,
@@ -35,11 +33,9 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 	]
 );
 
-// Register the editor input serializer (non-persistent)
 class ChatImageSlideshowEditorInputSerializer implements IEditorSerializer {
 	canSerialize(): boolean {
-		return false; // We don't persist these editors
-	}
+		return false;
 
 	serialize(): string | undefined {
 		return undefined;
@@ -53,7 +49,6 @@ class ChatImageSlideshowEditorInputSerializer implements IEditorSerializer {
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory)
 	.registerEditorSerializer(ChatImageSlideshowEditorInput.ID, ChatImageSlideshowEditorInputSerializer);
 
-// Register command to open images from chat response in slideshow
 class OpenChatImagesInSlideshowAction extends Action2 {
 	constructor() {
 		super({
@@ -69,19 +64,16 @@ class OpenChatImagesInSlideshowAction extends Action2 {
 		const chatWidgetService = accessor.get(IChatWidgetService);
 		const editorService = accessor.get(IEditorService);
 
-		// Get the last focused chat widget
 		const widget = chatWidgetService.lastFocusedWidget;
 		if (!widget) {
 			return;
 		}
 
-		// Get the current view model
 		const viewModel = widget.viewModel;
 		if (!viewModel) {
 			return;
 		}
 
-		// Try to extract images from the last response
 		const responses = viewModel.getItems().filter((item): item is IChatResponseViewModel => isResponseVM(item));
 		if (responses.length === 0) {
 			return;
@@ -91,11 +83,9 @@ class OpenChatImagesInSlideshowAction extends Action2 {
 		const collection = await slideshowService.extractImagesFromResponse(lastResponse);
 
 		if (!collection || collection.images.length === 0) {
-			// TODO: Show a notification that no images were found
 			return;
 		}
 
-		// Open the slideshow
 		const input = new ChatImageSlideshowEditorInput(collection);
 		await editorService.openEditor(input, { pinned: true });
 	}

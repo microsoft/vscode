@@ -69,21 +69,17 @@ export class ChatImageSlideshowEditor extends EditorPane {
 			return;
 		}
 
-		// Create slideshow structure
 		const slideshowContainer = DOM.$('.slideshow-container');
 
-		// Add image display area
 		const imageArea = DOM.$('.image-area');
 		const currentImage = this._images[this._currentIndex];
 		const img = this.createImageElement(currentImage);
 		imageArea.appendChild(img);
 		slideshowContainer.appendChild(imageArea);
 
-		// Add navigation controls
 		const controls = this.createControls();
 		slideshowContainer.appendChild(controls);
 
-		// Add thumbnails
 		const thumbnails = this.createThumbnails();
 		slideshowContainer.appendChild(thumbnails);
 
@@ -94,13 +90,11 @@ export class ChatImageSlideshowEditor extends EditorPane {
 		const container = DOM.$('.main-image-container');
 		const img = DOM.$('img.main-image') as HTMLImageElement;
 
-		// Convert VSBuffer to blob URL
 		const blob = new Blob([image.data.buffer.slice(0)], { type: image.mimeType });
 		const url = URL.createObjectURL(blob);
 		img.src = url;
 		img.alt = image.name;
 
-		// Clean up URL when image is removed
 		this._contentDisposables.add({
 			dispose: () => URL.revokeObjectURL(url)
 		});
@@ -112,7 +106,6 @@ export class ChatImageSlideshowEditor extends EditorPane {
 	private createControls(): HTMLElement {
 		const controls = DOM.$('.slideshow-controls');
 
-		// Previous button
 		const prevBtn = DOM.$('button.nav-button.prev-button') as HTMLButtonElement;
 		prevBtn.textContent = '< Previous';
 		prevBtn.disabled = this._currentIndex === 0;
@@ -124,12 +117,10 @@ export class ChatImageSlideshowEditor extends EditorPane {
 		}));
 		controls.appendChild(prevBtn);
 
-		// Image counter
 		const counter = DOM.$('.image-counter');
 		counter.textContent = `${this._currentIndex + 1} / ${this._images.length}`;
 		controls.appendChild(counter);
 
-		// Next button
 		const nextBtn = DOM.$('button.nav-button.next-button') as HTMLButtonElement;
 		nextBtn.textContent = 'Next >';
 		nextBtn.disabled = this._currentIndex === this._images.length - 1;
@@ -177,6 +168,5 @@ export class ChatImageSlideshowEditor extends EditorPane {
 	}
 
 	override layout(dimension: DOM.Dimension): void {
-		// Layout logic can be added here if needed
 	}
 }

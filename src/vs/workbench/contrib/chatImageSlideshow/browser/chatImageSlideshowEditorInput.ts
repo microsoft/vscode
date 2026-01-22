@@ -20,7 +20,6 @@ export class ChatImageSlideshowEditorInput extends EditorInput implements ITextR
 		public readonly collection: ISlideshowImageCollection
 	) {
 		super();
-		// Create a virtual URI for this slideshow
 		this._resource = URI.from({
 			scheme: 'chat-slideshow',
 			path: `/${collection.id}`,

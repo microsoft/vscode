@@ -36,13 +36,9 @@ export interface IChatImageSlideshowService {
 export class ChatImageSlideshowService extends Disposable implements IChatImageSlideshowService {
 	readonly _serviceBrand: undefined;
 
-	/**
-	 * Extract images from tool invocation parts in the response
-	 */
 	async extractImagesFromResponse(response: IChatResponseViewModel): Promise<ISlideshowImageCollection | undefined> {
 		const images: ISlideshowImage[] = [];
 
-		// Iterate through response items to find tool invocations
 		for (const item of response.response.value) {
 			if (item.kind === 'toolInvocation' || item.kind === 'toolInvocationSerialized') {
 				const toolImages = this.extractImagesFromToolInvocation(item);
@@ -61,21 +57,14 @@ export class ChatImageSlideshowService extends Disposable implements IChatImageS
 		};
 	}
 
-	/**
-	 * Extract images from a tool invocation (active or serialized)
-	 */
 	private extractImagesFromToolInvocation(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized): ISlideshowImage[] {
 		const images: ISlideshowImage[] = [];
 
-		// Use the namespace helper to get resultDetails - works for both active and serialized
 		const resultDetails = IChatToolInvocation.resultDetails(toolInvocation);
 
-		// Check for IToolResultInputOutputDetails (MCP tools like XcodeBuildMCP)
-		// This type has an output array with embedded or reference items
 		if (isToolResultInputOutputDetails(resultDetails)) {
 			for (const outputItem of resultDetails.output) {
 				if (outputItem.type === 'embed' && outputItem.mimeType?.startsWith('image/') && !outputItem.isText) {
-					// For embedded images, value is base64 encoded
 					const data = decodeBase64(outputItem.value);
 					images.push({
 						id: `${toolInvocation.toolCallId}_${images.length}`,
@@ -87,7 +76,6 @@ export class ChatImageSlideshowService extends Disposable implements IChatImageS
 				}
 			}
 		}
-		// Check for IToolResultOutputDetails (simple data output)
 		else if (isToolResultOutputDetails(resultDetails)) {
 			const output = resultDetails.output;
 			if (output.mimeType?.startsWith('image/')) {
@@ -107,30 +95,19 @@ export class ChatImageSlideshowService extends Disposable implements IChatImageS
 		return images;
 	}
 
-	/**
-	 * Get the image data buffer from simple output details.
-	 * Handles the difference between active (VSBuffer) and serialized (base64 string) invocations.
-	 */
 	private getImageDataFromOutputDetails(resultDetails: IToolResultOutputDetails, toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized): VSBuffer | undefined {
 		if (toolInvocation.kind === 'toolInvocationSerialized') {
-			// For serialized invocations, the data is stored as base64
 			const serializedDetails = resultDetails as unknown as IToolResultOutputDetailsSerialized;
 			if (serializedDetails.output.base64Data) {
 				return decodeBase64(serializedDetails.output.base64Data);
 			}
 			return undefined;
 		} else {
-			// For active invocations, the data is already a VSBuffer
 			return resultDetails.output.value;
 		}
 	}
 
-	/**
-	 * Open a slideshow with the given images
-	 */
 	async openSlideshow(collection: ISlideshowImageCollection): Promise<void> {
-		// This will be implemented to open the custom editor
-		// For now, just a placeholder
 		console.log('Opening slideshow with', collection.images.length, 'images');
 	}
 }
