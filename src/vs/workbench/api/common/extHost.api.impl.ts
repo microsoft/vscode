@@ -1546,19 +1546,19 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'chatContextProvider');
 				return extHostChatContext.registerChatContextProvider(selector ? checkSelector(selector) : undefined, `${extension.id}-${id}`, provider);
 			},
-			registerCustomAgentProvider(provider: vscode.CustomAgentProvider): vscode.Disposable {
+			registerCustomAgentProvider(provider: vscode.ChatCustomAgentProvider): vscode.Disposable {
 				checkProposedApiEnabled(extension, 'chatPromptFiles');
 				return extHostChatAgents2.registerPromptFileProvider(extension, PromptsType.agent, provider);
 			},
-			registerInstructionsProvider(provider: vscode.InstructionsProvider): vscode.Disposable {
+			registerInstructionsProvider(provider: vscode.ChatInstructionsProvider): vscode.Disposable {
 				checkProposedApiEnabled(extension, 'chatPromptFiles');
 				return extHostChatAgents2.registerPromptFileProvider(extension, PromptsType.instructions, provider);
 			},
-			registerPromptFileProvider(provider: vscode.PromptFileProvider): vscode.Disposable {
+			registerPromptFileProvider(provider: vscode.ChatPromptFileProvider): vscode.Disposable {
 				checkProposedApiEnabled(extension, 'chatPromptFiles');
 				return extHostChatAgents2.registerPromptFileProvider(extension, PromptsType.prompt, provider);
 			},
-			registerSkillProvider(provider: vscode.SkillProvider): vscode.Disposable {
+			registerSkillProvider(provider: vscode.ChatSkillProvider): vscode.Disposable {
 				checkProposedApiEnabled(extension, 'chatPromptFiles');
 				return extHostChatAgents2.registerPromptFileProvider(extension, PromptsType.skill, provider);
 			},
@@ -1629,6 +1629,14 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			registerMcpServerDefinitionProvider(id, provider) {
 				return extHostMcp.registerMcpConfigurationProvider(extension, id, provider);
+			},
+			onDidChangeMcpServerDefinitions: (...args) => {
+				checkProposedApiEnabled(extension, 'mcpServerDefinitions');
+				return _asExtensionEvent(extHostMcp.onDidChangeMcpServerDefinitions)(...args);
+			},
+			get mcpServerDefinitions() {
+				checkProposedApiEnabled(extension, 'mcpServerDefinitions');
+				return extHostMcp.mcpServerDefinitions;
 			},
 			onDidChangeChatRequestTools(...args) {
 				checkProposedApiEnabled(extension, 'chatParticipantAdditions');
@@ -1907,6 +1915,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			ChatResponseWarningPart: extHostTypes.ChatResponseWarningPart,
 			ChatResponseTextEditPart: extHostTypes.ChatResponseTextEditPart,
 			ChatResponseNotebookEditPart: extHostTypes.ChatResponseNotebookEditPart,
+			ChatResponseWorkspaceEditPart: extHostTypes.ChatResponseWorkspaceEditPart,
 			ChatResponseMarkdownWithVulnerabilitiesPart: extHostTypes.ChatResponseMarkdownWithVulnerabilitiesPart,
 			ChatResponseCommandButtonPart: extHostTypes.ChatResponseCommandButtonPart,
 			ChatResponseConfirmationPart: extHostTypes.ChatResponseConfirmationPart,
@@ -1964,10 +1973,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			McpStdioServerDefinition2: extHostTypes.McpStdioServerDefinition,
 			McpToolAvailability: extHostTypes.McpToolAvailability,
 			SettingsSearchResultKind: extHostTypes.SettingsSearchResultKind,
-			CustomAgentChatResource: extHostTypes.CustomAgentChatResource,
-			InstructionsChatResource: extHostTypes.InstructionsChatResource,
-			PromptFileChatResource: extHostTypes.PromptFileChatResource,
-			SkillChatResource: extHostTypes.SkillChatResource,
 		};
 	};
 }

@@ -267,7 +267,6 @@ export class ChatToolPostExecuteConfirmationPart extends AbstractToolConfirmatio
 			));
 
 			this._codeblocks.push(...outputSubPart.codeblocks);
-			this._register(outputSubPart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 			outputSubPart.domNode.classList.add('tool-postconfirm-display');
 			return outputSubPart.domNode;
 		}

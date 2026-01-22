@@ -6,7 +6,7 @@
 import { isFalsyOrEmpty } from '../../../base/common/arrays.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { Schemas, matchesSomeScheme } from '../../../base/common/network.js';
-import { URI, UriComponents } from '../../../base/common/uri.js';
+import { URI } from '../../../base/common/uri.js';
 import { IPosition } from '../../../editor/common/core/position.js';
 import { IRange } from '../../../editor/common/core/range.js';
 import { ISelection } from '../../../editor/common/core/selection.js';
@@ -23,6 +23,7 @@ import { TransientCellMetadata, TransientDocumentMetadata } from '../../contrib/
 import * as search from '../../contrib/search/common/search.js';
 import type * as vscode from 'vscode';
 import { PromptsType } from '../../contrib/chat/common/promptSyntax/promptTypes.js';
+import type { IExtensionPromptFileResult } from '../../contrib/chat/common/promptSyntax/chatPromptFilesContribution.js';
 
 //#region --- NEW world
 
@@ -560,7 +561,7 @@ const newCommands: ApiCommand[] = [
 	new ApiCommand(
 		'vscode.extensionPromptFileProvider', '_listExtensionPromptFiles', 'Get all extension-contributed prompt files (custom agents, instructions, and prompt files).',
 		[],
-		new ApiCommandResult<{ uri: UriComponents; type: PromptsType }[], { uri: vscode.Uri; type: PromptsType }[]>(
+		new ApiCommandResult<IExtensionPromptFileResult[], { uri: vscode.Uri; type: PromptsType }[]>(
 			'A promise that resolves to an array of objects containing uri and type.',
 			(value) => {
 				if (!value) {

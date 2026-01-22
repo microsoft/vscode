@@ -129,6 +129,7 @@ export interface IChatContentReference {
 		status?: { description: string; kind: ChatResponseReferencePartStatusKind };
 		diffMeta?: { added: number; removed: number };
 		originalUri?: URI;
+		isDeletion?: boolean;
 	};
 	kind: 'reference';
 }
@@ -282,6 +283,7 @@ export interface IChatAgentMarkdownContentWithVulnerability {
 export interface IChatCommandButton {
 	command: Command;
 	kind: 'command';
+	additionalCommands?: Command[]; // rendered as secondary buttons
 }
 
 export interface IChatMoveMessage {
@@ -309,6 +311,16 @@ export interface IChatNotebookEdit {
 	kind: 'notebookEdit';
 	done?: boolean;
 	isExternalEdit?: boolean;
+}
+
+export interface IChatWorkspaceFileEdit {
+	oldResource?: URI;
+	newResource?: URI;
+}
+
+export interface IChatWorkspaceEdit {
+	kind: 'workspaceEdit';
+	edits: IChatWorkspaceFileEdit[];
 }
 
 export interface IChatConfirmation {
@@ -772,11 +784,9 @@ export interface IChatSubagentToolInvocationData {
 
 export interface IChatTodoListContent {
 	kind: 'todoList';
-	sessionId: string;
 	todoList: Array<{
 		id: string;
 		title: string;
-		description: string;
 		status: 'not-started' | 'in-progress' | 'completed';
 	}>;
 }
@@ -840,6 +850,7 @@ export type IChatProgress =
 	| IChatWarningMessage
 	| IChatTextEdit
 	| IChatNotebookEdit
+	| IChatWorkspaceEdit
 	| IChatMoveMessage
 	| IChatResponseCodeblockUriPart
 	| IChatConfirmation

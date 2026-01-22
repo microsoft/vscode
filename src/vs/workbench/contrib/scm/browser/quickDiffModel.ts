@@ -183,6 +183,8 @@ export class QuickDiffModel extends Disposable {
 				.filter(change => change.providerId === quickDiff.id);
 
 			return {
+				providerId: quickDiff.id,
+				providerKind: quickDiff.kind,
 				original: quickDiff.originalResource,
 				modified: this._model.resource,
 				changes: changes.map(change => change.change),

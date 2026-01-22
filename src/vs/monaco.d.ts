@@ -1747,7 +1747,7 @@ declare namespace monaco.editor {
 		 */
 		glyphMargin?: IModelDecorationGlyphMarginOptions | null;
 		/**
-		 * If set, the decoration will override the line height of the lines it spans. Maximum value is 300px.
+		 * If set, the decoration will override the line height of the lines it spans. This value is a multiplier to the default line height.
 		 */
 		lineHeight?: number | null;
 		/**
@@ -6389,6 +6389,10 @@ declare namespace monaco.editor {
 		 * Force an editor render now.
 		 */
 		render(forceRedraw?: boolean): void;
+		/**
+		 * Render the editor at the next animation frame.
+		 */
+		renderAsync(forceRedraw?: boolean): void;
 		/**
 		 * Get the hit test target at coordinates `clientX` and `clientY`.
 		 * The coordinates are relative to the top-left of the viewport.

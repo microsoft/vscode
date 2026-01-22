@@ -122,6 +122,7 @@ export class ChatModeService extends Disposable implements IChatModeService {
 						handOffs: cachedMode.handOffs,
 						target: cachedMode.target,
 						infer: cachedMode.infer,
+						agents: cachedMode.agents,
 						source: reviveChatModeSource(cachedMode.source) ?? { storage: PromptsStorage.local }
 					};
 					const instance = new CustomChatMode(customChatMode);
@@ -244,6 +245,7 @@ export interface IChatModeData {
 	readonly source?: IChatModeSourceData;
 	readonly target?: string;
 	readonly infer?: boolean;
+	readonly agents?: readonly string[];
 }
 
 export interface IChatMode {
@@ -263,6 +265,7 @@ export interface IChatMode {
 	readonly source?: IAgentSource;
 	readonly target?: IObservable<string | undefined>;
 	readonly infer?: IObservable<boolean | undefined>;
+	readonly agents?: IObservable<readonly string[] | undefined>;
 }
 
 export interface IVariableReference {
@@ -294,7 +297,8 @@ function isCachedChatModeData(data: unknown): data is IChatModeData {
 		(mode.uri === undefined || (typeof mode.uri === 'object' && mode.uri !== null)) &&
 		(mode.source === undefined || isChatModeSourceData(mode.source)) &&
 		(mode.target === undefined || typeof mode.target === 'string') &&
-		(mode.infer === undefined || typeof mode.infer === 'boolean');
+		(mode.infer === undefined || typeof mode.infer === 'boolean') &&
+		(mode.agents === undefined || Array.isArray(mode.agents));
 }
 
 export class CustomChatMode implements IChatMode {
@@ -308,6 +312,7 @@ export class CustomChatMode implements IChatMode {
 	private readonly _handoffsObservable: ISettableObservable<readonly IHandOff[] | undefined>;
 	private readonly _targetObservable: ISettableObservable<string | undefined>;
 	private readonly _inferObservable: ISettableObservable<boolean | undefined>;
+	private readonly _agentsObservable: ISettableObservable<readonly string[] | undefined>;
 	private _source: IAgentSource;
 
 	public readonly id: string;
@@ -368,6 +373,10 @@ export class CustomChatMode implements IChatMode {
 		return this._inferObservable;
 	}
 
+	get agents(): IObservable<readonly string[] | undefined> {
+		return this._agentsObservable;
+	}
+
 	public readonly kind = ChatModeKind.Agent;
 
 	constructor(
@@ -382,6 +391,7 @@ export class CustomChatMode implements IChatMode {
 		this._handoffsObservable = observableValue('handOffs', customChatMode.handOffs);
 		this._targetObservable = observableValue('target', customChatMode.target);
 		this._inferObservable = observableValue('infer', customChatMode.infer);
+		this._agentsObservable = observableValue('agents', customChatMode.agents);
 		this._modeInstructions = observableValue('_modeInstructions', customChatMode.agentInstructions);
 		this._uriObservable = observableValue('uri', customChatMode.uri);
 		this._source = customChatMode.source;
@@ -400,6 +410,7 @@ export class CustomChatMode implements IChatMode {
 			this._handoffsObservable.set(newData.handOffs, tx);
 			this._targetObservable.set(newData.target, tx);
 			this._inferObservable.set(newData.infer, tx);
+			this._agentsObservable.set(newData.agents, tx);
 			this._modeInstructions.set(newData.agentInstructions, tx);
 			this._uriObservable.set(newData.uri, tx);
 			this._source = newData.source;
@@ -420,7 +431,8 @@ export class CustomChatMode implements IChatMode {
 			handOffs: this.handOffs.get(),
 			source: serializeChatModeSource(this._source),
 			target: this.target.get(),
-			infer: this.infer.get()
+			infer: this.infer.get(),
+			agents: this.agents.get()
 		};
 	}
 }

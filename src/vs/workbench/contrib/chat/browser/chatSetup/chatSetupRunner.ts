@@ -16,7 +16,6 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { localize } from '../../../../../nls.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { createWorkbenchDialogOptions } from '../../../../../platform/dialogs/browser/dialog.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
@@ -26,10 +25,11 @@ import product from '../../../../../platform/product/common/product.js';
 import { ITelemetryService, TelemetryLevel } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkspaceTrustRequestService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
-import { ChatEntitlement, ChatEntitlementContext, ChatEntitlementRequests, ChatEntitlementService, IChatEntitlementService, isProUser } from '../../../../services/chat/common/chatEntitlementService.js';
+import { ChatEntitlement, ChatEntitlementContext, ChatEntitlementService, IChatEntitlementService, isProUser } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IChatWidgetService } from '../chat.js';
 import { ChatSetupController } from './chatSetupController.js';
 import { IChatSetupResult, ChatSetupAnonymous, InstallChatEvent, InstallChatClassification, ChatSetupStrategy, ChatSetupResultValue } from './chatSetup.js';
+import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 
 const defaultChat = {
 	publicCodeMatchesUrl: product.defaultChatAgent?.publicCodeMatchesUrl ?? '',
@@ -48,7 +48,7 @@ export class ChatSetup {
 		let instance = ChatSetup.instance;
 		if (!instance) {
 			instance = ChatSetup.instance = instantiationService.invokeFunction(accessor => {
-				return new ChatSetup(context, controller, accessor.get(ITelemetryService), accessor.get(IWorkbenchLayoutService), accessor.get(IKeybindingService), accessor.get(IChatEntitlementService) as ChatEntitlementService, accessor.get(ILogService), accessor.get(IConfigurationService), accessor.get(IChatWidgetService), accessor.get(IWorkspaceTrustRequestService), accessor.get(IMarkdownRendererService));
+				return new ChatSetup(context, controller, accessor.get(ITelemetryService), accessor.get(IWorkbenchLayoutService), accessor.get(IKeybindingService), accessor.get(IChatEntitlementService) as ChatEntitlementService, accessor.get(ILogService), accessor.get(IChatWidgetService), accessor.get(IWorkspaceTrustRequestService), accessor.get(IMarkdownRendererService), accessor.get(IDefaultAccountService));
 			});
 		}
 
@@ -67,10 +67,10 @@ export class ChatSetup {
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IChatEntitlementService private readonly chatEntitlementService: ChatEntitlementService,
 		@ILogService private readonly logService: ILogService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IChatWidgetService private readonly widgetService: IChatWidgetService,
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
+		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
 	) { }
 
 	skipDialog(): void {
@@ -116,7 +116,7 @@ export class ChatSetup {
 			setupStrategy = await this.showDialog(options);
 		}
 
-		if (setupStrategy === ChatSetupStrategy.DefaultSetup && ChatEntitlementRequests.providerId(this.configurationService) === defaultChat.provider.enterprise.id) {
+		if (setupStrategy === ChatSetupStrategy.DefaultSetup && this.defaultAccountService.getDefaultAccountAuthenticationProvider().enterprise) {
 			setupStrategy = ChatSetupStrategy.SetupWithEnterpriseProvider; // users with a configured provider go through provider setup
 		}
 
@@ -200,7 +200,7 @@ export class ChatSetup {
 			const googleProviderButton: ContinueWithButton = [localize('continueWith', "Continue with {0}", defaultChat.provider.google.name), ChatSetupStrategy.SetupWithGoogleProvider, styleButton('continue-button', 'google')];
 			const appleProviderButton: ContinueWithButton = [localize('continueWith', "Continue with {0}", defaultChat.provider.apple.name), ChatSetupStrategy.SetupWithAppleProvider, styleButton('continue-button', 'apple')];
 
-			if (ChatEntitlementRequests.providerId(this.configurationService) !== defaultChat.provider.enterprise.id) {
+			if (!this.defaultAccountService.getDefaultAccountAuthenticationProvider().enterprise) {
 				buttons = coalesce([
 					defaultProviderButton,
 					googleProviderButton,

@@ -100,11 +100,9 @@ declare module 'vscode' {
 		refreshHandler: () => Thenable<void>;
 
 		/**
-		 * Fired when an item is archived by the editor
-		 *
-		 * TODO: expose archive state on the item too?
+		 * Fired when an item's archived state changes.
 		 */
-		readonly onDidArchiveChatSessionItem: Event<ChatSessionItem>;
+		readonly onDidChangeChatSessionItemState: Event<ChatSessionItem>;
 	}
 
 	/**
