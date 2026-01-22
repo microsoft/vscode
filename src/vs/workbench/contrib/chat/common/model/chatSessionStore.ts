@@ -99,14 +99,9 @@ export class ChatSessionStore extends Disposable {
 		const wasEmptyWindow = lastWorkspaceId === 'empty-window';
 
 		// Determine if this is a workspace transition that requires migration
-		const needsMigration = lastWorkspaceId && (
-			// Transition from empty window to workspace with folder(s)
-			(wasEmptyWindow && !isEmptyWindow) ||
-			// Transition between different non-empty workspaces
-			(!wasEmptyWindow && !isEmptyWindow && lastWorkspaceId !== currentWorkspaceId)
-		);
+		const needsMigration = this.shouldMigrateWorkspace(lastWorkspaceId, wasEmptyWindow, currentWorkspaceId, isEmptyWindow);
 
-		if (needsMigration) {
+		if (needsMigration && lastWorkspaceId) {
 			this.logService.info(`ChatSessionStore: Detected workspace transition from ${lastWorkspaceId} to ${currentWorkspaceId}`);
 			// Queue the migration to happen asynchronously
 			this.storeQueue.queue(async () => {
@@ -129,14 +124,9 @@ export class ChatSessionStore extends Disposable {
 		const wasEmptyWindow = lastWorkspaceId === 'empty-window';
 
 		// Determine if this is a workspace transition that requires migration
-		const needsMigration = lastWorkspaceId && (
-			// Transition from empty window to workspace with folder(s)
-			(wasEmptyWindow && !isEmptyWindow) ||
-			// Transition between different non-empty workspaces
-			(!wasEmptyWindow && !isEmptyWindow && lastWorkspaceId !== newWorkspaceId)
-		);
+		const needsMigration = this.shouldMigrateWorkspace(lastWorkspaceId, wasEmptyWindow, newWorkspaceId, isEmptyWindow);
 
-		if (needsMigration) {
+		if (needsMigration && lastWorkspaceId) {
 			this.logService.info(`ChatSessionStore: Workspace transition detected from ${lastWorkspaceId} to ${newWorkspaceId}`);
 
 			// Update storage root
@@ -153,6 +143,24 @@ export class ChatSessionStore extends Disposable {
 		// Update the stored workspace state
 		const workspaceKey = isEmptyWindow ? 'empty-window' : newWorkspaceId;
 		this.storageService.store(ChatLastWorkspaceIdStorageKey, workspaceKey, StorageScope.APPLICATION, StorageTarget.MACHINE);
+	}
+
+	private shouldMigrateWorkspace(lastWorkspaceId: string | undefined, wasEmptyWindow: boolean, newWorkspaceId: string, isNewWorkspaceEmpty: boolean): boolean {
+		if (!lastWorkspaceId) {
+			return false;
+		}
+
+		// Transition from empty window to workspace with folder(s)
+		if (wasEmptyWindow && !isNewWorkspaceEmpty) {
+			return true;
+		}
+
+		// Transition between different non-empty workspaces
+		if (!wasEmptyWindow && !isNewWorkspaceEmpty && lastWorkspaceId !== newWorkspaceId) {
+			return true;
+		}
+
+		return false;
 	}
 
 	private async migrateSessionsFromOldWorkspace(oldWorkspaceId: string, wasEmptyWindow: boolean, newWorkspaceId: string, isNewWorkspaceEmpty: boolean): Promise<void> {

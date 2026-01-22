@@ -11,7 +11,7 @@ import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { ServiceCollection } from '../../../../../../platform/instantiation/common/serviceCollection.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
-import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IUserDataProfilesService, toUserDataProfile } from '../../../../../../platform/userDataProfile/common/userDataProfile.js';
@@ -44,6 +44,8 @@ suite('ChatSessionStore', () => {
 	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let instantiationService: TestInstantiationService;
+
+	const MIGRATION_TIMEOUT_MS = 100; // Time to wait for async migration operations
 
 	function createChatSessionStore(isEmptyWindow: boolean = false): ChatSessionStore {
 		const workspace = isEmptyWindow ? new Workspace('empty-window-id', []) : TestWorkspace;
@@ -391,7 +393,7 @@ suite('ChatSessionStore', () => {
 			const store2 = testDisposables.add(instantiationService.createInstance(ChatSessionStore));
 			
 			// Wait for migration to complete
-			await new Promise(resolve => setTimeout(resolve, 100));
+			await new Promise(resolve => setTimeout(resolve, MIGRATION_TIMEOUT_MS));
 			
 			// The session should be available in the new workspace after migration
 			const index = await store2.getIndex();
@@ -401,13 +403,13 @@ suite('ChatSessionStore', () => {
 		test('migration handles non-existent old storage location gracefully', async () => {
 			// Set up storage service with a fake previous workspace ID that doesn't exist
 			const storageService = instantiationService.get(IStorageService) as TestStorageService;
-			storageService.store('chat.ChatSessionStore.lastWorkspaceId', 'non-existent-workspace-id', 0 /* StorageScope.APPLICATION */, 0 /* StorageTarget.USER */);
+			storageService.store('chat.ChatSessionStore.lastWorkspaceId', 'non-existent-workspace-id', StorageScope.APPLICATION, StorageTarget.USER);
 			
 			// Create store with a real workspace - should not crash during migration attempt
 			const store = createChatSessionStore(false);
 			
 			// Wait for any migration attempt to complete
-			await new Promise(resolve => setTimeout(resolve, 100));
+			await new Promise(resolve => setTimeout(resolve, MIGRATION_TIMEOUT_MS));
 			
 			// Store should work normally
 			assert.strictEqual(store.hasSessions(), false);
@@ -433,7 +435,7 @@ suite('ChatSessionStore', () => {
 			const store2 = testDisposables.add(instantiationService.createInstance(ChatSessionStore));
 			
 			// Wait for migration to complete
-			await new Promise(resolve => setTimeout(resolve, 100));
+			await new Promise(resolve => setTimeout(resolve, MIGRATION_TIMEOUT_MS));
 			
 			// Verify file was copied to new location
 			const workspaceStorageRoot = store2.getChatStorageFolder();
@@ -450,7 +452,7 @@ suite('ChatSessionStore', () => {
 			createChatSessionStore(false);
 			
 			// Wait for any potential migration
-			await new Promise(resolve => setTimeout(resolve, 100));
+			await new Promise(resolve => setTimeout(resolve, MIGRATION_TIMEOUT_MS));
 			
 			// If we get here without errors, no migration occurred
 			// (we can't easily detect log calls in NullLogService, but at least we verify no crashes)
