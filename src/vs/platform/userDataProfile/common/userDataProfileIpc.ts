@@ -94,6 +94,11 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 		return reviveProfile(result, this.profilesHome.scheme);
 	}
 
+	async createSystemProfile(id: string): Promise<IUserDataProfile> {
+		const result = await this.channel.call<UriDto<IUserDataProfile>>('createSystemProfile', [id]);
+		return reviveProfile(result, this.profilesHome.scheme);
+	}
+
 	async createTransientProfile(workspaceIdentifier?: IAnyWorkspaceIdentifier): Promise<IUserDataProfile> {
 		const result = await this.channel.call<UriDto<IUserDataProfile>>('createTransientProfile', [workspaceIdentifier]);
 		return reviveProfile(result, this.profilesHome.scheme);

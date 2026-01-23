@@ -108,6 +108,9 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 	get untitledWorkspacesHome(): URI { return URI.file(join(this.userDataPath, 'Workspaces')); }
 
 	@memoize
+	get builtinProfilesHome(): URI { return joinPath(URI.file(this.appRoot), 'resources', 'profiles'); }
+
+	@memoize
 	get builtinExtensionsPath(): string {
 		const cliBuiltinExtensionsDir = this.args['builtin-extensions-dir'];
 		if (cliBuiltinExtensionsDir) {
@@ -117,6 +120,7 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 		return normalize(join(FileAccess.asFileUri('').fsPath, '..', 'extensions'));
 	}
 
+	@memoize
 	get extensionsDownloadLocation(): URI {
 		const cliExtensionsDownloadDir = this.args['extensions-download-dir'];
 		if (cliExtensionsDownloadDir) {
@@ -250,6 +254,11 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 			return joinPath(this.userHome, this.productService.dataFolderName, 'policy.json');
 		}
 		return undefined;
+	}
+
+	@memoize
+	get agentSessionsWorkspace(): URI {
+		return joinPath(this.appSettingsHome, 'agent-sessions.code-workspace');
 	}
 
 	get editSessionId(): string | undefined { return this.args['editSessionId']; }

@@ -20,6 +20,8 @@ import { Promises } from '../../../base/common/async.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { escapeRegExpCharacters } from '../../../base/common/strings.js';
 import { isString, Mutable } from '../../../base/common/types.js';
+import { ResourceMap } from '../../../base/common/map.js';
+import { parse } from '../../../base/common/json.js';
 
 export const enum ProfileResourceType {
 	Settings = 'settings',
@@ -37,6 +39,14 @@ export const enum ProfileResourceType {
  */
 export type UseDefaultProfileFlags = { [key in ProfileResourceType]?: boolean };
 export type ProfileResourceTypeFlags = UseDefaultProfileFlags;
+export type SettingValue = string | boolean | number | undefined | null | object;
+export type ISettingsDictionary = Record<string, SettingValue>;
+
+export interface ITemplateData {
+	readonly resource: URI;
+	readonly icon?: string;
+	readonly settings?: ISettingsDictionary;
+}
 
 export interface IUserDataProfile {
 	readonly id: string;
@@ -56,6 +66,7 @@ export interface IUserDataProfile {
 	readonly useDefaultFlags?: UseDefaultProfileFlags;
 	readonly isTransient?: boolean;
 	readonly workspaces?: readonly URI[];
+	readonly templateData?: ITemplateData;
 }
 
 export function isUserDataProfile(thing: unknown): thing is IUserDataProfile {
@@ -77,6 +88,13 @@ export function isUserDataProfile(thing: unknown): thing is IUserDataProfile {
 	);
 }
 
+export interface ISystemProfileTemplate {
+	readonly name: string;
+	readonly icon?: string;
+	readonly settings?: ISettingsDictionary;
+	readonly globalState?: IStringDictionary<string>;
+}
+
 export type DidChangeProfilesEvent = { readonly added: readonly IUserDataProfile[]; readonly removed: readonly IUserDataProfile[]; readonly updated: readonly IUserDataProfile[]; readonly all: readonly IUserDataProfile[] };
 
 export type WillCreateProfileEvent = {
@@ -94,9 +112,10 @@ export interface IUserDataProfileOptions {
 	readonly useDefaultFlags?: UseDefaultProfileFlags;
 	readonly transient?: boolean;
 	readonly workspaces?: readonly URI[];
+	readonly templateData?: ITemplateData;
 }
 
-export interface IUserDataProfileUpdateOptions extends Omit<IUserDataProfileOptions, 'icon'> {
+export interface IUserDataProfileUpdateOptions extends Omit<IUserDataProfileOptions, 'icon' | 'defaultSettings'> {
 	readonly name?: string;
 	readonly icon?: string | null;
 }
@@ -113,6 +132,7 @@ export interface IUserDataProfilesService {
 
 	readonly onDidResetWorkspaces: Event<void>;
 
+	createSystemProfile(id: string): Promise<IUserDataProfile>;
 	createNamedProfile(name: string, options?: IUserDataProfileOptions, workspaceIdentifier?: IAnyWorkspaceIdentifier): Promise<IUserDataProfile>;
 	createTransientProfile(workspaceIdentifier?: IAnyWorkspaceIdentifier): Promise<IUserDataProfile>;
 	createProfile(id: string, name: string, options?: IUserDataProfileOptions, workspaceIdentifier?: IAnyWorkspaceIdentifier): Promise<IUserDataProfile>;
@@ -145,6 +165,10 @@ export function reviveProfile(profile: UriDto<IUserDataProfile>, scheme: string)
 		useDefaultFlags: profile.useDefaultFlags,
 		isTransient: profile.isTransient,
 		workspaces: profile.workspaces?.map(w => URI.revive(w)),
+		templateData: profile.templateData ? {
+			...profile.templateData,
+			resource: URI.revive(profile.templateData?.resource),
+		} : undefined,
 	};
 }
 
@@ -167,6 +191,7 @@ export function toUserDataProfile(id: string, name: string, location: URI, profi
 		useDefaultFlags: options?.useDefaultFlags,
 		isTransient: options?.transient,
 		workspaces: options?.workspaces,
+		templateData: options?.templateData,
 	};
 }
 
@@ -180,6 +205,7 @@ export type StoredUserDataProfile = {
 	location: URI;
 	icon?: string;
 	useDefaultFlags?: UseDefaultProfileFlags;
+	templateData?: ITemplateData;
 };
 
 export type StoredProfileAssociations = {
@@ -245,7 +271,7 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 						this.logService.warn('Skipping the invalid stored profile', storedProfile.location || storedProfile.name);
 						continue;
 					}
-					profiles.push(toUserDataProfile(basename(storedProfile.location), storedProfile.name, storedProfile.location, this.profilesCacheHome, { icon: storedProfile.icon, useDefaultFlags: storedProfile.useDefaultFlags }, defaultProfile));
+					profiles.push(toUserDataProfile(basename(storedProfile.location), storedProfile.name, storedProfile.location, this.profilesCacheHome, { icon: storedProfile.icon, useDefaultFlags: storedProfile.useDefaultFlags, templateData: storedProfile.templateData }, defaultProfile));
 				}
 			} catch (error) {
 				this.logService.error(error);
@@ -310,6 +336,20 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 		return profile;
 	}
 
+	async createSystemProfile(id: string): Promise<IUserDataProfile> {
+		const existing = this.profiles.find(p => p.id === id);
+		if (existing) {
+			return existing;
+		}
+
+		const systemProfileTemplate = await this.getSystemProfileTemplate(id);
+		if (!systemProfileTemplate) {
+			throw new Error(`System profile template '${id}' does not exist`);
+		}
+
+		return this.doCreateProfile(id, systemProfileTemplate.name);
+	}
+
 	private async doCreateProfile(id: string, name: string, options?: IUserDataProfileOptions, workspaceIdentifier?: IAnyWorkspaceIdentifier): Promise<IUserDataProfile> {
 		if (!isString(name) || !name) {
 			throw new Error('Name of the profile is mandatory and must be of type `string`');
@@ -328,6 +368,20 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 					if (URI.isUri(workspace)) {
 						options = { ...options, workspaces: [workspace] };
 					}
+
+					const systemProfileTemplate = await this.getSystemProfileTemplate(id);
+					if (systemProfileTemplate) {
+						options = {
+							...options,
+							icon: options?.icon ?? systemProfileTemplate.icon,
+							templateData: {
+								resource: joinPath(this.environmentService.builtinProfilesHome, `${id}.code-profile`),
+								icon: systemProfileTemplate.icon,
+								settings: systemProfileTemplate.settings,
+							}
+						};
+					}
+
 					const profile = toUserDataProfile(id, name, joinPath(this.profilesHome, id), this.profilesCacheHome, options, this.defaultProfile);
 					await this.fileService.createFolder(profile.location);
 
@@ -366,6 +420,10 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 						transient: options.transient ?? existing.isTransient,
 						useDefaultFlags: options.useDefaultFlags ?? existing.useDefaultFlags,
 						workspaces: options.workspaces ?? existing.workspaces,
+						templateData: existing.templateData ? {
+							...existing.templateData,
+							...options.templateData,
+						} : undefined,
 					}, this.defaultProfile);
 				} else if (options.workspaces) {
 					profileToUpdate = existing;
@@ -500,6 +558,50 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 			: (this.profilesObject.emptyWindows.get(workspace) ?? this.transientProfilesObject.emptyWindows.get(workspace));
 	}
 
+	private getSystemProfileTemplate(id: string): Promise<ISystemProfileTemplate | undefined> {
+		return this.getSystemProfileTemplates().then(templates => {
+			const resource = joinPath(this.environmentService.builtinProfilesHome, `${id}.code-profile`);
+			return templates.get(resource);
+		});
+	}
+
+	private systemProfilesTemplatesPromise: Promise<ResourceMap<ISystemProfileTemplate>> | undefined;
+	private async getSystemProfileTemplates(): Promise<ResourceMap<ISystemProfileTemplate>> {
+		if (!this.systemProfilesTemplatesPromise) {
+			this.systemProfilesTemplatesPromise = this.doGetSystemProfileTemplates();
+		}
+		return this.systemProfilesTemplatesPromise;
+	}
+
+	private async doGetSystemProfileTemplates(): Promise<ResourceMap<ISystemProfileTemplate>> {
+		const result = new ResourceMap<ISystemProfileTemplate>();
+		const profilesFolder = this.environmentService.builtinProfilesHome;
+		try {
+			const stat = await this.fileService.resolve(profilesFolder);
+			if (!stat.children?.length) {
+				return result;
+			}
+			for (const child of stat.children) {
+				if (child.isDirectory) {
+					continue;
+				}
+				if (this.uriIdentityService.extUri.extname(child.resource) !== '.code-profile') {
+					continue;
+				}
+				try {
+					const content = (await this.fileService.readFile(child.resource)).value.toString();
+					const profile: ISystemProfileTemplate = parse(content);
+					result.set(child.resource, profile);
+				} catch (error) {
+					this.logService.error(`Error while reading system profile template from ${child.resource.toString()}`, error);
+				}
+			}
+		} catch (error) {
+			this.logService.error(`Error while reading system profile templates from ${profilesFolder.toString()}`, error);
+		}
+		return result;
+	}
+
 	protected getWorkspace(workspaceIdentifier: IAnyWorkspaceIdentifier): URI | string {
 		if (isSingleFolderWorkspaceIdentifier(workspaceIdentifier)) {
 			return workspaceIdentifier.uri;
@@ -609,7 +711,7 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 				continue;
 			}
 			if (!profile.isDefault) {
-				storedProfiles.push({ location: profile.location, name: profile.name, icon: profile.icon, useDefaultFlags: profile.useDefaultFlags });
+				storedProfiles.push({ location: profile.location, name: profile.name, icon: profile.icon, useDefaultFlags: profile.useDefaultFlags, templateData: profile.templateData });
 			}
 			if (profile.workspaces) {
 				for (const workspace of profile.workspaces) {
