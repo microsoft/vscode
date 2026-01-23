@@ -28,6 +28,7 @@ import { IChatWidgetService } from '../browser/chat.js';
 import { ChatContextKeys } from '../common/actions/chatContextKeys.js';
 import { ChatModeKind } from '../common/constants.js';
 import { IChatService } from '../common/chatService/chatService.js';
+import { LocalChatSessionUri } from '../common/model/chatUri.js';
 import { registerChatDeveloperActions } from './actions/chatDeveloperActions.js';
 import { registerChatExportZipAction } from './actions/chatExportZip.js';
 import { HoldToVoiceChatInChatViewAction, InlineVoiceChatAction, KeywordActivationContribution, QuickVoiceChatAction, ReadChatResponseAloud, StartVoiceChatAction, StopListeningAction, StopListeningAndSubmitAction, StopReadAloud, StopReadChatItemAloud, VoiceChatInChatViewAction } from './actions/voiceChatActions.js';
@@ -133,13 +134,20 @@ class ChatLifecycleHandler extends Disposable {
 		}));
 
 		this._register(extensionService.onWillStop(e => {
-			e.veto(this.chatService.requestInProgressObs.get(), localize('chatRequestInProgress', "A chat request is in progress."));
+			// Only consider local sessions - cloud sessions continue running in the cloud
+			const localSessionRunning = [...this.chatService.chatModels.read(undefined)].some(
+				model => LocalChatSessionUri.isLocalSession(model.sessionResource) && model.requestInProgress.read(undefined)
+			);
+			e.veto(localSessionRunning, localize('chatRequestInProgress', "A chat request is in progress."));
 		}));
 	}
 
 	private shouldVetoShutdown(reason: ShutdownReason): boolean | Promise<boolean> {
-		const running = this.chatService.requestInProgressObs.read(undefined);
-		if (!running) {
+		// Only consider local sessions for the veto - cloud sessions continue running in the cloud
+		const localSessionRunning = [...this.chatService.chatModels.read(undefined)].some(
+			model => LocalChatSessionUri.isLocalSession(model.sessionResource) && model.requestInProgress.read(undefined)
+		);
+		if (!localSessionRunning) {
 			return false;
 		}
 
