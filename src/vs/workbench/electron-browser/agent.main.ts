@@ -54,6 +54,8 @@ import { IDialogService } from '../../platform/dialogs/common/dialogs.js';
 import { DialogService } from '../services/dialogs/common/dialogService.js';
 import { ILayoutService, ILayoutOffsetInfo } from '../../platform/layout/browser/layoutService.js';
 import { IWorkbenchLayoutService, Parts, PanelAlignment, Position } from '../services/layout/browser/layoutService.js';
+import { IEditorGroupsService, GroupOrientation, EditorGroupLayout, IEditorWorkingSet, IEditorPart } from '../services/editor/common/editorGroupsService.js';
+import { IEditorService } from '../services/editor/common/editorService.js';
 import { IDefaultAccountService } from '../../platform/defaultAccount/common/defaultAccount.js';
 import { DefaultAccountService } from '../services/accounts/browser/defaultAccount.js';
 import { SyncDescriptor } from '../../platform/instantiation/common/descriptors.js';
@@ -207,6 +209,177 @@ class AgentLayoutService implements IWorkbenchLayoutService {
 }
 
 /**
+ * Stub editor groups service for Agent window - provides one empty tab group
+ * This enables extensions to have a valid activeTabGroup
+ */
+function createAgentEditorGroupsService(): IEditorGroupsService {
+	const emptyGroup = {
+		id: 1,
+		windowId: 1,
+		index: 0,
+		label: 'Agent',
+		ariaLabel: 'Agent Editor Group',
+		isEmpty: true,
+		isLocked: false,
+		stickyCount: 0,
+		count: 0,
+		editors: [],
+		selectedEditors: [],
+		activeEditorPane: undefined,
+		activeEditor: null,
+		previewEditor: null,
+		onDidModelChange: Event.None,
+		onWillDispose: Event.None,
+		onDidActiveEditorChange: Event.None,
+		onWillCloseEditor: Event.None,
+		onDidCloseEditor: Event.None,
+		onWillMoveEditor: Event.None,
+		onWillOpenEditor: Event.None,
+		get scopedContextKeyService() { return undefined!; },
+		getEditors: () => [],
+		findEditors: () => [],
+		getEditorByIndex: () => undefined,
+		getIndexOfEditor: () => -1,
+		isFirst: () => false,
+		isLast: () => false,
+		focus: () => { },
+		pinEditor: () => { },
+		unpinEditor: () => { },
+		stickEditor: () => { },
+		unstickEditor: () => { },
+		lock: () => { },
+		isActive: () => false,
+		isSelected: () => false,
+		setSelection: () => Promise.resolve(),
+		openEditor: async () => undefined,
+		openEditors: async () => undefined,
+		isPinned: () => false,
+		isSticky: () => false,
+		isTransient: () => false,
+		closeEditor: async () => true,
+		closeEditors: async () => true,
+		closeAllEditors: () => true as unknown,
+		replaceEditors: async () => { },
+		moveEditor: () => false,
+		moveEditors: () => false,
+		copyEditor: async () => { },
+		copyEditors: async () => { },
+		contains: () => false,
+		createEditorActions: () => ({ actions: [], onDidChange: Event.None }),
+	};
+
+	const service = {
+		_serviceBrand: undefined,
+		mainPart: undefined as unknown as IEditorPart,
+		parts: [] as readonly IEditorPart[],
+		onDidChangeActiveGroup: Event.None,
+		onDidAddGroup: Event.None,
+		onDidRemoveGroup: Event.None,
+		onDidMoveGroup: Event.None,
+		onDidActivateGroup: Event.None,
+		onDidLayout: Event.None,
+		onDidScroll: Event.None,
+		onDidChangeGroupIndex: Event.None,
+		onDidChangeGroupLocked: Event.None,
+		onDidChangeGroupMaximized: Event.None,
+		onDidCreateAuxiliaryEditorPart: Event.None,
+		get contentDimension() { return { width: 0, height: 0 }; },
+		get activeGroup() { return emptyGroup; },
+		get sideGroup() { return undefined!; },
+		get groups() { return [emptyGroup]; },
+		get count() { return 1; },
+		get orientation() { return GroupOrientation.HORIZONTAL; },
+		getGroups: () => [emptyGroup],
+		getGroup: () => emptyGroup,
+		activateGroup: () => emptyGroup,
+		restoreGroup: () => emptyGroup,
+		getSize: () => ({ width: 0, height: 0 }),
+		setSize: () => { },
+		arrangeGroups: () => { },
+		toggleMaximizeGroup: () => { },
+		toggleExpandGroup: () => { },
+		isGroupMaximized: () => false,
+		isGroupExpanded: () => false,
+		applyLayout: () => { },
+		getLayout: (): EditorGroupLayout => ({ orientation: GroupOrientation.HORIZONTAL, groups: [] }),
+		setGroupOrientation: () => { },
+		findGroup: () => emptyGroup,
+		addGroup: () => emptyGroup,
+		removeGroup: () => { },
+		moveGroup: () => emptyGroup,
+		mergeGroup: () => false,
+		mergeAllGroups: () => false,
+		copyGroup: () => emptyGroup,
+		createEditorDropTarget: () => ({ dispose: () => { } }),
+		saveWorkingSet: (name: string): IEditorWorkingSet => ({ id: '', name }),
+		getWorkingSets: () => [],
+		applyWorkingSet: async () => true,
+		deleteWorkingSet: async () => true,
+		registerEditorPart: () => ({ dispose: () => { } }),
+		registerContextKeyProvider: () => ({ dispose: () => { } }),
+		createAuxiliaryEditorPart: async () => undefined!,
+		// IEditorPart methods
+		get partOptions() { return {}; },
+		onDidChangeEditorPartOptions: Event.None,
+		get whenReady() { return Promise.resolve(); },
+		get whenRestored() { return Promise.resolve(); },
+		get hasRestorableState() { return false; },
+		get isReady() { return true; },
+		get windowId() { return 1; },
+		getPart: () => service,
+		getScopedInstantiationService: () => undefined!,
+		enforcePartOptions: () => ({ dispose: () => { } }),
+	};
+
+	service.mainPart = service as unknown as IEditorPart;
+	service.parts = [service as unknown as IEditorPart];
+
+	return service as unknown as IEditorGroupsService;
+}
+
+/**
+ * Creates a stub IEditorService for Agent Window.
+ * Provides empty editor state so extensions get valid responses.
+ */
+function createAgentEditorService(): IEditorService {
+	const service = {
+		_serviceBrand: undefined,
+		onDidActiveEditorChange: Event.None,
+		onDidMostRecentlyActiveEditorsChange: Event.None,
+		onDidVisibleEditorsChange: Event.None,
+		onDidEditorsChange: Event.None,
+		onWillOpenEditor: Event.None,
+		onDidOpenEditorFail: Event.None,
+		onDidCloseEditor: Event.None,
+		activeEditorPane: undefined,
+		activeEditor: undefined,
+		activeTextEditorControl: undefined,
+		activeTextEditorLanguageId: undefined,
+		visibleEditorPanes: [],
+		visibleEditors: [],
+		visibleTextEditorControls: [],
+		editors: [],
+		count: 0,
+		getVisibleTextEditorControls: () => [],
+		getEditors: () => [],
+		openEditor: async () => undefined,
+		openEditors: async () => [],
+		replaceEditors: async () => { },
+		isOpened: () => false,
+		isVisible: () => false,
+		closeEditor: async () => { },
+		closeEditors: async () => { },
+		findEditors: () => [],
+		save: async () => ({ success: true, editors: [] }),
+		saveAll: async () => ({ success: true, editors: [] }),
+		revert: async () => true,
+		revertAll: async () => true,
+		createScoped: () => service as unknown as IEditorService,
+	};
+	return service as unknown as IEditorService;
+}
+
+/**
  * Interface for AgentWindow class that can be passed from root-level entry point
  * (root-level files can import from contrib/, electron-browser/ cannot)
  */
@@ -216,6 +389,7 @@ export interface IAgentWindowConstructor {
 
 export interface IAgentWindowInstance {
 	registerChatWidgetService(serviceCollection: ServiceCollection): void;
+	registerTerminalServices(serviceCollection: ServiceCollection): void;
 	startup(): Promise<void>;
 	dispose(): void;
 }
@@ -244,6 +418,9 @@ export class AgentMain extends Disposable {
 
 		// Register the chat widget service before starting
 		agentWindow.registerChatWidgetService(services.serviceCollection);
+
+		// Register the terminal services before starting
+		agentWindow.registerTerminalServices(services.serviceCollection);
 
 		// Start the agent window
 		await agentWindow.startup();
@@ -383,6 +560,12 @@ export class AgentMain extends Disposable {
 
 		// Editor Progress (stub for diff editors)
 		serviceCollection.set(IEditorProgressService, new AgentEditorProgressService());
+
+		// Editor Groups (stub for tab groups API)
+		serviceCollection.set(IEditorGroupsService, createAgentEditorGroupsService());
+
+		// Editor Service (stub for open editors API)
+		serviceCollection.set(IEditorService, createAgentEditorService());
 
 		// Layout (stub) - register both ILayoutService and IWorkbenchLayoutService
 		const agentLayoutService = new AgentLayoutService();

@@ -134,6 +134,57 @@ body {
 	max-height: 100%;
 }
 
+/* Chat header with back button and session title */
+.agent-chat-header {
+	padding: 8px 8px 8px 16px;
+	font-size: 11px;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
+	color: var(--vscode-sideBarSectionHeader-foreground, #9d9d9d);
+	border-bottom: 1px solid var(--vscode-sideBar-border, #3c3c3c);
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.agent-chat-back-button {
+	cursor: pointer;
+	font-size: 14px;
+	color: var(--vscode-icon-foreground, #c5c5c5);
+	padding: 4px;
+	border-radius: 4px;
+}
+
+.agent-chat-back-button:hover {
+	background-color: var(--vscode-toolbar-hoverBackground, rgba(90, 93, 94, 0.31));
+}
+
+.agent-chat-header-title {
+	flex: 1;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.agent-toggle-changes-button {
+	cursor: pointer;
+	font-size: 16px;
+	color: var(--vscode-icon-foreground, #c5c5c5);
+	padding: 4px;
+	border-radius: 4px;
+	outline: none;
+}
+
+.agent-toggle-changes-button:hover {
+	background-color: var(--vscode-toolbar-hoverBackground, rgba(90, 93, 94, 0.31));
+}
+
+.agent-chat-back-button:focus,
+.agent-toggle-changes-button:focus {
+	outline: none;
+}
+
 /* Welcome/New Session View - styled like AgentSessionsWelcome */
 .agent-chat-empty {
 	flex: 1;

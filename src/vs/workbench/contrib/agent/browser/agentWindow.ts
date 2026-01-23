@@ -10,7 +10,8 @@ import { ServiceCollection } from '../../../../platform/instantiation/common/ser
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { Disposable, DisposableStore, IDisposable, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
-import { IChatSessionsService, IChatSessionFileChange } from '../../chat/common/chatSessionsService.js';
+import { IChatSessionsService, IChatSessionFileChange, localChatSessionType } from '../../chat/common/chatSessionsService.js';
+import { getChatSessionType } from '../../chat/common/model/chatUri.js';
 import { IChatWidget, IChatWidgetService, ISessionTypePickerDelegate } from '../../chat/browser/chat.js';
 import { ChatWidget, IChatWidgetStyles } from '../../chat/browser/widget/chatWidget.js';
 import { LocalAgentsSessionsProvider } from '../../chat/browser/agentSessions/localAgentSessionsProvider.js';
@@ -45,6 +46,11 @@ import { Button } from '../../../../base/browser/ui/button/button.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { AgentSessionsFilter, IAgentSessionsFilterOptions } from '../../chat/browser/agentSessions/agentSessionsFilter.js';
+import { ITerminalService, ITerminalGroupService, ITerminalChatService, TerminalConnectionState } from '../../terminal/browser/terminal.js';
+import { IEmbedderTerminalService } from '../../../services/terminal/common/embedderTerminalService.js';
+
+// Side-effect import: Register terminal chat agent tools contribution
+import '../../terminalContrib/chatAgentTools/browser/terminal.chatAgentTools.contribution.js';
 
 /**
  * Stub chat widget service for Agent window
@@ -96,6 +102,7 @@ export class AgentWindow extends Disposable {
 	// Layout elements created programmatically
 	private _headerEl!: HTMLElement;
 	private _statusWidgetContainer!: HTMLElement;
+	private _toggleChangesButton!: HTMLElement;
 	private _containerEl!: HTMLElement;
 	private _sessionsListEl!: HTMLElement;
 	private _sessionsItemsEl!: HTMLElement;
@@ -103,6 +110,8 @@ export class AgentWindow extends Disposable {
 	private _newSessionButton: Button | undefined;
 	private _agentSessionsFilter: AgentSessionsFilter | undefined;
 	private _chatContainerEl!: HTMLElement;
+	private _chatHeaderEl!: HTMLElement;
+	private _chatHeaderTitle!: HTMLElement;
 	private _chatEmptyEl!: HTMLElement;
 	private _welcomeChatWidgetEl!: HTMLElement;
 	private _chatWidgetContainerEl!: HTMLElement;
@@ -162,6 +171,26 @@ export class AgentWindow extends Disposable {
 		// Create chat container
 		this._chatContainerEl = $('.agent-chat-container');
 
+		// Create chat header with back button and title (hidden initially)
+		this._chatHeaderEl = $('.agent-chat-header');
+		this._chatHeaderEl.style.display = 'none';
+		const backButton = $('.agent-chat-back-button.codicon.codicon-arrow-left');
+		backButton.title = 'Back to Sessions';
+		backButton.tabIndex = 0;
+		backButton.setAttribute('role', 'button');
+		backButton.addEventListener('click', () => this.showEmptyView());
+		this._chatHeaderTitle = $('.agent-chat-header-title');
+
+		// Create toggle changes icon button (in chat header)
+		this._toggleChangesButton = $('.agent-toggle-changes-button.codicon.codicon-layout-sidebar-right-off');
+		this._toggleChangesButton.title = 'Show Changes';
+		this._toggleChangesButton.tabIndex = 0;
+		this._toggleChangesButton.setAttribute('role', 'button');
+		this._toggleChangesButton.addEventListener('click', () => this.toggleChangesPane());
+
+		append(this._chatHeaderEl, backButton, this._chatHeaderTitle, this._toggleChangesButton);
+		append(this._chatContainerEl, this._chatHeaderEl);
+
 		// Create empty/welcome view
 		this._chatEmptyEl = $('.agent-chat-empty');
 		const welcomeContent = $('.agent-welcome-content');
@@ -200,6 +229,16 @@ export class AgentWindow extends Disposable {
 	registerChatWidgetService(serviceCollection: ServiceCollection): void {
 		this._chatWidgetService = new AgentChatWidgetService();
 		serviceCollection.set(IChatWidgetService, this._chatWidgetService);
+	}
+
+	/**
+	 * Register the stub terminal services before creating the workbench
+	 */
+	registerTerminalServices(serviceCollection: ServiceCollection): void {
+		serviceCollection.set(ITerminalGroupService, createAgentTerminalGroupService());
+		serviceCollection.set(ITerminalService, createAgentTerminalService());
+		serviceCollection.set(IEmbedderTerminalService, createAgentEmbedderTerminalService());
+		serviceCollection.set(ITerminalChatService, createAgentTerminalChatService());
 	}
 
 	async startup(): Promise<void> {
@@ -349,11 +388,12 @@ export class AgentWindow extends Disposable {
 		}, Sizing.Distribute, 2); // Add at index 2 (after sessions and chat)
 
 		this._changesPaneVisible = true;
+		this.updateToggleChangesButtonLabel();
 	}
 
 	/**
 	 * Hides the changes pane (3rd column) by removing it from the SplitView.
-	 * Called when returning to the empty/welcome view.
+	 * Called when returning to the empty/welcome view or when user toggles it off.
 	 */
 	private hideChangesPane(): void {
 		if (!this._changesPaneVisible || !this._splitView) {
@@ -366,17 +406,50 @@ export class AgentWindow extends Disposable {
 		// Remove the changes view from SplitView (it's at index 2)
 		this._splitView.removeView(2);
 		this._changesPaneVisible = false;
+		this.updateToggleChangesButtonLabel();
+	}
+
+	/**
+	 * Toggles the changes pane visibility.
+	 * Called when the user clicks the toggle button in the header.
+	 */
+	private toggleChangesPane(): void {
+		if (this._changesPaneVisible) {
+			this.hideChangesPane();
+		} else {
+			this.showChangesPane();
+		}
+	}
+
+	/**
+	 * Updates the toggle changes button icon to reflect current visibility state.
+	 */
+	private updateToggleChangesButtonLabel(): void {
+		if (this._changesPaneVisible) {
+			this._toggleChangesButton.classList.remove('codicon-layout-sidebar-right-off');
+			this._toggleChangesButton.classList.add('codicon-layout-sidebar-right');
+			this._toggleChangesButton.title = 'Hide Changes';
+		} else {
+			this._toggleChangesButton.classList.remove('codicon-layout-sidebar-right');
+			this._toggleChangesButton.classList.add('codicon-layout-sidebar-right-off');
+			this._toggleChangesButton.title = 'Show Changes';
+		}
 	}
 
 	private async loadSessions(): Promise<void> {
 		const sessionsListEl = this._sessionsItemsEl;
 
 		try {
-			// Trigger lifecycle phase Ready to allow extension hosts to start
+			// Trigger lifecycle phases to allow extension hosts and contributions to start
 			// The NativeExtensionService waits for LifecyclePhase.Ready before initializing
+			// Workbench contributions (like ChatAgentToolsContribution) require LifecyclePhase.Restored
 			const lifecycleService = this.instantiationService.invokeFunction((accessor: ServicesAccessor) => accessor.get(ILifecycleService));
 			this.logService.info('[Agent] Setting lifecycle phase to Ready...');
 			lifecycleService.phase = LifecyclePhase.Ready;
+			this.logService.info('[Agent] Setting lifecycle phase to Restored...');
+			lifecycleService.phase = LifecyclePhase.Restored;
+			this.logService.info('[Agent] Setting lifecycle phase to Eventually...');
+			lifecycleService.phase = LifecyclePhase.Eventually;
 
 			// Wait for extensions to be registered first
 			// This ensures that extension-provided session providers are available
@@ -486,14 +559,14 @@ export class AgentWindow extends Disposable {
 
 	private async selectSession(session: IAgentSession): Promise<void> {
 		this._chatEmptyEl.style.display = 'none';
+		this._chatHeaderEl.style.display = 'flex';
+		this._chatHeaderTitle.textContent = session.label;
 
 		const chatWidgetContainer = this._chatWidgetContainerEl;
 		chatWidgetContainer.style.display = 'flex';
 
-		// Show the changes pane (3rd column) when a session is selected
-		this.showChangesPane();
-
 		// Update the changes pane with this session's file changes
+		// Note: Do not auto-show changes pane - user controls visibility via toggle button
 		this.updateChangesPane(session);
 
 		// Show loading state
@@ -568,6 +641,16 @@ export class AgentWindow extends Disposable {
 			// Set visible BEFORE setting model to avoid race condition
 			// The onDidChangeItems() in setModel only renders if this._visible is true
 			this._chatWidget.setVisible(true);
+
+			// Lock to the correct agent for contributed sessions (e.g., background/cloud)
+			const chatSessionType = getChatSessionType(session.resource);
+			if (chatSessionType && chatSessionType !== localChatSessionType) {
+				const contributions = chatSessionsService.getAllChatSessionContributions();
+				const contribution = contributions.find(c => c.type === chatSessionType);
+				if (contribution) {
+					this._chatWidget.lockToCodingAgent(contribution.name, contribution.displayName, contribution.type);
+				}
+			}
 
 			// Set the model
 			const model = modelRef.object;
@@ -776,6 +859,7 @@ export class AgentWindow extends Disposable {
 
 	private showEmptyView(): void {
 		this._chatEmptyEl.style.display = 'flex';
+		this._chatHeaderEl.style.display = 'none';
 		this._chatWidgetContainerEl.style.display = 'none';
 
 		// Clean up previous session widget if any
@@ -861,4 +945,166 @@ export class AgentWindow extends Disposable {
 		// Focus the input when clicking
 		this._welcomeChatWidget.focusInput();
 	}
+}
+
+/**
+ * Creates a stub ITerminalGroupService for Agent Window.
+ * Provides empty terminal state so terminal chat tools get valid responses.
+ */
+export function createAgentTerminalGroupService(): ITerminalGroupService {
+	const service = {
+		_serviceBrand: undefined,
+		activeInstance: undefined,
+		instances: [],
+		groups: [],
+		activeGroup: undefined,
+		activeGroupIndex: 0,
+		lastAccessedMenu: 'inline-tab',
+		onDidChangeActiveGroup: Event.None,
+		onDidDisposeGroup: Event.None,
+		onDidShow: Event.None,
+		onDidChangeGroups: Event.None,
+		onDidChangePanelOrientation: Event.None,
+		onDidDisposeInstance: Event.None,
+		onDidFocusInstance: Event.None,
+		onDidChangeInstanceCapability: Event.None,
+		onDidChangeActiveInstance: Event.None,
+		onDidChangeInstances: Event.None,
+		createGroup: () => { throw new Error('Not implemented in Agent Window'); },
+		getGroupForInstance: () => undefined,
+		moveGroup: () => { },
+		moveGroupToEnd: () => { },
+		moveInstance: () => { },
+		unsplitInstance: () => { },
+		joinInstances: () => { },
+		instanceIsSplit: () => false,
+		getGroupLabels: () => [],
+		setActiveGroupByIndex: () => { },
+		setActiveGroupToNext: () => { },
+		setActiveGroupToPrevious: () => { },
+		setActiveInstanceByIndex: () => { },
+		setContainer: () => { },
+		showPanel: async () => { },
+		hidePanel: () => { },
+		focusTabs: () => { },
+		focusHover: () => { },
+		setActiveInstance: () => { },
+		focusActiveInstance: async () => { },
+		focusInstance: async () => { },
+		getInstanceFromResource: () => undefined,
+		focusFindWidget: () => { },
+		hideFindWidget: () => { },
+		findNext: () => { },
+		findPrevious: () => { },
+		updateVisibility: () => { },
+	};
+	return service as unknown as ITerminalGroupService;
+}
+
+/**
+ * Creates a stub ITerminalService for Agent Window.
+ * Provides empty terminal state so terminal chat tools get valid responses.
+ */
+export function createAgentTerminalService(): ITerminalService {
+	const service = {
+		_serviceBrand: undefined,
+		instances: [],
+		foregroundInstances: [],
+		detachedInstances: [],
+		isProcessSupportRegistered: false,
+		connectionState: TerminalConnectionState.Connected,
+		whenConnected: Promise.resolve(),
+		restoredGroupCount: 0,
+		activeInstance: undefined,
+		onDidCreateInstance: Event.None,
+		onDidChangeInstanceDimensions: Event.None,
+		onDidRequestStartExtensionTerminal: Event.None,
+		onDidRegisterProcessSupport: Event.None,
+		onDidChangeConnectionState: Event.None,
+		onDidChangeActiveGroup: Event.None,
+		onAnyInstanceData: Event.None,
+		onAnyInstanceDataInput: Event.None,
+		onAnyInstanceIconChange: Event.None,
+		onAnyInstanceMaximumDimensionsChange: Event.None,
+		onAnyInstancePrimaryStatusChange: Event.None,
+		onAnyInstanceProcessIdReady: Event.None,
+		onAnyInstanceSelectionChange: Event.None,
+		onAnyInstanceTitleChange: Event.None,
+		onAnyInstanceShellTypeChanged: Event.None,
+		onAnyInstanceAddedCapabilityType: Event.None,
+		onDidDisposeInstance: Event.None,
+		onDidFocusInstance: Event.None,
+		onDidChangeActiveInstance: Event.None,
+		onDidChangeInstances: Event.None,
+		onDidChangeInstanceCapability: Event.None,
+		createTerminal: async () => { throw new Error('Not implemented in Agent Window'); },
+		createAndFocusTerminal: async () => { throw new Error('Not implemented in Agent Window'); },
+		createDetachedTerminal: async () => { throw new Error('Not implemented in Agent Window'); },
+		getInstanceFromId: () => undefined,
+		getReconnectedTerminals: () => undefined,
+		getActiveOrCreateInstance: async () => { throw new Error('Not implemented in Agent Window'); },
+		revealTerminal: async () => { },
+		showBackgroundTerminal: async () => { },
+		revealActiveTerminal: async () => { },
+		moveToEditor: () => { },
+		moveIntoNewEditor: () => { },
+		moveToTerminalView: async () => { },
+		getPrimaryBackend: () => undefined,
+		setNextCommandId: async () => { },
+		refreshActiveGroup: () => { },
+		registerProcessSupport: () => { },
+		showProfileQuickPick: async () => undefined,
+		setContainers: () => { },
+		createOnInstanceEvent: () => ({
+			event: Event.None,
+			dispose: () => { },
+		}),
+		createOnInstanceCapabilityEvent: () => ({
+			event: Event.None,
+			dispose: () => { },
+		}),
+	};
+	return service as unknown as ITerminalService;
+}
+
+/**
+ * Creates a stub IEmbedderTerminalService for Agent Window.
+ * Provides empty embedder terminal state.
+ */
+export function createAgentEmbedderTerminalService(): IEmbedderTerminalService {
+	const service = {
+		_serviceBrand: undefined,
+		onDidCreateTerminal: Event.None,
+		createTerminal: () => { },
+	};
+	return service as unknown as IEmbedderTerminalService;
+}
+
+/**
+ * Creates a stub ITerminalChatService for Agent Window.
+ * Manages terminal instances associated with chat sessions.
+ */
+export function createAgentTerminalChatService(): ITerminalChatService {
+	const service = {
+		_serviceBrand: undefined,
+		onDidRegisterTerminalInstanceWithToolSession: Event.None,
+		registerTerminalInstanceWithToolSession: () => { },
+		getTerminalInstanceByToolSessionId: async () => undefined,
+		getToolSessionTerminalInstances: () => [],
+		getToolSessionIdForInstance: () => undefined,
+		registerTerminalInstanceWithChatSession: () => { },
+		getChatSessionResourceForInstance: () => undefined,
+		getChatSessionIdForInstance: () => undefined,
+		isBackgroundTerminal: () => false,
+		registerProgressPart: () => ({ dispose: () => { } }),
+		setFocusedProgressPart: () => { },
+		clearFocusedProgressPart: () => { },
+		getFocusedProgressPart: () => undefined,
+		getMostRecentProgressPart: () => undefined,
+		setChatSessionAutoApproval: () => { },
+		hasChatSessionAutoApproval: () => false,
+		addSessionAutoApproveRule: () => { },
+		getSessionAutoApproveRules: () => ({}),
+	};
+	return service as unknown as ITerminalChatService;
 }

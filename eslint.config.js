@@ -1690,6 +1690,34 @@ export default tseslint.config(
 					]
 				},
 				{
+					'target': 'src/vs/workbench/contrib/agent/~',
+					'restrictions': [
+						'vs/base/~',
+						'vs/base/parts/*/~',
+						'vs/platform/*/~',
+						'vs/editor/~',
+						'vs/editor/contrib/*/~',
+						'vs/workbench/~',
+						'vs/workbench/services/*/~',
+						'vs/workbench/contrib/*/~',
+						'vs/workbench/contrib/terminalContrib/*/~', // Agent window needs terminal tools
+						'vscode-notebook-renderer', // Type only import
+						'@vscode/tree-sitter-wasm', // type import
+						{
+							'when': 'hasBrowser',
+							'pattern': '@xterm/xterm'
+						}, // node module allowed even in /browser/
+						{
+							'when': 'hasBrowser',
+							'pattern': '@xterm/addon-*'
+						}, // node module allowed even in /browser/
+						{
+							'when': 'hasBrowser',
+							'pattern': 'vscode-textmate'
+						} // node module allowed even in /browser/
+					]
+				},
+				{
 					'target': 'src/vs/workbench/contrib/*/~',
 					'restrictions': [
 						'vs/base/~',
