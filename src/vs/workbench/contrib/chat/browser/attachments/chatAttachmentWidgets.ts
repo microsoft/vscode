@@ -13,12 +13,14 @@ import { createInstantHoverDelegate } from '../../../../../base/browser/ui/hover
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import * as event from '../../../../../base/common/event.js';
+import * as glob from '../../../../../base/common/glob.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { basename, dirname } from '../../../../../base/common/path.js';
+import { basename as resourceBasename } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IRange } from '../../../../../editor/common/core/range.js';
@@ -33,6 +35,7 @@ import { localize } from '../../../../../nls.js';
 import { getFlatContextMenuActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IMenuService, MenuId } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService, IScopedContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { fillInSymbolsDragData } from '../../../../../platform/dnd/browser/dnd.js';
@@ -58,6 +61,7 @@ import { getHistoryItemEditorTitle } from '../../../scm/browser/util.js';
 import { ITerminalService } from '../../../terminal/browser/terminal.js';
 import { IChatContentReference } from '../../common/chatService/chatService.js';
 import { IChatRequestPasteVariableEntry, IChatRequestVariableEntry, IElementVariableEntry, INotebookOutputVariableEntry, IPromptFileVariableEntry, IPromptTextVariableEntry, ISCMHistoryItemVariableEntry, OmittedState, PromptFileVariableKind, ChatRequestToolReferenceEntry, ISCMHistoryItemChangeVariableEntry, ISCMHistoryItemChangeRangeVariableEntry, ITerminalVariableEntry, isStringVariableEntry } from '../../common/attachments/chatVariableEntries.js';
+import { ChatConfiguration } from '../../common/constants.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../common/languageModels.js';
 import { ILanguageModelToolsService, isToolSet } from '../../common/tools/languageModelToolsService.js';
 import { getCleanPromptName } from '../../common/promptSyntax/config/promptFileLocations.js';
@@ -73,6 +77,23 @@ const commonHoverOptions: Partial<IHoverOptions> = {
 const commonHoverLifecycleOptions: IHoverLifecycleOptions = {
 	groupId: 'chat-attachments',
 };
+
+/**
+ * Returns the editor ID to use when opening a resource from chat, based on the
+ * `chat.editorAssociations` setting. Returns undefined if no association matches.
+ */
+export function getEditorOverrideForChatResource(resource: URI, configurationService: IConfigurationService): string | undefined {
+	const associations = configurationService.getValue<Record<string, string>>(ChatConfiguration.EditorAssociations) ?? {};
+	const sortedPatterns = Object.keys(associations).sort((a, b) => b.length - a.length);
+	for (const pattern of sortedPatterns) {
+		const matchOnPath = pattern.indexOf('/') >= 0;
+		const target = matchOnPath ? resource.path : resourceBasename(resource);
+		if (glob.match(pattern, target, { ignoreCase: true })) {
+			return associations[pattern];
+		}
+	}
+	return undefined;
+}
 
 abstract class AbstractChatAttachmentWidget extends Disposable {
 	public readonly element: HTMLElement;
@@ -96,6 +117,7 @@ abstract class AbstractChatAttachmentWidget extends Disposable {
 		protected readonly currentLanguageModel: ILanguageModelChatMetadataAndIdentifier | undefined,
 		@ICommandService protected readonly commandService: ICommandService,
 		@IOpenerService protected readonly openerService: IOpenerService,
+		@IConfigurationService protected readonly configurationService: IConfigurationService,
 		@ITerminalService protected readonly terminalService?: ITerminalService,
 	) {
 		super();
@@ -172,6 +194,9 @@ abstract class AbstractChatAttachmentWidget extends Disposable {
 			return;
 		}
 
+		// Check for custom editor association from chat.editorAssociations setting
+		const editorOverride = getEditorOverrideForChatResource(resource, this.configurationService);
+
 		// Open file in editor
 		const openTextEditorOptions: ITextEditorOptions | undefined = range ? { selection: range } : undefined;
 		const options: OpenInternalOptions = {
@@ -179,7 +204,8 @@ abstract class AbstractChatAttachmentWidget extends Disposable {
 			openToSide: openOptions.openToSide,
 			editorOptions: {
 				...openTextEditorOptions,
-				...openOptions.editorOptions
+				...openOptions.editorOptions,
+				override: editorOverride
 			},
 		};
 
@@ -206,12 +232,13 @@ export class FileAttachmentWidget extends AbstractChatAttachmentWidget {
 		contextResourceLabels: ResourceLabels,
 		@ICommandService commandService: ICommandService,
 		@IOpenerService openerService: IOpenerService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@IThemeService private readonly themeService: IThemeService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
-		super(attachment, options, container, contextResourceLabels, currentLanguageModel, commandService, openerService);
+		super(attachment, options, container, contextResourceLabels, currentLanguageModel, commandService, openerService, configurationService);
 
 		const fileBasename = basename(resource.path);
 		const fileDirname = dirname(resource.path);
@@ -271,10 +298,11 @@ export class TerminalCommandAttachmentWidget extends AbstractChatAttachmentWidge
 		contextResourceLabels: ResourceLabels,
 		@ICommandService commandService: ICommandService,
 		@IOpenerService openerService: IOpenerService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@ITerminalService protected override readonly terminalService: ITerminalService,
 	) {
-		super(attachment, options, container, contextResourceLabels, currentLanguageModel, commandService, openerService, terminalService);
+		super(attachment, options, container, contextResourceLabels, currentLanguageModel, commandService, openerService, configurationService, terminalService);
 
 		const ariaLabel = localize('chat.terminalCommand', "Terminal command, {0}", attachment.command);
 		const clickHandler = () => this.openResource(attachment.resource, { editorOptions: { preserveFocus: true } }, false, undefined);
@@ -379,12 +407,13 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 		contextResourceLabels: ResourceLabels,
 		@ICommandService commandService: ICommandService,
 		@IOpenerService openerService: IOpenerService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILabelService private readonly labelService: ILabelService,
 	) {
-		super(attachment, options, container, contextResourceLabels, currentLanguageModel, commandService, openerService);
+		super(attachment, options, container, contextResourceLabels, currentLanguageModel, commandService, openerService, configurationService);
 
 		let ariaLabel: string;
 		if (attachment.omittedState === OmittedState.Full) {
@@ -507,10 +536,11 @@ export class PasteAttachmentWidget extends AbstractChatAttachmentWidget {
 		contextResourceLabels: ResourceLabels,
 		@ICommandService commandService: ICommandService,
 		@IOpenerService openerService: IOpenerService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
-		super(attachment, options, container, contextResourceLabels, currentLanguageModel, commandService, openerService);
+		super(attachment, options, container, contextResourceLabels, currentLanguageModel, commandService, openerService, configurationService);
 
 		const ariaLabel = localize('chat.attachment', "Attached context, {0}", attachment.name);
 		this.element.ariaLabel = ariaLabel;
@@ -561,11 +591,12 @@ export class DefaultChatAttachmentWidget extends AbstractChatAttachmentWidget {
 		contextResourceLabels: ResourceLabels,
 		@ICommandService commandService: ICommandService,
 		@IOpenerService openerService: IOpenerService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IHoverService private readonly hoverService: IHoverService,
 	) {
-		super(attachment, options, container, contextResourceLabels, currentLanguageModel, commandService, openerService);
+		super(attachment, options, container, contextResourceLabels, currentLanguageModel, commandService, openerService, configurationService);
 
 		const attachmentLabel = attachment.fullName ?? attachment.name;
 		const withIcon = attachment.icon?.id ? `$(${attachment.icon.id})\u00A0${attachmentLabel}` : attachmentLabel;
@@ -629,10 +660,11 @@ export class PromptFileAttachmentWidget extends AbstractChatAttachmentWidget {
 		contextResourceLabels: ResourceLabels,
 		@ICommandService commandService: ICommandService,
 		@IOpenerService openerService: IOpenerService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
-		super(attachment, options, container, contextResourceLabels, currentLanguageModel, commandService, openerService);
+		super(attachment, options, container, contextResourceLabels, currentLanguageModel, commandService, openerService, configurationService);
 
 
 		this.hintElement = dom.append(this.element, dom.$('span.prompt-type'));
@@ -706,10 +738,11 @@ export class PromptTextAttachmentWidget extends AbstractChatAttachmentWidget {
 		contextResourceLabels: ResourceLabels,
 		@ICommandService commandService: ICommandService,
 		@IOpenerService openerService: IOpenerService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@IPreferencesService preferencesService: IPreferencesService,
 		@IHoverService hoverService: IHoverService
 	) {
-		super(attachment, options, container, contextResourceLabels, currentLanguageModel, commandService, openerService);
+		super(attachment, options, container, contextResourceLabels, currentLanguageModel, commandService, openerService, configurationService);
 
 		if (attachment.settingId) {
 			const openSettings = () => preferencesService.openSettings({ jsonEditor: false, query: `@id:${attachment.settingId}` });
@@ -748,9 +781,10 @@ export class ToolSetOrToolItemAttachmentWidget extends AbstractChatAttachmentWid
 		@ILanguageModelToolsService toolsService: ILanguageModelToolsService,
 		@ICommandService commandService: ICommandService,
 		@IOpenerService openerService: IOpenerService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@IHoverService hoverService: IHoverService,
 	) {
-		super(attachment, options, container, contextResourceLabels, currentLanguageModel, commandService, openerService);
+		super(attachment, options, container, contextResourceLabels, currentLanguageModel, commandService, openerService, configurationService);
 
 
 		const toolOrToolSet = Iterable.find(toolsService.getTools(currentLanguageModel?.metadata), tool => tool.id === attachment.id) ?? Iterable.find(toolsService.getToolSetsForModel(currentLanguageModel?.metadata), toolSet => toolSet.id === attachment.id);
@@ -798,12 +832,13 @@ export class NotebookCellOutputChatAttachmentWidget extends AbstractChatAttachme
 		contextResourceLabels: ResourceLabels,
 		@ICommandService commandService: ICommandService,
 		@IOpenerService openerService: IOpenerService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 		@INotebookService private readonly notebookService: INotebookService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
-		super(attachment, options, container, contextResourceLabels, currentLanguageModel, commandService, openerService);
+		super(attachment, options, container, contextResourceLabels, currentLanguageModel, commandService, openerService, configurationService);
 
 		switch (attachment.mimeType) {
 			case 'application/vnd.code.notebook.error': {
@@ -893,9 +928,10 @@ export class ElementChatAttachmentWidget extends AbstractChatAttachmentWidget {
 		contextResourceLabels: ResourceLabels,
 		@ICommandService commandService: ICommandService,
 		@IOpenerService openerService: IOpenerService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@IEditorService editorService: IEditorService,
 	) {
-		super(attachment, options, container, contextResourceLabels, currentLanguageModel, commandService, openerService);
+		super(attachment, options, container, contextResourceLabels, currentLanguageModel, commandService, openerService, configurationService);
 
 		const ariaLabel = localize('chat.elementAttachment', "Attached element, {0}", attachment.name);
 		this.element.ariaLabel = ariaLabel;
@@ -930,9 +966,10 @@ export class SCMHistoryItemAttachmentWidget extends AbstractChatAttachmentWidget
 		@IMarkdownRendererService markdownRendererService: IMarkdownRendererService,
 		@IHoverService hoverService: IHoverService,
 		@IOpenerService openerService: IOpenerService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@IThemeService themeService: IThemeService
 	) {
-		super(attachment, options, container, contextResourceLabels, currentLanguageModel, commandService, openerService);
+		super(attachment, options, container, contextResourceLabels, currentLanguageModel, commandService, openerService, configurationService);
 
 		this.label.setLabel(attachment.name, undefined);
 
@@ -978,10 +1015,11 @@ export class SCMHistoryItemChangeAttachmentWidget extends AbstractChatAttachment
 		@IHoverService hoverService: IHoverService,
 		@IMarkdownRendererService markdownRendererService: IMarkdownRendererService,
 		@IOpenerService openerService: IOpenerService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@IThemeService themeService: IThemeService,
 		@IEditorService private readonly editorService: IEditorService,
 	) {
-		super(attachment, options, container, contextResourceLabels, currentLanguageModel, commandService, openerService);
+		super(attachment, options, container, contextResourceLabels, currentLanguageModel, commandService, openerService, configurationService);
 
 		const nameSuffix = `\u00A0$(${Codicon.gitCommit.id})${attachment.historyItem.displayId ?? attachment.historyItem.id}`;
 		this.label.setFile(attachment.value, { fileKind: FileKind.FILE, hidePath: true, nameSuffix });
@@ -1020,9 +1058,10 @@ export class SCMHistoryItemChangeRangeAttachmentWidget extends AbstractChatAttac
 		contextResourceLabels: ResourceLabels,
 		@ICommandService commandService: ICommandService,
 		@IOpenerService openerService: IOpenerService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@IEditorService private readonly editorService: IEditorService,
 	) {
-		super(attachment, options, container, contextResourceLabels, currentLanguageModel, commandService, openerService);
+		super(attachment, options, container, contextResourceLabels, currentLanguageModel, commandService, openerService, configurationService);
 
 		const historyItemStartId = attachment.historyItemChangeStart.historyItem.displayId ?? attachment.historyItemChangeStart.historyItem.id;
 		const historyItemEndId = attachment.historyItemChangeEnd.historyItem.displayId ?? attachment.historyItemChangeEnd.historyItem.id;

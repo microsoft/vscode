@@ -32,6 +32,7 @@ import { IHoverService } from '../../../../../../platform/hover/browser/hover.js
 import { IInstantiationService, ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
+import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { FolderThemeIcon, IThemeService } from '../../../../../../platform/theme/common/themeService.js';
 import { fillEditorsDragData } from '../../../../../browser/dnd.js';
@@ -42,7 +43,7 @@ import { ExplorerFolderContext } from '../../../../files/common/files.js';
 import { IWorkspaceSymbol } from '../../../../search/common/search.js';
 import { IChatContentInlineReference } from '../../../common/chatService/chatService.js';
 import { IChatWidgetService } from '../../chat.js';
-import { chatAttachmentResourceContextKey, hookUpSymbolAttachmentDragAndContextMenu } from '../../attachments/chatAttachmentWidgets.js';
+import { chatAttachmentResourceContextKey, getEditorOverrideForChatResource, hookUpSymbolAttachmentDragAndContextMenu } from '../../attachments/chatAttachmentWidgets.js';
 import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ChatConfiguration } from '../../../common/constants.js';
@@ -128,6 +129,7 @@ export class InlineAnchorWidget extends Disposable {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@INotebookDocumentService private readonly notebookDocumentService: INotebookDocumentService,
+		@IOpenerService private readonly openerService: IOpenerService,
 	) {
 		super();
 
@@ -273,6 +275,21 @@ export class InlineAnchorWidget extends Disposable {
 				e.dataTransfer?.setDragImage(element, 0, 0);
 			}));
 		}
+
+		// Click handler to open with custom editor association from chat.editorAssociations setting
+		this._register(dom.addDisposableListener(element, 'click', async (e) => {
+			dom.EventHelper.stop(e, true);
+			const editorOverride = getEditorOverrideForChatResource(location.uri, this.configurationService);
+			// Encode selection in URI fragment for editors that support it
+			const fragment = location.range ? `${location.range.startLineNumber},${location.range.startColumn}` : '';
+			const uriToOpen = fragment ? location.uri.with({ fragment }) : location.uri;
+			await this.openerService.open(uriToOpen, {
+				fromUserGesture: true,
+				editorOptions: {
+					override: editorOverride
+				}
+			});
+		}));
 	}
 
 	getHTMLElement(): HTMLElement {
@@ -386,16 +403,21 @@ registerAction2(class OpenToSideResourceAction extends Action2 {
 
 	override async run(accessor: ServicesAccessor, arg?: Location | URI): Promise<void> {
 		const editorService = accessor.get(IEditorService);
+		const configurationService = accessor.get(IConfigurationService);
 
 		const target = this.getTarget(accessor, arg);
 		if (!target) {
 			return;
 		}
 
+		const targetUri = URI.isUri(target) ? target : target.uri;
+		const editorOverride = getEditorOverrideForChatResource(targetUri, configurationService);
+
 		const input: ITextResourceEditorInput = URI.isUri(target)
-			? { resource: target }
+			? { resource: target, options: { override: editorOverride } }
 			: {
 				resource: target.uri, options: {
+					override: editorOverride,
 					selection: {
 						startColumn: target.range.startColumn,
 						startLineNumber: target.range.startLineNumber,
