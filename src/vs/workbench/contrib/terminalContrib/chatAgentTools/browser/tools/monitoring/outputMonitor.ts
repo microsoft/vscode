@@ -596,9 +596,9 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				resolve(value);
 			};
 			inputDataDisposable = this._register(execution.instance.onDidInputData((data) => {
-				// For "press any key" prompts, accept any input
+				// For "press any key" prompts, accept any non-empty input
 				// For other free-form inputs (like passwords), only accept on Enter
-				if (acceptAnyKey || data === '\r' || data === '\n' || data === '\r\n') {
+				if ((acceptAnyKey && data.length > 0) || (!acceptAnyKey && (data === '\r' || data === '\n' || data === '\r\n'))) {
 					this._outputMonitorTelemetryCounters.inputToolFreeFormInputCount++;
 					settle(true, OutputMonitorState.PollingForIdle);
 				}
