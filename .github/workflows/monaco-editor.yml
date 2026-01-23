@@ -61,10 +61,6 @@ jobs:
         run: |
           npm ci
 
-      - name: Run copy codicons
-        if: ${{ steps.cacheNodeModules.outputs.cache-hit == 'true' }}
-        run: npm run copy-codicons
-
       - name: Download Playwright
         run: npm run playwright-install
 

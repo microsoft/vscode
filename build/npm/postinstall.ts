@@ -184,6 +184,3 @@ for (const dir of dirs) {
 
 child_process.execSync('git config pull.rebase merges');
 child_process.execSync('git config blame.ignoreRevsFile .git-blame-ignore-revs');
-
-// Copy codicon.ttf from @vscode/codicons package
-run('node', [path.join(import.meta.dirname, 'copy-codicons.ts')], { cwd: root, stdio: 'inherit' });

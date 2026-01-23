@@ -62,10 +62,6 @@ jobs:
         if: steps.cache-node-modules.outputs.cache-hit == 'true'
         run: tar -xzf .build/node_modules_cache/cache.tgz
 
-      - name: Run copy codicons
-        if: steps.cache-node-modules.outputs.cache-hit == 'true'
-        run: npm run copy-codicons
-
       - name: Install build dependencies
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
         working-directory: build
