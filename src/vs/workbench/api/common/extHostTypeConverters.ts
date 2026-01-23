@@ -42,7 +42,7 @@ import { IViewBadge } from '../../common/views.js';
 import { IChatAgentRequest, IChatAgentResult } from '../../contrib/chat/common/participants/chatAgents.js';
 import { IChatRequestDraft } from '../../contrib/chat/common/editing/chatEditingService.js';
 import { IChatRequestModeInstructions } from '../../contrib/chat/common/model/chatModel.js';
-import { IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatExtensionsContent, IChatFollowup, IChatMarkdownContent, IChatMoveMessage, IChatMultiDiffDataSerialized, IChatProgressMessage, IChatPullRequestContent, IChatResponseCodeblockUriPart, IChatTaskDto, IChatTaskResult, IChatTextEdit, IChatThinkingPart, IChatToolInvocationSerialized, IChatTreeData, IChatUserActionEvent, IChatWarningMessage, IChatWorkspaceEdit } from '../../contrib/chat/common/chatService/chatService.js';
+import { IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatExtensionsContent, IChatFollowup, IChatMarkdownContent, IChatMoveMessage, IChatMultiDiffDataSerialized, IChatProgressMessage, IChatPullRequestContent, IChatResponseCodeblockUriPart, IChatTaskDto, IChatTaskResult, IChatTerminalToolInvocationData, IChatTextEdit, IChatThinkingPart, IChatToolInvocationSerialized, IChatTreeData, IChatUserActionEvent, IChatWarningMessage, IChatWorkspaceEdit } from '../../contrib/chat/common/chatService/chatService.js';
 import { LocalChatSessionUri } from '../../contrib/chat/common/model/chatUri.js';
 import { ChatRequestToolReferenceEntry, IChatRequestVariableEntry, isImageVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry } from '../../contrib/chat/common/attachments/chatVariableEntries.js';
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
@@ -2876,19 +2876,26 @@ export namespace ChatToolInvocationPart {
 	function convertToolSpecificData(data: any): any {
 		// Convert extension API terminal tool data to internal format
 		if ('command' in data && 'language' in data) {
-			// ChatTerminalToolInvocationData
 			return {
 				kind: 'terminal',
 				command: data.command,
 				language: data.language
 			};
 		} else if ('commandLine' in data && 'language' in data) {
-			// ChatTerminalToolInvocationData2
-			return {
+			const result: IChatTerminalToolInvocationData = {
 				kind: 'terminal',
 				commandLine: data.commandLine,
-				language: data.language
+				language: data.language,
+				terminalCommandOutput: typeof data.output?.text === 'string' ? {
+					text: data.output.text,
+				} : undefined,
+				terminalCommandState: data.state ? {
+					exitCode: data.state.exitCode,
+					duration: data.state.duration,
+				} : undefined,
 			};
+
+			return result;
 		}
 		return data;
 	}
@@ -2927,10 +2934,38 @@ export namespace ChatToolInvocationPart {
 	function convertFromInternalToolSpecificData(data: any): any {
 		// Convert internal terminal tool data to extension API format
 		if (data.kind === 'terminal') {
-			return {
-				command: data.command,
-				language: data.language
-			};
+			if (data.commandLine) {
+				// New format with commandLine
+				const result: any = {
+					commandLine: data.commandLine,
+					language: data.language
+				};
+
+				// Map internal 'terminalCommandOutput' -> extension 'output'
+				if (data.terminalCommandOutput) {
+					result.output = {
+						text: data.terminalCommandOutput.text,
+						truncated: data.terminalCommandOutput.truncated,
+						lineCount: data.terminalCommandOutput.lineCount
+					};
+				}
+
+				// Map internal 'terminalCommandState' -> extension 'state'
+				if (data.terminalCommandState) {
+					result.state = {
+						exitCode: data.terminalCommandState.exitCode,
+						duration: data.terminalCommandState.duration
+					};
+				}
+
+				return result;
+			} else {
+				// Legacy format with command
+				return {
+					command: data.command,
+					language: data.language
+				};
+			}
 		} else if (data.kind === 'terminal2') {
 			return {
 				commandLine: data.commandLine,
