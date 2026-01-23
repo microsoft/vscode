@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Action } from '../../../../base/common/actions.js';
-import { $, append, clearNode, Dimension } from '../../../../base/browser/dom.js';
+import { $, append, clearNode, Dimension, h } from '../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -98,23 +98,24 @@ export class AgentWindow extends Disposable {
 	private _splitView: SplitView<number> | undefined;
 	private _splitViewResizeObserver: ResizeObserver | undefined;
 
-	// Layout elements created programmatically
-	private _headerEl!: HTMLElement;
-	private _statusWidgetContainer!: HTMLElement;
-	private _toggleChangesButton!: HTMLElement;
-	private _containerEl!: HTMLElement;
-	private _sessionsListEl!: HTMLElement;
-	private _sessionsItemsEl!: HTMLElement;
-	private _newSessionButtonContainer!: HTMLElement;
+	// Layout elements populated by createLayout()
+	private _elements: {
+		header: { root: HTMLElement; statusWidget: HTMLElement };
+		sessions: { root: HTMLElement; newSessionButton: HTMLElement; items: HTMLElement };
+		chat: { root: HTMLElement; header: HTMLElement; headerTitle: HTMLElement; empty: HTMLElement; widgetContainer: HTMLElement; toggleChanges: HTMLElement; welcomeWidget: HTMLElement };
+		changes: { root: HTMLElement };
+		container: HTMLElement;
+	} | undefined;
+
+	private get elements() {
+		if (!this._elements) {
+			throw new Error('AgentWindow layout not initialized');
+		}
+		return this._elements;
+	}
+
 	private _newSessionButton: Button | undefined;
 	private _agentSessionsFilter: AgentSessionsFilter | undefined;
-	private _chatContainerEl!: HTMLElement;
-	private _chatHeaderEl!: HTMLElement;
-	private _chatHeaderTitle!: HTMLElement;
-	private _chatEmptyEl!: HTMLElement;
-	private _welcomeChatWidgetEl!: HTMLElement;
-	private _chatWidgetContainerEl!: HTMLElement;
-	private _changesContainerEl!: HTMLElement;
 	private _changesPaneVisible: boolean = false;
 	private _changesEmptyEl: HTMLElement | undefined;
 	private _multiDiffEditorContainer: HTMLElement | undefined;
@@ -130,8 +131,8 @@ export class AgentWindow extends Disposable {
 	}
 
 	/**
-		 * Shows a status message in the given container using DOM utilities.
-		 */
+	 * Shows a status message in the given container using DOM utilities.
+	 */
 	private showStatusMessage(container: HTMLElement, message: string, className: string = 'agent-sessions-empty'): void {
 		clearNode(container);
 		const messageEl = $(`.${className}`);
@@ -139,87 +140,94 @@ export class AgentWindow extends Disposable {
 		append(container, messageEl);
 	}
 
-	/**
-	 * Creates the agent window layout structure programmatically.
-	 * This follows VS Code's pattern of using dom.$ and dom.h instead of static HTML.
-	 */
-	private createLayout(): void {
-		const body = mainWindow.document.body;
+	private _createHeaderElements() {
+		const statusWidget = $('div.agent-status-widget');
+		const elements = h('div.agent-header@root', [
+			h('h1', ['Agent']),
+			statusWidget,
+		]);
+		return { ...elements, statusWidget };
+	}
 
-		// Create header
-		this._headerEl = $('.agent-header');
-		const title = $('h1');
-		title.textContent = 'Agent';
-		this._statusWidgetContainer = $('.agent-status-widget');
-		append(this._headerEl, title, this._statusWidgetContainer);
+	private _createSessionsElements() {
+		const newSessionButton = $('div.agent-sessions-new-button-container');
+		const items = $('div.agent-sessions-items');
+		const elements = h('div.agent-sessions-list@root', [
+			h('div.agent-sessions-header', [
+				h('span.agent-sessions-header-title', ['Sessions']),
+				h('div.agent-sessions-toolbar'),
+			]),
+			newSessionButton,
+			items,
+		]);
+		return { ...elements, newSessionButton, items };
+	}
 
-		// Create sessions list
-		this._sessionsListEl = $('.agent-sessions-list');
-		const sessionsHeader = $('.agent-sessions-header');
-		const sessionsHeaderTitle = $('span.agent-sessions-header-title');
-		sessionsHeaderTitle.textContent = 'Sessions';
-		const sessionsToolbar = $('.agent-sessions-toolbar');
-		append(sessionsHeader, sessionsHeaderTitle, sessionsToolbar);
-
-		// Create New Session button container (goes after header)
-		this._newSessionButtonContainer = $('.agent-sessions-new-button-container');
-
-		this._sessionsItemsEl = $('.agent-sessions-items');
-		append(this._sessionsListEl, sessionsHeader, this._newSessionButtonContainer, this._sessionsItemsEl);
-
-		// Create chat container
-		this._chatContainerEl = $('.agent-chat-container');
-
-		// Create chat header with back button and title (hidden initially)
-		this._chatHeaderEl = $('.agent-chat-header');
-		this._chatHeaderEl.style.display = 'none';
-		const backButton = $('.agent-chat-back-button.codicon.codicon-arrow-left');
+	private _createChatElements() {
+		const backButton = $('div.agent-chat-back-button.codicon.codicon-arrow-left');
 		backButton.title = 'Back to Sessions';
 		backButton.tabIndex = 0;
 		backButton.setAttribute('role', 'button');
 		backButton.addEventListener('click', () => this.showEmptyView());
-		this._chatHeaderTitle = $('.agent-chat-header-title');
 
-		// Create toggle changes icon button (in chat header)
-		this._toggleChangesButton = $('.agent-toggle-changes-button.codicon.codicon-layout-sidebar-right-off');
-		this._toggleChangesButton.title = 'Show Changes';
-		this._toggleChangesButton.tabIndex = 0;
-		this._toggleChangesButton.setAttribute('role', 'button');
-		this._toggleChangesButton.addEventListener('click', () => this.toggleChangesPane());
+		const toggleChanges = $('div.agent-toggle-changes-button.codicon.codicon-layout-sidebar-right-off');
+		toggleChanges.title = 'Show Changes';
+		toggleChanges.tabIndex = 0;
+		toggleChanges.setAttribute('role', 'button');
+		toggleChanges.addEventListener('click', () => this.toggleChangesPane());
 
-		append(this._chatHeaderEl, backButton, this._chatHeaderTitle, this._toggleChangesButton);
-		append(this._chatContainerEl, this._chatHeaderEl);
+		const welcomeWidget = $('div.agent-welcome-chat-widget');
 
-		// Create empty/welcome view
-		this._chatEmptyEl = $('.agent-chat-empty');
-		const welcomeContent = $('.agent-welcome-content');
-		const welcomeTitle = $('.agent-welcome-title');
-		welcomeTitle.textContent = 'Start a New Session';
-		this._welcomeChatWidgetEl = $('.agent-welcome-chat-widget');
-		const welcomeDescription = $('.agent-chat-empty-description');
-		welcomeDescription.textContent = 'Describe what you want to build or ask a question to start a new agent session';
-		append(welcomeContent, welcomeTitle, this._welcomeChatWidgetEl, welcomeDescription);
-		append(this._chatEmptyEl, welcomeContent);
+		const elements = h('div.agent-chat-container@root', [
+			h('div.agent-chat-header@header', { style: { display: 'none' } }, [
+				backButton,
+				h('div.agent-chat-header-title@headerTitle'),
+				toggleChanges,
+			]),
+			h('div.agent-chat-empty@empty', [
+				h('div.agent-welcome-content', [
+					h('div.agent-welcome-title', ['Start a New Session']),
+					welcomeWidget,
+					h('div.agent-chat-empty-description', ['Describe what you want to build or ask a question to start a new agent session']),
+				]),
+			]),
+			h('div.agent-chat-widget-container@widgetContainer'),
+		]);
 
-		// Create chat widget container
-		this._chatWidgetContainerEl = $('.agent-chat-widget-container');
-		append(this._chatContainerEl, this._chatEmptyEl, this._chatWidgetContainerEl);
+		return { ...elements, toggleChanges, welcomeWidget };
+	}
 
-		// Create changes container (3rd pane for multi-diff editor)
-		this._changesContainerEl = $('.agent-changes-container');
-		const changesHeader = $('.agent-changes-header');
-		const changesHeaderTitle = $('span.agent-changes-header-title');
-		changesHeaderTitle.textContent = 'Changes';
-		append(changesHeader, changesHeaderTitle);
-		append(this._changesContainerEl, changesHeader);
+	private _createChangesElements() {
+		return h('div.agent-changes-container@root', [
+			h('div.agent-changes-header', [
+				h('span.agent-changes-header-title', ['Changes']),
+			]),
+		]);
+	}
+
+	/**
+	 * Creates the agent window layout structure using h() for declarative DOM creation.
+	 * Follows VS Code pattern of separate h() calls per logical section.
+	 */
+	private createLayout(): void {
+		const body = mainWindow.document.body;
+
+		// Create element sections
+		const header = this._createHeaderElements();
+		const sessions = this._createSessionsElements();
+		const chat = this._createChatElements();
+		const changes = this._createChangesElements();
 
 		// Create main container - only add sessions and chat initially
 		// Changes pane is added dynamically when a session is selected via showChangesPane()
-		this._containerEl = $('.agent-container');
-		append(this._containerEl, this._sessionsListEl, this._chatContainerEl);
+		const container = $('div.agent-container');
+		append(container, sessions.root, chat.root);
+
+		// Store all elements
+		this._elements = { header, sessions, chat, changes, container };
 
 		// Append to body
-		append(body, this._headerEl, this._containerEl);
+		append(body, header.root, container);
 	}
 
 	/**
@@ -247,7 +255,7 @@ export class AgentWindow extends Disposable {
 		this.initializeSplitView();
 
 		try {
-			this.showStatusMessage(this._sessionsItemsEl, 'Loading sessions...');
+			this.showStatusMessage(this.elements.sessions.items, 'Loading sessions...');
 
 			this.logService.info('[Agent] Services initialized, loading agent sessions...');
 
@@ -282,7 +290,7 @@ export class AgentWindow extends Disposable {
 			// Add agent status widget to title bar
 			const action = new Action('workbench.action.quickchat.toggle', 'Chat');
 			const statusWidget = this.instantiationService.createInstance(AgentTitleBarStatusWidget, action, undefined);
-			statusWidget.render(this._statusWidgetContainer);
+			statusWidget.render(this.elements.header.statusWidget);
 			this._register(statusWidget);
 
 			// Get the extension management service to query installed extensions
@@ -302,14 +310,14 @@ export class AgentWindow extends Disposable {
 			await this.loadSessions();
 
 		} catch (error) {
-			this.showStatusMessage(this._sessionsItemsEl, `Error: ${error instanceof Error ? error.message : String(error)}`);
+			this.showStatusMessage(this.elements.sessions.items, `Error: ${error instanceof Error ? error.message : String(error)}`);
 		}
 	}
 
 	private initializeSplitView(): void {
-		const container = this._containerEl;
-		const sessionsContainer = this._sessionsListEl;
-		const chatContainer = this._chatContainerEl;
+		const container = this.elements.container;
+		const sessionsContainer = this.elements.sessions.root;
+		const chatContainer = this.elements.chat.root;
 
 		container.style.display = 'block';
 		container.style.position = 'relative';
@@ -372,7 +380,7 @@ export class AgentWindow extends Disposable {
 			return;
 		}
 
-		const changesContainer = this._changesContainerEl;
+		const changesContainer = this.elements.changes.root;
 		this._splitView.addView({
 			onDidChange: Event.None,
 			element: changesContainer,
@@ -424,19 +432,20 @@ export class AgentWindow extends Disposable {
 	 * Updates the toggle changes button icon to reflect current visibility state.
 	 */
 	private updateToggleChangesButtonLabel(): void {
+		const toggleChangesButton = this.elements.chat.toggleChanges;
 		if (this._changesPaneVisible) {
-			this._toggleChangesButton.classList.remove('codicon-layout-sidebar-right-off');
-			this._toggleChangesButton.classList.add('codicon-layout-sidebar-right');
-			this._toggleChangesButton.title = 'Hide Changes';
+			toggleChangesButton.classList.remove('codicon-layout-sidebar-right-off');
+			toggleChangesButton.classList.add('codicon-layout-sidebar-right');
+			toggleChangesButton.title = 'Hide Changes';
 		} else {
-			this._toggleChangesButton.classList.remove('codicon-layout-sidebar-right');
-			this._toggleChangesButton.classList.add('codicon-layout-sidebar-right-off');
-			this._toggleChangesButton.title = 'Show Changes';
+			toggleChangesButton.classList.remove('codicon-layout-sidebar-right');
+			toggleChangesButton.classList.add('codicon-layout-sidebar-right-off');
+			toggleChangesButton.title = 'Show Changes';
 		}
 	}
 
 	private async loadSessions(): Promise<void> {
-		const sessionsListEl = this._sessionsItemsEl;
+		const sessionsListEl = this.elements.sessions.items;
 
 		try {
 			// Trigger lifecycle phases to allow extension hosts and contributions to start
@@ -474,7 +483,7 @@ export class AgentWindow extends Disposable {
 			this.logService.info('[Agent] Registered contributions:', allContributions.length, allContributions.map(c => c.type));
 
 			// Create the "New Session" button (visible during loading)
-			this._newSessionButton = this._register(new Button(this._newSessionButtonContainer, {
+			this._newSessionButton = this._register(new Button(this.elements.sessions.newSessionButton, {
 				...defaultButtonStyles,
 				title: 'New Session',
 			}));
@@ -571,11 +580,11 @@ export class AgentWindow extends Disposable {
 	}
 
 	private async selectSession(session: IAgentSession): Promise<void> {
-		this._chatEmptyEl.style.display = 'none';
-		this._chatHeaderEl.style.display = 'flex';
-		this._chatHeaderTitle.textContent = session.label;
+		this.elements.chat.empty.style.display = 'none';
+		this.elements.chat.header.style.display = 'flex';
+		this.elements.chat.headerTitle.textContent = session.label;
 
-		const chatWidgetContainer = this._chatWidgetContainerEl;
+		const chatWidgetContainer = this.elements.chat.widgetContainer;
 		chatWidgetContainer.style.display = 'flex';
 
 		// Update the changes pane with this session's file changes
@@ -759,7 +768,7 @@ export class AgentWindow extends Disposable {
 		if (!this._multiDiffEditor) {
 			this._multiDiffEditorContainer = $('.agent-multi-diff-editor');
 			this._multiDiffEditorContainer.style.cssText = 'flex: 1; display: flex; flex-direction: column; overflow: hidden;';
-			append(this._changesContainerEl, this._multiDiffEditorContainer);
+			append(this.elements.changes.root, this._multiDiffEditorContainer);
 
 			const workbenchUIElementFactory: IWorkbenchUIElementFactory = {};
 			this._multiDiffEditor = this._register(this.instantiationService.createInstance(
@@ -770,7 +779,7 @@ export class AgentWindow extends Disposable {
 
 			// Set up resize observer
 			this._changesResizeObserver = new ResizeObserver(() => this.layoutMultiDiffEditor());
-			this._changesResizeObserver.observe(this._changesContainerEl);
+			this._changesResizeObserver.observe(this.elements.changes.root);
 			this._register({ dispose: () => this._changesResizeObserver?.disconnect() });
 		}
 
@@ -839,7 +848,7 @@ export class AgentWindow extends Disposable {
 		} else {
 			this._changesEmptyEl = $('.agent-changes-empty');
 			this._changesEmptyEl.textContent = message;
-			append(this._changesContainerEl, this._changesEmptyEl);
+			append(this.elements.changes.root, this._changesEmptyEl);
 		}
 	}
 
@@ -847,8 +856,8 @@ export class AgentWindow extends Disposable {
 	 * Layouts the multi-diff editor to fit its container.
 	 */
 	private layoutMultiDiffEditor(): void {
-		if (this._multiDiffEditor && this._changesContainerEl) {
-			const rect = this._changesContainerEl.getBoundingClientRect();
+		if (this._multiDiffEditor && this._elements) {
+			const rect = this.elements.changes.root.getBoundingClientRect();
 			const headerHeight = 40; // Approximate header height
 			if (rect.width > 0 && rect.height > headerHeight) {
 				this._multiDiffEditor.layout(new Dimension(rect.width, rect.height - headerHeight));
@@ -871,9 +880,9 @@ export class AgentWindow extends Disposable {
 	}
 
 	private showEmptyView(): void {
-		this._chatEmptyEl.style.display = 'flex';
-		this._chatHeaderEl.style.display = 'none';
-		this._chatWidgetContainerEl.style.display = 'none';
+		this.elements.chat.empty.style.display = 'flex';
+		this.elements.chat.header.style.display = 'none';
+		this.elements.chat.widgetContainer.style.display = 'none';
 
 		// Clean up previous session widget if any
 		if (this._chatWidget) {
@@ -886,7 +895,7 @@ export class AgentWindow extends Disposable {
 
 		// Create welcome ChatWidget if not already created
 		if (!this._welcomeChatWidget) {
-			this.createWelcomeChatWidget(this._welcomeChatWidgetEl);
+			this.createWelcomeChatWidget(this.elements.chat.welcomeWidget);
 		}
 	}
 
