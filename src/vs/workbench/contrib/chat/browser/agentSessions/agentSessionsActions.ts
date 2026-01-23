@@ -269,12 +269,18 @@ export class ArchiveAgentSessionSectionAction extends Action2 {
 				id: MenuId.AgentSessionSectionToolbar,
 				group: 'navigation',
 				order: 1,
-				when: ChatContextKeys.agentSessionSection.notEqualsTo(AgentSessionSection.Archived),
+				when: ContextKeyExpr.and(
+					ChatContextKeys.agentSessionSection.notEqualsTo(AgentSessionSection.Archived),
+					ChatContextKeys.agentSessionSection.notEqualsTo(AgentSessionSection.Others)
+				),
 			}, {
 				id: MenuId.AgentSessionSectionContext,
 				group: '1_edit',
 				order: 2,
-				when: ChatContextKeys.agentSessionSection.notEqualsTo(AgentSessionSection.Archived),
+				when: ContextKeyExpr.and(
+					ChatContextKeys.agentSessionSection.notEqualsTo(AgentSessionSection.Archived),
+					ChatContextKeys.agentSessionSection.notEqualsTo(AgentSessionSection.Others)
+				),
 			}]
 		});
 	}
@@ -381,7 +387,10 @@ export class MarkAgentSessionSectionReadAction extends Action2 {
 				id: MenuId.AgentSessionSectionContext,
 				group: '1_edit',
 				order: 1,
-				when: ChatContextKeys.agentSessionSection.notEqualsTo(AgentSessionSection.Archived),
+				when: ContextKeyExpr.and(
+					ChatContextKeys.agentSessionSection.notEqualsTo(AgentSessionSection.Archived),
+					ChatContextKeys.agentSessionSection.notEqualsTo(AgentSessionSection.Others)
+				),
 			}]
 		});
 	}
