@@ -15,7 +15,6 @@ import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.
 import { $, addDisposableListener, clearNode, getTotalWidth } from '../../../../../base/browser/dom.js';
 import { ChatMessageRole, ILanguageModelsService } from '../../common/languageModels.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
-import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Range } from '../../../../../editor/common/core/range.js';
@@ -560,13 +559,11 @@ export class ChatEditingExplanationWidgetManager extends Disposable {
 
 	private readonly _widgets: ChatEditingExplanationWidget[] = [];
 	private _visible: boolean = false;
-	private readonly _cancellationTokenSource = this._register(new CancellationTokenSource());
 
 	private _modelUri: URI | undefined;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
-		private readonly _languageModelsService: ILanguageModelsService,
 		private readonly _chatWidgetService: IChatWidgetService,
 		private readonly _viewsService: IViewsService,
 	) {
@@ -630,9 +627,6 @@ export class ChatEditingExplanationWidgetManager extends Disposable {
 
 		this._visible = visible;
 
-		// Generate all explanations in a single LLM request directly from diffInfo
-		this._generateExplanations(diffInfo);
-
 		// Relayout on scroll/layout changes
 		this._register(Event.any(this._editor.onDidScrollChange, this._editor.onDidLayoutChange)(() => {
 			for (const widget of this._widgets) {
@@ -642,9 +636,22 @@ export class ChatEditingExplanationWidgetManager extends Disposable {
 	}
 
 	/**
-	 * Generates explanations for all changes directly from diff info in a single LLM request.
+	 * Gets the widgets managed by this manager.
 	 */
-	private async _generateExplanations(diffInfo: IExplanationDiffInfo): Promise<void> {
+	get widgets(): readonly ChatEditingExplanationWidget[] {
+		return this._widgets;
+	}
+
+	/**
+	 * Generates explanations for all changes directly from diff info in a single LLM request.
+	 * This is a static function that can be called after creating widget managers.
+	 */
+	static async generateExplanations(
+		widgets: readonly ChatEditingExplanationWidget[],
+		diffInfo: IExplanationDiffInfo,
+		languageModelsService: ILanguageModelsService,
+		cancellationToken: import('../../../../../base/common/cancellation.js').CancellationToken
+	): Promise<void> {
 		if (diffInfo.changes.length === 0) {
 			return;
 		}
@@ -663,19 +670,19 @@ export class ChatEditingExplanationWidgetManager extends Disposable {
 
 		try {
 			// Select a high-end model for better understanding of all changes together
-			let models = await this._languageModelsService.selectLanguageModels({ vendor: 'copilot', family: 'claude-3.5-sonnet' });
+			let models = await languageModelsService.selectLanguageModels({ vendor: 'copilot', family: 'claude-3.5-sonnet' });
 			if (!models.length) {
-				models = await this._languageModelsService.selectLanguageModels({ vendor: 'copilot', family: 'gpt-4o' });
+				models = await languageModelsService.selectLanguageModels({ vendor: 'copilot', family: 'gpt-4o' });
 			}
 			if (!models.length) {
-				models = await this._languageModelsService.selectLanguageModels({ vendor: 'copilot', family: 'gpt-4' });
+				models = await languageModelsService.selectLanguageModels({ vendor: 'copilot', family: 'gpt-4' });
 			}
 			if (!models.length) {
 				// Fallback to any available model
-				models = await this._languageModelsService.selectLanguageModels({ vendor: 'copilot' });
+				models = await languageModelsService.selectLanguageModels({ vendor: 'copilot' });
 			}
 			if (!models.length) {
-				for (const widget of this._widgets) {
+				for (const widget of widgets) {
 					widget.setAllFailed();
 				}
 				return;
@@ -702,12 +709,12 @@ Be specific about the actual code changes. Return ONLY valid JSON, no markdown.
 Example response format:
 [{"explanation": "Added null check to prevent crash"}, {"explanation": "Renamed variable for clarity"}]`;
 
-			const response = await this._languageModelsService.sendChatRequest(
+			const response = await languageModelsService.sendChatRequest(
 				models[0],
 				new ExtensionIdentifier('core'),
 				[{ role: ChatMessageRole.User, content: [{ type: 'text', value: prompt }] }],
 				{},
-				this._cancellationTokenSource.token
+				cancellationToken
 			);
 
 			let responseText = '';
@@ -737,7 +744,7 @@ Example response format:
 
 				// Map explanations back to widgets based on change indices
 				let changeIndex = 0;
-				for (const widget of this._widgets) {
+				for (const widget of widgets) {
 					const count = widget.explanationCount;
 					for (let i = 0; i < count; i++) {
 						const parsed = explanations[changeIndex];
@@ -748,14 +755,14 @@ Example response format:
 				}
 			} catch {
 				// JSON parsing failed, set generic message for all
-				for (const widget of this._widgets) {
+				for (const widget of widgets) {
 					for (let i = 0; i < widget.explanationCount; i++) {
 						widget.setExplanation(i, nls.localize('codeWasModified', "Code was modified."));
 					}
 				}
 			}
 		} catch {
-			for (const widget of this._widgets) {
+			for (const widget of widgets) {
 				widget.setAllFailed();
 			}
 		}
