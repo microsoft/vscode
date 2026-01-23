@@ -690,11 +690,10 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				await Event.toPromise(outputMonitor.onDidFinishCommand);
 				const pollingResult = outputMonitor.pollingResult;
 
+				await this._commandArtifactCollector.capture(toolSpecificData, toolTerminal.instance, commandId);
 				if (token.isCancellationRequested) {
 					throw new CancellationError();
 				}
-
-				await this._commandArtifactCollector.capture(toolSpecificData, toolTerminal.instance, commandId);
 				const state = toolSpecificData.terminalCommandState ?? {};
 				state.timestamp = state.timestamp ?? timingStart;
 				toolSpecificData.terminalCommandState = state;
@@ -889,6 +888,10 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					terminalResult = backgroundOutput ?? '';
 				} else {
 					this._logService.debug(`RunInTerminalTool: Threw exception`);
+					// Capture output snapshot before disposing on cancellation
+					if (e instanceof CancellationError) {
+						await this._commandArtifactCollector.capture(toolSpecificData, toolTerminal.instance, commandId);
+					}
 					toolTerminal.instance.dispose();
 					error = e instanceof CancellationError ? 'canceled' : 'unexpectedException';
 					throw e;
@@ -943,11 +946,17 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			}
 			resultText.push(terminalResult);
 
+			const isError = exitCode !== undefined && exitCode !== 0;
 			return {
 				toolResultMessage,
 				toolMetadata: {
 					exitCode: exitCode
 				},
+				toolResultDetails: isError ? {
+					input: command,
+					output: [{ type: 'embed', isText: true, value: terminalResult }],
+					isError: true
+				} : undefined,
 				content: [{
 					kind: 'text',
 					value: resultText.join(''),

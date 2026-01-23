@@ -474,7 +474,7 @@ declare module 'vscode' {
 		/**
 		 * A map of all tools that should (`true`) and should not (`false`) be used in this request.
 		 */
-		readonly tools: Map<string, boolean>;
+		readonly tools: Map<LanguageModelToolInformation, boolean>;
 	}
 
 	export namespace lm {

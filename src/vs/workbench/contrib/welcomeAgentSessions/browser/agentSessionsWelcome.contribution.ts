@@ -73,7 +73,7 @@ class AgentSessionsWelcomeEditorResolverContribution extends Disposable implemen
 }
 
 // Register command to open agent sessions welcome page
-CommandsRegistry.registerCommand('workbench.action.openAgentSessionsWelcome', (accessor) => {
+CommandsRegistry.registerCommand(AgentSessionsWelcomePage.COMMAND_ID, (accessor) => {
 	const editorService = accessor.get(IEditorService);
 	const instantiationService = accessor.get(IInstantiationService);
 	const input = instantiationService.createInstance(AgentSessionsWelcomeInput, {});

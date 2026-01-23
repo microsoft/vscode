@@ -468,6 +468,16 @@
 	background-size: 18px !important;
 }
 
+.agent-status-badge-section.sparkle .dropdown-action-container .monaco-dropdown > .dropdown-label .codicon[class*='codicon-'] {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	height: 18px;
+	width: 18px;
+	line-height: 18px;
+	transform: translateY(1px);
+}
+
 /* Override global toolbar hover/active styles for sparkle section action labels */
 .agent-status-badge-section.sparkle .action-container .action-label:hover,
 .agent-status-badge-section.sparkle .dropdown-action-container .action-label:hover {

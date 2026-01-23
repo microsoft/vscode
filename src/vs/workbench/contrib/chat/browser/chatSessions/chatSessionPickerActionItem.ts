@@ -13,6 +13,7 @@ import { IContextKeyService } from '../../../../../platform/contextkey/common/co
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { ActionWidgetDropdownActionViewItem } from '../../../../../platform/actions/browser/actionWidgetDropdownActionViewItem.js';
 import { IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem } from '../../common/chatSessionsService.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { renderLabelWithIcons, renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { localize } from '../../../../../nls.js';
@@ -40,6 +41,7 @@ export class ChatSessionPickerActionItem extends ActionWidgetDropdownActionViewI
 		@IActionWidgetService actionWidgetService: IActionWidgetService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IKeybindingService keybindingService: IKeybindingService,
+		@ICommandService protected readonly commandService: ICommandService,
 	) {
 		const { group, item } = initialState;
 		const actionWithLabel: IAction = {
@@ -83,7 +85,7 @@ export class ChatSessionPickerActionItem extends ActionWidgetDropdownActionViewI
 			return [];
 		}
 
-		return group.items.map(optionItem => {
+		const actions: IActionWidgetDropdownAction[] = group.items.map(optionItem => {
 			const isCurrent = optionItem.id === currentOption?.id;
 			return {
 				id: optionItem.id,
@@ -99,6 +101,29 @@ export class ChatSessionPickerActionItem extends ActionWidgetDropdownActionViewI
 				}
 			} satisfies IActionWidgetDropdownAction;
 		});
+
+		// Add commands at the end in a separate section (only if there are options)
+		if (group.commands?.length) {
+			const addSeparator = actions.length > 0;
+			for (const command of group.commands) {
+				actions.push({
+					id: command.command,
+					enabled: true,
+					checked: false,
+					class: undefined,
+					description: undefined,
+					tooltip: command.tooltip ?? command.title,
+					label: command.title,
+					// Use category to create a separator before commands (only if there are options)
+					category: addSeparator ? { label: '', order: Number.MAX_SAFE_INTEGER } : undefined,
+					run: () => {
+						this.commandService.executeCommand(command.command, ...(command.arguments ?? []));
+					}
+				} satisfies IActionWidgetDropdownAction);
+			}
+		}
+
+		return actions;
 	}
 
 	/**
