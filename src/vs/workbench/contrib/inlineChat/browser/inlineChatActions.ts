@@ -306,8 +306,6 @@ export class UndoSessionAction2 extends KeepOrUndoSessionAction {
 	}
 }
 
-
-
 export class UndoAndCloseSessionAction2 extends KeepOrUndoSessionAction {
 
 	constructor() {
