@@ -10,9 +10,9 @@ import { createTestEditor, wait } from '../../test/testUtils';
 import { disposeAll } from '../../utils/dispose';
 
 
-type VsCodeConfiguration = { [key: string]: any };
+export type VsCodeConfiguration = { [key: string]: any };
 
-async function updateConfig(newConfig: VsCodeConfiguration): Promise<VsCodeConfiguration> {
+export async function updateConfig(newConfig: VsCodeConfiguration): Promise<VsCodeConfiguration> {
 	const oldConfig: VsCodeConfiguration = {};
 	const config = vscode.workspace.getConfiguration(undefined);
 	for (const configKey of Object.keys(newConfig)) {

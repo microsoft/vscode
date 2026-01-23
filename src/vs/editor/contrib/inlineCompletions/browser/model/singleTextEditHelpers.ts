@@ -5,11 +5,11 @@
 
 import { commonPrefixLength } from '../../../../../base/common/strings.js';
 import { Range } from '../../../../common/core/range.js';
-import { TextLength } from '../../../../common/core/textLength.js';
-import { SingleTextEdit } from '../../../../common/core/textEdit.js';
+import { TextLength } from '../../../../common/core/text/textLength.js';
+import { TextReplacement } from '../../../../common/core/edits/textEdit.js';
 import { EndOfLinePreference, ITextModel } from '../../../../common/model.js';
 
-export function singleTextRemoveCommonPrefix(edit: SingleTextEdit, model: ITextModel, validModelRange?: Range): SingleTextEdit {
+export function singleTextRemoveCommonPrefix(edit: TextReplacement, model: ITextModel, validModelRange?: Range): TextReplacement {
 	const modelRange = validModelRange ? edit.range.intersectRanges(validModelRange) : edit.range;
 	if (!modelRange) {
 		return edit;
@@ -20,10 +20,10 @@ export function singleTextRemoveCommonPrefix(edit: SingleTextEdit, model: ITextM
 	const start = TextLength.ofText(valueToReplace.substring(0, commonPrefixLen)).addToPosition(edit.range.getStartPosition());
 	const text = normalizedText.substring(commonPrefixLen);
 	const range = Range.fromPositions(start, edit.range.getEndPosition());
-	return new SingleTextEdit(range, text);
+	return new TextReplacement(range, text);
 }
 
-export function singleTextEditAugments(edit: SingleTextEdit, base: SingleTextEdit): boolean {
+export function singleTextEditAugments(edit: TextReplacement, base: TextReplacement): boolean {
 	// The augmented completion must replace the base range, but can replace even more
 	return edit.text.startsWith(base.text) && rangeExtends(edit.range, base.range);
 }

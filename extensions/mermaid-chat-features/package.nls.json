@@ -1,0 +1,5 @@
+{
+	"displayName": "Mermaid Chat Features",
+	"description": "Adds Mermaid diagram support to built-in chats.",
+	"config.enabled.description": "Enable a tool for experimental Mermaid diagram rendering in chat responses."
+}

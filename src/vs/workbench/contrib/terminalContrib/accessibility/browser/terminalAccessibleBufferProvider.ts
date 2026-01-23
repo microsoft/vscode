@@ -8,7 +8,7 @@ import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { IAccessibleViewContentProvider, AccessibleViewProviderId, IAccessibleViewOptions, AccessibleViewType, IAccessibleViewSymbol } from '../../../../../platform/accessibility/browser/accessibleView.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TerminalCapability, ITerminalCommand } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
-import { ICurrentPartialCommand } from '../../../../../platform/terminal/common/capabilities/commandDetection/terminalCommand.js';
+import { ICurrentPartialCommand, isFullTerminalCommand } from '../../../../../platform/terminal/common/capabilities/commandDetection/terminalCommand.js';
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { ITerminalInstance, ITerminalService } from '../../../terminal/browser/terminal.js';
 import { BufferContentTracker } from './bufferContentTracker.js';
@@ -98,9 +98,9 @@ export class TerminalAccessibleBufferProvider extends Disposable implements IAcc
 	}
 	private _getEditorLineForCommand(command: ITerminalCommand | ICurrentPartialCommand): number | undefined {
 		let line: number | undefined;
-		if ('marker' in command) {
+		if (isFullTerminalCommand(command)) {
 			line = command.marker?.line;
-		} else if ('commandStartMarker' in command) {
+		} else {
 			line = command.commandStartMarker?.line;
 		}
 		if (line === undefined || line < 0) {

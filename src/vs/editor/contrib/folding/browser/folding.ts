@@ -124,7 +124,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 		super();
 		this.editor = editor;
 
-		this._foldingLimitReporter = new RangesLimitReporter(editor);
+		this._foldingLimitReporter = this._register(new RangesLimitReporter(editor));
 
 		const options = this.editor.getOptions();
 		this._isEnabled = options.get(EditorOption.folding);
@@ -242,6 +242,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 		this.localToDispose.add(this.hiddenRangeModel.onDidChange(hr => this.onHiddenRangesChanges(hr)));
 
 		this.updateScheduler = new Delayer<FoldingModel>(this.updateDebounceInfo.get(model));
+		this.localToDispose.add(this.updateScheduler);
 
 		this.cursorChangedScheduler = new RunOnceScheduler(() => this.revealCursor(), 200);
 		this.localToDispose.add(this.cursorChangedScheduler);
@@ -513,16 +514,17 @@ export class FoldingController extends Disposable implements IEditorContribution
 	}
 }
 
-export class RangesLimitReporter implements FoldingLimitReporter {
+export class RangesLimitReporter extends Disposable implements FoldingLimitReporter {
 	constructor(private readonly editor: ICodeEditor) {
+		super();
 	}
 
 	public get limit() {
 		return this.editor.getOptions().get(EditorOption.foldingMaximumRegions);
 	}
 
-	private _onDidChange = new Emitter<void>();
-	public readonly onDidChange: Event<void> = this._onDidChange.event;
+	private _onDidChange = this._register(new Emitter<void>());
+	public get onDidChange(): Event<void> { return this._onDidChange.event; }
 
 	private _computed: number = 0;
 	private _limited: number | false = false;
@@ -611,7 +613,7 @@ interface FoldingArguments {
 	selectionLines?: number[];
 }
 
-function foldingArgumentsConstraint(args: any) {
+function foldingArgumentsConstraint(args: unknown) {
 	if (!types.isUndefined(args)) {
 		if (!types.isObject(args)) {
 			return false;
@@ -708,7 +710,7 @@ class UnFoldRecursivelyAction extends FoldingAction<void> {
 		});
 	}
 
-	invoke(_foldingController: FoldingController, foldingModel: FoldingModel, editor: ICodeEditor, _args: any): void {
+	invoke(_foldingController: FoldingController, foldingModel: FoldingModel, editor: ICodeEditor, _args: unknown): void {
 		setCollapseStateLevelsDown(foldingModel, false, Number.MAX_VALUE, this.getSelectedLines(editor));
 	}
 }
@@ -1300,7 +1302,7 @@ CommandsRegistry.registerCommand('_executeFoldingRangeProvider', async function 
 	const strategy = configurationService.getValue('editor.foldingStrategy', { resource });
 	const foldingLimitReporter = {
 		get limit() {
-			return <number>configurationService.getValue('editor.foldingMaximumRegions', { resource });
+			return configurationService.getValue<number>('editor.foldingMaximumRegions', { resource });
 		},
 		update: (computed: number, limited: number | false) => { }
 	};

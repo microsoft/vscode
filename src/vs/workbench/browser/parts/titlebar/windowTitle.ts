@@ -6,7 +6,9 @@
 import { localize } from '../../../../nls.js';
 import { dirname, basename } from '../../../../base/common/resources.js';
 import { ITitleProperties, ITitleVariable } from './titlebarPart.js';
-import { IConfigurationService, IConfigurationChangeEvent } from '../../../../platform/configuration/common/configuration.js';
+import { IConfigurationService, IConfigurationChangeEvent, isConfigured } from '../../../../platform/configuration/common/configuration.js';
+import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { EditorResourceAccessor, Verbosity, SideBySideEditor } from '../../../common/editor.js';
@@ -15,7 +17,6 @@ import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from '../.
 import { isWindows, isWeb, isMacintosh, isNative } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { trim } from '../../../../base/common/strings.js';
-import { IEditorGroupsContainer } from '../../../services/editor/common/editorGroupsService.js';
 import { template } from '../../../../base/common/labels.js';
 import { ILabelService, Verbosity as LabelVerbosity } from '../../../../platform/label/common/label.js';
 import { Emitter } from '../../../../base/common/event.js';
@@ -83,16 +84,13 @@ export class WindowTitle extends Disposable {
 	private titleIncludesFocusedView: boolean = false;
 	private titleIncludesEditorState: boolean = false;
 
-	private readonly editorService: IEditorService;
-
 	private readonly windowId: number;
 
 	constructor(
 		targetWindow: CodeWindow,
-		editorGroupsContainer: IEditorGroupsContainer | 'main',
 		@IConfigurationService protected readonly configurationService: IConfigurationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IEditorService editorService: IEditorService,
+		@IEditorService private readonly editorService: IEditorService,
 		@IBrowserWorkbenchEnvironmentService protected readonly environmentService: IBrowserWorkbenchEnvironmentService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@ILabelService private readonly labelService: ILabelService,
@@ -104,7 +102,6 @@ export class WindowTitle extends Disposable {
 	) {
 		super();
 
-		this.editorService = editorService.createScoped(editorGroupsContainer, this._store);
 		this.windowId = targetWindow.vscodeWindowId;
 
 		this.checkTitleVariables();
@@ -291,6 +288,7 @@ export class WindowTitle extends Disposable {
 	 * {activeEditorLong}: e.g. /Users/Development/myFolder/myFileFolder/myFile.txt
 	 * {activeEditorMedium}: e.g. myFolder/myFileFolder/myFile.txt
 	 * {activeEditorShort}: e.g. myFile.txt
+	 * {activeEditorLanguageId}: e.g. typescript
 	 * {activeFolderLong}: e.g. /Users/Development/myFolder/myFileFolder
 	 * {activeFolderMedium}: e.g. myFolder/myFileFolder
 	 * {activeFolderShort}: e.g. myFileFolder
@@ -364,6 +362,7 @@ export class WindowTitle extends Disposable {
 		const profileName = this.userDataProfileService.currentProfile.isDefault ? '' : this.userDataProfileService.currentProfile.name;
 		const focusedView: string = this.viewsService.getFocusedViewName();
 		const activeEditorState = editorResource ? this.decorationsService.getDecoration(editorResource, false)?.tooltip : undefined;
+		const activeEditorLanguageId = this.editorService.activeTextEditorLanguageId;
 
 		const variables: Record<string, string> = {};
 		for (const [contextKey, name] of this.variables) {
@@ -389,6 +388,7 @@ export class WindowTitle extends Disposable {
 			activeEditorShort,
 			activeEditorLong,
 			activeEditorMedium,
+			activeEditorLanguageId,
 			activeFolderShort,
 			activeFolderMedium,
 			activeFolderLong,
@@ -414,6 +414,13 @@ export class WindowTitle extends Disposable {
 		const title = this.configurationService.inspect<string>(WindowSettingNames.title);
 		const titleSeparator = this.configurationService.inspect<string>(WindowSettingNames.titleSeparator);
 
-		return title.value !== title.defaultValue || titleSeparator.value !== titleSeparator.defaultValue;
+		if (isConfigured(title) || isConfigured(titleSeparator)) {
+			return true;
+		}
+
+		// Check if the default value is overridden from the configuration registry
+		const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+		const configurationProperties = configurationRegistry.getConfigurationProperties();
+		return title.defaultValue !== configurationProperties[WindowSettingNames.title]?.defaultDefaultValue;
 	}
 }

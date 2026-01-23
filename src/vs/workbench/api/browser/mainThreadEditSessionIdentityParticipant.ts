@@ -16,14 +16,14 @@ import { WorkspaceFolder } from '../../../platform/workspace/common/workspace.js
 class ExtHostEditSessionIdentityCreateParticipant implements IEditSessionIdentityCreateParticipant {
 
 	private readonly _proxy: ExtHostWorkspaceShape;
-	private readonly timeout = 10000;
+	private readonly timeout = 20000;
 
 	constructor(extHostContext: IExtHostContext) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostWorkspace);
 	}
 
 	async participate(workspaceFolder: WorkspaceFolder, token: CancellationToken): Promise<void> {
-		const p = new Promise<any>((resolve, reject) => {
+		const p = new Promise<void>((resolve, reject) => {
 
 			setTimeout(
 				() => reject(new Error(localize('timeout.onWillCreateEditSessionIdentity', "Aborted onWillCreateEditSessionIdentity-event after 10000ms"))),

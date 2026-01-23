@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { forEachWithNeighbors } from '../../../../base/common/arrays.js';
-import { OffsetRange } from '../../core/offsetRange.js';
+import { OffsetRange } from '../../core/ranges/offsetRange.js';
 import { ISequence, OffsetPair, SequenceDiff } from './algorithms/diffAlgorithm.js';
 import { LineSequence } from './lineSequence.js';
 import { LinesSliceCharSequence } from './linesSliceCharSequence.js';

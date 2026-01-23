@@ -14,6 +14,7 @@ import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { Extensions as JSONExtensions, IJSONContributionRegistry } from '../../jsonschemas/common/jsonContributionRegistry.js';
 import * as platform from '../../registry/common/platform.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
 
 //  ------ API types
 
@@ -156,9 +157,9 @@ export const fontColorRegex = /^#[0-9a-fA-F]{0,6}$/;
 
 export const fontIdErrorMessage = localize('schema.fontId.formatError', 'The font ID must only contain letters, numbers, underscores and dashes.');
 
-class IconRegistry implements IIconRegistry {
+class IconRegistry extends Disposable implements IIconRegistry {
 
-	private readonly _onDidChange = new Emitter<void>();
+	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange: Event<void> = this._onDidChange.event;
 
 	private iconsById: { [key: string]: IconContribution };
@@ -182,6 +183,7 @@ class IconRegistry implements IIconRegistry {
 	private iconFontsById: { [key: string]: IconFontDefinition };
 
 	constructor() {
+		super();
 		this.iconsById = {};
 		this.iconFontsById = {};
 	}
@@ -263,7 +265,7 @@ class IconRegistry implements IIconRegistry {
 		return this.iconFontsById[id];
 	}
 
-	public toString() {
+	public override toString() {
 		const sorter = (i1: IconContribution, i2: IconContribution) => {
 			return i1.id.localeCompare(i2.id);
 		};

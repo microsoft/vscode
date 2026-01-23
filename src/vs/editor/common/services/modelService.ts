@@ -4,26 +4,28 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from '../../../base/common/event.js';
-import { Disposable, IDisposable, DisposableStore } from '../../../base/common/lifecycle.js';
-import * as platform from '../../../base/common/platform.js';
-import { URI } from '../../../base/common/uri.js';
-import { EditOperation, ISingleEditOperation } from '../core/editOperation.js';
-import { Range } from '../core/range.js';
-import { DefaultEndOfLine, EndOfLinePreference, EndOfLineSequence, ITextBuffer, ITextBufferFactory, ITextModel, ITextModelCreationOptions } from '../model.js';
-import { TextModel, createTextBuffer } from '../model/textModel.js';
-import { EDITOR_MODEL_DEFAULTS } from '../core/textModelDefaults.js';
-import { IModelLanguageChangedEvent } from '../textModelEvents.js';
-import { PLAINTEXT_LANGUAGE_ID } from '../languages/modesRegistry.js';
-import { ILanguageSelection } from '../languages/language.js';
-import { IModelService } from './model.js';
-import { ITextResourcePropertiesService } from './textResourceConfiguration.js';
-import { IConfigurationChangeEvent, IConfigurationService } from '../../../platform/configuration/common/configuration.js';
-import { IUndoRedoService, ResourceEditStackSnapshot } from '../../../platform/undoRedo/common/undoRedo.js';
 import { StringSHA1 } from '../../../base/common/hash.js';
-import { isEditStackElement } from '../model/editStack.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { Schemas } from '../../../base/common/network.js';
 import { equals } from '../../../base/common/objects.js';
+import * as platform from '../../../base/common/platform.js';
+import { URI } from '../../../base/common/uri.js';
+import { IConfigurationChangeEvent, IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
+import { IUndoRedoService, ResourceEditStackSnapshot } from '../../../platform/undoRedo/common/undoRedo.js';
+import { clampedInt } from '../config/editorOptions.js';
+import { EditOperation, ISingleEditOperation } from '../core/editOperation.js';
+import { EDITOR_MODEL_DEFAULTS } from '../core/misc/textModelDefaults.js';
+import { Range } from '../core/range.js';
+import { ILanguageSelection } from '../languages/language.js';
+import { PLAINTEXT_LANGUAGE_ID } from '../languages/modesRegistry.js';
+import { DefaultEndOfLine, EndOfLinePreference, EndOfLineSequence, ITextBuffer, ITextBufferFactory, ITextModel, ITextModelCreationOptions } from '../model.js';
+import { isEditStackElement } from '../model/editStack.js';
+import { TextModel, createTextBuffer } from '../model/textModel.js';
+import { EditSources, TextModelEditSource } from '../textModelEditSource.js';
+import { IModelLanguageChangedEvent } from '../textModelEvents.js';
+import { IModelService } from './model.js';
+import { ITextResourcePropertiesService } from './textResourceConfiguration.js';
 
 function MODEL_ID(resource: URI): string {
 	return resource.toString();
@@ -49,18 +51,18 @@ class ModelData implements IDisposable {
 }
 
 interface IRawEditorConfig {
-	tabSize?: any;
-	indentSize?: any;
-	insertSpaces?: any;
-	detectIndentation?: any;
-	trimAutoWhitespace?: any;
-	creationOptions?: any;
-	largeFileOptimizations?: any;
-	bracketPairColorization?: any;
+	tabSize?: unknown;
+	indentSize?: unknown;
+	insertSpaces?: unknown;
+	detectIndentation?: unknown;
+	trimAutoWhitespace?: unknown;
+	creationOptions?: unknown;
+	largeFileOptimizations?: unknown;
+	bracketPairColorization?: unknown;
 }
 
 interface IRawConfig {
-	eol?: any;
+	eol?: unknown;
 	editor?: IRawEditorConfig;
 }
 
@@ -122,21 +124,12 @@ export class ModelService extends Disposable implements IModelService {
 	private static _readModelOptions(config: IRawConfig, isForSimpleWidget: boolean): ITextModelCreationOptions {
 		let tabSize = EDITOR_MODEL_DEFAULTS.tabSize;
 		if (config.editor && typeof config.editor.tabSize !== 'undefined') {
-			const parsedTabSize = parseInt(config.editor.tabSize, 10);
-			if (!isNaN(parsedTabSize)) {
-				tabSize = parsedTabSize;
-			}
-			if (tabSize < 1) {
-				tabSize = 1;
-			}
+			tabSize = clampedInt(config.editor.tabSize, EDITOR_MODEL_DEFAULTS.tabSize, 1, 100);
 		}
 
 		let indentSize: number | 'tabSize' = 'tabSize';
 		if (config.editor && typeof config.editor.indentSize !== 'undefined' && config.editor.indentSize !== 'tabSize') {
-			const parsedIndentSize = parseInt(config.editor.indentSize, 10);
-			if (!isNaN(parsedIndentSize)) {
-				indentSize = Math.max(parsedIndentSize, 1);
-			}
+			indentSize = clampedInt(config.editor.indentSize, 'tabSize', 1, 100);
 		}
 
 		let insertSpaces = EDITOR_MODEL_DEFAULTS.insertSpaces;
@@ -168,9 +161,10 @@ export class ModelService extends Disposable implements IModelService {
 		}
 		let bracketPairColorizationOptions = EDITOR_MODEL_DEFAULTS.bracketPairColorizationOptions;
 		if (config.editor?.bracketPairColorization && typeof config.editor.bracketPairColorization === 'object') {
+			const bpConfig = config.editor.bracketPairColorization as { enabled?: unknown; independentColorPoolPerBracketType?: unknown };
 			bracketPairColorizationOptions = {
-				enabled: !!config.editor.bracketPairColorization.enabled,
-				independentColorPoolPerBracketType: !!config.editor.bracketPairColorization.independentColorPoolPerBracketType
+				enabled: !!bpConfig.enabled,
+				independentColorPoolPerBracketType: !!bpConfig.independentColorPoolPerBracketType
 			};
 		}
 
@@ -368,7 +362,7 @@ export class ModelService extends Disposable implements IModelService {
 		return modelData;
 	}
 
-	public updateModel(model: ITextModel, value: string | ITextBufferFactory): void {
+	public updateModel(model: ITextModel, value: string | ITextBufferFactory, reason: TextModelEditSource = EditSources.unknown({ name: 'updateModel' })): void {
 		const options = this.getCreationOptions(model.getLanguageId(), model.uri, model.isForSimpleWidget);
 		const { textBuffer, disposable } = createTextBuffer(value, options.defaultEOL);
 
@@ -384,7 +378,9 @@ export class ModelService extends Disposable implements IModelService {
 		model.pushEditOperations(
 			[],
 			ModelService._computeEdits(model, textBuffer),
-			() => []
+			() => [],
+			undefined,
+			reason
 		);
 		model.pushStackElement();
 		disposable.dispose();

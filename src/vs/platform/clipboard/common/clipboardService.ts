@@ -15,7 +15,7 @@ export interface IClipboardService {
 	/**
 	 * Trigger the paste. Returns undefined if the paste was not triggered or a promise that resolves on paste end.
 	 */
-	triggerPaste(): Promise<void> | undefined;
+	triggerPaste(targetWindowId: number): Promise<void> | undefined;
 
 	/**
 	 * Writes text to the system clipboard.

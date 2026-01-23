@@ -11,4 +11,4 @@ cgmanifest.json
 package-lock.json
 preview-src/**
 webpack.config.js
-esbuild-preview.js
+esbuild-*

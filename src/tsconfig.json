@@ -31,5 +31,8 @@
 		"./vs/**/*.ts",
 		"./vscode-dts/vscode.proposed.*.d.ts",
 		"./vscode-dts/vscode.d.ts"
+	],
+	"exclude": [
+		"vs/workbench/contrib/webview/browser/pre/service-worker.js"
 	]
 }

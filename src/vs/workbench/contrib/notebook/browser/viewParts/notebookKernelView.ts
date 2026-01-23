@@ -18,7 +18,7 @@ import { selectKernelIcon } from '../notebookIcons.js';
 import { KernelPickerMRUStrategy, KernelQuickPickContext } from './notebookKernelQuickPickStrategy.js';
 import { NotebookTextModel } from '../../common/model/notebookTextModel.js';
 import { NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_KERNEL_COUNT } from '../../common/notebookContextKeys.js';
-import { INotebookKernelHistoryService, INotebookKernelService } from '../../common/notebookKernelService.js';
+import { INotebookKernel, INotebookKernelHistoryService, INotebookKernelService } from '../../common/notebookKernelService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 
 function getEditorFromContext(editorService: IEditorService, context?: KernelQuickPickContext): INotebookEditor | undefined {
@@ -37,6 +37,19 @@ function getEditorFromContext(editorService: IEditorService, context?: KernelQui
 	}
 
 	return editor;
+}
+
+function shouldSkip(
+	selected: INotebookKernel | undefined,
+	controllerId: string | undefined,
+	extensionId: string | undefined,
+	context: KernelQuickPickContext | undefined): boolean {
+
+	return !!(selected && (
+		(context && 'skipIfAlreadySelected' in context && context.skipIfAlreadySelected) ||
+		// target kernel is already selected
+		(controllerId && selected.id === controllerId && ExtensionIdentifier.equals(selected.extension, extensionId))
+	));
 }
 
 registerAction2(class extends Action2 {
@@ -115,11 +128,9 @@ registerAction2(class extends Action2 {
 
 		const notebook = editor.textModel;
 		const notebookKernelService = accessor.get(INotebookKernelService);
-		const matchResult = notebookKernelService.getMatchingKernel(notebook);
-		const { selected } = matchResult;
+		const { selected } = notebookKernelService.getMatchingKernel(notebook);
 
-		if (selected && controllerId && selected.id === controllerId && ExtensionIdentifier.equals(selected.extension, extensionId)) {
-			// current kernel is wanted kernel -> done
+		if (shouldSkip(selected, controllerId, extensionId, context)) {
 			return true;
 		}
 

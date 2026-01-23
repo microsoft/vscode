@@ -25,11 +25,11 @@ suite('merge editor model', () => {
 	test('prepend line', async () => {
 		await testMergeModel(
 			{
-				"languageId": "plaintext",
-				"base": "line1\nline2",
-				"input1": "0\nline1\nline2",
-				"input2": "0\nline1\nline2",
-				"result": ""
+				'languageId': 'plaintext',
+				'base': 'line1\nline2',
+				'input1': '0\nline1\nline2',
+				'input2': '0\nline1\nline2',
+				'result': ''
 			},
 			model => {
 				assert.deepStrictEqual(model.getProjections(), {
@@ -48,7 +48,7 @@ suite('merge editor model', () => {
 				model.toggleConflict(0, 2);
 				assert.deepStrictEqual(
 					{ result: model.getResult() },
-					({ result: "0\n0\nline1\nline2" })
+					({ result: '0\n0\nline1\nline2' })
 				);
 			}
 		);
@@ -57,11 +57,11 @@ suite('merge editor model', () => {
 	test('empty base', async () => {
 		await testMergeModel(
 			{
-				"languageId": "plaintext",
-				"base": "",
-				"input1": "input1",
-				"input2": "input2",
-				"result": ""
+				'languageId': 'plaintext',
+				'base': '',
+				'input1': 'input1',
+				'input2': 'input2',
+				'result': ''
 			},
 			model => {
 				assert.deepStrictEqual(model.getProjections(), {
@@ -74,13 +74,13 @@ suite('merge editor model', () => {
 				model.toggleConflict(0, 1);
 				assert.deepStrictEqual(
 					{ result: model.getResult() },
-					({ result: "input1" })
+					({ result: 'input1' })
 				);
 
 				model.toggleConflict(0, 2);
 				assert.deepStrictEqual(
 					{ result: model.getResult() },
-					({ result: "input2" })
+					({ result: 'input2' })
 				);
 			}
 		);
@@ -89,11 +89,11 @@ suite('merge editor model', () => {
 	test('can merge word changes', async () => {
 		await testMergeModel(
 			{
-				"languageId": "plaintext",
-				"base": "hello",
-				"input1": "hallo",
-				"input2": "helloworld",
-				"result": ""
+				'languageId': 'plaintext',
+				'base': 'hello',
+				'input1': 'hallo',
+				'input2': 'helloworld',
+				'result': ''
 			},
 			model => {
 				assert.deepStrictEqual(model.getProjections(), {
@@ -118,11 +118,11 @@ suite('merge editor model', () => {
 	test('can combine insertions at end of document', async () => {
 		await testMergeModel(
 			{
-				"languageId": "plaintext",
-				"base": "Zürich\nBern\nBasel\nChur\nGenf\nThun",
-				"input1": "Zürich\nBern\nChur\nDavos\nGenf\nThun\nfunction f(b:boolean) {}",
-				"input2": "Zürich\nBern\nBasel (FCB)\nChur\nGenf\nThun\nfunction f(a:number) {}",
-				"result": "Zürich\nBern\nBasel\nChur\nDavos\nGenf\nThun"
+				'languageId': 'plaintext',
+				'base': 'Zürich\nBern\nBasel\nChur\nGenf\nThun',
+				'input1': 'Zürich\nBern\nChur\nDavos\nGenf\nThun\nfunction f(b:boolean) {}',
+				'input2': 'Zürich\nBern\nBasel (FCB)\nChur\nGenf\nThun\nfunction f(a:number) {}',
+				'result': 'Zürich\nBern\nBasel\nChur\nDavos\nGenf\nThun'
 			},
 			model => {
 				assert.deepStrictEqual(model.getProjections(), {
@@ -173,51 +173,51 @@ suite('merge editor model', () => {
 	test('conflicts are reset', async () => {
 		await testMergeModel(
 			{
-				"languageId": "typescript",
-				"base": "import { h } from 'vs/base/browser/dom';\nimport { Disposable, IDisposable } from 'vs/base/common/lifecycle';\nimport { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';\nimport { EditorOption } from 'vs/editor/common/config/editorOptions';\nimport { autorun, IReader, observableFromEvent, ObservableValue } from 'vs/workbench/contrib/audioCues/browser/observable';\nimport { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRange';\n",
-				"input1": "import { h } from 'vs/base/browser/dom';\nimport { Disposable, IDisposable } from 'vs/base/common/lifecycle';\nimport { observableSignalFromEvent } from 'vs/base/common/observable';\nimport { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';\nimport { autorun, IReader, observableFromEvent } from 'vs/workbench/contrib/audioCues/browser/observable';\nimport { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRange';\n",
-				"input2": "import { h } from 'vs/base/browser/dom';\nimport { Disposable, IDisposable } from 'vs/base/common/lifecycle';\nimport { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';\nimport { autorun, IReader, observableFromEvent, ObservableValue } from 'vs/workbench/contrib/audioCues/browser/observable';\nimport { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRange';\n",
-				"result": "import { h } from 'vs/base/browser/dom';\r\nimport { Disposable, IDisposable } from 'vs/base/common/lifecycle';\r\nimport { observableSignalFromEvent } from 'vs/base/common/observable';\r\nimport { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';\r\n<<<<<<< Updated upstream\r\nimport { autorun, IReader, observableFromEvent, ObservableValue } from 'vs/workbench/contrib/audioCues/browser/observable';\r\n=======\r\nimport { autorun, IReader, observableFromEvent } from 'vs/workbench/contrib/audioCues/browser/observable';\r\n>>>>>>> Stashed changes\r\nimport { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRange';\r\n"
+				'languageId': 'typescript',
+				'base': `import { h } from 'vs/base/browser/dom';\nimport { Disposable, IDisposable } from 'vs/base/common/lifecycle';\nimport { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';\nimport { EditorOption } from 'vs/editor/common/config/editorOptions';\nimport { autorun, IReader, observableFromEvent, ObservableValue } from 'vs/workbench/contrib/audioCues/browser/observable';\nimport { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRange';\n`,
+				'input1': `import { h } from 'vs/base/browser/dom';\nimport { Disposable, IDisposable } from 'vs/base/common/lifecycle';\nimport { observableSignalFromEvent } from 'vs/base/common/observable';\nimport { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';\nimport { autorun, IReader, observableFromEvent } from 'vs/workbench/contrib/audioCues/browser/observable';\nimport { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRange';\n`,
+				'input2': `import { h } from 'vs/base/browser/dom';\nimport { Disposable, IDisposable } from 'vs/base/common/lifecycle';\nimport { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';\nimport { autorun, IReader, observableFromEvent, ObservableValue } from 'vs/workbench/contrib/audioCues/browser/observable';\nimport { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRange';\n`,
+				'result': `import { h } from 'vs/base/browser/dom';\r\nimport { Disposable, IDisposable } from 'vs/base/common/lifecycle';\r\nimport { observableSignalFromEvent } from 'vs/base/common/observable';\r\nimport { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';\r\n<<<<<<< Updated upstream\r\nimport { autorun, IReader, observableFromEvent, ObservableValue } from 'vs/workbench/contrib/audioCues/browser/observable';\r\n=======\r\nimport { autorun, IReader, observableFromEvent } from 'vs/workbench/contrib/audioCues/browser/observable';\r\n>>>>>>> Stashed changes\r\nimport { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRange';\r\n`
 			},
 			model => {
 				assert.deepStrictEqual(model.getProjections(), {
 					base: [
-						"import { h } from 'vs/base/browser/dom';",
-						"import { Disposable, IDisposable } from 'vs/base/common/lifecycle';",
-						"⟦⟧₀import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';",
-						"⟦import { EditorOption } from 'vs/editor/common/config/editorOptions';",
-						"import { autorun, IReader, observableFromEvent, ObservableValue } from 'vs/workbench/contrib/audioCues/browser/observable';",
-						"⟧₁import { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRange';",
+						`import { h } from 'vs/base/browser/dom';`,
+						`import { Disposable, IDisposable } from 'vs/base/common/lifecycle';`,
+						`⟦⟧₀import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';`,
+						`⟦import { EditorOption } from 'vs/editor/common/config/editorOptions';`,
+						`import { autorun, IReader, observableFromEvent, ObservableValue } from 'vs/workbench/contrib/audioCues/browser/observable';`,
+						`⟧₁import { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRange';`,
 						'',
 					],
 					input1: [
-						"import { h } from 'vs/base/browser/dom';",
-						"import { Disposable, IDisposable } from 'vs/base/common/lifecycle';",
-						"⟦import { observableSignalFromEvent } from 'vs/base/common/observable';",
-						"⟧₀import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';",
-						"⟦import { autorun, IReader, observableFromEvent } from 'vs/workbench/contrib/audioCues/browser/observable';",
-						"⟧₁import { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRange';",
+						`import { h } from 'vs/base/browser/dom';`,
+						`import { Disposable, IDisposable } from 'vs/base/common/lifecycle';`,
+						`⟦import { observableSignalFromEvent } from 'vs/base/common/observable';`,
+						`⟧₀import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';`,
+						`⟦import { autorun, IReader, observableFromEvent } from 'vs/workbench/contrib/audioCues/browser/observable';`,
+						`⟧₁import { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRange';`,
 						'',
 					],
 					input2: [
-						"import { h } from 'vs/base/browser/dom';",
-						"import { Disposable, IDisposable } from 'vs/base/common/lifecycle';",
-						"⟦⟧₀import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';",
-						"⟦import { autorun, IReader, observableFromEvent, ObservableValue } from 'vs/workbench/contrib/audioCues/browser/observable';",
-						"⟧₁import { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRange';",
+						`import { h } from 'vs/base/browser/dom';`,
+						`import { Disposable, IDisposable } from 'vs/base/common/lifecycle';`,
+						`⟦⟧₀import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';`,
+						`⟦import { autorun, IReader, observableFromEvent, ObservableValue } from 'vs/workbench/contrib/audioCues/browser/observable';`,
+						`⟧₁import { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRange';`,
 						'',
 					],
 					result: [
-						"import { h } from 'vs/base/browser/dom';",
-						"import { Disposable, IDisposable } from 'vs/base/common/lifecycle';",
-						"⟦import { observableSignalFromEvent } from 'vs/base/common/observable';",
-						"⟧{1✓}₀import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';",
+						`import { h } from 'vs/base/browser/dom';`,
+						`import { Disposable, IDisposable } from 'vs/base/common/lifecycle';`,
+						`⟦import { observableSignalFromEvent } from 'vs/base/common/observable';`,
+						`⟧{1✓}₀import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';`,
 						'⟦<<<<<<< Updated upstream',
-						"import { autorun, IReader, observableFromEvent, ObservableValue } from 'vs/workbench/contrib/audioCues/browser/observable';",
+						`import { autorun, IReader, observableFromEvent, ObservableValue } from 'vs/workbench/contrib/audioCues/browser/observable';`,
 						'=======',
-						"import { autorun, IReader, observableFromEvent } from 'vs/workbench/contrib/audioCues/browser/observable';",
+						`import { autorun, IReader, observableFromEvent } from 'vs/workbench/contrib/audioCues/browser/observable';`,
 						'>>>>>>> Stashed changes',
-						"⟧{unrecognized}₁import { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRange';",
+						`⟧{unrecognized}₁import { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRange';`,
 						'',
 					],
 				});
@@ -228,11 +228,11 @@ suite('merge editor model', () => {
 	test('auto-solve equal edits', async () => {
 		await testMergeModel(
 			{
-				"languageId": "javascript",
-				"base": "const { readFileSync } = require('fs');\n\nlet paths = process.argv.slice(2);\nmain(paths);\n\nfunction main(paths) {\n    // print the welcome message\n    printMessage();\n\n    let data = getLineCountInfo(paths);\n    console.log(\"Lines: \" + data.totalLineCount);\n}\n\n/**\n * Prints the welcome message\n*/\nfunction printMessage() {\n    console.log(\"Welcome To Line Counter\");\n}\n\n/**\n * @param {string[]} paths\n*/\nfunction getLineCountInfo(paths) {\n    let lineCounts = paths.map(path => ({ path, count: getLinesLength(readFileSync(path, 'utf8')) }));\n    return {\n        totalLineCount: lineCounts.reduce((acc, { count }) => acc + count, 0),\n        lineCounts,\n    };\n}\n\n/**\n * @param {string} str\n */\nfunction getLinesLength(str) {\n    return str.split('\\n').length;\n}\n",
-				"input1": "const { readFileSync } = require('fs');\n\nlet paths = process.argv.slice(2);\nmain(paths);\n\nfunction main(paths) {\n    // print the welcome message\n    printMessage();\n\n    const data = getLineCountInfo(paths);\n    console.log(\"Lines: \" + data.totalLineCount);\n}\n\nfunction printMessage() {\n    console.log(\"Welcome To Line Counter\");\n}\n\n/**\n * @param {string[]} paths\n*/\nfunction getLineCountInfo(paths) {\n    let lineCounts = paths.map(path => ({ path, count: getLinesLength(readFileSync(path, 'utf8')) }));\n    return {\n        totalLineCount: lineCounts.reduce((acc, { count }) => acc + count, 0),\n        lineCounts,\n    };\n}\n\n/**\n * @param {string} str\n */\nfunction getLinesLength(str) {\n    return str.split('\\n').length;\n}\n",
-				"input2": "const { readFileSync } = require('fs');\n\nlet paths = process.argv.slice(2);\nrun(paths);\n\nfunction run(paths) {\n    // print the welcome message\n    printMessage();\n\n    const data = getLineCountInfo(paths);\n    console.log(\"Lines: \" + data.totalLineCount);\n}\n\nfunction printMessage() {\n    console.log(\"Welcome To Line Counter\");\n}\n\n/**\n * @param {string[]} paths\n*/\nfunction getLineCountInfo(paths) {\n    let lineCounts = paths.map(path => ({ path, count: getLinesLength(readFileSync(path, 'utf8')) }));\n    return {\n        totalLineCount: lineCounts.reduce((acc, { count }) => acc + count, 0),\n        lineCounts,\n    };\n}\n\n/**\n * @param {string} str\n */\nfunction getLinesLength(str) {\n    return str.split('\\n').length;\n}\n",
-				"result": "<<<<<<< uiae\n>>>>>>> Stashed changes",
+				'languageId': 'javascript',
+				'base': `const { readFileSync } = require('fs');\n\nlet paths = process.argv.slice(2);\nmain(paths);\n\nfunction main(paths) {\n    // print the welcome message\n    printMessage();\n\n    let data = getLineCountInfo(paths);\n    console.log("Lines: " + data.totalLineCount);\n}\n\n/**\n * Prints the welcome message\n*/\nfunction printMessage() {\n    console.log("Welcome To Line Counter");\n}\n\n/**\n * @param {string[]} paths\n*/\nfunction getLineCountInfo(paths) {\n    let lineCounts = paths.map(path => ({ path, count: getLinesLength(readFileSync(path, 'utf8')) }));\n    return {\n        totalLineCount: lineCounts.reduce((acc, { count }) => acc + count, 0),\n        lineCounts,\n    };\n}\n\n/**\n * @param {string} str\n */\nfunction getLinesLength(str) {\n    return str.split('\\n').length;\n}\n`,
+				'input1': `const { readFileSync } = require('fs');\n\nlet paths = process.argv.slice(2);\nmain(paths);\n\nfunction main(paths) {\n    // print the welcome message\n    printMessage();\n\n    const data = getLineCountInfo(paths);\n    console.log("Lines: " + data.totalLineCount);\n}\n\nfunction printMessage() {\n    console.log("Welcome To Line Counter");\n}\n\n/**\n * @param {string[]} paths\n*/\nfunction getLineCountInfo(paths) {\n    let lineCounts = paths.map(path => ({ path, count: getLinesLength(readFileSync(path, 'utf8')) }));\n    return {\n        totalLineCount: lineCounts.reduce((acc, { count }) => acc + count, 0),\n        lineCounts,\n    };\n}\n\n/**\n * @param {string} str\n */\nfunction getLinesLength(str) {\n    return str.split('\\n').length;\n}\n`,
+				'input2': `const { readFileSync } = require('fs');\n\nlet paths = process.argv.slice(2);\nrun(paths);\n\nfunction run(paths) {\n    // print the welcome message\n    printMessage();\n\n    const data = getLineCountInfo(paths);\n    console.log("Lines: " + data.totalLineCount);\n}\n\nfunction printMessage() {\n    console.log("Welcome To Line Counter");\n}\n\n/**\n * @param {string[]} paths\n*/\nfunction getLineCountInfo(paths) {\n    let lineCounts = paths.map(path => ({ path, count: getLinesLength(readFileSync(path, 'utf8')) }));\n    return {\n        totalLineCount: lineCounts.reduce((acc, { count }) => acc + count, 0),\n        lineCounts,\n    };\n}\n\n/**\n * @param {string} str\n */\nfunction getLinesLength(str) {\n    return str.split('\\n').length;\n}\n`,
+				'result': '<<<<<<< uiae\n>>>>>>> Stashed changes',
 				resetResult: true,
 			},
 			async model => {
@@ -343,7 +343,7 @@ class MergeModelInterface extends Disposable {
 		applyRanges(
 			baseTextModel,
 			baseRanges.map<LabeledRange>((r, idx) => ({
-				range: r.baseRange.toRange(),
+				range: r.baseRange.toExclusiveRange(),
 				label: toSmallNumbersDec(idx),
 			}))
 		);
@@ -352,7 +352,7 @@ class MergeModelInterface extends Disposable {
 		applyRanges(
 			input1TextModel,
 			baseRanges.map<LabeledRange>((r, idx) => ({
-				range: r.input1Range.toRange(),
+				range: r.input1Range.toExclusiveRange(),
 				label: toSmallNumbersDec(idx),
 			}))
 		);
@@ -361,7 +361,7 @@ class MergeModelInterface extends Disposable {
 		applyRanges(
 			input2TextModel,
 			baseRanges.map<LabeledRange>((r, idx) => ({
-				range: r.input2Range.toRange(),
+				range: r.input2Range.toExclusiveRange(),
 				label: toSmallNumbersDec(idx),
 			}))
 		);
@@ -370,7 +370,7 @@ class MergeModelInterface extends Disposable {
 		applyRanges(
 			resultTextModel,
 			baseRanges.map<LabeledRange>((r, idx) => ({
-				range: this.mergeModel.getLineRangeInResult(r.baseRange).toRange(),
+				range: this.mergeModel.getLineRangeInResult(r.baseRange).toExclusiveRange(),
 				label: `{${this.mergeModel.getState(r).get()}}${toSmallNumbersDec(idx)}`,
 			}))
 		);

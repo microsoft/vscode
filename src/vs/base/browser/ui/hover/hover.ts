@@ -148,6 +148,17 @@ export interface IHoverWidget extends IDisposable {
 	readonly isDisposed: boolean;
 }
 
+export const enum HoverStyle {
+	/**
+	 * The hover is anchored below the element with a pointer above it pointing at the target.
+	 */
+	Pointer = 1,
+	/**
+	 * The hover is anchored to the bottom right of the cursor's location.
+	 */
+	Mouse = 2,
+}
+
 export interface IHoverOptions {
 	/**
 	 * The content to display in the primary section of the hover. The type of text determines the
@@ -206,6 +217,11 @@ export interface IHoverOptions {
 	trapFocus?: boolean;
 
 	/**
+	 * The style of the hover, this sets default values of {@link position} and {@link appearance}:
+	 */
+	style?: HoverStyle;
+
+	/**
 	 * Options that defines where the hover is positioned.
 	 */
 	position?: IHoverPositionOptions;
@@ -219,6 +235,12 @@ export interface IHoverOptions {
 	 * Options that define how the hover looks.
 	 */
 	appearance?: IHoverAppearanceOptions;
+
+	/**
+	 * An optional callback that is called when the hover is shown. This is called
+	 * later for delayed hovers.
+	 */
+	onDidShow?(): void;
 }
 
 // `target` is ignored for delayed hover methods as it's included in the method and added
@@ -325,6 +347,13 @@ export interface IHoverAppearanceOptions {
 	 * another in the same group so it looks like the hover is moving from one element to the other.
 	 */
 	skipFadeInAnimation?: boolean;
+
+	/**
+	 * The max height of the hover relative to the window height.
+	 * Accepted values: (0,1]
+	 * Default: 0.5
+	 */
+	maxHeightRatio?: number;
 }
 
 export interface IHoverAction {

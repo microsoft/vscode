@@ -60,3 +60,35 @@ export class SettingsEditor2Input extends EditorInput {
 		super.dispose();
 	}
 }
+
+const PreferencesEditorIcon = registerIcon('preferences-editor-label-icon', Codicon.settings, nls.localize('preferencesEditorLabelIcon', 'Icon of the preferences editor label.'));
+
+export class PreferencesEditorInput extends EditorInput {
+
+	static readonly ID: string = 'workbench.input.preferences';
+
+	readonly resource: URI = URI.from({
+		scheme: Schemas.vscodeSettings,
+		path: `preferenceseditor`
+	});
+
+	override matches(otherInput: EditorInput | IUntypedEditorInput): boolean {
+		return super.matches(otherInput) || otherInput instanceof PreferencesEditorInput;
+	}
+
+	override get typeId(): string {
+		return PreferencesEditorInput.ID;
+	}
+
+	override getName(): string {
+		return nls.localize('preferencesEditorInputName', "Preferences");
+	}
+
+	override getIcon(): ThemeIcon {
+		return PreferencesEditorIcon;
+	}
+
+	override async resolve(): Promise<null> {
+		return null;
+	}
+}

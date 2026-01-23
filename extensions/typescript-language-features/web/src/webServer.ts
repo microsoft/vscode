@@ -13,7 +13,13 @@ import { createSys } from './serverHost';
 import { findArgument, findArgumentStringArray, hasArgument, parseServerMode } from './util/args';
 import { StartSessionOptions, startWorkerSession } from './workerSession';
 
-const setSys: (s: ts.System) => void = (ts as any).setSys;
+type TsModule = typeof ts;
+
+interface TsInternals extends TsModule {
+	setSys(sys: ts.System): void;
+}
+
+const setSys: (s: ts.System) => void = (ts as TsInternals).setSys;
 
 async function initializeSession(
 	args: readonly string[],
@@ -41,6 +47,12 @@ async function initializeSession(
 		removeEventListener('message', listener);
 	});
 	setSys(sys);
+
+	const localeStr = findArgument(args, '--locale');
+	if (localeStr) {
+		ts.validateLocaleAndSetLanguage(localeStr, sys);
+	}
+
 	startWorkerSession(ts, sys, fs, sessionOptions, ports.tsserver, pathMapper, logger);
 }
 

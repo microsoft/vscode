@@ -207,6 +207,10 @@ export class MainThreadTunnelService extends Disposable implements MainThreadTun
 		}
 	}
 
+	async $hasTunnelProvider(): Promise<boolean> {
+		return this.tunnelService.hasTunnelProvider;
+	}
+
 	async $setCandidateFilter(): Promise<void> {
 		this.remoteExplorerService.setCandidateFilter((candidates: CandidatePort[]): Promise<CandidatePort[]> => {
 			return this._proxy.$applyCandidateFilter(candidates);

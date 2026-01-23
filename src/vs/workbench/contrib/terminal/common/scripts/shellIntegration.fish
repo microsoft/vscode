@@ -24,6 +24,17 @@ set --global VSCODE_SHELL_INTEGRATION 1
 set --global __vscode_shell_env_reporting $VSCODE_SHELL_ENV_REPORTING
 set -e VSCODE_SHELL_ENV_REPORTING
 
+# Prevent AI-executed commands from polluting shell history
+if test "$VSCODE_PREVENT_SHELL_HISTORY" = "1"
+	set -g fish_private_mode 1
+	set -e VSCODE_PREVENT_SHELL_HISTORY
+end
+
+set -g envVarsToReport
+if test -n "$__vscode_shell_env_reporting"
+	set envVarsToReport (string split "," "$__vscode_shell_env_reporting")
+end
+
 # Apply any explicit path prefix (see #99878)
 # On fish, '$fish_user_paths' is always prepended to the PATH, for both login and non-login shells, so we need
 # to apply the path prefix fix always, not only for login shells (see #232291)
@@ -68,6 +79,21 @@ function __vsc_apply_env_vars
 			set -gx "$split[1]" "$$split[1]"(echo -e "$split[2]") # avoid -a as it adds a space
 		end
 		set -e VSCODE_ENV_APPEND
+	end
+end
+
+# Register Python shell activate hooks
+# Prevent multiple activation with guard
+if not set -q VSCODE_PYTHON_AUTOACTIVATE_GUARD
+	set -gx VSCODE_PYTHON_AUTOACTIVATE_GUARD 1
+	if test -n "$VSCODE_PYTHON_FISH_ACTIVATE"; and test "$TERM_PROGRAM" = "vscode"
+		# Fish does not crash on eval failure, so don't need negation.
+		eval $VSCODE_PYTHON_FISH_ACTIVATE
+		set __vsc_activation_status $status
+
+		if test $__vsc_activation_status -ne 0
+			builtin printf '\x1b[0m\x1b[7m * \x1b[0;103m VS Code Python fish activation failed with exit code %d \x1b[0m \n' "$__vsc_activation_status"
+		end
 	end
 end
 
@@ -159,15 +185,20 @@ function __vsc_update_cwd --on-event fish_prompt
 	end
 end
 
-if test "$__vscode_shell_env_reporting" = "1"
+if test -n "$__vscode_shell_env_reporting"
 	function __vsc_update_env --on-event fish_prompt
-		__vsc_esc EnvSingleStart 1
-		for line in (env)
-			set myVar (echo $line | awk -F= '{print $1}')
-			set myVal (echo $line | awk -F= '{print $2}')
-			__vsc_esc EnvSingleEntry $myVar (__vsc_escape_value "$myVal")
+		if test (count $envVarsToReport) -gt 0
+			__vsc_esc EnvSingleStart 1
+
+			for key in $envVarsToReport
+				if set -q $key
+					set -l value $$key
+					__vsc_esc EnvSingleEntry $key (__vsc_escape_value "$value")
+				end
+			end
+
+			__vsc_esc EnvSingleEnd
 		end
-		__vsc_esc EnvSingleEnd
 	end
 end
 

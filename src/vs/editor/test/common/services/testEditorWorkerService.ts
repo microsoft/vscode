@@ -10,6 +10,7 @@ import { TextEdit, IInplaceReplaceSupportResult, IColorInformation } from '../..
 import { IDocumentDiff, IDocumentDiffProviderOptions } from '../../../common/diff/documentDiffProvider.js';
 import { IChange } from '../../../common/diff/legacyLinesDiffComputer.js';
 import { SectionHeader } from '../../../common/services/findSectionHeaders.js';
+import { StringEdit } from '../../../common/core/edits/stringEdit.js';
 
 export class TestEditorWorkerService implements IEditorWorkerService {
 
@@ -28,4 +29,8 @@ export class TestEditorWorkerService implements IEditorWorkerService {
 	async navigateValueSet(resource: URI, range: IRange, up: boolean): Promise<IInplaceReplaceSupportResult | null> { return null; }
 	async findSectionHeaders(uri: URI): Promise<SectionHeader[]> { return []; }
 	async computeDefaultDocumentColors(uri: URI): Promise<IColorInformation[] | null> { return null; }
+
+	computeStringEditFromDiff(original: string, modified: string, options: { maxComputationTimeMs: number }, algorithm: DiffAlgorithmName): Promise<StringEdit> {
+		throw new Error('Method not implemented.');
+	}
 }

@@ -8,16 +8,18 @@
 */
 
 .monaco-editor {
+	--inline-edit-border-radius: 3px;
+
 	.inline-edits-view-indicator {
 		display: flex;
 
 		z-index: 34; /* Below the find widget */
 		height: 20px;
 
-		color: var(--vscode-inlineEdit-indicator-foreground);
-		background-color: var(--vscode-inlineEdit-indicator-background);
-		border: 1px solid var(--vscode-inlineEdit-indicator-border);
-		border-radius: 3px;
+		color: var(--vscode-inlineEdit-gutterIndicator-primaryForeground);
+		background-color: var(--vscode-inlineEdit-gutterIndicator-background);
+		border: 1px solid var(--vscode-inlineEdit-gutterIndicator-primaryBorder);
+		border-radius: var(--inline-edit-border-radius);
 
 		align-items: center;
 		padding: 2px;
@@ -63,7 +65,7 @@
 			transform: none;
 			transition: transform 0.2s ease-in-out;
 			.codicon {
-				color: var(--vscode-inlineEdit-indicator-foreground);
+				color: var(--vscode-inlineEdit-gutterIndicator-primaryForeground);
 			}
 		}
 
@@ -132,13 +134,13 @@
 		border-bottom: 1px solid var(--vscode-inlineEdit-modifiedBorder); /* TODO: Do not set border inline but create overlaywidget (like deletion view) */
 	}
 	.inlineCompletions-char-insert.single-line-inline.start {
-		border-top-left-radius: 4px;
-		border-bottom-left-radius: 4px;
+		border-top-left-radius: var(--inline-edit-border-radius);
+		border-bottom-left-radius: var(--inline-edit-border-radius);
 		border-left: 1px solid var(--vscode-inlineEdit-modifiedBorder); /* TODO: Do not set border inline but create overlaywidget (like deletion view) */
 	}
 	.inlineCompletions-char-insert.single-line-inline.end {
-		border-top-right-radius: 4px;
-		border-bottom-right-radius: 4px;
+		border-top-right-radius: var(--inline-edit-border-radius);
+		border-bottom-right-radius: var(--inline-edit-border-radius);
 		border-right: 1px solid var(--vscode-inlineEdit-modifiedBorder); /* TODO: Do not set border inline but create overlaywidget (like deletion view) */
 	}
 
@@ -153,11 +155,11 @@
 
 	/* line replacement bubbles */
 
-	.inlineCompletions-modified-bubble{
+	.inlineCompletions-modified-bubble {
 		background: var(--vscode-inlineEdit-modifiedChangedTextBackground);
 	}
 
-	.inlineCompletions-original-bubble{
+	.inlineCompletions-original-bubble {
 		background: var(--vscode-inlineEdit-originalChangedTextBackground);
 	}
 
@@ -180,27 +182,81 @@
 	.inline-edit.modified-background.ghost-text,
 	.inline-edit.modified-background.ghost-text-decoration,
 	.inline-edit.modified-background.ghost-text-decoration-preview,
-	.inline-edit.modified-background.suggest-preview-text .ghost-text{
+	.inline-edit.modified-background.suggest-preview-text .ghost-text {
 		background: var(--vscode-inlineEdit-modifiedChangedTextBackground) !important;
 		display: inline-block !important;
+	}
+
+	.inlineCompletions-original-lines {
+		background: var(--vscode-editor-background);
+	}
+
+	.inline-edit-jump-to-widget {
+
+
+		.monaco-keybinding {
+			.monaco-keybinding-key {
+				font-size: 11px;
+				padding: 1px 2px 2px 2px;
+			}
+		}
 	}
 }
 
 .monaco-menu-option {
 	color: var(--vscode-editorActionList-foreground);
 	font-size: 13px;
-	padding: 0 10px;
-	line-height: 26px;
+	padding: 0 4px;
+	line-height: 28px;
 	display: flex;
-	gap: 8px;
+	gap: 4px;
 	align-items: center;
-	border-radius: 4px;
+	border-radius: 3px;
 	cursor: pointer;
+
+	.monaco-keybinding-key {
+		font-size: 13px;
+		opacity: 0.7;
+	}
 
 	&.active {
 		background: var(--vscode-editorActionList-focusBackground);
 		color: var(--vscode-editorActionList-focusForeground);
 		outline: 1px solid var(--vscode-menu-selectionBorder, transparent);
 		outline-offset: -1px;
+
+		.monaco-keybinding-key {
+			color: var(--vscode-editorActionList-focusForeground);
+		}
 	}
 }
+
+.inline-edits-long-distance-hint-widget .go-to-label::before {
+	content: '';
+	position: absolute;
+	left: -12px;
+	top: 0;
+	width: 12px;
+	height: 100%;
+	background: linear-gradient(to left, var(--vscode-editorWidget-background) 0, transparent 12px);
+}
+
+.hc-black .inline-edits-long-distance-hint-widget .go-to-label::before,
+.hc-light .inline-edits-long-distance-hint-widget .go-to-label::before {
+	/* Remove gradient in high contrast mode for clearer separation */
+	background: var(--vscode-editorWidget-background);
+}
+
+.inline-edit-alternative-action-label .codicon {
+	font-size: 12px !important;
+	padding-right: 4px;
+}
+
+.inline-edit-alternative-action-label .monaco-keybinding-key {
+	padding: 2px 3px;
+}
+
+.inline-edit-alternative-action-label .inline-edit-alternative-action-label-separator {
+	width: 4px;
+}
+

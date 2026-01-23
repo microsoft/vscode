@@ -92,6 +92,7 @@ suite('ResourceEditorInput', () => {
 			'**/*.txt': 'Label 2',
 			'**/resource.txt': 'Label 3',
 		});
+		// eslint-disable-next-line local/code-no-any-casts
 		testConfigurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration(configuration: string) { return configuration === CustomEditorLabelService.SETTING_ID_PATTERNS; }, source: ConfigurationTarget.USER } as any);
 
 		let label1Name: string = '';
@@ -102,24 +103,28 @@ suite('ResourceEditorInput', () => {
 		}));
 
 		await testConfigurationService.setUserConfiguration(CustomEditorLabelService.SETTING_ID_ENABLED, true);
+		// eslint-disable-next-line local/code-no-any-casts
 		testConfigurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration(configuration: string) { return configuration === CustomEditorLabelService.SETTING_ID_ENABLED; }, source: ConfigurationTarget.USER } as any);
 
 		assert.ok(label1Name === 'Label 3');
 		assert.ok(label2Name === 'Label 1');
 
 		await testConfigurationService.setUserConfiguration(CustomEditorLabelService.SETTING_ID_ENABLED, false);
+		// eslint-disable-next-line local/code-no-any-casts
 		testConfigurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration(configuration: string) { return configuration === CustomEditorLabelService.SETTING_ID_ENABLED; }, source: ConfigurationTarget.USER } as any);
 
 		assert.ok(label1Name === 'resource.txt' as string);
 		assert.ok(label2Name === 'resource.md' as string);
 
 		await testConfigurationService.setUserConfiguration(CustomEditorLabelService.SETTING_ID_ENABLED, true);
+		// eslint-disable-next-line local/code-no-any-casts
 		testConfigurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration(configuration: string) { return configuration === CustomEditorLabelService.SETTING_ID_ENABLED; }, source: ConfigurationTarget.USER } as any);
 
 		await testConfigurationService.setUserConfiguration(CustomEditorLabelService.SETTING_ID_PATTERNS, {
 			'thePath/**/resource.txt': 'Label 4',
 			'thePath/of/*/resource.txt': 'Label 5',
 		});
+		// eslint-disable-next-line local/code-no-any-casts
 		testConfigurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration(configuration: string) { return configuration === CustomEditorLabelService.SETTING_ID_PATTERNS; }, source: ConfigurationTarget.USER } as any);
 
 		assert.ok(label1Name === 'Label 5' as string);

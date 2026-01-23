@@ -15,6 +15,7 @@ import { Schemas } from '../../base/common/network.js';
 import { EditorInput } from './editor/editorInput.js';
 import { IEditorResolverService } from '../services/editor/common/editorResolverService.js';
 import { DEFAULT_EDITOR_ASSOCIATION } from './editor.js';
+import { DiffEditorInput } from './editor/diffEditorInput.js';
 
 //#region < --- Workbench --- >
 
@@ -32,12 +33,25 @@ export const RemoteNameContext = new RawContextKey<string>('remoteName', '', loc
 export const VirtualWorkspaceContext = new RawContextKey<string>('virtualWorkspace', '', localize('virtualWorkspace', "The scheme of the current workspace is from a virtual file system or an empty string."));
 export const TemporaryWorkspaceContext = new RawContextKey<boolean>('temporaryWorkspace', false, localize('temporaryWorkspace', "The scheme of the current workspace is from a temporary file system."));
 
-export const IsMainWindowFullscreenContext = new RawContextKey<boolean>('isFullscreen', false, localize('isFullscreen', "Whether the main window is in fullscreen mode"));
-export const IsAuxiliaryWindowFocusedContext = new RawContextKey<boolean>('isAuxiliaryWindowFocusedContext', false, localize('isAuxiliaryWindowFocusedContext', "Whether an auxiliary window is focused"));
+export const IsAgentSessionsWorkspaceContext = new RawContextKey<boolean>('isAgentSessionsWorkspace', false, localize('isAgentSessionsWorkspace', "Whether the current workspace is the agent sessions workspace."));
 
 export const HasWebFileSystemAccess = new RawContextKey<boolean>('hasWebFileSystemAccess', false, true); // Support for FileSystemAccess web APIs (https://wicg.github.io/file-system-access)
 
 export const EmbedderIdentifierContext = new RawContextKey<string | undefined>('embedderIdentifier', undefined, localize('embedderIdentifier', 'The identifier of the embedder according to the product service, if one is defined'));
+
+export const InAutomationContext = new RawContextKey<boolean>('inAutomation', false, localize('inAutomation', "Whether VS Code is running under automation/smoke test"));
+
+//#endregion
+
+//#region < --- Window --- >
+
+export const IsMainWindowFullscreenContext = new RawContextKey<boolean>('isFullscreen', false, localize('isFullscreen', "Whether the main window is in fullscreen mode"));
+export const IsAuxiliaryWindowFocusedContext = new RawContextKey<boolean>('isAuxiliaryWindowFocusedContext', false, localize('isAuxiliaryWindowFocusedContext', "Whether an auxiliary window is focused"));
+
+export const IsWindowAlwaysOnTopContext = new RawContextKey<boolean>('isWindowAlwaysOnTop', false, localize('isWindowAlwaysOnTop', "Whether the window is always on top"));
+
+export const IsAuxiliaryWindowContext = new RawContextKey<boolean>('isAuxiliaryWindow', false, localize('isAuxiliaryWindow', "Window is an auxiliary window"));
+
 
 //#endregion
 
@@ -79,7 +93,6 @@ export const SelectedEditorsInGroupFileOrUntitledResourceContextKey = new RawCon
 export const EditorPartMultipleEditorGroupsContext = new RawContextKey<boolean>('editorPartMultipleEditorGroups', false, localize('editorPartMultipleEditorGroups', "Whether there are multiple editor groups opened in an editor part"));
 export const EditorPartSingleEditorGroupsContext = EditorPartMultipleEditorGroupsContext.toNegated();
 export const EditorPartMaximizedEditorGroupContext = new RawContextKey<boolean>('editorPartMaximizedEditorGroup', false, localize('editorPartEditorGroupMaximized', "Editor Part has a maximized group"));
-export const IsAuxiliaryEditorPartContext = new RawContextKey<boolean>('isAuxiliaryEditorPart', false, localize('isAuxiliaryEditorPart', "Editor Part is in an auxiliary window"));
 
 // Editor Layout Context Keys
 export const EditorsVisibleContext = new RawContextKey<boolean>('editorIsOpen', false, localize('editorIsOpen', "Whether an editor is open"));
@@ -111,6 +124,7 @@ export const StatusBarFocused = new RawContextKey<boolean>('statusBarFocused', f
 
 export const TitleBarStyleContext = new RawContextKey<string>('titleBarStyle', 'custom', localize('titleBarStyle', "Style of the window title bar"));
 export const TitleBarVisibleContext = new RawContextKey<boolean>('titleBarVisible', false, localize('titleBarVisible', "Whether the title bar is visible"));
+export const IsCompactTitleBarContext = new RawContextKey<boolean>('isCompactTitleBar', false, localize('isCompactTitleBar', "Title bar is in compact mode"));
 
 //#endregion
 
@@ -136,6 +150,7 @@ export const NotificationsToastsVisibleContext = new RawContextKey<boolean>('not
 export const ActiveAuxiliaryContext = new RawContextKey<string>('activeAuxiliary', '', localize('activeAuxiliary', "The identifier of the active auxiliary panel"));
 export const AuxiliaryBarFocusContext = new RawContextKey<boolean>('auxiliaryBarFocus', false, localize('auxiliaryBarFocus', "Whether the auxiliary bar has keyboard focus"));
 export const AuxiliaryBarVisibleContext = new RawContextKey<boolean>('auxiliaryBarVisible', false, localize('auxiliaryBarVisible', "Whether the auxiliary bar is visible"));
+export const AuxiliaryBarMaximizedContext = new RawContextKey<boolean>('auxiliaryBarMaximized', false, localize('auxiliaryBarMaximized', "Whether the auxiliary bar is maximized"));
 
 //#endregion
 
@@ -162,7 +177,7 @@ export function getVisbileViewContextKey(viewId: string): string { return `view.
 
 //#region < --- Resources --- >
 
-export class ResourceContextKey {
+abstract class AbstractResourceContextKey {
 
 	// NOTE: DO NOT CHANGE THE DEFAULT VALUE TO ANYTHING BUT
 	// UNDEFINED! IT IS IMPORTANT THAT DEFAULTS ARE INHERITED
@@ -178,57 +193,35 @@ export class ResourceContextKey {
 	static readonly HasResource = new RawContextKey<boolean>('resourceSet', undefined, { type: 'boolean', description: localize('resourceSet', "Whether a resource is present or not") });
 	static readonly IsFileSystemResource = new RawContextKey<boolean>('isFileSystemResource', undefined, { type: 'boolean', description: localize('isFileSystemResource', "Whether the resource is backed by a file system provider") });
 
-	private readonly _disposables = new DisposableStore();
-
-	private _value: URI | undefined;
-	private readonly _resourceKey: IContextKey<string | null>;
-	private readonly _schemeKey: IContextKey<string | null>;
-	private readonly _filenameKey: IContextKey<string | null>;
-	private readonly _dirnameKey: IContextKey<string | null>;
-	private readonly _pathKey: IContextKey<string | null>;
-	private readonly _langIdKey: IContextKey<string | null>;
-	private readonly _extensionKey: IContextKey<string | null>;
-	private readonly _hasResource: IContextKey<boolean>;
-	private readonly _isFileSystemResource: IContextKey<boolean>;
+	protected _value: URI | undefined;
+	protected readonly _resourceKey: IContextKey<string | null>;
+	protected readonly _schemeKey: IContextKey<string | null>;
+	protected readonly _filenameKey: IContextKey<string | null>;
+	protected readonly _dirnameKey: IContextKey<string | null>;
+	protected readonly _pathKey: IContextKey<string | null>;
+	protected readonly _langIdKey: IContextKey<string | null>;
+	protected readonly _extensionKey: IContextKey<string | null>;
+	protected readonly _hasResource: IContextKey<boolean>;
+	protected readonly _isFileSystemResource: IContextKey<boolean>;
 
 	constructor(
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@IFileService private readonly _fileService: IFileService,
-		@ILanguageService private readonly _languageService: ILanguageService,
-		@IModelService private readonly _modelService: IModelService
+		@IContextKeyService protected readonly _contextKeyService: IContextKeyService,
+		@IFileService protected readonly _fileService: IFileService,
+		@ILanguageService protected readonly _languageService: ILanguageService,
+		@IModelService protected readonly _modelService: IModelService
 	) {
-		this._schemeKey = ResourceContextKey.Scheme.bindTo(this._contextKeyService);
-		this._filenameKey = ResourceContextKey.Filename.bindTo(this._contextKeyService);
-		this._dirnameKey = ResourceContextKey.Dirname.bindTo(this._contextKeyService);
-		this._pathKey = ResourceContextKey.Path.bindTo(this._contextKeyService);
-		this._langIdKey = ResourceContextKey.LangId.bindTo(this._contextKeyService);
-		this._resourceKey = ResourceContextKey.Resource.bindTo(this._contextKeyService);
-		this._extensionKey = ResourceContextKey.Extension.bindTo(this._contextKeyService);
-		this._hasResource = ResourceContextKey.HasResource.bindTo(this._contextKeyService);
-		this._isFileSystemResource = ResourceContextKey.IsFileSystemResource.bindTo(this._contextKeyService);
-
-		this._disposables.add(_fileService.onDidChangeFileSystemProviderRegistrations(() => {
-			const resource = this.get();
-			this._isFileSystemResource.set(Boolean(resource && _fileService.hasProvider(resource)));
-		}));
-
-		this._disposables.add(_modelService.onModelAdded(model => {
-			if (isEqual(model.uri, this.get())) {
-				this._setLangId();
-			}
-		}));
-		this._disposables.add(_modelService.onModelLanguageChanged(e => {
-			if (isEqual(e.model.uri, this.get())) {
-				this._setLangId();
-			}
-		}));
+		this._schemeKey = AbstractResourceContextKey.Scheme.bindTo(this._contextKeyService);
+		this._filenameKey = AbstractResourceContextKey.Filename.bindTo(this._contextKeyService);
+		this._dirnameKey = AbstractResourceContextKey.Dirname.bindTo(this._contextKeyService);
+		this._pathKey = AbstractResourceContextKey.Path.bindTo(this._contextKeyService);
+		this._langIdKey = AbstractResourceContextKey.LangId.bindTo(this._contextKeyService);
+		this._resourceKey = AbstractResourceContextKey.Resource.bindTo(this._contextKeyService);
+		this._extensionKey = AbstractResourceContextKey.Extension.bindTo(this._contextKeyService);
+		this._hasResource = AbstractResourceContextKey.HasResource.bindTo(this._contextKeyService);
+		this._isFileSystemResource = AbstractResourceContextKey.IsFileSystemResource.bindTo(this._contextKeyService);
 	}
 
-	dispose(): void {
-		this._disposables.dispose();
-	}
-
-	private _setLangId(): void {
+	protected _setLangId(): void {
 		const value = this.get();
 		if (!value) {
 			this._langIdKey.set(null);
@@ -257,11 +250,10 @@ export class ResourceContextKey {
 		});
 	}
 
-	private uriToPath(uri: URI): string {
+	protected uriToPath(uri: URI): string {
 		if (uri.scheme === Schemas.file) {
 			return uri.fsPath;
 		}
-
 		return uri.path;
 	}
 
@@ -285,6 +277,45 @@ export class ResourceContextKey {
 	}
 }
 
+export class ResourceContextKey extends AbstractResourceContextKey {
+
+	private readonly _disposables = new DisposableStore();
+
+	constructor(
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IFileService fileService: IFileService,
+		@ILanguageService languageService: ILanguageService,
+		@IModelService modelService: IModelService
+	) {
+		super(contextKeyService, fileService, languageService, modelService);
+		this._disposables.add(fileService.onDidChangeFileSystemProviderRegistrations(() => {
+			const resource = this.get();
+			this._isFileSystemResource.set(Boolean(resource && fileService.hasProvider(resource)));
+		}));
+		this._disposables.add(modelService.onModelAdded(model => {
+			if (isEqual(model.uri, this.get())) {
+				this._setLangId();
+			}
+		}));
+		this._disposables.add(modelService.onModelLanguageChanged(e => {
+			if (isEqual(e.model.uri, this.get())) {
+				this._setLangId();
+			}
+		}));
+	}
+
+	dispose(): void {
+		this._disposables.dispose();
+	}
+}
+
+/**
+ * This is a version of ResourceContextKey that is not disposable and has no listeners for model change events.
+ * It will configure itself for the state/presence of a model only when created and not update.
+ */
+export class StaticResourceContextKey extends AbstractResourceContextKey { }
+
+
 //#endregion
 
 export function applyAvailableEditorIds(contextKey: IContextKey<string>, editor: EditorInput | undefined | null, editorResolverService: IEditorResolverService): void {
@@ -293,13 +324,30 @@ export function applyAvailableEditorIds(contextKey: IContextKey<string>, editor:
 		return;
 	}
 
-	const editorResource = editor.resource;
-	if (editorResource?.scheme === Schemas.untitled && editor.editorId !== DEFAULT_EDITOR_ASSOCIATION.id) {
-		// Non text editor untitled files cannot be easily serialized between extensions
-		// so instead we disable this context key to prevent common commands that act on the active editor
-		contextKey.set('');
-	} else {
-		const editors = editorResource ? editorResolverService.getEditors(editorResource).map(editor => editor.id) : [];
-		contextKey.set(editors.join(','));
+	const editors = getAvailableEditorIds(editor, editorResolverService);
+	contextKey.set(editors.join(','));
+}
+
+function getAvailableEditorIds(editor: EditorInput, editorResolverService: IEditorResolverService): string[] {
+	// Non text editor untitled files cannot be easily serialized between
+	// extensions so instead we disable this context key to prevent common
+	// commands that act on the active editor.
+	if (editor.resource?.scheme === Schemas.untitled && editor.editorId !== DEFAULT_EDITOR_ASSOCIATION.id) {
+		return [];
 	}
+
+	// Diff editors. The original and modified resources of a diff editor
+	// *should* be the same, but calculate the set intersection just to be safe.
+	if (editor instanceof DiffEditorInput) {
+		const original = getAvailableEditorIds(editor.original, editorResolverService);
+		const modified = new Set(getAvailableEditorIds(editor.modified, editorResolverService));
+		return original.filter(editor => modified.has(editor));
+	}
+
+	// Normal editors.
+	if (editor.resource) {
+		return editorResolverService.getEditors(editor.resource).map(editor => editor.id);
+	}
+
+	return [];
 }

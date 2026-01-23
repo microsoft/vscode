@@ -7,7 +7,7 @@ import { $, append, clearNode, getContentHeight, getContentWidth } from '../../d
 import { createStyleSheet } from '../../domStylesheets.js';
 import { getBaseLayerHoverDelegate } from '../hover/hoverDelegate2.js';
 import { getDefaultHoverDelegate } from '../hover/hoverDelegateFactory.js';
-import { IListRenderer, IListVirtualDelegate } from '../list/list.js';
+import { IListElementRenderDetails, IListRenderer, IListVirtualDelegate } from '../list/list.js';
 import { IListOptions, IListOptionsUpdate, IListStyles, List, unthemedListStyles } from '../list/listWidget.js';
 import { ISplitViewDescriptor, IView, Orientation, SplitView } from '../splitview/splitview.js';
 import { ITableColumn, ITableContextMenuEvent, ITableEvent, ITableGestureEvent, ITableMouseEvent, ITableRenderer, ITableTouchEvent, ITableVirtualDelegate } from './table.js';
@@ -72,16 +72,16 @@ class TableListRenderer<TRow> implements IListRenderer<TRow, RowTemplateData> {
 		return result;
 	}
 
-	renderElement(element: TRow, index: number, templateData: RowTemplateData, height: number | undefined): void {
+	renderElement(element: TRow, index: number, templateData: RowTemplateData, renderDetails?: IListElementRenderDetails): void {
 		for (let i = 0; i < this.columns.length; i++) {
 			const column = this.columns[i];
 			const cell = column.project(element);
 			const renderer = this.renderers[i];
-			renderer.renderElement(cell, index, templateData.cellTemplateData[i], height);
+			renderer.renderElement(cell, index, templateData.cellTemplateData[i], renderDetails);
 		}
 	}
 
-	disposeElement(element: TRow, index: number, templateData: RowTemplateData, height: number | undefined): void {
+	disposeElement(element: TRow, index: number, templateData: RowTemplateData, renderDetails?: IListElementRenderDetails): void {
 		for (let i = 0; i < this.columns.length; i++) {
 			const renderer = this.renderers[i];
 
@@ -89,7 +89,7 @@ class TableListRenderer<TRow> implements IListRenderer<TRow, RowTemplateData> {
 				const column = this.columns[i];
 				const cell = column.project(element);
 
-				renderer.disposeElement(cell, index, templateData.cellTemplateData[i], height);
+				renderer.disposeElement(cell, index, templateData.cellTemplateData[i], renderDetails);
 			}
 		}
 	}

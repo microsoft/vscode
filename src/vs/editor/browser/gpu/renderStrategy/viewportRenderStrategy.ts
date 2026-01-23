@@ -11,7 +11,8 @@ import { CursorColumns } from '../../../common/core/cursorColumns.js';
 import type { IViewLineTokens } from '../../../common/tokens/lineTokens.js';
 import { type ViewConfigurationChangedEvent, type ViewDecorationsChangedEvent, type ViewLineMappingChangedEvent, type ViewLinesChangedEvent, type ViewLinesDeletedEvent, type ViewLinesInsertedEvent, type ViewScrollChangedEvent, type ViewThemeChangedEvent, type ViewTokensChangedEvent, type ViewZonesChangedEvent } from '../../../common/viewEvents.js';
 import type { ViewportData } from '../../../common/viewLayout/viewLinesViewportData.js';
-import type { InlineDecoration, ViewLineRenderingData } from '../../../common/viewModel.js';
+import type { ViewLineRenderingData } from '../../../common/viewModel.js';
+import { InlineDecoration } from '../../../common/viewModel/inlineDecorations.js';
 import type { ViewContext } from '../../../common/viewModel/viewContext.js';
 import type { ViewLineOptions } from '../../viewParts/viewLines/viewLineOptions.js';
 import type { ITextureAtlasPageGlyph } from '../atlas/atlas.js';
@@ -64,6 +65,7 @@ export class ViewportRenderStrategy extends BaseRenderStrategy {
 	private _activeDoubleBufferIndex: 0 | 1 = 0;
 
 	private _visibleObjectCount: number = 0;
+	private _lastViewportLineCount: number = 0;
 
 	private _scrollOffsetBindBuffer: GPUBuffer;
 	private _scrollOffsetValueBuffer: Float32Array;
@@ -115,6 +117,7 @@ export class ViewportRenderStrategy extends BaseRenderStrategy {
 			new ArrayBuffer(bufferSize),
 		];
 		this._cellBindBufferLineCapacity = lineCountWithIncrement;
+		this._lastViewportLineCount = 0;
 
 		this._onDidChangeBindGroupEntries.fire();
 	}
@@ -157,7 +160,7 @@ export class ViewportRenderStrategy extends BaseRenderStrategy {
 		const dpr = getActiveWindow().devicePixelRatio;
 		this._scrollOffsetValueBuffer[0] = (e?.scrollLeft ?? this._context.viewLayout.getCurrentScrollLeft()) * dpr;
 		this._scrollOffsetValueBuffer[1] = (e?.scrollTop ?? this._context.viewLayout.getCurrentScrollTop()) * dpr;
-		this._device.queue.writeBuffer(this._scrollOffsetBindBuffer, 0, this._scrollOffsetValueBuffer);
+		this._device.queue.writeBuffer(this._scrollOffsetBindBuffer, 0, this._scrollOffsetValueBuffer as Float32Array<ArrayBuffer>);
 		return true;
 	}
 
@@ -182,6 +185,7 @@ export class ViewportRenderStrategy extends BaseRenderStrategy {
 			buffer.fill(0, 0, buffer.length);
 			this._device.queue.writeBuffer(this._cellBindBuffer, 0, buffer.buffer, 0, buffer.byteLength);
 		}
+		this._lastViewportLineCount = 0;
 	}
 
 	update(viewportData: ViewportData, viewLineOptions: ViewLineOptions): number {
@@ -208,6 +212,9 @@ export class ViewportRenderStrategy extends BaseRenderStrategy {
 		let decorationStyleSetBold: boolean | undefined;
 		let decorationStyleSetColor: number | undefined;
 		let decorationStyleSetOpacity: number | undefined;
+		let decorationStyleSetStrikethrough: boolean | undefined;
+		let decorationStyleSetStrikethroughThickness: number | undefined;
+		let decorationStyleSetStrikethroughColor: number | undefined;
 
 		let lineData: ViewLineRenderingData;
 		let decoration: InlineDecoration;
@@ -245,7 +252,7 @@ export class ViewportRenderStrategy extends BaseRenderStrategy {
 
 			contentSegmenter = createContentSegmenter(lineData, viewLineOptions);
 			charWidth = viewLineOptions.spaceWidth * dpr;
-			absoluteOffsetX = 0;
+			absoluteOffsetX = (lineData.minColumn - 1) * charWidth;
 
 			tokens = lineData.tokens;
 			tokenStartIndex = lineData.minColumn - 1;
@@ -277,6 +284,9 @@ export class ViewportRenderStrategy extends BaseRenderStrategy {
 					decorationStyleSetColor = undefined;
 					decorationStyleSetBold = undefined;
 					decorationStyleSetOpacity = undefined;
+					decorationStyleSetStrikethrough = undefined;
+					decorationStyleSetStrikethroughThickness = undefined;
+					decorationStyleSetStrikethroughColor = undefined;
 
 					// Apply supported inline decoration styles to the cell metadata
 					for (decoration of lineData.inlineDecorations) {
@@ -321,6 +331,36 @@ export class ViewportRenderStrategy extends BaseRenderStrategy {
 										decorationStyleSetOpacity = parsedValue;
 										break;
 									}
+									case 'text-decoration':
+									case 'text-decoration-line': {
+										if (value === 'line-through') {
+											decorationStyleSetStrikethrough = true;
+										}
+										break;
+									}
+									case 'text-decoration-thickness': {
+										const match = value.match(/^(\d+(?:\.\d+)?)px$/);
+										if (match) {
+											decorationStyleSetStrikethroughThickness = parseFloat(match[1]);
+										}
+										break;
+									}
+									case 'text-decoration-color': {
+										let colorValue = value;
+										const varMatch = value.match(/^var\((--[^,]+),\s*(?:initial|inherit)\)$/);
+										if (varMatch) {
+											colorValue = ViewGpuContext.decorationCssRuleExtractor.resolveCssVariable(this._viewGpuContext.canvas.domNode, varMatch[1]);
+										}
+										const parsedColor = Color.Format.CSS.parse(colorValue);
+										if (parsedColor) {
+											decorationStyleSetStrikethroughColor = parsedColor.toNumber32Bit();
+										}
+										break;
+									}
+									case 'text-decoration-style': {
+										// These are validated in canRender and use default behavior
+										break;
+									}
 									default: throw new BugIndicatingError('Unexpected inline decoration style');
 								}
 							}
@@ -345,7 +385,7 @@ export class ViewportRenderStrategy extends BaseRenderStrategy {
 						continue;
 					}
 
-					const decorationStyleSetId = ViewGpuContext.decorationStyleCache.getOrCreateEntry(decorationStyleSetColor, decorationStyleSetBold, decorationStyleSetOpacity);
+					const decorationStyleSetId = ViewGpuContext.decorationStyleCache.getOrCreateEntry(decorationStyleSetColor, decorationStyleSetBold, decorationStyleSetOpacity, decorationStyleSetStrikethrough, decorationStyleSetStrikethroughThickness, decorationStyleSetStrikethroughColor);
 					glyph = this._viewGpuContext.atlas.getGlyph(this.glyphRasterizer, chars, tokenMetadata, decorationStyleSetId, absoluteOffsetX);
 
 					absoluteOffsetY = Math.round(
@@ -381,6 +421,7 @@ export class ViewportRenderStrategy extends BaseRenderStrategy {
 		}
 
 		const visibleObjectCount = (viewportData.endLineNumber - viewportData.startLineNumber + 1) * lineIndexCount;
+		const viewportLineCount = viewportData.endLineNumber - viewportData.startLineNumber + 1;
 
 		// This render strategy always uploads the whole viewport
 		this._device.queue.writeBuffer(
@@ -388,8 +429,24 @@ export class ViewportRenderStrategy extends BaseRenderStrategy {
 			0,
 			cellBuffer.buffer,
 			0,
-			(viewportData.endLineNumber - viewportData.startLineNumber) * lineIndexCount * Float32Array.BYTES_PER_ELEMENT
+			visibleObjectCount * Float32Array.BYTES_PER_ELEMENT
 		);
+
+		// Clear stale lines in GPU buffer if viewport shrunk
+		if (viewportLineCount < this._lastViewportLineCount) {
+			const staleLineCount = this._lastViewportLineCount - viewportLineCount;
+			const staleStartOffset = visibleObjectCount * Float32Array.BYTES_PER_ELEMENT;
+			const staleByteCount = staleLineCount * lineIndexCount * Float32Array.BYTES_PER_ELEMENT;
+			// Write zeros from the zeroed cellBuffer for the stale region
+			this._device.queue.writeBuffer(
+				this._cellBindBuffer,
+				staleStartOffset,
+				cellBuffer.buffer,
+				visibleObjectCount * Float32Array.BYTES_PER_ELEMENT,
+				staleByteCount
+			);
+		}
+		this._lastViewportLineCount = viewportLineCount;
 
 		this._activeDoubleBufferIndex = this._activeDoubleBufferIndex ? 0 : 1;
 

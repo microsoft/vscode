@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import * as path from '../../../../../base/common/path.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import * as glob from '../../../../../base/common/glob.js';
-import { URI } from '../../../../../base/common/uri.js';
-import { deserializeSearchError, IFolderQuery, ISearchRange, ITextQuery, ITextSearchContext, ITextSearchMatch, QueryType, SearchErrorCode, ISerializedFileMatch } from '../../common/search.js';
-import { TextSearchEngineAdapter } from '../../node/textSearchAdapter.js';
-import { flakySuite } from '../../../../../base/test/node/testUtils.js';
 import { FileAccess } from '../../../../../base/common/network.js';
+import * as path from '../../../../../base/common/path.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { flakySuite } from '../../../../../base/test/node/testUtils.js';
+import { deserializeSearchError, IFolderQuery, ISearchRange, ISerializedFileMatch, ITextQuery, ITextSearchContext, ITextSearchMatch, QueryType, SearchErrorCode } from '../../common/search.js';
+import { TextSearchEngineAdapter } from '../../node/textSearchAdapter.js';
 
 const TEST_FIXTURES = path.normalize(FileAccess.asFileUri('vs/workbench/services/search/test/node/fixtures').fsPath);
 const EXAMPLES_FIXTURES = path.join(TEST_FIXTURES, 'examples');
@@ -346,12 +346,12 @@ flakySuite('TextSearch-integration', function () {
 		};
 
 		return doSearchTest(config, 3).then(results => {
-			assert.strictEqual(results.length, 3);
+			assert.strictEqual(results.length, 1);
+			assert.strictEqual(results[0].results!.length, 3);
 			assert.strictEqual((<ITextSearchContext>results[0].results![0]).lineNumber, 24);
 			assert.strictEqual((<ITextSearchContext>results[0].results![0]).text, '        compiler.addUnit(prog,"input.ts");');
-			// assert.strictEqual((<ITextSearchMatch>results[1].results[0]).preview.text, '        compiler.typeCheck();\n'); // See https://github.com/BurntSushi/ripgrep/issues/1095
-			assert.strictEqual((<ITextSearchContext>results[2].results![0]).lineNumber, 26);
-			assert.strictEqual((<ITextSearchContext>results[2].results![0]).text, '        compiler.emit();');
+			assert.strictEqual((<ITextSearchContext>results[0].results![2]).lineNumber, 26);
+			assert.strictEqual((<ITextSearchContext>results[0].results![2]).text, '        compiler.emit();');
 		});
 	});
 
@@ -405,7 +405,7 @@ flakySuite('TextSearch-integration', function () {
 				throw new Error('expected fail');
 			}, err => {
 				const searchError = deserializeSearchError(err);
-				const regexParseErrorForLookAround = 'Regex parse error: lookbehind assertion is not fixed length';
+				const regexParseErrorForLookAround = 'Regex parse error: length of lookbehind assertion is not limited';
 				assert.strictEqual(searchError.message, regexParseErrorForLookAround);
 				assert.strictEqual(searchError.code, SearchErrorCode.regexParseError);
 			});

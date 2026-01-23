@@ -10,7 +10,7 @@ import { Disposable, dispose, IDisposable } from '../../../../../base/common/lif
 import { Schemas } from '../../../../../base/common/network.js';
 import { filter } from '../../../../../base/common/objects.js';
 import { isEqual } from '../../../../../base/common/resources.js';
-import { isDefined } from '../../../../../base/common/types.js';
+import { hasKey, isDefined } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Position } from '../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../editor/common/core/range.js';
@@ -23,8 +23,9 @@ import { IModelContentChangedEvent } from '../../../../../editor/common/textMode
 import { IResourceUndoRedoElement, IUndoRedoElement, IUndoRedoService, IWorkspaceUndoRedoElement, UndoRedoElementType, UndoRedoGroup } from '../../../../../platform/undoRedo/common/undoRedo.js';
 import { ILanguageDetectionService } from '../../../../services/languageDetection/common/languageDetectionWorkerService.js';
 import { SnapshotContext } from '../../../../services/workingCopy/common/fileWorkingCopy.js';
-import { CellEditType, CellKind, CellUri, diff, ICell, ICellDto2, ICellEditOperation, ICellOutput, INotebookSnapshotOptions, INotebookTextModel, IOutputDto, IOutputItemDto, ISelectionState, NotebookCellCollapseState, NotebookCellDefaultCollapseConfig, NotebookCellExecutionState, NotebookCellInternalMetadata, NotebookCellMetadata, NotebookCellOutputsSplice, NotebookCellsChangeType, NotebookCellTextModelSplice, NotebookData, NotebookDocumentMetadata, NotebookTextModelChangedEvent, NotebookTextModelWillAddRemoveEvent, NullablePartialNotebookCellInternalMetadata, NullablePartialNotebookCellMetadata, TransientOptions } from '../notebookCommon.js';
+import { CellEditType, CellUri, diff, ICell, ICellDto2, ICellEditOperation, ICellOutput, INotebookSnapshotOptions, INotebookTextModel, IOutputDto, IOutputItemDto, ISelectionState, NotebookCellDefaultCollapseConfig, NotebookCellExecutionState, NotebookCellInternalMetadata, NotebookCellMetadata, NotebookCellOutputsSplice, NotebookCellsChangeType, NotebookCellTextModelSplice, NotebookData, NotebookDocumentMetadata, NotebookTextModelChangedEvent, NotebookTextModelWillAddRemoveEvent, NullablePartialNotebookCellInternalMetadata, NullablePartialNotebookCellMetadata, TransientOptions } from '../notebookCommon.js';
 import { INotebookExecutionStateService } from '../notebookExecutionStateService.js';
+import { INotebookLoggingService } from '../notebookLoggingService.js';
 import { CellMetadataEdit, MoveCellEdit, SpliceCellsEdit } from './cellEdit.js';
 import { NotebookCellOutputTextModel } from './notebookCellOutputTextModel.js';
 import { NotebookCellTextModel } from './notebookCellTextModel.js';
@@ -49,8 +50,8 @@ class StackOperation implements IWorkspaceUndoRedoElement {
 	constructor(
 		readonly textModel: NotebookTextModel,
 		readonly undoRedoGroup: UndoRedoGroup | undefined,
-		private _pauseableEmitter: PauseableEmitter<NotebookTextModelChangedEvent>,
-		private _postUndoRedo: (alternativeVersionId: string) => void,
+		private readonly _pauseableEmitter: PauseableEmitter<NotebookTextModelChangedEvent>,
+		private readonly _postUndoRedo: (alternativeVersionId: string) => void,
 		selectionState: ISelectionState | undefined,
 		beginAlternativeVersionId: string
 	) {
@@ -252,6 +253,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		@ILanguageService private readonly _languageService: ILanguageService,
 		@ILanguageDetectionService private readonly _languageDetectionService: ILanguageDetectionService,
 		@INotebookExecutionStateService private readonly _notebookExecutionStateService: INotebookExecutionStateService,
+		@INotebookLoggingService private readonly _notebookLoggingService: INotebookLoggingService
 	) {
 		super();
 		this.transientOptions = options;
@@ -274,7 +276,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		};
 		this._register(_modelService.onModelAdded(e => maybeUpdateCellTextModel(e)));
 
-		this._pauseableEmitter = new NotebookEventEmitter({
+		this._pauseableEmitter = this._register(new NotebookEventEmitter({
 			merge: (events: NotebookTextModelChangedEvent[]) => {
 				const first = events[0];
 
@@ -292,7 +294,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 				return { rawEvents, versionId, endSelectionState, synchronous };
 			}
-		});
+		}));
 
 		this._register(this._pauseableEmitter.event(e => {
 			if (e.rawEvents.length) {
@@ -309,6 +311,8 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 				this._overwriteAlternativeVersionId(alternativeVersionId);
 			}
 		);
+
+		this._notebookLoggingService.trace('notebookTextModel', `Initialized notebook text model for ${uri.toString()}`);
 	}
 
 	setCellCollapseDefault(collapseConfig: NotebookCellDefaultCollapseConfig | undefined) {
@@ -323,8 +327,17 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		const mainCells = cells.map(cell => {
 			const cellHandle = this._cellhandlePool++;
 			const cellUri = CellUri.generate(this.uri, cellHandle);
-			const collapseState = this._getDefaultCollapseState(cell);
-			return new NotebookCellTextModel(cellUri, cellHandle, cell.source, cell.language, cell.mime, cell.cellKind, cell.outputs, cell.metadata, cell.internalMetadata, collapseState, this.transientOptions, this._languageService, this._languageDetectionService);
+			return new NotebookCellTextModel(
+				cellUri,
+				cellHandle,
+				cell,
+				this.transientOptions,
+				this._languageService,
+				this._modelService.getCreationOptions(cell.language, cellUri, false).defaultEOL,
+				this._defaultCollapseConfig,
+				this._languageDetectionService,
+				this._notebookLoggingService
+			);
 		});
 
 		for (let i = 0; i < mainCells.length; i++) {
@@ -423,11 +436,11 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	}
 
 	private _getCellIndexWithOutputIdHandleFromEdits(outputId: string, rawEdits: ICellEditOperation[]) {
-		const edit = rawEdits.find(e => 'outputs' in e && e.outputs.some(o => o.outputId === outputId));
+		const edit = rawEdits.find(e => hasKey(e, { outputs: true }) && e.outputs.some(o => o.outputId === outputId));
 		if (edit) {
-			if ('index' in edit) {
+			if (hasKey(edit, { index: true })) {
 				return edit.index;
-			} else if ('handle' in edit) {
+			} else if (hasKey(edit, { handle: true })) {
 				const cellIndex = this._getCellIndexByHandle(edit.handle);
 				this._assertIndex(cellIndex);
 				return cellIndex;
@@ -608,10 +621,10 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 				return false;
 			}
 
-			if (('index' in edit) && !this.newCellsFromLastEdit.has(this.cells[edit.index].handle)) {
+			if (hasKey(edit, { index: true }) && !this.newCellsFromLastEdit.has(this.cells[edit.index].handle)) {
 				return false;
 			}
-			if ('handle' in edit && !this.newCellsFromLastEdit.has(edit.handle)) {
+			if (hasKey(edit, { handle: true }) && !this.newCellsFromLastEdit.has(edit.handle)) {
 				return false;
 			}
 		}
@@ -620,33 +633,41 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	}
 
 	applyEdits(rawEdits: ICellEditOperation[], synchronous: boolean, beginSelectionState: ISelectionState | undefined, endSelectionsComputer: () => ISelectionState | undefined, undoRedoGroup: UndoRedoGroup | undefined, computeUndoRedo: boolean): boolean {
+		this._notebookLoggingService.trace('textModelEdits', `Begin applying ${rawEdits.length} raw edits`);
 		this._pauseableEmitter.pause();
-		this._operationManager.pushStackElement(this._alternativeVersionId, undefined);
-
-		if (computeUndoRedo && this.isOnlyEditingMetadataOnNewCells(rawEdits)) {
-			if (!this._operationManager.appendPreviousOperation()) {
-				// we can't append the previous operation, so just don't compute undo/redo
-				computeUndoRedo = false;
-			}
-		} else if (computeUndoRedo) {
-			this.newCellsFromLastEdit.clear();
-		}
-
 		try {
-			this._doApplyEdits(rawEdits, synchronous, computeUndoRedo, beginSelectionState, undoRedoGroup);
-			return true;
-		} finally {
-			if (!this._pauseableEmitter.isEmpty) {
-				// Update selection and versionId after applying edits.
-				const endSelections = endSelectionsComputer();
-				this._increaseVersionId(this._operationManager.isUndoStackEmpty() && !this._pauseableEmitter.isDirtyEvent());
+			this._operationManager.pushStackElement(this._alternativeVersionId, undefined);
 
-				// Finalize undo element
-				this._operationManager.pushStackElement(this._alternativeVersionId, endSelections);
-
-				// Broadcast changes
-				this._pauseableEmitter.fire({ rawEvents: [], versionId: this.versionId, synchronous: synchronous, endSelectionState: endSelections });
+			if (computeUndoRedo && this.isOnlyEditingMetadataOnNewCells(rawEdits)) {
+				if (!this._operationManager.appendPreviousOperation()) {
+					// we can't append the previous operation, so just don't compute undo/redo
+					computeUndoRedo = false;
+				}
+			} else if (computeUndoRedo) {
+				this.newCellsFromLastEdit.clear();
 			}
+
+			try {
+				this._doApplyEdits(rawEdits, synchronous, computeUndoRedo, beginSelectionState, undoRedoGroup);
+				return true;
+			} catch (err) {
+				this._notebookLoggingService.error('textModelEdits', `Error while applying edits: ${err}`);
+				throw err;
+			} finally {
+				if (!this._pauseableEmitter.isEmpty) {
+					// Update selection and versionId after applying edits.
+					const endSelections = endSelectionsComputer();
+					this._increaseVersionId(this._operationManager.isUndoStackEmpty() && !this._pauseableEmitter.isDirtyEvent());
+
+					// Finalize undo element
+					this._operationManager.pushStackElement(this._alternativeVersionId, endSelections);
+
+					// Broadcast changes
+					this._pauseableEmitter.fire({ rawEvents: [], versionId: this.versionId, synchronous: synchronous, endSelectionState: endSelections });
+					this._notebookLoggingService.trace('textModelEdits', `End applying ${rawEdits.length} raw edits`);
+				}
+			}
+		} finally {
 			this._pauseableEmitter.resume();
 		}
 	}
@@ -654,12 +675,12 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	private _doApplyEdits(rawEdits: ICellEditOperation[], synchronous: boolean, computeUndoRedo: boolean, beginSelectionState: ISelectionState | undefined, undoRedoGroup: UndoRedoGroup | undefined): void {
 		const editsWithDetails = rawEdits.map((edit, index) => {
 			let cellIndex: number = -1;
-			if ('index' in edit) {
+			if (hasKey(edit, { index: true })) {
 				cellIndex = edit.index;
-			} else if ('handle' in edit) {
+			} else if (hasKey(edit, { handle: true })) {
 				cellIndex = this._getCellIndexByHandle(edit.handle);
 				this._assertIndex(cellIndex);
-			} else if ('outputId' in edit) {
+			} else if (hasKey(edit, { outputId: true })) {
 				cellIndex = this._getCellIndexWithOutputIdHandle(edit.outputId);
 				if (this._indexIsInvalid(cellIndex)) {
 					// The referenced output may have been created in this batch of edits
@@ -671,7 +692,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 					return null;
 				}
 			} else if (edit.editType !== CellEditType.DocumentMetadata) {
-				throw new Error('Invalid cell edit');
+				throw new Error('Invalid cell edit: ' + JSON.stringify(edit));
 			}
 
 			return {
@@ -817,11 +838,6 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		return mergedEdits;
 	}
 
-	private _getDefaultCollapseState(cellDto: ICellDto2): NotebookCellCollapseState | undefined {
-		const defaultConfig = cellDto.cellKind === CellKind.Code ? this._defaultCollapseConfig?.codeCell : this._defaultCollapseConfig?.markupCell;
-		return cellDto.collapseState ?? (defaultConfig ?? undefined);
-	}
-
 	private _replaceCells(index: number, count: number, cellDtos: ICellDto2[], synchronous: boolean, computeUndoRedo: boolean, beginSelectionState: ISelectionState | undefined, undoRedoGroup: UndoRedoGroup | undefined): void {
 
 		if (count === 0 && cellDtos.length === 0) {
@@ -845,12 +861,19 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		const cells = cellDtos.map(cellDto => {
 			const cellHandle = this._cellhandlePool++;
 			const cellUri = CellUri.generate(this.uri, cellHandle);
-			const collapseState = this._getDefaultCollapseState(cellDto);
+			if (!cellDto.outputs) {
+				cellDto.outputs = [];
+			}
 			const cell = new NotebookCellTextModel(
-				cellUri, cellHandle,
-				cellDto.source, cellDto.language, cellDto.mime, cellDto.cellKind, cellDto.outputs || [], cellDto.metadata, cellDto.internalMetadata, collapseState, this.transientOptions,
+				cellUri,
+				cellHandle,
+				cellDto,
+				this.transientOptions,
 				this._languageService,
-				this._languageDetectionService
+				this._modelService.getCreationOptions(cellDto.language, cellUri, false).defaultEOL,
+				this._defaultCollapseConfig,
+				this._languageDetectionService,
+				this._notebookLoggingService
 			);
 			const textModel = this._modelService.getModel(cellUri);
 			if (textModel && textModel instanceof TextModel) {
@@ -1087,7 +1110,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		let k: keyof NullablePartialNotebookCellMetadata;
 		for (k in metadata) {
 			const value = metadata[k] ?? undefined;
-			newMetadata[k] = value as any;
+			newMetadata[k] = value;
 		}
 
 		return this._changeCellMetadata(cell, newMetadata, computeUndoRedo, beginSelectionState, undoRedoGroup);
@@ -1128,7 +1151,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		let k: keyof NotebookCellInternalMetadata;
 		for (k in internalMetadata) {
 			const value = internalMetadata[k] ?? undefined;
-			newInternalMetadata[k] = value as any;
+			(newInternalMetadata[k] as unknown) = value;
 		}
 
 		cell.internalMetadata = newInternalMetadata;

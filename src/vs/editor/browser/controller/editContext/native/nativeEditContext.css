@@ -13,7 +13,7 @@
 	white-space: pre-wrap;
 }
 
-.monaco-editor .native-edit-context-textarea {
+.monaco-editor .ime-text-area {
 	min-width: 0;
 	min-height: 0;
 	margin: 0;

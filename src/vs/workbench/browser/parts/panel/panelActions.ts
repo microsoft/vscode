@@ -9,7 +9,7 @@ import { KeyMod, KeyCode } from '../../../../base/common/keyCodes.js';
 import { MenuId, MenuRegistry, registerAction2, Action2, IAction2Options } from '../../../../platform/actions/common/actions.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
 import { isHorizontal, IWorkbenchLayoutService, PanelAlignment, Parts, Position, positionToString } from '../../../services/layout/browser/layoutService.js';
-import { PanelAlignmentContext, PanelMaximizedContext, PanelPositionContext, PanelVisibleContext } from '../../../common/contextkeys.js';
+import { IsAuxiliaryWindowContext, PanelAlignmentContext, PanelMaximizedContext, PanelPositionContext, PanelVisibleContext } from '../../../common/contextkeys.js';
 import { ContextKeyExpr, ContextKeyExpression } from '../../../../platform/contextkey/common/contextkey.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
@@ -22,9 +22,9 @@ import { ICommandActionTitle } from '../../../../platform/action/common/action.j
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { SwitchCompositeViewAction } from '../compositeBarActions.js';
 
-const maximizeIcon = registerIcon('panel-maximize', Codicon.chevronUp, localize('maximizeIcon', 'Icon to maximize a panel.'));
-const restoreIcon = registerIcon('panel-restore', Codicon.chevronDown, localize('restoreIcon', 'Icon to restore a panel.'));
-export const closeIcon = registerIcon('panel-close', Codicon.close, localize('closeIcon', 'Icon to close a panel.'));
+const maximizeIcon = registerIcon('panel-maximize', Codicon.screenFull, localize('maximizeIcon', 'Icon to maximize a panel.'));
+const restoreIcon = registerIcon('panel-restore', Codicon.screenNormal, localize('restoreIcon', 'Icon to restore a panel.'));
+const closeIcon = registerIcon('panel-close', Codicon.close, localize('closeIcon', 'Icon to close a panel.'));
 const panelIcon = registerIcon('panel-layout-icon', Codicon.layoutPanel, localize('togglePanelOffIcon', 'Icon to toggle the panel off when it is on.'));
 const panelOffIcon = registerIcon('panel-layout-icon-off', Codicon.layoutPanelOff, localize('togglePanelOnIcon', 'Icon to toggle the panel on when it is off.'));
 
@@ -41,9 +41,9 @@ export class TogglePanelAction extends Action2 {
 				condition: PanelVisibleContext,
 				title: localize('closePanel', 'Hide Panel'),
 				icon: closeIcon,
-				mnemonicTitle: localize({ key: 'toggle panel mnemonic', comment: ['&& denotes a mnemonic'] }, "&&Panel"),
+				mnemonicTitle: localize({ key: 'miTogglePanelMnemonic', comment: ['&& denotes a mnemonic'] }, "&&Panel"),
 			},
-			icon: closeIcon, // Ensures no flickering when using toggled.icon
+			icon: closeIcon,
 			f1: true,
 			category: Categories.View,
 			metadata: {
@@ -59,10 +59,6 @@ export class TogglePanelAction extends Action2 {
 					id: MenuId.LayoutControlMenuSubmenu,
 					group: '0_workbench_layout',
 					order: 4
-				}, {
-					id: MenuId.PanelTitle,
-					group: 'navigation',
-					order: 2
 				}
 			]
 		});
@@ -75,6 +71,16 @@ export class TogglePanelAction extends Action2 {
 }
 
 registerAction2(TogglePanelAction);
+
+MenuRegistry.appendMenuItem(MenuId.PanelTitle, {
+	command: {
+		id: TogglePanelAction.ID,
+		title: localize('closePanel', 'Hide Panel'),
+		icon: closeIcon
+	},
+	group: 'navigation',
+	order: 2
+});
 
 registerAction2(class extends Action2 {
 	constructor() {
@@ -160,7 +166,6 @@ function createAlignmentPanelActionConfig(id: string, title: ICommandActionTitle
 	return createPanelActionConfig<PanelAlignment>(id, title, shortLabel, alignment, PanelAlignmentContext.notEqualsTo(alignment));
 }
 
-
 const PositionPanelActionConfigs: PanelActionConfig<Position>[] = [
 	createPositionPanelActionConfig(PositionPanelActionId.TOP, localize2('positionPanelTop', "Move Panel To Top"), localize('positionPanelTopShort', "Top"), Position.TOP),
 	createPositionPanelActionConfig(PositionPanelActionId.LEFT, localize2('positionPanelLeft', "Move Panel Left"), localize('positionPanelLeftShort', "Left"), Position.LEFT),
@@ -175,8 +180,6 @@ const AlignPanelActionConfigs: PanelActionConfig<PanelAlignment>[] = [
 	createAlignmentPanelActionConfig(AlignPanelActionId.CENTER, localize2('alignPanelCenter', "Set Panel Alignment to Center"), localize('alignPanelCenterShort', "Center"), 'center'),
 	createAlignmentPanelActionConfig(AlignPanelActionId.JUSTIFY, localize2('alignPanelJustify', "Set Panel Alignment to Justify"), localize('alignPanelJustifyShort', "Justify"), 'justify'),
 ];
-
-
 
 MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	submenu: MenuId.PanelPositionMenu,
@@ -270,25 +273,19 @@ registerAction2(class extends SwitchCompositeViewAction {
 	}
 });
 
+const panelMaximizationSupportedWhen = ContextKeyExpr.or(PanelAlignmentContext.isEqualTo('center'), ContextKeyExpr.and(PanelPositionContext.notEqualsTo('bottom'), PanelPositionContext.notEqualsTo('top')));
+const ToggleMaximizedPanelActionId = 'workbench.action.toggleMaximizedPanel';
+
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: 'workbench.action.toggleMaximizedPanel',
+			id: ToggleMaximizedPanelActionId,
 			title: localize2('toggleMaximizedPanel', 'Toggle Maximized Panel'),
 			tooltip: localize('maximizePanel', "Maximize Panel Size"),
 			category: Categories.View,
 			f1: true,
-			icon: maximizeIcon, // This is being rotated in CSS depending on the panel position
-			// the workbench grid currently prevents us from supporting panel maximization with non-center panel alignment
-			precondition: ContextKeyExpr.or(PanelAlignmentContext.isEqualTo('center'), ContextKeyExpr.and(PanelPositionContext.notEqualsTo('bottom'), PanelPositionContext.notEqualsTo('top'))),
-			toggled: { condition: PanelMaximizedContext, icon: restoreIcon, tooltip: localize('minimizePanel', "Restore Panel Size") },
-			menu: [{
-				id: MenuId.PanelTitle,
-				group: 'navigation',
-				order: 1,
-				// the workbench grid currently prevents us from supporting panel maximization with non-center panel alignment
-				when: ContextKeyExpr.or(PanelAlignmentContext.isEqualTo('center'), ContextKeyExpr.and(PanelPositionContext.notEqualsTo('bottom'), PanelPositionContext.notEqualsTo('top')))
-			}]
+			icon: maximizeIcon,
+			precondition: panelMaximizationSupportedWhen, // the workbench grid currently prevents us from supporting panel maximization with non-center panel alignment
 		});
 	}
 	run(accessor: ServicesAccessor) {
@@ -312,6 +309,28 @@ registerAction2(class extends Action2 {
 	}
 });
 
+MenuRegistry.appendMenuItem(MenuId.PanelTitle, {
+	command: {
+		id: ToggleMaximizedPanelActionId,
+		title: localize('maximizePanel', "Maximize Panel Size"),
+		icon: maximizeIcon
+	},
+	group: 'navigation',
+	order: 1,
+	when: ContextKeyExpr.and(panelMaximizationSupportedWhen, PanelMaximizedContext.negate())
+});
+
+MenuRegistry.appendMenuItem(MenuId.PanelTitle, {
+	command: {
+		id: ToggleMaximizedPanelActionId,
+		title: localize('minimizePanel', "Restore Panel Size"),
+		icon: restoreIcon
+	},
+	group: 'navigation',
+	order: 1,
+	when: ContextKeyExpr.and(panelMaximizationSupportedWhen, PanelMaximizedContext)
+});
+
 MenuRegistry.appendMenuItems([
 	{
 		id: MenuId.LayoutControlMenu,
@@ -323,7 +342,14 @@ MenuRegistry.appendMenuItems([
 				icon: panelOffIcon,
 				toggled: { condition: PanelVisibleContext, icon: panelIcon }
 			},
-			when: ContextKeyExpr.or(ContextKeyExpr.equals('config.workbench.layoutControl.type', 'toggles'), ContextKeyExpr.equals('config.workbench.layoutControl.type', 'both')),
+			when:
+				ContextKeyExpr.and(
+					IsAuxiliaryWindowContext.negate(),
+					ContextKeyExpr.or(
+						ContextKeyExpr.equals('config.workbench.layoutControl.type', 'toggles'),
+						ContextKeyExpr.equals('config.workbench.layoutControl.type', 'both')
+					)
+				),
 			order: 1
 		}
 	}
@@ -334,7 +360,7 @@ class MoveViewsBetweenPanelsAction extends Action2 {
 		super(desc);
 	}
 
-	run(accessor: ServicesAccessor, ...args: any[]): void {
+	run(accessor: ServicesAccessor, ...args: unknown[]): void {
 		const viewDescriptorService = accessor.get(IViewDescriptorService);
 		const layoutService = accessor.get(IWorkbenchLayoutService);
 		const viewsService = accessor.get(IViewsService);

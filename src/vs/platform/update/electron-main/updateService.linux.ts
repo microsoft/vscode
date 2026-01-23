@@ -12,7 +12,7 @@ import { INativeHostMainService } from '../../native/electron-main/nativeHostMai
 import { IProductService } from '../../product/common/productService.js';
 import { asJson, IRequestService } from '../../request/common/request.js';
 import { AvailableForDownload, IUpdate, State, UpdateType } from '../common/update.js';
-import { AbstractUpdateService, createUpdateURL } from './abstractUpdateService.js';
+import { AbstractUpdateService, createUpdateURL, IUpdateURLOptions } from './abstractUpdateService.js';
 
 export class LinuxUpdateService extends AbstractUpdateService {
 
@@ -25,20 +25,22 @@ export class LinuxUpdateService extends AbstractUpdateService {
 		@INativeHostMainService private readonly nativeHostMainService: INativeHostMainService,
 		@IProductService productService: IProductService
 	) {
-		super(lifecycleMainService, configurationService, environmentMainService, requestService, logService, productService);
+		super(lifecycleMainService, configurationService, environmentMainService, requestService, logService, productService, false);
 	}
 
-	protected buildUpdateFeedUrl(quality: string): string {
-		return createUpdateURL(`linux-${process.arch}`, quality, this.productService);
+	protected buildUpdateFeedUrl(quality: string, commit: string, options?: IUpdateURLOptions): string {
+		return createUpdateURL(this.productService.updateUrl!, `linux-${process.arch}`, quality, commit, options);
 	}
 
-	protected doCheckForUpdates(context: any): void {
-		if (!this.url) {
+	protected doCheckForUpdates(explicit: boolean, _pendingCommit?: string): void {
+		if (!this.quality) {
 			return;
 		}
 
-		this.setState(State.CheckingForUpdates(context));
-		this.requestService.request({ url: this.url }, CancellationToken.None)
+		const url = this.buildUpdateFeedUrl(this.quality, this.productService.commit!, { background: !explicit });
+		this.setState(State.CheckingForUpdates(explicit));
+
+		this.requestService.request({ url }, CancellationToken.None)
 			.then<IUpdate | null>(asJson)
 			.then(update => {
 				if (!update || !update.url || !update.version || !update.productVersion) {
@@ -50,7 +52,7 @@ export class LinuxUpdateService extends AbstractUpdateService {
 			.then(undefined, err => {
 				this.logService.error(err);
 				// only show message when explicitly checking for updates
-				const message: string | undefined = !!context ? (err.message || err) : undefined;
+				const message: string | undefined = explicit ? (err.message || err) : undefined;
 				this.setState(State.Idle(UpdateType.Archive, message));
 			});
 	}

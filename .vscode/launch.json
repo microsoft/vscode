@@ -252,8 +252,10 @@
 			"env": {
 				"VSCODE_EXTHOST_WILL_SEND_SOCKET": null,
 				"VSCODE_SKIP_PRELAUNCH": "1",
+				"VSCODE_DEV_DEBUG_OBSERVABLES": "1",
 			},
 			"cleanUp": "wholeBrowser",
+			"killBehavior": "polite",
 			"runtimeArgs": [
 				"--inspect-brk=5875",
 				"--no-cached-data",
@@ -280,7 +282,7 @@
 			// To debug observables you also need the extension "ms-vscode.debug-value-editor"
 			"type": "chrome",
 			"request": "launch",
-			"name": "Launch VS Code Internal (Dev Debug)",
+			"name": "Launch VS Code Internal (Hot Reload)",
 			"windows": {
 				"runtimeExecutable": "${workspaceFolder}/scripts/code.bat"
 			},
@@ -296,6 +298,10 @@
 				"VSCODE_EXTHOST_WILL_SEND_SOCKET": null,
 				"VSCODE_SKIP_PRELAUNCH": "1",
 				"VSCODE_DEV_DEBUG": "1",
+				"VSCODE_DEV_SERVER_URL": "http://localhost:5199/build/vite/workbench-vite-electron.html",
+				"DEV_WINDOW_SRC": "http://localhost:5199/build/vite/workbench-vite-electron.html",
+				"VSCODE_DEV_DEBUG_OBSERVABLES": "1",
+				"VSCODE_DEV": "1"
 			},
 			"cleanUp": "wholeBrowser",
 			"runtimeArgs": [
@@ -319,6 +325,7 @@
 			"presentation": {
 				"hidden": true,
 			},
+			"preLaunchTask": "Launch Monaco Editor Vite"
 		},
 		{
 			"type": "node",
@@ -585,11 +592,33 @@
 			]
 		},
 		{
-			"name": "Monaco Editor Playground",
+			"name": "Monaco Editor - Playground",
 			"type": "chrome",
 			"request": "launch",
-			"url": "http://localhost:5001",
-			"preLaunchTask": "Launch Http Server",
+			"url": "https://microsoft.github.io/monaco-editor/playground.html?source=http%3A%2F%2Flocalhost%3A5199%2Fbuild%2Fvite%2Findex.ts%3Fesm#example-creating-the-editor-hello-world",
+			"preLaunchTask": "Launch Monaco Editor Vite",
+			"presentation": {
+				"group": "monaco",
+				"order": 4
+			}
+		},
+		{
+			"name": "Monaco Editor - Self Contained Diff Editor",
+			"type": "chrome",
+			"request": "launch",
+			"url": "http://localhost:5199/build/vite/index.html",
+			"preLaunchTask": "Launch Monaco Editor Vite",
+			"presentation": {
+				"group": "monaco",
+				"order": 4
+			}
+		},
+		{
+			"name": "Monaco Editor - Workbench",
+			"type": "chrome",
+			"request": "launch",
+			"url": "http://localhost:5199/build/vite/workbench-vite.html",
+			"preLaunchTask": "Launch Monaco Editor Vite",
 			"presentation": {
 				"group": "monaco",
 				"order": 4
@@ -613,10 +642,10 @@
 			}
 		},
 		{
-			"name": "VS Code (Debug Observables)",
+			"name": "VS Code (Hot Reload)",
 			"stopAll": true,
 			"configurations": [
-				"Launch VS Code Internal (Dev Debug)",
+				"Launch VS Code Internal (Hot Reload)",
 				"Attach to Main Process",
 				"Attach to Extension Host",
 				"Attach to Shared Process",

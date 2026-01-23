@@ -22,7 +22,7 @@ import { ThemeColor } from '../../../../base/common/themables.js';
 import { overviewRulerInfo, overviewRulerError } from '../../../../editor/common/core/editorColorRegistry.js';
 import { IModelDeltaDecoration, ITextModel, TrackedRangeStickiness, OverviewRulerLane } from '../../../../editor/common/model.js';
 import { KeybindingParser } from '../../../../base/common/keybindingParser.js';
-import { assertIsDefined } from '../../../../base/common/types.js';
+import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
 import { DEFINE_KEYBINDING_EDITOR_CONTRIB_ID, IDefineKeybindingEditorContribution } from '../../../services/preferences/common/preferences.js';
@@ -100,7 +100,7 @@ export class KeybindingEditorDecorationsRenderer extends Disposable {
 
 		this._updateDecorations = this._register(new RunOnceScheduler(() => this._updateDecorationsNow(), 500));
 
-		const model = assertIsDefined(this._editor.getModel());
+		const model = assertReturnsDefined(this._editor.getModel());
 		this._register(model.onDidChangeContent(() => this._updateDecorations.schedule()));
 		this._register(this._keybindingService.onDidUpdateKeybindings(() => this._updateDecorations.schedule()));
 		this._register({
@@ -113,7 +113,7 @@ export class KeybindingEditorDecorationsRenderer extends Disposable {
 	}
 
 	private _updateDecorationsNow(): void {
-		const model = assertIsDefined(this._editor.getModel());
+		const model = assertReturnsDefined(this._editor.getModel());
 
 		const newDecorations: IModelDeltaDecoration[] = [];
 

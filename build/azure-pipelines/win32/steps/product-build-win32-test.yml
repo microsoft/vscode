@@ -1,0 +1,150 @@
+parameters:
+  - name: VSCODE_ARCH
+    type: string
+  - name: VSCODE_RUN_ELECTRON_TESTS
+    type: boolean
+  - name: VSCODE_RUN_BROWSER_TESTS
+    type: boolean
+  - name: VSCODE_RUN_REMOTE_TESTS
+    type: boolean
+
+steps:
+  - powershell: npm exec -- npm-run-all2 -lp "electron $(VSCODE_ARCH)" "playwright-install"
+    env:
+      GITHUB_TOKEN: "$(github-distro-mixin-password)"
+    displayName: Download Electron and Playwright
+    retryCountOnTaskFailure: 3
+
+  - ${{ if eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true) }}:
+    - powershell: .\scripts\test.bat --build --tfs "Unit Tests"
+      displayName: 🧪 Run unit tests (Electron)
+      timeoutInMinutes: 15
+    - powershell: npm run test-node -- --build
+      displayName: 🧪 Run unit tests (node.js)
+      timeoutInMinutes: 15
+
+  - ${{ if eq(parameters.VSCODE_RUN_BROWSER_TESTS, true) }}:
+    - powershell: npm run test-browser-no-install -- --build --browser chromium --tfs "Browser Unit Tests"
+      displayName: 🧪 Run unit tests (Browser, Chromium)
+      timeoutInMinutes: 20
+
+  - powershell: |
+      . build/azure-pipelines/win32/exec.ps1
+      $ErrorActionPreference = "Stop"
+      exec { npm run gulp `
+        compile-extension:configuration-editing `
+        compile-extension:css-language-features-server `
+        compile-extension:emmet `
+        compile-extension:git `
+        compile-extension:github-authentication `
+        compile-extension:html-language-features-server `
+        compile-extension:ipynb `
+        compile-extension:notebook-renderers `
+        compile-extension:json-language-features-server `
+        compile-extension:markdown-language-features `
+        compile-extension-media `
+        compile-extension:microsoft-authentication `
+        compile-extension:typescript-language-features `
+        compile-extension:vscode-api-tests `
+        compile-extension:vscode-colorize-tests `
+        compile-extension:vscode-colorize-perf-tests `
+        compile-extension:vscode-test-resolver `
+      }
+    displayName: Build integration tests
+
+  - powershell: .\build\azure-pipelines\win32\listprocesses.bat
+    displayName: Diagnostics before integration test runs
+    continueOnError: true
+    condition: succeededOrFailed()
+
+  - powershell: |
+      # Copy client, server and web builds to a separate test directory, to avoid Access Denied errors in codesign
+      . build/azure-pipelines/win32/exec.ps1
+      $ErrorActionPreference = "Stop"
+      $TestDir = "$(agent.builddirectory)\test"
+      New-Item -ItemType Directory -Path $TestDir -Force
+      Copy-Item -Path "$(agent.builddirectory)\VSCode-win32-$(VSCODE_ARCH)" -Destination "$TestDir\VSCode-win32-$(VSCODE_ARCH)" -Recurse -Force
+      Copy-Item -Path "$(agent.builddirectory)\vscode-server-win32-$(VSCODE_ARCH)" -Destination "$TestDir\vscode-server-win32-$(VSCODE_ARCH)" -Recurse -Force
+      Copy-Item -Path "$(agent.builddirectory)\vscode-server-win32-$(VSCODE_ARCH)-web" -Destination "$TestDir\vscode-server-win32-$(VSCODE_ARCH)-web" -Recurse -Force
+    displayName: Copy builds to test directory
+
+  - ${{ if eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true) }}:
+    - powershell: |
+        # Figure out the full absolute path of the product we just built
+        # including the remote server and configure the integration tests
+        # to run with these builds instead of running out of sources.
+        . build/azure-pipelines/win32/exec.ps1
+        $ErrorActionPreference = "Stop"
+        $AppRoot = "$(agent.builddirectory)\test\VSCode-win32-$(VSCODE_ARCH)"
+        $ProductJsonPath = (Get-ChildItem -Path "$AppRoot" -Name "product.json" -Recurse | Select-Object -First 1)
+        $AppProductJson = Get-Content -Raw -Path "$AppRoot\$ProductJsonPath" | ConvertFrom-Json
+        $AppNameShort = $AppProductJson.nameShort
+        $env:INTEGRATION_TEST_ELECTRON_PATH = "$AppRoot\$AppNameShort.exe"
+        $env:VSCODE_REMOTE_SERVER_PATH = "$(agent.builddirectory)\test\vscode-server-win32-$(VSCODE_ARCH)"
+        exec { .\scripts\test-integration.bat --build --tfs "Integration Tests" }
+      displayName: 🧪 Run integration tests (Electron)
+      timeoutInMinutes: 20
+
+  - ${{ if eq(parameters.VSCODE_RUN_BROWSER_TESTS, true) }}:
+    - powershell: |
+        . build/azure-pipelines/win32/exec.ps1
+        $ErrorActionPreference = "Stop"
+        $env:VSCODE_REMOTE_SERVER_PATH = "$(agent.builddirectory)\test\vscode-server-win32-$(VSCODE_ARCH)-web"
+        exec { .\scripts\test-web-integration.bat --browser firefox }
+      displayName: 🧪 Run integration tests (Browser, Firefox)
+      timeoutInMinutes: 20
+
+  - ${{ if eq(parameters.VSCODE_RUN_REMOTE_TESTS, true) }}:
+    - powershell: |
+        . build/azure-pipelines/win32/exec.ps1
+        $ErrorActionPreference = "Stop"
+        $AppRoot = "$(agent.builddirectory)\test\VSCode-win32-$(VSCODE_ARCH)"
+        $ProductJsonPath = (Get-ChildItem -Path "$AppRoot" -Name "product.json" -Recurse | Select-Object -First 1)
+        $AppProductJson = Get-Content -Raw -Path "$AppRoot\$ProductJsonPath" | ConvertFrom-Json
+        $AppNameShort = $AppProductJson.nameShort
+        $env:INTEGRATION_TEST_ELECTRON_PATH = "$AppRoot\$AppNameShort.exe"
+        $env:VSCODE_REMOTE_SERVER_PATH = "$(agent.builddirectory)\test\vscode-server-win32-$(VSCODE_ARCH)"
+        exec { .\scripts\test-remote-integration.bat }
+      displayName: 🧪 Run integration tests (Remote)
+      timeoutInMinutes: 20
+
+  - powershell: .\build\azure-pipelines\win32\listprocesses.bat
+    displayName: Diagnostics after integration test runs
+    continueOnError: true
+    condition: succeededOrFailed()
+
+  - powershell: .\build\azure-pipelines\win32\listprocesses.bat
+    displayName: Diagnostics before smoke test run
+    continueOnError: true
+    condition: succeededOrFailed()
+
+  - ${{ if eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true) }}:
+    - powershell: npm run smoketest-no-compile -- --tracing --build "$(agent.builddirectory)\test\VSCode-win32-$(VSCODE_ARCH)"
+      displayName: 🧪 Run smoke tests (Electron)
+      timeoutInMinutes: 20
+
+  - ${{ if eq(parameters.VSCODE_RUN_BROWSER_TESTS, true) }}:
+    - powershell: npm run smoketest-no-compile -- --web --tracing --headless
+      env:
+        VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)\test\vscode-server-win32-$(VSCODE_ARCH)-web
+      displayName: 🧪 Run smoke tests (Browser, Chromium)
+      timeoutInMinutes: 20
+
+  - ${{ if eq(parameters.VSCODE_RUN_REMOTE_TESTS, true) }}:
+    - powershell: npm run smoketest-no-compile -- --tracing --remote --build "$(agent.builddirectory)\test\VSCode-win32-$(VSCODE_ARCH)"
+      env:
+        VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)\test\vscode-server-win32-$(VSCODE_ARCH)
+      displayName: 🧪 Run smoke tests (Remote)
+      timeoutInMinutes: 20
+
+  - powershell: .\build\azure-pipelines\win32\listprocesses.bat
+    displayName: Diagnostics after smoke test run
+    continueOnError: true
+    condition: succeededOrFailed()
+
+  - task: PublishTestResults@2
+    displayName: Publish Tests Results
+    inputs:
+      testResultsFiles: "*-results.xml"
+      searchFolder: "$(Build.ArtifactStagingDirectory)/test-results"
+    condition: succeededOrFailed()

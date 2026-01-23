@@ -24,7 +24,7 @@ export interface IUserDataSyncAccount {
 
 export const IUserDataSyncWorkbenchService = createDecorator<IUserDataSyncWorkbenchService>('IUserDataSyncWorkbenchService');
 export interface IUserDataSyncWorkbenchService {
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	readonly enabled: boolean;
 	readonly authenticationProviders: IAuthenticationProvider[];
@@ -58,8 +58,9 @@ export function getSyncAreaLabel(source: SyncResource): string {
 		case SyncResource.Settings: return localize('settings', "Settings");
 		case SyncResource.Keybindings: return localize('keybindings', "Keyboard Shortcuts");
 		case SyncResource.Snippets: return localize('snippets', "Snippets");
-		case SyncResource.Prompts: return localize('prompts', "Prompts");
+		case SyncResource.Prompts: return localize('prompts', "Prompts and Instructions");
 		case SyncResource.Tasks: return localize('tasks', "Tasks");
+		case SyncResource.Mcp: return localize('mcp', "MCP Servers");
 		case SyncResource.Extensions: return localize('extensions', "Extensions");
 		case SyncResource.GlobalState: return localize('ui state label', "UI State");
 		case SyncResource.Profiles: return localize('profiles', "Profiles");

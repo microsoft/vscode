@@ -18,7 +18,7 @@ import { IViewModel } from '../../common/viewModel.js';
 import { CursorColumns } from '../../common/core/cursorColumns.js';
 import * as dom from '../../../base/browser/dom.js';
 import { AtomicTabMoveOperations, Direction } from '../../common/cursor/cursorAtomicMoveOperations.js';
-import { PositionAffinity } from '../../common/model.js';
+import { PositionAffinity, TextDirection } from '../../common/model.js';
 import { InjectedText } from '../../common/modelLineProjectionData.js';
 import { Mutable } from '../../../base/common/types.js';
 import { Lazy } from '../../../base/common/lazy.js';
@@ -150,7 +150,7 @@ export class MouseTarget {
 	}
 
 	public static toString(target: IMouseTarget): string {
-		return this._typeToString(target.type) + ': ' + target.position + ' - ' + target.range + ' - ' + JSON.stringify((<any>target).detail);
+		return this._typeToString(target.type) + ': ' + target.position + ' - ' + target.range + ' - ' + JSON.stringify((target as unknown as Record<string, unknown>).detail);
 	}
 }
 
@@ -367,6 +367,11 @@ export class HitTestContext {
 		return this._viewHelper.getLineWidth(lineNumber);
 	}
 
+	public isRtl(lineNumber: number): boolean {
+		return this.viewModel.getTextDirection(lineNumber) === TextDirection.RTL;
+
+	}
+
 	public visibleRangeForPosition(lineNumber: number, column: number): HorizontalPosition | null {
 		return this._viewHelper.visibleRangeForPosition(lineNumber, column);
 	}
@@ -443,7 +448,7 @@ class HitTestRequest extends BareHitTestRequest {
 	}
 
 	public override toString(): string {
-		return `pos(${this.pos.x},${this.pos.y}), editorPos(${this.editorPos.x},${this.editorPos.y}), relativePos(${this.relativePos.x},${this.relativePos.y}), mouseVerticalOffset: ${this.mouseVerticalOffset}, mouseContentHorizontalOffset: ${this.mouseContentHorizontalOffset}\n\ttarget: ${this.target ? (<HTMLElement>this.target).outerHTML : null}`;
+		return `pos(${this.pos.x},${this.pos.y}), editorPos(${this.editorPos.x},${this.editorPos.y}), relativePos(${this.relativePos.x},${this.relativePos.y}), mouseVerticalOffset: ${this.mouseVerticalOffset}, mouseContentHorizontalOffset: ${this.mouseContentHorizontalOffset}\n\ttarget: ${this.target ? this.target.outerHTML : null}`;
 	}
 
 	public get wouldBenefitFromHitTestTargetSwitch(): boolean {
@@ -476,7 +481,8 @@ class HitTestRequest extends BareHitTestRequest {
 		return MouseTarget.createMargin(type, this.target, this._getMouseColumn(position), position, range, detail);
 	}
 	public fulfillViewZone(type: MouseTargetType.GUTTER_VIEW_ZONE | MouseTargetType.CONTENT_VIEW_ZONE, position: Position, detail: IMouseTargetViewZoneData): IMouseTargetViewZone {
-		return MouseTarget.createViewZone(type, this.target, this._getMouseColumn(position), position, detail);
+		// Always return the usual mouse column for a view zone.
+		return MouseTarget.createViewZone(type, this.target, this._getMouseColumn(), position, detail);
 	}
 	public fulfillContentText(position: Position, range: EditorRange | null, detail: IMouseTargetContentTextData): IMouseTargetContentText {
 		return MouseTarget.createContentText(this.target, this._getMouseColumn(position), position, range, detail);
@@ -744,15 +750,21 @@ export class MouseTargetFactory {
 		// See https://github.com/microsoft/vscode/issues/46942
 		if (ElementPath.isStrictChildOfViewLines(request.targetPath)) {
 			const lineNumber = ctx.getLineNumberAtVerticalOffset(request.mouseVerticalOffset);
-			if (ctx.viewModel.getLineLength(lineNumber) === 0) {
-				const lineWidth = ctx.getLineWidth(lineNumber);
+			const lineLength = ctx.viewModel.getLineLength(lineNumber);
+			const lineWidth = ctx.getLineWidth(lineNumber);
+			if (lineLength === 0) {
 				const detail = createEmptyContentDataInLines(request.mouseContentHorizontalOffset - lineWidth);
 				return request.fulfillContentEmpty(new Position(lineNumber, 1), detail);
 			}
 
-			const lineWidth = ctx.getLineWidth(lineNumber);
-			if (request.mouseContentHorizontalOffset >= lineWidth) {
-				// TODO: This is wrong for RTL
+			const isRtl = ctx.isRtl(lineNumber);
+			if (isRtl) {
+				if (request.mouseContentHorizontalOffset + lineWidth <= ctx.layoutInfo.contentWidth - ctx.layoutInfo.verticalScrollbarWidth) {
+					const detail = createEmptyContentDataInLines(request.mouseContentHorizontalOffset - lineWidth);
+					const pos = new Position(lineNumber, ctx.viewModel.getLineMaxColumn(lineNumber));
+					return request.fulfillContentEmpty(pos, detail);
+				}
+			} else if (request.mouseContentHorizontalOffset >= lineWidth) {
 				const detail = createEmptyContentDataInLines(request.mouseContentHorizontalOffset - lineWidth);
 				const pos = new Position(lineNumber, ctx.viewModel.getLineMaxColumn(lineNumber));
 				return request.fulfillContentEmpty(pos, detail);
@@ -767,8 +779,14 @@ export class MouseTargetFactory {
 				}
 
 				const lineWidth = ctx.getLineWidth(lineNumber);
-				if (request.mouseContentHorizontalOffset >= lineWidth) {
-					// TODO: This is wrong for RTL
+				const isRtl = ctx.isRtl(lineNumber);
+				if (isRtl) {
+					if (request.mouseContentHorizontalOffset + lineWidth <= ctx.layoutInfo.contentWidth - ctx.layoutInfo.verticalScrollbarWidth) {
+						const detail = createEmptyContentDataInLines(request.mouseContentHorizontalOffset - lineWidth);
+						const pos = new Position(lineNumber, ctx.viewModel.getLineMaxColumn(lineNumber));
+						return request.fulfillContentEmpty(pos, detail);
+					}
+				} else if (request.mouseContentHorizontalOffset >= lineWidth) {
 					const detail = createEmptyContentDataInLines(request.mouseContentHorizontalOffset - lineWidth);
 					const pos = new Position(lineNumber, ctx.viewModel.getLineMaxColumn(lineNumber));
 					return request.fulfillContentEmpty(pos, detail);
@@ -972,12 +990,15 @@ export class MouseTargetFactory {
 		const shadowRoot = dom.getShadowRoot(ctx.viewDomNode);
 		let range: Range;
 		if (shadowRoot) {
+			// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
 			if (typeof (<any>shadowRoot).caretRangeFromPoint === 'undefined') {
 				range = shadowCaretRangeFromPoint(shadowRoot, coords.clientX, coords.clientY);
 			} else {
+				// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
 				range = (<any>shadowRoot).caretRangeFromPoint(coords.clientX, coords.clientY);
 			}
 		} else {
+			// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
 			range = (<any>ctx.viewDomNode.ownerDocument).caretRangeFromPoint(coords.clientX, coords.clientY);
 		}
 
@@ -1007,7 +1028,7 @@ export class MouseTargetFactory {
 			const parent2ClassName = parent2 && parent2.nodeType === parent2.ELEMENT_NODE ? (<HTMLElement>parent2).className : null;
 
 			if (parent2ClassName === ViewLine.CLASS_NAME) {
-				return HitTestResult.createFromDOMInfo(ctx, <HTMLElement>startContainer, (<HTMLElement>startContainer).textContent!.length);
+				return HitTestResult.createFromDOMInfo(ctx, <HTMLElement>startContainer, (<HTMLElement>startContainer).textContent.length);
 			} else {
 				return new UnknownHitTestResult(<HTMLElement>startContainer);
 			}
@@ -1020,6 +1041,7 @@ export class MouseTargetFactory {
 	 * Most probably Gecko
 	 */
 	private static _doHitTestWithCaretPositionFromPoint(ctx: HitTestContext, coords: ClientCoordinates): HitTestResult {
+		// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
 		const hitResult: { offsetNode: Node; offset: number } = (<any>ctx.viewDomNode.ownerDocument).caretPositionFromPoint(coords.clientX, coords.clientY);
 
 		if (hitResult.offsetNode.nodeType === hitResult.offsetNode.TEXT_NODE) {
@@ -1072,8 +1094,10 @@ export class MouseTargetFactory {
 	public static doHitTest(ctx: HitTestContext, request: BareHitTestRequest): HitTestResult {
 
 		let result: HitTestResult = new UnknownHitTestResult();
+		// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
 		if (typeof (<any>ctx.viewDomNode.ownerDocument).caretRangeFromPoint === 'function') {
 			result = this._doHitTestWithCaretRangeFromPoint(ctx, request);
+			// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
 		} else if ((<any>ctx.viewDomNode.ownerDocument).caretPositionFromPoint) {
 			result = this._doHitTestWithCaretPositionFromPoint(ctx, request.pos.toClientCoordinates(dom.getWindow(ctx.viewDomNode)));
 		}
@@ -1093,14 +1117,15 @@ function shadowCaretRangeFromPoint(shadowRoot: ShadowRoot, x: number, y: number)
 	const range = document.createRange();
 
 	// Get the element under the point
-	let el: Element | null = (<any>shadowRoot).elementFromPoint(x, y);
-
-	if (el !== null) {
+	// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
+	let el: HTMLElement | null = (<any>shadowRoot).elementFromPoint(x, y);
+	// When el is not null, it may be div.monaco-mouse-cursor-text Element, which has not childNodes, we don't need to handle it.
+	if (el?.hasChildNodes()) {
 		// Get the last child of the element until its firstChild is a text node
 		// This assumes that the pointer is on the right of the line, out of the tokens
 		// and that we want to get the offset of the last token of the line
 		while (el && el.firstChild && el.firstChild.nodeType !== el.firstChild.TEXT_NODE && el.lastChild && el.lastChild.firstChild) {
-			el = <Element>el.lastChild;
+			el = <HTMLElement>el.lastChild;
 		}
 
 		// Grab its rect
@@ -1117,7 +1142,7 @@ function shadowCaretRangeFromPoint(shadowRoot: ShadowRoot, x: number, y: number)
 		const font = `${fontStyle} ${fontVariant} ${fontWeight} ${fontSize}/${lineHeight} ${fontFamily}`;
 
 		// And also its txt content
-		const text = (el as any).innerText;
+		const text = el.innerText;
 
 		// Position the pixel cursor at the left of the element
 		let pixelCursor = rect.left;

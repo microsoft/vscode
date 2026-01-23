@@ -12,11 +12,15 @@ import { ILogger, ILoggerService } from '../../../platform/log/common/log.js';
 import { IExtHostInitDataService } from './extHostInitDataService.js';
 import { ExtensionIdentifier, IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { UIKind } from '../../services/extensions/common/extensionHostProtocol.js';
-import { getRemoteName } from '../../../platform/remote/common/remoteHosts.js';
 import { cleanData, cleanRemoteAuthority, TelemetryLogGroup } from '../../../platform/telemetry/common/telemetryUtils.js';
 import { mixin } from '../../../base/common/objects.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { localize } from '../../../nls.js';
+
+type ExtHostTelemetryEventData = Record<string, any> & {
+	properties?: Record<string, any>;
+	measurements?: Record<string, number>;
+};
 
 export class ExtHostTelemetry extends Disposable implements ExtHostTelemetryShape {
 
@@ -94,8 +98,9 @@ export class ExtHostTelemetry extends Disposable implements ExtHostTelemetryShap
 		commonProperties['common.vscodesessionid'] = this.initData.telemetryInfo.sessionId;
 		commonProperties['common.vscodecommithash'] = this.initData.commit;
 		commonProperties['common.sqmid'] = this.initData.telemetryInfo.sqmId;
-		commonProperties['common.devDeviceId'] = this.initData.telemetryInfo.devDeviceId;
+		commonProperties['common.devDeviceId'] = this.initData.telemetryInfo.devDeviceId ?? this.initData.telemetryInfo.machineId;
 		commonProperties['common.vscodeversion'] = this.initData.version;
+		commonProperties['common.vscodereleasedate'] = this.initData.date;
 		commonProperties['common.isnewappinstall'] = isNewAppInstall(this.initData.telemetryInfo.firstSessionDate);
 		commonProperties['common.product'] = this.initData.environment.appHost;
 
@@ -110,7 +115,7 @@ export class ExtHostTelemetry extends Disposable implements ExtHostTelemetryShap
 				commonProperties['common.uikind'] = 'unknown';
 		}
 
-		commonProperties['common.remotename'] = getRemoteName(cleanRemoteAuthority(this.initData.remote.authority));
+		commonProperties['common.remotename'] = cleanRemoteAuthority(this.initData.remote.authority, this.initData);
 
 		return commonProperties;
 	}
@@ -209,10 +214,10 @@ export class ExtHostTelemetryLogger {
 		}
 	}
 
-	mixInCommonPropsAndCleanData(data: Record<string, any>): Record<string, any> {
+	mixInCommonPropsAndCleanData(data: ExtHostTelemetryEventData): Record<string, any> {
 		// Some telemetry modules prefer to break properties and measurmements up
 		// We mix common properties into the properties tab.
-		let updatedData = 'properties' in data ? (data.properties ?? {}) : data;
+		let updatedData = data.properties ? (data.properties ?? {}) : data;
 
 		// We don't clean measurements since they are just numbers
 		updatedData = cleanData(updatedData, []);
@@ -225,7 +230,7 @@ export class ExtHostTelemetryLogger {
 			updatedData = mixin(updatedData, this._commonProperties);
 		}
 
-		if ('properties' in data) {
+		if (data.properties) {
 			data.properties = updatedData;
 		} else {
 			data = updatedData;
@@ -274,11 +279,11 @@ export class ExtHostTelemetryLogger {
 			};
 			const cleanedErrorData = cleanData(errorData, []);
 			// Reconstruct the error object with the cleaned data
-			const cleanedError = new Error(cleanedErrorData.message, {
+			const cleanedError = new Error(typeof cleanedErrorData.message === 'string' ? cleanedErrorData.message : undefined, {
 				cause: cleanedErrorData.cause
 			});
-			cleanedError.stack = cleanedErrorData.stack;
-			cleanedError.name = cleanedErrorData.name;
+			cleanedError.stack = typeof cleanedErrorData.stack === 'string' ? cleanedErrorData.stack : undefined;
+			cleanedError.name = typeof cleanedErrorData.name === 'string' ? cleanedErrorData.name : 'unknown';
 			data = this.mixInCommonPropsAndCleanData(data || {});
 			if (!this._inLoggingOnlyMode) {
 				this._sender.sendErrorData(cleanedError, data);

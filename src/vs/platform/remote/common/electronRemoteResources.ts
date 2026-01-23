@@ -13,12 +13,12 @@ export const NODE_REMOTE_RESOURCE_CHANNEL_NAME = 'remoteResourceHandler';
 export type NodeRemoteResourceResponse = { body: /* base64 */ string; mimeType?: string; statusCode: number };
 
 export class NodeRemoteResourceRouter implements IClientRouter<string> {
-	async routeCall(hub: IConnectionHub<string>, command: string, arg?: any): Promise<Client<string>> {
+	async routeCall(hub: IConnectionHub<string>, command: string, arg?: unknown): Promise<Client<string>> {
 		if (command !== NODE_REMOTE_RESOURCE_IPC_METHOD_NAME) {
 			throw new Error(`Call not found: ${command}`);
 		}
 
-		const uri = arg[0] as (UriComponents | undefined);
+		const uri = Array.isArray(arg) ? arg[0] as (UriComponents | undefined) : undefined;
 		if (uri?.authority) {
 			const connection = hub.connections.find(c => c.ctx === uri.authority);
 			if (connection) {

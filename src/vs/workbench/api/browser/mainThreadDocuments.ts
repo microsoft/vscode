@@ -22,7 +22,8 @@ import { Emitter, Event } from '../../../base/common/event.js';
 import { IPathService } from '../../services/path/common/pathService.js';
 import { ResourceMap } from '../../../base/common/map.js';
 import { IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
-import { ErrorNoTelemetry } from '../../../base/common/errors.js';
+import { ErrorNoTelemetry, onUnexpectedError } from '../../../base/common/errors.js';
+import { ISerializedModelContentChangedEvent } from '../../../editor/common/textModelEvents.js';
 
 export class BoundModelReferenceCollection {
 
@@ -50,7 +51,7 @@ export class BoundModelReferenceCollection {
 		}
 	}
 
-	add(uri: URI, ref: IReference<any>, length: number = 0): void {
+	add(uri: URI, ref: IReference<unknown>, length: number = 0): void {
 		// const length = ref.object.textEditorModel.getValueLength();
 		const dispose = () => {
 			const idx = this._data.indexOf(entry);
@@ -96,7 +97,21 @@ class ModelTracker extends Disposable {
 		this._knownVersionId = this._model.getVersionId();
 		this._store.add(this._model.onDidChangeContent((e) => {
 			this._knownVersionId = e.versionId;
-			this._proxy.$acceptModelChanged(this._model.uri, e, this._textFileService.isDirty(this._model.uri));
+			if (e.detailedReasonsChangeLengths.length !== 1) {
+				onUnexpectedError(new Error(`Unexpected reasons: ${e.detailedReasons.map(r => r.toString())}`));
+			}
+
+			const evt: ISerializedModelContentChangedEvent = {
+				changes: e.changes,
+				isEolChange: e.isEolChange,
+				isUndoing: e.isUndoing,
+				isRedoing: e.isRedoing,
+				isFlush: e.isFlush,
+				eol: e.eol,
+				versionId: e.versionId,
+				detailedReason: e.detailedReasons[0].metadata,
+			};
+			this._proxy.$acceptModelChanged(this._model.uri, evt, this._textFileService.isDirty(this._model.uri));
 			if (this.isCaughtUpWithContentChanges()) {
 				this._onIsCaughtUpWithContentChanges.fire(this._model.uri);
 			}
@@ -290,6 +305,9 @@ export class MainThreadDocuments extends Disposable implements MainThreadDocumen
 			initialValue: options?.content,
 			encoding: options?.encoding
 		});
+		if (options?.encoding) {
+			await model.setEncoding(options.encoding);
+		}
 		const resource = model.resource;
 		const ref = await this._textModelResolverService.createModelReference(resource);
 		if (!this._modelTrackers.has(resource)) {

@@ -359,14 +359,14 @@ export interface IPathWithLineAndColumn {
 export function parseLineAndColumnAware(rawPath: string): IPathWithLineAndColumn {
 	const segments = rawPath.split(':'); // C:\file.txt:<line>:<column>
 
-	let path: string | undefined = undefined;
-	let line: number | undefined = undefined;
-	let column: number | undefined = undefined;
+	let path: string | undefined;
+	let line: number | undefined;
+	let column: number | undefined;
 
 	for (const segment of segments) {
 		const segmentAsNumber = Number(segment);
 		if (!isNumber(segmentAsNumber)) {
-			path = !!path ? [path, segment].join(':') : segment; // a colon can well be part of a path (e.g. C:\...)
+			path = path ? [path, segment].join(':') : segment; // a colon can well be part of a path (e.g. C:\...)
 		} else if (line === undefined) {
 			line = segmentAsNumber;
 		} else if (column === undefined) {

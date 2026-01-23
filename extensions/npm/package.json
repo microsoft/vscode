@@ -32,7 +32,7 @@
   },
   "devDependencies": {
     "@types/minimatch": "^5.1.2",
-    "@types/node": "20.x",
+    "@types/node": "22.x",
     "@types/which": "^3.0.0"
   },
   "main": "./out/npmMain",
@@ -336,11 +336,11 @@
     "jsonValidation": [
       {
         "fileMatch": "package.json",
-        "url": "https://json.schemastore.org/package"
+        "url": "https://www.schemastore.org/package"
       },
       {
         "fileMatch": "bower.json",
-        "url": "https://json.schemastore.org/bower"
+        "url": "https://www.schemastore.org/bower"
       }
     ],
     "taskDefinitions": [

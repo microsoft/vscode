@@ -16,7 +16,7 @@ import { Schemas } from '../../../base/common/network.js';
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { ExtensionRuntime } from '../common/extHostTypes.js';
 import { CLIServer } from './extHostCLIServer.js';
-import { realpathSync } from '../../../base/node/extpath.js';
+import { realpathSync } from '../../../base/node/pfs.js';
 import { ExtHostConsoleForwarder } from './extHostConsoleForwarder.js';
 import { ExtHostDiskFileSystemProvider } from './extHostDiskFileSystemProvider.js';
 import nodeModule from 'node:module';
@@ -253,7 +253,7 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 				performance.mark(`code/extHost/willLoadExtensionCode/${extensionId}`);
 			}
 			if (mode === 'esm') {
-				r = <T>await import(module.fsPath);
+				r = <T>await import(module.toString(true));
 			} else {
 				r = <T>require(module.fsPath);
 			}

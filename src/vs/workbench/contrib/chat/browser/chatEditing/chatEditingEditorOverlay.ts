@@ -3,23 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import '../media/chatEditingEditorOverlay.css';
-import { combinedDisposable, DisposableMap, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import './media/chatEditingEditorOverlay.css';
+import { combinedDisposable, Disposable, DisposableMap, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, derived, derivedOpts, IObservable, observableFromEvent, observableSignalFromEvent, observableValue, transaction } from '../../../../../base/common/observable.js';
-import { HiddenItemStrategy, MenuWorkbenchToolBar, WorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
+import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IChatEditingService, IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../../common/chatEditingService.js';
+import { IChatEditingService, IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../../common/editing/chatEditingService.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
-import { ActionViewItem } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
-import { IActionRunner } from '../../../../../base/common/actions.js';
-import { addDisposableGenericMouseMoveListener, append, reset } from '../../../../../base/browser/dom.js';
-import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
-import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { Codicon } from '../../../../../base/common/codicons.js';
+import { ActionViewItem, IBaseActionViewItemOptions } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { IAction, IActionRunner } from '../../../../../base/common/actions.js';
+import { $, addDisposableGenericMouseMoveListener, append } from '../../../../../base/browser/dom.js';
 import { assertType } from '../../../../../base/common/types.js';
 import { localize } from '../../../../../nls.js';
 import { AcceptAction, navigationBearingFakeActionId, RejectAction } from './chatEditingEditorActions.js';
-import { IChatService } from '../../common/chatService.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { EditorGroupView } from '../../../../browser/parts/editor/editorGroupView.js';
@@ -27,242 +23,131 @@ import { Event } from '../../../../../base/common/event.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { EditorResourceAccessor, SideBySideEditor } from '../../../../common/editor.js';
-import { IInlineChatSessionService } from '../../../inlineChat/browser/inlineChatSessionService.js';
 import { isEqual } from '../../../../../base/common/resources.js';
-import { ObservableEditorSession } from './chatEditingEditorContextKeys.js';
-import { rcut } from '../../../../../base/common/strings.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 
-class ChatEditorOverlayWidget {
+export class ChatEditingAcceptRejectActionViewItem extends ActionViewItem {
+
+	private readonly _reveal = this._store.add(new MutableDisposable());
+
+	constructor(
+		action: IAction,
+		options: IBaseActionViewItemOptions,
+		private readonly _entry: IObservable<IModifiedFileEntry | undefined>,
+		private readonly _editor: { focus(): void } | undefined,
+		private readonly _keybindingService: IKeybindingService,
+		private readonly _primaryActionIds: readonly string[] = [AcceptAction.ID],
+	) {
+		super(undefined, action, { ...options, icon: false, label: true, keybindingNotRenderedWithLabel: true });
+	}
+
+	override render(container: HTMLElement): void {
+		super.render(container);
+
+		if (this._primaryActionIds.includes(this._action.id)) {
+			this.element?.classList.add('primary');
+		}
+
+		if (this._action.id === AcceptAction.ID) {
+
+			const listener = this._store.add(new MutableDisposable());
+
+			this._store.add(autorun(r => {
+
+				assertType(this.label);
+				assertType(this.element);
+
+				const ctrl = this._entry.read(r)?.autoAcceptController.read(r);
+				if (ctrl) {
+
+					const ratio = -100 * (ctrl.remaining / ctrl.total);
+
+					this.element.style.setProperty('--vscode-action-item-auto-timeout', `${ratio}%`);
+
+					this.element.classList.toggle('auto', true);
+					listener.value = addDisposableGenericMouseMoveListener(this.element, () => ctrl.cancel());
+				} else {
+					this.element.classList.toggle('auto', false);
+					listener.clear();
+				}
+			}));
+		}
+	}
+
+	override set actionRunner(actionRunner: IActionRunner) {
+		super.actionRunner = actionRunner;
+		if (this._editor) {
+			this._reveal.value = actionRunner.onWillRun(_e => {
+				this._editor!.focus();
+			});
+		}
+	}
+
+	override get actionRunner(): IActionRunner {
+		return super.actionRunner;
+	}
+
+	protected override getTooltip(): string | undefined {
+		const value = super.getTooltip();
+		if (!value || this.options.keybinding) {
+			return value;
+		}
+		return this._keybindingService.appendKeybinding(value, this._action.id);
+	}
+}
+
+class ChatEditorOverlayWidget extends Disposable {
 
 	private readonly _domNode: HTMLElement;
-	// private readonly _progressNode: HTMLElement;
-	private readonly _toolbar: WorkbenchToolBar;
+	private readonly _toolbarNode: HTMLElement;
 
-	private readonly _showStore = new DisposableStore();
+	private readonly _showStore = this._store.add(new DisposableStore());
 
 	private readonly _session = observableValue<IChatEditingSession | undefined>(this, undefined);
 	private readonly _entry = observableValue<IModifiedFileEntry | undefined>(this, undefined);
+	private readonly _isBusy: IObservable<boolean | undefined>;
 
 	private readonly _navigationBearings = observableValue<{ changeCount: number; activeIdx: number; entriesCount: number }>(this, { changeCount: -1, activeIdx: -1, entriesCount: -1 });
 
 	constructor(
 		private readonly _editor: { focus(): void },
-		@IChatService private readonly _chatService: IChatService,
-		@IInstantiationService instaService: IInstantiationService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+		@IInstantiationService private readonly _instaService: IInstantiationService,
 	) {
+		super();
 		this._domNode = document.createElement('div');
 		this._domNode.classList.add('chat-editor-overlay-widget');
+
+		this._isBusy = derived(r => {
+			const entry = this._entry.read(r);
+			return entry?.waitsForLastEdits.read(r);
+		});
+
 
 		const progressNode = document.createElement('div');
 		progressNode.classList.add('chat-editor-overlay-progress');
 		append(progressNode, renderIcon(ThemeIcon.modify(Codicon.loading, 'spin')));
+		const textProgress = append(progressNode, $('span.progress-message'));
 		this._domNode.appendChild(progressNode);
 
-		const toolbarNode = document.createElement('div');
-		toolbarNode.classList.add('chat-editor-overlay-toolbar');
-		this._domNode.appendChild(toolbarNode);
+		this._store.add(autorun(r => {
+			const busy = this._isBusy.read(r);
 
-		this._toolbar = instaService.createInstance(MenuWorkbenchToolBar, toolbarNode, MenuId.ChatEditingEditorContent, {
-			telemetrySource: 'chatEditor.overlayToolbar',
-			hiddenItemStrategy: HiddenItemStrategy.Ignore,
-			toolbarOptions: {
-				primaryGroup: () => true,
-				useSeparatorsInPrimaryActions: true
-			},
-			menuOptions: { renderShortTitle: true },
-			actionViewItemProvider: (action, options) => {
-				const that = this;
+			this._domNode.classList.toggle('busy', busy);
+			textProgress.innerText = '';
+		}));
 
-				if (action.id === navigationBearingFakeActionId) {
-					return new class extends ActionViewItem {
+		this._toolbarNode = document.createElement('div');
+		this._toolbarNode.classList.add('chat-editor-overlay-toolbar');
 
-						constructor() {
-							super(undefined, action, { ...options, icon: false, label: true, keybindingNotRenderedWithLabel: true });
-						}
-
-						override render(container: HTMLElement) {
-							super.render(container);
-
-							container.classList.add('label-item');
-
-							this._store.add(autorun(r => {
-								assertType(this.label);
-
-								const { changeCount, activeIdx } = that._navigationBearings.read(r);
-
-								if (changeCount > 0) {
-									const n = activeIdx === -1 ? '1' : `${activeIdx + 1}`;
-									this.label.innerText = localize('nOfM', "{0} of {1}", n, changeCount);
-								} else {
-									this.label.innerText = localize('0Of0', "0 of 0");
-								}
-
-								this.updateTooltip();
-							}));
-						}
-
-						protected override getTooltip(): string | undefined {
-							const { changeCount, entriesCount } = that._navigationBearings.get();
-							if (changeCount === -1 || entriesCount === -1) {
-								return undefined;
-							} else if (changeCount === 1 && entriesCount === 1) {
-								return localize('tooltip_11', "1 change in 1 file");
-							} else if (changeCount === 1) {
-								return localize('tooltip_1n', "1 change in {0} files", entriesCount);
-							} else if (entriesCount === 1) {
-								return localize('tooltip_n1', "{0} changes in 1 file", changeCount);
-							} else {
-								return localize('tooltip_nm', "{0} changes in {1} files", changeCount, entriesCount);
-							}
-						}
-					};
-				}
-
-				if (action.id === AcceptAction.ID || action.id === RejectAction.ID) {
-					return new class extends ActionViewItem {
-
-						private readonly _reveal = this._store.add(new MutableDisposable());
-
-						constructor() {
-							super(undefined, action, { ...options, icon: false, label: true, keybindingNotRenderedWithLabel: true });
-						}
-
-						override render(container: HTMLElement): void {
-							super.render(container);
-
-							if (action.id === AcceptAction.ID) {
-
-								const listener = this._store.add(new MutableDisposable());
-
-								this._store.add(autorun(r => {
-
-									assertType(this.label);
-									assertType(this.element);
-
-									const ctrl = that._entry.read(r)?.autoAcceptController.read(r);
-									if (ctrl) {
-
-										const r = -100 * (ctrl.remaining / ctrl.total);
-
-										this.element.style.setProperty('--vscode-action-item-auto-timeout', `${r}%`);
-
-										this.element.classList.toggle('auto', true);
-										listener.value = addDisposableGenericMouseMoveListener(this.element, () => ctrl.cancel());
-									} else {
-										this.element.classList.toggle('auto', false);
-										listener.clear();
-									}
-								}));
-							}
-						}
-
-						override set actionRunner(actionRunner: IActionRunner) {
-							super.actionRunner = actionRunner;
-							this._reveal.value = actionRunner.onWillRun(_e => {
-								that._editor.focus();
-							});
-						}
-						override get actionRunner(): IActionRunner {
-							return super.actionRunner;
-						}
-					};
-				}
-
-				if (action.id === 'inlineChat2.reveal' || action.id === 'workbench.action.chat.openEditSession') {
-					return new class extends ActionViewItem {
-
-						private _requestMessage: IObservable<{ message: string; paused?: boolean } | undefined>;
-
-						constructor() {
-							super(undefined, action, options);
-
-							this._requestMessage = derived(r => {
-								const session = that._session.read(r);
-								const chatModel = that._chatService.getSession(session?.chatSessionId ?? '');
-								if (!session || !chatModel) {
-									return undefined;
-								}
-
-								const response = that._entry.read(r)?.isCurrentlyBeingModifiedBy.read(r);
-
-								if (response) {
-
-									if (response?.isPaused.read(r)) {
-										return { message: localize('paused', "Edits Paused"), paused: true };
-									}
-
-									const entry = that._entry.read(r);
-									if (entry) {
-										const progress = entry?.rewriteRatio.read(r);
-										const message = progress === 0
-											? localize('generating', "Generating edits")
-											: localize('applyingPercentage', "{0}% Applying edits", Math.round(progress * 100));
-
-										return { message };
-									}
-								}
-
-								if (session.isGlobalEditingSession) {
-									return undefined;
-								}
-
-								const request = observableFromEvent(this, chatModel.onDidChange, () => chatModel.getRequests().at(-1)).read(r);
-								if (!request || request.response?.isComplete) {
-									return undefined;
-								}
-								return { message: request.message.text };
-							});
-						}
-
-						override render(container: HTMLElement) {
-							super.render(container);
-
-							container.classList.add('label-item');
-
-							this._store.add(autorun(r => {
-								assertType(this.label);
-
-								const value = this._requestMessage.read(r);
-								if (!value) {
-									// normal rendering
-									this.options.icon = true;
-									this.options.label = false;
-									reset(this.label);
-									this.updateClass();
-									this.updateLabel();
-									this.updateTooltip();
-
-								} else {
-									this.options.icon = false;
-									this.options.label = true;
-									this.updateClass();
-									this.updateTooltip();
-
-									const message = rcut(value.message, 47);
-									reset(this.label, message);
-								}
-
-								const busy = Boolean(value && !value.paused);
-								that._domNode.classList.toggle('busy', busy);
-								this.label.classList.toggle('busy', busy);
-
-							}));
-						}
-
-						protected override getTooltip(): string | undefined {
-							return this._requestMessage.get()?.message || super.getTooltip();
-						}
-					};
-				}
-				return undefined;
-			}
-		});
 	}
 
-	dispose() {
+	override dispose() {
 		this.hide();
-		this._showStore.dispose();
-		this._toolbar.dispose();
+		super.dispose();
 	}
 
 	getDomNode(): HTMLElement {
@@ -302,6 +187,81 @@ class ChatEditorOverlayWidget {
 			this._navigationBearings.set({ changeCount: totalChangesCount, activeIdx, entriesCount: entries.length }, undefined);
 		}));
 
+
+		this._domNode.appendChild(this._toolbarNode);
+		this._showStore.add(toDisposable(() => this._toolbarNode.remove()));
+
+		this._showStore.add(this._instaService.createInstance(MenuWorkbenchToolBar, this._toolbarNode, MenuId.ChatEditingEditorContent, {
+			telemetrySource: 'chatEditor.overlayToolbar',
+			hiddenItemStrategy: HiddenItemStrategy.Ignore,
+			toolbarOptions: {
+				primaryGroup: () => true,
+				useSeparatorsInPrimaryActions: true
+			},
+			menuOptions: { renderShortTitle: true },
+			actionViewItemProvider: (action, options) => {
+				const that = this;
+
+				if (action.id === navigationBearingFakeActionId) {
+					return new class extends ActionViewItem {
+
+						constructor() {
+							super(undefined, action, { ...options, icon: false, label: true, keybindingNotRenderedWithLabel: true });
+						}
+
+						override render(container: HTMLElement) {
+							super.render(container);
+
+							container.classList.add('label-item');
+
+							this._store.add(autorun(r => {
+								assertType(this.label);
+
+								const { changeCount, activeIdx } = that._navigationBearings.read(r);
+
+								if (changeCount > 0) {
+									const n = activeIdx === -1 ? '1' : `${activeIdx + 1}`;
+									this.label.innerText = localize('nOfM', "{0} of {1}", n, changeCount);
+								} else {
+									// allow-any-unicode-next-line
+									this.label.innerText = localize('0Of0', "—");
+								}
+
+								this.updateTooltip();
+							}));
+						}
+
+						protected override getTooltip(): string | undefined {
+							const { changeCount, entriesCount } = that._navigationBearings.get();
+							if (changeCount === -1 || entriesCount === -1) {
+								return undefined;
+							}
+							let result: string | undefined;
+							if (changeCount === 1 && entriesCount === 1) {
+								result = localize('tooltip_11', "1 change in 1 file");
+							} else if (changeCount === 1) {
+								result = localize('tooltip_1n', "1 change in {0} files", entriesCount);
+							} else if (entriesCount === 1) {
+								result = localize('tooltip_n1', "{0} changes in 1 file", changeCount);
+							} else {
+								result = localize('tooltip_nm', "{0} changes in {1} files", changeCount, entriesCount);
+							}
+							if (!that._isBusy.get()) {
+								return result;
+							}
+							return localize('tooltip_busy', "{0} - Working...", result);
+						}
+					};
+				}
+
+				if (action.id === AcceptAction.ID || action.id === RejectAction.ID) {
+					return new ChatEditingAcceptRejectActionViewItem(action, options, that._entry, that._editor, that._keybindingService);
+				}
+
+				return undefined;
+			}
+		}));
+
 	}
 
 	hide() {
@@ -324,9 +284,7 @@ class ChatEditingOverlayController {
 		container: HTMLElement,
 		group: IEditorGroup,
 		@IInstantiationService instaService: IInstantiationService,
-		@IChatService chatService: IChatService,
 		@IChatEditingService chatEditingService: IChatEditingService,
-		@IInlineChatSessionService inlineChatService: IInlineChatSessionService
 	) {
 
 		this._domNode.classList.add('chat-editing-editor-overlay');
@@ -374,24 +332,17 @@ class ChatEditingOverlayController {
 				return undefined;
 			}
 
-			return new ObservableEditorSession(uri, chatEditingService, inlineChatService).value.read(r);
-		});
-
-		const isInProgress = derived(r => {
-
-			const session = sessionAndEntry.read(r)?.session;
-			if (!session) {
-				return false;
+			// Directly query global editing sessions (inline chat has its own overlay)
+			for (const session of chatEditingService.editingSessionsObs.read(r)) {
+				if (!session.isGlobalEditingSession) {
+					continue;
+				}
+				const entry = session.readEntry(uri, r);
+				if (entry) {
+					return { session, entry };
+				}
 			}
-
-			const chatModel = chatService.getSession(session.chatSessionId)!;
-			const lastResponse = observableFromEvent(this, chatModel.onDidChange, () => chatModel.getRequests().at(-1)?.response);
-
-			const response = lastResponse.read(r);
-			if (!response) {
-				return false;
-			}
-			return observableFromEvent(this, response.onDidChange, () => !response.isComplete).read(r);
+			return undefined;
 		});
 
 		this._store.add(autorun(r => {
@@ -405,10 +356,7 @@ class ChatEditingOverlayController {
 
 			const { session, entry } = data;
 
-			if (
-				entry?.state.read(r) === ModifiedFileEntryState.Modified // any entry changing
-				|| (!session.isGlobalEditingSession && isInProgress.read(r)) // inline chat request
-			) {
+			if (entry?.state.read(r) === ModifiedFileEntryState.Modified) {
 				// any session with changes
 				const editorPane = group.activeEditorPane;
 				assertType(editorPane);

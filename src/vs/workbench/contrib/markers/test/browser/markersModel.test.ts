@@ -19,9 +19,11 @@ class TestMarkersModel extends MarkersModel {
 
 		Object.keys(byResource).forEach(key => {
 			const markers = byResource[key];
-			const resource = markers[0].resource;
+			if (markers) {
+				const resource = markers[0].resource;
 
-			this.setResourceMarkers([[resource, markers]]);
+				this.setResourceMarkers([[resource, markers]]);
+			}
 		});
 	}
 }
@@ -140,6 +142,7 @@ suite('MarkersModel Test', () => {
 		const testObject = new Marker('5', marker, null!);
 
 		// hack
+		// eslint-disable-next-line local/code-no-any-casts
 		(testObject as any).relatedInformation = marker.relatedInformation!.map(r => new RelatedInformation('6', marker, r));
 		assert.strictEqual(JSON.stringify({ ...marker, resource: marker.resource.path, relatedInformation: marker.relatedInformation!.map(r => ({ ...r, resource: r.resource.path })) }, null, '\t'), testObject.toString());
 	});

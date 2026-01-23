@@ -20,6 +20,7 @@ import { NullLogService } from '../../../log/common/log.js';
 import { FilePolicyService } from '../../../policy/common/filePolicyService.js';
 import { NullPolicyService } from '../../../policy/common/policy.js';
 import { Registry } from '../../../registry/common/platform.js';
+import { PolicyCategory } from '../../../../base/common/policy.js';
 
 suite('ConfigurationService.test.ts', () => {
 
@@ -374,7 +375,9 @@ suite('ConfigurationService.test.ts', () => {
 					'default': 'isSet',
 					policy: {
 						name: 'configurationService.policySetting',
+						category: PolicyCategory.Extensions,
 						minimumVersion: '1.0.0',
+						localization: { description: { key: '', value: '' }, }
 					}
 				}
 			}

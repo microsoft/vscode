@@ -66,7 +66,8 @@ suite('Common Editor Config', () => {
 				outerHeight: 100,
 				emptySelectionClipboard: true,
 				pixelRatio: 1,
-				accessibilitySupport: AccessibilitySupport.Unknown
+				accessibilitySupport: AccessibilitySupport.Unknown,
+				editContextSupported: true,
 			};
 		}
 	}
@@ -86,6 +87,7 @@ suite('Common Editor Config', () => {
 
 	test('wordWrap compat false', () => {
 		const config = new TestWrappingConfiguration({
+			// eslint-disable-next-line local/code-no-any-casts
 			wordWrap: <any>false
 		});
 		assertWrapping(config, false, -1);
@@ -94,6 +96,7 @@ suite('Common Editor Config', () => {
 
 	test('wordWrap compat true', () => {
 		const config = new TestWrappingConfiguration({
+			// eslint-disable-next-line local/code-no-any-casts
 			wordWrap: <any>true
 		});
 		assertWrapping(config, true, 80);
@@ -201,13 +204,13 @@ suite('Common Editor Config', () => {
 		const hoverOptions: IEditorHoverOptions = {};
 		Object.defineProperty(hoverOptions, 'enabled', {
 			writable: false,
-			value: true
+			value: 'on'
 		});
 		const config = new TestConfiguration({ hover: hoverOptions });
 
-		assert.strictEqual(config.options.get(EditorOption.hover).enabled, true);
-		config.updateOptions({ hover: { enabled: false } });
-		assert.strictEqual(config.options.get(EditorOption.hover).enabled, false);
+		assert.strictEqual(config.options.get(EditorOption.hover).enabled, 'on');
+		config.updateOptions({ hover: { enabled: 'off' } });
+		assert.strictEqual(config.options.get(EditorOption.hover).enabled, 'off');
 
 		config.dispose();
 	});
@@ -254,13 +257,13 @@ suite('Common Editor Config', () => {
 		const actual = config.options.get(EditorOption.unicodeHighlighting);
 		assert.deepStrictEqual(actual,
 			{
-				nonBasicASCII: "inUntrustedWorkspace",
+				nonBasicASCII: 'inUntrustedWorkspace',
 				invisibleCharacters: true,
 				ambiguousCharacters: true,
-				includeComments: "inUntrustedWorkspace",
-				includeStrings: "inUntrustedWorkspace",
-				allowedCharacters: { "x": true },
-				allowedLocales: { "_os": true, "_vscode": true }
+				includeComments: 'inUntrustedWorkspace',
+				includeStrings: 'inUntrustedWorkspace',
+				allowedCharacters: { 'x': true },
+				allowedLocales: { '_os': true, '_vscode': true }
 			}
 		);
 		config.dispose();
@@ -377,8 +380,8 @@ suite('migrateOptions', () => {
 		assert.deepStrictEqual(migrate({ quickSuggestions: { comments: 'on', strings: 'off' } }), { quickSuggestions: { comments: 'on', strings: 'off' } });
 	});
 	test('hover', () => {
-		assert.deepStrictEqual(migrate({ hover: true }), { hover: { enabled: true } });
-		assert.deepStrictEqual(migrate({ hover: false }), { hover: { enabled: false } });
+		assert.deepStrictEqual(migrate({ hover: true }), { hover: { enabled: 'on' } });
+		assert.deepStrictEqual(migrate({ hover: false }), { hover: { enabled: 'off' } });
 	});
 	test('parameterHints', () => {
 		assert.deepStrictEqual(migrate({ parameterHints: true }), { parameterHints: { enabled: true } });

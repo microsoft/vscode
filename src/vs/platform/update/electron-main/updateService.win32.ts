@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { spawn } from 'child_process';
-import * as fs from 'fs';
+import { existsSync, unlinkSync } from 'fs';
+import { mkdir, readFile, unlink } from 'fs/promises';
 import { tmpdir } from 'os';
+import { app } from 'electron';
 import { timeout } from '../../../base/common/async.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { memoize } from '../../../base/common/decorators.js';
@@ -24,7 +26,7 @@ import { IProductService } from '../../product/common/productService.js';
 import { asJson, IRequestService } from '../../request/common/request.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { AvailableForDownload, DisablementReason, IUpdate, State, StateType, UpdateType } from '../common/update.js';
-import { AbstractUpdateService, createUpdateURL, UpdateErrorClassification } from './abstractUpdateService.js';
+import { AbstractUpdateService, createUpdateURL, IUpdateURLOptions, UpdateErrorClassification } from './abstractUpdateService.js';
 
 async function pollUntil(fn: () => boolean, millis = 1000): Promise<void> {
 	while (!fn()) {
@@ -40,7 +42,7 @@ interface IAvailableUpdate {
 let _updateType: UpdateType | undefined = undefined;
 function getUpdateType(): UpdateType {
 	if (typeof _updateType === 'undefined') {
-		_updateType = fs.existsSync(path.join(path.dirname(process.execPath), 'unins000.exe'))
+		_updateType = existsSync(path.join(path.dirname(process.execPath), 'unins000.exe'))
 			? UpdateType.Setup
 			: UpdateType.Archive;
 	}
@@ -55,7 +57,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 	@memoize
 	get cachePath(): Promise<string> {
 		const result = path.join(tmpdir(), `vscode-${this.productService.quality}-${this.productService.target}-${process.arch}`);
-		return fs.promises.mkdir(result, { recursive: true }).then(() => result);
+		return mkdir(result, { recursive: true }).then(() => result);
 	}
 
 	constructor(
@@ -69,7 +71,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		@INativeHostMainService private readonly nativeHostMainService: INativeHostMainService,
 		@IProductService productService: IProductService
 	) {
-		super(lifecycleMainService, configurationService, environmentMainService, requestService, logService, productService);
+		super(lifecycleMainService, configurationService, environmentMainService, requestService, logService, productService, false);
 
 		lifecycleMainService.setRelaunchHandler(this);
 	}
@@ -90,6 +92,14 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 	}
 
 	protected override async initialize(): Promise<void> {
+		if (this.productService.win32VersionedUpdate) {
+			const cachePath = await this.cachePath;
+			app.setPath('appUpdate', cachePath);
+			try {
+				await unlink(path.join(cachePath, 'session-ending.flag'));
+			} catch { }
+		}
+
 		if (this.productService.target === 'user' && await this.nativeHostMainService.isAdmin(undefined)) {
 			this.setState(State.Disabled(DisablementReason.RunningAsAdmin));
 			this.logService.info('update#ctor - updates are disabled due to running as Admin in user setup');
@@ -99,7 +109,50 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		await super.initialize();
 	}
 
-	protected buildUpdateFeedUrl(quality: string): string | undefined {
+	protected override async postInitialize(): Promise<void> {
+		if (!this.productService.win32VersionedUpdate) {
+			return;
+		}
+		// Check for pending update from previous session
+		// This can happen if the app is quit right after the update has been
+		// downloaded and before the update has been applied.
+		const exePath = app.getPath('exe');
+		const exeDir = path.dirname(exePath);
+		const updatingVersionPath = path.join(exeDir, 'updating_version');
+		if (await pfs.Promises.exists(updatingVersionPath)) {
+			try {
+				const updatingVersion = (await readFile(updatingVersionPath, 'utf8')).trim();
+				this.logService.info(`update#doCheckForUpdates - application was updating to version ${updatingVersion}`);
+				const updatePackagePath = await this.getUpdatePackagePath(updatingVersion);
+				if (await pfs.Promises.exists(updatePackagePath)) {
+					await this._applySpecificUpdate(updatePackagePath);
+					this.logService.info(`update#doCheckForUpdates - successfully applied update to version ${updatingVersion}`);
+				}
+			} catch (e) {
+				this.logService.error(`update#doCheckForUpdates - could not read ${updatingVersionPath}`, e);
+			} finally {
+				// updatingVersionPath will be deleted by inno setup.
+			}
+		} else {
+			const fastUpdatesEnabled = this.configurationService.getValue('update.enableWindowsBackgroundUpdates');
+			// GC for background updates in system setup happens via inno_setup since it requires
+			// elevated permissions.
+			if (fastUpdatesEnabled && this.productService.target === 'user' && this.productService.commit) {
+				const versionedResourcesFolder = this.productService.commit.substring(0, 10);
+				const innoUpdater = path.join(exeDir, versionedResourcesFolder, 'tools', 'inno_updater.exe');
+				await new Promise<void>(resolve => {
+					const child = spawn(innoUpdater, ['--gc', exePath, versionedResourcesFolder], {
+						stdio: ['ignore', 'ignore', 'ignore'],
+						windowsHide: true,
+						timeout: 2 * 60 * 1000
+					});
+					child.once('exit', () => resolve());
+				});
+			}
+		}
+	}
+
+	protected buildUpdateFeedUrl(quality: string, commit: string, options?: IUpdateURLOptions): string | undefined {
 		let platform = `win32-${process.arch}`;
 
 		if (getUpdateType() === UpdateType.Archive) {
@@ -108,17 +161,18 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 			platform += '-user';
 		}
 
-		return createUpdateURL(platform, quality, this.productService);
+		return createUpdateURL(this.productService.updateUrl!, platform, quality, commit, options);
 	}
 
-	protected doCheckForUpdates(context: any): void {
-		if (!this.url) {
+	protected doCheckForUpdates(explicit: boolean): void {
+		if (!this.quality) {
 			return;
 		}
 
-		this.setState(State.CheckingForUpdates(context));
+		const url = this.buildUpdateFeedUrl(this.quality, this.productService.commit!, { background: !explicit });
+		this.setState(State.CheckingForUpdates(explicit));
 
-		this.requestService.request({ url: this.url }, CancellationToken.None)
+		this.requestService.request({ url }, CancellationToken.None)
 			.then<IUpdate | null>(asJson)
 			.then(update => {
 				const updateType = getUpdateType();
@@ -133,7 +187,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 					return Promise.resolve(null);
 				}
 
-				this.setState(State.Downloading);
+				this.setState(State.Downloading(explicit, this._overwrite));
 
 				return this.cleanup(update.version).then(() => {
 					return this.getUpdatePackagePath(update.version).then(updatePackagePath => {
@@ -152,7 +206,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 						});
 					}).then(packagePath => {
 						this.availableUpdate = { packagePath };
-						this.setState(State.Downloaded(update));
+						this.setState(State.Downloaded(update, explicit, this._overwrite));
 
 						const fastUpdatesEnabled = this.configurationService.getValue('update.enableWindowsBackgroundUpdates');
 						if (fastUpdatesEnabled) {
@@ -160,7 +214,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 								this.doApplyUpdate();
 							}
 						} else {
-							this.setState(State.Ready(update));
+							this.setState(State.Ready(update, explicit, this._overwrite));
 						}
 					});
 				});
@@ -170,7 +224,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 				this.logService.error(err);
 
 				// only show message when explicitly checking for updates
-				const message: string | undefined = !!context ? (err.message || err) : undefined;
+				const message: string | undefined = explicit ? (err.message || err) : undefined;
 				this.setState(State.Idle(getUpdateType(), message));
 			});
 	}
@@ -195,7 +249,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 
 		const promises = versions.filter(filter).map(async one => {
 			try {
-				await fs.promises.unlink(path.join(cachePath, one));
+				await unlink(path.join(cachePath, one));
 			} catch (err) {
 				// ignore
 			}
@@ -214,14 +268,16 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		}
 
 		const update = this.state.update;
+		const explicit = this.state.explicit;
 		this.setState(State.Updating(update));
 
 		const cachePath = await this.cachePath;
+		const sessionEndFlagPath = path.join(cachePath, 'session-ending.flag');
 
 		this.availableUpdate.updateFilePath = path.join(cachePath, `CodeSetup-${this.productService.quality}-${update.version}.flag`);
 
 		await pfs.Promises.writeFile(this.availableUpdate.updateFilePath, 'flag');
-		const child = spawn(this.availableUpdate.packagePath, ['/verysilent', '/log', `/update="${this.availableUpdate.updateFilePath}"`, '/nocloseapplications', '/mergetasks=runcode,!desktopicon,!quicklaunchicon'], {
+		const child = spawn(this.availableUpdate.packagePath, ['/verysilent', '/log', `/update="${this.availableUpdate.updateFilePath}"`, `/sessionend="${sessionEndFlagPath}"`, '/nocloseapplications', '/mergetasks=runcode,!desktopicon,!quicklaunchicon'], {
 			detached: true,
 			stdio: ['ignore', 'ignore', 'ignore'],
 			windowsVerbatimArguments: true
@@ -237,7 +293,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 
 		// poll for mutex-ready
 		pollUntil(() => mutex.isActive(readyMutexName))
-			.then(() => this.setState(State.Ready(update)));
+			.then(() => this.setState(State.Ready(update, explicit, this._overwrite)));
 	}
 
 	protected override doQuitAndInstall(): void {
@@ -248,7 +304,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		this.logService.trace('update#quitAndInstall(): running raw#quitAndInstall()');
 
 		if (this.availableUpdate.updateFilePath) {
-			fs.unlinkSync(this.availableUpdate.updateFilePath);
+			unlinkSync(this.availableUpdate.updateFilePath);
 		} else {
 			spawn(this.availableUpdate.packagePath, ['/silent', '/log', '/mergetasks=runcode,!desktopicon,!quicklaunchicon'], {
 				detached: true,
@@ -269,16 +325,16 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		const fastUpdatesEnabled = this.configurationService.getValue('update.enableWindowsBackgroundUpdates');
 		const update: IUpdate = { version: 'unknown', productVersion: 'unknown' };
 
-		this.setState(State.Downloading);
+		this.setState(State.Downloading(true, false));
 		this.availableUpdate = { packagePath };
-		this.setState(State.Downloaded(update));
+		this.setState(State.Downloaded(update, true, false));
 
 		if (fastUpdatesEnabled) {
 			if (this.productService.target === 'user') {
 				this.doApplyUpdate();
 			}
 		} else {
-			this.setState(State.Ready(update));
+			this.setState(State.Ready(update, true, false));
 		}
 	}
 }

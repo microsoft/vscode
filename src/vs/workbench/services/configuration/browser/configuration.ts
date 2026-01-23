@@ -14,7 +14,7 @@ import { WorkspaceConfigurationModelParser, StandaloneConfigurationModelParser }
 import { TASKS_CONFIGURATION_KEY, FOLDER_SETTINGS_NAME, LAUNCH_CONFIGURATION_KEY, IConfigurationCache, ConfigurationKey, REMOTE_MACHINE_SCOPES, FOLDER_SCOPES, WORKSPACE_SCOPES, APPLY_ALL_PROFILES_SETTING, APPLICATION_SCOPES, MCP_CONFIGURATION_KEY } from '../common/configuration.js';
 import { IStoredWorkspaceFolder } from '../../../../platform/workspaces/common/workspaces.js';
 import { WorkbenchState, IWorkspaceFolder, IWorkspaceIdentifier } from '../../../../platform/workspace/common/workspace.js';
-import { ConfigurationScope, Extensions, IConfigurationRegistry, OVERRIDE_PROPERTY_REGEX } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { ConfigurationScope, Extensions, IConfigurationDefaults, IConfigurationRegistry, OVERRIDE_PROPERTY_REGEX } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { equals } from '../../../../base/common/objects.js';
 import { IRemoteAgentService } from '../../remote/common/remoteAgentService.js';
 import { hash } from '../../../../base/common/hash.js';
@@ -23,21 +23,20 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStringDictionary } from '../../../../base/common/collections.js';
 import { joinPath } from '../../../../base/common/resources.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
-import { IBrowserWorkbenchEnvironmentService } from '../../environment/browser/environmentService.js';
 import { isEmptyObject, isObject } from '../../../../base/common/types.js';
 import { DefaultConfiguration as BaseDefaultConfiguration } from '../../../../platform/configuration/common/configurations.js';
 import { IJSONEditingService } from '../common/jsonEditing.js';
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
+import { IBrowserWorkbenchEnvironmentService } from '../../environment/browser/environmentService.js';
 
 export class DefaultConfiguration extends BaseDefaultConfiguration {
 
 	static readonly DEFAULT_OVERRIDES_CACHE_EXISTS_KEY = 'DefaultOverridesCacheExists';
 
 	private readonly configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
-	private cachedConfigurationDefaultsOverrides: IStringDictionary<any> = {};
+	private cachedConfigurationDefaultsOverrides: IStringDictionary<unknown> = {};
 	private readonly cacheKey: ConfigurationKey = { type: 'defaults', key: 'configurationDefaultsOverrides' };
-
-	private updateCache: boolean = false;
+	private profileDefaults: IConfigurationDefaults | undefined;
 
 	constructor(
 		private readonly configurationCache: IConfigurationCache,
@@ -46,11 +45,11 @@ export class DefaultConfiguration extends BaseDefaultConfiguration {
 	) {
 		super(logService);
 		if (environmentService.options?.configurationDefaults) {
-			this.configurationRegistry.registerDefaultConfigurations([{ overrides: environmentService.options.configurationDefaults }]);
+			this.configurationRegistry.registerDefaultConfigurations([{ overrides: environmentService.options.configurationDefaults as IStringDictionary<IStringDictionary<unknown>> }]);
 		}
 	}
 
-	protected override getConfigurationDefaultOverrides(): IStringDictionary<any> {
+	protected override getConfigurationDefaultOverrides(): IStringDictionary<unknown> {
 		return this.cachedConfigurationDefaultsOverrides;
 	}
 
@@ -60,7 +59,6 @@ export class DefaultConfiguration extends BaseDefaultConfiguration {
 	}
 
 	override reload(): ConfigurationModel {
-		this.updateCache = true;
 		this.cachedConfigurationDefaultsOverrides = {};
 		this.updateCachedConfigurationDefaultsOverrides();
 		return super.reload();
@@ -68,6 +66,18 @@ export class DefaultConfiguration extends BaseDefaultConfiguration {
 
 	hasCachedConfigurationDefaultsOverrides(): boolean {
 		return !isEmptyObject(this.cachedConfigurationDefaultsOverrides);
+	}
+
+	updateProfileDefaults(configurationDefaults: IStringDictionary<unknown> | undefined): void {
+		if (this.profileDefaults) {
+			this.configurationRegistry.deregisterDefaultConfigurations([this.profileDefaults]);
+		}
+		if (configurationDefaults) {
+			this.profileDefaults = { overrides: configurationDefaults };
+			this.configurationRegistry.registerDefaultConfigurations([this.profileDefaults]);
+		} else {
+			this.profileDefaults = undefined;
+		}
 	}
 
 	private initiaizeCachedConfigurationDefaultsOverridesPromise: Promise<void> | undefined;
@@ -97,10 +107,7 @@ export class DefaultConfiguration extends BaseDefaultConfiguration {
 	}
 
 	private async updateCachedConfigurationDefaultsOverrides(): Promise<void> {
-		if (!this.updateCache) {
-			return;
-		}
-		const cachedConfigurationDefaultsOverrides: IStringDictionary<any> = {};
+		const cachedConfigurationDefaultsOverrides: IStringDictionary<unknown> = {};
 		const configurationDefaultsOverrides = this.configurationRegistry.getConfigurationDefaultsOverrides();
 		for (const [key, value] of configurationDefaultsOverrides) {
 			if (!OVERRIDE_PROPERTY_REGEX.test(key) && value.value !== undefined) {
@@ -166,6 +173,7 @@ export class UserConfiguration extends Disposable {
 	constructor(
 		private settingsResource: URI,
 		private tasksResource: URI | undefined,
+		private mcpResource: URI | undefined,
 		private configurationParseOptions: ConfigurationParseOptions,
 		private readonly fileService: IFileService,
 		private readonly uriIdentityService: IUriIdentityService,
@@ -177,16 +185,23 @@ export class UserConfiguration extends Disposable {
 		this.reloadConfigurationScheduler = this._register(new RunOnceScheduler(() => this.userConfiguration.value!.loadConfiguration().then(configurationModel => this._onDidChangeConfiguration.fire(configurationModel)), 50));
 	}
 
-	async reset(settingsResource: URI, tasksResource: URI | undefined, configurationParseOptions: ConfigurationParseOptions): Promise<ConfigurationModel> {
+	async reset(settingsResource: URI, tasksResource: URI | undefined, mcpResource: URI | undefined, configurationParseOptions: ConfigurationParseOptions): Promise<ConfigurationModel> {
 		this.settingsResource = settingsResource;
 		this.tasksResource = tasksResource;
+		this.mcpResource = mcpResource;
 		this.configurationParseOptions = configurationParseOptions;
 		return this.doReset();
 	}
 
 	private async doReset(settingsConfiguration?: ConfigurationModel): Promise<ConfigurationModel> {
 		const folder = this.uriIdentityService.extUri.dirname(this.settingsResource);
-		const standAloneConfigurationResources: [string, URI][] = this.tasksResource ? [[TASKS_CONFIGURATION_KEY, this.tasksResource]] : [];
+		const standAloneConfigurationResources: [string, URI][] = [];
+		if (this.tasksResource) {
+			standAloneConfigurationResources.push([TASKS_CONFIGURATION_KEY, this.tasksResource]);
+		}
+		if (this.mcpResource) {
+			standAloneConfigurationResources.push([MCP_CONFIGURATION_KEY, this.mcpResource]);
+		}
 		const fileServiceBasedConfiguration = new FileServiceBasedConfiguration(folder.toString(), this.settingsResource, standAloneConfigurationResources, this.configurationParseOptions, this.fileService, this.uriIdentityService, this.logService);
 		const configurationModel = await fileServiceBasedConfiguration.loadConfiguration(settingsConfiguration);
 		this.userConfiguration.value = fileServiceBasedConfiguration;
@@ -962,7 +977,7 @@ class CachedFolderConfiguration {
 	}
 
 	async updateConfiguration(settingsContent: string | undefined, standAloneConfigurationContents: [string, string | undefined][]): Promise<void> {
-		const content: any = {};
+		const content: IStringDictionary<unknown> = {};
 		if (settingsContent) {
 			content[FOLDER_SETTINGS_NAME] = settingsContent;
 		}
@@ -1077,5 +1092,9 @@ export class FolderConfiguration extends Disposable {
 			const [settingsContent, standAloneConfigurationContents] = await this.folderConfiguration.resolveContents();
 			this.cachedFolderConfiguration.updateConfiguration(settingsContent, standAloneConfigurationContents);
 		}
+	}
+
+	public addRelated(disposable: IDisposable): void {
+		this._register(disposable);
 	}
 }

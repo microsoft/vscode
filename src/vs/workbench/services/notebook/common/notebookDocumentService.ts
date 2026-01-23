@@ -66,7 +66,7 @@ export function generateMetadataUri(notebook: URI): URI {
 	return notebook.with({ scheme: Schemas.vscodeNotebookMetadata, fragment });
 }
 
-export function extractCellOutputDetails(uri: URI): { notebook: URI; openIn: string; outputId?: string; cellFragment?: string; outputIndex?: number; cellHandle?: number } | undefined {
+export function extractCellOutputDetails(uri: URI): { notebook: URI; openIn: string; outputId?: string; cellFragment?: string; outputIndex?: number; cellHandle?: number; cellIndex?: number } | undefined {
 	if (uri.scheme !== Schemas.vscodeNotebookCellOutput) {
 		return;
 	}
@@ -79,18 +79,21 @@ export function extractCellOutputDetails(uri: URI): { notebook: URI; openIn: str
 	const outputId = params.get('outputId') ?? undefined;
 	const parsedCell = parse(uri.with({ scheme: Schemas.vscodeNotebookCell, query: null }));
 	const outputIndex = params.get('outputIndex') ? parseInt(params.get('outputIndex') || '', 10) : undefined;
-
-	if (parsedCell?.notebook === undefined || parsedCell?.handle === undefined) {
-		throw new Error('Invalid cell URI');
-	}
+	const notebookUri = parsedCell ? parsedCell.notebook : uri.with({
+		scheme: params.get('notebookScheme') || Schemas.file,
+		fragment: null,
+		query: null,
+	});
+	const cellIndex = params.get('cellIndex') ? parseInt(params.get('cellIndex') || '', 10) : undefined;
 
 	return {
-		notebook: parsedCell.notebook,
+		notebook: notebookUri,
 		openIn: openIn,
 		outputId: outputId,
 		outputIndex: outputIndex,
-		cellHandle: parsedCell.handle,
+		cellHandle: parsedCell?.handle,
 		cellFragment: uri.fragment,
+		cellIndex: cellIndex,
 	};
 }
 

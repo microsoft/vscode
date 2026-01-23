@@ -34,7 +34,7 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '.
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkbenchConfigurationService } from '../../../services/configuration/common/configuration.js';
 import { IRemoteAgentEnvironment } from '../../../../platform/remote/common/remoteAgentEnvironment.js';
-import { Action } from '../../../../base/common/actions.js';
+import { toAction } from '../../../../base/common/actions.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
 import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
 
@@ -273,16 +273,24 @@ export class AutomaticPortForwarding extends Disposable implements IWorkbenchCon
 						severity: Severity.Warning,
 						actions: {
 							primary: [
-								new Action('switchBack', nls.localize('remote.autoForwardPortsSource.fallback.switchBack', "Undo"), undefined, true, async () => {
-									await this.configurationService.updateValue(PORT_AUTO_SOURCE_SETTING, PORT_AUTO_SOURCE_SETTING_PROCESS);
-									await this.configurationService.updateValue(PORT_AUTO_FALLBACK_SETTING, 0, ConfigurationTarget.WORKSPACE);
-									this.portListener?.dispose();
-									this.portListener = undefined;
+								toAction({
+									id: 'switchBack',
+									label: nls.localize('remote.autoForwardPortsSource.fallback.switchBack', "Undo"),
+									run: async () => {
+										await this.configurationService.updateValue(PORT_AUTO_SOURCE_SETTING, PORT_AUTO_SOURCE_SETTING_PROCESS);
+										await this.configurationService.updateValue(PORT_AUTO_FALLBACK_SETTING, 0, ConfigurationTarget.WORKSPACE);
+										this.portListener?.dispose();
+										this.portListener = undefined;
+									}
 								}),
-								new Action('showPortSourceSetting', nls.localize('remote.autoForwardPortsSource.fallback.showPortSourceSetting', "Show Setting"), undefined, true, async () => {
-									await this.preferencesService.openSettings({
-										query: 'remote.autoForwardPortsSource'
-									});
+								toAction({
+									id: 'showPortSourceSetting',
+									label: nls.localize('remote.autoForwardPortsSource.fallback.showPortSourceSetting', "Show Setting"),
+									run: async () => {
+										await this.preferencesService.openSettings({
+											query: 'remote.autoForwardPortsSource'
+										});
+									}
 								})
 							]
 						}
@@ -792,10 +800,9 @@ class ProcAutomaticPortForwarding extends Disposable {
 				}
 				await this.remoteExplorerService.close(value, TunnelCloseReason.AutoForwardEnd);
 				removedPorts.push(value.port);
-			} else if (this.notifiedOnly.has(key)) {
-				this.notifiedOnly.delete(key);
+			} else if (this.notifiedOnly.delete(key)) {
 				removedPorts.push(value.port);
-			} else if (this.initialCandidates.has(key)) {
+			} else {
 				this.initialCandidates.delete(key);
 			}
 		}

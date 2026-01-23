@@ -10,7 +10,7 @@ import { IAction, Separator, SubmenuAction, toAction, WorkbenchActionExecutedCla
 import { coalesceInPlace } from '../../../base/common/arrays.js';
 import { intersection } from '../../../base/common/collections.js';
 import { BugIndicatingError } from '../../../base/common/errors.js';
-import { Emitter, Event } from '../../../base/common/event.js';
+import { Emitter } from '../../../base/common/event.js';
 import { Iterable } from '../../../base/common/iterator.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { localize } from '../../../nls.js';
@@ -330,7 +330,7 @@ export interface IMenuWorkbenchToolBarOptions extends IWorkbenchToolBarOptions {
 export class MenuWorkbenchToolBar extends WorkbenchToolBar {
 
 	private readonly _onDidChangeMenuItems = this._store.add(new Emitter<this>());
-	readonly onDidChangeMenuItems: Event<this> = this._onDidChangeMenuItems.event;
+	get onDidChangeMenuItems() { return this._onDidChangeMenuItems.event; }
 
 	constructor(
 		container: HTMLElement,
@@ -343,7 +343,7 @@ export class MenuWorkbenchToolBar extends WorkbenchToolBar {
 		@ICommandService commandService: ICommandService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IActionViewItemService actionViewService: IActionViewItemService,
-		@IInstantiationService instaService: IInstantiationService,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super(container, {
 			resetMenu: menuId,
@@ -353,11 +353,11 @@ export class MenuWorkbenchToolBar extends WorkbenchToolBar {
 				if (!provider) {
 					provider = options?.actionViewItemProvider;
 				}
-				const viewItem = provider?.(action, opts);
+				const viewItem = provider?.(action, opts, instantiationService, getWindow(container).vscodeWindowId);
 				if (viewItem) {
 					return viewItem;
 				}
-				return createActionViewItem(instaService, action, opts);
+				return createActionViewItem(instantiationService, action, opts);
 			}
 		}, menuService, contextKeyService, contextMenuService, keybindingService, commandService, telemetryService);
 
@@ -366,7 +366,9 @@ export class MenuWorkbenchToolBar extends WorkbenchToolBar {
 		const updateToolbar = () => {
 			const { primary, secondary } = getActionBarActions(
 				menu.getActions(options?.menuOptions),
-				options?.toolbarOptions?.primaryGroup, options?.toolbarOptions?.shouldInlineSubmenu, options?.toolbarOptions?.useSeparatorsInPrimaryActions
+				options?.toolbarOptions?.primaryGroup,
+				options?.toolbarOptions?.shouldInlineSubmenu,
+				options?.toolbarOptions?.useSeparatorsInPrimaryActions
 			);
 			container.classList.toggle('has-no-actions', primary.length === 0 && secondary.length === 0);
 			super.setActions(primary, secondary);

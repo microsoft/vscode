@@ -117,7 +117,7 @@ const wrapIdentityProvider = <T>(base: IIdentityProvider<T>): IIdentityProvider<
 });
 
 // Exported only for test reasons, do not use directly
-export class CompressedObjectTreeModel<T extends NonNullable<any>, TFilterData extends NonNullable<any> = void> implements ITreeModel<ICompressedTreeNode<T> | null, TFilterData, T | null> {
+export class CompressedObjectTreeModel<T, TFilterData = void> implements ITreeModel<ICompressedTreeNode<T> | null, TFilterData, T | null> {
 
 	readonly rootRef = null;
 
@@ -351,7 +351,7 @@ export class CompressedObjectTreeModel<T extends NonNullable<any>, TFilterData e
 // Compressible Object Tree
 
 export type ElementMapper<T> = (elements: T[]) => T;
-export const DefaultElementMapper: ElementMapper<any> = elements => elements[elements.length - 1];
+export const DefaultElementMapper: ElementMapper<unknown> = elements => elements[elements.length - 1];
 
 export type CompressedNodeUnwrapper<T> = (node: ICompressedTreeNode<T>) => T;
 type CompressedNodeWeakMapper<T, TFilterData> = WeakMapper<ITreeNode<ICompressedTreeNode<T> | null, TFilterData>, ITreeNode<T | null, TFilterData>>;
@@ -405,7 +405,7 @@ export interface ICompressibleObjectTreeModelOptions<T, TFilterData> extends IOb
 	readonly elementMapper?: ElementMapper<T>;
 }
 
-export class CompressibleObjectTreeModel<T extends NonNullable<any>, TFilterData extends NonNullable<any> = void> implements IObjectTreeModel<T, TFilterData> {
+export class CompressibleObjectTreeModel<T, TFilterData = void> implements IObjectTreeModel<T, TFilterData> {
 
 	readonly rootRef = null;
 
@@ -443,7 +443,7 @@ export class CompressibleObjectTreeModel<T extends NonNullable<any>, TFilterData
 		user: string,
 		options: ICompressibleObjectTreeModelOptions<T, TFilterData> = {}
 	) {
-		this.elementMapper = options.elementMapper || DefaultElementMapper;
+		this.elementMapper = options.elementMapper || (DefaultElementMapper as ElementMapper<T>);
 		const compressedNodeUnwrapper: CompressedNodeUnwrapper<T> = node => this.elementMapper(node.elements);
 		this.nodeMapper = new WeakMapper(node => new CompressedTreeNodeWrapper(compressedNodeUnwrapper, node));
 
@@ -478,11 +478,11 @@ export class CompressibleObjectTreeModel<T extends NonNullable<any>, TFilterData
 		return this.model.getListRenderCount(location);
 	}
 
-	getNode(location?: T | null | undefined): ITreeNode<T | null, any> {
+	getNode(location?: T | null | undefined): ITreeNode<T | null, TFilterData> {
 		return this.nodeMapper.map(this.model.getNode(location));
 	}
 
-	getNodeLocation(node: ITreeNode<T | null, any>): T | null {
+	getNodeLocation(node: ITreeNode<T | null, TFilterData>): T | null {
 		return node.element;
 	}
 

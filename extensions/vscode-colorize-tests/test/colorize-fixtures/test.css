@@ -154,6 +154,20 @@ footer a:visited {
     color: '#B3AE94';
 }
 
+.parent {
+    color: tomato;
+    .child {
+        color: blue;
+    }
+}
+
+.parent {
+    color: tomato;
+    & .child {
+        color: blue;
+    }
+}
+
 .extra1 {
     background: transparent url(cr2.gif) top left no-repeat;
     position: absolute;
@@ -165,6 +179,16 @@ footer a:visited {
 
 .chat-feature-container .codicon[class*='codicon-'] {
     font-size: 16px;
+}
+
+figma-help-bubble {
+	position: absolute;
+	right: 16px;
+	bottom: 16px;
+}
+
+figma-select::part(listbox) {
+	max-height: 250px;
 }
 
 div > * + * {

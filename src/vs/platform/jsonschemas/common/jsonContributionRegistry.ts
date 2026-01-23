@@ -5,7 +5,7 @@
 
 import { Emitter, Event } from '../../../base/common/event.js';
 import { getCompressedContent, IJSONSchema } from '../../../base/common/jsonSchema.js';
-import { DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import * as platform from '../../registry/common/platform.js';
 
 export const Extensions = {
@@ -65,15 +65,15 @@ function normalizeId(id: string) {
 
 
 
-class JSONContributionRegistry implements IJSONContributionRegistry {
+class JSONContributionRegistry extends Disposable implements IJSONContributionRegistry {
 
 	private readonly schemasById: { [id: string]: IJSONSchema } = {};
 	private readonly schemaAssociations: { [uri: string]: string[] } = {};
 
-	private readonly _onDidChangeSchema = new Emitter<string>();
+	private readonly _onDidChangeSchema = this._register(new Emitter<string>());
 	readonly onDidChangeSchema: Event<string> = this._onDidChangeSchema.event;
 
-	private readonly _onDidChangeSchemaAssociations = new Emitter<void>();
+	private readonly _onDidChangeSchemaAssociations = this._register(new Emitter<void>());
 	readonly onDidChangeSchemaAssociations: Event<void> = this._onDidChangeSchemaAssociations.event;
 
 	public registerSchema(uri: string, unresolvedSchemaContent: IJSONSchema, store?: DisposableStore): void {

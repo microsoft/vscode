@@ -311,6 +311,7 @@ export class SuggestEnabledInput extends Widget {
 		this.stylingContainer.style.borderStyle = 'solid';
 		this.stylingContainer.style.borderColor = asCssVariableWithDefault(styleOverrides.inputBorder ?? inputBorder, 'transparent');
 
+		// eslint-disable-next-line no-restricted-syntax
 		const cursor = this.stylingContainer.getElementsByClassName('cursor')[0] as HTMLDivElement;
 		if (cursor) {
 			cursor.style.backgroundColor = asCssVariable(styleOverrides.inputForeground ?? inputForeground);

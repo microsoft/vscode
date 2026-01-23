@@ -6,7 +6,7 @@
 import { promiseWithResolvers } from '../../../../base/common/async.js';
 import { KeyMod, KeyCode } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { assertIsDefined } from '../../../../base/common/types.js';
+import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { ILocalizedString } from '../../../../platform/action/common/action.js';
 import { Action2, IMenuService, MenuId, registerAction2, IMenu, MenuRegistry, MenuItemAction } from '../../../../platform/actions/common/actions.js';
@@ -43,11 +43,11 @@ registerAction2(class extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor): Promise<boolean> {
-		return assertIsDefined(NewFileTemplatesManager.Instance).run();
+		return assertReturnsDefined(NewFileTemplatesManager.Instance).run();
 	}
 });
 
-type NewFileItem = { commandID: string; title: string; from: string; group: string; commandArgs?: any };
+type NewFileItem = { commandID: string; title: string; from: string; group: string; commandArgs?: unknown };
 class NewFileTemplatesManager extends Disposable {
 	static Instance: NewFileTemplatesManager | undefined;
 

@@ -14,7 +14,7 @@ import { basename, dirname, isEqual } from '../../../../base/common/resources.js
 import { URI } from '../../../../base/common/uri.js';
 import './media/breadcrumbscontrol.css';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { FileKind, IFileService, IFileStat } from '../../../../platform/files/common/files.js';
+import { FileKind, FileSystemProviderCapabilities, IFileService, IFileStat } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { WorkbenchDataTree, WorkbenchAsyncDataTree } from '../../../../platform/list/browser/listService.js';
 import { breadcrumbsPickerBackground, widgetBorder, widgetShadow } from '../../../../platform/theme/common/colorRegistry.js';
@@ -43,17 +43,17 @@ interface ILayoutInfo {
 type Tree<I, E> = WorkbenchDataTree<I, E, FuzzyScore> | WorkbenchAsyncDataTree<I, E, FuzzyScore>;
 
 export interface SelectEvent {
-	target: any;
+	target: unknown;
 	browserEvent: UIEvent;
 }
 
-export abstract class BreadcrumbsPicker {
+export abstract class BreadcrumbsPicker<TInput, TElement> {
 
 	protected readonly _disposables = new DisposableStore();
 	protected readonly _domNode: HTMLDivElement;
 	protected _arrow!: HTMLDivElement;
 	protected _treeContainer!: HTMLDivElement;
-	protected _tree!: Tree<any, any>;
+	protected _tree!: Tree<TInput, TElement>;
 	protected _fakeEvent = new UIEvent('fakeEvent');
 	protected _layoutInfo!: ILayoutInfo;
 
@@ -82,7 +82,7 @@ export abstract class BreadcrumbsPicker {
 		setTimeout(() => this._tree.dispose(), 0); // tree cannot be disposed while being opened...
 	}
 
-	async show(input: any, maxHeight: number, width: number, arrowSize: number, arrowOffset: number): Promise<void> {
+	async show(input: FileElement | OutlineElement2, maxHeight: number, width: number, arrowSize: number, arrowOffset: number): Promise<void> {
 
 		const theme = this._themeService.getColorTheme();
 		const color = theme.getColor(breadcrumbsPickerBackground);
@@ -145,9 +145,9 @@ export abstract class BreadcrumbsPicker {
 	restoreViewState(): void { }
 
 	protected abstract _setInput(element: FileElement | OutlineElement2): Promise<void>;
-	protected abstract _createTree(container: HTMLElement, input: any): Tree<any, any>;
-	protected abstract _previewElement(element: any): IDisposable;
-	protected abstract _revealElement(element: any, options: IEditorOptions, sideBySide: boolean): Promise<boolean>;
+	protected abstract _createTree(container: HTMLElement, input: unknown): Tree<TInput, TElement>;
+	protected abstract _previewElement(element: unknown): IDisposable;
+	protected abstract _revealElement(element: unknown, options: IEditorOptions, sideBySide: boolean): Promise<boolean>;
 
 }
 
@@ -273,6 +273,7 @@ class FileFilter implements ITreeFilter<IWorkspaceFolder | IFileStat> {
 	constructor(
 		@IWorkspaceContextService private readonly _workspaceService: IWorkspaceContextService,
 		@IConfigurationService configService: IConfigurationService,
+		@IFileService fileService: IFileService,
 	) {
 		const config = BreadcrumbsConfig.FileExcludes.bindTo(configService);
 		const update = () => {
@@ -294,7 +295,8 @@ class FileFilter implements ITreeFilter<IWorkspaceFolder | IFileStat> {
 
 					adjustedConfig[patternAbs] = excludesConfig[pattern];
 				}
-				this._cachedExpressions.set(folder.uri.toString(), glob.parse(adjustedConfig));
+				const ignoreCase = !fileService.hasCapability(folder.uri, FileSystemProviderCapabilities.PathCaseSensitive);
+				this._cachedExpressions.set(folder.uri.toString(), glob.parse(adjustedConfig, { ignoreCase }));
 			});
 		};
 		update();
@@ -340,7 +342,7 @@ export class FileSorter implements ITreeSorter<IFileStat | IWorkspaceFolder> {
 	}
 }
 
-export class BreadcrumbsFilePicker extends BreadcrumbsPicker {
+export class BreadcrumbsFilePicker extends BreadcrumbsPicker<IWorkspace | URI, IWorkspaceFolder | IFileStat> {
 
 	constructor(
 		parent: HTMLElement,
@@ -418,7 +420,7 @@ export class BreadcrumbsFilePicker extends BreadcrumbsPicker {
 		tree.domFocus();
 	}
 
-	protected _previewElement(_element: any): IDisposable {
+	protected _previewElement(_element: unknown): IDisposable {
 		return Disposable.None;
 	}
 
@@ -458,14 +460,14 @@ class OutlineTreeSorter<E> implements ITreeSorter<E> {
 	}
 }
 
-export class BreadcrumbsOutlinePicker extends BreadcrumbsPicker {
+export class BreadcrumbsOutlinePicker extends BreadcrumbsPicker<IOutline<unknown>, unknown> {
 
 	protected _createTree(container: HTMLElement, input: OutlineElement2) {
 
 		const { config } = input.outline;
 
 		return this._instantiationService.createInstance(
-			WorkbenchDataTree<IOutline<any>, any, FuzzyScore>,
+			WorkbenchDataTree<IOutline<unknown>, unknown, FuzzyScore>,
 			'BreadcrumbsOutlinePicker',
 			container,
 			config.delegate,
@@ -487,7 +489,7 @@ export class BreadcrumbsOutlinePicker extends BreadcrumbsPicker {
 		const viewState = input.outline.captureViewState();
 		this.restoreViewState = () => { viewState.dispose(); };
 
-		const tree = this._tree as WorkbenchDataTree<IOutline<any>, any, FuzzyScore>;
+		const tree = this._tree as WorkbenchDataTree<IOutline<unknown>, unknown, FuzzyScore>;
 
 		tree.setInput(input.outline);
 		if (input.element !== input.outline) {
@@ -499,14 +501,14 @@ export class BreadcrumbsOutlinePicker extends BreadcrumbsPicker {
 		return Promise.resolve();
 	}
 
-	protected _previewElement(element: any): IDisposable {
-		const outline: IOutline<any> = this._tree.getInput();
+	protected _previewElement(element: unknown): IDisposable {
+		const outline: IOutline<unknown> = this._tree.getInput()!;
 		return outline.preview(element);
 	}
 
-	protected async _revealElement(element: any, options: IEditorOptions, sideBySide: boolean): Promise<boolean> {
+	protected async _revealElement(element: unknown, options: IEditorOptions, sideBySide: boolean): Promise<boolean> {
 		this._onWillPickElement.fire();
-		const outline: IOutline<any> = this._tree.getInput();
+		const outline: IOutline<unknown> = this._tree.getInput()!;
 		await outline.reveal(element, options, sideBySide, false);
 		return true;
 	}

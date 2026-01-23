@@ -10,7 +10,7 @@ import { Delayer } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
-import { assertIsDefined } from '../../../../base/common/types.js';
+import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import './media/searchEditor.css';
 import { ICodeEditorWidgetOptions } from '../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
@@ -137,7 +137,7 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 		super.createEditor(searchResultContainer);
 		this.registerEditorListeners();
 
-		const scopedContextKeyService = assertIsDefined(this.scopedContextKeyService);
+		const scopedContextKeyService = assertReturnsDefined(this.scopedContextKeyService);
 		InSearchEditor.bindTo(scopedContextKeyService).set(true);
 
 		this.createQueryEditor(

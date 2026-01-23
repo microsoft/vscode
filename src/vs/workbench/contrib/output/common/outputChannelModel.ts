@@ -116,10 +116,10 @@ interface IContentProvider {
 class FileContentProvider extends Disposable implements IContentProvider {
 
 	private readonly _onDidAppend = new Emitter<void>();
-	readonly onDidAppend = this._onDidAppend.event;
+	get onDidAppend() { return this._onDidAppend.event; }
 
 	private readonly _onDidReset = new Emitter<void>();
-	readonly onDidReset = this._onDidReset.event;
+	get onDidReset() { return this._onDidReset.event; }
 
 	private watching: boolean = false;
 	private syncDelayer: ThrottledDelayer<void>;
@@ -683,7 +683,7 @@ export class FileOutputChannelModel extends AbstractFileOutputChannelModel imple
 	}
 
 	override update(mode: OutputChannelUpdateMode, till: number | undefined, immediate: boolean): void {
-		const loadModelPromise: Promise<any> = this.loadModelPromise ? this.loadModelPromise : Promise.resolve();
+		const loadModelPromise = this.loadModelPromise ? this.loadModelPromise : Promise.resolve();
 		loadModelPromise.then(() => {
 			if (mode === OutputChannelUpdateMode.Clear || mode === OutputChannelUpdateMode.Replace) {
 				if (isNumber(till)) {
@@ -729,7 +729,7 @@ export class MultiFileOutputChannelModel extends AbstractFileOutputChannelModel 
 	}
 
 	override clear(): void {
-		const loadModelPromise: Promise<any> = this.loadModelPromise ? this.loadModelPromise : Promise.resolve();
+		const loadModelPromise = this.loadModelPromise ? this.loadModelPromise : Promise.resolve();
 		loadModelPromise.then(() => {
 			this.multifileOutput.resetToEnd();
 			this.doUpdate(OutputChannelUpdateMode.Clear, true);

@@ -28,7 +28,7 @@ const productQualityKey = 'sync.productQuality';
 
 export class UserDataAutoSyncService extends Disposable implements IUserDataAutoSyncService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private readonly autoSync = this._register(new MutableDisposable<AutoSync>());
 	private successiveFailures: number = 0;

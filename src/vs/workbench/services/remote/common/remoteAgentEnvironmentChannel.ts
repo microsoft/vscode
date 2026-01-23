@@ -13,6 +13,7 @@ import { ITelemetryData, TelemetryLevel } from '../../../../platform/telemetry/c
 import { IExtensionHostExitInfo } from './remoteAgentService.js';
 import { revive } from '../../../../base/common/marshalling.js';
 import { IUserDataProfile } from '../../../../platform/userDataProfile/common/userDataProfile.js';
+import { ProtocolConstants } from '../../../../base/parts/ipc/common/ipc.net.js';
 
 export interface IGetEnvironmentDataArguments {
 	remoteAuthority: string;
@@ -29,6 +30,7 @@ export interface IRemoteAgentEnvironmentDTO {
 	connectionToken: string;
 	appRoot: UriComponents;
 	settingsPath: UriComponents;
+	mcpResource: UriComponents;
 	logsPath: UriComponents;
 	extensionHostLogsPath: UriComponents;
 	globalStorageHome: UriComponents;
@@ -44,6 +46,7 @@ export interface IRemoteAgentEnvironmentDTO {
 		home: UriComponents;
 	};
 	isUnsupportedGlibc: boolean;
+	reconnectionGraceTime?: number;
 }
 
 export class RemoteExtensionEnvironmentChannelClient {
@@ -55,12 +58,16 @@ export class RemoteExtensionEnvironmentChannelClient {
 		};
 
 		const data = await channel.call<IRemoteAgentEnvironmentDTO>('getEnvironmentData', args);
+		const reconnectionGraceTime = (typeof data.reconnectionGraceTime === 'number' && data.reconnectionGraceTime >= 0)
+			? data.reconnectionGraceTime
+			: ProtocolConstants.ReconnectionGraceTime;
 
 		return {
 			pid: data.pid,
 			connectionToken: data.connectionToken,
 			appRoot: URI.revive(data.appRoot),
 			settingsPath: URI.revive(data.settingsPath),
+			mcpResource: URI.revive(data.mcpResource),
 			logsPath: URI.revive(data.logsPath),
 			extensionHostLogsPath: URI.revive(data.extensionHostLogsPath),
 			globalStorageHome: URI.revive(data.globalStorageHome),
@@ -72,7 +79,8 @@ export class RemoteExtensionEnvironmentChannelClient {
 			marks: data.marks,
 			useHostProxy: data.useHostProxy,
 			profiles: revive(data.profiles),
-			isUnsupportedGlibc: data.isUnsupportedGlibc
+			isUnsupportedGlibc: data.isUnsupportedGlibc,
+			reconnectionGraceTime
 		};
 	}
 

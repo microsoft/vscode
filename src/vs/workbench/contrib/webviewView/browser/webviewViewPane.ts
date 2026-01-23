@@ -20,7 +20,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { ViewPane, ViewPaneShowActions } from '../../../browser/parts/views/viewPane.js';
 import { IViewletViewOptions } from '../../../browser/parts/views/viewsViewlet.js';
-import { Memento, MementoObject } from '../../../common/memento.js';
+import { Memento } from '../../../common/memento.js';
 import { IViewBadge, IViewDescriptorService } from '../../../common/views.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { ExtensionKeyedWebviewOriginStore, IOverlayWebview, IWebviewService, WebviewContentPurpose } from '../../webview/browser/webview.js';
@@ -30,11 +30,13 @@ import { IActivityService, NumberBadge } from '../../../services/activity/common
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 
-declare const ResizeObserver: any;
-
 const storageKeys = {
 	webviewState: 'webviewState',
 } as const;
+
+interface WebviewViewState {
+	[storageKeys.webviewState]?: string | undefined;
+}
 
 export class WebviewViewPane extends ViewPane {
 
@@ -51,7 +53,7 @@ export class WebviewViewPane extends ViewPane {
 
 	private _container?: HTMLElement;
 	private _rootContainer?: HTMLElement;
-	private _resizeObserver?: any;
+	private _resizeObserver?: ResizeObserver;
 
 	private readonly defaultTitle: string;
 	private setTitle: string | undefined;
@@ -59,11 +61,11 @@ export class WebviewViewPane extends ViewPane {
 	private badge: IViewBadge | undefined;
 	private readonly activity = this._register(new MutableDisposable<IDisposable>());
 
-	private readonly memento: Memento;
-	private readonly viewState: MementoObject;
+	private readonly memento: Memento<WebviewViewState>;
+	private readonly viewState: WebviewViewState;
 	private readonly extensionId?: ExtensionIdentifier;
 
-	private _repositionTimeout?: any;
+	private _repositionTimeout?: Timeout;
 
 	constructor(
 		options: IViewletViewOptions,
@@ -136,7 +138,7 @@ export class WebviewViewPane extends ViewPane {
 			});
 
 			this._register(toDisposable(() => {
-				this._resizeObserver.disconnect();
+				this._resizeObserver?.disconnect();
 			}));
 			this._resizeObserver.observe(container);
 		}

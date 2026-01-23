@@ -11,7 +11,7 @@ export const ITelemetryService = createDecorator<ITelemetryService>('telemetrySe
 export interface ITelemetryData {
 	from?: string;
 	target?: string;
-	[key: string]: any;
+	[key: string]: string | unknown | undefined;
 }
 
 export interface ITelemetryService {
@@ -51,6 +51,10 @@ export interface ITelemetryService {
 	publicLogError2<E extends ClassifiedEvent<OmitMetadata<T>> = never, T extends IGDPRProperty = never>(eventName: string, data?: StrictPropertyCheck<T, E>): void;
 
 	setExperimentProperty(name: string, value: string): void;
+}
+
+export function telemetryLevelEnabled(service: ITelemetryService, level: TelemetryLevel): boolean {
+	return service.telemetryLevel >= level;
 }
 
 export interface ITelemetryEndpoint {

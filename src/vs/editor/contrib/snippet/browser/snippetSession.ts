@@ -23,6 +23,7 @@ import { ILabelService } from '../../../../platform/label/common/label.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { Choice, Marker, Placeholder, SnippetParser, Text, TextmateSnippet } from './snippetParser.js';
 import { ClipboardBasedVariableResolver, CommentBasedVariableResolver, CompositeSnippetVariableResolver, ModelBasedVariableResolver, RandomBasedVariableResolver, SelectionBasedVariableResolver, TimeBasedVariableResolver, WorkspaceBasedVariableResolver } from './snippetVariables.js';
+import { EditSources, TextModelEditSource } from '../../../common/textModelEditSource.js';
 
 export class OneSnippet {
 
@@ -624,7 +625,7 @@ export class SnippetSession {
 		return `template="${this._template}", merged_templates="${this._templateMerges.join(' -> ')}"`;
 	}
 
-	insert(): void {
+	insert(editReason?: TextModelEditSource): void {
 		if (!this._editor.hasModel()) {
 			return;
 		}
@@ -636,7 +637,7 @@ export class SnippetSession {
 
 		this._snippets = snippets;
 
-		this._editor.executeEdits('snippet', edits, _undoEdits => {
+		this._editor.executeEdits(editReason ?? EditSources.snippet(), edits, _undoEdits => {
 			// Sometimes, the text buffer will remove automatic whitespace when doing any edits,
 			// so we need to look only at the undo edits relevant for us.
 			// Our edits have an identifier set so that's how we can distinguish them

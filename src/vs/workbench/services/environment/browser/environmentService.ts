@@ -70,7 +70,7 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 			const result: [string, string][] = [];
 			for (const entry of logLevelFromPayload.split(',')) {
 				const matches = EXTENSION_IDENTIFIER_WITH_LOG_REGEX.exec(entry);
-				if (matches && matches[1] && matches[2]) {
+				if (matches?.[1] && matches[2]) {
 					result.push([matches[1], matches[2]]);
 				}
 			}
@@ -137,6 +137,9 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 
 	@memoize
 	get untitledWorkspacesHome(): URI { return joinPath(this.userRoamingDataHome, 'Workspaces'); }
+
+	@memoize
+	get builtinProfilesHome(): URI { return joinPath(this.userRoamingDataHome, 'builtinProfiles'); }
 
 	@memoize
 	get serviceMachineIdResource(): URI { return joinPath(this.userRoamingDataHome, 'machineid'); }
@@ -235,6 +238,9 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 
 	@memoize
 	get disableTelemetry(): boolean { return false; }
+
+	@memoize
+	get disableExperiments(): boolean { return false; }
 
 	@memoize
 	get verbose(): boolean { return this.payload?.get('verbose') === 'true'; }

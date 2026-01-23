@@ -12,7 +12,8 @@ import { ILogger, LogLevel } from '../../../../platform/log/common/log.js';
 import { StorageScope } from '../../../../platform/storage/common/storage.js';
 import { IWorkspaceFolderData } from '../../../../platform/workspace/common/workspace.js';
 import { IResolvedValue } from '../../../services/configurationResolver/common/configurationResolverExpression.js';
-import { IMcpServerConnection, LazyCollectionState, McpCollectionDefinition, McpCollectionReference, McpConnectionState, McpDefinitionReference, McpServerDefinition, McpServerLaunch } from './mcpTypes.js';
+import { McpTaskManager } from './mcpTaskManager.js';
+import { IMcpServerConnection, LazyCollectionState, McpCollectionDefinition, McpCollectionReference, McpConnectionState, McpDefinitionReference, McpServerDefinition, McpServerLaunch, McpStartServerInteraction } from './mcpTypes.js';
 import { MCP } from './modelContextProtocol.js';
 
 export const IMcpRegistry = createDecorator<IMcpRegistry>('mcpRegistry');
@@ -31,15 +32,39 @@ export interface IMcpHostDelegate {
 	readonly priority: number;
 	waitForInitialProviderPromises(): Promise<void>;
 	canStart(collectionDefinition: McpCollectionDefinition, serverDefinition: McpServerDefinition): boolean;
-	start(collectionDefinition: McpCollectionDefinition, serverDefinition: McpServerDefinition, resolvedLaunch: McpServerLaunch): IMcpMessageTransport;
+	substituteVariables(serverDefinition: McpServerDefinition, launch: McpServerLaunch): Promise<McpServerLaunch>;
+	start(collectionDefinition: McpCollectionDefinition, serverDefinition: McpServerDefinition, resolvedLaunch: McpServerLaunch, options?: { errorOnUserInteraction?: boolean }): IMcpMessageTransport;
 }
 
 export interface IMcpResolveConnectionOptions {
 	logger: ILogger;
+	interaction?: McpStartServerInteraction;
 	collectionRef: McpCollectionReference;
 	definitionRef: McpDefinitionReference;
-	/** If set, the user will be asked to trust the collection even if they untrusted it previously */
-	forceTrust?: boolean;
+
+	/** A reference (on the server) to its last nonce where trust was given. */
+	trustNonceBearer: { trustedAtNonce: string | undefined };
+	/**
+	 * When to trigger the trust prompt.
+	 * - only-new: only prompt for servers that are not previously explicitly untrusted (default)
+	 * - all-untrusted: prompt for all servers that are not trusted
+	 * - never: don't prompt, fail silently when trying to start an untrusted server
+	 */
+	promptType?: 'only-new' | 'all-untrusted' | 'never';
+	/**
+	 * Automatically trust if changed. This should ONLY be set for afforances that
+	 * ensure the user sees the config before it gets started (e.g. code lenses)
+	 */
+	autoTrustChanges?: boolean;
+
+	/** If set, try to launch with debugging when dev mode is configured */
+	debug?: boolean;
+
+	/** If true, throw an error if any user interaction would be required during startup. */
+	errorOnUserInteraction?: boolean;
+
+	/** Shared task manager for server-side MCP tasks (survives reconnections) */
+	taskManager: McpTaskManager;
 }
 
 export interface IMcpRegistry {
@@ -49,12 +74,12 @@ export interface IMcpRegistry {
 	readonly onDidChangeInputs: Event<void>;
 
 	readonly collections: IObservable<readonly McpCollectionDefinition[]>;
-	readonly delegates: readonly IMcpHostDelegate[];
+	readonly delegates: IObservable<readonly IMcpHostDelegate[]>;
 	/** Whether there are new collections that can be resolved with a discover() call */
-	readonly lazyCollectionState: IObservable<LazyCollectionState>;
+	readonly lazyCollectionState: IObservable<{ state: LazyCollectionState; collections: McpCollectionDefinition[] }>;
 
-	/** Gets the prefix that should be applied to a collection's tools in order to avoid ID conflicts */
-	collectionToolPrefix(collection: McpCollectionReference): IObservable<string>;
+	/** Helper function to observe a definition by its reference. */
+	getServerDefinition(collectionRef: McpDefinitionReference, definitionRef: McpDefinitionReference): IObservable<{ server: McpServerDefinition | undefined; collection: McpCollectionDefinition | undefined }>;
 
 	/** Discover new collections, returning newly-discovered ones. */
 	discoverCollections(): Promise<McpCollectionDefinition[]>;
@@ -62,16 +87,12 @@ export interface IMcpRegistry {
 	registerDelegate(delegate: IMcpHostDelegate): IDisposable;
 	registerCollection(collection: McpCollectionDefinition): IDisposable;
 
-	/** Resets the trust state of all collections. */
-	resetTrust(): void;
-
-	/** Gets whether the collection is trusted. */
-	getTrust(collection: McpCollectionReference): IObservable<boolean | undefined>;
-
 	/** Resets any saved inputs for the input, or globally. */
 	clearSavedInputs(scope: StorageScope, inputId?: string): Promise<void>;
 	/** Edits a previously-saved input. */
 	editSavedInput(inputId: string, folderData: IWorkspaceFolderData | undefined, configSection: string, target: ConfigurationTarget): Promise<void>;
+	/** Updates a saved input. */
+	setSavedInput(inputId: string, target: ConfigurationTarget, value: string): Promise<void>;
 	/** Gets saved inputs from storage. */
 	getSavedInputs(scope: StorageScope): Promise<{ [id: string]: IResolvedValue }>;
 	/** Creates a connection for the collection and definition. */

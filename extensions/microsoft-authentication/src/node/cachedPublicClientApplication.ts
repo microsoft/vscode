@@ -3,14 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { PublicClientApplication, AccountInfo, SilentFlowRequest, AuthenticationResult, InteractiveRequest, LogLevel, RefreshTokenRequest } from '@azure/msal-node';
+import { PublicClientApplication, AccountInfo, SilentFlowRequest, AuthenticationResult, InteractiveRequest, LogLevel, RefreshTokenRequest, BrokerOptions, DeviceCodeRequest } from '@azure/msal-node';
 import { NativeBrokerPlugin } from '@azure/msal-node-extensions';
-import { Disposable, SecretStorage, LogOutputChannel, window, ProgressLocation, l10n, EventEmitter } from 'vscode';
-import { raceCancellationAndTimeoutError } from '../common/async';
+import { Disposable, SecretStorage, LogOutputChannel, window, ProgressLocation, l10n, EventEmitter, workspace, env, Uri, UIKind } from 'vscode';
+import { DeferredPromise, raceCancellationAndTimeoutError } from '../common/async';
 import { SecretStorageCachePlugin } from '../common/cachePlugin';
 import { MsalLoggerOptions } from '../common/loggerOptions';
 import { ICachedPublicClientApplication } from '../common/publicClientCache';
 import { IAccountAccess } from '../common/accountAccess';
+import { MicrosoftAuthenticationTelemetryReporter } from '../common/telemetryReporter';
 
 export class CachedPublicClientApplication implements ICachedPublicClientApplication {
 	// Core properties
@@ -20,14 +21,10 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 	private readonly _disposable: Disposable;
 
 	// Cache properties
-	private readonly _secretStorageCachePlugin = new SecretStorageCachePlugin(
-		this._secretStorage,
-		// Include the prefix as a differentiator to other secrets
-		`pca:${this._clientId}`
-	);
+	private readonly _secretStorageCachePlugin: SecretStorageCachePlugin;
 
 	// Broker properties
-	private readonly _isBrokerAvailable: boolean;
+	readonly isBrokerAvailable: boolean = false;
 
 	//#region Events
 
@@ -44,20 +41,40 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 		private readonly _secretStorage: SecretStorage,
 		private readonly _accountAccess: IAccountAccess,
 		private readonly _logger: LogOutputChannel,
+		telemetryReporter: MicrosoftAuthenticationTelemetryReporter
 	) {
-		const loggerOptions = new MsalLoggerOptions(_logger);
-		const nativeBrokerPlugin = new NativeBrokerPlugin();
-		this._isBrokerAvailable = nativeBrokerPlugin.isBrokerAvailable;
+		this._secretStorageCachePlugin = new SecretStorageCachePlugin(
+			this._secretStorage,
+			// Include the prefix as a differentiator to other secrets
+			`pca:${this._clientId}`
+		);
+
+		const loggerOptions = new MsalLoggerOptions(_logger, telemetryReporter);
+		let broker: BrokerOptions | undefined;
+		if (env.uiKind === UIKind.Web) {
+			this._logger.info(`[${this._clientId}] Native Broker is not available in web UI`);
+		} else if (workspace.getConfiguration('microsoft-authentication').get<'msal' | 'msal-no-broker'>('implementation') === 'msal-no-broker') {
+			this._logger.info(`[${this._clientId}] Native Broker disabled via settings`);
+		} else {
+			const nativeBrokerPlugin = new NativeBrokerPlugin();
+			this.isBrokerAvailable = nativeBrokerPlugin.isBrokerAvailable;
+			this._logger.info(`[${this._clientId}] Native Broker enabled: ${this.isBrokerAvailable}`);
+			if (this.isBrokerAvailable) {
+				broker = { nativeBrokerPlugin };
+			}
+		}
 		this._pca = new PublicClientApplication({
 			auth: { clientId: _clientId },
 			system: {
 				loggerOptions: {
 					correlationId: _clientId,
 					loggerCallback: (level, message, containsPii) => loggerOptions.loggerCallback(level, message, containsPii),
-					logLevel: LogLevel.Trace
+					logLevel: LogLevel.Trace,
+					// Enable PII logging since it will only go to the output channel
+					piiLoggingEnabled: true
 				}
 			},
-			broker: { nativeBrokerPlugin },
+			broker,
 			cache: { cachePlugin: this._secretStorageCachePlugin }
 		});
 		this._disposable = Disposable.from(
@@ -75,9 +92,10 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 		clientId: string,
 		secretStorage: SecretStorage,
 		accountAccess: IAccountAccess,
-		logger: LogOutputChannel
+		logger: LogOutputChannel,
+		telemetryReporter: MicrosoftAuthenticationTelemetryReporter
 	): Promise<CachedPublicClientApplication> {
-		const app = new CachedPublicClientApplication(clientId, secretStorage, accountAccess, logger);
+		const app = new CachedPublicClientApplication(clientId, secretStorage, accountAccess, logger, telemetryReporter);
 		await app.initialize();
 		return app;
 	}
@@ -105,9 +123,9 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 			);
 			if (fiveMinutesBefore < new Date()) {
 				this._logger.debug(`[acquireTokenSilent] [${this._clientId}] [${request.authority}] [${request.scopes.join(' ')}] [${request.account.username}] id token is expired or about to expire. Forcing refresh...`);
-				const newRequest = this._isBrokerAvailable
+				const newRequest = this.isBrokerAvailable
 					// HACK: Broker doesn't support forceRefresh so we need to pass in claims which will force a refresh
-					? { ...request, claims: '{ "id_token": {}}' }
+					? { ...request, claims: request.claims ?? '{ "id_token": {}}' }
 					: { ...request, forceRefresh: true };
 				result = await this._sequencer.queue(() => this._pca.acquireTokenSilent(newRequest));
 				this._logger.debug(`[acquireTokenSilent] [${this._clientId}] [${request.authority}] [${request.scopes.join(' ')}] [${request.account.username}] got forced result`);
@@ -123,9 +141,9 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 
 					// HACK: Only for the Broker we try one more time with different claims to force a refresh. Why? We've seen the Broker caching tokens by the claims requested, thus
 					// there has been a situation where both tokens are expired.
-					if (this._isBrokerAvailable) {
+					if (this.isBrokerAvailable) {
 						this._logger.error(`[acquireTokenSilent] [${this._clientId}] [${request.authority}] [${request.scopes.join(' ')}] [${request.account.username}] forcing refresh with different claims...`);
-						const newRequest = { ...request, claims: '{ "access_token": {}}' };
+						const newRequest = { ...request, claims: request.claims ?? '{ "access_token": {}}' };
 						result = await this._sequencer.queue(() => this._pca.acquireTokenSilent(newRequest));
 						this._logger.debug(`[acquireTokenSilent] [${this._clientId}] [${request.authority}] [${request.scopes.join(' ')}] [${request.account.username}] got forced result with different claims`);
 						const newIdTokenExpirationInSecs = (result.idTokenClaims as { exp?: number }).exp;
@@ -161,20 +179,25 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 				title: l10n.t('Signing in to Microsoft...')
 			},
 			(_process, token) => this._sequencer.queue(async () => {
-				const result = await raceCancellationAndTimeoutError(
-					this._pca.acquireTokenInteractive(request),
-					token,
-					1000 * 60 * 5
-				);
-				if (this._isBrokerAvailable) {
-					await this._accountAccess.setAllowedAccess(result.account!, true);
+				try {
+					const result = await raceCancellationAndTimeoutError(
+						this._pca.acquireTokenInteractive(request),
+						token,
+						1000 * 60 * 5
+					);
+					if (this.isBrokerAvailable) {
+						await this._accountAccess.setAllowedAccess(result.account!, true);
+					}
+					// Force an update so that the account cache is updated.
+					// TODO:@TylerLeonhardt The problem is, we use the sequencer for
+					// change events but we _don't_ use it for the accounts cache.
+					// We should probably use it for the accounts cache as well.
+					await this._update();
+					return result;
+				} catch (error) {
+					this._logger.error(`[acquireTokenInteractive] [${this._clientId}] [${request.authority}] [${request.scopes?.join(' ')}] error: ${error}`);
+					throw error;
 				}
-				// Force an update so that the account cache is updated.
-				// TODO:@TylerLeonhardt The problem is, we use the sequencer for
-				// change events but we _don't_ use it for the accounts cache.
-				// We should probably use it for the accounts cache as well.
-				await this._update();
-				return result;
 			})
 		);
 	}
@@ -198,22 +221,97 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 		});
 		if (result) {
 			// this._setupRefresh(result);
-			if (this._isBrokerAvailable && result.account) {
+			if (this.isBrokerAvailable && result.account) {
 				await this._accountAccess.setAllowedAccess(result.account, true);
 			}
 		}
 		return result;
 	}
 
+	async acquireTokenByDeviceCode(request: Omit<DeviceCodeRequest, 'deviceCodeCallback'>): Promise<AuthenticationResult | null> {
+		this._logger.debug(`[acquireTokenByDeviceCode] [${this._clientId}] [${request.authority}] [${request.scopes.join(' ')}]`);
+		const result = await this._sequencer.queue(async () => {
+			const deferredPromise = new DeferredPromise<AuthenticationResult | null>();
+			const result = await Promise.race([
+				this._pca.acquireTokenByDeviceCode({
+					...request,
+					deviceCodeCallback: (response) => void this._deviceCodeCallback(response, deferredPromise)
+				}),
+				deferredPromise.p
+			]);
+			await deferredPromise.complete(result);
+			// Force an update so that the account cache is updated.
+			// TODO:@TylerLeonhardt The problem is, we use the sequencer for
+			// change events but we _don't_ use it for the accounts cache.
+			// We should probably use it for the accounts cache as well.
+			await this._update();
+			return result;
+		});
+		if (result) {
+			if (this.isBrokerAvailable && result.account) {
+				await this._accountAccess.setAllowedAccess(result.account, true);
+			}
+		}
+		return result;
+	}
+
+	private async _deviceCodeCallback(
+		// MSAL doesn't expose this type...
+		response: Parameters<DeviceCodeRequest['deviceCodeCallback']>[0],
+		deferredPromise: DeferredPromise<AuthenticationResult | null>
+	): Promise<void> {
+		const button = l10n.t('Copy & Continue to Microsoft');
+		const modalResult = await window.showInformationMessage(
+			l10n.t({ message: 'Your Code: {0}', args: [response.userCode], comment: ['The {0} will be a code, e.g. 123-456'] }),
+			{
+				modal: true,
+				detail: l10n.t('To finish authenticating, navigate to Microsoft and paste in the above one-time code.')
+			}, button);
+
+		if (modalResult !== button) {
+			this._logger.debug(`[deviceCodeCallback] [${this._clientId}] User cancelled the device code flow.`);
+			deferredPromise.cancel();
+			return;
+		}
+
+		await env.clipboard.writeText(response.userCode);
+		await env.openExternal(Uri.parse(response.verificationUri));
+		await window.withProgress<void>({
+			location: ProgressLocation.Notification,
+			cancellable: true,
+			title: l10n.t({
+				message: 'Open [{0}]({0}) in a new tab and paste your one-time code: {1}',
+				args: [response.verificationUri, response.userCode],
+				comment: [
+					'The [{0}]({0}) will be a url and the {1} will be a code, e.g. 123456',
+					'{Locked="[{0}]({0})"}'
+				]
+			})
+		}, async (_, token) => {
+			const disposable = token.onCancellationRequested(() => {
+				this._logger.debug(`[deviceCodeCallback] [${this._clientId}] Device code flow cancelled by user.`);
+				deferredPromise.cancel();
+			});
+			try {
+				await deferredPromise.p;
+				this._logger.debug(`[deviceCodeCallback] [${this._clientId}] Device code flow completed successfully.`);
+			} catch (error) {
+				// Ignore errors here, they are handled at a higher scope
+			} finally {
+				disposable.dispose();
+			}
+		});
+	}
+
 	removeAccount(account: AccountInfo): Promise<void> {
-		if (this._isBrokerAvailable) {
+		if (this.isBrokerAvailable) {
 			return this._accountAccess.setAllowedAccess(account, false);
 		}
 		return this._sequencer.queue(() => this._pca.getTokenCache().removeAccount(account));
 	}
 
 	private _registerOnSecretStorageChanged() {
-		if (this._isBrokerAvailable) {
+		if (this.isBrokerAvailable) {
 			return this._accountAccess.onDidAccountAccessChange(() => this._sequencer.queue(() => this._update()));
 		}
 		return this._secretStorageCachePlugin.onDidChange(() => this._sequencer.queue(() => this._update()));
@@ -253,7 +351,7 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 		// Clear in-memory cache so we know we're getting account data from the SecretStorage
 		this._pca.clearCache();
 		let after = await this._pca.getAllAccounts();
-		if (this._isBrokerAvailable) {
+		if (this.isBrokerAvailable) {
 			after = after.filter(a => this._accountAccess.isAllowedAccess(a));
 		}
 		this._accounts = after;

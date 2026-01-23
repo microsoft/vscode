@@ -126,9 +126,11 @@ export function layout(viewportSize: number, viewSize: number, anchor: ILayoutAn
 			return layoutBeforeAnchorBoundary - viewSize; // happy case, lay it out before the anchor
 		}
 
-		if (viewSize <= viewportSize - layoutAfterAnchorBoundary) {
+
+		if (viewSize <= viewportSize - layoutAfterAnchorBoundary && layoutBeforeAnchorBoundary < viewSize / 2) {
 			return layoutAfterAnchorBoundary; // ok case, lay it out after the anchor
 		}
+
 
 		return 0; // sad case, lay it over the anchor
 	}
@@ -351,8 +353,13 @@ export class ContextView extends Disposable {
 		this.view.classList.toggle('fixed', this.useFixedPosition);
 
 		const containerPosition = DOM.getDomNodePagePosition(this.container!);
-		this.view.style.top = `${top - (this.useFixedPosition ? DOM.getDomNodePagePosition(this.view).top : containerPosition.top)}px`;
-		this.view.style.left = `${left - (this.useFixedPosition ? DOM.getDomNodePagePosition(this.view).left : containerPosition.left)}px`;
+
+		// Account for container scroll when positioning the context view
+		const containerScrollTop = this.container!.scrollTop || 0;
+		const containerScrollLeft = this.container!.scrollLeft || 0;
+
+		this.view.style.top = `${top - (this.useFixedPosition ? DOM.getDomNodePagePosition(this.view).top : containerPosition.top) + containerScrollTop}px`;
+		this.view.style.left = `${left - (this.useFixedPosition ? DOM.getDomNodePagePosition(this.view).left : containerPosition.left) + containerScrollLeft}px`;
 		this.view.style.width = 'initial';
 	}
 

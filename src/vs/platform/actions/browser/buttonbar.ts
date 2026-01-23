@@ -29,6 +29,7 @@ export type IButtonConfigProvider = (action: IAction, index: number) => {
 export interface IWorkbenchButtonBarOptions {
 	telemetrySource?: string;
 	buttonConfigProvider?: IButtonConfigProvider;
+	small?: boolean;
 }
 
 export class WorkbenchButtonBar extends ButtonBar {
@@ -85,7 +86,10 @@ export class WorkbenchButtonBar extends ButtonBar {
 			const actionOrSubmenu = actions[i];
 			let action: IAction;
 			let btn: IButton;
-
+			let tooltip = actionOrSubmenu.tooltip || actionOrSubmenu.label;
+			if (!(actionOrSubmenu instanceof SubmenuAction)) {
+				tooltip = this._keybindingService.appendKeybinding(tooltip, actionOrSubmenu.id);
+			}
 			if (actionOrSubmenu instanceof SubmenuAction && actionOrSubmenu.actions.length > 0) {
 				const [first, ...rest] = actionOrSubmenu.actions;
 				action = <MenuItemAction>first;
@@ -94,15 +98,17 @@ export class WorkbenchButtonBar extends ButtonBar {
 					actionRunner: this._actionRunner,
 					actions: rest,
 					contextMenuProvider: this._contextMenuService,
-					ariaLabel: action.label,
+					ariaLabel: tooltip,
 					supportIcons: true,
+					small: this._options?.small,
 				});
 			} else {
 				action = actionOrSubmenu;
 				btn = this.addButton({
 					secondary: conifgProvider(action, i)?.isSecondary ?? secondary,
-					ariaLabel: action.label,
+					ariaLabel: tooltip,
 					supportIcons: true,
+					small: this._options?.small,
 				});
 			}
 
@@ -128,13 +134,7 @@ export class WorkbenchButtonBar extends ButtonBar {
 					btn.element.classList.add(...action.class.split(' '));
 				}
 			}
-			const kb = this._keybindingService.lookupKeybinding(action.id);
-			let tooltip: string;
-			if (kb) {
-				tooltip = localize('labelWithKeybinding', "{0} ({1})", action.tooltip || action.label, kb.getLabel());
-			} else {
-				tooltip = action.tooltip || action.label;
-			}
+
 			this._updateStore.add(this._hoverService.setupManagedHover(hoverDelegate, btn.element, tooltip));
 			this._updateStore.add(btn.onDidClick(async () => {
 				this._actionRunner.run(action);
@@ -145,7 +145,8 @@ export class WorkbenchButtonBar extends ButtonBar {
 
 			const btn = this.addButton({
 				secondary: true,
-				ariaLabel: localize('moreActions', "More Actions")
+				ariaLabel: localize('moreActions', "More Actions"),
+				small: this._options?.small,
 			});
 
 			btn.icon = Codicon.dropDownButton;
