@@ -715,37 +715,49 @@ export function groupAgentSessionsByDefault(sessions: IAgentSession[]): Map<Agen
 }
 
 export function groupAgentSessionsByPending(sessions: IAgentSession[]): Map<AgentSessionSection, IAgentSessionSection> {
-	const pendingSessions: IAgentSession[] = [];
-	const doneSessions: IAgentSession[] = [];
+	const pendingSessions = new Set<IAgentSession>();
+	const doneSessions = new Set<IAgentSession>();
 
 	const now = Date.now();
 	const startOfToday = new Date(now).setHours(0, 0, 0, 0);
 	const startOfYesterday = startOfToday - DAY_THRESHOLD;
 
-	let mostRecentNonArchived: IAgentSession | undefined;
+	let mostRecentSession: { session: IAgentSession; time: number } | undefined;
 	for (const session of sessions) {
-		if (session.isArchived()) {
-			doneSessions.push(session);
-		} else {
-			mostRecentNonArchived ??= session;
+		const sessionTime = session.timing.lastRequestEnded ?? session.timing.lastRequestStarted ?? session.timing.created;
+		if (!mostRecentSession || sessionTime > mostRecentSession.time) {
+			mostRecentSession = { session, time: sessionTime }; // always keep track of the most recent session
+		}
 
-			const sessionTime = session.timing.lastRequestEnded ?? session.timing.lastRequestStarted ?? session.timing.created;
+		if (session.isArchived()) {
+			doneSessions.add(session);
+		} else {
 			if (
-				isSessionInProgressStatus(session.status) ||									// in-progress
-				!session.isRead() ||															// unread
-				(getAgentChangesSummary(session.changes) && hasValidDiff(session.changes)) ||	// has changes
-				(session === mostRecentNonArchived && sessionTime >= startOfYesterday)			// most recent non-archived from today or yesterday (helps restore the session after restart when chat is cleared)
+				isSessionInProgressStatus(session.status) ||								// in-progress
+				!session.isRead() ||														// unread
+				(getAgentChangesSummary(session.changes) && hasValidDiff(session.changes))	// has changes
 			) {
-				pendingSessions.push(session);
+				pendingSessions.add(session);
 			} else {
-				doneSessions.push(session);
+				doneSessions.add(session);
 			}
 		}
 	}
 
+	// Consider most recent from today or yesterday. This helps
+	// restore the session after restart when chat is cleared.
+	if (
+		mostRecentSession && !mostRecentSession.session.isArchived() &&
+		mostRecentSession.time >= startOfYesterday &&
+		!pendingSessions.has(mostRecentSession.session)
+	) {
+		doneSessions.delete(mostRecentSession.session);
+		pendingSessions.add(mostRecentSession.session);
+	}
+
 	return new Map<AgentSessionSection, IAgentSessionSection>([
-		[AgentSessionSection.Pending, { section: AgentSessionSection.Pending, label: AgentSessionSectionLabels[AgentSessionSection.Pending], sessions: pendingSessions }],
-		[AgentSessionSection.Done, { section: AgentSessionSection.Done, label: localize('agentSessions.doneSectionWithCount', "Done ({0})", doneSessions.length), sessions: doneSessions }],
+		[AgentSessionSection.Pending, { section: AgentSessionSection.Pending, label: AgentSessionSectionLabels[AgentSessionSection.Pending], sessions: [...pendingSessions] }],
+		[AgentSessionSection.Done, { section: AgentSessionSection.Done, label: localize('agentSessions.doneSectionWithCount', "Done ({0})", doneSessions.size), sessions: [...doneSessions] }],
 	]);
 }
 

@@ -19,7 +19,7 @@ import { getPartByLocation } from '../../../../services/views/browser/viewsServi
 import { IWorkbenchLayoutService, Position } from '../../../../services/layout/browser/layoutService.js';
 import { IAgentSessionsService } from './agentSessionsService.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
-import { ChatEditorInput, shouldShowClearEditingSessionConfirmation } from '../widgetHosts/editor/chatEditorInput.js';
+import { ChatEditorInput, showClearEditingSessionConfirmation } from '../widgetHosts/editor/chatEditorInput.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ChatConfiguration } from '../../common/constants.js';
@@ -520,31 +520,17 @@ export class ArchiveAgentSessionAction extends BaseAgentSessionAction {
 		const chatService = accessor.get(IChatService);
 		const dialogService = accessor.get(IDialogService);
 
-		// Count sessions with pending changes
-		let sessionsWithPendingChangesCount = 0;
-		for (const session of sessions) {
-			const chatModel = chatService.getSession(session.resource);
-			if (chatModel && shouldShowClearEditingSessionConfirmation(chatModel, { isArchiveAction: true })) {
-				sessionsWithPendingChangesCount++;
-			}
-		}
-
-		// If there are sessions with pending changes, ask for confirmation once
-		if (sessionsWithPendingChangesCount > 0) {
-			const confirmed = await dialogService.confirm({
-				message: sessionsWithPendingChangesCount === 1
-					? localize('archiveSessionWithPendingEdits', "One session has pending edits. Are you sure you want to archive?")
-					: localize('archiveSessionsWithPendingEdits', "{0} sessions have pending edits. Are you sure you want to archive?", sessionsWithPendingChangesCount),
-				primaryButton: localize('archiveSession.archive', "Archive")
-			});
-
-			if (!confirmed.confirmed) {
-				return;
-			}
-		}
-
 		// Archive all sessions
 		for (const session of sessions) {
+			const chatModel = chatService.getSession(session.resource);
+			if (chatModel && !await showClearEditingSessionConfirmation(chatModel, dialogService, {
+				isArchiveAction: true,
+				titleOverride: localize('archiveSession', "Archive chat with pending edits?"),
+				messageOverride: localize('archiveSessionDescription', "You have pending changes in this chat session.")
+			})) {
+				return;
+			}
+
 			session.setArchived(true);
 		}
 	}
