@@ -643,7 +643,7 @@ export class AgentSessionsDataSource implements IAsyncDataSource<IAgentSessionsM
 
 		const sortedSessions = sessions.sort(this.sorter.compare.bind(this.sorter));
 		const groupedSessions = this.filter?.groupResults?.() === AgentSessionsGrouping.Pending
-			? groupAgentSessionsByRecency(sortedSessions)
+			? groupAgentSessionsByPending(sortedSessions)
 			: groupAgentSessionsByDefault(sortedSessions);
 
 		for (const { sessions, section, label } of groupedSessions.values()) {
@@ -714,7 +714,7 @@ export function groupAgentSessionsByDefault(sessions: IAgentSession[]): Map<Agen
 	]);
 }
 
-export function groupAgentSessionsByRecency(sessions: IAgentSession[]): Map<AgentSessionSection, IAgentSessionSection> {
+export function groupAgentSessionsByPending(sessions: IAgentSession[]): Map<AgentSessionSection, IAgentSessionSection> {
 	const pendingSessions: IAgentSession[] = [];
 	const doneSessions: IAgentSession[] = [];
 
@@ -726,10 +726,10 @@ export function groupAgentSessionsByRecency(sessions: IAgentSession[]): Map<Agen
 			mostRecentNonArchived ??= session;
 
 			if (
-				isSessionInProgressStatus(session.status) ||	// in-progress
-				!session.isRead() ||							// unread
-				hasValidDiff(session.changes) ||				// has changes
-				session === mostRecentNonArchived				// most recent non-archived (helps restore the session after restart when chat is cleared)
+				isSessionInProgressStatus(session.status) ||									// in-progress
+				!session.isRead() ||															// unread
+				(getAgentChangesSummary(session.changes) && hasValidDiff(session.changes)) ||	// has changes
+				session === mostRecentNonArchived												// most recent non-archived (helps restore the session after restart when chat is cleared)
 			) {
 				pendingSessions.push(session);
 			} else {
