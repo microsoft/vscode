@@ -362,6 +362,7 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		const prefillData = {
 			query,
 			mode,
+			timestamp: Date.now(),
 		};
 		this.storageService.store(
 			'chat.welcomeViewPrefill',
@@ -400,7 +401,11 @@ export class AgentSessionsWelcomePage extends EditorPane {
 			// Remove immediately to prevent re-application
 			this.storageService.remove('chat.welcomeViewPrefill', StorageScope.APPLICATION);
 			try {
-				const { query, mode } = JSON.parse(prefillData);
+				const { query, mode, timestamp } = JSON.parse(prefillData);
+				// Invalidate entries older than 1 minute
+				if (timestamp && Date.now() - timestamp > 60 * 1000) {
+					return;
+				}
 				if (query && this.chatWidget) {
 					this.chatWidget.setInput(query);
 				}
