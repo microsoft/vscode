@@ -12,7 +12,7 @@ import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../pla
 import { IUserDataProfile, IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { ILifecycleService, LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
-import { CURRENT_PROFILE_CONTEXT, HAS_PROFILES_CONTEXT, IS_CURRENT_PROFILE_TRANSIENT_CONTEXT, IUserDataProfileManagementService, IUserDataProfileService, PROFILES_CATEGORY, PROFILES_TITLE, PROFILE_EXTENSION, isProfileURL } from '../../../services/userDataProfile/common/userDataProfile.js';
+import { CURRENT_PROFILE_CONTEXT, HAS_PROFILES_CONTEXT, IS_CURRENT_PROFILE_TRANSIENT_CONTEXT, IUserDataProfileImportExportService, IUserDataProfileManagementService, IUserDataProfileService, PROFILES_CATEGORY, PROFILES_TITLE, PROFILE_EXTENSION, isProfileURL } from '../../../services/userDataProfile/common/userDataProfile.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -34,6 +34,7 @@ import { IURLService } from '../../../../platform/url/common/url.js';
 import { IBrowserWorkbenchEnvironmentService } from '../../../services/environment/browser/environmentService.js';
 import { Extensions as DndExtensions, IDragAndDropContributionRegistry, IResourceDropHandler } from '../../../../platform/dnd/browser/dnd.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { ITextEditorService } from '../../../services/textfile/common/textEditorService.js';
 
 export const OpenProfileMenu = new MenuId('OpenProfile');
 const ProfilesMenu = new MenuId('Profiles');
@@ -133,10 +134,24 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		this._register(dndRegistry.registerDropHandler(new class UserDataProfileDropHandler implements IResourceDropHandler {
 			async handleDrop(resource: URI, accessor: ServicesAccessor): Promise<boolean> {
 				const uriIdentityService = accessor.get(IUriIdentityService);
+				const userDataProfileImportExportService = accessor.get(IUserDataProfileImportExportService);
+				const editorGroupsService = accessor.get(IEditorGroupsService);
+				const textEditorService = accessor.get(ITextEditorService);
+				const notificationService = accessor.get(INotificationService);
 				if (uriIdentityService.extUri.extname(resource) === `.${PROFILE_EXTENSION}`) {
+					const template = await userDataProfileImportExportService.resolveProfileTemplate(resource);
+					if (!template) {
+						notificationService.warn(localize('invalid profile', "The dropped profile is invalid."));
+						editorGroupsService.activeGroup.openEditor(textEditorService.createTextEditor({ resource }));
+						return true;
+					}
 					const editor = await that.openProfilesEditor();
 					if (editor) {
-						editor.createNewProfile(resource);
+						try {
+							await editor.createNewProfile(resource);
+						} catch (error) {
+							return false;
+						}
 					}
 					return true;
 				}
