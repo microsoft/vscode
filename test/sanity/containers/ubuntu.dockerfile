@@ -2,7 +2,8 @@ ARG BASE_IMAGE=ubuntu:22.04
 FROM ${BASE_IMAGE}
 
 # Use a potentially faster regional mirror for ARM
-RUN if [ "$(dpkg --print-architecture)" != "amd64" ]; then \
+ARG TARGETARCH
+RUN if [ "$TARGETARCH" != "amd64" ]; then \
 	sed -i 's|http://ports.ubuntu.com|http://us.ports.ubuntu.com|g' /etc/apt/sources.list; \
 fi
 
@@ -23,7 +24,6 @@ RUN apt-get install -y xvfb
 ENV DISPLAY=:99
 
 # VS Code dependencies (amd64)
-ARG TARGETARCH
 RUN if [ "$TARGETARCH" = "amd64" ]; then \
 	apt-get install -y libasound2 || apt-get install -y libasound2t64; \
 	apt-get install -y \
