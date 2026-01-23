@@ -469,7 +469,6 @@ export async function showToolsPicker(
 	const treePicker = store.add(quickPickService.createQuickTree<AnyTreeItem>());
 
 	treePicker.placeholder = placeHolder;
-	treePicker.ignoreFocusOut = true;
 	treePicker.description = description;
 	treePicker.matchOnDescription = true;
 	treePicker.matchOnLabel = true;
