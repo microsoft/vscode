@@ -631,7 +631,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				// Check for implementation agent model override setting
 				if (isBuiltinImplementMode(mode, this.productService)) {
 					const implementModel = this.configurationService.getValue<string>(ChatConfiguration.ImplementationAgentModel);
-					if (implementModel) {
+					if (implementModel && implementModel.length > 0) {
 						const success = this.switchModelByQualifiedName(implementModel);
 						if (success) {
 							this.logService.debug(`[ChatInputPart] Applied chat.implementationAgentModel setting: '${implementModel}'`);
@@ -642,23 +642,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				}
 			}
 		}));
-		// Listen for changes to the implementation agent model setting while in "implement" mode
-		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(ChatConfiguration.ImplementationAgentModel)) {
-				const mode = this._currentModeObservable.get();
-				if (isBuiltinImplementMode(mode, this.productService) && !mode.model?.get()) {
-					const implementModel = this.configurationService.getValue<string>(ChatConfiguration.ImplementationAgentModel);
-					if (implementModel) {
-						const success = this.switchModelByQualifiedName(implementModel);
-						if (success) {
-							this.logService.debug(`[ChatInputPart] Applied updated chat.implementationAgentModel setting: '${implementModel}'`);
-						} else {
-							this.logService.warn(`chat.implementationAgentModel new setting value '${implementModel}' did not match any available model. Defaulting to model already selected in Plan mode.`);
-						}
-					}
-				}
-			}
-		}));
+
 		this._register(autorun(r => {
 			const mode = this._currentModeObservable.read(r);
 			const modeName = mode.name.read(r);
