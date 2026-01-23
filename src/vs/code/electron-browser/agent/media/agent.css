@@ -63,7 +63,8 @@ body {
 }
 
 .agent-sessions-header {
-	padding: 8px 8px 8px 16px;
+	height: 35px;
+	padding: 0 8px 0 16px;
 	font-size: 11px;
 	font-weight: 600;
 	text-transform: uppercase;
@@ -73,6 +74,7 @@ body {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
+	box-sizing: border-box;
 }
 
 .agent-sessions-header-title {
@@ -136,7 +138,8 @@ body {
 
 /* Chat header with back button and session title */
 .agent-chat-header {
-	padding: 8px 8px 8px 16px;
+	height: 35px;
+	padding: 0 8px 0 16px;
 	font-size: 11px;
 	font-weight: 600;
 	text-transform: uppercase;
@@ -146,6 +149,7 @@ body {
 	display: flex;
 	align-items: center;
 	gap: 8px;
+	box-sizing: border-box;
 }
 
 .agent-chat-back-button {
@@ -294,13 +298,17 @@ body {
 }
 
 .agent-changes-header {
-	padding: 8px 16px;
+	height: 35px;
+	padding: 0 16px;
 	font-size: 11px;
 	font-weight: 600;
 	text-transform: uppercase;
 	letter-spacing: 0.5px;
 	color: var(--vscode-sideBarSectionHeader-foreground, #9d9d9d);
 	border-bottom: 1px solid var(--vscode-sideBar-border, #3c3c3c);
+	display: flex;
+	align-items: center;
+	box-sizing: border-box;
 }
 
 .agent-changes-list {
