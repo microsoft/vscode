@@ -178,7 +178,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 
 		this._register(this.options.filter.onDidChange(async () => {
 			if (this.visible) {
-				this.updateArchivedSectionCollapseState();
+				this.updateSectionCollapseStates();
 				list.updateChildren();
 			}
 		}));
@@ -219,7 +219,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		this._register(list.onDidChangeFindOpenState(open => {
 			this.sessionsListFindIsOpen = open;
 
-			this.updateArchivedSectionCollapseState();
+			this.updateSectionCollapseStates();
 		}));
 	}
 
@@ -300,27 +300,41 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		this.sessionsList?.openFind();
 	}
 
-	private updateArchivedSectionCollapseState(): void {
+	private updateSectionCollapseStates(): void {
 		if (!this.sessionsList) {
 			return;
 		}
 
 		const model = this.agentSessionsService.model;
 		for (const child of this.sessionsList.getNode(model).children) {
-			if (!isAgentSessionSection(child.element) || child.element.section !== AgentSessionSection.Archived) {
+			if (!isAgentSessionSection(child.element)) {
 				continue;
 			}
 
-			const shouldCollapseArchived =
-				!this.sessionsListFindIsOpen &&				// always expand when find is open
-				this.options.filter.getExcludes().archived;	// only collapse when archived are excluded from filter
+			switch (child.element.section) {
+				case AgentSessionSection.Archived: {
+					const shouldCollapseArchived =
+						!this.sessionsListFindIsOpen &&				// always expand when find is open
+						this.options.filter.getExcludes().archived;	// only collapse when archived are excluded from filter
 
-			if (shouldCollapseArchived && !child.collapsed) {
-				this.sessionsList.collapse(child.element);
-			} else if (!shouldCollapseArchived && child.collapsed) {
-				this.sessionsList.expand(child.element);
+					if (shouldCollapseArchived && !child.collapsed) {
+						this.sessionsList.collapse(child.element);
+					} else if (!shouldCollapseArchived && child.collapsed) {
+						this.sessionsList.expand(child.element);
+					}
+					break;
+				}
+				case AgentSessionSection.Others: {
+					const shouldCollapseOthers = !this.sessionsListFindIsOpen; // always expand when find is open
+
+					if (shouldCollapseOthers && !child.collapsed) {
+						this.sessionsList.collapse(child.element);
+					} else if (!shouldCollapseOthers && child.collapsed) {
+						this.sessionsList.expand(child.element);
+					}
+					break;
+				}
 			}
-			break;
 		}
 	}
 
