@@ -666,8 +666,8 @@ export const AgentSessionSectionLabels = {
 	[AgentSessionSection.Week]: localize('agentSessions.weekSection', "Last Week"),
 	[AgentSessionSection.Older]: localize('agentSessions.olderSection', "Older"),
 	[AgentSessionSection.Archived]: localize('agentSessions.archivedSection', "Archived"),
-	[AgentSessionSection.Recent]: localize('agentSessions.recentSection', "Recent"),
-	[AgentSessionSection.Others]: localize('agentSessions.othersSection', "Others"),
+	[AgentSessionSection.Pending]: localize('agentSessions.pendingSection', "Pending"),
+	[AgentSessionSection.Done]: localize('agentSessions.doneSection', "Done"),
 };
 
 export function groupAgentSessionsByDefault(sessions: IAgentSession[]): Map<AgentSessionSection, IAgentSessionSection> {
@@ -712,17 +712,41 @@ export function groupAgentSessionsByDefault(sessions: IAgentSession[]): Map<Agen
 	]);
 }
 
-const RECENT_SESSIONS_LIMIT = 3;
-
 export function groupAgentSessionsByRecency(sessions: IAgentSession[]): Map<AgentSessionSection, IAgentSessionSection> {
-	const nonArchivedSessions = sessions.filter(session => !session.isArchived());
-	const archivedSessions = sessions.filter(session => session.isArchived());
-	const recentSessions = nonArchivedSessions.slice(0, RECENT_SESSIONS_LIMIT);
-	const othersSessions = [...nonArchivedSessions.slice(RECENT_SESSIONS_LIMIT), ...archivedSessions];
+	const pendingSessions: IAgentSession[] = [];
+	const doneSessions: IAgentSession[] = [];
+	const pendingSessionsSet = new Set<IAgentSession>();
+
+	// Find the most recent non-archived session
+	let mostRecentNonArchived: IAgentSession | undefined;
+	for (const session of sessions) {
+		if (!session.isArchived()) {
+			mostRecentNonArchived = session;
+			break; // sessions are already sorted by recency
+		}
+	}
+
+	for (const session of sessions) {
+		if (session.isArchived()) {
+			doneSessions.push(session);
+		} else if (
+			isSessionInProgressStatus(session.status) ||	// in-progress
+			!session.isRead() ||							// unread
+			hasValidDiff(session.changes) ||				// has changes
+			session === mostRecentNonArchived				// most recent non-archived (helps restore the session after restart when chat is cleared)
+		) {
+			if (!pendingSessionsSet.has(session)) {
+				pendingSessionsSet.add(session);
+				pendingSessions.push(session);
+			}
+		} else {
+			doneSessions.push(session);
+		}
+	}
 
 	return new Map<AgentSessionSection, IAgentSessionSection>([
-		[AgentSessionSection.Recent, { section: AgentSessionSection.Recent, label: AgentSessionSectionLabels[AgentSessionSection.Recent], sessions: recentSessions }],
-		[AgentSessionSection.Others, { section: AgentSessionSection.Others, label: localize('agentSessions.othersSectionWithCount', "Others ({0})", othersSessions.length), sessions: othersSessions }],
+		[AgentSessionSection.Pending, { section: AgentSessionSection.Pending, label: AgentSessionSectionLabels[AgentSessionSection.Pending], sessions: pendingSessions }],
+		[AgentSessionSection.Done, { section: AgentSessionSection.Done, label: localize('agentSessions.doneSectionWithCount', "Done ({0})", doneSessions.length), sessions: doneSessions }],
 	]);
 }
 

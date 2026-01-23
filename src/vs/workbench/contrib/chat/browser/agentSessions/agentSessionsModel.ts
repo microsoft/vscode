@@ -156,8 +156,8 @@ export const enum AgentSessionSection {
 	Archived = 'archived',
 
 	// Recency Grouping
-	Recent = 'recent',
-	Others = 'others',
+	Pending = 'pending',
+	Done = 'done',
 }
 
 export interface IAgentSessionSection {

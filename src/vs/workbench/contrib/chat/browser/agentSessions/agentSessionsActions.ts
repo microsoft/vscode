@@ -271,7 +271,7 @@ export class ArchiveAgentSessionSectionAction extends Action2 {
 				order: 1,
 				when: ContextKeyExpr.and(
 					ChatContextKeys.agentSessionSection.notEqualsTo(AgentSessionSection.Archived),
-					ChatContextKeys.agentSessionSection.notEqualsTo(AgentSessionSection.Others)
+					ChatContextKeys.agentSessionSection.notEqualsTo(AgentSessionSection.Done)
 				),
 			}, {
 				id: MenuId.AgentSessionSectionContext,
@@ -279,7 +279,7 @@ export class ArchiveAgentSessionSectionAction extends Action2 {
 				order: 2,
 				when: ContextKeyExpr.and(
 					ChatContextKeys.agentSessionSection.notEqualsTo(AgentSessionSection.Archived),
-					ChatContextKeys.agentSessionSection.notEqualsTo(AgentSessionSection.Others)
+					ChatContextKeys.agentSessionSection.notEqualsTo(AgentSessionSection.Done)
 				),
 			}]
 		});
