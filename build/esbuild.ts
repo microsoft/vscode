@@ -304,7 +304,6 @@ async function transpile(): Promise<void> {
 				useDefineForClassFields: false,
 			}
 		}),
-		logOverride: { 'unsupported-require-call': 'silent' },
 	});
 
 	// Copy resources (exclude tests only when bundling for production)
@@ -376,7 +375,6 @@ ${tslib}`,
 			assetNames: 'media/[name]',
 			plugins: [cssExternalPlugin()],
 			logLevel: 'warning',
-			logOverride: { 'unsupported-require-call': 'silent' },
 		});
 		bundled++;
 	}));
@@ -406,7 +404,6 @@ ${tslib}`,
 			banner,
 			plugins: [inlineMinimistPlugin()],
 			logLevel: 'warning',
-			logOverride: { 'unsupported-require-call': 'silent' },
 		});
 		bundled++;
 	}
