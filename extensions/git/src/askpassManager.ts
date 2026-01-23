@@ -232,7 +232,8 @@ async function ensureAskpassScripts(
 	logger.trace(`[askpassManager] Content hash: ${contentHash}`);
 
 	// Create content-addressed directory
-	const askpassDir = path.join(storageDir, 'askpass', contentHash);
+	const askpassBaseDir = path.join(storageDir, 'askpass');
+	const askpassDir = path.join(askpassBaseDir, contentHash);
 
 	const destPaths: AskpassPaths = {
 		askpass: path.join(askpassDir, 'askpass.sh'),
@@ -278,7 +279,6 @@ async function ensureAskpassScripts(
 	await updateDirectoryMtime(askpassDir, logger);
 
 	// Garbage collect old directories
-	const askpassBaseDir = path.join(storageDir, 'askpass');
 	await garbageCollectOldDirectories(askpassBaseDir, contentHash, logger);
 
 	return destPaths;
