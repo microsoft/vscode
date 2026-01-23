@@ -8,6 +8,7 @@ import { $, addDisposableListener, EventType, reset } from '../../../../../../ba
 import { renderIcon } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
+import { Event as EventUtils } from '../../../../../../base/common/event.js';
 import { localize } from '../../../../../../nls.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { getDefaultHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
@@ -162,19 +163,12 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 		}));
 
 		// Re-render when chat entitlement or quota changes (for sign-in / quota exceeded states)
-		this._register(this.chatEntitlementService.onDidChangeSentiment(() => {
-			this._lastRenderState = undefined; // Force re-render
-			this._render();
-		}));
-		this._register(this.chatEntitlementService.onDidChangeQuotaExceeded(() => {
-			this._lastRenderState = undefined; // Force re-render
-			this._render();
-		}));
-		this._register(this.chatEntitlementService.onDidChangeEntitlement(() => {
-			this._lastRenderState = undefined; // Force re-render
-			this._render();
-		}));
-		this._register(this.chatEntitlementService.onDidChangeAnonymous(() => {
+		this._register(EventUtils.any(
+			this.chatEntitlementService.onDidChangeSentiment,
+			this.chatEntitlementService.onDidChangeQuotaExceeded,
+			this.chatEntitlementService.onDidChangeEntitlement,
+			this.chatEntitlementService.onDidChangeAnonymous
+		)(() => {
 			this._lastRenderState = undefined; // Force re-render
 			this._render();
 		}));
