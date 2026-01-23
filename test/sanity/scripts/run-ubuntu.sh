@@ -12,7 +12,7 @@ export PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium-browser
 
 echo "Starting X11 Server"
 export DISPLAY=:99
-Xvfb $DISPLAY -screen 0 1280x960x24 -ac +extension GLX +render -noreset &
+Xvfb $DISPLAY -screen 0 1024x768x24 -ac -noreset &
 
 echo "Starting Snap daemon"
 sudo systemctl start snapd.socket
