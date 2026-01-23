@@ -604,11 +604,13 @@ export class AgentSessionsDataSource implements IAsyncDataSource<IAgentSessionsM
 			// Apply filter if configured
 			let filteredSessions = element.sessions.filter(session => !this.filter?.exclude(session));
 
-			// Apply sorter
-			filteredSessions.sort(this.sorter.compare.bind(this.sorter));
+			// Apply sorter unless we group into sections or we are to limit results
+			const limitResultsCount = this.filter?.limitResults?.();
+			if (!this.filter?.groupResults?.() || typeof limitResultsCount === 'number') {
+				filteredSessions.sort(this.sorter.compare.bind(this.sorter));
+			}
 
 			// Apply limiter if configured (requires sorting)
-			const limitResultsCount = this.filter?.limitResults?.();
 			if (typeof limitResultsCount === 'number') {
 				filteredSessions = filteredSessions.slice(0, limitResultsCount);
 			}
