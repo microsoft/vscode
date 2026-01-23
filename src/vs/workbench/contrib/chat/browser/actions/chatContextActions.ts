@@ -410,7 +410,7 @@ class SendSelectionToActiveChatAction extends Action2 {
 				widget.focusInput();
 				const range = selection.isEmpty() ? new Range(selection.startLineNumber, 1, selection.startLineNumber + 1, 1) : selection;
 				widget.attachmentModel.addFile(activeUri, range);
-				
+
 				// Submit the input automatically
 				await widget.acceptInput();
 			}
