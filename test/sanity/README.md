@@ -119,7 +119,7 @@ The pipeline tests across multiple platforms and architectures:
 - Windows x64
 - Ubuntu 22.04 x64 (native, with Snap support)
 
-**Partial Support**
+**Partial Support:**
 
 For the following platforms only downloads are validated (and not install/runtime):
 
