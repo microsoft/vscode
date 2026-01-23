@@ -142,7 +142,10 @@ export function areAllowlistedApiProposalsMatching(
 	if (productProposals.length === 0 && manifestProposals.length > 0) {
 		return {
 			compatible: false,
-			errors: [`Extension '${extensionId}' declares API proposals in package.json (${manifestProposals.join(', ')}) but product.json does not allowlist any API proposals for this extension`]
+			errors: [
+				`Extension '${extensionId}' declares API proposals in package.json (${manifestProposals.join(', ')}) ` +
+				`but product.json does not allowlist any API proposals for this extension`
+			]
 		};
 	}
 
@@ -150,7 +153,10 @@ export function areAllowlistedApiProposalsMatching(
 	if (productProposals.length > 0 && manifestProposals.length === 0) {
 		return {
 			compatible: false,
-			errors: [`Extension '${extensionId}' is allowlisted in product.json for API proposals (${productProposals.join(', ')}) but does not declare any API proposals in package.json`]
+			errors: [
+				`Extension '${extensionId}' is allowlisted in product.json for API proposals (${productProposals.join(', ')}) ` +
+				`but does not declare any API proposals in package.json`
+			]
 		};
 	}
 

@@ -78,9 +78,16 @@ async function checkCopilotChatCompatibility(): Promise<void> {
 	// Load product.json to check allowlisted API proposals
 	const productJsonPath = path.join(root, 'product.json');
 	const productJson = JSON.parse(fs.readFileSync(productJsonPath, 'utf8'));
-	const productAllowlistedProposals = productJson.extensionEnabledApiProposals?.[extensionId];
+	const productAllowlistedProposals = productJson?.extensionEnabledApiProposals?.[extensionId];
 
-	console.log(`Product.json allowlisted proposals for ${extensionId}:\n    ${productAllowlistedProposals?.join('\n    ') || 'none'}`);
+	if (productAllowlistedProposals) {
+		console.log(`Product.json allowlisted proposals for ${extensionId}:`);
+		for (const proposal of productAllowlistedProposals) {
+			console.log(`    ${proposal}`);
+		}
+	} else {
+		console.log(`Product.json allowlisted proposals for ${extensionId}: none`);
+	}
 
 	// Fetch the latest extension manifest
 	const manifest = await retry(() => fetchLatestExtensionManifest(extensionId));
