@@ -152,11 +152,15 @@ export function areAllowlistedApiProposalsMatching(
 
 	// Check that all proposals in manifest are allowlisted in product.json
 	// (product.json can have extra proposals that the extension doesn't use)
+	// Note: Strip version suffixes from manifest proposals (e.g., "chatParticipant@2" -> "chatParticipant")
+	// because product.json only contains base proposal names
 	const productSet = new Set(productProposals);
 	const errors: string[] = [];
 
 	for (const proposal of manifestProposals) {
-		if (!productSet.has(proposal)) {
+		// Strip version suffix if present (e.g., "chatParticipant@2" -> "chatParticipant")
+		const proposalName = proposal.split('@')[0];
+		if (!productSet.has(proposalName)) {
 			errors.push(`API proposal '${proposal}' is declared in extension '${extensionId}' package.json but is not allowlisted in product.json`);
 		}
 	}
@@ -417,6 +421,16 @@ export const allApiProposals = {
 
 	// Product.json has extras and manifest matches subset - compatible
 	assert.strictEqual(areAllowlistedApiProposalsMatching('test.ext', ['proposalA', 'proposalB', 'proposalC'], ['proposalA', 'proposalB']).compatible, true);
+
+	// Versioned proposals - should strip version and match base name
+	assert.strictEqual(areAllowlistedApiProposalsMatching('test.ext', ['chatParticipant'], ['chatParticipant@2']).compatible, true);
+	assert.strictEqual(areAllowlistedApiProposalsMatching('test.ext', ['proposalA', 'proposalB'], ['proposalA@1', 'proposalB@3']).compatible, true);
+	
+	// Versioned proposal not in allowlist - incompatible
+	assert.strictEqual(areAllowlistedApiProposalsMatching('test.ext', ['proposalA'], ['proposalB@2']).compatible, false);
+	
+	// Mix of versioned and unversioned proposals
+	assert.strictEqual(areAllowlistedApiProposalsMatching('test.ext', ['proposalA', 'proposalB'], ['proposalA', 'proposalB@2']).compatible, true);
 
 	console.log('  ✓ areAllowlistedApiProposalsMatching tests passed\n');
 
