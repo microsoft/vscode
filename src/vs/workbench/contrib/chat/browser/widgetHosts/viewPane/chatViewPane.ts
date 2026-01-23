@@ -242,7 +242,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			if (this.sessionsViewerOrientation === AgentSessionsViewerOrientation.SideBySide) {
 				this.sessionsViewerShowPendingOnly = false; // side by side always shows all
 			} else {
-				this.sessionsViewerShowPendingOnly = this.configurationService.getValue<boolean>(ChatConfiguration.ChatViewSessionsShowPendingOnly) ?? false;
+				this.sessionsViewerShowPendingOnly = this.configurationService.getValue<boolean>(ChatConfiguration.ChatViewSessionsShowPendingOnly) ?? true;
 			}
 
 			if (oldSessionsViewerShowPendingOnly !== this.sessionsViewerShowPendingOnly) {
@@ -866,7 +866,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			if (this.sessionsViewerOrientation === AgentSessionsViewerOrientation.SideBySide) {
 				this.sessionsViewerShowPendingOnly = false; // side by side always shows all
 			} else {
-				this.sessionsViewerShowPendingOnly = this.configurationService.getValue<boolean>(ChatConfiguration.ChatViewSessionsShowPendingOnly) ?? false;
+				this.sessionsViewerShowPendingOnly = this.configurationService.getValue<boolean>(ChatConfiguration.ChatViewSessionsShowPendingOnly) ?? true;
 			}
 
 			const updatePromise = this.sessionsControl.update();
