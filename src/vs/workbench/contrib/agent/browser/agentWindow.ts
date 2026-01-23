@@ -8,25 +8,11 @@ import { $, append, clearNode, Dimension, h } from '../../../../base/browser/dom
 import { mainWindow } from '../../../../base/browser/window.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { Disposable, DisposableStore, IDisposable, IReference } from '../../../../base/common/lifecycle.js';
-import { URI } from '../../../../base/common/uri.js';
-import { IChatSessionsService, IChatSessionFileChange, localChatSessionType } from '../../chat/common/chatSessionsService.js';
-import { getChatSessionType } from '../../chat/common/model/chatUri.js';
-import { IChatWidget, IChatWidgetService } from '../../chat/browser/chat.js';
-import { ChatWidget, IChatWidgetStyles } from '../../chat/browser/widget/chatWidget.js';
-import { LocalAgentsSessionsProvider } from '../../chat/browser/agentSessions/localAgentSessionsProvider.js';
-import { IChatService } from '../../chat/common/chatService/chatService.js';
-import { ChatAgentLocation } from '../../chat/common/constants.js';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { AgentSessionsControl, IAgentSessionsControlOptions } from '../../chat/browser/agentSessions/agentSessionsControl.js';
-import { IAgentSessionsService } from '../../chat/browser/agentSessions/agentSessionsService.js';
-import { IAgentSession, getAgentChangesSummary } from '../../chat/browser/agentSessions/agentSessionsModel.js';
+import { Disposable, DisposableStore, IReference } from '../../../../base/common/lifecycle.js';
+import { IChatSessionFileChange } from '../../chat/common/chatSessionsService.js';
 import { AgentTitleBarStatusWidget } from '../../chat/browser/agentSessions/experiments/agentTitleBarStatusWidget.js';
-import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { Event, ValueWithChangeEvent } from '../../../../base/common/event.js';
 import { IWorkbenchExtensionManagementService } from '../../../services/extensionManagement/common/extensionManagement.js';
-import { IExtensionService } from '../../../services/extensions/common/extensions.js';
-import { ILifecycleService, LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from '../../../common/contributions.js';
 import { IWorkbenchThemeService } from '../../../services/themes/common/workbenchThemeService.js';
@@ -38,63 +24,23 @@ import { MultiDiffEditorWidget } from '../../../../editor/browser/widget/multiDi
 import { IMultiDiffEditorModel, IDocumentDiffItem } from '../../../../editor/browser/widget/multiDiffEditor/model.js';
 import { RefCounted } from '../../../../editor/browser/widget/diffEditor/utils.js';
 import { IWorkbenchUIElementFactory } from '../../../../editor/browser/widget/multiDiffEditor/workbenchUIElementFactory.js';
-import { Button } from '../../../../base/browser/ui/button/button.js';
-import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
-import { MenuId } from '../../../../platform/actions/common/actions.js';
-import { AgentSessionsFilter, IAgentSessionsFilterOptions } from '../../chat/browser/agentSessions/agentSessionsFilter.js';
 import { ITerminalService, ITerminalGroupService, ITerminalChatService, TerminalConnectionState } from '../../terminal/browser/terminal.js';
 import { IEmbedderTerminalService } from '../../../services/terminal/common/embedderTerminalService.js';
 import { AgentWelcomeView } from './agentWelcomeView.js';
+import { AgentSessionController, AgentChatWidgetService, IAgentSessionElements, IAgentSessionCallbacks } from './agentSessionController.js';
+import { IAgentSession, getAgentChangesSummary } from '../../chat/browser/agentSessions/agentSessionsModel.js';
+import { IChatWidgetService } from '../../chat/browser/chat.js';
 
 // Side-effect import: Register terminal chat agent tools contribution
 import '../../terminalContrib/chatAgentTools/browser/terminal.chatAgentTools.contribution.js';
 
-/**
- * Stub chat widget service for Agent window
- * Delegates openSession to a callback handler
- */
-class AgentChatWidgetService implements IChatWidgetService {
-	declare readonly _serviceBrand: undefined;
-
-	readonly lastFocusedWidget = undefined;
-	readonly onDidAddWidget = Event.None;
-	readonly onDidBackgroundSession = Event.None;
-
-	private _openSessionHandler: ((resource: URI) => Promise<IChatWidget | undefined>) | undefined;
-
-	setOpenSessionHandler(handler: (resource: URI) => Promise<IChatWidget | undefined>): void {
-		this._openSessionHandler = handler;
-	}
-
-	async reveal(_widget: IChatWidget, _preserveFocus?: boolean): Promise<boolean> { return false; }
-	async revealWidget(_preserveFocus?: boolean): Promise<IChatWidget | undefined> { return undefined; }
-
-	getAllWidgets(): ReadonlyArray<IChatWidget> { return []; }
-	getWidgetByInputUri(): IChatWidget | undefined { return undefined; }
-	getWidgetBySessionResource(): IChatWidget | undefined { return undefined; }
-	getWidgetsByLocations(): ReadonlyArray<IChatWidget> { return []; }
-
-	async openSession(sessionResource: URI): Promise<IChatWidget | undefined> {
-		if (this._openSessionHandler) {
-			return this._openSessionHandler(sessionResource);
-		}
-		return undefined;
-	}
-
-	register(): IDisposable { return { dispose: () => { } }; }
-}
-
 export class AgentWindow extends Disposable {
 
-	private _chatWidget: ChatWidget | undefined;
 	private _welcomeView: AgentWelcomeView | undefined;
-	private _chatWidgetContainer: HTMLElement | undefined;
-	private _resizeObserver: ResizeObserver | undefined;
-	private _sessionsControl: AgentSessionsControl | undefined;
-	private _sessionsResizeObserver: ResizeObserver | undefined;
-	private _chatWidgetService: AgentChatWidgetService | undefined;
 	private _splitView: SplitView<number> | undefined;
 	private _splitViewResizeObserver: ResizeObserver | undefined;
+	private _sessionController: AgentSessionController | undefined;
+	private _chatWidgetService: AgentChatWidgetService | undefined;
 
 	// Layout elements populated by createLayout()
 	private _elements: {
@@ -112,8 +58,6 @@ export class AgentWindow extends Disposable {
 		return this._elements;
 	}
 
-	private _newSessionButton: Button | undefined;
-	private _agentSessionsFilter: AgentSessionsFilter | undefined;
 	private _changesPaneVisible: boolean = false;
 	private _changesEmptyEl: HTMLElement | undefined;
 	private _multiDiffEditorContainer: HTMLElement | undefined;
@@ -221,12 +165,32 @@ export class AgentWindow extends Disposable {
 		// Store all elements
 		this._elements = { header, sessions, chat, changes, container };
 
+		// Create session controller with element references and callbacks
+		const sessionElements: IAgentSessionElements = {
+			sessionsItems: sessions.items,
+			sessionsNewButtonContainer: sessions.newSessionButton,
+			chatHeader: chat.header,
+			chatHeaderTitle: chat.headerTitle,
+			chatWidgetContainer: chat.widgetContainer,
+		};
+		const sessionCallbacks: IAgentSessionCallbacks = {
+			showWelcomeView: () => this._welcomeView?.show(),
+			hideWelcomeView: () => this._welcomeView?.hide(),
+			updateChangesPane: (session) => this.updateChangesPane(session),
+		};
+		this._sessionController = this._register(this.instantiationService.createInstance(
+			AgentSessionController,
+			sessionElements,
+			sessionCallbacks,
+			this._chatWidgetService
+		));
+
 		// Append to body
 		append(body, header.root, container);
 	}
 
 	/**
-	 * Register the stub chat widget service before creating the workbench
+	 * Register the stub chat widget service before creating the workbench.
 	 */
 	registerChatWidgetService(serviceCollection: ServiceCollection): void {
 		this._chatWidgetService = new AgentChatWidgetService();
@@ -299,10 +263,11 @@ export class AgentWindow extends Disposable {
 			this.logService.info('[Agent] Found', installedExtensions.length, 'extensions');
 
 			// Show the welcome view immediately so user can start typing while sessions load
-			this.showEmptyView();
+			this._sessionController?.showEmptyView();
+			this.hideChangesPane();
 
 			// Load agent sessions (runs in parallel with welcome view being ready)
-			await this.loadSessions();
+			await this._sessionController?.loadSessions();
 
 		} catch (error) {
 			this.showStatusMessage(this.elements.sessions.items, `Error: ${error instanceof Error ? error.message : String(error)}`);
@@ -436,280 +401,6 @@ export class AgentWindow extends Disposable {
 			toggleChangesButton.classList.remove('codicon-layout-sidebar-right');
 			toggleChangesButton.classList.add('codicon-layout-sidebar-right-off');
 			toggleChangesButton.title = 'Show Changes';
-		}
-	}
-
-	private async loadSessions(): Promise<void> {
-		const sessionsListEl = this.elements.sessions.items;
-
-		try {
-			// Trigger lifecycle phases to allow extension hosts and contributions to start
-			// The NativeExtensionService waits for LifecyclePhase.Ready before initializing
-			// Workbench contributions (like ChatAgentToolsContribution) require LifecyclePhase.Restored
-			const lifecycleService = this.instantiationService.invokeFunction((accessor: ServicesAccessor) => accessor.get(ILifecycleService));
-			this.logService.info('[Agent] Setting lifecycle phase to Ready...');
-			lifecycleService.phase = LifecyclePhase.Ready;
-			this.logService.info('[Agent] Setting lifecycle phase to Restored...');
-			lifecycleService.phase = LifecyclePhase.Restored;
-			this.logService.info('[Agent] Setting lifecycle phase to Eventually...');
-			lifecycleService.phase = LifecyclePhase.Eventually;
-
-			// Wait for extensions to be registered first
-			// This ensures that extension-provided session providers are available
-			const extensionService = this.instantiationService.invokeFunction((accessor: ServicesAccessor) => accessor.get(IExtensionService));
-			this.logService.info('[Agent] Waiting for extensions to be registered...');
-			await extensionService.whenInstalledExtensionsRegistered();
-			this.logService.info('[Agent] Extensions registered!');
-
-			// First, manually instantiate the LocalAgentsSessionsProvider
-			// This is needed because it's a workbench contribution that registers itself
-			// with IChatSessionsService, but we don't have the full workbench lifecycle
-			const localProvider = this._register(this.instantiationService.createInstance(LocalAgentsSessionsProvider));
-			this.logService.info('[Agent] LocalAgentsSessionsProvider instantiated:', localProvider.chatSessionType);
-
-			// Get the chat sessions service which aggregates all providers
-			const chatSessionsService = this.instantiationService.invokeFunction((accessor: ServicesAccessor) => accessor.get(IChatSessionsService));
-
-			// Get the agent sessions service - accessing .model triggers lazy loading
-			const agentSessionsService = this.instantiationService.invokeFunction((accessor: ServicesAccessor) => accessor.get(IAgentSessionsService));
-
-			// Debug: log available contributions
-			const allContributions = chatSessionsService.getAllChatSessionContributions();
-			this.logService.info('[Agent] Registered contributions:', allContributions.length, allContributions.map(c => c.type));
-
-			// Create the "New Session" button (visible during loading)
-			this._newSessionButton = this._register(new Button(this.elements.sessions.newSessionButton, {
-				...defaultButtonStyles,
-				title: 'New Session',
-			}));
-			this._newSessionButton.label = 'New Session';
-			this._register(this._newSessionButton.onDidClick(() => this.showEmptyView()));
-
-			// Create the filter with date grouping enabled (TODAY, YESTERDAY, LAST WEEK, OLDER)
-			const filterOptions: IAgentSessionsFilterOptions = {
-				filterMenuId: MenuId.AgentSessionsViewerFilterSubMenu,
-				groupResults: () => true, // Enable date grouping
-			};
-			this._agentSessionsFilter = this._register(this.instantiationService.createInstance(AgentSessionsFilter, filterOptions));
-
-			// Create AgentSessionsControl options
-			const options: IAgentSessionsControlOptions = {
-				overrideStyles: {
-					listBackground: 'transparent',
-				},
-				filter: this._agentSessionsFilter,
-				source: 'agentWindow',
-				getHoverPosition: () => HoverPosition.RIGHT,
-				trackActiveEditorSession: () => false, // We don't track active editor in agent window
-			};
-
-			// Access model - this triggers lazy loading and starts resolve()
-			const model = agentSessionsService.model;
-
-			// Wait for the model to finish resolving before clearing the loading message
-			// The resolve() is triggered by accessing .model but not awaited
-			await model.resolve(undefined);
-
-			// Now clear the loading message - sessions are loaded
-			clearNode(sessionsListEl);
-
-			// Show ongoing loading indicator when model is resolving
-			this._register(model.onWillResolve(() => {
-				// Add a subtle loading indicator if we have the sessions control
-				if (this._sessionsControl) {
-					sessionsListEl.classList.add('loading');
-				}
-			}));
-			this._register(model.onDidResolve(() => {
-				sessionsListEl.classList.remove('loading');
-			}));
-
-			// Create the AgentSessionsControl now that we have data
-			this.logService.info('[Agent] Creating AgentSessionsControl...');
-			this._sessionsControl = this._register(this.instantiationService.createInstance(
-				AgentSessionsControl,
-				sessionsListEl,
-				options
-			));
-
-			// Handle session opens by delegating to our ChatWidget display
-			// The AgentSessionsControl calls chatWidgetService.openSession() which we intercept
-			if (this._chatWidgetService) {
-				this._chatWidgetService.setOpenSessionHandler(async (resource: URI) => {
-					const session = agentSessionsService.model.getSession(resource);
-					if (session) {
-						await this.selectSession(session);
-						return this._chatWidget;
-					}
-					return undefined;
-				});
-			}
-			this.logService.info('[Agent] Model sessions count:', model.sessions.length);
-
-			// Set up resize observer for sessions list layout
-			if (this._sessionsResizeObserver) {
-				this._sessionsResizeObserver.disconnect();
-			}
-			this._sessionsResizeObserver = new ResizeObserver(() => {
-				if (this._sessionsControl && sessionsListEl) {
-					const rect = sessionsListEl.getBoundingClientRect();
-					if (rect.height > 0 && rect.width > 0) {
-						this._sessionsControl.layout(rect.height, rect.width);
-					}
-				}
-			});
-			this._sessionsResizeObserver.observe(sessionsListEl);
-
-			// Initial layout
-			const initialRect = sessionsListEl.getBoundingClientRect();
-			if (initialRect.height > 0 && initialRect.width > 0) {
-				this._sessionsControl.layout(initialRect.height, initialRect.width);
-			}
-
-			this.logService.info('[Agent] AgentSessionsControl created');
-
-		} catch (error) {
-			this.logService.error('[Agent] Error loading sessions:', error);
-			this.showStatusMessage(sessionsListEl, `Failed to load sessions: ${error instanceof Error ? error.message : String(error)}`);
-		}
-	}
-
-	private async selectSession(session: IAgentSession): Promise<void> {
-		this._welcomeView?.hide();
-		this.elements.chat.header.style.display = 'flex';
-		this.elements.chat.headerTitle.textContent = session.label;
-
-		const chatWidgetContainer = this.elements.chat.widgetContainer;
-		chatWidgetContainer.style.display = 'flex';
-
-		// Update the changes pane with this session's file changes
-		// Note: Do not auto-show changes pane - user controls visibility via toggle button
-		this.updateChangesPane(session);
-
-		// Show loading state
-		this.showStatusMessage(chatWidgetContainer, 'Loading session...', 'agent-chat-loading');
-
-		try {
-			// Get services
-			const chatService = this.instantiationService.invokeFunction((accessor: ServicesAccessor) => accessor.get(IChatService));
-			const chatSessionsService = this.instantiationService.invokeFunction((accessor: ServicesAccessor) => accessor.get(IChatSessionsService));
-
-			// Ensure the session can be resolved (activates extension)
-			const canResolve = await chatSessionsService.canResolveChatSession(session.resource);
-
-			if (!canResolve) {
-				this.showStatusMessage(chatWidgetContainer, 'Cannot resolve session', 'agent-chat-loading');
-				return;
-			}
-
-			// Load the session using IChatService
-			const modelRef = await chatService.loadSessionForResource(session.resource, ChatAgentLocation.Chat, CancellationToken.None);
-
-			if (!modelRef) {
-				this.showStatusMessage(chatWidgetContainer, 'Failed to load session', 'agent-chat-loading');
-				return;
-			}
-
-			// Clean up previous widget if any
-			if (this._chatWidget) {
-				this._chatWidget.dispose();
-				this._chatWidget = undefined;
-			}
-
-			// Clear the container
-			clearNode(chatWidgetContainer);
-
-			// Create a new chat widget container that fills the parent
-			this._chatWidgetContainer = mainWindow.document.createElement('div');
-			this._chatWidgetContainer.style.cssText = 'flex: 1; display: flex; flex-direction: column; overflow: hidden; height: 100%; width: 100%; position: relative; min-height: 0;';
-			chatWidgetContainer.appendChild(this._chatWidgetContainer);
-
-			// Create the chat widget with proper styling (matching ChatViewPane)
-			const styles: IChatWidgetStyles = {
-				listForeground: 'var(--vscode-sideBar-foreground)',
-				listBackground: 'var(--vscode-sideBar-background)',
-				overlayBackground: 'var(--vscode-sideBar-background)',
-				inputEditorBackground: 'var(--vscode-sideBar-background)',
-				resultEditorBackground: 'var(--vscode-editor-background)',
-			};
-
-			this._chatWidget = this._register(this.instantiationService.createInstance(
-				ChatWidget,
-				ChatAgentLocation.Chat,
-				undefined, // viewContext
-				{
-					// Match ChatViewPane options for proper panel-style rendering
-					renderFollowups: true,
-					supportsFileReferences: true,
-					enableImplicitContext: true,
-					supportsChangingModes: false, // Read-only view of sessions
-					enableWorkingSet: 'explicit',
-					rendererOptions: {
-						renderTextEditsAsSummary: () => true,
-						referencesExpandedWhenEmptyResponse: false,
-					},
-				},
-				styles
-			));
-
-			// Render the widget into the container
-			this._chatWidget.render(this._chatWidgetContainer);
-
-			// Set visible BEFORE setting model to avoid race condition
-			// The onDidChangeItems() in setModel only renders if this._visible is true
-			this._chatWidget.setVisible(true);
-
-			// Lock to the correct agent for contributed sessions (e.g., background/cloud)
-			const chatSessionType = getChatSessionType(session.resource);
-			if (chatSessionType && chatSessionType !== localChatSessionType) {
-				const contributions = chatSessionsService.getAllChatSessionContributions();
-				const contribution = contributions.find(c => c.type === chatSessionType);
-				if (contribution) {
-					this._chatWidget.lockToCodingAgent(contribution.name, contribution.displayName, contribution.type);
-				}
-			}
-
-			// Set the model
-			const model = modelRef.object;
-			this._chatWidget.setModel(model);
-
-			// Debug: Check viewModel state
-			const viewModel = this._chatWidget.viewModel;
-			if (viewModel) {
-				viewModel.getItems();
-			}
-
-			// Clean up previous resize observer
-			if (this._resizeObserver) {
-				this._resizeObserver.disconnect();
-				this._resizeObserver = undefined;
-			}
-
-			// Create a layout function using the outer container dimensions
-			const doLayout = () => {
-				if (this._chatWidget && chatWidgetContainer) {
-					const rect = chatWidgetContainer.getBoundingClientRect();
-					if (rect.height > 0 && rect.width > 0) {
-						this._chatWidget.layout(rect.height, rect.width);
-					}
-				}
-			};
-
-			// Set up resize observer for the outer container
-			this._resizeObserver = new ResizeObserver(() => {
-				doLayout();
-			});
-			this._resizeObserver.observe(chatWidgetContainer);
-
-			// Initial layout - defer to next frame to ensure DOM is ready
-			mainWindow.requestAnimationFrame(() => {
-				doLayout();
-				// Double-check layout after a short delay
-				mainWindow.setTimeout(() => doLayout(), 100);
-			});
-
-		} catch (error) {
-			this.showStatusMessage(chatWidgetContainer, `Error loading session: ${error instanceof Error ? error.message : 'Unknown error'}`, 'agent-chat-loading');
 		}
 	}
 
@@ -875,16 +566,7 @@ export class AgentWindow extends Disposable {
 	}
 
 	private showEmptyView(): void {
-		this._welcomeView?.show();
-		this.elements.chat.header.style.display = 'none';
-		this.elements.chat.widgetContainer.style.display = 'none';
-
-		// Clean up previous session widget if any
-		if (this._chatWidget) {
-			this._chatWidget.dispose();
-			this._chatWidget = undefined;
-		}
-
+		this._sessionController?.showEmptyView();
 		// Hide the changes pane (return to 2-column layout)
 		this.hideChangesPane();
 	}
