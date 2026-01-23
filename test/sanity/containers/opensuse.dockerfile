@@ -31,6 +31,8 @@ RUN if [ "$TARGETARCH" = "arm64" ]; then \
 			gtk3 \
 			libsecret-1-0 \
 			mozilla-nss \
+			libgbm1 \
+			libglib-2_0-0 \
 			alsa-lib \
 			libxkbcommon0 \
 			xdg-utils; \
