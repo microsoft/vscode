@@ -12,10 +12,10 @@ import { ActionBar, ActionsOrientation } from '../../../../base/browser/ui/actio
 import { Codicon } from '../../../../base/common/codicons.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, constObservable, derived, IObservable, observableFromEventOpts, observableValue } from '../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, observableFromEvent, observableFromEventOpts, observableValue } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
-import { ContentWidgetPositionPreference, IActiveCodeEditor, IContentWidgetPosition, IOverlayWidgetPosition } from '../../../../editor/browser/editorBrowser.js';
+import { IActiveCodeEditor, IOverlayWidgetPosition } from '../../../../editor/browser/editorBrowser.js';
 import { ObservableCodeEditor } from '../../../../editor/browser/observableCodeEditor.js';
 import { EditorOption } from '../../../../editor/common/config/editorOptions.js';
 import { EditorExtensionsRegistry } from '../../../../editor/browser/editorExtensions.js';
@@ -28,6 +28,7 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ChatEditingAcceptRejectActionViewItem } from '../../chat/browser/chatEditing/chatEditingEditorOverlay.js';
 import { ACTION_START } from '../common/inlineChat.js';
+import { StickyScrollController } from '../../../../editor/contrib/stickyScroll/browser/stickyScrollController.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { getFlatActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -36,7 +37,6 @@ import { PlaceholderTextContribution } from '../../../../editor/contrib/placehol
 import { InlineChatRunOptions } from './inlineChatController.js';
 import { IInlineChatSession2 } from './inlineChatSessionService.js';
 import { Position } from '../../../../editor/common/core/position.js';
-import { SelectionDirection } from '../../../../editor/common/core/selection.js';
 import { CancelChatActionId } from '../../chat/browser/actions/chatExecuteActions.js';
 import { assertType } from '../../../../base/common/types.js';
 
@@ -312,7 +312,10 @@ export class InlineChatSessionOverlayWidget extends Disposable {
 	private readonly _toolbarNode: HTMLElement;
 
 	private readonly _showStore = this._store.add(new DisposableStore());
-	private readonly _position = observableValue<IContentWidgetPosition | null>(this, null);
+	private readonly _position = observableValue<IOverlayWidgetPosition | null>(this, null);
+	private readonly _minContentWidthInPx = constObservable(0);
+
+	private readonly _stickyScrollHeight: IObservable<number>;
 
 	constructor(
 		private readonly _editorObs: ObservableCodeEditor,
@@ -335,6 +338,10 @@ export class InlineChatSessionOverlayWidget extends Disposable {
 		// Create toolbar node
 		this._toolbarNode = document.createElement('div');
 		this._toolbarNode.classList.add('toolbar');
+
+		// Initialize sticky scroll height observable
+		const stickyScrollController = StickyScrollController.get(this._editorObs.editor);
+		this._stickyScrollHeight = stickyScrollController ? observableFromEvent(stickyScrollController.onDidChangeStickyScrollHeight, () => stickyScrollController.stickyScrollWidgetHeight) : constObservable(0);
 	}
 
 	show(session: IInlineChatSession2): void {
@@ -427,41 +434,39 @@ export class InlineChatSessionOverlayWidget extends Disposable {
 			}
 		}));
 
-		// Position based on diff info, updating as changes stream in
-		const selection = this._editorObs.cursorSelection.get()!;
-		const above = selection.getDirection() === SelectionDirection.RTL;
+		// Position in top right of editor, below sticky scroll
+		const lineHeight = this._editorObs.getOption(EditorOption.lineHeight);
+
+		// Track widget width changes
+		const widgetWidth = observableValue<number>(this, 0);
+		const resizeObserver = new dom.DisposableResizeObserver(() => {
+			widgetWidth.set(this._domNode.offsetWidth, undefined);
+		});
+		this._showStore.add(resizeObserver);
+		this._showStore.add(resizeObserver.observe(this._domNode));
 
 		this._showStore.add(autorun(r => {
-			const e = entry.read(r);
-			const diffInfo = e?.diffInfo?.read(r);
+			const layoutInfo = this._editorObs.layoutInfo.read(r);
+			const stickyScrollHeight = this._stickyScrollHeight.read(r);
+			const width = widgetWidth.read(r);
+			const padding = Math.round(lineHeight.read(r) * 2 / 3);
 
-			// Build combined range from selection and all diff changes
-			let startLine = selection.startLineNumber;
-			let endLineExclusive = selection.endLineNumber + 1;
-
-			if (diffInfo) {
-				for (const change of diffInfo.changes) {
-					startLine = Math.min(startLine, change.modified.startLineNumber);
-					endLineExclusive = Math.max(endLineExclusive, change.modified.endLineNumberExclusive);
-				}
-			}
-
-			// Position at start (above) or end (below) of the combined range
-			const newPosition = above
-				? new Position(startLine, 1)
-				: new Position(endLineExclusive - 1, 1);
+			// Position: top right, below sticky scroll with padding, left of minimap and scrollbar
+			const top = stickyScrollHeight + padding;
+			const left = layoutInfo.width - width - layoutInfo.verticalScrollbarWidth - layoutInfo.minimap.minimapWidth - padding;
 
 			this._position.set({
-				position: newPosition,
-				preference: [above ? ContentWidgetPositionPreference.ABOVE : ContentWidgetPositionPreference.BELOW]
+				preference: { top, left },
+				stackOrdinal: 10000,
 			}, undefined);
 		}));
 
-		// Create content widget
-		this._showStore.add(this._editorObs.createContentWidget({
+		// Create overlay widget
+		this._showStore.add(this._editorObs.createOverlayWidget({
 			domNode: this._domNode,
 			position: this._position,
-			allowEditorOverflow: true,
+			minContentWidthInPx: this._minContentWidthInPx,
+			allowEditorOverflow: false,
 		}));
 	}
 
