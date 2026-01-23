@@ -19,9 +19,12 @@ import { CancellationTokenSource } from '../../../../../base/common/cancellation
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Range } from '../../../../../editor/common/core/range.js';
+import { overviewRulerRangeHighlight } from '../../../../../editor/common/core/editorColorRegistry.js';
+import { IEditorDecorationsCollection } from '../../../../../editor/common/editorCommon.js';
+import { ITextModel, OverviewRulerLane } from '../../../../../editor/common/model.js';
+import { themeColorFromId } from '../../../../../platform/theme/common/themeService.js';
 import { ChatViewId, IChatWidgetService } from '../chat.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
-import { ITextModel } from '../../../../../editor/common/model.js';
 import * as nls from '../../../../../nls.js';
 import { basename } from '../../../../../base/common/resources.js';
 
@@ -131,6 +134,7 @@ export class ChatEditingExplanationWidget extends Disposable implements IOverlay
 	private _disposed: boolean = false;
 	private _startLineNumber: number = 1;
 	private readonly _uri: URI;
+	private readonly _rangeHighlightDecoration: IEditorDecorationsCollection;
 
 	private readonly _eventStore = this._register(new DisposableStore());
 
@@ -144,6 +148,9 @@ export class ChatEditingExplanationWidget extends Disposable implements IOverlay
 		super();
 
 		this._uri = diffInfo.modifiedModel.uri;
+
+		// Create decoration collection for range highlighting on hover
+		this._rangeHighlightDecoration = this._editor.createDecorationsCollection();
 
 		// Build explanations from changes with loading state
 		this._explanations = this._changes.map(change => {
@@ -369,6 +376,38 @@ export class ChatEditingExplanationWidget extends Disposable implements IOverlay
 				this._updateReadIndicator();
 			}));
 
+			// Hover handlers for range highlighting
+			this._eventStore.add(addDisposableListener(item, 'mouseenter', () => {
+				const range = new Range(exp.startLineNumber, 1, exp.endLineNumber, this._editor.getModel()?.getLineMaxColumn(exp.endLineNumber) ?? 1);
+				this._rangeHighlightDecoration.set([
+					// Line highlight with gutter decoration
+					{
+						range,
+						options: {
+							description: 'chat-explanation-range-highlight',
+							className: 'rangeHighlight',
+							isWholeLine: true,
+							linesDecorationsClassName: 'chat-explanation-range-glyph',
+						}
+					},
+					// Overview ruler indicator
+					{
+						range,
+						options: {
+							description: 'chat-explanation-range-highlight-overview',
+							overviewRuler: {
+								color: themeColorFromId(overviewRulerRangeHighlight),
+								position: OverviewRulerLane.Full,
+							}
+						}
+					}
+				]);
+			}));
+
+			this._eventStore.add(addDisposableListener(item, 'mouseleave', () => {
+				this._rangeHighlightDecoration.clear();
+			}));
+
 			this._explanationItems.set(i, { item, readIndicator: itemReadIndicator, textElement: text });
 			this._bodyNode.appendChild(item);
 		}
@@ -503,6 +542,7 @@ export class ChatEditingExplanationWidget extends Disposable implements IOverlay
 			return;
 		}
 		this._disposed = true;
+		this._rangeHighlightDecoration.clear();
 		this._editor.removeOverlayWidget(this);
 		super.dispose();
 	}
