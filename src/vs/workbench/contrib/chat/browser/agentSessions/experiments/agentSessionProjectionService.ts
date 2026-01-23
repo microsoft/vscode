@@ -18,7 +18,7 @@ import { IAgentSession, isSessionInProgressStatus } from '../agentSessionsModel.
 import { ChatViewPaneTarget, IChatWidgetService } from '../../chat.js';
 import { AgentSessionProviders } from '../agentSessions.js';
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
-import { IWorkbenchLayoutService } from '../../../../../services/layout/browser/layoutService.js';
+import { IWorkbenchLayoutService, Parts } from '../../../../../services/layout/browser/layoutService.js';
 import { ACTION_ID_NEW_CHAT } from '../../actions/chatActions.js';
 import { IChatEditingService, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
 import { IAgentTitleBarStatusService } from './agentTitleBarStatusService.js';
@@ -105,6 +105,9 @@ export class AgentSessionProjectionService extends Disposable implements IAgentS
 
 	/** Working sets per session, keyed by session resource URI string */
 	private readonly _sessionWorkingSets = new Map<string, IEditorWorkingSet>();
+
+	/** Whether the auxiliary bar was maximized when entering projection mode */
+	private _wasAuxiliaryBarMaximized = false;
 
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -247,6 +250,12 @@ export class AgentSessionProjectionService extends Disposable implements IAgentS
 			return;
 		}
 
+		// Detect if auxiliary bar is maximized before any layout changes
+		const isAuxBarMaximized = this.layoutService.isAuxiliaryBarMaximized();
+		this.logService.trace('[AgentSessionProjection] enterProjection auxiliary bar state', {
+			isAuxiliaryBarMaximized: isAuxBarMaximized
+		});
+
 		// Never enter projection mode for sessions that are in progress
 		// The user should only be in projection mode when reviewing completed code
 		if (isSessionInProgressStatus(session.status)) {
@@ -315,6 +324,14 @@ export class AgentSessionProjectionService extends Disposable implements IAgentS
 				this._inProjectionModeContextKey.set(true);
 				this.layoutService.mainContainer.classList.add('agent-session-projection-active');
 
+				// Capture auxiliary bar maximized state when first entering projection
+				if (!wasActive) {
+					this._wasAuxiliaryBarMaximized = isAuxBarMaximized;
+					this.logService.trace('[AgentSessionProjection] captured auxiliary bar maximized state', {
+						wasAuxiliaryBarMaximized: this._wasAuxiliaryBarMaximized
+					});
+				}
+
 				// Update the agent status to show session mode
 				this.agentTitleBarStatusService.enterSessionMode(session.resource, session.label);
 
@@ -334,6 +351,13 @@ export class AgentSessionProjectionService extends Disposable implements IAgentS
 		if (session.providerType === AgentSessionProviders.Local && hasUndecidedChanges) {
 			await this.commandService.executeCommand('chatEditing.viewChanges');
 		}
+
+		// If auxiliary bar was maximized, hide it during projection to show full editor
+		// This must be done after opening the session to avoid the session opening re-showing the bar
+		if (this._wasAuxiliaryBarMaximized) {
+			this.logService.trace('[AgentSessionProjection] hiding maximized auxiliary bar during projection');
+			this.layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART);
+		}
 	}
 
 	async exitProjection(options?: { startNewChat?: boolean }): Promise<void> {
@@ -346,7 +370,8 @@ export class AgentSessionProjectionService extends Disposable implements IAgentS
 		this.logService.trace('[AgentSessionProjection] exitProjection start', {
 			hasPreProjectionWorkingSet: !!this._preProjectionWorkingSet,
 			activeSession: this._activeSession?.label,
-			startNewChat
+			startNewChat,
+			wasAuxiliaryBarMaximized: this._wasAuxiliaryBarMaximized
 		});
 
 		// Save the current session's working set before exiting
@@ -379,6 +404,8 @@ export class AgentSessionProjectionService extends Disposable implements IAgentS
 		this._isActive = false;
 		this._activeSession = undefined;
 		this._inProjectionModeContextKey.set(false);
+		const shouldRestoreMaximized = this._wasAuxiliaryBarMaximized;
+		this._wasAuxiliaryBarMaximized = false;
 		this.layoutService.mainContainer.classList.remove('agent-session-projection-active');
 
 		// Update the agent status to exit session mode
@@ -390,6 +417,14 @@ export class AgentSessionProjectionService extends Disposable implements IAgentS
 		// Start a new chat to clear the sidebar (unless caller wants to keep current chat)
 		if (startNewChat) {
 			await this.commandService.executeCommand(ACTION_ID_NEW_CHAT);
+		}
+
+		// Restore auxiliary bar maximized state if it was maximized before entering projection
+		if (shouldRestoreMaximized) {
+			this.logService.trace('[AgentSessionProjection] restoring auxiliary bar maximized state');
+			// First show the auxiliary bar, then maximize it
+			this.layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
+			await this.commandService.executeCommand('workbench.action.maximizeAuxiliaryBar');
 		}
 
 		this.logService.trace('[AgentSessionProjection] exitProjection complete');
