@@ -63,6 +63,18 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 
 		this.domNode = dom.$('.chat-question-carousel-container');
 
+		// Restore answers from carousel data if already submitted (e.g., after re-render due to virtualization)
+		if (carousel.data) {
+			for (const [key, value] of Object.entries(carousel.data)) {
+				this._answers.set(key, value);
+			}
+		}
+
+		// If carousel was already used, render in submitted state
+		if (carousel.isUsed) {
+			this._isSkipped = true;
+		}
+
 		// Header with title and progress
 		const header = dom.$('.chat-question-carousel-header');
 		const titleElement = dom.$('.chat-question-carousel-title');
@@ -99,19 +111,29 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		this._register(this._prevButton.onDidClick(() => this.navigate(-1)));
 		this._register(this._nextButton.onDidClick(() => this.handleNext()));
 
-		// Register keyboard navigation
+		// Register keyboard navigation - only handle Enter on text inputs or navigation buttons
 		this._register(dom.addDisposableListener(this.domNode, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			const event = new StandardKeyboardEvent(e);
 			if (event.keyCode === KeyCode.Enter && !event.shiftKey) {
-				// Enter key to proceed to next question or submit
-				e.preventDefault();
-				e.stopPropagation();
-				this.handleNext();
+				// Only handle Enter key for text inputs and buttons, not radio/checkbox
+				const target = e.target as HTMLElement;
+				const isTextInput = target.tagName === 'INPUT' && (target as HTMLInputElement).type === 'text';
+				const isButton = target.classList.contains('monaco-button');
+				if (isTextInput || isButton) {
+					e.preventDefault();
+					e.stopPropagation();
+					this.handleNext();
+				}
 			}
 		}));
 
 		// Initialize the carousel
 		this.renderCurrentQuestion();
+
+		// If already submitted, disable interaction
+		if (this.carousel.isUsed) {
+			this.disableAllButtons();
+		}
 	}
 
 	/**
@@ -157,18 +179,75 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	}
 
 	/**
-	 * Skips the carousel - called when user submits a chat message.
-	 * Returns true if the carousel was successfully skipped.
+	 * Skips the carousel - called when user submits a chat message (YOLO mode).
+	 * Returns defaults for all questions instead of undefined.
 	 */
 	public skip(): boolean {
 		if (this._isSkipped || !this.carousel.allowSkip) {
 			return false;
 		}
 		this._isSkipped = true;
-		// Skip entire carousel - return undefined
-		this._options.onSubmit(undefined);
+
+		// In YOLO mode, return defaults for all questions
+		const defaults = this.getDefaultAnswers();
+		this._options.onSubmit(defaults);
 		this.disableAllButtons();
 		return true;
+	}
+
+	/**
+	 * Collects default values for all questions in the carousel.
+	 */
+	private getDefaultAnswers(): Map<string, unknown> {
+		const answers = new Map<string, unknown>();
+		for (const question of this.carousel.questions) {
+			const defaultAnswer = this.getDefaultAnswerForQuestion(question);
+			if (defaultAnswer !== undefined) {
+				answers.set(question.id, defaultAnswer);
+			}
+		}
+		return answers;
+	}
+
+	/**
+	 * Gets the default answer for a specific question.
+	 */
+	private getDefaultAnswerForQuestion(question: IChatQuestion): unknown {
+		switch (question.type) {
+			case 'text':
+				return question.defaultValue;
+
+			case 'singleSelect': {
+				const defaultOptionId = typeof question.defaultValue === 'string' ? question.defaultValue : undefined;
+				const defaultOption = defaultOptionId !== undefined
+					? question.options?.find(opt => opt.id === defaultOptionId)
+					: undefined;
+				const selectedValue = defaultOption?.value;
+
+				if (question.allowFreeformInput) {
+					return selectedValue !== undefined ? { selectedValue, freeformValue: undefined } : undefined;
+				}
+				return selectedValue;
+			}
+
+			case 'multiSelect': {
+				const defaultIds = Array.isArray(question.defaultValue)
+					? question.defaultValue
+					: (typeof question.defaultValue === 'string' ? [question.defaultValue] : []);
+				const selectedValues = question.options
+					?.filter(opt => defaultIds.includes(opt.id))
+					.map(opt => opt.value)
+					.filter(v => v !== undefined) ?? [];
+
+				if (question.allowFreeformInput) {
+					return selectedValues.length > 0 ? { selectedValues, freeformValue: undefined } : undefined;
+				}
+				return selectedValues;
+			}
+
+			default:
+				return question.defaultValue;
+		}
 	}
 
 	private disableAllButtons(): void {
@@ -440,7 +519,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 				// Include freeform value if allowed
 				if (question.allowFreeformInput) {
 					const freeformInput = this._freeformInputBoxes.get(question.id);
-					const freeformValue = freeformInput?.value || undefined;
+					const freeformValue = freeformInput?.value !== '' ? freeformInput?.value : undefined;
 					if (freeformValue || selectedValue !== undefined) {
 						return { selectedValue, freeformValue };
 					}
@@ -479,7 +558,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 				// Include freeform value if allowed
 				if (question.allowFreeformInput) {
 					const freeformInput = this._freeformInputBoxes.get(question.id);
-					const freeformValue = freeformInput?.value || undefined;
+					const freeformValue = freeformInput?.value !== '' ? freeformInput?.value : undefined;
 					if (freeformValue || finalSelectedValues.length > 0) {
 						return { selectedValues: finalSelectedValues, freeformValue };
 					}

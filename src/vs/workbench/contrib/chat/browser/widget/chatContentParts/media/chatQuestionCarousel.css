@@ -93,3 +93,15 @@
 	width: 32px;
 	padding: 4px;
 }
+
+.chat-question-freeform {
+	margin-top: 12px;
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.chat-question-freeform-label {
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+}

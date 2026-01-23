@@ -511,7 +511,6 @@ declare module 'vscode' {
 		confirmation(title: string, message: string | MarkdownString, data: any, buttons?: string[]): void;
 
 		/**
-		/**
 		 * Show an inline carousel of questions to gather information from the user.
 		 * This is a blocking call that waits for the user to submit or skip the questions.
 		 * @param questions Array of questions to display to the user

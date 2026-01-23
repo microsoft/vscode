@@ -347,13 +347,6 @@ export interface IChatQuestion {
 }
 
 /**
- * Represents the answers provided by the user for a question carousel.
- * Maps question IDs to their corresponding answer values.
- * Returns undefined if the user skipped/dismissed the carousel.
- */
-export type IChatQuestionCarouselAnswers = Record<string, unknown> | undefined;
-
-/**
  * A carousel for presenting multiple questions inline in the chat response.
  * Users can navigate between questions and submit their answers.
  */
