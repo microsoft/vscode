@@ -372,7 +372,7 @@ export interface IToolSet {
 export type IToolAndToolSetEnablementMap = ReadonlyMap<IToolData | IToolSet, boolean>;
 
 export function isToolSet(obj: IToolData | IToolSet | undefined): obj is IToolSet {
-	return (obj as IToolSet).getTools !== undefined;
+	return !!obj && (obj as IToolSet).getTools !== undefined;
 }
 
 export class ToolSet implements IToolSet {
