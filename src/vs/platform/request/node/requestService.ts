@@ -21,7 +21,7 @@ import { AbstractRequestService, AuthInfo, Credentials, IRequestService, systemC
 import { Agent, getProxyAgent } from './proxy.js';
 import { createGunzip } from 'zlib';
 
-const TransientErrorRegex = /EPROTO|ECONNRESET|ECONNREFUSED|ENETUNREACH|ETIMEDOUT|EAI_AGAIN|socket hang up|SSL routines/;
+const TRANSIENT_ERROR_REGEX = /EPROTO|ECONNRESET|ECONNREFUSED|ENETUNREACH|ETIMEDOUT|EAI_AGAIN|socket hang up|SSL routines/;
 
 export interface IRawRequestFunction {
 	(options: http.RequestOptions, callback?: (res: http.IncomingMessage) => void): http.ClientRequest;
@@ -167,7 +167,7 @@ export async function nodeRequest(options: NodeRequestOptions, token: Cancellati
 				throw error;
 			}
 
-			const isTransientError = TransientErrorRegex.test(getErrorMessage(error));
+			const isTransientError = TRANSIENT_ERROR_REGEX.test(getErrorMessage(error));
 			if (!isTransientError || attempt === maxRetries) {
 				throw error;
 			}
