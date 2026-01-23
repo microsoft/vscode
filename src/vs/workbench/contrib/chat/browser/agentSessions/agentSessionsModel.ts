@@ -155,7 +155,7 @@ export const enum AgentSessionSection {
 	Older = 'older',
 	Archived = 'archived',
 
-	// Recency Grouping
+	// Pending/Done Grouping
 	Pending = 'pending',
 	Done = 'done',
 }

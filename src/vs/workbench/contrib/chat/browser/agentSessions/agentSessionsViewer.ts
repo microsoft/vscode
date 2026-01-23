@@ -717,32 +717,24 @@ export function groupAgentSessionsByDefault(sessions: IAgentSession[]): Map<Agen
 export function groupAgentSessionsByRecency(sessions: IAgentSession[]): Map<AgentSessionSection, IAgentSessionSection> {
 	const pendingSessions: IAgentSession[] = [];
 	const doneSessions: IAgentSession[] = [];
-	const pendingSessionsSet = new Set<IAgentSession>();
 
-	// Find the most recent non-archived session
 	let mostRecentNonArchived: IAgentSession | undefined;
-	for (const session of sessions) {
-		if (!session.isArchived()) {
-			mostRecentNonArchived = session;
-			break; // sessions are already sorted by recency
-		}
-	}
-
 	for (const session of sessions) {
 		if (session.isArchived()) {
 			doneSessions.push(session);
-		} else if (
-			isSessionInProgressStatus(session.status) ||	// in-progress
-			!session.isRead() ||							// unread
-			hasValidDiff(session.changes) ||				// has changes
-			session === mostRecentNonArchived				// most recent non-archived (helps restore the session after restart when chat is cleared)
-		) {
-			if (!pendingSessionsSet.has(session)) {
-				pendingSessionsSet.add(session);
-				pendingSessions.push(session);
-			}
 		} else {
-			doneSessions.push(session);
+			mostRecentNonArchived ??= session;
+
+			if (
+				isSessionInProgressStatus(session.status) ||	// in-progress
+				!session.isRead() ||							// unread
+				hasValidDiff(session.changes) ||				// has changes
+				session === mostRecentNonArchived				// most recent non-archived (helps restore the session after restart when chat is cleared)
+			) {
+				pendingSessions.push(session);
+			} else {
+				doneSessions.push(session);
+			}
 		}
 	}
 
