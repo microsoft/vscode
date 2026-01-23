@@ -11,6 +11,7 @@ import { IActionWidgetService } from '../../../../../../platform/actionWidget/br
 import { IActionWidgetDropdownOptions } from '../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
+import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { IChatExecuteActionContext } from '../../actions/chatExecuteActions.js';
 
 export interface IChatInputPickerOptions {
@@ -38,6 +39,7 @@ export abstract class ChatInputPickerActionViewItem extends ActionWidgetDropdown
 		@IActionWidgetService actionWidgetService: IActionWidgetService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@ITelemetryService telemetryService: ITelemetryService,
 	) {
 		// Inject the anchor getter into the options
 		const optionsWithAnchor: Omit<IActionWidgetDropdownOptions, 'label' | 'labelRenderer'> = {
@@ -45,7 +47,7 @@ export abstract class ChatInputPickerActionViewItem extends ActionWidgetDropdown
 			getAnchor: () => this.getAnchorElement(),
 		};
 
-		super(action, optionsWithAnchor, actionWidgetService, keybindingService, contextKeyService);
+		super(action, optionsWithAnchor, actionWidgetService, keybindingService, contextKeyService, telemetryService);
 
 		this._register(autorun(reader => {
 			this.pickerOptions.onlyShowIconsForDefaultActions.read(reader);
