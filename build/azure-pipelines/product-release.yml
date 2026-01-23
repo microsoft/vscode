@@ -10,6 +10,11 @@ steps:
       versionSource: fromFile
       versionFilePath: .nvmrc
 
+  - template: ./distro/download-distro.yml@self
+
+  - script: node build/azure-pipelines/distro/mixin-quality.ts
+    displayName: Mixin distro quality
+
   - task: AzureCLI@2
     displayName: Fetch secrets
     inputs:
