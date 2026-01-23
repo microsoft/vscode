@@ -116,6 +116,15 @@
 	}
 }
 
+/* Sessions control: panel location */
+.chat-viewpane.has-sessions-control.chat-view-location-panel {
+
+	.agent-sessions-new-button-container {
+		/* hide new session button in the panel considering less vertical space */
+		display: none !important;
+	}
+}
+
 /*
  * Padding rules for agent sessions elements based on:
  * - orientation (stacked vs sidebyside)
