@@ -105,13 +105,8 @@ class AgentSessionsWelcomeRunnerContribution extends Disposable implements IWork
 		// Get startup editor configuration
 		const startupEditor = this.configurationService.getValue<string>('workbench.startupEditor');
 
-		// Only proceed if configured to show agent sessions welcome page,
-		// or if on Insiders with welcomePage (treat welcomePage as agentSessionsWelcomePage on Insiders)
-		const isInsiders = this.productService.quality === 'insider';
-		const shouldShowAgentSessionsWelcome = startupEditor === 'agentSessionsWelcomePage' ||
-			(isInsiders && startupEditor === 'welcomePage');
-
-		if (!shouldShowAgentSessionsWelcome) {
+		// Only proceed if configured to show agent sessions welcome page
+		if (startupEditor !== 'agentSessionsWelcomePage') {
 			return;
 		}
 

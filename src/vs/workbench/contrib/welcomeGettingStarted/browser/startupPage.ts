@@ -138,11 +138,7 @@ export class StartupPageRunnerContribution extends Disposable implements IWorkbe
 				if (startupEditorSetting.value === 'readme') {
 					await this.openReadme();
 				} else if (startupEditorSetting.value === 'welcomePage' || startupEditorSetting.value === 'welcomePageInEmptyWorkbench') {
-					// On Insiders, AgentSessionsWelcomeRunnerContribution handles 'welcomePage', so skip here to avoid race condition
-					const isInsiders = this.productService.quality === 'insider';
-					if (!isInsiders || startupEditorSetting.value === 'welcomePageInEmptyWorkbench') {
-						await this.openGettingStarted(true);
-					}
+					await this.openGettingStarted(true);
 				} else if (startupEditorSetting.value === 'terminal') {
 					this.commandService.executeCommand(TerminalCommandId.CreateTerminalEditor);
 				}
