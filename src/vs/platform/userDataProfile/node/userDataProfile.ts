@@ -32,7 +32,7 @@ export class UserDataProfilesReadonlyService extends BaseUserDataProfilesService
 		return storedProfilesState.map(p => ({
 			...p,
 			location: isString(p.location) ? this.uriIdentityService.extUri.joinPath(this.profilesHome, p.location) : URI.revive(p.location),
-			templateData: p.templateData ? { ...p.templateData, resource: URI.revive(p.templateData.resource) } : undefined
+			templateResource: p.templateResource ? URI.revive(p.templateResource) : undefined
 		}));
 	}
 
