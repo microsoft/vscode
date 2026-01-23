@@ -91,12 +91,21 @@ function extractTitleFromThinkingContent(content: string): string | undefined {
 	return headerMatch ? headerMatch[1] : undefined;
 }
 
-interface ILazyItem {
+interface ILazyToolItem {
+	kind: 'tool';
 	lazy: Lazy<{ domNode: HTMLElement; disposable?: IDisposable }>;
 	toolInvocationId?: string;
 	toolInvocationOrMarkdown?: IChatToolInvocation | IChatToolInvocationSerialized | IChatMarkdownContent;
 	originalParent?: HTMLElement;
 }
+
+interface ILazyThinkingItem {
+	kind: 'thinking';
+	textContainer: HTMLElement;
+	content: IChatThinkingPart;
+}
+
+type ILazyItem = ILazyToolItem | ILazyThinkingItem;
 const THINKING_SCROLL_MAX_HEIGHT = 200;
 
 export class ChatThinkingContentPart extends ChatCollapsibleContentPart implements IChatContentPart {
@@ -231,6 +240,10 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		}
 	}
 
+	protected override shouldInitEarly(): boolean {
+		return this.fixedScrollingMode;
+	}
+
 	// @TODO: @justschen Convert to template for each setting?
 	protected override initContent(): HTMLElement {
 		this.wrapper = $('.chat-used-context-list.chat-thinking-collapsible');
@@ -343,7 +356,9 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 				this.markdownResult.dispose();
 				this.markdownResult = undefined;
 			}
-			clearNode(this.textContainer);
+			if (this.textContainer) {
+				clearNode(this.textContainer);
+			}
 			return;
 		}
 
@@ -370,9 +385,11 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		}, target));
 		this.markdownResult = rendered;
 		if (!target) {
-			clearNode(this.textContainer);
-			this.textContainer.appendChild(createThinkingIcon(Codicon.circleFilled));
-			this.textContainer.appendChild(rendered.element);
+			if (this.textContainer) {
+				clearNode(this.textContainer);
+				this.textContainer.appendChild(createThinkingIcon(Codicon.circleFilled));
+				this.textContainer.appendChild(rendered.element);
+			}
 		}
 	}
 
@@ -544,12 +561,17 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 				context = this.currentThinkingValue.substring(0, 1000);
 			}
 
-			const prompt = `Summarize the following actions concisely (6-10 words) using past tense. Follow these rules strictly:
+			const prompt = `Summarize the following actions in a SINGLE sentence (under 10 words) using past tense. Follow these rules strictly:
+
+			OUTPUT FORMAT:
+			- MUST be a single sentence
+			- MUST be under 10 words
+			- No quotes, no trailing punctuation
 
 			GENERAL:
-			- The actions may include tool calls (file edits, reads, searches, terminal commands) AND non-tool reasoning/analysis
-			- Summarize ALL actions, not just tool calls. If there's reasoning or analysis without tool calls, summarize that too
-			- Examples of non-tool actions: "Analyzing code structure", "Planning implementation", "Reviewing dependencies"
+			- The actions may include tool calls (file edits, reads, searches, terminal commands) AND/OR non-tool reasoning/analysis
+			- If there are ONLY thinking headers or reasoning (no tool calls), summarize WHAT was considered/planned, NOT what was done
+			- For thinking-only summaries, use phrases like: "Considered...", "Planned...", "Analyzed approach for...", "Reviewed options for..."
 
 			TOOL NAME FILTERING:
 			- NEVER include tool names like "Replace String in File", "Multi Replace String in File", "Create File", "Read File", etc. in the output
@@ -562,6 +584,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			- For creates: "Created", "Added", "Generated"
 			- For searches: "Searched for", "Looked up", "Investigated"
 			- For terminal: "Ran command", "Executed"
+			- For thinking-only (no tools): "Considered", "Planned", "Analyzed approach", "Reviewed options"
 			- Choose the synonym that best fits the context of what was done
 
 			RULES FOR TOOL CALLS:
@@ -575,7 +598,12 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			8. After the file info, you may add a brief summary of other actions if space permits
 			9. NEVER say "1 file" - always use the actual filename when there's only one file
 
-			EXAMPLES:
+			RULES FOR THINKING-ONLY (no tool calls):
+			1. If the input contains only reasoning/analysis headers without actual tool invocations, summarize the planning/consideration
+			2. Use past tense verbs that indicate thinking, not doing: "Considered", "Planned", "Analyzed", "Evaluated"
+			3. Focus on WHAT was being thought about, not that thinking occurred
+
+			EXAMPLES WITH TOOLS:
 			- "Read HomePage.tsx, Edited HomePage.tsx" → "Reviewed and updated HomePage.tsx"
 			- "Edited HomePage.tsx" → "Updated HomePage.tsx"
 			- "Edited config.css and used Replace String in File" → "Modified config.css"
@@ -589,13 +617,15 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			- "Edited api.ts, Edited models.ts, Read schema.json" → "Updated 2 files and reviewed schema.json"
 			- "Edited Button.tsx, Edited Button.css, Edited index.ts" → "Modified 3 files"
 			- "Searched codebase for error handling" → "Looked up error handling"
-			- "Grep search for useState, Read App.tsx" → "Examined App.tsx and searched for useState"
-			- "Analyzing component architecture" → "Analyzed component architecture"
-			- "Planning refactor strategy, Read utils.ts" → "Planned refactor and reviewed utils.ts"
 
-			No quotes, no trailing punctuation. Never say "searched for files" - always include the actual search term. Never include tool names.
+			EXAMPLES WITHOUT TOOLS (thinking-only):
+			- "Analyzing component architecture" → "Considered component architecture"
+			- "Planning refactor strategy" → "Planned refactor strategy"
+			- "Reviewing error handling approach, Considering edge cases" → "Analyzed error handling approach"
+			- "Understanding the codebase structure" → "Reviewed codebase structure"
+			- "Thinking about implementation options" → "Considered implementation options"
 
-			Actions: ${context}`;
+			Tool calls and reasoning: ${context}`;
 
 			const response = await this.languageModelsService.sendChatRequest(
 				models[0],
@@ -620,6 +650,11 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 
 			await response.result;
 			generatedTitle = generatedTitle.trim();
+
+			if (generatedTitle.includes('can\'t assist with that')) {
+				this.setFallbackTitle();
+				return;
+			}
 
 			if (generatedTitle && !this._store.isDisposed) {
 				this.currentTitle = generatedTitle;
@@ -704,7 +739,8 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			}
 		} else {
 			// Defer rendering until expanded
-			const item: ILazyItem = {
+			const item: ILazyToolItem = {
+				kind: 'tool',
 				lazy: new Lazy(factory),
 				toolInvocationId,
 				toolInvocationOrMarkdown,
@@ -721,7 +757,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	 * this is needed so we can check if there are confirmations still needed
 	 */
 	public removeLazyItem(toolInvocationId: string): boolean {
-		const index = this.lazyItems.findIndex(item => item.toolInvocationId === toolInvocationId);
+		const index = this.lazyItems.findIndex(item => item.kind === 'tool' && item.toolInvocationId === toolInvocationId);
 		if (index === -1) {
 			return false;
 		}
@@ -833,6 +869,19 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	}
 
 	private materializeLazyItem(item: ILazyItem): void {
+		if (item.kind === 'thinking') {
+			// Materialize thinking container
+			if (this.wrapper) {
+				this.wrapper.appendChild(item.textContainer);
+			}
+			// Store reference to textContainer for updateThinking calls
+			this.textContainer = item.textContainer;
+			this.id = item.content.id;
+			this.updateThinking(item.content);
+			return;
+		}
+
+		// Handle tool items
 		if (item.lazy.hasValue) {
 			return; // Already materialized
 		}
@@ -853,12 +902,23 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		}
 		this.textContainer = $('.chat-thinking-item.markdown-content');
 		if (content.value) {
-			// With lazy rendering, wrapper may not be created yet if content hasn't been expanded
-			if (this.wrapper) {
-				this.wrapper.appendChild(this.textContainer);
+			// Use lazy rendering when collapsed to preserve order with tool items
+			if (this.isExpanded() || this.hasExpandedOnce || (this.fixedScrollingMode && !this.streamingCompleted)) {
+				// Render immediately when expanded
+				if (this.wrapper) {
+					this.wrapper.appendChild(this.textContainer);
+				}
+				this.id = content.id;
+				this.updateThinking(content);
+			} else {
+				// Defer rendering until expanded to preserve order
+				const lazyThinking: ILazyThinkingItem = {
+					kind: 'thinking',
+					textContainer: this.textContainer,
+					content
+				};
+				this.lazyItems.push(lazyThinking);
 			}
-			this.id = content.id;
-			this.updateThinking(content);
 		}
 		this.updateDropdownClickability();
 	}

@@ -131,6 +131,8 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 	private readonly _state = observableValue<ChatEditingSessionState>(this, ChatEditingSessionState.Initial);
 	private readonly _timeline: IChatEditingCheckpointTimeline;
 
+	public readonly explanationWidgetVisible = observableValue<boolean>(this, false);
+
 	/**
 	 * Contains the contents of a file when the AI first began doing edits to it.
 	 */
@@ -1014,6 +1016,8 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			this._store.delete(listener);
 		});
 		this._store.add(listener);
+
+		entry.explanationWidgetVisible = this.explanationWidgetVisible;
 
 		const entriesArr = [...this._entriesObs.get(), entry];
 		this._entriesObs.set(entriesArr, undefined);

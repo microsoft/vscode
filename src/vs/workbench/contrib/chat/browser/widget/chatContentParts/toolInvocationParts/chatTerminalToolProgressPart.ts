@@ -385,7 +385,8 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			: commandText;
 
 		const isComplete = IChatToolInvocation.isComplete(toolInvocation);
-		const hasError = this._terminalData.terminalCommandState?.exitCode !== undefined && this._terminalData.terminalCommandState.exitCode !== 0;
+		const autoExpandFailures = this._configurationService.getValue<boolean>(ChatConfiguration.AutoExpandToolFailures);
+		const hasError = autoExpandFailures && this._terminalData.terminalCommandState?.exitCode !== undefined && this._terminalData.terminalCommandState.exitCode !== 0;
 		const initialExpanded = !isComplete || hasError;
 
 		const wrapper = this._register(this._instantiationService.createInstance(
@@ -525,8 +526,9 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		if (!showOutputAction) {
 			showOutputAction = this._instantiationService.createInstance(ToggleChatTerminalOutputAction, () => this._toggleOutputFromAction());
 			this._showOutputAction.value = showOutputAction;
+			const autoExpandFailures = this._configurationService.getValue<boolean>(ChatConfiguration.AutoExpandToolFailures);
 			const exitCode = resolvedCommand?.exitCode ?? this._terminalData.terminalCommandState?.exitCode;
-			if (exitCode) {
+			if (exitCode !== undefined && exitCode !== 0 && autoExpandFailures) {
 				this._toggleOutput(true);
 			}
 		}
@@ -638,7 +640,8 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 					this._toggleOutput(false);
 				}
 				// keep outer wrapper expanded on error
-				if (resolvedCommand?.exitCode !== undefined && resolvedCommand.exitCode !== 0 && this._thinkingCollapsibleWrapper) {
+				const autoExpandFailures = this._configurationService.getValue<boolean>(ChatConfiguration.AutoExpandToolFailures);
+				if (autoExpandFailures && resolvedCommand?.exitCode !== undefined && resolvedCommand.exitCode !== 0 && this._thinkingCollapsibleWrapper) {
 					this.expandCollapsibleWrapper();
 				}
 				if (resolvedCommand?.endMarker) {
@@ -655,7 +658,8 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 					this._toggleOutput(false);
 				}
 				// keep outer wrapper expanded on error
-				if (resolvedImmediately.exitCode !== undefined && resolvedImmediately.exitCode !== 0 && this._thinkingCollapsibleWrapper) {
+				const autoExpandFailures = this._configurationService.getValue<boolean>(ChatConfiguration.AutoExpandToolFailures);
+				if (autoExpandFailures && resolvedImmediately.exitCode !== undefined && resolvedImmediately.exitCode !== 0 && this._thinkingCollapsibleWrapper) {
 					this.expandCollapsibleWrapper();
 				}
 				return;
