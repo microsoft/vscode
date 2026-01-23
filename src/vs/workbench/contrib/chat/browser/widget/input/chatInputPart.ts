@@ -729,6 +729,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this.setCurrentLanguageModel(model);
 			return true;
 		}
+		this.logService.warn(`[chat] Model "${qualifiedModelName}" not found. Use format "<name> (<vendor>)", e.g. "GPT-4o (copilot)".`);
 		return false;
 	}
 
