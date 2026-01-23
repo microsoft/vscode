@@ -99,7 +99,7 @@ import { ChatSessionPrimaryPickerAction, ChatSubmitAction, IChatExecuteActionCon
 import { AgentSessionProviders, getAgentSessionProvider } from '../../agentSessions/agentSessions.js';
 import { IAgentSessionsService } from '../../agentSessions/agentSessionsService.js';
 import { ChatAttachmentModel } from '../../attachments/chatAttachmentModel.js';
-import { DefaultChatAttachmentWidget, ElementChatAttachmentWidget, FileAttachmentWidget, getEditorOverrideForChatResource, ImageAttachmentWidget, NotebookCellOutputChatAttachmentWidget, PasteAttachmentWidget, PromptFileAttachmentWidget, PromptTextAttachmentWidget, SCMHistoryItemAttachmentWidget, SCMHistoryItemChangeAttachmentWidget, SCMHistoryItemChangeRangeAttachmentWidget, TerminalCommandAttachmentWidget, ToolSetOrToolItemAttachmentWidget } from '../../attachments/chatAttachmentWidgets.js';
+import { DefaultChatAttachmentWidget, ElementChatAttachmentWidget, FileAttachmentWidget, ImageAttachmentWidget, NotebookCellOutputChatAttachmentWidget, PasteAttachmentWidget, PromptFileAttachmentWidget, PromptTextAttachmentWidget, SCMHistoryItemAttachmentWidget, SCMHistoryItemChangeAttachmentWidget, SCMHistoryItemChangeRangeAttachmentWidget, TerminalCommandAttachmentWidget, ToolSetOrToolItemAttachmentWidget } from '../../attachments/chatAttachmentWidgets.js';
 import { ChatImplicitContexts } from '../../attachments/chatImplicitContext.js';
 import { ChatRelatedFiles } from '../../attachments/chatInputRelatedFilesContrib.js';
 import { ImplicitContextAttachmentWidget } from '../../attachments/implicitContextAttachment.js';
@@ -2616,10 +2616,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 					const entry = chatEditingSession?.getEntry(modifiedFileUri);
 
-					const editorOverride = getEditorOverrideForChatResource(modifiedFileUri, this.configurationService);
 					const pane = await this.editorService.openEditor({
 						resource: modifiedFileUri,
-						options: { ...e.editorOptions, override: editorOverride }
+						options: e.editorOptions
 					}, e.sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
 
 					if (pane) {
