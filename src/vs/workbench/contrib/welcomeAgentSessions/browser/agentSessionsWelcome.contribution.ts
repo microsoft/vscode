@@ -18,6 +18,8 @@ import { IEditorGroupsService } from '../../../services/editor/common/editorGrou
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { AuxiliaryBarMaximizedContext } from '../../../common/contextkeys.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
+import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
 import { AgentSessionsWelcomeInput } from './agentSessionsWelcomeInput.js';
 import { AgentSessionsWelcomePage, AgentSessionsWelcomeInputSerializer } from './agentSessionsWelcome.js';
 
@@ -92,6 +94,8 @@ class AgentSessionsWelcomeRunnerContribution extends Disposable implements IWork
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IStorageService private readonly storageService: IStorageService,
+		@IProductService private readonly productService: IProductService,
 	) {
 		super();
 		this.run();
@@ -101,8 +105,13 @@ class AgentSessionsWelcomeRunnerContribution extends Disposable implements IWork
 		// Get startup editor configuration
 		const startupEditor = this.configurationService.getValue<string>('workbench.startupEditor');
 
-		// Only proceed if configured to show agent sessions welcome page
-		if (startupEditor !== 'agentSessionsWelcomePage') {
+		// Only proceed if configured to show agent sessions welcome page,
+		// or if on Insiders with welcomePage (treat welcomePage as agentSessionsWelcomePage on Insiders)
+		const isInsiders = this.productService.quality === 'insider';
+		const shouldShowAgentSessionsWelcome = startupEditor === 'agentSessionsWelcomePage' ||
+			(isInsiders && startupEditor === 'welcomePage');
+
+		if (!shouldShowAgentSessionsWelcome) {
 			return;
 		}
 
@@ -114,8 +123,11 @@ class AgentSessionsWelcomeRunnerContribution extends Disposable implements IWork
 			return;
 		}
 
-		// Don't open if there are already editors open
-		if (this.editorService.activeEditor) {
+		// Check if there's prefill data from a workspace transfer - always show welcome page in that case
+		const hasPrefillData = !!this.storageService.get('chat.welcomeViewPrefill', StorageScope.APPLICATION);
+
+		// Don't open if there are already editors open (unless we have prefill data)
+		if (this.editorService.activeEditor && !hasPrefillData) {
 			return;
 		}
 
