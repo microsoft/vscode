@@ -265,8 +265,9 @@ export class BrowserEditor extends EditorPane {
 		// this browser view has focus (since it's outside the normal DOM tree).
 		this._register(registerExternalFocusChecker(() => this._model?.focused ?? false));
 
-		// Automatically call layoutBrowserContainer() when the browser container changes size
-		const resizeObserver = new ResizeObserver(async () => this.layoutBrowserContainer());
+		// Automatically call layoutBrowserContainer() when the browser container changes size.
+		// Be careful to use `ResizeObserver` from the target window to avoid cross-window issues.
+		const resizeObserver = new this.window.ResizeObserver(() => this.layoutBrowserContainer());
 		resizeObserver.observe(this._browserContainer);
 		this._register(toDisposable(() => resizeObserver.disconnect()));
 	}
