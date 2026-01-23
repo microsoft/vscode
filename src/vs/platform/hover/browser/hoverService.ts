@@ -67,8 +67,6 @@ export class HoverService extends Disposable implements IHoverService {
 	private _currentDelayedHoverWasShown: boolean = false;
 	private _currentDelayedHoverGroupId: number | string | undefined;
 	private _lastHoverOptions: IHoverOptions | undefined;
-	private _isAltModifierDown: boolean = false;
-
 	private readonly _delayedHovers = new Map<HTMLElement, { show: (focus: boolean) => void }>();
 	private readonly _managedHovers = new Map<HTMLElement, IManagedHover>();
 
@@ -90,11 +88,14 @@ export class HoverService extends Disposable implements IHoverService {
 	 * Returns whether the target element is inside any of the hovers in the stack.
 	 * If it is, returns the index of the containing hover, otherwise returns -1.
 	 */
-	private _getContainingHoverIndex(targetElement: HTMLElement): number {
+	private _getContainingHoverIndex(target: HTMLElement | IHoverTarget): number {
+		const targetElements = isHTMLElement(target) ? [target] : target.targetElements;
 		// Search from top of stack to bottom (most recent hover first)
 		for (let i = this._hoverStack.length - 1; i >= 0; i--) {
-			if (isAncestor(targetElement, this._hoverStack[i].hover.domNode)) {
-				return i;
+			for (const targetElement of targetElements) {
+				if (isAncestor(targetElement, this._hoverStack[i].hover.domNode)) {
+					return i;
+				}
 			}
 		}
 		return -1;
@@ -255,8 +256,7 @@ export class HoverService extends Disposable implements IHoverService {
 		}
 
 		// Check if the target is inside an existing hover (nesting scenario)
-		const targetElement = isHTMLElement(options.target) ? options.target : options.target.targetElements[0];
-		const containingHoverIndex = this._getContainingHoverIndex(targetElement);
+		const containingHoverIndex = this._getContainingHoverIndex(options.target);
 		const isNesting = containingHoverIndex >= 0;
 
 		if (isNesting) {
@@ -324,19 +324,13 @@ export class HoverService extends Disposable implements IHoverService {
 				// Remove this hover from stack and dispose its context view
 				this._hoverStack.splice(stackIndex, 1);
 				entry.contextView.dispose();
-
-				// If there's a parent hover remaining, ensure its lock state is correct
-				// (It might have been locked by nesting, so we need to unlock it if it shouldn't be locked)
-				if (this._hoverStack.length > 0) {
-					const newTop = this._hoverStack[this._hoverStack.length - 1];
-					newTop.hover.isLocked = newTop.options.persistence?.sticky || this._isAltModifierDown;
-				}
 			}
 			hoverDisposables.dispose();
 		}, undefined, hoverDisposables);
 
 		// Set the container explicitly to enable aux window support
 		if (!options.container) {
+			const targetElement = isHTMLElement(options.target) ? options.target : options.target.targetElements[0];
 			options.container = this._layoutService.getContainer(getWindow(targetElement));
 		}
 
@@ -378,8 +372,7 @@ export class HoverService extends Disposable implements IHoverService {
 		const { hover, lastFocusedElementBeforeOpen, store } = result;
 
 		// Check if the target is inside an existing hover (nesting scenario)
-		const targetElement = isHTMLElement(options.target) ? options.target : options.target.targetElements[0];
-		const containingHoverIndex = this._getContainingHoverIndex(targetElement);
+		const containingHoverIndex = this._getContainingHoverIndex(options.target);
 		const isNesting = containingHoverIndex >= 0;
 
 		// If not nesting, close all existing hovers first
@@ -395,15 +388,17 @@ export class HoverService extends Disposable implements IHoverService {
 			this._hoverStack.length = containingHoverIndex + 1;
 		}
 
-		// When nesting, lock all parent hovers to prevent them from closing
+		// When nesting, add the new hover's container to all parent hovers' mouse trackers.
+		// This makes the parent hovers treat the nested hover as part of themselves,
+		// so they won't close when the mouse moves into the nested hover.
 		if (isNesting) {
 			for (let i = 0; i <= containingHoverIndex; i++) {
-				this._hoverStack[i].hover.isLocked = true;
+				store.add(this._hoverStack[i].hover.addMouseTrackingElement(hover.domNode));
 			}
 		}
 
 		// Create a new ContextView for this hover with higher z-index for nested hovers
-		const container = options.container ?? this._layoutService.activeContainer;
+		const container = options.container ?? this._layoutService.getContainer(getWindow(isHTMLElement(options.target) ? options.target : options.target.targetElements[0]));
 		const contextView = new ContextView(container, ContextViewDOMPosition.ABSOLUTE);
 
 		// Push to stack
@@ -508,7 +503,6 @@ export class HoverService extends Disposable implements IHoverService {
 
 	private _keyDown(e: KeyboardEvent, hover: HoverWidget, hideOnKeyDown: boolean) {
 		if (e.key === 'Alt') {
-			this._isAltModifierDown = true;
 			// Lock all hovers in the stack when Alt is pressed
 			for (const entry of this._hoverStack) {
 				entry.hover.isLocked = true;
@@ -530,7 +524,6 @@ export class HoverService extends Disposable implements IHoverService {
 
 	private _keyUp(e: KeyboardEvent, hover: HoverWidget) {
 		if (e.key === 'Alt') {
-			this._isAltModifierDown = false;
 			// Unlock all hovers in the stack when Alt is released
 			for (const entry of this._hoverStack) {
 				// Only unlock if not sticky
