@@ -24,7 +24,7 @@ import { NotebookEditorInput } from '../../../notebook/common/notebookEditorInpu
 import { IChatContextPickService, IChatContextValueItem, IChatContextPickerItem, IChatContextPickerPickItem, IChatContextPicker } from '../attachments/chatContextPickService.js';
 import { IChatEditingService } from '../../common/editing/chatEditingService.js';
 import { IChatRequestToolEntry, IChatRequestToolSetEntry, IChatRequestVariableEntry, IImageVariableEntry, OmittedState, toToolSetVariableEntry, toToolVariableEntry } from '../../common/attachments/chatVariableEntries.js';
-import { ToolDataSource, ToolSet } from '../../common/tools/languageModelToolsService.js';
+import { isToolSet, ToolDataSource } from '../../common/tools/languageModelToolsService.js';
 import { IChatWidget } from '../chat.js';
 import { imageToHash, isImage } from '../widget/input/editor/chatPasteProviders.js';
 import { convertBufferToScreenshotVariable } from '../attachments/chatScreenshotContext.js';
@@ -79,7 +79,7 @@ class ToolsContextPickerPick implements IChatContextPickerItem {
 
 		for (const [entry, enabled] of widget.input.selectedToolsModel.entriesMap.get()) {
 			if (enabled) {
-				if (entry instanceof ToolSet) {
+				if (isToolSet(entry)) {
 					items.push({
 						toolInfo: ToolDataSource.classify(entry.source),
 						label: entry.referenceName,
@@ -242,7 +242,7 @@ class ClipboardImageContextValuePick implements IChatContextValueItem {
 		if (!widget.attachmentCapabilities.supportsImageAttachments) {
 			return false;
 		}
-		if (!widget.input.selectedLanguageModel?.metadata.capabilities?.vision) {
+		if (!widget.input.selectedLanguageModel.get()?.metadata.capabilities?.vision) {
 			return false;
 		}
 		const imageData = await this._clipboardService.readImage();
@@ -341,7 +341,7 @@ class ScreenshotContextValuePick implements IChatContextValueItem {
 	) { }
 
 	async isEnabled(widget: IChatWidget) {
-		return !!widget.attachmentCapabilities.supportsImageAttachments && !!widget.input.selectedLanguageModel?.metadata.capabilities?.vision;
+		return !!widget.attachmentCapabilities.supportsImageAttachments && !!widget.input.selectedLanguageModel.get()?.metadata.capabilities?.vision;
 	}
 
 	async asAttachment(): Promise<IChatRequestVariableEntry | undefined> {

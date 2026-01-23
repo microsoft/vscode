@@ -53,7 +53,6 @@ import { ILanguageModelStatsService, LanguageModelStatsService } from '../common
 import { ILanguageModelToolsConfirmationService } from '../common/tools/languageModelToolsConfirmationService.js';
 import { ILanguageModelToolsService } from '../common/tools/languageModelToolsService.js';
 import { ChatPromptFilesExtensionPointHandler } from '../common/promptSyntax/chatPromptFilesContribution.js';
-import { ChatPromptContentStore, IChatPromptContentStore } from '../common/promptSyntax/chatPromptContentStore.js';
 import { PromptsConfig } from '../common/promptSyntax/config/config.js';
 import { INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, INSTRUCTION_FILE_EXTENSION, LEGACY_MODE_DEFAULT_SOURCE_FOLDER, LEGACY_MODE_FILE_EXTENSION, PROMPT_DEFAULT_SOURCE_FOLDER, PROMPT_FILE_EXTENSION, DEFAULT_SKILL_SOURCE_FOLDERS, AGENTS_SOURCE_FOLDER, AGENT_FILE_EXTENSION, SKILL_FILENAME } from '../common/promptSyntax/config/promptFileLocations.js';
 import { PromptLanguageFeaturesProvider } from '../common/promptSyntax/promptFileContributions.js';
@@ -95,8 +94,6 @@ import { ChatAttachmentResolveService, IChatAttachmentResolveService } from './a
 import { ChatMarkdownAnchorService, IChatMarkdownAnchorService } from './widget/chatContentParts/chatMarkdownAnchorService.js';
 import { ChatContextPickService, IChatContextPickService } from './attachments/chatContextPickService.js';
 import { ChatInputBoxContentProvider } from './widget/input/editor/chatEditorInputContentProvider.js';
-import { ChatPromptContentProvider } from './promptSyntax/chatPromptContentProvider.js';
-import './promptSyntax/chatPromptFileSystemProvider.js';
 import { ChatEditingEditorAccessibility } from './chatEditing/chatEditingEditorAccessibility.js';
 import { registerChatEditorActions } from './chatEditing/chatEditingEditorActions.js';
 import { ChatEditingEditorContextKeys } from './chatEditing/chatEditingEditorContextKeys.js';
@@ -116,7 +113,6 @@ import { ChatPasteProvidersFeature } from './widget/input/editor/chatPasteProvid
 import { QuickChatService } from './widgetHosts/chatQuick.js';
 import { ChatResponseAccessibleView } from './accessibility/chatResponseAccessibleView.js';
 import { ChatTerminalOutputAccessibleView } from './accessibility/chatTerminalOutputAccessibleView.js';
-import { ChatThinkingAccessibleView } from './accessibility/chatThinkingAccessibleView.js';
 import { ChatSetupContribution, ChatTeardownContribution } from './chatSetup/chatSetupContributions.js';
 import { ChatStatusBarEntry } from './chatStatus/chatStatusEntry.js';
 import { ChatVariablesService } from './attachments/chatVariables.js';
@@ -192,7 +188,7 @@ configurationRegistry.registerConfiguration({
 		'chat.commandCenter.enabled': {
 			type: 'boolean',
 			markdownDescription: nls.localize('chat.commandCenter.enabled', "Controls whether the command center shows a menu for actions to control chat (requires {0}).", '`#window.commandCenter#`'),
-			default: true
+			default: false
 		},
 		[ChatConfiguration.CommandCenterTriStateToggle]: { // TODO@bpasero settle this
 			type: 'boolean',
@@ -202,13 +198,13 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.AgentStatusEnabled]: {
 			type: 'boolean',
-			markdownDescription: nls.localize('chat.agentsControl.enabled', "Controls whether the Agent Status indicator is shown in the title bar command center. Enabling this setting will automatically enable {0}.", '`#window.commandCenter#`'),
-			default: false,
+			markdownDescription: nls.localize('chat.agentsControl.enabled', "Controls whether the 'Agent Status' indicator is shown in the title bar command center. Enabling this setting will automatically enable {0}.", '`#window.commandCenter#`'),
+			default: true,
 			tags: ['experimental']
 		},
 		[ChatConfiguration.UnifiedAgentsBar]: {
 			type: 'boolean',
-			markdownDescription: nls.localize('chat.unifiedAgentsBar.enabled', "When enabled alongside {0}, replaces the command center search box with a unified chat and search widget.", '`#chat.agentsControl.enabled#`'),
+			markdownDescription: nls.localize('chat.unifiedAgentsBar.enabled', "Replaces the command center search box with a unified chat and search widget."),
 			default: false,
 			tags: ['experimental']
 		},
@@ -258,6 +254,16 @@ configurationRegistry.registerConfiguration({
 			scope: ConfigurationScope.APPLICATION,
 			markdownDescription: nls.localize('chat.editing.confirmEditRequestRetry', "Whether to show a confirmation before retrying a request and its associated edits."),
 			default: true,
+		},
+		'chat.editing.explainChanges.enabled': {
+			type: 'boolean',
+			scope: ConfigurationScope.APPLICATION,
+			markdownDescription: nls.localize('chat.editing.explainChanges.enabled', "Controls whether the Explain button in the Chat panel and the Explain Changes context menu in the SCM view are shown. This is an experimental feature."),
+			default: false,
+			tags: ['experimental'],
+			experiment: {
+				mode: 'auto'
+			}
 		},
 		'chat.experimental.detectParticipant.enabled': {
 			type: 'boolean',
@@ -351,7 +357,6 @@ configurationRegistry.registerConfiguration({
 			additionalProperties: {
 				type: 'boolean',
 			},
-			tags: ['experimental'],
 			examples: [
 				{
 					'fetch': false,
@@ -499,7 +504,7 @@ configurationRegistry.registerConfiguration({
 		[mcpAppsEnabledConfig]: {
 			type: 'boolean',
 			description: nls.localize('chat.mcp.ui.enabled', "Controls whether MCP servers can provide custom UI for tool invocations."),
-			default: false,
+			default: true,
 			tags: ['experimental'],
 		},
 		[mcpServerSamplingSection]: {
@@ -585,11 +590,19 @@ configurationRegistry.registerConfiguration({
 				mode: 'auto'
 			}
 		},
+		[ChatConfiguration.AlternativeToolAction]: {
+			type: 'boolean',
+			description: nls.localize('chat.alternativeToolAction', "When enabled, shows the Configure Tools action in the mode picker dropdown on hover instead of in the chat input."),
+			default: false,
+			tags: ['experimental'],
+			experiment: {
+				mode: 'auto'
+			}
+		},
 		[ChatConfiguration.EnableMath]: {
 			type: 'boolean',
 			description: nls.localize('chat.mathEnabled.description', "Enable math rendering in chat responses using KaTeX."),
 			default: true,
-			tags: ['preview'],
 		},
 		[ChatConfiguration.ShowCodeBlockProgressAnimation]: {
 			type: 'boolean',
@@ -801,6 +814,24 @@ configurationRegistry.registerConfiguration({
 			disallowConfigurationDefault: true,
 			tags: ['prompts', 'reusable prompts', 'prompt snippets', 'instructions']
 		},
+		[PromptsConfig.INCLUDE_APPLYING_INSTRUCTIONS]: {
+			type: 'boolean',
+			title: nls.localize('chat.includeApplyingInstructions.title', "Include Applying Instructions",),
+			markdownDescription: nls.localize('chat.includeApplyingInstructions.description', "Controls whether instructions with a matching 'applyTo' attribute are automatically included in chat requests.",),
+			default: true,
+			restricted: true,
+			disallowConfigurationDefault: true,
+			tags: ['prompts', 'reusable prompts', 'prompt snippets', 'instructions']
+		},
+		[PromptsConfig.INCLUDE_REFERENCED_INSTRUCTIONS]: {
+			type: 'boolean',
+			title: nls.localize('chat.includeReferencedInstructions.title', "Include Referenced Instructions",),
+			markdownDescription: nls.localize('chat.includeReferencedInstructions.description', "Controls whether referenced instructions are automatically included in chat requests.",),
+			default: false,
+			restricted: true,
+			disallowConfigurationDefault: true,
+			tags: ['prompts', 'reusable prompts', 'prompt snippets', 'instructions']
+		},
 		[PromptsConfig.SKILLS_LOCATION_KEY]: {
 			type: 'object',
 			title: nls.localize('chat.agentSkillsLocations.title', "Agent Skills Locations",),
@@ -899,6 +930,11 @@ configurationRegistry.registerConfiguration({
 			default: true,
 			markdownDescription: nls.localize('chat.agent.thinking.terminalTools', "When enabled, terminal tool calls are displayed inside the thinking dropdown with a simplified view."),
 			tags: ['experimental'],
+		},
+		[ChatConfiguration.AutoExpandToolFailures]: {
+			type: 'boolean',
+			default: true,
+			markdownDescription: nls.localize('chat.tools.autoExpandFailures', "When enabled, tool failures are automatically expanded in the chat UI to show error details."),
 		},
 		'chat.disableAIFeatures': {
 			type: 'boolean',
@@ -1156,7 +1192,7 @@ class ToolReferenceNamesContribution extends Disposable implements IWorkbenchCon
 
 	private _updateToolReferenceNames(): void {
 		const tools =
-			Array.from(this._languageModelToolsService.getTools())
+			Array.from(this._languageModelToolsService.getAllToolsIncludingDisabled())
 				.filter((tool): tool is typeof tool & { toolReferenceName: string } => typeof tool.toolReferenceName === 'string')
 				.sort((a, b) => a.toolReferenceName.localeCompare(b.toolReferenceName));
 		toolReferenceNameEnumValues.length = 0;
@@ -1180,7 +1216,6 @@ class ToolReferenceNamesContribution extends Disposable implements IWorkbenchCon
 }
 
 AccessibleViewRegistry.register(new ChatTerminalOutputAccessibleView());
-AccessibleViewRegistry.register(new ChatThinkingAccessibleView());
 AccessibleViewRegistry.register(new ChatResponseAccessibleView());
 AccessibleViewRegistry.register(new PanelChatAccessibilityHelp());
 AccessibleViewRegistry.register(new QuickChatAccessibilityHelp());
@@ -1188,7 +1223,6 @@ AccessibleViewRegistry.register(new EditsChatAccessibilityHelp());
 AccessibleViewRegistry.register(new AgentChatAccessibilityHelp());
 
 registerEditorFeature(ChatInputBoxContentProvider);
-registerEditorFeature(ChatPromptContentProvider);
 
 class ChatSlashStaticSlashCommandsContribution extends Disposable {
 
@@ -1350,7 +1384,6 @@ registerSingleton(IChatEditingService, ChatEditingService, InstantiationType.Del
 registerSingleton(IChatMarkdownAnchorService, ChatMarkdownAnchorService, InstantiationType.Delayed);
 registerSingleton(ILanguageModelIgnoredFilesService, LanguageModelIgnoredFilesService, InstantiationType.Delayed);
 registerSingleton(IPromptsService, PromptsService, InstantiationType.Delayed);
-registerSingleton(IChatPromptContentStore, ChatPromptContentStore, InstantiationType.Delayed);
 registerSingleton(IChatContextPickService, ChatContextPickService, InstantiationType.Delayed);
 registerSingleton(IChatModeService, ChatModeService, InstantiationType.Delayed);
 registerSingleton(IChatAttachmentResolveService, ChatAttachmentResolveService, InstantiationType.Delayed);

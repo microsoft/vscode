@@ -455,7 +455,9 @@ export class OpenModePickerAction extends Action2 {
 						ChatContextKeys.enabled,
 						ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
 						ChatContextKeys.inQuickChat.negate(),
-						ChatContextKeys.lockedToCodingAgent.negate()),
+						ContextKeyExpr.or(
+							ChatContextKeys.lockedToCodingAgent.negate(),
+							ChatContextKeys.chatSessionHasCustomAgentTarget)),
 					group: 'navigation',
 				},
 			]
@@ -540,6 +542,36 @@ export class OpenDelegationPickerAction extends Action2 {
 		if (widget) {
 			widget.input.openDelegationPicker();
 		}
+	}
+}
+
+export class OpenWorkspacePickerAction extends Action2 {
+	static readonly ID = 'workbench.action.chat.openWorkspacePicker';
+
+	constructor() {
+		super({
+			id: OpenWorkspacePickerAction.ID,
+			title: localize2('interactive.openWorkspacePicker.label', "Open Workspace Picker"),
+			tooltip: localize('selectWorkspace', "Select Target Workspace"),
+			category: CHAT_CATEGORY,
+			f1: false,
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.inAgentSessionsWelcome),
+			menu: [
+				{
+					id: MenuId.ChatInput,
+					order: 0.1,
+					when: ContextKeyExpr.and(
+						ChatContextKeys.inAgentSessionsWelcome,
+						ChatContextKeys.chatSessionType.isEqualTo('local')
+					),
+					group: 'navigation',
+				},
+			]
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
+		// The picker is opened via the action view item
 	}
 }
 
@@ -881,6 +913,7 @@ export function registerChatExecuteActions() {
 	registerAction2(OpenModePickerAction);
 	registerAction2(OpenSessionTargetPickerAction);
 	registerAction2(OpenDelegationPickerAction);
+	registerAction2(OpenWorkspacePickerAction);
 	registerAction2(ChatSessionPrimaryPickerAction);
 	registerAction2(ChangeChatModelAction);
 	registerAction2(CancelEdit);

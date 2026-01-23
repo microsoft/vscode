@@ -10,6 +10,7 @@ import { IActionWidgetService } from '../../../../../../platform/actionWidget/br
 import { IActionWidgetDropdownOptions } from '../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
+import { IChatExecuteActionContext } from '../../actions/chatExecuteActions.js';
 
 export interface IChatInputPickerOptions {
 	/**
@@ -17,6 +18,8 @@ export interface IChatInputPickerOptions {
 	 * is not available in the DOM (e.g., when inside an overflow menu).
 	 */
 	readonly getOverflowAnchor?: () => HTMLElement | undefined;
+
+	readonly actionContext?: IChatExecuteActionContext;
 }
 
 /**

@@ -227,23 +227,69 @@ suite('TerminalToolAutoExpand', () => {
 		onCommandFinished.fire(undefined);
 	}));
 
-	test('data arriving cancels no-data timeout', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-		hasRealOutputValue = true; // Would have expanded if no-data timeout fired
+	test('data arriving with real output cancels no-data timeout (DataEvent path succeeds)', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		hasRealOutputValue = true; // Real output exists
 		setupAutoExpandLogic();
 
 		// Command executes
 		onCommandExecuted.fire(undefined);
 
-		// Data arrives (cancels no-data timeout)
+		// Data arrives with real output
 		onWillData.fire('output');
 
-		// Command finishes immediately after data (before data timeout would fire)
+		// Wait for DataEvent timeout to fire (50ms)
+		await timeout(TerminalToolAutoExpandTimeout.DataEvent + 10);
+
+		// Should have expanded via DataEvent path
+		assert.strictEqual(isExpanded, true, 'Should expand via DataEvent path when real output exists');
+
+		// Command finishes later
+		onCommandFinished.fire(undefined);
+	}));
+
+	test('data arriving without real output does NOT cancel no-data timeout (NoData path can still expand)', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		hasRealOutputValue = false; // No real output initially (shell sequences)
+		setupAutoExpandLogic();
+
+		// Command executes
+		onCommandExecuted.fire(undefined);
+
+		// Data arrives (shell integration sequences, not real output)
+		onWillData.fire('shell-sequence');
+
+		// Wait for DataEvent timeout to fire - should NOT expand since no real output
+		await timeout(TerminalToolAutoExpandTimeout.DataEvent + 10);
+		assert.strictEqual(isExpanded, false, 'Should NOT expand when DataEvent fires without real output');
+
+		// Now real output appears during the NoData timeout window (after DataEvent timeout but before NoData timeout completes)
+		hasRealOutputValue = true;
+
+		// Wait for NoData timeout to fire (500ms from command executed)
+		await timeout(TerminalToolAutoExpandTimeout.NoData - TerminalToolAutoExpandTimeout.DataEvent);
+
+		// Should have expanded via NoData path
+		assert.strictEqual(isExpanded, true, 'NoData path should still expand when real output appears later');
+
+		onCommandFinished.fire(undefined);
+	}));
+
+	test('quick finish after data prevents expansion even with real output', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		hasRealOutputValue = true;
+		setupAutoExpandLogic();
+
+		// Command executes
+		onCommandExecuted.fire(undefined);
+
+		// Data arrives
+		onWillData.fire('output');
+
+		// Command finishes immediately after data (before any timeout fires)
 		onCommandFinished.fire(undefined);
 
-		// Wait past all timeouts (faked timers advance instantly)
+		// Wait past all timeouts
 		await timeout(TerminalToolAutoExpandTimeout.NoData + 100);
 
-		assert.strictEqual(isExpanded, false, 'No-data timeout should be cancelled when data arrives');
+		assert.strictEqual(isExpanded, false, 'Should NOT expand when command finishes before timeouts');
 	}));
 
 	test('multiple data events only trigger one timeout', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -262,6 +308,53 @@ suite('TerminalToolAutoExpand', () => {
 		await timeout(TerminalToolAutoExpandTimeout.DataEvent + 100);
 
 		assert.strictEqual(isExpanded, true, 'Should expand exactly once after first data');
+		onCommandFinished.fire(undefined);
+	}));
+
+	test('progress bar output detected via multiple data events (receivedDataCount > 1)', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		// Simulates progress bars that update on the same line - cursor doesn't move past marker
+		// but multiple data events indicate real output
+		let dataEventCount = 0;
+
+		// Create a mock command detection capability
+		const mockCommandDetection = {
+			onCommandExecuted: onCommandExecuted.event,
+			onCommandFinished: onCommandFinished.event,
+		} as Pick<ICommandDetectionCapability, 'onCommandExecuted' | 'onCommandFinished'> as ICommandDetectionCapability;
+
+		// Track data events to simulate receivedDataCount logic
+		store.add(onWillData.event(() => {
+			dataEventCount++;
+		}));
+
+		const autoExpand = store.add(new TerminalToolAutoExpand({
+			commandDetection: mockCommandDetection,
+			onWillData: onWillData.event,
+			shouldAutoExpand: () => !isExpanded && !userToggledOutput,
+			// Simulate: cursor hasn't moved past marker, but multiple data events = real output
+			hasRealOutput: () => dataEventCount > 1,
+		}));
+		store.add(autoExpand.onDidRequestExpand(() => {
+			isExpanded = true;
+		}));
+
+		// Command executes
+		onCommandExecuted.fire(undefined);
+
+		// First data event (shell sequence) - hasRealOutput returns false (dataEventCount = 1)
+		onWillData.fire('shell-sequence');
+
+		// Wait for DataEvent timeout - should NOT expand yet (hasRealOutput = false)
+		await timeout(TerminalToolAutoExpandTimeout.DataEvent + 10);
+		assert.strictEqual(isExpanded, false, 'Should NOT expand after first data event');
+
+		// Second data event (progress bar update) - hasRealOutput returns true (dataEventCount = 2)
+		onWillData.fire('progress');
+
+		// Wait for NoData timeout - should expand via NoData path
+		await timeout(TerminalToolAutoExpandTimeout.NoData);
+		assert.strictEqual(isExpanded, true, 'Should expand when multiple data events detected as real output');
+
 		onCommandFinished.fire(undefined);
 	}));
 });
