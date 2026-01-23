@@ -4,6 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { binarySearch2 } from '../../../base/common/arrays.js';
+import { intersection } from '../../../base/common/collections.js';
+import { IEditorConfiguration } from '../config/editorConfiguration.js';
+import { EditorOption } from '../config/editorOptions.js';
+import { ICoordinatesConverter } from '../coordinatesConverter.js';
+import { IModelDecoration } from '../model.js';
 
 export class CustomLine {
 
@@ -61,7 +66,7 @@ export class LineHeightsManager {
 	private _defaultLineHeight: number;
 	private _hasPending: boolean = false;
 
-	constructor(defaultLineHeight: number, customLineHeightData: ICustomLineHeightData[]) {
+	constructor(defaultLineHeight: number, customLineHeightData: CustomLineHeightData[]) {
 		this._defaultLineHeight = defaultLineHeight;
 		if (customLineHeightData.length > 0) {
 			for (const data of customLineHeightData) {
@@ -226,7 +231,7 @@ export class LineHeightsManager {
 		}
 	}
 
-	public onLinesInserted(fromLineNumber: number, toLineNumber: number, lineHeightsAdded: ICustomLineHeightData[]): void {
+	public onLinesInserted(fromLineNumber: number, toLineNumber: number, lineHeightsAdded: CustomLineHeightData[]): void {
 		const insertCount = toLineNumber - fromLineNumber + 1;
 		const candidateStartIndexOfInsertion = this._binarySearchOverOrderedCustomLinesArray(fromLineNumber);
 		let startIndexOfInsertion: number;
@@ -241,6 +246,39 @@ export class LineHeightsManager {
 			}
 		} else {
 			startIndexOfInsertion = -(candidateStartIndexOfInsertion + 1);
+		}
+		const toReAdd: CustomLineHeightData[] = [];
+		const decorationsImmediatelyAfter = new Set<string>();
+		for (let i = startIndexOfInsertion; i < this._orderedCustomLines.length; i++) {
+			if (this._orderedCustomLines[i].lineNumber === fromLineNumber) {
+				decorationsImmediatelyAfter.add(this._orderedCustomLines[i].decorationId);
+			}
+		}
+		const decorationsImmediatelyBefore = new Set<string>();
+		for (let i = startIndexOfInsertion - 1; i >= 0; i--) {
+			if (this._orderedCustomLines[i].lineNumber === fromLineNumber - 1) {
+				decorationsImmediatelyBefore.add(this._orderedCustomLines[i].decorationId);
+			}
+		}
+		const decorationsWithGaps = intersection(decorationsImmediatelyBefore, decorationsImmediatelyAfter);
+		if (decorationsWithGaps.size > 0) {
+			for (const decorationId of decorationsWithGaps) {
+				const decoration = this._decorationIDToCustomLine.get(decorationId);
+				if (decoration) {
+					const startLineNumber = decoration.reduce((min, l) => Math.min(min, l.lineNumber), fromLineNumber); // min
+					const endLineNumber = decoration.reduce((max, l) => Math.max(max, l.lineNumber), fromLineNumber); // max
+					const lineHeight = decoration.reduce((max, l) => Math.max(max, l.specialHeight), 0);
+					toReAdd.push({
+						decorationId,
+						startLineNumber,
+						endLineNumber,
+						lineHeight
+					});
+				}
+			}
+			for (const dec of toReAdd) {
+				this.insertOrChangeCustomLineHeight(dec.decorationId, dec.startLineNumber, dec.endLineNumber, dec.lineHeight);
+			}
 		}
 		const maxLineHeightPerLine = new Map<number, number>();
 		for (const lineHeight of lineHeightsAdded) {
@@ -345,11 +383,27 @@ export class LineHeightsManager {
 	}
 }
 
-export interface ICustomLineHeightData {
-	readonly decorationId: string;
-	readonly startLineNumber: number;
-	readonly endLineNumber: number;
-	readonly lineHeight: number;
+export class CustomLineHeightData {
+
+	constructor(
+		readonly decorationId: string,
+		readonly startLineNumber: number,
+		readonly endLineNumber: number,
+		readonly lineHeight: number
+	) { }
+
+	public static fromDecorations(decorations: IModelDecoration[], coordinatesConverter: ICoordinatesConverter, configuration: IEditorConfiguration): CustomLineHeightData[] {
+		const defaultLineHeight = configuration.options.get(EditorOption.lineHeight);
+		return decorations.map((d) => {
+			const viewRange = coordinatesConverter.convertModelRangeToViewRange(d.range);
+			return new CustomLineHeightData(
+				d.id,
+				viewRange.startLineNumber,
+				viewRange.endLineNumber,
+				d.options.lineHeight ? d.options.lineHeight * defaultLineHeight : 0
+			);
+		});
+	}
 }
 
 class ArrayMap<K, T> {

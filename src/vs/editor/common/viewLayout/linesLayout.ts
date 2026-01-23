@@ -5,7 +5,7 @@
 
 import { IEditorWhitespace, IPartialViewLinesViewportData, ILineHeightChangeAccessor, IViewWhitespaceViewportData, IWhitespaceChangeAccessor } from '../viewModel.js';
 import * as strings from '../../../base/common/strings.js';
-import { ICustomLineHeightData, LineHeightsManager } from './lineHeights.js';
+import { CustomLineHeightData, LineHeightsManager } from './lineHeights.js';
 
 interface IPendingChange { id: string; newAfterLineNumber: number; newHeight: number }
 interface IPendingRemove { id: string }
@@ -95,7 +95,7 @@ export class LinesLayout {
 	private _paddingBottom: number;
 	private _lineHeightsManager: LineHeightsManager;
 
-	constructor(lineCount: number, defaultLineHeight: number, paddingTop: number, paddingBottom: number, customLineHeightData: ICustomLineHeightData[]) {
+	constructor(lineCount: number, defaultLineHeight: number, paddingTop: number, paddingBottom: number, customLineHeightData: CustomLineHeightData[]) {
 		this._instanceId = strings.singleLetterHash(++LinesLayout.INSTANCE_COUNT);
 		this._pendingChanges = new PendingChanges();
 		this._lastWhitespaceId = 0;
@@ -155,7 +155,7 @@ export class LinesLayout {
 	 *
 	 * @param lineCount New number of lines.
 	 */
-	public onFlushed(lineCount: number, customLineHeightData: ICustomLineHeightData[]): void {
+	public onFlushed(lineCount: number, customLineHeightData: CustomLineHeightData[]): void {
 		this._lineCount = lineCount;
 		this._lineHeightsManager = new LineHeightsManager(this._lineHeightsManager.defaultLineHeight, customLineHeightData);
 	}
@@ -355,7 +355,7 @@ export class LinesLayout {
 	 * @param toLineNumber The line number at which the insertion ended, inclusive.
 	 * @param lineHeightsAdded The custom line height data for the inserted lines.
 	 */
-	public onLinesInserted(fromLineNumber: number, toLineNumber: number, lineHeightsAdded: ICustomLineHeightData[]): void {
+	public onLinesInserted(fromLineNumber: number, toLineNumber: number, lineHeightsAdded: CustomLineHeightData[]): void {
 		fromLineNumber = fromLineNumber | 0;
 		toLineNumber = toLineNumber | 0;
 
