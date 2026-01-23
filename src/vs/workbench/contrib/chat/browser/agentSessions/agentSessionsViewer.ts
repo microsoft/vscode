@@ -718,6 +718,10 @@ export function groupAgentSessionsByPending(sessions: IAgentSession[]): Map<Agen
 	const pendingSessions: IAgentSession[] = [];
 	const doneSessions: IAgentSession[] = [];
 
+	const now = Date.now();
+	const startOfToday = new Date(now).setHours(0, 0, 0, 0);
+	const startOfYesterday = startOfToday - DAY_THRESHOLD;
+
 	let mostRecentNonArchived: IAgentSession | undefined;
 	for (const session of sessions) {
 		if (session.isArchived()) {
@@ -725,11 +729,12 @@ export function groupAgentSessionsByPending(sessions: IAgentSession[]): Map<Agen
 		} else {
 			mostRecentNonArchived ??= session;
 
+			const sessionTime = session.timing.lastRequestEnded ?? session.timing.lastRequestStarted ?? session.timing.created;
 			if (
 				isSessionInProgressStatus(session.status) ||									// in-progress
 				!session.isRead() ||															// unread
 				(getAgentChangesSummary(session.changes) && hasValidDiff(session.changes)) ||	// has changes
-				session === mostRecentNonArchived												// most recent non-archived (helps restore the session after restart when chat is cleared)
+				(session === mostRecentNonArchived && sessionTime >= startOfYesterday)			// most recent non-archived from today or yesterday (helps restore the session after restart when chat is cleared)
 			) {
 				pendingSessions.push(session);
 			} else {
