@@ -98,6 +98,9 @@
 	-webkit-backdrop-filter: var(--backdrop-blur-lg);
 	-webkit-backdrop-filter: blur(40px) saturate(180%);
 }
+.monaco-workbench.vs-dark .quick-input-widget {
+	border: 1px solid var(--vscode-menu-border) !important;
+}
 .monaco-workbench .quick-input-widget .monaco-list-rows { background-color: transparent !important; }
 .monaco-workbench .quick-input-widget .quick-input-header,
 .monaco-workbench .quick-input-widget .quick-input-list,
