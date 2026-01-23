@@ -23,6 +23,7 @@ import { ChatViewId, IChatWidgetService } from '../chat.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import * as nls from '../../../../../nls.js';
+import { basename } from '../../../../../base/common/resources.js';
 
 /**
  * Simple diff info interface for explanation widgets
@@ -129,7 +130,6 @@ export class ChatEditingExplanationWidget extends Disposable implements IOverlay
 	private _isAllRead: boolean = false;
 	private _disposed: boolean = false;
 	private _startLineNumber: number = 1;
-	private readonly _cancellationTokenSource = this._register(new CancellationTokenSource());
 	private readonly _uri: URI;
 
 	private readonly _eventStore = this._register(new DisposableStore());
@@ -138,7 +138,6 @@ export class ChatEditingExplanationWidget extends Disposable implements IOverlay
 		private readonly _editor: ICodeEditor,
 		private _changes: readonly (LineRangeMapping | DetailedLineRangeMapping)[],
 		diffInfo: IExplanationDiffInfo,
-		private readonly _languageModelsService: ILanguageModelsService,
 		private readonly _chatWidgetService: IChatWidgetService,
 		private readonly _viewsService: IViewsService,
 	) {
@@ -372,79 +371,41 @@ export class ChatEditingExplanationWidget extends Disposable implements IOverlay
 
 			this._explanationItems.set(i, { item, readIndicator: itemReadIndicator, textElement: text });
 			this._bodyNode.appendChild(item);
-
-			// Generate explanation via LLM
-			this._generateExplanation(i);
 		}
 	}
 
-	private async _generateExplanation(index: number): Promise<void> {
-		const exp = this._explanations[index];
-		if (!exp.loading || this._disposed) {
-			return;
+	/**
+	 * Sets the explanation for a specific change index.
+	 * Called by the manager after batch generation completes.
+	 */
+	setExplanation(changeIndex: number, explanation: string): void {
+		if (changeIndex >= 0 && changeIndex < this._explanations.length) {
+			const exp = this._explanations[changeIndex];
+			exp.explanation = explanation;
+			exp.loading = false;
+			this._updateExplanationText(changeIndex);
 		}
+	}
 
-		try {
-			// Select a fast model
-			let models = await this._languageModelsService.selectLanguageModels({ vendor: 'copilot', id: 'copilot-fast' });
-			if (!models.length) {
-				models = await this._languageModelsService.selectLanguageModels({ vendor: 'copilot', family: 'gpt-4o-mini' });
-			}
-			if (!models.length) {
-				exp.explanation = nls.localize('noModelAvailable', "Unable to generate explanation - no model available.");
-				exp.loading = false;
-				this._updateExplanationText(index);
-				return;
-			}
-
-			const prompt = `Explain this code change in one brief sentence (max 15 words). Be specific about what changed and why.
-
-BEFORE:
-${exp.originalText || '(empty)'}
-
-AFTER:
-${exp.modifiedText || '(empty)'}
-
-Explanation:`;
-
-			const response = await this._languageModelsService.sendChatRequest(
-				models[0],
-				new ExtensionIdentifier('core'),
-				[{ role: ChatMessageRole.User, content: [{ type: 'text', value: prompt }] }],
-				{},
-				this._cancellationTokenSource.token
-			);
-
-			let explanation = '';
-			for await (const part of response.stream) {
-				if (this._disposed) {
-					return;
-				}
-				if (Array.isArray(part)) {
-					for (const p of part) {
-						if (p.type === 'text') {
-							explanation += p.value;
-						}
-					}
-				} else if (part.type === 'text') {
-					explanation += part.value;
-				}
-			}
-
-			await response.result;
-
-			if (!this._disposed) {
-				exp.explanation = explanation.trim() || nls.localize('codeWasModified', "Code was modified.");
-				exp.loading = false;
-				this._updateExplanationText(index);
-			}
-		} catch (error) {
-			if (!this._disposed) {
+	/**
+	 * Marks all explanations as failed to generate.
+	 */
+	setAllFailed(): void {
+		for (let i = 0; i < this._explanations.length; i++) {
+			const exp = this._explanations[i];
+			if (exp.loading) {
 				exp.explanation = nls.localize('failedToGenerateExplanation', "Failed to generate explanation.");
 				exp.loading = false;
-				this._updateExplanationText(index);
+				this._updateExplanationText(i);
 			}
 		}
+	}
+
+	/**
+	 * Gets the number of explanations in this widget.
+	 */
+	get explanationCount(): number {
+		return this._explanations.length;
 	}
 
 	private _updateExplanationText(index: number): void {
@@ -555,7 +516,7 @@ export class ChatEditingExplanationWidgetManager extends Disposable {
 
 	private readonly _widgets: ChatEditingExplanationWidget[] = [];
 	private _visible: boolean = false;
-	private _pendingDiffInfo: IExplanationDiffInfo | undefined;
+	private readonly _cancellationTokenSource = this._register(new CancellationTokenSource());
 
 	private _modelUri: URI | undefined;
 
@@ -588,32 +549,18 @@ export class ChatEditingExplanationWidgetManager extends Disposable {
 	}
 
 	/**
-	 * Updates the diff info. Widgets are only created when show() is called.
+	 * Updates the diff info and generates explanations.
+	 * Creates widgets immediately and starts LLM generation.
 	 * @param visible Whether widgets should be visible (default: false)
 	 */
 	update(diffInfo: IExplanationDiffInfo, visible: boolean = false): void {
-		// Store diff info for later widget creation
-		this._pendingDiffInfo = diffInfo;
 		this._modelUri = diffInfo.modifiedModel.uri;
 
-		// If already visible and widgets exist, recreate them with new diff
-		if (this._visible && this._widgets.length > 0) {
-			this._createWidgets(diffInfo);
-		}
-
-		// Handle visibility change
-		if (visible && !this._visible) {
-			this.show();
-		} else if (!visible && this._visible) {
-			this.hide();
-		}
-	}
-
-	private _createWidgets(diffInfo: IExplanationDiffInfo): void {
 		// Clear existing widgets
 		this._clearWidgets();
 
 		if (diffInfo.identical || diffInfo.changes.length === 0) {
+			this._visible = visible;
 			return;
 		}
 
@@ -626,7 +573,6 @@ export class ChatEditingExplanationWidgetManager extends Disposable {
 				this._editor,
 				group,
 				diffInfo,
-				this._languageModelsService,
 				this._chatWidgetService,
 				this._viewsService,
 			);
@@ -635,8 +581,13 @@ export class ChatEditingExplanationWidgetManager extends Disposable {
 
 			// Layout at the first change in the group
 			widget.layout(group[0].modified.startLineNumber);
-			widget.toggle(true);
+			widget.toggle(visible);
 		}
+
+		this._visible = visible;
+
+		// Generate all explanations in a single LLM request directly from diffInfo
+		this._generateExplanations(diffInfo);
 
 		// Relayout on scroll/layout changes
 		this._register(Event.any(this._editor.onDidScrollChange, this._editor.onDidLayoutChange)(() => {
@@ -647,19 +598,133 @@ export class ChatEditingExplanationWidgetManager extends Disposable {
 	}
 
 	/**
-	 * Shows all widgets, creating them if needed
+	 * Generates explanations for all changes directly from diff info in a single LLM request.
+	 */
+	private async _generateExplanations(diffInfo: IExplanationDiffInfo): Promise<void> {
+		if (diffInfo.changes.length === 0) {
+			return;
+		}
+
+		// Build change data directly from diffInfo
+		const fileName = basename(diffInfo.modifiedModel.uri);
+		const changeData = diffInfo.changes.map(change => {
+			const { originalText, modifiedText } = getChangeTexts(change, diffInfo);
+			return {
+				startLineNumber: change.modified.startLineNumber,
+				endLineNumber: change.modified.endLineNumberExclusive - 1,
+				originalText,
+				modifiedText,
+			};
+		});
+
+		try {
+			// Select a high-end model for better understanding of all changes together
+			let models = await this._languageModelsService.selectLanguageModels({ vendor: 'copilot', family: 'claude-3.5-sonnet' });
+			if (!models.length) {
+				models = await this._languageModelsService.selectLanguageModels({ vendor: 'copilot', family: 'gpt-4o' });
+			}
+			if (!models.length) {
+				models = await this._languageModelsService.selectLanguageModels({ vendor: 'copilot', family: 'gpt-4' });
+			}
+			if (!models.length) {
+				// Fallback to any available model
+				models = await this._languageModelsService.selectLanguageModels({ vendor: 'copilot' });
+			}
+			if (!models.length) {
+				for (const widget of this._widgets) {
+					widget.setAllFailed();
+				}
+				return;
+			}
+
+			// Build a prompt with all changes
+			const changesDescription = changeData.map((data, index) => {
+				return `=== CHANGE ${index} (File: ${fileName}, Lines ${data.startLineNumber}-${data.endLineNumber}) ===
+BEFORE:
+${data.originalText || '(empty)'}
+
+AFTER:
+${data.modifiedText || '(empty)'}`;
+			}).join('\n\n');
+
+			const prompt = `Analyze these ${changeData.length} code changes and provide a brief explanation for each one.
+
+${changesDescription}
+
+Respond with a JSON array containing exactly ${changeData.length} objects, one for each change in order.
+Each object should have an "explanation" field with a brief sentence (max 15 words) explaining what changed and why.
+Be specific about the actual code changes. Return ONLY valid JSON, no markdown.
+
+Example response format:
+[{"explanation": "Added null check to prevent crash"}, {"explanation": "Renamed variable for clarity"}]`;
+
+			const response = await this._languageModelsService.sendChatRequest(
+				models[0],
+				new ExtensionIdentifier('core'),
+				[{ role: ChatMessageRole.User, content: [{ type: 'text', value: prompt }] }],
+				{},
+				this._cancellationTokenSource.token
+			);
+
+			let responseText = '';
+			for await (const part of response.stream) {
+				if (Array.isArray(part)) {
+					for (const p of part) {
+						if (p.type === 'text') {
+							responseText += p.value;
+						}
+					}
+				} else if (part.type === 'text') {
+					responseText += part.value;
+				}
+			}
+
+			await response.result;
+
+			// Parse the JSON response
+			try {
+				// Handle potential markdown wrapping
+				let jsonText = responseText.trim();
+				if (jsonText.startsWith('```')) {
+					jsonText = jsonText.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
+				}
+
+				const explanations: { explanation: string }[] = JSON.parse(jsonText);
+
+				// Map explanations back to widgets based on change indices
+				let changeIndex = 0;
+				for (const widget of this._widgets) {
+					const count = widget.explanationCount;
+					for (let i = 0; i < count; i++) {
+						const parsed = explanations[changeIndex];
+						const explanation = parsed?.explanation?.trim() || nls.localize('codeWasModified', "Code was modified.");
+						widget.setExplanation(i, explanation);
+						changeIndex++;
+					}
+				}
+			} catch {
+				// JSON parsing failed, set generic message for all
+				for (const widget of this._widgets) {
+					for (let i = 0; i < widget.explanationCount; i++) {
+						widget.setExplanation(i, nls.localize('codeWasModified', "Code was modified."));
+					}
+				}
+			}
+		} catch {
+			for (const widget of this._widgets) {
+				widget.setAllFailed();
+			}
+		}
+	}
+
+	/**
+	 * Shows all widgets
 	 */
 	show(): void {
 		this._visible = true;
-
-		// Create widgets if we have pending diff info but no widgets yet
-		if (this._widgets.length === 0 && this._pendingDiffInfo) {
-			this._createWidgets(this._pendingDiffInfo);
-		} else {
-			for (const widget of this._widgets) {
-				widget.toggle(true);
-				widget.relayout();
-			}
+		for (const widget of this._widgets) {
+			widget.toggle(true);
+			widget.relayout();
 		}
 	}
 
