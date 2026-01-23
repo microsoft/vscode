@@ -13,23 +13,9 @@ import { isToolResultInputOutputDetails, isToolResultOutputDetails, IToolResultO
 
 export const IChatImageSlideshowService = createDecorator<IChatImageSlideshowService>('chatImageSlideshowService');
 
-/**
- * Service for extracting and managing images from chat responses for slideshow display
- */
 export interface IChatImageSlideshowService {
 	readonly _serviceBrand: undefined;
-
-	/**
-	 * Extract all images from a chat response
-	 * @param response The chat response to extract images from
-	 * @returns A collection of images if any are found, undefined otherwise
-	 */
 	extractImagesFromResponse(response: IChatResponseViewModel): Promise<ISlideshowImageCollection | undefined>;
-
-	/**
-	 * Open a slideshow with the given images
-	 * @param collection The image collection to display
-	 */
 	openSlideshow(collection: ISlideshowImageCollection): Promise<void>;
 }
 

@@ -8,9 +8,6 @@ import { ITextResourceEditorInput } from '../../../../platform/editor/common/edi
 import { URI } from '../../../../base/common/uri.js';
 import { ISlideshowImageCollection } from './chatImageSlideshowTypes.js';
 
-/**
- * Editor input for the chat image slideshow
- */
 export class ChatImageSlideshowEditorInput extends EditorInput implements ITextResourceEditorInput {
 	static readonly ID = 'workbench.input.chatImageSlideshow';
 

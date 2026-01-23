@@ -16,9 +16,6 @@ import { IEditorGroup } from '../../../services/editor/common/editorGroupsServic
 import { ChatImageSlideshowEditorInput } from './chatImageSlideshowEditorInput.js';
 import { ISlideshowImage } from './chatImageSlideshowTypes.js';
 
-/**
- * Editor pane for displaying chat images in a slideshow
- */
 export class ChatImageSlideshowEditor extends EditorPane {
 	static readonly ID = 'workbench.editor.chatImageSlideshow';
 
