@@ -250,7 +250,7 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 		services.set(IUriIdentityService, uriIdentityService);
 
 		// User Data Profiles
-		const userDataProfilesService = this._register(new UserDataProfilesService(this.configuration.profiles.all, URI.revive(this.configuration.profiles.home).with({ scheme: environmentService.userRoamingDataHome.scheme }), mainProcessService.getChannel('userDataProfiles')));
+		const userDataProfilesService = this._register(new UserDataProfilesService(this.configuration.profiles.all, URI.revive(this.configuration.profiles.home).with({ scheme: environmentService.userRoamingDataHome.scheme }), mainProcessService.getChannel('userDataProfiles'), fileService, uriIdentityService, logService));
 		services.set(IUserDataProfilesService, userDataProfilesService);
 
 		const userDataFileSystemProvider = this._register(new FileUserDataProvider(

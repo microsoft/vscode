@@ -32,7 +32,7 @@ import { registerChatDeveloperActions } from './actions/chatDeveloperActions.js'
 import { registerChatExportZipAction } from './actions/chatExportZip.js';
 import { HoldToVoiceChatInChatViewAction, InlineVoiceChatAction, KeywordActivationContribution, QuickVoiceChatAction, ReadChatResponseAloud, StartVoiceChatAction, StopListeningAction, StopListeningAndSubmitAction, StopReadAloud, StopReadChatItemAloud, VoiceChatInChatViewAction } from './actions/voiceChatActions.js';
 import { NativeBuiltinToolsContribution } from './builtInTools/tools.js';
-import { OpenAgentSessionsWindowAction } from './actions/agentSessionsActions.js';
+import { OpenAgentSessionsWindowAction } from './agentSessions/agentSessionsActions.js';
 
 class ChatCommandLineHandler extends Disposable {
 

@@ -6,7 +6,7 @@
 import { Disposable, DisposableMap, IDisposable } from '../../../base/common/lifecycle.js';
 import { IFileService } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
-import { IUserDataProfile, IUserDataProfilesService, IUserDataProfileUpdateOptions, ISystemProfileTemplate } from './userDataProfile.js';
+import { IUserDataProfile, IUserDataProfilesService, IUserDataProfileUpdateOptions } from './userDataProfile.js';
 import { isEmptyObject, Mutable } from '../../../base/common/types.js';
 import { equals } from '../../../base/common/objects.js';
 
@@ -47,7 +47,7 @@ export class UserDataProfileTemplatesWatcher extends Disposable {
 	}
 
 	private async watchProfileTemplate(profile: IUserDataProfile): Promise<void> {
-		const templateResource = profile.templateData?.resource;
+		const templateResource = profile.templateResource;
 
 		if (!templateResource) {
 			return;
@@ -87,14 +87,15 @@ export class UserDataProfileTemplatesWatcher extends Disposable {
 	}
 
 	private async onDidChangeProfileTemplate(profile: IUserDataProfile): Promise<void> {
-		if (!profile.templateData?.resource) {
+		if (!profile.templateResource) {
 			return;
 		}
 
 		this.logService.info(`UserDataProfileTemplateService: Template file changed for profile '${profile.name}', checking for changes...`);
 
 		try {
-			const sourceTemplate = await this.resolveSourceTemplate(profile);
+			const sourceTemplate = await this.userDataProfilesService.getParsedProfileTemplate(profile);
+			const storedTemplate = await this.userDataProfilesService.getStoredProfileTemplate(profile);
 
 			if (!sourceTemplate) {
 				this.logService.warn(`UserDataProfileTemplateService: Could not resolve source template for profile '${profile.name}'`);
@@ -103,13 +104,13 @@ export class UserDataProfileTemplatesWatcher extends Disposable {
 
 			const profileUpdateOptions: Mutable<IUserDataProfileUpdateOptions> = Object.create(null);
 
-			if (sourceTemplate.icon !== profile.templateData?.icon && profile.templateData?.icon === profile.icon) {
+			if (sourceTemplate.icon !== storedTemplate?.icon && storedTemplate?.icon === profile.icon) {
 				profileUpdateOptions.icon = sourceTemplate.icon;
 			}
 
-			if (!equals(sourceTemplate.settings, profile.templateData.settings)) {
+			if (!equals(sourceTemplate.settings, storedTemplate?.settings)) {
 				this.logService.trace(`UserDataProfileTemplateService: Updating default settings for profile '${profile.name}'`);
-				profileUpdateOptions.templateData = { ...profile.templateData, settings: sourceTemplate.settings };
+				await this.userDataProfilesService.updateStoredProfileTemplate(profile);
 			}
 
 			if (!isEmptyObject(profileUpdateOptions)) {
@@ -119,20 +120,6 @@ export class UserDataProfileTemplatesWatcher extends Disposable {
 			this.logService.info(`UserDataProfileTemplateService: Successfully applied template changes to profile '${profile.name}'`);
 		} catch (error) {
 			this.logService.error(`UserDataProfileTemplateService: Failed to apply template changes to profile '${profile.name}'`, error);
-		}
-	}
-
-	private async resolveSourceTemplate(profile: IUserDataProfile): Promise<ISystemProfileTemplate | null> {
-		if (!profile.templateData?.resource) {
-			return null;
-		}
-
-		try {
-			const content = await this.fileService.readFile(profile.templateData.resource);
-			return JSON.parse(content.value.toString());
-		} catch (error) {
-			this.logService.error(`UserDataProfileTemplateService: Failed to resolve source template for profile '${profile.name}'`, error);
-			return null;
 		}
 	}
 }
