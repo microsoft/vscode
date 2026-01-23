@@ -20,7 +20,7 @@ ENV DISPLAY=:99
 # VS Code dependencies (amd64)
 ARG TARGETARCH
 RUN if [ "$TARGETARCH" = "amd64" ]; then \
-	apt-get install libasound2 -y || apt-get install libasound2t64 -y; \
+	apt-get install -y libasound2 || apt-get install -y libasound2t64; \
 	apt-get install -y \
 		libgbm1 \
 		libgtk-3-0 \
