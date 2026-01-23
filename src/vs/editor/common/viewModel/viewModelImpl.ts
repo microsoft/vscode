@@ -368,7 +368,7 @@ export class ViewModel extends Disposable implements IViewModel {
 							const linesDeletedEvent = this._lines.onModelLinesDeleted(versionId, change.fromLineNumber, change.toLineNumber);
 							if (linesDeletedEvent !== null) {
 								eventsCollector.emitViewEvent(linesDeletedEvent);
-								this.viewLayout.onLinesDeleted(linesDeletedEvent.fromLineNumber, linesDeletedEvent.toLineNumber);
+								this.viewLayout.onLinesDeleted(linesDeletedEvent.fromLineNumber, linesDeletedEvent.toLineNumber, this._getCustomLineHeightsForLines(change.fromLineNumber - 1, change.fromLineNumber));
 							}
 							hadOtherModelChange = true;
 							break;
@@ -397,7 +397,7 @@ export class ViewModel extends Disposable implements IViewModel {
 							}
 							if (linesDeletedEvent) {
 								eventsCollector.emitViewEvent(linesDeletedEvent);
-								this.viewLayout.onLinesDeleted(linesDeletedEvent.fromLineNumber, linesDeletedEvent.toLineNumber);
+								this.viewLayout.onLinesDeleted(linesDeletedEvent.fromLineNumber, linesDeletedEvent.toLineNumber, this._getCustomLineHeightsForLines(change.lineNumber, change.lineNumber));
 							}
 							break;
 						}

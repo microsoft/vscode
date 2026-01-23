@@ -127,7 +127,7 @@ export class LineHeightsManager {
 		return previousSpecialLine.prefixSum + previousSpecialLine.maximumSpecialHeight + this._defaultLineHeight * (lineNumber - previousSpecialLine.lineNumber);
 	}
 
-	public onLinesDeleted(fromLineNumber: number, toLineNumber: number): void {
+	public onLinesDeleted(fromLineNumber: number, toLineNumber: number, lineHeightsRemoved: CustomLineHeightData[]): void {
 		const deleteCount = toLineNumber - fromLineNumber + 1;
 		const numberOfCustomLines = this._orderedCustomLines.length;
 		const candidateStartIndexOfDeletion = this._binarySearchOverOrderedCustomLinesArray(fromLineNumber);
@@ -229,6 +229,15 @@ export class LineHeightsManager {
 				}
 			}
 		}
+		for (const lineHeightRemoved of lineHeightsRemoved) {
+			this.insertOrChangeCustomLineHeight(
+				lineHeightRemoved.decorationId,
+				lineHeightRemoved.startLineNumber,
+				lineHeightRemoved.endLineNumber,
+				lineHeightRemoved.lineHeight
+			);
+		}
+		this.commit();
 	}
 
 	public onLinesInserted(fromLineNumber: number, toLineNumber: number, lineHeightsAdded: CustomLineHeightData[]): void {

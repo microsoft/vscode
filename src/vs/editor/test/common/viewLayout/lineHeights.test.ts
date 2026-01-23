@@ -146,7 +146,7 @@ suite('Editor ViewLayout - LineHeightsManager', () => {
 		manager.insertOrChangeCustomLineHeight('dec1', 10, 12, 20);
 		manager.commit();
 
-		manager.onLinesDeleted(5, 7); // Delete lines 5-7
+		manager.onLinesDeleted(5, 7, []); // Delete lines 5-7
 
 		assert.strictEqual(manager.heightForLineNumber(7), 20); // Was line 10
 		assert.strictEqual(manager.heightForLineNumber(8), 20); // Was line 11
@@ -159,7 +159,7 @@ suite('Editor ViewLayout - LineHeightsManager', () => {
 		manager.insertOrChangeCustomLineHeight('dec1', 5, 10, 20);
 		manager.commit();
 
-		manager.onLinesDeleted(7, 12); // Delete lines 7-12, including part of decoration
+		manager.onLinesDeleted(7, 12, []); // Delete lines 7-12, including part of decoration
 
 		assert.strictEqual(manager.heightForLineNumber(5), 20);
 		assert.strictEqual(manager.heightForLineNumber(6), 20);
@@ -171,7 +171,7 @@ suite('Editor ViewLayout - LineHeightsManager', () => {
 		manager.insertOrChangeCustomLineHeight('dec1', 5, 7, 20);
 		manager.commit();
 
-		manager.onLinesDeleted(4, 8); // Delete lines 4-8, completely contains decoration
+		manager.onLinesDeleted(4, 8, []); // Delete lines 4-8, completely contains decoration
 
 		// The decoration collapses to a single line which matches the behavior in the text buffer
 		assert.strictEqual(manager.heightForLineNumber(3), 10);
@@ -184,7 +184,7 @@ suite('Editor ViewLayout - LineHeightsManager', () => {
 		manager.insertOrChangeCustomLineHeight('decA', 1, 1, 40);
 		manager.commit();
 
-		manager.onLinesDeleted(2, 4); // Delete lines 2-4 after the variable line height
+		manager.onLinesDeleted(2, 4, []); // Delete lines 2-4 after the variable line height
 
 		// Check individual line heights
 		assert.strictEqual(manager.heightForLineNumber(1), 40);
@@ -257,7 +257,7 @@ suite('Editor ViewLayout - LineHeightsManager', () => {
 		manager.commit();
 
 		// Delete one line that partially intersects the same decoration
-		manager.onLinesDeleted(6, 6);
+		manager.onLinesDeleted(6, 6, []);
 
 		// Check individual line heights
 		assert.strictEqual(manager.heightForLineNumber(5), 20);

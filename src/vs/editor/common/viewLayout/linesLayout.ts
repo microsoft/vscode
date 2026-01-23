@@ -326,8 +326,9 @@ export class LinesLayout {
 	 *
 	 * @param fromLineNumber The line number at which the deletion started, inclusive
 	 * @param toLineNumber The line number at which the deletion ended, inclusive
+	 * @param lineHeightsRemoved The custom line height data for the deleted lines.
 	 */
-	public onLinesDeleted(fromLineNumber: number, toLineNumber: number): void {
+	public onLinesDeleted(fromLineNumber: number, toLineNumber: number, lineHeightsRemoved: CustomLineHeightData[]): void {
 		fromLineNumber = fromLineNumber | 0;
 		toLineNumber = toLineNumber | 0;
 
@@ -345,7 +346,7 @@ export class LinesLayout {
 				this._arr[i].afterLineNumber -= (toLineNumber - fromLineNumber + 1);
 			}
 		}
-		this._lineHeightsManager.onLinesDeleted(fromLineNumber, toLineNumber);
+		this._lineHeightsManager.onLinesDeleted(fromLineNumber, toLineNumber, lineHeightsRemoved);
 	}
 
 	/**
