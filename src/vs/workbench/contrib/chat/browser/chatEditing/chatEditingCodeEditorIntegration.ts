@@ -6,6 +6,7 @@
 import './media/chatEditorController.css';
 
 import { getTotalWidth } from '../../../../../base/browser/dom.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../base/common/event.js';
 import { DisposableStore, dispose, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, IObservable, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
@@ -120,10 +121,17 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 			const visible = this._entry.explanationWidgetVisible?.read(r) ?? false;
 			if (visible) {
 				if (!this._explanationWidgetManager) {
-					this._explanationWidgetManager = this._store.add(new ChatEditingExplanationWidgetManager(this._editor, this._languageModelsService, this._chatWidgetService, this._viewsService));
+					this._explanationWidgetManager = this._store.add(new ChatEditingExplanationWidgetManager(this._editor, this._chatWidgetService, this._viewsService));
 					// Pass the current diff info when creating lazily (untracked - diff changes handled separately)
 					const diff = documentDiffInfo.read(undefined);
 					this._explanationWidgetManager.update(diff, true);
+					// Generate explanations asynchronously
+					ChatEditingExplanationWidgetManager.generateExplanations(
+						this._explanationWidgetManager.widgets,
+						diff,
+						this._languageModelsService,
+						CancellationToken.None
+					);
 				}
 				this._explanationWidgetManager.show();
 			} else {

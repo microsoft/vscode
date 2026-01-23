@@ -15,6 +15,11 @@ import { AgentSessionProviders, getAgentSessionProviderName } from './agentSessi
 import { AgentSessionStatus, IAgentSession } from './agentSessionsModel.js';
 import { IAgentSessionsFilter, IAgentSessionsFilterExcludes } from './agentSessionsViewer.js';
 
+export enum AgentSessionsGrouping {
+	Default = 'default',
+	Pending = 'pending',
+}
+
 export interface IAgentSessionsFilterOptions extends Partial<IAgentSessionsFilter> {
 
 	readonly filterMenuId: MenuId;
@@ -22,7 +27,7 @@ export interface IAgentSessionsFilterOptions extends Partial<IAgentSessionsFilte
 	readonly limitResults?: () => number | undefined;
 	notifyResults?(count: number): void;
 
-	readonly groupResults?: () => boolean | undefined;
+	readonly groupResults?: () => AgentSessionsGrouping | undefined;
 
 	overrideExclude?(session: IAgentSession): boolean | undefined;
 }

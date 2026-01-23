@@ -118,6 +118,24 @@ declare module 'vscode' {
 			toolEdited?: string;
 		};
 		language: string;
+
+		/**
+		 * Terminal command output. Displayed when the terminal is no longer available.
+		 */
+		output?: {
+			/** The raw output text, may include ANSI escape codes. */
+			text: string;
+		};
+
+		/**
+		 * Command execution state.
+		 */
+		state?: {
+			/** Exit code of the command. */
+			exitCode?: number;
+			/** Duration of execution in milliseconds. */
+			duration?: number;
+		};
 	}
 
 	export class McpToolInvocationContentData {

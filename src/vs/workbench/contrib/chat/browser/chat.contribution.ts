@@ -257,7 +257,6 @@ configurationRegistry.registerConfiguration({
 		},
 		'chat.editing.explainChanges.enabled': {
 			type: 'boolean',
-			scope: ConfigurationScope.APPLICATION,
 			markdownDescription: nls.localize('chat.editing.explainChanges.enabled', "Controls whether the Explain button in the Chat panel and the Explain Changes context menu in the SCM view are shown. This is an experimental feature."),
 			default: false,
 			tags: ['experimental'],
@@ -408,6 +407,11 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			default: true,
 			description: nls.localize('chat.viewSessions.enabled', "Show chat agent sessions when chat is empty or to the side when chat view is wide enough."),
+		},
+		[ChatConfiguration.ChatViewSessionsShowPendingOnly]: {
+			type: 'boolean',
+			default: true,
+			markdownDescription: nls.localize('chat.viewSessions.showPendingOnly', "When enabled, only show pending sessions in the stacked sessions view. When disabled, show all sessions. This setting requires {0} to be enabled.", '`#chat.viewSessions.enabled#`'),
 		},
 		[ChatConfiguration.ChatViewSessionsOrientation]: {
 			type: 'string',
@@ -580,6 +584,12 @@ configurationRegistry.registerConfiguration({
 					}
 				}
 			}
+		},
+		[ChatConfiguration.ImplementationAgentModel]: {
+			type: 'string',
+			description: nls.localize('chat.implementationAgentModel', "Specifies the model to use when switching to an 'implement' agent following Plan mode. When set, this model will be automatically selected instead of the user's current model selection."),
+			default: '',
+			tags: ['experimental'],
 		},
 		[ChatConfiguration.EditModeHidden]: {
 			type: 'boolean',

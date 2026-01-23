@@ -5,10 +5,10 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { Random } from './random.js';
+import { ArrayEdit, ArrayReplacement } from '../../../common/core/edits/arrayEdit.js';
 import { StringEdit, StringReplacement } from '../../../common/core/edits/stringEdit.js';
 import { OffsetRange } from '../../../common/core/ranges/offsetRange.js';
-import { ArrayEdit, ArrayReplacement } from '../../../common/core/edits/arrayEdit.js';
+import { Random } from './random.js';
 
 suite('Edit', () => {
 
@@ -122,6 +122,37 @@ suite('Edit', () => {
 			assert.strictEqual(delta, 2);
 			assert.strictEqual(edit.replacements[0].getLengthDelta(), 3);
 			assert.strictEqual(edit.replacements[1].getLengthDelta(), -1);
+		});
+
+		test('adjacent edit and insert should rebase successfully', () => {
+			// A replacement ending at X followed by an insert at X should not conflict
+			const firstEdit = StringEdit.create([
+				StringReplacement.replace(new OffsetRange(1826, 1838), 'function fib(n: number): number {'),
+			]);
+			const followupEdit = StringEdit.create([
+				StringReplacement.replace(new OffsetRange(1838, 1838), '\n\tif (n <= 1) {\n\t\treturn n;\n\t}\n\treturn fib(n - 1) + fib(n - 2);\n}'),
+			]);
+			const rebasedEdit = followupEdit.tryRebase(firstEdit);
+
+			// Since firstEdit replaces [1826, 1838) with text of length 33,
+			// the insert at 1838 should be rebased to 1826 + 33 = 1859
+			assert.ok(rebasedEdit);
+			assert.strictEqual(rebasedEdit?.replacements[0].replaceRange.start, 1859);
+			assert.strictEqual(rebasedEdit?.replacements[0].replaceRange.endExclusive, 1859);
+		});
+
+		test('concurrent inserts at same position should conflict', () => {
+			// Two inserts at the exact same position conflict because order matters
+			const firstEdit = StringEdit.create([
+				StringReplacement.replace(new OffsetRange(1838, 1838), '1'),
+			]);
+			const followupEdit = StringEdit.create([
+				StringReplacement.replace(new OffsetRange(1838, 1838), '2'),
+			]);
+			const rebasedEdit = followupEdit.tryRebase(firstEdit);
+
+			// This should return undefined because both are inserts at the same position
+			assert.strictEqual(rebasedEdit, undefined);
 		});
 	});
 

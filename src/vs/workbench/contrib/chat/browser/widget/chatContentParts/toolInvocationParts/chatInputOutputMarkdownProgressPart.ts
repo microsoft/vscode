@@ -117,9 +117,8 @@ export class ChatInputOutputMarkdownProgressPart extends BaseChatToolInvocationS
 				}),
 			} : undefined,
 			isError,
-			// Expand by default when the tool is running, when there's an error (if setting enabled),
+			// Expand by default when there's an error (if setting enabled),
 			// otherwise use the stored expanded state (defaulting to false)
-			!IChatToolInvocation.isComplete(toolInvocation) ||
 			(isError && configurationService.getValue<boolean>(ChatConfiguration.AutoExpandToolFailures)) ||
 			(ChatInputOutputMarkdownProgressPart._expandedByDefault.get(toolInvocation) ?? false),
 		));

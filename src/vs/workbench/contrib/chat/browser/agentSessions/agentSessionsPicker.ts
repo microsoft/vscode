@@ -15,7 +15,7 @@ import { IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSepara
 import { openSession } from './agentSessionsOpener.js';
 import { IAgentSession, isLocalAgentSessionItem } from './agentSessionsModel.js';
 import { IAgentSessionsService } from './agentSessionsService.js';
-import { AgentSessionsSorter, groupAgentSessions } from './agentSessionsViewer.js';
+import { AgentSessionsSorter, groupAgentSessionsByDefault } from './agentSessionsViewer.js';
 import { AGENT_SESSION_DELETE_ACTION_ID, AGENT_SESSION_RENAME_ACTION_ID } from './agentSessions.js';
 
 interface ISessionPickItem extends IQuickPickItem {
@@ -129,7 +129,7 @@ export class AgentSessionsPicker {
 		const sessions = this.agentSessionsService.model.sessions.sort(this.sorter.compare.bind(this.sorter));
 		const items: (ISessionPickItem | IQuickPickSeparator)[] = [];
 
-		const groupedSessions = groupAgentSessions(sessions);
+		const groupedSessions = groupAgentSessionsByDefault(sessions);
 
 		for (const group of groupedSessions.values()) {
 			if (group.sessions.length > 0) {

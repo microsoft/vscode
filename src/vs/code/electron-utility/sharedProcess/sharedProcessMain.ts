@@ -132,6 +132,7 @@ import { McpManagementChannel } from '../../../platform/mcp/common/mcpManagement
 import { AllowedMcpServersService } from '../../../platform/mcp/common/allowedMcpServersService.js';
 import { IMcpGalleryManifestService } from '../../../platform/mcp/common/mcpGalleryManifest.js';
 import { McpGalleryManifestIPCService } from '../../../platform/mcp/common/mcpGalleryManifestServiceIpc.js';
+import { UserDataProfileTemplatesWatcher } from '../../../platform/userDataProfile/common/userDataProfileTemplateWatcher.js';
 
 class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 
@@ -197,7 +198,8 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 			instantiationService.createInstance(LocalizationsUpdater),
 			instantiationService.createInstance(ExtensionsContributions),
 			instantiationService.createInstance(UserDataProfilesCleaner),
-			instantiationService.createInstance(DefaultExtensionsInitializer)
+			instantiationService.createInstance(DefaultExtensionsInitializer),
+			instantiationService.createInstance(UserDataProfileTemplatesWatcher)
 		));
 	}
 
@@ -248,7 +250,7 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 		services.set(IUriIdentityService, uriIdentityService);
 
 		// User Data Profiles
-		const userDataProfilesService = this._register(new UserDataProfilesService(this.configuration.profiles.all, URI.revive(this.configuration.profiles.home).with({ scheme: environmentService.userRoamingDataHome.scheme }), mainProcessService.getChannel('userDataProfiles')));
+		const userDataProfilesService = this._register(new UserDataProfilesService(this.configuration.profiles.all, URI.revive(this.configuration.profiles.home).with({ scheme: environmentService.userRoamingDataHome.scheme }), mainProcessService.getChannel('userDataProfiles'), fileService, uriIdentityService, logService));
 		services.set(IUserDataProfilesService, userDataProfilesService);
 
 		const userDataFileSystemProvider = this._register(new FileUserDataProvider(

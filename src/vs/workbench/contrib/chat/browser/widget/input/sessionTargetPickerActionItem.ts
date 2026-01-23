@@ -16,6 +16,7 @@ import { ICommandService } from '../../../../../../platform/commands/common/comm
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
+import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { AgentSessionProviders, getAgentSessionProvider, getAgentSessionProviderDescription, getAgentSessionProviderIcon, getAgentSessionProviderName, isFirstPartyAgentSessionProvider } from '../../agentSessions/agentSessions.js';
 import { ChatInputPickerActionViewItem, IChatInputPickerOptions } from './chatInputPickerActionItem.js';
@@ -50,6 +51,7 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 		@IChatSessionsService protected readonly chatSessionsService: IChatSessionsService,
 		@ICommandService protected readonly commandService: ICommandService,
 		@IOpenerService protected readonly openerService: IOpenerService,
+		@ITelemetryService telemetryService: ITelemetryService,
 	) {
 
 		const actionProvider: IActionWidgetDropdownActionProvider = {
@@ -93,9 +95,10 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 			actionProvider,
 			actionBarActionProvider,
 			showItemKeybindings: true,
+			reporter: { name: `ChatSessionTypePicker`, includeOptions: true },
 		};
 
-		super(action, sessionTargetPickerOptions, pickerOptions, actionWidgetService, keybindingService, contextKeyService);
+		super(action, sessionTargetPickerOptions, pickerOptions, actionWidgetService, keybindingService, contextKeyService, telemetryService);
 
 		this._updateAgentSessionItems();
 		this._register(this.chatSessionsService.onDidChangeAvailability(() => {
@@ -192,7 +195,7 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 
 		const labelElements = [];
 		labelElements.push(...renderLabelWithIcons(`$(${icon.id})`));
-		if (currentType !== AgentSessionProviders.Local) {
+		if (currentType !== AgentSessionProviders.Local || !this.pickerOptions.onlyShowIconsForDefaultActions.get()) {
 			labelElements.push(dom.$('span.chat-input-picker-label', undefined, label));
 		}
 		labelElements.push(...renderLabelWithIcons(`$(chevron-down)`));
