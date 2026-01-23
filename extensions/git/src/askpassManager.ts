@@ -251,10 +251,6 @@ async function ensureAskpassScripts(
 			// Update mtime to mark this directory as recently used
 			await updateDirectoryMtime(askpassDir, logger);
 			
-			// Garbage collect old directories
-			const askpassBaseDir = path.join(storageDir, 'askpass');
-			await garbageCollectOldDirectories(askpassBaseDir, contentHash, logger);
-			
 			return destPaths;
 		}
 	} catch {
