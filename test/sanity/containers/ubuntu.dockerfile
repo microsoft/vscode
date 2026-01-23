@@ -21,6 +21,8 @@ RUN apt-get install -y libasound2 || apt-get install -y libasound2t64 && \
 	apt-get install -y libgtk-3-0 || apt-get install -y libgtk-3-0t64 && \
 	apt-get install -y libcurl4 || apt-get install -y libcurl4t64 && \
 	apt-get install -y \
+		libatk-bridge2.0-0 \
+		libatk1.0-0 \
 		libgbm1 \
 		libnss3 \
 		xdg-utils
