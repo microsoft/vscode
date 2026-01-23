@@ -154,6 +154,43 @@
 		}
 	}
 
+	.browser-find-widget-wrapper {
+		flex-shrink: 0;
+		position: relative;
+		z-index: 10;
+		overflow: hidden;
+
+		/* Override SimpleFindWidget absolute positioning to flow in layout */
+		.simple-find-part-wrapper {
+			position: relative;
+			top: 0;
+			right: 0;
+			max-width: 100%;
+			padding: 0;
+			margin-left: auto;
+		}
+
+		.simple-find-part {
+			border-radius: 0;
+			border-top: none;
+			border-left: none;
+			border-right: none;
+			border-bottom: 1px solid var(--vscode-editorWidget-border);
+			top: 0 !important;
+			transition: none;
+
+			&:not(.visible) {
+				display: none;
+			}
+
+			/* Hide whole word and regex toggles */
+			.codicon-whole-word,
+			.codicon-regex {
+				display: none;
+			}
+		}
+	}
+
 	.browser-welcome-container {
 		position: absolute;
 		top: 0;
