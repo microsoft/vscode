@@ -57,6 +57,7 @@ export function registerChatContextActions() {
 	registerAction2(AttachFileToChatAction);
 	registerAction2(AttachFolderToChatAction);
 	registerAction2(AttachSelectionToChatAction);
+	registerAction2(SendSelectionToActiveChatAction);
 	registerAction2(AttachSearchResultAction);
 	registerAction2(AttachPinnedEditorsToChatAction);
 	registerPromptActions();
@@ -310,7 +311,11 @@ class AttachSelectionToChatAction extends Action2 {
 				id: MenuId.ChatEditorInlineGutter,
 				group: '2_chat',
 				order: 1,
-				when: ContextKeyExpr.and(ChatContextKeys.enabled, EditorContextKeys.hasNonEmptySelection)
+				when: ContextKeyExpr.and(
+					ChatContextKeys.enabled,
+					EditorContextKeys.hasNonEmptySelection,
+					ChatContextKeys.inputHasText.negate()
+				)
 			}]
 		});
 	}
@@ -318,6 +323,13 @@ class AttachSelectionToChatAction extends Action2 {
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
 		const editorService = accessor.get(IEditorService);
+		const chatWidgetService = accessor.get(IChatWidgetService);
+
+		// Check if there's an inline chat widget with text in the input
+		const lastFocusedWidget = chatWidgetService.lastFocusedWidget;
+		const hasInlineChatWithText = lastFocusedWidget &&
+			lastFocusedWidget.location === ChatAgentLocation.EditorInline &&
+			lastFocusedWidget.getInput().trim().length > 0;
 
 		const widget = await accessor.get(IInstantiationService).invokeFunction(withChatView);
 		if (!widget) {
@@ -357,7 +369,63 @@ class AttachSelectionToChatAction extends Action2 {
 					widget.focusInput();
 					const range = selection.isEmpty() ? new Range(selection.startLineNumber, 1, selection.startLineNumber + 1, 1) : selection;
 					widget.attachmentModel.addFile(activeUri, range);
+					
+					// If there's text in the inline chat input, submit automatically
+					if (hasInlineChatWithText) {
+						await widget.acceptInput();
+					}
 				}
+			}
+		}
+	}
+}
+
+class SendSelectionToActiveChatAction extends Action2 {
+
+	static readonly ID = 'workbench.action.chat.sendSelectionToActiveChat';
+
+	constructor() {
+		super({
+			id: SendSelectionToActiveChatAction.ID,
+			title: localize2('workbench.action.chat.sendSelectionToActiveChat.label', "Send to Active Chat Session"),
+			category: CHAT_CATEGORY,
+			f1: false,
+			precondition: ChatContextKeys.enabled,
+			menu: [{
+				id: MenuId.ChatEditorInlineGutter,
+				group: '2_chat',
+				order: 1,
+				when: ContextKeyExpr.and(
+					ChatContextKeys.enabled,
+					EditorContextKeys.hasNonEmptySelection,
+					ChatContextKeys.inputHasText
+				)
+			}]
+		});
+	}
+
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		const chatWidgetService = accessor.get(IChatWidgetService);
+
+		// Get the last focused widget which should be the inline chat
+		const widget = chatWidgetService.lastFocusedWidget;
+		if (!widget || widget.location !== ChatAgentLocation.EditorInline) {
+			return;
+		}
+
+		const activeEditor = editorService.activeTextEditorControl;
+		const activeUri = EditorResourceAccessor.getCanonicalUri(editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
+		if (activeEditor && activeUri && [Schemas.file, Schemas.vscodeRemote, Schemas.untitled].includes(activeUri.scheme)) {
+			const selection = activeEditor.getSelection();
+			if (selection) {
+				widget.focusInput();
+				const range = selection.isEmpty() ? new Range(selection.startLineNumber, 1, selection.startLineNumber + 1, 1) : selection;
+				widget.attachmentModel.addFile(activeUri, range);
+				
+				// Submit the input automatically
+				await widget.acceptInput();
 			}
 		}
 	}
