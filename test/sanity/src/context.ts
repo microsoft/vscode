@@ -334,7 +334,6 @@ export class TestContext {
 
 		this.log(`Validating codesign signature for ${filePath}`);
 
-		// TODO: Use recursive validation of the command
 		const result = this.run('codesign', '--verify', '--deep', '--strict', '--verbose', filePath);
 		if (result.error !== undefined) {
 			this.error(`Failed to run codesign: ${result.error.message}`);
@@ -378,26 +377,15 @@ export class TestContext {
 	 * @param filePath The path to the file to check.
 	 * @returns True if the file is a Mach-O binary.
 	 */
-	// TODO: see if there is existing code
-	// Can we reuse C:\Users\dmitriv\repos\vscode\build\darwin\verify-macho.ts
 	private isMachOBinary(filePath: string): boolean {
 		try {
-			const fd = fs.openSync(filePath, 'r');
+			const file = fs.openSync(filePath, 'r');
 			const buffer = Buffer.alloc(4);
-			fs.readSync(fd, buffer, 0, 4, 0);
-			fs.closeSync(fd);
-
-			// Mach-O magic numbers:
-			// MH_MAGIC: 0xFEEDFACE (32-bit)
-			// MH_CIGAM: 0xCEFAEDFE (32-bit, byte-swapped)
-			// MH_MAGIC_64: 0xFEEDFACF (64-bit)
-			// MH_CIGAM_64: 0xCFFAEDFE (64-bit, byte-swapped)
-			// FAT_MAGIC: 0xCAFEBABE (universal binary)
-			// FAT_CIGAM: 0xBEBAFECA (universal binary, byte-swapped)
+			fs.readSync(file, buffer, 0, 4, 0);
+			fs.closeSync(file);
 			const magic = buffer.readUInt32BE(0);
-			return magic === 0xFEEDFACE || magic === 0xCEFAEDFE ||
-				magic === 0xFEEDFACF || magic === 0xCFFAEDFE ||
-				magic === 0xCAFEBABE || magic === 0xBEBAFECA;
+			return magic === 0xFEEDFACE || magic === 0xCEFAEDFE || magic === 0xFEEDFACF ||
+				magic === 0xCFFAEDFE || magic === 0xCAFEBABE || magic === 0xBEBAFECA;
 		} catch {
 			return false;
 		}
@@ -531,7 +519,7 @@ export class TestContext {
 	 * Uninstalls a Windows application silently.
 	 * @param type The type of installation ('user' or 'system').
 	 */
-	public async uninstallWindowsApp(type: 'user' | 'system'): Promise<void> {
+	public async uninstallWindowsApp(type: 'user' | 'system') {
 		const appDir = this.getWindowsInstallDir(type);
 		const uninstallerPath = path.join(appDir, 'unins000.exe');
 		if (!fs.existsSync(uninstallerPath)) {
@@ -549,23 +537,7 @@ export class TestContext {
 	}
 
 	/**
-	 * Installs a Linux RPM package.
-	 * @param packagePath The path to the RPM file.
-	 * @returns The path to the installed VS Code executable.
-	 */
-	public installRpm(packagePath: string): string {
-		this.log(`Installing ${packagePath} using RPM package manager`);
-		this.runNoErrors('rpm', '-i', packagePath);
-		this.log(`Installed ${packagePath} successfully`);
-
-		const binaryName = this.getLinuxBinaryName();
-		const entryPoint = path.join('/usr/share', binaryName, binaryName);
-		this.log(`Installed VS Code executable at: ${entryPoint}`);
-		return entryPoint;
-	}
-
-	/**
-	 * Installs a Linux DEB package.
+	 * Installs VS Code Linux DEB package.
 	 * @param packagePath The path to the DEB file.
 	 * @returns The path to the installed VS Code executable.
 	 */
@@ -574,14 +546,64 @@ export class TestContext {
 		this.runNoErrors('dpkg', '-i', packagePath);
 		this.log(`Installed ${packagePath} successfully`);
 
-		const binaryName = this.getLinuxBinaryName();
-		const entryPoint = path.join('/usr/share', binaryName, binaryName);
+		const name = this.getLinuxBinaryName();
+		const entryPoint = path.join('/usr/share', name, name);
 		this.log(`Installed VS Code executable at: ${entryPoint}`);
 		return entryPoint;
 	}
 
 	/**
-	 * Installs a Linux Snap package.
+	 * Uninstalls VS Code Linux DEB package.
+	 */
+	public async uninstallDeb() {
+		const name = this.getLinuxBinaryName();
+		const packagePath = path.join('/usr/bin', name);
+
+		this.log(`Uninstalling DEB package ${packagePath}`);
+		this.runNoErrors('dpkg', '-r', name);
+		this.log(`Uninstalled DEB package ${packagePath} successfully`);
+
+		await new Promise(resolve => setTimeout(resolve, 1000));
+		if (fs.existsSync(packagePath)) {
+			this.error(`Package still exists after uninstall: ${packagePath}`);
+		}
+	}
+
+	/**
+	 * Installs VS Code Linux RPM package.
+	 * @param packagePath The path to the RPM file.
+	 * @returns The path to the installed VS Code executable.
+	 */
+	public installRpm(packagePath: string): string {
+		this.log(`Installing ${packagePath} using RPM package manager`);
+		this.runNoErrors('rpm', '-i', packagePath);
+		this.log(`Installed ${packagePath} successfully`);
+
+		const name = this.getLinuxBinaryName();
+		const entryPoint = path.join('/usr/share', name, name);
+		this.log(`Installed VS Code executable at: ${entryPoint}`);
+		return entryPoint;
+	}
+
+	/**
+	 * Uninstalls VS Code Linux RPM package.
+	 */
+	public async uninstallRpm() {
+		const name = this.getLinuxBinaryName();
+		const packagePath = path.join('/usr/bin', name);
+
+		this.log(`Uninstalling RPM package ${packagePath}`);
+		this.runNoErrors('rpm', '-e', name);
+		this.log(`Uninstalled RPM package ${packagePath} successfully`);
+
+		await new Promise(resolve => setTimeout(resolve, 1000));
+		if (fs.existsSync(packagePath)) {
+			this.error(`Package still exists after uninstall: ${packagePath}`);
+		}
+	}
+
+	/**
+	 * Installs VS Code Linux Snap package.
 	 * @param packagePath The path to the Snap file.
 	 * @returns The path to the installed VS Code executable.
 	 */
@@ -591,75 +613,26 @@ export class TestContext {
 		this.log(`Installed ${packagePath} successfully`);
 
 		// Snap wrapper scripts are in /snap/bin, but actual Electron binary is in /snap/<package>/current/usr/share/
-		const packageName = this.getLinuxPackageName();
-		const binaryName = this.getLinuxBinaryName();
-		const entryPoint = `/snap/${packageName}/current/usr/share/${binaryName}/${binaryName}`;
+		const name = this.getLinuxBinaryName();
+		const entryPoint = `/snap/${name}/current/usr/share/${name}/${name}`;
 		this.log(`Installed VS Code executable at: ${entryPoint}`);
 		return entryPoint;
 	}
 
 	/**
-	 * Uninstalls a Linux RPM package silently.
+	 * Uninstalls VS Code Linux Snap package.
 	 */
-	public async uninstallRpm(): Promise<void> {
-		const packageName = this.getLinuxPackageName();
-		const entryPoint = path.join('/usr/bin', this.getLinuxBinaryName());
+	public async uninstallSnap() {
+		const name = this.getLinuxBinaryName();
+		const packagePath = path.join('/snap/bin', name);
 
-		this.log(`Uninstalling RPM package ${packageName}`);
-		this.runNoErrors('rpm', '-e', packageName);
-		this.log(`Uninstalled RPM package ${packageName} successfully`);
+		this.log(`Uninstalling Snap package ${packagePath}`);
+		this.runNoErrors('sudo', 'snap', 'remove', name);
+		this.log(`Uninstalled Snap package ${packagePath} successfully`);
 
 		await new Promise(resolve => setTimeout(resolve, 1000));
-		if (fs.existsSync(entryPoint)) {
-			this.error(`Binary still exists after uninstall: ${entryPoint}`);
-		}
-	}
-
-	/**
-	 * Uninstalls a Linux DEB package silently.
-	 */
-	public async uninstallDeb(): Promise<void> {
-		const packageName = this.getLinuxPackageName();
-		const entryPoint = path.join('/usr/bin', this.getLinuxBinaryName());
-
-		this.log(`Uninstalling DEB package ${packageName}`);
-		this.runNoErrors('dpkg', '-r', packageName);
-		this.log(`Uninstalled DEB package ${packageName} successfully`);
-
-		await new Promise(resolve => setTimeout(resolve, 1000));
-		if (fs.existsSync(entryPoint)) {
-			this.error(`Binary still exists after uninstall: ${entryPoint}`);
-		}
-	}
-
-	/**
-	 * Uninstalls a Linux Snap package silently.
-	 */
-	public async uninstallSnap(): Promise<void> {
-		const packageName = this.getLinuxPackageName();
-		const entryPoint = path.join('/snap/bin', this.getLinuxBinaryName());
-
-		this.log(`Uninstalling Snap package ${packageName}`);
-		this.runNoErrors('sudo', 'snap', 'remove', packageName);
-		this.log(`Uninstalled Snap package ${packageName} successfully`);
-
-		await new Promise(resolve => setTimeout(resolve, 1000));
-		if (fs.existsSync(entryPoint)) {
-			this.error(`Binary still exists after uninstall: ${entryPoint}`);
-		}
-	}
-
-	/**
-	 * Returns the Linux package name based on quality.
-	 */
-	private getLinuxPackageName(): string {
-		switch (this.options.quality) {
-			case 'stable':
-				return 'code';
-			case 'insider':
-				return 'code-insiders';
-			case 'exploration':
-				return 'code-exploration';
+		if (fs.existsSync(packagePath)) {
+			this.error(`Package still exists after uninstall: ${packagePath}`);
 		}
 	}
 
@@ -744,31 +717,34 @@ export class TestContext {
 	}
 
 	/**
-	 * Returns the entry point executable for the VS Code CLI installation in the specified directory.
-	 * @param dir The directory of the VS Code installation.
-	 * @returns The path to the entry point executable.
+	 * Returns the entry point executable for the VS Code CLI in the specified directory.
+	 * @param dir The directory containing unpacked CLI files.
+	 * @returns The path to the CLI entry point executable.
 	 */
 	public getCliEntryPoint(dir: string): string {
-		let suffix: string;
+		let filename: string;
 		switch (this.options.quality) {
 			case 'stable':
-				suffix = '';
+				filename = 'code';
 				break;
 			case 'insider':
-				suffix = '-insiders';
+				filename = 'code-insiders';
 				break;
 			case 'exploration':
-				suffix = '-exploration';
+				filename = 'code-exploration';
 				break;
 		}
 
-		const extension = os.platform() === 'win32' ? '.exe' : '';
-		const filePath = path.join(dir, `code${suffix}${extension}`);
-		if (!fs.existsSync(filePath)) {
-			this.error(`CLI entry point does not exist: ${filePath}`);
+		if (os.platform() === 'win32') {
+			filename += '.exe';
 		}
 
-		return filePath;
+		const entryPoint = path.join(dir, filename);
+		if (!fs.existsSync(entryPoint)) {
+			this.error(`CLI entry point does not exist: ${entryPoint}`);
+		}
+
+		return entryPoint;
 	}
 
 	/**
@@ -801,6 +777,7 @@ export class TestContext {
 
 		return entryPoint;
 	}
+
 	/**
 	 * Returns the first subdirectory within the specified directory.
 	 */
