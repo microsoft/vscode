@@ -174,7 +174,7 @@ class AttachFileToChatAction extends AttachResourceAction {
 				)
 			}, {
 				id: MenuId.ChatEditorInlineGutter,
-				group: '2_context',
+				group: '2_chat',
 				order: 2,
 				when: ContextKeyExpr.and(ChatContextKeys.enabled, EditorContextKeys.hasNonEmptySelection.negate())
 			}]
@@ -308,8 +308,8 @@ class AttachSelectionToChatAction extends Action2 {
 				)
 			}, {
 				id: MenuId.ChatEditorInlineGutter,
-				group: '2_context',
-				order: 2,
+				group: '2_chat',
+				order: 1,
 				when: ContextKeyExpr.and(ChatContextKeys.enabled, EditorContextKeys.hasNonEmptySelection)
 			}]
 		});

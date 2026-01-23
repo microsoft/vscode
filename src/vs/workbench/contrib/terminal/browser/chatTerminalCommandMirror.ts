@@ -576,7 +576,14 @@ export class DetachedTerminalSnapshotMirror extends Disposable {
 					return getChatTerminalBackgroundColor(theme, this._contextKeyService, storedBackground);
 				}
 			}
-		}).then(terminal => this._register(terminal));
+		}).then(terminal => {
+			// If the store is already disposed, dispose the terminal immediately
+			if (this._store.isDisposed) {
+				terminal.dispose();
+				return terminal;
+			}
+			return this._register(terminal);
+		});
 	}
 
 	private async _getTerminal(): Promise<IDetachedTerminalInstance> {
@@ -593,6 +600,9 @@ export class DetachedTerminalSnapshotMirror extends Disposable {
 
 	public async attach(container: HTMLElement): Promise<void> {
 		const terminal = await this._getTerminal();
+		if (this._store.isDisposed) {
+			return;
+		}
 		container.classList.add('chat-terminal-output-terminal');
 		const needsAttach = this._attachedContainer !== container || container.firstChild === null;
 		if (needsAttach) {
@@ -613,6 +623,9 @@ export class DetachedTerminalSnapshotMirror extends Disposable {
 			return { lineCount: this._lastRenderedLineCount ?? output.lineCount, maxColumnWidth: this._lastRenderedMaxColumnWidth };
 		}
 		const terminal = await this._getTerminal();
+		if (this._store.isDisposed) {
+			return undefined;
+		}
 		if (this._container) {
 			this._applyTheme(this._container);
 		}
@@ -625,6 +638,9 @@ export class DetachedTerminalSnapshotMirror extends Disposable {
 			return { lineCount: 0, maxColumnWidth: 0 };
 		}
 		await new Promise<void>(resolve => terminal.xterm.write(text, resolve));
+		if (this._store.isDisposed) {
+			return undefined;
+		}
 		this._dirty = false;
 		this._lastRenderedLineCount = lineCount;
 		// Only compute max column width for small outputs to avoid performance issues

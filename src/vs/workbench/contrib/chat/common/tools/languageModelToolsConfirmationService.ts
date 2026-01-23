@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IQuickInputButton, IQuickTreeItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { ConfirmedReason } from '../chatService/chatService.js';
@@ -24,6 +25,7 @@ export interface ILanguageModelToolConfirmationRef {
 	toolId: string;
 	source: ToolDataSource;
 	parameters: unknown;
+	chatSessionResource?: URI;
 }
 
 export interface ILanguageModelToolConfirmationActionProducer {

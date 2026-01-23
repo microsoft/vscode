@@ -198,6 +198,16 @@
 	margin-left: 0.5em;
 }
 
+/* Item toolbar - shows on hover/focus */
+.action-widget .monaco-list-row.action .action-list-item-toolbar {
+	display: none;
+}
+
+.action-widget .monaco-list-row.focused.action.has-toolbar .action-list-item-toolbar,
+.action-widget .monaco-list-row:hover.action.has-toolbar .action-list-item-toolbar {
+	display: flex;
+}
+
 .action-widget-delegate-label {
 	display: flex;
 	align-items: center;

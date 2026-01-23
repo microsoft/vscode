@@ -1114,6 +1114,12 @@ export class Repository implements Disposable {
 			return undefined;
 		}
 
+		// Ignore path that is inside the .git directory (ex: COMMIT_EDITMSG)
+		if (isDescendant(this.dotGit.commonPath ?? this.dotGit.path, uri.fsPath)) {
+			this.logger.trace(`[Repository][provideOriginalResource] Resource is inside .git directory: ${uri.toString()}`);
+			return undefined;
+		}
+
 		// Ignore symbolic links
 		const stat = await workspace.fs.stat(uri);
 		if ((stat.type & FileType.SymbolicLink) !== 0) {
@@ -1896,7 +1902,7 @@ export class Repository implements Disposable {
 
 	private async _getWorktreeIncludePaths(): Promise<Set<string>> {
 		const config = workspace.getConfiguration('git', Uri.file(this.root));
-		const worktreeIncludeFiles = config.get<string[]>('worktreeIncludeFiles', ['**/node_modules/**']);
+		const worktreeIncludeFiles = config.get<string[]>('worktreeIncludeFiles', []);
 
 		if (worktreeIncludeFiles.length === 0) {
 			return new Set<string>();
