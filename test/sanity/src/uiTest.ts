@@ -82,7 +82,7 @@ export class UITest {
 		await page.keyboard.press('F1');
 		await page.getByPlaceholder(/^Type the name of a command/).fill(`>${command}`);
 		await page.locator('span.monaco-highlighted-label', { hasText: new RegExp(`^${command}$`) }).click();
-		await page.waitForTimeout(500);
+		await page.waitForTimeout(1000);
 	}
 
 	/**
@@ -105,7 +105,6 @@ export class UITest {
 		await page.keyboard.type('Hello, World!');
 
 		await this.runCommand(page, 'File: Save');
-		await page.waitForTimeout(1000);
 	}
 
 	/**
@@ -123,7 +122,6 @@ export class UITest {
 	 */
 	private async installExtension(page: Page) {
 		await this.runCommand(page, 'View: Show Extensions');
-		await page.waitForTimeout(1000);
 
 		this.context.log('Typing extension name to search for');
 		await page.getByText('Search Extensions in Marketplace').focus();
