@@ -324,9 +324,11 @@ export class InlineChatSessionOverlayWidget extends Disposable {
 	) {
 		super();
 
+		this._domNode.classList.add('inline-chat-session-overlay-widget');
+
 		this._container = document.createElement('div');
 		this._domNode.appendChild(this._container);
-		this._container.classList.add('inline-chat-session-overlay-widget');
+		this._container.classList.add('inline-chat-session-overlay-container');
 
 		// Create status node with icon and message
 		this._statusNode = document.createElement('div');
@@ -351,7 +353,7 @@ export class InlineChatSessionOverlayWidget extends Disposable {
 		// Derived entry observable for this session
 		const entry = derived(r => session.editingSession.readEntry(session.uri, r));
 
-		// Set up status message observable
+		// Set up status message and icon observable
 		const requestMessage = derived(r => {
 			const chatModel = session?.chatModel;
 			if (!session || !chatModel) {
@@ -360,17 +362,27 @@ export class InlineChatSessionOverlayWidget extends Disposable {
 
 			const response = chatModel.lastRequestObs.read(r)?.response;
 			if (!response) {
-				return { message: localize('working', "Working...") };
+				return { message: localize('working', "Working..."), icon: ThemeIcon.modify(Codicon.loading, 'spin') };
 			}
 
 			if (response.isComplete) {
+				// Check for errors first
+				const result = response.result;
+				if (result?.errorDetails) {
+					return {
+						message: localize('error', "Sorry, your request failed"),
+						icon: Codicon.error
+					};
+				}
+
 				const changes = entry.read(r)?.changesCount.read(r) ?? 0;
 				return {
 					message: changes === 0
 						? localize('done', "Done")
 						: changes === 1
 							? localize('done1', "Done, 1 change")
-							: localize('doneN', "Done, {0} changes", changes)
+							: localize('doneN', "Done, {0} changes", changes),
+					icon: Codicon.check
 				};
 			}
 
@@ -380,11 +392,11 @@ export class InlineChatSessionOverlayWidget extends Disposable {
 				.at(-1);
 
 			if (lastPart?.kind === 'toolInvocation') {
-				return { message: lastPart.invocationMessage };
+				return { message: lastPart.invocationMessage, icon: ThemeIcon.modify(Codicon.loading, 'spin') };
 			} else if (lastPart?.kind === 'progressMessage') {
-				return { message: lastPart.content };
+				return { message: lastPart.content, icon: ThemeIcon.modify(Codicon.loading, 'spin') };
 			} else {
-				return { message: localize('working', "Working...") };
+				return { message: localize('working', "Working..."), icon: ThemeIcon.modify(Codicon.loading, 'spin') };
 			}
 		});
 
@@ -392,20 +404,12 @@ export class InlineChatSessionOverlayWidget extends Disposable {
 			const value = requestMessage.read(r);
 			if (value) {
 				this._message.innerText = renderAsPlaintext(value.message);
+				this._icon.className = '';
+				this._icon.classList.add(...ThemeIcon.asClassNameArray(value.icon));
 			} else {
 				this._message.innerText = '';
+				this._icon.className = '';
 			}
-		}));
-
-		// Keep active class in sync with whether edits are being streamed or done
-		this._showStore.add(autorun(r => {
-			const e = entry.read(r);
-			const isBusy = !e || !!e.isCurrentlyBeingModifiedBy.read(r);
-			const isDone = e?.lastModifyingResponse.read(r)?.isComplete;
-			this._container.classList.toggle('active', isBusy || isDone);
-
-			this._icon.className = '';
-			this._icon.classList.add(...ThemeIcon.asClassNameArray(isDone ? Codicon.check : ThemeIcon.modify(Codicon.loading, 'spin')));
 		}));
 
 		// Add toolbar
