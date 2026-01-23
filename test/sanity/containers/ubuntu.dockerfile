@@ -17,13 +17,9 @@ RUN apt-get install -y dbus-x11 && \
 RUN apt-get install -y xvfb
 
 # VS Code dependencies
-RUN apt-get install -y libasound2t64 || apt-get install -y libasound2 && \
-	apt-get install -y libgtk-3-0t64 || apt-get install -y libgtk-3-0 && \
-	apt-get install -y libcurl4t64 || apt-get install -y libcurl4 && \
-	apt-get install -y libglib2.0-0t64 || apt-get install -y libglib2.0-0 && \
-	apt-get install -y libatk-bridge2.0-0t64 || apt-get install -y libatk-bridge2.0-0 && \
-	apt-get install -y libatk1.0-0t64 || apt-get install -y libatk1.0-0 && \
-	apt-get install -y libatspi2.0-0t64 || apt-get install -y libatspi2.0-0 && \
+RUN apt-get install -y libasound2 || apt-get install -y libasound2t64 && \
+	apt-get install -y libgtk-3-0 || apt-get install -y libgtk-3-0t64 && \
+	apt-get install -y libcurl4 || apt-get install -y libcurl4t64 && \
 	apt-get install -y \
 		libgbm1 \
 		libnss3 \
