@@ -356,3 +356,28 @@ export const watchApiProposalNamesTask = task.define('watch-api-proposal-names',
 		.pipe(util.debounce(task))
 		.pipe(gulp.dest('src'));
 });
+
+// Codicons
+const root = path.dirname(import.meta.dirname);
+const codiconSource = path.join(root, 'node_modules', '@vscode', 'codicons', 'dist', 'codicon.ttf');
+const codiconDest = path.join(root, 'src', 'vs', 'base', 'browser', 'ui', 'codicons', 'codicon', 'codicon.ttf');
+
+function copyCodiconsImpl() {
+	if (fs.existsSync(codiconSource)) {
+		fs.mkdirSync(path.dirname(codiconDest), { recursive: true });
+		fs.copyFileSync(codiconSource, codiconDest);
+	}
+}
+
+export const copyCodiconsTask = task.define('copy-codicons', () => {
+	copyCodiconsImpl();
+	return Promise.resolve();
+});
+gulp.task(copyCodiconsTask);
+
+export const watchCodiconsTask = task.define('watch-codicons', () => {
+	copyCodiconsImpl();
+	return watch('node_modules/@vscode/codicons/dist/**', { readDelay: 200 })
+		.on('data', () => copyCodiconsImpl());
+});
+gulp.task(watchCodiconsTask);
