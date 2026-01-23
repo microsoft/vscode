@@ -189,11 +189,20 @@
 .monaco-workbench .monaco-editor .peekview-widget { box-shadow: var(--shadow-hover); border: none; background: var(--vscode-editor-background) !important; backdrop-filter: var(--backdrop-blur-sm); -webkit-backdrop-filter: var(--backdrop-blur-sm); overflow: hidden; }
 .monaco-workbench .monaco-editor .peekview-widget .head,
 .monaco-workbench .monaco-editor .peekview-widget .body { background: transparent !important; }
-/* .monaco-workbench .monaco-editor .peekview-widget .ref-tree { background: var(--vscode-editor-background) !important; } */
 
-
-.monaco-editor .monaco-hover { box-shadow: var(--shadow-sm-strong); border-radius: var(--radius-lg); overflow: hidden; backdrop-filter: var(--backdrop-blur-md); -webkit-backdrop-filter: var(--backdrop-blur-md); }
-.monaco-hover.workbench-hover { backdrop-filter: var(--backdrop-blur-lg) !important; -webkit-backdrop-filter: var(--backdrop-blur-lg) !important; }
+.monaco-editor .monaco-hover {
+	background-color: color-mix(in srgb, var(--vscode-editorHoverWidget-background) 60%, transparent) !important;
+	box-shadow: var(--shadow-sm-strong);
+	border-radius: var(--radius-lg);
+	overflow: hidden;
+	backdrop-filter: var(--backdrop-blur-md);
+	-webkit-backdrop-filter: var(--backdrop-blur-md);
+}
+.monaco-workbench .monaco-hover.workbench-hover, .monaco-hover.workbench-hover.compact {
+	background-color: color-mix(in srgb, var(--vscode-editorHoverWidget-background) 60%, transparent) !important;
+	backdrop-filter: var(--backdrop-blur-lg) !important;
+	-webkit-backdrop-filter: var(--backdrop-blur-lg) !important;
+}
 /* Settings */
 .monaco-workbench .settings-editor .settings-toc-container { box-shadow: var(--shadow-sm); }
 
