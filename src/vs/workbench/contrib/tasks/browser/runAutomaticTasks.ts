@@ -21,7 +21,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { Event } from '../../../../base/common/event.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 
-const HAS_PROMPTED_FOR_AUTOMATIC_TASKS = 'tasks.hasPromptedForAutomaticTasks';
+const HAS_PROMPTED_FOR_AUTOMATIC_TASKS = 'task.hasPromptedForAutomaticTasks.v2';
 const ALLOW_AUTOMATIC_TASKS = 'task.allowAutomaticTasks';
 
 export class RunAutomaticTasks extends Disposable implements IWorkbenchContribution {
@@ -206,7 +206,8 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 						}
 						resolve(false);
 					}
-				}]
+				}],
+				{ onCancel: () => resolve(false) }
 			);
 			storageService.store(HAS_PROMPTED_FOR_AUTOMATIC_TASKS, true, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		});
