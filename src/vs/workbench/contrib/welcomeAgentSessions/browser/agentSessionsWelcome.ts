@@ -43,6 +43,7 @@ import { AgentSessionsWelcomeEditorOptions, AgentSessionsWelcomeInput } from './
 import { IChatService } from '../../chat/common/chatService/chatService.js';
 import { IChatModel } from '../../chat/common/model/chatModel.js';
 import { ChatViewId, ISessionTypePickerDelegate, IWorkspacePickerDelegate, IWorkspacePickerItem } from '../../chat/browser/chat.js';
+import { ChatSessionPosition, getResourceForNewChatSession } from '../../chat/browser/chatSessions/chatSessions.contribution.js';
 import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 import { AgentSessionsControl, IAgentSessionsControlOptions } from '../../chat/browser/agentSessions/agentSessionsControl.js';
 import { IAgentSessionsFilter } from '../../chat/browser/agentSessions/agentSessionsViewer.js';
@@ -217,11 +218,31 @@ export class AgentSessionsWelcomePage extends EditorPane {
 
 		// Create a delegate for the session target picker with independent local state
 		const onDidChangeActiveSessionProvider = this.contentDisposables.add(new Emitter<AgentSessionProviders>());
+		const recreateSessionForProvider = async (provider: AgentSessionProviders) => {
+			if (this.chatWidget && this.chatModelRef) {
+				this.chatWidget.setModel(undefined);
+				this.chatModelRef.dispose();
+				const newResource = getResourceForNewChatSession({
+					type: provider,
+					position: ChatSessionPosition.Sidebar,
+					displayName: ''
+				});
+				const ref = await this.chatService.loadSessionForResource(newResource, ChatAgentLocation.Chat, CancellationToken.None);
+				this.chatModelRef = ref ?? this.chatService.startSession(ChatAgentLocation.Chat);
+				this.contentDisposables.add(this.chatModelRef);
+				if (this.chatModelRef.object) {
+					this.chatWidget.setModel(this.chatModelRef.object);
+				}
+			}
+		};
 		const sessionTypePickerDelegate: ISessionTypePickerDelegate = {
 			getActiveSessionProvider: () => this._selectedSessionProvider,
 			setActiveSessionProvider: (provider: AgentSessionProviders) => {
 				this._selectedSessionProvider = provider;
 				onDidChangeActiveSessionProvider.fire(provider);
+				try {
+					recreateSessionForProvider(provider);
+				} catch { /* Ignore errors */ }
 			},
 			onDidChangeActiveSessionProvider: onDidChangeActiveSessionProvider.event
 		};
