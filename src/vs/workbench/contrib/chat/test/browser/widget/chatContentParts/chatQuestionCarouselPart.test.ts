@@ -191,57 +191,57 @@ suite('ChatQuestionCarouselPart', () => {
 			createWidget(carousel);
 
 			const buttons = widget.domNode.querySelectorAll('.chat-question-carousel-footer .monaco-button');
-			// Button order: Skip, Previous, Next
-			const prevButton = buttons[1] as HTMLButtonElement;
+			// Button order: Previous, Next
+			const prevButton = buttons[0] as HTMLButtonElement;
 			assert.ok(prevButton.classList.contains('disabled') || prevButton.disabled, 'Previous button should be disabled on first question');
 		});
 
-		test('next button shows "Submit" on last question', () => {
+		test('next button shows submit icon on last question', () => {
 			const carousel = createMockCarousel([
 				{ id: 'q1', type: 'text', title: 'Only Question' }
 			]);
 			createWidget(carousel);
 
 			const buttons = widget.domNode.querySelectorAll('.chat-question-carousel-footer .monaco-button');
-			const nextButton = buttons[2]; // Skip, Previous, Next
-			assert.ok(nextButton?.textContent?.toLowerCase().includes('submit'), 'Next button should show "Submit" on last question');
+			const nextButton = buttons[1] as HTMLElement; // Previous, Next
+			assert.strictEqual(nextButton.title, 'Submit', 'Next button should have Submit title on last question');
 		});
 	});
 
 	suite('Skip Functionality', () => {
-		test('skip button is enabled when allowSkip is true', () => {
+		test('skip succeeds when allowSkip is true', () => {
 			const carousel = createMockCarousel([
 				{ id: 'q1', type: 'text', title: 'Question 1' }
 			], true);
 			createWidget(carousel);
 
-			const buttons = widget.domNode.querySelectorAll('.chat-question-carousel-footer .monaco-button');
-			const skipButton = buttons[0] as HTMLButtonElement;
-			assert.ok(!skipButton.classList.contains('disabled') && !skipButton.disabled, 'Skip button should be enabled when allowSkip is true');
+			const result = widget.skip();
+			assert.strictEqual(result, true, 'skip() should return true when allowSkip is true');
+			assert.strictEqual(submittedAnswers, undefined, 'Skip should call onSubmit with undefined');
 		});
 
-		test('skip button is disabled when allowSkip is false', () => {
+		test('skip fails when allowSkip is false', () => {
 			const carousel = createMockCarousel([
 				{ id: 'q1', type: 'text', title: 'Question 1' }
 			], false);
 			createWidget(carousel);
 
-			const buttons = widget.domNode.querySelectorAll('.chat-question-carousel-footer .monaco-button');
-			const skipButton = buttons[0] as HTMLButtonElement;
-			assert.ok(skipButton.classList.contains('disabled') || skipButton.disabled, 'Skip button should be disabled when allowSkip is false');
+			const result = widget.skip();
+			assert.strictEqual(result, false, 'skip() should return false when allowSkip is false');
+			assert.strictEqual(submittedAnswers, null, 'onSubmit should not have been called');
 		});
 
-		test('clicking skip calls onSubmit with undefined', () => {
+		test('skip can only be called once', () => {
 			const carousel = createMockCarousel([
 				{ id: 'q1', type: 'text', title: 'Question 1' }
 			], true);
 			createWidget(carousel);
 
-			const buttons = widget.domNode.querySelectorAll('.chat-question-carousel-footer .monaco-button');
-			const skipButton = buttons[0] as HTMLButtonElement;
-			skipButton.click();
-
-			assert.strictEqual(submittedAnswers, undefined, 'Skip should call onSubmit with undefined');
+			widget.skip();
+			submittedAnswers = null; // reset
+			const result = widget.skip();
+			assert.strictEqual(result, false, 'Second skip() should return false');
+			assert.strictEqual(submittedAnswers, null, 'onSubmit should not be called again');
 		});
 	});
 

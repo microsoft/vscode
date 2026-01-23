@@ -1825,13 +1825,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				carousel.isUsed = true;
 
 				// Notify the extension about the carousel answers to resolve the deferred promise
-				const element = context.element;
-				console.log('[QuestionCarousel] UI onSubmit:', { isResponseVM: isResponseVM(element), hasResolveId: !!carousel.resolveId, resolveId: carousel.resolveId });
-				if (isResponseVM(element)) {
-					console.log('[QuestionCarousel] element.requestId:', element.requestId);
-				}
-				if (isResponseVM(element) && carousel.resolveId) {
-					this.chatService.notifyQuestionCarouselAnswer(element.requestId, carousel.resolveId, answersRecord);
+				if (isResponseVM(context.element) && carousel.resolveId) {
+					this.chatService.notifyQuestionCarouselAnswer(context.element.requestId, carousel.resolveId, answersRecord);
 				}
 
 				// Remove from pending carousels

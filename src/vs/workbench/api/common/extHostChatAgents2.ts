@@ -320,8 +320,6 @@ export class ChatAgentResponseStream {
 					const dto = typeConvert.ChatResponseQuestionCarouselPart.from(part);
 					dto.resolveId = resolveId;
 
-					console.log('[QuestionCarousel] Storing resolver:', { requestId: that._request.requestId, resolveId });
-
 					// Create a deferred promise to wait for the answer
 					const deferred = new DeferredPromise<Record<string, unknown> | undefined>();
 
@@ -789,6 +787,14 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 			if (inFlightRequest) {
 				this._inFlightRequests.delete(inFlightRequest);
 			}
+			// Clean up any pending carousel resolvers for this request
+			const pendingResolvers = this._pendingCarouselResolvers.get(requestDto.requestId);
+			if (pendingResolvers) {
+				for (const deferred of pendingResolvers.values()) {
+					deferred.complete(undefined);
+				}
+				this._pendingCarouselResolvers.delete(requestDto.requestId);
+			}
 			stream?.close();
 		}
 	}
@@ -909,24 +915,15 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 	}
 
 	$handleQuestionCarouselAnswer(requestId: string, resolveId: string, answers: Record<string, unknown> | undefined): void {
-		console.log('[QuestionCarousel] $handleQuestionCarouselAnswer called:', { requestId, resolveId, hasAnswers: !!answers });
-		console.log('[QuestionCarousel] Available resolvers:', Array.from(this._pendingCarouselResolvers.keys()));
-
 		const requestResolvers = this._pendingCarouselResolvers.get(requestId);
 		if (!requestResolvers) {
-			console.log('[QuestionCarousel] No resolvers found for requestId:', requestId);
 			return;
 		}
 
-		console.log('[QuestionCarousel] Resolver IDs for request:', Array.from(requestResolvers.keys()));
-
 		const deferred = requestResolvers.get(resolveId);
 		if (deferred) {
-			console.log('[QuestionCarousel] Found deferred, completing with answers');
 			deferred.complete(answers);
 			requestResolvers.delete(resolveId);
-		} else {
-			console.log('[QuestionCarousel] No deferred found for resolveId:', resolveId);
 		}
 
 		// Clean up if no more resolvers for this request

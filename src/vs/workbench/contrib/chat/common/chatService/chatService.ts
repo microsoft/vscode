@@ -1178,7 +1178,6 @@ export interface IChatSendRequestOptions {
 	acceptedConfirmationData?: any[];
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	rejectedConfirmationData?: any[];
-	questionCarouselData?: Record<string, unknown>[];
 	attachedContext?: IChatRequestVariableEntry[];
 
 	/** The target agent ID can be specified with this property instead of using @ in 'message' */

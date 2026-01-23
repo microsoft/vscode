@@ -9,10 +9,8 @@ import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { KeyCode } from '../../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
-import { observableValue, ISettableObservable, transaction } from '../../../../../../base/common/observable.js';
 import { hasKey } from '../../../../../../base/common/types.js';
 import { localize } from '../../../../../../nls.js';
-import { runAtThisOrScheduleAtNextAnimationFrame } from '../../../../../../base/browser/dom.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IMarkdownRendererService } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { defaultButtonStyles, defaultInputBoxStyles } from '../../../../../../platform/theme/browser/defaultStyles.js';
@@ -36,8 +34,8 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
 	public readonly onDidChangeHeight: Event<void> = this._onDidChangeHeight.event;
 
-	private readonly _currentIndex: ISettableObservable<number>;
-	private readonly _answers: ISettableObservable<Map<string, unknown>>;
+	private _currentIndex = 0;
+	private readonly _answers = new Map<string, unknown>();
 
 	private readonly _titlePart: ChatQueryTitlePart;
 	private readonly _progressElement: HTMLElement;
@@ -48,7 +46,6 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 
 	private _isSkipped = false;
 
-	private readonly _inputElements: Map<string, HTMLElement> = new Map();
 	private readonly _textInputBoxes: Map<string, InputBox> = new Map();
 	private readonly _radioInputs: Map<string, HTMLInputElement[]> = new Map();
 	private readonly _checkboxInputs: Map<string, HTMLInputElement[]> = new Map();
@@ -63,9 +60,6 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
 	) {
 		super();
-
-		this._currentIndex = observableValue(this, 0);
-		this._answers = observableValue(this, new Map<string, unknown>());
 
 		this.domNode = dom.$('.chat-question-carousel-container');
 
@@ -121,26 +115,25 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	}
 
 	/**
+	 * Saves the current question's answer to the answers map.
+	 */
+	private saveCurrentAnswer(): void {
+		const currentQuestion = this.carousel.questions[this._currentIndex];
+		const answer = this.getCurrentAnswer();
+		if (answer !== undefined) {
+			this._answers.set(currentQuestion.id, answer);
+		}
+	}
+
+	/**
 	 * Navigates the carousel by the given delta.
 	 * @param delta Negative for previous, positive for next
 	 */
 	private navigate(delta: number): void {
-		const newIndex = this._currentIndex.get() + delta;
+		const newIndex = this._currentIndex + delta;
 		if (newIndex >= 0 && newIndex < this.carousel.questions.length) {
-			// Save current answer before navigating
-			const currentQuestion = this.carousel.questions[this._currentIndex.get()];
-			const answer = this.getCurrentAnswer();
-
-			// Use transaction and immutable map update for proper observable semantics
-			transaction(tx => {
-				if (answer !== undefined) {
-					const newAnswers = new Map(this._answers.get());
-					newAnswers.set(currentQuestion.id, answer);
-					this._answers.set(newAnswers, tx);
-				}
-				this._currentIndex.set(newIndex, tx);
-			});
-
+			this.saveCurrentAnswer();
+			this._currentIndex = newIndex;
 			this.renderCurrentQuestion();
 		}
 	}
@@ -150,22 +143,15 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	 * Either advances to the next question or submits.
 	 */
 	private handleNext(): void {
-		const currentQuestion = this.carousel.questions[this._currentIndex.get()];
-		const answer = this.getCurrentAnswer();
+		this.saveCurrentAnswer();
 
-		// Use immutable map update for proper observable semantics
-		if (answer !== undefined) {
-			const newAnswers = new Map(this._answers.get());
-			newAnswers.set(currentQuestion.id, answer);
-			this._answers.set(newAnswers, undefined);
-		}
-
-		if (this._currentIndex.get() < this.carousel.questions.length - 1) {
+		if (this._currentIndex < this.carousel.questions.length - 1) {
 			// Move to next question
-			this.navigate(1);
+			this._currentIndex++;
+			this.renderCurrentQuestion();
 		} else {
 			// Submit
-			this._options.onSubmit(this._answers.get());
+			this._options.onSubmit(this._answers);
 			this.disableAllButtons();
 		}
 	}
@@ -191,14 +177,17 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	}
 
 	private renderCurrentQuestion(): void {
-		// Clear previous input boxes
+		// Clear previous input boxes and stale references
 		this._inputBoxes.clear();
-		this._inputElements.clear();
+		this._textInputBoxes.clear();
+		this._radioInputs.clear();
+		this._checkboxInputs.clear();
+		this._freeformInputBoxes.clear();
 
 		// Clear previous content
 		dom.clearNode(this._questionContainer);
 
-		const question = this.carousel.questions[this._currentIndex.get()];
+		const question = this.carousel.questions[this._currentIndex];
 		if (!question) {
 			return;
 		}
@@ -225,13 +214,13 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		this._questionContainer.appendChild(inputContainer);
 
 		// Update progress indicator
-		this._progressElement.textContent = localize('chat.questionCarousel.progress', '{0} of {1}', this._currentIndex.get() + 1, this.carousel.questions.length);
+		this._progressElement.textContent = localize('chat.questionCarousel.progress', '{0} of {1}', this._currentIndex + 1, this.carousel.questions.length);
 
 		// Update navigation button states
-		this._prevButton.enabled = this._currentIndex.get() > 0;
+		this._prevButton.enabled = this._currentIndex > 0;
 
 		// Update next button icon/label for last question
-		const isLastQuestion = this._currentIndex.get() === this.carousel.questions.length - 1;
+		const isLastQuestion = this._currentIndex === this.carousel.questions.length - 1;
 		if (isLastQuestion) {
 			this._nextButton.label = `$(${Codicon.check.id})`;
 			this._nextButton.element.title = localize('submit', 'Submit');
@@ -264,18 +253,17 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		}));
 
 		// Restore previous answer if exists
-		const previousAnswer = this._answers.get().get(question.id);
+		const previousAnswer = this._answers.get(question.id);
 		if (previousAnswer !== undefined) {
 			inputBox.value = String(previousAnswer);
 		} else if (question.defaultValue !== undefined) {
 			inputBox.value = String(question.defaultValue);
 		}
 
-		this._inputElements.set(question.id, inputBox.element);
 		this._textInputBoxes.set(question.id, inputBox);
 
 		// Focus on input when rendered using proper DOM scheduling
-		this._inputBoxes.add(runAtThisOrScheduleAtNextAnimationFrame(dom.getWindow(inputBox.element), () => inputBox.focus()));
+		this._inputBoxes.add(dom.runAtThisOrScheduleAtNextAnimationFrame(dom.getWindow(inputBox.element), () => inputBox.focus()));
 	}
 
 	private renderSingleSelect(container: HTMLElement, question: IChatQuestion): void {
@@ -286,7 +274,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		container.appendChild(selectContainer);
 
 		// Restore previous answer if exists
-		const previousAnswer = this._answers.get().get(question.id);
+		const previousAnswer = this._answers.get(question.id);
 		const previousFreeform = typeof previousAnswer === 'object' && previousAnswer !== null && hasKey(previousAnswer, { freeformValue: true })
 			? (previousAnswer as { freeformValue?: string }).freeformValue
 			: undefined;
@@ -325,7 +313,6 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			radioInputs.push(radioInput);
 		});
 
-		this._inputElements.set(question.id, selectContainer);
 		this._radioInputs.set(question.id, radioInputs);
 
 		// Add freeform input if allowed
@@ -357,7 +344,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		container.appendChild(selectContainer);
 
 		// Restore previous answer if exists
-		const previousAnswer = this._answers.get().get(question.id);
+		const previousAnswer = this._answers.get(question.id);
 		const previousFreeform = typeof previousAnswer === 'object' && previousAnswer !== null && hasKey(previousAnswer, { freeformValue: true })
 			? (previousAnswer as { freeformValue?: string }).freeformValue
 			: undefined;
@@ -397,7 +384,6 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			checkboxInputs.push(checkboxInput);
 		});
 
-		this._inputElements.set(question.id, selectContainer);
 		this._checkboxInputs.set(question.id, checkboxInputs);
 
 		// Add freeform input if allowed
@@ -422,7 +408,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	}
 
 	private getCurrentAnswer(): unknown {
-		const question = this.carousel.questions[this._currentIndex.get()];
+		const question = this.carousel.questions[this._currentIndex];
 		if (!question) {
 			return undefined;
 		}
@@ -514,11 +500,5 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 
 	addDisposable(disposable: { dispose(): void }): void {
 		this._register(disposable);
-	}
-
-	override dispose(): void {
-		// Clear the input elements map to prevent potential memory leaks
-		this._inputElements.clear();
-		super.dispose();
 	}
 }

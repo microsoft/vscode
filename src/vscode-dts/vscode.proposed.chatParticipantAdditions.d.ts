@@ -597,11 +597,6 @@ declare module 'vscode' {
 		 * The `data` for any confirmations that were rejected
 		 */
 		rejectedConfirmationData?: any[];
-
-		/**
-		 * The data for any question carousels that were answered
-		 */
-		questionCarouselData?: Record<string, unknown>[];
 	}
 
 	export interface ChatRequest {
