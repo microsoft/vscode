@@ -246,10 +246,10 @@ export async function ensureAskpassScripts(
 		const stat = await fs.promises.stat(destPaths.askpass);
 		if (stat.isFile()) {
 			logger.trace(`[askpassManager] Using existing content-addressed askpass at ${askpassDir}`);
-			
+
 			// Update mtime to mark this directory as recently used
 			await updateDirectoryMtime(askpassDir, logger);
-			
+
 			return destPaths;
 		}
 	} catch {
