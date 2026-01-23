@@ -444,7 +444,7 @@ export class InlineCompletionsController extends Disposable {
 				// Only if this controller is in focus can we cancel others.
 				if (this._focusIsInEditorOrMenu.get()) {
 					for (const ctrl of InlineCompletionsController._instances) {
-						if (ctrl !== this) {
+						if (ctrl !== this && !ctrl._focusIsInEditorOrMenu.get()) {
 							ctrl.model.get()?.stop('automatic', tx);
 						}
 					}
