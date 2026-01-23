@@ -93,9 +93,10 @@
 	border-radius: 0;
 }
 
+.action-widget .monaco-scrollable-element .monaco-list-rows .monaco-list-row.separator:hover,
 .action-widget .monaco-scrollable-element .monaco-list-rows .monaco-list-row.separator.focused {
 	outline: 0 solid;
-	background-color: transparent;
+	background-color: transparent !important;
 	border-radius: 0;
 }
 
