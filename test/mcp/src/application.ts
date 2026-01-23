@@ -232,7 +232,7 @@ async function setup(): Promise<void> {
 	logger.log('Smoketest setup done!\n');
 }
 
-export async function getApplication({ recordVideo }: { recordVideo?: boolean } = {}) {
+export async function getApplication({ recordVideo, workspacePath }: { recordVideo?: boolean; workspacePath?: string } = {}) {
 	const testCodePath = getDevElectronPath();
 	const electronPath = testCodePath;
 	if (!fs.existsSync(electronPath || '')) {
@@ -252,7 +252,8 @@ export async function getApplication({ recordVideo }: { recordVideo?: boolean } 
 		quality,
 		version: parseVersion(version ?? '0.0.0'),
 		codePath: opts.build,
-		workspacePath: rootPath,
+		// Use provided workspace path, or fall back to rootPath on CI (GitHub Actions)
+		workspacePath: workspacePath ?? (process.env.GITHUB_ACTIONS ? rootPath : undefined),
 		logger,
 		logsPath: logsRootPath,
 		crashesPath: crashesRootPath,
@@ -292,12 +293,12 @@ export class ApplicationService {
 		return this._application;
 	}
 
-	async getOrCreateApplication({ recordVideo }: { recordVideo?: boolean } = {}): Promise<Application> {
+	async getOrCreateApplication({ recordVideo, workspacePath }: { recordVideo?: boolean; workspacePath?: string } = {}): Promise<Application> {
 		if (this._closing) {
 			await this._closing;
 		}
 		if (!this._application) {
-			this._application = await getApplication({ recordVideo });
+			this._application = await getApplication({ recordVideo, workspacePath });
 			this._application.code.driver.currentPage.on('close', () => {
 				this._closing = (async () => {
 					if (this._application) {

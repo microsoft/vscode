@@ -1180,12 +1180,12 @@ export class ExtensionManagementService extends CommontExtensionManagementServic
 		const trustedPublishers = this.storageService.getObject<IStringDictionary<IPublisherInfo>>(TrustedPublishersStorageKey, StorageScope.APPLICATION, {});
 		if (Array.isArray(trustedPublishers)) {
 			this.storageService.remove(TrustedPublishersStorageKey, StorageScope.APPLICATION);
-			return {};
+			return Object.create(null);
 		}
 		return Object.keys(trustedPublishers).reduce<IStringDictionary<IPublisherInfo>>((result, publisher) => {
 			result[publisher.toLowerCase()] = trustedPublishers[publisher];
 			return result;
-		}, {});
+		}, Object.create(null));
 	}
 }
 

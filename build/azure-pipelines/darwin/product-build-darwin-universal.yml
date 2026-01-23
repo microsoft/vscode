@@ -14,6 +14,13 @@ jobs:
           sbomBuildDropPath: $(Build.ArtifactStagingDirectory)/VSCode-darwin-$(VSCODE_ARCH)
           sbomPackageName: "VS Code macOS $(VSCODE_ARCH)"
           sbomPackageVersion: $(Build.SourceVersion)
+        - output: pipelineArtifact
+          targetPath: $(Build.ArtifactStagingDirectory)/out/vscode_client_darwin_$(VSCODE_ARCH)_dmg/VSCode-darwin-$(VSCODE_ARCH).dmg
+          artifactName: vscode_client_darwin_$(VSCODE_ARCH)_dmg
+          displayName: Publish client DMG
+          sbomBuildDropPath: $(Build.ArtifactStagingDirectory)/VSCode-darwin-$(VSCODE_ARCH)
+          sbomPackageName: "VS Code macOS $(VSCODE_ARCH)"
+          sbomPackageVersion: $(Build.SourceVersion)
     steps:
       - template: ../common/checkout.yml@self
 
@@ -112,8 +119,16 @@ jobs:
 
       - script: |
           set -e
-          mkdir -p $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive
-          pushd $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH) && zip -r -X -y $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin-$(VSCODE_ARCH).zip * && popd
+          DMG_OUT="$(Pipeline.Workspace)/vscode_client_darwin_$(VSCODE_ARCH)_dmg"
+          mkdir -p $DMG_OUT
+          node build/darwin/create-dmg.ts $(agent.builddirectory) $DMG_OUT
+          echo "##vso[task.setvariable variable=DMG_PATH]$DMG_OUT/VSCode-darwin-$(VSCODE_ARCH).dmg"
+        displayName: Create DMG installer
+
+      - script: |
+          set -e
+          mkdir -p $(Pipeline.Workspace)/vscode_client_darwin_$(VSCODE_ARCH)_archive
+          pushd $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH) && zip -r -X -y $(Pipeline.Workspace)/vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin-$(VSCODE_ARCH).zip * && popd
         displayName: Archive build
 
       - task: UseDotNet@2
@@ -132,17 +147,21 @@ jobs:
           Pattern: noop
         displayName: 'Install ESRP Tooling'
 
-      - script: node build/azure-pipelines/common/sign.ts $(Agent.RootDirectory)/_tasks/EsrpCodeSigning_*/*/net6.0/esrpcli.dll sign-darwin $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive VSCode-darwin-$(VSCODE_ARCH).zip
-        env:
-          SYSTEM_ACCESSTOKEN: $(System.AccessToken)
-        displayName: ✍️ Codesign
+      - pwsh: |
+          . build/azure-pipelines/win32/exec.ps1
+          $ErrorActionPreference = "Stop"
+          $EsrpCodeSigningTool = (gci -directory -filter EsrpCodeSigning_* $(Agent.RootDirectory)/_tasks | Select-Object -last 1).FullName
+          $Version = (gci -directory $EsrpCodeSigningTool | Select-Object -last 1).FullName
+          echo "##vso[task.setvariable variable=EsrpCliDllPath]$Version/net6.0/esrpcli.dll"
+        displayName: Find ESRP CLI
 
-      - script: node build/azure-pipelines/common/sign.ts $(Agent.RootDirectory)/_tasks/EsrpCodeSigning_*/*/net6.0/esrpcli.dll notarize-darwin $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive VSCode-darwin-$(VSCODE_ARCH).zip
+      - script: node build/azure-pipelines/darwin/codesign.ts
         env:
+          EsrpCliDllPath: $(EsrpCliDllPath)
           SYSTEM_ACCESSTOKEN: $(System.AccessToken)
-        displayName: ✍️ Notarize
+        displayName: ✍️ Codesign & Notarize
 
-      - script: unzip $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin-$(VSCODE_ARCH).zip -d $(Build.ArtifactStagingDirectory)/VSCode-darwin-$(VSCODE_ARCH)
+      - script: unzip $(Pipeline.Workspace)/vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin-$(VSCODE_ARCH).zip -d $(Build.ArtifactStagingDirectory)/VSCode-darwin-$(VSCODE_ARCH)
         displayName: Extract signed app
 
       - script: |
@@ -157,5 +176,8 @@ jobs:
       - script: |
           set -e
           mkdir -p $(Build.ArtifactStagingDirectory)/out/vscode_client_darwin_$(VSCODE_ARCH)_archive
-          mv $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin-$(VSCODE_ARCH).zip $(Build.ArtifactStagingDirectory)/out/vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin-$(VSCODE_ARCH).zip
+          mv $(Pipeline.Workspace)/vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin-$(VSCODE_ARCH).zip $(Build.ArtifactStagingDirectory)/out/vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin-$(VSCODE_ARCH).zip
+
+          mkdir -p $(Build.ArtifactStagingDirectory)/out/vscode_client_darwin_$(VSCODE_ARCH)_dmg
+          mv $(DMG_PATH) $(Build.ArtifactStagingDirectory)/out/vscode_client_darwin_$(VSCODE_ARCH)_dmg/VSCode-darwin-$(VSCODE_ARCH).dmg
         displayName: Move artifact to out directory

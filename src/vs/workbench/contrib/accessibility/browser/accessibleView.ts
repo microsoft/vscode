@@ -22,7 +22,7 @@ import { CodeEditorWidget, ICodeEditorWidgetOptions } from '../../../../editor/b
 import { IPosition, Position } from '../../../../editor/common/core/position.js';
 import { ITextModel } from '../../../../editor/common/model.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
-import { ITextModelContentProvider, ITextModelService } from '../../../../editor/common/services/resolverService.js';
+
 import { AccessibilityHelpNLS } from '../../../../editor/common/standaloneStrings.js';
 import { CodeActionController } from '../../../../editor/contrib/codeAction/browser/codeActionController.js';
 import { FloatingEditorToolbar } from '../../../../editor/contrib/floatingMenu/browser/floatingMenu.js';
@@ -66,7 +66,7 @@ interface ICodeBlock {
 	chatSessionResource: URI | undefined;
 }
 
-export class AccessibleView extends Disposable implements ITextModelContentProvider {
+export class AccessibleView extends Disposable {
 	private _editorWidget: CodeEditorWidget;
 
 	private _accessiblityHelpIsShown: IContextKey<boolean>;
@@ -111,7 +111,6 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 		@ICommandService private readonly _commandService: ICommandService,
 		@IChatCodeBlockContextProviderService private readonly _codeBlockContextProviderService: IChatCodeBlockContextProviderService,
 		@IStorageService private readonly _storageService: IStorageService,
-		@ITextModelService private readonly textModelResolverService: ITextModelService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService,
 	) {
@@ -167,7 +166,6 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 			readOnly: true,
 			fontFamily: 'var(--monaco-monospace-font)'
 		};
-		this.textModelResolverService.registerTextModelContentProvider(Schemas.accessibleView, this);
 
 		this._editorWidget = this._register(this._instantiationService.createInstance(CodeEditorWidget, this._container, editorOptions, codeEditorWidgetOptions));
 		this._register(this._accessibilityService.onDidChangeScreenReaderOptimized(() => {
@@ -214,10 +212,6 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 		} else if (lineContent?.startsWith('-')) {
 			this._accessibilitySignalService.playSignal(AccessibilitySignal.diffLineDeleted);
 		}
-	}
-
-	provideTextContent(resource: URI): Promise<ITextModel | null> | null {
-		return this._getTextModel(resource);
 	}
 
 	private _resetContextKeys(): void {
@@ -545,6 +539,10 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 		this._accessibleViewGoToSymbolSupported.set(this._goToSymbolsSupported() ? this.getSymbols()?.length! > 0 : false);
 	}
 
+	private _getStableUri(providerId: string): URI {
+		return URI.from({ path: `accessible-view-${providerId}`, scheme: Schemas.accessibleView });
+	}
+
 	private _updateContent(provider: AccesibleViewContentProvider, updatedContent?: string): void {
 		let content = updatedContent ?? provider.provideContent();
 		if (provider.options.type === AccessibleViewType.View) {
@@ -590,11 +588,20 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 		this.calculateCodeBlocks(this._currentContent);
 		this._updateContextKeys(provider, true);
 		const widgetIsFocused = this._editorWidget.hasTextFocus() || this._editorWidget.hasWidgetFocus();
-		this._getTextModel(URI.from({ path: `accessible-view-${provider.id}`, scheme: Schemas.accessibleView, fragment: this._currentContent })).then((model) => {
+		const stableUri = this._getStableUri(provider.id);
+		this._getTextModel(stableUri).then((model) => {
 			if (!model) {
 				return;
 			}
-			this._editorWidget.setModel(model);
+			// Update the content of the existing model instead of creating a new one
+			// This preserves the cursor position when content changes
+			const currentContent = this._currentContent ?? '';
+			if (model.getValue() !== currentContent) {
+				model.setValue(currentContent);
+			}
+			if (this._editorWidget.getModel() !== model) {
+				this._editorWidget.setModel(model);
+			}
 			const domNode = this._editorWidget.getDomNode();
 			if (!domNode) {
 				return;
@@ -720,7 +727,8 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 		if (existing && !existing.isDisposed()) {
 			return existing;
 		}
-		return this._modelService.createModel(resource.fragment, null, resource, false);
+		// Create an empty model - content will be set via setValue() to preserve cursor position
+		return this._modelService.createModel('', null, resource, false);
 	}
 
 	private _goToSymbolsSupported(): boolean {

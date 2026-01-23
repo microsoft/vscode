@@ -349,13 +349,33 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			}
 		};
 
+		// Restore maximized auxiliary bar when no editors, sidebar hidden, and panel hidden
+		const restoreMaximizedAuxiliaryBar = () => {
+			if (
+				this.mainPartEditorService.visibleEditors.length === 0 &&
+				!this.isVisible(Parts.SIDEBAR_PART) &&
+				!this.isVisible(Parts.PANEL_PART) &&
+				this.auxiliaryBarOpensMaximized()
+			) {
+				this.setAuxiliaryBarMaximized(true);
+			}
+		};
+
 		// Wait to register these listeners after the editor group service
 		// is ready to avoid conflicts on startup
 		this.editorGroupService.whenRestored.then(() => {
 
 			// Restore main editor part on any editor change in main part
-			this._register(this.mainPartEditorService.onDidVisibleEditorsChange(showEditorIfHidden));
+			this._register(this.mainPartEditorService.onDidVisibleEditorsChange(() => {
+				showEditorIfHidden();
+				restoreMaximizedAuxiliaryBar();
+			}));
 			this._register(this.editorGroupService.mainPart.onDidActivateGroup(showEditorIfHidden));
+
+			// Restore maximized auxiliary bar when sidebar or panel visibility changes
+			this._register(this.onDidChangePartVisibility(() => {
+				restoreMaximizedAuxiliaryBar();
+			}));
 
 			// Revalidate center layout when active editor changes: diff editor quits centered mode.
 			this._register(this.mainPartEditorService.onDidActiveEditorChange(() => this.centerMainEditorLayout(this.stateModel.getRuntimeValue(LayoutStateKeys.MAIN_EDITOR_CENTERED))));
@@ -773,10 +793,15 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Restore editors based on a set of rules:
 		// - never when running on temporary workspace
+		// - never when `workbench.editor.restoreEditors` is disabled
 		// - not when we have files to open, unless:
 		// - always when `window.restoreWindows: preserve`
 
 		if (isTemporaryWorkspace(contextService.getWorkspace())) {
+			return false;
+		}
+
+		if (this.configurationService.getValue<boolean>(WorkbenchLayoutSettings.EDITOR_RESTORE_EDITORS) === false) {
 			return false;
 		}
 
@@ -2154,6 +2179,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		return panelOpensMaximized === PartOpensMaximizedOptions.ALWAYS || (panelOpensMaximized === PartOpensMaximizedOptions.REMEMBER_LAST && panelLastIsMaximized);
 	}
 
+	private auxiliaryBarOpensMaximized(): boolean {
+		return this.configurationService.getValue(WorkbenchLayoutSettings.AUXILIARYBAR_DEFAULT_VISIBILITY) === 'maximized';
+	}
+
 	private setAuxiliaryBarHidden(hidden: boolean, skipLayout?: boolean): void {
 		if (hidden && this.setAuxiliaryBarMaximized(false) && !this.isVisible(Parts.AUXILIARYBAR_PART)) {
 			return; // return: leaving maximised auxiliary bar made this part hidden
@@ -2766,11 +2795,13 @@ interface ILayoutStateChangeEvent<T extends StorageKeyType> {
 
 enum WorkbenchLayoutSettings {
 	AUXILIARYBAR_DEFAULT_VISIBILITY = 'workbench.secondarySideBar.defaultVisibility',
+	AUXILIARYBAR_RESTORE_MAXIMIZED = 'workbench.secondarySideBar.restoreMaximized',
 	ACTIVITY_BAR_VISIBLE = 'workbench.activityBar.visible',
 	PANEL_POSITION = 'workbench.panel.defaultLocation',
 	PANEL_OPENS_MAXIMIZED = 'workbench.panel.opensMaximized',
 	ZEN_MODE_CONFIG = 'zenMode',
 	EDITOR_CENTERED_LAYOUT_AUTO_RESIZE = 'workbench.editor.centeredLayoutAutoResize',
+	EDITOR_RESTORE_EDITORS = 'workbench.editor.restoreEditors',
 }
 
 enum LegacyWorkbenchLayoutSettings {
@@ -2937,10 +2968,12 @@ class LayoutStateModel extends Disposable {
 
 	private applyOverrides(configuration: ILayoutStateLoadConfiguration): void {
 
-		// Auxiliary bar: Maximized setting (new workspaces)
-		if (this.isNew[StorageScope.WORKSPACE]) {
+		// Auxiliary bar: Maximized settings
+		const restoreAuxiliaryBarMaximized = this.configurationService.getValue(WorkbenchLayoutSettings.AUXILIARYBAR_RESTORE_MAXIMIZED);
+		if (this.isNew[StorageScope.WORKSPACE] || restoreAuxiliaryBarMaximized) {
 			const defaultAuxiliaryBarVisibility = this.configurationService.getValue(WorkbenchLayoutSettings.AUXILIARYBAR_DEFAULT_VISIBILITY);
 			if (
+				restoreAuxiliaryBarMaximized ||
 				defaultAuxiliaryBarVisibility === 'maximized' ||
 				(defaultAuxiliaryBarVisibility === 'maximizedInWorkspace' && this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY)
 			) {

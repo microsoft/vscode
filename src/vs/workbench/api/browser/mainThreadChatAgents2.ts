@@ -35,6 +35,7 @@ import { ChatRequestParser } from '../../contrib/chat/common/requestParser/chatR
 import { IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatNotebookEdit, IChatProgress, IChatService, IChatTask, IChatTaskSerialized, IChatWarningMessage } from '../../contrib/chat/common/chatService/chatService.js';
 import { IChatSessionsService } from '../../contrib/chat/common/chatSessionsService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../contrib/chat/common/constants.js';
+import { ILanguageModelToolsService } from '../../contrib/chat/common/tools/languageModelToolsService.js';
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
 import { IExtensionService } from '../../services/extensions/common/extensions.js';
 import { Dto } from '../../services/extensions/common/proxyIdentifier.js';
@@ -99,6 +100,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 
 	private readonly _promptFileProviders = this._register(new DisposableMap<number, IDisposable>());
 	private readonly _promptFileProviderEmitters = this._register(new DisposableMap<number, Emitter<void>>());
+	private readonly _promptFileContentRegistrations = this._register(new DisposableMap<number, DisposableMap<string, IDisposable>>());
 
 	private readonly _pendingProgress = new Map<string, { progress: (parts: IChatProgress[]) => void; chatSession: IChatModel | undefined }>();
 	private readonly _proxy: ExtHostChatAgentsShape2;
@@ -120,6 +122,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 		@IPromptsService private readonly _promptsService: IPromptsService,
+		@ILanguageModelToolsService private readonly _languageModelToolsService: ILanguageModelToolsService,
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostChatAgents2);
@@ -276,6 +279,24 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 						: await chatSession.editingSession.stopExternalEdits(response, responsePartHandle);
 					chatProgressParts.push(...parts);
 				}
+				continue;
+			}
+
+			if (progress.kind === 'beginToolInvocation') {
+				// Begin a streaming tool invocation
+				this._languageModelToolsService.beginToolCall({
+					toolCallId: progress.toolCallId,
+					toolId: progress.toolName,
+					chatRequestId: requestId,
+					sessionResource: chatSession?.sessionResource,
+					subagentInvocationId: progress.subagentInvocationId,
+				});
+				continue;
+			}
+
+			if (progress.kind === 'updateToolInvocation') {
+				// Update the streaming data for an existing tool invocation
+				this._languageModelToolsService.updateToolStream(progress.toolCallId, progress.streamData?.partialInput, CancellationToken.None);
 				continue;
 			}
 
@@ -451,6 +472,10 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		const emitter = new Emitter<void>();
 		this._promptFileProviderEmitters.set(handle, emitter);
 
+		// Track content registrations for this provider so they can be disposed when provider is unregistered
+		const contentRegistrations = new DisposableMap<string, IDisposable>();
+		this._promptFileContentRegistrations.set(handle, contentRegistrations);
+
 		const disposable = this._promptsService.registerPromptFileProvider(extension, type, {
 			onDidChangePromptFiles: emitter.event,
 			providePromptFiles: async (context: IPromptFileContext, token: CancellationToken) => {
@@ -458,11 +483,12 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 				if (!contributions) {
 					return undefined;
 				}
-				// Convert UriComponents to URI
-				return contributions.map(c => ({
-					...c,
-					uri: URI.revive(c.uri)
-				}));
+				// Convert UriComponents to URI and register any inline content
+				return contributions.map(c => {
+					return {
+						uri: URI.revive(c.uri),
+					};
+				});
 			}
 		});
 
@@ -472,6 +498,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 	$unregisterPromptFileProvider(handle: number): void {
 		this._promptFileProviders.deleteAndDispose(handle);
 		this._promptFileProviderEmitters.deleteAndDispose(handle);
+		this._promptFileContentRegistrations.deleteAndDispose(handle);
 	}
 
 	$onDidChangePromptFiles(handle: number): void {

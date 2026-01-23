@@ -463,11 +463,20 @@ export function registerChatActions() {
 			const viewsService = accessor.get(IViewsService);
 			const viewDescriptorService = accessor.get(IViewDescriptorService);
 			const widgetService = accessor.get(IChatWidgetService);
+			const configurationService = accessor.get(IConfigurationService);
 
 			const chatLocation = viewDescriptorService.getViewLocationById(ChatViewId);
 
 			if (viewsService.isViewVisible(ChatViewId)) {
-				this.updatePartVisibility(layoutService, chatLocation, false);
+				if (
+					chatLocation === ViewContainerLocation.AuxiliaryBar &&
+					configurationService.getValue<boolean>(ChatConfiguration.CommandCenterTriStateToggle) &&
+					!layoutService.isAuxiliaryBarMaximized()
+				) {
+					layoutService.setAuxiliaryBarMaximized(true);
+				} else {
+					this.updatePartVisibility(layoutService, chatLocation, false);
+				}
 			} else {
 				this.updatePartVisibility(layoutService, chatLocation, true);
 				(await widgetService.revealWidget())?.focusInput();
@@ -520,7 +529,7 @@ export function registerChatActions() {
 				}, {
 					id: MenuId.EditorTitle,
 					group: 'navigation',
-					when: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID), ChatContextKeys.lockedToCodingAgent.negate()),
+					when: ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID),
 					order: 1
 				}],
 			});
@@ -947,9 +956,9 @@ MenuRegistry.appendMenuItem(MenuId.CommandCenter, {
 			ChatContextKeys.Setup.hidden.negate(),
 			ChatContextKeys.Setup.disabled.negate()
 		),
-		ContextKeyExpr.has('config.chat.commandCenter.enabled')
+		ContextKeyExpr.has('config.chat.commandCenter.enabled'),
 	),
-	order: 10001 // to the right of command center
+	order: 10003 // to the right of agent controls
 });
 
 // Add to the global title bar if command center is disabled
@@ -1167,7 +1176,7 @@ registerAction2(class EditToolApproval extends Action2 {
 	async run(accessor: ServicesAccessor, scope?: 'workspace' | 'profile' | 'session'): Promise<void> {
 		const confirmationService = accessor.get(ILanguageModelToolsConfirmationService);
 		const toolsService = accessor.get(ILanguageModelToolsService);
-		confirmationService.manageConfirmationPreferences([...toolsService.getTools()], scope ? { defaultScope: scope } : undefined);
+		confirmationService.manageConfirmationPreferences([...toolsService.getAllToolsIncludingDisabled()], scope ? { defaultScope: scope } : undefined);
 	}
 });
 
@@ -1191,30 +1200,5 @@ registerAction2(class ToggleChatViewTitleAction extends Action2 {
 
 		const chatViewTitleEnabled = configurationService.getValue<boolean>(ChatConfiguration.ChatViewTitleEnabled);
 		await configurationService.updateValue(ChatConfiguration.ChatViewTitleEnabled, !chatViewTitleEnabled);
-	}
-});
-
-registerAction2(class ToggleChatViewWelcomeAction extends Action2 {
-	constructor() {
-		super({
-			id: 'workbench.action.chat.toggleChatViewWelcome',
-			title: localize2('chat.toggleChatViewWelcome.label', "Show Welcome"),
-			category: CHAT_CATEGORY,
-			precondition: ChatContextKeys.enabled,
-			toggled: ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewWelcomeEnabled}`, true),
-			menu: {
-				id: MenuId.ChatWelcomeContext,
-				group: '1_modify',
-				order: 3,
-				when: ChatContextKeys.inChatEditor.negate()
-			}
-		});
-	}
-
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const configurationService = accessor.get(IConfigurationService);
-
-		const chatViewWelcomeEnabled = configurationService.getValue<boolean>(ChatConfiguration.ChatViewWelcomeEnabled);
-		await configurationService.updateValue(ChatConfiguration.ChatViewWelcomeEnabled, !chatViewWelcomeEnabled);
 	}
 });
