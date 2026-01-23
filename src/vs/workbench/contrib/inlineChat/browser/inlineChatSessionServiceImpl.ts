@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, dispose, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { autorun, observableFromEvent } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
@@ -60,10 +60,8 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 			const agent = agentObs.read(r);
 			if (!agent) {
 				// No agent available, dispose all sessions
-				// Copy to array to avoid modifying the map while iterating
-				for (const session of [...this._sessions.values()]) {
-					session.dispose();
-				}
+				dispose(this._sessions.values());
+				this._sessions.clear();
 			}
 		}));
 	}
