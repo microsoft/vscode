@@ -246,7 +246,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			}
 
 			if (oldSessionsViewerShowRecentOnly !== this.sessionsViewerShowRecentOnly) {
-				this.notifySessionsControlShowRecentOnlyChanged(true /* layout */, true /* update */);
+				this.sessionsControl?.update();
 			}
 		}));
 
@@ -342,7 +342,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private sessionsNewButtonContainer: HTMLElement | undefined;
 	private sessionsControlContainer: HTMLElement | undefined;
 	private sessionsControl: AgentSessionsControl | undefined;
-	private sessionsCount = 0;
 	private sessionsViewerShowRecentOnly: boolean;
 	private sessionsViewerVisible: boolean;
 	private sessionsViewerOrientation = AgentSessionsViewerOrientation.Stacked;
@@ -355,7 +354,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private readonly sessionsViewerSashDisposables = this._register(new MutableDisposable<DisposableStore>());
 
 	private createSessionsControl(parent: HTMLElement): AgentSessionsControl {
-		const that = this;
 		const sessionsContainer = this.sessionsContainer = parent.appendChild($('.agent-sessions-container'));
 
 		// Sessions Title
@@ -377,9 +375,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		const sessionsFilter = this._register(this.instantiationService.createInstance(AgentSessionsFilter, {
 			filterMenuId: MenuId.AgentSessionsViewerFilterSubMenu,
 			groupResults: () => this.sessionsViewerShowRecentOnly ? AgentSessionsGrouping.Recency : AgentSessionsGrouping.Default,
-			notifyResults(count: number) {
-				that.notifySessionsControlCountChanged(count);
-			},
 		}));
 		this._register(Event.runAndSubscribe(sessionsFilter.onDidChange, () => {
 			sessionsToolbarContainer.classList.toggle('filtered', !sessionsFilter.isDefault());
@@ -449,27 +444,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		}
 
 		if (options.layout) {
-			this.relayout();
-		}
-	}
-
-	private notifySessionsControlShowRecentOnlyChanged(triggerLayout: boolean, triggerUpdate: boolean): Promise<void> {
-		const updatePromise = triggerUpdate ? this.sessionsControl?.update() : undefined;
-
-		if (triggerLayout) {
-			this.relayout();
-		}
-
-		return updatePromise ?? Promise.resolve();
-	}
-
-	private notifySessionsControlCountChanged(newSessionsCount?: number): void {
-		const countChanged = typeof newSessionsCount === 'number' && newSessionsCount !== this.sessionsCount;
-		this.sessionsCount = newSessionsCount ?? this.sessionsCount;
-
-		const { changed: visibilityChanged, visible } = this.updateSessionsControlVisibility();
-
-		if (visibilityChanged || (countChanged && visible)) {
 			this.relayout();
 		}
 	}
@@ -608,7 +582,10 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			if (this.sessionsViewerOrientation === AgentSessionsViewerOrientation.Stacked) {
 				sessionsControl.clearFocus(); // improve visual appearance when switching visibility by clearing focus
 			}
-			this.notifySessionsControlCountChanged();
+			const { changed: visibilityChanged } = this.updateSessionsControlVisibility();
+			if (visibilityChanged) {
+				this.relayout();
+			}
 		}));
 
 		// Track the active chat model and reveal it in the sessions control if side-by-side
@@ -886,19 +863,13 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		// Update show recent only state based on orientation change
 		if (oldSessionsViewerOrientation !== this.sessionsViewerOrientation) {
-			const oldSessionsViewerShowRecentOnly = this.sessionsViewerShowRecentOnly;
 			if (this.sessionsViewerOrientation === AgentSessionsViewerOrientation.SideBySide) {
 				this.sessionsViewerShowRecentOnly = false; // side by side always shows all
 			} else {
 				this.sessionsViewerShowRecentOnly = this.configurationService.getValue<boolean>(ChatConfiguration.ChatViewSessionsShowRecentOnly) ?? false;
 			}
 
-			let updatePromise: Promise<void>;
-			if (oldSessionsViewerShowRecentOnly !== this.sessionsViewerShowRecentOnly) {
-				updatePromise = this.notifySessionsControlShowRecentOnlyChanged(false /* already in layout */, true /* update */);
-			} else {
-				updatePromise = this.sessionsControl?.update(); // still need to update for section visibility
-			}
+			const updatePromise = this.sessionsControl?.update();
 
 			// Switching to side-by-side, reveal the current session after elements have loaded
 			if (this.sessionsViewerOrientation === AgentSessionsViewerOrientation.SideBySide) {
