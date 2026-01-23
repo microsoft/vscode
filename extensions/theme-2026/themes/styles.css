@@ -338,6 +338,16 @@
 	border-radius: var(--radius-xl);
 }
 
+.monaco-workbench .chat-editor-overlay-widget, .monaco-workbench .chat-diff-change-content-widget {
+	backdrop-filter: var(--backdrop-blur-md);
+	-webkit-backdrop-filter: var(--backdrop-blur-md);
+	background-color: var(--vscode-editorWidget-background);
+}
+
+.monaco-workbench.vs-dark .chat-editor-overlay-widget, .monaco-workbench.vs-dark .chat-diff-change-content-widget {
+	border: 1px solid var(--vscode-menu-border) !important;
+}
+
 /* Remove Borders */
 .monaco-workbench.vs .part.sidebar { border-right: none !important; border-left: none !important; }
 .monaco-workbench.vs .part.auxiliarybar { border-right: none !important; border-left: none !important; }
