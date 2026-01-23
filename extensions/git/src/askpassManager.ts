@@ -184,8 +184,6 @@ async function garbageCollectOldDirectories(
 
 					// Remove the directory and all its contents
 					await fs.promises.rm(entryPath, { recursive: true, force: true });
-
-					logger.info(`[askpassManager] Successfully removed old askpass directory: ${entryPath}`);
 				} else {
 					logger.trace(`[askpassManager] Keeping askpass directory: ${entryPath} (last used: ${stat.mtime.toISOString()})`);
 				}
@@ -214,7 +212,7 @@ export interface AskpassPaths {
  * @param storageDir The user-controlled storage directory (context.storageUri.fsPath)
  * @param logger Logger for diagnostic output
  */
-async function ensureAskpassScripts(
+export async function ensureAskpassScripts(
 	sourceDir: string,
 	storageDir: string,
 	logger: LogOutputChannel

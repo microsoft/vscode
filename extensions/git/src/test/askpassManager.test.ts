@@ -8,7 +8,7 @@ import * as assert from 'assert';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import { getAskpassPaths } from '../askpassManager';
+import { ensureAskpassScripts } from '../askpassManager';
 import { Event, EventEmitter, LogLevel, LogOutputChannel } from 'vscode';
 
 class MockLogOutputChannel implements LogOutputChannel {
@@ -83,11 +83,6 @@ suite('askpassManager', () => {
 	});
 
 	test('garbage collection removes old directories', async function () {
-		// Skip this test on non-Windows or if we can't detect the platform
-		if (process.platform !== 'win32') {
-			this.skip();
-		}
-
 		const storageDir = path.join(tempDir, 'storage');
 		const askpassBaseDir = path.join(storageDir, 'askpass');
 		const logger = new MockLogOutputChannel();
@@ -110,11 +105,8 @@ suite('askpassManager', () => {
 		await fs.promises.writeFile(path.join(recentDir, 'test.txt'), 'recent');
 		await setDirectoryMtime(recentDir, recentDate);
 
-		// Call getAskpassPaths which should trigger garbage collection
-		await getAskpassPaths(sourceDir, storageDir, logger);
-
-		// Wait a bit for async cleanup
-		await new Promise(resolve => setTimeout(resolve, 100));
+		// Call ensureAskpassScripts which should trigger garbage collection when creating a new directory
+		await ensureAskpassScripts(sourceDir, storageDir, logger);
 
 		// Check that old directories were removed
 		for (const dirName of oldDirs) {
@@ -132,11 +124,6 @@ suite('askpassManager', () => {
 	});
 
 	test('garbage collection skips non-directory entries', async function () {
-		// Skip this test on non-Windows or if we can't detect the platform
-		if (process.platform !== 'win32') {
-			this.skip();
-		}
-
 		const storageDir = path.join(tempDir, 'storage');
 		const askpassBaseDir = path.join(storageDir, 'askpass');
 		const logger = new MockLogOutputChannel();
@@ -150,11 +137,8 @@ suite('askpassManager', () => {
 		const oldDate = new Date(Date.now() - (8 * 24 * 60 * 60 * 1000));
 		await fs.promises.utimes(filePath, oldDate, oldDate);
 
-		// Call getAskpassPaths which should trigger garbage collection
-		await getAskpassPaths(sourceDir, storageDir, logger);
-
-		// Wait a bit for async cleanup
-		await new Promise(resolve => setTimeout(resolve, 100));
+		// Call ensureAskpassScripts which should trigger garbage collection
+		await ensureAskpassScripts(sourceDir, storageDir, logger);
 
 		// Check that file still exists (should not be removed)
 		const exists = await fs.promises.access(filePath).then(() => true).catch(() => false);
@@ -162,16 +146,11 @@ suite('askpassManager', () => {
 	});
 
 	test('mtime is updated on existing directory', async function () {
-		// Skip this test on non-Windows or if we can't detect the platform
-		if (process.platform !== 'win32') {
-			this.skip();
-		}
-
 		const storageDir = path.join(tempDir, 'storage');
 		const logger = new MockLogOutputChannel();
 
-		// Call getAskpassPaths to create the directory
-		const paths1 = await getAskpassPaths(sourceDir, storageDir, logger);
+		// Call ensureAskpassScripts to create the directory
+		const paths1 = await ensureAskpassScripts(sourceDir, storageDir, logger);
 
 		// Get the directory path and its initial mtime
 		const askpassDir = path.dirname(paths1.askpass);
@@ -182,7 +161,7 @@ suite('askpassManager', () => {
 		await new Promise(resolve => setTimeout(resolve, 100));
 
 		// Call again (should update mtime)
-		await getAskpassPaths(sourceDir, storageDir, logger);
+		await ensureAskpassScripts(sourceDir, storageDir, logger);
 
 		// Check that mtime was updated
 		const stat2 = await fs.promises.stat(askpassDir);
@@ -192,32 +171,22 @@ suite('askpassManager', () => {
 	});
 
 	test('garbage collection handles empty askpass directory', async function () {
-		// Skip this test on non-Windows or if we can't detect the platform
-		if (process.platform !== 'win32') {
-			this.skip();
-		}
-
 		const storageDir = path.join(tempDir, 'storage');
 		const logger = new MockLogOutputChannel();
 
-		// Don't create any askpass directories, just call getAskpassPaths
-		await getAskpassPaths(sourceDir, storageDir, logger);
+		// Don't create any askpass directories, just call ensureAskpassScripts
+		await ensureAskpassScripts(sourceDir, storageDir, logger);
 
 		// Should complete without errors
 		assert.ok(true, 'Should handle empty or non-existent askpass directory gracefully');
 	});
 
 	test('current content-addressed directory is not removed', async function () {
-		// Skip this test on non-Windows or if we can't detect the platform
-		if (process.platform !== 'win32') {
-			this.skip();
-		}
-
 		const storageDir = path.join(tempDir, 'storage');
 		const logger = new MockLogOutputChannel();
 
 		// Create the current content-addressed directory
-		const paths = await getAskpassPaths(sourceDir, storageDir, logger);
+		const paths = await ensureAskpassScripts(sourceDir, storageDir, logger);
 		const currentDir = path.dirname(paths.askpass);
 
 		// Set its mtime to 8 days ago (would normally be removed)
@@ -225,10 +194,7 @@ suite('askpassManager', () => {
 		await setDirectoryMtime(currentDir, oldDate);
 
 		// Call again which should trigger GC
-		await getAskpassPaths(sourceDir, storageDir, logger);
-
-		// Wait a bit for async cleanup
-		await new Promise(resolve => setTimeout(resolve, 100));
+		await ensureAskpassScripts(sourceDir, storageDir, logger);
 
 		// Current directory should still exist
 		const exists = await fs.promises.access(currentDir).then(() => true).catch(() => false);
