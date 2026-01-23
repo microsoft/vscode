@@ -112,6 +112,7 @@ async function checkCopilotChatCompatibility(): Promise<void> {
 }
 
 async function main(): Promise<void> {
+	console.log(JSON.stringify(JSON.parse(fs.readFileSync('product.json', 'utf8')), null, 2));
 	await checkCopilotChatCompatibility();
 }
 
