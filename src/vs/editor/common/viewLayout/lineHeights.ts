@@ -248,18 +248,18 @@ export class LineHeightsManager {
 			startIndexOfInsertion = -(candidateStartIndexOfInsertion + 1);
 		}
 		const maxLineHeightPerLine = new Map<number, number>();
-		for (const lineHeight of lineHeightsAdded) {
-			for (let lineNumber = lineHeight.startLineNumber; lineNumber <= lineHeight.endLineNumber; lineNumber++) {
+		for (const lineHeightAdded of lineHeightsAdded) {
+			for (let lineNumber = lineHeightAdded.startLineNumber; lineNumber <= lineHeightAdded.endLineNumber; lineNumber++) {
 				if (lineNumber >= fromLineNumber && lineNumber <= toLineNumber) {
 					const currentMax = maxLineHeightPerLine.get(lineNumber) ?? this._defaultLineHeight;
-					maxLineHeightPerLine.set(lineNumber, Math.max(currentMax, lineHeight.lineHeight));
+					maxLineHeightPerLine.set(lineNumber, Math.max(currentMax, lineHeightAdded.lineHeight));
 				}
 			}
 			this.insertOrChangeCustomLineHeight(
-				lineHeight.decorationId,
-				lineHeight.startLineNumber,
-				lineHeight.endLineNumber,
-				lineHeight.lineHeight
+				lineHeightAdded.decorationId,
+				lineHeightAdded.startLineNumber,
+				lineHeightAdded.endLineNumber,
+				lineHeightAdded.lineHeight
 			);
 		}
 		const toReAdd: CustomLineHeightData[] = [];
