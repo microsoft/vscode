@@ -30,6 +30,7 @@ import { BrowserOverlayManager, BrowserOverlayType, IBrowserOverlayInfo } from '
 import { getZoomFactor, onDidChangeZoomLevel } from '../../../../base/browser/browser.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { WorkbenchHoverDelegate } from '../../../../platform/hover/browser/hover.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
@@ -178,6 +179,7 @@ export class BrowserEditor extends EditorPane {
 	private readonly _inputDisposables = this._register(new DisposableStore());
 	private overlayManager: BrowserOverlayManager | undefined;
 	private _elementSelectionCts: CancellationTokenSource | undefined;
+	private readonly _layoutBrowserContainerDebouncer = this._register(new RunOnceScheduler(() => this._doLayoutBrowserContainer(), 4 /* ms delay */));
 
 	constructor(
 		group: IEditorGroup,
@@ -725,19 +727,38 @@ export class BrowserEditor extends EditorPane {
 	}
 
 	override layout(_dimension: Dimension, _position?: IDomPosition): void {
-		// no-op: layout is handled in layoutBrowserContainer()
+		this.layoutBrowserContainer();
 	}
 
 	/**
 	 * This should be called whenever .browser-container changes in size, or when
 	 * there could be any elements, such as the command palette, overlapping with it.
 	 *
-	 * Note that we don't call layoutBrowserContainer() from layout() but instead rely on using a ResizeObserver and on
-	 * making direct calls to it. This is because we have seen cases where the getBoundingClientRect() values of
-	 * the .browser-container element are not correct during layout() calls, especially during "Move into New Window"
-	 * and "Copy into New Window" operations into a different monitor.
+	 * This method is called from layout() as well as from a ResizeObserver because each one
+	 * of them is better than the other in certain scenarios.
+	 *
+	 * ResizeObserver is better during "Copy into New Window" and "Move into New Window". It
+	 * is needed because getBoundingClientRect() values of the .browser-container element are
+	 * sometimes not correct during layout() calls, especially during "Move into New Window"
+	 * and "Copy into New Window" operations.
+	 *
+	 * layout() is better when resizing a popped out window, because in those cases
+	 * ResizeObserver only triggers after the user stops dragging the window border,
+	 * while layout() triggers continuously during the resize. It should be noted that
+	 * this behavior is exclusive to a popped out window; when in the regular window,
+	 * ResizeObserver triggers continuously during resize as expected.
+	 *
+	 * Both methods seem equally good when only working on the main application window
+	 * (not a popped out window).
+	 *
+	 * This method is debounced to avoid excessive calls when both layout() and
+	 * ResizeObserver trigger close together.
 	 */
 	layoutBrowserContainer(): void {
+		this._layoutBrowserContainerDebouncer.schedule();
+	}
+
+	private _doLayoutBrowserContainer(): void {
 		if (this._model) {
 			this.checkOverlays();
 
