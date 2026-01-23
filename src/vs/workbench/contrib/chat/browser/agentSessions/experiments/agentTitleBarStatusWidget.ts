@@ -668,6 +668,7 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 			{ skipTelemetry: true }
 		);
 		sparkleDropdown.render(sparkleContainer);
+		sparkleDropdown.setFocusable(true);
 		disposables.add(sparkleDropdown);
 
 		// Hover delegate for status sections
