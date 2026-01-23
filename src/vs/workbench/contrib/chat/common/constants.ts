@@ -43,7 +43,6 @@ export enum ChatConfiguration {
 	ExitAfterDelegation = 'chat.exitAfterDelegation',
 	CommandCenterTriStateToggle = 'chat.commandCenter.triStateToggle',
 	ExplainChangesEnabled = 'chat.editing.explainChanges.enabled',
-	ImplementationAgentModel = 'chat.implementationAgentModel',
 }
 
 /**
