@@ -32,7 +32,11 @@ jobs:
       TEST_DIR: $(Build.SourcesDirectory)/test/sanity
       LOG_FILE: $(TEST_DIR)/results.xml
     steps:
-      - template: ./checkout.yml@self
+      - checkout: self
+        fetchDepth: 1
+        fetchTags: false
+        sparseCheckoutDirectories: test/sanity .nvmrc
+        displayName: Checkout test/sanity
 
       - task: NodeTool@0
         inputs:
