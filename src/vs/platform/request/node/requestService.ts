@@ -21,6 +21,8 @@ import { AbstractRequestService, AuthInfo, Credentials, IRequestService, systemC
 import { Agent, getProxyAgent } from './proxy.js';
 import { createGunzip } from 'zlib';
 
+const TransientErrorRegex = /EPROTO|ECONNRESET|ECONNREFUSED|ENETUNREACH|ETIMEDOUT|EAI_AGAIN|socket hang up|SSL routines/;
+
 export interface IRawRequestFunction {
 	(options: http.RequestOptions, callback?: (res: http.IncomingMessage) => void): http.ClientRequest;
 }
@@ -153,6 +155,31 @@ async function getNodeRequest(options: IRequestOptions): Promise<IRawRequestFunc
 }
 
 export async function nodeRequest(options: NodeRequestOptions, token: CancellationToken): Promise<IRequestContext> {
+	const maxRetries = 3;
+	let lastError: Error | undefined;
+
+	for (let attempt = 1; attempt <= maxRetries; attempt++) {
+		try {
+			return await nodeRequestAttempt(options, token);
+		} catch (error) {
+			lastError = error as Error;
+			if (error instanceof CancellationError) {
+				throw error;
+			}
+
+			const isTransientError = TransientErrorRegex.test(getErrorMessage(error));
+			if (!isTransientError || attempt === maxRetries) {
+				throw error;
+			}
+
+			await new Promise(resolve => setTimeout(resolve, 100 * attempt));
+		}
+	}
+
+	throw lastError;
+}
+
+async function nodeRequestAttempt(options: NodeRequestOptions, token: CancellationToken): Promise<IRequestContext> {
 	return Promises.withAsyncBody<IRequestContext>(async (resolve, reject) => {
 		const endpoint = parseUrl(options.url!);
 		const rawRequest = options.getRawRequest
