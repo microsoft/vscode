@@ -211,6 +211,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 	private readonly _showOutputAction = this._register(new MutableDisposable<ToggleChatTerminalOutputAction>());
 	private _showOutputActionAdded = false;
 	private readonly _focusAction = this._register(new MutableDisposable<FocusChatInstanceAction>());
+	private readonly _continueInBackgroundAction = this._register(new MutableDisposable<ContinueInBackgroundAction>());
 
 	private readonly _terminalData: IChatTerminalToolInvocationData;
 	private _terminalCommandUri: URI | undefined;
@@ -384,7 +385,8 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			: commandText;
 
 		const isComplete = IChatToolInvocation.isComplete(toolInvocation);
-		const hasError = this._terminalData.terminalCommandState?.exitCode !== undefined && this._terminalData.terminalCommandState.exitCode !== 0;
+		const autoExpandFailures = this._configurationService.getValue<boolean>(ChatConfiguration.AutoExpandToolFailures);
+		const hasError = autoExpandFailures && this._terminalData.terminalCommandState?.exitCode !== undefined && this._terminalData.terminalCommandState.exitCode !== 0;
 		const initialExpanded = !isComplete || hasError;
 
 		const wrapper = this._register(this._instantiationService.createInstance(
@@ -457,6 +459,14 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			});
 			this._terminalSessionRegistration = this._store.add(listener);
 		}
+
+		// Listen for continue in background to remove the button
+		this._store.add(this._terminalChatService.onDidContinueInBackground(sessionId => {
+			if (sessionId === terminalToolSessionId) {
+				this._terminalData.didContinueInBackground = true;
+				this._removeContinueInBackgroundAction();
+			}
+		}));
 	}
 
 	private _addActions(terminalInstance?: ITerminalInstance, terminalToolSessionId?: string): void {
@@ -467,11 +477,24 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		this._removeFocusAction();
 		const resolvedCommand = this._getResolvedCommand(terminalInstance);
 
+		this._removeContinueInBackgroundAction();
 		if (terminalInstance) {
 			const isTerminalHidden = terminalInstance && terminalToolSessionId ? this._terminalChatService.isBackgroundTerminal(terminalToolSessionId) : false;
 			const focusAction = this._instantiationService.createInstance(FocusChatInstanceAction, terminalInstance, resolvedCommand, this._terminalCommandUri, this._storedCommandId, isTerminalHidden);
 			this._focusAction.value = focusAction;
 			actionBar.push(focusAction, { icon: true, label: false, index: 0 });
+
+			// Add continue in background action - only for foreground executions with running commands
+			// Note: isBackground refers to whether the tool was invoked with isBackground=true (background execution),
+			// not whether the terminal is hidden from the user
+			if (terminalToolSessionId && !this._terminalData.isBackground && !this._terminalData.didContinueInBackground) {
+				const isStillRunning = resolvedCommand?.exitCode === undefined && this._terminalData.terminalCommandState?.exitCode === undefined;
+				if (isStillRunning) {
+					const continueAction = this._instantiationService.createInstance(ContinueInBackgroundAction, terminalToolSessionId);
+					this._continueInBackgroundAction.value = continueAction;
+					actionBar.push(continueAction, { icon: true, label: false, index: 0 });
+				}
+			}
 		}
 
 		this._ensureShowOutputAction(resolvedCommand);
@@ -503,8 +526,9 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		if (!showOutputAction) {
 			showOutputAction = this._instantiationService.createInstance(ToggleChatTerminalOutputAction, () => this._toggleOutputFromAction());
 			this._showOutputAction.value = showOutputAction;
+			const autoExpandFailures = this._configurationService.getValue<boolean>(ChatConfiguration.AutoExpandToolFailures);
 			const exitCode = resolvedCommand?.exitCode ?? this._terminalData.terminalCommandState?.exitCode;
-			if (exitCode) {
+			if (exitCode !== undefined && exitCode !== 0 && autoExpandFailures) {
 				this._toggleOutput(true);
 			}
 		}
@@ -616,7 +640,8 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 					this._toggleOutput(false);
 				}
 				// keep outer wrapper expanded on error
-				if (resolvedCommand?.exitCode !== undefined && resolvedCommand.exitCode !== 0 && this._thinkingCollapsibleWrapper) {
+				const autoExpandFailures = this._configurationService.getValue<boolean>(ChatConfiguration.AutoExpandToolFailures);
+				if (autoExpandFailures && resolvedCommand?.exitCode !== undefined && resolvedCommand.exitCode !== 0 && this._thinkingCollapsibleWrapper) {
 					this.expandCollapsibleWrapper();
 				}
 				if (resolvedCommand?.endMarker) {
@@ -633,7 +658,8 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 					this._toggleOutput(false);
 				}
 				// keep outer wrapper expanded on error
-				if (resolvedImmediately.exitCode !== undefined && resolvedImmediately.exitCode !== 0 && this._thinkingCollapsibleWrapper) {
+				const autoExpandFailures = this._configurationService.getValue<boolean>(ChatConfiguration.AutoExpandToolFailures);
+				if (autoExpandFailures && resolvedImmediately.exitCode !== undefined && resolvedImmediately.exitCode !== 0 && this._thinkingCollapsibleWrapper) {
 					this.expandCollapsibleWrapper();
 				}
 				return;
@@ -673,6 +699,21 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			}
 		}
 		this._focusAction.clear();
+	}
+
+	private _removeContinueInBackgroundAction(): void {
+		if (this._store.isDisposed) {
+			return;
+		}
+		const actionBar = this._actionBar;
+		const continueAction = this._continueInBackgroundAction.value;
+		if (actionBar && continueAction) {
+			const existingIndex = actionBar.viewItems.findIndex(item => item.action === continueAction);
+			if (existingIndex >= 0) {
+				actionBar.pull(existingIndex);
+			}
+		}
+		this._continueInBackgroundAction.clear();
 	}
 
 	private async _toggleOutput(expanded: boolean): Promise<boolean> {
@@ -1447,6 +1488,24 @@ export class FocusChatInstanceAction extends Action implements IAction {
 
 	private _updateTooltip(): void {
 		this.tooltip = this._keybindingService.appendKeybinding(this.label, TerminalContribCommandId.FocusMostRecentChatTerminal);
+	}
+}
+
+export class ContinueInBackgroundAction extends Action implements IAction {
+	constructor(
+		private readonly _terminalToolSessionId: string,
+		@ITerminalChatService private readonly _terminalChatService: ITerminalChatService,
+	) {
+		super(
+			TerminalContribCommandId.ContinueInBackground,
+			localize('continueInBackground', 'Continue in Background'),
+			ThemeIcon.asClassName(Codicon.debugContinue),
+			true,
+		);
+	}
+
+	public override async run(): Promise<void> {
+		this._terminalChatService.continueInBackground(this._terminalToolSessionId);
 	}
 }
 

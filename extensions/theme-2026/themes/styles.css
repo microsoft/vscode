@@ -83,7 +83,8 @@
 .monaco-workbench .quick-input-widget .monaco-list,
 .monaco-workbench .quick-input-widget .monaco-list-row { border-color: transparent !important; outline: none !important; }
 .monaco-workbench .quick-input-widget .monaco-inputbox { box-shadow: none !important; background: transparent !important; }
-.monaco-workbench.vs-dark .quick-input-widget .quick-input-filter .monaco-inputbox,
+.monaco-workbench .quick-input-widget .quick-input-filter .monaco-inputbox { background: rgba(249, 250, 251, 0.4) !important; border-radius: 6px; }
+.monaco-workbench.vs-dark .quick-input-widget .quick-input-filter .monaco-inputbox { background: rgba(37, 40, 41, 0.4) !important; border-radius: 6px; }
 
 .monaco-workbench .quick-input-widget .monaco-list.list_id_6:not(.drop-target):not(.dragging) .monaco-list-row:hover:not(.selected):not(.focused) { background-color: color-mix(in srgb, var(--vscode-list-hoverBackground) 40%, transparent); }
 
@@ -156,7 +157,11 @@
 .monaco-workbench.vs .monaco-editor .suggest-widget { background: rgba(252, 252, 253, 0.85) !important; }
 
 /* Find Widget */
-.monaco-workbench .monaco-editor .find-widget { box-shadow: 0 0 8px rgba(0, 0, 0, 0.12); border: none; border-radius: 8px; }
+.monaco-workbench .monaco-editor .find-widget {
+	box-shadow: 0 0 8px rgba(0, 0, 0, 0.12); border: none; border-radius: 8px;
+	backdrop-filter: blur(20px) saturate(180%); -webkit-backdrop-filter: blur(20px) saturate(180%);
+	top: 4px !important;
+}
 
 /* Dialog */
 .monaco-workbench .monaco-dialog-box { box-shadow: 0 0 20px rgba(0, 0, 0, 0.18); border: none; border-radius: 12px; overflow: hidden; }
@@ -182,7 +187,6 @@
 .monaco-workbench .extensions-list .extension-list-item:hover { box-shadow: 0 0 6px rgba(0, 0, 0, 0.10); }
 
 /* Breadcrumbs */
-.monaco-workbench .part.editor > .content .editor-group-container > .title .breadcrumbs-control { box-shadow: 0 0 6px rgba(0, 0, 0, 0.08) !important; background: rgba(252, 252, 253, 0.65) !important; backdrop-filter: blur(40px) saturate(180%) !important; -webkit-backdrop-filter: blur(40px) saturate(180%) !important; }
 .monaco-workbench.vs-dark .part.editor > .content .editor-group-container > .title .breadcrumbs-control,
 
 /* Input Boxes */
@@ -260,8 +264,8 @@
 /* Command Center */
 .monaco-workbench .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center .action-item.command-center-center { box-shadow: inset 0 0 8px rgba(0, 0, 0, 0.09) !important; border-radius: 8px !important; background: rgba(249, 250, 251, 0.55) !important; backdrop-filter: blur(24px) saturate(150%); -webkit-backdrop-filter: blur(24px) saturate(150%); overflow: visible !important; }
 .monaco-workbench .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center .action-item.command-center-center:hover { box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.11) !important; background: rgba(249, 250, 251, 0.70) !important; }
-.monaco-workbench.vs-dark .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center .action-item.command-center-center,
-.monaco-workbench.vs-dark .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center .action-item.command-center-center:hover,
+.monaco-workbench.vs-dark .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center .action-item.command-center-center { box-shadow: inset 0 0 8px rgba(0, 0, 0, 0.15) !important; border-radius: 8px !important; background: rgba(37, 40, 41, 0.55) !important; backdrop-filter: blur(24px) saturate(150%); -webkit-backdrop-filter: blur(24px) saturate(150%); overflow: visible !important; }
+.monaco-workbench.vs-dark .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center .action-item.command-center-center:hover { box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.18) !important; background: rgba(37, 40, 41, 0.70) !important; }
 .monaco-workbench .part.titlebar .command-center .agent-status-pill {
 	box-shadow: inset 0 0 4px rgba(0, 0, 0, 0.08);
 }

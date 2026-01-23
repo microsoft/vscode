@@ -239,6 +239,18 @@ export interface ITerminalChatService {
 	 * @returns A record of all session-scoped auto-approve rules for the session
 	 */
 	getSessionAutoApproveRules(chatSessionResource: URI): Readonly<Record<string, boolean | { approve: boolean; matchCommandLine?: boolean }>>;
+
+	/**
+	 * Signal that a foreground terminal tool invocation should continue in the background.
+	 * This causes the tool to return its current output immediately while the terminal keeps running.
+	 * @param terminalToolSessionId The tool session ID to continue in background
+	 */
+	continueInBackground(terminalToolSessionId: string): void;
+
+	/**
+	 * Event fired when a terminal tool invocation should continue in the background.
+	 */
+	readonly onDidContinueInBackground: Event<string>;
 }
 
 /**

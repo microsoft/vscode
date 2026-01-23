@@ -4,12 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from '../../../base/common/event.js';
-import { Disposable } from '../../../base/common/lifecycle.js';
 import { IChannel, IServerChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { URI, UriDto } from '../../../base/common/uri.js';
-import { DidChangeProfilesEvent, IUserDataProfile, IUserDataProfileOptions, IUserDataProfilesService, IUserDataProfileUpdateOptions, reviveProfile } from './userDataProfile.js';
+import { AbstractUserDataProfilesService, DidChangeProfilesEvent, IUserDataProfile, IUserDataProfileOptions, IUserDataProfilesService, IUserDataProfileUpdateOptions, reviveProfile } from './userDataProfile.js';
 import { IAnyWorkspaceIdentifier } from '../../workspace/common/workspace.js';
 import { IURITransformer, transformIncomingURIs, transformOutgoingURIs } from '../../../base/common/uriIpc.js';
+import { IFileService } from '../../files/common/files.js';
+import { ILogService } from '../../log/common/log.js';
+import { IUriIdentityService } from '../../uriIdentity/common/uriIdentity.js';
 
 export class RemoteUserDataProfilesServiceChannel implements IServerChannel {
 
@@ -54,9 +56,7 @@ export class RemoteUserDataProfilesServiceChannel implements IServerChannel {
 	}
 }
 
-export class UserDataProfilesService extends Disposable implements IUserDataProfilesService {
-
-	readonly _serviceBrand: undefined;
+export class UserDataProfilesService extends AbstractUserDataProfilesService implements IUserDataProfilesService {
 
 	get defaultProfile(): IUserDataProfile { return this.profiles[0]; }
 	private _profiles: IUserDataProfile[] = [];
@@ -71,8 +71,11 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 		profiles: readonly UriDto<IUserDataProfile>[],
 		readonly profilesHome: URI,
 		private readonly channel: IChannel,
+		fileService: IFileService,
+		uriIdentityService: IUriIdentityService,
+		logService: ILogService
 	) {
-		super();
+		super(fileService, uriIdentityService, logService);
 		this._profiles = profiles.map(profile => reviveProfile(profile, this.profilesHome.scheme));
 		this._register(this.channel.listen<DidChangeProfilesEvent>('onDidChangeProfiles')(e => {
 			const added = e.added.map(profile => reviveProfile(profile, this.profilesHome.scheme));
@@ -91,6 +94,11 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 
 	async createProfile(id: string, name: string, options?: IUserDataProfileOptions, workspaceIdentifier?: IAnyWorkspaceIdentifier): Promise<IUserDataProfile> {
 		const result = await this.channel.call<UriDto<IUserDataProfile>>('createProfile', [id, name, options, workspaceIdentifier]);
+		return reviveProfile(result, this.profilesHome.scheme);
+	}
+
+	async createSystemProfile(id: string): Promise<IUserDataProfile> {
+		const result = await this.channel.call<UriDto<IUserDataProfile>>('createSystemProfile', [id]);
 		return reviveProfile(result, this.profilesHome.scheme);
 	}
 
@@ -124,4 +132,7 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 		return this.channel.call('cleanUpTransientProfiles');
 	}
 
+	updateStoredProfileTemplate(profile: IUserDataProfile): Promise<void> {
+		return this.channel.call('updateStoredProfileTemplate', [profile]);
+	}
 }

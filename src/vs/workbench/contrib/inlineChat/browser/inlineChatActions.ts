@@ -56,6 +56,7 @@ export class StartSessionAction extends Action2 {
 		super({
 			id: ACTION_START,
 			title: localize2('run', 'Open Inline Chat'),
+			shortTitle: localize2('runShort', 'Inline Chat'),
 			category: AbstractInlineChatAction.category,
 			f1: true,
 			precondition: inlineChatContextKey,
@@ -78,6 +79,11 @@ export class StartSessionAction extends Action2 {
 				id: MenuId.ChatEditorInlineGutter,
 				group: '1_chat',
 				order: 1,
+			}, {
+				id: MenuId.InlineChatEditorAffordance,
+				group: '1_chat',
+				order: 1,
+				when: EditorContextKeys.hasNonEmptySelection
 			}]
 		});
 	}
@@ -323,7 +329,10 @@ export class UndoAndCloseSessionAction2 extends KeepOrUndoSessionAction {
 				id: MenuId.ChatEditorInlineExecute,
 				group: 'navigation',
 				order: 100,
-				when: CTX_HOVER_MODE.negate()
+				when: ContextKeyExpr.or(
+					CTX_HOVER_MODE.negate(),
+					ContextKeyExpr.and(CTX_HOVER_MODE, ctxHasEditorModification.negate(), ctxHasRequestInProgress.negate())
+				)
 			}]
 		});
 	}

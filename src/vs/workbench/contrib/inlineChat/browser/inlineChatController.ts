@@ -33,6 +33,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { ISharedWebContentExtractorService } from '../../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
@@ -106,8 +107,6 @@ export class InlineChatController implements IEditorContribution {
 		return editor.getContribution<InlineChatController>(InlineChatController.ID) ?? undefined;
 	}
 
-	private static _selectVendorDefaultLanguageModel: boolean = true;
-
 	private readonly _store = new DisposableStore();
 	private readonly _isActiveController = observableValue(this, false);
 	private readonly _renderMode: IObservable<'zone' | 'hover'>;
@@ -138,6 +137,7 @@ export class InlineChatController implements IEditorContribution {
 		@IEditorService private readonly _editorService: IEditorService,
 		@IMarkerDecorationsService private readonly _markerDecorationsService: IMarkerDecorationsService,
 		@ILanguageModelsService private readonly _languageModelService: ILanguageModelsService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		const editorObs = observableCodeEditor(_editor);
 
@@ -471,26 +471,12 @@ export class InlineChatController implements IEditorContribution {
 		this._isActiveController.set(true, undefined);
 
 		const session = this._inlineChatSessionService.createSession(this._editor);
-		const store = new DisposableStore();
 
-		// fallback to the default model of the selected vendor unless an explicit selection was made for the session
-		// or unless the user has chosen to persist their model choice
-		const persistModelChoice = this._configurationService.getValue<boolean>(InlineChatConfigKeys.PersistModelChoice);
-		const model = this._zone.value.widget.chatWidget.input.selectedLanguageModel;
-		if (!persistModelChoice && InlineChatController._selectVendorDefaultLanguageModel && model && !model.metadata.isDefaultForLocation[session.chatModel.initialLocation]) {
-			const ids = await this._languageModelService.selectLanguageModels({ vendor: model.metadata.vendor });
-			for (const identifier of ids) {
-				const candidate = this._languageModelService.lookupLanguageModel(identifier);
-				if (candidate?.isDefaultForLocation[session.chatModel.initialLocation]) {
-					this._zone.value.widget.chatWidget.input.setCurrentLanguageModel({ metadata: candidate, identifier });
-					break;
-				}
-			}
+		// Check for default model setting
+		const defaultModelSetting = this._configurationService.getValue<string>(InlineChatConfigKeys.DefaultModel);
+		if (defaultModelSetting && !this._zone.value.widget.chatWidget.input.switchModelByQualifiedName(defaultModelSetting)) {
+			this._logService.warn(`inlineChat.defaultModel setting value '${defaultModelSetting}' did not match any available model. Falling back to vendor default.`);
 		}
-
-		store.add(this._zone.value.widget.chatWidget.input.onDidChangeCurrentLanguageModel(newModel => {
-			InlineChatController._selectVendorDefaultLanguageModel = Boolean(newModel.metadata.isDefaultForLocation[session.chatModel.initialLocation]);
-		}));
 
 		// ADD diagnostics
 		const entries: IChatRequestVariableEntry[] = [];
@@ -543,25 +529,20 @@ export class InlineChatController implements IEditorContribution {
 			}
 		}
 
-		try {
-			if (!arg?.resolveOnResponse) {
-				// DEFAULT: wait for the session to be accepted or rejected
-				await Event.toPromise(session.editingSession.onDidDispose);
-				const rejected = session.editingSession.getEntry(uri)?.state.get() === ModifiedFileEntryState.Rejected;
-				return !rejected;
+		if (!arg?.resolveOnResponse) {
+			// DEFAULT: wait for the session to be accepted or rejected
+			await Event.toPromise(session.editingSession.onDidDispose);
+			const rejected = session.editingSession.getEntry(uri)?.state.get() === ModifiedFileEntryState.Rejected;
+			return !rejected;
 
-			} else {
-				// resolveOnResponse: ONLY wait for the file to be modified
-				const modifiedObs = derived(r => {
-					const entry = session.editingSession.readEntry(uri, r);
-					return entry?.state.read(r) === ModifiedFileEntryState.Modified && !entry?.isCurrentlyBeingModifiedBy.read(r);
-				});
-				await waitForState(modifiedObs, state => state === true);
-				return true;
-			}
-
-		} finally {
-			store.dispose();
+		} else {
+			// resolveOnResponse: ONLY wait for the file to be modified
+			const modifiedObs = derived(r => {
+				const entry = session.editingSession.readEntry(uri, r);
+				return entry?.state.read(r) === ModifiedFileEntryState.Modified && !entry?.isCurrentlyBeingModifiedBy.read(r);
+			});
+			await waitForState(modifiedObs, state => state === true);
+			return true;
 		}
 	}
 

@@ -18,6 +18,8 @@ import { BrowserViewStorageScope } from '../../../../platform/browserView/common
 import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { logBrowserOpen } from './browserViewTelemetry.js';
 
 // Context key expression to check if browser editor is active
 const BROWSER_EDITOR_ACTIVE = ContextKeyExpr.equals('activeEditor', BrowserEditor.ID);
@@ -36,7 +38,10 @@ class OpenIntegratedBrowserAction extends Action2 {
 
 	async run(accessor: ServicesAccessor, url?: string): Promise<void> {
 		const editorService = accessor.get(IEditorService);
+		const telemetryService = accessor.get(ITelemetryService);
 		const resource = BrowserViewUri.forUrl(url);
+
+		logBrowserOpen(telemetryService, url ? 'commandWithUrl' : 'commandWithoutUrl');
 
 		await editorService.openEditor({ resource });
 	}

@@ -93,7 +93,8 @@ export class ToolConfirmationSubPart extends AbstractToolConfirmationSubPart {
 			const confirmActions = this.confirmationService.getPreConfirmActions({
 				toolId: this.toolInvocation.toolId,
 				source: this.toolInvocation.source,
-				parameters: state.parameters
+				parameters: state.parameters,
+				chatSessionResource: this.context.element.sessionResource
 			});
 
 			for (const action of confirmActions) {
