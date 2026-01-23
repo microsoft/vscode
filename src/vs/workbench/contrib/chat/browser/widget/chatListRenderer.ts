@@ -1834,6 +1834,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			}
 		});
 
+		// If global auto-approve (yolo mode) is enabled, skip with defaults immediately
+		if (!carousel.isUsed && this.configService.getValue<boolean>(ChatConfiguration.GlobalAutoApprove)) {
+			part.skip();
+		}
+
 		// Track the carousel for auto-skip when user submits a new message
 		if (isResponseVM(context.element) && carousel.allowSkip && !carousel.isUsed) {
 			let carousels = this.pendingQuestionCarousels.get(context.element.sessionResource);

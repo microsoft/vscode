@@ -367,4 +367,94 @@ suite('ChatQuestionCarouselPart', () => {
 			assert.strictEqual(widget.hasSameContent(differentContent, [], {} as never), false);
 		});
 	});
+
+	suite('Auto-Approve (Yolo Mode)', () => {
+		test('skip returns default values for text questions', () => {
+			const carousel = createMockCarousel([
+				{ id: 'q1', type: 'text', title: 'Question 1', defaultValue: 'default text' }
+			], true);
+			createWidget(carousel);
+
+			widget.skip();
+			assert.ok(submittedAnswers instanceof Map);
+			assert.strictEqual(submittedAnswers?.get('q1'), 'default text');
+		});
+
+		test('skip returns default values for singleSelect questions', () => {
+			const carousel = createMockCarousel([
+				{
+					id: 'q1',
+					type: 'singleSelect',
+					title: 'Choose one',
+					options: [
+						{ id: 'a', label: 'Option A', value: 'value_a' },
+						{ id: 'b', label: 'Option B', value: 'value_b' }
+					],
+					defaultValue: 'b'
+				}
+			], true);
+			createWidget(carousel);
+
+			widget.skip();
+			assert.ok(submittedAnswers instanceof Map);
+			assert.strictEqual(submittedAnswers?.get('q1'), 'value_b');
+		});
+
+		test('skip returns default values for multiSelect questions', () => {
+			const carousel = createMockCarousel([
+				{
+					id: 'q1',
+					type: 'multiSelect',
+					title: 'Choose multiple',
+					options: [
+						{ id: 'a', label: 'Option A', value: 'value_a' },
+						{ id: 'b', label: 'Option B', value: 'value_b' },
+						{ id: 'c', label: 'Option C', value: 'value_c' }
+					],
+					defaultValue: ['a', 'c']
+				}
+			], true);
+			createWidget(carousel);
+
+			widget.skip();
+			assert.ok(submittedAnswers instanceof Map);
+			const values = submittedAnswers?.get('q1') as unknown[];
+			assert.ok(Array.isArray(values));
+			assert.strictEqual(values.length, 2);
+			assert.ok(values.includes('value_a'));
+			assert.ok(values.includes('value_c'));
+		});
+
+		test('skip returns defaults for multiple questions', () => {
+			const carousel = createMockCarousel([
+				{ id: 'q1', type: 'text', title: 'Text Question', defaultValue: 'text default' },
+				{
+					id: 'q2',
+					type: 'singleSelect',
+					title: 'Single Select',
+					options: [
+						{ id: 'opt1', label: 'First', value: 'first_value' }
+					],
+					defaultValue: 'opt1'
+				}
+			], true);
+			createWidget(carousel);
+
+			widget.skip();
+			assert.ok(submittedAnswers instanceof Map);
+			assert.strictEqual(submittedAnswers?.get('q1'), 'text default');
+			assert.strictEqual(submittedAnswers?.get('q2'), 'first_value');
+		});
+
+		test('skip returns empty map when no defaults are provided', () => {
+			const carousel = createMockCarousel([
+				{ id: 'q1', type: 'text', title: 'Question without default' }
+			], true);
+			createWidget(carousel);
+
+			widget.skip();
+			assert.ok(submittedAnswers instanceof Map);
+			assert.strictEqual(submittedAnswers?.size, 0, 'Should return empty map when no defaults');
+		});
+	});
 });
