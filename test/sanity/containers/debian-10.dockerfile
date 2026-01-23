@@ -8,6 +8,9 @@ RUN sed -i 's|http://deb.debian.org|http://archive.debian.org|g' /etc/apt/source
 	sed -i '/buster-updates/d' /etc/apt/sources.list && \
 	echo "deb http://archive.debian.org/debian bullseye main" >> /etc/apt/sources.list
 
+# Pin bullseye packages to lower priority to prevent accidental upgrades of core packages (like libc)
+RUN echo 'Package: *\nPin: release n=bullseye\nPin-Priority: 100' > /etc/apt/preferences.d/bullseye
+
 # Utilities
 RUN apt-get update && \
 	apt-get install -y curl
