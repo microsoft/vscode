@@ -13,6 +13,7 @@ import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
@@ -96,11 +97,11 @@ export class AgentSessionController extends Disposable {
 	private _sessionsResizeObserver: ResizeObserver | undefined;
 	private _newSessionButton: Button | undefined;
 	private _agentSessionsFilter: AgentSessionsFilter | undefined;
+	private _chatWidgetService: AgentChatWidgetService | undefined;
 
 	constructor(
 		private readonly _elements: IAgentSessionElements,
 		private readonly _callbacks: IAgentSessionCallbacks,
-		private readonly _chatWidgetService: AgentChatWidgetService | undefined,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService
 	) {
@@ -115,6 +116,21 @@ export class AgentSessionController extends Disposable {
 		const messageEl = $(`.${className}`);
 		messageEl.textContent = message;
 		append(container, messageEl);
+	}
+
+	/**
+	 * Register the stub chat widget service before creating the workbench.
+	 */
+	registerChatWidgetService(serviceCollection: ServiceCollection): void {
+		this._chatWidgetService = new AgentChatWidgetService();
+		serviceCollection.set(IChatWidgetService, this._chatWidgetService);
+	}
+
+	/**
+	 * Get the chat widget service for external configuration.
+	 */
+	get chatWidgetService(): AgentChatWidgetService | undefined {
+		return this._chatWidgetService;
 	}
 
 	/**

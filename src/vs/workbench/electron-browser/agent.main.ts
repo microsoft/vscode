@@ -8,7 +8,7 @@ import { domContentLoaded } from '../../base/browser/dom.js';
 import { mainWindow } from '../../base/browser/window.js';
 import { ServiceCollection } from '../../platform/instantiation/common/serviceCollection.js';
 import { ILoggerService, ILogService, LogLevel } from '../../platform/log/common/log.js';
-import { Disposable, DisposableStore } from '../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable } from '../../base/common/lifecycle.js';
 import { IMainProcessService } from '../../platform/ipc/common/mainProcessService.js';
 import { ElectronIPCMainProcessService } from '../../platform/ipc/electron-browser/mainProcessService.js';
 import { IProductService } from '../../platform/product/common/productService.js';
@@ -31,7 +31,7 @@ import { IUserDataProfileService } from '../services/userDataProfile/common/user
 import { UriIdentityService } from '../../platform/uriIdentity/common/uriIdentityService.js';
 import { IUriIdentityService } from '../../platform/uriIdentity/common/uriIdentity.js';
 import { FileUserDataProvider } from '../../platform/userData/common/fileUserDataProvider.js';
-import { Event } from '../../base/common/event.js';
+import { Emitter, Event } from '../../base/common/event.js';
 import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
 import { IRemoteAgentService } from '../services/remote/common/remoteAgentService.js';
 import { RemoteAgentService } from '../services/remote/electron-browser/remoteAgentService.js';
@@ -69,6 +69,10 @@ import { INativeKeyboardLayoutService, NativeKeyboardLayoutService } from '../se
 import { WorkspaceService } from '../services/configuration/browser/configurationService.js';
 import { IWorkbenchConfigurationService } from '../services/configuration/common/configuration.js';
 import { ConfigurationCache } from '../services/configuration/common/configurationCache.js';
+import { IURLService, IOpenURLOptions } from '../../platform/url/common/url.js';
+import { IStatusbarService, IStatusbarEntry, IStatusbarEntryAccessor, StatusbarAlignment } from '../services/statusbar/browser/statusbar.js';
+import { IAuxiliaryStatusbarPart, IStatusbarEntryContainer } from '../browser/parts/statusbar/statusbarPart.js';
+import { ILifecycleService, LifecyclePhase, StartupKind, BeforeShutdownEvent, BeforeShutdownErrorEvent, WillShutdownEvent } from '../services/lifecycle/common/lifecycle.js';
 
 /**
  * Stub notification service for Agent window
@@ -118,6 +122,49 @@ class AgentNotificationService implements INotificationService {
 }
 
 /**
+ * Stub URL service for Agent window
+ */
+class AgentURLService implements IURLService {
+	declare readonly _serviceBrand: undefined;
+
+	readonly onOpenURL = Event.None;
+
+	create(): URI { return URI.parse(''); }
+	open(_url: URI, _options?: IOpenURLOptions): Promise<boolean> { return Promise.resolve(true); }
+	registerHandler(_handler: unknown): { dispose(): void } { return { dispose: () => { } }; }
+}
+
+/**
+ * Stub statusbar service for Agent window
+ */
+class AgentStatusbarService implements IStatusbarService {
+	declare readonly _serviceBrand: undefined;
+
+	readonly onDidChangeEntryVisibility = Event.None;
+
+	addEntry(_entry: IStatusbarEntry, _id: string, _alignment: StatusbarAlignment, _priorityOrLocation?: number | unknown): IStatusbarEntryAccessor {
+		return {
+			update: () => { },
+			dispose: () => { }
+		};
+	}
+	isEntryVisible(_id: string): boolean { return false; }
+	updateEntryVisibility(_id: string, _visible: boolean): void { }
+	focus(_preserveEntryFocus?: boolean): void { }
+	focusNextEntry(): void { }
+	focusPreviousEntry(): void { }
+	overrideStyle(_style: unknown): { dispose(): void } { return { dispose: () => { } }; }
+	getPart(_container: HTMLElement): IStatusbarEntryContainer { return this; }
+	createAuxiliaryStatusbarPart(_container: HTMLElement, _instantiationService: IInstantiationService): IAuxiliaryStatusbarPart { throw new Error('Not supported in Agent window'); }
+	createScoped(_statusbarEntryContainer: IStatusbarEntryContainer, _disposables: DisposableStore): IStatusbarService { return this; }
+	overrideEntry(_id: string, _entry: Partial<IStatusbarEntry>): IDisposable { return { dispose: () => { } }; }
+	compact(): void { }
+	isCompact(): boolean { return false; }
+	isEntryFocused(): boolean { return false; }
+	dispose(): void { }
+}
+
+/**
  * Stub editor progress service for Agent window
  * Required by DiffEditorWidget / MultiDiffEditorWidget
  */
@@ -130,6 +177,74 @@ class AgentEditorProgressService implements IEditorProgressService {
 
 	async showWhile(_promise: Promise<unknown>, _delay?: number): Promise<void> {
 		// No-op - just wait for the promise
+	}
+}
+
+/**
+ * Stub lifecycle service for Agent window
+ */
+class AgentLifecycleService implements ILifecycleService {
+	declare readonly _serviceBrand: undefined;
+
+	private _phase: LifecyclePhase = LifecyclePhase.Starting;
+	private readonly _phaseWhen = new Map<LifecyclePhase, { promise: Promise<void>; resolve: () => void }>();
+
+	readonly startupKind = StartupKind.NewWindow;
+
+	private readonly _onBeforeShutdown = new Emitter<BeforeShutdownEvent>();
+	readonly onBeforeShutdown = this._onBeforeShutdown.event;
+
+	readonly onShutdownVeto = Event.None;
+
+	private readonly _onBeforeShutdownError = new Emitter<BeforeShutdownErrorEvent>();
+	readonly onBeforeShutdownError = this._onBeforeShutdownError.event;
+
+	private readonly _onWillShutdown = new Emitter<WillShutdownEvent>();
+	readonly onWillShutdown = this._onWillShutdown.event;
+
+	readonly onDidShutdown = Event.None;
+
+	readonly willShutdown = false;
+
+	get phase(): LifecyclePhase { return this._phase; }
+	set phase(value: LifecyclePhase) {
+		if (value < this._phase) {
+			return; // Cannot go backwards
+		}
+
+		if (this._phase === value) {
+			return; // No change
+		}
+
+		this._phase = value;
+
+		// Resolve promises for all phases up to and including this one
+		for (const [phase, entry] of this._phaseWhen.entries()) {
+			if (phase <= value) {
+				entry.resolve();
+				this._phaseWhen.delete(phase);
+			}
+		}
+	}
+
+	when(phase: LifecyclePhase): Promise<void> {
+		if (this._phase >= phase) {
+			return Promise.resolve();
+		}
+
+		let entry = this._phaseWhen.get(phase);
+		if (!entry) {
+			let resolve: () => void;
+			const promise = new Promise<void>(r => resolve = r);
+			entry = { promise, resolve: resolve! };
+			this._phaseWhen.set(phase, entry);
+		}
+
+		return entry.promise;
+	}
+
+	async shutdown(): Promise<void> {
+		// No-op for agent window
 	}
 }
 
@@ -283,6 +398,8 @@ function createAgentEditorGroupsService(): IEditorGroupsService {
 		onDidChangeGroupLocked: Event.None,
 		onDidChangeGroupMaximized: Event.None,
 		onDidCreateAuxiliaryEditorPart: Event.None,
+		// IEditorPart properties needed when service is cast to IEditorPart
+		onWillDispose: Event.None,
 		get contentDimension() { return { width: 0, height: 0 }; },
 		get activeGroup() { return emptyGroup; },
 		get sideGroup() { return undefined!; },
@@ -388,6 +505,7 @@ export interface IAgentWindowConstructor {
 }
 
 export interface IAgentWindowInstance {
+	createLayout(): void;
 	registerChatWidgetService(serviceCollection: ServiceCollection): void;
 	registerTerminalServices(serviceCollection: ServiceCollection): void;
 	startup(): Promise<void>;
@@ -415,6 +533,9 @@ export class AgentMain extends Disposable {
 			services.instantiationService,
 			services.logService
 		));
+
+		// Create layout first (required for session controller initialization)
+		agentWindow.createLayout();
 
 		// Register the chat widget service before starting
 		agentWindow.registerChatWidgetService(services.serviceCollection);
@@ -558,6 +679,12 @@ export class AgentMain extends Disposable {
 		// Dialog
 		serviceCollection.set(IDialogService, new DialogService(environmentService, logService));
 
+		// URL Service (stub)
+		serviceCollection.set(IURLService, new AgentURLService());
+
+		// Statusbar Service (stub)
+		serviceCollection.set(IStatusbarService, new AgentStatusbarService());
+
 		// Editor Progress (stub for diff editors)
 		serviceCollection.set(IEditorProgressService, new AgentEditorProgressService());
 
@@ -571,6 +698,9 @@ export class AgentMain extends Disposable {
 		const agentLayoutService = new AgentLayoutService();
 		serviceCollection.set(ILayoutService, agentLayoutService);
 		serviceCollection.set(IWorkbenchLayoutService, agentLayoutService);
+
+		// Lifecycle (stub) - needed for contributions that wait for lifecycle phases
+		serviceCollection.set(ILifecycleService, new AgentLifecycleService());
 
 		// Extension Manifest Properties
 		const extensionManifestPropertiesService = new ExtensionManifestPropertiesService(productService, configurationService, workspaceTrustEnablementService, logService);

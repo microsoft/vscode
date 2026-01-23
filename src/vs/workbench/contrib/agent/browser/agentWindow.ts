@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import './media/agentWindow.css';
 import { Action } from '../../../../base/common/actions.js';
 import { $, append, clearNode, Dimension, h } from '../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../base/browser/window.js';
@@ -27,9 +28,8 @@ import { IWorkbenchUIElementFactory } from '../../../../editor/browser/widget/mu
 import { ITerminalService, ITerminalGroupService, ITerminalChatService, TerminalConnectionState } from '../../terminal/browser/terminal.js';
 import { IEmbedderTerminalService } from '../../../services/terminal/common/embedderTerminalService.js';
 import { AgentWelcomeView } from './agentWelcomeView.js';
-import { AgentSessionController, AgentChatWidgetService, IAgentSessionElements, IAgentSessionCallbacks } from './agentSessionController.js';
+import { AgentSessionController, IAgentSessionElements, IAgentSessionCallbacks } from './agentSessionController.js';
 import { IAgentSession, getAgentChangesSummary } from '../../chat/browser/agentSessions/agentSessionsModel.js';
-import { IChatWidgetService } from '../../chat/browser/chat.js';
 
 // Side-effect import: Register terminal chat agent tools contribution
 import '../../terminalContrib/chatAgentTools/browser/terminal.chatAgentTools.contribution.js';
@@ -40,7 +40,6 @@ export class AgentWindow extends Disposable {
 	private _splitView: SplitView<number> | undefined;
 	private _splitViewResizeObserver: ResizeObserver | undefined;
 	private _sessionController: AgentSessionController | undefined;
-	private _chatWidgetService: AgentChatWidgetService | undefined;
 
 	// Layout elements populated by createLayout()
 	private _elements: {
@@ -141,8 +140,9 @@ export class AgentWindow extends Disposable {
 	/**
 	 * Creates the agent window layout structure using h() for declarative DOM creation.
 	 * Follows VS Code pattern of separate h() calls per logical section.
+	 * Must be called before registerChatWidgetService() or startup().
 	 */
-	private createLayout(): void {
+	createLayout(): void {
 		const body = mainWindow.document.body;
 
 		// Create element sections
@@ -181,8 +181,7 @@ export class AgentWindow extends Disposable {
 		this._sessionController = this._register(this.instantiationService.createInstance(
 			AgentSessionController,
 			sessionElements,
-			sessionCallbacks,
-			this._chatWidgetService
+			sessionCallbacks
 		));
 
 		// Append to body
@@ -191,10 +190,13 @@ export class AgentWindow extends Disposable {
 
 	/**
 	 * Register the stub chat widget service before creating the workbench.
+	 * Must be called after createLayout() so that session controller can be created.
 	 */
 	registerChatWidgetService(serviceCollection: ServiceCollection): void {
-		this._chatWidgetService = new AgentChatWidgetService();
-		serviceCollection.set(IChatWidgetService, this._chatWidgetService);
+		if (!this._sessionController) {
+			throw new Error('Session controller not initialized - call createLayout first');
+		}
+		this._sessionController.registerChatWidgetService(serviceCollection);
 	}
 
 	/**
@@ -208,9 +210,6 @@ export class AgentWindow extends Disposable {
 	}
 
 	async startup(): Promise<void> {
-		// Create the layout structure programmatically
-		this.createLayout();
-
 		this.initializeSplitView();
 
 		try {
