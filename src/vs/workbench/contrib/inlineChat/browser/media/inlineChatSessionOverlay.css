@@ -3,6 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+.inline-chat-gutter-menu .input .monaco-editor-background {
+	background-color: var(--vscode-menu-background);
+}
+
 .inline-chat-session-overlay-widget {
 	z-index: 1;
 	transition: top 100ms;
