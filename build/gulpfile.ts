@@ -45,7 +45,7 @@ gulp.task(copyCodiconsTask);
 
 const watchCodiconsTask = task.define('watch-codicons', () => {
 	copyCodiconsImpl();
-	return watch(codiconSource, { readDelay: 200 })
+	return watch('node_modules/@vscode/codicons/dist/**', { readDelay: 200 })
 		.on('data', () => copyCodiconsImpl());
 });
 gulp.task(watchCodiconsTask);
