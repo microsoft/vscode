@@ -5,5 +5,6 @@ FROM ${BASE_IMAGE}
 RUN curl -fsSL https://rpm.nodesource.com/setup_22.x | bash - && \
 	dnf install -y --no-weak-deps nodejs-22.21.1
 
-COPY --chmod=755 entrypoint.sh /entrypoint.sh
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 ENTRYPOINT [ "/entrypoint.sh" ]

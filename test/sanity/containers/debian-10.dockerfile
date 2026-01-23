@@ -57,5 +57,6 @@ RUN apt-get install -y --no-install-recommends \
 # Install newer libxkbfile1 from Debian 11 since Debian 10 version is too old
 RUN apt-get install -y --no-install-recommends -t bullseye libxkbfile1
 
-COPY --chmod=755 entrypoint.sh /entrypoint.sh
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 ENTRYPOINT [ "/entrypoint.sh" ]

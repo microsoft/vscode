@@ -23,5 +23,6 @@ ENV DISPLAY=:99
 RUN zypper install -y --no-recommends dbus-1-daemon && \
 	mkdir -p /run/dbus
 
-COPY --chmod=755 entrypoint.sh /entrypoint.sh
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 ENTRYPOINT [ "/entrypoint.sh" ]

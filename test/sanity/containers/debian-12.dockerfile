@@ -16,5 +16,6 @@ RUN apt-get install -y --no-install-recommends dbus-x11 && \
 RUN apt-get install -y --no-install-recommends xvfb
 ENV DISPLAY=:99
 
-COPY --chmod=755 entrypoint.sh /entrypoint.sh
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 ENTRYPOINT [ "/entrypoint.sh" ]

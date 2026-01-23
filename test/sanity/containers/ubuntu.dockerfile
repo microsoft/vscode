@@ -49,5 +49,6 @@ RUN if [ "$TARGETARCH" = "arm64" ]; then \
 		xdg-utils; \
 	fi
 
-COPY --chmod=755 entrypoint.sh /entrypoint.sh
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 ENTRYPOINT [ "/entrypoint.sh" ]

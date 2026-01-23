@@ -24,5 +24,6 @@ RUN dnf install -y --no-weak-deps \
 	ca-certificates \
 	xdg-utils
 
-COPY --chmod=755 entrypoint.sh /entrypoint.sh
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 ENTRYPOINT [ "/entrypoint.sh" ]

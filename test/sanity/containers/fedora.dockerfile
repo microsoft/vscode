@@ -20,5 +20,6 @@ ENV DISPLAY=:99
 # VS Code dependencies
 RUN dnf install -y --no-weak-deps xdg-utils
 
-COPY --chmod=755 entrypoint.sh /entrypoint.sh
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 ENTRYPOINT [ "/entrypoint.sh" ]
