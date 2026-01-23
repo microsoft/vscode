@@ -27,9 +27,9 @@ import { EditSuggestionId } from '../../../../../editor/common/textModelEditSour
 import { localize } from '../../../../../nls.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { CellUri, ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
-import { ChatRequestToolReferenceEntry, IChatRequestVariableEntry } from '../attachments/chatVariableEntries.js';
+import { ChatRequestToolReferenceEntry, IChatRequestVariableEntry, isImplicitVariableEntry, isStringImplicitContextValue, isStringVariableEntry } from '../attachments/chatVariableEntries.js';
 import { migrateLegacyTerminalToolSpecificData } from '../chat.js';
-import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatResponseClearToPreviousToolInvocationReason, ElicitationState, IChatAgentMarkdownContentWithVulnerability, IChatClearToPreviousToolInvocation, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatEditingSessionAction, IChatElicitationRequest, IChatElicitationRequestSerialized, IChatExtensionsContent, IChatFollowup, IChatLocationData, IChatMarkdownContent, IChatMcpServersStarting, IChatMcpServersStartingSerialized, IChatModelReference, IChatMultiDiffData, IChatMultiDiffDataSerialized, IChatNotebookEdit, IChatPrepareToolInvocationPart, IChatProgress, IChatProgressMessage, IChatPullRequestContent, IChatResponseCodeblockUriPart, IChatResponseProgressFileTreeData, IChatService, IChatSessionContext, IChatSessionTiming, IChatTask, IChatTaskSerialized, IChatTextEdit, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsedContext, IChatWarningMessage, ResponseModelState, isIUsedContext } from '../chatService/chatService.js';
+import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatResponseClearToPreviousToolInvocationReason, ElicitationState, IChatAgentMarkdownContentWithVulnerability, IChatClearToPreviousToolInvocation, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatEditingSessionAction, IChatElicitationRequest, IChatElicitationRequestSerialized, IChatExtensionsContent, IChatFollowup, IChatLocationData, IChatMarkdownContent, IChatMcpServersStarting, IChatMcpServersStartingSerialized, IChatModelReference, IChatMultiDiffData, IChatMultiDiffDataSerialized, IChatNotebookEdit, IChatProgress, IChatProgressMessage, IChatPullRequestContent, IChatResponseCodeblockUriPart, IChatResponseProgressFileTreeData, IChatService, IChatSessionContext, IChatSessionTiming, IChatTask, IChatTaskSerialized, IChatTextEdit, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsedContext, IChatWarningMessage, IChatWorkspaceEdit, ResponseModelState, isIUsedContext } from '../chatService/chatService.js';
 import { ChatAgentLocation, ChatModeKind } from '../constants.js';
 import { IChatEditingService, IChatEditingSession, ModifiedFileEntryState } from '../editing/chatEditingService.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../languageModels.js';
@@ -52,7 +52,7 @@ export function getAttachableImageExtension(mimeType: string): string | undefine
 }
 
 export interface IChatRequestVariableData {
-	variables: IChatRequestVariableEntry[];
+	variables: readonly IChatRequestVariableEntry[];
 }
 
 export namespace IChatRequestVariableData {
@@ -64,6 +64,7 @@ export namespace IChatRequestVariableData {
 export interface IChatRequestModel {
 	readonly id: string;
 	readonly timestamp: number;
+	readonly version: number;
 	readonly modeInfo?: IChatRequestModeInfo;
 	readonly session: IChatModel;
 	readonly message: IParsedChatRequest;
@@ -144,7 +145,8 @@ export type IChatProgressHistoryResponseContent =
 	| IChatConfirmation
 	| IChatExtensionsContent
 	| IChatThinkingPart
-	| IChatPullRequestContent;
+	| IChatPullRequestContent
+	| IChatWorkspaceEdit;
 
 /**
  * "Normal" progress kinds that are rendered as parts of the stream of content.
@@ -155,7 +157,6 @@ export type IChatProgressResponseContent =
 	| IChatToolInvocationSerialized
 	| IChatMultiDiffData
 	| IChatUndoStop
-	| IChatPrepareToolInvocationPart
 	| IChatElicitationRequest
 	| IChatElicitationRequestSerialized
 	| IChatClearToPreviousToolInvocation
@@ -170,7 +171,7 @@ export type IChatProgressResponseContentSerialized = Exclude<IChatProgressRespon
 	| IChatMcpServersStarting
 >;
 
-const nonHistoryKinds = new Set(['toolInvocation', 'toolInvocationSerialized', 'undoStop', 'prepareToolInvocation']);
+const nonHistoryKinds = new Set(['toolInvocation', 'toolInvocationSerialized', 'undoStop']);
 function isChatProgressHistoryResponseContent(content: IChatProgressResponseContent): content is IChatProgressHistoryResponseContent {
 	return !nonHistoryKinds.has(content.kind);
 }
@@ -330,6 +331,7 @@ export class ChatRequestModel implements IChatRequestModel {
 	}
 
 	public set variableData(v: IChatRequestVariableData) {
+		this._version++;
 		this._variableData = v;
 	}
 
@@ -347,6 +349,11 @@ export class ChatRequestModel implements IChatRequestModel {
 
 	public get editedFileEvents(): IChatAgentEditedFileEvent[] | undefined {
 		return this._editedFileEvents;
+	}
+
+	private _version = 0;
+	public get version(): number {
+		return this._version;
 	}
 
 	constructor(params: IChatRequestModelParameters) {
@@ -439,7 +446,7 @@ class AbstractResponse implements IResponse {
 				case 'extensions':
 				case 'pullRequest':
 				case 'undoStop':
-				case 'prepareToolInvocation':
+				case 'workspaceEdit':
 				case 'elicitation2':
 				case 'elicitationSerialized':
 				case 'thinking':
@@ -859,6 +866,10 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 	}
 
 	public set shouldBeRemovedOnSend(disablement: IChatRequestDisablement | undefined) {
+		if (this._shouldBeRemovedOnSend === disablement) {
+			return;
+		}
+
 		this._shouldBeRemovedOnSend = disablement;
 		this._onDidChange.fire(defaultChatResponseModelChangeReason);
 	}
@@ -1011,9 +1022,12 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 			signal.read(r);
 
 			for (const part of this._response.value) {
-				if (part.kind === 'toolInvocation' && part.state.read(r).type === IChatToolInvocation.StateKind.WaitingForConfirmation) {
-					const title = part.confirmationMessages?.title;
-					return title ? (isMarkdownString(title) ? title.value : title) : undefined;
+				if (part.kind === 'toolInvocation') {
+					const state = part.state.read(r);
+					if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation) {
+						const title = state.confirmationMessages?.title;
+						return title ? (isMarkdownString(title) ? title.value : title) : undefined;
+					}
 				}
 				if (part.kind === 'confirmation' && !part.isUsed) {
 					return part.title;
@@ -1042,13 +1056,6 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		this._register(this._response.onDidChangeValue(() => this._onDidChange.fire(defaultChatResponseModelChangeReason)));
 		this.id = params.restoredId ?? 'response_' + generateUuid();
 
-		this._register(this._session.onDidChange((e) => {
-			if (e.kind === 'setCheckpoint') {
-				const isDisabled = e.disabledResponseIds.has(this.id);
-				this._shouldBeBlocked.set(isDisabled, undefined);
-			}
-		}));
-
 		let lastStartedWaitingAt: number | undefined = undefined;
 		this.confirmationAdjustedTimestamp = derived(reader => {
 			const pending = this.isPendingConfirmation.read(reader);
@@ -1075,6 +1082,10 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 			throw new BugIndicatingError('Code block infos have already been initialized');
 		}
 		this._codeBlockInfos = [...codeBlockInfo];
+	}
+
+	setBlockedState(isBlocked: boolean): void {
+		this._shouldBeBlocked.set(isBlocked, undefined);
 	}
 
 	/**
@@ -1253,6 +1264,9 @@ export interface IChatModel extends IDisposable {
 	toExport(): IExportableChatData;
 	toJSON(): ISerializableChatData;
 	readonly contributedChatSession: IChatSessionContext | undefined;
+
+	readonly repoData: IExportableRepoData | undefined;
+	setRepoData(data: IExportableRepoData | undefined): void;
 }
 
 export interface ISerializableChatsData {
@@ -1304,6 +1318,102 @@ export interface ISerializableMarkdownInfo {
 	readonly suggestionId: EditSuggestionId;
 }
 
+/**
+ * Repository state captured for chat session export.
+ * Enables reproducing the workspace state by cloning, checking out the commit, and applying diffs.
+ */
+export interface IExportableRepoData {
+	/**
+	 * Classification of the workspace's version control state.
+	 * - `remote-git`: Git repo with a configured remote URL
+	 * - `local-git`: Git repo without any remote (local only)
+	 * - `plain-folder`: Not a git repository
+	 */
+	workspaceType: 'remote-git' | 'local-git' | 'plain-folder';
+
+	/**
+	 * Sync status between local and remote.
+	 * - `synced`: Local HEAD matches remote tracking branch (fully pushed)
+	 * - `unpushed`: Local has commits not pushed to the remote tracking branch
+	 * - `unpublished`: Local branch has no remote tracking branch configured
+	 * - `local-only`: No remote configured (local git repo only)
+	 * - `no-git`: Not a git repository
+	 */
+	syncStatus: 'synced' | 'unpushed' | 'unpublished' | 'local-only' | 'no-git';
+
+	/**
+	 * Remote URL of the repository (e.g., https://github.com/org/repo.git).
+	 * Undefined if no remote is configured.
+	 */
+	remoteUrl?: string;
+
+	/**
+	 * Vendor/host of the remote repository.
+	 * Undefined if no remote is configured.
+	 */
+	remoteVendor?: 'github' | 'ado' | 'other';
+
+	/**
+	 * Remote tracking branch for the current branch (e.g., "origin/feature/my-work").
+	 * Undefined if branch is unpublished or no remote.
+	 */
+	remoteTrackingBranch?: string;
+
+	/**
+	 * Default remote branch used as base for unpublished branches (e.g., "origin/main").
+	 * Helpful for computing merge-base when branch has no tracking.
+	 */
+	remoteBaseBranch?: string;
+
+	/**
+	 * Commit hash of the remote tracking branch HEAD.
+	 * Undefined if branch has no remote tracking branch.
+	 */
+	remoteHeadCommit?: string;
+
+	/**
+	 * Name of the current local branch (e.g., "feature/my-work").
+	 */
+	localBranch?: string;
+
+	/**
+	 * Commit hash of the local HEAD when captured.
+	 */
+	localHeadCommit?: string;
+
+	/**
+	 * Working tree diffs (uncommitted changes).
+	 */
+	diffs?: IExportableRepoDiff[];
+
+	/**
+	 * Status of the diffs collection.
+	 * - `included`: Diffs were successfully captured and included
+	 * - `tooManyChanges`: Diffs skipped because >100 files changed (degenerate case like mass renames)
+	 * - `tooLarge`: Diffs skipped because total size exceeded 900KB
+	 * - `trimmedForStorage`: Diffs were trimmed to save storage (older session)
+	 * - `noChanges`: No working tree changes detected
+	 * - `notCaptured`: Diffs not captured (default/undefined case)
+	 */
+	diffsStatus?: 'included' | 'tooManyChanges' | 'tooLarge' | 'trimmedForStorage' | 'noChanges' | 'notCaptured';
+
+	/**
+	 * Number of changed files detected, even if diffs were not included.
+	 */
+	changedFileCount?: number;
+}
+
+/**
+ * A file change exported as a unified diff patch compatible with `git apply`.
+ */
+export interface IExportableRepoDiff {
+	relativePath: string;
+	changeType: 'added' | 'modified' | 'deleted' | 'renamed';
+	oldRelativePath?: string;
+	unifiedDiff?: string;
+	status: string;
+}
+
 export interface IExportableChatData {
 	initialLocation: ChatAgentLocation | undefined;
 	requests: ISerializableChatRequestData[];
@@ -1327,8 +1437,14 @@ export interface ISerializableChatData2 extends ISerializableChatData1 {
 export interface ISerializableChatData3 extends Omit<ISerializableChatData2, 'version' | 'computedTitle'> {
 	version: 3;
 	customTitle: string | undefined;
+	/**
+	 * Whether the session had pending edits when it was stored.
+	 * todo@connor4312 This will be cleaned up with the globalization of edits.
+	 */
+	hasPendingEdits?: boolean;
 	/** Current draft input state (added later, fully backwards compatible) */
 	inputState?: ISerializableChatModelInputState;
+	repoData?: IExportableRepoData;
 }
 
 /**
@@ -1498,19 +1614,12 @@ export type IChatChangeEvent =
 	| IChatMoveEvent
 	| IChatSetHiddenEvent
 	| IChatCompletedRequestEvent
-	| IChatSetCheckpointEvent
 	| IChatSetCustomTitleEvent
 	;
 
 export interface IChatAddRequestEvent {
 	kind: 'addRequest';
 	request: IChatRequestModel;
-}
-
-export interface IChatSetCheckpointEvent {
-	kind: 'setCheckpoint';
-	disabledRequestIds: Set<string>;
-	disabledResponseIds: Set<string>;
 }
 
 export interface IChatChangedRequestEvent {
@@ -1614,9 +1723,21 @@ class InputModel implements IInputModel {
 			return undefined;
 		}
 
+		// Filter out extension-contributed context items (kind: 'string' or implicit entries with StringChatContextValue)
+		// These have handles that become invalid after window reload and cannot be properly restored.
+		const persistableAttachments = value.attachments.filter(attachment => {
+			if (isStringVariableEntry(attachment)) {
+				return false;
+			}
+			if (isImplicitVariableEntry(attachment) && isStringImplicitContextValue(attachment.value)) {
+				return false;
+			}
+			return true;
+		});
+
 		return {
 			contrib: value.contrib,
-			attachments: value.attachments,
+			attachments: persistableAttachments,
 			mode: value.mode,
 			selectedModel: value.selectedModel ? {
 				identifier: value.selectedModel.identifier,
@@ -1652,6 +1773,15 @@ export class ChatModel extends Disposable implements IChatModel {
 	public setContributedChatSession(session: IChatSessionContext | undefined) {
 		this._contributedChatSession = session;
 	}
+
+	private _repoData: IExportableRepoData | undefined;
+	public get repoData(): IExportableRepoData | undefined {
+		return this._repoData;
+	}
+	public setRepoData(data: IExportableRepoData | undefined): void {
+		this._repoData = data;
+	}
+
 	readonly lastRequestObs: IObservable<IChatRequestModel | undefined>;
 
 	// TODO to be clear, this is not the same as the id from the session object, which belongs to the provider.
@@ -1687,10 +1817,14 @@ export class ChatModel extends Disposable implements IChatModel {
 	}
 
 	get timing(): IChatSessionTiming {
-		const lastResponse = this._requests.at(-1)?.response;
+		const lastRequest = this._requests.at(-1);
+		const lastResponse = lastRequest?.response;
+		const lastRequestStarted = lastRequest?.timestamp;
+		const lastRequestEnded = lastResponse?.completedAt ?? lastResponse?.timestamp;
 		return {
-			startTime: this._timestamp,
-			endTime: lastResponse?.completedAt ?? lastResponse?.timestamp
+			created: this._timestamp,
+			lastRequestStarted,
+			lastRequestEnded,
 		};
 	}
 
@@ -1791,6 +1925,9 @@ export class ChatModel extends Disposable implements IChatModel {
 
 		this.dataSerializer = dataRef?.serializer;
 		this._initialResponderUsername = initialData?.responderUsername;
+
+		this._repoData = isValidFullData && initialData.repoData ? initialData.repoData : undefined;
+
 		this._initialLocation = initialData?.initialLocation ?? initialModelProps.initialLocation;
 
 		this._canUseTools = initialModelProps.canUseTools;
@@ -1933,7 +2070,7 @@ export class ChatModel extends Disposable implements IChatModel {
 						agent,
 						slashCommand: raw.slashCommand,
 						requestId: request.id,
-						modelState: raw.modelState || { value: raw.isCanceled ? ResponseModelState.Cancelled : ResponseModelState.Complete, completedAt: Date.now() },
+						modelState,
 						vote: raw.vote,
 						timestamp: raw.timestamp,
 						voteDownReason: raw.voteDownReason,
@@ -2008,17 +2145,14 @@ export class ChatModel extends Disposable implements IChatModel {
 			}
 		}
 
-		const disabledRequestIds = new Set<string>();
-		const disabledResponseIds = new Set<string>();
 		for (let i = this._requests.length - 1; i >= 0; i -= 1) {
 			const request = this._requests[i];
 			if (this._checkpoint && !checkpoint) {
 				request.setShouldBeBlocked(false);
 			} else if (checkpoint && i >= checkpointIndex) {
 				request.setShouldBeBlocked(true);
-				disabledRequestIds.add(request.id);
 				if (request.response) {
-					disabledResponseIds.add(request.response.id);
+					request.response.setBlockedState(true);
 				}
 			} else if (checkpoint && i < checkpointIndex) {
 				request.setShouldBeBlocked(false);
@@ -2026,11 +2160,6 @@ export class ChatModel extends Disposable implements IChatModel {
 		}
 
 		this._checkpoint = checkpoint;
-		this._onDidChange.fire({
-			kind: 'setCheckpoint',
-			disabledRequestIds,
-			disabledResponseIds
-		});
 	}
 
 	private _checkpoint: ChatRequestModel | undefined = undefined;
@@ -2237,6 +2366,7 @@ export class ChatModel extends Disposable implements IChatModel {
 			creationDate: this._timestamp,
 			customTitle: this._customTitle,
 			inputState: this.inputModel.toJSON(),
+			repoData: this._repoData,
 		};
 	}
 

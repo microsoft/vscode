@@ -7,8 +7,8 @@ import * as dom from '../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
-import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
@@ -127,14 +127,21 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 
 		const label = this.resourceLabels.create(this.domNode, { supportIcons: true });
 
-		let title: string;
+		let title: string | undefined;
+		let markdownTooltip: IMarkdownString | undefined;
 		if (isStringImplicitContextValue(this.attachment.value)) {
-			title = this.renderString(label);
+			markdownTooltip = this.attachment.value.tooltip;
+			title = this.renderString(label, markdownTooltip);
 		} else {
 			title = this.renderResource(this.attachment.value, label);
 		}
 
-		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), this.domNode, title));
+		if (markdownTooltip || title) {
+			this.renderDisposables.add(this.hoverService.setupDelayedHover(this.domNode, {
+				content: markdownTooltip! ?? title!,
+				appearance: { showPointer: true },
+			}));
+		}
 
 		// Context menu
 		const scopedContextKeyService = this.renderDisposables.add(this.contextKeyService.createScoped(this.domNode));
@@ -157,10 +164,11 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 		}));
 	}
 
-	private renderString(resourceLabel: IResourceLabel): string {
+	private renderString(resourceLabel: IResourceLabel, markdownTooltip: IMarkdownString | undefined): string | undefined {
 		const label = this.attachment.name;
 		const icon = this.attachment.icon;
-		const title = localize('openFile', "Current file context");
+		// Don't set title if we have a markdown tooltip - the hover service will handle it
+		const title = markdownTooltip ? undefined : localize('openFile', "Current file context");
 		resourceLabel.setLabel(label, undefined, { iconPath: icon, title });
 		return title;
 	}
@@ -209,7 +217,10 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 				name: this.attachment.name,
 				icon: this.attachment.value.icon,
 				modelDescription: this.attachment.value.modelDescription,
-				uri: this.attachment.value.uri
+				uri: this.attachment.value.uri,
+				tooltip: this.attachment.value.tooltip,
+				commandId: this.attachment.value.commandId,
+				handle: this.attachment.value.handle
 			};
 			this.attachmentModel.addContext(context);
 		} else {

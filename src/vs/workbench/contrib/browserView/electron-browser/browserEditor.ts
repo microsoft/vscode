@@ -5,7 +5,8 @@
 
 import './media/browser.css';
 import { localize } from '../../../../nls.js';
-import { $, addDisposableListener, disposableWindowInterval, EventType, scheduleAtNextAnimationFrame } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, Dimension, disposableWindowInterval, EventType, IDomPosition, isHTMLElement, registerExternalFocusChecker } from '../../../../base/browser/dom.js';
+import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { RawContextKey, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
@@ -25,10 +26,10 @@ import { IEditorGroup } from '../../../services/editor/common/editorGroupsServic
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
-import { BrowserOverlayManager } from './overlayManager.js';
+import { BrowserOverlayManager, BrowserOverlayType, IBrowserOverlayInfo } from './overlayManager.js';
 import { getZoomFactor, onDidChangeZoomLevel } from '../../../../base/browser/browser.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { WorkbenchHoverDelegate } from '../../../../platform/hover/browser/hover.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
@@ -40,6 +41,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { IChatRequestVariableEntry } from '../../chat/common/attachments/chatVariableEntries.js';
 import { IBrowserTargetLocator, getDisplayNameFromOuterHTML } from '../../../../platform/browserElements/common/browserElements.js';
+import { logBrowserOpen } from './browserViewTelemetry.js';
 
 export const CONTEXT_BROWSER_CAN_GO_BACK = new RawContextKey<boolean>('browserCanGoBack', false, localize('browser.canGoBack', "Whether the browser can go back"));
 export const CONTEXT_BROWSER_CAN_GO_FORWARD = new RawContextKey<boolean>('browserCanGoForward', false, localize('browser.canGoForward', "Whether the browser can go forward"));
@@ -101,7 +103,7 @@ class BrowserNavigationBar extends Disposable {
 			{
 				hoverDelegate,
 				highlightToggledItems: true,
-				toolbarOptions: { primaryGroup: 'actions' },
+				toolbarOptions: { primaryGroup: (group) => group.startsWith('actions'), useSeparatorsInPrimaryActions: true },
 				menuOptions: { shouldForwardArgs: true }
 			}
 		));
@@ -122,6 +124,11 @@ class BrowserNavigationBar extends Disposable {
 					editor.navigateToUrl(url);
 				}
 			}
+		}));
+
+		// Select all URL bar text when the URL bar receives focus (like in regular browsers)
+		this._register(addDisposableListener(this._urlInput, EventType.FOCUS, () => {
+			this._urlInput.select();
 		}));
 	}
 
@@ -155,7 +162,12 @@ export class BrowserEditor extends EditorPane {
 
 	private _navigationBar!: BrowserNavigationBar;
 	private _browserContainer!: HTMLElement;
+	private _placeholderScreenshot!: HTMLElement;
+	private _overlayPauseContainer!: HTMLElement;
+	private _overlayPauseHeading!: HTMLElement;
+	private _overlayPauseDetail!: HTMLElement;
 	private _errorContainer!: HTMLElement;
+	private _welcomeContainer!: HTMLElement;
 	private _canGoBackContext!: IContextKey<boolean>;
 	private _canGoForwardContext!: IContextKey<boolean>;
 	private _storageScopeContext!: IContextKey<string>;
@@ -218,10 +230,28 @@ export class BrowserEditor extends EditorPane {
 		this._browserContainer.tabIndex = 0; // make focusable
 		root.appendChild(this._browserContainer);
 
+		// Create placeholder screenshot (background placeholder when WebContentsView is hidden)
+		this._placeholderScreenshot = $('.browser-placeholder-screenshot');
+		this._browserContainer.appendChild(this._placeholderScreenshot);
+
+		// Create overlay pause container (hidden by default via CSS)
+		this._overlayPauseContainer = $('.browser-overlay-paused');
+		const overlayPauseMessage = $('.browser-overlay-paused-message');
+		this._overlayPauseHeading = $('.browser-overlay-paused-heading');
+		this._overlayPauseDetail = $('.browser-overlay-paused-detail');
+		overlayPauseMessage.appendChild(this._overlayPauseHeading);
+		overlayPauseMessage.appendChild(this._overlayPauseDetail);
+		this._overlayPauseContainer.appendChild(overlayPauseMessage);
+		this._browserContainer.appendChild(this._overlayPauseContainer);
+
 		// Create error container (hidden by default)
 		this._errorContainer = $('.browser-error-container');
 		this._errorContainer.style.display = 'none';
 		this._browserContainer.appendChild(this._errorContainer);
+
+		// Create welcome container (shown when no URL is loaded)
+		this._welcomeContainer = this.createWelcomeContainer();
+		this._browserContainer.appendChild(this._welcomeContainer);
 
 		this._register(addDisposableListener(this._browserContainer, EventType.FOCUS, (event) => {
 			// When the browser container gets focus, make sure the browser view also gets focused.
@@ -231,13 +261,14 @@ export class BrowserEditor extends EditorPane {
 			}
 		}));
 
-		this._register(addDisposableListener(this._browserContainer, EventType.BLUR, () => {
-			// When focus goes to another part of the workbench, make sure the workbench view becomes focused.
-			const focused = this.window.document.activeElement;
-			if (focused && focused !== this._browserContainer) {
-				this.window.focus();
-			}
-		}));
+		// Register external focus checker so that cross-window focus logic knows when
+		// this browser view has focus (since it's outside the normal DOM tree).
+		this._register(registerExternalFocusChecker(() => this._model?.focused ?? false));
+
+		// Automatically call layoutBrowserContainer() when the browser container changes size
+		const resizeObserver = new ResizeObserver(async () => this.layoutBrowserContainer());
+		resizeObserver.observe(this._browserContainer);
+		this._register(toDisposable(() => resizeObserver.disconnect()));
 	}
 
 	override async setInput(input: BrowserEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
@@ -292,9 +323,13 @@ export class BrowserEditor extends EditorPane {
 		}));
 
 		this._inputDisposables.add(this._model.onDidChangeFocus(({ focused }) => {
-			// When the view gets focused, make sure the container also has focus.
+			// When the view gets focused, make sure the editor reports that it has focus,
+			// but focus is removed from the workbench.
 			if (focused) {
-				this._browserContainer.focus();
+				this._onDidFocus?.fire();
+				if (isHTMLElement(this.window.document.activeElement)) {
+					this.window.document.activeElement.blur();
+				}
 			}
 		}));
 
@@ -303,22 +338,7 @@ export class BrowserEditor extends EditorPane {
 		}));
 
 		this._inputDisposables.add(this._model.onDidRequestNewPage(({ url, name, background }) => {
-			type IntegratedBrowserNewPageRequestEvent = {
-				background: boolean;
-			};
-
-			type IntegratedBrowserNewPageRequestClassification = {
-				background: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether page was requested to open in background' };
-				owner: 'kycutler';
-				comment: 'Tracks new page requests from integrated browser';
-			};
-
-			this.telemetryService.publicLog2<IntegratedBrowserNewPageRequestEvent, IntegratedBrowserNewPageRequestClassification>(
-				'integratedBrowser.newPageRequest',
-				{
-					background
-				}
-			);
+			logBrowserOpen(this.telemetryService, background ? 'browserLinkBackground' : 'browserLinkForeground');
 
 			// Open a new browser tab for the requested URL
 			const browserUri = BrowserViewUri.forUrl(url, name ? `${input.id}-${name}` : undefined);
@@ -338,7 +358,7 @@ export class BrowserEditor extends EditorPane {
 		// Listen for zoom level changes and update browser view zoom factor
 		this._inputDisposables.add(onDidChangeZoomLevel(targetWindowId => {
 			if (targetWindowId === this.window.vscodeWindowId) {
-				this.layout();
+				this.layoutBrowserContainer();
 			}
 		}));
 		// Capture screenshot periodically (once per second) to keep background updated
@@ -349,11 +369,8 @@ export class BrowserEditor extends EditorPane {
 		));
 
 		this.updateErrorDisplay();
-		this.layout();
+		this.layoutBrowserContainer();
 		await this._model.setVisible(this.shouldShowView);
-
-		// Sometimes the element has not been inserted into the DOM yet. Ensure layout after next animation frame.
-		scheduleAtNextAnimationFrame(this.window, () => this.layout());
 	}
 
 	protected override setEditorVisible(visible: boolean): void {
@@ -362,25 +379,57 @@ export class BrowserEditor extends EditorPane {
 	}
 
 	private updateVisibility(): void {
+		const hasUrl = !!this._model?.url;
+		const hasError = !!this._model?.error;
+		const isViewingPage = !hasError && hasUrl;
+		const isPaused = isViewingPage && this._editorVisible && this._overlayVisible;
+
+		// Welcome container: shown when no URL is loaded
+		this._welcomeContainer.style.display = hasUrl ? 'none' : '';
+
+		// Error container: shown when there's a load error
+		this._errorContainer.style.display = hasError ? '' : 'none';
+
+		// Placeholder screenshot: shown when there is a page loaded (even when the view is not hidden, so hiding is smooth)
+		this._placeholderScreenshot.style.display = isViewingPage ? '' : 'none';
+
+		// Pause overlay: fades in when an overlay is detected
+		this._overlayPauseContainer.classList.toggle('visible', isPaused);
+
 		if (this._model) {
-			// Blur the background image if the view is hidden due to an overlay.
-			this._browserContainer.classList.toggle('blur', this._editorVisible && this._overlayVisible && !this._model?.error);
+			// Blur the background placeholder screenshot if the view is hidden due to an overlay.
 			void this._model.setVisible(this.shouldShowView);
 		}
 	}
 
 	private get shouldShowView(): boolean {
-		return this._editorVisible && !this._overlayVisible && !this._model?.error;
+		return this._editorVisible && !this._overlayVisible && !this._model?.error && !!this._model?.url;
 	}
 
 	private checkOverlays(): void {
 		if (!this.overlayManager) {
 			return;
 		}
-		const hasOverlappingOverlay = this.overlayManager.isOverlappingWithOverlays(this._browserContainer);
+		const overlappingOverlays = this.overlayManager.getOverlappingOverlays(this._browserContainer);
+		const hasOverlappingOverlay = overlappingOverlays.length > 0;
+		this.updateOverlayPauseMessage(overlappingOverlays);
 		if (hasOverlappingOverlay !== this._overlayVisible) {
 			this._overlayVisible = hasOverlappingOverlay;
 			this.updateVisibility();
+		}
+	}
+
+	private updateOverlayPauseMessage(overlappingOverlays: readonly IBrowserOverlayInfo[]): void {
+		// Only show the pause message for notification overlays
+		const hasNotificationOverlay = overlappingOverlays.some(overlay => overlay.type === BrowserOverlayType.Notification);
+		this._overlayPauseContainer.classList.toggle('show-message', hasNotificationOverlay);
+
+		if (hasNotificationOverlay) {
+			this._overlayPauseHeading.textContent = localize('browser.overlayPauseHeading.notification', "Paused due to Notification");
+			this._overlayPauseDetail.textContent = localize('browser.overlayPauseDetail.notification', "Dismiss the notification to continue using the browser.");
+		} else {
+			this._overlayPauseHeading.textContent = '';
+			this._overlayPauseDetail.textContent = '';
 		}
 	}
 
@@ -391,8 +440,7 @@ export class BrowserEditor extends EditorPane {
 
 		const error: IBrowserViewLoadError | undefined = this._model.error;
 		if (error) {
-			// Show error display
-			this._errorContainer.style.display = 'flex';
+			// Update error content
 
 			while (this._errorContainer.firstChild) {
 				this._errorContainer.removeChild(this._errorContainer.firstChild);
@@ -423,21 +471,25 @@ export class BrowserEditor extends EditorPane {
 
 			this.setBackgroundImage(undefined);
 		} else {
-			// Hide error display
-			this._errorContainer.style.display = 'none';
 			this.setBackgroundImage(this._model.screenshot);
 		}
 
 		this.updateVisibility();
 	}
 
+	getUrl(): string | undefined {
+		return this._model?.url;
+	}
+
 	async navigateToUrl(url: string): Promise<void> {
 		if (this._model) {
 			this.group.pinEditor(this.input); // pin editor on navigation
 
-			const scheme = URL.parse(url)?.protocol;
-			if (!scheme) {
-				// If no scheme provided, default to http (to support localhost etc -- sites will generally upgrade to https)
+			// Special case localhost URLs (e.g., "localhost:3000") to add http://
+			if (/^localhost(:|\/|$)/i.test(url)) {
+				url = 'http://' + url;
+			} else if (!URL.parse(url)?.protocol) {
+				// If no scheme provided, default to http (sites will generally upgrade to https)
 				url = 'http://' + url;
 			}
 
@@ -477,6 +529,15 @@ export class BrowserEditor extends EditorPane {
 		const cts = new CancellationTokenSource();
 		this._elementSelectionCts = cts;
 		this._elementSelectionActiveContext.set(true);
+
+		type IntegratedBrowserAddElementToChatStartEvent = {};
+
+		type IntegratedBrowserAddElementToChatStartClassification = {
+			owner: 'jruales';
+			comment: 'The user initiated an Add Element to Chat action in Integrated Browser.';
+		};
+
+		this.telemetryService.publicLog2<IntegratedBrowserAddElementToChatStartEvent, IntegratedBrowserAddElementToChatStartClassification>('integratedBrowser.addElementToChat.start', {});
 
 		try {
 			// Get the resource URI for this editor
@@ -522,7 +583,8 @@ export class BrowserEditor extends EditorPane {
 			});
 
 			// Attach screenshot if enabled
-			if (this.configurationService.getValue('chat.sendElementsToChat.attachImages') && this._model) {
+			const attachImages = this.configurationService.getValue<boolean>('chat.sendElementsToChat.attachImages');
+			if (attachImages && this._model) {
 				const screenshotBuffer = await this._model.captureScreenshot({
 					quality: 90,
 					rect: bounds
@@ -540,6 +602,23 @@ export class BrowserEditor extends EditorPane {
 			// Attach to chat widget
 			const widget = await this.chatWidgetService.revealWidget() ?? this.chatWidgetService.lastFocusedWidget;
 			widget?.attachmentModel?.addContext(...toAttach);
+
+			type IntegratedBrowserAddElementToChatAddedEvent = {
+				attachCss: boolean;
+				attachImages: boolean;
+			};
+
+			type IntegratedBrowserAddElementToChatAddedClassification = {
+				attachCss: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether chat.sendElementsToChat.attachCSS was enabled.' };
+				attachImages: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether chat.sendElementsToChat.attachImages was enabled.' };
+				owner: 'jruales';
+				comment: 'An element was successfully added to chat from Integrated Browser.';
+			};
+
+			this.telemetryService.publicLog2<IntegratedBrowserAddElementToChatAddedEvent, IntegratedBrowserAddElementToChatAddedClassification>('integratedBrowser.addElementToChat.added', {
+				attachCss,
+				attachImages
+			});
 
 		} catch (error) {
 			if (!cts.token.isCancellationRequested) {
@@ -564,14 +643,44 @@ export class BrowserEditor extends EditorPane {
 		// Update context keys for command enablement
 		this._canGoBackContext.set(event.canGoBack);
 		this._canGoForwardContext.set(event.canGoForward);
+
+		// Update visibility (welcome screen, error, browser view)
+		this.updateVisibility();
+	}
+
+	/**
+	 * Create the welcome container shown when no URL is loaded
+	 */
+	private createWelcomeContainer(): HTMLElement {
+		const container = $('.browser-welcome-container');
+		const content = $('.browser-welcome-content');
+
+		const iconContainer = $('.browser-welcome-icon');
+		iconContainer.appendChild(renderIcon(Codicon.globe));
+		content.appendChild(iconContainer);
+
+		const title = $('.browser-welcome-title');
+		title.textContent = localize('browser.welcomeTitle', "Browser");
+		content.appendChild(title);
+
+		const subtitle = $('.browser-welcome-subtitle');
+		subtitle.textContent = localize('browser.welcomeSubtitle', "Enter a URL above to get started.");
+		content.appendChild(subtitle);
+
+		const tip = $('.browser-welcome-tip');
+		tip.textContent = localize('browser.welcomeTip', "Tip: Use the Add Element to Chat feature to reference UI elements when asking Copilot for changes.");
+		content.appendChild(tip);
+
+		container.appendChild(content);
+		return container;
 	}
 
 	private setBackgroundImage(buffer: VSBuffer | undefined): void {
 		if (buffer) {
 			const dataUrl = `data:image/jpeg;base64,${encodeBase64(buffer)}`;
-			this._browserContainer.style.backgroundImage = `url('${dataUrl}')`;
+			this._placeholderScreenshot.style.backgroundImage = `url('${dataUrl}')`;
 		} else {
-			this._browserContainer.style.backgroundImage = '';
+			this._placeholderScreenshot.style.backgroundImage = '';
 		}
 	}
 
@@ -615,7 +724,20 @@ export class BrowserEditor extends EditorPane {
 		}
 	}
 
-	override layout(): void {
+	override layout(_dimension: Dimension, _position?: IDomPosition): void {
+		// no-op: layout is handled in layoutBrowserContainer()
+	}
+
+	/**
+	 * This should be called whenever .browser-container changes in size, or when
+	 * there could be any elements, such as the command palette, overlapping with it.
+	 *
+	 * Note that we don't call layoutBrowserContainer() from layout() but instead rely on using a ResizeObserver and on
+	 * making direct calls to it. This is because we have seen cases where the getBoundingClientRect() values of
+	 * the .browser-container element are not correct during layout() calls, especially during "Move into New Window"
+	 * and "Copy into New Window" operations into a different monitor.
+	 */
+	layoutBrowserContainer(): void {
 		if (this._model) {
 			this.checkOverlays();
 

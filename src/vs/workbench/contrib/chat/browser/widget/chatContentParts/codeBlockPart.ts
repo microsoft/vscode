@@ -56,7 +56,7 @@ import { ServiceCollection } from '../../../../../../platform/instantiation/comm
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { ResourceLabel } from '../../../../../browser/labels.js';
-import { ResourceContextKey } from '../../../../../common/contextkeys.js';
+import { StaticResourceContextKey } from '../../../../../common/contextkeys.js';
 import { AccessibilityVerbositySettingId } from '../../../../accessibility/browser/accessibilityConfiguration.js';
 import { InspectEditorTokensController } from '../../../../codeEditor/browser/inspectEditorTokens/inspectEditorTokens.js';
 import { MenuPreventer } from '../../../../codeEditor/browser/menuPreventer.js';
@@ -84,7 +84,6 @@ export interface ICodeBlockData {
 	readonly languageId: string;
 
 	readonly codemapperUri?: URI;
-	readonly fromSubagent?: boolean;
 
 	readonly vulns?: readonly IMarkdownVulnerability[];
 	readonly range?: Range;
@@ -170,7 +169,7 @@ export class CodeBlockPart extends Disposable {
 
 	private isDisposed = false;
 
-	private resourceContextKey: ResourceContextKey;
+	private resourceContextKey: StaticResourceContextKey;
 
 	private get verticalPadding(): number {
 		return this.currentCodeBlockData?.renderOptions?.verticalPadding ?? defaultCodeblockPadding;
@@ -191,7 +190,7 @@ export class CodeBlockPart extends Disposable {
 		super();
 		this.element = $('.interactive-result-code-block');
 
-		this.resourceContextKey = this._register(instantiationService.createInstance(ResourceContextKey));
+		this.resourceContextKey = instantiationService.createInstance(StaticResourceContextKey);
 		this.contextKeyService = this._register(contextKeyService.createScoped(this.element));
 		const scopedInstantiationService = this._register(instantiationService.createChild(new ServiceCollection([IContextKeyService, this.contextKeyService])));
 		const editorElement = dom.append(this.element, $('.interactive-result-editor'));
@@ -390,7 +389,12 @@ export class CodeBlockPart extends Disposable {
 
 		const editorBorder = 2;
 		width = width - editorBorder - (this.currentCodeBlockData?.renderOptions?.reserveWidth ?? 0);
-		this.editor.layout({ width: isRequestVM(this.currentCodeBlockData?.element) ? width * 0.9 : width, height });
+		// !!!!
+		// Important: Using here postponeRendering = true to avoid doing a sync layout on the editor
+		// which can be very expensive if there are many code blocks being laid out at once.
+		// This allows multiple editors to coordinate and render together at the next animation frame.
+		// !!!!
+		this.editor.layout({ width: isRequestVM(this.currentCodeBlockData?.element) ? width * 0.9 : width, height }, /* postponeRendering */ true);
 		this.updatePaddingForLayout();
 	}
 
@@ -453,6 +457,15 @@ export class CodeBlockPart extends Disposable {
 	reset() {
 		this.clearWidgets();
 		this.currentCodeBlockData = undefined;
+	}
+
+	onDidRemount(): void {
+		if (this.currentCodeBlockData) {
+			// !!!!
+			// Important: if the editor was off-dom and is now connected, we need to re-render it
+			// !!!!
+			this.editor.renderAsync(true);
+		}
 	}
 
 	private clearWidgets() {
@@ -636,7 +649,7 @@ export class CodeCompareBlockPart extends Disposable {
 
 		this.resourceLabel = this._register(scopedInstantiationService.createInstance(ResourceLabel, editorHeader, { supportIcons: true }));
 
-		const editorScopedService = this.diffEditor.getModifiedEditor().contextKeyService.createScoped(editorHeader);
+		const editorScopedService = this._register(this.diffEditor.getModifiedEditor().contextKeyService.createScoped(editorHeader));
 		const editorScopedInstantiationService = this._register(scopedInstantiationService.createChild(new ServiceCollection([IContextKeyService, editorScopedService])));
 		this.toolbar = this._register(editorScopedInstantiationService.createInstance(MenuWorkbenchToolBar, editorHeader, menuId, {
 			menuOptions: {

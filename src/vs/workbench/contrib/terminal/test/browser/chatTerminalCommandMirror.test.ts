@@ -14,6 +14,7 @@ import { TerminalCapabilityStore } from '../../../../../platform/terminal/common
 import { XtermTerminal } from '../../browser/xterm/xtermTerminal.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { TestXtermAddonImporter } from './xterm/xtermTestUtils.js';
+import { computeMaxBufferColumnWidth } from '../../browser/chatTerminalCommandMirror.js';
 
 const defaultTerminalConfig = {
 	fontFamily: 'monospace',
@@ -229,6 +230,149 @@ suite('Workbench - ChatTerminalCommandMirror', () => {
 
 			// Incremental mirror should match fresh mirror
 			strictEqual(getBufferText(mirror), getBufferText(freshMirror));
+		});
+	});
+
+	suite('computeMaxBufferColumnWidth', () => {
+
+		/**
+		 * Creates a mock buffer with the given lines.
+		 * Each string represents a line; characters are cells, spaces are empty cells.
+		 */
+		function createMockBuffer(lines: string[], cols: number = 80): { readonly length: number; getLine(y: number): { readonly length: number; getCell(x: number): { getChars(): string } | undefined } | undefined } {
+			return {
+				length: lines.length,
+				getLine(y: number) {
+					if (y < 0 || y >= lines.length) {
+						return undefined;
+					}
+					const lineContent = lines[y];
+					return {
+						length: Math.max(lineContent.length, cols),
+						getCell(x: number) {
+							if (x < 0 || x >= lineContent.length) {
+								return { getChars: () => '' };
+							}
+							const char = lineContent[x];
+							return { getChars: () => char === ' ' ? '' : char };
+						}
+					};
+				}
+			};
+		}
+
+		test('returns 0 for empty buffer', () => {
+			const buffer = createMockBuffer([]);
+			strictEqual(computeMaxBufferColumnWidth(buffer, 80), 0);
+		});
+
+		test('returns 0 for buffer with only empty lines', () => {
+			const buffer = createMockBuffer(['', '', '']);
+			strictEqual(computeMaxBufferColumnWidth(buffer, 80), 0);
+		});
+
+		test('returns correct width for single character', () => {
+			const buffer = createMockBuffer(['X']);
+			strictEqual(computeMaxBufferColumnWidth(buffer, 80), 1);
+		});
+
+		test('returns correct width for single line', () => {
+			const buffer = createMockBuffer(['hello']);
+			strictEqual(computeMaxBufferColumnWidth(buffer, 80), 5);
+		});
+
+		test('returns max width across multiple lines', () => {
+			const buffer = createMockBuffer([
+				'short',
+				'much longer line',
+				'mid'
+			]);
+			strictEqual(computeMaxBufferColumnWidth(buffer, 80), 16);
+		});
+
+		test('ignores trailing spaces (empty cells)', () => {
+			// Spaces are treated as empty cells in our mock
+			const buffer = createMockBuffer(['hello     ']);
+			strictEqual(computeMaxBufferColumnWidth(buffer, 80), 5);
+		});
+
+		test('respects cols parameter to clamp line length', () => {
+			const buffer = createMockBuffer(['abcdefghijklmnop']); // 16 chars, no spaces
+			strictEqual(computeMaxBufferColumnWidth(buffer, 10), 10);
+		});
+
+		test('handles lines with content at different positions', () => {
+			const buffer = createMockBuffer([
+				'a',           // width 1
+				'  b',         // content at col 2, but width is 3
+				'    c',       // content at col 4, but width is 5
+				'      d'      // content at col 6, width is 7
+			]);
+			strictEqual(computeMaxBufferColumnWidth(buffer, 80), 7);
+		});
+
+		test('handles buffer with undefined lines gracefully', () => {
+			const buffer = {
+				length: 3,
+				getLine(y: number) {
+					if (y === 1) {
+						return undefined;
+					}
+					return {
+						length: 5,
+						getCell(x: number) {
+							return x < 3 ? { getChars: () => 'X' } : { getChars: () => '' };
+						}
+					};
+				}
+			};
+			strictEqual(computeMaxBufferColumnWidth(buffer, 80), 3);
+		});
+
+		test('handles line with all empty cells', () => {
+			const buffer = createMockBuffer(['     ']); // all spaces = empty cells
+			strictEqual(computeMaxBufferColumnWidth(buffer, 80), 0);
+		});
+
+		test('handles mixed empty and non-empty lines', () => {
+			const buffer = createMockBuffer([
+				'',
+				'content',
+				'',
+				'more',
+				''
+			]);
+			strictEqual(computeMaxBufferColumnWidth(buffer, 80), 7);
+		});
+
+		test('returns correct width for line exactly at 80 cols', () => {
+			const line80 = 'a'.repeat(80);
+			const buffer = createMockBuffer([line80]);
+			strictEqual(computeMaxBufferColumnWidth(buffer, 80), 80);
+		});
+
+		test('returns correct width for line exceeding 80 cols with higher cols value', () => {
+			const line100 = 'a'.repeat(100);
+			const buffer = createMockBuffer([line100], 120);
+			strictEqual(computeMaxBufferColumnWidth(buffer, 120), 100);
+		});
+
+		test('handles wide terminal with long content', () => {
+			const buffer = createMockBuffer([
+				'short',
+				'a'.repeat(150),
+				'medium content here'
+			], 200);
+			strictEqual(computeMaxBufferColumnWidth(buffer, 200), 150);
+		});
+
+		test('max of multiple lines where longest exceeds default cols', () => {
+			const buffer = createMockBuffer([
+				'a'.repeat(50),
+				'b'.repeat(120),
+				'c'.repeat(90)
+			], 150);
+			strictEqual(computeMaxBufferColumnWidth(buffer, 150), 120);
 		});
 	});
 });

@@ -36,8 +36,9 @@ suite('AgentSessionsDataSource', () => {
 			label: `Session ${overrides.id ?? 'default'}`,
 			icon: Codicon.terminal,
 			timing: {
-				startTime: overrides.startTime ?? now,
-				endTime: overrides.endTime ?? now,
+				created: overrides.startTime ?? now,
+				lastRequestEnded: undefined,
+				lastRequestStarted: undefined,
 			},
 			isArchived: () => overrides.isArchived ?? false,
 			setArchived: () => { },
@@ -49,10 +50,12 @@ suite('AgentSessionsDataSource', () => {
 	function createMockModel(sessions: IAgentSession[]): IAgentSessionsModel {
 		return {
 			sessions,
+			resolved: true,
 			getSession: () => undefined,
 			onWillResolve: Event.None,
 			onDidResolve: Event.None,
 			onDidChangeSessions: Event.None,
+			onDidChangeSessionArchivedState: Event.None,
 			resolve: async () => { },
 		};
 	}
@@ -73,8 +76,8 @@ suite('AgentSessionsDataSource', () => {
 		return {
 			compare: (a, b) => {
 				// Sort by end time, most recent first
-				const aTime = a.timing.endTime || a.timing.startTime;
-				const bTime = b.timing.endTime || b.timing.startTime;
+				const aTime = a.timing.lastRequestEnded ?? a.timing.lastRequestStarted ?? a.timing.created;
+				const bTime = b.timing.lastRequestEnded ?? b.timing.lastRequestStarted ?? b.timing.created;
 				return bTime - aTime;
 			}
 		};
@@ -223,6 +226,37 @@ suite('AgentSessionsDataSource', () => {
 			const archivedIndex = result.findIndex(item => isAgentSessionSection(item) && item.section === AgentSessionSection.Archived);
 
 			assert.ok(olderIndex < archivedIndex, 'Older section should come before Archived section');
+		});
+
+		test('archived in-progress sessions appear in Archived section not In Progress', () => {
+			const now = Date.now();
+			const sessions = [
+				createMockSession({ id: 'archived-active', status: ChatSessionStatus.InProgress, isArchived: true, startTime: now }),
+				createMockSession({ id: 'active', status: ChatSessionStatus.InProgress, startTime: now }),
+			];
+
+			const filter = createMockFilter({ groupResults: true });
+			const sorter = createMockSorter();
+			const dataSource = new AgentSessionsDataSource(filter, sorter);
+
+			const mockModel = createMockModel(sessions);
+			const result = Array.from(dataSource.getChildren(mockModel));
+			const sections = getSectionsFromResult(result);
+
+			// Verify there is both an In Progress and Archived section
+			const inProgressSection = sections.find(s => s.section === AgentSessionSection.InProgress);
+			const archivedSection = sections.find(s => s.section === AgentSessionSection.Archived);
+
+			assert.ok(inProgressSection, 'In Progress section should exist');
+			assert.ok(archivedSection, 'Archived section should exist');
+
+			// The archived session should NOT appear in In Progress
+			assert.strictEqual(inProgressSection.sessions.length, 1);
+			assert.strictEqual(inProgressSection.sessions[0].label, 'Session active');
+
+			// The archived session should appear in Archived even though it's in progress
+			assert.strictEqual(archivedSection.sessions.length, 1);
+			assert.strictEqual(archivedSection.sessions[0].label, 'Session archived-active');
 		});
 
 		test('correct order: active, today, week, older, archived', () => {
