@@ -1530,7 +1530,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'chatSessionsProvider');
 				return extHostChatSessions.registerChatSessionItemProvider(extension, chatSessionType, provider);
 			},
-			createChatSessionItemController: (chatSessionType: string, refreshHandler: () => Thenable<void>) => {
+			createChatSessionItemController: (chatSessionType: string, refreshHandler: (token: vscode.CancellationToken) => Thenable<void>) => {
 				checkProposedApiEnabled(extension, 'chatSessionsProvider');
 				return extHostChatSessions.createChatSessionItemController(extension, chatSessionType, refreshHandler);
 			},
