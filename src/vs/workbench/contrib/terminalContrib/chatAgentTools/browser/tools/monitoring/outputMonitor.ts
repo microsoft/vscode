@@ -861,6 +861,19 @@ export function detectsNonInteractiveHelpPattern(cursorLine: string): boolean {
 }
 
 /**
+ * Localized task finish messages from VS Code's terminalTaskSystem.
+ * These are the same strings used when tasks complete.
+ */
+const taskFinishMessages = [
+	// "Terminal will be reused by tasks, press any key to close it."
+	localize('closeTerminal', "Terminal will be reused by tasks, press any key to close it."),
+	localize('reuseTerminal', "Terminal will be reused by tasks, press any key to close it."),
+	// "Press any key to close the terminal." (with exit code placeholder removed for matching)
+	localize('exitCode.closeTerminal', "Press any key to close the terminal."),
+	localize('exitCode.reuseTerminal', "Press any key to close the terminal."),
+];
+
+/**
  * Detects VS Code's specific task completion messages like:
  * - "Press any key to close the terminal."
  * - "Terminal will be reused by tasks, press any key to close it."
@@ -871,12 +884,7 @@ export function detectsNonInteractiveHelpPattern(cursorLine: string): boolean {
 export function detectsVSCodeTaskFinishMessage(cursorLine: string): boolean {
 	// Remove all whitespace to handle line wrapping that splits words mid-word
 	const normalized = cursorLine.replace(/\s/g, '').toLowerCase();
-	return [
-		// "Press any key to close the terminal."
-		'pressanykeytoclosetheterminal',
-		// "Terminal will be reused by tasks, press any key to close it."
-		'terminalwillbereusedbytasks,pressanykeytocloseit',
-	].some(pattern => normalized.includes(pattern));
+	return taskFinishMessages.some(msg => normalized.includes(msg.replace(/\s/g, '').toLowerCase()));
 }
 
 /**
