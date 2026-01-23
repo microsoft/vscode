@@ -54,7 +54,7 @@ import { IChatSlashCommandService } from '../../../../common/participants/chatSl
 import { IChatRequestVariableEntry } from '../../../../common/attachments/chatVariableEntries.js';
 import { IDynamicVariable } from '../../../../common/attachments/chatVariables.js';
 import { ChatAgentLocation, ChatModeKind, isSupportedChatFileScheme } from '../../../../common/constants.js';
-import { ToolSet } from '../../../../common/tools/languageModelToolsService.js';
+import { isToolSet } from '../../../../common/tools/languageModelToolsService.js';
 import { IPromptsService } from '../../../../common/promptSyntax/service/promptsService.js';
 import { ChatSubmitAction, IChatExecuteActionContext } from '../../../actions/chatExecuteActions.js';
 import { IChatWidget, IChatWidgetService } from '../../../chat.js';
@@ -1220,7 +1220,7 @@ class ToolCompletions extends Disposable {
 					let documentation: string | undefined;
 
 					let name: string;
-					if (item instanceof ToolSet) {
+					if (isToolSet(item)) {
 						detail = item.description;
 						name = item.referenceName;
 

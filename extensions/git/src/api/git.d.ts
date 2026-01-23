@@ -149,6 +149,11 @@ export interface RepositoryUIState {
 	readonly onDidChange: Event<void>;
 }
 
+export interface RepositoryAccessDetails {
+	readonly rootUri: Uri;
+	readonly lastAccessTime: number;
+}
+
 /**
  * Log options.
  */
@@ -229,6 +234,7 @@ export interface Repository {
 	readonly inputBox: InputBox;
 	readonly state: RepositoryState;
 	readonly ui: RepositoryUIState;
+	readonly kind: RepositoryKind;
 
 	readonly onDidCommit: Event<void>;
 	readonly onDidCheckout: Event<void>;
@@ -398,6 +404,7 @@ export interface API {
 	readonly onDidPublish: Event<PublishEvent>;
 	readonly git: Git;
 	readonly repositories: Repository[];
+	readonly recentRepositories: Iterable<RepositoryAccessDetails>;
 	readonly onDidOpenRepository: Event<Repository>;
 	readonly onDidCloseRepository: Event<Repository>;
 

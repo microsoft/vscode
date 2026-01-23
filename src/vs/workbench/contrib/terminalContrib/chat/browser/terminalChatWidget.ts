@@ -151,7 +151,7 @@ export class TerminalChatWidget extends Disposable {
 			this._inlineChatWidget.onDidChangeHeight,
 			this._instance.onDimensionsChanged,
 			this._inlineChatWidget.chatWidget.onDidChangeContentHeight,
-			this._inlineChatWidget.chatWidget.input.onDidChangeCurrentLanguageModel,
+			Event.fromObservableLight(this._inlineChatWidget.chatWidget.input.selectedLanguageModel),
 			Event.debounce(this._xterm.raw.onCursorMove, () => void 0, MicrotaskDelay),
 		)(() => this._relayout()));
 
