@@ -12,7 +12,7 @@ import { ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart } from '../
 import { ChatAgentVoteDirection, ChatCopyKind, IChatSendRequestOptions, IChatUserActionEvent } from './chatService.js';
 import { isImageVariableEntry } from '../attachments/chatVariableEntries.js';
 import { ChatAgentLocation } from '../constants.js';
-import { ILanguageModelsService } from '../languageModels.js';
+import { ILanguageModelChatMetadata, ILanguageModelsService } from '../languageModels.js';
 
 type ChatVoteEvent = {
 	direction: 'up' | 'down';
@@ -148,6 +148,8 @@ export type ChatProviderInvokedEvent = {
 	enableCommandDetection: boolean;
 	attachmentKinds: string[];
 	model: string | undefined;
+	isAuto: boolean;
+	isBYOK: boolean;
 };
 
 export type ChatProviderInvokedClassification = {
@@ -166,6 +168,8 @@ export type ChatProviderInvokedClassification = {
 	enableCommandDetection: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether participation detection was disabled for this invocation.' };
 	attachmentKinds: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The types of variables/attachments that the user included with their query.' };
 	model: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The model used to generate the response.' };
+	isAuto: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the request was triggered automatically.' };
+	isBYOK: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the request was made using a user-supplied API key (Bring Your Own Key).' };
 	owner: 'roblourens';
 	comment: 'Provides insight into the performance of Chat agents.';
 };
@@ -286,6 +290,7 @@ export class ChatRequestTelemetry {
 		}
 
 		this.isComplete = true;
+		const modelMetadata = this.lookupModelMetadata(this.opts.options?.userSelectedModelId);
 		this.telemetryService.publicLog2<ChatProviderInvokedEvent, ChatProviderInvokedClassification>('interactiveSessionProviderInvoked', {
 			timeToFirstProgress,
 			totalTime,
@@ -301,7 +306,9 @@ export class ChatRequestTelemetry {
 			citations: request.response?.codeCitations.length ?? 0,
 			numCodeBlocks: getCodeBlocks(request.response?.response.toString() ?? '').length,
 			attachmentKinds: this.attachmentKindsForTelemetry(request.variableData),
-			model: this.resolveModelId(this.opts.options?.userSelectedModelId),
+			model: modelMetadata?.id,
+			isAuto: false,
+			isBYOK: modelMetadata !== undefined && modelMetadata.vendor !== 'copilot',
 		});
 	}
 
@@ -343,7 +350,7 @@ export class ChatRequestTelemetry {
 		});
 	}
 
-	private resolveModelId(userSelectedModelId: string | undefined): string | undefined {
-		return userSelectedModelId && this.languageModelsService.lookupLanguageModel(userSelectedModelId)?.id;
+	private lookupModelMetadata(userSelectedModelId: string | undefined): ILanguageModelChatMetadata | undefined {
+		return userSelectedModelId ? this.languageModelsService.lookupLanguageModel(userSelectedModelId) : undefined;
 	}
 }
