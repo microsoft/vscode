@@ -296,11 +296,11 @@ export class AgentWindow extends Disposable {
 
 			this.logService.info('[Agent] Found', installedExtensions.length, 'extensions');
 
-			// Load agent sessions
-			await this.loadSessions();
-
-			// Show the welcome view by default when opening the agent window
+			// Show the welcome view immediately so user can start typing while sessions load
 			this.showEmptyView();
+
+			// Load agent sessions (runs in parallel with welcome view being ready)
+			await this.loadSessions();
 
 		} catch (error) {
 			this.showStatusMessage(this._sessionsItemsEl, `Error: ${error instanceof Error ? error.message : String(error)}`);
@@ -476,10 +476,7 @@ export class AgentWindow extends Disposable {
 			const allContributions = chatSessionsService.getAllChatSessionContributions();
 			this.logService.info('[Agent] Registered contributions:', allContributions.length, allContributions.map(c => c.type));
 
-			// Clear loading message
-			clearNode(sessionsListEl);
-
-			// Create the "New Session" button
+			// Create the "New Session" button (visible during loading)
 			this._newSessionButton = this._register(new Button(this._newSessionButtonContainer, {
 				...defaultButtonStyles,
 				title: 'New Session',
@@ -505,7 +502,28 @@ export class AgentWindow extends Disposable {
 				trackActiveEditorSession: () => false, // We don't track active editor in agent window
 			};
 
-			// Create the AgentSessionsControl
+			// Access model - this triggers lazy loading and starts resolve()
+			const model = agentSessionsService.model;
+
+			// Wait for the model to finish resolving before clearing the loading message
+			// The resolve() is triggered by accessing .model but not awaited
+			await model.resolve(undefined);
+
+			// Now clear the loading message - sessions are loaded
+			clearNode(sessionsListEl);
+
+			// Show ongoing loading indicator when model is resolving
+			this._register(model.onWillResolve(() => {
+				// Add a subtle loading indicator if we have the sessions control
+				if (this._sessionsControl) {
+					sessionsListEl.classList.add('loading');
+				}
+			}));
+			this._register(model.onDidResolve(() => {
+				sessionsListEl.classList.remove('loading');
+			}));
+
+			// Create the AgentSessionsControl now that we have data
 			this.logService.info('[Agent] Creating AgentSessionsControl...');
 			this._sessionsControl = this._register(this.instantiationService.createInstance(
 				AgentSessionsControl,
@@ -525,8 +543,6 @@ export class AgentWindow extends Disposable {
 					return undefined;
 				});
 			}
-
-			const model = agentSessionsService.model;
 			this.logService.info('[Agent] Model sessions count:', model.sessions.length);
 
 			// Set up resize observer for sessions list layout
