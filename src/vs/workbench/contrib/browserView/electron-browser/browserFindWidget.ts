@@ -29,7 +29,7 @@ export class BrowserFindWidget extends SimpleFindWidget {
 	private _hasFoundMatch = false;
 
 	constructor(
-		container: HTMLElement,
+		private readonly container: HTMLElement,
 		@IContextViewService contextViewService: IContextViewService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IHoverService hoverService: IHoverService,
@@ -39,6 +39,8 @@ export class BrowserFindWidget extends SimpleFindWidget {
 			showCommonFindToggles: true,
 			checkImeCompletionState: true,
 			showResultCount: true,
+			enableSash: true,
+			initialWidth: 350,
 			previousMatchActionId: 'workbench.action.browser.findPrevious',
 			nextMatchActionId: 'workbench.action.browser.findNext',
 			closeWidgetActionId: 'workbench.action.browser.hideFind'
@@ -80,6 +82,7 @@ export class BrowserFindWidget extends SimpleFindWidget {
 	override reveal(initialInput?: string): void {
 		super.reveal(initialInput);
 		this._findWidgetVisible.set(true);
+		this.container.classList.toggle('find-visible', true);
 
 		// Focus the find input
 		this.focusFindBox();
@@ -93,6 +96,7 @@ export class BrowserFindWidget extends SimpleFindWidget {
 	override hide(): void {
 		super.hide(false);
 		this._findWidgetVisible.reset();
+		this.container.classList.toggle('find-visible', false);
 
 		// Stop find and clear highlights in the browser view
 		this._model?.stopFindInPage(true);

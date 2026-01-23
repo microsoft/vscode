@@ -12,8 +12,8 @@
 	.browser-toolbar {
 		display: flex;
 		align-items: center;
-		padding: 8px;
-		border-bottom: 1px solid var(--vscode-editorWidget-border);
+		padding: 6px 8px;
+		border-bottom: 1px solid var(--vscode-widget-border);
 		background-color: var(--vscode-editor-background);
 		flex-shrink: 0;
 		gap: 8px;
@@ -160,27 +160,32 @@
 		z-index: 10;
 		overflow: hidden;
 
+		&.find-visible {
+			border-bottom: 1px solid var(--vscode-widget-border);
+		}
+
 		/* Override SimpleFindWidget absolute positioning to flow in layout */
 		.simple-find-part-wrapper {
 			position: relative;
 			top: 0;
 			right: 0;
-			max-width: 100%;
 			padding: 0;
 			margin-left: auto;
 		}
 
 		.simple-find-part {
 			border-radius: 0;
-			border-top: none;
-			border-left: none;
-			border-right: none;
-			border-bottom: 1px solid var(--vscode-editorWidget-border);
+			border: none;
 			top: 0 !important;
+			padding: 6px 8px;
 			transition: none;
 
 			&:not(.visible) {
 				display: none;
+			}
+
+			.monaco-sash {
+				border-radius: 0;
 			}
 
 			/* Hide whole word and regex toggles */

@@ -175,7 +175,6 @@ export class BrowserEditor extends EditorPane {
 	private _welcomeContainer!: HTMLElement;
 	private _findWidgetContainer!: HTMLElement;
 	private _findWidget!: Lazy<BrowserFindWidget>;
-	private _findWidgetModel: IBrowserViewModel | undefined;
 	private _canGoBackContext!: IContextKey<boolean>;
 	private _canGoForwardContext!: IContextKey<boolean>;
 	private _storageScopeContext!: IContextKey<string>;
@@ -243,11 +242,12 @@ export class BrowserEditor extends EditorPane {
 				BrowserFindWidget,
 				this._findWidgetContainer
 			);
-			if (this._findWidgetModel) {
-				findWidget.setModel(this._findWidgetModel);
+			if (this._model) {
+				findWidget.setModel(this._model);
 			}
 			return findWidget;
 		});
+		this._register(toDisposable(() => this._findWidget.rawValue?.dispose()));
 
 		// Create browser container (stub element for positioning)
 		this._browserContainer = $('.browser-container');
@@ -313,7 +313,6 @@ export class BrowserEditor extends EditorPane {
 		this._devToolsOpenContext.set(this._model.isDevToolsOpen);
 
 		// Update find widget with new model
-		this._findWidgetModel = this._model;
 		this._findWidget.rawValue?.setModel(this._model);
 
 		// Clean up on input disposal
@@ -821,7 +820,6 @@ export class BrowserEditor extends EditorPane {
 		}
 
 		// Clear find widget model
-		this._findWidgetModel = undefined;
 		this._findWidget.rawValue?.setModel(undefined);
 		this._findWidget.rawValue?.hide();
 

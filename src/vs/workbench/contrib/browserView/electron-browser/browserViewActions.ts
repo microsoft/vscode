@@ -226,7 +226,7 @@ class OpenInExternalBrowserAction extends Action2 {
 			f1: false,
 			menu: {
 				id: MenuId.BrowserActionsToolbar,
-				group: '2_export',
+				group: '2_page',
 				order: 1
 			}
 		});
@@ -325,9 +325,14 @@ class ShowBrowserFindAction extends Action2 {
 	constructor() {
 		super({
 			id: ShowBrowserFindAction.ID,
-			title: localize2('browser.showFindAction', 'Find in Browser'),
+			title: localize2('browser.showFindAction', 'Find in Page'),
 			category: BrowserCategory,
 			f1: false,
+			menu: {
+				id: MenuId.BrowserActionsToolbar,
+				group: '2_page',
+				order: 2,
+			},
 			keybinding: {
 				when: BROWSER_EDITOR_ACTIVE,
 				weight: KeybindingWeight.EditorContrib,
@@ -336,8 +341,7 @@ class ShowBrowserFindAction extends Action2 {
 		});
 	}
 
-	run(accessor: ServicesAccessor): void {
-		const browserEditor = accessor.get(IEditorService).activeEditorPane;
+	run(accessor: ServicesAccessor, browserEditor = accessor.get(IEditorService).activeEditorPane): void {
 		if (browserEditor instanceof BrowserEditor) {
 			browserEditor.showFind();
 		}
