@@ -81,7 +81,7 @@ import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions, setupSimpleEd
 import { InlineChatConfigKeys } from '../../../../inlineChat/common/inlineChat.js';
 import { IChatViewTitleActionContext } from '../../../common/actions/chatActions.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
-import { ChatRequestVariableSet, IChatRequestVariableEntry, isElementVariableEntry, isImageVariableEntry, isNotebookOutputVariableEntry, isPasteVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, isSCMHistoryItemChangeRangeVariableEntry, isSCMHistoryItemChangeVariableEntry, isSCMHistoryItemVariableEntry, isStringImplicitContextValue, isStringVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
+import { ChatRequestVariableSet, IChatRequestVariableEntry, isElementVariableEntry, isImageVariableEntry, isNotebookOutputVariableEntry, isPasteVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, isSCMHistoryItemChangeRangeVariableEntry, isSCMHistoryItemChangeVariableEntry, isSCMHistoryItemVariableEntry, isStringVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { ChatMode, IChatMode, IChatModeService } from '../../../common/chatModes.js';
 import { IChatFollowup, IChatService, IChatSessionContext } from '../../../common/chatService/chatService.js';
 import { agentOptionId, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsService, isIChatSessionFileChange2, localChatSessionType } from '../../../common/chatSessionsService.js';
@@ -99,7 +99,7 @@ import { AgentSessionProviders, getAgentSessionProvider } from '../../agentSessi
 import { IAgentSessionsService } from '../../agentSessions/agentSessionsService.js';
 import { ChatAttachmentModel } from '../../attachments/chatAttachmentModel.js';
 import { DefaultChatAttachmentWidget, ElementChatAttachmentWidget, FileAttachmentWidget, ImageAttachmentWidget, NotebookCellOutputChatAttachmentWidget, PasteAttachmentWidget, PromptFileAttachmentWidget, PromptTextAttachmentWidget, SCMHistoryItemAttachmentWidget, SCMHistoryItemChangeAttachmentWidget, SCMHistoryItemChangeRangeAttachmentWidget, TerminalCommandAttachmentWidget, ToolSetOrToolItemAttachmentWidget } from '../../attachments/chatAttachmentWidgets.js';
-import { ChatImplicitContext } from '../../attachments/chatImplicitContext.js';
+import { ChatImplicitContexts } from '../../attachments/chatImplicitContext.js';
 import { ChatRelatedFiles } from '../../attachments/chatInputRelatedFilesContrib.js';
 import { ImplicitContextAttachmentWidget } from '../../attachments/implicitContextAttachment.js';
 import { IChatWidget, ISessionTypePickerDelegate, isIChatResourceViewContext, IWorkspacePickerDelegate } from '../../chat.js';
@@ -210,6 +210,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private _onDidClickOverlay = this._register(new Emitter<void>());
 	readonly onDidClickOverlay: Event<void> = this._onDidClickOverlay.event;
 
+	private readonly _implicitContextWidget: MutableDisposable<ImplicitContextAttachmentWidget> = this._register(new MutableDisposable<ImplicitContextAttachmentWidget>());
+
 	private readonly _attachmentModel: ChatAttachmentModel;
 	private _widget?: IChatWidget;
 	public get attachmentModel(): ChatAttachmentModel {
@@ -228,8 +230,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		const contextArr = this.getAttachedContext(sessionResource);
 
-		if ((this.implicitContext?.enabled && this.implicitContext?.value) || (this.implicitContext && !URI.isUri(this.implicitContext.value) && !isStringImplicitContextValue(this.implicitContext.value) && this.configurationService.getValue<boolean>('chat.implicitContext.suggestedContext'))) {
-			const implicitChatVariables = this.implicitContext.toBaseEntries();
+		if (this.implicitContext) {
+			const implicitChatVariables = this.implicitContext.enabledBaseEntries(this.configurationService.getValue<boolean>('chat.implicitContext.suggestedContext'));
 			contextArr.add(...implicitChatVariables);
 		}
 		return contextArr;
@@ -238,8 +240,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private _indexOfLastAttachedContextDeletedWithKeyboard: number = -1;
 	private _indexOfLastOpenedContext: number = -1;
 
-	private _implicitContext: ChatImplicitContext | undefined;
-	public get implicitContext(): ChatImplicitContext | undefined {
+	private _implicitContext: ChatImplicitContexts | undefined;
+	public get implicitContext(): ChatImplicitContexts | undefined {
 		return this._implicitContext;
 	}
 
@@ -648,7 +650,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private setImplicitContextEnablement() {
 		if (this.implicitContext && this.configurationService.getValue<boolean>('chat.implicitContext.suggestedContext')) {
-			this.implicitContext.enabled = this._currentModeObservable.get().kind !== ChatMode.Agent.kind;
+			this.implicitContext.setEnabled(this._currentModeObservable.get().kind !== ChatMode.Agent.kind);
 		}
 	}
 
@@ -1734,7 +1736,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		if (this.options.enableImplicitContext && !this._implicitContext) {
 			this._implicitContext = this._register(
-				this.instantiationService.createInstance(ChatImplicitContext),
+				this.instantiationService.createInstance(ChatImplicitContexts),
 			);
 			this.setImplicitContextEnablement();
 
@@ -2067,7 +2069,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			actionViewItemProvider: (action, options) => {
 				if (action.id === 'workbench.action.chat.attachContext') {
 					const viewItem = this.instantiationService.createInstance(AddFilesButton, this._attachmentModel, action, options);
-					viewItem.setShowLabel(this._attachmentModel.size === 0 && !this.hasImplicitContextBlock());
+					viewItem.setShowLabel(this._attachmentModel.size === 0 && !this._implicitContextWidget.value?.hasRenderedContexts);
 					this.addFilesButton = viewItem;
 					return this.addFilesButton;
 				}
@@ -2109,7 +2111,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}));
 
 		const attachments = [...this.attachmentModel.attachments.entries()];
-		const hasAttachments = Boolean(attachments.length) || Boolean(this.implicitContext?.value);
+		const hasAttachments = Boolean(attachments.length) || Boolean(this.implicitContext?.hasValue);
 		dom.setVisibility(Boolean(this.options.renderInputToolbarBelowInput || hasAttachments || (this.addFilesToolbar && !this.addFilesToolbar.isEmpty())), this.attachmentsContainer);
 		dom.setVisibility(hasAttachments, this.attachedContextContainer);
 		if (!attachments.length) {
@@ -2118,11 +2120,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 
 		const isSuggestedEnabled = this.configurationService.getValue<boolean>('chat.implicitContext.suggestedContext');
-
-		if (this.implicitContext?.value && !isSuggestedEnabled) {
-			const implicitPart = store.add(this.instantiationService.createInstance(ImplicitContextAttachmentWidget, () => this._widget, this.implicitContext, this._contextResourceLabels, this.attachmentModel));
-			container.appendChild(implicitPart.domNode);
-		}
 
 		for (const [index, attachment] of attachments) {
 			const resource = URI.isUri(attachment.value) ? attachment.value : isLocation(attachment.value) ? attachment.value.uri : undefined;
@@ -2178,49 +2175,22 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}));
 		}
 
-		const implicitValue = this.implicitContext?.value;
-
-		if (isSuggestedEnabled && implicitValue) {
-			const targetUri: URI | undefined = this.implicitContext.uri;
-			const targetRange = isLocation(implicitValue) ? implicitValue.range : undefined;
-			const currentlyAttached = this.isAttachmentAlreadyAttached(targetUri, targetRange, attachments.map(([, a]) => a));
-			const shouldShowImplicit = !currentlyAttached;
-			if (shouldShowImplicit) {
-				const implicitPart = store.add(this.instantiationService.createInstance(ImplicitContextAttachmentWidget, () => this._widget, this.implicitContext, this._contextResourceLabels, this._attachmentModel));
-				container.appendChild(implicitPart.domNode);
-			}
+		if (isSuggestedEnabled && this.implicitContext?.hasValue) {
+			this._implicitContextWidget.value = this.instantiationService.createInstance(ImplicitContextAttachmentWidget, () => this._widget, (targetUri: URI | undefined, targetRange: IRange | undefined, targetHandle: number | undefined) => this.isAttachmentAlreadyAttached(targetUri, targetRange, targetHandle, attachments.map(([, a]) => a)), this.implicitContext, this._contextResourceLabels, this._attachmentModel, container);
+		} else {
+			this._implicitContextWidget.clear();
 		}
 
-		this.addFilesButton?.setShowLabel(this._attachmentModel.size === 0 && !this.hasImplicitContextBlock());
+		this.addFilesButton?.setShowLabel(this._attachmentModel.size === 0 && !this._implicitContextWidget.value?.hasRenderedContexts);
 
 		this._indexOfLastOpenedContext = -1;
 	}
 
-	private hasImplicitContextBlock(): boolean {
-		const implicit = this.implicitContext?.value;
-		if (!implicit) {
-			return false;
-		}
-		const isSuggestedEnabled = this.configurationService.getValue<boolean>('chat.implicitContext.suggestedContext');
-		if (!isSuggestedEnabled) {
-			return true;
-		}
-
-		const isUri = URI.isUri(implicit);
-		if (isUri || isLocation(implicit)) {
-			const targetUri = isUri ? implicit : implicit.uri;
-			const targetRange = isLocation(implicit) ? implicit.range : undefined;
-			const attachments = [...this._attachmentModel.attachments.values()];
-			const currentlyAttached = this.isAttachmentAlreadyAttached(targetUri, targetRange, attachments);
-			return !currentlyAttached;
-		}
-		return false;
-	}
-
-	private isAttachmentAlreadyAttached(targetUri: URI | undefined, targetRange: IRange | undefined, attachments: IChatRequestVariableEntry[]): boolean {
+	private isAttachmentAlreadyAttached(targetUri: URI | undefined, targetRange: IRange | undefined, targetHandle: number | undefined, attachments: IChatRequestVariableEntry[]): boolean {
 		return attachments.some((attachment) => {
 			let uri: URI | undefined;
 			let range: IRange | undefined;
+			let handle: number | undefined;
 
 			if (URI.isUri(attachment.value)) {
 				uri = attachment.value;
@@ -2229,6 +2199,15 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				range = attachment.value.range;
 			} else if (isStringVariableEntry(attachment)) {
 				uri = attachment.uri;
+				handle = attachment.handle;
+			}
+
+			if ((handle !== undefined && targetHandle === undefined) || (handle === undefined && targetHandle !== undefined)) {
+				return false;
+			}
+
+			if (handle !== undefined && targetHandle !== undefined && handle !== targetHandle) {
+				return false;
 			}
 
 			if (!uri || !isEqual(uri, targetUri)) {
@@ -2255,10 +2234,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		if (this.configurationService.getValue<boolean>('chat.implicitContext.enableImplicitContext')) {
 			// if currently opened file is deleted, do not show implicit context
-			const implicitValue = URI.isUri(this.implicitContext?.value) && URI.isUri(attachment.value) && isEqual(this.implicitContext.value, attachment.value);
+			for (const implicitContext of (this._implicitContext?.values || [])) {
+				const implicitValue = URI.isUri(implicitContext?.value) && URI.isUri(attachment.value) && isEqual(implicitContext.value, attachment.value);
 
-			if (this.implicitContext?.isFile && implicitValue) {
-				this.implicitContext.enabled = false;
+				if (implicitContext?.isFile && implicitValue) {
+					implicitContext.enabled = false;
+				}
 			}
 		}
 

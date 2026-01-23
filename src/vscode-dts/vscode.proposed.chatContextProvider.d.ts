@@ -89,7 +89,7 @@ declare module 'vscode' {
 		 * Chat context items can be provided without a `value`, as the `value` can be resolved later using `resolveChatContext`.
 		 * `resolveChatContext` is only called for items that do not have a `value`.
 		 *
-		 * Currently only called when the resource is a webview.
+		 * Called when the resource is a webview or a text editor.
 		 *
 		 * @param options Options include the resource for which to provide context.
 		 * @param token A cancellation token.
