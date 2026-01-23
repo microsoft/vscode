@@ -387,10 +387,7 @@ export class MarkAgentSessionSectionReadAction extends Action2 {
 				id: MenuId.AgentSessionSectionContext,
 				group: '1_edit',
 				order: 1,
-				when: ContextKeyExpr.and(
-					ChatContextKeys.agentSessionSection.notEqualsTo(AgentSessionSection.Archived),
-					ChatContextKeys.agentSessionSection.notEqualsTo(AgentSessionSection.Others)
-				),
+				when: ChatContextKeys.agentSessionSection.notEqualsTo(AgentSessionSection.Archived),
 			}]
 		});
 	}
