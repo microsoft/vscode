@@ -1,8 +1,9 @@
 #!/bin/sh
 set -e
 
-if [ -n "$DISPLAY" ]; then
+if [ -z "$DISPLAY" ] && command -v Xvfb > /dev/null 2>&1; then
 	echo "Starting X11 Server"
+	export DISPLAY=:99
 	Xvfb $DISPLAY -screen 0 1024x768x24 -ac -noreset &
 fi
 

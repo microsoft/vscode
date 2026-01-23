@@ -18,25 +18,12 @@ RUN if [ "$TARGETARCH" = "amd64" ]; then \
 ENV PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/google-chrome-stable
 
 # X11 Server
-RUN zypper install -y xorg-x11-server-Xvfb
+RUN zypper install -y xorg-x11-server-Xvfb xauth
 ENV DISPLAY=:99
 
 # Desktop Bus
 RUN zypper install -y dbus-1-x11 && \
 	mkdir -p /run/dbus
-
-# VS Code Desktop dependencies (arm64 only, amd64 gets these via google-chrome-stable)
-RUN if [ "$TARGETARCH" = "arm64" ]; then \
-		zypper install -y \
-			gtk3 \
-			libsecret-1-0 \
-			mozilla-nss \
-			libgbm1 \
-			libglib-2_0-0 \
-			alsa-lib \
-			libxkbcommon0 \
-			xdg-utils; \
-	fi
 
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
