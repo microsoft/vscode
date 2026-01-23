@@ -409,10 +409,10 @@ configurationRegistry.registerConfiguration({
 			default: true,
 			description: nls.localize('chat.viewSessions.enabled', "Show chat agent sessions when chat is empty or to the side when chat view is wide enough."),
 		},
-		[ChatConfiguration.ChatViewSessionsShowRecentOnly]: {
+		[ChatConfiguration.ChatViewSessionsShowPendingOnly]: {
 			type: 'boolean',
 			default: true,
-			description: nls.localize('chat.viewSessions.showRecentOnly', "When enabled, only show recent sessions in the stacked sessions view. When disabled, show all sessions."),
+			description: nls.localize('chat.viewSessions.showPendingOnly', "When enabled, only show pending sessions in the stacked sessions view. When disabled, show all sessions."),
 		},
 		[ChatConfiguration.ChatViewSessionsOrientation]: {
 			type: 'string',

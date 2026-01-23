@@ -17,7 +17,6 @@
 		"workbench.editor.showTabs": "single",
 		"workbench.colorTheme": "2026-dark-experimental",
 		"chat.commandCenter.triStateToggle": true,
-		"workbench.tips.enabled": false,
-		"chat.viewSessions.showRecentOnly": false
+		"workbench.tips.enabled": false
 	}
 }

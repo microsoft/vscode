@@ -17,7 +17,7 @@ import { IAgentSessionsFilter, IAgentSessionsFilterExcludes } from './agentSessi
 
 export enum AgentSessionsGrouping {
 	Default = 'default',
-	Recency = 'recency',
+	Pending = 'pending',
 }
 
 export interface IAgentSessionsFilterOptions extends Partial<IAgentSessionsFilter> {

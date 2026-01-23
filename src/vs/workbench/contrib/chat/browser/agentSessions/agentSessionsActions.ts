@@ -55,7 +55,7 @@ export class ShowAllAgentSessionsAction extends Action2 {
 			title: localize2('chat.showSessions.all', "All"),
 			toggled: ContextKeyExpr.and(
 				ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, true),
-				ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsShowRecentOnly}`, false)
+				ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsShowPendingOnly}`, false)
 			),
 			menu: {
 				id: showSessionsSubmenu,
@@ -69,19 +69,19 @@ export class ShowAllAgentSessionsAction extends Action2 {
 		const configurationService = accessor.get(IConfigurationService);
 
 		await configurationService.updateValue(ChatConfiguration.ChatViewSessionsEnabled, true);
-		await configurationService.updateValue(ChatConfiguration.ChatViewSessionsShowRecentOnly, false);
+		await configurationService.updateValue(ChatConfiguration.ChatViewSessionsShowPendingOnly, false);
 	}
 }
 
-export class ShowRecentAgentSessionsAction extends Action2 {
+export class ShowPendingAgentSessionsAction extends Action2 {
 
 	constructor() {
 		super({
-			id: 'workbench.action.chat.showRecentAgentSessions',
-			title: localize2('chat.showSessions.recent', "Recent"),
+			id: 'workbench.action.chat.showPendingAgentSessions',
+			title: localize2('chat.showSessions.pending', "Pending"),
 			toggled: ContextKeyExpr.and(
 				ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, true),
-				ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsShowRecentOnly}`, true)
+				ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsShowPendingOnly}`, true)
 			),
 			menu: {
 				id: showSessionsSubmenu,
@@ -95,7 +95,7 @@ export class ShowRecentAgentSessionsAction extends Action2 {
 		const configurationService = accessor.get(IConfigurationService);
 
 		await configurationService.updateValue(ChatConfiguration.ChatViewSessionsEnabled, true);
-		await configurationService.updateValue(ChatConfiguration.ChatViewSessionsShowRecentOnly, true);
+		await configurationService.updateValue(ChatConfiguration.ChatViewSessionsShowPendingOnly, true);
 	}
 }
 

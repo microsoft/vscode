@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { AgentSessionsDataSource, AgentSessionListItem, groupAgentSessionsByRecency, IAgentSessionsFilter } from '../../../browser/agentSessions/agentSessionsViewer.js';
+import { AgentSessionsDataSource, AgentSessionListItem, groupAgentSessionsByRecency as groupAgentSessionsByPending, IAgentSessionsFilter } from '../../../browser/agentSessions/agentSessionsViewer.js';
 import { AgentSessionSection, IAgentSession, IAgentSessionSection, IAgentSessionsModel, isAgentSessionSection } from '../../../browser/agentSessions/agentSessionsModel.js';
 import { ChatSessionStatus, isSessionInProgressStatus } from '../../../common/chatSessionsService.js';
 import { ITreeSorter } from '../../../../../../base/browser/ui/tree/tree.js';
@@ -370,7 +370,7 @@ suite('AgentSessionsDataSource', () => {
 		});
 	});
 
-	suite('groupSessionsByRecency', () => {
+	suite('groupSessionsByPending', () => {
 
 		test('groups sessions into Pending and Done sections', () => {
 			const now = Date.now();
@@ -379,7 +379,7 @@ suite('AgentSessionsDataSource', () => {
 				createMockSession({ id: '2', status: ChatSessionStatus.Completed, startTime: now - ONE_DAY }),
 			];
 
-			const result = groupAgentSessionsByRecency(sessions);
+			const result = groupAgentSessionsByPending(sessions);
 
 			assert.strictEqual(result.size, 2);
 			assert.ok(result.has(AgentSessionSection.Pending));
@@ -395,7 +395,7 @@ suite('AgentSessionsDataSource', () => {
 				createMockSession({ id: '4', status: ChatSessionStatus.Completed, startTime: now - ONE_DAY }),
 			];
 
-			const result = groupAgentSessionsByRecency(sessions);
+			const result = groupAgentSessionsByPending(sessions);
 			const pendingSection = result.get(AgentSessionSection.Pending);
 			const doneSection = result.get(AgentSessionSection.Done);
 
@@ -418,7 +418,7 @@ suite('AgentSessionsDataSource', () => {
 				createMockSession({ id: '3', status: ChatSessionStatus.Completed, startTime: now - 2000 }),
 			];
 
-			const result = groupAgentSessionsByRecency(sessions);
+			const result = groupAgentSessionsByPending(sessions);
 			const pendingSection = result.get(AgentSessionSection.Pending);
 			const doneSection = result.get(AgentSessionSection.Done);
 
@@ -439,7 +439,7 @@ suite('AgentSessionsDataSource', () => {
 				createMockSession({ id: '3', status: ChatSessionStatus.Completed, startTime: now - 2000, hasChanges: true }),
 			];
 
-			const result = groupAgentSessionsByRecency(sessions);
+			const result = groupAgentSessionsByPending(sessions);
 			const pendingSection = result.get(AgentSessionSection.Pending);
 			const doneSection = result.get(AgentSessionSection.Done);
 
@@ -460,7 +460,7 @@ suite('AgentSessionsDataSource', () => {
 				createMockSession({ id: '3', status: ChatSessionStatus.Completed, startTime: now - 2000 }),
 			];
 
-			const result = groupAgentSessionsByRecency(sessions);
+			const result = groupAgentSessionsByPending(sessions);
 			const pendingSection = result.get(AgentSessionSection.Pending);
 			const doneSection = result.get(AgentSessionSection.Done);
 
@@ -481,7 +481,7 @@ suite('AgentSessionsDataSource', () => {
 				createMockSession({ id: '3', status: ChatSessionStatus.Completed, startTime: now - 2000, isArchived: true, hasChanges: true }),
 			];
 
-			const result = groupAgentSessionsByRecency(sessions);
+			const result = groupAgentSessionsByPending(sessions);
 			const pendingSection = result.get(AgentSessionSection.Pending);
 			const doneSection = result.get(AgentSessionSection.Done);
 
@@ -496,7 +496,7 @@ suite('AgentSessionsDataSource', () => {
 			assert.ok(doneSection.sessions.some(s => s.label === 'Session 3'));
 		});
 
-		test('works with AgentSessionsDataSource when groupBy is Recency', () => {
+		test('works with AgentSessionsDataSource when groupBy is Pending', () => {
 			const now = Date.now();
 			const sessions = [
 				createMockSession({ id: '1', status: ChatSessionStatus.InProgress, startTime: now }),
@@ -504,7 +504,7 @@ suite('AgentSessionsDataSource', () => {
 				createMockSession({ id: '3', status: ChatSessionStatus.Completed, startTime: now - 2 * ONE_DAY }),
 			];
 
-			const filter = createMockFilter({ groupBy: AgentSessionsGrouping.Recency });
+			const filter = createMockFilter({ groupBy: AgentSessionsGrouping.Pending });
 			const sorter = createMockSorter();
 			const dataSource = new AgentSessionsDataSource(filter, sorter);
 
