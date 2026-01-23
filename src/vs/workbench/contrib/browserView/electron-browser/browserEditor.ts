@@ -668,7 +668,7 @@ export class BrowserEditor extends EditorPane {
 		content.appendChild(subtitle);
 
 		const tip = $('.browser-welcome-tip');
-		tip.textContent = localize('browser.welcomeTip', "Tip: Use the Add Element to Chat feature to reference UI elements when asking Copilot for changes.");
+		tip.textContent = localize('browser.welcomeTip', "Tip: Use Add Element to Chat to reference UI elements in chat prompts");
 		content.appendChild(tip);
 
 		container.appendChild(content);
