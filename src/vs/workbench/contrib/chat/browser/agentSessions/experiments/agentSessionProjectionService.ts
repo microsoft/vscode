@@ -18,7 +18,7 @@ import { IAgentSession, isSessionInProgressStatus } from '../agentSessionsModel.
 import { ChatViewPaneTarget, IChatWidgetService } from '../../chat.js';
 import { AgentSessionProviders } from '../agentSessions.js';
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
-import { IWorkbenchLayoutService } from '../../../../../services/layout/browser/layoutService.js';
+import { IWorkbenchLayoutService, Parts } from '../../../../../services/layout/browser/layoutService.js';
 import { ACTION_ID_NEW_CHAT } from '../../actions/chatActions.js';
 import { IChatEditingService, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
 import { IAgentTitleBarStatusService } from './agentTitleBarStatusService.js';
@@ -351,6 +351,13 @@ export class AgentSessionProjectionService extends Disposable implements IAgentS
 		if (session.providerType === AgentSessionProviders.Local && hasUndecidedChanges) {
 			await this.commandService.executeCommand('chatEditing.viewChanges');
 		}
+
+		// If auxiliary bar was maximized, hide it during projection to show full editor
+		// This must be done after opening the session to avoid the session opening re-showing the bar
+		if (this._wasAuxiliaryBarMaximized) {
+			this.logService.trace('[AgentSessionProjection] hiding maximized auxiliary bar during projection');
+			this.layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART);
+		}
 	}
 
 	async exitProjection(options?: { startNewChat?: boolean }): Promise<void> {
@@ -414,7 +421,9 @@ export class AgentSessionProjectionService extends Disposable implements IAgentS
 
 		// Restore auxiliary bar maximized state if it was maximized before entering projection
 		if (shouldRestoreMaximized) {
-			this.logService.trace('[AgentSessionProjection] restoring auxiliary bar maximized state via command');
+			this.logService.trace('[AgentSessionProjection] restoring auxiliary bar maximized state');
+			// First show the auxiliary bar, then maximize it
+			this.layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
 			await this.commandService.executeCommand('workbench.action.maximizeAuxiliaryBar');
 		}
 
