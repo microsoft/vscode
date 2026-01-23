@@ -6,12 +6,13 @@
 import assert from 'assert';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { AgentSessionsDataSource, AgentSessionListItem, IAgentSessionsFilter } from '../../../browser/agentSessions/agentSessionsViewer.js';
+import { AgentSessionsDataSource, AgentSessionListItem, groupAgentSessionsByRecency, IAgentSessionsFilter } from '../../../browser/agentSessions/agentSessionsViewer.js';
 import { AgentSessionSection, IAgentSession, IAgentSessionSection, IAgentSessionsModel, isAgentSessionSection } from '../../../browser/agentSessions/agentSessionsModel.js';
 import { ChatSessionStatus, isSessionInProgressStatus } from '../../../common/chatSessionsService.js';
 import { ITreeSorter } from '../../../../../../base/browser/ui/tree/tree.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Event } from '../../../../../../base/common/event.js';
+import { AgentSessionsGrouping } from '../../../browser/agentSessions/agentSessionsFilter.js';
 
 suite('AgentSessionsDataSource', () => {
 
@@ -61,12 +62,12 @@ suite('AgentSessionsDataSource', () => {
 	}
 
 	function createMockFilter(options: {
-		groupResults: boolean;
+		groupBy?: AgentSessionsGrouping;
 		exclude?: (session: IAgentSession) => boolean;
 	}): IAgentSessionsFilter {
 		return {
 			onDidChange: Event.None,
-			groupResults: () => options.groupResults,
+			groupResults: () => options.groupBy,
 			exclude: options.exclude ?? (() => false),
 			getExcludes: () => ({ providers: [], states: [], archived: false, read: false })
 		};
@@ -96,7 +97,7 @@ suite('AgentSessionsDataSource', () => {
 				createMockSession({ id: '2', startTime: now - ONE_DAY, endTime: now - ONE_DAY }),
 			];
 
-			const filter = createMockFilter({ groupResults: false });
+			const filter = createMockFilter({ groupBy: undefined });
 			const sorter = createMockSorter();
 			const dataSource = new AgentSessionsDataSource(filter, sorter);
 
@@ -116,7 +117,7 @@ suite('AgentSessionsDataSource', () => {
 				createMockSession({ id: '3', status: ChatSessionStatus.NeedsInput, startTime: now - 2 * ONE_DAY }),
 			];
 
-			const filter = createMockFilter({ groupResults: true });
+			const filter = createMockFilter({ groupBy: AgentSessionsGrouping.Default });
 			const sorter = createMockSorter();
 			const dataSource = new AgentSessionsDataSource(filter, sorter);
 
@@ -139,7 +140,7 @@ suite('AgentSessionsDataSource', () => {
 				createMockSession({ id: '2', status: ChatSessionStatus.InProgress, startTime: now - ONE_DAY }),
 			];
 
-			const filter = createMockFilter({ groupResults: true });
+			const filter = createMockFilter({ groupBy: AgentSessionsGrouping.Default });
 			const sorter = createMockSorter();
 			const dataSource = new AgentSessionsDataSource(filter, sorter);
 
@@ -160,7 +161,7 @@ suite('AgentSessionsDataSource', () => {
 				createMockSession({ id: '2', status: ChatSessionStatus.Completed, startTime: now - ONE_DAY, endTime: now - ONE_DAY }),
 			];
 
-			const filter = createMockFilter({ groupResults: true });
+			const filter = createMockFilter({ groupBy: AgentSessionsGrouping.Default });
 			const sorter = createMockSorter();
 			const dataSource = new AgentSessionsDataSource(filter, sorter);
 
@@ -179,7 +180,7 @@ suite('AgentSessionsDataSource', () => {
 				createMockSession({ id: '2', status: ChatSessionStatus.Completed, startTime: now - WEEK_THRESHOLD - ONE_DAY, endTime: now - WEEK_THRESHOLD - ONE_DAY }),
 			];
 
-			const filter = createMockFilter({ groupResults: true });
+			const filter = createMockFilter({ groupBy: AgentSessionsGrouping.Default });
 			const sorter = createMockSorter();
 			const dataSource = new AgentSessionsDataSource(filter, sorter);
 
@@ -197,7 +198,7 @@ suite('AgentSessionsDataSource', () => {
 				createMockSession({ id: '2', status: ChatSessionStatus.Completed, isArchived: true, startTime: now - ONE_DAY, endTime: now - ONE_DAY }),
 			];
 
-			const filter = createMockFilter({ groupResults: true });
+			const filter = createMockFilter({ groupBy: AgentSessionsGrouping.Default });
 			const sorter = createMockSorter();
 			const dataSource = new AgentSessionsDataSource(filter, sorter);
 
@@ -215,7 +216,7 @@ suite('AgentSessionsDataSource', () => {
 				createMockSession({ id: '2', status: ChatSessionStatus.Completed, startTime: now - WEEK_THRESHOLD - ONE_DAY, endTime: now - WEEK_THRESHOLD - ONE_DAY }),
 			];
 
-			const filter = createMockFilter({ groupResults: true });
+			const filter = createMockFilter({ groupBy: AgentSessionsGrouping.Default });
 			const sorter = createMockSorter();
 			const dataSource = new AgentSessionsDataSource(filter, sorter);
 
@@ -235,7 +236,7 @@ suite('AgentSessionsDataSource', () => {
 				createMockSession({ id: 'active', status: ChatSessionStatus.InProgress, startTime: now }),
 			];
 
-			const filter = createMockFilter({ groupResults: true });
+			const filter = createMockFilter({ groupBy: AgentSessionsGrouping.Default });
 			const sorter = createMockSorter();
 			const dataSource = new AgentSessionsDataSource(filter, sorter);
 
@@ -269,7 +270,7 @@ suite('AgentSessionsDataSource', () => {
 				createMockSession({ id: 'active', status: ChatSessionStatus.InProgress, startTime: now }),
 			];
 
-			const filter = createMockFilter({ groupResults: true });
+			const filter = createMockFilter({ groupBy: AgentSessionsGrouping.Default });
 			const sorter = createMockSorter();
 			const dataSource = new AgentSessionsDataSource(filter, sorter);
 
@@ -304,7 +305,7 @@ suite('AgentSessionsDataSource', () => {
 		});
 
 		test('empty sessions returns empty result', () => {
-			const filter = createMockFilter({ groupResults: true });
+			const filter = createMockFilter({ groupBy: AgentSessionsGrouping.Default });
 			const sorter = createMockSorter();
 			const dataSource = new AgentSessionsDataSource(filter, sorter);
 
@@ -321,7 +322,7 @@ suite('AgentSessionsDataSource', () => {
 				createMockSession({ id: '2', status: ChatSessionStatus.Completed, startTime: now - 1000, endTime: now - 1000 }),
 			];
 
-			const filter = createMockFilter({ groupResults: true });
+			const filter = createMockFilter({ groupBy: AgentSessionsGrouping.Default });
 			const sorter = createMockSorter();
 			const dataSource = new AgentSessionsDataSource(filter, sorter);
 
@@ -344,7 +345,7 @@ suite('AgentSessionsDataSource', () => {
 				createMockSession({ id: 'week2', status: ChatSessionStatus.Completed, startTime: now - 2 * ONE_DAY, endTime: now - 2 * ONE_DAY }),
 			];
 
-			const filter = createMockFilter({ groupResults: true });
+			const filter = createMockFilter({ groupBy: AgentSessionsGrouping.Default });
 			const sorter = createMockSorter();
 			const dataSource = new AgentSessionsDataSource(filter, sorter);
 
@@ -363,6 +364,133 @@ suite('AgentSessionsDataSource', () => {
 			assert.ok(olderSection);
 			assert.strictEqual(olderSection.sessions[0].label, 'Session old2');
 			assert.strictEqual(olderSection.sessions[1].label, 'Session old1');
+		});
+	});
+
+	suite('groupSessionsByRecency', () => {
+
+		test('groups sessions into Recent and Others sections', () => {
+			const now = Date.now();
+			const sessions = [
+				createMockSession({ id: '1', status: ChatSessionStatus.Completed, startTime: now }),
+				createMockSession({ id: '2', status: ChatSessionStatus.Completed, startTime: now - ONE_DAY }),
+				createMockSession({ id: '3', status: ChatSessionStatus.Completed, startTime: now - 2 * ONE_DAY }),
+				createMockSession({ id: '4', status: ChatSessionStatus.Completed, startTime: now - 3 * ONE_DAY }),
+				createMockSession({ id: '5', status: ChatSessionStatus.Completed, startTime: now - 4 * ONE_DAY }),
+			];
+
+			const result = groupAgentSessionsByRecency(sessions);
+
+			assert.strictEqual(result.size, 2);
+			assert.ok(result.has(AgentSessionSection.Recent));
+			assert.ok(result.has(AgentSessionSection.Others));
+		});
+
+		test('Recent section contains first 3 sessions', () => {
+			const now = Date.now();
+			const sessions = [
+				createMockSession({ id: '1', status: ChatSessionStatus.Completed, startTime: now }),
+				createMockSession({ id: '2', status: ChatSessionStatus.Completed, startTime: now - ONE_DAY }),
+				createMockSession({ id: '3', status: ChatSessionStatus.Completed, startTime: now - 2 * ONE_DAY }),
+				createMockSession({ id: '4', status: ChatSessionStatus.Completed, startTime: now - 3 * ONE_DAY }),
+				createMockSession({ id: '5', status: ChatSessionStatus.Completed, startTime: now - 4 * ONE_DAY }),
+			];
+
+			const result = groupAgentSessionsByRecency(sessions);
+			const recentSection = result.get(AgentSessionSection.Recent);
+
+			assert.ok(recentSection);
+			assert.strictEqual(recentSection.sessions.length, 3);
+			assert.strictEqual(recentSection.sessions[0].label, 'Session 1');
+			assert.strictEqual(recentSection.sessions[1].label, 'Session 2');
+			assert.strictEqual(recentSection.sessions[2].label, 'Session 3');
+		});
+
+		test('Others section contains remaining sessions', () => {
+			const now = Date.now();
+			const sessions = [
+				createMockSession({ id: '1', status: ChatSessionStatus.Completed, startTime: now }),
+				createMockSession({ id: '2', status: ChatSessionStatus.Completed, startTime: now - ONE_DAY }),
+				createMockSession({ id: '3', status: ChatSessionStatus.Completed, startTime: now - 2 * ONE_DAY }),
+				createMockSession({ id: '4', status: ChatSessionStatus.Completed, startTime: now - 3 * ONE_DAY }),
+				createMockSession({ id: '5', status: ChatSessionStatus.Completed, startTime: now - 4 * ONE_DAY }),
+			];
+
+			const result = groupAgentSessionsByRecency(sessions);
+			const othersSection = result.get(AgentSessionSection.Others);
+
+			assert.ok(othersSection);
+			assert.strictEqual(othersSection.sessions.length, 2);
+			assert.strictEqual(othersSection.sessions[0].label, 'Session 4');
+			assert.strictEqual(othersSection.sessions[1].label, 'Session 5');
+		});
+
+		test('Others section is empty when 3 or fewer sessions', () => {
+			const now = Date.now();
+			const sessions = [
+				createMockSession({ id: '1', status: ChatSessionStatus.Completed, startTime: now }),
+				createMockSession({ id: '2', status: ChatSessionStatus.Completed, startTime: now - ONE_DAY }),
+				createMockSession({ id: '3', status: ChatSessionStatus.Completed, startTime: now - 2 * ONE_DAY }),
+			];
+
+			const result = groupAgentSessionsByRecency(sessions);
+
+			assert.strictEqual(result.size, 2);
+			assert.ok(result.has(AgentSessionSection.Recent));
+			assert.ok(result.has(AgentSessionSection.Others));
+
+			const recentSection = result.get(AgentSessionSection.Recent);
+			const othersSection = result.get(AgentSessionSection.Others);
+			assert.ok(recentSection);
+			assert.ok(othersSection);
+			assert.strictEqual(recentSection.sessions.length, 3);
+			assert.strictEqual(othersSection.sessions.length, 0);
+		});
+
+		test('Others section is empty for fewer than 3 sessions', () => {
+			const now = Date.now();
+			const sessions = [
+				createMockSession({ id: '1', status: ChatSessionStatus.Completed, startTime: now }),
+			];
+
+			const result = groupAgentSessionsByRecency(sessions);
+
+			assert.strictEqual(result.size, 2);
+			assert.ok(result.has(AgentSessionSection.Recent));
+			assert.ok(result.has(AgentSessionSection.Others));
+
+			const recentSection = result.get(AgentSessionSection.Recent);
+			const othersSection = result.get(AgentSessionSection.Others);
+			assert.ok(recentSection);
+			assert.ok(othersSection);
+			assert.strictEqual(recentSection.sessions.length, 1);
+			assert.strictEqual(othersSection.sessions.length, 0);
+		});
+
+		test('works with AgentSessionsDataSource when groupBy is Recency', () => {
+			const now = Date.now();
+			const sessions = [
+				createMockSession({ id: '1', status: ChatSessionStatus.Completed, startTime: now }),
+				createMockSession({ id: '2', status: ChatSessionStatus.Completed, startTime: now - ONE_DAY }),
+				createMockSession({ id: '3', status: ChatSessionStatus.Completed, startTime: now - 2 * ONE_DAY }),
+				createMockSession({ id: '4', status: ChatSessionStatus.Completed, startTime: now - 3 * ONE_DAY }),
+				createMockSession({ id: '5', status: ChatSessionStatus.Completed, startTime: now - 4 * ONE_DAY }),
+			];
+
+			const filter = createMockFilter({ groupBy: AgentSessionsGrouping.Recency });
+			const sorter = createMockSorter();
+			const dataSource = new AgentSessionsDataSource(filter, sorter);
+
+			const mockModel = createMockModel(sessions);
+			const result = Array.from(dataSource.getChildren(mockModel));
+
+			assert.strictEqual(result.length, 2);
+			assert.ok(isAgentSessionSection(result[0]));
+			assert.ok(isAgentSessionSection(result[1]));
+			assert.strictEqual((result[0] as IAgentSessionSection).section, AgentSessionSection.Recent);
+			assert.strictEqual((result[1] as IAgentSessionSection).section, AgentSessionSection.Others);
+			assert.strictEqual((result[0] as IAgentSessionSection).sessions.length, 3);
+			assert.strictEqual((result[1] as IAgentSessionSection).sessions.length, 2);
 		});
 	});
 });

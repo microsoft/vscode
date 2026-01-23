@@ -40,6 +40,7 @@ import { Event } from '../../../../../base/common/event.js';
 import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
 import { MarkdownString, IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { AgentSessionHoverWidget } from './agentSessionHoverWidget.js';
+import { AgentSessionsGrouping } from './agentSessionsFilter.js';
 
 export type AgentSessionListItem = IAgentSession | IAgentSessionSection;
 
@@ -549,9 +550,9 @@ export interface IAgentSessionsFilter {
 
 	/**
 	 * Whether to show section headers to group sessions.
-	 * When false, sessions are shown as a flat list.
+	 * When undefined, sessions are shown as a flat list.
 	 */
-	readonly groupResults?: () => boolean | undefined;
+	readonly groupResults?: () => AgentSessionsGrouping | undefined;
 
 	/**
 	 * A callback to notify the filter about the number of
@@ -639,7 +640,9 @@ export class AgentSessionsDataSource implements IAsyncDataSource<IAgentSessionsM
 		const result: AgentSessionListItem[] = [];
 
 		const sortedSessions = sessions.sort(this.sorter.compare.bind(this.sorter));
-		const groupedSessions = groupAgentSessions(sortedSessions);
+		const groupedSessions = this.filter?.groupResults?.() === AgentSessionsGrouping.Recency
+			? groupAgentSessionsByRecency(sortedSessions)
+			: groupAgentSessionsByDefault(sortedSessions);
 
 		for (const { sessions, section, label } of groupedSessions.values()) {
 			if (sessions.length === 0) {
@@ -663,9 +666,11 @@ export const AgentSessionSectionLabels = {
 	[AgentSessionSection.Week]: localize('agentSessions.weekSection', "Last Week"),
 	[AgentSessionSection.Older]: localize('agentSessions.olderSection', "Older"),
 	[AgentSessionSection.Archived]: localize('agentSessions.archivedSection', "Archived"),
+	[AgentSessionSection.Recent]: localize('agentSessions.recentSection', "Recent"),
+	[AgentSessionSection.Others]: localize('agentSessions.othersSection', "Others"),
 };
 
-export function groupAgentSessions(sessions: IAgentSession[]): Map<AgentSessionSection, IAgentSessionSection> {
+export function groupAgentSessionsByDefault(sessions: IAgentSession[]): Map<AgentSessionSection, IAgentSessionSection> {
 	const now = Date.now();
 	const startOfToday = new Date(now).setHours(0, 0, 0, 0);
 	const startOfYesterday = startOfToday - DAY_THRESHOLD;
@@ -704,6 +709,18 @@ export function groupAgentSessions(sessions: IAgentSession[]): Map<AgentSessionS
 		[AgentSessionSection.Week, { section: AgentSessionSection.Week, label: AgentSessionSectionLabels[AgentSessionSection.Week], sessions: weekSessions }],
 		[AgentSessionSection.Older, { section: AgentSessionSection.Older, label: AgentSessionSectionLabels[AgentSessionSection.Older], sessions: olderSessions }],
 		[AgentSessionSection.Archived, { section: AgentSessionSection.Archived, label: localize('agentSessions.archivedSectionWithCount', "Archived ({0})", archivedSessions.length), sessions: archivedSessions }],
+	]);
+}
+
+const RECENT_SESSIONS_LIMIT = 3;
+
+export function groupAgentSessionsByRecency(sessions: IAgentSession[]): Map<AgentSessionSection, IAgentSessionSection> {
+	const recentSessions = sessions.slice(0, RECENT_SESSIONS_LIMIT);
+	const othersSessions = sessions.slice(RECENT_SESSIONS_LIMIT);
+
+	return new Map<AgentSessionSection, IAgentSessionSection>([
+		[AgentSessionSection.Recent, { section: AgentSessionSection.Recent, label: AgentSessionSectionLabels[AgentSessionSection.Recent], sessions: recentSessions }],
+		[AgentSessionSection.Others, { section: AgentSessionSection.Others, label: localize('agentSessions.othersSectionWithCount', "Others ({0})", othersSessions.length), sessions: othersSessions }],
 	]);
 }
 

@@ -146,12 +146,18 @@ interface IAgentSessionState {
 }
 
 export const enum AgentSessionSection {
+
+	// Default Grouping
 	InProgress = 'inProgress',
 	Today = 'today',
 	Yesterday = 'yesterday',
 	Week = 'week',
 	Older = 'older',
 	Archived = 'archived',
+
+	// Recency Grouping
+	Recent = 'recent',
+	Others = 'others',
 }
 
 export interface IAgentSessionSection {

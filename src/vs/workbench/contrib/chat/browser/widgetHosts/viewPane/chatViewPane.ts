@@ -57,7 +57,7 @@ import { IProgressService } from '../../../../../../platform/progress/common/pro
 import { ChatViewId } from '../../chat.js';
 import { IActivityService, ProgressBadge } from '../../../../../services/activity/common/activity.js';
 import { disposableTimeout } from '../../../../../../base/common/async.js';
-import { AgentSessionsFilter } from '../../agentSessions/agentSessionsFilter.js';
+import { AgentSessionsFilter, AgentSessionsGrouping } from '../../agentSessions/agentSessionsFilter.js';
 import { IAgentSessionsService } from '../../agentSessions/agentSessionsService.js';
 import { HoverPosition } from '../../../../../../base/browser/ui/hover/hoverWidget.js';
 import { IAgentSession } from '../../agentSessions/agentSessionsModel.js';
@@ -129,7 +129,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		) {
 			this.viewState.sessionId = undefined; // clear persisted session on fresh start
 		}
-		this.sessionsViewerLimited = this.configurationService.getValue<boolean>(ChatConfiguration.ChatViewSessionsShowRecentOnly) ?? true;
+		this.sessionsViewerShowRecentOnly = this.configurationService.getValue<boolean>(ChatConfiguration.ChatViewSessionsShowRecentOnly) ?? true;
 		this.sessionsViewerVisible = false; // will be updated from layout code
 		this.sessionsViewerSidebarWidth = Math.max(ChatViewPane.SESSIONS_SIDEBAR_MIN_WIDTH, this.viewState.sessionsSidebarWidth ?? ChatViewPane.SESSIONS_SIDEBAR_DEFAULT_WIDTH);
 
@@ -234,19 +234,19 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			return e.affectsConfiguration(LayoutSettings.ACTIVITY_BAR_LOCATION);
 		})(() => this.updateViewPaneClasses(true)));
 
-		// Sessions viewer limited setting changes
+		// Sessions viewer show recent only setting changes
 		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => {
 			return e.affectsConfiguration(ChatConfiguration.ChatViewSessionsShowRecentOnly);
 		})(() => {
-			const oldSessionsViewerLimited = this.sessionsViewerLimited;
+			const oldSessionsViewerShowRecentOnly = this.sessionsViewerShowRecentOnly;
 			if (this.sessionsViewerOrientation === AgentSessionsViewerOrientation.SideBySide) {
-				this.sessionsViewerLimited = false; // side by side always shows all
+				this.sessionsViewerShowRecentOnly = false; // side by side always shows all
 			} else {
-				this.sessionsViewerLimited = this.configurationService.getValue<boolean>(ChatConfiguration.ChatViewSessionsShowRecentOnly) ?? false;
+				this.sessionsViewerShowRecentOnly = this.configurationService.getValue<boolean>(ChatConfiguration.ChatViewSessionsShowRecentOnly) ?? false;
 			}
 
-			if (oldSessionsViewerLimited !== this.sessionsViewerLimited) {
-				this.notifySessionsControlLimitedChanged(true /* layout */, true /* update */);
+			if (oldSessionsViewerShowRecentOnly !== this.sessionsViewerShowRecentOnly) {
+				this.notifySessionsControlShowRecentOnlyChanged(true /* layout */, true /* update */);
 			}
 		}));
 
@@ -330,7 +330,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 	//#region Sessions Control
 
-	private static readonly SESSIONS_LIMITED_COUNT = 3;
 	private static readonly SESSIONS_SIDEBAR_MIN_WIDTH = 200;
 	private static readonly SESSIONS_SIDEBAR_SNAP_THRESHOLD = this.SESSIONS_SIDEBAR_MIN_WIDTH / 2; // snap to hide when dragged below half of minimum width
 	private static readonly SESSIONS_SIDEBAR_DEFAULT_WIDTH = 300;
@@ -344,7 +343,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private sessionsControlContainer: HTMLElement | undefined;
 	private sessionsControl: AgentSessionsControl | undefined;
 	private sessionsCount = 0;
-	private sessionsViewerLimited: boolean;
+	private sessionsViewerShowRecentOnly: boolean;
 	private sessionsViewerVisible: boolean;
 	private sessionsViewerOrientation = AgentSessionsViewerOrientation.Stacked;
 	private sessionsViewerOrientationConfiguration: 'stacked' | 'sideBySide' = 'sideBySide';
@@ -377,10 +376,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		// Sessions Filter
 		const sessionsFilter = this._register(this.instantiationService.createInstance(AgentSessionsFilter, {
 			filterMenuId: MenuId.AgentSessionsViewerFilterSubMenu,
-			limitResults: () => {
-				return that.sessionsViewerLimited ? ChatViewPane.SESSIONS_LIMITED_COUNT : undefined;
-			},
-			groupResults: () => true,
+			groupResults: () => this.sessionsViewerShowRecentOnly ? AgentSessionsGrouping.Recency : AgentSessionsGrouping.Default,
 			notifyResults(count: number) {
 				that.notifySessionsControlCountChanged(count);
 			},
@@ -457,7 +453,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		}
 	}
 
-	private notifySessionsControlLimitedChanged(triggerLayout: boolean, triggerUpdate: boolean): Promise<void> {
+	private notifySessionsControlShowRecentOnlyChanged(triggerLayout: boolean, triggerUpdate: boolean): Promise<void> {
 		const updatePromise = triggerUpdate ? this.sessionsControl?.update() : undefined;
 
 		if (triggerLayout) {
@@ -888,18 +884,18 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			this.sessionsViewerOrientationContext.set(AgentSessionsViewerOrientation.Stacked);
 		}
 
-		// Update limited state based on orientation change
+		// Update show recent only state based on orientation change
 		if (oldSessionsViewerOrientation !== this.sessionsViewerOrientation) {
-			const oldSessionsViewerLimited = this.sessionsViewerLimited;
+			const oldSessionsViewerShowRecentOnly = this.sessionsViewerShowRecentOnly;
 			if (this.sessionsViewerOrientation === AgentSessionsViewerOrientation.SideBySide) {
-				this.sessionsViewerLimited = false; // side by side always shows all
+				this.sessionsViewerShowRecentOnly = false; // side by side always shows all
 			} else {
-				this.sessionsViewerLimited = this.configurationService.getValue<boolean>(ChatConfiguration.ChatViewSessionsShowRecentOnly) ?? false;
+				this.sessionsViewerShowRecentOnly = this.configurationService.getValue<boolean>(ChatConfiguration.ChatViewSessionsShowRecentOnly) ?? false;
 			}
 
 			let updatePromise: Promise<void>;
-			if (oldSessionsViewerLimited !== this.sessionsViewerLimited) {
-				updatePromise = this.notifySessionsControlLimitedChanged(false /* already in layout */, true /* update */);
+			if (oldSessionsViewerShowRecentOnly !== this.sessionsViewerShowRecentOnly) {
+				updatePromise = this.notifySessionsControlShowRecentOnlyChanged(false /* already in layout */, true /* update */);
 			} else {
 				updatePromise = this.sessionsControl?.update(); // still need to update for section visibility
 			}
