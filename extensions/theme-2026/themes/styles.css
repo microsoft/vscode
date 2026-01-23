@@ -216,6 +216,19 @@
 /* Debug Toolbar */
 .monaco-workbench .debug-toolbar { box-shadow: 0 0 12px rgba(0, 0, 0, 0.14); border: none; border-radius: 8px; backdrop-filter: blur(40px) saturate(180%) !important; -webkit-backdrop-filter: blur(40px) saturate(180%) !important; }
 
+.monaco-workbench .debug-hover-widget {
+	box-shadow: 0 0 8px rgba(0, 0, 0, 0.12);
+	border-radius: 8px;
+	overflow: hidden;
+	backdrop-filter: blur(20px) saturate(180%);
+	-webkit-backdrop-filter: blur(20px) saturate(180%);
+	color: var(--vscode-editor-foreground) !important;
+}
+
+.monaco-editor .debug-hover-widget .debug-hover-tree .monaco-list-rows .monaco-list-row:hover:not(.highlighted):not(.selected):not(.focused) {
+    background-color: var(--vscode-list-hoverBackground);;
+}
+
 /* Action Widget */
 .monaco-workbench .action-widget { box-shadow: 0 0 12px rgba(0, 0, 0, 0.14) !important; border-radius: 8px; }
 
