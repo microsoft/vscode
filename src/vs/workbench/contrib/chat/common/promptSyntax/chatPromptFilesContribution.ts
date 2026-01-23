@@ -10,8 +10,11 @@ import { localize } from '../../../../../nls.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import * as extensionsRegistry from '../../../../services/extensions/common/extensionsRegistry.js';
-import { IPromptsService } from './service/promptsService.js';
+import { IPromptsService, PromptsStorage } from './service/promptsService.js';
 import { PromptsType } from './promptTypes.js';
+import { UriComponents } from '../../../../../base/common/uri.js';
+import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 
 interface IRawChatFileContribution {
 	readonly path: string;
@@ -126,3 +129,36 @@ export class ChatPromptFilesExtensionPointHandler implements IWorkbenchContribut
 		});
 	}
 }
+
+/**
+ * Result type for the extension prompt file provider command.
+ */
+export interface IExtensionPromptFileResult {
+	readonly uri: UriComponents;
+	readonly type: PromptsType;
+}
+
+/**
+ * Register the command to list all extension-contributed prompt files.
+ */
+CommandsRegistry.registerCommand('_listExtensionPromptFiles', async (accessor): Promise<IExtensionPromptFileResult[]> => {
+	const promptsService = accessor.get(IPromptsService);
+
+	// Get extension prompt files for all prompt types in parallel
+	const [agents, instructions, prompts, skills] = await Promise.all([
+		promptsService.listPromptFiles(PromptsType.agent, CancellationToken.None),
+		promptsService.listPromptFiles(PromptsType.instructions, CancellationToken.None),
+		promptsService.listPromptFiles(PromptsType.prompt, CancellationToken.None),
+		promptsService.listPromptFiles(PromptsType.skill, CancellationToken.None),
+	]);
+
+	// Combine all files and collect extension-contributed ones
+	const result: IExtensionPromptFileResult[] = [];
+	for (const file of [...agents, ...instructions, ...prompts, ...skills]) {
+		if (file.storage === PromptsStorage.extension) {
+			result.push({ uri: file.uri.toJSON(), type: file.type });
+		}
+	}
+
+	return result;
+});

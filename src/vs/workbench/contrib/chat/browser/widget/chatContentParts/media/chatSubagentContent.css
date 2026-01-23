@@ -37,6 +37,11 @@
 			display: none;
 		}
 
+		/* renable icons in confirmation widget */
+		.chat-confirmation-widget-container .codicon:not(.codicon-terminal) {
+			display: inline-flex;
+		}
+
 		.chat-collapsible-markdown-content {
 			.rendered-markdown {
 				font-size: var(--vscode-chat-font-size-body-s);

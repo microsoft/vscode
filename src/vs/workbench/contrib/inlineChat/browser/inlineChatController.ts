@@ -33,6 +33,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { ISharedWebContentExtractorService } from '../../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
@@ -51,7 +52,8 @@ import { INotebookEditorService } from '../../notebook/browser/services/notebook
 import { CellUri, ICellEditOperation } from '../../notebook/common/notebookCommon.js';
 import { INotebookService } from '../../notebook/common/notebookService.js';
 import { CTX_INLINE_CHAT_VISIBLE, InlineChatConfigKeys } from '../common/inlineChat.js';
-import { InlineChatSelectionIndicator } from './inlineChatSelectionGutterIndicator.js';
+import { InlineChatAffordance } from './inlineChatAffordance.js';
+import { InlineChatInputWidget, InlineChatSessionOverlayWidget } from './inlineChatOverlayWidget.js';
 import { IInlineChatSession2, IInlineChatSessionService } from './inlineChatSessionService.js';
 import { EditorBasedInlineChatWidget } from './inlineChatWidget.js';
 import { InlineChatZoneWidget } from './inlineChatZoneWidget.js';
@@ -105,13 +107,11 @@ export class InlineChatController implements IEditorContribution {
 		return editor.getContribution<InlineChatController>(InlineChatController.ID) ?? undefined;
 	}
 
-	private static _selectVendorDefaultLanguageModel: boolean = true;
-
 	private readonly _store = new DisposableStore();
 	private readonly _isActiveController = observableValue(this, false);
-	private readonly _showGutterMenu: IObservable<boolean>;
+	private readonly _renderMode: IObservable<'zone' | 'hover'>;
 	private readonly _zone: Lazy<InlineChatZoneWidget>;
-	private readonly _gutterIndicator: InlineChatSelectionIndicator;
+	private readonly _gutterIndicator: InlineChatAffordance;
 
 	private readonly _currentSession: IObservable<IInlineChatSession2 | undefined>;
 
@@ -137,13 +137,18 @@ export class InlineChatController implements IEditorContribution {
 		@IEditorService private readonly _editorService: IEditorService,
 		@IMarkerDecorationsService private readonly _markerDecorationsService: IMarkerDecorationsService,
 		@ILanguageModelsService private readonly _languageModelService: ILanguageModelsService,
+		@ILogService private readonly _logService: ILogService,
 	) {
+		const editorObs = observableCodeEditor(_editor);
+
 
 		const ctxInlineChatVisible = CTX_INLINE_CHAT_VISIBLE.bindTo(contextKeyService);
 		const notebookAgentConfig = observableConfigValue(InlineChatConfigKeys.notebookAgent, false, this._configurationService);
-		this._showGutterMenu = observableConfigValue(InlineChatConfigKeys.ShowGutterMenu, false, this._configurationService);
+		this._renderMode = observableConfigValue(InlineChatConfigKeys.RenderMode, 'zone', this._configurationService);
 
-		this._gutterIndicator = this._store.add(this._instaService.createInstance(InlineChatSelectionIndicator, this._editor));
+		const overlayWidget = this._store.add(this._instaService.createInstance(InlineChatInputWidget, editorObs));
+		const sessionOverlayWidget = this._store.add(this._instaService.createInstance(InlineChatSessionOverlayWidget, editorObs));
+		this._gutterIndicator = this._store.add(this._instaService.createInstance(InlineChatAffordance, this._editor, overlayWidget));
 
 		this._zone = new Lazy<InlineChatZoneWidget>(() => {
 
@@ -216,7 +221,6 @@ export class InlineChatController implements IEditorContribution {
 		});
 
 
-		const editorObs = observableCodeEditor(_editor);
 
 		const sessionsSignal = observableSignalFromEvent(this, _inlineChatSessionService.onDidChangeSessions);
 
@@ -285,14 +289,14 @@ export class InlineChatController implements IEditorContribution {
 
 			// HIDE/SHOW
 			const session = visibleSessionObs.read(r);
-			const showGutterMenu = this._showGutterMenu.read(r);
+			const renderMode = this._renderMode.read(r);
 			if (!session) {
 				this._zone.rawValue?.hide();
 				this._zone.rawValue?.widget.chatWidget.setModel(undefined);
 				_editor.focus();
 				ctxInlineChatVisible.reset();
-			} else if (showGutterMenu) {
-				// showGutterMenu mode: set model but don't show zone, keep focus in editor
+			} else if (renderMode === 'hover') {
+				// hover mode: set model but don't show zone, keep focus in editor
 				this._zone.value.widget.chatWidget.setModel(session.chatModel);
 				this._zone.rawValue?.hide();
 				ctxInlineChatVisible.set(true);
@@ -306,6 +310,25 @@ export class InlineChatController implements IEditorContribution {
 				}
 				this._zone.value.reveal(this._zone.value.position!);
 				this._zone.value.widget.focus();
+			}
+		}));
+
+		// Show progress overlay widget in hover mode when a request is in progress or edits are not yet settled
+		this._store.add(autorun(r => {
+			const session = visibleSessionObs.read(r);
+			const renderMode = this._renderMode.read(r);
+			if (!session || renderMode !== 'hover') {
+				sessionOverlayWidget.hide();
+				return;
+			}
+			const lastRequest = session.chatModel.lastRequestObs.read(r);
+			const isInProgress = lastRequest?.response?.isInProgress.read(r);
+			const entry = session.editingSession.readEntry(session.uri, r);
+			const isNotSettled = !entry || entry.state.read(r) === ModifiedFileEntryState.Modified;
+			if (isInProgress || isNotSettled) {
+				sessionOverlayWidget.show(session);
+			} else {
+				sessionOverlayWidget.hide();
 			}
 		}));
 
@@ -438,42 +461,22 @@ export class InlineChatController implements IEditorContribution {
 			existingSession.dispose();
 		}
 
-		// use gutter menu to ask for input
-		if (!arg?.message && this._configurationService.getValue<boolean>(InlineChatConfigKeys.ShowGutterMenu)) {
-			const position = this._editor.getPosition();
-			const editorDomNode = this._editor.getDomNode();
-			const scrolledPosition = this._editor.getScrolledVisiblePosition(position);
-			const editorRect = editorDomNode.getBoundingClientRect();
-			const x = editorRect.left + scrolledPosition.left;
-			const y = editorRect.top + scrolledPosition.top;
+		// use hover overlay to ask for input
+		if (!arg?.message && this._configurationService.getValue<string>(InlineChatConfigKeys.RenderMode) === 'hover') {
 			// show menu and RETURN because the menu is re-entrant
-			await this._gutterIndicator.showMenuAt(x, y, scrolledPosition.height);
+			await this._gutterIndicator.showMenuAtSelection();
 			return true;
 		}
 
 		this._isActiveController.set(true, undefined);
 
 		const session = this._inlineChatSessionService.createSession(this._editor);
-		const store = new DisposableStore();
 
-		// fallback to the default model of the selected vendor unless an explicit selection was made for the session
-		// or unless the user has chosen to persist their model choice
-		const persistModelChoice = this._configurationService.getValue<boolean>(InlineChatConfigKeys.PersistModelChoice);
-		const model = this._zone.value.widget.chatWidget.input.selectedLanguageModel;
-		if (!persistModelChoice && InlineChatController._selectVendorDefaultLanguageModel && model && !model.metadata.isDefaultForLocation[session.chatModel.initialLocation]) {
-			const ids = await this._languageModelService.selectLanguageModels({ vendor: model.metadata.vendor });
-			for (const identifier of ids) {
-				const candidate = this._languageModelService.lookupLanguageModel(identifier);
-				if (candidate?.isDefaultForLocation[session.chatModel.initialLocation]) {
-					this._zone.value.widget.chatWidget.input.setCurrentLanguageModel({ metadata: candidate, identifier });
-					break;
-				}
-			}
+		// Check for default model setting
+		const defaultModelSetting = this._configurationService.getValue<string>(InlineChatConfigKeys.DefaultModel);
+		if (defaultModelSetting && !this._zone.value.widget.chatWidget.input.switchModelByQualifiedName(defaultModelSetting)) {
+			this._logService.warn(`inlineChat.defaultModel setting value '${defaultModelSetting}' did not match any available model. Falling back to vendor default.`);
 		}
-
-		store.add(this._zone.value.widget.chatWidget.input.onDidChangeCurrentLanguageModel(newModel => {
-			InlineChatController._selectVendorDefaultLanguageModel = Boolean(newModel.metadata.isDefaultForLocation[session.chatModel.initialLocation]);
-		}));
 
 		// ADD diagnostics
 		const entries: IChatRequestVariableEntry[] = [];
@@ -526,25 +529,20 @@ export class InlineChatController implements IEditorContribution {
 			}
 		}
 
-		try {
-			if (!arg?.resolveOnResponse) {
-				// DEFAULT: wait for the session to be accepted or rejected
-				await Event.toPromise(session.editingSession.onDidDispose);
-				const rejected = session.editingSession.getEntry(uri)?.state.get() === ModifiedFileEntryState.Rejected;
-				return !rejected;
+		if (!arg?.resolveOnResponse) {
+			// DEFAULT: wait for the session to be accepted or rejected
+			await Event.toPromise(session.editingSession.onDidDispose);
+			const rejected = session.editingSession.getEntry(uri)?.state.get() === ModifiedFileEntryState.Rejected;
+			return !rejected;
 
-			} else {
-				// resolveOnResponse: ONLY wait for the file to be modified
-				const modifiedObs = derived(r => {
-					const entry = session.editingSession.readEntry(uri, r);
-					return entry?.state.read(r) === ModifiedFileEntryState.Modified && !entry?.isCurrentlyBeingModifiedBy.read(r);
-				});
-				await waitForState(modifiedObs, state => state === true);
-				return true;
-			}
-
-		} finally {
-			store.dispose();
+		} else {
+			// resolveOnResponse: ONLY wait for the file to be modified
+			const modifiedObs = derived(r => {
+				const entry = session.editingSession.readEntry(uri, r);
+				return entry?.state.read(r) === ModifiedFileEntryState.Modified && !entry?.isCurrentlyBeingModifiedBy.read(r);
+			});
+			await waitForState(modifiedObs, state => state === true);
+			return true;
 		}
 	}
 

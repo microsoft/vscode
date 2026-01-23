@@ -36,7 +36,7 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 	private currentContent: IMarkdownString;
 
 	constructor(
-		progress: IChatProgressMessage | IChatTask | IChatTaskSerialized,
+		progress: IChatProgressMessage | IChatTask | IChatTaskSerialized | { content: IMarkdownString },
 		private readonly chatContentMarkdownRenderer: IMarkdownRenderer,
 		context: IChatContentPartRenderContext,
 		forceShowSpinner: boolean | undefined,
