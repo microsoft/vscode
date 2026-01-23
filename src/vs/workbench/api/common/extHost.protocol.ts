@@ -1495,12 +1495,26 @@ export interface IToolDataDto {
 	inputSchema?: IJSONSchema;
 }
 
+export interface ILanguageModelChatSelectorDto {
+	vendor?: string;
+	family?: string;
+	version?: string;
+	id?: string;
+}
+
+export interface IToolDefinitionDto extends IToolDataDto {
+	icon?: IconPathDto;
+	models?: ILanguageModelChatSelectorDto[];
+	toolSet?: string;
+}
+
 export interface MainThreadLanguageModelToolsShape extends IDisposable {
 	$getTools(): Promise<Dto<IToolDataDto>[]>;
 	$acceptToolProgress(callId: string, progress: IToolProgressStep): void;
 	$invokeTool(dto: Dto<IToolInvocation>, token?: CancellationToken): Promise<Dto<IToolResult> | SerializableObjectWithBuffers<Dto<IToolResult>>>;
 	$countTokensForInvocation(callId: string, input: string, token: CancellationToken): Promise<number>;
 	$registerTool(id: string, hasHandleToolStream: boolean): void;
+	$registerToolWithDefinition(extensionId: ExtensionIdentifier, definition: IToolDefinitionDto, hasHandleToolStream: boolean): void;
 	$unregisterTool(name: string): void;
 }
 
@@ -3163,6 +3177,8 @@ export interface IStartMcpOptions {
 	errorOnUserInteraction?: boolean;
 }
 
+
+
 export interface ExtHostMcpShape {
 	$substituteVariables(workspaceFolder: UriComponents | undefined, value: McpServerLaunch.Serialized): Promise<McpServerLaunch.Serialized>;
 	$resolveMcpLaunch(collectionId: string, label: string): Promise<McpServerLaunch.Serialized | undefined>;
@@ -3170,6 +3186,7 @@ export interface ExtHostMcpShape {
 	$stopMcp(id: number): void;
 	$sendMessage(id: number, message: string): void;
 	$waitForInitialCollectionProviders(): Promise<void>;
+	$onDidChangeMcpServerDefinitions(servers: McpServerDefinition.Serialized[]): void;
 }
 
 export interface IMcpAuthenticationDetails {
@@ -3360,6 +3377,7 @@ export interface MainThreadChatSessionsShape extends IDisposable {
 
 export interface ExtHostChatSessionsShape {
 	$provideChatSessionItems(providerHandle: number, token: CancellationToken): Promise<Dto<IChatSessionItem>[]>;
+	$onDidChangeChatSessionItemState(providerHandle: number, sessionResource: UriComponents, archived: boolean): void;
 
 	$provideChatSessionContent(providerHandle: number, sessionResource: UriComponents, token: CancellationToken): Promise<ChatSessionDto>;
 	$interruptChatSessionActiveResponse(providerHandle: number, sessionResource: UriComponents, requestId: string): Promise<void>;

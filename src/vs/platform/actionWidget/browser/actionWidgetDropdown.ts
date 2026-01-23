@@ -6,7 +6,7 @@
 import { IActionWidgetService } from './actionWidget.js';
 import { IAction } from '../../../base/common/actions.js';
 import { BaseDropdown, IActionProvider, IBaseDropdownOptions } from '../../../base/browser/ui/dropdown/dropdown.js';
-import { ActionListItemKind, IActionListDelegate, IActionListItem } from './actionList.js';
+import { ActionListItemKind, IActionListDelegate, IActionListItem, IActionListItemHover } from './actionList.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { getActiveElement, isHTMLElement } from '../../../base/browser/dom.js';
@@ -17,6 +17,14 @@ export interface IActionWidgetDropdownAction extends IAction {
 	category?: { label: string; order: number; showHeader?: boolean };
 	icon?: ThemeIcon;
 	description?: string;
+	/**
+	 * Optional flyout hover configuration shown when focusing/hovering over the action.
+	 */
+	hover?: IActionListItemHover;
+	/**
+	 * Optional toolbar actions shown when the item is focused or hovered.
+	 */
+	toolbarActions?: IAction[];
 }
 
 // TODO @lramos15 - Should we just make IActionProvider templated?
@@ -103,6 +111,8 @@ export class ActionWidgetDropdown extends BaseDropdown {
 					item: action,
 					tooltip: action.tooltip,
 					description: action.description,
+					hover: action.hover,
+					toolbarActions: action.toolbarActions,
 					kind: ActionListItemKind.Action,
 					canPreview: false,
 					group: { title: '', icon: action.icon ?? ThemeIcon.fromId(action.checked ? Codicon.check.id : Codicon.blank.id) },

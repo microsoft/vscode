@@ -5,11 +5,10 @@
 
 import './nativeEditContext.css';
 import { isFirefox } from '../../../../../base/browser/browser.js';
-import { addDisposableListener, getActiveElement, getWindow, getWindowId, scheduleAtNextAnimationFrame } from '../../../../../base/browser/dom.js';
+import { addDisposableListener, getActiveElement, getWindow, getWindowId } from '../../../../../base/browser/dom.js';
 import { FastDomNode } from '../../../../../base/browser/fastDomNode.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
-import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { EditorOption } from '../../../../common/config/editorOptions.js';
 import { EndOfLinePreference, IModelDeltaDecoration } from '../../../../common/model.js';
@@ -69,7 +68,6 @@ export class NativeEditContext extends AbstractEditContext {
 	private _targetWindowId: number = -1;
 	private _scrollTop: number = 0;
 	private _scrollLeft: number = 0;
-	private _selectionAndControlBoundsUpdateDisposable: IDisposable | undefined;
 
 	private readonly _focusTracker: FocusTracker;
 
@@ -257,8 +255,6 @@ export class NativeEditContext extends AbstractEditContext {
 		this.domNode.domNode.blur();
 		this.domNode.domNode.remove();
 		this._imeTextArea.domNode.remove();
-		this._selectionAndControlBoundsUpdateDisposable?.dispose();
-		this._selectionAndControlBoundsUpdateDisposable = undefined;
 		super.dispose();
 	}
 
@@ -531,19 +527,7 @@ export class NativeEditContext extends AbstractEditContext {
 		}
 	}
 
-	private _updateSelectionAndControlBoundsAfterRender(): void {
-		if (this._selectionAndControlBoundsUpdateDisposable) {
-			return;
-		}
-		// Schedule this work after render so we avoid triggering a layout while still painting.
-		const targetWindow = getWindow(this.domNode.domNode);
-		this._selectionAndControlBoundsUpdateDisposable = scheduleAtNextAnimationFrame(targetWindow, () => {
-			this._selectionAndControlBoundsUpdateDisposable = undefined;
-			this._applySelectionAndControlBounds();
-		});
-	}
-
-	private _applySelectionAndControlBounds(): void {
+	private _updateSelectionAndControlBoundsAfterRender() {
 		const options = this._context.configuration.options;
 		const contentLeft = options.get(EditorOption.layoutInfo).contentLeft;
 

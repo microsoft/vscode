@@ -275,6 +275,10 @@ export class CollapsibleListPool extends Disposable {
 			}
 		};
 	}
+
+	clear(): void {
+		this._pool.clear();
+	}
 }
 
 class CollapsibleListDelegate implements IListVirtualDelegate<IChatCollapsibleListItem> {

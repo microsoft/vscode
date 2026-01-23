@@ -56,7 +56,7 @@ import { ServiceCollection } from '../../../../../../platform/instantiation/comm
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { ResourceLabel } from '../../../../../browser/labels.js';
-import { ResourceContextKey } from '../../../../../common/contextkeys.js';
+import { StaticResourceContextKey } from '../../../../../common/contextkeys.js';
 import { AccessibilityVerbositySettingId } from '../../../../accessibility/browser/accessibilityConfiguration.js';
 import { InspectEditorTokensController } from '../../../../codeEditor/browser/inspectEditorTokens/inspectEditorTokens.js';
 import { MenuPreventer } from '../../../../codeEditor/browser/menuPreventer.js';
@@ -65,7 +65,7 @@ import { getSimpleEditorOptions } from '../../../../codeEditor/browser/simpleEdi
 import { IMarkdownVulnerability } from '../../../common/widget/annotations.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { IChatResponseModel, IChatTextEditGroup } from '../../../common/model/chatModel.js';
-import { IChatResponseViewModel, isRequestVM, isResponseVM } from '../../../common/model/chatViewModel.js';
+import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { ChatTreeItem } from '../../chat.js';
 import { IChatRendererDelegate } from '../chatListRenderer.js';
 import { ChatEditorOptions } from '../chatOptions.js';
@@ -78,7 +78,7 @@ const $ = dom.$;
 export interface ICodeBlockData {
 	readonly codeBlockIndex: number;
 	readonly codeBlockPartIndex: number;
-	readonly element: unknown;
+	readonly element: IChatRequestViewModel | IChatResponseViewModel;
 
 	readonly textModel: Promise<ITextModel> | undefined;
 	readonly languageId: string;
@@ -169,7 +169,7 @@ export class CodeBlockPart extends Disposable {
 
 	private isDisposed = false;
 
-	private resourceContextKey: ResourceContextKey;
+	private resourceContextKey: StaticResourceContextKey;
 
 	private get verticalPadding(): number {
 		return this.currentCodeBlockData?.renderOptions?.verticalPadding ?? defaultCodeblockPadding;
@@ -190,7 +190,7 @@ export class CodeBlockPart extends Disposable {
 		super();
 		this.element = $('.interactive-result-code-block');
 
-		this.resourceContextKey = this._register(instantiationService.createInstance(ResourceContextKey));
+		this.resourceContextKey = instantiationService.createInstance(StaticResourceContextKey);
 		this.contextKeyService = this._register(contextKeyService.createScoped(this.element));
 		const scopedInstantiationService = this._register(instantiationService.createChild(new ServiceCollection([IContextKeyService, this.contextKeyService])));
 		const editorElement = dom.append(this.element, $('.interactive-result-editor'));
@@ -389,7 +389,12 @@ export class CodeBlockPart extends Disposable {
 
 		const editorBorder = 2;
 		width = width - editorBorder - (this.currentCodeBlockData?.renderOptions?.reserveWidth ?? 0);
-		this.editor.layout({ width: isRequestVM(this.currentCodeBlockData?.element) ? width * 0.9 : width, height });
+		// !!!!
+		// Important: Using here postponeRendering = true to avoid doing a sync layout on the editor
+		// which can be very expensive if there are many code blocks being laid out at once.
+		// This allows multiple editors to coordinate and render together at the next animation frame.
+		// !!!!
+		this.editor.layout({ width: isRequestVM(this.currentCodeBlockData?.element) ? width * 0.9 : width, height }, /* postponeRendering */ true);
 		this.updatePaddingForLayout();
 	}
 
@@ -452,6 +457,15 @@ export class CodeBlockPart extends Disposable {
 	reset() {
 		this.clearWidgets();
 		this.currentCodeBlockData = undefined;
+	}
+
+	onDidRemount(): void {
+		if (this.currentCodeBlockData) {
+			// !!!!
+			// Important: if the editor was off-dom and is now connected, we need to re-render it
+			// !!!!
+			this.editor.renderAsync(true);
+		}
 	}
 
 	private clearWidgets() {

@@ -16,7 +16,7 @@ export interface ILanguageModelsConfigurationService {
 
 	readonly configurationFile: URI;
 
-	readonly onDidChangeLanguageModelGroups: Event<void>;
+	readonly onDidChangeLanguageModelGroups: Event<readonly ILanguageModelsProviderGroup[]>;
 
 	getLanguageModelsProviderGroups(): readonly ILanguageModelsProviderGroup[];
 

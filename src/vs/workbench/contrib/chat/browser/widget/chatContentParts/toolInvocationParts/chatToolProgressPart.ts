@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../../../base/browser/dom.js';
+import { renderAsPlaintext } from '../../../../../../../base/browser/markdownRenderer.js';
 import { status } from '../../../../../../../base/browser/ui/aria/aria.js';
 import { IMarkdownString, MarkdownString } from '../../../../../../../base/common/htmlContent.js';
+import { stripIcons } from '../../../../../../../base/common/iconLabels.js';
 import { autorun } from '../../../../../../../base/common/observable.js';
 import { IMarkdownRenderer } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
@@ -110,7 +112,7 @@ export class ChatToolProgressSubPart extends BaseChatToolInvocationSubPart {
 	}
 
 	private provideScreenReaderStatus(content: IMarkdownString | string): void {
-		const message = typeof content === 'string' ? content : content.value;
+		const message = typeof content === 'string' ? content : stripIcons(renderAsPlaintext(content, { useLinkFormatter: true }));
 		status(message);
 	}
 

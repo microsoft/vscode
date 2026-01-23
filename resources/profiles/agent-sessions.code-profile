@@ -1,0 +1,22 @@
+{
+	"name": "Agent Sessions",
+	"icon": "copilot",
+	"settings": {
+		"workbench.statusBar.visible": false,
+		"workbench.activityBar.location": "hidden",
+		"workbench.sideBar.location": "right",
+		"workbench.secondarySideBar.defaultVisibility": "maximized",
+		"workbench.secondarySideBar.restoreMaximized": true,
+		"chat.restoreLastPanelSession": true,
+		"workbench.startupEditor": "none",
+		"workbench.editor.restoreEditors": false,
+		"chat.agentsControl.enabled": true,
+		"chat.unifiedAgentsBar.enabled": true,
+		"files.autoSave": "afterDelay",
+		"window.title": "Agent Sessions",
+		"workbench.editor.showTabs": "single",
+		"workbench.colorTheme": "2026-dark-experimental",
+		"chat.commandCenter.triStateToggle": true,
+		"workbench.tips.enabled": false
+	}
+}

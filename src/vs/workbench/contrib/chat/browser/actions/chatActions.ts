@@ -463,11 +463,20 @@ export function registerChatActions() {
 			const viewsService = accessor.get(IViewsService);
 			const viewDescriptorService = accessor.get(IViewDescriptorService);
 			const widgetService = accessor.get(IChatWidgetService);
+			const configurationService = accessor.get(IConfigurationService);
 
 			const chatLocation = viewDescriptorService.getViewLocationById(ChatViewId);
 
 			if (viewsService.isViewVisible(ChatViewId)) {
-				this.updatePartVisibility(layoutService, chatLocation, false);
+				if (
+					chatLocation === ViewContainerLocation.AuxiliaryBar &&
+					configurationService.getValue<boolean>(ChatConfiguration.CommandCenterTriStateToggle) &&
+					!layoutService.isAuxiliaryBarMaximized()
+				) {
+					layoutService.setAuxiliaryBarMaximized(true);
+				} else {
+					this.updatePartVisibility(layoutService, chatLocation, false);
+				}
 			} else {
 				this.updatePartVisibility(layoutService, chatLocation, true);
 				(await widgetService.revealWidget())?.focusInput();
@@ -1167,7 +1176,7 @@ registerAction2(class EditToolApproval extends Action2 {
 	async run(accessor: ServicesAccessor, scope?: 'workspace' | 'profile' | 'session'): Promise<void> {
 		const confirmationService = accessor.get(ILanguageModelToolsConfirmationService);
 		const toolsService = accessor.get(ILanguageModelToolsService);
-		confirmationService.manageConfirmationPreferences([...toolsService.getTools()], scope ? { defaultScope: scope } : undefined);
+		confirmationService.manageConfirmationPreferences([...toolsService.getAllToolsIncludingDisabled()], scope ? { defaultScope: scope } : undefined);
 	}
 });
 

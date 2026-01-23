@@ -18,6 +18,8 @@ import { BrowserViewStorageScope } from '../../../../platform/browserView/common
 import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { logBrowserOpen } from './browserViewTelemetry.js';
 
 // Context key expression to check if browser editor is active
 const BROWSER_EDITOR_ACTIVE = ContextKeyExpr.equals('activeEditor', BrowserEditor.ID);
@@ -36,7 +38,10 @@ class OpenIntegratedBrowserAction extends Action2 {
 
 	async run(accessor: ServicesAccessor, url?: string): Promise<void> {
 		const editorService = accessor.get(IEditorService);
+		const telemetryService = accessor.get(ITelemetryService);
 		const resource = BrowserViewUri.forUrl(url);
+
+		logBrowserOpen(telemetryService, url ? 'commandWithUrl' : 'commandWithoutUrl');
 
 		await editorService.openEditor({ resource });
 	}
@@ -145,18 +150,19 @@ class AddElementToChatAction extends Action2 {
 	static readonly ID = 'workbench.action.browser.addElementToChat';
 
 	constructor() {
+		const enabled = ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('config.chat.sendElementsToChat.enabled', true));
 		super({
 			id: AddElementToChatAction.ID,
 			title: localize2('browser.addElementToChatAction', 'Add Element to Chat'),
 			icon: Codicon.inspect,
-			f1: true,
-			precondition: ChatContextKeys.enabled,
+			f1: false,
+			precondition: enabled,
 			toggled: CONTEXT_BROWSER_ELEMENT_SELECTION_ACTIVE,
 			menu: {
 				id: MenuId.BrowserActionsToolbar,
 				group: 'actions',
 				order: 1,
-				when: ChatContextKeys.enabled
+				when: enabled
 			},
 			keybinding: [{
 				when: BROWSER_EDITOR_ACTIVE,

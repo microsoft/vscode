@@ -16,7 +16,7 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IChatAgentRequest, IChatAgentService } from '../../participants/chatAgents.js';
 import { ChatModel, IChatRequestModeInstructions } from '../../model/chatModel.js';
-import { IChatModeService } from '../../chatModes.js';
+import { ChatMode, IChatMode, IChatModeService } from '../../chatModes.js';
 import { IChatProgress, IChatService } from '../../chatService/chatService.js';
 import { ChatRequestVariableSet } from '../../attachments/chatVariableEntries.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../constants.js';
@@ -30,9 +30,9 @@ import {
 	IToolInvocation,
 	IToolInvocationPreparationContext,
 	IToolResult,
+	isToolSet,
 	ToolDataSource,
 	ToolProgress,
-	ToolSet,
 	VSCodeToolReference,
 } from '../languageModelToolsService.js';
 import { ComputeAutomaticInstructions } from '../../promptSyntax/computeAutomaticInstructions.js';
@@ -139,9 +139,10 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 			let modeModelId = invocation.modelId;
 			let modeTools = invocation.userSelectedTools;
 			let modeInstructions: IChatRequestModeInstructions | undefined;
+			let mode: IChatMode | undefined;
 
 			if (args.agentName) {
-				const mode = this.chatModeService.findModeByName(args.agentName);
+				mode = this.chatModeService.findModeByName(args.agentName);
 				if (mode) {
 					// Use mode-specific model if available
 					const modeModelQualifiedName = mode.model?.get();
@@ -161,11 +162,11 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 					const modeCustomTools = mode.customTools?.get();
 					if (modeCustomTools) {
 						// Convert the mode's custom tools (array of qualified names) to UserSelectedTools format
-						const enablementMap = this.languageModelToolsService.toToolAndToolSetEnablementMap(modeCustomTools, mode.target?.get());
+						const enablementMap = this.languageModelToolsService.toToolAndToolSetEnablementMap(modeCustomTools, mode.target?.get(), undefined);
 						// Convert enablement map to UserSelectedTools (Record<string, boolean>)
 						modeTools = {};
 						for (const [tool, enabled] of enablementMap) {
-							if (!(tool instanceof ToolSet)) {
+							if (!isToolSet(tool)) {
 								modeTools[tool.id] = enabled;
 							}
 						}
@@ -219,7 +220,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 			}
 
 			const variableSet = new ChatRequestVariableSet();
-			const computer = this.instantiationService.createInstance(ComputeAutomaticInstructions, modeTools, undefined); // agents can not call subagents
+			const computer = this.instantiationService.createInstance(ComputeAutomaticInstructions, mode ?? ChatMode.Agent, modeTools, undefined); // agents can not call subagents
 			await computer.collect(variableSet, token);
 
 			// Build the agent request

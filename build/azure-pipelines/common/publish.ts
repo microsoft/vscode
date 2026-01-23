@@ -782,10 +782,16 @@ function getPlatform(product: string, os: string, arch: string, type: string): s
 		case 'darwin':
 			switch (product) {
 				case 'client':
-					if (arch === 'x64') {
-						return 'darwin';
+					switch (type) {
+						case 'dmg':
+							return `darwin-${arch}-dmg`;
+						case 'archive':
+						default:
+							if (arch === 'x64') {
+								return 'darwin';
+							}
+							return `darwin-${arch}`;
 					}
-					return `darwin-${arch}`;
 				case 'server':
 					if (arch === 'x64') {
 						return 'server-darwin';

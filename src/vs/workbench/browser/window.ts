@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isSafari, setFullscreen } from '../../base/browser/browser.js';
-import { addDisposableListener, EventHelper, EventType, getActiveWindow, getWindow, getWindowById, getWindows, getWindowsCount, windowOpenNoOpener, windowOpenPopup, windowOpenWithSuccess } from '../../base/browser/dom.js';
+import { addDisposableListener, EventHelper, EventType, getWindow, getWindowById, getWindows, getWindowsCount, hasAppFocus, windowOpenNoOpener, windowOpenPopup, windowOpenWithSuccess } from '../../base/browser/dom.js';
 import { DomEmitter } from '../../base/browser/event.js';
 import { HidDeviceData, requestHidDevice, requestSerialPort, requestUsbDevice, SerialPortData, UsbDeviceData } from '../../base/browser/deviceAccess.js';
 import { timeout } from '../../base/common/async.js';
@@ -74,8 +74,9 @@ export abstract class BaseWindow extends Disposable {
 	}
 
 	private onElementFocus(targetWindow: CodeWindow): void {
-		const activeWindow = getActiveWindow();
-		if (activeWindow !== targetWindow && activeWindow.document.hasFocus()) {
+
+		// Check if focus should transfer: the application currently has focus somewhere, but not in the target window.
+		if (!targetWindow.document.hasFocus() && hasAppFocus()) {
 
 			// Call original focus()
 			targetWindow.focus();

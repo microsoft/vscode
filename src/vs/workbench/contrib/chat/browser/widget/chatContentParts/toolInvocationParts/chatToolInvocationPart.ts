@@ -33,9 +33,6 @@ import { ChatToolStreamingSubPart } from './chatToolStreamingSubPart.js';
 export class ChatToolInvocationPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
 
-	private _onDidChangeHeight = this._register(new Emitter<void>());
-	public readonly onDidChangeHeight = this._onDidChangeHeight.event;
-
 	public get codeblocks(): IChatCodeBlockInfo[] {
 		const codeblocks = this.subPart?.codeblocks ?? [];
 		if (this.mcpAppPart) {
@@ -100,9 +97,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 			subPartDomNode.replaceWith(this.subPart.domNode);
 			subPartDomNode = this.subPart.domNode;
 
-			partStore.add(this.subPart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 			partStore.add(this.subPart.onNeedsRerender(render));
-			this._onDidChangeHeight.fire();
 		};
 
 		const mcpAppRenderData = this.getMcpAppRenderData();
@@ -126,13 +121,10 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 					));
 					appDomNode.replaceWith(this.mcpAppPart.domNode);
 					appDomNode = this.mcpAppPart.domNode;
-					r.store.add(this.mcpAppPart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 				} else {
 					this.mcpAppPart = undefined;
 					dom.clearNode(appDomNode);
 				}
-
-				this._onDidChangeHeight.fire();
 			}));
 		}
 

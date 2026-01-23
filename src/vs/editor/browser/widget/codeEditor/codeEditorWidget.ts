@@ -1694,12 +1694,28 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		return this._modelData.view.getLineWidth(lineNumber);
 	}
 
+	public resetLineWidthCaches(): void {
+		if (!this._modelData || !this._modelData.hasRealView) {
+			return;
+		}
+		this._modelData.view.resetLineWidthCaches();
+	}
+
 	public render(forceRedraw: boolean = false): void {
 		if (!this._modelData || !this._modelData.hasRealView) {
 			return;
 		}
 		this._modelData.viewModel.batchEvents(() => {
 			this._modelData!.view.render(true, forceRedraw);
+		});
+	}
+
+	public renderAsync(forceRedraw: boolean = false): void {
+		if (!this._modelData || !this._modelData.hasRealView) {
+			return;
+		}
+		this._modelData.viewModel.batchEvents(() => {
+			this._modelData!.view.render(false, forceRedraw);
 		});
 	}
 

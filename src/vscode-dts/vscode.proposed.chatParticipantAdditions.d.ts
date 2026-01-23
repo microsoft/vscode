@@ -65,6 +65,29 @@ declare module 'vscode' {
 		constructor(uri: Uri, edits: NotebookEdit | NotebookEdit[]);
 	}
 
+	/**
+	 * Represents a file-level edit (creation, deletion, or rename).
+	 */
+	export interface ChatWorkspaceFileEdit {
+		/**
+		 * The original file URI (undefined for new files).
+		 */
+		oldResource?: Uri;
+
+		/**
+		 * The new file URI (undefined for deleted files).
+		 */
+		newResource?: Uri;
+	}
+
+	/**
+	 * Represents a workspace edit containing file-level operations.
+	 */
+	export class ChatResponseWorkspaceEditPart {
+		edits: ChatWorkspaceFileEdit[];
+		constructor(edits: ChatWorkspaceFileEdit[]);
+	}
+
 	export class ChatResponseConfirmationPart {
 		title: string;
 		message: string | MarkdownString;
@@ -95,6 +118,48 @@ declare module 'vscode' {
 			toolEdited?: string;
 		};
 		language: string;
+
+		/**
+		 * Terminal command output. Displayed when the terminal is no longer available.
+		 */
+		output?: {
+			/** The raw output text, may include ANSI escape codes. */
+			text: string;
+		};
+
+		/**
+		 * Command execution state.
+		 */
+		state?: {
+			/** Exit code of the command. */
+			exitCode?: number;
+			/** Duration of execution in milliseconds. */
+			duration?: number;
+		};
+	}
+
+	export class McpToolInvocationContentData {
+		/**
+		 * The mime type which determines how the data property is interpreted.
+		 */
+		mimeType: string;
+
+		/**
+		 * The byte data for this part.
+		 */
+		data: Uint8Array;
+
+		/**
+		 * Construct a generic data part with the given content.
+		 * @param data The byte data for this part.
+		 * @param mimeType The mime type of the data.
+		 */
+		constructor(data: Uint8Array, mimeType: string);
+	}
+
+	export interface ChatMcpToolInvocationData {
+		input: string;
+		output: McpToolInvocationContentData[];
 	}
 
 	export class ChatToolInvocationPart {
@@ -106,7 +171,7 @@ declare module 'vscode' {
 		pastTenseMessage?: string | MarkdownString;
 		isConfirmed?: boolean;
 		isComplete?: boolean;
-		toolSpecificData?: ChatTerminalToolInvocationData;
+		toolSpecificData?: ChatTerminalToolInvocationData | ChatMcpToolInvocationData;
 		subAgentInvocationId?: string;
 		presentation?: 'hidden' | 'hiddenAfterComplete' | undefined;
 
@@ -179,7 +244,7 @@ declare module 'vscode' {
 		constructor(uris: Uri[], callback: () => Thenable<unknown>);
 	}
 
-	export type ExtendedChatResponsePart = ChatResponsePart | ChatResponseTextEditPart | ChatResponseNotebookEditPart | ChatResponseConfirmationPart | ChatResponseCodeCitationPart | ChatResponseReferencePart2 | ChatResponseMovePart | ChatResponseExtensionsPart | ChatResponsePullRequestPart | ChatToolInvocationPart | ChatResponseMultiDiffPart | ChatResponseThinkingProgressPart | ChatResponseExternalEditPart;
+	export type ExtendedChatResponsePart = ChatResponsePart | ChatResponseTextEditPart | ChatResponseNotebookEditPart | ChatResponseWorkspaceEditPart | ChatResponseConfirmationPart | ChatResponseCodeCitationPart | ChatResponseReferencePart2 | ChatResponseMovePart | ChatResponseExtensionsPart | ChatResponsePullRequestPart | ChatToolInvocationPart | ChatResponseMultiDiffPart | ChatResponseThinkingProgressPart | ChatResponseExternalEditPart;
 	export class ChatResponseWarningPart {
 		value: MarkdownString;
 		constructor(value: string | MarkdownString);
@@ -314,6 +379,12 @@ declare module 'vscode' {
 		notebookEdit(target: Uri, isDone: true): void;
 
 		/**
+		 * Push a workspace edit containing file-level operations (create, delete, rename).
+		 * @param edits Array of file-level edits to apply
+		 */
+		workspaceEdit(edits: ChatWorkspaceFileEdit[]): void;
+
+		/**
 		 * Makes an external edit to one or more resources. Changes to the
 		 * resources made within the `callback` and before it resolves will be
 		 * tracked as agent edits. This can be used to track edits made from
@@ -421,7 +492,7 @@ declare module 'vscode' {
 		/**
 		 * A map of all tools that should (`true`) and should not (`false`) be used in this request.
 		 */
-		readonly tools: Map<string, boolean>;
+		readonly tools: Map<LanguageModelToolInformation, boolean>;
 	}
 
 	export namespace lm {
@@ -511,6 +582,47 @@ declare module 'vscode' {
 
 	export type ChatExtendedRequestHandler = (request: ChatRequest, context: ChatContext, response: ChatResponseStream, token: CancellationToken) => ProviderResult<ChatResult | void>;
 
+	/**
+	 * Details about the prompt token usage by category and label.
+	 */
+	export interface ChatResultPromptTokenDetail {
+		/**
+		 * The category this token usage belongs to (e.g., "System", "Context", "Conversation").
+		 */
+		readonly category: string;
+
+		/**
+		 * The label for this specific token usage (e.g., "System prompt", "Attached files").
+		 */
+		readonly label: string;
+
+		/**
+		 * The percentage of the total prompt tokens this represents (0-100).
+		 */
+		readonly percentageOfPrompt: number;
+	}
+
+	/**
+	 * Token usage information for a chat request.
+	 */
+	export interface ChatResultUsage {
+		/**
+		 * The number of prompt tokens used in this request.
+		 */
+		readonly promptTokens: number;
+
+		/**
+		 * The number of completion tokens generated in this response.
+		 */
+		readonly completionTokens: number;
+
+		/**
+		 * Optional breakdown of prompt token usage by category and label.
+		 * If the percentages do not sum to 100%, the remaining will be shown as "Uncategorized".
+		 */
+		readonly promptTokenDetails?: readonly ChatResultPromptTokenDetail[];
+	}
+
 	export interface ChatResult {
 		nextQuestion?: {
 			prompt: string;
@@ -521,6 +633,12 @@ declare module 'vscode' {
 		 * An optional detail string that will be rendered at the end of the response in certain UI contexts.
 		 */
 		details?: string;
+
+		/**
+		 * Token usage information for this request, if available.
+		 * This is typically provided by the underlying language model.
+		 */
+		readonly usage?: ChatResultUsage;
 	}
 
 	export namespace chat {
@@ -695,7 +813,9 @@ declare module 'vscode' {
 		readonly rawInput?: unknown;
 
 		readonly chatRequestId?: string;
+		/** @deprecated Use {@link chatSessionResource} instead */
 		readonly chatSessionId?: string;
+		readonly chatSessionResource?: Uri;
 		readonly chatInteractionId?: string;
 	}
 

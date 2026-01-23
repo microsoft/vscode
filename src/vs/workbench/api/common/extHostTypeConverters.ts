@@ -42,7 +42,7 @@ import { IViewBadge } from '../../common/views.js';
 import { IChatAgentRequest, IChatAgentResult } from '../../contrib/chat/common/participants/chatAgents.js';
 import { IChatRequestDraft } from '../../contrib/chat/common/editing/chatEditingService.js';
 import { IChatRequestModeInstructions } from '../../contrib/chat/common/model/chatModel.js';
-import { IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatExtensionsContent, IChatFollowup, IChatMarkdownContent, IChatMoveMessage, IChatMultiDiffDataSerialized, IChatProgressMessage, IChatPullRequestContent, IChatResponseCodeblockUriPart, IChatTaskDto, IChatTaskResult, IChatTextEdit, IChatThinkingPart, IChatToolInvocationSerialized, IChatTreeData, IChatUserActionEvent, IChatWarningMessage } from '../../contrib/chat/common/chatService/chatService.js';
+import { IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatExtensionsContent, IChatFollowup, IChatMarkdownContent, IChatMoveMessage, IChatMultiDiffDataSerialized, IChatProgressMessage, IChatPullRequestContent, IChatResponseCodeblockUriPart, IChatTaskDto, IChatTaskResult, IChatTerminalToolInvocationData, IChatTextEdit, IChatThinkingPart, IChatToolInvocationSerialized, IChatTreeData, IChatUserActionEvent, IChatWarningMessage, IChatWorkspaceEdit } from '../../contrib/chat/common/chatService/chatService.js';
 import { LocalChatSessionUri } from '../../contrib/chat/common/model/chatUri.js';
 import { ChatRequestToolReferenceEntry, IChatRequestVariableEntry, isImageVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry } from '../../contrib/chat/common/attachments/chatVariableEntries.js';
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
@@ -50,7 +50,7 @@ import { IToolInvocationContext, IToolResult, IToolResultInputOutputDetails, ITo
 import * as chatProvider from '../../contrib/chat/common/languageModels.js';
 import { IChatMessageDataPart, IChatResponseDataPart, IChatResponsePromptTsxPart, IChatResponseTextPart } from '../../contrib/chat/common/languageModels.js';
 import { DebugTreeItemCollapsibleState, IDebugVisualizationTreeItem } from '../../contrib/debug/common/debug.js';
-import { McpServerLaunch, McpServerTransportType } from '../../contrib/mcp/common/mcpTypes.js';
+import { McpServerDefinition as McpServerDefinitionType, McpServerLaunch, McpServerTransportType } from '../../contrib/mcp/common/mcpTypes.js';
 import * as notebooks from '../../contrib/notebook/common/notebookCommon.js';
 import { CellEditType } from '../../contrib/notebook/common/notebookCommon.js';
 import { ICellRange } from '../../contrib/notebook/common/notebookRange.js';
@@ -2815,6 +2815,19 @@ export namespace ChatResponseMovePart {
 
 export namespace ChatToolInvocationPart {
 	export function from(part: vscode.ChatToolInvocationPart): IChatToolInvocationSerialized {
+		// Check if toolSpecificData is ChatMcpToolInvocationData (has input and output)
+		// If so, convert to resultDetails for rendering via ChatInputOutputMarkdownProgressPart
+		let resultDetails: IToolResultInputOutputDetails | undefined;
+		let toolSpecificData: any;
+
+		if (part.toolSpecificData && isChatMcpToolInvocationData(part.toolSpecificData)) {
+			// Convert ChatMcpToolInvocationData to IToolResultInputOutputDetails
+			resultDetails = convertMcpToResultDetails(part.toolSpecificData, part.isError);
+			toolSpecificData = undefined; // MCP data goes to resultDetails, not toolSpecificData
+		} else {
+			toolSpecificData = part.toolSpecificData ? convertToolSpecificData(part.toolSpecificData) : undefined;
+		}
+
 		// Convert extension API ChatToolInvocationPart to internal serialized format
 		return {
 			kind: 'toolInvocationSerialized',
@@ -2827,7 +2840,8 @@ export namespace ChatToolInvocationPart {
 			isComplete: part.isComplete ?? true,
 			source: ToolDataSource.External,
 			// isError: part.isError ?? false,
-			toolSpecificData: part.toolSpecificData ? convertToolSpecificData(part.toolSpecificData) : undefined,
+			toolSpecificData,
+			resultDetails,
 			presentation: part.presentation === 'hidden'
 				? ToolInvocationPresentation.Hidden
 				: part.presentation === 'hiddenAfterComplete'
@@ -2837,22 +2851,51 @@ export namespace ChatToolInvocationPart {
 		};
 	}
 
+	function isChatMcpToolInvocationData(data: any): data is vscode.ChatMcpToolInvocationData {
+		return data !== null && typeof data === 'object' &&
+			'input' in data && typeof data.input === 'string' &&
+			'output' in data && Array.isArray(data.output);
+	}
+
+	function convertMcpToResultDetails(data: vscode.ChatMcpToolInvocationData, isError?: boolean): IToolResultInputOutputDetails {
+		return {
+			input: data.input,
+			output: data.output.map((o) => {
+				const isText = o.mimeType.startsWith('text/');
+				return {
+					type: 'embed' as const,
+					mimeType: o.mimeType,
+					value: isText ? VSBuffer.wrap(o.data).toString() : encodeBase64(VSBuffer.wrap(o.data)),
+					isText: isText,
+				};
+			}),
+			isError: isError ?? false,
+		};
+	}
+
 	function convertToolSpecificData(data: any): any {
 		// Convert extension API terminal tool data to internal format
 		if ('command' in data && 'language' in data) {
-			// ChatTerminalToolInvocationData
 			return {
 				kind: 'terminal',
 				command: data.command,
 				language: data.language
 			};
 		} else if ('commandLine' in data && 'language' in data) {
-			// ChatTerminalToolInvocationData2
-			return {
+			const result: IChatTerminalToolInvocationData = {
 				kind: 'terminal',
 				commandLine: data.commandLine,
-				language: data.language
+				language: data.language,
+				terminalCommandOutput: typeof data.output?.text === 'string' ? {
+					text: data.output.text,
+				} : undefined,
+				terminalCommandState: data.state ? {
+					exitCode: data.state.exitCode,
+					duration: data.state.duration,
+				} : undefined,
 			};
+
+			return result;
 		}
 		return data;
 	}
@@ -2891,10 +2934,38 @@ export namespace ChatToolInvocationPart {
 	function convertFromInternalToolSpecificData(data: any): any {
 		// Convert internal terminal tool data to extension API format
 		if (data.kind === 'terminal') {
-			return {
-				command: data.command,
-				language: data.language
-			};
+			if (data.commandLine) {
+				// New format with commandLine
+				const result: any = {
+					commandLine: data.commandLine,
+					language: data.language
+				};
+
+				// Map internal 'terminalCommandOutput' -> extension 'output'
+				if (data.terminalCommandOutput) {
+					result.output = {
+						text: data.terminalCommandOutput.text,
+						truncated: data.terminalCommandOutput.truncated,
+						lineCount: data.terminalCommandOutput.lineCount
+					};
+				}
+
+				// Map internal 'terminalCommandState' -> extension 'state'
+				if (data.terminalCommandState) {
+					result.state = {
+						exitCode: data.terminalCommandState.exitCode,
+						duration: data.terminalCommandState.duration
+					};
+				}
+
+				return result;
+			} else {
+				// Legacy format with command
+				return {
+					command: data.command,
+					language: data.language
+				};
+			}
 		} else if (data.kind === 'terminal2') {
 			return {
 				commandLine: data.commandLine,
@@ -2987,6 +3058,18 @@ export namespace ChatResponseNotebookEditPart {
 			uri: part.uri,
 			edits: part.edits.map(NotebookEdit.from),
 			done: part.isDone
+		};
+	}
+}
+
+export namespace ChatResponseWorkspaceEditPart {
+	export function from(part: vscode.ChatResponseWorkspaceEditPart): IChatWorkspaceEdit {
+		return {
+			kind: 'workspaceEdit',
+			edits: part.edits.map(e => ({
+				oldResource: e.oldResource,
+				newResource: e.newResource,
+			})),
 		};
 	}
 }
@@ -3090,6 +3173,8 @@ export namespace ChatResponsePart {
 			return ChatResponsePullRequestPart.from(part);
 		} else if (part instanceof types.ChatToolInvocationPart) {
 			return ChatToolInvocationPart.from(part);
+		} else if (part instanceof types.ChatResponseWorkspaceEditPart) {
+			return ChatResponseWorkspaceEditPart.from(part);
 		}
 
 		return {
@@ -3125,7 +3210,7 @@ export namespace ChatResponsePart {
 }
 
 export namespace ChatAgentRequest {
-	export function to(request: IChatAgentRequest, location2: vscode.ChatRequestEditorData | vscode.ChatRequestNotebookData | undefined, model: vscode.LanguageModelChat, diagnostics: readonly [vscode.Uri, readonly vscode.Diagnostic[]][], tools: Map<string, boolean>, extension: IRelaxedExtensionDescription, logService: ILogService): vscode.ChatRequest {
+	export function to(request: IChatAgentRequest, location2: vscode.ChatRequestEditorData | vscode.ChatRequestNotebookData | undefined, model: vscode.LanguageModelChat, diagnostics: readonly [vscode.Uri, readonly vscode.Diagnostic[]][], tools: Map<vscode.LanguageModelToolInformation, boolean>, extension: IRelaxedExtensionDescription, logService: ILogService): vscode.ChatRequest {
 
 		const toolReferences: IChatRequestVariableEntry[] = [];
 		const variableReferences: IChatRequestVariableEntry[] = [];
@@ -3148,6 +3233,7 @@ export namespace ChatAgentRequest {
 			enableCommandDetection: request.enableCommandDetection ?? true,
 			isParticipantDetected: request.isParticipantDetected ?? false,
 			sessionId,
+			sessionResource: request.sessionResource,
 			references: variableReferences
 				.map(v => ChatPromptReference.to(v, diagnostics, logService))
 				.filter(isDefined),
@@ -3361,6 +3447,7 @@ export namespace ChatAgentResult {
 			metadata: reviveMetadata(result.metadata),
 			nextQuestion: result.nextQuestion,
 			details: result.details,
+			usage: result.usage,
 		};
 	}
 	export function from(result: vscode.ChatResult): Dto<IChatAgentResult> {
@@ -3368,7 +3455,8 @@ export namespace ChatAgentResult {
 			errorDetails: result.errorDetails,
 			metadata: result.metadata,
 			nextQuestion: result.nextQuestion,
-			details: result.details
+			details: result.details,
+			usage: result.usage,
 		};
 	}
 
@@ -3767,6 +3855,31 @@ export namespace McpServerDefinition {
 					envFile: undefined,
 				}
 		);
+	}
+
+	/** Converts from the IPC DTO to the API type. */
+	export function to(dto: McpServerDefinitionType.Serialized): vscode.McpServerDefinition {
+		const launch = McpServerLaunch.fromSerialized(dto.launch);
+		if (launch.type === McpServerTransportType.HTTP) {
+			return new types.McpHttpServerDefinition(
+				dto.label,
+				launch.uri,
+				Object.fromEntries(launch.headers),
+				dto.cacheNonce === '$$NONE' ? undefined : dto.cacheNonce,
+			);
+		} else {
+			const result = new types.McpStdioServerDefinition(
+				dto.label,
+				launch.command,
+				[...launch.args],
+				Object.fromEntries(Object.entries(launch.env).map(([key, value]) => [key, value === null ? null : String(value)])),
+				dto.cacheNonce === '$$NONE' ? undefined : dto.cacheNonce,
+			);
+			if (launch.cwd) {
+				result.cwd = URI.file(launch.cwd);
+			}
+			return result;
+		}
 	}
 }
 

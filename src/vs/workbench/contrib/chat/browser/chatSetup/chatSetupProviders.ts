@@ -478,14 +478,14 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 		}
 
 		// check that tools other than setup. and internal tools are registered.
-		for (const tool of languageModelToolsService.getTools()) {
+		for (const tool of languageModelToolsService.getAllToolsIncludingDisabled()) {
 			if (tool.id.startsWith('copilot_')) {
 				return; // we have tools!
 			}
 		}
 
 		return Event.toPromise(Event.filter(languageModelToolsService.onDidChangeTools, () => {
-			for (const tool of languageModelToolsService.getTools()) {
+			for (const tool of languageModelToolsService.getAllToolsIncludingDisabled()) {
 				if (tool.id.startsWith('copilot_')) {
 					return true; // we have tools!
 				}
