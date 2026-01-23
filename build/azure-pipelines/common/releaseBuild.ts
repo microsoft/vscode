@@ -77,7 +77,12 @@ async function checkCopilotChatCompatibility(): Promise<void> {
 
 	// Load product.json to check allowlisted API proposals
 	const productJsonPath = path.join(root, 'product.json');
-	const productJson = JSON.parse(fs.readFileSync(productJsonPath, 'utf8'));
+	let productJson;
+	try {
+		productJson = JSON.parse(fs.readFileSync(productJsonPath, 'utf8'));
+	} catch (error) {
+		throw new Error(`Failed to load or parse product.json: ${error}`);
+	}
 	const productAllowlistedProposals = productJson?.extensionEnabledApiProposals?.[extensionId];
 
 	if (productAllowlistedProposals) {
