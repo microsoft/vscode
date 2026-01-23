@@ -41,6 +41,7 @@ RUN if [ "$TARGETARCH" = "arm" ]; then \
 
 # VS Code dependencies (arm64)
 RUN if [ "$TARGETARCH" = "arm64" ]; then \
+	apt-get install -y libasound2 || apt-get install -y libasound2t64; \
 	apt-get install -y \
 		libgbm1 \
 		libnss3 \

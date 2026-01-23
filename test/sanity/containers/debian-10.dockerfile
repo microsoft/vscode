@@ -51,9 +51,6 @@ RUN apt-get install -y \
 	libgbm1 \
 	libgtk-3-0 \
 	libnss3 \
-	libxcomposite1 \
-	libxkbcommon0 \
-	libxrandr2 \
 	xdg-utils
 
 # Install newer libxkbfile1 from Debian 11 since Debian 10 version is too old

@@ -890,9 +890,9 @@ export class TestContext {
 	}
 
 	/**
-	 * Returns a random port number between 3000 and 9999.
+	 * Returns a random port number between 3000 and 5000.
 	 */
 	public getRandomPort(): string {
-		return String(Math.floor(Math.random() * 7000) + 3000);
+		return String(Math.floor(Math.random() * 2000) + 3000);
 	}
 }
