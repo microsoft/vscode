@@ -247,39 +247,6 @@ export class LineHeightsManager {
 		} else {
 			startIndexOfInsertion = -(candidateStartIndexOfInsertion + 1);
 		}
-		const toReAdd: CustomLineHeightData[] = [];
-		const decorationsImmediatelyAfter = new Set<string>();
-		for (let i = startIndexOfInsertion; i < this._orderedCustomLines.length; i++) {
-			if (this._orderedCustomLines[i].lineNumber === fromLineNumber) {
-				decorationsImmediatelyAfter.add(this._orderedCustomLines[i].decorationId);
-			}
-		}
-		const decorationsImmediatelyBefore = new Set<string>();
-		for (let i = startIndexOfInsertion - 1; i >= 0; i--) {
-			if (this._orderedCustomLines[i].lineNumber === fromLineNumber - 1) {
-				decorationsImmediatelyBefore.add(this._orderedCustomLines[i].decorationId);
-			}
-		}
-		const decorationsWithGaps = intersection(decorationsImmediatelyBefore, decorationsImmediatelyAfter);
-		if (decorationsWithGaps.size > 0) {
-			for (const decorationId of decorationsWithGaps) {
-				const decoration = this._decorationIDToCustomLine.get(decorationId);
-				if (decoration) {
-					const startLineNumber = decoration.reduce((min, l) => Math.min(min, l.lineNumber), fromLineNumber); // min
-					const endLineNumber = decoration.reduce((max, l) => Math.max(max, l.lineNumber), fromLineNumber); // max
-					const lineHeight = decoration.reduce((max, l) => Math.max(max, l.specialHeight), 0);
-					toReAdd.push({
-						decorationId,
-						startLineNumber,
-						endLineNumber,
-						lineHeight
-					});
-				}
-			}
-			for (const dec of toReAdd) {
-				this.insertOrChangeCustomLineHeight(dec.decorationId, dec.startLineNumber, dec.endLineNumber, dec.lineHeight);
-			}
-		}
 		const maxLineHeightPerLine = new Map<number, number>();
 		for (const lineHeight of lineHeightsAdded) {
 			for (let lineNumber = lineHeight.startLineNumber; lineNumber <= lineHeight.endLineNumber; lineNumber++) {
@@ -295,12 +262,47 @@ export class LineHeightsManager {
 				lineHeight.lineHeight
 			);
 		}
+		const toReAdd: CustomLineHeightData[] = [];
+		const decorationsImmediatelyAfter = new Set<string>();
+		for (let i = startIndexOfInsertion; i < this._orderedCustomLines.length; i++) {
+			if (this._orderedCustomLines[i].lineNumber === fromLineNumber) {
+				decorationsImmediatelyAfter.add(this._orderedCustomLines[i].decorationId);
+			}
+		}
+		const decorationsImmediatelyBefore = new Set<string>();
+		for (let i = startIndexOfInsertion - 1; i >= 0; i--) {
+			if (this._orderedCustomLines[i].lineNumber === fromLineNumber - 1) {
+				decorationsImmediatelyBefore.add(this._orderedCustomLines[i].decorationId);
+			}
+		}
+		const decorationsWithGaps = intersection(decorationsImmediatelyBefore, decorationsImmediatelyAfter);
 		const specialHeightToAdd = Array.from(maxLineHeightPerLine.values()).reduce((acc, height) => acc + height, 0);
 		const defaultHeightToAdd = (insertCount - maxLineHeightPerLine.size) * this._defaultLineHeight;
 		const prefixSumToAdd = specialHeightToAdd + defaultHeightToAdd;
 		for (let i = startIndexOfInsertion; i < this._orderedCustomLines.length; i++) {
 			this._orderedCustomLines[i].lineNumber += insertCount;
 			this._orderedCustomLines[i].prefixSum += prefixSumToAdd;
+		}
+
+		if (decorationsWithGaps.size > 0) {
+			for (const decorationId of decorationsWithGaps) {
+				const decoration = this._decorationIDToCustomLine.get(decorationId);
+				if (decoration) {
+					const startLineNumber = decoration.reduce((min, l) => Math.min(min, l.lineNumber), fromLineNumber); // min
+					const endLineNumber = decoration.reduce((max, l) => Math.max(max, l.lineNumber), fromLineNumber); // max
+					const lineHeight = decoration.reduce((max, l) => Math.max(max, l.specialHeight), 0);
+					toReAdd.push({
+						decorationId,
+						startLineNumber,
+						endLineNumber,
+						lineHeight
+					});
+				}
+			}
+
+			for (const dec of toReAdd) {
+				this.insertOrChangeCustomLineHeight(dec.decorationId, dec.startLineNumber, dec.endLineNumber, dec.lineHeight);
+			}
 		}
 		this.commit();
 	}
