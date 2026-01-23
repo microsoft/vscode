@@ -143,7 +143,7 @@ export interface IUserDataProfilesService {
 	cleanUp(): Promise<void>;
 	cleanUpTransientProfiles(): Promise<void>;
 
-	getParsedProfileTemplate(profile: IUserDataProfile): Promise<IParsedUserDataProfileTemplate | null>;
+	getSourceProfileTemplate(profile: IUserDataProfile): Promise<IParsedUserDataProfileTemplate | null>;
 	getStoredProfileTemplate(profile: IUserDataProfile): Promise<IParsedUserDataProfileTemplate | null>;
 	updateStoredProfileTemplate(profile: IUserDataProfile): Promise<void>;
 }
@@ -246,7 +246,7 @@ export abstract class AbstractUserDataProfilesService extends Disposable impleme
 	abstract cleanUpTransientProfiles(): Promise<void>;
 	abstract updateStoredProfileTemplate(profile: IUserDataProfile): Promise<void>;
 
-	async getParsedProfileTemplate(profile: IUserDataProfile): Promise<IParsedUserDataProfileTemplate | null> {
+	async getSourceProfileTemplate(profile: IUserDataProfile): Promise<IParsedUserDataProfileTemplate | null> {
 		if (!profile.templateResource) {
 			return null;
 		}
@@ -340,7 +340,19 @@ export class UserDataProfilesService extends AbstractUserDataProfilesService imp
 						this.logService.warn('Skipping the invalid stored profile', storedProfile.location || storedProfile.name);
 						continue;
 					}
-					profiles.push(toUserDataProfile(basename(storedProfile.location), storedProfile.name, storedProfile.location, this.profilesCacheHome, { icon: storedProfile.icon, useDefaultFlags: storedProfile.useDefaultFlags, isSystem: storedProfile.isSystem, templateResource: storedProfile.templateResource }, defaultProfile));
+					const id = basename(storedProfile.location);
+					profiles.push(toUserDataProfile(
+						id,
+						storedProfile.name,
+						storedProfile.location,
+						this.profilesCacheHome,
+						{
+							icon: storedProfile.icon,
+							useDefaultFlags: storedProfile.useDefaultFlags,
+							isSystem: storedProfile.isSystem,
+							templateResource: storedProfile.isSystem ? this.getSystemProfileTemplateFile(id) : storedProfile.templateResource
+						},
+						defaultProfile));
 				}
 			} catch (error) {
 				this.logService.error(error);
@@ -444,7 +456,7 @@ export class UserDataProfilesService extends AbstractUserDataProfilesService imp
 							...options,
 							isSystem: true,
 							icon: options?.icon ?? systemProfileTemplate.icon,
-							templateResource: joinPath(this.environmentService.builtinProfilesHome, `${id}.code-profile`),
+							templateResource: this.getSystemProfileTemplateFile(id),
 						};
 					}
 
@@ -632,7 +644,7 @@ export class UserDataProfilesService extends AbstractUserDataProfilesService imp
 		}
 
 		const templateFile = this.getStoredProfileTemplateFile(profile);
-		const templateData = await this.getParsedProfileTemplate(profile);
+		const templateData = await this.getSourceProfileTemplate(profile);
 		try {
 			if (templateData) {
 				await this.fileService.writeFile(templateFile, VSBuffer.fromString(JSON.stringify(templateData, null, '\t')));
@@ -647,11 +659,14 @@ export class UserDataProfilesService extends AbstractUserDataProfilesService imp
 		}
 	}
 
-	private getSystemProfileTemplate(id: string): Promise<IParsedUserDataProfileTemplate | undefined> {
-		return this.getSystemProfileTemplates().then(templates => {
-			const resource = joinPath(this.environmentService.builtinProfilesHome, `${id}.code-profile`);
-			return templates.get(resource);
-		});
+	private getSystemProfileTemplateFile(id: string): URI {
+		return joinPath(this.environmentService.builtinProfilesHome, `${id}.code-profile`);
+	}
+
+	private async getSystemProfileTemplate(id: string): Promise<IParsedUserDataProfileTemplate | undefined> {
+		const templates = await this.getSystemProfileTemplates();
+		const resource = this.getSystemProfileTemplateFile(id);
+		return templates.get(resource);
 	}
 
 	private systemProfilesTemplatesPromise: Promise<ResourceMap<IParsedUserDataProfileTemplate>> | undefined;
@@ -800,7 +815,14 @@ export class UserDataProfilesService extends AbstractUserDataProfilesService imp
 				continue;
 			}
 			if (!profile.isDefault) {
-				storedProfiles.push({ location: profile.location, name: profile.name, icon: profile.icon, useDefaultFlags: profile.useDefaultFlags, isSystem: profile.isSystem, templateResource: profile.templateResource });
+				storedProfiles.push({
+					location: profile.location,
+					name: profile.name,
+					icon: profile.icon,
+					useDefaultFlags: profile.useDefaultFlags,
+					isSystem: profile.isSystem,
+					templateResource: profile.isSystem ? undefined : profile.templateResource
+				});
 			}
 			if (profile.workspaces) {
 				for (const workspace of profile.workspaces) {

@@ -94,7 +94,7 @@ export class UserDataProfileTemplatesWatcher extends Disposable {
 		this.logService.info(`UserDataProfileTemplateService: Template file changed for profile '${profile.name}', checking for changes...`);
 
 		try {
-			const sourceTemplate = await this.userDataProfilesService.getParsedProfileTemplate(profile);
+			const sourceTemplate = await this.userDataProfilesService.getSourceProfileTemplate(profile);
 			const storedTemplate = await this.userDataProfilesService.getStoredProfileTemplate(profile);
 
 			if (!sourceTemplate) {
