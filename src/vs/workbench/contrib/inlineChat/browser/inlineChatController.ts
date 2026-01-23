@@ -478,48 +478,7 @@ export class InlineChatController implements IEditorContribution {
 		const sessionStore = new DisposableStore();
 
 		try {
-			// Model selection: only apply defaults if user hasn't explicitly changed model this session
-			if (InlineChatController._selectVendorDefaultLanguageModel) {
-				const defaultModelSetting = this._configurationService.getValue<string>(InlineChatConfigKeys.DefaultModel);
-				if (defaultModelSetting) {
-					// Explicit default model setting configured
-					if (!this._zone.value.widget.chatWidget.input.switchModelByQualifiedName(defaultModelSetting)) {
-						this._logService.warn(`inlineChat.defaultModel setting value '${defaultModelSetting}' did not match any available model. Falling back to vendor default.`);
-						// Fall back to vendor default for this location
-						await this._selectVendorDefaultModel(session);
-					}
-				} else {
-					// No setting configured - ensure vendor default is selected
-					await this._selectVendorDefaultModel(session);
-				}
-			}
-
-			// Track model changes - if user selects a different model than the initial one,
-			// remember that preference for this VS Code session by disabling automatic defaults.
-			let initialModel: object | undefined;
-			let isFirstRun = true;
-			sessionStore.add(autorun(r => {
-				const newModel = this._zone.value.widget.chatWidget.input.selectedLanguageModel.read(r);
-				if (!newModel) {
-					return;
-				}
-
-				if (isFirstRun) {
-					// Capture the initially-applied model after defaults have been applied.
-					isFirstRun = false;
-					initialModel = newModel as object;
-					return;
-				}
-
-				// Only treat as "user changed the model" when the selection differs from the initial model.
-				if (initialModel === newModel) {
-					return;
-				}
-
-				// Once the user changes the model in this VS Code session, stop applying vendor/default overrides.
-				InlineChatController._selectVendorDefaultLanguageModel = false;
-			}));
-
+			await this._applyModelDefaults(session, sessionStore);
 
 			// ADD diagnostics
 			const entries: IChatRequestVariableEntry[] = [];
@@ -624,6 +583,40 @@ export class InlineChatController implements IEditorContribution {
 				}
 			}
 		}
+	}
+
+	/**
+	 * Applies model defaults based on settings and tracks user model changes.
+	 * Prioritization: user session choice > inlineChat.defaultModel setting > vendor default
+	 */
+	private async _applyModelDefaults(session: IInlineChatSession2, sessionStore: DisposableStore): Promise<void> {
+		if (InlineChatController._selectVendorDefaultLanguageModel) {
+			const defaultModelSetting = this._configurationService.getValue<string>(InlineChatConfigKeys.DefaultModel);
+			if (defaultModelSetting) {
+				if (!this._zone.value.widget.chatWidget.input.switchModelByQualifiedName(defaultModelSetting)) {
+					this._logService.warn(`inlineChat.defaultModel setting value '${defaultModelSetting}' did not match any available model. Falling back to vendor default.`);
+					await this._selectVendorDefaultModel(session);
+				}
+			} else {
+				await this._selectVendorDefaultModel(session);
+			}
+		}
+
+		// Track model changes - disable automatic defaults once user explicitly changes the model
+		let initialModel: object | undefined;
+		sessionStore.add(autorun(r => {
+			const newModel = this._zone.value.widget.chatWidget.input.selectedLanguageModel.read(r);
+			if (!newModel) {
+				return;
+			}
+			if (!initialModel) {
+				initialModel = newModel as object;
+				return;
+			}
+			if (initialModel !== newModel) {
+				InlineChatController._selectVendorDefaultLanguageModel = false;
+			}
+		}));
 	}
 
 	async createImageAttachment(attachment: URI): Promise<IChatRequestVariableEntry | undefined> {
