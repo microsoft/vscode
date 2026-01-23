@@ -668,7 +668,16 @@ export class AgentSessionsWelcomePage extends EditorPane {
 	}
 
 	private buildFooter(container: HTMLElement): void {
+		const updateNoSessionsClass = () => {
+			container.classList.toggle('no-sessions', this.agentSessionsService.model.sessions.length === 0);
+		};
+		// Set initial state
+		updateNoSessionsClass();
 
+		// Keep footer in sync with session changes
+		this.contentDisposables.add(this.agentSessionsService.model.onDidChangeSessions(() => {
+			updateNoSessionsClass();
+		}));
 		// Privacy notice
 		this.buildPrivacyNotice(container);
 

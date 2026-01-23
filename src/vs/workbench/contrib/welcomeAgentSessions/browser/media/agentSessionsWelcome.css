@@ -69,7 +69,7 @@
 }
 
 .agentSessionsWelcome-startEntry .codicon {
-	color: var(--vscode-descriptionForeground);
+	color: var(--vscode-descriptionForeground) !important;
 }
 
 /* Chat widget section */
@@ -318,6 +318,10 @@
 }
 
 /* Footer */
+.agentSessionsWelcome-footer.no-sessions {
+	margin-top: 0px;
+}
+
 .agentSessionsWelcome-footer {
 	display: flex;
 	flex-direction: column;
@@ -355,6 +359,7 @@
 	gap: 8px;
 	font-size: 12px;
 	color: var(--vscode-descriptionForeground);
+	margin-top: 36px;
 }
 
 .agentSessionsWelcome-showOnStartup label {
