@@ -24,7 +24,7 @@
 		"button.secondaryForeground": "#202020",
 		"button.secondaryHoverBackground": "#E6E6E6",
 		"checkbox.background": "#EDEDED",
-		"checkbox.border": "#ECEDEEFF",
+		"checkbox.border": "#D8D8D8",
 		"checkbox.foreground": "#202020",
 		"dropdown.background": "#FFFFFF",
 		"dropdown.border": "#D8D8D8",

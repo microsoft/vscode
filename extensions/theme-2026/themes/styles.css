@@ -338,6 +338,14 @@
 	border-radius: var(--radius-xl);
 }
 
+.monaco-workbench .unified-quick-access-tabs {
+	background: transparent;
+}
+
+.monaco-workbench .quick-input-list .quick-input-list-entry.quick-input-list-separator-border {
+	border-top-width: 0;
+}
+
 /* Remove Borders */
 .monaco-workbench.vs .part.sidebar { border-right: none !important; border-left: none !important; }
 .monaco-workbench.vs .part.auxiliarybar { border-right: none !important; border-left: none !important; }
