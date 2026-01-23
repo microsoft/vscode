@@ -39,6 +39,13 @@ export interface IChatSessionProviderOptionItem {
 	// [key: string]: any;
 }
 
+export interface IChatSessionProviderOptionGroupCommand {
+	command: string;
+	title: string;
+	tooltip?: string;
+	arguments?: unknown[];
+}
+
 export interface IChatSessionProviderOptionGroup {
 	id: string;
 	name: string;
@@ -54,6 +61,11 @@ export interface IChatSessionProviderOptionGroup {
 	 */
 	when?: string;
 	icon?: ThemeIcon;
+	/**
+	 * Custom commands to show in the option group's picker UI.
+	 * These will be shown in a separate section at the end of the picker.
+	 */
+	commands?: IChatSessionProviderOptionGroupCommand[];
 }
 
 export interface IChatSessionsExtensionPoint {

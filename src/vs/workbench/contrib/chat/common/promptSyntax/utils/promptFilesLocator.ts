@@ -543,7 +543,28 @@ export class PromptFilesLocator {
 
 	private async findAgentSkillsInFolder(uri: URI, token: CancellationToken): Promise<URI[]> {
 		try {
-			return await this.searchFilesInLocation(uri, `*/${SKILL_FILENAME}`, token);
+			const result: URI[] = [];
+			const stat = await this.fileService.resolve(uri);
+			if (stat.isDirectory && stat.children) {
+				// Recursively traverse subdirectories
+				for (const child of stat.children) {
+					try {
+						if (token.isCancellationRequested) {
+							return [];
+						}
+						if (child.isDirectory) {
+							const skillFile = joinPath(child.resource, SKILL_FILENAME);
+							const skillStat = await this.fileService.resolve(skillFile);
+							if (skillStat.isFile) {
+								result.push(skillStat.resource);
+							}
+						}
+					} catch (error) {
+						// Ignore errors for individual files/folders (e.g., permission denied)
+					}
+				}
+			}
+			return result;
 		} catch (e) {
 			if (!isCancellationError(e)) {
 				this.logService.trace(`[PromptFilesLocator] Error searching for skills in ${uri.toString()}: ${e}`);

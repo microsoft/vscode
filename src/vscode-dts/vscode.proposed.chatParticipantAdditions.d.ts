@@ -118,6 +118,24 @@ declare module 'vscode' {
 			toolEdited?: string;
 		};
 		language: string;
+
+		/**
+		 * Terminal command output. Displayed when the terminal is no longer available.
+		 */
+		output?: {
+			/** The raw output text, may include ANSI escape codes. */
+			text: string;
+		};
+
+		/**
+		 * Command execution state.
+		 */
+		state?: {
+			/** Exit code of the command. */
+			exitCode?: number;
+			/** Duration of execution in milliseconds. */
+			duration?: number;
+		};
 	}
 
 	export class McpToolInvocationContentData {
@@ -474,7 +492,7 @@ declare module 'vscode' {
 		/**
 		 * A map of all tools that should (`true`) and should not (`false`) be used in this request.
 		 */
-		readonly tools: Map<string, boolean>;
+		readonly tools: Map<LanguageModelToolInformation, boolean>;
 	}
 
 	export namespace lm {
@@ -564,6 +582,47 @@ declare module 'vscode' {
 
 	export type ChatExtendedRequestHandler = (request: ChatRequest, context: ChatContext, response: ChatResponseStream, token: CancellationToken) => ProviderResult<ChatResult | void>;
 
+	/**
+	 * Details about the prompt token usage by category and label.
+	 */
+	export interface ChatResultPromptTokenDetail {
+		/**
+		 * The category this token usage belongs to (e.g., "System", "Context", "Conversation").
+		 */
+		readonly category: string;
+
+		/**
+		 * The label for this specific token usage (e.g., "System prompt", "Attached files").
+		 */
+		readonly label: string;
+
+		/**
+		 * The percentage of the total prompt tokens this represents (0-100).
+		 */
+		readonly percentageOfPrompt: number;
+	}
+
+	/**
+	 * Token usage information for a chat request.
+	 */
+	export interface ChatResultUsage {
+		/**
+		 * The number of prompt tokens used in this request.
+		 */
+		readonly promptTokens: number;
+
+		/**
+		 * The number of completion tokens generated in this response.
+		 */
+		readonly completionTokens: number;
+
+		/**
+		 * Optional breakdown of prompt token usage by category and label.
+		 * If the percentages do not sum to 100%, the remaining will be shown as "Uncategorized".
+		 */
+		readonly promptTokenDetails?: readonly ChatResultPromptTokenDetail[];
+	}
+
 	export interface ChatResult {
 		nextQuestion?: {
 			prompt: string;
@@ -574,6 +633,12 @@ declare module 'vscode' {
 		 * An optional detail string that will be rendered at the end of the response in certain UI contexts.
 		 */
 		details?: string;
+
+		/**
+		 * Token usage information for this request, if available.
+		 * This is typically provided by the underlying language model.
+		 */
+		readonly usage?: ChatResultUsage;
 	}
 
 	export namespace chat {
