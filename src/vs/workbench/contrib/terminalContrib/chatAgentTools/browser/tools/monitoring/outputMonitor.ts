@@ -193,18 +193,16 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		// Check for VS Code's task finish messages (like "press any key to close the terminal").
 		// These should only be ignored if it's a task AND the task is finished.
 		// Otherwise, "press any key to continue" from scripts should prompt the user.
-		if (detectsVSCodeTaskFinishMessage(output)) {
-			const isTask = this._execution.task !== undefined;
-			const isTaskInactive = this._execution.isActive ? !(await this._execution.isActive()) : true;
-			if (isTask && isTaskInactive) {
-				// Task is finished, ignore the "press any key to close" message
-				return { shouldContinuePollling: false, output };
-			}
+		const isTask = this._execution.task !== undefined;
+		const isTaskInactive = this._execution.isActive ? !(await this._execution.isActive()) : true;
+		if (isTask && isTaskInactive && detectsVSCodeTaskFinishMessage(output)) {
+			// Task is finished, ignore the "press any key to close" message
+			return { shouldContinuePollling: false, output };
 		}
 
 		// Check for generic "press any key" prompts from scripts.
 		// These should be treated as free-form input to let the user press a key.
-		if (detectsGenericPressAnyKeyPattern(output)) {
+		if ((!isTask || !isTaskInactive) && detectsGenericPressAnyKeyPattern(output)) {
 			// Register a marker to track this prompt position so we don't re-detect it
 			const currentMarker = this._execution.instance.registerMarker();
 			if (currentMarker) {
@@ -867,14 +865,18 @@ export function detectsNonInteractiveHelpPattern(cursorLine: string): boolean {
  * - "Press any key to close the terminal."
  * - "Terminal will be reused by tasks, press any key to close it."
  * These appear when a task finishes and should be ignored if the task is done.
+ * Note: These messages may be prefixed with " * " by VS Code and may have line wrapping
+ * that can split words across lines (e.g., "t\no" instead of "to").
  */
 export function detectsVSCodeTaskFinishMessage(cursorLine: string): boolean {
+	// Remove all whitespace to handle line wrapping that splits words mid-word
+	const normalized = cursorLine.replace(/\s/g, '').toLowerCase();
 	return [
 		// "Press any key to close the terminal."
-		/press any key to close the terminal/i,
+		'pressanykeytoclosetheterminal',
 		// "Terminal will be reused by tasks, press any key to close it."
-		/terminal will be reused by tasks.*press any key to close it/i,
-	].some(e => e.test(cursorLine));
+		'terminalwillbereusedbytasks,pressanykeytocloseit',
+	].some(pattern => normalized.includes(pattern));
 }
 
 /**

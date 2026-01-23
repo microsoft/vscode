@@ -294,6 +294,9 @@ suite('OutputMonitor', () => {
 			// Case insensitive
 			assert.strictEqual(detectsVSCodeTaskFinishMessage('press any key to close the terminal.'), true);
 			assert.strictEqual(detectsVSCodeTaskFinishMessage('PRESS ANY KEY TO CLOSE THE TERMINAL.'), true);
+			// With " * " prefix (VS Code adds this to task messages)
+			assert.strictEqual(detectsVSCodeTaskFinishMessage(' *  Terminal will be reused by tasks, press any key to close it.'), true);
+			assert.strictEqual(detectsVSCodeTaskFinishMessage(' *  Press any key to close the terminal.'), true);
 		});
 
 		test('does not match generic press any key messages', () => {
@@ -324,6 +327,9 @@ suite('OutputMonitor', () => {
 			// These should be handled by detectsVSCodeTaskFinishMessage, not this function
 			assert.strictEqual(detectsGenericPressAnyKeyPattern('Press any key to close the terminal.'), false);
 			assert.strictEqual(detectsGenericPressAnyKeyPattern('Terminal will be reused by tasks, press any key to close it.'), false);
+			// With " * " prefix
+			assert.strictEqual(detectsGenericPressAnyKeyPattern(' *  Terminal will be reused by tasks, press any key to close it.'), false);
+			assert.strictEqual(detectsGenericPressAnyKeyPattern(' *  Press any key to close the terminal.'), false);
 		});
 
 		test('does not match other prompts', () => {
