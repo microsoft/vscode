@@ -10,6 +10,7 @@
 		"scripts/test-integration.sh": true,
 	},
 	"chat.viewSessions.enabled": true,
+	"chat.editing.explainChanges.enabled": true,
 	// --- Editor ---
 	"editor.insertSpaces": false,
 	"editor.experimental.asyncTokenization": true,
