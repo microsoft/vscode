@@ -202,6 +202,8 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 
 	@memoize
 	get debugExtensionHost(): IExtensionHostDebugParams { return parseExtensionHostDebugPort(this.args, this.isBuilt); }
+	@memoize
+	get debugAgentExtensionHost(): IExtensionHostDebugParams { return parseAgentExtensionHostDebugPort(this.args, this.isBuilt); }
 	get debugRenderer(): boolean { return !!this.args.debugRenderer; }
 
 	get isBuilt(): boolean { return !env['VSCODE_DEV']; }
@@ -277,6 +279,10 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 
 export function parseExtensionHostDebugPort(args: NativeParsedArgs, isBuilt: boolean): IExtensionHostDebugParams {
 	return parseDebugParams(args['inspect-extensions'], args['inspect-brk-extensions'], 5870, isBuilt, args.debugId, args.extensionEnvironment);
+}
+
+export function parseAgentExtensionHostDebugPort(args: NativeParsedArgs, isBuilt: boolean): IExtensionHostDebugParams {
+	return parseDebugParams(args['inspect-agent-extensions'], args['inspect-brk-agent-extensions'], 5878, isBuilt, args.debugId, args.extensionEnvironment);
 }
 
 export function parseDebugParams(debugArg: string | undefined, debugBrkArg: string | undefined, defaultBuildPort: number, isBuilt: boolean, debugId?: string, environmentString?: string): IExtensionHostDebugParams {

@@ -227,6 +227,7 @@ class StandaloneEnvironmentService implements IEnvironmentService {
 	readonly continueOn?: string | undefined = undefined;
 	readonly editSessionId?: string | undefined = undefined;
 	readonly debugExtensionHost: IExtensionHostDebugParams = { port: null, break: false };
+	readonly debugAgentExtensionHost: IExtensionHostDebugParams = { port: null, break: false };
 	readonly isExtensionDevelopment: boolean = false;
 	readonly disableExtensions: boolean | string[] = false;
 	readonly disableExperiments: boolean = false;

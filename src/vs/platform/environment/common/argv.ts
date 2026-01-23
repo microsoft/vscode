@@ -87,6 +87,8 @@ export interface NativeParsedArgs {
 	'inspect-brk-ptyhost'?: string;
 	'inspect-sharedprocess'?: string;
 	'inspect-brk-sharedprocess'?: string;
+	'inspect-agent-extensions'?: string;
+	'inspect-brk-agent-extensions'?: string;
 	'disable-extensions'?: boolean;
 	'disable-extension'?: string[]; // undefined or array of 1 or more
 	'list-extensions'?: boolean;

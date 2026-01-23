@@ -164,6 +164,12 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 	}
 
 	@memoize
+	get debugAgentExtensionHost(): IExtensionHostDebugParams {
+		// Agent windows are not supported in browser, return same as debugExtensionHost
+		return this.debugExtensionHost;
+	}
+
+	@memoize
 	get isExtensionDevelopment(): boolean {
 		if (!this.extensionHostDebugEnvironment) {
 			this.extensionHostDebugEnvironment = this.resolveExtensionHostDebugEnvironment();

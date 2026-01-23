@@ -69,6 +69,7 @@ export interface IEnvironmentService {
 
 	// --- extension development
 	debugExtensionHost: IExtensionHostDebugParams;
+	debugAgentExtensionHost: IExtensionHostDebugParams;
 	isExtensionDevelopment: boolean;
 	disableExtensions: boolean | string[];
 	enableExtensions?: readonly string[];

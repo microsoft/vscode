@@ -161,6 +161,8 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'inspect-brk-search': { type: 'string', deprecates: ['debugBrkSearch'], allowEmptyValue: true },
 	'inspect-sharedprocess': { type: 'string', allowEmptyValue: true },
 	'inspect-brk-sharedprocess': { type: 'string', allowEmptyValue: true },
+	'inspect-agent-extensions': { type: 'string', allowEmptyValue: true },
+	'inspect-brk-agent-extensions': { type: 'string', allowEmptyValue: true },
 	'export-default-configuration': { type: 'string' },
 	'export-policy-data': { type: 'string', allowEmptyValue: true },
 	'install-source': { type: 'string' },

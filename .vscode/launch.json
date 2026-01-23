@@ -55,6 +55,18 @@
 		{
 			"type": "node",
 			"request": "attach",
+			"restart": true,
+			"name": "Attach to Agent Window Extension Host",
+			"timeout": 0,
+			"port": 5878,
+			"outFiles": [
+				"${workspaceFolder}/out/**/*.js",
+				"${workspaceFolder}/extensions/*/out/**/*.js"
+			]
+		},
+		{
+			"type": "node",
+			"request": "attach",
 			"name": "Attach to CLI Process",
 			"port": 5874,
 			"outFiles": [
