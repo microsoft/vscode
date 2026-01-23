@@ -13,7 +13,6 @@
 		"chat.agentsControl.enabled": true,
 		"chat.unifiedAgentsBar.enabled": true,
 		"files.autoSave": "afterDelay",
-		"chat.commandCenter.enabled": false,
 		"window.title": "Agent Sessions",
 		"workbench.editor.showTabs": "single",
 		"workbench.colorTheme": "2026-dark-experimental"
