@@ -47,24 +47,24 @@ export class RepositoryCache {
 			this._recentRepositories = new Map<string, number>();
 
 			for (const [_, inner] of this.lru) {
-				for (const [folderPath, folderDetails] of inner) {
-					if (!folderDetails.lastTouchedTime) {
+				for (const [repositoryPath, repositoryDetails] of inner) {
+					if (!repositoryDetails.lastTouchedTime) {
 						continue;
 					}
 
 					// Check whether the repository exists with a more recent access time
-					const repositoryLastAccessTime = this._recentRepositories.get(folderPath);
-					if (repositoryLastAccessTime && folderDetails.lastTouchedTime <= repositoryLastAccessTime) {
+					const repositoryLastAccessTime = this._recentRepositories.get(repositoryPath);
+					if (repositoryLastAccessTime && repositoryDetails.lastTouchedTime <= repositoryLastAccessTime) {
 						continue;
 					}
 
-					this._recentRepositories.set(folderPath, folderDetails.lastTouchedTime);
+					this._recentRepositories.set(repositoryPath, repositoryDetails.lastTouchedTime);
 				}
 			}
 		}
 
-		return Array.from(this._recentRepositories.entries()).map(([rootUri, lastAccessTime]) =>
-			({ rootUri: Uri.file(rootUri), lastAccessTime } satisfies RepositoryAccessDetails));
+		return Array.from(this._recentRepositories.entries()).map(([rootPath, lastAccessTime]) =>
+			({ rootUri: Uri.file(rootPath), lastAccessTime } satisfies RepositoryAccessDetails));
 	}
 
 	constructor(public readonly _globalState: Memento, private readonly _logger: LogOutputChannel) {
