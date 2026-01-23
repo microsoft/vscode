@@ -38,7 +38,6 @@
 
 .inline-chat-session-overlay-container .status .message {
 	white-space: nowrap;
-	max-width: 13em;
 	overflow: hidden;
 	text-overflow: ellipsis;
 }

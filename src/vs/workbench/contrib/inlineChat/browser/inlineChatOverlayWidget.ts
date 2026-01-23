@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import './media/inlineChatSessionOverlay.css';
+import './media/inlineChatOverlayWidget.css';
 import * as dom from '../../../../base/browser/dom.js';
 import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
@@ -454,6 +454,10 @@ export class InlineChatSessionOverlayWidget extends Disposable {
 			const stickyScrollHeight = this._stickyScrollHeight.read(r);
 			const width = widgetWidth.read(r);
 			const padding = Math.round(lineHeight.read(r) * 2 / 3);
+
+			// Cap max-width to the editor viewport (content area)
+			const maxWidth = layoutInfo.contentWidth - 2 * padding;
+			this._domNode.style.maxWidth = `${maxWidth}px`;
 
 			// Position: top right, below sticky scroll with padding, left of minimap and scrollbar
 			const top = stickyScrollHeight + padding;
