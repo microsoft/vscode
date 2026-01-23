@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { LogOutputChannel, Memento, workspace } from 'vscode';
+import { LogOutputChannel, Memento, Uri, workspace } from 'vscode';
 import { LRUCache } from './cache';
-import { Remote } from './api/git';
+import { Remote, RepositoryAccessDetails } from './api/git';
 import { isDescendant } from './util';
 
 export interface RepositoryCacheInfo {
@@ -39,6 +39,33 @@ export class RepositoryCache {
 
 	// Outer LRU: repoUrl -> inner LRU (folderPathOrWorkspaceFile -> RepositoryCacheInfo).
 	private readonly lru = new LRUCache<string, LRUCache<string, RepositoryCacheInfo>>(RepositoryCache.MAX_REPO_ENTRIES);
+
+	private _recentRepositories: Map<string, number> | undefined;
+
+	get recentRepositories(): Iterable<RepositoryAccessDetails> {
+		if (!this._recentRepositories) {
+			this._recentRepositories = new Map<string, number>();
+
+			for (const [_, inner] of this.lru) {
+				for (const [folderPath, folderDetails] of inner) {
+					if (!folderDetails.lastTouchedTime) {
+						continue;
+					}
+
+					// Check whether the repository exists with a more recent access time
+					const repositoryLastAccessTime = this._recentRepositories.get(folderPath);
+					if (repositoryLastAccessTime && folderDetails.lastTouchedTime <= repositoryLastAccessTime) {
+						continue;
+					}
+
+					this._recentRepositories.set(folderPath, folderDetails.lastTouchedTime);
+				}
+			}
+		}
+
+		return Array.from(this._recentRepositories.entries()).map(([rootUri, lastAccessTime]) =>
+			({ rootUri: Uri.file(rootUri), lastAccessTime } satisfies RepositoryAccessDetails));
+	}
 
 	constructor(public readonly _globalState: Memento, private readonly _logger: LogOutputChannel) {
 		this.load();
@@ -193,5 +220,9 @@ export class RepositoryCache {
 			serialized.push([repo, folders]);
 		}
 		void this._globalState.update(RepositoryCache.STORAGE_KEY, serialized);
+
+		// Invalidate recent repositories map
+		this._recentRepositories?.clear();
+		this._recentRepositories = undefined;
 	}
 }
