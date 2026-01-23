@@ -177,7 +177,7 @@
 			border-radius: 0;
 			border: none;
 			top: 0 !important;
-			padding: 6px 8px;
+			padding: 6px 8px 6px 12px;
 			transition: none;
 
 			&:not(.visible) {
@@ -185,7 +185,13 @@
 			}
 
 			.monaco-sash {
+				width: 2px !important;
 				border-radius: 0;
+
+				&::before {
+					width: var(--vscode-sash-hover-size);
+					left: calc(50% - (var(--vscode-sash-hover-size) / 2));
+				}
 			}
 
 			/* Hide whole word and regex toggles */
