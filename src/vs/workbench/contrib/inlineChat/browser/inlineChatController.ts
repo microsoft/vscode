@@ -107,7 +107,11 @@ export class InlineChatController implements IEditorContribution {
 		return editor.getContribution<InlineChatController>(InlineChatController.ID) ?? undefined;
 	}
 
-	private static _selectVendorDefaultLanguageModel: boolean = true;
+	/**
+	 * Guard flag indicating whether model defaults (including vendor/default model selection)
+	 * should be applied for this session.
+	 */
+	private static _applyModelDefaultsThisSession: boolean = true;
 
 	private readonly _store = new DisposableStore();
 	private readonly _isActiveController = observableValue(this, false);
@@ -534,7 +538,6 @@ export class InlineChatController implements IEditorContribution {
 			if (!arg?.resolveOnResponse) {
 				// DEFAULT: wait for the session to be accepted or rejected
 				await Event.toPromise(session.editingSession.onDidDispose);
-				sessionStore.dispose();
 				const rejected = session.editingSession.getEntry(uri)?.state.get() === ModifiedFileEntryState.Rejected;
 				return !rejected;
 
@@ -545,7 +548,6 @@ export class InlineChatController implements IEditorContribution {
 					return entry?.state.read(r) === ModifiedFileEntryState.Modified && !entry?.isCurrentlyBeingModifiedBy.read(r);
 				});
 				await waitForState(modifiedObs, state => state === true);
-				sessionStore.dispose();
 				return true;
 			}
 		} finally {
@@ -590,7 +592,7 @@ export class InlineChatController implements IEditorContribution {
 	 * Prioritization: user session choice > inlineChat.defaultModel setting > vendor default
 	 */
 	private async _applyModelDefaults(session: IInlineChatSession2, sessionStore: DisposableStore): Promise<void> {
-		if (InlineChatController._selectVendorDefaultLanguageModel) {
+		if (InlineChatController._applyModelDefaultsThisSession) {
 			const defaultModelSetting = this._configurationService.getValue<string>(InlineChatConfigKeys.DefaultModel);
 			if (defaultModelSetting) {
 				if (!this._zone.value.widget.chatWidget.input.switchModelByQualifiedName(defaultModelSetting)) {
@@ -602,19 +604,20 @@ export class InlineChatController implements IEditorContribution {
 			}
 		}
 
-		// Track model changes - disable automatic defaults once user explicitly changes the model
-		let initialModel: object | undefined;
+		// Track model changes - disable automatic defaults once user explicitly changes the model.
+		// NOTE: This currently detects any model change, not just user-initiated ones.
+		let initialModelId: string | undefined;
 		sessionStore.add(autorun(r => {
 			const newModel = this._zone.value.widget.chatWidget.input.selectedLanguageModel.read(r);
 			if (!newModel) {
 				return;
 			}
-			if (!initialModel) {
-				initialModel = newModel as object;
+			if (!initialModelId) {
+				initialModelId = newModel.identifier;
 				return;
 			}
-			if (initialModel !== newModel) {
-				InlineChatController._selectVendorDefaultLanguageModel = false;
+			if (initialModelId !== newModel.identifier) {
+				InlineChatController._applyModelDefaultsThisSession = false;
 			}
 		}));
 	}
