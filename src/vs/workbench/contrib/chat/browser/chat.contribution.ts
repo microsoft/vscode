@@ -357,7 +357,6 @@ configurationRegistry.registerConfiguration({
 			additionalProperties: {
 				type: 'boolean',
 			},
-			tags: ['experimental'],
 			examples: [
 				{
 					'fetch': false,
