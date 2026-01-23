@@ -7,6 +7,7 @@ The Agent window is a minimal VS Code window type with custom HTML/JS/layout (no
 ```
 src/vs/code/electron-browser/agent/
   agent.html                    -- HTML shell with CSP
+  agent.ts                      -- Main process entry
 
 src/vs/workbench/
   workbench.agent.desktop.main.ts  -- Entry point
@@ -15,18 +16,10 @@ src/vs/workbench/
   contrib/agent/
     browser/
       agentWindow.ts            -- UI layout and chat components
+      agent.contribution.ts     -- Contribution registration
 ```
 
-## Layering
-
-Follows VS Code's standard layering pattern:
-
-| Layer | Purpose | Import Rules |
-|-------|---------|--------------|
-| `electron-browser/` | Service bootstrap | No `contrib/` imports |
-| `contrib/agent/browser/` | UI code | Can import from `contrib/` (chat components, etc.) |
-
-This matches how features like `contrib/debug/` and `contrib/chat/` are structured.
+The `contrib/agent/browser/` folder contains the opinionated agent layout, which is intentionally different from the traditional VS Code workbench layout. This is where we explore custom UI patterns tailored for agentic workflows.
 
 ## Key Concepts
 
@@ -38,29 +31,35 @@ The entry point imports `workbench.desktop.main.js` which registers all singleto
 2. **Registered singletons** are collected via `getSingletonServiceDescriptors()`
 3. **Stub services** are provided for unused features (notifications, layout)
 
-### CSP Configuration
+### Extension Host
 
-The HTML entry point requires specific Content Security Policy settings:
-- `trusted-types` must include policy names used by the code (e.g., `agentWindow`)
-- `blob:` for dynamically loaded modules
-- `'unsafe-inline'` for import map script injection
+The Agent Window runs its own dedicated extension host, separate from the main workbench's extension host. Currently it uses an empty workspace. This isolation allows debugging both extension hosts simultaneously when needed.
 
-### CSS Loading
+The Agent Extension Host has its own debug port (5878) and CLI arguments:
 
-CSS files can't be loaded as ES modules. VS Code uses import maps with blob URLs - the main process passes `configuration.cssModules` which get converted to blob URLs containing JS that loads CSS via `<link>` elements.
+```bash
+./scripts/code.sh --inspect-agent-extensions=5878
+./scripts/code.sh --inspect-brk-agent-extensions=5878  # break on start
+```
+
+A matching "Attach to Agent Window Extension Host" launch configuration is available in `.vscode/launch.json`.
 
 ## Testing
 
 Open via Command Palette: `Developer: Agent Window`
 
-## Learnings
+## Open Questions
 
-1. **Service dependencies**: When adding services, always add their dependencies. Extension service alone requires ~15+ dependent services.
+### Workspace Strategy
 
-2. **SharedProcessRemoteService**: Services registered via `registerSharedProcessRemoteService` require `ISharedProcessService` first.
+Currently the extension host starts with an empty workspace. An alternative approach is to dynamically add folders to make it behave like a multi-root workspace. Since this is our own customized agent window (which doesn't display folders in the UI), we can disable extension host reload when folders change.
 
-3. **Extension Management vs Extension Service**:
-   - `IExtensionService` - lifecycle, activation, API
-   - `IWorkbenchExtensionManagementService` - installed extensions
+### Local Agent Limitations
 
-4. **Platform imports**: Use `electron-browser` services for desktop, `browser` for web.
+The local agent (coding agent running locally) does not work in the Agent Window because:
+
+1. **Workspace trust**: Local agent requires the workspace to be trusted
+2. **Workspace-dependent tools**: Features like Problems, Test Runner, and Tasks require an actual workspace with files
+3. **Split implementation**: Local agent requires coordination between VS Code core and the Copilot Chat extension
+
+These limitations mean the Agent Window currently only supports remote/cloud agents.
