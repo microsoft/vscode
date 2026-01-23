@@ -70,6 +70,7 @@ registerAction2(class extends Action2 {
 		// If no specific walkthrough is requested and agent sessions welcome is preferred, open that instead
 		if (!walkthroughID && configurationService.getValue<string>('workbench.startupEditor') === 'agentSessionsWelcomePage') {
 			commandService.executeCommand(AgentSessionsWelcomePage.COMMAND_ID);
+			return;
 		} else {
 			if (walkthroughID) {
 				const selectedCategory = typeof walkthroughID === 'string' ? walkthroughID : walkthroughID.category;
