@@ -28,7 +28,8 @@ import { IChatWidgetService } from '../browser/chat.js';
 import { ChatContextKeys } from '../common/actions/chatContextKeys.js';
 import { ChatModeKind } from '../common/constants.js';
 import { IChatService } from '../common/chatService/chatService.js';
-import { LocalChatSessionUri } from '../common/model/chatUri.js';
+import { getChatSessionType } from '../common/model/chatUri.js';
+import { AgentSessionProviders } from '../browser/agentSessions/agentSessions.js';
 import { registerChatDeveloperActions } from './actions/chatDeveloperActions.js';
 import { registerChatExportZipAction } from './actions/chatExportZip.js';
 import { HoldToVoiceChatInChatViewAction, InlineVoiceChatAction, KeywordActivationContribution, QuickVoiceChatAction, ReadChatResponseAloud, StartVoiceChatAction, StopListeningAction, StopListeningAndSubmitAction, StopReadAloud, StopReadChatItemAloud, VoiceChatInChatViewAction } from './actions/voiceChatActions.js';
@@ -134,20 +135,20 @@ class ChatLifecycleHandler extends Disposable {
 		}));
 
 		this._register(extensionService.onWillStop(e => {
-			// Only consider local sessions - cloud sessions continue running in the cloud
-			const localSessionRunning = [...this.chatService.chatModels.read(undefined)].some(
-				model => LocalChatSessionUri.isLocalSession(model.sessionResource) && model.requestInProgress.read(undefined)
+			// Filter out cloud sessions - they continue running in the cloud
+			const nonCloudSessionRunning = [...this.chatService.chatModels.read(undefined)].some(
+				model => getChatSessionType(model.sessionResource) !== AgentSessionProviders.Cloud && model.requestInProgress.read(undefined)
 			);
-			e.veto(localSessionRunning, localize('chatRequestInProgress', "A chat request is in progress."));
+			e.veto(nonCloudSessionRunning, localize('chatRequestInProgress', "A chat request is in progress."));
 		}));
 	}
 
 	private shouldVetoShutdown(reason: ShutdownReason): boolean | Promise<boolean> {
-		// Only consider local sessions for the veto - cloud sessions continue running in the cloud
-		const localSessionRunning = [...this.chatService.chatModels.read(undefined)].some(
-			model => LocalChatSessionUri.isLocalSession(model.sessionResource) && model.requestInProgress.read(undefined)
+		// Filter out cloud sessions - they continue running in the cloud
+		const nonCloudSessionRunning = [...this.chatService.chatModels.read(undefined)].some(
+			model => getChatSessionType(model.sessionResource) !== AgentSessionProviders.Cloud && model.requestInProgress.read(undefined)
 		);
-		if (!localSessionRunning) {
+		if (!nonCloudSessionRunning) {
 			return false;
 		}
 
