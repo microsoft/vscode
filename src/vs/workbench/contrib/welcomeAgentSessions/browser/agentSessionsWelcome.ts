@@ -639,7 +639,7 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		// Content
 		const content = append(tosCard, $('.agentSessionsWelcome-walkthroughCard-content'));
 		const title = append(content, $('.agentSessionsWelcome-walkthroughCard-title'));
-		title.textContent = localize('tosTitle', "AI Feature Trial is Active");
+		title.textContent = localize('tosTitle', "Your GitHub Copilot trial is active");
 
 		const desc = append(content, $('.agentSessionsWelcome-walkthroughCard-description'));
 		const descriptionMarkdown = new MarkdownString(
