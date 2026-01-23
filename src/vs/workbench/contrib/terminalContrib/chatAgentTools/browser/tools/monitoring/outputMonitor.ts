@@ -210,7 +210,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			}
 			this._cleanupIdleInputListener();
 			this._outputMonitorTelemetryCounters.inputToolFreeFormInputShownCount++;
-			const lastLine = output.trimEnd().split('\n').pop() || '';
+			const lastLine = output.trimEnd().split(/\r?\n/).pop() || '';
 			const receivedTerminalInput = await this._requestFreeFormTerminalInput(token, this._execution, {
 				prompt: lastLine,
 				options: [],
