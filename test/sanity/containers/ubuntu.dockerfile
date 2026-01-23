@@ -1,12 +1,6 @@
 ARG BASE_IMAGE=ubuntu:22.04
 FROM ${BASE_IMAGE}
 
-# Use a potentially faster regional mirror for ARM
-ARG TARGETARCH
-RUN if [ "$TARGETARCH" != "amd64" ]; then \
-	sed -i 's|http://ports.ubuntu.com|http://us.ports.ubuntu.com|g' /etc/apt/sources.list; \
-fi
-
 # Utilities
 RUN apt-get update && \
 	apt-get install -y curl

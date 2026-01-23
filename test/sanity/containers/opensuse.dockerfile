@@ -22,7 +22,7 @@ RUN zypper install -y xorg-x11-server-Xvfb
 ENV DISPLAY=:99
 
 # Desktop Bus
-RUN zypper install -y dbus-1-daemon && \
+RUN zypper install -y dbus-1-x11 && \
 	mkdir -p /run/dbus
 
 # VS Code Desktop dependencies (arm64 only, amd64 gets these via google-chrome-stable)
@@ -31,7 +31,9 @@ RUN if [ "$TARGETARCH" = "arm64" ]; then \
 			gtk3 \
 			libsecret-1-0 \
 			mozilla-nss \
-			alsa-lib; \
+			alsa-lib \
+			libxkbcommon0 \
+			xdg-utils; \
 	fi
 
 COPY entrypoint.sh /entrypoint.sh
