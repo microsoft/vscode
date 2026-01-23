@@ -325,8 +325,9 @@ export class AgentSessionsWelcomePage extends EditorPane {
 					}
 				}
 			}));
-		// Check for prefill data from a workspace transfer
-		this.applyPrefillData();
+			// Check for prefill data from a workspace transfer
+			this.applyPrefillData();
+		}
 	}
 
 	private getWorkspaceLabel(workspace: IRecentWorkspace | IRecentFolder): string {
