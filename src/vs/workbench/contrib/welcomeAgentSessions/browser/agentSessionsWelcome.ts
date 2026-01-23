@@ -477,7 +477,6 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		const filter: IAgentSessionsFilter = {
 			onDidChange: onDidChangeEmitter.event,
 			limitResults: () => MAX_SESSIONS,
-			groupResults: () => false,
 			exclude: (session: IAgentSession) => session.isArchived(),
 			getExcludes: () => ({
 				providers: [],
