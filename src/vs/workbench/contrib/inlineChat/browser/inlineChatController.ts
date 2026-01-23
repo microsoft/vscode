@@ -107,6 +107,8 @@ export class InlineChatController implements IEditorContribution {
 		return editor.getContribution<InlineChatController>(InlineChatController.ID) ?? undefined;
 	}
 
+	private static _selectVendorDefaultLanguageModel: boolean = true;
+
 	private readonly _store = new DisposableStore();
 	private readonly _isActiveController = observableValue(this, false);
 	private readonly _renderMode: IObservable<'zone' | 'hover'>;
@@ -472,11 +474,31 @@ export class InlineChatController implements IEditorContribution {
 
 		const session = this._inlineChatSessionService.createSession(this._editor);
 
-		// Check for default model setting
-		const defaultModelSetting = this._configurationService.getValue<string>(InlineChatConfigKeys.DefaultModel);
-		if (defaultModelSetting && !this._zone.value.widget.chatWidget.input.switchModelByQualifiedName(defaultModelSetting)) {
-			this._logService.warn(`inlineChat.defaultModel setting value '${defaultModelSetting}' did not match any available model. Falling back to vendor default.`);
+		// Store for tracking model changes during this session
+		const sessionStore = new DisposableStore();
+
+		// Model selection: only apply defaults if user hasn't explicitly changed model this session
+		if (InlineChatController._selectVendorDefaultLanguageModel) {
+			const defaultModelSetting = this._configurationService.getValue<string>(InlineChatConfigKeys.DefaultModel);
+			if (defaultModelSetting) {
+				// Explicit default model setting configured
+				if (!this._zone.value.widget.chatWidget.input.switchModelByQualifiedName(defaultModelSetting)) {
+					this._logService.warn(`inlineChat.defaultModel setting value '${defaultModelSetting}' did not match any available model. Falling back to vendor default.`);
+					// Fall back to vendor default for this location
+					await this._selectVendorDefaultModel(session);
+				}
+			} else {
+				// No setting configured - ensure vendor default is selected
+				await this._selectVendorDefaultModel(session);
+			}
 		}
+
+		// Track model changes - if user selects a non-default model, remember that preference for this session
+		sessionStore.add(autorun(r => {
+			const newModel = this._zone.value.widget.chatWidget.input.selectedLanguageModel.read(r);
+			if (!newModel) { return; }
+			InlineChatController._selectVendorDefaultLanguageModel = Boolean(newModel.metadata.isDefaultForLocation[session.chatModel.initialLocation]);
+		}));
 
 		// ADD diagnostics
 		const entries: IChatRequestVariableEntry[] = [];
@@ -532,6 +554,7 @@ export class InlineChatController implements IEditorContribution {
 		if (!arg?.resolveOnResponse) {
 			// DEFAULT: wait for the session to be accepted or rejected
 			await Event.toPromise(session.editingSession.onDidDispose);
+			sessionStore.dispose();
 			const rejected = session.editingSession.getEntry(uri)?.state.get() === ModifiedFileEntryState.Rejected;
 			return !rejected;
 
@@ -542,6 +565,7 @@ export class InlineChatController implements IEditorContribution {
 				return entry?.state.read(r) === ModifiedFileEntryState.Modified && !entry?.isCurrentlyBeingModifiedBy.read(r);
 			});
 			await waitForState(modifiedObs, state => state === true);
+			sessionStore.dispose();
 			return true;
 		}
 	}
@@ -562,6 +586,20 @@ export class InlineChatController implements IEditorContribution {
 		}
 		await session.editingSession.reject();
 		session.dispose();
+	}
+
+	private async _selectVendorDefaultModel(session: IInlineChatSession2): Promise<void> {
+		const model = this._zone.value.widget.chatWidget.input.selectedLanguageModel.get();
+		if (model && !model.metadata.isDefaultForLocation[session.chatModel.initialLocation]) {
+			const ids = await this._languageModelService.selectLanguageModels({ vendor: model.metadata.vendor });
+			for (const identifier of ids) {
+				const candidate = this._languageModelService.lookupLanguageModel(identifier);
+				if (candidate?.isDefaultForLocation[session.chatModel.initialLocation]) {
+					this._zone.value.widget.chatWidget.input.setCurrentLanguageModel({ metadata: candidate, identifier });
+					break;
+				}
+			}
+		}
 	}
 
 	async createImageAttachment(attachment: URI): Promise<IChatRequestVariableEntry | undefined> {
