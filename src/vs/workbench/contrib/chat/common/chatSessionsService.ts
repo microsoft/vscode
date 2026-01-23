@@ -108,6 +108,7 @@ export interface IChatSessionItem {
 		deletions: number;
 	} | readonly IChatSessionFileChange[] | readonly IChatSessionFileChange2[];
 	archived?: boolean;
+	metadata?: { readonly [key: string]: unknown };
 }
 
 export interface IChatSessionFileChange {

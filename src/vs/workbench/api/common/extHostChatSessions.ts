@@ -45,6 +45,7 @@ class ChatSessionItemImpl implements vscode.ChatSessionItem {
 	#tooltip?: string | vscode.MarkdownString;
 	#timing?: ChatSessionTiming;
 	#changes?: readonly vscode.ChatSessionChangedFile[] | { files: number; insertions: number; deletions: number };
+	#metadata?: { readonly [key: string]: unknown };
 	#onChanged: () => void;
 
 	readonly resource: vscode.Uri;
@@ -150,6 +151,17 @@ class ChatSessionItemImpl implements vscode.ChatSessionItem {
 	set changes(value: readonly vscode.ChatSessionChangedFile[] | { files: number; insertions: number; deletions: number } | undefined) {
 		if (this.#changes !== value) {
 			this.#changes = value;
+			this.#onChanged();
+		}
+	}
+
+	get metadata(): { readonly [key: string]: unknown } | undefined {
+		return this.#metadata;
+	}
+
+	set metadata(value: { readonly [key: string]: unknown } | undefined) {
+		if (this.#metadata !== value) {
+			this.#metadata = value;
 			this.#onChanged();
 		}
 	}
@@ -437,6 +449,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 					insertions: sessionContent.changes?.insertions ?? 0,
 					deletions: sessionContent.changes?.deletions ?? 0,
 				}),
+			metadata: sessionContent.metadata,
 		};
 	}
 
