@@ -36,7 +36,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { IEditorConstructionOptions } from '../../../../../../editor/browser/config/editorConfiguration.js';
 import { EditorExtensionsRegistry } from '../../../../../../editor/browser/editorExtensions.js';
 import { CodeEditorWidget } from '../../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
-import { EditorOptions, IEditorOptions } from '../../../../../../editor/common/config/editorOptions.js';
+import { EditorLayoutInfo, EditorOptions, IEditorOptions } from '../../../../../../editor/common/config/editorOptions.js';
 import { IDimension } from '../../../../../../editor/common/core/2d/dimension.js';
 import { IPosition } from '../../../../../../editor/common/core/position.js';
 import { IRange, Range } from '../../../../../../editor/common/core/range.js';
@@ -1875,9 +1875,14 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}));
 
 		const hoverDelegate = this._register(createInstantHoverDelegate());
+		const chatSessionPosition = isIChatResourceViewContext(widget.viewContext) ? 'editor' : 'sidebar';
 		const pickerOptions: IChatInputPickerOptions = {
 			getOverflowAnchor: () => this.inputActionsToolbar.getElement(),
 			actionContext: { widget },
+			onlyShowIconsForDefaultActions: observableFromEvent(
+				this._inputEditor.onDidLayoutChange,
+				(l?: EditorLayoutInfo) => (l?.width ?? this._inputEditor.getLayoutInfo().width) < 650 /* This is a magical number based on testing*/
+			).recomputeInitiallyAndOnChange(this._store),
 		};
 
 		this._register(dom.addStandardDisposableListener(toolbarsContainer, dom.EventType.CLICK, e => this.inputEditor.focus()));
@@ -1941,7 +1946,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 							this.refreshChatSessionPickers();
 						},
 					};
-					const chatSessionPosition = isIChatResourceViewContext(widget.viewContext) ? 'editor' : 'sidebar';
 					const isWelcomeViewMode = !!this.options.sessionTypePickerDelegate?.setActiveSessionProvider;
 					const Picker = (action.id === OpenSessionTargetPickerAction.ID || isWelcomeViewMode) ? SessionTypePickerActionItem : DelegationSessionPickerActionItem;
 					return this.sessionTargetWidget = this.instantiationService.createInstance(Picker, action, chatSessionPosition, delegate, pickerOptions);
