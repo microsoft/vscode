@@ -15,7 +15,6 @@ RUN dnf install -y dbus-x11 && \
 
 # X11 Server
 RUN dnf install -y xorg-x11-server-Xvfb
-ENV DISPLAY=:99
 
 # VS Code dependencies
 RUN dnf install -y xdg-utils

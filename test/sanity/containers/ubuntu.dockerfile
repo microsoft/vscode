@@ -15,7 +15,6 @@ RUN apt-get install -y dbus-x11 && \
 
 # X11 Server
 RUN apt-get install -y xvfb
-ENV DISPLAY=:99
 
 # VS Code dependencies
 RUN apt-get install -y libasound2t64 || apt-get install -y libasound2 && \

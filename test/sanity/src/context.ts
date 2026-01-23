@@ -850,11 +850,13 @@ export class TestContext {
 			}
 			case 'win32': {
 				const executablePath = process.env['PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH'] ?? 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe';
+				this.log(`Using Chromium executable at: ${executablePath}`);
 				return await chromium.launch({ headless, executablePath });
 			}
 			case 'linux':
 			default: {
 				const executablePath = process.env['PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH'] ?? '/usr/bin/chromium-browser';
+				this.log(`Using Chromium executable at: ${executablePath}`);
 				return await chromium.launch({ headless, executablePath });
 			}
 		}
