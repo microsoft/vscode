@@ -23,36 +23,14 @@ RUN apt-get install -y dbus-x11 && \
 RUN apt-get install -y xvfb
 ENV DISPLAY=:99
 
-# VS Code dependencies (amd64)
-RUN if [ "$TARGETARCH" = "amd64" ]; then \
-	apt-get install -y libasound2 || apt-get install -y libasound2t64; \
-	apt-get install -y \
-		libgbm1 \
-		libgtk-3-0 \
-		libnss3 \
-		xdg-utils; \
-fi
-
-# VS Code dependencies (arm32)
-RUN if [ "$TARGETARCH" = "arm" ]; then \
-	apt-get install -y libgtk-3-0 || apt-get install -y libgtk-3-0t64; \
-	apt-get install -y libcurl4 || apt-get install -y libcurl4t64; \
-	apt-get install -y libasound2 || apt-get install -y libasound2t64; \
+# VS Code dependencies
+RUN apt-get install -y libasound2 || apt-get install -y libasound2t64 && \
+	apt-get install -y libgtk-3-0 || apt-get install -y libgtk-3-0t64 && \
+	apt-get install -y libcurl4 || apt-get install -y libcurl4t64 && \
 	apt-get install -y \
 		libgbm1 \
 		libnss3 \
-		xdg-utils; \
-fi
-
-# VS Code dependencies (arm64)
-RUN if [ "$TARGETARCH" = "arm64" ]; then \
-	apt-get install -y libgtk-3-0 || apt-get install -y libgtk-3-0t64; \
-	apt-get install -y libasound2 || apt-get install -y libasound2t64; \
-	apt-get install -y \
-		libgbm1 \
-		libnss3 \
-		xdg-utils; \
-fi
+		xdg-utils
 
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
