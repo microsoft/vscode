@@ -35,10 +35,8 @@ export class TestContext {
 	private static readonly codesignExclude = /node_modules\/(@parcel\/watcher\/build\/Release\/watcher\.node|@vscode\/deviceid\/build\/Release\/windows\.node|@vscode\/ripgrep\/bin\/rg|@vscode\/spdlog\/build\/Release\/spdlog.node|kerberos\/build\/Release\/kerberos.node|@vscode\/native-watchdog\/build\/Release\/watchdog\.node|node-pty\/build\/Release\/(pty\.node|spawn-helper)|vsda\/build\/Release\/vsda\.node|native-watchdog\/build\/Release\/watchdog\.node)$/;
 
 	private readonly tempDirs = new Set<string>();
-	private _osTempDir?: string;
-	private _capabilities?: Set<Capability>;
 
-	public constructor(public readonly options: {
+	public constructor(public readonly options: Readonly<{
 		quality: 'stable' | 'insider' | 'exploration';
 		commit: string;
 		verbose: boolean;
@@ -46,35 +44,35 @@ export class TestContext {
 		checkSigning: boolean;
 		headlessBrowser: boolean;
 		downloadOnly: boolean;
-	}) {
+	}>) {
 	}
+
+	/**
+	 * Returns true if the current process is running as root.
+	 */
+	public readonly isRootUser = process.getuid?.() === 0;
 
 	/**
 	 * Returns the detected capabilities of the current system.
 	 */
-	public get capabilities(): ReadonlySet<Capability> {
-		return this._capabilities ??= detectCapabilities();
-	}
+	public readonly capabilities = detectCapabilities();
 
 	/**
 	 * Returns the OS temp directory with expanded long names on Windows.
 	 */
-	public get osTempDir(): string {
-		if (this._osTempDir === undefined) {
-			let tempDir = fs.realpathSync(os.tmpdir());
+	public readonly osTempDir = (function () {
+		let tempDir = fs.realpathSync(os.tmpdir());
 
-			// On Windows, expand short 8.3 file names to long names
-			if (os.platform() === 'win32') {
-				const result = spawnSync('powershell', ['-Command', `(Get-Item "${tempDir}").FullName`], { encoding: 'utf-8' });
-				if (result.status === 0 && result.stdout) {
-					tempDir = result.stdout.trim();
-				}
+		// On Windows, expand short 8.3 file names to long names
+		if (os.platform() === 'win32') {
+			const result = spawnSync('powershell', ['-Command', `(Get-Item "${tempDir}").FullName`], { encoding: 'utf-8' });
+			if (result.status === 0 && result.stdout) {
+				tempDir = result.stdout.trim();
 			}
-
-			this._osTempDir = tempDir;
 		}
-		return this._osTempDir;
-	}
+
+		return tempDir;
+	})();
 
 	/**
 	 * Runs a test only if the required capabilities are present.
@@ -543,7 +541,11 @@ export class TestContext {
 	 */
 	public installDeb(packagePath: string): string {
 		this.log(`Installing ${packagePath} using DEB package manager`);
-		this.runNoErrors('dpkg', '-i', packagePath);
+		if (this.isRootUser) {
+			this.runNoErrors('dpkg', '-i', packagePath);
+		} else {
+			this.runNoErrors('sudo', 'dpkg', '-i', packagePath);
+		}
 		this.log(`Installed ${packagePath} successfully`);
 
 		const name = this.getLinuxBinaryName();
@@ -560,7 +562,11 @@ export class TestContext {
 		const packagePath = path.join('/usr/bin', name);
 
 		this.log(`Uninstalling DEB package ${packagePath}`);
-		this.runNoErrors('dpkg', '-r', name);
+		if (this.isRootUser) {
+			this.runNoErrors('dpkg', '-r', name);
+		} else {
+			this.runNoErrors('sudo', 'dpkg', '-r', name);
+		}
 		this.log(`Uninstalled DEB package ${packagePath} successfully`);
 
 		await new Promise(resolve => setTimeout(resolve, 1000));
@@ -576,7 +582,11 @@ export class TestContext {
 	 */
 	public installRpm(packagePath: string): string {
 		this.log(`Installing ${packagePath} using RPM package manager`);
-		this.runNoErrors('rpm', '-i', packagePath);
+		if (this.isRootUser) {
+			this.runNoErrors('rpm', '-i', packagePath);
+		} else {
+			this.runNoErrors('sudo', 'rpm', '-i', packagePath);
+		}
 		this.log(`Installed ${packagePath} successfully`);
 
 		const name = this.getLinuxBinaryName();
@@ -593,7 +603,11 @@ export class TestContext {
 		const packagePath = path.join('/usr/bin', name);
 
 		this.log(`Uninstalling RPM package ${packagePath}`);
-		this.runNoErrors('rpm', '-e', name);
+		if (this.isRootUser) {
+			this.runNoErrors('rpm', '-e', name);
+		} else {
+			this.runNoErrors('sudo', 'rpm', '-e', name);
+		}
 		this.log(`Uninstalled RPM package ${packagePath} successfully`);
 
 		await new Promise(resolve => setTimeout(resolve, 1000));
@@ -609,7 +623,11 @@ export class TestContext {
 	 */
 	public installSnap(packagePath: string): string {
 		this.log(`Installing ${packagePath} using Snap package manager`);
-		this.runNoErrors('sudo', 'snap', 'install', packagePath, '--classic', '--dangerous');
+		if (this.isRootUser) {
+			this.runNoErrors('snap', 'install', packagePath, '--classic', '--dangerous');
+		} else {
+			this.runNoErrors('sudo', 'snap', 'install', packagePath, '--classic', '--dangerous');
+		}
 		this.log(`Installed ${packagePath} successfully`);
 
 		// Snap wrapper scripts are in /snap/bin, but actual Electron binary is in /snap/<package>/current/usr/share/
@@ -627,7 +645,11 @@ export class TestContext {
 		const packagePath = path.join('/snap/bin', name);
 
 		this.log(`Uninstalling Snap package ${packagePath}`);
-		this.runNoErrors('sudo', 'snap', 'remove', name);
+		if (this.isRootUser) {
+			this.runNoErrors('snap', 'remove', name);
+		} else {
+			this.runNoErrors('sudo', 'snap', 'remove', name);
+		}
 		this.log(`Uninstalled Snap package ${packagePath} successfully`);
 
 		await new Promise(resolve => setTimeout(resolve, 1000));

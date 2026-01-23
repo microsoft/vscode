@@ -19,7 +19,7 @@ export type Capability =
 /**
  * Detect the capabilities of the current environment.
  */
-export function detectCapabilities(): Set<Capability> {
+export function detectCapabilities(): ReadonlySet<Capability> {
 	const capabilities = new Set<Capability>();
 	detectOS(capabilities);
 	detectArch(capabilities);
