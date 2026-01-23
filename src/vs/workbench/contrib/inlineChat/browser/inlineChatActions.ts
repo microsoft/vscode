@@ -328,7 +328,10 @@ export class UndoAndCloseSessionAction2 extends KeepOrUndoSessionAction {
 				id: MenuId.ChatEditorInlineExecute,
 				group: 'navigation',
 				order: 100,
-				when: CTX_HOVER_MODE.negate()
+				when: ContextKeyExpr.or(
+					CTX_HOVER_MODE.negate(),
+					ContextKeyExpr.and(CTX_HOVER_MODE, ctxHasEditorModification.negate(), ctxHasRequestInProgress.negate())
+				)
 			}]
 		});
 	}
