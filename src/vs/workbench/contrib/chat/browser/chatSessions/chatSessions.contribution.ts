@@ -1163,7 +1163,7 @@ function registerNewSessionExternalAction(type: string, displayName: string, com
 	});
 }
 
-enum ChatSessionPosition {
+export enum ChatSessionPosition {
 	Editor = 'editor',
 	Sidebar = 'sidebar'
 }
@@ -1173,7 +1173,7 @@ type NewChatSessionSendOptions = {
 	readonly attachedContext?: IChatRequestVariableEntry[];
 };
 
-type NewChatSessionOpenOptions = {
+export type NewChatSessionOpenOptions = {
 	readonly type: string;
 	readonly position: ChatSessionPosition;
 	readonly displayName: string;
@@ -1241,7 +1241,7 @@ async function openChatSession(accessor: ServicesAccessor, openOptions: NewChatS
 	}
 }
 
-function getResourceForNewChatSession(options: NewChatSessionOpenOptions): URI {
+export function getResourceForNewChatSession(options: NewChatSessionOpenOptions): URI {
 	if (options.chatResource) {
 		return URI.revive(options.chatResource);
 	}
