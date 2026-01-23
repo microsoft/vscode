@@ -1672,6 +1672,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		this.input.render(container, '', this);
+		if (this.bodyDimension?.width) {
+			this.input.layout(this.bodyDimension.width);
+		}
 
 		this._register(this.input.onDidLoadInputState(() => {
 			this.refreshParsedInput();
