@@ -363,9 +363,15 @@ const codiconSource = path.join(root, 'node_modules', '@vscode', 'codicons', 'di
 const codiconDest = path.join(root, 'src', 'vs', 'base', 'browser', 'ui', 'codicons', 'codicon', 'codicon.ttf');
 
 function copyCodiconsImpl() {
-	if (fs.existsSync(codiconSource)) {
-		fs.mkdirSync(path.dirname(codiconDest), { recursive: true });
-		fs.copyFileSync(codiconSource, codiconDest);
+	try {
+		if (fs.existsSync(codiconSource)) {
+			fs.mkdirSync(path.dirname(codiconDest), { recursive: true });
+			fs.copyFileSync(codiconSource, codiconDest);
+		} else {
+			fancyLog(ansiColors.red('[codicons]'), `codicon.ttf not found in node_modules. Please run 'npm install' to install dependencies.`);
+		}
+	} catch (e) {
+		fancyLog(ansiColors.red('[codicons]'), `Error copying codicon.ttf: ${e}`);
 	}
 }
 
