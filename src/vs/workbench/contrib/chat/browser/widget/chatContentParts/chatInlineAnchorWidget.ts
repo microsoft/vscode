@@ -38,15 +38,32 @@ import { FolderThemeIcon, IThemeService } from '../../../../../../platform/theme
 import { fillEditorsDragData } from '../../../../../browser/dnd.js';
 import { StaticResourceContextKey } from '../../../../../common/contextkeys.js';
 import { IEditorService, SIDE_GROUP } from '../../../../../services/editor/common/editorService.js';
+import { globMatchesResource } from '../../../../../services/editor/common/editorResolverService.js';
 import { INotebookDocumentService } from '../../../../../services/notebook/common/notebookDocumentService.js';
 import { ExplorerFolderContext } from '../../../../files/common/files.js';
 import { IWorkspaceSymbol } from '../../../../search/common/search.js';
 import { IChatContentInlineReference } from '../../../common/chatService/chatService.js';
 import { IChatWidgetService } from '../../chat.js';
-import { chatAttachmentResourceContextKey, getEditorOverrideForChatResource, hookUpSymbolAttachmentDragAndContextMenu } from '../../attachments/chatAttachmentWidgets.js';
+import { chatAttachmentResourceContextKey, hookUpSymbolAttachmentDragAndContextMenu } from '../../attachments/chatAttachmentWidgets.js';
 import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ChatConfiguration } from '../../../common/constants.js';
+
+/**
+ * Returns the editor ID to use when opening a resource from chat pills (inline anchors), based on the
+ * `chat.editorAssociations` setting. Returns undefined if no association matches.
+ */
+function getEditorOverrideForChatResource(resource: URI, configurationService: IConfigurationService): string | undefined {
+	const associations = configurationService.getValue<Record<string, string>>(ChatConfiguration.EditorAssociations) ?? {};
+	// Sort patterns by length (longer patterns are more specific)
+	const sortedPatterns = Object.keys(associations).sort((a, b) => b.length - a.length);
+	for (const pattern of sortedPatterns) {
+		if (globMatchesResource(pattern, resource)) {
+			return associations[pattern];
+		}
+	}
+	return undefined;
+}
 
 type ContentRefData =
 	| { readonly kind: 'symbol'; readonly symbol: IWorkspaceSymbol }

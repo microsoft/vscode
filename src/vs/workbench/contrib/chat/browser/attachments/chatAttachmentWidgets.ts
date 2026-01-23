@@ -46,7 +46,6 @@ import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IOpenerService, OpenInternalOptions } from '../../../../../platform/opener/common/opener.js';
 import { FolderThemeIcon, IThemeService } from '../../../../../platform/theme/common/themeService.js';
-import { globMatchesResource } from '../../../../services/editor/common/editorResolverService.js';
 import { fillEditorsDragData } from '../../../../browser/dnd.js';
 import { IFileLabelOptions, IResourceLabel, ResourceLabels } from '../../../../browser/labels.js';
 import { ResourceContextKey } from '../../../../common/contextkeys.js';
@@ -60,7 +59,6 @@ import { getHistoryItemEditorTitle } from '../../../scm/browser/util.js';
 import { ITerminalService } from '../../../terminal/browser/terminal.js';
 import { IChatContentReference } from '../../common/chatService/chatService.js';
 import { IChatRequestPasteVariableEntry, IChatRequestVariableEntry, IElementVariableEntry, INotebookOutputVariableEntry, IPromptFileVariableEntry, IPromptTextVariableEntry, ISCMHistoryItemVariableEntry, OmittedState, PromptFileVariableKind, ChatRequestToolReferenceEntry, ISCMHistoryItemChangeVariableEntry, ISCMHistoryItemChangeRangeVariableEntry, ITerminalVariableEntry, isStringVariableEntry } from '../../common/attachments/chatVariableEntries.js';
-import { ChatConfiguration } from '../../common/constants.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../common/languageModels.js';
 import { ILanguageModelToolsService, isToolSet } from '../../common/tools/languageModelToolsService.js';
 import { getCleanPromptName } from '../../common/promptSyntax/config/promptFileLocations.js';
@@ -76,22 +74,6 @@ const commonHoverOptions: Partial<IHoverOptions> = {
 const commonHoverLifecycleOptions: IHoverLifecycleOptions = {
 	groupId: 'chat-attachments',
 };
-
-/**
- * Returns the editor ID to use when opening a resource from chat, based on the
- * `chat.editorAssociations` setting. Returns undefined if no association matches.
- */
-export function getEditorOverrideForChatResource(resource: URI, configurationService: IConfigurationService): string | undefined {
-	const associations = configurationService.getValue<Record<string, string>>(ChatConfiguration.EditorAssociations) ?? {};
-	// Sort patterns by length (longer patterns are more specific)
-	const sortedPatterns = Object.keys(associations).sort((a, b) => b.length - a.length);
-	for (const pattern of sortedPatterns) {
-		if (globMatchesResource(pattern, resource)) {
-			return associations[pattern];
-		}
-	}
-	return undefined;
-}
 
 abstract class AbstractChatAttachmentWidget extends Disposable {
 	public readonly element: HTMLElement;
@@ -192,9 +174,6 @@ abstract class AbstractChatAttachmentWidget extends Disposable {
 			return;
 		}
 
-		// Check for custom editor association from chat.editorAssociations setting
-		const editorOverride = getEditorOverrideForChatResource(resource, this.configurationService);
-
 		// Open file in editor
 		const openTextEditorOptions: ITextEditorOptions | undefined = range ? { selection: range } : undefined;
 		const options: OpenInternalOptions = {
@@ -202,8 +181,7 @@ abstract class AbstractChatAttachmentWidget extends Disposable {
 			openToSide: openOptions.openToSide,
 			editorOptions: {
 				...openTextEditorOptions,
-				...openOptions.editorOptions,
-				override: editorOverride
+				...openOptions.editorOptions
 			},
 		};
 
