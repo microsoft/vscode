@@ -861,16 +861,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		// Show if no content, only "used references", ends with a complete tool call, or ends with complete text edits and there is no incomplete tool call (edits are still being applied some time after they are all generated)
 		const lastPart = findLast(partsToRender, part => part.kind !== 'markdownContent' || part.content.value.trim().length > 0);
 
-		const collapsedToolsMode = this.configService.getValue<CollapsedToolsDisplayMode>('chat.agent.thinking.collapsedTools');
-
+		//never show working progress when there is an active thinking piece
 		const lastThinking = this.getLastThinkingPart(templateData.renderedParts);
-
-		if (lastThinking &&
-			(collapsedToolsMode === CollapsedToolsDisplayMode.Always ||
-				collapsedToolsMode === CollapsedToolsDisplayMode.WithThinking)) {
-			if (!lastPart || lastPart.kind === 'thinking' || lastPart.kind === 'toolInvocation' || lastPart.kind === 'textEditGroup' || lastPart.kind === 'notebookEditGroup') {
-				return false;
-			}
+		if (lastThinking) {
+			return false;
 		}
 
 		// Don't show working spinner when there's any active subagent - subagents have their own progress indicator
