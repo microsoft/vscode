@@ -630,6 +630,7 @@ export class AgentSessionsWelcomePage extends EditorPane {
 	}
 
 	private buildFooter(container: HTMLElement): void {
+		container.classList.toggle('no-sessions', this.agentSessionsService.model.sessions.length === 0);
 
 		// Privacy notice
 		this.buildPrivacyNotice(container);
