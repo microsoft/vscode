@@ -124,6 +124,59 @@ export function parseApiProposalsFromSource(content: string): { [proposalName: s
 	return allApiProposals;
 }
 
+export function areAllowlistedApiProposalsMatching(
+	extensionId: string,
+	productAllowlistedProposals: string[] | undefined,
+	manifestEnabledProposals: string[] | undefined
+): { compatible: boolean; errors: string[] } {
+	// Normalize undefined to empty arrays for easier comparison
+	const productProposals = productAllowlistedProposals || [];
+	const manifestProposals = manifestEnabledProposals || [];
+
+	// If both are empty, they match
+	if (productProposals.length === 0 && manifestProposals.length === 0) {
+		return { compatible: true, errors: [] };
+	}
+
+	// If extension declares API proposals but product.json doesn't allowlist them
+	if (productProposals.length === 0 && manifestProposals.length > 0) {
+		return {
+			compatible: false,
+			errors: [`Extension '${extensionId}' declares API proposals in package.json (${manifestProposals.join(', ')}) but product.json does not allowlist any API proposals for this extension`]
+		};
+	}
+
+	// If product.json allowlists API proposals but extension doesn't declare them
+	if (productProposals.length > 0 && manifestProposals.length === 0) {
+		return {
+			compatible: false,
+			errors: [`Extension '${extensionId}' is allowlisted in product.json for API proposals (${productProposals.join(', ')}) but does not declare any API proposals in package.json`]
+		};
+	}
+
+	// Both are non-empty, check if they match
+	const productSet = new Set(productProposals);
+	const manifestSet = new Set(manifestProposals);
+
+	const errors: string[] = [];
+
+	// Check for proposals in manifest but not in product.json
+	for (const proposal of manifestSet) {
+		if (!productSet.has(proposal)) {
+			errors.push(`API proposal '${proposal}' is declared in extension '${extensionId}' package.json but is not allowlisted in product.json`);
+		}
+	}
+
+	// Check for proposals in product.json but not in manifest
+	for (const proposal of productSet) {
+		if (!manifestSet.has(proposal)) {
+			errors.push(`API proposal '${proposal}' is allowlisted in product.json for extension '${extensionId}' but is not declared in package.json`);
+		}
+	}
+
+	return { compatible: errors.length === 0, errors };
+}
+
 export function checkExtensionCompatibility(
 	productVersion: string,
 	productApiProposals: Readonly<{ [proposalName: string]: Readonly<{ proposal: string; version?: number }> }>,
@@ -342,6 +395,40 @@ export const allApiProposals = {
 	}).compatible, false);
 
 	console.log('  ✓ checkExtensionCompatibility tests passed\n');
+
+	// areAllowlistedApiProposalsMatching tests
+	console.log('Testing areAllowlistedApiProposalsMatching...');
+
+	// Both undefined - compatible
+	assert.strictEqual(areAllowlistedApiProposalsMatching('test.ext', undefined, undefined).compatible, true);
+
+	// Both empty arrays - compatible
+	assert.strictEqual(areAllowlistedApiProposalsMatching('test.ext', [], []).compatible, true);
+
+	// Exact match - compatible
+	assert.strictEqual(areAllowlistedApiProposalsMatching('test.ext', ['proposalA', 'proposalB'], ['proposalA', 'proposalB']).compatible, true);
+
+	// Match regardless of order - compatible
+	assert.strictEqual(areAllowlistedApiProposalsMatching('test.ext', ['proposalB', 'proposalA'], ['proposalA', 'proposalB']).compatible, true);
+
+	// Extension declares but product.json doesn't allowlist - incompatible
+	assert.strictEqual(areAllowlistedApiProposalsMatching('test.ext', undefined, ['proposalA']).compatible, false);
+	assert.strictEqual(areAllowlistedApiProposalsMatching('test.ext', [], ['proposalA']).compatible, false);
+
+	// Product.json allowlists but extension doesn't declare - incompatible
+	assert.strictEqual(areAllowlistedApiProposalsMatching('test.ext', ['proposalA'], undefined).compatible, false);
+	assert.strictEqual(areAllowlistedApiProposalsMatching('test.ext', ['proposalA'], []).compatible, false);
+
+	// Extension declares more than allowlisted - incompatible
+	assert.strictEqual(areAllowlistedApiProposalsMatching('test.ext', ['proposalA'], ['proposalA', 'proposalB']).compatible, false);
+
+	// Product.json allowlists more than declared - incompatible
+	assert.strictEqual(areAllowlistedApiProposalsMatching('test.ext', ['proposalA', 'proposalB'], ['proposalA']).compatible, false);
+
+	// Completely different sets - incompatible
+	assert.strictEqual(areAllowlistedApiProposalsMatching('test.ext', ['proposalA'], ['proposalB']).compatible, false);
+
+	console.log('  ✓ areAllowlistedApiProposalsMatching tests passed\n');
 
 	console.log('All tests passed! ✓');
 }
