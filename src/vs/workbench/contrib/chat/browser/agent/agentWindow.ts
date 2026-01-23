@@ -30,7 +30,6 @@ import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IWorkbenchExtensionManagementService } from '../../../../services/extensionManagement/common/extensionManagement.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
-import { INativeHostService } from '../../../../../platform/native/common/native.js';
 import { ILifecycleService, LifecyclePhase } from '../../../../services/lifecycle/common/lifecycle.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from '../../../../common/contributions.js';
@@ -316,8 +315,6 @@ export class AgentWindow extends Disposable {
 			// Wait for extensions to be registered first
 			// This ensures that extension-provided session providers are available
 			const extensionService = this.instantiationService.invokeFunction((accessor: ServicesAccessor) => accessor.get(IExtensionService));
-			const nativeHostService = this.instantiationService.invokeFunction((accessor: ServicesAccessor) => accessor.get(INativeHostService));
-			this.logService.info('[Agent] Native host service window id:', nativeHostService.windowId);
 			this.logService.info('[Agent] Waiting for extensions to be registered...');
 			await extensionService.whenInstalledExtensionsRegistered();
 			this.logService.info('[Agent] Extensions registered!');
