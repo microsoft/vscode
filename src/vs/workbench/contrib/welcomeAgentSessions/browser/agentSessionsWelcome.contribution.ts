@@ -15,6 +15,8 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { AuxiliaryBarMaximizedContext } from '../../../common/contextkeys.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { AgentSessionsWelcomeInput } from './agentSessionsWelcomeInput.js';
 import { AgentSessionsWelcomePage, AgentSessionsWelcomeInputSerializer } from './agentSessionsWelcome.js';
@@ -89,6 +91,7 @@ class AgentSessionsWelcomeRunnerContribution extends Disposable implements IWork
 		@IEditorService private readonly editorService: IEditorService,
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		super();
 		this.run();
@@ -105,6 +108,11 @@ class AgentSessionsWelcomeRunnerContribution extends Disposable implements IWork
 
 		// Wait for editors to restore
 		await this.editorGroupsService.whenReady;
+
+		// If the auxiliary bar is maximized, we do not show the welcome page
+		if (AuxiliaryBarMaximizedContext.getValue(this.contextKeyService)) {
+			return;
+		}
 
 		// Don't open if there are already editors open
 		if (this.editorService.activeEditor) {

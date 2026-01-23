@@ -54,6 +54,7 @@ import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { IWorkspacesService, IRecentFolder, IRecentWorkspace, isRecentFolder, isRecentWorkspace } from '../../../../platform/workspaces/common/workspaces.js';
 import { IHostService } from '../../../services/host/browser/host.js';
+import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
 
 const configurationKey = 'workbench.startupEditor';
@@ -103,6 +104,7 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IWorkspacesService private readonly workspacesService: IWorkspacesService,
 		@IHostService private readonly hostService: IHostService,
+		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
 	) {
 		super(AgentSessionsWelcomePage.ID, group, telemetryService, themeService, storageService);
@@ -144,7 +146,16 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		this._isEmptyWorkspace = this.workspaceContextService.getWorkbenchState() === WorkbenchState.EMPTY;
 		if (this._isEmptyWorkspace) {
 			const recentlyOpened = await this.workspacesService.getRecentlyOpened();
-			this._recentWorkspaces = recentlyOpened.workspaces.slice(0, MAX_REPO_PICKS);
+			const trustInfoPromises = recentlyOpened.workspaces.map(async ws => {
+				const uri = isRecentWorkspace(ws) ? ws.workspace.configPath : ws.folderUri;
+				const trustInfo = await this.workspaceTrustManagementService.getUriTrustInfo(uri);
+				return { workspace: ws, trusted: trustInfo.trusted };
+			});
+			const trustInfoResults = await Promise.all(trustInfoPromises);
+			const filteredWorkspaces = trustInfoResults
+				.filter(result => result.trusted)
+				.map(result => result.workspace);
+			this._recentWorkspaces = filteredWorkspaces.slice(0, MAX_REPO_PICKS);
 		}
 
 		// Get walkthroughs
