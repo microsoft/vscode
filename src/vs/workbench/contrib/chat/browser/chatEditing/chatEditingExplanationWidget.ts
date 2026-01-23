@@ -79,6 +79,7 @@ function getChangeTexts(change: LineRangeMapping | DetailedLineRangeMapping, dif
 
 /**
  * Groups nearby changes within a threshold number of lines
+ * Uses the vertical span from widget position to last line it refers to
  */
 function groupNearbyChanges<T extends LineRangeMapping>(changes: readonly T[], lineThreshold: number = 5): T[][] {
 	if (changes.length === 0) {
@@ -89,12 +90,15 @@ function groupNearbyChanges<T extends LineRangeMapping>(changes: readonly T[], l
 	let currentGroup: T[] = [changes[0]];
 
 	for (let i = 1; i < changes.length; i++) {
-		const prevChange = currentGroup[currentGroup.length - 1];
+		const firstChange = currentGroup[0];
 		const currentChange = changes[i];
 
-		const gap = currentChange.modified.startLineNumber - prevChange.modified.endLineNumberExclusive;
+		// Calculate vertical span from widget position (first change) to start of current change
+		const widgetLine = firstChange.modified.startLineNumber;
+		const lastLine = currentChange.modified.startLineNumber;
+		const verticalSpan = lastLine - widgetLine;
 
-		if (gap <= lineThreshold) {
+		if (verticalSpan <= lineThreshold) {
 			currentGroup.push(currentChange);
 		} else {
 			groups.push(currentGroup);
