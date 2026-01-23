@@ -3,7 +3,7 @@ set -e
 
 if [ -n "$DISPLAY" ]; then
 	echo "Starting X11 Server"
-	Xvfb $DISPLAY -screen 0 1280x960x24 -ac +extension GLX +render -noreset &
+	Xvfb $DISPLAY -screen 0 1024x768x24 -ac -noreset &
 fi
 
 if command -v dbus-daemon > /dev/null 2>&1; then
