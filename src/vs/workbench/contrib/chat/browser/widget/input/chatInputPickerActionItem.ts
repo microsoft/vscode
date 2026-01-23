@@ -5,6 +5,7 @@
 
 import { getActiveWindow } from '../../../../../../base/browser/dom.js';
 import { IAction } from '../../../../../../base/common/actions.js';
+import { autorun, IObservable } from '../../../../../../base/common/observable.js';
 import { ActionWidgetDropdownActionViewItem } from '../../../../../../platform/actions/browser/actionWidgetDropdownActionViewItem.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IActionWidgetDropdownOptions } from '../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
@@ -20,6 +21,8 @@ export interface IChatInputPickerOptions {
 	readonly getOverflowAnchor?: () => HTMLElement | undefined;
 
 	readonly actionContext?: IChatExecuteActionContext;
+
+	readonly onlyShowIconsForDefaultActions: IObservable<boolean>;
 }
 
 /**
@@ -31,7 +34,7 @@ export abstract class ChatInputPickerActionViewItem extends ActionWidgetDropdown
 	constructor(
 		action: IAction,
 		actionWidgetOptions: Omit<IActionWidgetDropdownOptions, 'label' | 'labelRenderer'>,
-		private readonly pickerOptions: IChatInputPickerOptions,
+		protected readonly pickerOptions: IChatInputPickerOptions,
 		@IActionWidgetService actionWidgetService: IActionWidgetService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -43,6 +46,13 @@ export abstract class ChatInputPickerActionViewItem extends ActionWidgetDropdown
 		};
 
 		super(action, optionsWithAnchor, actionWidgetService, keybindingService, contextKeyService);
+
+		this._register(autorun(reader => {
+			this.pickerOptions.onlyShowIconsForDefaultActions.read(reader);
+			if (this.element) {
+				this.renderLabel(this.element);
+			}
+		}));
 	}
 
 	/**

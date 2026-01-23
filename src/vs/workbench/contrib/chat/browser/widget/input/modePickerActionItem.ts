@@ -243,7 +243,7 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 		if (icon) {
 			labelElements.push(...renderLabelWithIcons(`$(${icon.id})`));
 		}
-		if (!isDefault || !icon) {
+		if (!isDefault || !icon || !this.pickerOptions.onlyShowIconsForDefaultActions.get()) {
 			labelElements.push(dom.$('span.chat-input-picker-label', undefined, state));
 		}
 		labelElements.push(...renderLabelWithIcons(`$(chevron-down)`));
