@@ -1447,7 +1447,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		// Step 3: Filter to visible groups (has items AND passes `when` clause)
 		const visibleGroupIds = new Set<string>();
 		for (const optionGroup of optionGroups) {
-			const hasItems = optionGroup.items.length > 0;
+			const hasItems = optionGroup.items.length > 0 || (optionGroup.commands || []).length > 0;
 			const passesWhenClause = this.evaluateOptionGroupVisibility(optionGroup);
 
 			if (hasItems && passesWhenClause) {
