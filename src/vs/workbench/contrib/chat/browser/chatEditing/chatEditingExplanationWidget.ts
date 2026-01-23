@@ -129,7 +129,7 @@ export class ChatEditingExplanationWidget extends Disposable implements IOverlay
 	private _isAllRead: boolean = false;
 	private _disposed: boolean = false;
 	private _startLineNumber: number = 1;
-	private readonly _cancellationTokenSource = new CancellationTokenSource();
+	private readonly _cancellationTokenSource = this._register(new CancellationTokenSource());
 	private readonly _uri: URI;
 
 	private readonly _eventStore = this._register(new DisposableStore());
