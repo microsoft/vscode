@@ -257,7 +257,6 @@ configurationRegistry.registerConfiguration({
 		},
 		'chat.editing.explainChanges.enabled': {
 			type: 'boolean',
-			scope: ConfigurationScope.APPLICATION,
 			markdownDescription: nls.localize('chat.editing.explainChanges.enabled', "Controls whether the Explain button in the Chat panel and the Explain Changes context menu in the SCM view are shown. This is an experimental feature."),
 			default: false,
 			tags: ['experimental'],
