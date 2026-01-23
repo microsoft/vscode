@@ -8,14 +8,13 @@ import { $, append, clearNode, Dimension, h } from '../../../../base/browser/dom
 import { mainWindow } from '../../../../base/browser/window.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { Disposable, DisposableStore, IDisposable, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, IReference } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IChatSessionsService, IChatSessionFileChange, localChatSessionType } from '../../chat/common/chatSessionsService.js';
 import { getChatSessionType } from '../../chat/common/model/chatUri.js';
-import { IChatWidget, IChatWidgetService, ISessionTypePickerDelegate } from '../../chat/browser/chat.js';
+import { IChatWidget, IChatWidgetService } from '../../chat/browser/chat.js';
 import { ChatWidget, IChatWidgetStyles } from '../../chat/browser/widget/chatWidget.js';
 import { LocalAgentsSessionsProvider } from '../../chat/browser/agentSessions/localAgentSessionsProvider.js';
-import { AgentSessionProviders } from '../../chat/browser/agentSessions/agentSessions.js';
 import { IChatService } from '../../chat/common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../chat/common/constants.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
@@ -24,7 +23,7 @@ import { IAgentSessionsService } from '../../chat/browser/agentSessions/agentSes
 import { IAgentSession, getAgentChangesSummary } from '../../chat/browser/agentSessions/agentSessionsModel.js';
 import { AgentTitleBarStatusWidget } from '../../chat/browser/agentSessions/experiments/agentTitleBarStatusWidget.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
-import { Emitter, Event, ValueWithChangeEvent } from '../../../../base/common/event.js';
+import { Event, ValueWithChangeEvent } from '../../../../base/common/event.js';
 import { IWorkbenchExtensionManagementService } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { ILifecycleService, LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
@@ -33,8 +32,6 @@ import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } fr
 import { IWorkbenchThemeService } from '../../../services/themes/common/workbenchThemeService.js';
 import { isWindows, isLinux } from '../../../../base/common/platform.js';
 import { SplitView, Orientation, Sizing } from '../../../../base/browser/ui/splitview/splitview.js';
-import { editorForeground, editorBackground } from '../../../../platform/theme/common/colorRegistry.js';
-import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { MultiDiffEditorWidget } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidget.js';
@@ -47,6 +44,7 @@ import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { AgentSessionsFilter, IAgentSessionsFilterOptions } from '../../chat/browser/agentSessions/agentSessionsFilter.js';
 import { ITerminalService, ITerminalGroupService, ITerminalChatService, TerminalConnectionState } from '../../terminal/browser/terminal.js';
 import { IEmbedderTerminalService } from '../../../services/terminal/common/embedderTerminalService.js';
+import { AgentWelcomeView } from './agentWelcomeView.js';
 
 // Side-effect import: Register terminal chat agent tools contribution
 import '../../terminalContrib/chatAgentTools/browser/terminal.chatAgentTools.contribution.js';
@@ -89,7 +87,7 @@ class AgentChatWidgetService implements IChatWidgetService {
 export class AgentWindow extends Disposable {
 
 	private _chatWidget: ChatWidget | undefined;
-	private _welcomeChatWidget: ChatWidget | undefined;
+	private _welcomeView: AgentWelcomeView | undefined;
 	private _chatWidgetContainer: HTMLElement | undefined;
 	private _resizeObserver: ResizeObserver | undefined;
 	private _sessionsControl: AgentSessionsControl | undefined;
@@ -102,7 +100,7 @@ export class AgentWindow extends Disposable {
 	private _elements: {
 		header: { root: HTMLElement; statusWidget: HTMLElement };
 		sessions: { root: HTMLElement; newSessionButton: HTMLElement; items: HTMLElement };
-		chat: { root: HTMLElement; header: HTMLElement; headerTitle: HTMLElement; empty: HTMLElement; widgetContainer: HTMLElement; toggleChanges: HTMLElement; welcomeWidget: HTMLElement };
+		chat: { root: HTMLElement; header: HTMLElement; headerTitle: HTMLElement; widgetContainer: HTMLElement; toggleChanges: HTMLElement };
 		changes: { root: HTMLElement };
 		container: HTMLElement;
 	} | undefined;
@@ -176,25 +174,16 @@ export class AgentWindow extends Disposable {
 		toggleChanges.setAttribute('role', 'button');
 		toggleChanges.addEventListener('click', () => this.toggleChangesPane());
 
-		const welcomeWidget = $('div.agent-welcome-chat-widget');
-
 		const elements = h('div.agent-chat-container@root', [
 			h('div.agent-chat-header@header', { style: { display: 'none' } }, [
 				backButton,
 				h('div.agent-chat-header-title@headerTitle'),
 				toggleChanges,
 			]),
-			h('div.agent-chat-empty@empty', [
-				h('div.agent-welcome-content', [
-					h('div.agent-welcome-title', ['Start a New Session']),
-					welcomeWidget,
-					h('div.agent-chat-empty-description', ['Describe what you want to build or ask a question to start a new agent session']),
-				]),
-			]),
 			h('div.agent-chat-widget-container@widgetContainer'),
 		]);
 
-		return { ...elements, toggleChanges, welcomeWidget };
+		return { ...elements, toggleChanges };
 	}
 
 	private _createChangesElements() {
@@ -218,10 +207,16 @@ export class AgentWindow extends Disposable {
 		const chat = this._createChatElements();
 		const changes = this._createChangesElements();
 
+		// Create welcome view
+		this._welcomeView = this._register(this.instantiationService.createInstance(AgentWelcomeView));
+
 		// Create main container - only add sessions and chat initially
 		// Changes pane is added dynamically when a session is selected via showChangesPane()
 		const container = $('div.agent-container');
 		append(container, sessions.root, chat.root);
+
+		// Add welcome view to chat container (before widget container)
+		chat.root.insertBefore(this._welcomeView.root, chat.widgetContainer);
 
 		// Store all elements
 		this._elements = { header, sessions, chat, changes, container };
@@ -580,7 +575,7 @@ export class AgentWindow extends Disposable {
 	}
 
 	private async selectSession(session: IAgentSession): Promise<void> {
-		this.elements.chat.empty.style.display = 'none';
+		this._welcomeView?.hide();
 		this.elements.chat.header.style.display = 'flex';
 		this.elements.chat.headerTitle.textContent = session.label;
 
@@ -880,7 +875,7 @@ export class AgentWindow extends Disposable {
 	}
 
 	private showEmptyView(): void {
-		this.elements.chat.empty.style.display = 'flex';
+		this._welcomeView?.show();
 		this.elements.chat.header.style.display = 'none';
 		this.elements.chat.widgetContainer.style.display = 'none';
 
@@ -892,80 +887,6 @@ export class AgentWindow extends Disposable {
 
 		// Hide the changes pane (return to 2-column layout)
 		this.hideChangesPane();
-
-		// Create welcome ChatWidget if not already created
-		if (!this._welcomeChatWidget) {
-			this.createWelcomeChatWidget(this.elements.chat.welcomeWidget);
-		}
-	}
-
-	private createWelcomeChatWidget(container: HTMLElement): void {
-		// Create editor overflow widgets container for dropdowns to render properly
-		const editorOverflowWidgetsDomNode = mainWindow.document.body.appendChild($('.chat-editor-overflow.monaco-editor'));
-		this._register(toDisposable(() => editorOverflowWidgetsDomNode.remove()));
-
-		// Create ChatWidget with input on top (like AgentSessionsWelcome)
-		const scopedContextKeyService = this._register(this.instantiationService.invokeFunction(accessor =>
-			accessor.get(IContextKeyService).createScoped(container)
-		));
-
-		const scopedInstantiationService = this._register(this.instantiationService.createChild(
-			new ServiceCollection([IContextKeyService, scopedContextKeyService])
-		));
-
-		// Create a delegate for the session target picker with independent local state
-		const onDidChangeActiveSessionProvider = this._register(new Emitter<AgentSessionProviders>());
-		let selectedSessionProvider = AgentSessionProviders.Local;
-		const sessionTypePickerDelegate: ISessionTypePickerDelegate = {
-			getActiveSessionProvider: () => selectedSessionProvider,
-			setActiveSessionProvider: (provider: AgentSessionProviders) => {
-				selectedSessionProvider = provider;
-				onDidChangeActiveSessionProvider.fire(provider);
-			},
-			onDidChangeActiveSessionProvider: onDidChangeActiveSessionProvider.event
-		};
-
-		this._welcomeChatWidget = this._register(scopedInstantiationService.createInstance(
-			ChatWidget,
-			ChatAgentLocation.Chat,
-			{}, // Empty resource view context (like welcome page)
-			{
-				renderInputOnTop: true,
-				renderFollowups: false,
-				supportsFileReferences: true,
-				enableImplicitContext: true,
-				supportsChangingModes: true,
-				editorOverflowWidgetsDomNode,
-				sessionTypePickerDelegate,
-				enableWorkingSet: 'explicit',
-			},
-			{
-				listForeground: editorForeground,
-				listBackground: editorBackground,
-				overlayBackground: editorBackground,
-				inputEditorBackground: editorBackground,
-				resultEditorBackground: editorBackground,
-			}
-		));
-
-		this._welcomeChatWidget.render(container);
-		this._welcomeChatWidget.setVisible(true);
-
-		// Start a chat session so the widget has a viewModel
-		// This is necessary for actions like mode switching to work properly
-		const chatService = scopedInstantiationService.invokeFunction(accessor => accessor.get(IChatService));
-		const chatModelRef = chatService.startSession(ChatAgentLocation.Chat);
-		this._register(chatModelRef);
-		if (chatModelRef.object) {
-			this._welcomeChatWidget.setModel(chatModelRef.object);
-		}
-
-		// Layout the chat widget - height for input area only (list is hidden by CSS)
-		const chatWidth = Math.min(800, container.parentElement?.offsetWidth || 600);
-		this._welcomeChatWidget.layout(200, chatWidth);
-
-		// Focus the input when clicking
-		this._welcomeChatWidget.focusInput();
 	}
 }
 
