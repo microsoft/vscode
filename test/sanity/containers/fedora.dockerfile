@@ -3,22 +3,22 @@ FROM ${BASE_IMAGE}
 
 # Node.js 22
 RUN curl -fsSL https://rpm.nodesource.com/setup_22.x | bash - && \
-	dnf install -y --no-weak-deps nodejs-22.21.1
+	dnf install -y nodejs-22.21.1
 
 # Chromium
-RUN dnf install -y --no-weak-deps chromium
+RUN dnf install -y chromium
 ENV PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium-browser
 
 # Desktop Bus
-RUN dnf install -y --no-weak-deps dbus-x11 && \
+RUN dnf install -y dbus-x11 && \
 	mkdir -p /run/dbus
 
 # X11 Server
-RUN dnf install -y --no-weak-deps xorg-x11-server-Xvfb
+RUN dnf install -y xorg-x11-server-Xvfb
 ENV DISPLAY=:99
 
 # VS Code dependencies
-RUN dnf install -y --no-weak-deps xdg-utils
+RUN dnf install -y xdg-utils
 
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh

@@ -5,15 +5,15 @@ FROM ${BASE_IMAGE}
 RUN apt-get update
 
 # Chromium
-RUN apt-get install -y --no-install-recommends chromium
+RUN apt-get install -y chromium
 ENV PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium
 
 # Desktop Bus
-RUN apt-get install -y --no-install-recommends dbus-x11 && \
+RUN apt-get install -y dbus-x11 && \
     mkdir -p /run/dbus
 
 # X11 Server
-RUN apt-get install -y --no-install-recommends xvfb
+RUN apt-get install -y xvfb
 ENV DISPLAY=:99
 
 COPY entrypoint.sh /entrypoint.sh
