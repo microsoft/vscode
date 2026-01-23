@@ -36,9 +36,9 @@ const context = new TestContext({
 	downloadOnly: !options['detection'],
 });
 
-context.log(`Arguments: ${process.argv}`);
-context.log(`Platform: ${os.platform()}, Arch: ${os.arch()}`);
-context.log('Capabilities: ' + Array.from(context.capabilities).join(', '));
+context.log(`Arguments: ${process.argv.slice(2).join(' ')}`);
+context.log(`Platform: ${os.platform()}, Architecture: ${os.arch()}`);
+context.log(`Capabilities: ${Array.from(context.capabilities).join(', ')}`);
 
 beforeEach(function () {
 	context.consoleOutputs = [];

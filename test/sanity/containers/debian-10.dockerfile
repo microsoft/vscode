@@ -10,6 +10,9 @@ RUN sed -i 's|http://deb.debian.org|http://archive.debian.org|g' /etc/apt/source
 # Add Debian 11 (bullseye) repo for newer packages
 RUN echo "deb http://archive.debian.org/debian bullseye main" >> /etc/apt/sources.list
 
+# Pin libc packages to buster to prevent upgrade (causes QEMU segfaults on arm64)
+RUN echo 'Package: libc6 libc-bin libc-dev-bin libc6-dev locales\nPin: release n=buster\nPin-Priority: 1001' > /etc/apt/preferences.d/libc-pin
+
 # Utilities
 RUN apt-get update && \
 	apt-get install -y curl

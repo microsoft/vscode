@@ -1,6 +1,11 @@
 ARG BASE_IMAGE=ubuntu:22.04
 FROM ${BASE_IMAGE}
 
+# Use a potentially faster regional mirror for ARM
+RUN if [ "$(dpkg --print-architecture)" != "amd64" ]; then \
+	sed -i 's|http://ports.ubuntu.com|http://us.ports.ubuntu.com|g' /etc/apt/sources.list; \
+fi
+
 # Utilities
 RUN apt-get update && \
 	apt-get install -y curl
@@ -26,7 +31,7 @@ RUN if [ "$TARGETARCH" = "amd64" ]; then \
 		libgtk-3-0 \
 		libnss3 \
 		xdg-utils; \
-	fi
+fi
 
 # VS Code dependencies (arm32)
 RUN if [ "$TARGETARCH" = "arm" ]; then \
@@ -37,7 +42,7 @@ RUN if [ "$TARGETARCH" = "arm" ]; then \
 		libgbm1 \
 		libnss3 \
 		xdg-utils; \
-	fi
+fi
 
 # VS Code dependencies (arm64)
 RUN if [ "$TARGETARCH" = "arm64" ]; then \
@@ -47,7 +52,7 @@ RUN if [ "$TARGETARCH" = "arm64" ]; then \
 		libgbm1 \
 		libnss3 \
 		xdg-utils; \
-	fi
+fi
 
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
