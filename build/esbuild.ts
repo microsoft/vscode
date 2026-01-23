@@ -267,17 +267,10 @@ function cssExternalPlugin(): esbuild.Plugin {
 // Transpile (Goal 1: TS → JS)
 // ============================================================================
 
-async function transpile(): Promise<void> {
-	const outDir = isBundle ? OUT_BUILD_DIR : OUT_DIR;
-
-	await cleanDir(outDir);
-
-	console.log(`[transpile] ${SRC_DIR} → ${outDir}`);
-	const t1 = Date.now();
-
-	// Find all .ts files (exclude tests only when bundling for production)
+async function createTranspileContext(outDir: string, excludeTests: boolean): Promise<esbuild.BuildContext> {
+	// Find all .ts files
 	const ignorePatterns = ['**/*.d.ts'];
-	if (isBundle) {
+	if (excludeTests) {
 		ignorePatterns.push('**/test/**');
 	}
 
@@ -286,8 +279,9 @@ async function transpile(): Promise<void> {
 		ignore: ignorePatterns,
 	});
 
-	// Transpile with esbuild
-	await esbuild.build({
+	console.log(`[transpile] Found ${files.length} files`);
+
+	return esbuild.context({
 		entryPoints: files.map(f => path.join(REPO_ROOT, SRC_DIR, f)),
 		outdir: path.join(REPO_ROOT, outDir),
 		outbase: path.join(REPO_ROOT, SRC_DIR),
@@ -298,18 +292,35 @@ async function transpile(): Promise<void> {
 		sourcesContent: false,
 		bundle: false,
 		logLevel: 'warning',
+		logOverride: {
+			'unsupported-require-call': 'silent',
+		},
 		tsconfigRaw: JSON.stringify({
 			compilerOptions: {
 				experimentalDecorators: true,
-				useDefineForClassFields: false,
+				useDefineForClassFields: false
 			}
 		}),
 	});
+}
+
+async function transpile(): Promise<void> {
+	const outDir = isBundle ? OUT_BUILD_DIR : OUT_DIR;
+
+	await cleanDir(outDir);
+
+	console.log(`[transpile] ${SRC_DIR} → ${outDir}`);
+	const t1 = Date.now();
+
+	// Create context and build
+	const ctx = await createTranspileContext(outDir, isBundle);
+	await ctx.rebuild();
+	await ctx.dispose();
 
 	// Copy resources (exclude tests only when bundling for production)
 	await copyResources(outDir, false, isBundle);
 
-	console.log(`[transpile] Done in ${Date.now() - t1}ms (${files.length} files)`);
+	console.log(`[transpile] Done in ${Date.now() - t1}ms`);
 }
 
 // ============================================================================
@@ -421,32 +432,69 @@ ${tslib}`,
 async function watch(): Promise<void> {
 	console.log('[watch] Starting...');
 
-	// Initial transpile
+	const outDir = OUT_DIR;
+
+	// Initial setup
+	await cleanDir(outDir);
+	console.log(`[transpile] ${SRC_DIR} → ${outDir}`);
+
+	// Create context for incremental builds
+	const ctx = await createTranspileContext(outDir, false);
+
+	// Initial build
+	const t1 = Date.now();
 	try {
-		await transpile();
+		await ctx.rebuild();
+		await copyResources(outDir, false, false);
+		console.log(`[transpile] Done in ${Date.now() - t1}ms`);
 	} catch (err) {
 		console.error('[watch] Initial build failed:', err);
 		// Continue watching anyway
 	}
 
 	let debounce: NodeJS.Timeout | undefined;
+	let pendingTsRebuild = false;
+	let pendingCopyFiles: string[] = [];
 
-	const rebuild = () => {
+	const processChanges = () => {
 		if (debounce) {
 			clearTimeout(debounce);
 		}
 		debounce = setTimeout(async () => {
-			console.log('[watch] Rebuilding...');
 			const t1 = Date.now();
+			const hasTsChanges = pendingTsRebuild;
+			const filesToCopy = [...pendingCopyFiles];
+			pendingTsRebuild = false;
+			pendingCopyFiles = [];
+
 			try {
-				await transpile();
-				console.log(`[watch] Rebuilt in ${Date.now() - t1}ms`);
+				if (hasTsChanges) {
+					console.log('[watch] Rebuilding TypeScript...');
+					await ctx.cancel();
+					await ctx.rebuild();
+				}
+
+				// Copy changed resource files
+				for (const srcPath of filesToCopy) {
+					const relativePath = path.relative(path.join(REPO_ROOT, SRC_DIR), srcPath);
+					const destPath = path.join(REPO_ROOT, outDir, relativePath);
+					await fs.promises.mkdir(path.dirname(destPath), { recursive: true });
+					await fs.promises.copyFile(srcPath, destPath);
+					console.log(`[watch] Copied ${relativePath}`);
+				}
+
+				if (hasTsChanges || filesToCopy.length > 0) {
+					console.log(`[watch] Done in ${Date.now() - t1}ms`);
+				}
 			} catch (err) {
 				console.error('[watch] Rebuild failed:', err);
 				// Continue watching
 			}
 		}, 100);
 	};
+
+	// Extensions to watch and copy (non-TypeScript resources)
+	const copyExtensions = ['.css', '.html', '.js', '.json', '.ttf', '.svg', '.png', '.mp3', '.scm', '.sh', '.ps1', '.psm1', '.fish', '.zsh', '.scpt'];
 
 	// Watch src directory
 	const subscription = await watcher.subscribe(
@@ -456,23 +504,33 @@ async function watch(): Promise<void> {
 				console.error('[watch] Watcher error:', err);
 				return;
 			}
-			const relevantEvents = events.filter(e =>
-				e.path.endsWith('.ts') && !e.path.includes('/test/')
-			);
-			if (relevantEvents.length > 0) {
-				console.log(`[watch] ${relevantEvents.length} file(s) changed`);
-				rebuild();
+
+			for (const event of events) {
+				if (event.path.includes('/test/')) {
+					continue;
+				}
+
+				if (event.path.endsWith('.ts') && !event.path.endsWith('.d.ts')) {
+					pendingTsRebuild = true;
+				} else if (copyExtensions.some(ext => event.path.endsWith(ext))) {
+					pendingCopyFiles.push(event.path);
+				}
+			}
+
+			if (pendingTsRebuild || pendingCopyFiles.length > 0) {
+				processChanges();
 			}
 		},
 		{ ignore: ['**/test/**', '**/node_modules/**'] }
 	);
 
-	console.log('[watch] Watching src/**/*.ts (Ctrl+C to stop)');
+	console.log('[watch] Watching src/**/*.{ts,css,...} (Ctrl+C to stop)');
 
 	// Keep process alive
 	process.on('SIGINT', async () => {
 		console.log('\n[watch] Stopping...');
 		await subscription.unsubscribe();
+		await ctx.dispose();
 		process.exit(0);
 	});
 }
