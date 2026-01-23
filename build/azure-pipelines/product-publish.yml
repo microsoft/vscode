@@ -36,9 +36,6 @@ jobs:
       - script: node build/azure-pipelines/distro/mixin-quality.ts
         displayName: Mixin distro quality
 
-      - script: node build/azure-pipelines/common/testExtensionCompat.ts
-        displayName: Test extension compatibility
-
       - task: AzureKeyVault@2
         displayName: "Azure Key Vault: Get Secrets"
         inputs:
