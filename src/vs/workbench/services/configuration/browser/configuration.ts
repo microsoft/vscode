@@ -35,15 +35,17 @@ export class DefaultConfiguration extends BaseDefaultConfiguration {
 
 	private readonly configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 	private cachedConfigurationDefaultsOverrides: IStringDictionary<unknown> = {};
-	private readonly cacheKey: ConfigurationKey = { type: 'defaults', key: 'configurationDefaultsOverrides' };
+	private readonly cacheKey: ConfigurationKey;
 	private profileDefaults: IConfigurationDefaults | undefined;
 
 	constructor(
+		cacheScope: string,
 		private readonly configurationCache: IConfigurationCache,
 		environmentService: IBrowserWorkbenchEnvironmentService,
 		logService: ILogService,
 	) {
 		super(logService);
+		this.cacheKey = { type: 'defaults', key: `${cacheScope}-configurationDefaultsOverrides` };
 		if (environmentService.options?.configurationDefaults) {
 			this.configurationRegistry.registerDefaultConfigurations([{ overrides: environmentService.options.configurationDefaults as IStringDictionary<IStringDictionary<unknown>> }]);
 		}
