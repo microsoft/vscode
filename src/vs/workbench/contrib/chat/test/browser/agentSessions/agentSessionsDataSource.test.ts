@@ -467,6 +467,33 @@ suite('AgentSessionsDataSource', () => {
 			assert.strictEqual(othersSection.sessions.length, 0);
 		});
 
+		test('Archived sessions are excluded from Recent but included in Others', () => {
+			const now = Date.now();
+			const sessions = [
+				createMockSession({ id: '1', status: ChatSessionStatus.Completed, startTime: now }),
+				createMockSession({ id: '2', status: ChatSessionStatus.Completed, startTime: now - ONE_DAY, isArchived: true }),
+				createMockSession({ id: '3', status: ChatSessionStatus.Completed, startTime: now - 2 * ONE_DAY }),
+				createMockSession({ id: '4', status: ChatSessionStatus.Completed, startTime: now - 3 * ONE_DAY, isArchived: true }),
+				createMockSession({ id: '5', status: ChatSessionStatus.Completed, startTime: now - 4 * ONE_DAY }),
+			];
+
+			const result = groupAgentSessionsByRecency(sessions);
+
+			const recentSection = result.get(AgentSessionSection.Recent);
+			const othersSection = result.get(AgentSessionSection.Others);
+			assert.ok(recentSection);
+			assert.ok(othersSection);
+			// Only non-archived sessions: 1, 3, 5 should be in recent
+			assert.strictEqual(recentSection.sessions.length, 3);
+			assert.strictEqual(recentSection.sessions[0].label, 'Session 1');
+			assert.strictEqual(recentSection.sessions[1].label, 'Session 3');
+			assert.strictEqual(recentSection.sessions[2].label, 'Session 5');
+			// Archived sessions: 2, 4 should be in others
+			assert.strictEqual(othersSection.sessions.length, 2);
+			assert.strictEqual(othersSection.sessions[0].label, 'Session 2');
+			assert.strictEqual(othersSection.sessions[1].label, 'Session 4');
+		});
+
 		test('works with AgentSessionsDataSource when groupBy is Recency', () => {
 			const now = Date.now();
 			const sessions = [

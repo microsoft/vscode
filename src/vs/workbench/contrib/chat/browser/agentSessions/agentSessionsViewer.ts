@@ -715,8 +715,10 @@ export function groupAgentSessionsByDefault(sessions: IAgentSession[]): Map<Agen
 const RECENT_SESSIONS_LIMIT = 3;
 
 export function groupAgentSessionsByRecency(sessions: IAgentSession[]): Map<AgentSessionSection, IAgentSessionSection> {
-	const recentSessions = sessions.slice(0, RECENT_SESSIONS_LIMIT);
-	const othersSessions = sessions.slice(RECENT_SESSIONS_LIMIT);
+	const nonArchivedSessions = sessions.filter(session => !session.isArchived());
+	const archivedSessions = sessions.filter(session => session.isArchived());
+	const recentSessions = nonArchivedSessions.slice(0, RECENT_SESSIONS_LIMIT);
+	const othersSessions = [...nonArchivedSessions.slice(RECENT_SESSIONS_LIMIT), ...archivedSessions];
 
 	return new Map<AgentSessionSection, IAgentSessionSection>([
 		[AgentSessionSection.Recent, { section: AgentSessionSection.Recent, label: AgentSessionSectionLabels[AgentSessionSection.Recent], sessions: recentSessions }],
