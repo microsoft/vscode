@@ -33,7 +33,6 @@ import log from 'fancy-log';
 import buildfile from './buildfile.ts';
 import { fetchUrls, fetchGithub } from './lib/fetch.ts';
 import jsonEditor from 'gulp-json-editor';
-import { copyCodiconsTask } from './lib/compilation.ts';
 
 
 const REPO_ROOT = path.dirname(import.meta.dirname);
@@ -476,7 +475,6 @@ function tweakProductForServerWeb(product: typeof import('../product.json')) {
 			gulp.task(serverTaskCI);
 
 			const serverTask = task.define(`vscode-${type}${dashed(platform)}${dashed(arch)}${dashed(minified)}`, task.series(
-				copyCodiconsTask,
 				compileBuildWithManglingTask,
 				cleanExtensionsBuildTask,
 				compileNonNativeExtensionsBuildTask,

@@ -33,7 +33,6 @@ import { compileNonNativeExtensionsBuildTask, compileNativeExtensionsBuildTask, 
 import { promisify } from 'util';
 import globCallback from 'glob';
 import rceditCallback from 'rcedit';
-import { copyCodiconsTask } from './lib/compilation.ts';
 
 
 const glob = promisify(globCallback);
@@ -525,7 +524,6 @@ BUILD_TARGETS.forEach(buildTarget => {
 		gulp.task(vscodeTaskCI);
 
 		const vscodeTask = task.define(`vscode${dashed(platform)}${dashed(arch)}${dashed(minified)}`, task.series(
-			copyCodiconsTask,
 			minified ? compileBuildWithManglingTask : compileBuildWithoutManglingTask,
 			cleanExtensionsBuildTask,
 			compileNonNativeExtensionsBuildTask,

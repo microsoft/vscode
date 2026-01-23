@@ -21,7 +21,6 @@ import { compileBuildWithManglingTask } from './gulpfile.compile.ts';
 import * as extensions from './lib/extensions.ts';
 import jsonEditor from 'gulp-json-editor';
 import buildfile from './buildfile.ts';
-import { copyCodiconsTask } from './lib/compilation.ts';
 
 const REPO_ROOT = path.dirname(import.meta.dirname);
 const BUILD_ROOT = path.dirname(REPO_ROOT);
@@ -206,7 +205,6 @@ const dashed = (str: string) => (str ? `-${str}` : ``);
 	gulp.task(vscodeWebTaskCI);
 
 	const vscodeWebTask = task.define(`vscode-web${dashed(minified)}`, task.series(
-		copyCodiconsTask,
 		compileBuildWithManglingTask,
 		vscodeWebTaskCI
 	));
