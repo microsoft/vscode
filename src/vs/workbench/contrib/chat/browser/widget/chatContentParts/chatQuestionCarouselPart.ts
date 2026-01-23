@@ -179,8 +179,8 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	}
 
 	/**
-	 * Skips the carousel - called when user submits a chat message (YOLO mode).
-	 * Returns defaults for all questions instead of undefined.
+	 * Skips the carousel with default values - called when user wants to proceed quickly.
+	 * Returns defaults for all questions.
 	 */
 	public skip(): boolean {
 		if (this._isSkipped || !this.carousel.allowSkip) {
@@ -188,9 +188,23 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		}
 		this._isSkipped = true;
 
-		// In YOLO mode, return defaults for all questions
 		const defaults = this.getDefaultAnswers();
 		this._options.onSubmit(defaults);
+		this.disableAllButtons();
+		return true;
+	}
+
+	/**
+	 * Ignores the carousel completely - called when user wants to dismiss without data.
+	 * Returns undefined to signal the carousel was ignored.
+	 */
+	public ignore(): boolean {
+		if (this._isSkipped || !this.carousel.allowSkip) {
+			return false;
+		}
+		this._isSkipped = true;
+
+		this._options.onSubmit(undefined);
 		this.disableAllButtons();
 		return true;
 	}

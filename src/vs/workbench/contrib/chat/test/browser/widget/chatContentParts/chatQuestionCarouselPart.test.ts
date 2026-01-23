@@ -209,15 +209,16 @@ suite('ChatQuestionCarouselPart', () => {
 	});
 
 	suite('Skip Functionality', () => {
-		test('skip succeeds when allowSkip is true', () => {
+		test('skip succeeds when allowSkip is true and returns defaults', () => {
 			const carousel = createMockCarousel([
-				{ id: 'q1', type: 'text', title: 'Question 1' }
+				{ id: 'q1', type: 'text', title: 'Question 1', defaultValue: 'default answer' }
 			], true);
 			createWidget(carousel);
 
 			const result = widget.skip();
 			assert.strictEqual(result, true, 'skip() should return true when allowSkip is true');
-			assert.strictEqual(submittedAnswers, undefined, 'Skip should call onSubmit with undefined');
+			assert.ok(submittedAnswers instanceof Map, 'Skip should call onSubmit with a Map');
+			assert.strictEqual(submittedAnswers?.get('q1'), 'default answer', 'Skip should return default values');
 		});
 
 		test('skip fails when allowSkip is false', () => {
@@ -241,6 +242,56 @@ suite('ChatQuestionCarouselPart', () => {
 			submittedAnswers = null; // reset
 			const result = widget.skip();
 			assert.strictEqual(result, false, 'Second skip() should return false');
+			assert.strictEqual(submittedAnswers, null, 'onSubmit should not be called again');
+		});
+	});
+
+	suite('Ignore Functionality', () => {
+		test('ignore succeeds when allowSkip is true and returns undefined', () => {
+			const carousel = createMockCarousel([
+				{ id: 'q1', type: 'text', title: 'Question 1' }
+			], true);
+			createWidget(carousel);
+
+			const result = widget.ignore();
+			assert.strictEqual(result, true, 'ignore() should return true when allowSkip is true');
+			assert.strictEqual(submittedAnswers, undefined, 'Ignore should call onSubmit with undefined');
+		});
+
+		test('ignore fails when allowSkip is false', () => {
+			const carousel = createMockCarousel([
+				{ id: 'q1', type: 'text', title: 'Question 1' }
+			], false);
+			createWidget(carousel);
+
+			const result = widget.ignore();
+			assert.strictEqual(result, false, 'ignore() should return false when allowSkip is false');
+			assert.strictEqual(submittedAnswers, null, 'onSubmit should not have been called');
+		});
+
+		test('ignore can only be called once', () => {
+			const carousel = createMockCarousel([
+				{ id: 'q1', type: 'text', title: 'Question 1' }
+			], true);
+			createWidget(carousel);
+
+			widget.ignore();
+			submittedAnswers = null; // reset
+			const result = widget.ignore();
+			assert.strictEqual(result, false, 'Second ignore() should return false');
+			assert.strictEqual(submittedAnswers, null, 'onSubmit should not be called again');
+		});
+
+		test('skip and ignore are mutually exclusive', () => {
+			const carousel = createMockCarousel([
+				{ id: 'q1', type: 'text', title: 'Question 1' }
+			], true);
+			createWidget(carousel);
+
+			widget.skip();
+			submittedAnswers = null; // reset
+			const result = widget.ignore();
+			assert.strictEqual(result, false, 'ignore() should return false after skip()');
 			assert.strictEqual(submittedAnswers, null, 'onSubmit should not be called again');
 		});
 	});
