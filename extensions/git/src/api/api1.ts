@@ -404,6 +404,7 @@ export class ApiImpl implements API {
 
 	get onDidCloseRepository(): Event<Repository> {
 		return mapEvent(this.#model.onDidCloseRepository, r => {
+			// Get the cached instance first so listeners receive the same object they've been using
 			const apiRepository = this.#getApiRepository(r);
 			this.#repositoryCache.delete(r);
 			return apiRepository;
