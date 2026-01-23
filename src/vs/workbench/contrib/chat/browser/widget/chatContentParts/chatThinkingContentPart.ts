@@ -625,7 +625,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			- "Understanding the codebase structure" → "Reviewed codebase structure"
 			- "Thinking about implementation options" → "Considered implementation options"
 
-			Actions: ${context}`;
+			Tool calls and reasoning: ${context}`;
 
 			const response = await this.languageModelsService.sendChatRequest(
 				models[0],
@@ -650,6 +650,11 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 
 			await response.result;
 			generatedTitle = generatedTitle.trim();
+
+			if (generatedTitle.includes('can\'t assist with that')) {
+				this.setFallbackTitle();
+				return;
+			}
 
 			if (generatedTitle && !this._store.isDisposed) {
 				this.currentTitle = generatedTitle;
