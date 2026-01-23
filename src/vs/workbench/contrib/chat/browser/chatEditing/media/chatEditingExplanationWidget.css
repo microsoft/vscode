@@ -270,7 +270,7 @@
 
 /* Gutter decoration for range indicator on hover */
 .chat-explanation-range-glyph {
-	margin-left: 5px;
+	margin-left: 8px;
 	z-index: 5;
 	border-left: 2px solid var(--vscode-editorGutter-modifiedBackground);
 }
