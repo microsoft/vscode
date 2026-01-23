@@ -187,7 +187,7 @@ export class ChatEditingExplanationWidget extends Disposable implements IOverlay
 		// Dismiss button
 		this._dismissButton = $('div.chat-explanation-dismiss');
 		this._dismissButton.appendChild(renderIcon(Codicon.close));
-		this._dismissButton.title = 'Dismiss';
+		this._dismissButton.title = nls.localize('dismiss', "Dismiss");
 		this._headerNode.appendChild(this._dismissButton);
 
 		this._domNode.appendChild(this._headerNode);
@@ -274,26 +274,26 @@ export class ChatEditingExplanationWidget extends Disposable implements IOverlay
 			this._readIndicator.appendChild(renderIcon(Codicon.circle));
 			this._readIndicator.classList.add('read');
 			this._readIndicator.classList.remove('partial', 'unread');
-			this._readIndicator.title = 'Mark as unread';
+			this._readIndicator.title = nls.localize('markAsUnread', "Mark as unread");
 		} else if (someRead) {
 			this._readIndicator.appendChild(renderIcon(Codicon.circleFilled));
 			this._readIndicator.classList.remove('read', 'unread');
 			this._readIndicator.classList.add('partial');
-			this._readIndicator.title = 'Mark all as read';
+			this._readIndicator.title = nls.localize('markAllAsRead', "Mark all as read");
 		} else {
 			this._readIndicator.appendChild(renderIcon(Codicon.circleFilled));
 			this._readIndicator.classList.remove('read', 'partial');
 			this._readIndicator.classList.add('unread');
-			this._readIndicator.title = 'Mark as read';
+			this._readIndicator.title = nls.localize('markAsRead', "Mark as read");
 		}
 	}
 
 	private _updateTitle(): void {
 		const count = this._explanations.length;
 		if (count === 1) {
-			this._titleNode.textContent = '1 change';
+			this._titleNode.textContent = nls.localize('oneChange', "1 change");
 		} else {
-			this._titleNode.textContent = `${count} changes`;
+			this._titleNode.textContent = nls.localize('nChanges', "{0} changes", count);
 		}
 	}
 
@@ -301,10 +301,10 @@ export class ChatEditingExplanationWidget extends Disposable implements IOverlay
 		clearNode(this._toggleButton);
 		if (this._isExpanded) {
 			this._toggleButton.appendChild(renderIcon(Codicon.chevronUp));
-			this._toggleButton.title = 'Collapse';
+			this._toggleButton.title = nls.localize('collapse', "Collapse");
 		} else {
 			this._toggleButton.appendChild(renderIcon(Codicon.chevronDown));
-			this._toggleButton.title = 'Expand';
+			this._toggleButton.title = nls.localize('expand', "Expand");
 		}
 	}
 
@@ -319,9 +319,9 @@ export class ChatEditingExplanationWidget extends Disposable implements IOverlay
 			// Line indicator
 			const lineInfo = $('span.chat-explanation-line-info');
 			if (exp.startLineNumber === exp.endLineNumber) {
-				lineInfo.textContent = `Line ${exp.startLineNumber}`;
+				lineInfo.textContent = nls.localize('lineNumber', "Line {0}", exp.startLineNumber);
 			} else {
-				lineInfo.textContent = `Lines ${exp.startLineNumber}-${exp.endLineNumber}`;
+				lineInfo.textContent = nls.localize('lineRange', "Lines {0}-{1}", exp.startLineNumber, exp.endLineNumber);
 			}
 			item.appendChild(lineInfo);
 
@@ -346,7 +346,7 @@ export class ChatEditingExplanationWidget extends Disposable implements IOverlay
 			// Reply button to add context to chat
 			const replyButton = $('div.chat-explanation-reply-button');
 			replyButton.appendChild(renderIcon(Codicon.arrowRight));
-			replyButton.title = 'Follow up on this change';
+			replyButton.title = nls.localize('followUpOnChange', "Follow up on this change");
 			item.appendChild(replyButton);
 
 			// Reply button click handler
