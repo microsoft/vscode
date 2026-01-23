@@ -135,20 +135,22 @@ class ChatLifecycleHandler extends Disposable {
 		}));
 
 		this._register(extensionService.onWillStop(e => {
-			// Filter out cloud sessions - they continue running in the cloud
-			const nonCloudSessionRunning = [...this.chatService.chatModels.read(undefined)].some(
-				model => getChatSessionType(model.sessionResource) !== AgentSessionProviders.Cloud && model.requestInProgress.read(undefined)
-			);
-			e.veto(nonCloudSessionRunning, localize('chatRequestInProgress', "A chat request is in progress."));
+			e.veto(this.hasNonCloudSessionInProgress(), localize('chatRequestInProgress', "A chat request is in progress."));
 		}));
 	}
 
-	private shouldVetoShutdown(reason: ShutdownReason): boolean | Promise<boolean> {
-		// Filter out cloud sessions - they continue running in the cloud
-		const nonCloudSessionRunning = [...this.chatService.chatModels.read(undefined)].some(
+	/**
+	 * Returns true if any non-cloud session has a request in progress.
+	 * Cloud sessions continue running in the cloud even after VS Code closes.
+	 */
+	private hasNonCloudSessionInProgress(): boolean {
+		return [...this.chatService.chatModels.read(undefined)].some(
 			model => getChatSessionType(model.sessionResource) !== AgentSessionProviders.Cloud && model.requestInProgress.read(undefined)
 		);
-		if (!nonCloudSessionRunning) {
+	}
+
+	private shouldVetoShutdown(reason: ShutdownReason): boolean | Promise<boolean> {
+		if (!this.hasNonCloudSessionInProgress()) {
 			return false;
 		}
 
