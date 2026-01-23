@@ -3,18 +3,18 @@ FROM ${BASE_IMAGE}
 
 # Utilities
 RUN apt-get update && \
-	apt-get install -y curl
+	apt-get install -y --no-install-recommends curl
 
 # Node.js 22
 RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && \
-	apt-get install -y nodejs
+	apt-get install -y --no-install-recommends nodejs
 
 # Desktop Bus
-RUN apt-get install -y dbus-x11 && \
+RUN apt-get install -y --no-install-recommends dbus-x11 && \
 	mkdir -p /run/dbus
 
 # X11 Server
-RUN apt-get install -y xvfb
+RUN apt-get install -y --no-install-recommends xvfb
 ENV DISPLAY=:99
 
 # VS Code dependencies (amd64)
@@ -49,6 +49,5 @@ RUN if [ "$TARGETARCH" = "arm64" ]; then \
 		xdg-utils; \
 	fi
 
-COPY entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
+COPY --chmod=755 entrypoint.sh /entrypoint.sh
 ENTRYPOINT [ "/entrypoint.sh" ]
