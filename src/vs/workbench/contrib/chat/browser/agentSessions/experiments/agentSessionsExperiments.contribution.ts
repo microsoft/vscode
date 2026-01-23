@@ -15,6 +15,7 @@ import { localize } from '../../../../../../nls.js';
 import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { ProductQualityContext } from '../../../../../../platform/contextkey/common/contextkeys.js';
 import { ChatAgentLocation, ChatConfiguration } from '../../../common/constants.js';
+import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { IChatWidget, IChatWidgetService } from '../../chat.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -226,9 +227,12 @@ MenuRegistry.appendMenuItem(MenuId.CommandCenter, {
 	submenu: MenuId.AgentsTitleBarControlMenu,
 	title: localize('agentsControl', "Agents"),
 	icon: Codicon.chatSparkle,
-	when: ContextKeyExpr.or(
-		ContextKeyExpr.has(`config.${ChatConfiguration.AgentStatusEnabled}`),
-		ContextKeyExpr.has(`config.${ChatConfiguration.UnifiedAgentsBar}`)
+	when: ContextKeyExpr.and(
+		ChatContextKeys.enabled,
+		ContextKeyExpr.or(
+			ContextKeyExpr.has(`config.${ChatConfiguration.AgentStatusEnabled}`),
+			ContextKeyExpr.has(`config.${ChatConfiguration.UnifiedAgentsBar}`)
+		)
 	),
 	order: 10002 // to the right of the chat button
 });
@@ -239,9 +243,12 @@ MenuRegistry.appendMenuItem(MenuId.AgentsTitleBarControlMenu, {
 		id: 'workbench.action.chat.toggle',
 		title: localize('openChat', "Open Chat"),
 	},
-	when: ContextKeyExpr.or(
-		ContextKeyExpr.has(`config.${ChatConfiguration.AgentStatusEnabled}`),
-		ContextKeyExpr.has(`config.${ChatConfiguration.UnifiedAgentsBar}`)
+	when: ContextKeyExpr.and(
+		ChatContextKeys.enabled,
+		ContextKeyExpr.or(
+			ContextKeyExpr.has(`config.${ChatConfiguration.AgentStatusEnabled}`),
+			ContextKeyExpr.has(`config.${ChatConfiguration.UnifiedAgentsBar}`)
+		)
 	),
 	group: 'a_open',
 	order: 1
@@ -254,7 +261,10 @@ MenuRegistry.appendMenuItem(MenuId.AgentsTitleBarControlMenu, {
 		title: localize('toggleAgentQuickInput', "Agent Quick Input (Experimental)"),
 		toggled: ContextKeyExpr.has(`config.${ChatConfiguration.UnifiedAgentsBar}`),
 	},
-	when: ProductQualityContext.notEqualsTo('stable'),
+	when: ContextKeyExpr.and(
+		ChatContextKeys.enabled,
+		ProductQualityContext.notEqualsTo('stable')
+	),
 	group: 'z_experimental',
 	order: 10
 });
