@@ -455,6 +455,10 @@ export class InlineChatSessionOverlayWidget extends Disposable {
 			const width = widgetWidth.read(r);
 			const padding = Math.round(lineHeight.read(r) * 2 / 3);
 
+			// Cap max-width to the editor viewport (content area)
+			const maxWidth = layoutInfo.contentWidth - 2 * padding;
+			this._domNode.style.maxWidth = `${maxWidth}px`;
+
 			// Position: top right, below sticky scroll with padding, left of minimap and scrollbar
 			const top = stickyScrollHeight + padding;
 			const left = layoutInfo.width - width - layoutInfo.verticalScrollbarWidth - layoutInfo.minimap.minimapWidth - padding;
