@@ -477,96 +477,120 @@ export class InlineChatController implements IEditorContribution {
 		// Store for tracking model changes during this session
 		const sessionStore = new DisposableStore();
 
-		// Model selection: only apply defaults if user hasn't explicitly changed model this session
-		if (InlineChatController._selectVendorDefaultLanguageModel) {
-			const defaultModelSetting = this._configurationService.getValue<string>(InlineChatConfigKeys.DefaultModel);
-			if (defaultModelSetting) {
-				// Explicit default model setting configured
-				if (!this._zone.value.widget.chatWidget.input.switchModelByQualifiedName(defaultModelSetting)) {
-					this._logService.warn(`inlineChat.defaultModel setting value '${defaultModelSetting}' did not match any available model. Falling back to vendor default.`);
-					// Fall back to vendor default for this location
+		try {
+			// Model selection: only apply defaults if user hasn't explicitly changed model this session
+			if (InlineChatController._selectVendorDefaultLanguageModel) {
+				const defaultModelSetting = this._configurationService.getValue<string>(InlineChatConfigKeys.DefaultModel);
+				if (defaultModelSetting) {
+					// Explicit default model setting configured
+					if (!this._zone.value.widget.chatWidget.input.switchModelByQualifiedName(defaultModelSetting)) {
+						this._logService.warn(`inlineChat.defaultModel setting value '${defaultModelSetting}' did not match any available model. Falling back to vendor default.`);
+						// Fall back to vendor default for this location
+						await this._selectVendorDefaultModel(session);
+					}
+				} else {
+					// No setting configured - ensure vendor default is selected
 					await this._selectVendorDefaultModel(session);
 				}
+			}
+
+			// Track model changes - if user selects a different model than the initial one,
+			// remember that preference for this VS Code session by disabling automatic defaults.
+			let initialModel: object | undefined;
+			let isFirstRun = true;
+			sessionStore.add(autorun(r => {
+				const newModel = this._zone.value.widget.chatWidget.input.selectedLanguageModel.read(r);
+				if (!newModel) {
+					return;
+				}
+
+				if (isFirstRun) {
+					// Capture the initially-applied model after defaults have been applied.
+					isFirstRun = false;
+					initialModel = newModel as object;
+					return;
+				}
+
+				// Only treat as "user changed the model" when the selection differs from the initial model.
+				if (initialModel === newModel) {
+					return;
+				}
+
+				// Once the user changes the model in this VS Code session, stop applying vendor/default overrides.
+				InlineChatController._selectVendorDefaultLanguageModel = false;
+			}));
+
+
+			// ADD diagnostics
+			const entries: IChatRequestVariableEntry[] = [];
+			for (const [range, marker] of this._markerDecorationsService.getLiveMarkers(uri)) {
+				if (range.intersectRanges(this._editor.getSelection())) {
+					const filter = IDiagnosticVariableEntryFilterData.fromMarker(marker);
+					entries.push(IDiagnosticVariableEntryFilterData.toEntry(filter));
+				}
+			}
+			if (entries.length > 0) {
+				this._zone.value.widget.chatWidget.attachmentModel.addContext(...entries);
+				this._zone.value.widget.chatWidget.input.setValue(entries.length > 1
+					? localize('fixN', "Fix the attached problems")
+					: localize('fix1', "Fix the attached problem"),
+					true
+				);
+				this._zone.value.widget.chatWidget.inputEditor.setSelection(new Selection(1, 1, Number.MAX_SAFE_INTEGER, 1));
+			}
+
+			// Check args
+			if (arg && InlineChatRunOptions.isInlineChatRunOptions(arg)) {
+				if (arg.initialRange) {
+					this._editor.revealRange(arg.initialRange);
+				}
+				if (arg.initialSelection) {
+					this._editor.setSelection(arg.initialSelection);
+				}
+				if (arg.attachments) {
+					await Promise.all(arg.attachments.map(async attachment => {
+						await this._zone.value.widget.chatWidget.attachmentModel.addFile(attachment);
+					}));
+					delete arg.attachments;
+				}
+				if (arg.modelSelector) {
+					const id = (await this._languageModelService.selectLanguageModels(arg.modelSelector)).sort().at(0);
+					if (!id) {
+						throw new Error(`No language models found matching selector: ${JSON.stringify(arg.modelSelector)}.`);
+					}
+					const model = this._languageModelService.lookupLanguageModel(id);
+					if (!model) {
+						throw new Error(`Language model not loaded: ${id}.`);
+					}
+					this._zone.value.widget.chatWidget.input.setCurrentLanguageModel({ metadata: model, identifier: id });
+				}
+				if (arg.message) {
+					this._zone.value.widget.chatWidget.setInput(arg.message);
+					if (arg.autoSend) {
+						await this._zone.value.widget.chatWidget.acceptInput();
+					}
+				}
+			}
+
+			if (!arg?.resolveOnResponse) {
+				// DEFAULT: wait for the session to be accepted or rejected
+				await Event.toPromise(session.editingSession.onDidDispose);
+				sessionStore.dispose();
+				const rejected = session.editingSession.getEntry(uri)?.state.get() === ModifiedFileEntryState.Rejected;
+				return !rejected;
+
 			} else {
-				// No setting configured - ensure vendor default is selected
-				await this._selectVendorDefaultModel(session);
+				// resolveOnResponse: ONLY wait for the file to be modified
+				const modifiedObs = derived(r => {
+					const entry = session.editingSession.readEntry(uri, r);
+					return entry?.state.read(r) === ModifiedFileEntryState.Modified && !entry?.isCurrentlyBeingModifiedBy.read(r);
+				});
+				await waitForState(modifiedObs, state => state === true);
+				sessionStore.dispose();
+				return true;
 			}
-		}
-
-		// Track model changes - if user selects a non-default model, remember that preference for this session
-		sessionStore.add(autorun(r => {
-			const newModel = this._zone.value.widget.chatWidget.input.selectedLanguageModel.read(r);
-			if (!newModel) { return; }
-			InlineChatController._selectVendorDefaultLanguageModel = Boolean(newModel.metadata.isDefaultForLocation[session.chatModel.initialLocation]);
-		}));
-
-		// ADD diagnostics
-		const entries: IChatRequestVariableEntry[] = [];
-		for (const [range, marker] of this._markerDecorationsService.getLiveMarkers(uri)) {
-			if (range.intersectRanges(this._editor.getSelection())) {
-				const filter = IDiagnosticVariableEntryFilterData.fromMarker(marker);
-				entries.push(IDiagnosticVariableEntryFilterData.toEntry(filter));
-			}
-		}
-		if (entries.length > 0) {
-			this._zone.value.widget.chatWidget.attachmentModel.addContext(...entries);
-			this._zone.value.widget.chatWidget.input.setValue(entries.length > 1
-				? localize('fixN', "Fix the attached problems")
-				: localize('fix1', "Fix the attached problem"),
-				true
-			);
-			this._zone.value.widget.chatWidget.inputEditor.setSelection(new Selection(1, 1, Number.MAX_SAFE_INTEGER, 1));
-		}
-
-		// Check args
-		if (arg && InlineChatRunOptions.isInlineChatRunOptions(arg)) {
-			if (arg.initialRange) {
-				this._editor.revealRange(arg.initialRange);
-			}
-			if (arg.initialSelection) {
-				this._editor.setSelection(arg.initialSelection);
-			}
-			if (arg.attachments) {
-				await Promise.all(arg.attachments.map(async attachment => {
-					await this._zone.value.widget.chatWidget.attachmentModel.addFile(attachment);
-				}));
-				delete arg.attachments;
-			}
-			if (arg.modelSelector) {
-				const id = (await this._languageModelService.selectLanguageModels(arg.modelSelector)).sort().at(0);
-				if (!id) {
-					throw new Error(`No language models found matching selector: ${JSON.stringify(arg.modelSelector)}.`);
-				}
-				const model = this._languageModelService.lookupLanguageModel(id);
-				if (!model) {
-					throw new Error(`Language model not loaded: ${id}.`);
-				}
-				this._zone.value.widget.chatWidget.input.setCurrentLanguageModel({ metadata: model, identifier: id });
-			}
-			if (arg.message) {
-				this._zone.value.widget.chatWidget.setInput(arg.message);
-				if (arg.autoSend) {
-					await this._zone.value.widget.chatWidget.acceptInput();
-				}
-			}
-		}
-
-		if (!arg?.resolveOnResponse) {
-			// DEFAULT: wait for the session to be accepted or rejected
-			await Event.toPromise(session.editingSession.onDidDispose);
+		} finally {
 			sessionStore.dispose();
-			const rejected = session.editingSession.getEntry(uri)?.state.get() === ModifiedFileEntryState.Rejected;
-			return !rejected;
-
-		} else {
-			// resolveOnResponse: ONLY wait for the file to be modified
-			const modifiedObs = derived(r => {
-				const entry = session.editingSession.readEntry(uri, r);
-				return entry?.state.read(r) === ModifiedFileEntryState.Modified && !entry?.isCurrentlyBeingModifiedBy.read(r);
-			});
-			await waitForState(modifiedObs, state => state === true);
-			sessionStore.dispose();
-			return true;
 		}
 	}
 
