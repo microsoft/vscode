@@ -8,9 +8,6 @@ RUN sed -i 's|http://deb.debian.org|http://archive.debian.org|g' /etc/apt/source
 	sed -i '/buster-updates/d' /etc/apt/sources.list && \
 	echo "deb http://archive.debian.org/debian bullseye main" >> /etc/apt/sources.list
 
-# Pin bullseye packages to lower priority to prevent accidental upgrades of core packages (like libc)
-RUN echo 'Package: *\nPin: release n=bullseye\nPin-Priority: 100' > /etc/apt/preferences.d/bullseye
-
 # Utilities
 RUN apt-get update && \
 	apt-get install -y curl
@@ -28,9 +25,15 @@ RUN if [ "$TARGETARCH" = "arm" ]; then \
 		apt-get install -y nodejs; \
 	fi
 
-# Chromium
-RUN apt-get install -y chromium
-ENV PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium
+# Google Chrome (amd64 only)
+RUN if [ "$TARGETARCH" = "amd64" ]; then \
+		curl -fsSL https://dl.google.com/linux/linux_signing_key.pub | apt-key add - && \
+		echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list && \
+		apt-get update && \
+		apt-get install -y google-chrome-stable; \
+	fi
+
+ENV PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/google-chrome-stable
 
 # Desktop Bus
 RUN apt-get install -y dbus-x11 && \
@@ -38,6 +41,15 @@ RUN apt-get install -y dbus-x11 && \
 
 # X11 Server
 RUN apt-get install -y xvfb
+
+# VS Code dependencies
+RUN apt-get install -y \
+	libatomic1 \
+	libasound2 \
+	libgbm1 \
+	libgtk-3-0 \
+	libnss3 \
+	xdg-utils
 
 # Install newer libxkbfile1 from Debian 11 since Debian 10 version is too old
 RUN apt-get install -y -t bullseye libxkbfile1
