@@ -412,7 +412,7 @@ configurationRegistry.registerConfiguration({
 		[ChatConfiguration.ChatViewSessionsShowPendingOnly]: {
 			type: 'boolean',
 			default: true,
-			description: nls.localize('chat.viewSessions.showPendingOnly', "When enabled, only show pending sessions in the stacked sessions view. When disabled, show all sessions."),
+			markdownDescription: nls.localize('chat.viewSessions.showPendingOnly', "When enabled, only show pending sessions in the stacked sessions view. When disabled, show all sessions. This setting requires {0} to be enabled.", '`#chat.viewSessions.enabled#`'),
 		},
 		[ChatConfiguration.ChatViewSessionsOrientation]: {
 			type: 'string',
