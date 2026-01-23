@@ -35,6 +35,7 @@ export class TestContext {
 	private static readonly codesignExclude = /node_modules\/(@parcel\/watcher\/build\/Release\/watcher\.node|@vscode\/deviceid\/build\/Release\/windows\.node|@vscode\/ripgrep\/bin\/rg|@vscode\/spdlog\/build\/Release\/spdlog.node|kerberos\/build\/Release\/kerberos.node|@vscode\/native-watchdog\/build\/Release\/watchdog\.node|node-pty\/build\/Release\/(pty\.node|spawn-helper)|vsda\/build\/Release\/vsda\.node|native-watchdog\/build\/Release\/watchdog\.node)$/;
 
 	private readonly tempDirs = new Set<string>();
+	private nextPort = 3010;
 
 	public constructor(public readonly options: Readonly<{
 		quality: 'stable' | 'insider' | 'exploration';
@@ -892,9 +893,9 @@ export class TestContext {
 	}
 
 	/**
-	 * Returns a random port number between 3000 and 5000.
+	 * Returns a unique port number, starting from 3010 and incrementing.
 	 */
-	public getRandomPort(): string {
-		return String(Math.floor(Math.random() * 2000) + 3000);
+	public getUniquePort(): string {
+		return String(this.nextPort++);
 	}
 }

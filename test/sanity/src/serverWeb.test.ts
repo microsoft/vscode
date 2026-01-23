@@ -75,7 +75,7 @@ export function setup(context: TestContext) {
 		const test = new UITest(context);
 		const args = [
 			'--accept-server-license-terms',
-			'--port', context.getRandomPort(),
+			'--port', context.getUniquePort(),
 			'--connection-token', token,
 			'--server-data-dir', context.createTempDir(),
 			'--extensions-dir', test.extensionsDir,

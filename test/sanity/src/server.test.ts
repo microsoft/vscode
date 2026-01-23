@@ -75,7 +75,7 @@ export function setup(context: TestContext) {
 			'--accept-server-license-terms',
 			'--connection-token', context.getRandomToken(),
 			'--host', '0.0.0.0',
-			'--port', context.getRandomPort(),
+			'--port', context.getUniquePort(),
 			'--server-data-dir', context.createTempDir(),
 			'--extensions-dir', context.createTempDir(),
 		];
