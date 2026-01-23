@@ -223,6 +223,7 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		const onDidChangeActiveSessionProvider = this.contentDisposables.add(new Emitter<AgentSessionProviders>());
 		const recreateSessionForProvider = async (provider: AgentSessionProviders) => {
 			if (this.chatWidget && this.chatModelRef) {
+				this.chatWidget.setModel(undefined);
 				this.chatModelRef.dispose();
 				const newResource = getResourceForNewChatSession({
 					type: provider,
@@ -242,7 +243,9 @@ export class AgentSessionsWelcomePage extends EditorPane {
 			setActiveSessionProvider: (provider: AgentSessionProviders) => {
 				this._selectedSessionProvider = provider;
 				onDidChangeActiveSessionProvider.fire(provider);
-				recreateSessionForProvider(provider);
+				try {
+					recreateSessionForProvider(provider);
+				} catch { /* Ignore errors */ }
 			},
 			onDidChangeActiveSessionProvider: onDidChangeActiveSessionProvider.event
 		};
