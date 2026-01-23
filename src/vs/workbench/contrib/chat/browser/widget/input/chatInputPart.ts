@@ -1452,9 +1452,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			const hasItems = optionGroup.items.length > 0 || (optionGroup.commands || []).length > 0;
 			const passesWhenClause = this.evaluateOptionGroupVisibility(optionGroup);
 
-			// Only show picker if the session has this option configured
-			// (i.e., the extension provided this option when creating the session)
-			const sessionHasOption = ctx ? this.chatSessionsService.getSessionOption(ctx.chatSessionResource, optionGroup.id) !== undefined : false;
+			// Only show picker if the session has this option configured once a real session exists.
+			// In the welcome view (no `ctx` yet), treat groups as eligible so they can be rendered.
+			const sessionHasOption = !ctx || this.chatSessionsService.getSessionOption(ctx.chatSessionResource, optionGroup.id) !== undefined;
 
 			if (hasItems && passesWhenClause && sessionHasOption) {
 				visibleGroupIds.add(optionGroup.id);
