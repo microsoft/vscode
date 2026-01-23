@@ -21,6 +21,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { ChatSessionPickerActionItem, IChatSessionPickerDelegate } from './chatSessionPickerActionItem.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 
 interface ISearchableOptionQuickPickItem extends IQuickPickItem {
 	readonly optionItem: IChatSessionProviderOptionItem;
@@ -48,8 +49,9 @@ export class SearchableOptionPickerActionItem extends ChatSessionPickerActionIte
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@ILogService private readonly logService: ILogService,
 		@ICommandService commandService: ICommandService,
+		@ITelemetryService telemetryService: ITelemetryService,
 	) {
-		super(action, initialState, delegate, actionWidgetService, contextKeyService, keybindingService, commandService);
+		super(action, initialState, delegate, actionWidgetService, contextKeyService, keybindingService, commandService, telemetryService);
 	}
 
 	protected override getDropdownActions(): IActionWidgetDropdownAction[] {
