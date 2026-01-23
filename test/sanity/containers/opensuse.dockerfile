@@ -17,10 +17,8 @@ RUN zypper install -y dbus-1-x11 && \
 
 # VS Code dependencies
 RUN zypper install -y \
-	ca-certificates \
 	liberation-fonts \
-	libgtk-3-0 \
-	xdg-utils
+	libgtk-3-0
 
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
