@@ -63,7 +63,6 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { ServiceCollection } from '../../../../../../platform/instantiation/common/serviceCollection.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
-import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { WorkbenchList } from '../../../../../../platform/list/browser/listService.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { ObservableMemento, observableMemento } from '../../../../../../platform/observable/common/observableMemento.js';
@@ -119,7 +118,7 @@ import { IChatInputPickerOptions } from './chatInputPickerActionItem.js';
 import { ChatSelectedTools } from './chatSelectedTools.js';
 import { DelegationSessionPickerActionItem } from './delegationSessionPickerActionItem.js';
 import { IModelPickerDelegate, ModelPickerActionItem } from './modelPickerActionItem.js';
-import { IModePickerDelegate, isBuiltinImplementMode, ModePickerActionItem } from './modePickerActionItem.js';
+import { IModePickerDelegate, ModePickerActionItem } from './modePickerActionItem.js';
 import { SessionTypePickerActionItem } from './sessionTargetPickerActionItem.js';
 import { WorkspacePickerActionItem } from './workspacePickerActionItem.js';
 
@@ -476,7 +475,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		@IChatContextService private readonly chatContextService: IChatContextService,
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
-		@IProductService private readonly productService: IProductService,
 	) {
 		super();
 
@@ -629,19 +627,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			const model = mode.model?.read(r);
 			if (model) {
 				this.switchModelByQualifiedName(model);
-			} else {
-				// Check for implementation agent model override setting
-				if (isBuiltinImplementMode(mode, this.productService)) {
-					const implementModel = this.configurationService.getValue<string>(ChatConfiguration.ImplementationAgentModel);
-					if (implementModel && implementModel.length > 0) {
-						const success = this.switchModelByQualifiedName(implementModel);
-						if (success) {
-							this.logService.debug(`[ChatInputPart] Applied chat.implementationAgentModel setting: '${implementModel}'`);
-						} else {
-							this.logService.warn(`chat.implementationAgentModel setting value '${implementModel}' did not match any available model. Defaulting to currently selected model.`);
-						}
-					}
-				}
 			}
 		}));
 
