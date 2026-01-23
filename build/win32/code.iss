@@ -98,7 +98,7 @@ Name: "{app}"; AfterInstall: DisableAppDirInheritance
 Source: "*"; Excludes: "\CodeSignSummary*.md,\tools,\tools\*,\policies,\policies\*,\appx,\appx\*,\resources\app\product.json,\{#ExeBasename}.exe,\{#ExeBasename}.VisualElementsManifest.xml,\bin,\bin\*"; DestDir: "{code:GetDestDir}"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#ExeBasename}.exe"; DestDir: "{code:GetDestDir}"; DestName: "{code:GetExeBasename}"; Flags: ignoreversion
 Source: "{#ExeBasename}.VisualElementsManifest.xml"; DestDir: "{code:GetDestDir}"; DestName: "{code:GetVisualElementsManifest}"; Flags: ignoreversion
-Source: "tools\*"; DestDir: "{code:GetDestDir}\{#VersionedResourcesFolder}\tools"; Flags: ignoreversion
+Source: "tools\*"; DestDir: "{app}\{#VersionedResourcesFolder}\tools"; Flags: ignoreversion
 Source: "policies\*"; DestDir: "{code:GetDestDir}\{#VersionedResourcesFolder}\policies"; Flags: ignoreversion skipifsourcedoesntexist
 Source: "bin\{#TunnelApplicationName}.exe"; DestDir: "{code:GetDestDir}\bin"; DestName: "{code:GetBinDirTunnelApplicationFilename}"; Flags: ignoreversion skipifsourcedoesntexist
 Source: "bin\{#ApplicationName}.cmd"; DestDir: "{code:GetDestDir}\bin"; DestName: "{code:GetBinDirApplicationCmdFilename}"; Flags: ignoreversion
@@ -1312,6 +1312,11 @@ begin
   Result := not IsBackgroundUpdate();
 end;
 
+function IsVersionedUpdate(): Boolean;
+begin
+  Result := '{#VersionedResourcesFolder}' <> '';
+end;
+
 // Don't allow installing conflicting architectures
 function InitializeSetup(): Boolean;
 var
@@ -1462,12 +1467,15 @@ end;
 
 function GetDestDir(Value: string): string;
 begin
-  Result := ExpandConstant('{app}');
+  if IsBackgroundUpdate() and not IsVersionedUpdate() then
+    Result := ExpandConstant('{app}\_')
+  else
+    Result := ExpandConstant('{app}');
 end;
 
 function GetVisualElementsManifest(Value: string): string;
 begin
-  if IsBackgroundUpdate() then
+  if IsBackgroundUpdate() and IsVersionedUpdate() then
     Result := ExpandConstant('new_{#ExeBasename}.VisualElementsManifest.xml')
   else
     Result := ExpandConstant('{#ExeBasename}.VisualElementsManifest.xml');
@@ -1475,7 +1483,7 @@ end;
 
 function GetExeBasename(Value: string): string;
 begin
-  if IsBackgroundUpdate() then
+  if IsBackgroundUpdate() and IsVersionedUpdate() then
     Result := ExpandConstant('new_{#ExeBasename}.exe')
   else
     Result := ExpandConstant('{#ExeBasename}.exe');
@@ -1483,7 +1491,7 @@ end;
 
 function GetBinDirTunnelApplicationFilename(Value: string): string;
 begin
-  if IsBackgroundUpdate() then
+  if IsBackgroundUpdate() and IsVersionedUpdate() then
     Result := ExpandConstant('new_{#TunnelApplicationName}.exe')
   else
     Result := ExpandConstant('{#TunnelApplicationName}.exe');
@@ -1491,7 +1499,7 @@ end;
 
 function GetBinDirApplicationFilename(Value: string): string;
 begin
-  if IsBackgroundUpdate() then
+  if IsBackgroundUpdate() and IsVersionedUpdate() then
     Result := ExpandConstant('new_{#ApplicationName}')
   else
     Result := ExpandConstant('{#ApplicationName}');
@@ -1499,7 +1507,7 @@ end;
 
 function GetBinDirApplicationCmdFilename(Value: string): string;
 begin
-  if IsBackgroundUpdate() then
+  if IsBackgroundUpdate() and IsVersionedUpdate() then
     Result := ExpandConstant('new_{#ApplicationName}.cmd')
   else
     Result := ExpandConstant('{#ApplicationName}.cmd');
@@ -1624,17 +1632,21 @@ begin
         DeleteFile(ExpandConstant('{app}\updating_version'));
         Log('inno_updater completed successfully');
         #if "system" == InstallTarget
-          Log('Invoking inno_updater to remove previous installation folder');
-          Exec(ExpandConstant('{app}\{#VersionedResourcesFolder}\tools\inno_updater.exe'), ExpandConstant('"--gc" "{app}\{#ExeBasename}.exe" "{#VersionedResourcesFolder}"'), '', SW_SHOW, ewWaitUntilTerminated, UpdateResultCode);
-          Log('inno_updater completed gc successfully');
+          if IsVersionedUpdate() then begin
+            Log('Invoking inno_updater to remove previous installation folder');
+            Exec(ExpandConstant('{app}\{#VersionedResourcesFolder}\tools\inno_updater.exe'), ExpandConstant('"--gc" "{app}\{#ExeBasename}.exe" "{#VersionedResourcesFolder}"'), '', SW_SHOW, ewWaitUntilTerminated, UpdateResultCode);
+            Log('inno_updater completed gc successfully');
+          end;
         #endif
       end else begin
         Log('Skipping inno_updater.exe call because OS session is ending');
       end;
     end else begin
-      Log('Invoking inno_updater to remove previous installation folder');
-      Exec(ExpandConstant('{app}\{#VersionedResourcesFolder}\tools\inno_updater.exe'), ExpandConstant('"--gc" "{app}\{#ExeBasename}.exe" "{#VersionedResourcesFolder}"'), '', SW_SHOW, ewWaitUntilTerminated, UpdateResultCode);
-      Log('inno_updater completed gc successfully');
+      if IsVersionedUpdate() then begin
+        Log('Invoking inno_updater to remove previous installation folder');
+        Exec(ExpandConstant('{app}\{#VersionedResourcesFolder}\tools\inno_updater.exe'), ExpandConstant('"--gc" "{app}\{#ExeBasename}.exe" "{#VersionedResourcesFolder}"'), '', SW_SHOW, ewWaitUntilTerminated, UpdateResultCode);
+        Log('inno_updater completed gc successfully');
+      end;
     end;
 
     if ShouldRestartTunnelService then

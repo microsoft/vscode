@@ -77,7 +77,8 @@
 }
 
 .unified-send-button .codicon {
-	font-size: 14px;
+	font-size: 14px !important;
+	color: var(--vscode-button-foreground) !important;
 }
 
 .unified-send-label {

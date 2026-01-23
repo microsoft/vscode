@@ -231,7 +231,7 @@ declare module 'vscode' {
 		/**
 		 * Statistics about the chat session.
 		 */
-		changes?: readonly ChatSessionChangedFile[] | {
+		changes?: readonly ChatSessionChangedFile[] | readonly ChatSessionChangedFile2[] | {
 			/**
 			 * Number of files edited during the session.
 			 */
@@ -271,6 +271,35 @@ declare module 'vscode' {
 		deletions: number;
 
 		constructor(modifiedUri: Uri, insertions: number, deletions: number, originalUri?: Uri);
+	}
+
+	export class ChatSessionChangedFile2 {
+		/**
+		 * URI of the file.
+		 */
+		readonly uri: Uri;
+
+		/**
+		 * URI of the original file. Undefined if the file was created.
+		 */
+		readonly originalUri: Uri | undefined;
+
+		/**
+		 * URI of the modified file. Undefined if the file was deleted.
+		 */
+		readonly modifiedUri: Uri | undefined;
+
+		/**
+		 * Number of insertions made during the session.
+		 */
+		insertions: number;
+
+		/**
+		 * Number of deletions made during the session.
+		 */
+		deletions: number;
+
+		constructor(uri: Uri, originalUri: Uri | undefined, modifiedUri: Uri | undefined, insertions: number, deletions: number);
 	}
 
 	export interface ChatSession {
@@ -511,6 +540,13 @@ declare module 'vscode' {
 		 * @returns Additional items to display in the searchable QuickPick.
 		 */
 		readonly onSearch?: (query: string, token: CancellationToken) => Thenable<ChatSessionProviderOptionItem[]>;
+
+		/**
+		 * Optional commands.
+		 *
+		 * These commands will be displayed at the bottom of the group.
+		 */
+		readonly commands?: Command[];
 	}
 
 	export interface ChatSessionProviderOptions {

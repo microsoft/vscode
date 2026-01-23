@@ -111,6 +111,7 @@ export class WorkspacePickerActionItem extends ChatInputPickerActionViewItem {
 			labelElements.push(...renderLabelWithIcons(`$(folder)`));
 			labelElements.push(dom.$('span.chat-input-picker-label', undefined, label));
 		} else {
+			labelElements.push(...renderLabelWithIcons(`$(folder)`));
 			labelElements.push(dom.$('span.chat-input-picker-label', undefined, localize('selectWorkspace', "Workspace")));
 		}
 
