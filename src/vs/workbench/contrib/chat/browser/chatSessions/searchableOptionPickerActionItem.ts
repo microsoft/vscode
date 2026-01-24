@@ -51,7 +51,7 @@ export class SearchableOptionPickerActionItem extends ChatSessionPickerActionIte
 		@ICommandService commandService: ICommandService,
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
-		super(action, initialState, delegate, actionWidgetService, contextKeyService, keybindingService, commandService, telemetryService);
+		super(action, initialState, delegate, undefined, actionWidgetService, contextKeyService, keybindingService, commandService, telemetryService);
 	}
 
 	protected override getDropdownActions(): IActionWidgetDropdownAction[] {

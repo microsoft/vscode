@@ -18,6 +18,7 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { renderLabelWithIcons, renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { localize } from '../../../../../nls.js';
+import { URI } from '../../../../../base/common/uri.js';
 
 
 export interface IChatSessionPickerDelegate {
@@ -39,6 +40,7 @@ export class ChatSessionPickerActionItem extends ActionWidgetDropdownActionViewI
 		action: IAction,
 		initialState: { group: IChatSessionProviderOptionGroup; item: IChatSessionProviderOptionItem | undefined },
 		protected readonly delegate: IChatSessionPickerDelegate,
+		private readonly sessionResource: URI | undefined,
 		@IActionWidgetService actionWidgetService: IActionWidgetService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IKeybindingService keybindingService: IKeybindingService,
@@ -109,6 +111,10 @@ export class ChatSessionPickerActionItem extends ActionWidgetDropdownActionViewI
 		if (group.commands?.length) {
 			const addSeparator = actions.length > 0;
 			for (const command of group.commands) {
+				const args = command.arguments ?? [];
+				if (this.sessionResource) {
+					args.unshift(this.sessionResource);
+				}
 				actions.push({
 					id: command.command,
 					enabled: true,
@@ -120,7 +126,7 @@ export class ChatSessionPickerActionItem extends ActionWidgetDropdownActionViewI
 					// Use category to create a separator before commands (only if there are options)
 					category: addSeparator ? { label: '', order: Number.MAX_SAFE_INTEGER } : undefined,
 					run: () => {
-						this.commandService.executeCommand(command.command, ...(command.arguments ?? []));
+						this.commandService.executeCommand(command.command, ...args);
 					}
 				} satisfies IActionWidgetDropdownAction);
 			}
