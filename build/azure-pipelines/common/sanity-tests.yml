@@ -86,9 +86,9 @@ jobs:
       - ${{ if ne(parameters.container, '') }}:
         - task: Cache@2
           inputs:
-            key: 'docker | "${{ parameters.container }}" | "${{ parameters.arch }}" | "$(Agent.OS)" | $(TEST_DIR)/containers/${{ parameters.container }}.dockerfile'
+            key: 'docker-v2 | "${{ parameters.container }}" | "${{ parameters.arch }}" | "$(Agent.OS)" | $(TEST_DIR)/containers/${{ parameters.container }}.dockerfile'
             path: $(DOCKER_CACHE_DIR)
-            restoreKeys: docker | "${{ parameters.container }}" | "${{ parameters.arch }}" | "$(Agent.OS)"
+            restoreKeys: docker-v2 | "${{ parameters.container }}" | "${{ parameters.arch }}" | "$(Agent.OS)"
           displayName: Cache Docker Build
 
         - bash: |
