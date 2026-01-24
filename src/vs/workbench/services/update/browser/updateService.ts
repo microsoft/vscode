@@ -70,7 +70,7 @@ export class BrowserUpdateService extends Disposable implements IUpdateService {
 			const update = await updateProvider.checkForUpdate();
 			if (update) {
 				// State -> Downloaded
-				this.state = State.Ready({ version: update.version, productVersion: update.version });
+				this.state = State.Ready({ version: update.version, productVersion: update.version }, explicit, false);
 			} else {
 				// State -> Idle
 				this.state = State.Idle(UpdateType.Archive);

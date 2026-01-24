@@ -50,6 +50,8 @@ import { ChatEditingModifiedNotebookEntry } from './chatEditingModifiedNotebookE
 import { FileOperation, FileOperationType } from './chatEditingOperations.js';
 import { ChatEditingSessionStorage, IChatEditingSessionStop, StoredSessionState } from './chatEditingSessionStorage.js';
 import { ChatEditingTextModelContentProvider } from './chatEditingTextModelContentProviders.js';
+import { getChatSessionType } from '../../common/model/chatUri.js';
+import { AgentSessionProviders } from '../agentSessions/agentSessions.js';
 
 const enum NotExistBehavior {
 	Create,
@@ -128,6 +130,8 @@ function createOpeningEditCodeBlock(uri: URI, isNotebook: boolean, undoStopId: s
 export class ChatEditingSession extends Disposable implements IChatEditingSession {
 	private readonly _state = observableValue<ChatEditingSessionState>(this, ChatEditingSessionState.Initial);
 	private readonly _timeline: IChatEditingCheckpointTimeline;
+
+	public readonly explanationWidgetVisible = observableValue<boolean>(this, false);
 
 	/**
 	 * Contains the contents of a file when the AI first began doing edits to it.
@@ -759,8 +763,10 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 				// Mark as no longer being modified
 				await entry.acceptStreamingEditsEnd();
 
-				// Accept the changes
-				await entry.accept();
+				// Accept the changes for background sessions
+				if (getChatSessionType(this.chatSessionResource) === AgentSessionProviders.Background) {
+					await entry.accept();
+				}
 
 				// Clear external edit mode
 				entry.stopExternalEdit();
@@ -830,6 +836,8 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			return entry.getCurrentSnapshot();
 		} else if (entry instanceof ChatEditingModifiedDocumentEntry) {
 			return entry.getCurrentContents();
+		} else if (entry instanceof ChatEditingDeletedFileEntry) {
+			return '';
 		} else {
 			throw new Error(`unknown entry type for ${entry.modifiedURI}`);
 		}
@@ -967,10 +975,30 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 
 		const existingEntry = this._entriesObs.get().find(e => isEqual(e.modifiedURI, resource));
 		if (existingEntry) {
-			if (telemetryInfo.requestId !== existingEntry.telemetryInfo.requestId) {
-				existingEntry.updateTelemetryInfo(telemetryInfo);
+			// If the existing entry is a deleted file entry, we need to replace it with a new modified entry
+			// This handles the case where a file was deleted and then recreated
+			if (existingEntry instanceof ChatEditingDeletedFileEntry) {
+				// Use the original content from the deleted entry as the initial content for the new entry
+				const initialContentFromDeleted = existingEntry.state.get() === ModifiedFileEntryState.Modified
+					? existingEntry.initialContent
+					: undefined;
+
+				// Remove the deleted entry
+				existingEntry.dispose();
+				const entries = this._entriesObs.get().filter(e => e !== existingEntry);
+				this._entriesObs.set(entries, undefined);
+
+				// Set the initial content from the deleted entry if it was still in modified state
+				if (initialContentFromDeleted !== undefined) {
+					_initialContent = initialContentFromDeleted;
+				}
+				// Fall through to create a new entry
+			} else {
+				if (telemetryInfo.requestId !== existingEntry.telemetryInfo.requestId) {
+					existingEntry.updateTelemetryInfo(telemetryInfo);
+				}
+				return existingEntry;
 			}
-			return existingEntry;
 		}
 
 		let entry: AbstractChatEditingModifiedFileEntry;
@@ -1010,6 +1038,8 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			this._store.delete(listener);
 		});
 		this._store.add(listener);
+
+		entry.explanationWidgetVisible = this.explanationWidgetVisible;
 
 		const entriesArr = [...this._entriesObs.get(), entry];
 		this._entriesObs.set(entriesArr, undefined);

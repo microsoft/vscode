@@ -134,6 +134,8 @@ import { IMcpGalleryManifestService } from '../../../platform/mcp/common/mcpGall
 import { McpGalleryManifestIPCService } from '../../../platform/mcp/common/mcpGalleryManifestServiceIpc.js';
 import { IMeteredConnectionService } from '../../../platform/meteredConnection/common/meteredConnection.js';
 import { MeteredConnectionChannelClient, METERED_CONNECTION_CHANNEL } from '../../../platform/meteredConnection/common/meteredConnectionIpc.js';
+import { UserDataProfileTemplatesWatcher } from '../../../platform/userDataProfile/common/userDataProfileTemplateWatcher.js';
+import { UserDataSystemProfilesInitializer } from '../../../platform/userDataProfile/common/userDataSystemProfilesInitializer.js';
 
 class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 
@@ -199,7 +201,9 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 			instantiationService.createInstance(LocalizationsUpdater),
 			instantiationService.createInstance(ExtensionsContributions),
 			instantiationService.createInstance(UserDataProfilesCleaner),
-			instantiationService.createInstance(DefaultExtensionsInitializer)
+			instantiationService.createInstance(DefaultExtensionsInitializer),
+			instantiationService.createInstance(UserDataSystemProfilesInitializer),
+			instantiationService.createInstance(UserDataProfileTemplatesWatcher)
 		));
 	}
 
@@ -250,7 +254,7 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 		services.set(IUriIdentityService, uriIdentityService);
 
 		// User Data Profiles
-		const userDataProfilesService = this._register(new UserDataProfilesService(this.configuration.profiles.all, URI.revive(this.configuration.profiles.home).with({ scheme: environmentService.userRoamingDataHome.scheme }), mainProcessService.getChannel('userDataProfiles')));
+		const userDataProfilesService = this._register(new UserDataProfilesService(this.configuration.profiles.all, URI.revive(this.configuration.profiles.home).with({ scheme: environmentService.userRoamingDataHome.scheme }), mainProcessService.getChannel('userDataProfiles'), environmentService, fileService, uriIdentityService, logService));
 		services.set(IUserDataProfilesService, userDataProfilesService);
 
 		const userDataFileSystemProvider = this._register(new FileUserDataProvider(

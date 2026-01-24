@@ -26,7 +26,7 @@ import { IProductService } from '../../product/common/productService.js';
 import { asJson, IRequestService } from '../../request/common/request.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { AvailableForDownload, DisablementReason, IUpdate, State, StateType, UpdateType } from '../common/update.js';
-import { AbstractUpdateService, createUpdateURL, UpdateErrorClassification } from './abstractUpdateService.js';
+import { AbstractUpdateService, createUpdateURL, IUpdateURLOptions, UpdateErrorClassification } from './abstractUpdateService.js';
 import { IMeteredConnectionService } from '../../meteredConnection/common/meteredConnection.js';
 
 async function pollUntil(fn: () => boolean, millis = 1000): Promise<void> {
@@ -73,7 +73,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		@IProductService productService: IProductService,
 		@IMeteredConnectionService meteredConnectionService: IMeteredConnectionService,
 	) {
-		super(lifecycleMainService, configurationService, environmentMainService, requestService, logService, productService, meteredConnectionService);
+		super(lifecycleMainService, configurationService, environmentMainService, requestService, logService, productService, meteredConnectionService, false);
 
 		lifecycleMainService.setRelaunchHandler(this);
 	}
@@ -154,7 +154,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		}
 	}
 
-	protected buildUpdateFeedUrl(quality: string): string | undefined {
+	protected buildUpdateFeedUrl(quality: string, commit: string, options?: IUpdateURLOptions): string | undefined {
 		let platform = `win32-${process.arch}`;
 
 		if (getUpdateType() === UpdateType.Archive) {
@@ -163,15 +163,15 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 			platform += '-user';
 		}
 
-		return createUpdateURL(platform, quality, this.productService);
+		return createUpdateURL(this.productService.updateUrl!, platform, quality, commit, options);
 	}
 
 	protected doCheckForUpdates(explicit: boolean): void {
-		if (!this.url) {
+		if (!this.quality) {
 			return;
 		}
 
-		const url = explicit ? this.url : `${this.url}?bg=true`;
+		const url = this.buildUpdateFeedUrl(this.quality, this.productService.commit!, { background: !explicit });
 		this.setState(State.CheckingForUpdates(explicit));
 
 		this.requestService.request({ url }, CancellationToken.None)
@@ -197,7 +197,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 					return Promise.resolve(null);
 				}
 
-				this.setState(State.Downloading);
+				this.setState(State.Downloading(explicit, this._overwrite));
 
 				return this.cleanup(update.version).then(() => {
 					return this.getUpdatePackagePath(update.version).then(updatePackagePath => {
@@ -216,7 +216,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 						});
 					}).then(packagePath => {
 						this.availableUpdate = { packagePath };
-						this.setState(State.Downloaded(update));
+						this.setState(State.Downloaded(update, explicit, this._overwrite));
 
 						const fastUpdatesEnabled = this.configurationService.getValue('update.enableWindowsBackgroundUpdates');
 						if (fastUpdatesEnabled) {
@@ -224,7 +224,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 								this.doApplyUpdate();
 							}
 						} else {
-							this.setState(State.Ready(update));
+							this.setState(State.Ready(update, explicit, this._overwrite));
 						}
 					});
 				});
@@ -278,6 +278,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		}
 
 		const update = this.state.update;
+		const explicit = this.state.explicit;
 		this.setState(State.Updating(update));
 
 		const cachePath = await this.cachePath;
@@ -302,7 +303,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 
 		// poll for mutex-ready
 		pollUntil(() => mutex.isActive(readyMutexName))
-			.then(() => this.setState(State.Ready(update)));
+			.then(() => this.setState(State.Ready(update, explicit, this._overwrite)));
 	}
 
 	protected override doQuitAndInstall(): void {
@@ -334,16 +335,16 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		const fastUpdatesEnabled = this.configurationService.getValue('update.enableWindowsBackgroundUpdates');
 		const update: IUpdate = { version: 'unknown', productVersion: 'unknown' };
 
-		this.setState(State.Downloading);
+		this.setState(State.Downloading(true, false));
 		this.availableUpdate = { packagePath };
-		this.setState(State.Downloaded(update));
+		this.setState(State.Downloaded(update, true, false));
 
 		if (fastUpdatesEnabled) {
 			if (this.productService.target === 'user') {
 				this.doApplyUpdate();
 			}
 		} else {
-			this.setState(State.Ready(update));
+			this.setState(State.Ready(update, true, false));
 		}
 	}
 }

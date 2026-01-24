@@ -5,11 +5,14 @@
 
 import { getActiveWindow } from '../../../../../../base/browser/dom.js';
 import { IAction } from '../../../../../../base/common/actions.js';
+import { autorun, IObservable } from '../../../../../../base/common/observable.js';
 import { ActionWidgetDropdownActionViewItem } from '../../../../../../platform/actions/browser/actionWidgetDropdownActionViewItem.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IActionWidgetDropdownOptions } from '../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
+import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
+import { IChatExecuteActionContext } from '../../actions/chatExecuteActions.js';
 
 export interface IChatInputPickerOptions {
 	/**
@@ -17,6 +20,10 @@ export interface IChatInputPickerOptions {
 	 * is not available in the DOM (e.g., when inside an overflow menu).
 	 */
 	readonly getOverflowAnchor?: () => HTMLElement | undefined;
+
+	readonly actionContext?: IChatExecuteActionContext;
+
+	readonly onlyShowIconsForDefaultActions: IObservable<boolean>;
 }
 
 /**
@@ -28,10 +35,11 @@ export abstract class ChatInputPickerActionViewItem extends ActionWidgetDropdown
 	constructor(
 		action: IAction,
 		actionWidgetOptions: Omit<IActionWidgetDropdownOptions, 'label' | 'labelRenderer'>,
-		private readonly pickerOptions: IChatInputPickerOptions,
+		protected readonly pickerOptions: IChatInputPickerOptions,
 		@IActionWidgetService actionWidgetService: IActionWidgetService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@ITelemetryService telemetryService: ITelemetryService,
 	) {
 		// Inject the anchor getter into the options
 		const optionsWithAnchor: Omit<IActionWidgetDropdownOptions, 'label' | 'labelRenderer'> = {
@@ -39,7 +47,14 @@ export abstract class ChatInputPickerActionViewItem extends ActionWidgetDropdown
 			getAnchor: () => this.getAnchorElement(),
 		};
 
-		super(action, optionsWithAnchor, actionWidgetService, keybindingService, contextKeyService);
+		super(action, optionsWithAnchor, actionWidgetService, keybindingService, contextKeyService, telemetryService);
+
+		this._register(autorun(reader => {
+			this.pickerOptions.onlyShowIconsForDefaultActions.read(reader);
+			if (this.element) {
+				this.renderLabel(this.element);
+			}
+		}));
 	}
 
 	/**

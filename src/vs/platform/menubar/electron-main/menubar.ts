@@ -648,6 +648,7 @@ export class Menubar extends Disposable {
 				})];
 
 			case StateType.Downloading:
+			case StateType.Overwriting:
 				return [new MenuItem({ label: nls.localize('miDownloadingUpdate', "Downloading Update..."), enabled: false })];
 
 			case StateType.Downloaded:

@@ -236,6 +236,9 @@ import './contrib/files/browser/files.contribution.js';
 import './contrib/bulkEdit/browser/bulkEditService.js';
 import './contrib/bulkEdit/browser/preview/bulkEdit.contribution.js';
 
+// Rename Symbol Tracker for Inline completions.
+import './contrib/inlineCompletions/browser/renameSymbolTrackerService.js';
+
 // Search
 import './contrib/search/browser/search.contribution.js';
 import './contrib/search/browser/searchView.js';

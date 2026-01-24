@@ -92,7 +92,7 @@ export class ChatEditingAcceptRejectActionViewItem extends ActionViewItem {
 
 	protected override getTooltip(): string | undefined {
 		const value = super.getTooltip();
-		if (!value) {
+		if (!value || this.options.keybinding) {
 			return value;
 		}
 		return this._keybindingService.appendKeybinding(value, this._action.id);

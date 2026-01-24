@@ -3166,6 +3166,15 @@ export class ChatResponseMultiDiffPart {
 	}
 }
 
+export class McpToolInvocationContentData {
+	mimeType: string;
+	data: Uint8Array;
+	constructor(data: Uint8Array, mimeType: string) {
+		this.data = data;
+		this.mimeType = mimeType;
+	}
+}
+
 export class ChatResponseExternalEditPart {
 	applied: Thenable<string>;
 	didGetApplied!: (value: string) => void;
@@ -3309,6 +3318,82 @@ export class ChatResponsePullRequestPart {
 	}
 }
 
+/**
+ * The type of question for a chat question carousel.
+ */
+export enum ChatQuestionType {
+	/**
+	 * A free-form text input question.
+	 */
+	Text = 1,
+	/**
+	 * A single-select question with radio buttons.
+	 */
+	SingleSelect = 2,
+	/**
+	 * A multi-select question with checkboxes.
+	 */
+	MultiSelect = 3
+}
+
+/**
+ * Represents a question to be displayed in a chat question carousel.
+ * Questions can be of type 'text' for free-form input, 'singleSelect' for radio buttons,
+ * or 'multiSelect' for checkboxes.
+ */
+export class ChatQuestion {
+	/** Unique identifier for the question. */
+	id: string;
+	/** The type of question: Text for free-form input, SingleSelect for radio buttons, MultiSelect for checkboxes. */
+	type: ChatQuestionType;
+	/** The title/header of the question. */
+	title: string;
+	/** Optional detailed message or description for the question. */
+	message?: string | vscode.MarkdownString;
+	/** Options for singleSelect or multiSelect questions. */
+	options?: { id: string; label: string; value: unknown }[];
+	/** The id(s) of the default selected option(s). */
+	defaultValue?: string | string[];
+	/** Whether to allow free-form text input in addition to predefined options. */
+	allowFreeformInput?: boolean;
+
+	constructor(
+		id: string,
+		type: ChatQuestionType,
+		title: string,
+		options?: {
+			message?: string | vscode.MarkdownString;
+			options?: { id: string; label: string; value: unknown }[];
+			defaultValue?: string | string[];
+			allowFreeformInput?: boolean;
+		}
+	) {
+		this.id = id;
+		this.type = type;
+		this.title = title;
+		this.message = options?.message;
+		this.options = options?.options;
+		this.defaultValue = options?.defaultValue;
+		this.allowFreeformInput = options?.allowFreeformInput;
+	}
+}
+
+/**
+ * A carousel view for presenting multiple questions inline in the chat response.
+ * Users can navigate between questions and submit their answers.
+ */
+export class ChatResponseQuestionCarouselPart {
+	/** The questions to display in the carousel. */
+	questions: ChatQuestion[];
+	/** Whether users can skip answering the questions. */
+	allowSkip: boolean;
+
+	constructor(questions: ChatQuestion[], allowSkip: boolean = true) {
+		this.questions = questions;
+		this.allowSkip = allowSkip;
+	}
+}
+
 export class ChatResponseTextEditPart implements vscode.ChatResponseTextEditPart {
 	uri: vscode.Uri;
 	edits: vscode.TextEdit[];
@@ -3426,6 +3511,10 @@ export enum ChatSessionStatus {
 
 export class ChatSessionChangedFile {
 	constructor(public readonly modifiedUri: vscode.Uri, public readonly insertions: number, public readonly deletions: number, public readonly originalUri?: vscode.Uri) { }
+}
+
+export class ChatSessionChangedFile2 {
+	constructor(public readonly uri: vscode.Uri, public readonly originalUri: vscode.Uri | undefined, public readonly modifiedUri: vscode.Uri | undefined, public readonly insertions: number, public readonly deletions: number) { }
 }
 
 export enum ChatResponseReferencePartStatusKind {
@@ -3895,24 +3984,4 @@ export class McpHttpServerDefinition implements vscode.McpHttpServerDefinition {
 //#endregion
 
 //#region Chat Prompt Files
-
-@es5ClassCompat
-export class CustomAgentChatResource implements vscode.CustomAgentChatResource {
-	constructor(public readonly resource: vscode.ChatResourceDescriptor) { }
-}
-
-@es5ClassCompat
-export class InstructionsChatResource implements vscode.InstructionsChatResource {
-	constructor(public readonly resource: vscode.ChatResourceDescriptor) { }
-}
-
-@es5ClassCompat
-export class PromptFileChatResource implements vscode.PromptFileChatResource {
-	constructor(public readonly resource: vscode.ChatResourceDescriptor) { }
-}
-
-@es5ClassCompat
-export class SkillChatResource implements vscode.SkillChatResource {
-	constructor(public readonly resource: vscode.ChatResourceDescriptor) { }
-}
 //#endregion
