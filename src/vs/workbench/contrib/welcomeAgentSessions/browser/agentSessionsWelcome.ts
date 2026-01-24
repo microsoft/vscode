@@ -631,6 +631,14 @@ export class AgentSessionsWelcomePage extends EditorPane {
 
 		const tosCard = append(container, $('.agentSessionsWelcome-walkthroughCard.agentSessionsWelcome-tosCard'));
 
+		const dismissNotice = () => {
+			this.storageService.store(AgentSessionsWelcomePage.PRIVACY_NOTICE_DISMISSED_KEY, true, StorageScope.APPLICATION, StorageTarget.USER);
+			tosCard.remove();
+		};
+
+		// Dismiss the notice when a chat request is sent
+		this.contentDisposables.add(this.chatService.onDidSubmitRequest(() => dismissNotice()));
+
 		// Icon
 		const iconContainer = append(tosCard, $('.agentSessionsWelcome-walkthroughCard-icon'));
 		iconContainer.appendChild(renderIcon(Codicon.chatSparkle));
@@ -660,8 +668,7 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		dismissButton.title = localize('dismissPrivacyNotice', "Dismiss");
 		dismissButton.onclick = (e) => {
 			e.stopPropagation();
-			this.storageService.store(AgentSessionsWelcomePage.PRIVACY_NOTICE_DISMISSED_KEY, true, StorageScope.APPLICATION, StorageTarget.USER);
-			tosCard.remove();
+			dismissNotice();
 		};
 	}
 
