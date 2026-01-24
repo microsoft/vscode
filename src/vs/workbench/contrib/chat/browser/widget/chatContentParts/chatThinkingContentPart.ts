@@ -251,7 +251,11 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			this.wrapper.classList.add('chat-thinking-streaming');
 		}
 
-		if (this.currentThinkingValue) {
+		// Only create textContainer here if there's no pending lazy thinking item.
+		// If there's a lazy thinking item, it will be rendered via materializeLazyItem
+		// with the latest streaming content.
+		const hasLazyThinkingItems = this.lazyItems.some(item => item.kind === 'thinking');
+		if (this.currentThinkingValue && !hasLazyThinkingItems) {
 			this.textContainer = $('.chat-thinking-item.markdown-content');
 			this.wrapper.appendChild(this.textContainer);
 			this.renderMarkdown(this.currentThinkingValue);
@@ -440,6 +444,16 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			return;
 		}
 		this.content = content;
+
+		// Update any pending lazy thinking item with matching ID so that
+		// when materialized, it will have the latest streaming content
+		for (const lazyItem of this.lazyItems) {
+			if (lazyItem.kind === 'thinking' && lazyItem.content.id === content.id) {
+				lazyItem.content = content;
+				break;
+			}
+		}
+
 		const raw = extractTextFromPart(content);
 		const next = raw;
 		if (next === this.currentThinkingValue) {
@@ -877,6 +891,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			// Store reference to textContainer for updateThinking calls
 			this.textContainer = item.textContainer;
 			this.id = item.content.id;
+			// Use item.content which is kept up-to-date during streaming via updateThinking
 			this.updateThinking(item.content);
 			return;
 		}
@@ -911,6 +926,10 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 				this.id = content.id;
 				this.updateThinking(content);
 			} else {
+				// Update this.content and this.id so that subsequent updateThinking calls
+				// or materializeLazyItem will use the correct content for this section
+				this.content = content;
+				this.id = content.id;
 				// Defer rendering until expanded to preserve order
 				const lazyThinking: ILazyThinkingItem = {
 					kind: 'thinking',
