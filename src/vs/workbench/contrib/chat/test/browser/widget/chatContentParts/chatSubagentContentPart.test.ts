@@ -895,6 +895,196 @@ suite('ChatSubagentContentPart', () => {
 		});
 	});
 
+	suite('appendMarkdownItem', () => {
+		test('should append markdown item to expanded subagent part', () => {
+			const toolInvocation = createMockToolInvocation({
+				subAgentInvocationId: 'test-subagent-id',
+				toolSpecificData: {
+					kind: 'subagent',
+					description: 'Working on task',
+					agentName: 'TestAgent'
+				}
+			});
+			const context = createMockRenderContext(false);
+
+			const part = createPart(toolInvocation, context);
+
+			// Expand the part first
+			const button = getCollapseButton(part);
+			button?.click();
+			assert.strictEqual(part.domNode.classList.contains('chat-used-context-collapsed'), false, 'Should be expanded');
+
+			// Create a mock markdown content with edit pill
+			const markdownContent: IChatMarkdownContent = {
+				kind: 'markdownContent',
+				content: { value: 'Edited file.ts' }
+			};
+
+			// Create a mock DOM node for the markdown
+			const markdownDomNode = mainWindow.document.createElement('div');
+			markdownDomNode.className = 'chat-codeblock-button';
+			markdownDomNode.textContent = 'file.ts';
+
+			let disposeCallCount = 0;
+			const mockDisposable = { dispose: () => { disposeCallCount++; } };
+
+			// Append markdown item
+			part.appendMarkdownItem(
+				() => ({ domNode: markdownDomNode, disposable: mockDisposable }),
+				'codeblock-123',
+				markdownContent,
+				undefined
+			);
+
+			// Verify the markdown was appended
+			const wrapper = getWrapperElement(part);
+			assert.ok(wrapper, 'Wrapper should exist');
+			const appendedElement = wrapper.querySelector('.chat-codeblock-button');
+			assert.ok(appendedElement, 'Appended markdown element should exist in wrapper');
+			assert.strictEqual(appendedElement.textContent, 'file.ts', 'Should have correct content');
+		});
+
+		test('should not render markdown item when part is collapsed', () => {
+			const toolInvocation = createMockToolInvocation({
+				subAgentInvocationId: 'test-subagent-defer',
+				toolSpecificData: {
+					kind: 'subagent',
+					description: 'Working on task',
+					agentName: 'TestAgent'
+				}
+			});
+			const context = createMockRenderContext(false);
+
+			const part = createPart(toolInvocation, context);
+
+			// Part is collapsed by default
+			assert.ok(part.domNode.classList.contains('chat-used-context-collapsed'), 'Should start collapsed');
+
+			const markdownContent: IChatMarkdownContent = {
+				kind: 'markdownContent',
+				content: { value: 'Deferred edit' }
+			};
+
+			let factoryCalled = false;
+			const markdownDomNode = mainWindow.document.createElement('div');
+			markdownDomNode.className = 'deferred-edit';
+			markdownDomNode.textContent = 'deferred.ts';
+
+			const mockDisposable = { dispose: () => { } };
+
+			// Append markdown item while collapsed - factory should not be called
+			part.appendMarkdownItem(
+				() => {
+					factoryCalled = true;
+					return { domNode: markdownDomNode, disposable: mockDisposable };
+				},
+				'codeblock-deferred',
+				markdownContent,
+				undefined
+			);
+
+			// Factory should not be called when collapsed
+			assert.strictEqual(factoryCalled, false, 'Factory should not be called when collapsed');
+		});
+
+		test('should not duplicate markdown items with same codeblock ID', () => {
+			const toolInvocation = createMockToolInvocation({
+				subAgentInvocationId: 'test-subagent-dedup',
+				toolSpecificData: {
+					kind: 'subagent',
+					description: 'Working on task',
+					agentName: 'TestAgent'
+				}
+			});
+			const context = createMockRenderContext(false);
+
+			const part = createPart(toolInvocation, context);
+
+			// Expand the part
+			const button = getCollapseButton(part);
+			button?.click();
+
+			const markdownContent: IChatMarkdownContent = {
+				kind: 'markdownContent',
+				content: { value: 'Same codeblock' }
+			};
+
+			const sharedCodeblockId = 'codeblock-same-id';
+
+			// Append first item
+			const firstNode = mainWindow.document.createElement('div');
+			firstNode.className = 'first-item';
+			part.appendMarkdownItem(
+				() => ({ domNode: firstNode, disposable: { dispose: () => { } } }),
+				sharedCodeblockId,
+				markdownContent,
+				undefined
+			);
+
+			// Append second item with same codeblock ID
+			const secondNode = mainWindow.document.createElement('div');
+			secondNode.className = 'second-item';
+			part.appendMarkdownItem(
+				() => ({ domNode: secondNode, disposable: { dispose: () => { } } }),
+				sharedCodeblockId,
+				markdownContent,
+				undefined
+			);
+
+			// Should only have one item (not duplicated)
+			const wrapper = getWrapperElement(part);
+			assert.ok(wrapper, 'Wrapper should exist');
+			const firstItems = wrapper.querySelectorAll('.first-item');
+			const secondItems = wrapper.querySelectorAll('.second-item');
+			// Either one should exist, but not both
+			assert.strictEqual(firstItems.length + secondItems.length, 1, 'Should only have one item, not duplicated');
+		});
+
+		test('should handle multiple different codeblock IDs', () => {
+			const toolInvocation = createMockToolInvocation({
+				subAgentInvocationId: 'test-subagent-multi',
+				toolSpecificData: {
+					kind: 'subagent',
+					description: 'Working on task',
+					agentName: 'TestAgent'
+				}
+			});
+			const context = createMockRenderContext(false);
+
+			const part = createPart(toolInvocation, context);
+
+			// Expand the part
+			const button = getCollapseButton(part);
+			button?.click();
+
+			// Append first item
+			const firstNode = mainWindow.document.createElement('div');
+			firstNode.className = 'item-one';
+			part.appendMarkdownItem(
+				() => ({ domNode: firstNode, disposable: { dispose: () => { } } }),
+				'codeblock-1',
+				{ kind: 'markdownContent', content: { value: 'First' } },
+				undefined
+			);
+
+			// Append second item with different ID
+			const secondNode = mainWindow.document.createElement('div');
+			secondNode.className = 'item-two';
+			part.appendMarkdownItem(
+				() => ({ domNode: secondNode, disposable: { dispose: () => { } } }),
+				'codeblock-2',
+				{ kind: 'markdownContent', content: { value: 'Second' } },
+				undefined
+			);
+
+			// Both should exist
+			const wrapper = getWrapperElement(part);
+			assert.ok(wrapper, 'Wrapper should exist');
+			assert.ok(wrapper.querySelector('.item-one'), 'First item should exist');
+			assert.ok(wrapper.querySelector('.item-two'), 'Second item should exist');
+		});
+	});
+
 	suite('Auto-expand on confirmation', () => {
 		test('should auto-expand when tool state becomes WaitingForConfirmation', () => {
 			const toolInvocation = createMockToolInvocation({
