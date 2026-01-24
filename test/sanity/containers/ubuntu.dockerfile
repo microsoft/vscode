@@ -11,7 +11,7 @@ RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && \
 
 # X11 and Desktop Bus except for arm32 on Ubuntu 24.04
 RUN if [ "$TARGETARCH" != "arm" ] || [ "${BASE_IMAGE}" != "ubuntu:24.04" ]; then \
-		apt-get install -y xvfb dbus-x11; \
+		apt-get install -y xvfb dbus-x11 && \
 		mkdir -p /run/dbus; \
 	fi
 
