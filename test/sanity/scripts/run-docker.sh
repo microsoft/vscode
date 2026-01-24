@@ -4,6 +4,7 @@ set -e
 CONTAINER=""
 ARCH="amd64"
 BASE_IMAGE=""
+CACHE_FROM=""
 ARGS=""
 
 while [ $# -gt 0 ]; do
@@ -11,6 +12,7 @@ while [ $# -gt 0 ]; do
 		--container) CONTAINER="$2"; shift 2 ;;
 		--arch) ARCH="$2"; shift 2 ;;
 		--base-image) BASE_IMAGE="$2"; shift 2 ;;
+		--cache-from) CACHE_FROM="$2"; shift 2 ;;
 		*) ARGS="$ARGS $1"; shift ;;
 	esac
 done
@@ -27,6 +29,7 @@ echo "Building container image: $CONTAINER"
 docker buildx build \
 	--platform "linux/$ARCH" \
 	${BASE_IMAGE:+--build-arg "BASE_IMAGE=$BASE_IMAGE"} \
+	${CACHE_FROM:+--cache-from "type=docker,ref=$CACHE_FROM"} \
 	--tag "$CONTAINER" \
 	--file "$ROOT_DIR/containers/$CONTAINER.dockerfile" \
 	"$ROOT_DIR/containers"

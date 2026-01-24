@@ -82,17 +82,48 @@ jobs:
 
       # Linux Docker container
       - ${{ if ne(parameters.container, '') }}:
+        - task: Cache@2
+          inputs:
+            key: 'docker | "${{ parameters.container }}" | "${{ parameters.arch }}" | "$(Agent.OS)" | $(TEST_DIR)/containers/${{ parameters.container }}.dockerfile'
+            path: $(Pipeline.Workspace)/docker-cache
+            restoreKeys: docker | "${{ parameters.container }}" | "${{ parameters.arch }}" | "$(Agent.OS)"
+            cacheHitVar: DOCKER_CACHE_RESTORED
+          displayName: Cache Docker Image
+
         - bash: |
+            CACHE_FILE="$(Pipeline.Workspace)/docker-cache/${{ parameters.container }}.tar"
+            if [ -f "$CACHE_FILE" ]; then
+              echo "Loading cached Docker image..."
+              docker load -i "$CACHE_FILE"
+            fi
+          condition: eq(variables.DOCKER_CACHE_RESTORED, 'true')
+          displayName: Load Cached Docker Image
+
+        - bash: |
+            CACHE_FROM_ARG=""
+            if [ "$(DOCKER_CACHE_RESTORED)" = "true" ]; then
+              CACHE_FROM_ARG="--cache-from ${{ parameters.container }}"
+            fi
             $(TEST_DIR)/scripts/run-docker.sh \
               --container "${{ parameters.container }}" \
               --arch "${{ parameters.arch }}" \
               --base-image "${{ parameters.baseImage }}" \
+              $CACHE_FROM_ARG \
               --quality "$(BUILD_QUALITY)" \
               --commit "$(BUILD_COMMIT)" \
               --test-results "/root/results.xml" \
               --verbose
           workingDirectory: $(TEST_DIR)
           displayName: Run Sanity Tests
+
+        - bash: |
+            CACHE_DIR="$(Pipeline.Workspace)/docker-cache"
+            CACHE_FILE="$CACHE_DIR/${{ parameters.container }}.tar"
+            mkdir -p "$CACHE_DIR"
+            echo "Saving Docker image to cache..."
+            docker save -o "$CACHE_FILE" "${{ parameters.container }}"
+          condition: and(succeeded(), ne(variables.DOCKER_CACHE_RESTORED, 'true'))
+          displayName: Save Docker Image to Cache
 
       - task: PublishTestResults@2
         inputs:
