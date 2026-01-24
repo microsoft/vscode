@@ -309,7 +309,7 @@ class ToggleChatModeAction extends Action2 {
 
 		const chatSession = widget.viewModel?.model;
 		const requestCount = chatSession?.getRequests().length ?? 0;
-		const switchToMode = (arg && modeService.findModeById(arg.modeId)) ?? this.getNextMode(widget, requestCount, configurationService, modeService);
+		const switchToMode = (arg && (modeService.findModeById(arg.modeId) || modeService.findModeByName(arg.modeId))) ?? this.getNextMode(widget, requestCount, configurationService, modeService);
 
 		const currentMode = widget.input.currentModeObs.get();
 		if (switchToMode.id === currentMode.id) {
@@ -559,8 +559,11 @@ export class OpenWorkspacePickerAction extends Action2 {
 			menu: [
 				{
 					id: MenuId.ChatInput,
-					order: 0.1,
-					when: ChatContextKeys.inAgentSessionsWelcome,
+					order: 0.6,
+					when: ContextKeyExpr.and(
+						ChatContextKeys.inAgentSessionsWelcome,
+						ChatContextKeys.chatSessionType.isEqualTo('local')
+					),
 					group: 'navigation',
 				},
 			]

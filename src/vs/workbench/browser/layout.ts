@@ -116,7 +116,7 @@ interface IInitialEditorsState {
 }
 
 const COMMAND_CENTER_SETTINGS = [
-	'chat.commandCenter.enabled',
+	'chat.agentsControl.enabled',
 	'workbench.navigationControl.enabled',
 	'workbench.experimental.share.enabled',
 ];
@@ -349,13 +349,33 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			}
 		};
 
+		// Restore maximized auxiliary bar when no editors, sidebar hidden, and panel hidden
+		const restoreMaximizedAuxiliaryBar = () => {
+			if (
+				this.mainPartEditorService.visibleEditors.length === 0 &&
+				!this.isVisible(Parts.SIDEBAR_PART) &&
+				!this.isVisible(Parts.PANEL_PART) &&
+				this.auxiliaryBarOpensMaximized()
+			) {
+				this.setAuxiliaryBarMaximized(true);
+			}
+		};
+
 		// Wait to register these listeners after the editor group service
 		// is ready to avoid conflicts on startup
 		this.editorGroupService.whenRestored.then(() => {
 
 			// Restore main editor part on any editor change in main part
-			this._register(this.mainPartEditorService.onDidVisibleEditorsChange(showEditorIfHidden));
+			this._register(this.mainPartEditorService.onDidVisibleEditorsChange(() => {
+				showEditorIfHidden();
+				restoreMaximizedAuxiliaryBar();
+			}));
 			this._register(this.editorGroupService.mainPart.onDidActivateGroup(showEditorIfHidden));
+
+			// Restore maximized auxiliary bar when sidebar or panel visibility changes
+			this._register(this.onDidChangePartVisibility(() => {
+				restoreMaximizedAuxiliaryBar();
+			}));
 
 			// Revalidate center layout when active editor changes: diff editor quits centered mode.
 			this._register(this.mainPartEditorService.onDidActiveEditorChange(() => this.centerMainEditorLayout(this.stateModel.getRuntimeValue(LayoutStateKeys.MAIN_EDITOR_CENTERED))));
@@ -372,10 +392,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				// Show Command Center if command center actions enabled
 				const shareEnabled = e.affectsConfiguration('workbench.experimental.share.enabled') && this.configurationService.getValue<boolean>('workbench.experimental.share.enabled');
 				const navigationControlEnabled = e.affectsConfiguration('workbench.navigationControl.enabled') && this.configurationService.getValue<boolean>('workbench.navigationControl.enabled');
-
-				// Currently not supported for "chat.commandCenter.enabled" as we
-				// programatically set this during setup and could lead to unwanted titlebar appearing
-				// const chatControlsEnabled = e.affectsConfiguration('chat.commandCenter.enabled') && this.configurationService.getValue<boolean>('chat.commandCenter.enabled');
 
 				if (shareEnabled || navigationControlEnabled) {
 					if (this.configurationService.getValue<boolean>(LayoutSettings.COMMAND_CENTER) === false) {
@@ -2157,6 +2173,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		const panelLastIsMaximized = this.stateModel.getRuntimeValue(LayoutStateKeys.PANEL_WAS_LAST_MAXIMIZED);
 
 		return panelOpensMaximized === PartOpensMaximizedOptions.ALWAYS || (panelOpensMaximized === PartOpensMaximizedOptions.REMEMBER_LAST && panelLastIsMaximized);
+	}
+
+	private auxiliaryBarOpensMaximized(): boolean {
+		return this.configurationService.getValue(WorkbenchLayoutSettings.AUXILIARYBAR_DEFAULT_VISIBILITY) === 'maximized';
 	}
 
 	private setAuxiliaryBarHidden(hidden: boolean, skipLayout?: boolean): void {

@@ -1462,6 +1462,7 @@ export interface ExtHostChatAgentsShape2 {
 	$invokeAgent(handle: number, request: Dto<IChatAgentRequest>, context: { history: IChatAgentHistoryEntryDto[]; chatSessionContext?: IChatSessionContextDto }, token: CancellationToken): Promise<IChatAgentResult | undefined>;
 	$provideFollowups(request: Dto<IChatAgentRequest>, handle: number, result: IChatAgentResult, context: { history: IChatAgentHistoryEntryDto[] }, token: CancellationToken): Promise<IChatFollowup[]>;
 	$acceptFeedback(handle: number, result: IChatAgentResult, voteAction: IChatVoteAction): void;
+	$handleQuestionCarouselAnswer(requestId: string, resolveId: string, answers: Record<string, unknown> | undefined): void;
 	$acceptAction(handle: number, result: IChatAgentResult, action: IChatUserActionEvent): void;
 	$invokeCompletionProvider(handle: number, query: string, token: CancellationToken): Promise<IChatAgentCompletionItem[]>;
 	$provideChatTitle(handle: number, context: IChatAgentHistoryEntryDto[], token: CancellationToken): Promise<string | undefined>;
@@ -1495,12 +1496,26 @@ export interface IToolDataDto {
 	inputSchema?: IJSONSchema;
 }
 
+export interface ILanguageModelChatSelectorDto {
+	vendor?: string;
+	family?: string;
+	version?: string;
+	id?: string;
+}
+
+export interface IToolDefinitionDto extends IToolDataDto {
+	icon?: IconPathDto;
+	models?: ILanguageModelChatSelectorDto[];
+	toolSet?: string;
+}
+
 export interface MainThreadLanguageModelToolsShape extends IDisposable {
 	$getTools(): Promise<Dto<IToolDataDto>[]>;
 	$acceptToolProgress(callId: string, progress: IToolProgressStep): void;
 	$invokeTool(dto: Dto<IToolInvocation>, token?: CancellationToken): Promise<Dto<IToolResult> | SerializableObjectWithBuffers<Dto<IToolResult>>>;
 	$countTokensForInvocation(callId: string, input: string, token: CancellationToken): Promise<number>;
 	$registerTool(id: string, hasHandleToolStream: boolean): void;
+	$registerToolWithDefinition(extensionId: ExtensionIdentifier, definition: IToolDefinitionDto, hasHandleToolStream: boolean): void;
 	$unregisterTool(name: string): void;
 }
 

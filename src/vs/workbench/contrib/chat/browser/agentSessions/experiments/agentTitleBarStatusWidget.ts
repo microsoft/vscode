@@ -8,6 +8,7 @@ import { $, addDisposableListener, EventType, reset } from '../../../../../../ba
 import { renderIcon } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
+import { Event as EventUtils } from '../../../../../../base/common/event.js';
 import { localize } from '../../../../../../nls.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { getDefaultHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
@@ -43,9 +44,13 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { mainWindow } from '../../../../../../base/browser/window.js';
 import { LayoutSettings } from '../../../../../services/layout/browser/layoutService.js';
 import { ChatConfiguration } from '../../../common/constants.js';
+import { ChatEntitlement, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
+import { IChatWidgetService } from '../../chat.js';
 
 // Action IDs
 const TOGGLE_CHAT_ACTION_ID = 'workbench.action.chat.toggle';
+const CHAT_SETUP_ACTION_ID = 'workbench.action.chat.triggerSetup';
+const OPEN_CHAT_QUOTA_EXCEEDED_DIALOG = 'workbench.action.chat.openQuotaExceededDialog';
 const QUICK_OPEN_ACTION_ID = 'workbench.action.quickOpenWithModes';
 
 // Storage key for filter state
@@ -103,6 +108,8 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
+		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 	) {
 		super(undefined, action, options);
 
@@ -155,6 +162,26 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 				this._lastRenderState = undefined; // Force re-render
 				this._render();
 			}
+		}));
+
+		// Re-render when chat entitlement or quota changes (for sign-in / quota exceeded states)
+		this._register(EventUtils.any(
+			this.chatEntitlementService.onDidChangeSentiment,
+			this.chatEntitlementService.onDidChangeQuotaExceeded,
+			this.chatEntitlementService.onDidChangeEntitlement,
+			this.chatEntitlementService.onDidChangeAnonymous
+		)(() => {
+			this._lastRenderState = undefined; // Force re-render
+			this._render();
+		}));
+
+		// Re-render when chat widgets are added or backgrounded to update active/unread session counts
+		this._register(this.chatWidgetService.onDidAddWidget(() => {
+			this._render();
+		}));
+
+		this._register(this.chatWidgetService.onDidBackgroundSession(() => {
+			this._render();
 		}));
 	}
 
@@ -278,9 +305,8 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 			? sessions.filter(s => !excludedProviders.includes(s.providerType))
 			: sessions;
 
-		const activeSessions = filteredSessions.filter(s => isSessionInProgressStatus(s.status) && !s.isArchived());
-		const unreadSessions = filteredSessions.filter(s => !s.isRead());
-		// Sessions that need user attention (approval/confirmation/input)
+		const activeSessions = filteredSessions.filter(s => isSessionInProgressStatus(s.status) && !s.isArchived() && !this.chatWidgetService.getWidgetBySessionResource(s.resource));
+		const unreadSessions = filteredSessions.filter(s => !s.isRead() && !this.chatWidgetService.getWidgetBySessionResource(s.resource));
 		const attentionNeededSessions = filteredSessions.filter(s => s.status === AgentSessionStatus.NeedsInput);
 
 		return {
@@ -644,11 +670,36 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 		// Get menu actions for dropdown with proper group separators
 		const menuActions: IAction[] = Separator.join(...this._chatTitleBarMenu.getActions({ shouldForwardArgs: true }).map(([, actions]) => actions));
 
-		// Create primary action (toggle chat)
+		// Determine primary action based on entitlement state
+		// Special case 1: User is signed out (needs to sign in)
+		// Special case 2: User has exceeded quota (needs to upgrade)
+		const chatSentiment = this.chatEntitlementService.sentiment;
+		const chatQuotaExceeded = this.chatEntitlementService.quotas.chat?.percentRemaining === 0;
+		const signedOut = this.chatEntitlementService.entitlement === ChatEntitlement.Unknown;
+		const anonymous = this.chatEntitlementService.anonymous;
+		const free = this.chatEntitlementService.entitlement === ChatEntitlement.Free;
+
+		let primaryActionId = TOGGLE_CHAT_ACTION_ID;
+		let primaryActionTitle = localize('toggleChat', "Toggle Chat");
+		let primaryActionIcon = Codicon.chatSparkle;
+
+		if (chatSentiment.installed && !chatSentiment.disabled) {
+			if (signedOut && !anonymous) {
+				primaryActionId = CHAT_SETUP_ACTION_ID;
+				primaryActionTitle = localize('signInToChatSetup', "Sign in to use AI features...");
+				primaryActionIcon = Codicon.chatSparkleError;
+			} else if (chatQuotaExceeded && free) {
+				primaryActionId = OPEN_CHAT_QUOTA_EXCEEDED_DIALOG;
+				primaryActionTitle = localize('chatQuotaExceededButton', "GitHub Copilot Free plan chat messages quota reached. Click for details.");
+				primaryActionIcon = Codicon.chatSparkleWarning;
+			}
+		}
+
+		// Create primary action
 		const primaryAction = this.instantiationService.createInstance(MenuItemAction, {
-			id: TOGGLE_CHAT_ACTION_ID,
-			title: localize('toggleChat', "Toggle Chat"),
-			icon: Codicon.chatSparkle,
+			id: primaryActionId,
+			title: primaryActionTitle,
+			icon: primaryActionIcon,
 		}, undefined, undefined, undefined, undefined);
 
 		// Create dropdown action (empty label prevents default tooltip - we have our own hover)
@@ -1132,11 +1183,6 @@ export class AgentTitleBarStatusRendering extends Disposable implements IWorkben
 			// Force enable command center when agent status or unified agents bar is enabled
 			if ((enabled || enhanced) && configurationService.getValue<boolean>(LayoutSettings.COMMAND_CENTER) !== true) {
 				configurationService.updateValue(LayoutSettings.COMMAND_CENTER, true);
-			}
-
-			// Turn off chat controls when agent status or unified agents bar is enabled (they would be duplicates)
-			if ((enabled || enhanced) && configurationService.getValue<boolean>('chat.commandCenter.enabled') === true) {
-				configurationService.updateValue('chat.commandCenter.enabled', false);
 			}
 		};
 		updateClass();

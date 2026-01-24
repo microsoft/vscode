@@ -19,7 +19,7 @@ export const enum InlineChatConfigKeys {
 	/** @deprecated do not read on client */
 	EnableV2 = 'inlineChat.enableV2',
 	notebookAgent = 'inlineChat.notebookAgent',
-	PersistModelChoice = 'inlineChat.persistModelChoice',
+	DefaultModel = 'inlineChat.defaultModel',
 	Affordance = 'inlineChat.affordance',
 	RenderMode = 'inlineChat.renderMode',
 }
@@ -55,13 +55,10 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 				mode: 'startup'
 			}
 		},
-		[InlineChatConfigKeys.PersistModelChoice]: {
-			description: localize('persistModelChoice', "Whether to persist the selected language model choice across inline chat sessions. The default is not to persist and to use the vendor's default model for inline chat because that yields the best experience."),
-			default: false,
-			type: 'boolean',
-			experiment: {
-				mode: 'auto'
-			}
+		[InlineChatConfigKeys.DefaultModel]: {
+			markdownDescription: localize('defaultModel', "The default model to use for inline chat. The value can be the model's qualified name (e.g., `{0}`) or the model name for Copilot models (e.g., `{1}`). If not set, the vendor's default model for inline chat is used.", 'GPT-4o (copilot)', 'GPT-4o'),
+			default: '',
+			type: 'string'
 		},
 		[InlineChatConfigKeys.Affordance]: {
 			description: localize('affordance', "Controls whether an inline chat affordance is shown when text is selected."),

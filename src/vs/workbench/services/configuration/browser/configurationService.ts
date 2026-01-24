@@ -124,7 +124,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 
 		this.initRemoteUserConfigurationBarrier = new Barrier();
 		this.completeWorkspaceBarrier = new Barrier();
-		this.defaultConfiguration = this._register(new DefaultConfiguration(configurationCache, environmentService, logService));
+		this.defaultConfiguration = this._register(new DefaultConfiguration(userDataProfileService.currentProfile.id, configurationCache, environmentService, logService));
 		this.policyConfiguration = policyService instanceof NullPolicyService ? new NullPolicyConfiguration() : this._register(new PolicyConfiguration(this.defaultConfiguration, policyService, logService));
 		this.configurationCache = configurationCache;
 		this._configuration = new Configuration(this.defaultConfiguration.configurationModel, this.policyConfiguration.configurationModel, ConfigurationModel.createEmptyModel(logService), ConfigurationModel.createEmptyModel(logService), ConfigurationModel.createEmptyModel(logService), ConfigurationModel.createEmptyModel(logService), new ResourceMap(), ConfigurationModel.createEmptyModel(logService), new ResourceMap<ConfigurationModel>(), this.workspace, logService);
@@ -604,6 +604,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 	}
 
 	private async initializeConfiguration(trigger: boolean): Promise<void> {
+		await this.updateDefaultOverridesFromProfile(this.userDataProfileService.currentProfile);
 		await this.defaultConfiguration.initialize();
 
 		const initPolicyConfigurationPromise = this.policyConfiguration.initialize();
@@ -729,6 +730,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 					promises.push(this.reloadApplicationConfiguration(true));
 				}
 			}
+			await this.updateDefaultOverridesFromProfile(e.profile);
 			let [localUser, application] = await Promise.all(promises);
 			application = application ?? this._configuration.applicationConfiguration;
 			if (this.applicationConfiguration) {
@@ -842,6 +844,11 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 
 			await this.updateWorkspaceConfiguration(newFolders, this.workspaceConfiguration.getConfiguration(), fromCache);
 		}
+	}
+
+	private async updateDefaultOverridesFromProfile(profile: IUserDataProfile): Promise<void> {
+		const template = await this.userDataProfilesService.getStoredProfileTemplate(profile);
+		this.defaultConfiguration.updateProfileDefaults(template?.settings);
 	}
 
 	private updateRestrictedSettings(): void {

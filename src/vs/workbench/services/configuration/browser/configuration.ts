@@ -14,7 +14,7 @@ import { WorkspaceConfigurationModelParser, StandaloneConfigurationModelParser }
 import { TASKS_CONFIGURATION_KEY, FOLDER_SETTINGS_NAME, LAUNCH_CONFIGURATION_KEY, IConfigurationCache, ConfigurationKey, REMOTE_MACHINE_SCOPES, FOLDER_SCOPES, WORKSPACE_SCOPES, APPLY_ALL_PROFILES_SETTING, APPLICATION_SCOPES, MCP_CONFIGURATION_KEY } from '../common/configuration.js';
 import { IStoredWorkspaceFolder } from '../../../../platform/workspaces/common/workspaces.js';
 import { WorkbenchState, IWorkspaceFolder, IWorkspaceIdentifier } from '../../../../platform/workspace/common/workspace.js';
-import { ConfigurationScope, Extensions, IConfigurationRegistry, OVERRIDE_PROPERTY_REGEX } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { ConfigurationScope, Extensions, IConfigurationDefaults, IConfigurationRegistry, OVERRIDE_PROPERTY_REGEX } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { equals } from '../../../../base/common/objects.js';
 import { IRemoteAgentService } from '../../remote/common/remoteAgentService.js';
 import { hash } from '../../../../base/common/hash.js';
@@ -23,11 +23,11 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStringDictionary } from '../../../../base/common/collections.js';
 import { joinPath } from '../../../../base/common/resources.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
-import { IBrowserWorkbenchEnvironmentService } from '../../environment/browser/environmentService.js';
 import { isEmptyObject, isObject } from '../../../../base/common/types.js';
 import { DefaultConfiguration as BaseDefaultConfiguration } from '../../../../platform/configuration/common/configurations.js';
 import { IJSONEditingService } from '../common/jsonEditing.js';
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
+import { IBrowserWorkbenchEnvironmentService } from '../../environment/browser/environmentService.js';
 
 export class DefaultConfiguration extends BaseDefaultConfiguration {
 
@@ -35,14 +35,17 @@ export class DefaultConfiguration extends BaseDefaultConfiguration {
 
 	private readonly configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 	private cachedConfigurationDefaultsOverrides: IStringDictionary<unknown> = {};
-	private readonly cacheKey: ConfigurationKey = { type: 'defaults', key: 'configurationDefaultsOverrides' };
+	private readonly cacheKey: ConfigurationKey;
+	private profileDefaults: IConfigurationDefaults | undefined;
 
 	constructor(
+		cacheScope: string,
 		private readonly configurationCache: IConfigurationCache,
 		environmentService: IBrowserWorkbenchEnvironmentService,
 		logService: ILogService,
 	) {
 		super(logService);
+		this.cacheKey = { type: 'defaults', key: `${cacheScope}-configurationDefaultsOverrides` };
 		if (environmentService.options?.configurationDefaults) {
 			this.configurationRegistry.registerDefaultConfigurations([{ overrides: environmentService.options.configurationDefaults as IStringDictionary<IStringDictionary<unknown>> }]);
 		}
@@ -65,6 +68,18 @@ export class DefaultConfiguration extends BaseDefaultConfiguration {
 
 	hasCachedConfigurationDefaultsOverrides(): boolean {
 		return !isEmptyObject(this.cachedConfigurationDefaultsOverrides);
+	}
+
+	updateProfileDefaults(configurationDefaults: IStringDictionary<unknown> | undefined): void {
+		if (this.profileDefaults) {
+			this.configurationRegistry.deregisterDefaultConfigurations([this.profileDefaults]);
+		}
+		if (configurationDefaults) {
+			this.profileDefaults = { overrides: configurationDefaults };
+			this.configurationRegistry.registerDefaultConfigurations([this.profileDefaults]);
+		} else {
+			this.profileDefaults = undefined;
+		}
 	}
 
 	private initiaizeCachedConfigurationDefaultsOverridesPromise: Promise<void> | undefined;

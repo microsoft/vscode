@@ -12,8 +12,8 @@
 	.browser-toolbar {
 		display: flex;
 		align-items: center;
-		padding: 8px;
-		border-bottom: 1px solid var(--vscode-editorWidget-border);
+		padding: 6px 8px;
+		border-bottom: 1px solid var(--vscode-widget-border);
 		background-color: var(--vscode-editor-background);
 		flex-shrink: 0;
 		gap: 8px;
@@ -151,6 +151,54 @@
 			border-radius: 3px;
 			font-family: var(--monaco-monospace-font);
 			font-size: 12px;
+		}
+	}
+
+	.browser-find-widget-wrapper {
+		flex-shrink: 0;
+		position: relative;
+		z-index: 10;
+		overflow: hidden;
+
+		&.find-visible {
+			border-bottom: 1px solid var(--vscode-widget-border);
+		}
+
+		/* Override SimpleFindWidget absolute positioning to flow in layout */
+		.simple-find-part-wrapper {
+			position: relative;
+			top: 0;
+			right: 0;
+			padding: 0;
+			margin-left: auto;
+		}
+
+		.simple-find-part {
+			border-radius: 0;
+			border: none;
+			top: 0 !important;
+			padding: 6px 8px 6px 12px;
+			transition: none;
+
+			&:not(.visible) {
+				display: none;
+			}
+
+			.monaco-sash {
+				width: 2px !important;
+				border-radius: 0;
+
+				&::before {
+					width: var(--vscode-sash-hover-size);
+					left: calc(50% - (var(--vscode-sash-hover-size) / 2));
+				}
+			}
+
+			/* Hide whole word and regex toggles */
+			.codicon-whole-word,
+			.codicon-regex {
+				display: none;
+			}
 		}
 	}
 

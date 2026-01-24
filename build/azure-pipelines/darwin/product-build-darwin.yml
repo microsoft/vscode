@@ -69,6 +69,13 @@ jobs:
           sbomBuildDropPath: $(Agent.BuildDirectory)/vscode-server-darwin-$(VSCODE_ARCH)-web
           sbomPackageName: "VS Code macOS $(VSCODE_ARCH) Web"
           sbomPackageVersion: $(Build.SourceVersion)
+        - output: pipelineArtifact
+          targetPath: $(Build.ArtifactStagingDirectory)/out/vscode_client_darwin_$(VSCODE_ARCH)_dmg/VSCode-darwin-$(VSCODE_ARCH).dmg
+          artifactName: vscode_client_darwin_$(VSCODE_ARCH)_dmg
+          displayName: Publish client DMG
+          sbomBuildDropPath: $(Build.ArtifactStagingDirectory)/VSCode-darwin-$(VSCODE_ARCH)
+          sbomPackageName: "VS Code macOS $(VSCODE_ARCH)"
+          sbomPackageVersion: $(Build.SourceVersion)
     steps:
       - template: ./steps/product-build-darwin-compile.yml@self
         parameters:
