@@ -132,7 +132,7 @@ suite('Annotations', function () {
 				isEdit: true,
 				subAgentInvocationId: subAgentId
 			};
-			const annotated = annotateSpecialMarkdownContent([codeblockUriPart]);
+			const annotated = annotateSpecialMarkdownContent([content('code'), codeblockUriPart]);
 			const markdown = annotated[0] as IChatMarkdownContent;
 
 			const result = extractCodeblockUrisFromText(markdown.content.value);
@@ -151,7 +151,7 @@ suite('Annotations', function () {
 				isEdit: true,
 				subAgentInvocationId: subAgentId
 			};
-			const annotated = annotateSpecialMarkdownContent([codeblockUriPart]);
+			const annotated = annotateSpecialMarkdownContent([content('code'), codeblockUriPart]);
 			const markdown = annotated[0] as IChatMarkdownContent;
 
 			const extracted = extractCodeblockUrisFromText(markdown.content.value);
