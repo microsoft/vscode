@@ -1174,11 +1174,6 @@ export class AgentTitleBarStatusRendering extends Disposable implements IWorkben
 			if ((enabled || enhanced) && configurationService.getValue<boolean>(LayoutSettings.COMMAND_CENTER) !== true) {
 				configurationService.updateValue(LayoutSettings.COMMAND_CENTER, true);
 			}
-
-			// Turn off chat controls when agent status or unified agents bar is enabled (they would be duplicates)
-			if ((enabled || enhanced) && configurationService.getValue<boolean>('chat.commandCenter.enabled') === true) {
-				configurationService.updateValue('chat.commandCenter.enabled', false);
-			}
 		};
 		updateClass();
 		this._register(configurationService.onDidChangeConfiguration(e => {
