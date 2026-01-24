@@ -174,6 +174,15 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 			this._lastRenderState = undefined; // Force re-render
 			this._render();
 		}));
+
+		// Re-render when chat widgets are added or backgrounded to update active/unread session counts
+		this._register(this.chatWidgetService.onDidAddWidget(() => {
+			this._render();
+		}));
+
+		this._register(this.chatWidgetService.onDidBackgroundSession(() => {
+			this._render();
+		}));
 	}
 
 	override render(container: HTMLElement): void {
