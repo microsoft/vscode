@@ -64,7 +64,7 @@ import { BuiltinToolsContribution } from '../common/tools/builtinTools/tools.js'
 import { IVoiceChatService, VoiceChatService } from '../common/voiceChatService.js';
 import { registerChatAccessibilityActions } from './actions/chatAccessibilityActions.js';
 import { AgentChatAccessibilityHelp, EditsChatAccessibilityHelp, PanelChatAccessibilityHelp, QuickChatAccessibilityHelp } from './actions/chatAccessibilityHelp.js';
-import { ACTION_ID_NEW_CHAT, CopilotTitleBarMenuRendering, ModeOpenChatGlobalAction, registerChatActions } from './actions/chatActions.js';
+import { ACTION_ID_NEW_CHAT, ModeOpenChatGlobalAction, registerChatActions } from './actions/chatActions.js';
 import { CodeBlockActionRendering, registerChatCodeBlockActions, registerChatCodeCompareBlockActions } from './actions/chatCodeblockActions.js';
 import { ChatContextContributions } from './actions/chatContext.js';
 import { registerChatContextActions } from './actions/chatContextActions.js';
@@ -185,14 +185,9 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('interactiveSession.editor.lineHeight', "Controls the line height in pixels in chat codeblocks. Use 0 to compute the line height from the font size."),
 			default: 0
 		},
-		'chat.commandCenter.enabled': {
+		[ChatConfiguration.AgentsControlTriStateToggle]: { // TODO@bpasero settle this
 			type: 'boolean',
-			markdownDescription: nls.localize('chat.commandCenter.enabled', "Controls whether the command center shows a menu for actions to control chat (requires {0}).", '`#window.commandCenter#`'),
-			default: false
-		},
-		[ChatConfiguration.CommandCenterTriStateToggle]: { // TODO@bpasero settle this
-			type: 'boolean',
-			markdownDescription: nls.localize('chat.commandCenter.triStateToggle', "When enabled, clicking the chat icon in the command center cycles through: show chat, maximize chat, hide chat. This requires chat to be contained in the secondary sidebar."),
+			markdownDescription: nls.localize('chat.agentsControl.triStateToggle', "When enabled, clicking the chat icon in the command center cycles through: show chat, maximize chat, hide chat. This requires chat to be contained in the secondary sidebar."),
 			default: product.quality !== 'stable',
 			tags: ['experimental']
 		},
@@ -1128,6 +1123,37 @@ class ChatAgentSettingContribution extends Disposable implements IWorkbenchContr
 
 
 /**
+ * Given builtin and custom modes, returns only the custom mode IDs that should have actions registered.
+ * Custom modes whose names conflict with builtin modes are excluded.
+ * If there are name collisions among custom modes, the later mode in the list wins.
+ */
+function getCustomModesWithUniqueNames(builtinModes: readonly IChatMode[], customModes: readonly IChatMode[]): Set<string> {
+	const customModeIds = new Set<string>();
+	const builtinNames = new Set(builtinModes.map(mode => mode.name.get()));
+	const customNameToId = new Map<string, string>();
+
+	for (const mode of customModes) {
+		const modeName = mode.name.get();
+
+		// Skip custom modes that conflict with builtin mode names
+		if (builtinNames.has(modeName)) {
+			continue;
+		}
+
+		// If there is a name collision among custom modes, the later one in the list wins
+		const existingId = customNameToId.get(modeName);
+		if (existingId) {
+			customModeIds.delete(existingId);
+		}
+
+		customNameToId.set(modeName, mode.id);
+		customModeIds.add(mode.id);
+	}
+
+	return customModeIds;
+}
+
+/**
  * Workbench contribution to register actions for custom chat modes via events
  */
 class ChatAgentActionsContribution extends Disposable implements IWorkbenchContribution {
@@ -1142,28 +1168,19 @@ class ChatAgentActionsContribution extends Disposable implements IWorkbenchContr
 		super();
 		this._store.add(this._modeActionDisposables);
 
-		// Register actions for existing custom modes
-		const { custom } = this.chatModeService.getModes();
+		// Register actions for existing custom modes (avoiding name collisions)
+		const { builtin, custom } = this.chatModeService.getModes();
+		const currentModeIds = getCustomModesWithUniqueNames(builtin, custom);
 		for (const mode of custom) {
-			this._registerModeAction(mode);
+			if (currentModeIds.has(mode.id)) {
+				this._registerModeAction(mode);
+			}
 		}
 
 		// Listen for custom mode changes by tracking snapshots
 		this._register(this.chatModeService.onDidChangeChatModes(() => {
-			const { custom } = this.chatModeService.getModes();
-			const currentModeIds = new Set<string>();
-			const currentModeNames = new Map<string, string>();
-
-			for (const mode of custom) {
-				const modeName = mode.name.get();
-				if (currentModeNames.has(modeName)) {
-					// If there is a name collision, the later one in the list wins
-					currentModeIds.delete(currentModeNames.get(modeName)!);
-				}
-
-				currentModeNames.set(modeName, mode.id);
-				currentModeIds.add(mode.id);
-			}
+			const { builtin, custom } = this.chatModeService.getModes();
+			const currentModeIds = getCustomModesWithUniqueNames(builtin, custom);
 
 			// Remove modes that no longer exist and those replaced by modes later in the list with same name
 			for (const modeId of this._modeActionDisposables.keys()) {
@@ -1324,7 +1341,6 @@ registerWorkbenchContribution2(ChatExtensionPointHandler.ID, ChatExtensionPointH
 registerWorkbenchContribution2(LanguageModelToolsExtensionPointHandler.ID, LanguageModelToolsExtensionPointHandler, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatPromptFilesExtensionPointHandler.ID, ChatPromptFilesExtensionPointHandler, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatCompatibilityNotifier.ID, ChatCompatibilityNotifier, WorkbenchPhase.Eventually);
-registerWorkbenchContribution2(CopilotTitleBarMenuRendering.ID, CopilotTitleBarMenuRendering, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(CodeBlockActionRendering.ID, CodeBlockActionRendering, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatImplicitContextContribution.ID, ChatImplicitContextContribution, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(ChatRelatedFilesContribution.ID, ChatRelatedFilesContribution, WorkbenchPhase.Eventually);

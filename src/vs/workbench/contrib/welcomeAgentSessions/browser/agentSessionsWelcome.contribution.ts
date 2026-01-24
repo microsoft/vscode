@@ -18,6 +18,7 @@ import { IEditorGroupsService } from '../../../services/editor/common/editorGrou
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { AuxiliaryBarMaximizedContext } from '../../../common/contextkeys.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
+import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
 import { AgentSessionsWelcomeInput } from './agentSessionsWelcomeInput.js';
 import { AgentSessionsWelcomePage, AgentSessionsWelcomeInputSerializer } from './agentSessionsWelcome.js';
 
@@ -92,6 +93,7 @@ class AgentSessionsWelcomeRunnerContribution extends Disposable implements IWork
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IStorageService private readonly storageService: IStorageService
 	) {
 		super();
 		this.run();
@@ -114,8 +116,11 @@ class AgentSessionsWelcomeRunnerContribution extends Disposable implements IWork
 			return;
 		}
 
-		// Don't open if there are already editors open
-		if (this.editorService.activeEditor) {
+		// Check if there's prefill data from a workspace transfer - always show welcome page in that case
+		const hasPrefillData = !!this.storageService.get('chat.welcomeViewPrefill', StorageScope.APPLICATION);
+
+		// Don't open if there are already editors open (unless we have prefill data)
+		if (this.editorService.activeEditor && !hasPrefillData) {
 			return;
 		}
 

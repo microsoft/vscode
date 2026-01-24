@@ -36,6 +36,7 @@ import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js'
 import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { IBrowserElementsService } from '../../../services/browserElements/browser/browserElementsService.js';
 import { IChatWidgetService } from '../../chat/browser/chat.js';
+import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
 import { BrowserFindWidget, CONTEXT_BROWSER_FIND_WIDGET_FOCUSED, CONTEXT_BROWSER_FIND_WIDGET_VISIBLE } from './browserFindWidget.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -728,9 +729,12 @@ export class BrowserEditor extends EditorPane {
 		subtitle.textContent = localize('browser.welcomeSubtitle', "Enter a URL above to get started.");
 		content.appendChild(subtitle);
 
-		const tip = $('.browser-welcome-tip');
-		tip.textContent = localize('browser.welcomeTip', "Tip: Use the Add Element to Chat feature to reference UI elements when asking Copilot for changes.");
-		content.appendChild(tip);
+		const chatEnabled = this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.enabled.key);
+		if (chatEnabled) {
+			const tip = $('.browser-welcome-tip');
+			tip.textContent = localize('browser.welcomeTip', "Tip: Use Add Element to Chat to reference UI elements in chat prompts.");
+			content.appendChild(tip);
+		}
 
 		container.appendChild(content);
 		return container;

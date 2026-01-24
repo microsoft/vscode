@@ -546,7 +546,6 @@ suite('HoverService', () => {
 			hoverService.showAndFocusLastHover();
 
 			// Verify there is a hover in the DOM (it's a new hover instance)
-			// eslint-disable-next-line no-restricted-syntax
 			const hoverElements = mainWindow.document.querySelectorAll('.monaco-hover');
 			assert.ok(hoverElements.length > 0, 'A hover should be recreated and in the DOM');
 
@@ -554,10 +553,8 @@ suite('HoverService', () => {
 			hoverService.hideHover(true);
 
 			// Verify cleanup
-			// eslint-disable-next-line no-restricted-syntax
 			const remainingHovers = mainWindow.document.querySelectorAll('.monaco-hover');
 			assert.strictEqual(remainingHovers.length, 0, 'No hovers should remain in DOM after cleanup');
 		});
 	});
 });
-
