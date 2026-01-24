@@ -810,8 +810,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					// Moved to background - execution continues running, just return current output
 					this._logService.debug(`RunInTerminalTool: Continue in background triggered, returning output collected so far`);
 					error = 'continueInBackground';
-					const execution = RunInTerminalTool._activeExecutions.get(termId);
-					const backgroundOutput = execution?.getOutput() ?? '';
+					const backgroundOutput = execution.getOutput();
 					outputLineCount = backgroundOutput ? count(backgroundOutput.trim(), '\n') + 1 : 0;
 					terminalResult = backgroundOutput;
 				} else {
