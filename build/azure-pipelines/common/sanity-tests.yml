@@ -31,8 +31,9 @@ jobs:
     variables:
       TEST_DIR: $(Build.SourcesDirectory)/test/sanity
       LOG_FILE: $(TEST_DIR)/results.xml
-      DOCKER_CACHE_DIR: $(Pipeline.Workspace)/docker-cache/${{ parameters.container }}
-      DOCKER_CACHE_TEMP_DIR: $(Agent.TempDirectory)/docker-cache/${{ parameters.container }}
+      DOCKER_CACHE_DIR: $(Pipeline.Workspace)/docker-cache
+      DOCKER_CACHE_FILE: $(DOCKER_CACHE_DIR)/${{ parameters.container }}.tar
+      DOCKER_CACHE_TEMP_FILE: $(Agent.TempDirectory)/${{ parameters.container }}.tar
     steps:
       - checkout: self
         fetchDepth: 1
@@ -86,18 +87,28 @@ jobs:
       - ${{ if ne(parameters.container, '') }}:
         - task: Cache@2
           inputs:
-            key: 'docker-v2 | "${{ parameters.container }}" | "${{ parameters.arch }}" | "$(Agent.OS)" | $(TEST_DIR)/containers/${{ parameters.container }}.dockerfile'
+            key: 'docker-v3 | "${{ parameters.container }}" | "${{ parameters.arch }}" | "$(Agent.OS)" | $(TEST_DIR)/containers/${{ parameters.container }}.dockerfile'
             path: $(DOCKER_CACHE_DIR)
-            restoreKeys: docker-v2 | "${{ parameters.container }}" | "${{ parameters.arch }}" | "$(Agent.OS)"
-          displayName: Cache Docker Build
+            restoreKeys: docker-v3 | "${{ parameters.container }}" | "${{ parameters.arch }}" | "$(Agent.OS)"
+          displayName: Cache Docker Image
 
         - bash: |
+            if [ -f "$(DOCKER_CACHE_FILE)" ]; then
+              echo "Loading cached Docker image"
+              docker load -i "$(DOCKER_CACHE_FILE)"
+            fi
+          displayName: Load Cached Docker Image
+
+        - bash: |
+            CACHE_FROM_ARG=""
+            if docker image inspect "${{ parameters.container }}" > /dev/null 2>&1; then
+              CACHE_FROM_ARG="--cache-from ${{ parameters.container }}"
+            fi
             $(TEST_DIR)/scripts/run-docker.sh \
               --container "${{ parameters.container }}" \
               --arch "${{ parameters.arch }}" \
               --base-image "${{ parameters.baseImage }}" \
-              --cache-from-dir "$(DOCKER_CACHE_DIR)" \
-              --cache-to-dir "$(DOCKER_CACHE_TEMP_DIR)" \
+              $CACHE_FROM_ARG \
               --quality "$(BUILD_QUALITY)" \
               --commit "$(BUILD_COMMIT)" \
               --test-results "/root/results.xml" \
@@ -106,9 +117,13 @@ jobs:
           displayName: Run Sanity Tests
 
         - bash: |
-            mkdir -p "$(dirname "$(DOCKER_CACHE_DIR)")"
-            rm -rf "$(DOCKER_CACHE_DIR)"
-            mv "$(DOCKER_CACHE_TEMP_DIR)" "$(DOCKER_CACHE_DIR)"
+            mkdir -p "$(dirname "$(DOCKER_CACHE_TEMP_FILE)")"
+            docker save -o "$(DOCKER_CACHE_TEMP_FILE)" "${{ parameters.container }}"
+          displayName: Save Docker Image
+
+        - bash: |
+            mkdir -p "$(DOCKER_CACHE_DIR)"
+            mv "$(DOCKER_CACHE_TEMP_FILE)" "$(DOCKER_CACHE_FILE)"
           displayName: Commit Docker Cache
 
       - task: PublishTestResults@2
