@@ -22,6 +22,7 @@ import { Agent, getProxyAgent } from './proxy.js';
 import { createGunzip } from 'zlib';
 
 const TRANSIENT_ERROR_REGEX = /EPROTO|ECONNRESET|ECONNREFUSED|ENETUNREACH|ETIMEDOUT|EAI_AGAIN|socket hang up|SSL routines/;
+const RETRYABLE_HTTP_METHODS_REGEX = /^(GET|HEAD|OPTIONS)$/i;
 
 export interface IRawRequestFunction {
 	(options: http.RequestOptions, callback?: (res: http.IncomingMessage) => void): http.ClientRequest;
@@ -157,6 +158,7 @@ async function getNodeRequest(options: IRequestOptions): Promise<IRawRequestFunc
 export async function nodeRequest(options: NodeRequestOptions, token: CancellationToken): Promise<IRequestContext> {
 	const maxRetries = 3;
 	let lastError: Error | undefined;
+	const canRetry = RETRYABLE_HTTP_METHODS_REGEX.test(options.type || 'GET');
 
 	for (let attempt = 1; attempt <= maxRetries; attempt++) {
 		try {
@@ -168,7 +170,7 @@ export async function nodeRequest(options: NodeRequestOptions, token: Cancellati
 			}
 
 			const isTransientError = TRANSIENT_ERROR_REGEX.test(getErrorMessage(error));
-			if (!isTransientError || attempt === maxRetries) {
+			if (!canRetry || !isTransientError || attempt === maxRetries) {
 				throw error;
 			}
 
@@ -265,10 +267,14 @@ async function nodeRequestAttempt(options: NodeRequestOptions, token: Cancellati
 
 		req.end();
 
-		token.onCancellationRequested(() => {
+		const cancellationListener = token.onCancellationRequested(() => {
+			cancellationListener.dispose();
 			req.abort();
 
 			reject(new CancellationError());
 		});
+
+		req.on('response', () => cancellationListener.dispose());
+		req.on('error', () => cancellationListener.dispose());
 	});
 }

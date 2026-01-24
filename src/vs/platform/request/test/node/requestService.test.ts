@@ -6,11 +6,10 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { lookupKerberosAuthorization } from '../../node/requestService.js';
+import { lookupKerberosAuthorization, nodeRequest } from '../../node/requestService.js';
 import { isWindows } from '../../../../base/common/platform.js';
-import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
-
 
 suite('Request Service', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -32,28 +31,241 @@ suite('Request Service', () => {
 	});
 
 	test('Request cancellation during retry backoff', async () => {
-		// This test verifies that the cancellation token is properly honored
-		// during the retry backoff period by checking that a request can be
-		// cancelled quickly even if it would normally wait during backoff
 		const cts = store.add(new CancellationTokenSource());
 		const startTime = Date.now();
-
-		// Cancel after a short delay (50ms)
 		setTimeout(() => cts.cancel(), 50);
 
 		try {
-			// Attempt to make a request that will fail and retry
-			// The retry logic uses exponential backoff (100ms * attempt)
-			// If cancellation is not honored, this would take at least 100ms for the first retry
-			const { nodeRequest } = await import('../../node/requestService.js');
 			await nodeRequest({ url: 'http://localhost:9999/nonexistent' }, cts.token);
 			assert.fail('Request should have been cancelled');
 		} catch (err) {
 			const elapsed = Date.now() - startTime;
-			// Verify the request was cancelled quickly (within 200ms)
-			// If cancellation wasn't honored during backoff, it would take much longer
 			assert.ok(err instanceof CancellationError, 'Error should be CancellationError');
 			assert.ok(elapsed < 200, `Request should be cancelled quickly, but took ${elapsed}ms`);
 		}
+	});
+
+	test('should retry GET requests on transient errors', async () => {
+		let attemptCount = 0;
+		const mockRawRequest = () => {
+			attemptCount++;
+			const mockReq: any = {
+				on: (event: string, handler: Function) => {
+					if (event === 'error' && attemptCount < 3) {
+						setTimeout(() => handler(new Error('ECONNRESET')), 0);
+					}
+				},
+				end: () => { },
+				abort: () => { },
+				setTimeout: () => { }
+			};
+			if (attemptCount >= 3) {
+				// Succeed on third attempt
+				setTimeout(() => mockReq.on('response', () => { }), 0);
+			}
+			return mockReq;
+		};
+
+		try {
+			await nodeRequest({
+				url: 'http://example.com',
+				type: 'GET',
+				getRawRequest: mockRawRequest
+			}, CancellationToken.None);
+		} catch (err) {
+			// Expected to eventually succeed or fail after retries
+		}
+
+		assert.ok(attemptCount > 1, 'GET request should have been retried');
+	});
+
+	test('should NOT retry POST requests', async () => {
+		let attemptCount = 0;
+		const mockRawRequest = () => {
+			attemptCount++;
+			const mockReq: any = {
+				on: (event: string, handler: Function) => {
+					if (event === 'error') {
+						setTimeout(() => handler(new Error('ECONNRESET')), 0);
+					}
+				},
+				end: () => { },
+				abort: () => { },
+				setTimeout: () => { }
+			};
+			return mockReq;
+		};
+
+		try {
+			await nodeRequest({
+				url: 'http://example.com',
+				type: 'POST',
+				getRawRequest: mockRawRequest
+			}, CancellationToken.None);
+			assert.fail('Should have thrown an error');
+		} catch (err) {
+			assert.ok(err instanceof Error);
+		}
+
+		assert.strictEqual(attemptCount, 1, 'POST request should not have been retried');
+	});
+
+	test('should retry HEAD requests on transient errors', async () => {
+		let attemptCount = 0;
+		const mockRawRequest = () => {
+			attemptCount++;
+			const mockReq: any = {
+				on: (event: string, handler: Function) => {
+					if (event === 'error' && attemptCount < 3) {
+						setTimeout(() => handler(new Error('ETIMEDOUT')), 0);
+					}
+				},
+				end: () => { },
+				abort: () => { },
+				setTimeout: () => { }
+			};
+			if (attemptCount >= 3) {
+				setTimeout(() => mockReq.on('response', () => { }), 0);
+			}
+			return mockReq;
+		};
+
+		try {
+			await nodeRequest({
+				url: 'http://example.com',
+				type: 'HEAD',
+				getRawRequest: mockRawRequest
+			}, CancellationToken.None);
+		} catch (err) {
+			// Expected to eventually succeed or fail after retries
+		}
+
+		assert.ok(attemptCount > 1, 'HEAD request should have been retried');
+	});
+
+	test('should retry OPTIONS requests on transient errors', async () => {
+		let attemptCount = 0;
+		const mockRawRequest = () => {
+			attemptCount++;
+			const mockReq: any = {
+				on: (event: string, handler: Function) => {
+					if (event === 'error' && attemptCount < 3) {
+						setTimeout(() => handler(new Error('ENETUNREACH')), 0);
+					}
+				},
+				end: () => { },
+				abort: () => { },
+				setTimeout: () => { }
+			};
+			if (attemptCount >= 3) {
+				setTimeout(() => mockReq.on('response', () => { }), 0);
+			}
+			return mockReq;
+		};
+
+		try {
+			await nodeRequest({
+				url: 'http://example.com',
+				type: 'OPTIONS',
+				getRawRequest: mockRawRequest
+			}, CancellationToken.None);
+		} catch (err) {
+			// Expected to eventually succeed or fail after retries
+		}
+
+		assert.ok(attemptCount > 1, 'OPTIONS request should have been retried');
+	});
+
+	test('should NOT retry DELETE requests', async () => {
+		let attemptCount = 0;
+		const mockRawRequest = () => {
+			attemptCount++;
+			const mockReq: any = {
+				on: (event: string, handler: Function) => {
+					if (event === 'error') {
+						setTimeout(() => handler(new Error('ECONNRESET')), 0);
+					}
+				},
+				end: () => { },
+				abort: () => { },
+				setTimeout: () => { }
+			};
+			return mockReq;
+		};
+
+		try {
+			await nodeRequest({
+				url: 'http://example.com',
+				type: 'DELETE',
+				getRawRequest: mockRawRequest
+			}, CancellationToken.None);
+			assert.fail('Should have thrown an error');
+		} catch (err) {
+			assert.ok(err instanceof Error);
+		}
+
+		assert.strictEqual(attemptCount, 1, 'DELETE request should not have been retried');
+	});
+
+	test('should NOT retry PUT requests', async () => {
+		let attemptCount = 0;
+		const mockRawRequest = () => {
+			attemptCount++;
+			const mockReq: any = {
+				on: (event: string, handler: Function) => {
+					if (event === 'error') {
+						setTimeout(() => handler(new Error('ECONNRESET')), 0);
+					}
+				},
+				end: () => { },
+				abort: () => { },
+				setTimeout: () => { }
+			};
+			return mockReq;
+		};
+
+		try {
+			await nodeRequest({
+				url: 'http://example.com',
+				type: 'PUT',
+				getRawRequest: mockRawRequest
+			}, CancellationToken.None);
+			assert.fail('Should have thrown an error');
+		} catch (err) {
+			assert.ok(err instanceof Error);
+		}
+
+		assert.strictEqual(attemptCount, 1, 'PUT request should not have been retried');
+	});
+
+	test('should NOT retry PATCH requests', async () => {
+		let attemptCount = 0;
+		const mockRawRequest = () => {
+			attemptCount++;
+			const mockReq: any = {
+				on: (event: string, handler: Function) => {
+					if (event === 'error') {
+						setTimeout(() => handler(new Error('ECONNRESET')), 0);
+					}
+				},
+				end: () => { },
+				abort: () => { },
+				setTimeout: () => { }
+			};
+			return mockReq;
+		};
+
+		try {
+			await nodeRequest({
+				url: 'http://example.com',
+				type: 'PATCH',
+				getRawRequest: mockRawRequest
+			}, CancellationToken.None);
+			assert.fail('Should have thrown an error');
+		} catch (err) {
+			assert.ok(err instanceof Error);
+		}
+
+		assert.strictEqual(attemptCount, 1, 'PATCH request should not have been retried');
 	});
 });
