@@ -6,7 +6,6 @@
 import * as dom from '../../../../../../base/browser/dom.js';
 import { RunOnceScheduler } from '../../../../../../base/common/async.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
-import { Emitter } from '../../../../../../base/common/event.js';
 import { escapeMarkdownSyntaxTokens, createMarkdownCommandLink, MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Lazy } from '../../../../../../base/common/lazy.js';
 import { Disposable, IDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
@@ -20,7 +19,7 @@ import { IOpenerService } from '../../../../../../platform/opener/common/opener.
 import { McpCommandIds } from '../../../../mcp/common/mcpCommandIds.js';
 import { IAutostartResult, IMcpService } from '../../../../mcp/common/mcpTypes.js';
 import { startServerAndWaitForLiveTools } from '../../../../mcp/common/mcpTypesUtils.js';
-import { IChatMcpServersStarting } from '../../../common/chatService/chatService.js';
+import { IChatMcpServersStarting, IChatMcpServersStartingSerialized } from '../../../common/chatService/chatService.js';
 import { IChatRendererContent, IChatResponseViewModel, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 import { ChatProgressContentPart } from './chatProgressContentPart.js';
@@ -28,8 +27,6 @@ import './media/chatMcpServersInteractionContent.css';
 
 export class ChatMcpServersInteractionContentPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
-	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
-	public readonly onDidChangeHeight = this._onDidChangeHeight.event;
 
 	private workingProgressPart: ChatProgressContentPart | undefined;
 	private interactionContainer: HTMLElement | undefined;
@@ -47,7 +44,7 @@ export class ChatMcpServersInteractionContentPart extends Disposable implements 
 	});
 
 	constructor(
-		private readonly data: IChatMcpServersStarting,
+		private readonly data: IChatMcpServersStarting | IChatMcpServersStartingSerialized,
 		private readonly context: IChatContentPartRenderContext,
 		@IMcpService private readonly mcpService: IMcpService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -104,8 +101,6 @@ export class ChatMcpServersInteractionContentPart extends Disposable implements 
 			this.interactionContainer.remove();
 			this.interactionContainer = undefined;
 		}
-
-		this._onDidChangeHeight.fire();
 	}
 
 	private createServerCommandLinks(servers: Array<{ id: string; label: string }>): string {
@@ -146,8 +141,6 @@ export class ChatMcpServersInteractionContentPart extends Disposable implements 
 			));
 			this.domNode.appendChild(this.workingProgressPart.domNode);
 		}
-
-		this._onDidChangeHeight.fire();
 	}
 
 	private renderInteractionRequired(serversRequiringInteraction: Array<{ id: string; label: string; errorMessage?: string }>): void {
@@ -181,7 +174,6 @@ export class ChatMcpServersInteractionContentPart extends Disposable implements 
 			: localize('mcp.start.multiple', 'The MCP servers {0} may have new tools and require interaction to start. [Start them now?]({1})', links, '#start');
 		const str = new MarkdownString(content, { isTrusted: true });
 		const messageMd = this.interactionMd.value = this._markdownRendererService.render(str, {
-			asyncRenderCallback: () => this._onDidChangeHeight.fire(),
 			actionHandler: (content) => {
 				if (!content.startsWith('command:')) {
 					this._start(startLink!);
@@ -221,7 +213,6 @@ export class ChatMcpServersInteractionContentPart extends Disposable implements 
 			for (let i = 0; i < serversToStart.length; i++) {
 				const serverInfo = serversToStart[i];
 				startLink.textContent = localize('mcp.starting', "Starting {0}...", serverInfo.label);
-				this._onDidChangeHeight.fire();
 
 				const server = this.mcpService.servers.get().find(s => s.definition.id === serverInfo.id);
 				if (server) {
@@ -242,8 +233,6 @@ export class ChatMcpServersInteractionContentPart extends Disposable implements 
 			startLink.style.pointerEvents = '';
 			startLink.style.opacity = '';
 			startLink.textContent = 'Start now?';
-		} finally {
-			this._onDidChangeHeight.fire();
 		}
 	}
 

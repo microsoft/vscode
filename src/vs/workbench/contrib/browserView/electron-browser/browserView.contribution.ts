@@ -11,22 +11,27 @@ import { EditorExtensions, IEditorFactoryRegistry } from '../../../common/editor
 import { BrowserEditor } from './browserEditor.js';
 import { BrowserEditorInput, BrowserEditorSerializer } from './browserEditorInput.js';
 import { BrowserViewUri } from '../../../../platform/browserView/common/browserViewUri.js';
-import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { registerSingleton, InstantiationType } from '../../../../platform/instantiation/common/extensions.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { workbenchConfigurationNodeBase } from '../../../common/configuration.js';
-import { MultiCommand, RedoCommand, SelectAllCommand, UndoCommand } from '../../../../editor/browser/editorExtensions.js';
-import { CopyAction, CutAction, PasteAction } from '../../../../editor/contrib/clipboard/browser/clipboard.js';
 import { IEditorResolverService, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { IBrowserViewWorkbenchService } from '../common/browserView.js';
 import { BrowserViewWorkbenchService } from './browserViewWorkbenchService.js';
+import { BrowserViewStorageScope } from '../../../../platform/browserView/common/browserView.js';
+import { IOpenerService, IOpener, OpenInternalOptions, OpenExternalOptions } from '../../../../platform/opener/common/opener.js';
+import { isLocalhostAuthority } from '../../../../platform/url/common/trustedDomains.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { logBrowserOpen } from './browserViewTelemetry.js';
 
 // Register actions
 import './browserViewActions.js';
-import { BrowserViewStorageScope } from '../../../../platform/browserView/common/browserView.js';
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
 	EditorPaneDescriptor.create(
@@ -93,11 +98,64 @@ class BrowserEditorResolverContribution implements IWorkbenchContribution {
 
 registerWorkbenchContribution2(BrowserEditorResolverContribution.ID, BrowserEditorResolverContribution, WorkbenchPhase.BlockStartup);
 
+/**
+ * Opens localhost URLs in the Integrated Browser when the setting is enabled.
+ */
+class LocalhostLinkOpenerContribution extends Disposable implements IWorkbenchContribution, IOpener {
+	static readonly ID = 'workbench.contrib.localhostLinkOpener';
+
+	constructor(
+		@IOpenerService openerService: IOpenerService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IEditorService private readonly editorService: IEditorService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService
+	) {
+		super();
+
+		this._register(openerService.registerOpener(this));
+	}
+
+	async open(resource: URI | string, _options?: OpenInternalOptions | OpenExternalOptions): Promise<boolean> {
+		if (!this.configurationService.getValue<boolean>('workbench.browser.openLocalhostLinks')) {
+			return false;
+		}
+
+		const url = typeof resource === 'string' ? resource : resource.toString(true);
+		try {
+			const parsed = new URL(url);
+			if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+				return false;
+			}
+			if (!isLocalhostAuthority(parsed.host)) {
+				return false;
+			}
+		} catch {
+			return false;
+		}
+
+		logBrowserOpen(this.telemetryService, 'localhostLinkOpener');
+
+		const browserUri = BrowserViewUri.forUrl(url);
+		await this.editorService.openEditor({ resource: browserUri, options: { pinned: true } });
+		return true;
+	}
+}
+
+registerWorkbenchContribution2(LocalhostLinkOpenerContribution.ID, LocalhostLinkOpenerContribution, WorkbenchPhase.BlockStartup);
+
 registerSingleton(IBrowserViewWorkbenchService, BrowserViewWorkbenchService, InstantiationType.Delayed);
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	...workbenchConfigurationNodeBase,
 	properties: {
+		'workbench.browser.openLocalhostLinks': {
+			type: 'boolean',
+			default: false,
+			markdownDescription: localize(
+				{ comment: ['This is the description for a setting.'], key: 'browser.openLocalhostLinks' },
+				'When enabled, localhost links from the terminal, chat, and other sources will open in the Integrated Browser instead of the system browser.'
+			)
+		},
 		'workbench.browser.dataStorage': {
 			type: 'string',
 			enum: [
@@ -121,27 +179,3 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		}
 	}
 });
-
-const PRIORITY = 100;
-
-function redirectCommandToBrowser(command: MultiCommand | undefined) {
-	command?.addImplementation(PRIORITY, 'integratedBrowser', (accessor: ServicesAccessor) => {
-		const editorService = accessor.get(IEditorService);
-		const activeEditor = editorService.activeEditorPane;
-
-		if (activeEditor instanceof BrowserEditor) {
-			// This will return false if there is no event to forward
-			// (i.e., the command was not triggered from the browser view)
-			return activeEditor.forwardCurrentEvent();
-		}
-
-		return false;
-	});
-}
-
-redirectCommandToBrowser(UndoCommand);
-redirectCommandToBrowser(RedoCommand);
-redirectCommandToBrowser(SelectAllCommand);
-redirectCommandToBrowser(CopyAction);
-redirectCommandToBrowser(PasteAction);
-redirectCommandToBrowser(CutAction);

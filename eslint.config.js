@@ -899,6 +899,7 @@ export default tseslint.config(
 					],
 					'verbs': [
 						'accept',
+						'archive',
 						'change',
 						'close',
 						'collapse',
@@ -1444,6 +1445,7 @@ export default tseslint.config(
 						'@vscode/vscode-languagedetection',
 						'@vscode/ripgrep',
 						'@vscode/iconv-lite-umd',
+						'@vscode/native-watchdog',
 						'@vscode/policy-watcher',
 						'@vscode/proxy-agent',
 						'@vscode/spdlog',
@@ -1462,7 +1464,6 @@ export default tseslint.config(
 						'minimist',
 						'node:module',
 						'native-keymap',
-						'native-watchdog',
 						'net',
 						'node-pty',
 						'os',
@@ -1936,6 +1937,13 @@ export default tseslint.config(
 					]
 				},
 				{
+					'target': 'test/sanity/**',
+					'restrictions': [
+						'test/sanity/**',
+						'*' // node modules
+					]
+				},
+				{
 					'target': 'test/automation/**',
 					'restrictions': [
 						'test/automation/**',
@@ -2110,6 +2118,23 @@ export default tseslint.config(
 			'@typescript-eslint/prefer-optional-chain': 'warn',
 			'@typescript-eslint/prefer-readonly': 'warn',
 			'@typescript-eslint/consistent-generic-constructors': ['warn', 'constructor'],
+		}
+	},
+	// Allow querySelector/querySelectorAll in test files - it's acceptable for test assertions
+	{
+		files: [
+			'src/**/test/**/*.ts',
+			'extensions/**/test/**/*.ts',
+		],
+		rules: {
+			'no-restricted-syntax': [
+				'warn',
+				// Keep the Intl helper restriction even in tests
+				{
+					'selector': `NewExpression[callee.object.name='Intl']`,
+					'message': 'Use safeIntl helper instead for safe and lazy use of potentially expensive Intl methods.'
+				},
+			],
 		}
 	},
 );

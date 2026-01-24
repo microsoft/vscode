@@ -25,6 +25,7 @@ import { AccessibilityWorkbenchSettingId } from '../../../../accessibility/brows
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { HoverStyle } from '../../../../../../base/browser/ui/hover/hover.js';
 import { ILanguageModelToolsService } from '../../../common/tools/languageModelToolsService.js';
+import { isEqual } from '../../../../../../base/common/resources.js';
 
 export class ChatProgressContentPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
@@ -32,9 +33,10 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 	private readonly showSpinner: boolean;
 	private readonly isHidden: boolean;
 	private readonly renderedMessage = this._register(new MutableDisposable<IRenderedMarkdown>());
+	private currentContent: IMarkdownString;
 
 	constructor(
-		progress: IChatProgressMessage | IChatTask | IChatTaskSerialized,
+		progress: IChatProgressMessage | IChatTask | IChatTaskSerialized | { content: IMarkdownString },
 		private readonly chatContentMarkdownRenderer: IMarkdownRenderer,
 		context: IChatContentPartRenderContext,
 		forceShowSpinner: boolean | undefined,
@@ -46,6 +48,7 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
+		this.currentContent = progress.content;
 
 		const followingContent = context.content.slice(context.contentIndex + 1);
 		this.showSpinner = forceShowSpinner ?? shouldShowSpinner(followingContent, context.element);
@@ -101,6 +104,12 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 
 		// Needs rerender when spinner state changes
 		const showSpinner = shouldShowSpinner(followingContent, element);
+
+		// Needs rerender when content changes
+		if (other.kind === 'progressMessage' && other.content.value !== this.currentContent.value) {
+			return false;
+		}
+
 		return other.kind === 'progressMessage' && this.showSpinner === showSpinner;
 	}
 
@@ -157,7 +166,7 @@ export class ChatWorkingProgressContentPart extends ChatProgressContentPart impl
 		};
 		super(progressMessage, chatContentMarkdownRenderer, context, undefined, undefined, undefined, undefined, instantiationService, chatMarkdownAnchorService, configurationService);
 		this._register(languageModelToolsService.onDidPrepareToolCallBecomeUnresponsive(e => {
-			if (context.element.sessionId === e.sessionId) {
+			if (isEqual(context.element.sessionResource, e.sessionResource)) {
 				this.updateMessage(new MarkdownString(localize('toolCallUnresponsive', "Waiting for tool '{0}' to respond...", e.toolData.displayName)));
 			}
 		}));

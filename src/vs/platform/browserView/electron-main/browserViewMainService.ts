@@ -6,7 +6,7 @@
 import { session } from 'electron';
 import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
-import { IBrowserViewBounds, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewService, BrowserViewStorageScope, IBrowserViewCaptureScreenshotOptions } from '../common/browserView.js';
+import { IBrowserViewBounds, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewService, BrowserViewStorageScope, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions } from '../common/browserView.js';
 import { joinPath } from '../../../base/common/resources.js';
 import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
 import { createDecorator, IInstantiationService } from '../../instantiation/common/instantiation.js';
@@ -16,7 +16,7 @@ import { generateUuid } from '../../../base/common/uuid.js';
 export const IBrowserViewMainService = createDecorator<IBrowserViewMainService>('browserViewMainService');
 
 export interface IBrowserViewMainService extends IBrowserViewService {
-	// Additional electron-specific methods can be added here if needed in the future
+	tryGetBrowserView(id: string): BrowserView | undefined;
 }
 
 // Same as webviews
@@ -96,6 +96,10 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		return view.getState();
 	}
 
+	tryGetBrowserView(id: string): BrowserView | undefined {
+		return this.browserViews.get(id);
+	}
+
 	/**
 	 * Get a browser view or throw if not found
 	 */
@@ -137,6 +141,10 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 
 	onDynamicDidRequestNewPage(id: string) {
 		return this._getBrowserView(id).onDidRequestNewPage;
+	}
+
+	onDynamicDidFindInPage(id: string) {
+		return this._getBrowserView(id).onDidFindInPage;
 	}
 
 	onDynamicDidClose(id: string) {
@@ -201,6 +209,14 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 
 	async focus(id: string): Promise<void> {
 		return this._getBrowserView(id).focus();
+	}
+
+	async findInPage(id: string, text: string, options?: IBrowserViewFindInPageOptions): Promise<void> {
+		return this._getBrowserView(id).findInPage(text, options);
+	}
+
+	async stopFindInPage(id: string, keepSelection?: boolean): Promise<void> {
+		return this._getBrowserView(id).stopFindInPage(keepSelection);
 	}
 
 	async clearGlobalStorage(): Promise<void> {

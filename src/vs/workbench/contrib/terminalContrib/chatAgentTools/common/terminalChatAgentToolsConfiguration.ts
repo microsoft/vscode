@@ -8,7 +8,6 @@ import type { IJSONSchema } from '../../../../../base/common/jsonSchema.js';
 import { localize } from '../../../../../nls.js';
 import { type IConfigurationPropertySchema } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { TerminalSettingId } from '../../../../../platform/terminal/common/terminal.js';
-import product from '../../../../../platform/product/common/product.js';
 import { terminalProfileBaseProperties } from '../../../../../platform/terminal/common/terminalPlatformConfiguration.js';
 import { PolicyCategory } from '../../../../../base/common/policy.js';
 
@@ -21,6 +20,10 @@ export const enum TerminalChatAgentToolsSettingId {
 	ShellIntegrationTimeout = 'chat.tools.terminal.shellIntegrationTimeout',
 	AutoReplyToPrompts = 'chat.tools.terminal.autoReplyToPrompts',
 	OutputLocation = 'chat.tools.terminal.outputLocation',
+	TerminalSandboxEnabled = 'chat.tools.terminal.sandbox.enabled',
+	TerminalSandboxNetwork = 'chat.tools.terminal.sandbox.network',
+	TerminalSandboxLinuxFileSystem = 'chat.tools.terminal.sandbox.linuxFileSystem',
+	TerminalSandboxMacFileSystem = 'chat.tools.terminal.sandbox.macFileSystem',
 	PreventShellHistory = 'chat.tools.terminal.preventShellHistory',
 	EnforceTimeoutFromModel = 'chat.tools.terminal.enforceTimeoutFromModel',
 
@@ -160,6 +163,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			cd: true,
 			echo: true,
 			ls: true,
+			dir: true,
 			pwd: true,
 			cat: true,
 			head: true,
@@ -176,6 +180,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			readlink: true,
 			stat: true,
 			file: true,
+			od: true,
 			du: true,
 			df: true,
 			sleep: true,
@@ -216,6 +221,11 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			// - `--force`: Generally dangerous
 			'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+branch\\b/': true,
 			'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+branch\\b.*-(d|D|m|M|-delete|-force)\\b/': false,
+
+			// docker - readonly sub-commands
+			'/^docker\\s+(ps|images|info|version|inspect|logs|top|stats|port|diff|search|events)\\b/': true,
+			'/^docker\\s+(container|image|network|volume|context|system)\\s+(ls|ps|inspect|history|show|df|info)\\b/': true,
+			'/^docker\\s+compose\\s+(ps|ls|top|logs|images|config|version|port|events)\\b/': true,
 
 			// #endregion
 
@@ -308,16 +318,18 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			//   while processing the input.
 			// - `-f`/`--file`: Add the commands contained in the file script-file to the set of
 			//   commands to be run while processing the input.
-			// - `-i`/`-I`/`--in-place`: This option specifies that files are to be edited in-place.
 			// - `w`/`W` commands: Write to files (blocked by `-i` check + agent typically won't use).
 			// - `s///e` flag: Executes substitution result as shell command
 			// - `s///w` flag: Write substitution result to file
 			// - `;W` Write first line of pattern space to file
 			// - Note that `--sandbox` exists which blocks unsafe commands that could potentially be
 			//   leveraged to auto approve
+			// - In-place editing (`-i`, `-I`, `--in-place`) is detected and blocked via file write
+			//   detection if necessary
 			sed: true,
-			'/^sed\\b.*(-[a-zA-Z]*(e|i|I|f)[a-zA-Z]*|--expression|--file|--in-place)\\b/': false,
-			'/^sed\\b.*(\/e|\/w|;W)/': false,
+			'/^sed\\b.*(-[a-zA-Z]*(e|f)[a-zA-Z]*|--expression|--file)\\b/': false,
+			'/^sed\\b.*s\\/.*\\/.*\\/[ew]/': false,
+			'/^sed\\b.*;W/': false,
 
 			// sort
 			// - `-o`: Output redirection can write files (`sort -o /etc/something file`) which are
@@ -332,6 +344,11 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			//   blocked currently
 			tree: true,
 			'/^tree\\b.*-o\\b/': false,
+
+			// xxd
+			// - Only allow flags and a single input file as it's difficult to parse the outfile
+			//   positional argument safely.
+			'/^xxd\\b(\\s+-\\S+)*\\s+[^-\\s]\\S*$/': true,
 
 			// #endregion
 
@@ -412,7 +429,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		],
 		default: 'outsideWorkspace',
 		tags: ['experimental'],
-		markdownDescription: localize('blockFileWrites.description', "Controls whether detected file write operations are blocked in the run in terminal tool. When detected, this will require explicit approval regardless of whether the command would normally be auto approved. Note that this cannot detect all possible methods of writing files, this is what is currently detected:\n\n- File redirection (detected via the bash or PowerShell tree sitter grammar)"),
+		markdownDescription: localize('blockFileWrites.description', "Controls whether detected file write operations are blocked in the run in terminal tool. When detected, this will require explicit approval regardless of whether the command would normally be auto approved. Note that this cannot detect all possible methods of writing files, this is what is currently detected:\n\n- File redirection (detected via the bash or PowerShell tree sitter grammar)\n- `sed` in-place editing (`-i`, `-I`, `--in-place`)"),
 	},
 	[TerminalChatAgentToolsSettingId.ShellIntegrationTimeout]: {
 		markdownDescription: localize('shellIntegrationTimeout.description', "Configures the duration in milliseconds to wait for shell integration to be detected when the run in terminal tool launches a new terminal. Set to `0` to wait the minimum time, the default value `-1` means the wait time is variable based on the value of {0} and whether it's a remote window. A large value can be useful if your shell starts very slowly and a low value if you're intentionally not using shell integration.", `\`#${TerminalSettingId.ShellIntegrationEnabled}#\``),
@@ -477,21 +494,114 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		type: 'boolean',
 		default: false,
 		tags: ['experimental'],
-		markdownDescription: localize('autoReplyToPrompts.key', "Whether to automatically respond to prompts in the terminal such as `Confirm? y/n`. This is an experimental feature and may not work in all scenarios."),
+		markdownDescription: localize('autoReplyToPrompts.key', "Whether to automatically respond to prompts in the terminal such as `Confirm? y/n`. This is an experimental feature and may not work in all scenarios.\n\n**This feature is inherently risky to use as you're deferring potentially sensitive decisions to an LLM. Use at your own risk.**"),
 	},
 	[TerminalChatAgentToolsSettingId.OutputLocation]: {
-		markdownDescription: localize('outputLocation.description', "Where to show the output from the run in terminal tool session."),
+		markdownDescription: localize('outputLocation.description', "Where to show the output from the run in terminal tool."),
 		type: 'string',
-		enum: ['terminal', 'none'],
+		enum: ['terminal', 'chat'],
 		enumDescriptions: [
-			localize('outputLocation.terminal', "Reveal the terminal when running the command."),
-			localize('outputLocation.none', "Do not reveal the terminal automatically."),
+			localize('outputLocation.terminal', "Reveal the terminal in the panel or editor in addition to chat."),
+			localize('outputLocation.chat', "Reveal the terminal output within chat only."),
 		],
-		default: product.quality !== 'stable' ? 'none' : 'terminal',
+		default: 'chat',
 		tags: ['experimental'],
 		experiment: {
 			mode: 'auto'
 		}
+	},
+	[TerminalChatAgentToolsSettingId.TerminalSandboxEnabled]: {
+		markdownDescription: localize('terminalSandbox.enabledSetting', "Controls whether to run commands in a sandboxed terminal for the run in terminal tool."),
+		type: 'boolean',
+		default: false,
+		tags: ['experimental'],
+		restricted: true,
+	},
+	[TerminalChatAgentToolsSettingId.TerminalSandboxNetwork]: {
+		markdownDescription: localize('terminalSandbox.networkSetting', "Note: this setting is applicable only when {0} is enabled. Controls network access in the terminal sandbox.", `\`#${TerminalChatAgentToolsSettingId.TerminalSandboxEnabled}#\``),
+		type: 'object',
+		properties: {
+			allowedDomains: {
+				type: 'array',
+				description: localize('terminalSandbox.networkSetting.allowedDomains', " Supports wildcards like {0} and an empty list means no network access.", '`*.example.com`'),
+				items: { type: 'string' },
+				default: []
+			},
+			deniedDomains: {
+				type: 'array',
+				description: localize('terminalSandbox.networkSetting.deniedDomains', "Array of denied domains (checked first, takes precedence over allowedDomains)."),
+				items: { type: 'string' },
+				default: []
+			}
+		},
+		default: {
+			allowedDomains: [],
+			deniedDomains: []
+		},
+		tags: ['experimental'],
+		restricted: true,
+	},
+	[TerminalChatAgentToolsSettingId.TerminalSandboxLinuxFileSystem]: {
+		markdownDescription: localize('terminalSandbox.linuxFileSystemSetting', "Note: this setting is applicable only when {0} is enabled. Controls file system access in the terminal sandbox on Linux.Paths does not support glob patterns, only literal paths (ex: ./src/, ~/.ssh, .env).", `\`#${TerminalChatAgentToolsSettingId.TerminalSandboxEnabled}#\``),
+		type: 'object',
+		properties: {
+			denyRead: {
+				type: 'array',
+				description: localize('terminalSandbox.linuxFileSystemSetting.denyRead', "Array of paths to deny read access. Leave empty to allow reading all paths."),
+				items: { type: 'string' },
+				default: []
+			},
+			allowWrite: {
+				type: 'array',
+				description: localize('terminalSandbox.linuxFileSystemSetting.allowWrite', "Array of paths to allow write access. Leave empty to disallow all writes."),
+				items: { type: 'string' },
+				default: ['.']
+			},
+			denyWrite: {
+				type: 'array',
+				description: localize('terminalSandbox.linuxFileSystemSetting.denyWrite', "Array of paths to deny write access within allowed paths (takes precedence over allowWrite)."),
+				items: { type: 'string' },
+				default: []
+			}
+		},
+		default: {
+			denyRead: [],
+			allowWrite: ['.'],
+			denyWrite: []
+		},
+		tags: ['experimental'],
+		restricted: true,
+	},
+	[TerminalChatAgentToolsSettingId.TerminalSandboxMacFileSystem]: {
+		markdownDescription: localize('terminalSandbox.macFileSystemSetting', "Note: this setting is applicable only when {0} is enabled. Controls file system access in the terminal sandbox on macOS.Paths also support git-style glob patterns(ex: *.ts, ./src, ./src/**/*.ts, file?.txt).", `\`#${TerminalChatAgentToolsSettingId.TerminalSandboxEnabled}#\``),
+		type: 'object',
+		properties: {
+			denyRead: {
+				type: 'array',
+				description: localize('terminalSandbox.macFileSystemSetting.denyRead', "Array of paths to deny read access. Leave empty to allow reading all paths."),
+				items: { type: 'string' },
+				default: []
+			},
+			allowWrite: {
+				type: 'array',
+				description: localize('terminalSandbox.macFileSystemSetting.allowWrite', "Array of paths to allow write access. Leave empty to disallow all writes."),
+				items: { type: 'string' },
+				default: ['.']
+			},
+			denyWrite: {
+				type: 'array',
+				description: localize('terminalSandbox.macFileSystemSetting.denyWrite', "Array of paths to deny write access within allowed paths (takes precedence over allowWrite)."),
+				items: { type: 'string' },
+				default: []
+			}
+		},
+		default: {
+			denyRead: [],
+			allowWrite: ['.'],
+			denyWrite: []
+		},
+		tags: ['experimental'],
+		restricted: true,
 	},
 	[TerminalChatAgentToolsSettingId.PreventShellHistory]: {
 		type: 'boolean',

@@ -34,12 +34,24 @@ export class ChatContextService extends Disposable {
 	private readonly _workspaceContext = new Map<string, IChatContextItem[]>();
 	private readonly _registeredPickers = this._register(new DisposableMap<string, IDisposable>());
 	private _lastResourceContext: Map<StringChatContextValue, { originalItem: IChatContextItem; provider: IChatContextProvider }> = new Map();
+	private _executeCommandCallback: ((itemHandle: number) => Promise<void>) | undefined;
 
 	constructor(
 		@IChatContextPickService private readonly _contextPickService: IChatContextPickService,
 		@IExtensionService private readonly _extensionService: IExtensionService
 	) {
 		super();
+	}
+
+	setExecuteCommandCallback(callback: (itemHandle: number) => Promise<void>): void {
+		this._executeCommandCallback = callback;
+	}
+
+	async executeChatContextItemCommand(handle: number): Promise<void> {
+		if (!this._executeCommandCallback) {
+			return;
+		}
+		await this._executeCommandCallback(handle);
 	}
 
 	setChatContextProvider(id: string, picker: { title: string; icon: ThemeIcon }): void {
@@ -93,24 +105,25 @@ export class ChatContextService extends Disposable {
 		return items;
 	}
 
-	async contextForResource(uri: URI): Promise<StringChatContextValue | undefined> {
-		return this._contextForResource(uri, false);
+	async contextForResource(uri: URI, language?: string): Promise<StringChatContextValue | undefined> {
+		return this._contextForResource(uri, false, language);
 	}
 
-	private async _contextForResource(uri: URI, withValue: boolean): Promise<StringChatContextValue | undefined> {
+	private async _contextForResource(uri: URI, withValue: boolean, language?: string): Promise<StringChatContextValue | undefined> {
 		const scoredProviders: Array<{ score: number; provider: IChatContextProvider }> = [];
 		for (const providerEntry of this._providers.values()) {
 			if (!providerEntry.chatContextProvider?.provider.provideChatContextForResource || (providerEntry.chatContextProvider.selector === undefined)) {
 				continue;
 			}
-			const matchScore = score(providerEntry.chatContextProvider.selector, uri, '', true, undefined, undefined);
+			const matchScore = score(providerEntry.chatContextProvider.selector, uri, language ?? '', true, undefined, undefined);
 			scoredProviders.push({ score: matchScore, provider: providerEntry.chatContextProvider.provider });
 		}
 		scoredProviders.sort((a, b) => b.score - a.score);
 		if (scoredProviders.length === 0 || scoredProviders[0].score <= 0) {
 			return;
 		}
-		const context = (await scoredProviders[0].provider.provideChatContextForResource!(uri, withValue, CancellationToken.None));
+		const provider = scoredProviders[0].provider;
+		const context = (await provider.provideChatContextForResource!(uri, withValue, CancellationToken.None));
 		if (!context) {
 			return;
 		}
@@ -119,29 +132,34 @@ export class ChatContextService extends Disposable {
 			name: context.label,
 			icon: context.icon,
 			uri: uri,
-			modelDescription: context.modelDescription
+			modelDescription: context.modelDescription,
+			tooltip: context.tooltip,
+			commandId: context.command?.id,
+			handle: context.handle
 		};
 		this._lastResourceContext.clear();
-		this._lastResourceContext.set(contextValue, { originalItem: context, provider: scoredProviders[0].provider });
+		this._lastResourceContext.set(contextValue, { originalItem: context, provider });
 		return contextValue;
 	}
 
-	async resolveChatContext(context: StringChatContextValue): Promise<StringChatContextValue> {
+	async resolveChatContext(context: StringChatContextValue, language?: string): Promise<StringChatContextValue> {
 		if (context.value !== undefined) {
 			return context;
 		}
 
 		const item = this._lastResourceContext.get(context);
 		if (!item) {
-			const resolved = await this._contextForResource(context.uri, true);
+			const resolved = await this._contextForResource(context.uri, true, language);
 			context.value = resolved?.value;
 			context.modelDescription = resolved?.modelDescription;
+			context.tooltip = resolved?.tooltip;
 			return context;
 		} else if (item.provider.resolveChatContext) {
 			const resolved = await item.provider.resolveChatContext(item.originalItem, CancellationToken.None);
 			if (resolved) {
 				context.value = resolved.value;
 				context.modelDescription = resolved.modelDescription;
+				context.tooltip = resolved.tooltip;
 				return context;
 			}
 		}
@@ -183,7 +201,7 @@ export class ChatContextService extends Disposable {
 								id: contextValue.label,
 								name: contextValue.label,
 								icon: contextValue.icon,
-								value: contextValue.value
+								value: contextValue.value,
 							};
 						}
 					}));
