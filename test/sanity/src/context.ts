@@ -560,7 +560,7 @@ export class TestContext {
 	 */
 	public async uninstallDeb() {
 		const name = this.getLinuxBinaryName();
-		const packagePath = path.join('/usr/bin', name);
+		const packagePath = path.join('/usr/share', name, name);
 
 		this.log(`Uninstalling DEB package ${packagePath}`);
 		if (this.isRootUser) {

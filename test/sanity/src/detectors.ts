@@ -93,7 +93,7 @@ function detectPackageManagers(capabilities: Set<Capability>) {
  * Detect if a desktop environment is available.
  */
 function detectDesktop(capabilities: Set<Capability>) {
-	if (process.platform !== 'linux' || process.env.DISPLAY) {
+	if (process.platform !== 'linux' || !!process.env.DISPLAY) {
 		capabilities.add('desktop');
 	}
 }
