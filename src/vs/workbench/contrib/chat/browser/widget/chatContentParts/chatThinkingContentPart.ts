@@ -812,14 +812,21 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			// track state for live/still streaming tools, excluding serialized tools
 			if (toolInvocationOrMarkdown.kind === 'toolInvocation') {
 				let currentToolLabel = toolCallLabel;
+				let isComplete = false;
 
 				const updateTitle = (updatedMessage: string) => {
 					if (updatedMessage && updatedMessage !== currentToolLabel) {
 						// replace old title if exists, otherwise add new
 						const oldIndex = this.extractedTitles.indexOf(currentToolLabel);
+						const updatedIndex = this.extractedTitles.indexOf(updatedMessage);
+
 						if (oldIndex !== -1) {
-							this.extractedTitles[oldIndex] = updatedMessage;
-						} else if (!this.extractedTitles.includes(updatedMessage)) {
+							if (updatedIndex !== -1 && updatedIndex !== oldIndex) {
+								this.extractedTitles.splice(oldIndex, 1);
+							} else {
+								this.extractedTitles[oldIndex] = updatedMessage;
+							}
+						} else if (updatedIndex === -1) {
 							this.extractedTitles.push(updatedMessage);
 						}
 						currentToolLabel = updatedMessage;
@@ -833,7 +840,17 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 				};
 
 				this._register(autorun(reader => {
+					if (isComplete) {
+						return;
+					}
+
 					const currentState = toolInvocationOrMarkdown.state.read(reader);
+
+					if (currentState.type === IChatToolInvocation.StateKind.Completed ||
+						currentState.type === IChatToolInvocation.StateKind.Cancelled) {
+						isComplete = true;
+						return;
+					}
 
 					// streaming
 					if (currentState.type === IChatToolInvocation.StateKind.Streaming) {
