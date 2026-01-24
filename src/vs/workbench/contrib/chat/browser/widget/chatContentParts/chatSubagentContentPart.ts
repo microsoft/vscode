@@ -26,6 +26,7 @@ import { CollapsibleListPool } from './chatReferencesContentPart.js';
 import { EditorPool } from './chatContentCodePools.js';
 import { CodeBlockModelCollection } from '../../../common/widget/codeBlockModelCollection.js';
 import { ChatToolInvocationPart } from './toolInvocationParts/chatToolInvocationPart.js';
+import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
 import './media/chatSubagentContent.css';
 
 const MAX_TITLE_LENGTH = 100;
@@ -55,6 +56,7 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 	private description: string;
 	private agentName: string | undefined;
 	private prompt: string | undefined;
+	private currentToolStatus: string | undefined;
 
 	// Lazy rendering support
 	private readonly lazyItems: ILazyToolItem[] = [];
@@ -108,6 +110,7 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		private readonly codeBlockModelCollection: CodeBlockModelCollection,
 		private readonly announcedToolProgressKeys: Set<string>,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IChatMarkdownAnchorService private readonly chatMarkdownAnchorService: IChatMarkdownAnchorService,
 		@IHoverService hoverService: IHoverService,
 	) {
 		// Extract description, agentName, and prompt from toolInvocation
@@ -261,6 +264,7 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		if (this._collapseButton) {
 			this._collapseButton.icon = Codicon.check;
 		}
+		this.currentToolStatus = undefined;
 		this.finalizeTitle();
 		// Collapse when done
 		this.setExpanded(false);
@@ -276,8 +280,12 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 	private updateTitle(): void {
 		if (this._collapseButton) {
 			const prefix = this.agentName || localize('chat.subagent.prefix', 'Subagent');
-			const finalLabel = `${prefix}: ${this.description}`;
-			this._collapseButton.label = finalLabel;
+			// Show current tool status when collapsed and streaming
+			if (!this.isExpanded() && this.currentToolStatus && this.isActive) {
+				this._collapseButton.label = `${prefix}: ${this.currentToolStatus}`;
+			} else {
+				this._collapseButton.label = `${prefix}: ${this.description}`;
+			}
 		}
 	}
 
@@ -406,6 +414,18 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 			}
 		}
 
+		// Update current tool status from invocation message
+		if (toolInvocation.invocationMessage) {
+			const message = typeof toolInvocation.invocationMessage === 'string'
+				? toolInvocation.invocationMessage
+				: toolInvocation.invocationMessage.value;
+			this.currentToolStatus = message;
+			// Update title if currently collapsed
+			if (!this.isExpanded()) {
+				this.updateTitle();
+			}
+		}
+
 		// Render immediately if:
 		// - The section is expanded
 		// - It has been expanded once before
@@ -478,6 +498,13 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 
 		// Schedule layout to measure last item and scroll
 		this.layoutScheduler.schedule();
+	}
+
+	/**
+	 * Expands the subagent section.
+	 */
+	public expand(): void {
+		this.setExpanded(true);
 	}
 
 	/**
