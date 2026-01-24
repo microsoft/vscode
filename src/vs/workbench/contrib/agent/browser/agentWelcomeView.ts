@@ -89,14 +89,20 @@ export class AgentWelcomeView extends Disposable {
 
 		// Create a delegate for the session target picker with independent local state
 		const onDidChangeActiveSessionProvider = this._register(new Emitter<AgentSessionProviders>());
-		let selectedSessionProvider = AgentSessionProviders.Local;
+		let selectedSessionProvider = AgentSessionProviders.Background; // Agent Windows only support remote sessions
 		const sessionTypePickerDelegate: ISessionTypePickerDelegate = {
 			getActiveSessionProvider: () => selectedSessionProvider,
 			setActiveSessionProvider: (provider: AgentSessionProviders) => {
 				selectedSessionProvider = provider;
 				onDidChangeActiveSessionProvider.fire(provider);
 			},
-			onDidChangeActiveSessionProvider: onDidChangeActiveSessionProvider.event
+			onDidChangeActiveSessionProvider: onDidChangeActiveSessionProvider.event,
+			// Pending delegation target - used by submit action to determine session type
+			getPendingDelegationTarget: () => selectedSessionProvider,
+			setPendingDelegationTarget: (provider: AgentSessionProviders) => {
+				selectedSessionProvider = provider;
+				onDidChangeActiveSessionProvider.fire(provider);
+			},
 		};
 
 		this._chatWidget = this._register(scopedInstantiationService.createInstance(
