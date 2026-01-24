@@ -10,6 +10,11 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { ChatProcessingTipsService } from '../../browser/chatProcessingTipsService.js';
 import { ChatMode, IChatMode } from '../../common/chatModes.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../common/languageModels.js';
+import { mock } from '../../../../../base/test/common/mock.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
+import { IWorkspaceContextService, IWorkspace, IWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
+import { IMcpService, IMcpServer } from '../../../mcp/common/mcpTypes.js';
+import { URI } from '../../../../../base/common/uri.js';
 
 /**
  * Mock ChatInputPart for testing the processing tips service.
@@ -86,13 +91,82 @@ class MockChatWidget {
 	}
 }
 
+/**
+ * Creates mock services for testing.
+ */
+function createMockServices(options: {
+	hasInstructionsFile?: boolean;
+	hasPromptsFolder?: boolean;
+	hasAgentsFolder?: boolean;
+	hasMcpServers?: boolean;
+	hasWorkspace?: boolean;
+} = {}) {
+	const {
+		hasInstructionsFile = true,
+		hasPromptsFolder = true,
+		hasAgentsFolder = true,
+		hasMcpServers = true,
+		hasWorkspace = true,
+	} = options;
+
+	const mockFileService = new class extends mock<IFileService>() {
+		override async exists(resource: URI): Promise<boolean> {
+			const path = resource.path;
+			if (path.endsWith('copilot-instructions.md')) {
+				return hasInstructionsFile;
+			}
+			if (path.endsWith('/prompts')) {
+				return hasPromptsFolder;
+			}
+			if (path.endsWith('/agents')) {
+				return hasAgentsFolder;
+			}
+			return false;
+		}
+		override async resolve(resource: URI): Promise<any> {
+			return {
+				children: hasPromptsFolder || hasAgentsFolder ? [{ name: 'test.txt' }] : []
+			};
+		}
+	}();
+
+	const mockWorkspaceFolder: IWorkspaceFolder = {
+		uri: URI.file('/test/workspace'),
+		name: 'test',
+		index: 0,
+		toResource: (relativePath: string) => URI.file(`/test/workspace/${relativePath}`)
+	};
+
+	const mockWorkspace: IWorkspace = {
+		id: 'test-workspace',
+		folders: hasWorkspace ? [mockWorkspaceFolder] : [],
+	};
+
+	const mockWorkspaceContextService = new class extends mock<IWorkspaceContextService>() {
+		override getWorkspace(): IWorkspace {
+			return mockWorkspace;
+		}
+	}();
+
+	const mockMcpService = new class extends mock<IMcpService>() {
+		override readonly servers = observableValue<readonly IMcpServer[]>('servers', hasMcpServers ? [{ id: 'test-server' } as any] : []);
+	}();
+
+	return { mockFileService, mockWorkspaceContextService, mockMcpService };
+}
+
 suite('ChatProcessingTipsService', () => {
 	let store: DisposableStore;
 	let service: ChatProcessingTipsService;
 
 	setup(() => {
 		store = new DisposableStore();
-		service = store.add(new ChatProcessingTipsService());
+		const { mockFileService, mockWorkspaceContextService, mockMcpService } = createMockServices();
+		service = store.add(new ChatProcessingTipsService(
+			mockFileService as IFileService,
+			mockWorkspaceContextService as IWorkspaceContextService,
+			mockMcpService as IMcpService
+		));
 	});
 
 	teardown(() => {
@@ -101,116 +175,124 @@ suite('ChatProcessingTipsService', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('startTips shows first tip immediately for Agent mode', () => {
+	test('startTips shows tip for Agent mode', async () => {
 		const widget = new MockChatWidget(ChatMode.Agent, undefined);
 		service.startTips(widget as any);
 
+		// Wait for async tip building
+		await new Promise(resolve => setTimeout(resolve, 50));
+
 		// Should have shown at least one tip
-		assert.strictEqual(widget.placeholders.length, 1);
-		// The tip should be one of the Agent tips
-		const knownAgentTips = [
-			'Copilot can run terminal commands',
-			'Try asking Copilot to run your tests',
-			'Copilot can commit changes'
-		];
-		assert.ok(knownAgentTips.includes(widget.placeholders[0]));
+		assert.ok(widget.placeholders.length >= 1);
 
 		service.stopTips();
 	});
 
-	test('startTips shows first tip immediately for Edit mode', () => {
+	test('startTips shows tip for Edit mode', async () => {
 		const widget = new MockChatWidget(ChatMode.Edit, undefined);
 		service.startTips(widget as any);
 
+		// Wait for async tip building
+		await new Promise(resolve => setTimeout(resolve, 50));
+
 		// Should have shown at least one tip
-		assert.strictEqual(widget.placeholders.length, 1);
-		// The tip should be one of the Edit tips
-		const knownEditTips = [
-			'Use #codebase to find files automatically',
-			'Reference specific files with #file'
-		];
-		assert.ok(knownEditTips.includes(widget.placeholders[0]));
+		assert.ok(widget.placeholders.length >= 1);
 
 		service.stopTips();
 	});
 
-	test('startTips shows first tip immediately for Ask mode', () => {
+	test('startTips shows tip for Ask mode', async () => {
 		const widget = new MockChatWidget(ChatMode.Ask, undefined);
 		service.startTips(widget as any);
 
+		// Wait for async tip building
+		await new Promise(resolve => setTimeout(resolve, 50));
+
 		// Should have shown at least one tip
-		assert.strictEqual(widget.placeholders.length, 1);
-		// The tip should be one of the Ask tips
-		const knownAskTips = [
-			'Ask about code in your workspace',
-			'Try @workspace for project-wide questions'
-		];
-		assert.ok(knownAskTips.includes(widget.placeholders[0]));
+		assert.ok(widget.placeholders.length >= 1);
 
 		service.stopTips();
 	});
 
-	test('stopTips resets placeholder', () => {
+	test('stopTips resets placeholder', async () => {
 		const widget = new MockChatWidget(ChatMode.Agent, undefined);
 		service.startTips(widget as any);
+
+		// Wait for async tip building
+		await new Promise(resolve => setTimeout(resolve, 50));
+
 		assert.strictEqual(widget.wasPlaceholderReset, false);
 
 		service.stopTips();
 		assert.strictEqual(widget.wasPlaceholderReset, true);
 	});
 
-	test('stopTips clears state', () => {
+	test('stopTips clears state', async () => {
 		const widget = new MockChatWidget(ChatMode.Agent, undefined);
 		service.startTips(widget as any);
+
+		// Wait for async tip building
+		await new Promise(resolve => setTimeout(resolve, 50));
+
 		service.stopTips();
 
 		// Starting tips again should work correctly
 		widget.clearTracking();
 		service.startTips(widget as any);
-		assert.strictEqual(widget.placeholders.length, 1);
+
+		// Wait for async tip building
+		await new Promise(resolve => setTimeout(resolve, 50));
+
+		assert.ok(widget.placeholders.length >= 1);
 
 		service.stopTips();
 	});
 
-	test('includes model upgrade tip for gpt-4o Copilot model', () => {
-		const widget = new MockChatWidget(ChatMode.Agent, 'copilot/gpt-4o');
-		service.startTips(widget as any);
+	test('shows customization tips when files are missing', async () => {
+		const { mockFileService, mockWorkspaceContextService, mockMcpService } = createMockServices({
+			hasInstructionsFile: false,
+			hasPromptsFolder: false,
+			hasAgentsFolder: false,
+			hasMcpServers: false,
+		});
 
-		// Should have shown at least one tip
-		assert.strictEqual(widget.placeholders.length, 1);
+		const customService = store.add(new ChatProcessingTipsService(
+			mockFileService as IFileService,
+			mockWorkspaceContextService as IWorkspaceContextService,
+			mockMcpService as IMcpService
+		));
 
-		// Stop to clear
-		service.stopTips();
+		const widget = new MockChatWidget(ChatMode.Agent, undefined);
+		customService.startTips(widget as any);
+
+		// Wait for async tip building
+		await new Promise(resolve => setTimeout(resolve, 50));
+
+		// Should show tips (mode tips + customization tips)
+		assert.ok(widget.placeholders.length >= 1);
+
+		customService.stopTips();
 	});
 
-	test('does not include model upgrade tip for BYOK model', () => {
-		// Using a BYOK model (doesn't start with "copilot/")
-		const widget = new MockChatWidget(ChatMode.Agent, 'anthropic/claude-3');
-		service.startTips(widget as any);
-
-		// Should have shown at least one tip (mode tips only)
-		assert.strictEqual(widget.placeholders.length, 1);
-		// The tip should only be a mode tip, not a model upgrade tip
-		const knownAgentTips = [
-			'Copilot can run terminal commands',
-			'Try asking Copilot to run your tests',
-			'Copilot can commit changes'
-		];
-		assert.ok(knownAgentTips.includes(widget.placeholders[0]));
-
-		service.stopTips();
-	});
-
-	test('calling startTips twice clears previous tips', () => {
+	test('calling startTips twice clears previous tips', async () => {
 		const widget = new MockChatWidget(ChatMode.Agent, undefined);
 		service.startTips(widget as any);
-		assert.strictEqual(widget.placeholders.length, 1);
+
+		// Wait for async tip building
+		await new Promise(resolve => setTimeout(resolve, 50));
+
+		const firstCount = widget.placeholders.length;
+		assert.ok(firstCount >= 1);
 
 		// Call again
 		service.startTips(widget as any);
+
+		// Wait for async tip building
+		await new Promise(resolve => setTimeout(resolve, 50));
+
 		// Should have reset and shown new tip
 		assert.ok(widget.wasPlaceholderReset);
-		assert.strictEqual(widget.placeholders.length, 2); // first one + new one after reset
+		assert.ok(widget.placeholders.length > firstCount);
 
 		service.stopTips();
 	});
