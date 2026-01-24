@@ -27,9 +27,9 @@ import { EditSuggestionId } from '../../../../../editor/common/textModelEditSour
 import { localize } from '../../../../../nls.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { CellUri, ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
-import { ChatRequestToolReferenceEntry, IChatRequestVariableEntry } from '../attachments/chatVariableEntries.js';
+import { ChatRequestToolReferenceEntry, IChatRequestVariableEntry, isImplicitVariableEntry, isStringImplicitContextValue, isStringVariableEntry } from '../attachments/chatVariableEntries.js';
 import { migrateLegacyTerminalToolSpecificData } from '../chat.js';
-import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatResponseClearToPreviousToolInvocationReason, ElicitationState, IChatAgentMarkdownContentWithVulnerability, IChatClearToPreviousToolInvocation, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatEditingSessionAction, IChatElicitationRequest, IChatElicitationRequestSerialized, IChatExtensionsContent, IChatFollowup, IChatLocationData, IChatMarkdownContent, IChatMcpServersStarting, IChatMcpServersStartingSerialized, IChatModelReference, IChatMultiDiffData, IChatMultiDiffDataSerialized, IChatNotebookEdit, IChatProgress, IChatProgressMessage, IChatPullRequestContent, IChatResponseCodeblockUriPart, IChatResponseProgressFileTreeData, IChatService, IChatSessionContext, IChatSessionTiming, IChatTask, IChatTaskSerialized, IChatTextEdit, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsedContext, IChatWarningMessage, ResponseModelState, isIUsedContext } from '../chatService/chatService.js';
+import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatResponseClearToPreviousToolInvocationReason, ElicitationState, IChatAgentMarkdownContentWithVulnerability, IChatClearToPreviousToolInvocation, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatEditingSessionAction, IChatElicitationRequest, IChatElicitationRequestSerialized, IChatExtensionsContent, IChatFollowup, IChatLocationData, IChatMarkdownContent, IChatMcpServersStarting, IChatMcpServersStartingSerialized, IChatModelReference, IChatMultiDiffData, IChatMultiDiffDataSerialized, IChatNotebookEdit, IChatProgress, IChatProgressMessage, IChatPullRequestContent, IChatQuestionCarousel, IChatResponseCodeblockUriPart, IChatResponseProgressFileTreeData, IChatService, IChatSessionContext, IChatSessionTiming, IChatTask, IChatTaskSerialized, IChatTextEdit, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsedContext, IChatWarningMessage, IChatWorkspaceEdit, ResponseModelState, isIUsedContext } from '../chatService/chatService.js';
 import { ChatAgentLocation, ChatModeKind } from '../constants.js';
 import { IChatEditingService, IChatEditingSession, ModifiedFileEntryState } from '../editing/chatEditingService.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../languageModels.js';
@@ -143,9 +143,11 @@ export type IChatProgressHistoryResponseContent =
 	| IChatTextEditGroup
 	| IChatNotebookEditGroup
 	| IChatConfirmation
+	| IChatQuestionCarousel
 	| IChatExtensionsContent
 	| IChatThinkingPart
-	| IChatPullRequestContent;
+	| IChatPullRequestContent
+	| IChatWorkspaceEdit;
 
 /**
  * "Normal" progress kinds that are rendered as parts of the stream of content.
@@ -445,11 +447,13 @@ class AbstractResponse implements IResponse {
 				case 'extensions':
 				case 'pullRequest':
 				case 'undoStop':
+				case 'workspaceEdit':
 				case 'elicitation2':
 				case 'elicitationSerialized':
 				case 'thinking':
 				case 'multiDiffData':
 				case 'mcpServersStarting':
+				case 'questionCarousel':
 					// Ignore
 					continue;
 				case 'toolInvocation':
@@ -864,6 +868,10 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 	}
 
 	public set shouldBeRemovedOnSend(disablement: IChatRequestDisablement | undefined) {
+		if (this._shouldBeRemovedOnSend === disablement) {
+			return;
+		}
+
 		this._shouldBeRemovedOnSend = disablement;
 		this._onDidChange.fire(defaultChatResponseModelChangeReason);
 	}
@@ -1050,13 +1058,6 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		this._register(this._response.onDidChangeValue(() => this._onDidChange.fire(defaultChatResponseModelChangeReason)));
 		this.id = params.restoredId ?? 'response_' + generateUuid();
 
-		this._register(this._session.onDidChange((e) => {
-			if (e.kind === 'setCheckpoint') {
-				const isDisabled = e.disabledResponseIds.has(this.id);
-				this._shouldBeBlocked.set(isDisabled, undefined);
-			}
-		}));
-
 		let lastStartedWaitingAt: number | undefined = undefined;
 		this.confirmationAdjustedTimestamp = derived(reader => {
 			const pending = this.isPendingConfirmation.read(reader);
@@ -1083,6 +1084,10 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 			throw new BugIndicatingError('Code block infos have already been initialized');
 		}
 		this._codeBlockInfos = [...codeBlockInfo];
+	}
+
+	setBlockedState(isBlocked: boolean): void {
+		this._shouldBeBlocked.set(isBlocked, undefined);
 	}
 
 	/**
@@ -1611,19 +1616,12 @@ export type IChatChangeEvent =
 	| IChatMoveEvent
 	| IChatSetHiddenEvent
 	| IChatCompletedRequestEvent
-	| IChatSetCheckpointEvent
 	| IChatSetCustomTitleEvent
 	;
 
 export interface IChatAddRequestEvent {
 	kind: 'addRequest';
 	request: IChatRequestModel;
-}
-
-export interface IChatSetCheckpointEvent {
-	kind: 'setCheckpoint';
-	disabledRequestIds: Set<string>;
-	disabledResponseIds: Set<string>;
 }
 
 export interface IChatChangedRequestEvent {
@@ -1727,9 +1725,21 @@ class InputModel implements IInputModel {
 			return undefined;
 		}
 
+		// Filter out extension-contributed context items (kind: 'string' or implicit entries with StringChatContextValue)
+		// These have handles that become invalid after window reload and cannot be properly restored.
+		const persistableAttachments = value.attachments.filter(attachment => {
+			if (isStringVariableEntry(attachment)) {
+				return false;
+			}
+			if (isImplicitVariableEntry(attachment) && isStringImplicitContextValue(attachment.value)) {
+				return false;
+			}
+			return true;
+		});
+
 		return {
 			contrib: value.contrib,
-			attachments: value.attachments,
+			attachments: persistableAttachments,
 			mode: value.mode,
 			selectedModel: value.selectedModel ? {
 				identifier: value.selectedModel.identifier,
@@ -2137,17 +2147,14 @@ export class ChatModel extends Disposable implements IChatModel {
 			}
 		}
 
-		const disabledRequestIds = new Set<string>();
-		const disabledResponseIds = new Set<string>();
 		for (let i = this._requests.length - 1; i >= 0; i -= 1) {
 			const request = this._requests[i];
 			if (this._checkpoint && !checkpoint) {
 				request.setShouldBeBlocked(false);
 			} else if (checkpoint && i >= checkpointIndex) {
 				request.setShouldBeBlocked(true);
-				disabledRequestIds.add(request.id);
 				if (request.response) {
-					disabledResponseIds.add(request.response.id);
+					request.response.setBlockedState(true);
 				}
 			} else if (checkpoint && i < checkpointIndex) {
 				request.setShouldBeBlocked(false);
@@ -2155,11 +2162,6 @@ export class ChatModel extends Disposable implements IChatModel {
 		}
 
 		this._checkpoint = checkpoint;
-		this._onDidChange.fire({
-			kind: 'setCheckpoint',
-			disabledRequestIds,
-			disabledResponseIds
-		});
 	}
 
 	private _checkpoint: ChatRequestModel | undefined = undefined;

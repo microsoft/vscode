@@ -19,7 +19,7 @@ import { getPartByLocation } from '../../../../services/views/browser/viewsServi
 import { IWorkbenchLayoutService, Position } from '../../../../services/layout/browser/layoutService.js';
 import { IAgentSessionsService } from './agentSessionsService.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
-import { ChatEditorInput, shouldShowClearEditingSessionConfirmation } from '../widgetHosts/editor/chatEditorInput.js';
+import { ChatEditorInput, showClearEditingSessionConfirmation } from '../widgetHosts/editor/chatEditorInput.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ChatConfiguration } from '../../common/constants.js';
@@ -34,6 +34,7 @@ import { IQuickInputService } from '../../../../../platform/quickinput/common/qu
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { coalesce } from '../../../../../base/common/arrays.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 
 //#region Chat View
 
@@ -54,7 +55,7 @@ export class ShowAllAgentSessionsAction extends Action2 {
 			title: localize2('chat.showSessions.all', "All"),
 			toggled: ContextKeyExpr.and(
 				ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, true),
-				ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsShowRecentOnly}`, false)
+				ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsShowPendingOnly}`, false)
 			),
 			menu: {
 				id: showSessionsSubmenu,
@@ -68,19 +69,19 @@ export class ShowAllAgentSessionsAction extends Action2 {
 		const configurationService = accessor.get(IConfigurationService);
 
 		await configurationService.updateValue(ChatConfiguration.ChatViewSessionsEnabled, true);
-		await configurationService.updateValue(ChatConfiguration.ChatViewSessionsShowRecentOnly, false);
+		await configurationService.updateValue(ChatConfiguration.ChatViewSessionsShowPendingOnly, false);
 	}
 }
 
-export class ShowRecentAgentSessionsAction extends Action2 {
+export class ShowPendingAgentSessionsAction extends Action2 {
 
 	constructor() {
 		super({
-			id: 'workbench.action.chat.showRecentAgentSessions',
-			title: localize2('chat.showSessions.recent', "Recent"),
+			id: 'workbench.action.chat.showPendingAgentSessions',
+			title: localize2('chat.showSessions.pending', "Pending"),
 			toggled: ContextKeyExpr.and(
 				ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, true),
-				ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsShowRecentOnly}`, true)
+				ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsShowPendingOnly}`, true)
 			),
 			menu: {
 				id: showSessionsSubmenu,
@@ -94,7 +95,7 @@ export class ShowRecentAgentSessionsAction extends Action2 {
 		const configurationService = accessor.get(IConfigurationService);
 
 		await configurationService.updateValue(ChatConfiguration.ChatViewSessionsEnabled, true);
-		await configurationService.updateValue(ChatConfiguration.ChatViewSessionsShowRecentOnly, true);
+		await configurationService.updateValue(ChatConfiguration.ChatViewSessionsShowPendingOnly, true);
 	}
 }
 
@@ -255,6 +256,8 @@ export class ArchiveAllAgentSessionsAction extends Action2 {
 	}
 }
 
+const ConfirmArchiveStorageKey = 'chat.sessions.confirmArchive';
+
 export class ArchiveAgentSessionSectionAction extends Action2 {
 
 	constructor() {
@@ -266,12 +269,18 @@ export class ArchiveAgentSessionSectionAction extends Action2 {
 				id: MenuId.AgentSessionSectionToolbar,
 				group: 'navigation',
 				order: 1,
-				when: ChatContextKeys.agentSessionSection.notEqualsTo(AgentSessionSection.Archived),
+				when: ContextKeyExpr.and(
+					ChatContextKeys.agentSessionSection.notEqualsTo(AgentSessionSection.Archived),
+					ChatContextKeys.agentSessionSection.notEqualsTo(AgentSessionSection.Done)
+				),
 			}, {
 				id: MenuId.AgentSessionSectionContext,
 				group: '1_edit',
 				order: 2,
-				when: ChatContextKeys.agentSessionSection.notEqualsTo(AgentSessionSection.Archived),
+				when: ContextKeyExpr.and(
+					ChatContextKeys.agentSessionSection.notEqualsTo(AgentSessionSection.Archived),
+					ChatContextKeys.agentSessionSection.notEqualsTo(AgentSessionSection.Done)
+				),
 			}]
 		});
 	}
@@ -282,17 +291,28 @@ export class ArchiveAgentSessionSectionAction extends Action2 {
 		}
 
 		const dialogService = accessor.get(IDialogService);
+		const storageService = accessor.get(IStorageService);
 
-		const confirmed = await dialogService.confirm({
-			message: context.sessions.length === 1
-				? localize('archiveSectionSessions.confirmSingle', "Are you sure you want to archive 1 agent session from '{0}'?", context.label)
-				: localize('archiveSectionSessions.confirm', "Are you sure you want to archive {0} agent sessions from '{1}'?", context.sessions.length, context.label),
-			detail: localize('archiveSectionSessions.detail', "You can unarchive sessions later if needed from the sessions view."),
-			primaryButton: localize('archiveSectionSessions.archive', "Archive All")
-		});
+		const skipConfirmation = storageService.getBoolean(ConfirmArchiveStorageKey, StorageScope.PROFILE, false);
+		if (!skipConfirmation) {
+			const confirmed = await dialogService.confirm({
+				message: context.sessions.length === 1
+					? localize('archiveSectionSessions.confirmSingle', "Are you sure you want to archive 1 agent session from '{0}'?", context.label)
+					: localize('archiveSectionSessions.confirm', "Are you sure you want to archive {0} agent sessions from '{1}'?", context.sessions.length, context.label),
+				detail: localize('archiveSectionSessions.detail', "You can unarchive sessions later if needed from the sessions view."),
+				primaryButton: localize('archiveSectionSessions.archive', "Archive All"),
+				checkbox: {
+					label: localize('doNotAskAgain', "Do not ask me again")
+				}
+			});
 
-		if (!confirmed.confirmed) {
-			return;
+			if (!confirmed.confirmed) {
+				return;
+			}
+
+			if (confirmed.checkboxChecked) {
+				storageService.store(ConfirmArchiveStorageKey, true, StorageScope.PROFILE, StorageTarget.USER);
+			}
 		}
 
 		for (const session of context.sessions) {
@@ -328,16 +348,27 @@ export class UnarchiveAgentSessionSectionAction extends Action2 {
 		}
 
 		const dialogService = accessor.get(IDialogService);
+		const storageService = accessor.get(IStorageService);
 
-		const confirmed = await dialogService.confirm({
-			message: context.sessions.length === 1
-				? localize('unarchiveSectionSessions.confirmSingle', "Are you sure you want to unarchive 1 agent session?")
-				: localize('unarchiveSectionSessions.confirm', "Are you sure you want to unarchive {0} agent sessions?", context.sessions.length),
-			primaryButton: localize('unarchiveSectionSessions.unarchive', "Unarchive All")
-		});
+		const skipConfirmation = storageService.getBoolean(ConfirmArchiveStorageKey, StorageScope.PROFILE, false);
+		if (!skipConfirmation) {
+			const confirmed = await dialogService.confirm({
+				message: context.sessions.length === 1
+					? localize('unarchiveSectionSessions.confirmSingle', "Are you sure you want to unarchive 1 agent session?")
+					: localize('unarchiveSectionSessions.confirm', "Are you sure you want to unarchive {0} agent sessions?", context.sessions.length),
+				primaryButton: localize('unarchiveSectionSessions.unarchive', "Unarchive All"),
+				checkbox: {
+					label: localize('doNotAskAgain', "Do not ask me again")
+				}
+			});
 
-		if (!confirmed.confirmed) {
-			return;
+			if (!confirmed.confirmed) {
+				return;
+			}
+
+			if (confirmed.checkboxChecked) {
+				storageService.store(ConfirmArchiveStorageKey, true, StorageScope.PROFILE, StorageTarget.USER);
+			}
 		}
 
 		for (const session of context.sessions) {
@@ -489,31 +520,17 @@ export class ArchiveAgentSessionAction extends BaseAgentSessionAction {
 		const chatService = accessor.get(IChatService);
 		const dialogService = accessor.get(IDialogService);
 
-		// Count sessions with pending changes
-		let sessionsWithPendingChangesCount = 0;
-		for (const session of sessions) {
-			const chatModel = chatService.getSession(session.resource);
-			if (chatModel && shouldShowClearEditingSessionConfirmation(chatModel, { isArchiveAction: true })) {
-				sessionsWithPendingChangesCount++;
-			}
-		}
-
-		// If there are sessions with pending changes, ask for confirmation once
-		if (sessionsWithPendingChangesCount > 0) {
-			const confirmed = await dialogService.confirm({
-				message: sessionsWithPendingChangesCount === 1
-					? localize('archiveSessionWithPendingEdits', "One session has pending edits. Are you sure you want to archive?")
-					: localize('archiveSessionsWithPendingEdits', "{0} sessions have pending edits. Are you sure you want to archive?", sessionsWithPendingChangesCount),
-				primaryButton: localize('archiveSession.archive', "Archive")
-			});
-
-			if (!confirmed.confirmed) {
-				return;
-			}
-		}
-
 		// Archive all sessions
 		for (const session of sessions) {
+			const chatModel = chatService.getSession(session.resource);
+			if (chatModel && !await showClearEditingSessionConfirmation(chatModel, dialogService, {
+				isArchiveAction: true,
+				titleOverride: localize('archiveSession', "Archive chat with pending edits?"),
+				messageOverride: localize('archiveSessionDescription', "You have pending changes in this chat session.")
+			})) {
+				return;
+			}
+
 			session.setArchived(true);
 		}
 	}
@@ -820,7 +837,6 @@ export class RefreshAgentSessionsViewerAction extends Action2 {
 				id: MenuId.AgentSessionsToolbar,
 				group: 'navigation',
 				order: 1,
-				when: ChatContextKeys.agentSessionsViewerLimited.negate()
 			},
 		});
 	}
@@ -841,7 +857,6 @@ export class FindAgentSessionInViewerAction extends Action2 {
 				id: MenuId.AgentSessionsToolbar,
 				group: 'navigation',
 				order: 2,
-				when: ChatContextKeys.agentSessionsViewerLimited.negate()
 			}
 		});
 	}

@@ -93,7 +93,8 @@ export class ToolConfirmationSubPart extends AbstractToolConfirmationSubPart {
 			const confirmActions = this.confirmationService.getPreConfirmActions({
 				toolId: this.toolInvocation.toolId,
 				source: this.toolInvocation.source,
-				parameters: state.parameters
+				parameters: state.parameters,
+				chatSessionResource: this.context.element.sessionResource
 			});
 
 			for (const action of confirmActions) {
@@ -249,7 +250,6 @@ export class ToolConfirmationSubPart extends AbstractToolConfirmationSubPart {
 				});
 				this._register(editor.object.onDidChangeContentHeight(() => {
 					editor.object.layout(this.currentWidthDelegate());
-					this._onDidChangeHeight.fire();
 				}));
 				this._register(model.onDidChangeContent(e => {
 					try {
@@ -286,13 +286,11 @@ export class ToolConfirmationSubPart extends AbstractToolConfirmationSubPart {
 				const show = messageSeeMoreObserver.getHeight() > SHOW_MORE_MESSAGE_HEIGHT_TRIGGER;
 				if (elements.messageContainer.classList.contains('can-see-more') !== show) {
 					elements.messageContainer.classList.toggle('can-see-more', show);
-					this._onDidChangeHeight.fire();
 				}
 			};
 
 			this._register(dom.addDisposableListener(elements.showMore, 'click', () => {
 				elements.messageContainer.classList.toggle('can-see-more', false);
-				this._onDidChangeHeight.fire();
 				messageSeeMoreObserver.dispose();
 			}));
 
@@ -340,8 +338,6 @@ export class ToolConfirmationSubPart extends AbstractToolConfirmationSubPart {
 		));
 		renderFileWidgets(part.domNode, this.instantiationService, this.chatMarkdownAnchorService, this._store);
 		container.append(part.domNode);
-
-		this._register(part.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 
 		return part;
 	}

@@ -25,6 +25,7 @@ import { AccessibilityWorkbenchSettingId } from '../../../../accessibility/brows
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { HoverStyle } from '../../../../../../base/browser/ui/hover/hover.js';
 import { ILanguageModelToolsService } from '../../../common/tools/languageModelToolsService.js';
+import { isEqual } from '../../../../../../base/common/resources.js';
 
 export class ChatProgressContentPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
@@ -35,7 +36,7 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 	private currentContent: IMarkdownString;
 
 	constructor(
-		progress: IChatProgressMessage | IChatTask | IChatTaskSerialized,
+		progress: IChatProgressMessage | IChatTask | IChatTaskSerialized | { content: IMarkdownString },
 		private readonly chatContentMarkdownRenderer: IMarkdownRenderer,
 		context: IChatContentPartRenderContext,
 		forceShowSpinner: boolean | undefined,
@@ -165,7 +166,7 @@ export class ChatWorkingProgressContentPart extends ChatProgressContentPart impl
 		};
 		super(progressMessage, chatContentMarkdownRenderer, context, undefined, undefined, undefined, undefined, instantiationService, chatMarkdownAnchorService, configurationService);
 		this._register(languageModelToolsService.onDidPrepareToolCallBecomeUnresponsive(e => {
-			if (context.element.sessionId === e.sessionId) {
+			if (isEqual(context.element.sessionResource, e.sessionResource)) {
 				this.updateMessage(new MarkdownString(localize('toolCallUnresponsive', "Waiting for tool '{0}' to respond...", e.toolData.displayName)));
 			}
 		}));

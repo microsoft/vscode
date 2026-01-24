@@ -7,13 +7,13 @@ import { URI } from '../../../../../base/common/uri.js';
 import { IPosition, Position } from '../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
-import { IChatAgentData, IChatAgentService } from '../participants/chatAgents.js';
-import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestDynamicVariablePart, ChatRequestSlashCommandPart, ChatRequestSlashPromptPart, ChatRequestTextPart, ChatRequestToolPart, ChatRequestToolSetPart, IParsedChatRequest, IParsedChatRequestPart, chatAgentLeader, chatSubcommandLeader, chatVariableLeader } from './chatParserTypes.js';
-import { IChatSlashCommandService } from '../participants/chatSlashCommands.js';
 import { IChatVariablesService, IDynamicVariable } from '../attachments/chatVariables.js';
 import { ChatAgentLocation, ChatModeKind } from '../constants.js';
-import { IToolData, ToolSet } from '../tools/languageModelToolsService.js';
+import { IChatAgentData, IChatAgentService } from '../participants/chatAgents.js';
+import { IChatSlashCommandService } from '../participants/chatSlashCommands.js';
 import { IPromptsService } from '../promptSyntax/service/promptsService.js';
+import { IToolData, IToolSet, isToolSet } from '../tools/languageModelToolsService.js';
+import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestDynamicVariablePart, ChatRequestSlashCommandPart, ChatRequestSlashPromptPart, ChatRequestTextPart, ChatRequestToolPart, ChatRequestToolSetPart, IParsedChatRequest, IParsedChatRequestPart, chatAgentLeader, chatSubcommandLeader, chatVariableLeader } from './chatParserTypes.js';
 
 const agentReg = /^@([\w_\-\.]+)(?=(\s|$|\b))/i; // An @-agent
 const variableReg = /^#([\w_\-]+)(:\d+)?(?=(\s|$|\b))/i; // A #-variable with an optional numeric : arg (@response:2)
@@ -39,10 +39,10 @@ export class ChatRequestParser {
 		const parts: IParsedChatRequestPart[] = [];
 		const references = this.variableService.getDynamicVariables(sessionResource); // must access this list before any async calls
 		const toolsByName = new Map<string, IToolData>();
-		const toolSetsByName = new Map<string, ToolSet>();
+		const toolSetsByName = new Map<string, IToolSet>();
 		for (const [entry, enabled] of this.variableService.getSelectedToolAndToolSets(sessionResource)) {
 			if (enabled) {
-				if (entry instanceof ToolSet) {
+				if (isToolSet(entry)) {
 					toolSetsByName.set(entry.referenceName, entry);
 				} else {
 					toolsByName.set(entry.toolReferenceName ?? entry.displayName, entry);
@@ -160,7 +160,7 @@ export class ChatRequestParser {
 		return new ChatRequestAgentPart(agentRange, agentEditorRange, agent);
 	}
 
-	private tryToParseVariable(message: string, offset: number, position: IPosition, parts: ReadonlyArray<IParsedChatRequestPart>, toolsByName: ReadonlyMap<string, IToolData>, toolSetsByName: ReadonlyMap<string, ToolSet>): ChatRequestToolPart | ChatRequestToolSetPart | undefined {
+	private tryToParseVariable(message: string, offset: number, position: IPosition, parts: ReadonlyArray<IParsedChatRequestPart>, toolsByName: ReadonlyMap<string, IToolData>, toolSetsByName: ReadonlyMap<string, IToolSet>): ChatRequestToolPart | ChatRequestToolSetPart | undefined {
 		const nextVariableMatch = message.match(variableReg);
 		if (!nextVariableMatch) {
 			return;

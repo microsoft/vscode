@@ -16,7 +16,10 @@ declare module 'vscode' {
 		 *   Providers registered without a selector will not be called for resource-based context.
 		 * - Explicitly. These context items are shown as options when the user explicitly attaches context.
 		 *
-		 * To ensure your extension is activated when chat context is requested, make sure to include the `onChatContextProvider:<id>` activation event in your `package.json`.
+		 * To ensure your extension is activated when chat context is requested, make sure to include the following activations events:
+		 * - If your extension implements `provideWorkspaceChatContext` or `provideChatContextForResource`, find an activation event which is a good signal to activate.
+		 *   Ex: `onLanguage:<languageId>`, `onWebviewPanel:<viewType>`, etc.`
+		 * - If your extension implements `provideChatContextExplicit`, your extension will be automatically activated when the user requests explicit context.
 		 *
 		 * @param selector Optional document selector to filter which resources the provider is called for. If omitted, the provider will only be called for explicit context requests.
 		 * @param id Unique identifier for the provider.
@@ -39,6 +42,10 @@ declare module 'vscode' {
 		 * An optional description of the context item, e.g. to describe the item to the language model.
 		 */
 		modelDescription?: string;
+		/**
+		 * An optional tooltip to show when hovering over the context item in the UI.
+		 */
+		tooltip?: MarkdownString;
 		/**
 		 * The value of the context item. Can be omitted when returned from one of the `provide` methods if the provider supports `resolveChatContext`.
 		 */
@@ -82,7 +89,7 @@ declare module 'vscode' {
 		 * Chat context items can be provided without a `value`, as the `value` can be resolved later using `resolveChatContext`.
 		 * `resolveChatContext` is only called for items that do not have a `value`.
 		 *
-		 * Currently only called when the resource is a webview.
+		 * Called when the resource is a webview or a text editor.
 		 *
 		 * @param options Options include the resource for which to provide context.
 		 * @param token A cancellation token.

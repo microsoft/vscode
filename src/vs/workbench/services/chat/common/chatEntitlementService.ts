@@ -178,6 +178,26 @@ export function isProUser(chatEntitlement: ChatEntitlement): boolean {
 		chatEntitlement === ChatEntitlement.Enterprise;
 }
 
+/**
+ * Gets the full plan name for the given chat entitlement
+ * @param chatEntitlement The chat entitlement to get the plan name for
+ * @returns The localized full plan name (e.g., "Copilot Pro", "Copilot Free")
+ */
+export function getChatPlanName(chatEntitlement: ChatEntitlement): string {
+	switch (chatEntitlement) {
+		case ChatEntitlement.Pro:
+			return localize('plan.proName', 'Copilot Pro');
+		case ChatEntitlement.ProPlus:
+			return localize('plan.proPlusName', 'Copilot Pro+');
+		case ChatEntitlement.Business:
+			return localize('plan.businessName', 'Copilot Business');
+		case ChatEntitlement.Enterprise:
+			return localize('plan.enterpriseName', 'Copilot Enterprise');
+		default:
+			return localize('plan.freeName', 'Copilot Free');
+	}
+}
+
 //#region Service Implementation
 
 const defaultChatAgent = {
@@ -641,9 +661,6 @@ export class ChatEntitlementRequests extends Disposable {
 			entitlement = ChatEntitlement.Business;
 		} else if (entitlementsData.copilot_plan === 'enterprise') {
 			entitlement = ChatEntitlement.Enterprise;
-		} else if (entitlementsData.chat_enabled) {
-			// This should never happen as we exhaustively list the plans above. But if a new plan is added in the future older clients won't break
-			entitlement = ChatEntitlement.Pro;
 		} else {
 			entitlement = ChatEntitlement.Unavailable;
 		}

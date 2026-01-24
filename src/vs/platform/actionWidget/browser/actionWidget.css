@@ -93,9 +93,10 @@
 	border-radius: 0;
 }
 
+.action-widget .monaco-scrollable-element .monaco-list-rows .monaco-list-row.separator:hover,
 .action-widget .monaco-scrollable-element .monaco-list-rows .monaco-list-row.separator.focused {
 	outline: 0 solid;
-	background-color: transparent;
+	background-color: transparent !important;
 	border-radius: 0;
 }
 
@@ -196,6 +197,16 @@
 .action-widget .monaco-list .monaco-list-row .description {
 	opacity: 0.7;
 	margin-left: 0.5em;
+}
+
+/* Item toolbar - shows on hover/focus */
+.action-widget .monaco-list-row.action .action-list-item-toolbar {
+	display: none;
+}
+
+.action-widget .monaco-list-row.focused.action.has-toolbar .action-list-item-toolbar,
+.action-widget .monaco-list-row:hover.action.has-toolbar .action-list-item-toolbar {
+	display: flex;
 }
 
 .action-widget-delegate-label {

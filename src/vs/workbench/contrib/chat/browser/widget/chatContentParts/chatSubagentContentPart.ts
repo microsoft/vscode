@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../../base/browser/dom.js';
-import { $ } from '../../../../../../base/browser/dom.js';
+import { $, AnimationFrameScheduler, DisposableResizeObserver } from '../../../../../../base/browser/dom.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { rcut } from '../../../../../../base/common/strings.js';
@@ -20,11 +20,26 @@ import { ChatCollapsibleMarkdownContentPart } from './chatCollapsibleMarkdownCon
 import { IChatToolInvocation, IChatToolInvocationSerialized } from '../../../common/chatService/chatService.js';
 import { IRunSubagentToolInputParams, RunSubagentTool } from '../../../common/tools/builtinTools/runSubagentTool.js';
 import { autorun } from '../../../../../../base/common/observable.js';
-import { RunOnceScheduler } from '../../../../../../base/common/async.js';
+import { Lazy } from '../../../../../../base/common/lazy.js';
 import { createThinkingIcon, getToolInvocationIcon } from './chatThinkingContentPart.js';
+import { CollapsibleListPool } from './chatReferencesContentPart.js';
+import { EditorPool } from './chatContentCodePools.js';
+import { CodeBlockModelCollection } from '../../../common/widget/codeBlockModelCollection.js';
+import { ChatToolInvocationPart } from './toolInvocationParts/chatToolInvocationPart.js';
+import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
+import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import './media/chatSubagentContent.css';
 
 const MAX_TITLE_LENGTH = 100;
+
+/**
+ * Represents a lazy tool item that will be created when the subagent section is expanded.
+ */
+interface ILazyToolItem {
+	lazy: Lazy<ChatToolInvocationPart>;
+	toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized;
+	codeBlockStartIndex: number;
+}
 
 /**
  * This is generally copied from ChatThinkingContentPart. We are still experimenting with both UIs so I'm not
@@ -38,10 +53,24 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 	private promptContainer: HTMLElement | undefined;
 	private resultContainer: HTMLElement | undefined;
 	private lastItemWrapper: HTMLElement | undefined;
-	private readonly layoutScheduler: RunOnceScheduler;
+	private readonly layoutScheduler: AnimationFrameScheduler;
 	private description: string;
 	private agentName: string | undefined;
 	private prompt: string | undefined;
+
+	// Lazy rendering support
+	private readonly lazyItems: ILazyToolItem[] = [];
+	private hasExpandedOnce: boolean = false;
+	private pendingPromptRender: boolean = false;
+	private pendingResultText: string | undefined;
+
+	// Current tool message for collapsed title (persists even after tool completes)
+	private currentRunningToolMessage: string | undefined;
+
+	// Confirmation auto-expand tracking
+	private toolsWaitingForConfirmation: number = 0;
+	private userManuallyExpanded: boolean = false;
+	private autoExpandedForConfirmation: boolean = false;
 
 	/**
 	 * Extracts subagent info (description, agentName, prompt) from a tool invocation.
@@ -83,7 +112,13 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized,
 		private readonly context: IChatContentPartRenderContext,
 		private readonly chatContentMarkdownRenderer: IMarkdownRenderer,
+		private readonly listPool: CollapsibleListPool,
+		private readonly editorPool: EditorPool,
+		private readonly currentWidthDelegate: () => number,
+		private readonly codeBlockModelCollection: CodeBlockModelCollection,
+		private readonly announcedToolProgressKeys: Set<string>,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IChatMarkdownAnchorService private readonly chatMarkdownAnchorService: IChatMarkdownAnchorService,
 		@IHoverService hoverService: IHoverService,
 	) {
 		// Extract description, agentName, and prompt from toolInvocation
@@ -103,8 +138,7 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		node.classList.add('chat-thinking-box', 'chat-thinking-fixed-mode', 'chat-subagent-part');
 		node.tabIndex = 0;
 
-		// Hide initially until there are tool calls
-		this.wrapper.style.display = 'none';
+		// Note: wrapper is created lazily in initContent(), so we can't set its style here
 
 		if (this._collapseButton && !this.element.isComplete) {
 			this._collapseButton.icon = ThemeIcon.modify(Codicon.loading, 'spin');
@@ -112,8 +146,8 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 
 		this._register(autorun(r => {
 			this.expanded.read(r);
-			if (this._collapseButton && this.wrapper) {
-				if (this.wrapper.classList.contains('chat-thinking-streaming') && !this.element.isComplete && this.isActive) {
+			if (this._collapseButton) {
+				if (!this.element.isComplete && this.isActive) {
 					this._collapseButton.icon = ThemeIcon.modify(Codicon.loading, 'spin');
 				} else {
 					this._collapseButton.icon = Codicon.check;
@@ -121,11 +155,40 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 			}
 		}));
 
+		// Materialize lazy items when first expanded
+		this._register(autorun(r => {
+			if (this._isExpanded.read(r) && !this.hasExpandedOnce) {
+				this.hasExpandedOnce = true;
+				this.materializePendingContent();
+			}
+		}));
+
 		// Start collapsed - fixed scrolling mode shows limited height when collapsed
 		this.setExpanded(false);
 
+		// Track user manual expansion
+		// If the user expands (not via auto-expand for confirmation), mark it as manual
+		// Only clear autoExpandedForConfirmation when user collapses, so re-expand is detected as manual
+		this._register(autorun(r => {
+			const expanded = this._isExpanded.read(r);
+			if (expanded) {
+				if (!this.autoExpandedForConfirmation) {
+					this.userManuallyExpanded = true;
+				}
+			} else {
+				// User collapsed - reset flags so next confirmation cycle can auto-collapse again
+				if (this.autoExpandedForConfirmation) {
+					this.autoExpandedForConfirmation = false;
+				}
+				// Reset manual expansion flag when user collapses, so future confirmation cycles can auto-collapse
+				if (this.userManuallyExpanded) {
+					this.userManuallyExpanded = false;
+				}
+			}
+		}));
+
 		// Scheduler for coalescing layout operations
-		this.layoutScheduler = this._register(new RunOnceScheduler(() => this.performLayout(), 0));
+		this.layoutScheduler = this._register(new AnimationFrameScheduler(this.domNode, () => this.performLayout()));
 
 		// Render the prompt section at the start if available (must be after wrapper is initialized)
 		this.renderPromptSection();
@@ -135,18 +198,45 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 	}
 
 	protected override initContent(): HTMLElement {
-		const baseClasses = '.chat-used-context-list.chat-thinking-collapsible';
-		const classes = this.isInitiallyComplete
-			? baseClasses
-			: `${baseClasses}.chat-thinking-streaming`;
-		this.wrapper = $(classes);
+		this.wrapper = $('.chat-used-context-list.chat-thinking-collapsible');
+
+		// Hide initially until there are tool calls
+		if (!this.hasToolItems) {
+			this.wrapper.style.display = 'none';
+		}
+
+		// Materialize any deferred content now that wrapper exists
+		// This handles the case where the subclass autorun ran before this base class autorun
+		this.materializePendingContent();
+
+		// Use ResizeObserver to trigger layout when wrapper content changes
+		const resizeObserver = this._register(new DisposableResizeObserver(() => this.layoutScheduler.schedule()));
+		this._register(resizeObserver.observe(this.wrapper));
+
 		return this.wrapper;
 	}
 
 	/**
 	 * Renders the prompt as a collapsible section at the start of the content.
+	 * If the wrapper doesn't exist yet (lazy init) or subagent is initially complete,
+	 * this is deferred until expanded.
 	 */
 	private renderPromptSection(): void {
+		if (!this.prompt || this.promptContainer) {
+			return;
+		}
+
+		// Defer rendering when wrapper doesn't exist yet (lazy init) or for old completed subagents until expanded
+		if (!this.wrapper || (this.isInitiallyComplete && !this.isExpanded() && !this.hasExpandedOnce)) {
+			this.pendingPromptRender = true;
+			return;
+		}
+
+		this.pendingPromptRender = false;
+		this.doRenderPromptSection();
+	}
+
+	private doRenderPromptSection(): void {
 		if (!this.prompt || this.promptContainer) {
 			return;
 		}
@@ -165,7 +255,7 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 			? (titleRemainder + (restOfLines ? '\n' + restOfLines : ''))
 			: (restOfLines || this.prompt);
 
-		// Create collapsible prompt part with comment icon
+		// Create collapsible prompt part
 		const collapsiblePart = this._register(this.instantiationService.createInstance(
 			ChatCollapsibleMarkdownContentPart,
 			title,
@@ -173,14 +263,26 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 			this.context,
 			this.chatContentMarkdownRenderer
 		));
-		collapsiblePart.icon = Codicon.comment;
-		this._register(collapsiblePart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
-		this.promptContainer = collapsiblePart.domNode;
+
+		// Wrap in a container for chain of thought line styling
+		this.promptContainer = $('.chat-thinking-tool-wrapper.chat-subagent-section');
+		const promptIcon = createThinkingIcon(Codicon.comment);
+		this.promptContainer.appendChild(promptIcon);
+		this.promptContainer.appendChild(collapsiblePart.domNode);
+
 		// Insert at the beginning of the wrapper
-		if (this.wrapper.firstChild) {
-			this.wrapper.insertBefore(this.promptContainer, this.wrapper.firstChild);
-		} else {
-			dom.append(this.wrapper, this.promptContainer);
+		// With lazy rendering, wrapper may not be created yet if content hasn't been expanded
+		if (this.wrapper) {
+			if (this.wrapper.firstChild) {
+				this.wrapper.insertBefore(this.promptContainer, this.wrapper.firstChild);
+			} else {
+				dom.append(this.wrapper, this.promptContainer);
+			}
+
+			// Show the container if it was hidden (no tool items yet)
+			if (this.wrapper.style.display === 'none') {
+				this.wrapper.style.display = '';
+			}
 		}
 	}
 
@@ -190,14 +292,12 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 
 	public markAsInactive(): void {
 		this.isActive = false;
-		this.wrapper.classList.remove('chat-thinking-streaming');
 		if (this._collapseButton) {
 			this._collapseButton.icon = Codicon.check;
 		}
 		this.finalizeTitle();
 		// Collapse when done
 		this.setExpanded(false);
-		this._onDidChangeHeight.fire();
 	}
 
 	public finalizeTitle(): void {
@@ -208,11 +308,60 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 	}
 
 	private updateTitle(): void {
-		if (this._collapseButton) {
-			const prefix = this.agentName || localize('chat.subagent.prefix', 'Subagent');
-			const finalLabel = `${prefix}: ${this.description}`;
-			this._collapseButton.label = finalLabel;
+		const prefix = this.agentName || localize('chat.subagent.prefix', 'Subagent');
+		let finalLabel = `${prefix}: ${this.description}`;
+		if (this.currentRunningToolMessage && this.isActive) {
+			finalLabel += ` \u2014 ${this.currentRunningToolMessage}`;
 		}
+		this.setTitleWithWidgets(new MarkdownString(finalLabel), this.instantiationService, this.chatMarkdownAnchorService, this.chatContentMarkdownRenderer);
+	}
+
+	/**
+	 * Tracks a tool invocation's state for:
+	 * 1. Updating the title with the current tool message (persists even after completion)
+	 * 2. Auto-expanding when a tool is waiting for confirmation
+	 * 3. Auto-collapsing when the confirmation is addressed
+	 * This method is public to support testing.
+	 */
+	public trackToolState(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized): void {
+		// Only track live tool invocations
+		if (toolInvocation.kind !== 'toolInvocation') {
+			return;
+		}
+
+		// Set the title immediately when tool is added - like thinking part does
+		const message = toolInvocation.invocationMessage;
+		const messageText = typeof message === 'string' ? message : message.value;
+		this.currentRunningToolMessage = messageText;
+		this.updateTitle();
+
+		let wasWaitingForConfirmation = false;
+		this._register(autorun(r => {
+			const state = toolInvocation.state.read(r);
+
+			// Track confirmation state changes
+			const isWaitingForConfirmation = state.type === IChatToolInvocation.StateKind.WaitingForConfirmation ||
+				state.type === IChatToolInvocation.StateKind.WaitingForPostApproval;
+
+			if (isWaitingForConfirmation && !wasWaitingForConfirmation) {
+				// Tool just started waiting for confirmation
+				this.toolsWaitingForConfirmation++;
+				if (!this.isExpanded()) {
+					this.autoExpandedForConfirmation = true;
+					this.setExpanded(true);
+				}
+			} else if (!isWaitingForConfirmation && wasWaitingForConfirmation) {
+				// Tool is no longer waiting for confirmation
+				this.toolsWaitingForConfirmation--;
+				if (this.toolsWaitingForConfirmation === 0 && this.autoExpandedForConfirmation && !this.userManuallyExpanded) {
+					// Auto-collapse only if we auto-expanded and user didn't manually expand
+					this.autoExpandedForConfirmation = false;
+					this.setExpanded(false);
+				}
+			}
+
+			wasWaitingForConfirmation = isWaitingForConfirmation;
+		}));
 	}
 
 	/**
@@ -261,9 +410,29 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		}
 	}
 
+	/**
+	 * Renders the result text as a collapsible section.
+	 * If the wrapper doesn't exist yet (lazy init) or subagent is initially complete,
+	 * this is deferred until expanded.
+	 */
 	public renderResultText(resultText: string): void {
 		if (this.resultContainer || !resultText) {
 			return; // Already rendered or no content
+		}
+
+		// Defer rendering when wrapper doesn't exist yet (lazy init) or for old completed subagents until expanded
+		if (!this.wrapper || (this.isInitiallyComplete && !this.isExpanded() && !this.hasExpandedOnce)) {
+			this.pendingResultText = resultText;
+			return;
+		}
+
+		this.pendingResultText = undefined;
+		this.doRenderResultText(resultText);
+	}
+
+	private doRenderResultText(resultText: string): void {
+		if (this.resultContainer || !resultText) {
+			return;
 		}
 
 		// Split into first line and rest
@@ -288,83 +457,186 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 			this.context,
 			this.chatContentMarkdownRenderer
 		));
-		this._register(collapsiblePart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
-		this.resultContainer = collapsiblePart.domNode;
-		dom.append(this.wrapper, this.resultContainer);
 
-		// Show the container if it was hidden
-		if (this.wrapper.style.display === 'none') {
-			this.wrapper.style.display = '';
+		// Wrap in a container for chain of thought line styling
+		this.resultContainer = $('.chat-thinking-tool-wrapper.chat-subagent-section');
+		const resultIcon = createThinkingIcon(Codicon.check);
+		this.resultContainer.appendChild(resultIcon);
+		this.resultContainer.appendChild(collapsiblePart.domNode);
+
+		// With lazy rendering, wrapper may not be created yet if content hasn't been expanded
+		if (this.wrapper) {
+			dom.append(this.wrapper, this.resultContainer);
+
+			// Show the container if it was hidden
+			if (this.wrapper.style.display === 'none') {
+				this.wrapper.style.display = '';
+			}
 		}
-
-		this._onDidChangeHeight.fire();
 	}
 
-	public appendItem(content: HTMLElement, toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized): void {
+	/**
+	 * Appends a tool invocation to the subagent group.
+	 * The tool part is created lazily - only when the subagent section is expanded,
+	 * unless it's actively streaming (not initially complete), in which case render immediately.
+	 */
+	public appendToolInvocation(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized, codeBlockStartIndex: number): void {
+		// Show the container when first tool item is added
+		if (!this.hasToolItems) {
+			this.hasToolItems = true;
+			// With lazy rendering, wrapper may not be created yet if content hasn't been expanded
+			if (this.wrapper) {
+				this.wrapper.style.display = '';
+			}
+		}
+
+		// Track tool state for title updates and auto-expand/collapse on confirmation
+		this.trackToolState(toolInvocation);
+
+		// Render immediately only if already expanded or has been expanded before
+		if (this.isExpanded() || this.hasExpandedOnce) {
+			const part = this.createToolPart(toolInvocation, codeBlockStartIndex);
+			this.appendToolPartToDOM(part, toolInvocation);
+		} else {
+			// Defer rendering until expanded
+			const item: ILazyToolItem = {
+				lazy: new Lazy(() => this.createToolPart(toolInvocation, codeBlockStartIndex)),
+				toolInvocation,
+				codeBlockStartIndex,
+			};
+			this.lazyItems.push(item);
+		}
+	}
+
+	protected override shouldInitEarly(): boolean {
+		// Never init early - subagent is collapsed while running, content only shown on expand
+		return false;
+	}
+
+	/**
+	 * Creates a ChatToolInvocationPart for the given tool invocation.
+	 */
+	private createToolPart(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized, codeBlockStartIndex: number): ChatToolInvocationPart {
+		const part = this.instantiationService.createInstance(
+			ChatToolInvocationPart,
+			toolInvocation,
+			this.context,
+			this.chatContentMarkdownRenderer,
+			this.listPool,
+			this.editorPool,
+			this.currentWidthDelegate,
+			this.codeBlockModelCollection,
+			this.announcedToolProgressKeys,
+			codeBlockStartIndex
+		);
+
+		this._register(part);
+		return part;
+	}
+
+	/**
+	 * Appends a tool part's DOM node to the wrapper with appropriate icon wrapper.
+	 */
+	private appendToolPartToDOM(part: ChatToolInvocationPart, toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized): void {
+		const content = part.domNode;
 		if (!content.hasChildNodes() || content.textContent?.trim() === '') {
 			return;
 		}
 
-		// Show the container when first tool item is added
-		if (!this.hasToolItems) {
-			this.hasToolItems = true;
-			this.wrapper.style.display = '';
-		}
-
-		// Wrap with icon like thinking parts do, but skip icon for tools needing confirmation
+		// Wrap with icon like thinking parts do
 		const itemWrapper = $('.chat-thinking-tool-wrapper');
-		let needsConfirmation = false;
-		if (toolInvocation.kind === 'toolInvocation' && toolInvocation.state) {
-			const state = toolInvocation.state.get();
-			needsConfirmation = state.type === IChatToolInvocation.StateKind.WaitingForConfirmation || state.type === IChatToolInvocation.StateKind.WaitingForPostApproval;
-		}
-
-		if (!needsConfirmation) {
-			const icon = getToolInvocationIcon(toolInvocation.toolId);
-			const iconElement = createThinkingIcon(icon);
-			itemWrapper.appendChild(iconElement);
-		}
+		const icon = getToolInvocationIcon(toolInvocation.toolId);
+		const iconElement = createThinkingIcon(icon);
 		itemWrapper.appendChild(content);
 
-		// Insert before result container if it exists, otherwise append
-		if (this.resultContainer) {
-			this.wrapper.insertBefore(itemWrapper, this.resultContainer);
-		} else {
-			this.wrapper.appendChild(itemWrapper);
-		}
-		this.lastItemWrapper = itemWrapper;
-
-		// Watch for tool completion to update height when label changes
+		// Dynamically add/remove icon based on confirmation state
 		if (toolInvocation.kind === 'toolInvocation') {
 			this._register(autorun(r => {
 				const state = toolInvocation.state.read(r);
-				if (state.type === IChatToolInvocation.StateKind.Completed) {
-					this._onDidChangeHeight.fire();
+				const hasConfirmation = state.type === IChatToolInvocation.StateKind.WaitingForConfirmation ||
+					state.type === IChatToolInvocation.StateKind.WaitingForPostApproval;
+				if (hasConfirmation) {
+					iconElement.remove();
+				} else if (!iconElement.parentElement) {
+					itemWrapper.insertBefore(iconElement, itemWrapper.firstChild);
 				}
 			}));
+		} else {
+			// For serialized invocations, always show icon (already completed)
+			itemWrapper.insertBefore(iconElement, itemWrapper.firstChild);
 		}
+
+		// Insert before result container if it exists, otherwise append
+		// With lazy rendering, wrapper may not be created yet if content hasn't been expanded
+		if (this.wrapper) {
+			if (this.resultContainer) {
+				this.wrapper.insertBefore(itemWrapper, this.resultContainer);
+			} else {
+				this.wrapper.appendChild(itemWrapper);
+			}
+		}
+		this.lastItemWrapper = itemWrapper;
 
 		// Schedule layout to measure last item and scroll
 		this.layoutScheduler.schedule();
 	}
 
+	/**
+	 * Materializes a lazy tool item by creating the tool part and adding it to the DOM.
+	 */
+	private materializeLazyItem(item: ILazyToolItem): void {
+		if (item.lazy.hasValue) {
+			return; // Already materialized
+		}
+
+		const part = item.lazy.value;
+		this.appendToolPartToDOM(part, item.toolInvocation);
+	}
+
+	/**
+	 * Materializes all pending lazy content (prompt, tool items, result) when the section is expanded.
+	 * This is called when first expanded, but the wrapper must exist (created by base class initContent).
+	 */
+	private materializePendingContent(): void {
+		// Wrapper may not be created yet if this autorun runs before the base class autorun
+		// that calls initContent(). In that case, initContent() will call this logic.
+		if (!this.wrapper) {
+			return;
+		}
+
+		// Render pending prompt section
+		if (this.pendingPromptRender) {
+			this.pendingPromptRender = false;
+			this.doRenderPromptSection();
+		}
+
+		// Materialize lazy tool items
+		for (const item of this.lazyItems) {
+			this.materializeLazyItem(item);
+		}
+
+		// Render pending result text
+		if (this.pendingResultText) {
+			const resultText = this.pendingResultText;
+			this.pendingResultText = undefined;
+			this.doRenderResultText(resultText);
+		}
+	}
+
 	private performLayout(): void {
 		// Measure last item height once after layout, set CSS variable for collapsed max-height
-		if (this.lastItemWrapper) {
-			const itemHeight = this.lastItemWrapper.offsetHeight;
-			const height = itemHeight + 4;
+		if (this.lastItemWrapper && this.wrapper) {
+			const height = this.lastItemWrapper.offsetHeight;
 			if (height > 0) {
 				this.wrapper.style.setProperty('--chat-subagent-last-item-height', `${height}px`);
 			}
 		}
 
 		// Auto-scroll to bottom only when actively streaming (not for completed responses)
-		if (this.isActive && !this.isInitiallyComplete) {
+		if (this.isActive && !this.isInitiallyComplete && this.wrapper) {
 			const scrollHeight = this.wrapper.scrollHeight;
 			this.wrapper.scrollTop = scrollHeight;
 		}
-
-		this._onDidChangeHeight.fire();
 	}
 
 	hasSameContent(other: IChatRendererContent, _followingContent: IChatRendererContent[], _element: ChatTreeItem): boolean {

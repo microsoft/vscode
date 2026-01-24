@@ -3,31 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IAction } from '../../../../../../base/common/actions.js';
-import { Event } from '../../../../../../base/common/event.js';
-import { ILanguageModelChatMetadataAndIdentifier } from '../../../common/languageModels.js';
-import { localize } from '../../../../../../nls.js';
 import * as dom from '../../../../../../base/browser/dom.js';
+import { IActionProvider } from '../../../../../../base/browser/ui/dropdown/dropdown.js';
+import { IManagedHoverContent } from '../../../../../../base/browser/ui/hover/hover.js';
 import { renderIcon, renderLabelWithIcons } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { IAction } from '../../../../../../base/common/actions.js';
 import { IDisposable } from '../../../../../../base/common/lifecycle.js';
+import { autorun, IObservable } from '../../../../../../base/common/observable.js';
+import { localize } from '../../../../../../nls.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IActionWidgetDropdownAction, IActionWidgetDropdownActionProvider, IActionWidgetDropdownOptions } from '../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
-import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
-import { ChatEntitlement, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
+import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
-import { DEFAULT_MODEL_PICKER_CATEGORY } from '../../../common/widget/input/modelPickerWidget.js';
-import { IActionProvider } from '../../../../../../base/browser/ui/dropdown/dropdown.js';
-import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
-import { MANAGE_CHAT_COMMAND_ID } from '../../../common/constants.js';
+import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { TelemetryTrustedValue } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
-import { IManagedHoverContent } from '../../../../../../base/browser/ui/hover/hover.js';
+import { ChatEntitlement, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
+import { MANAGE_CHAT_COMMAND_ID } from '../../../common/constants.js';
+import { ILanguageModelChatMetadataAndIdentifier } from '../../../common/languageModels.js';
+import { DEFAULT_MODEL_PICKER_CATEGORY } from '../../../common/widget/input/modelPickerWidget.js';
 import { ChatInputPickerActionViewItem, IChatInputPickerOptions } from './chatInputPickerActionItem.js';
 
 export interface IModelPickerDelegate {
-	readonly onDidChangeModel: Event<ILanguageModelChatMetadataAndIdentifier>;
-	getCurrentModel(): ILanguageModelChatMetadataAndIdentifier | undefined;
+	readonly currentModel: IObservable<ILanguageModelChatMetadataAndIdentifier | undefined>;
 	setModel(model: ILanguageModelChatMetadataAndIdentifier): void;
 	getModels(): ILanguageModelChatMetadataAndIdentifier[];
 }
@@ -57,24 +56,28 @@ function modelDelegateToWidgetActionsProvider(delegate: IModelPickerDelegate, te
 					checked: true,
 					category: DEFAULT_MODEL_PICKER_CATEGORY,
 					class: undefined,
+					description: localize('chat.modelPicker.auto.detail', "Best for your request based on capacity and performance."),
 					tooltip: localize('chat.modelPicker.auto', "Auto"),
 					label: localize('chat.modelPicker.auto', "Auto"),
+					hover: { content: localize('chat.modelPicker.auto.description', "Automatically selects the best model for your task based on context and complexity.") },
 					run: () => { }
 				} satisfies IActionWidgetDropdownAction];
 			}
 			return models.map(model => {
+				const hoverContent = model.metadata.tooltip;
 				return {
 					id: model.metadata.id,
 					enabled: true,
 					icon: model.metadata.statusIcon,
-					checked: model.identifier === delegate.getCurrentModel()?.identifier,
+					checked: model.identifier === delegate.currentModel.get()?.identifier,
 					category: model.metadata.modelPickerCategory || DEFAULT_MODEL_PICKER_CATEGORY,
 					class: undefined,
-					description: model.metadata.detail,
-					tooltip: model.metadata.tooltip ?? model.metadata.name,
+					description: model.metadata.multiplier ?? model.metadata.detail,
+					tooltip: hoverContent ? '' : model.metadata.name,
+					hover: hoverContent ? { content: hoverContent } : undefined,
 					label: model.metadata.name,
 					run: () => {
-						const previousModel = delegate.getCurrentModel();
+						const previousModel = delegate.currentModel.get();
 						telemetryService.publicLog2<ChatModelChangeEvent, ChatModelChangeClassification>('chat.modelChange', {
 							fromModel: previousModel?.metadata.vendor === 'copilot' ? new TelemetryTrustedValue(previousModel.identifier) : 'unknown',
 							toModel: model.metadata.vendor === 'copilot' ? new TelemetryTrustedValue(model.identifier) : 'unknown'
@@ -96,6 +99,8 @@ function getModelPickerActionBarActionProvider(commandService: ICommandService, 
 				chatEntitlementService.entitlement === ChatEntitlement.Free ||
 				chatEntitlementService.entitlement === ChatEntitlement.Pro ||
 				chatEntitlementService.entitlement === ChatEntitlement.ProPlus ||
+				chatEntitlementService.entitlement === ChatEntitlement.Business ||
+				chatEntitlementService.entitlement === ChatEntitlement.Enterprise ||
 				chatEntitlementService.isInternal
 			) {
 				additionalActions.push({
@@ -139,10 +144,10 @@ function getModelPickerActionBarActionProvider(commandService: ICommandService, 
  * Action view item for selecting a language model in the chat interface.
  */
 export class ModelPickerActionItem extends ChatInputPickerActionViewItem {
+	protected currentModel: ILanguageModelChatMetadataAndIdentifier | undefined;
 
 	constructor(
 		action: IAction,
-		protected currentModel: ILanguageModelChatMetadataAndIdentifier | undefined,
 		widgetOptions: Omit<IActionWidgetDropdownOptions, 'label' | 'labelRenderer'> | undefined,
 		delegate: IModelPickerDelegate,
 		pickerOptions: IChatInputPickerOptions,
@@ -157,19 +162,22 @@ export class ModelPickerActionItem extends ChatInputPickerActionViewItem {
 		// Modify the original action with a different label and make it show the current model
 		const actionWithLabel: IAction = {
 			...action,
-			label: currentModel?.metadata.name ?? localize('chat.modelPicker.auto', "Auto"),
+			label: delegate.currentModel.get()?.metadata.name ?? localize('chat.modelPicker.auto', "Auto"),
 			run: () => { }
 		};
 
 		const modelPickerActionWidgetOptions: Omit<IActionWidgetDropdownOptions, 'label' | 'labelRenderer'> = {
 			actionProvider: modelDelegateToWidgetActionsProvider(delegate, telemetryService),
 			actionBarActionProvider: getModelPickerActionBarActionProvider(commandService, chatEntitlementService, productService),
+			reporter: { name: 'ChatModelPicker', includeOptions: true },
 		};
 
-		super(actionWithLabel, widgetOptions ?? modelPickerActionWidgetOptions, pickerOptions, actionWidgetService, keybindingService, contextKeyService);
+		super(actionWithLabel, widgetOptions ?? modelPickerActionWidgetOptions, pickerOptions, actionWidgetService, keybindingService, contextKeyService, telemetryService);
+		this.currentModel = delegate.currentModel.get();
 
 		// Listen for model changes from the delegate
-		this._register(delegate.onDidChangeModel(model => {
+		this._register(autorun(t => {
+			const model = delegate.currentModel.read(t);
 			this.currentModel = model;
 			this.updateTooltip();
 			if (this.element) {

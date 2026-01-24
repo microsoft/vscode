@@ -7,6 +7,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { truncate } from '../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
 import { BrowserViewUri } from '../../../../platform/browserView/common/browserViewUri.js';
 import { EditorInputCapabilities, IEditorSerializer, IUntypedEditorInput } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
@@ -18,6 +19,8 @@ import { IBrowserViewWorkbenchService, IBrowserViewModel } from '../common/brows
 import { hasKey } from '../../../../base/common/types.js';
 import { ILifecycleService, ShutdownReason } from '../../../services/lifecycle/common/lifecycle.js';
 import { BrowserEditor } from './browserEditor.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { logBrowserOpen } from './browserViewTelemetry.js';
 
 const LOADING_SPINNER_SVG = (color: string | undefined) => `
 	<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16">
@@ -56,7 +59,9 @@ export class BrowserEditorInput extends EditorInput {
 		options: IBrowserEditorInputData,
 		@IThemeService private readonly themeService: IThemeService,
 		@IBrowserViewWorkbenchService private readonly browserViewWorkbenchService: IBrowserViewWorkbenchService,
-		@ILifecycleService private readonly lifecycleService: ILifecycleService
+		@ILifecycleService private readonly lifecycleService: ILifecycleService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService
 	) {
 		super();
 		this._id = options.id;
@@ -203,6 +208,22 @@ export class BrowserEditorInput extends EditorInput {
 		}
 
 		return false;
+	}
+
+	/**
+	 * Creates a copy of this browser editor input with a new unique ID, creating an independent browser view with no linked state.
+	 * This is used during Copy into New Window.
+	 */
+	override copy(): EditorInput {
+		logBrowserOpen(this.telemetryService, 'copyToNewWindow');
+
+		const currentUrl = this._model?.url ?? this._initialData.url;
+		return this.instantiationService.createInstance(BrowserEditorInput, {
+			id: generateUuid(),
+			url: currentUrl,
+			title: this._model?.title ?? this._initialData.title,
+			favicon: this._model?.favicon ?? this._initialData.favicon
+		});
 	}
 
 	override toUntyped(): IUntypedEditorInput {

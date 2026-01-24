@@ -17,6 +17,11 @@
 		margin: 0px;
 	}
 
+	&:not(.chat-used-context-collapsed) .chat-used-context-list.chat-thinking-collapsible {
+		overflow: visible;
+		max-height: none;
+	}
+
 	.monaco-button.hidden,
 	.chat-pinned-preview.hidden {
 		display: none;
@@ -191,6 +196,14 @@
 .interactive-session .interactive-response .value .chat-thinking-fixed-mode {
 	outline: none;
 
+	> .monaco-scrollable-element > .shadow {
+		display: none;
+	}
+
+	&.chat-used-context-collapsed > .monaco-scrollable-element:has(.chat-used-context-list.chat-thinking-collapsible:not(.chat-thinking-streaming)) {
+		display: none;
+	}
+
 	&.chat-used-context-collapsed .chat-used-context-list.chat-thinking-collapsible.chat-thinking-streaming {
 		max-height: 200px;
 		overflow: hidden;
@@ -203,9 +216,22 @@
 		display: block;
 	}
 
+	&:not(.chat-used-context-collapsed) > .monaco-scrollable-element {
+		overflow: visible;
+		height: auto;
+
+		> .scrollbar {
+			display: none;
+		}
+	}
+
 	.chat-used-context-list.chat-thinking-collapsible:not(.chat-thinking-streaming) {
 		max-height: none;
 		overflow: visible;
+	}
+
+	.chat-thinking-tool-wrapper .chat-used-context:not(.chat-used-context-collapsed) .chat-used-context-list {
+		display: block;
 	}
 }
 

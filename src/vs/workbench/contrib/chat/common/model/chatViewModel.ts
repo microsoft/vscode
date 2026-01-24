@@ -12,7 +12,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IChatRequestVariableEntry } from '../attachments/chatVariableEntries.js';
-import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatCodeCitation, IChatContentReference, IChatFollowup, IChatMcpServersStarting, IChatProgressMessage, IChatResponseErrorDetails, IChatTask, IChatUsedContext } from '../chatService/chatService.js';
+import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatCodeCitation, IChatContentReference, IChatFollowup, IChatMcpServersStarting, IChatProgressMessage, IChatQuestionCarousel, IChatResponseErrorDetails, IChatTask, IChatUsedContext } from '../chatService/chatService.js';
 import { getFullyQualifiedId, IChatAgentCommand, IChatAgentData, IChatAgentNameService, IChatAgentResult } from '../participants/chatAgents.js';
 import { IParsedChatRequest } from '../requestParser/chatParserTypes.js';
 import { CodeBlockModelCollection } from '../widget/codeBlockModelCollection.js';
@@ -38,7 +38,7 @@ export function assertIsResponseVM(item: unknown): asserts item is IChatResponse
 	}
 }
 
-export type IChatViewModelChangeEvent = IChatAddRequestEvent | IChangePlaceholderEvent | IChatSessionInitEvent | IChatSetHiddenEvent | IChatSetCheckpointEvent | null;
+export type IChatViewModelChangeEvent = IChatAddRequestEvent | IChangePlaceholderEvent | IChatSessionInitEvent | IChatSetHiddenEvent | null;
 
 export interface IChatAddRequestEvent {
 	kind: 'addRequest';
@@ -56,10 +56,6 @@ export interface IChatSetHiddenEvent {
 	kind: 'setHidden';
 }
 
-export interface IChatSetCheckpointEvent {
-	kind: 'setCheckpoint';
-}
-
 export interface IChatViewModel {
 	readonly model: IChatModel;
 	readonly sessionResource: URI;
@@ -75,8 +71,6 @@ export interface IChatViewModel {
 
 export interface IChatRequestViewModel {
 	readonly id: string;
-	/** @deprecated */
-	readonly sessionId: string;
 	readonly sessionResource: URI;
 	/** This ID updates every time the underlying data changes */
 	readonly dataId: string;
@@ -181,14 +175,12 @@ export interface IChatChangesSummaryPart {
 /**
  * Type for content parts rendered by IChatListRenderer (not necessarily in the model)
  */
-export type IChatRendererContent = IChatProgressRenderableResponseContent | IChatReferences | IChatCodeCitations | IChatErrorDetailsPart | IChatChangesSummaryPart | IChatWorkingProgress | IChatMcpServersStarting;
+export type IChatRendererContent = IChatProgressRenderableResponseContent | IChatReferences | IChatCodeCitations | IChatErrorDetailsPart | IChatChangesSummaryPart | IChatWorkingProgress | IChatMcpServersStarting | IChatQuestionCarousel;
 
 export interface IChatResponseViewModel {
 	readonly model: IChatResponseModel;
 	readonly id: string;
 	readonly session: IChatViewModel;
-	/** @deprecated */
-	readonly sessionId: string;
 	readonly sessionResource: URI;
 	/** This ID updates every time the underlying data changes */
 	readonly dataId: string;
@@ -222,6 +214,14 @@ export interface IChatResponseViewModel {
 	vulnerabilitiesListExpanded: boolean;
 	setEditApplied(edit: IChatTextEditGroup, editCount: number): void;
 	readonly shouldBeBlocked: IObservable<boolean>;
+}
+
+export interface IChatViewModelOptions {
+	/**
+	 * Maximum number of items to return from getItems().
+	 * When set, only the last N items are returned (most recent request/response pairs).
+	 */
+	readonly maxVisibleItems?: number;
 }
 
 export class ChatViewModel extends Disposable implements IChatViewModel {
@@ -260,6 +260,7 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 	constructor(
 		private readonly _model: IChatModel,
 		public readonly codeBlockModelCollection: CodeBlockModelCollection,
+		private readonly _options: IChatViewModelOptions | undefined,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
@@ -318,7 +319,11 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 	}
 
 	getItems(): (IChatRequestViewModel | IChatResponseViewModel)[] {
-		return this._items.filter((item) => !item.shouldBeRemovedOnSend || item.shouldBeRemovedOnSend.afterUndoStop);
+		const items = this._items.filter((item) => !item.shouldBeRemovedOnSend || item.shouldBeRemovedOnSend.afterUndoStop);
+		if (this._options?.maxVisibleItems !== undefined && items.length > this._options.maxVisibleItems) {
+			return items.slice(-this._options.maxVisibleItems);
+		}
+		return items;
 	}
 
 
@@ -351,11 +356,6 @@ export class ChatRequestViewModel implements IChatRequestViewModel {
 	 */
 	get dataId() {
 		return `${this.id}_${this._model.version + (this._model.response?.isComplete ? 1 : 0)}`;
-	}
-
-	/** @deprecated */
-	get sessionId() {
-		return this._model.session.sessionId;
 	}
 
 	get sessionResource() {
@@ -447,11 +447,6 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 		return this._model.id +
 			`_${this._modelChangeCount}` +
 			(this.isLast ? '_last' : '');
-	}
-
-	/** @deprecated */
-	get sessionId() {
-		return this._model.session.sessionId;
 	}
 
 	get sessionResource(): URI {

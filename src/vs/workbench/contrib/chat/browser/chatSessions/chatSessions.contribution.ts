@@ -49,6 +49,7 @@ import { BugIndicatingError } from '../../../../../base/common/errors.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { LocalChatSessionUri } from '../../common/model/chatUri.js';
 import { assertNever } from '../../../../../base/common/assert.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 
 const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsExtensionPoint[]>({
 	extensionPoint: 'chatSessions',
@@ -197,6 +198,10 @@ const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsEx
 					description: localize('chatSessionsExtPoint.canDelegate', 'Whether delegation is supported. Default is false. Note that enabling this is experimental and may not be respected at all times.'),
 					type: 'boolean',
 					default: false
+				},
+				customAgentTarget: {
+					description: localize('chatSessionsExtPoint.customAgentTarget', 'When set, the chat session will show a filtered mode picker that prefers custom agents whose target property matches this value. Custom agents without a target property are still shown in all session types. This enables the use of standard agent/mode with contributed sessions.'),
+					type: 'string'
 				}
 			},
 			required: ['type', 'name', 'displayName', 'description'],
@@ -516,12 +521,18 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		const disposables = new DisposableStore();
 
 		// Mirror all create submenu actions into the global Chat New menu
-		for (const action of menuActions) {
+		for (let i = 0; i < menuActions.length; i++) {
+			const action = menuActions[i];
 			if (action instanceof MenuItemAction) {
-				disposables.add(MenuRegistry.appendMenuItem(MenuId.ChatNewMenu, {
-					command: action.item,
-					group: '4_externally_contributed',
-				}));
+				// TODO: This is an odd way to do this, but the best we can do currently
+				if (i === 0 && !contribution.canDelegate) {
+					disposables.add(registerNewSessionExternalAction(contribution.type, contribution.displayName, action.item.id));
+				} else {
+					disposables.add(MenuRegistry.appendMenuItem(MenuId.ChatNewMenu, {
+						command: action.item,
+						group: '4_externally_contributed',
+					}));
+				}
 			}
 		}
 		return {
@@ -1090,6 +1101,15 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		return contribution?.capabilities;
 	}
 
+	/**
+	 * Get the customAgentTarget for a specific session type.
+	 * When set, the mode picker should show filtered custom agents matching this target.
+	 */
+	public getCustomAgentTargetForSessionType(chatSessionType: string): string | undefined {
+		const contribution = this._contributions.get(chatSessionType)?.contribution;
+		return contribution?.customAgentTarget;
+	}
+
 	public getContentProviderSchemes(): string[] {
 		return Array.from(this._contentProviders.keys());
 	}
@@ -1125,7 +1145,25 @@ function registerNewSessionInPlaceAction(type: string, displayName: string): IDi
 	});
 }
 
-enum ChatSessionPosition {
+function registerNewSessionExternalAction(type: string, displayName: string, commandId: string): IDisposable {
+	return registerAction2(class NewChatSessionExternalAction extends Action2 {
+		constructor() {
+			super({
+				id: `workbench.action.chat.openNewChatSessionExternal.${type}`,
+				title: localize2('interactiveSession.openNewChatSessionExternal', "New {0}", displayName),
+				category: CHAT_CATEGORY,
+				f1: false,
+				precondition: ChatContextKeys.enabled,
+			});
+		}
+		async run(accessor: ServicesAccessor): Promise<void> {
+			const commandService = accessor.get(ICommandService);
+			await commandService.executeCommand(commandId);
+		}
+	});
+}
+
+export enum ChatSessionPosition {
 	Editor = 'editor',
 	Sidebar = 'sidebar'
 }
@@ -1135,7 +1173,7 @@ type NewChatSessionSendOptions = {
 	readonly attachedContext?: IChatRequestVariableEntry[];
 };
 
-type NewChatSessionOpenOptions = {
+export type NewChatSessionOpenOptions = {
 	readonly type: string;
 	readonly position: ChatSessionPosition;
 	readonly displayName: string;
@@ -1203,7 +1241,7 @@ async function openChatSession(accessor: ServicesAccessor, openOptions: NewChatS
 	}
 }
 
-function getResourceForNewChatSession(options: NewChatSessionOpenOptions): URI {
+export function getResourceForNewChatSession(options: NewChatSessionOpenOptions): URI {
 	if (options.chatResource) {
 		return URI.revive(options.chatResource);
 	}

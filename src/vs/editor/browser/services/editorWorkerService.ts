@@ -58,6 +58,12 @@ export class EditorWorkerService extends Disposable implements IEditorWorkerServ
 
 	declare readonly _serviceBrand: undefined;
 
+	public static readonly workerDescriptor = new WebWorkerDescriptor({
+		esmModuleLocation: () => FileAccess.asBrowserUri('vs/editor/common/services/editorWebWorkerMain.js'),
+		esmModuleLocationBundler: () => new URL('../../common/services/editorWebWorkerMain.ts?esm', import.meta.url),
+		label: 'editorWorkerService'
+	});
+
 	private readonly _modelService: IModelService;
 	private readonly _workerManager: WorkerManager;
 	private readonly _logService: ILogService;
@@ -73,13 +79,7 @@ export class EditorWorkerService extends Disposable implements IEditorWorkerServ
 		super();
 		this._modelService = modelService;
 
-		const workerDescriptor = new WebWorkerDescriptor({
-			esmModuleLocation: () => FileAccess.asBrowserUri('vs/editor/common/services/editorWebWorkerMain.js'),
-			esmModuleLocationBundler: () => new URL('../../common/services/editorWebWorkerMain.ts?esm', import.meta.url),
-			label: 'editorWorkerService'
-		});
-
-		this._workerManager = this._register(new WorkerManager(workerDescriptor, this._modelService, this._webWorkerService));
+		this._workerManager = this._register(new WorkerManager(EditorWorkerService.workerDescriptor, this._modelService, this._webWorkerService));
 		this._logService = logService;
 
 		// register default link-provider and default completions-provider

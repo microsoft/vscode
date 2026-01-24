@@ -15,7 +15,10 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { AuxiliaryBarMaximizedContext } from '../../../common/contextkeys.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
+import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
 import { AgentSessionsWelcomeInput } from './agentSessionsWelcomeInput.js';
 import { AgentSessionsWelcomePage, AgentSessionsWelcomeInputSerializer } from './agentSessionsWelcome.js';
 
@@ -73,7 +76,7 @@ class AgentSessionsWelcomeEditorResolverContribution extends Disposable implemen
 }
 
 // Register command to open agent sessions welcome page
-CommandsRegistry.registerCommand('workbench.action.openAgentSessionsWelcome', (accessor) => {
+CommandsRegistry.registerCommand(AgentSessionsWelcomePage.COMMAND_ID, (accessor) => {
 	const editorService = accessor.get(IEditorService);
 	const instantiationService = accessor.get(IInstantiationService);
 	const input = instantiationService.createInstance(AgentSessionsWelcomeInput, {});
@@ -89,6 +92,8 @@ class AgentSessionsWelcomeRunnerContribution extends Disposable implements IWork
 		@IEditorService private readonly editorService: IEditorService,
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IStorageService private readonly storageService: IStorageService
 	) {
 		super();
 		this.run();
@@ -106,8 +111,16 @@ class AgentSessionsWelcomeRunnerContribution extends Disposable implements IWork
 		// Wait for editors to restore
 		await this.editorGroupsService.whenReady;
 
-		// Don't open if there are already editors open
-		if (this.editorService.activeEditor) {
+		// If the auxiliary bar is maximized, we do not show the welcome page
+		if (AuxiliaryBarMaximizedContext.getValue(this.contextKeyService)) {
+			return;
+		}
+
+		// Check if there's prefill data from a workspace transfer - always show welcome page in that case
+		const hasPrefillData = !!this.storageService.get('chat.welcomeViewPrefill', StorageScope.APPLICATION);
+
+		// Don't open if there are already editors open (unless we have prefill data)
+		if (this.editorService.activeEditor && !hasPrefillData) {
 			return;
 		}
 

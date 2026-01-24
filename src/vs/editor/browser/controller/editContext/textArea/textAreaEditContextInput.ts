@@ -18,7 +18,7 @@ import { Position } from '../../../../common/core/position.js';
 import { Selection } from '../../../../common/core/selection.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { ClipboardEventUtils, ClipboardStoredMetadata, ensureClipboardGetsEditorSelection, InMemoryClipboardMetadataManager } from '../clipboardUtils.js';
+import { ClipboardStoredMetadata, CopyOptions, createClipboardCopyEvent, createClipboardPasteEvent, IClipboardCopyEvent, IClipboardPasteEvent, InMemoryClipboardMetadataManager } from '../clipboardUtils.js';
 import { _debugComposition, ITextAreaWrapper, ITypeData, TextAreaState } from './textAreaEditContextState.js';
 import { ViewContext } from '../../../../common/viewModel/viewContext.js';
 
@@ -37,7 +37,7 @@ export interface IPasteData {
 }
 
 export interface ITextAreaInputHost {
-	readonly context: ViewContext | null;
+	readonly context: ViewContext;
 	getScreenReaderContent(): TextAreaState;
 	deduceModelPosition(viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position;
 }
@@ -126,6 +126,15 @@ export class TextAreaInput extends Disposable {
 
 	private _onPaste = this._register(new Emitter<IPasteData>());
 	public readonly onPaste: Event<IPasteData> = this._onPaste.event;
+
+	private _onWillCopy = this._register(new Emitter<IClipboardCopyEvent>());
+	public readonly onWillCopy: Event<IClipboardCopyEvent> = this._onWillCopy.event;
+
+	private _onWillCut = this._register(new Emitter<IClipboardCopyEvent>());
+	public readonly onWillCut: Event<IClipboardCopyEvent> = this._onWillCut.event;
+
+	private _onWillPaste = this._register(new Emitter<IClipboardPasteEvent>());
+	public readonly onWillPaste: Event<IClipboardPasteEvent> = this._onWillPaste.event;
 
 	private _onType = this._register(new Emitter<ITypeData>());
 	public readonly onType: Event<ITypeData> = this._onType.event;
@@ -359,48 +368,70 @@ export class TextAreaInput extends Disposable {
 
 		this._register(this._textArea.onCut((e) => {
 			this._logService.trace(`TextAreaInput#onCut`, e);
+
+			// Fire onWillCut event to allow interception
+			const cutEvent = createClipboardCopyEvent(e, /* isCut */ true, this._host.context, this._logService, this._browser.isFirefox);
+			this._onWillCut.fire(cutEvent);
+			if (cutEvent.isHandled) {
+				// Event was handled externally, skip default processing
+				return;
+			}
+
 			// Pretend here we touched the text area, as the `cut` event will most likely
 			// result in a `selectionchange` event which we want to ignore
 			this._textArea.setIgnoreSelectionChangeTime('received cut event');
 
-			if (this._host.context) {
-				ensureClipboardGetsEditorSelection(e, this._host.context, this._logService, this._browser.isFirefox);
-			}
+			cutEvent.ensureClipboardGetsEditorData();
 			this._asyncTriggerCut.schedule();
 		}));
 
 		this._register(this._textArea.onCopy((e) => {
 			this._logService.trace(`TextAreaInput#onCopy`, e);
-			if (this._host.context) {
-				ensureClipboardGetsEditorSelection(e, this._host.context, this._logService, this._browser.isFirefox);
+
+			// !!!!!
+			// This is a workaround for what we think is an Electron bug where
+			// execCommand('copy') does not always work (it does not fire a clipboard event)
+			// !!!!!
+			// We signal that we have executed a copy command
+			CopyOptions.electronBugWorkaroundCopyEventHasFired = true;
+
+			// Fire onWillCopy event to allow interception
+			const copyEvent = createClipboardCopyEvent(e, /* isCut */ false, this._host.context, this._logService, this._browser.isFirefox);
+			this._onWillCopy.fire(copyEvent);
+			if (copyEvent.isHandled) {
+				// Event was handled externally, skip default processing
+				return;
 			}
+
+			copyEvent.ensureClipboardGetsEditorData();
 		}));
 
 		this._register(this._textArea.onPaste((e) => {
 			this._logService.trace(`TextAreaInput#onPaste`, e);
+
+			// Fire onWillPaste event to allow interception
+			const pasteEvent = createClipboardPasteEvent(e);
+			this._onWillPaste.fire(pasteEvent);
+			if (pasteEvent.isHandled) {
+				// Event was handled externally, skip default processing
+				return;
+			}
+
 			// Pretend here we touched the text area, as the `paste` event will most likely
 			// result in a `selectionchange` event which we want to ignore
 			this._textArea.setIgnoreSelectionChangeTime('received paste event');
 
 			e.preventDefault();
 
-			if (!e.clipboardData) {
+			this._logService.trace(`TextAreaInput#onPaste with id : `, pasteEvent.metadata?.id, ' with text.length: ', pasteEvent.text.length);
+			if (!pasteEvent.text) {
 				return;
 			}
-
-			let [text, metadata] = ClipboardEventUtils.getTextData(e.clipboardData);
-			this._logService.trace(`TextAreaInput#onPaste with id : `, metadata?.id, ' with text.length: ', text.length);
-			if (!text) {
-				return;
-			}
-
-			// try the in-memory store
-			metadata = metadata || InMemoryClipboardMetadataManager.INSTANCE.get(text);
 
 			this._logService.trace(`TextAreaInput#onPaste (before onPaste)`);
 			this._onPaste.fire({
-				text: text,
-				metadata: metadata
+				text: pasteEvent.text,
+				metadata: pasteEvent.metadata
 			});
 		}));
 
