@@ -340,7 +340,8 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 			const state = toolInvocation.state.read(r);
 
 			// Track confirmation state changes
-			const isWaitingForConfirmation = state.type === IChatToolInvocation.StateKind.WaitingForConfirmation;
+			const isWaitingForConfirmation = state.type === IChatToolInvocation.StateKind.WaitingForConfirmation ||
+				state.type === IChatToolInvocation.StateKind.WaitingForPostApproval;
 
 			if (isWaitingForConfirmation && !wasWaitingForConfirmation) {
 				// Tool just started waiting for confirmation
@@ -542,12 +543,28 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 			return;
 		}
 
-		// Wrap with icon like thinking parts do, but skip icon for tools needing confirmation
+		// Wrap with icon like thinking parts do
 		const itemWrapper = $('.chat-thinking-tool-wrapper');
 		const icon = getToolInvocationIcon(toolInvocation.toolId);
 		const iconElement = createThinkingIcon(icon);
-		itemWrapper.appendChild(iconElement);
 		itemWrapper.appendChild(content);
+
+		// Dynamically add/remove icon based on confirmation state
+		if (toolInvocation.kind === 'toolInvocation') {
+			this._register(autorun(r => {
+				const state = toolInvocation.state.read(r);
+				const hasConfirmation = state.type === IChatToolInvocation.StateKind.WaitingForConfirmation ||
+					state.type === IChatToolInvocation.StateKind.WaitingForPostApproval;
+				if (hasConfirmation) {
+					iconElement.remove();
+				} else if (!iconElement.parentElement) {
+					itemWrapper.insertBefore(iconElement, itemWrapper.firstChild);
+				}
+			}));
+		} else {
+			// For serialized invocations, always show icon (already completed)
+			itemWrapper.insertBefore(iconElement, itemWrapper.firstChild);
+		}
 
 		// Insert before result container if it exists, otherwise append
 		// With lazy rendering, wrapper may not be created yet if content hasn't been expanded
