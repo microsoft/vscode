@@ -7,6 +7,7 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { IJSONSchema, IJSONSchemaMap } from '../../../../../../base/common/jsonSchema.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
@@ -187,6 +188,9 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 			// Track whether we should collect markdown (after the last tool invocation)
 			const markdownParts: string[] = [];
 
+			// Generate a stable subAgentInvocationId for routing edits to this subagent's content part
+			const subAgentInvocationId = invocation.callId ?? `subagent-${generateUuid()}`;
+
 			let inEdit = false;
 			const progressCallback = (parts: IChatProgress[]) => {
 				for (const part of parts) {
@@ -196,7 +200,12 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 							inEdit = true;
 							model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('```\n') });
 						}
-						model.acceptResponseProgress(request, part);
+						// Attach subAgentInvocationId to codeblockUri parts so they can be routed to the subagent content part
+						if (part.kind === 'codeblockUri') {
+							model.acceptResponseProgress(request, { ...part, subAgentInvocationId });
+						} else {
+							model.acceptResponseProgress(request, part);
+						}
 
 						// When we see a tool invocation starting, reset markdown collection
 						if (part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') {

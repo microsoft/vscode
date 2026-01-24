@@ -48,7 +48,7 @@ import { IThemeService } from '../../../../../platform/theme/common/themeService
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IWorkbenchIssueService } from '../../../issue/common/issue.js';
 import { CodiconActionViewItem } from '../../../notebook/browser/view/cellParts/cellActionView.js';
-import { annotateSpecialMarkdownContent, hasCodeblockUriTag } from '../../common/widget/annotations.js';
+import { annotateSpecialMarkdownContent, extractSubAgentInvocationIdFromText, hasCodeblockUriTag } from '../../common/widget/annotations.js';
 import { checkModeOption } from '../../common/chat.js';
 import { IChatAgentMetadata } from '../../common/participants/chatAgents.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
@@ -1938,6 +1938,21 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 			// append to thinking part when the codeblock is complete
 			const isComplete = this.isCodeblockComplete(markdown, context.element);
+
+			// Check if this markdown should be routed to a subagent content part
+			const subAgentInvocationId = extractSubAgentInvocationIdFromText(markdown.content.value);
+			if (subAgentInvocationId) {
+				const subagentPart = this.getSubagentPart(templateData.renderedParts, subAgentInvocationId);
+				if (subagentPart && markdownPart?.domNode && isComplete) {
+					subagentPart.appendMarkdownItem(
+						() => ({ domNode: markdownPart.domNode, disposable: markdownPart }),
+						markdownPart.codeblocksPartId,
+						markdown,
+						templateData.value
+					);
+					return subagentPart;
+				}
+			}
 
 			// create thinking part if it doesn't exist yet
 			const lastThinking = this.getLastThinkingPart(templateData.renderedParts);
