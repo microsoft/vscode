@@ -158,6 +158,11 @@ export async function nodeRequest(options: NodeRequestOptions, token: Cancellati
 	const maxRetries = 3;
 	let lastError: Error | undefined;
 
+	// Determine if the HTTP method is safe/idempotent
+	const method = (options.type || 'GET').toUpperCase();
+	const isSafeMethod = method === 'GET' || method === 'HEAD' || method === 'OPTIONS';
+	const shouldRetry = isSafeMethod || options.retryNonIdempotent === true;
+
 	for (let attempt = 1; attempt <= maxRetries; attempt++) {
 		try {
 			return await nodeRequestAttempt(options, token);
@@ -168,7 +173,7 @@ export async function nodeRequest(options: NodeRequestOptions, token: Cancellati
 			}
 
 			const isTransientError = TransientErrorRegex.test(getErrorMessage(error));
-			if (!isTransientError || attempt === maxRetries) {
+			if (!shouldRetry || !isTransientError || attempt === maxRetries) {
 				throw error;
 			}
 

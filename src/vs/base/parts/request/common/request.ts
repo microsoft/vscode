@@ -50,6 +50,12 @@ export interface IRequestOptions {
 	 * be supported in all implementations.
 	 */
 	disableCache?: boolean;
+	/**
+	 * Whether to retry non-idempotent HTTP methods (POST, PUT, PATCH, DELETE) on transient errors.
+	 * By default, only safe/idempotent methods (GET, HEAD, OPTIONS) are retried.
+	 * Use this option with caution as retrying non-idempotent operations may cause duplicate side effects.
+	 */
+	retryNonIdempotent?: boolean;
 }
 
 export interface IRequestContext {
