@@ -292,7 +292,7 @@ export class ChatImplicitContexts extends Disposable {
 	private _onDidChangeValue = this._register(new Emitter<void>());
 	readonly onDidChangeValue = this._onDidChangeValue.event;
 
-	private _values: DisposableMap<ChatImplicitContext, DisposableStore> = new DisposableMap();
+	private _values: DisposableMap<ChatImplicitContext, DisposableStore> = this._register(new DisposableMap());
 	private readonly _valuesDisposables: DisposableStore = this._register(new DisposableStore());
 
 	setValues(values: ImplicitContextWithSelection[]): void {
