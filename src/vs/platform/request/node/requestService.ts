@@ -6,7 +6,7 @@
 import type * as http from 'http';
 import type * as https from 'https';
 import { parse as parseUrl } from 'url';
-import { Promises } from '../../../base/common/async.js';
+import { Promises, timeout } from '../../../base/common/async.js';
 import { streamToBufferReadableStream } from '../../../base/common/buffer.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { CancellationError, getErrorMessage } from '../../../base/common/errors.js';
@@ -172,7 +172,7 @@ export async function nodeRequest(options: NodeRequestOptions, token: Cancellati
 				throw error;
 			}
 
-			await new Promise(resolve => setTimeout(resolve, 100 * attempt));
+			await timeout(100 * attempt, token);
 		}
 	}
 
