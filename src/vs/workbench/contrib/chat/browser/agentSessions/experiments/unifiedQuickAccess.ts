@@ -15,7 +15,7 @@ import { Extensions, IQuickAccessProvider, IQuickAccessProviderDescriptor, IQuic
 import { Registry } from '../../../../../../platform/registry/common/platform.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { createInstantHoverDelegate, getDefaultHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
-import { getBaseLayerHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegate2.js';
+import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { renderIcon } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Event } from '../../../../../../base/common/event.js';
@@ -105,6 +105,7 @@ export class UnifiedQuickAccess extends Disposable {
 		@ILayoutService private readonly layoutService: ILayoutService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IHoverService private readonly hoverService: IHoverService,
 	) {
 		super();
 		this._tabs = tabs ?? DEFAULT_UNIFIED_QUICK_ACCESS_TABS;
@@ -325,7 +326,7 @@ export class UnifiedQuickAccess extends Disposable {
 
 		// Set up managed hover for the button
 		this._sendButtonHover = this._currentDisposables.add(
-			getBaseLayerHoverDelegate().setupManagedHover(getDefaultHoverDelegate('mouse'), button, '')
+			this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), button, '')
 		);
 
 		// Initialize button state
