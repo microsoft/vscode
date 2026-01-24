@@ -90,7 +90,7 @@ jobs:
             path: $(DOCKER_CACHE_DIR)
             restoreKeys: docker-v3 | "${{ parameters.container }}" | "${{ parameters.arch }}" | "$(Agent.OS)"
             cacheHitVar: DOCKER_CACHE_HIT
-          displayName: Cache Docker Image
+          displayName: Download Docker Image
 
         - bash: docker load -i "$(DOCKER_CACHE_FILE)"
           condition: eq(variables.DOCKER_CACHE_HIT, 'true')
