@@ -19,7 +19,8 @@ RUN apt-get install -y xvfb
 # VS Code dependencies
 
 # On Ubuntu 24.04 armhf, libasound2t64 breaks ABI compatibility (time_t transition).
-# We need libasound2 from Ubuntu 22.04 for the ALSA_0.9 versioned symbols.ARG BASE_IMAGEARG TARGETARCH
+# We need libasound2 from Ubuntu 22.04 for the ALSA_0.9 versioned symbols.
+ARG TARGETARCH
 RUN if [ "$TARGETARCH" = "arm" ] && echo "${BASE_IMAGE}" | grep -q "24.04"; then \
 	echo "deb [arch=armhf] http://ports.ubuntu.com/ubuntu-ports jammy main" > /etc/apt/sources.list.d/jammy.list && \
 	apt-get update && \
