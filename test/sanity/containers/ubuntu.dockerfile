@@ -9,12 +9,25 @@ apt-get install -y curl
 RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && \
 apt-get install -y nodejs
 
-# X11 and Desktop Bus except for arm32 on Ubuntu 24.04
+# No UI on arm32 on Ubuntu 24.04
+ARG BASE_IMAGE
 ARG TARGETARCH
-RUN if [ "$TARGETARCH" != "arm" ] || [ "${BASE_IMAGE}" != "ubuntu:24.04" ]; then \
-		apt-get install -y xvfb dbus-x11 && \
+RUN if [ "$TARGETARCH" != "arm" ] || [ "$BASE_IMAGE" != "ubuntu:24.04" ]; then \
+		# X11 Server \
+		apt-get install -y xvfb && \
+		# Desktop Bus \
+		apt-get install -y dbus-x11 && \
 		mkdir -p /run/dbus; \
 	fi
+
+# VS Code dependencies
+RUN apt-get install -y libasound2 || apt-get install -y libasound2t64 && \
+	apt-get install -y libgtk-3-0 || apt-get install -y libgtk-3-0t64 && \
+	apt-get install -y libcurl4 || apt-get install -y libcurl4t64 && \
+	apt-get install -y \
+		libgbm1 \
+		libnss3 \
+		xdg-utils
 
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
