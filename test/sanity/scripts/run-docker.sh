@@ -29,7 +29,7 @@ echo "Building container image: $CONTAINER"
 docker buildx build \
 	--platform "linux/$ARCH" \
 	${BASE_IMAGE:+--build-arg "BASE_IMAGE=$BASE_IMAGE"} \
-	${CACHE_FROM:+--cache-from "type=docker,ref=$CACHE_FROM"} \
+	${CACHE_FROM:+--cache-from "$CACHE_FROM"} \
 	--tag "$CONTAINER" \
 	--file "$ROOT_DIR/containers/$CONTAINER.dockerfile" \
 	"$ROOT_DIR/containers"
