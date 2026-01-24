@@ -22,6 +22,7 @@ import { Agent, getProxyAgent } from './proxy.js';
 import { createGunzip } from 'zlib';
 
 const TransientErrorRegex = /EPROTO|ECONNRESET|ECONNREFUSED|ENETUNREACH|ETIMEDOUT|EAI_AGAIN|socket hang up|SSL routines/;
+const SafeHttpMethods = new Set(['GET', 'HEAD', 'OPTIONS']);
 
 export interface IRawRequestFunction {
 	(options: http.RequestOptions, callback?: (res: http.IncomingMessage) => void): http.ClientRequest;
@@ -160,7 +161,7 @@ export async function nodeRequest(options: NodeRequestOptions, token: Cancellati
 
 	// Determine if the HTTP method is safe/idempotent
 	const method = (options.type || 'GET').toUpperCase();
-	const isSafeMethod = method === 'GET' || method === 'HEAD' || method === 'OPTIONS';
+	const isSafeMethod = SafeHttpMethods.has(method);
 	const shouldRetry = isSafeMethod || options.retryNonIdempotent === true;
 
 	for (let attempt = 1; attempt <= maxRetries; attempt++) {
