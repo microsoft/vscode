@@ -52,6 +52,7 @@ import './services/workspaces/browser/workspacesService.js';
 import './services/workspaces/browser/workspaceEditingService.js';
 import './services/dialogs/browser/fileDialogService.js';
 import './services/host/browser/browserHostService.js';
+import '../platform/meteredConnection/browser/meteredConnectionService.js';
 import './services/lifecycle/browser/lifecycleService.js';
 import './services/clipboard/browser/clipboardService.js';
 import './services/localization/browser/localeService.js';

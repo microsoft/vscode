@@ -106,7 +106,7 @@ export interface IUpdateService {
 	readonly state: State;
 
 	checkForUpdates(explicit: boolean): Promise<void>;
-	downloadUpdate(): Promise<void>;
+	downloadUpdate(explicit: boolean): Promise<void>;
 	applyUpdate(): Promise<void>;
 	quitAndInstall(): Promise<void>;
 

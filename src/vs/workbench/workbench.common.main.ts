@@ -416,6 +416,9 @@ import './contrib/bracketPairColorizer2Telemetry/browser/bracketPairColorizer2Te
 // Accessibility
 import './contrib/accessibility/browser/accessibility.contribution.js';
 
+// Metered Connection
+import './contrib/meteredConnection/browser/meteredConnection.contribution.js';
+
 // Share
 import './contrib/share/browser/share.contribution.js';
 

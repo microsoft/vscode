@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as electron from 'electron';
+import { CancellationToken } from '../../../base/common/cancellation.js';
 import { memoize } from '../../../base/common/decorators.js';
 import { Event } from '../../../base/common/event.js';
 import { hash } from '../../../base/common/hash.js';
@@ -13,9 +14,10 @@ import { IEnvironmentMainService } from '../../environment/electron-main/environ
 import { ILifecycleMainService, IRelaunchHandler, IRelaunchOptions } from '../../lifecycle/electron-main/lifecycleMainService.js';
 import { ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
-import { IRequestService } from '../../request/common/request.js';
+import { asJson, IRequestService } from '../../request/common/request.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { IUpdate, State, StateType, UpdateType } from '../common/update.js';
+import { IMeteredConnectionService } from '../../meteredConnection/common/meteredConnection.js';
 import { AbstractUpdateService, createUpdateURL, IUpdateURLOptions, UpdateErrorClassification } from './abstractUpdateService.js';
 
 export class DarwinUpdateService extends AbstractUpdateService implements IRelaunchHandler {
@@ -34,9 +36,10 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 		@IEnvironmentMainService environmentMainService: IEnvironmentMainService,
 		@IRequestService requestService: IRequestService,
 		@ILogService logService: ILogService,
-		@IProductService productService: IProductService
+		@IProductService productService: IProductService,
+		@IMeteredConnectionService meteredConnectionService: IMeteredConnectionService,
 	) {
-		super(lifecycleMainService, configurationService, environmentMainService, requestService, logService, productService, true);
+		super(lifecycleMainService, configurationService, environmentMainService, requestService, logService, productService, meteredConnectionService, true);
 
 		lifecycleMainService.setRelaunchHandler(this);
 	}
@@ -109,7 +112,34 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 			return;
 		}
 
+    // When connection is metered and this is not an explicit check, avoid electron call as to not to trigger auto-download.
+		if (!explicit && this.meteredConnectionService.isConnectionMetered) {
+			this.logService.info('update#doCheckForUpdates - checking for update without auto-download because connection is metered');
+			this.checkForUpdateNoDownload(url);
+			return;
+		}
+    
 		electron.autoUpdater.checkForUpdates();
+	}
+
+	/**
+	 * Manually check the update feed URL without triggering Electron's auto-download.
+	 * Used when connection is metered to show update availability without downloading.
+	 */
+	private checkForUpdateNoDownload(url: string): void {
+		this.requestService.request({ url }, CancellationToken.None)
+			.then<IUpdate | null>(asJson)
+			.then(update => {
+				if (!update || !update.url || !update.version || !update.productVersion) {
+					this.setState(State.Idle(UpdateType.Archive));
+				} else {
+					this.setState(State.AvailableForDownload(update));
+				}
+			})
+			.then(undefined, err => {
+				this.logService.error(err);
+				this.setState(State.Idle(UpdateType.Archive));
+			});
 	}
 
 	private onUpdateAvailable(): void {
