@@ -250,6 +250,8 @@ declare module 'vscode' {
 
 		/**
 		 * Arbitrary metadata for the chat session. Can be anything, but must be JSON-stringifyable.
+		 * 
+		 * To update the metadata you must re-set this property.
 		 */
 		metadata?: { readonly [key: string]: any };
 	}
