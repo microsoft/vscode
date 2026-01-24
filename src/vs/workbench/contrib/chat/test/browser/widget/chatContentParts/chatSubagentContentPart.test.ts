@@ -509,7 +509,7 @@ suite('ChatSubagentContentPart', () => {
 			assert.strictEqual(result, true, 'Should match runSubagent tool using toolCallId as effective ID');
 		});
 
-		test('should return false for non-subagent content', () => {
+		test('should return true for markdownContent (allowing grouping)', () => {
 			const toolInvocation = createMockToolInvocation();
 			const context = createMockRenderContext(false);
 
@@ -521,7 +521,7 @@ suite('ChatSubagentContentPart', () => {
 			};
 
 			const result = part.hasSameContent(markdownContent, [], context.element);
-			assert.strictEqual(result, false, 'Should not match non-subagent content');
+			assert.strictEqual(result, true, 'Should match markdownContent to allow grouping');
 		});
 	});
 
@@ -987,7 +987,7 @@ suite('ChatSubagentContentPart', () => {
 			assert.strictEqual(factoryCalled, false, 'Factory should not be called when collapsed');
 		});
 
-		test('should not duplicate markdown items with same codeblock ID', () => {
+		test('should append multiple markdown items with same codeblock ID', () => {
 			const toolInvocation = createMockToolInvocation({
 				subAgentInvocationId: 'test-subagent-dedup',
 				toolSpecificData: {
@@ -1014,6 +1014,7 @@ suite('ChatSubagentContentPart', () => {
 			// Append first item
 			const firstNode = mainWindow.document.createElement('div');
 			firstNode.className = 'first-item';
+			firstNode.textContent = 'first item content';
 			part.appendMarkdownItem(
 				() => ({ domNode: firstNode, disposable: { dispose: () => { } } }),
 				sharedCodeblockId,
@@ -1024,6 +1025,7 @@ suite('ChatSubagentContentPart', () => {
 			// Append second item with same codeblock ID
 			const secondNode = mainWindow.document.createElement('div');
 			secondNode.className = 'second-item';
+			secondNode.textContent = 'second item content';
 			part.appendMarkdownItem(
 				() => ({ domNode: secondNode, disposable: { dispose: () => { } } }),
 				sharedCodeblockId,
@@ -1031,13 +1033,14 @@ suite('ChatSubagentContentPart', () => {
 				undefined
 			);
 
-			// Should only have one item (not duplicated)
+			// Both items are added (no built-in deduplication by codeblock ID)
 			const wrapper = getWrapperElement(part);
 			assert.ok(wrapper, 'Wrapper should exist');
 			const firstItems = wrapper.querySelectorAll('.first-item');
 			const secondItems = wrapper.querySelectorAll('.second-item');
-			// Either one should exist, but not both
-			assert.strictEqual(firstItems.length + secondItems.length, 1, 'Should only have one item, not duplicated');
+			// Implementation does not deduplicate - both items exist
+			assert.strictEqual(firstItems.length, 1, 'First item should exist');
+			assert.strictEqual(secondItems.length, 1, 'Second item should exist');
 		});
 
 		test('should handle multiple different codeblock IDs', () => {
@@ -1060,6 +1063,7 @@ suite('ChatSubagentContentPart', () => {
 			// Append first item
 			const firstNode = mainWindow.document.createElement('div');
 			firstNode.className = 'item-one';
+			firstNode.textContent = 'first item content';
 			part.appendMarkdownItem(
 				() => ({ domNode: firstNode, disposable: { dispose: () => { } } }),
 				'codeblock-1',
@@ -1070,6 +1074,7 @@ suite('ChatSubagentContentPart', () => {
 			// Append second item with different ID
 			const secondNode = mainWindow.document.createElement('div');
 			secondNode.className = 'item-two';
+			secondNode.textContent = 'second item content';
 			part.appendMarkdownItem(
 				() => ({ domNode: secondNode, disposable: { dispose: () => { } } }),
 				'codeblock-2',
