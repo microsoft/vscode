@@ -100,15 +100,10 @@ jobs:
           displayName: Load Cached Docker Image
 
         - bash: |
-            CACHE_FROM_ARG=""
-            if docker image inspect "${{ parameters.container }}" > /dev/null 2>&1; then
-              CACHE_FROM_ARG="--cache-from ${{ parameters.container }}"
-            fi
             $(TEST_DIR)/scripts/run-docker.sh \
               --container "${{ parameters.container }}" \
               --arch "${{ parameters.arch }}" \
               --base-image "${{ parameters.baseImage }}" \
-              $CACHE_FROM_ARG \
               --quality "$(BUILD_QUALITY)" \
               --commit "$(BUILD_COMMIT)" \
               --test-results "/root/results.xml" \
