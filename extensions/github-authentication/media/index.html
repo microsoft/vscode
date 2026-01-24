@@ -48,7 +48,7 @@
 			document.querySelector('body').classList.add('error');
 		} else if (!redirectUri) {
 			// Portable mode: authentication succeeded, no redirect needed
-			document.querySelector('.title').textContent =  'Signed In - ';
+			document.querySelector('.title').textContent =  appName;
 			document.querySelector('.success-message > .subtitle').textContent = 'You have successfully signed in.';
 			document.querySelector('.success-message > .detail').textContent = 'You can now close this window.';
 		} else {
