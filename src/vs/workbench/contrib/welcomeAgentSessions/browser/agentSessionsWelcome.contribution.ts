@@ -19,7 +19,6 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { AuxiliaryBarMaximizedContext } from '../../../common/contextkeys.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
-import { IProductService } from '../../../../platform/product/common/productService.js';
 import { AgentSessionsWelcomeInput } from './agentSessionsWelcomeInput.js';
 import { AgentSessionsWelcomePage, AgentSessionsWelcomeInputSerializer } from './agentSessionsWelcome.js';
 
@@ -94,8 +93,7 @@ class AgentSessionsWelcomeRunnerContribution extends Disposable implements IWork
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IStorageService private readonly storageService: IStorageService,
-		@IProductService private readonly productService: IProductService,
+		@IStorageService private readonly storageService: IStorageService
 	) {
 		super();
 		this.run();
