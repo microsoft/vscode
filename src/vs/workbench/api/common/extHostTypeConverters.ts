@@ -42,7 +42,7 @@ import { IViewBadge } from '../../common/views.js';
 import { IChatAgentRequest, IChatAgentResult } from '../../contrib/chat/common/participants/chatAgents.js';
 import { IChatRequestDraft } from '../../contrib/chat/common/editing/chatEditingService.js';
 import { IChatRequestModeInstructions } from '../../contrib/chat/common/model/chatModel.js';
-import { IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatExtensionsContent, IChatFollowup, IChatMarkdownContent, IChatMoveMessage, IChatMultiDiffDataSerialized, IChatProgressMessage, IChatPullRequestContent, IChatResponseCodeblockUriPart, IChatTaskDto, IChatTaskResult, IChatTextEdit, IChatThinkingPart, IChatToolInvocationSerialized, IChatTreeData, IChatUserActionEvent, IChatWarningMessage, IChatWorkspaceEdit } from '../../contrib/chat/common/chatService/chatService.js';
+import { IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatExtensionsContent, IChatFollowup, IChatMarkdownContent, IChatMoveMessage, IChatMultiDiffDataSerialized, IChatProgressMessage, IChatPullRequestContent, IChatQuestionCarousel, IChatResponseCodeblockUriPart, IChatTaskDto, IChatTaskResult, IChatTerminalToolInvocationData, IChatTextEdit, IChatThinkingPart, IChatToolInvocationSerialized, IChatTreeData, IChatUserActionEvent, IChatWarningMessage, IChatWorkspaceEdit } from '../../contrib/chat/common/chatService/chatService.js';
 import { LocalChatSessionUri } from '../../contrib/chat/common/model/chatUri.js';
 import { ChatRequestToolReferenceEntry, IChatRequestVariableEntry, isImageVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry } from '../../contrib/chat/common/attachments/chatVariableEntries.js';
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
@@ -2642,6 +2642,61 @@ export namespace ChatResponseConfirmationPart {
 	}
 }
 
+export namespace ChatResponseQuestionCarouselPart {
+	function questionTypeToString(type: vscode.ChatQuestionType): 'text' | 'singleSelect' | 'multiSelect' {
+		switch (type) {
+			case types.ChatQuestionType.Text: return 'text';
+			case types.ChatQuestionType.SingleSelect: return 'singleSelect';
+			case types.ChatQuestionType.MultiSelect: return 'multiSelect';
+			default: return 'text';
+		}
+	}
+
+	function stringToQuestionType(type: 'text' | 'singleSelect' | 'multiSelect'): vscode.ChatQuestionType {
+		switch (type) {
+			case 'text': return types.ChatQuestionType.Text;
+			case 'singleSelect': return types.ChatQuestionType.SingleSelect;
+			case 'multiSelect': return types.ChatQuestionType.MultiSelect;
+			default: return types.ChatQuestionType.Text;
+		}
+	}
+
+	export function from(part: vscode.ChatResponseQuestionCarouselPart): Dto<IChatQuestionCarousel> {
+		return {
+			kind: 'questionCarousel',
+			questions: part.questions.map(q => ({
+				id: q.id,
+				type: questionTypeToString(q.type),
+				title: q.title,
+				message: q.message ? MarkdownString.from(q.message) : undefined,
+				options: q.options,
+				defaultValue: q.defaultValue,
+				allowFreeformInput: q.allowFreeformInput
+			})),
+			allowSkip: part.allowSkip
+		};
+	}
+
+	export function to(part: Dto<IChatQuestionCarousel>): vscode.ChatResponseQuestionCarouselPart {
+		const questions = part.questions.map(q => new types.ChatQuestion(
+			q.id,
+			stringToQuestionType(q.type),
+			q.title,
+			{
+				message: q.message ? (typeof q.message === 'string' ? new types.MarkdownString(q.message) : MarkdownString.to(q.message)) : undefined,
+				options: q.options?.map(opt => ({
+					id: opt.id,
+					label: opt.label,
+					value: opt.value
+				})),
+				defaultValue: q.defaultValue,
+				allowFreeformInput: q.allowFreeformInput
+			}
+		));
+		return new types.ChatResponseQuestionCarouselPart(questions, part.allowSkip);
+	}
+}
+
 export namespace ChatResponseFilesPart {
 	export function from(part: vscode.ChatResponseFileTreePart): IChatTreeData {
 		const { value, baseUri } = part;
@@ -2815,6 +2870,19 @@ export namespace ChatResponseMovePart {
 
 export namespace ChatToolInvocationPart {
 	export function from(part: vscode.ChatToolInvocationPart): IChatToolInvocationSerialized {
+		// Check if toolSpecificData is ChatMcpToolInvocationData (has input and output)
+		// If so, convert to resultDetails for rendering via ChatInputOutputMarkdownProgressPart
+		let resultDetails: IToolResultInputOutputDetails | undefined;
+		let toolSpecificData: any;
+
+		if (part.toolSpecificData && isChatMcpToolInvocationData(part.toolSpecificData)) {
+			// Convert ChatMcpToolInvocationData to IToolResultInputOutputDetails
+			resultDetails = convertMcpToResultDetails(part.toolSpecificData, part.isError);
+			toolSpecificData = undefined; // MCP data goes to resultDetails, not toolSpecificData
+		} else {
+			toolSpecificData = part.toolSpecificData ? convertToolSpecificData(part.toolSpecificData) : undefined;
+		}
+
 		// Convert extension API ChatToolInvocationPart to internal serialized format
 		return {
 			kind: 'toolInvocationSerialized',
@@ -2827,7 +2895,8 @@ export namespace ChatToolInvocationPart {
 			isComplete: part.isComplete ?? true,
 			source: ToolDataSource.External,
 			// isError: part.isError ?? false,
-			toolSpecificData: part.toolSpecificData ? convertToolSpecificData(part.toolSpecificData) : undefined,
+			toolSpecificData,
+			resultDetails,
 			presentation: part.presentation === 'hidden'
 				? ToolInvocationPresentation.Hidden
 				: part.presentation === 'hiddenAfterComplete'
@@ -2837,22 +2906,51 @@ export namespace ChatToolInvocationPart {
 		};
 	}
 
+	function isChatMcpToolInvocationData(data: any): data is vscode.ChatMcpToolInvocationData {
+		return data !== null && typeof data === 'object' &&
+			'input' in data && typeof data.input === 'string' &&
+			'output' in data && Array.isArray(data.output);
+	}
+
+	function convertMcpToResultDetails(data: vscode.ChatMcpToolInvocationData, isError?: boolean): IToolResultInputOutputDetails {
+		return {
+			input: data.input,
+			output: data.output.map((o) => {
+				const isText = o.mimeType.startsWith('text/');
+				return {
+					type: 'embed' as const,
+					mimeType: o.mimeType,
+					value: isText ? VSBuffer.wrap(o.data).toString() : encodeBase64(VSBuffer.wrap(o.data)),
+					isText: isText,
+				};
+			}),
+			isError: isError ?? false,
+		};
+	}
+
 	function convertToolSpecificData(data: any): any {
 		// Convert extension API terminal tool data to internal format
 		if ('command' in data && 'language' in data) {
-			// ChatTerminalToolInvocationData
 			return {
 				kind: 'terminal',
 				command: data.command,
 				language: data.language
 			};
 		} else if ('commandLine' in data && 'language' in data) {
-			// ChatTerminalToolInvocationData2
-			return {
+			const result: IChatTerminalToolInvocationData = {
 				kind: 'terminal',
 				commandLine: data.commandLine,
-				language: data.language
+				language: data.language,
+				terminalCommandOutput: typeof data.output?.text === 'string' ? {
+					text: data.output.text,
+				} : undefined,
+				terminalCommandState: data.state ? {
+					exitCode: data.state.exitCode,
+					duration: data.state.duration,
+				} : undefined,
 			};
+
+			return result;
 		}
 		return data;
 	}
@@ -2891,10 +2989,38 @@ export namespace ChatToolInvocationPart {
 	function convertFromInternalToolSpecificData(data: any): any {
 		// Convert internal terminal tool data to extension API format
 		if (data.kind === 'terminal') {
-			return {
-				command: data.command,
-				language: data.language
-			};
+			if (data.commandLine) {
+				// New format with commandLine
+				const result: any = {
+					commandLine: data.commandLine,
+					language: data.language
+				};
+
+				// Map internal 'terminalCommandOutput' -> extension 'output'
+				if (data.terminalCommandOutput) {
+					result.output = {
+						text: data.terminalCommandOutput.text,
+						truncated: data.terminalCommandOutput.truncated,
+						lineCount: data.terminalCommandOutput.lineCount
+					};
+				}
+
+				// Map internal 'terminalCommandState' -> extension 'state'
+				if (data.terminalCommandState) {
+					result.state = {
+						exitCode: data.terminalCommandState.exitCode,
+						duration: data.terminalCommandState.duration
+					};
+				}
+
+				return result;
+			} else {
+				// Legacy format with command
+				return {
+					command: data.command,
+					language: data.language
+				};
+			}
 		} else if (data.kind === 'terminal2') {
 			return {
 				commandLine: data.commandLine,
@@ -3092,6 +3218,8 @@ export namespace ChatResponsePart {
 			return ChatResponseWarningPart.from(part);
 		} else if (part instanceof types.ChatResponseConfirmationPart) {
 			return ChatResponseConfirmationPart.from(part);
+		} else if (part instanceof types.ChatResponseQuestionCarouselPart) {
+			return ChatResponseQuestionCarouselPart.from(part);
 		} else if (part instanceof types.ChatResponseCodeCitationPart) {
 			return ChatResponseCodeCitationPart.from(part);
 		} else if (part instanceof types.ChatResponseMovePart) {
@@ -3139,7 +3267,7 @@ export namespace ChatResponsePart {
 }
 
 export namespace ChatAgentRequest {
-	export function to(request: IChatAgentRequest, location2: vscode.ChatRequestEditorData | vscode.ChatRequestNotebookData | undefined, model: vscode.LanguageModelChat, diagnostics: readonly [vscode.Uri, readonly vscode.Diagnostic[]][], tools: Map<string, boolean>, extension: IRelaxedExtensionDescription, logService: ILogService): vscode.ChatRequest {
+	export function to(request: IChatAgentRequest, location2: vscode.ChatRequestEditorData | vscode.ChatRequestNotebookData | undefined, model: vscode.LanguageModelChat, diagnostics: readonly [vscode.Uri, readonly vscode.Diagnostic[]][], tools: Map<vscode.LanguageModelToolInformation, boolean>, extension: IRelaxedExtensionDescription, logService: ILogService): vscode.ChatRequest {
 
 		const toolReferences: IChatRequestVariableEntry[] = [];
 		const variableReferences: IChatRequestVariableEntry[] = [];
@@ -3376,6 +3504,7 @@ export namespace ChatAgentResult {
 			metadata: reviveMetadata(result.metadata),
 			nextQuestion: result.nextQuestion,
 			details: result.details,
+			usage: result.usage,
 		};
 	}
 	export function from(result: vscode.ChatResult): Dto<IChatAgentResult> {
@@ -3383,7 +3512,8 @@ export namespace ChatAgentResult {
 			errorDetails: result.errorDetails,
 			metadata: result.metadata,
 			nextQuestion: result.nextQuestion,
-			details: result.details
+			details: result.details,
+			usage: result.usage,
 		};
 	}
 

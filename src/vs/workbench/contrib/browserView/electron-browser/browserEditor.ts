@@ -30,17 +30,21 @@ import { BrowserOverlayManager, BrowserOverlayType, IBrowserOverlayInfo } from '
 import { getZoomFactor, onDidChangeZoomLevel } from '../../../../base/browser/browser.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Lazy } from '../../../../base/common/lazy.js';
 import { WorkbenchHoverDelegate } from '../../../../platform/hover/browser/hover.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { IBrowserElementsService } from '../../../services/browserElements/browser/browserElementsService.js';
 import { IChatWidgetService } from '../../chat/browser/chat.js';
+import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
+import { BrowserFindWidget, CONTEXT_BROWSER_FIND_WIDGET_FOCUSED, CONTEXT_BROWSER_FIND_WIDGET_VISIBLE } from './browserFindWidget.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { IChatRequestVariableEntry } from '../../chat/common/attachments/chatVariableEntries.js';
 import { IBrowserTargetLocator, getDisplayNameFromOuterHTML } from '../../../../platform/browserElements/common/browserElements.js';
+import { logBrowserOpen } from './browserViewTelemetry.js';
 
 export const CONTEXT_BROWSER_CAN_GO_BACK = new RawContextKey<boolean>('browserCanGoBack', false, localize('browser.canGoBack', "Whether the browser can go back"));
 export const CONTEXT_BROWSER_CAN_GO_FORWARD = new RawContextKey<boolean>('browserCanGoForward', false, localize('browser.canGoForward', "Whether the browser can go forward"));
@@ -48,6 +52,9 @@ export const CONTEXT_BROWSER_FOCUSED = new RawContextKey<boolean>('browserFocuse
 export const CONTEXT_BROWSER_STORAGE_SCOPE = new RawContextKey<string>('browserStorageScope', '', localize('browser.storageScope', "The storage scope of the current browser view"));
 export const CONTEXT_BROWSER_DEVTOOLS_OPEN = new RawContextKey<boolean>('browserDevToolsOpen', false, localize('browser.devToolsOpen', "Whether developer tools are open for the current browser view"));
 export const CONTEXT_BROWSER_ELEMENT_SELECTION_ACTIVE = new RawContextKey<boolean>('browserElementSelectionActive', false, localize('browser.elementSelectionActive', "Whether element selection is currently active"));
+
+// Re-export find widget context keys for use in actions
+export { CONTEXT_BROWSER_FIND_WIDGET_FOCUSED, CONTEXT_BROWSER_FIND_WIDGET_VISIBLE };
 
 class BrowserNavigationBar extends Disposable {
 	private readonly _urlInput: HTMLInputElement;
@@ -167,6 +174,8 @@ export class BrowserEditor extends EditorPane {
 	private _overlayPauseDetail!: HTMLElement;
 	private _errorContainer!: HTMLElement;
 	private _welcomeContainer!: HTMLElement;
+	private _findWidgetContainer!: HTMLElement;
+	private _findWidget!: Lazy<BrowserFindWidget>;
 	private _canGoBackContext!: IContextKey<boolean>;
 	private _canGoForwardContext!: IContextKey<boolean>;
 	private _storageScopeContext!: IContextKey<string>;
@@ -224,6 +233,23 @@ export class BrowserEditor extends EditorPane {
 
 		root.appendChild(toolbar);
 
+		// Create find widget container (between toolbar and browser container)
+		this._findWidgetContainer = $('.browser-find-widget-wrapper');
+		root.appendChild(this._findWidgetContainer);
+
+		// Create find widget (lazy initialization)
+		this._findWidget = new Lazy(() => {
+			const findWidget = this.instantiationService.createInstance(
+				BrowserFindWidget,
+				this._findWidgetContainer
+			);
+			if (this._model) {
+				findWidget.setModel(this._model);
+			}
+			return findWidget;
+		});
+		this._register(toDisposable(() => this._findWidget.rawValue?.dispose()));
+
 		// Create browser container (stub element for positioning)
 		this._browserContainer = $('.browser-container');
 		this._browserContainer.tabIndex = 0; // make focusable
@@ -262,10 +288,15 @@ export class BrowserEditor extends EditorPane {
 
 		// Register external focus checker so that cross-window focus logic knows when
 		// this browser view has focus (since it's outside the normal DOM tree).
-		this._register(registerExternalFocusChecker(() => this._model?.focused ?? false));
+		// Include window info so that UI like dialogs appear in the correct window.
+		this._register(registerExternalFocusChecker(() => ({
+			hasFocus: this._model?.focused ?? false,
+			window: this._model?.focused ? this.window : undefined
+		})));
 
-		// Automatically call layoutBrowserContainer() when the browser container changes size
-		const resizeObserver = new ResizeObserver(async () => this.layoutBrowserContainer());
+		// Automatically call layoutBrowserContainer() when the browser container changes size.
+		// Be careful to use `ResizeObserver` from the target window to avoid cross-window issues.
+		const resizeObserver = new this.window.ResizeObserver(() => this.layoutBrowserContainer());
 		resizeObserver.observe(this._browserContainer);
 		this._register(toDisposable(() => resizeObserver.disconnect()));
 	}
@@ -286,6 +317,9 @@ export class BrowserEditor extends EditorPane {
 
 		this._storageScopeContext.set(this._model.storageScope);
 		this._devToolsOpenContext.set(this._model.isDevToolsOpen);
+
+		// Update find widget with new model
+		this._findWidget.rawValue?.setModel(this._model);
 
 		// Clean up on input disposal
 		this._inputDisposables.add(input.onWillDispose(() => {
@@ -337,22 +371,7 @@ export class BrowserEditor extends EditorPane {
 		}));
 
 		this._inputDisposables.add(this._model.onDidRequestNewPage(({ url, name, background }) => {
-			type IntegratedBrowserNewPageRequestEvent = {
-				background: boolean;
-			};
-
-			type IntegratedBrowserNewPageRequestClassification = {
-				background: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether page was requested to open in background' };
-				owner: 'kycutler';
-				comment: 'Tracks new page requests from integrated browser';
-			};
-
-			this.telemetryService.publicLog2<IntegratedBrowserNewPageRequestEvent, IntegratedBrowserNewPageRequestClassification>(
-				'integratedBrowser.newPageRequest',
-				{
-					background
-				}
-			);
+			logBrowserOpen(this.telemetryService, background ? 'browserLinkBackground' : 'browserLinkForeground');
 
 			// Open a new browser tab for the requested URL
 			const browserUri = BrowserViewUri.forUrl(url, name ? `${input.id}-${name}` : undefined);
@@ -528,6 +547,35 @@ export class BrowserEditor extends EditorPane {
 	}
 
 	/**
+	 * Show the find widget
+	 */
+	showFind(): void {
+		this._findWidget.value.reveal();
+		this._findWidget.value.layout(this._findWidgetContainer.clientWidth);
+	}
+
+	/**
+	 * Hide the find widget
+	 */
+	hideFind(): void {
+		this._findWidget.rawValue?.hide();
+	}
+
+	/**
+	 * Find the next match
+	 */
+	findNext(): void {
+		this._findWidget.rawValue?.find(false);
+	}
+
+	/**
+	 * Find the previous match
+	 */
+	findPrevious(): void {
+		this._findWidget.rawValue?.find(true);
+	}
+
+	/**
 	 * Start element selection in the browser view, wait for a user selection, and add it to chat.
 	 */
 	async addElementToChat(): Promise<void> {
@@ -543,6 +591,15 @@ export class BrowserEditor extends EditorPane {
 		const cts = new CancellationTokenSource();
 		this._elementSelectionCts = cts;
 		this._elementSelectionActiveContext.set(true);
+
+		type IntegratedBrowserAddElementToChatStartEvent = {};
+
+		type IntegratedBrowserAddElementToChatStartClassification = {
+			owner: 'jruales';
+			comment: 'The user initiated an Add Element to Chat action in Integrated Browser.';
+		};
+
+		this.telemetryService.publicLog2<IntegratedBrowserAddElementToChatStartEvent, IntegratedBrowserAddElementToChatStartClassification>('integratedBrowser.addElementToChat.start', {});
 
 		try {
 			// Get the resource URI for this editor
@@ -588,7 +645,8 @@ export class BrowserEditor extends EditorPane {
 			});
 
 			// Attach screenshot if enabled
-			if (this.configurationService.getValue('chat.sendElementsToChat.attachImages') && this._model) {
+			const attachImages = this.configurationService.getValue<boolean>('chat.sendElementsToChat.attachImages');
+			if (attachImages && this._model) {
 				const screenshotBuffer = await this._model.captureScreenshot({
 					quality: 90,
 					rect: bounds
@@ -606,6 +664,23 @@ export class BrowserEditor extends EditorPane {
 			// Attach to chat widget
 			const widget = await this.chatWidgetService.revealWidget() ?? this.chatWidgetService.lastFocusedWidget;
 			widget?.attachmentModel?.addContext(...toAttach);
+
+			type IntegratedBrowserAddElementToChatAddedEvent = {
+				attachCss: boolean;
+				attachImages: boolean;
+			};
+
+			type IntegratedBrowserAddElementToChatAddedClassification = {
+				attachCss: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether chat.sendElementsToChat.attachCSS was enabled.' };
+				attachImages: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether chat.sendElementsToChat.attachImages was enabled.' };
+				owner: 'jruales';
+				comment: 'An element was successfully added to chat from Integrated Browser.';
+			};
+
+			this.telemetryService.publicLog2<IntegratedBrowserAddElementToChatAddedEvent, IntegratedBrowserAddElementToChatAddedClassification>('integratedBrowser.addElementToChat.added', {
+				attachCss,
+				attachImages
+			});
 
 		} catch (error) {
 			if (!cts.token.isCancellationRequested) {
@@ -654,9 +729,12 @@ export class BrowserEditor extends EditorPane {
 		subtitle.textContent = localize('browser.welcomeSubtitle', "Enter a URL above to get started.");
 		content.appendChild(subtitle);
 
-		const tip = $('.browser-welcome-tip');
-		tip.textContent = localize('browser.welcomeTip', "Tip: Use the Add Element to Chat feature to reference UI elements when asking Copilot for changes.");
-		content.appendChild(tip);
+		const chatEnabled = this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.enabled.key);
+		if (chatEnabled) {
+			const tip = $('.browser-welcome-tip');
+			tip.textContent = localize('browser.welcomeTip', "Tip: Use Add Element to Chat to reference UI elements in chat prompts.");
+			content.appendChild(tip);
+		}
 
 		container.appendChild(content);
 		return container;
@@ -711,8 +789,9 @@ export class BrowserEditor extends EditorPane {
 		}
 	}
 
-	override layout(_dimension: Dimension, _position?: IDomPosition): void {
-		// no-op: layout is handled in layoutBrowserContainer()
+	override layout(dimension: Dimension, _position?: IDomPosition): void {
+		// Layout find widget if it exists
+		this._findWidget.rawValue?.layout(dimension.width);
 	}
 
 	/**
@@ -748,6 +827,10 @@ export class BrowserEditor extends EditorPane {
 			this._elementSelectionCts.dispose(true);
 			this._elementSelectionCts = undefined;
 		}
+
+		// Clear find widget model
+		this._findWidget.rawValue?.setModel(undefined);
+		this._findWidget.rawValue?.hide();
 
 		void this._model?.setVisible(false);
 		this._model = undefined;

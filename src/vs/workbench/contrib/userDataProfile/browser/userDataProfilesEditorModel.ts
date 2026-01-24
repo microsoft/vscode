@@ -1014,7 +1014,7 @@ export class UserDataProfilesEditorModel extends EditorModel {
 		const secondaryActions: IAction[] = [];
 		secondaryActions.push(copyFromProfileAction);
 		secondaryActions.push(exportAction);
-		if (!profile.isDefault) {
+		if (!profile.isDefault && !profile.isSystem) {
 			secondaryActions.push(new Separator());
 			secondaryActions.push(deleteAction);
 		}

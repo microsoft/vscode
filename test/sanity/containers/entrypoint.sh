@@ -1,0 +1,18 @@
+#!/bin/sh
+set -e
+
+if command -v Xvfb > /dev/null 2>&1; then
+	echo "Starting X11 Server"
+	export DISPLAY=:99
+	Xvfb $DISPLAY -screen 0 1024x768x24 -ac -noreset &
+fi
+
+if command -v dbus-daemon > /dev/null 2>&1; then
+	echo "Starting Desktop Bus"
+	dbus-daemon --system --fork
+fi
+
+export PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+
+echo "Running sanity tests"
+node /root/out/index.js "$@"

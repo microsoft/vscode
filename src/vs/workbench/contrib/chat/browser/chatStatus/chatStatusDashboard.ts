@@ -37,7 +37,7 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { defaultButtonStyles, defaultCheckboxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { DomWidget } from '../../../../../platform/domWidget/browser/domWidget.js';
 import { EditorResourceAccessor, SideBySideEditor } from '../../../../common/editor.js';
-import { IChatEntitlementService, ChatEntitlementService, ChatEntitlement, IQuotaSnapshot } from '../../../../services/chat/common/chatEntitlementService.js';
+import { IChatEntitlementService, ChatEntitlementService, ChatEntitlement, IQuotaSnapshot, getChatPlanName } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
 import { isNewUser, isCompletionsEnabled } from './chatStatus.js';
@@ -167,7 +167,8 @@ export class ChatStatusDashboard extends DomWidget {
 		// Quota Indicator
 		const { chat: chatQuota, completions: completionsQuota, premiumChat: premiumChatQuota, resetDate, resetDateHasTime } = this.chatEntitlementService.quotas;
 		if (chatQuota || completionsQuota || premiumChatQuota) {
-			addSeparator(localize('usageTitle', "Copilot Usage"), toAction({
+			const usageTitle = this.getUsageTitle();
+			addSeparator(usageTitle, toAction({
 				id: 'workbench.action.manageCopilot',
 				label: localize('quotaLabel', "Manage Chat"),
 				tooltip: localize('quotaTooltip', "Manage Chat"),
@@ -385,6 +386,11 @@ export class ChatStatusDashboard extends DomWidget {
 		}
 
 		return true;
+	}
+
+	private getUsageTitle(): string {
+		const planName = getChatPlanName(this.chatEntitlementService.entitlement);
+		return localize('usageTitleWithPlan', "{0} Usage", planName);
 	}
 
 	private renderHeader(container: HTMLElement, disposables: DisposableStore, label: string, action?: IAction): void {

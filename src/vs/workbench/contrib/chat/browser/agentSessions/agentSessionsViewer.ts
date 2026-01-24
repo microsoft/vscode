@@ -40,6 +40,7 @@ import { Event } from '../../../../../base/common/event.js';
 import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
 import { MarkdownString, IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { AgentSessionHoverWidget } from './agentSessionHoverWidget.js';
+import { AgentSessionsGrouping } from './agentSessionsFilter.js';
 
 export type AgentSessionListItem = IAgentSession | IAgentSessionSection;
 
@@ -192,7 +193,9 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 			}
 		}
 		template.diffContainer.classList.toggle('has-diff', hasDiff);
-		ChatContextKeys.hasAgentSessionChanges.bindTo(template.contextKeyService).set(hasDiff);
+
+		// TODO@lszomoru - Only show the "View All Changes" action if the changes are in an array. We have to revisit this
+		ChatContextKeys.hasAgentSessionChanges.bindTo(template.contextKeyService).set(Array.isArray(diff) && diff.length > 0);
 
 		// Badge
 		let hasBadge = false;
@@ -313,7 +316,7 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 
 	private toDuration(startTime: number, endTime: number, useFullTimeWords: boolean, disallowNow: boolean): string {
 		const elapsed = Math.max(Math.round((endTime - startTime) / 1000) * 1000, 1000 /* clamp to 1s */);
-		if (!disallowNow && elapsed < 30000) {
+		if (!disallowNow && elapsed < 60000) {
 			return localize('secondsDuration', "now");
 		}
 
@@ -329,7 +332,13 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 			}
 
 			if (!timeLabel) {
-				timeLabel = fromNow(session.timing.lastRequestEnded ?? session.timing.lastRequestStarted ?? session.timing.created, true);
+				const date = session.timing.lastRequestEnded ?? session.timing.lastRequestStarted ?? session.timing.created;
+				const seconds = Math.round((new Date().getTime() - date) / 1000);
+				if (seconds < 60) {
+					timeLabel = localize('secondsDuration', "now");
+				} else {
+					timeLabel = fromNow(date, true);
+				}
 			}
 
 			return timeLabel;
@@ -345,7 +354,7 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 	}
 
 	private renderHover(session: ITreeNode<IAgentSession, FuzzyScore>, template: IAgentSessionItemTemplate): void {
-		if (!isSessionInProgressStatus(session.element.status)) {
+		if (!isSessionInProgressStatus(session.element.status) && session.element.isRead()) {
 			return; // the hover is complex and large, for now limit it to in-progress sessions only
 		}
 
@@ -541,9 +550,9 @@ export interface IAgentSessionsFilter {
 
 	/**
 	 * Whether to show section headers to group sessions.
-	 * When false, sessions are shown as a flat list.
+	 * When undefined, sessions are shown as a flat list.
 	 */
-	readonly groupResults?: () => boolean | undefined;
+	readonly groupResults?: () => AgentSessionsGrouping | undefined;
 
 	/**
 	 * A callback to notify the filter about the number of
@@ -633,7 +642,9 @@ export class AgentSessionsDataSource implements IAsyncDataSource<IAgentSessionsM
 		const result: AgentSessionListItem[] = [];
 
 		const sortedSessions = sessions.sort(this.sorter.compare.bind(this.sorter));
-		const groupedSessions = groupAgentSessions(sortedSessions);
+		const groupedSessions = this.filter?.groupResults?.() === AgentSessionsGrouping.Pending
+			? groupAgentSessionsByPending(sortedSessions)
+			: groupAgentSessionsByDefault(sortedSessions);
 
 		for (const { sessions, section, label } of groupedSessions.values()) {
 			if (sessions.length === 0) {
@@ -657,9 +668,11 @@ export const AgentSessionSectionLabels = {
 	[AgentSessionSection.Week]: localize('agentSessions.weekSection', "Last Week"),
 	[AgentSessionSection.Older]: localize('agentSessions.olderSection', "Older"),
 	[AgentSessionSection.Archived]: localize('agentSessions.archivedSection', "Archived"),
+	[AgentSessionSection.Pending]: localize('agentSessions.pendingSection', "Pending"),
+	[AgentSessionSection.Done]: localize('agentSessions.doneSection', "Done"),
 };
 
-export function groupAgentSessions(sessions: IAgentSession[]): Map<AgentSessionSection, IAgentSessionSection> {
+export function groupAgentSessionsByDefault(sessions: IAgentSession[]): Map<AgentSessionSection, IAgentSessionSection> {
 	const now = Date.now();
 	const startOfToday = new Date(now).setHours(0, 0, 0, 0);
 	const startOfYesterday = startOfToday - DAY_THRESHOLD;
@@ -698,6 +711,53 @@ export function groupAgentSessions(sessions: IAgentSession[]): Map<AgentSessionS
 		[AgentSessionSection.Week, { section: AgentSessionSection.Week, label: AgentSessionSectionLabels[AgentSessionSection.Week], sessions: weekSessions }],
 		[AgentSessionSection.Older, { section: AgentSessionSection.Older, label: AgentSessionSectionLabels[AgentSessionSection.Older], sessions: olderSessions }],
 		[AgentSessionSection.Archived, { section: AgentSessionSection.Archived, label: localize('agentSessions.archivedSectionWithCount', "Archived ({0})", archivedSessions.length), sessions: archivedSessions }],
+	]);
+}
+
+export function groupAgentSessionsByPending(sessions: IAgentSession[]): Map<AgentSessionSection, IAgentSessionSection> {
+	const pendingSessions = new Set<IAgentSession>();
+	const doneSessions = new Set<IAgentSession>();
+
+	const now = Date.now();
+	const startOfToday = new Date(now).setHours(0, 0, 0, 0);
+	const startOfYesterday = startOfToday - DAY_THRESHOLD;
+
+	let mostRecentSession: { session: IAgentSession; time: number } | undefined;
+	for (const session of sessions) {
+		const sessionTime = session.timing.lastRequestEnded ?? session.timing.lastRequestStarted ?? session.timing.created;
+		if (!mostRecentSession || sessionTime > mostRecentSession.time) {
+			mostRecentSession = { session, time: sessionTime }; // always keep track of the most recent session
+		}
+
+		if (session.isArchived()) {
+			doneSessions.add(session);
+		} else {
+			if (
+				isSessionInProgressStatus(session.status) ||								// in-progress
+				!session.isRead() ||														// unread
+				(getAgentChangesSummary(session.changes) && hasValidDiff(session.changes))	// has changes
+			) {
+				pendingSessions.add(session);
+			} else {
+				doneSessions.add(session);
+			}
+		}
+	}
+
+	// Consider most recent from today or yesterday. This helps
+	// restore the session after restart when chat is cleared.
+	if (
+		mostRecentSession && !mostRecentSession.session.isArchived() &&
+		mostRecentSession.time >= startOfYesterday &&
+		!pendingSessions.has(mostRecentSession.session)
+	) {
+		doneSessions.delete(mostRecentSession.session);
+		pendingSessions.add(mostRecentSession.session);
+	}
+
+	return new Map<AgentSessionSection, IAgentSessionSection>([
+		[AgentSessionSection.Pending, { section: AgentSessionSection.Pending, label: AgentSessionSectionLabels[AgentSessionSection.Pending], sessions: [...pendingSessions] }],
+		[AgentSessionSection.Done, { section: AgentSessionSection.Done, label: localize('agentSessions.doneSectionWithCount', "Done ({0})", doneSessions.size), sessions: [...doneSessions] }],
 	]);
 }
 

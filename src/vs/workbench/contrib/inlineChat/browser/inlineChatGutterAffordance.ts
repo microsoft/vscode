@@ -66,7 +66,7 @@ export class InlineChatGutterAffordance extends InlineEditsGutterIndicator {
 		const focusIsInMenu = observableValue<boolean>({}, false);
 
 		super(
-			_myEditorObs, data, constObservable(InlineEditTabAction.Jump), constObservable(0), constObservable(false), focusIsInMenu,
+			_myEditorObs, data, constObservable(InlineEditTabAction.Inactive), constObservable(0), constObservable(false), focusIsInMenu,
 			hoverService, instantiationService, accessibilityService, themeService
 		);
 

@@ -131,6 +131,19 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 	private createList(container: HTMLElement): void {
 		this.sessionsContainer = append(container, $('.agent-sessions-viewer'));
 
+		const collapseByDefault = (element: unknown) => {
+			if (isAgentSessionSection(element)) {
+				if (element.section === AgentSessionSection.Done) {
+					return true; // Done section is always collapsed
+				}
+				if (element.section === AgentSessionSection.Archived && this.options.filter.getExcludes().archived) {
+					return true; // Archived section is collapsed when archived are excluded
+				}
+			}
+
+			return false;
+		};
+
 		const sorter = new AgentSessionsSorter(this.options);
 		const list = this.sessionsList = this._register(this.instantiationService.createInstance(WorkbenchCompressibleAsyncDataTree,
 			'AgentSessionsView',
@@ -152,9 +165,9 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 				defaultFindMode: TreeFindMode.Filter,
 				keyboardNavigationLabelProvider: new AgentSessionsKeyboardNavigationLabelProvider(),
 				overrideStyles: this.options.overrideStyles,
-				expandOnlyOnTwistieClick: (element: unknown) => !(isAgentSessionSection(element) && element.section === AgentSessionSection.Archived && this.options.filter.getExcludes().archived),
 				twistieAdditionalCssClass: () => 'force-no-twistie',
-				collapseByDefault: (element: unknown) => isAgentSessionSection(element) && element.section === AgentSessionSection.Archived && this.options.filter.getExcludes().archived,
+				collapseByDefault: (element: unknown) => collapseByDefault(element),
+				expandOnlyOnTwistieClick: element => !collapseByDefault(element),
 				renderIndentGuides: RenderIndentGuides.None,
 			}
 		)) as WorkbenchCompressibleAsyncDataTree<IAgentSessionsModel, AgentSessionListItem, FuzzyScore>;
@@ -165,7 +178,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 
 		this._register(this.options.filter.onDidChange(async () => {
 			if (this.visible) {
-				this.updateArchivedSectionCollapseState();
+				this.updateSectionCollapseStates();
 				list.updateChildren();
 			}
 		}));
@@ -206,7 +219,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		this._register(list.onDidChangeFindOpenState(open => {
 			this.sessionsListFindIsOpen = open;
 
-			this.updateArchivedSectionCollapseState();
+			this.updateSectionCollapseStates();
 		}));
 	}
 
@@ -287,27 +300,41 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		this.sessionsList?.openFind();
 	}
 
-	private updateArchivedSectionCollapseState(): void {
+	private updateSectionCollapseStates(): void {
 		if (!this.sessionsList) {
 			return;
 		}
 
 		const model = this.agentSessionsService.model;
 		for (const child of this.sessionsList.getNode(model).children) {
-			if (!isAgentSessionSection(child.element) || child.element.section !== AgentSessionSection.Archived) {
+			if (!isAgentSessionSection(child.element)) {
 				continue;
 			}
 
-			const shouldCollapseArchived =
-				!this.sessionsListFindIsOpen &&				// always expand when find is open
-				this.options.filter.getExcludes().archived;	// only collapse when archived are excluded from filter
+			switch (child.element.section) {
+				case AgentSessionSection.Archived: {
+					const shouldCollapseArchived =
+						!this.sessionsListFindIsOpen &&				// always expand when find is open
+						this.options.filter.getExcludes().archived;	// only collapse when archived are excluded from filter
 
-			if (shouldCollapseArchived && !child.collapsed) {
-				this.sessionsList.collapse(child.element);
-			} else if (!shouldCollapseArchived && child.collapsed) {
-				this.sessionsList.expand(child.element);
+					if (shouldCollapseArchived && !child.collapsed) {
+						this.sessionsList.collapse(child.element);
+					} else if (!shouldCollapseArchived && child.collapsed) {
+						this.sessionsList.expand(child.element);
+					}
+					break;
+				}
+				case AgentSessionSection.Done: {
+					const shouldCollapseDone = !this.sessionsListFindIsOpen; // always expand when find is open
+
+					if (shouldCollapseDone && !child.collapsed) {
+						this.sessionsList.collapse(child.element);
+					} else if (!shouldCollapseDone && child.collapsed) {
+						this.sessionsList.expand(child.element);
+					}
+					break;
+				}
 			}
-			break;
 		}
 	}
 

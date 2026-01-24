@@ -542,7 +542,7 @@ configurationRegistry.registerConfiguration({
 				nls.localize('task.allowAutomaticTasks.off', "Never"),
 			],
 			description: nls.localize('task.allowAutomaticTasks', "Enable automatic tasks - note that tasks won't run in an untrusted workspace."),
-			default: 'on',
+			default: 'off',
 			restricted: true
 		},
 		[TaskSettingId.Reconnection]: {
