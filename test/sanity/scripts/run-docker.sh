@@ -25,6 +25,18 @@ fi
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 ROOT_DIR=$(cd "$SCRIPT_DIR/.." && pwd)
 
+# Create a buildx builder with docker-container driver if cache is enabled
+# (required for --cache-to support)
+if [ -n "$CACHE_DIR" ]; then
+	BUILDER_NAME="vscode-sanity"
+	if ! docker buildx inspect "$BUILDER_NAME" > /dev/null 2>&1; then
+		echo "Creating buildx builder: $BUILDER_NAME"
+		docker buildx create --name "$BUILDER_NAME" --driver docker-container --use
+	else
+		docker buildx use "$BUILDER_NAME"
+	fi
+fi
+
 echo "Building container image: $CONTAINER"
 docker buildx build \
 	--platform "linux/$ARCH" \
