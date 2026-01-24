@@ -722,6 +722,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			}));
 		}
 
+		let executionPromise: Promise<ITerminalExecuteStrategyResult> | undefined;
 		try {
 			const strategy = this._getExecuteStrategy(toolTerminal.shellIntegrationQuality, toolTerminal, commandDetection!);
 			if (toolTerminal.shellIntegrationQuality === ShellIntegrationQuality.None) {
@@ -737,7 +738,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				strategy,
 				args.isBackground
 			);
-			store.add(execution);
+			// Don't add execution to store - its lifecycle is managed separately via _activeExecutions
 			RunInTerminalTool._activeExecutions.set(termId, execution);
 
 			// Set up OutputMonitor when start marker is created
@@ -759,7 +760,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			}));
 
 			// Start execution (non-blocking - runs in background)
-			const executionPromise = execution.start(command, executeCancellation.token, commandId);
+			executionPromise = execution.start(command, executeCancellation.token, commandId);
 
 			if (args.isBackground) {
 				// Background mode: wait for OutputMonitor to detect idle, then return
@@ -891,10 +892,19 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			}
 		} finally {
 			timeoutPromise?.cancel();
-			// Don't dispose store if we moved to background - the execution needs to continue
-			if (!didMoveToBackground) {
-				store.dispose();
+			if (didMoveToBackground && executionPromise) {
+				// Execution moved to background - attach error handler since we won't await it
+				executionPromise.catch((e: unknown) => {
+					if (!(e instanceof CancellationError)) {
+						this._logService.error(`RunInTerminalTool: Background execution error`, e);
+					}
+				});
+			} else {
+				// Foreground completed or error - clean up execution
+				RunInTerminalTool._activeExecutions.get(termId)?.dispose();
+				RunInTerminalTool._activeExecutions.delete(termId);
 			}
+			store.dispose();
 			const timingExecuteMs = Date.now() - timingStart;
 			this._telemetry.logInvoke(toolTerminal.instance, {
 				terminalToolSessionId: toolSpecificData.terminalToolSessionId,
@@ -1179,7 +1189,8 @@ class ActiveTerminalExecution extends Disposable {
 
 		this._register(this._strategy.onDidCreateStartMarker(marker => {
 			if (marker) {
-				this._startMarker = this._register(marker);
+				// Don't register marker - strategy already manages its lifecycle
+				this._startMarker = marker;
 			}
 		}));
 	}
