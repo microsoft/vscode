@@ -19,6 +19,7 @@ import { BufferedEmitter } from '../../../../base/parts/ipc/common/ipc.net.js';
 import { acquirePort } from '../../../../base/parts/ipc/electron-browser/ipc.mp.js';
 import * as nls from '../../../../nls.js';
 import { IExtensionHostDebugService } from '../../../../platform/debug/common/extensionHostDebug.js';
+import { IExtensionHostDebugParams } from '../../../../platform/environment/common/environment.js';
 import { IExtensionHostProcessOptions, IExtensionHostStarter } from '../../../../platform/extensions/common/extensionHostStarter.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { ILogService, ILoggerService } from '../../../../platform/log/common/log.js';
@@ -149,12 +150,12 @@ export class NativeLocalProcessExtensionHost extends Disposable implements IExte
 
 		this._register(this._lifecycleService.onWillShutdown(e => this._onWillShutdown(e)));
 		this._register(this._extensionHostDebugService.onClose(event => {
-			if (this._isExtensionDevHost && this._environmentService.debugExtensionHost.debugId === event.sessionId) {
+			if (this._isExtensionDevHost && this._getDebugParams().debugId === event.sessionId) {
 				this._nativeHostService.closeWindow();
 			}
 		}));
 		this._register(this._extensionHostDebugService.onReload(event => {
-			if (this._isExtensionDevHost && this._environmentService.debugExtensionHost.debugId === event.sessionId) {
+			if (this._isExtensionDevHost && this._getDebugParams().debugId === event.sessionId) {
 				this._hostService.reload();
 			}
 		}));
@@ -196,8 +197,9 @@ export class NativeLocalProcessExtensionHost extends Disposable implements IExte
 			VSCODE_HANDLES_UNCAUGHT_ERRORS: true
 		});
 
-		if (this._environmentService.debugExtensionHost.env) {
-			objects.mixin(env, this._environmentService.debugExtensionHost.env);
+		const debugParams = this._getDebugParams();
+		if (debugParams.env) {
+			objects.mixin(env, debugParams.env);
 		}
 
 		removeDangerousEnvVariables(env);
@@ -291,8 +293,9 @@ export class NativeLocalProcessExtensionHost extends Disposable implements IExte
 
 		// Notify debugger that we are ready to attach to the process if we run a development extension
 		if (portNumber) {
-			if (this._isExtensionDevHost && this._isExtensionDevDebug && this._environmentService.debugExtensionHost.debugId) {
-				this._extensionHostDebugService.attachSession(this._environmentService.debugExtensionHost.debugId, portNumber);
+			const debugParams = this._getDebugParams();
+			if (this._isExtensionDevHost && this._isExtensionDevDebug && debugParams.debugId) {
+				this._extensionHostDebugService.attachSession(debugParams.debugId, portNumber);
 			}
 			this._inspectListener = { port: portNumber, host: inspectHost };
 			this._onDidSetInspectPort.fire();
@@ -333,11 +336,12 @@ export class NativeLocalProcessExtensionHost extends Disposable implements IExte
 	 */
 	private async _tryFindDebugPort(): Promise<number> {
 
-		if (typeof this._environmentService.debugExtensionHost.port !== 'number') {
+		const debugParams = this._getDebugParams();
+		if (typeof debugParams.port !== 'number') {
 			return 0;
 		}
 
-		const expected = this._environmentService.debugExtensionHost.port;
+		const expected = debugParams.port;
 		const port = await this._nativeHostService.findFreePort(expected, 10 /* try 10 ports */, 5000 /* try up to 5 seconds */, 2048 /* skip 2048 ports between attempts */);
 
 		if (!this._isExtensionDevTestFromCli) {
@@ -592,9 +596,14 @@ export class NativeLocalProcessExtensionHost extends Disposable implements IExte
 	private _onWillShutdown(event: WillShutdownEvent): void {
 		// If the extension development host was started without debugger attached we need
 		// to communicate this back to the main side to terminate the debug session
-		if (this._isExtensionDevHost && !this._isExtensionDevTestFromCli && !this._isExtensionDevDebug && this._environmentService.debugExtensionHost.debugId) {
-			this._extensionHostDebugService.terminateSession(this._environmentService.debugExtensionHost.debugId);
+		const debugParams = this._getDebugParams();
+		if (this._isExtensionDevHost && !this._isExtensionDevTestFromCli && !this._isExtensionDevDebug && debugParams.debugId) {
+			this._extensionHostDebugService.terminateSession(debugParams.debugId);
 			event.join(timeout(100 /* wait a bit for IPC to get delivered */), { id: 'join.extensionDevelopment', label: nls.localize('join.extensionDevelopment', "Terminating extension debug session") });
 		}
+	}
+
+	private _getDebugParams(): IExtensionHostDebugParams {
+		return this._environmentService.window.isAgentWindow ? this._environmentService.debugAgentExtensionHost : this._environmentService.debugExtensionHost;
 	}
 }

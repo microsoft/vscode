@@ -42,7 +42,17 @@ The Agent Extension Host has its own debug port (5878) and CLI arguments:
 ./scripts/code.sh --inspect-brk-agent-extensions=5878  # break on start
 ```
 
-A matching "Attach to Agent Window Extension Host" launch configuration is available in `.vscode/launch.json`.
+To debug a development extension in OSS and attach to both extension hosts, start VS Code OSS with the extension development path and explicit ports, then attach from another window:
+
+```bash
+./scripts/code.sh \
+  /path/to/vscode-copilot-chat \
+  --extensionDevelopmentPath=/path/to/vscode-copilot-chat \
+  --inspect-extensions=5870 \
+  --inspect-agent-extensions=5878
+```
+
+Then use the launch configurations "Attach to Extension Host" (5870) and "Attach to Agent Window Extension Host" (5878).
 
 ## Testing
 
