@@ -14,12 +14,14 @@ import { CancellationTokenSource } from '../../../../../../base/common/cancellat
 import { Extensions, IQuickAccessProvider, IQuickAccessProviderDescriptor, IQuickAccessRegistry } from '../../../../../../platform/quickinput/common/quickAccess.js';
 import { Registry } from '../../../../../../platform/registry/common/platform.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
-import { createInstantHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { createInstantHoverDelegate, getDefaultHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { renderIcon } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { ILayoutService } from '../../../../../../platform/layout/browser/layoutService.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { ACTION_ID_NEW_CHAT, CHAT_OPEN_ACTION_ID, IChatViewOpenOptions } from '../../actions/chatActions.js';
 
 /** Marker ID for the "send to agent" quick pick item */
@@ -88,6 +90,10 @@ export class UnifiedQuickAccess extends Disposable {
 	private _isInternalValueChange = false; // Flag to prevent recursive tab detection
 	private _isUpdatingSendToAgent = false; // Guard to prevent infinite loop
 	private _sendToAgentTimeout: ReturnType<typeof setTimeout> | undefined;
+	private _sendButton: HTMLButtonElement | undefined;
+	private _sendButtonLabel: HTMLSpanElement | undefined;
+	private _sendButtonIcon: HTMLElement | undefined;
+	private _sendButtonHover: { update: (content: string) => void } | undefined;
 
 	private readonly _tabs: IUnifiedQuickAccessTab[];
 
@@ -98,6 +104,8 @@ export class UnifiedQuickAccess extends Disposable {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@ILayoutService private readonly layoutService: ILayoutService,
 		@ICommandService private readonly commandService: ICommandService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IHoverService private readonly hoverService: IHoverService,
 	) {
 		super();
 		this._tabs = tabs ?? DEFAULT_UNIFIED_QUICK_ACCESS_TABS;
@@ -154,6 +162,8 @@ export class UnifiedQuickAccess extends Disposable {
 			if (matchingTab && matchingTab !== this._currentTab) {
 				this._switchTab(matchingTab, picker, true);
 			}
+			// Update send button state based on input
+			this._updateSendButtonState(value);
 			// Debounce send-to-agent check to let provider finish
 			if (this._sendToAgentTimeout) {
 				clearTimeout(this._sendToAgentTimeout);
@@ -203,6 +213,11 @@ export class UnifiedQuickAccess extends Disposable {
 			// Remove the injected tab bar from DOM
 			this._tabBarContainer?.remove();
 			this._tabBarContainer = undefined;
+			// Clear button references
+			this._sendButton = undefined;
+			this._sendButtonLabel = undefined;
+			this._sendButtonIcon = undefined;
+			this._sendButtonHover = undefined;
 			this._currentDisposables.clear();
 		}));
 
@@ -294,27 +309,78 @@ export class UnifiedQuickAccess extends Disposable {
 		const container = $('div.unified-quick-access-send-container');
 
 		// Create send button
-		const button = $('button.unified-send-button');
+		const button = $('button.unified-send-button') as HTMLButtonElement;
 		button.setAttribute('type', 'button');
-		button.title = localize('sendTooltip', "Send message to new agent session");
+		this._sendButton = button;
 
 		const icon = renderIcon(Codicon.send);
+		icon.classList.add('unified-send-icon');
+		this._sendButtonIcon = icon;
 		button.appendChild(icon);
 
 		const labelSpan = $('span.unified-send-label');
-		labelSpan.textContent = localize('send', "Send");
+		this._sendButtonLabel = labelSpan;
 		button.appendChild(labelSpan);
 
 		container.appendChild(button);
 
-		// Click handler - send message (send exact input, always new chat)
+		// Set up managed hover for the button
+		this._sendButtonHover = this._currentDisposables.add(
+			this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), button, '')
+		);
+
+		// Initialize button state
+		this._updateSendButtonState(picker.value);
+
+		// Click handler - behavior depends on input state
 		this._currentDisposables.add(addDisposableListener(button, EventType.CLICK, (e) => {
 			e.preventDefault();
 			e.stopPropagation();
-			this._sendMessageRaw(picker.value);
+			const hasInput = picker.value.trim().length > 0;
+			if (hasInput) {
+				this._sendMessageRaw(picker.value);
+			} else {
+				this._openChat();
+			}
 		}));
 
 		return container;
+	}
+
+	/**
+	 * Update the send button label and tooltip based on input state.
+	 */
+	private _updateSendButtonState(value: string): void {
+		if (!this._sendButton || !this._sendButtonLabel || !this._sendButtonIcon) {
+			return;
+		}
+
+		const hasInput = value.trim().length > 0;
+
+		if (hasInput) {
+			// Show "Send" with no keybinding in tooltip (Enter is implied by quick pick)
+			this._sendButtonLabel.textContent = localize('send', "Send");
+			this._sendButtonHover?.update(localize('sendTooltipNoKeybinding', "Send message to new agent session"));
+			this._sendButtonIcon.style.display = '';
+		} else {
+			// Show "Open Chat" with open chat keybinding and hide icon
+			const openChatKeybinding = this.keybindingService.lookupKeybinding(CHAT_OPEN_ACTION_ID);
+			const openChatLabel = openChatKeybinding?.getLabel() ?? '';
+			this._sendButtonLabel.textContent = localize('openChat', "Open Chat");
+			const tooltip = openChatLabel
+				? localize('openChatTooltipWithKeybinding', "Open chat ({0})", openChatLabel)
+				: localize('openChatTooltipNoKeybinding', "Open chat");
+			this._sendButtonHover?.update(tooltip);
+			this._sendButtonIcon.style.display = 'none';
+		}
+	}
+
+	/**
+	 * Open chat without sending a message.
+	 */
+	private _openChat(): void {
+		this.hide();
+		this.commandService.executeCommand(CHAT_OPEN_ACTION_ID);
 	}
 
 	/**

@@ -356,6 +356,7 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		const prefillData = {
 			query,
 			mode,
+			timestamp: Date.now(),
 		};
 		this.storageService.store(
 			'chat.welcomeViewPrefill',
@@ -394,7 +395,11 @@ export class AgentSessionsWelcomePage extends EditorPane {
 			// Remove immediately to prevent re-application
 			this.storageService.remove('chat.welcomeViewPrefill', StorageScope.APPLICATION);
 			try {
-				const { query, mode } = JSON.parse(prefillData);
+				const { query, mode, timestamp } = JSON.parse(prefillData);
+				// Invalidate entries older than 1 minute
+				if (timestamp && Date.now() - timestamp > 60 * 1000) {
+					return;
+				}
 				if (query && this.chatWidget) {
 					this.chatWidget.setInput(query);
 				}
@@ -626,6 +631,14 @@ export class AgentSessionsWelcomePage extends EditorPane {
 
 		const tosCard = append(container, $('.agentSessionsWelcome-walkthroughCard.agentSessionsWelcome-tosCard'));
 
+		const dismissNotice = () => {
+			this.storageService.store(AgentSessionsWelcomePage.PRIVACY_NOTICE_DISMISSED_KEY, true, StorageScope.APPLICATION, StorageTarget.USER);
+			tosCard.remove();
+		};
+
+		// Dismiss the notice when a chat request is sent
+		this.contentDisposables.add(this.chatService.onDidSubmitRequest(() => dismissNotice()));
+
 		// Icon
 		const iconContainer = append(tosCard, $('.agentSessionsWelcome-walkthroughCard-icon'));
 		iconContainer.appendChild(renderIcon(Codicon.chatSparkle));
@@ -655,8 +668,7 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		dismissButton.title = localize('dismissPrivacyNotice', "Dismiss");
 		dismissButton.onclick = (e) => {
 			e.stopPropagation();
-			this.storageService.store(AgentSessionsWelcomePage.PRIVACY_NOTICE_DISMISSED_KEY, true, StorageScope.APPLICATION, StorageTarget.USER);
-			tosCard.remove();
+			dismissNotice();
 		};
 	}
 

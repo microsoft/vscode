@@ -12,6 +12,7 @@ import { IURITransformer, transformIncomingURIs, transformOutgoingURIs } from '.
 import { IFileService } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
 import { IUriIdentityService } from '../../uriIdentity/common/uriIdentity.js';
+import { IEnvironmentService } from '../../environment/common/environment.js';
 
 export class RemoteUserDataProfilesServiceChannel implements IServerChannel {
 
@@ -71,11 +72,12 @@ export class UserDataProfilesService extends AbstractUserDataProfilesService imp
 		profiles: readonly UriDto<IUserDataProfile>[],
 		readonly profilesHome: URI,
 		private readonly channel: IChannel,
+		environmentService: IEnvironmentService,
 		fileService: IFileService,
 		uriIdentityService: IUriIdentityService,
 		logService: ILogService
 	) {
-		super(fileService, uriIdentityService, logService);
+		super(environmentService, fileService, uriIdentityService, logService);
 		this._profiles = profiles.map(profile => reviveProfile(profile, this.profilesHome.scheme));
 		this._register(this.channel.listen<DidChangeProfilesEvent>('onDidChangeProfiles')(e => {
 			const added = e.added.map(profile => reviveProfile(profile, this.profilesHome.scheme));
@@ -132,7 +134,7 @@ export class UserDataProfilesService extends AbstractUserDataProfilesService imp
 		return this.channel.call('cleanUpTransientProfiles');
 	}
 
-	updateStoredProfileTemplate(profile: IUserDataProfile): Promise<void> {
+	override updateStoredProfileTemplate(profile: IUserDataProfile): Promise<void> {
 		return this.channel.call('updateStoredProfileTemplate', [profile]);
 	}
 }
