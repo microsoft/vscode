@@ -9,7 +9,6 @@ import { NullLogService } from '../../../log/common/log.js';
 import { lookupKerberosAuthorization, nodeRequest } from '../../node/requestService.js';
 import { isWindows } from '../../../../base/common/platform.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import type * as http from 'http';
 
 
 suite('Request Service', () => {
