@@ -418,7 +418,7 @@ abstract class MultiDiffAcceptDiscardAction extends Action2 {
 			menu: {
 				when: ContextKeyExpr.equals('resourceScheme', CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME),
 				id: MenuId.EditorTitle,
-				order: accept ? 0 : 1,
+				order: accept ? -100 : -99,
 				group: 'navigation',
 			},
 		});
