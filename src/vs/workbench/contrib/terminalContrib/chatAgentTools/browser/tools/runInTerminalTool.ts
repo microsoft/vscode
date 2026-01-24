@@ -701,7 +701,12 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			}
 		}
 
-		// Set up continue in background listener
+		// Set up continue in background listener - uses a race promise instead of cancellation
+		// to allow the execution strategy to continue running and preserve its marker
+		let continueInBackgroundResolve: (() => void) | undefined;
+		const continueInBackgroundPromise = new Promise<void>(resolve => {
+			continueInBackgroundResolve = resolve;
+		});
 		if (terminalToolSessionId) {
 			store.add(this._terminalChatService.onDidContinueInBackground(sessionId => {
 				if (sessionId === terminalToolSessionId) {
@@ -710,9 +715,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 						execution.setBackground();
 					}
 					didMoveToBackground = true;
-					if (!executeCancellation.token.isCancellationRequested) {
-						executeCancellation.cancel();
-					}
+					// Resolve the race promise instead of cancelling - this allows the execution
+					// to continue running so it can be awaited later
+					continueInBackgroundResolve?.();
 				}
 			}));
 		}
@@ -795,58 +800,73 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					}],
 				};
 			} else {
-				// Foreground mode: await execution completion
-				const executeResult = await executionPromise;
-				// Reset user input state after command execution completes
-				toolTerminal.receivedUserInput = false;
-				if (token.isCancellationRequested) {
-					throw new CancellationError();
-				}
+				// Foreground mode: race execution completion against continue in background
+				const raceResult = await Promise.race([
+					executionPromise.then(result => ({ type: 'completed' as const, result })),
+					continueInBackgroundPromise.then(() => ({ type: 'background' as const }))
+				]);
 
-				if (executeResult.didEnterAltBuffer) {
-					const state = toolSpecificData.terminalCommandState ?? {};
-					state.timestamp = state.timestamp ?? timingStart;
-					toolSpecificData.terminalCommandState = state;
-					toolResultMessage = altBufferMessage;
-					outputLineCount = 0;
-					error = executeResult.error ?? 'alternateBuffer';
-					altBufferResult = {
-						toolResultMessage,
-						toolMetadata: {
-							exitCode: undefined
-						},
-						content: [{
-							kind: 'text',
-							value: altBufferMessage,
-						}]
-					};
+				if (raceResult.type === 'background') {
+					// Moved to background - execution continues running, just return current output
+					this._logService.debug(`RunInTerminalTool: Continue in background triggered, returning output collected so far`);
+					error = 'continueInBackground';
+					const execution = RunInTerminalTool._activeExecutions.get(termId);
+					const backgroundOutput = execution?.getOutput() ?? '';
+					outputLineCount = backgroundOutput ? count(backgroundOutput.trim(), '\n') + 1 : 0;
+					terminalResult = backgroundOutput;
 				} else {
-					await this._commandArtifactCollector.capture(toolSpecificData, toolTerminal.instance, commandId);
-					{
+					const executeResult = raceResult.result;
+					// Reset user input state after command execution completes
+					toolTerminal.receivedUserInput = false;
+					if (token.isCancellationRequested) {
+						throw new CancellationError();
+					}
+
+					if (executeResult.didEnterAltBuffer) {
 						const state = toolSpecificData.terminalCommandState ?? {};
 						state.timestamp = state.timestamp ?? timingStart;
-						if (executeResult.exitCode !== undefined) {
-							state.exitCode = executeResult.exitCode;
-							if (state.timestamp !== undefined) {
-								state.duration = state.duration ?? Math.max(0, Date.now() - state.timestamp);
-							}
-						}
 						toolSpecificData.terminalCommandState = state;
-					}
+						toolResultMessage = altBufferMessage;
+						outputLineCount = 0;
+						error = executeResult.error ?? 'alternateBuffer';
+						altBufferResult = {
+							toolResultMessage,
+							toolMetadata: {
+								exitCode: undefined
+							},
+							content: [{
+								kind: 'text',
+								value: altBufferMessage,
+							}]
+						};
+					} else {
+						await this._commandArtifactCollector.capture(toolSpecificData, toolTerminal.instance, commandId);
+						{
+							const state = toolSpecificData.terminalCommandState ?? {};
+							state.timestamp = state.timestamp ?? timingStart;
+							if (executeResult.exitCode !== undefined) {
+								state.exitCode = executeResult.exitCode;
+								if (state.timestamp !== undefined) {
+									state.duration = state.duration ?? Math.max(0, Date.now() - state.timestamp);
+								}
+							}
+							toolSpecificData.terminalCommandState = state;
+						}
 
-					this._logService.debug(`RunInTerminalTool: Finished \`${strategy.type}\` execute strategy with exitCode \`${executeResult.exitCode}\`, result.length \`${executeResult.output?.length}\`, error \`${executeResult.error}\``);
-					outputLineCount = executeResult.output === undefined ? 0 : count(executeResult.output.trim(), '\n') + 1;
-					exitCode = executeResult.exitCode;
-					error = executeResult.error;
+						this._logService.debug(`RunInTerminalTool: Finished \`${strategy.type}\` execute strategy with exitCode \`${executeResult.exitCode}\`, result.length \`${executeResult.output?.length}\`, error \`${executeResult.error}\``);
+						outputLineCount = executeResult.output === undefined ? 0 : count(executeResult.output.trim(), '\n') + 1;
+						exitCode = executeResult.exitCode;
+						error = executeResult.error;
 
-					const resultArr: string[] = [];
-					if (executeResult.output !== undefined) {
-						resultArr.push(executeResult.output);
+						const resultArr: string[] = [];
+						if (executeResult.output !== undefined) {
+							resultArr.push(executeResult.output);
+						}
+						if (executeResult.additionalInformation) {
+							resultArr.push(executeResult.additionalInformation);
+						}
+						terminalResult = resultArr.join('\n\n');
 					}
-					if (executeResult.additionalInformation) {
-						resultArr.push(executeResult.additionalInformation);
-					}
-					terminalResult = resultArr.join('\n\n');
 				}
 			}
 		} catch (e) {
@@ -857,14 +877,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				const timeoutOutput = getOutput(toolTerminal.instance, undefined);
 				outputLineCount = timeoutOutput ? count(timeoutOutput.trim(), '\n') + 1 : 0;
 				terminalResult = timeoutOutput ?? '';
-			} else if (didMoveToBackground && e instanceof CancellationError && !args.isBackground) {
-				// Handle continue in background case - execution is already stored, just return current output
-				this._logService.debug(`RunInTerminalTool: Continue in background triggered, returning output collected so far`);
-				error = 'continueInBackground';
-				const execution = RunInTerminalTool._activeExecutions.get(termId);
-				const backgroundOutput = execution?.getOutput() ?? '';
-				outputLineCount = backgroundOutput ? count(backgroundOutput.trim(), '\n') + 1 : 0;
-				terminalResult = backgroundOutput;
 			} else {
 				this._logService.debug(`RunInTerminalTool: Threw exception`);
 				// Capture output snapshot before disposing on cancellation
