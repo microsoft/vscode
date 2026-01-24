@@ -36,6 +36,7 @@ import { IListService } from '../../../../platform/list/browser/listService.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IPickOptions, IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
+import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { TerminalCapability } from '../../../../platform/terminal/common/capabilities/capabilities.js';
 import { ITerminalProfile, TerminalExitReason, TerminalIcon, TerminalLocation, TerminalSettingId } from '../../../../platform/terminal/common/terminal.js';
 import { createProfileSchemaEnums } from '../../../../platform/terminal/common/terminalProfiles.js';
@@ -782,6 +783,7 @@ export function registerTerminalActions() {
 		run: async (c, accessor) => {
 			const terminalGroupService = accessor.get(ITerminalGroupService);
 			const notificationService = accessor.get(INotificationService);
+			const storageService = accessor.get(IStorageService);
 			const instances = getSelectedViewInstances(accessor);
 			const firstInstance = instances?.[0];
 			if (!firstInstance) {
@@ -794,16 +796,21 @@ export function registerTerminalActions() {
 
 			c.editingService.setEditingTerminal(firstInstance);
 			c.editingService.setEditable(firstInstance, {
-				validationMessage: value => validateTerminalName(value),
+				validationMessage: value => validateTerminalNameEnhanced(value),
 				onFinish: async (value, success) => {
 					// Cancel editing first as instance.rename will trigger a rerender automatically
 					c.editingService.setEditable(firstInstance, null);
 					c.editingService.setEditingTerminal(undefined);
-					if (success) {
+					if (success && value) {
+						const trimmed = value.trim();
+						if (trimmed.length > 0) {
+							// Save to history
+							saveTerminalRenameToHistory(storageService, trimmed);
+						}
 						const promises: Promise<void>[] = [];
 						for (const instance of instances) {
 							promises.push((async () => {
-								await instance.rename(value);
+								await instance.rename(trimmed);
 							})());
 						}
 						try {
@@ -814,6 +821,86 @@ export function registerTerminalActions() {
 					}
 				}
 			});
+		}
+	});
+
+	// Bulk rename command for multiple selected terminals
+	registerTerminalAction({
+		id: 'workbench.action.terminal.renameBulk',
+		title: localize2('workbench.action.terminal.renameBulk', 'Rename Terminals (Bulk)'),
+		f1: true,
+		precondition: ContextKeyExpr.and(
+			sharedWhenClause.terminalAvailable,
+			ContextKeyExpr.greater(TerminalContextKeys.tabsSingularSelection.key, 1)
+		),
+		run: async (c, accessor) => {
+			const notificationService = accessor.get(INotificationService);
+			const storageService = accessor.get(IStorageService);
+			const quickInputService = accessor.get(IQuickInputService);
+			const instances = getSelectedViewInstances(accessor);
+
+			if (!instances || instances.length < 2) {
+				notificationService.notify({
+					severity: Severity.Info,
+					message: localize('terminal.renameBulk.requiresMultiple', "Please select multiple terminals to use bulk rename")
+				});
+				return;
+			}
+
+			// Show quick pick for pattern input
+			const pattern = await quickInputService.input({
+				value: 'Terminal {n}',
+				prompt: localize('terminal.renameBulk.prompt', "Enter pattern (use {n} for numbers). Example: 'Terminal {n}' or 'Build {n}'"),
+				validateInput: async (value) => {
+					const validation = validateBulkRenamePattern(value, instances.length);
+					if (validation) {
+						return validation.severity === Severity.Error ? validation.content : undefined;
+					}
+					return undefined;
+				}
+			});
+
+			if (!pattern) {
+				return;
+			}
+
+			const trimmed = pattern.trim();
+			if (trimmed.length === 0) {
+				return;
+			}
+
+			// Validate pattern
+			const validation = validateBulkRenamePattern(trimmed, instances.length);
+			if (validation && validation.severity === Severity.Error) {
+				notificationService.notify({
+					severity: Severity.Error,
+					message: validation.content
+				});
+				return;
+			}
+
+			// Generate names
+			const names = generateBulkRenameNames(trimmed, instances.length);
+
+			// Apply names to terminals
+			const promises: Promise<void>[] = [];
+			for (let i = 0; i < instances.length && i < names.length; i++) {
+				const name = names[i];
+				// Save to history
+				saveTerminalRenameToHistory(storageService, name);
+				// Rename
+				promises.push(instances[i].rename(name));
+			}
+
+			try {
+				await Promise.all(promises);
+				notificationService.notify({
+					severity: Severity.Info,
+					message: localize('terminal.renameBulk.success', "Renamed {0} terminals", instances.length)
+				});
+			} catch (e) {
+				notificationService.error(e);
+			}
 		}
 	});
 
@@ -1514,6 +1601,9 @@ export function validateTerminalName(name: string): { content: string; severity:
 	return null;
 }
 
+// Import enhanced rename helpers
+import { validateTerminalNameEnhanced, getTerminalRenameHistory, saveTerminalRenameToHistory, getTerminalNameTemplates, generateBulkRenameNames, validateBulkRenamePattern } from './terminalRenameHelpers.js';
+
 function isTerminalProfile(obj: unknown): obj is ITerminalProfile {
 	return isObject(obj) && 'profileName' in obj;
 }
@@ -1743,13 +1833,81 @@ async function renameWithQuickPick(c: ITerminalServicesCollection, accessor: Ser
 		instance = getResourceOrActiveInstance(c, resource);
 	}
 
-	if (instance) {
-		const title = await accessor.get(IQuickInputService).input({
-			value: instance.title,
-			prompt: localize('workbench.action.terminal.rename.prompt', "Enter terminal name"),
+	if (!instance) {
+		return;
+	}
+
+	const storageService = accessor.get(IStorageService);
+	const quickInputService = accessor.get(IQuickInputService);
+	const notificationService = accessor.get(INotificationService);
+
+	// Get templates and history for suggestions
+	const templates = getTerminalNameTemplates(storageService);
+	const history = getTerminalRenameHistory(storageService);
+
+	// Create quick pick items for templates and history (without separators for simplicity)
+	const items: IQuickPickItem[] = [];
+
+	// Add templates
+	for (const template of templates.slice(0, 10)) { // Limit to 10 templates
+		items.push({
+			label: template,
+			description: localize('terminal.rename.templateDescription', "Template"),
 		});
-		if (title) {
-			instance.rename(title);
+	}
+
+	// Add history
+	for (const name of history.slice(0, 10)) { // Limit to 10 history items
+		items.push({
+			label: name,
+			description: localize('terminal.rename.recentDescription', "Recently used"),
+		});
+	}
+
+	// Show quick pick with suggestions
+	const pick = quickInputService.createQuickPick<IQuickPickItem>();
+	pick.items = items;
+	pick.value = instance.title;
+	pick.placeholder = localize('workbench.action.terminal.rename.prompt', "Enter terminal name or select from suggestions");
+	pick.canSelectMany = false;
+
+	const title = await new Promise<string | undefined>((resolve) => {
+		pick.onDidAccept(() => {
+			const selected = pick.selectedItems[0];
+			if (selected && selected.label) {
+				resolve(selected.label);
+			} else {
+				resolve(pick.value.trim() || undefined);
+			}
+			pick.dispose();
+		});
+		pick.onDidHide(() => {
+			resolve(undefined);
+			pick.dispose();
+		});
+		pick.show();
+	});
+
+	if (title) {
+		const trimmed = title.trim();
+		if (trimmed.length > 0) {
+			// Validate
+			const validation = validateTerminalNameEnhanced(trimmed);
+			if (validation && validation.severity === Severity.Error) {
+				notificationService.notify({
+					severity: Severity.Error,
+					message: validation.content
+				});
+				return;
+			}
+
+			// Save to history
+			saveTerminalRenameToHistory(storageService, trimmed);
+			// Rename
+			await instance.rename(trimmed);
+		} else {
+			// Empty name resets to default
+			await instance.rename('');
 		}
 	}
 }

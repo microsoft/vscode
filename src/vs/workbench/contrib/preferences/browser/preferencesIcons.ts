@@ -24,4 +24,5 @@ export const settingsDiscardIcon = registerIcon('settings-discard', Codicon.disc
 export const preferencesClearInputIcon = registerIcon('preferences-clear-input', Codicon.clearAll, localize('preferencesClearInput', 'Icon for clear input in the Settings and keybinding UI.'));
 export const preferencesAiResultsIcon = registerIcon('preferences-ai-results', Codicon.sparkle, localize('preferencesAiResults', 'Icon for showing AI results in the Settings UI.'));
 export const preferencesFilterIcon = registerIcon('preferences-filter', Codicon.filter, localize('settingsFilter', 'Icon for the button that suggests filters for the Settings UI.'));
+export const preferencesAllProfilesFilterIcon = registerIcon('preferences-all-profiles-filter', Codicon.layers, localize('preferencesAllProfilesFilter', 'Icon for the all profiles filter toggle in the Settings UI.'));
 export const preferencesOpenSettingsIcon = registerIcon('preferences-open-settings', Codicon.goToFile, localize('preferencesOpenSettings', 'Icon for open settings commands.'));

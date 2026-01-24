@@ -52,7 +52,7 @@ import { registerNavigableContainer } from '../../../browser/actions/widgetNavig
 import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
 import { IEditorMemento, IEditorOpenContext, IEditorPane } from '../../../common/editor.js';
 import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
-import { APPLICATION_SCOPES, IWorkbenchConfigurationService } from '../../../services/configuration/common/configuration.js';
+import { APPLICATION_SCOPES, APPLY_ALL_PROFILES_SETTING, IWorkbenchConfigurationService } from '../../../services/configuration/common/configuration.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { ALWAYS_SHOW_ADVANCED_SETTINGS_SETTING, IOpenSettingsOptions, IPreferencesService, ISearchResult, ISetting, ISettingsEditorModel, ISettingsEditorOptions, ISettingsGroup, SettingMatchType, SettingValueType, validateSettingsEditorOptions } from '../../../services/preferences/common/preferences.js';
@@ -64,7 +64,7 @@ import { SuggestEnabledInput } from '../../codeEditor/browser/suggestEnabledInpu
 import { ADVANCED_SETTING_TAG, CONTEXT_AI_SETTING_RESULTS_AVAILABLE, CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_ROW_FOCUS, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, EMBEDDINGS_SEARCH_PROVIDER_NAME, ENABLE_LANGUAGE_FILTER, EXTENSION_FETCH_TIMEOUT_MS, EXTENSION_SETTING_TAG, FEATURE_SETTING_TAG, FILTER_MODEL_SEARCH_PROVIDER_NAME, getExperimentalExtensionToggleData, ID_SETTING_TAG, IPreferencesSearchService, ISearchProvider, LANGUAGE_SETTING_TAG, LLM_RANKED_SEARCH_PROVIDER_NAME, MODIFIED_SETTING_TAG, POLICY_SETTING_TAG, REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, SETTINGS_EDITOR_COMMAND_SHOW_AI_RESULTS, SETTINGS_EDITOR_COMMAND_SUGGEST_FILTERS, SETTINGS_EDITOR_COMMAND_TOGGLE_AI_SEARCH, STRING_MATCH_SEARCH_PROVIDER_NAME, TF_IDF_SEARCH_PROVIDER_NAME, WorkbenchSettingsEditorSettings, WORKSPACE_TRUST_SETTING_TAG } from '../common/preferences.js';
 import { settingsHeaderBorder, settingsSashBorder, settingsTextInputBorder } from '../common/settingsEditorColorRegistry.js';
 import './media/settingsEditor2.css';
-import { preferencesAiResultsIcon, preferencesClearInputIcon, preferencesFilterIcon } from './preferencesIcons.js';
+import { preferencesAiResultsIcon, preferencesAllProfilesFilterIcon, preferencesClearInputIcon, preferencesFilterIcon } from './preferencesIcons.js';
 import { SettingsTarget, SettingsTargetsWidget } from './preferencesWidgets.js';
 import { ISettingOverrideClickEvent } from './settingsEditorSettingIndicators.js';
 import { getCommonlyUsedData, ITOCEntry, tocData } from './settingsLayout.js';
@@ -198,6 +198,7 @@ export class SettingsEditor2 extends EditorPane {
 	private stopWatch: StopWatch;
 
 	private showAiResultsAction: Action | null = null;
+	private allProfilesFilterAction: Action | null = null;
 
 	private searchInputDelayer: Delayer<void>;
 	private updatedConfigSchemaDelayer: Delayer<void>;
@@ -293,6 +294,9 @@ export class SettingsEditor2 extends EditorPane {
 		this.dismissedExtensionSettings = this.storageService
 			.get(this.DISMISSED_EXTENSION_SETTINGS_STORAGE_KEY, StorageScope.PROFILE, '')
 			.split(this.DISMISSED_EXTENSION_SETTINGS_DELIMITER);
+
+		// All profiles filter - don't persist, start as disabled
+		this.viewState.allProfilesFilter = false;
 
 		this._register(configurationService.onDidChangeConfiguration(e => {
 			if (e.affectedKeys.has(WorkbenchSettingsEditorSettings.ShowAISearchToggle)
@@ -734,6 +738,15 @@ export class SettingsEditor2 extends EditorPane {
 			localize('filterInput', "Filter Settings"), ThemeIcon.asClassName(preferencesFilterIcon)
 		));
 
+		// All Profiles Filter Action - Create before ActionBar so it can be referenced
+		this.allProfilesFilterAction = this._register(new Action('settings.toggleAllProfilesFilter',
+			localize('allProfilesFilter', "Show only settings that apply to all profiles"),
+			ThemeIcon.asClassName(preferencesAllProfilesFilterIcon), true));
+		this.allProfilesFilterAction.checked = this.viewState.allProfilesFilter ?? false;
+		this._register(this.allProfilesFilterAction.onDidChange(async () => {
+			await this.onDidToggleAllProfilesFilter();
+		}));
+
 		this.searchWidget = this._register(this.instantiationService.createInstance(SuggestEnabledInput, `${SettingsEditor2.ID}.searchbox`, this.searchContainer, {
 			triggerCharacters: ['@', ':'],
 			provideResults: (query: string) => {
@@ -810,12 +823,24 @@ export class SettingsEditor2 extends EditorPane {
 					const keybindingLabel = this.keybindingService.lookupKeybinding(SETTINGS_EDITOR_COMMAND_TOGGLE_AI_SEARCH)?.getLabel();
 					return new ToggleActionViewItem(null, action, { ...options, keybinding: keybindingLabel, toggleStyles: defaultToggleStyles });
 				}
+				if (this.allProfilesFilterAction && action.id === this.allProfilesFilterAction.id) {
+					return new ToggleActionViewItem(null, action, { ...options, toggleStyles: defaultToggleStyles });
+				}
 				return undefined;
 			}
 		}));
 
 		const actionsToPush = [clearInputAction, filterAction];
 		this.searchInputActionBar.push(actionsToPush, { label: false, icon: true });
+
+		// Add all profiles filter toggle
+		if (this.allProfilesFilterAction) {
+			this.searchInputActionBar.push(this.allProfilesFilterAction, {
+				index: 0,
+				label: false,
+				icon: true
+			});
+		}
 
 		this.disableAiSearchToggle();
 		this.updateAiSearchToggleVisibility();
@@ -835,6 +860,22 @@ export class SettingsEditor2 extends EditorPane {
 			this.searchResultModel.showAiResults = this.showAiResultsAction.checked ?? false;
 			this.renderResultCountMessages(false);
 			this.onDidFinishSearch(true, undefined);
+		}
+	}
+
+	private async onDidToggleAllProfilesFilter(): Promise<void> {
+		if (this.allProfilesFilterAction) {
+			this.viewState.allProfilesFilter = this.allProfilesFilterAction.checked ?? false;
+			// Don't persist filter state - it's a temporary view preference
+			// Refresh the settings tree to apply the filter
+			if (this.searchResultModel) {
+				// If in search mode, update the search results
+				this.searchResultModel.updateChildren();
+				this.refreshTree();
+			} else {
+				// If in normal view, refilter the tree
+				this.settingsTree.refilter();
+			}
 		}
 	}
 
@@ -1290,7 +1331,33 @@ export class SettingsEditor2 extends EditorPane {
 			value = undefined;
 		}
 
+		// If resetting to default and setting is applied to all profiles, remove it from all-profiles list
+		// Only remove if it's not an application-scoped setting (those always apply to all profiles)
+		const isResetting = (isManualReset && value === undefined) || (!userPassedInManualReset && value === undefined);
+		const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
+		const settingProperty = configurationRegistry.getConfigurationProperties()[key];
+		const settingScope = settingProperty?.scope ?? ConfigurationScope.APPLICATION;
+		const isApplicationScoped = APPLICATION_SCOPES.includes(settingScope);
+		const shouldRemoveFromAllProfiles = isResetting &&
+			configurationTarget === ConfigurationTarget.USER_LOCAL &&
+			!resource &&
+			!languageFilter &&
+			!isApplicationScoped &&
+			this.configurationService.isSettingAppliedForAllProfiles(key);
+
 		return this.configurationService.updateValue(key, value, overrides, configurationTarget, { handleDirtyFile: 'save' })
+			.then(async () => {
+				// Remove from all-profiles list if needed
+				if (shouldRemoveFromAllProfiles) {
+					const allProfilesSettings = this.configurationService.getValue<string[]>(APPLY_ALL_PROFILES_SETTING) ?? [];
+					const newAllProfilesSettings = allProfilesSettings.filter(s => s !== key);
+					await this.configurationService.updateValue(
+						APPLY_ALL_PROFILES_SETTING,
+						newAllProfilesSettings.length > 0 ? newAllProfilesSettings : undefined,
+						ConfigurationTarget.USER_LOCAL
+					);
+				}
+			})
 			.then(() => {
 				const query = this.searchWidget.getValue();
 				if (query.includes(`@${MODIFIED_SETTING_TAG}`)) {
@@ -1589,6 +1656,10 @@ export class SettingsEditor2 extends EditorPane {
 
 			this.refreshTOCTree();
 			this.renderTree(undefined, forceRefresh);
+			// If all-profiles filter is enabled, ensure tree is refiltered
+			if (this.viewState.allProfilesFilter && this.settingsTree) {
+				this.settingsTree.refilter();
+			}
 		} else {
 			this.settingsTreeModel.value = this.instantiationService.createInstance(SettingsTreeModel, this.viewState, this.workspaceTrustManagementService.isWorkspaceTrusted());
 			this.refreshModels(resolvedSettingsRoot);
@@ -1601,6 +1672,10 @@ export class SettingsEditor2 extends EditorPane {
 				this.refreshTOCTree();
 				this.refreshTree();
 				this.tocTree.collapseAll();
+				// If all-profiles filter is enabled, ensure tree is refiltered after initial render
+				if (this.viewState.allProfilesFilter && this.settingsTree) {
+					this.settingsTree.refilter();
+				}
 			}
 		}
 	}
