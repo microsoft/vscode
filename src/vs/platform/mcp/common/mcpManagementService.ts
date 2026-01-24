@@ -155,6 +155,15 @@ export abstract class AbstractCommonMcpManagementService extends Disposable impl
 					args.push('--');
 				}
 				break;
+			case RegistryType.MCPB:
+				// MCPB packages are handled specially in the Node-specific service
+				// The actual command and args are resolved after bundle extraction from manifest.json
+				// Store identifier and version as placeholders for later resolution
+				args.push(serverPackage.identifier);
+				if (serverPackage.version) {
+					args.push(serverPackage.version);
+				}
+				break;
 		}
 
 		if (serverPackage.packageArguments?.length) {
@@ -184,6 +193,7 @@ export abstract class AbstractCommonMcpManagementService extends Disposable impl
 			case RegistryType.DOCKER: return 'docker';
 			case RegistryType.PYTHON: return 'uvx';
 			case RegistryType.NUGET: return 'dnx';
+			case RegistryType.MCPB: return '__mcpb_pending__'; // Placeholder - actual command resolved after bundle extraction
 		}
 		return packageType;
 	}

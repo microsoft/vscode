@@ -103,6 +103,20 @@ export interface SseTransport {
 
 export type Transport = StdioTransport | StreamableHttpTransport | SseTransport;
 
+/**
+ * Manifest file (manifest.json) inside MCPB bundles that describes how to run the bundled MCP server.
+ */
+export interface IMcpBundleManifest {
+	/** Executable path relative to bundle root */
+	readonly command: string;
+	/** Command arguments */
+	readonly args?: readonly string[];
+	/** Environment variables */
+	readonly env?: Record<string, string>;
+	/** Working directory relative to bundle root */
+	readonly cwd?: string;
+}
+
 export interface IMcpServerPackage {
 	readonly registryType: RegistryType;
 	readonly identifier: string;

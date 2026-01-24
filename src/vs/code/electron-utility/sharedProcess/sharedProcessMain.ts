@@ -125,6 +125,7 @@ import { ExtensionGalleryManifestIPCService } from '../../../platform/extensionM
 import { ISharedWebContentExtractorService } from '../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { SharedWebContentExtractorService } from '../../../platform/webContentExtractor/node/sharedWebContentExtractorService.js';
 import { McpManagementService } from '../../../platform/mcp/node/mcpManagementService.js';
+import { IMcpBundleService, McpBundleService } from '../../../platform/mcp/node/mcpBundleService.js';
 import { IAllowedMcpServersService, IMcpGalleryService, IMcpManagementService } from '../../../platform/mcp/common/mcpManagement.js';
 import { IMcpResourceScannerService, McpResourceScannerService } from '../../../platform/mcp/common/mcpResourceScannerService.js';
 import { McpGalleryService } from '../../../platform/mcp/common/mcpGalleryService.js';
@@ -351,6 +352,7 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 		services.set(IMcpGalleryManifestService, new McpGalleryManifestIPCService(this.server));
 		services.set(IMcpGalleryService, new SyncDescriptor(McpGalleryService, undefined, true));
 		services.set(IMcpResourceScannerService, new SyncDescriptor(McpResourceScannerService, undefined, true));
+		services.set(IMcpBundleService, new SyncDescriptor(McpBundleService, undefined, true));
 		services.set(IMcpManagementService, new SyncDescriptor(McpManagementService, undefined, true));
 
 		// Extension Gallery
