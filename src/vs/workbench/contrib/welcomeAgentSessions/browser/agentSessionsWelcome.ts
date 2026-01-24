@@ -777,6 +777,7 @@ export class AgentSessionsWelcomePage extends EditorPane {
 	}
 
 	private revealMaximizedChat(): void {
+		this.commandService.executeCommand('workbench.action.closeActiveEditor');
 		this.commandService.executeCommand('workbench.action.chat.open');
 		const chatViewLocation = this.viewDescriptorService.getViewLocationById(ChatViewId);
 		if (chatViewLocation === ViewContainerLocation.AuxiliaryBar) {
