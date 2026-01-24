@@ -32,10 +32,10 @@ export interface ICommandLinePresenterResult {
 	/**
 	 * The language ID for syntax highlighting (e.g., 'python').
 	 */
-	language: string;
+	language?: string;
 
 	/**
 	 * A human-readable name for the language (e.g., 'Python') used in UI labels.
 	 */
-	languageDisplayName: string;
+	languageDisplayName?: string;
 }

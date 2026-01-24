@@ -42,6 +42,7 @@ import type { ICommandLinePresenter } from './commandLinePresenter/commandLinePr
 import { NodeCommandLinePresenter } from './commandLinePresenter/nodeCommandLinePresenter.js';
 import { PythonCommandLinePresenter } from './commandLinePresenter/pythonCommandLinePresenter.js';
 import { RubyCommandLinePresenter } from './commandLinePresenter/rubyCommandLinePresenter.js';
+import { SandboxedCommandLinePresenter } from './commandLinePresenter/sandboxedCommandLinePresenter.js';
 import { RunInTerminalToolTelemetry } from '../runInTerminalToolTelemetry.js';
 import { ShellIntegrationQuality, ToolTerminalCreator, type IToolTerminal } from '../toolTerminalCreator.js';
 import { TreeSitterCommandParser, TreeSitterCommandParserLanguage } from '../treeSitterCommandParser.js';
@@ -340,6 +341,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			this._register(this._instantiationService.createInstance(CommandLineAutoApproveAnalyzer, this._treeSitterCommandParser, this._telemetry, (message, args) => this._logService.info(`RunInTerminalTool#CommandLineAutoApproveAnalyzer: ${message}`, args))),
 		];
 		this._commandLinePresenters = [
+			this._instantiationService.createInstance(SandboxedCommandLinePresenter),
 			new NodeCommandLinePresenter(),
 			new PythonCommandLinePresenter(),
 			new RubyCommandLinePresenter(),
@@ -560,12 +562,13 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		// Check for presentation overrides (e.g., Python -c command extraction)
 		// Use the command after cd prefix extraction if available, since that's what's displayed in the editor
 		const commandForPresenter = extractedCd?.command ?? commandToDisplay;
+		let presenterInput = commandForPresenter;
 		for (const presenter of this._commandLinePresenters) {
-			const presenterResult = presenter.present({ commandLine: commandForPresenter, shell, os });
+			const presenterResult = presenter.present({ commandLine: presenterInput, shell, os });
 			if (presenterResult) {
 				toolSpecificData.presentationOverrides = {
 					commandLine: presenterResult.commandLine,
-					language: presenterResult.language,
+					language: presenterResult.language ?? undefined,
 				};
 				if (extractedCd && toolSpecificData.confirmation?.cwdLabel) {
 					confirmationTitle = args.isBackground
@@ -576,14 +579,18 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 						? localize('runInTerminal.presentationOverride.background', "Run `{0}` command in `{1}` in background?", presenterResult.languageDisplayName, shellType)
 						: localize('runInTerminal.presentationOverride', "Run `{0}` command in `{1}`?", presenterResult.languageDisplayName, shellType);
 				}
-				break;
+				// in sandboxed mode, the presenter just returns the original command with no language.
+				// the result should still be processed by other presenters.
+				if (presenterResult.language) {
+					break;
+				}
+				presenterInput = presenterResult.commandLine;
 			}
 		}
 
 		// If in sandbox mode, skip confirmation logic. In sandbox mode, commands are run in a restricted environment and explicit
 		// user confirmation is not required.
 		if (this._sandboxService.isEnabled()) {
-			// toolSpecificData.presentationOverrides = toolSpecificData.presentationOverrides ?? { commandLine: toolSpecificData.commandLine.original, language: '' };
 			toolSpecificData.autoApproveInfo = new MarkdownString(localize('autoApprove.sandbox', 'In sandbox mode'));
 			return {
 				toolSpecificData
