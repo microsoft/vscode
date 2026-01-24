@@ -660,6 +660,7 @@ export class AgentSessionsDataSource implements IAsyncDataSource<IAgentSessionsM
 
 const DAY_THRESHOLD = 24 * 60 * 60 * 1000;
 const WEEK_THRESHOLD = 7 * DAY_THRESHOLD;
+export const WINDOW_SESSION_START_TIME = Date.now();
 
 export const AgentSessionSectionLabels = {
 	[AgentSessionSection.InProgress]: localize('agentSessions.inProgressSection', "In Progress"),
@@ -733,9 +734,10 @@ export function groupAgentSessionsByPending(sessions: IAgentSession[]): Map<Agen
 			doneSessions.add(session);
 		} else {
 			if (
-				isSessionInProgressStatus(session.status) ||								// in-progress
-				!session.isRead() ||														// unread
-				(getAgentChangesSummary(session.changes) && hasValidDiff(session.changes))	// has changes
+				isSessionInProgressStatus(session.status) ||									// in-progress
+				!session.isRead() ||															// unread
+				(getAgentChangesSummary(session.changes) && hasValidDiff(session.changes)) ||	// has changes
+				sessionTime >= WINDOW_SESSION_START_TIME										// newer than this window session
 			) {
 				pendingSessions.add(session);
 			} else {
