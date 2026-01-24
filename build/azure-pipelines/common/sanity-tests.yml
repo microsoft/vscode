@@ -31,8 +31,8 @@ jobs:
     variables:
       TEST_DIR: $(Build.SourcesDirectory)/test/sanity
       LOG_FILE: $(TEST_DIR)/results.xml
-      DOCKER_CACHE_DIR: $(Pipeline.Workspace)/docker-cache
-      DOCKER_CACHE_FILE: $(DOCKER_CACHE_DIR)/${{ parameters.container }}.tar
+      DOCKER_CACHE_DIR: $(Pipeline.Workspace)/docker-cache/${{ parameters.container }}
+      DOCKER_CACHE_TEMP_DIR: $(Agent.TempDirectory)/docker-cache/${{ parameters.container }}
     steps:
       - checkout: self
         fetchDepth: 1
@@ -89,26 +89,15 @@ jobs:
             key: 'docker | "${{ parameters.container }}" | "${{ parameters.arch }}" | "$(Agent.OS)" | $(TEST_DIR)/containers/${{ parameters.container }}.dockerfile'
             path: $(DOCKER_CACHE_DIR)
             restoreKeys: docker | "${{ parameters.container }}" | "${{ parameters.arch }}" | "$(Agent.OS)"
-            cacheHitVar: DOCKER_CACHE_RESTORED
-          displayName: Cache Docker Image
+          displayName: Cache Docker Build
 
         - bash: |
-            if [ -f "$(DOCKER_CACHE_FILE)" ]; then
-              docker load -i "$(DOCKER_CACHE_FILE)"
-            fi
-          condition: eq(variables.DOCKER_CACHE_RESTORED, 'true')
-          displayName: Load Cached Docker Image
-
-        - bash: |
-            CACHE_FROM_ARG=""
-            if [ "$(DOCKER_CACHE_RESTORED)" = "true" ]; then
-              CACHE_FROM_ARG="--cache-from ${{ parameters.container }}"
-            fi
             $(TEST_DIR)/scripts/run-docker.sh \
               --container "${{ parameters.container }}" \
               --arch "${{ parameters.arch }}" \
               --base-image "${{ parameters.baseImage }}" \
-              $CACHE_FROM_ARG \
+              --cache-from-dir "$(DOCKER_CACHE_DIR)" \
+              --cache-to-dir "$(DOCKER_CACHE_TEMP_DIR)" \
               --quality "$(BUILD_QUALITY)" \
               --commit "$(BUILD_COMMIT)" \
               --test-results "/root/results.xml" \
@@ -117,10 +106,9 @@ jobs:
           displayName: Run Sanity Tests
 
         - bash: |
-            mkdir -p "$(DOCKER_CACHE_DIR)"
-            docker save -o "$(DOCKER_CACHE_FILE)" "${{ parameters.container }}"
-          condition: and(succeeded(), ne(variables.DOCKER_CACHE_RESTORED, 'true'))
-          displayName: Save Docker Image to Cache
+            rm -rf "$(DOCKER_CACHE_DIR)"
+            mv "$(DOCKER_CACHE_TEMP_DIR)" "$(DOCKER_CACHE_DIR)"
+          displayName: Commit Docker Cache
 
       - task: PublishTestResults@2
         inputs:
