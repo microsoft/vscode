@@ -26,6 +26,7 @@ export interface IChatSessionPickerDelegate {
 	getCurrentOption(): IChatSessionProviderOptionItem | undefined;
 	setOption(option: IChatSessionProviderOptionItem): void;
 	getOptionGroup(): IChatSessionProviderOptionGroup | undefined;
+	getSessionResource: () => URI | undefined;
 }
 
 /**
@@ -40,7 +41,6 @@ export class ChatSessionPickerActionItem extends ActionWidgetDropdownActionViewI
 		action: IAction,
 		initialState: { group: IChatSessionProviderOptionGroup; item: IChatSessionProviderOptionItem | undefined },
 		protected readonly delegate: IChatSessionPickerDelegate,
-		private readonly sessionResource: URI | undefined,
 		@IActionWidgetService actionWidgetService: IActionWidgetService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IKeybindingService keybindingService: IKeybindingService,
@@ -111,9 +111,10 @@ export class ChatSessionPickerActionItem extends ActionWidgetDropdownActionViewI
 		if (group.commands?.length) {
 			const addSeparator = actions.length > 0;
 			for (const command of group.commands) {
-				const args = command.arguments ?? [];
-				if (this.sessionResource) {
-					args.unshift(this.sessionResource);
+				const args = command.arguments ? [...command.arguments] : [];
+				const sessionResource = this.delegate.getSessionResource();
+				if (sessionResource) {
+					args.unshift(sessionResource);
 				}
 				actions.push({
 					id: command.command,
