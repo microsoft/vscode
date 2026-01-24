@@ -106,6 +106,7 @@ jobs:
           displayName: Run Sanity Tests
 
         - bash: |
+            mkdir -p "$(dirname "$(DOCKER_CACHE_DIR)")"
             rm -rf "$(DOCKER_CACHE_DIR)"
             mv "$(DOCKER_CACHE_TEMP_DIR)" "$(DOCKER_CACHE_DIR)"
           displayName: Commit Docker Cache
