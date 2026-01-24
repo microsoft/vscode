@@ -25,6 +25,7 @@ import { IWorkspaceIdentifier, WORKSPACE_EXTENSION } from '../../workspace/commo
 import { IWorkspacesManagementMainService } from './workspacesManagementMainService.js';
 import { ResourceMap } from '../../../base/common/map.js';
 import { IDialogMainService } from '../../dialogs/electron-main/dialogMainService.js';
+import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
 
 export const IWorkspacesHistoryMainService = createDecorator<IWorkspacesHistoryMainService>('workspacesHistoryMainService');
 
@@ -56,7 +57,8 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 		@IWorkspacesManagementMainService private readonly workspacesManagementMainService: IWorkspacesManagementMainService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@IApplicationStorageMainService private readonly applicationStorageMainService: IApplicationStorageMainService,
-		@IDialogMainService private readonly dialogMainService: IDialogMainService
+		@IDialogMainService private readonly dialogMainService: IDialogMainService,
+		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService
 	) {
 		super();
 
@@ -104,7 +106,8 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 					files.push(recent);
 
 					// Add to recent documents (Windows only, macOS later)
-					if (isWindows && recent.fileUri.scheme === Schemas.file) {
+					// Skip in portable mode to avoid leaving traces on the machine
+					if (isWindows && recent.fileUri.scheme === Schemas.file && !this.environmentMainService.isPortable) {
 						app.addRecentDocument(recent.fileUri.fsPath);
 					}
 				}
@@ -127,7 +130,8 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 		this._onDidChangeRecentlyOpened.fire();
 
 		// Schedule update to recent documents on macOS dock
-		if (isMacintosh) {
+		// Skip in portable mode to avoid leaving traces on the machine
+		if (isMacintosh && !this.environmentMainService.isPortable) {
 			this.macOSRecentDocumentsUpdater.trigger(() => this.updateMacOSRecentDocuments());
 		}
 	}
@@ -153,7 +157,8 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 			this._onDidChangeRecentlyOpened.fire();
 
 			// Schedule update to recent documents on macOS dock
-			if (isMacintosh) {
+			// Skip in portable mode to avoid leaving traces on the machine
+			if (isMacintosh && !this.environmentMainService.isPortable) {
 				this.macOSRecentDocumentsUpdater.trigger(() => this.updateMacOSRecentDocuments());
 			}
 		}
@@ -178,7 +183,11 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 		}
 
 		await this.saveRecentlyOpened({ workspaces: [], files: [] });
-		app.clearRecentDocuments();
+
+		// Skip in portable mode to avoid leaving traces on the machine
+		if (!this.environmentMainService.isPortable) {
+			app.clearRecentDocuments();
+		}
 
 		// Event
 		this._onDidChangeRecentlyOpened.fire();
@@ -309,6 +318,11 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 	private async handleWindowsJumpList(): Promise<void> {
 		if (!isWindows) {
 			return; // only on windows
+		}
+
+		// Skip in portable mode to avoid leaving traces on the machine
+		if (this.environmentMainService.isPortable) {
+			return;
 		}
 
 		await this.updateWindowsJumpList();

@@ -1483,6 +1483,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			machineId: this.machineId,
 			sqmId: this.sqmId,
 			devDeviceId: this.devDeviceId,
+			isPortable: this.environmentMainService.isPortable,
 
 			windowId: -1,	// Will be filled in by the window once loaded later
 
