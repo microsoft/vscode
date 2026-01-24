@@ -257,7 +257,6 @@ configurationRegistry.registerConfiguration({
 		},
 		'chat.editing.explainChanges.enabled': {
 			type: 'boolean',
-			scope: ConfigurationScope.APPLICATION,
 			markdownDescription: nls.localize('chat.editing.explainChanges.enabled', "Controls whether the Explain button in the Chat panel and the Explain Changes context menu in the SCM view are shown. This is an experimental feature."),
 			default: false,
 			tags: ['experimental'],
@@ -290,6 +289,15 @@ configurationRegistry.registerConfiguration({
 			],
 			description: nls.localize('chat.inlineReferences.style', "Controls how file and symbol references are displayed in chat messages."),
 			default: 'box'
+		},
+		[ChatConfiguration.EditorAssociations]: {
+			type: 'object',
+			markdownDescription: nls.localize('chat.editorAssociations', "Configure [glob patterns](https://aka.ms/vscode-glob-patterns) to editors for opening files from chat (for example `\"*.md\": \"vscode.markdown.preview.editor\"`)."),
+			additionalProperties: {
+				type: 'string'
+			},
+			default: {
+			}
 		},
 		'chat.notifyWindowOnConfirmation': {
 			type: 'boolean',
@@ -408,6 +416,11 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			default: true,
 			description: nls.localize('chat.viewSessions.enabled', "Show chat agent sessions when chat is empty or to the side when chat view is wide enough."),
+		},
+		[ChatConfiguration.ChatViewSessionsShowPendingOnly]: {
+			type: 'boolean',
+			default: true,
+			markdownDescription: nls.localize('chat.viewSessions.showPendingOnly', "When enabled, only show pending sessions in the stacked sessions view. When disabled, show all sessions. This setting requires {0} to be enabled.", '`#chat.viewSessions.enabled#`'),
 		},
 		[ChatConfiguration.ChatViewSessionsOrientation]: {
 			type: 'string',
@@ -1115,6 +1128,37 @@ class ChatAgentSettingContribution extends Disposable implements IWorkbenchContr
 
 
 /**
+ * Given builtin and custom modes, returns only the custom mode IDs that should have actions registered.
+ * Custom modes whose names conflict with builtin modes are excluded.
+ * If there are name collisions among custom modes, the later mode in the list wins.
+ */
+function getCustomModesWithUniqueNames(builtinModes: readonly IChatMode[], customModes: readonly IChatMode[]): Set<string> {
+	const customModeIds = new Set<string>();
+	const builtinNames = new Set(builtinModes.map(mode => mode.name.get()));
+	const customNameToId = new Map<string, string>();
+
+	for (const mode of customModes) {
+		const modeName = mode.name.get();
+
+		// Skip custom modes that conflict with builtin mode names
+		if (builtinNames.has(modeName)) {
+			continue;
+		}
+
+		// If there is a name collision among custom modes, the later one in the list wins
+		const existingId = customNameToId.get(modeName);
+		if (existingId) {
+			customModeIds.delete(existingId);
+		}
+
+		customNameToId.set(modeName, mode.id);
+		customModeIds.add(mode.id);
+	}
+
+	return customModeIds;
+}
+
+/**
  * Workbench contribution to register actions for custom chat modes via events
  */
 class ChatAgentActionsContribution extends Disposable implements IWorkbenchContribution {
@@ -1129,28 +1173,19 @@ class ChatAgentActionsContribution extends Disposable implements IWorkbenchContr
 		super();
 		this._store.add(this._modeActionDisposables);
 
-		// Register actions for existing custom modes
-		const { custom } = this.chatModeService.getModes();
+		// Register actions for existing custom modes (avoiding name collisions)
+		const { builtin, custom } = this.chatModeService.getModes();
+		const currentModeIds = getCustomModesWithUniqueNames(builtin, custom);
 		for (const mode of custom) {
-			this._registerModeAction(mode);
+			if (currentModeIds.has(mode.id)) {
+				this._registerModeAction(mode);
+			}
 		}
 
 		// Listen for custom mode changes by tracking snapshots
 		this._register(this.chatModeService.onDidChangeChatModes(() => {
-			const { custom } = this.chatModeService.getModes();
-			const currentModeIds = new Set<string>();
-			const currentModeNames = new Map<string, string>();
-
-			for (const mode of custom) {
-				const modeName = mode.name.get();
-				if (currentModeNames.has(modeName)) {
-					// If there is a name collision, the later one in the list wins
-					currentModeIds.delete(currentModeNames.get(modeName)!);
-				}
-
-				currentModeNames.set(modeName, mode.id);
-				currentModeIds.add(mode.id);
-			}
+			const { builtin, custom } = this.chatModeService.getModes();
+			const currentModeIds = getCustomModesWithUniqueNames(builtin, custom);
 
 			// Remove modes that no longer exist and those replaced by modes later in the list with same name
 			for (const modeId of this._modeActionDisposables.keys()) {

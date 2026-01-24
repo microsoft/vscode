@@ -392,6 +392,8 @@ export class ViewAllSessionChangesAction extends Action2 {
 				title: localize('chatEditing.allChanges.title', 'All Session Changes'),
 				resources,
 			});
+
+			session?.setRead(true);
 		}
 	}
 }

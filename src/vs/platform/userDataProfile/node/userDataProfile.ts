@@ -29,7 +29,11 @@ export class UserDataProfilesReadonlyService extends BaseUserDataProfilesService
 
 	protected override getStoredProfiles(): StoredUserDataProfile[] {
 		const storedProfilesState = this.stateReadonlyService.getItem<UriDto<StoredUserDataProfileState>[]>(UserDataProfilesReadonlyService.PROFILES_KEY, []);
-		return storedProfilesState.map(p => ({ ...p, location: isString(p.location) ? this.uriIdentityService.extUri.joinPath(this.profilesHome, p.location) : URI.revive(p.location) }));
+		return storedProfilesState.map(p => ({
+			...p,
+			location: isString(p.location) ? this.uriIdentityService.extUri.joinPath(this.profilesHome, p.location) : URI.revive(p.location),
+			templateResource: p.templateResource ? URI.revive(p.templateResource) : undefined
+		}));
 	}
 
 	protected override getStoredProfileAssociations(): StoredProfileAssociations {

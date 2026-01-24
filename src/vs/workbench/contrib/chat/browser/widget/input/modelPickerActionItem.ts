@@ -169,9 +169,10 @@ export class ModelPickerActionItem extends ChatInputPickerActionViewItem {
 		const modelPickerActionWidgetOptions: Omit<IActionWidgetDropdownOptions, 'label' | 'labelRenderer'> = {
 			actionProvider: modelDelegateToWidgetActionsProvider(delegate, telemetryService),
 			actionBarActionProvider: getModelPickerActionBarActionProvider(commandService, chatEntitlementService, productService),
+			reporter: { name: 'ChatModelPicker', includeOptions: true },
 		};
 
-		super(actionWithLabel, widgetOptions ?? modelPickerActionWidgetOptions, pickerOptions, actionWidgetService, keybindingService, contextKeyService);
+		super(actionWithLabel, widgetOptions ?? modelPickerActionWidgetOptions, pickerOptions, actionWidgetService, keybindingService, contextKeyService, telemetryService);
 		this.currentModel = delegate.currentModel.get();
 
 		// Listen for model changes from the delegate

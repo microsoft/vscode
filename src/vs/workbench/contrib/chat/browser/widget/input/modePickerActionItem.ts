@@ -23,6 +23,7 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
+import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatMode, IChatMode, IChatModeService } from '../../../common/chatModes.js';
 import { isOrganizationPromptFile } from '../../../common/promptSyntax/utils/promptsServiceUtils.js';
@@ -58,7 +59,8 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 		@IChatModeService chatModeService: IChatModeService,
 		@IMenuService private readonly menuService: IMenuService,
 		@ICommandService commandService: ICommandService,
-		@IProductService private readonly _productService: IProductService
+		@IProductService private readonly _productService: IProductService,
+		@ITelemetryService telemetryService: ITelemetryService
 	) {
 		// Get custom agent target (if filtering is enabled)
 		const customAgentTarget = delegate.customAgentTarget?.();
@@ -147,6 +149,8 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 			return mode.source.storage === PromptsStorage.local || mode.source.storage === PromptsStorage.user;
 		};
 
+		const isImplementMode = (mode: IChatMode) => isBuiltinImplementMode(mode, this._productService);
+
 		const actionProviderWithCustomAgentTarget: IActionWidgetDropdownActionProvider = {
 			getActions: () => {
 				const modes = chatModeService.getModes();
@@ -155,7 +159,6 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 					const target = mode.target?.get();
 					return isUserDefinedCustomAgent(mode) && (!target || target === customAgentTarget);
 				});
-
 				// Always include the default "Agent" option first
 				const checked = currentMode.id === ChatMode.Agent.id;
 				const defaultAction = { ...makeAction(ChatMode.Agent, ChatMode.Agent), checked };
@@ -175,8 +178,9 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 				const shouldHideEditMode = configurationService.getValue<boolean>(ChatConfiguration.EditModeHidden) && chatAgentService.hasToolsAgent && currentMode.id !== ChatMode.Edit.id;
 
 				const otherBuiltinModes = modes.builtin.filter(mode => mode.id !== ChatMode.Agent.id && !(shouldHideEditMode && mode.id === ChatMode.Edit.id));
+				// Filter out 'implement' mode from the dropdown - it's available for handoffs but not user-selectable
 				const customModes = groupBy(
-					modes.custom,
+					modes.custom.filter(mode => !isImplementMode(mode)),
 					mode => isModeConsideredBuiltIn(mode, this._productService) ? 'builtin' : 'custom');
 
 				const customBuiltinModeActions = customModes.builtin?.map(mode => {
@@ -204,10 +208,11 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 			actionBarActionProvider: {
 				getActions: () => this.getModePickerActionBarActions()
 			},
-			showItemKeybindings: true
+			showItemKeybindings: true,
+			reporter: { name: 'ChatModePicker', includeOptions: true },
 		};
 
-		super(action, modePickerActionWidgetOptions, pickerOptions, actionWidgetService, keybindingService, contextKeyService);
+		super(action, modePickerActionWidgetOptions, pickerOptions, actionWidgetService, keybindingService, contextKeyService, telemetryService);
 
 		// Listen to changes in the current mode and its properties
 		this._register(autorun(reader => {
@@ -243,7 +248,7 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 		if (icon) {
 			labelElements.push(...renderLabelWithIcons(`$(${icon.id})`));
 		}
-		if (!isDefault || !icon) {
+		if (!isDefault || !icon || !this.pickerOptions.onlyShowIconsForDefaultActions.get()) {
 			labelElements.push(dom.$('span.chat-input-picker-label', undefined, state));
 		}
 		labelElements.push(...renderLabelWithIcons(`$(chevron-down)`));
@@ -251,6 +256,21 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 		dom.reset(element, ...labelElements);
 		return null;
 	}
+}
+
+/**
+ * Returns true if the mode is the built-in 'implement' mode from the chat extension.
+ * This mode is hidden from the mode picker but available for handoffs.
+ */
+export function isBuiltinImplementMode(mode: IChatMode, productService: IProductService): boolean {
+	if (mode.name.get().toLowerCase() !== 'implement') {
+		return false;
+	}
+	if (mode.source?.storage !== PromptsStorage.extension) {
+		return false;
+	}
+	const chatExtensionId = productService.defaultChatAgent?.chatExtensionId;
+	return !!chatExtensionId && mode.source.extensionId.value === chatExtensionId;
 }
 
 function isModeConsideredBuiltIn(mode: IChatMode, productService: IProductService): boolean {
