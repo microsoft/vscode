@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { lookupKerberosAuthorization, nodeRequest } from '../../node/requestService.js';
+import { IRawRequestFunction, lookupKerberosAuthorization, nodeRequest } from '../../node/requestService.js';
 import { isWindows } from '../../../../base/common/platform.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
@@ -47,22 +47,24 @@ suite('Request Service', () => {
 
 	test('should retry GET requests on transient errors', async () => {
 		let attemptCount = 0;
-		const mockRawRequest = () => {
+		const mockRawRequest = (_opts: any, callback: Function) => {
 			attemptCount++;
+			const currentAttempt = attemptCount;
 			const mockReq: any = {
 				on: (event: string, handler: Function) => {
-					if (event === 'error' && attemptCount < 3) {
+					if (event === 'error' && currentAttempt < 3) {
 						setTimeout(() => handler(new Error('ECONNRESET')), 0);
 					}
 				},
-				end: () => { },
+				end: () => {
+					if (currentAttempt >= 3) {
+						// Succeed on third attempt by calling the response callback
+						setTimeout(() => callback({ statusCode: 200, headers: {}, on: () => { }, pipe: () => ({ on: () => { } }) }), 0);
+					}
+				},
 				abort: () => { },
 				setTimeout: () => { }
 			};
-			if (attemptCount >= 3) {
-				// Succeed on third attempt
-				setTimeout(() => mockReq.on('response', () => { }), 0);
-			}
 			return mockReq;
 		};
 
@@ -70,7 +72,7 @@ suite('Request Service', () => {
 			await nodeRequest({
 				url: 'http://example.com',
 				type: 'GET',
-				getRawRequest: mockRawRequest
+				getRawRequest: () => mockRawRequest as IRawRequestFunction
 			}, CancellationToken.None);
 		} catch (err) {
 			// Expected to eventually succeed or fail after retries
@@ -100,7 +102,7 @@ suite('Request Service', () => {
 			await nodeRequest({
 				url: 'http://example.com',
 				type: 'POST',
-				getRawRequest: mockRawRequest
+				getRawRequest: () => mockRawRequest
 			}, CancellationToken.None);
 			assert.fail('Should have thrown an error');
 		} catch (err) {
@@ -112,21 +114,23 @@ suite('Request Service', () => {
 
 	test('should retry HEAD requests on transient errors', async () => {
 		let attemptCount = 0;
-		const mockRawRequest = () => {
+		const mockRawRequest = (_opts: any, callback: Function) => {
 			attemptCount++;
+			const currentAttempt = attemptCount;
 			const mockReq: any = {
 				on: (event: string, handler: Function) => {
-					if (event === 'error' && attemptCount < 3) {
+					if (event === 'error' && currentAttempt < 3) {
 						setTimeout(() => handler(new Error('ETIMEDOUT')), 0);
 					}
 				},
-				end: () => { },
+				end: () => {
+					if (currentAttempt >= 3) {
+						setTimeout(() => callback({ statusCode: 200, headers: {}, on: () => { }, pipe: () => ({ on: () => { } }) }), 0);
+					}
+				},
 				abort: () => { },
 				setTimeout: () => { }
 			};
-			if (attemptCount >= 3) {
-				setTimeout(() => mockReq.on('response', () => { }), 0);
-			}
 			return mockReq;
 		};
 
@@ -134,7 +138,7 @@ suite('Request Service', () => {
 			await nodeRequest({
 				url: 'http://example.com',
 				type: 'HEAD',
-				getRawRequest: mockRawRequest
+				getRawRequest: () => mockRawRequest as IRawRequestFunction
 			}, CancellationToken.None);
 		} catch (err) {
 			// Expected to eventually succeed or fail after retries
@@ -145,21 +149,23 @@ suite('Request Service', () => {
 
 	test('should retry OPTIONS requests on transient errors', async () => {
 		let attemptCount = 0;
-		const mockRawRequest = () => {
+		const mockRawRequest = (_opts: any, callback: Function) => {
 			attemptCount++;
+			const currentAttempt = attemptCount;
 			const mockReq: any = {
 				on: (event: string, handler: Function) => {
-					if (event === 'error' && attemptCount < 3) {
+					if (event === 'error' && currentAttempt < 3) {
 						setTimeout(() => handler(new Error('ENETUNREACH')), 0);
 					}
 				},
-				end: () => { },
+				end: () => {
+					if (currentAttempt >= 3) {
+						setTimeout(() => callback({ statusCode: 200, headers: {}, on: () => { }, pipe: () => ({ on: () => { } }) }), 0);
+					}
+				},
 				abort: () => { },
 				setTimeout: () => { }
 			};
-			if (attemptCount >= 3) {
-				setTimeout(() => mockReq.on('response', () => { }), 0);
-			}
 			return mockReq;
 		};
 
@@ -167,7 +173,7 @@ suite('Request Service', () => {
 			await nodeRequest({
 				url: 'http://example.com',
 				type: 'OPTIONS',
-				getRawRequest: mockRawRequest
+				getRawRequest: () => mockRawRequest as IRawRequestFunction
 			}, CancellationToken.None);
 		} catch (err) {
 			// Expected to eventually succeed or fail after retries
@@ -197,7 +203,7 @@ suite('Request Service', () => {
 			await nodeRequest({
 				url: 'http://example.com',
 				type: 'DELETE',
-				getRawRequest: mockRawRequest
+				getRawRequest: () => mockRawRequest
 			}, CancellationToken.None);
 			assert.fail('Should have thrown an error');
 		} catch (err) {
@@ -228,7 +234,7 @@ suite('Request Service', () => {
 			await nodeRequest({
 				url: 'http://example.com',
 				type: 'PUT',
-				getRawRequest: mockRawRequest
+				getRawRequest: () => mockRawRequest
 			}, CancellationToken.None);
 			assert.fail('Should have thrown an error');
 		} catch (err) {
@@ -259,7 +265,7 @@ suite('Request Service', () => {
 			await nodeRequest({
 				url: 'http://example.com',
 				type: 'PATCH',
-				getRawRequest: mockRawRequest
+				getRawRequest: () => mockRawRequest
 			}, CancellationToken.None);
 			assert.fail('Should have thrown an error');
 		} catch (err) {
