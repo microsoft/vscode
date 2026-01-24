@@ -16,7 +16,7 @@ parameters:
     default: amd64
   - name: baseImage
     type: string
-    default: linux
+    default: ""
   - name: args
     type: string
     default: ""
