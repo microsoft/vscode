@@ -33,7 +33,6 @@ jobs:
       LOG_FILE: $(TEST_DIR)/results.xml
       DOCKER_CACHE_DIR: $(Pipeline.Workspace)/docker-cache
       DOCKER_CACHE_FILE: $(DOCKER_CACHE_DIR)/${{ parameters.container }}.tar
-      DOCKER_CACHE_TEMP_FILE: $(Agent.TempDirectory)/${{ parameters.container }}.tar
     steps:
       - checkout: self
         fetchDepth: 1
@@ -90,14 +89,12 @@ jobs:
             key: 'docker-v3 | "${{ parameters.container }}" | "${{ parameters.arch }}" | "$(Agent.OS)" | $(TEST_DIR)/containers/${{ parameters.container }}.dockerfile'
             path: $(DOCKER_CACHE_DIR)
             restoreKeys: docker-v3 | "${{ parameters.container }}" | "${{ parameters.arch }}" | "$(Agent.OS)"
+            cacheHitVar: DOCKER_CACHE_HIT
           displayName: Cache Docker Image
 
-        - bash: |
-            if [ -f "$(DOCKER_CACHE_FILE)" ]; then
-              echo "Loading cached Docker image"
-              docker load -i "$(DOCKER_CACHE_FILE)"
-            fi
-          displayName: Load Cached Docker Image
+        - bash: docker load -i "$(DOCKER_CACHE_FILE)"
+          condition: eq(variables.DOCKER_CACHE_HIT, 'true')
+          displayName: Load Docker Image
 
         - bash: |
             $(TEST_DIR)/scripts/run-docker.sh \
@@ -112,14 +109,10 @@ jobs:
           displayName: Run Sanity Tests
 
         - bash: |
-            mkdir -p "$(dirname "$(DOCKER_CACHE_TEMP_FILE)")"
-            docker save -o "$(DOCKER_CACHE_TEMP_FILE)" "${{ parameters.container }}"
-          displayName: Save Docker Image
-
-        - bash: |
             mkdir -p "$(DOCKER_CACHE_DIR)"
-            mv "$(DOCKER_CACHE_TEMP_FILE)" "$(DOCKER_CACHE_FILE)"
-          displayName: Commit Docker Cache
+            docker save -o "$(DOCKER_CACHE_FILE)" "${{ parameters.container }}"
+          condition: and(succeeded(), ne(variables.DOCKER_CACHE_HIT, 'true'))
+          displayName: Save Docker Image
 
       - task: PublishTestResults@2
         inputs:
