@@ -178,7 +178,7 @@ export const EditSources = {
 
 	codeAction: (data: { kind: string | undefined; providerId: ProviderId | undefined }) => createEditSource({ source: 'codeAction', $kind: data.kind, ...toProperties(data.providerId) } as const),
 
-	bulkEdit(data: { isRefactoring?: boolean, providerId?: ProviderId }) {
+	bulkEdit(data: { isRefactoring?: boolean; providerId?: ProviderId }) {
 		return createEditSource({
 			source: 'bulkEdit',
 			isRefactoring: data.isRefactoring,
