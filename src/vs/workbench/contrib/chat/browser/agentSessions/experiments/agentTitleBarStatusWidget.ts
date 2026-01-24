@@ -45,6 +45,7 @@ import { mainWindow } from '../../../../../../base/browser/window.js';
 import { LayoutSettings } from '../../../../../services/layout/browser/layoutService.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
+import { IChatWidgetService } from '../../chat.js';
 
 // Action IDs
 const TOGGLE_CHAT_ACTION_ID = 'workbench.action.chat.toggle';
@@ -108,6 +109,7 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 		@IStorageService private readonly storageService: IStorageService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
+		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 	) {
 		super(undefined, action, options);
 
@@ -170,6 +172,15 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 			this.chatEntitlementService.onDidChangeAnonymous
 		)(() => {
 			this._lastRenderState = undefined; // Force re-render
+			this._render();
+		}));
+
+		// Re-render when chat widgets are added or backgrounded to update active/unread session counts
+		this._register(this.chatWidgetService.onDidAddWidget(() => {
+			this._render();
+		}));
+
+		this._register(this.chatWidgetService.onDidBackgroundSession(() => {
 			this._render();
 		}));
 	}
@@ -294,9 +305,8 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 			? sessions.filter(s => !excludedProviders.includes(s.providerType))
 			: sessions;
 
-		const activeSessions = filteredSessions.filter(s => isSessionInProgressStatus(s.status) && !s.isArchived());
-		const unreadSessions = filteredSessions.filter(s => !s.isRead());
-		// Sessions that need user attention (approval/confirmation/input)
+		const activeSessions = filteredSessions.filter(s => isSessionInProgressStatus(s.status) && !s.isArchived() && !this.chatWidgetService.getWidgetBySessionResource(s.resource));
+		const unreadSessions = filteredSessions.filter(s => !s.isRead() && !this.chatWidgetService.getWidgetBySessionResource(s.resource));
 		const attentionNeededSessions = filteredSessions.filter(s => s.status === AgentSessionStatus.NeedsInput);
 
 		return {
