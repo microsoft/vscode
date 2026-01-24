@@ -184,7 +184,7 @@ suite('McpBundleService', () => {
 	});
 
 	suite('readManifest', () => {
-		test('should parse valid manifest.json manifest', async () => {
+		test('should parse valid manifest.json file', async () => {
 			const manifest = JSON.stringify({
 				command: './bin/server',
 				args: ['--port', '8080'],
