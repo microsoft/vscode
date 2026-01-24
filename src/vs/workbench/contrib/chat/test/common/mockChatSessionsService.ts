@@ -12,7 +12,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { IChatAgentAttachmentCapabilities } from '../../common/participants/chatAgents.js';
 import { IChatModel } from '../../common/model/chatModel.js';
 import { IChatService } from '../../common/chatService/chatService.js';
-import { IChatSession, IChatSessionContentProvider, IChatSessionItem, IChatSessionItemProvider, IChatSessionProviderOptionGroup, IChatSessionsExtensionPoint, IChatSessionsService, SessionOptionsChangedCallback } from '../../common/chatSessionsService.js';
+import { IChatSession, IChatSessionContentProvider, IChatSessionItem, IChatSessionItemProvider, IChatSessionProviderOptionGroup, IChatSessionsExtensionPoint, IChatSessionsService } from '../../common/chatSessionsService.js';
 
 export class MockChatSessionsService implements IChatSessionsService {
 	_serviceBrand: undefined;
@@ -36,6 +36,9 @@ export class MockChatSessionsService implements IChatSessionsService {
 
 	private readonly _onDidChangeOptionGroups = new Emitter<string>();
 	readonly onDidChangeOptionGroups = this._onDidChangeOptionGroups.event;
+
+	private readonly _onRequestNotifyExtension = new Emitter<{ sessionResource: URI; updates: ReadonlyArray<{ optionId: string; value: string }> }>();
+	readonly onRequestNotifyExtension = this._onRequestNotifyExtension.event;
 
 	private sessionItemProviders = new Map<string, IChatSessionItemProvider>();
 	private contentProviders = new Map<string, IChatSessionContentProvider>();
@@ -160,14 +163,8 @@ export class MockChatSessionsService implements IChatSessionsService {
 		}
 	}
 
-	private optionsChangeCallback?: SessionOptionsChangedCallback;
-
-	setOptionsChangeCallback(callback: SessionOptionsChangedCallback): void {
-		this.optionsChangeCallback = callback;
-	}
-
 	async notifySessionOptionsChange(sessionResource: URI, updates: ReadonlyArray<{ optionId: string; value: string }>): Promise<void> {
-		await this.optionsChangeCallback?.(sessionResource, updates);
+		this._onRequestNotifyExtension.fire({ sessionResource, updates });
 	}
 
 	notifySessionItemsChanged(chatSessionType: string): void {

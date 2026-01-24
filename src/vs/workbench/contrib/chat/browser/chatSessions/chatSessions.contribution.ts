@@ -31,7 +31,7 @@ import { ExtensionsRegistry } from '../../../../services/extensions/common/exten
 import { ChatEditorInput } from '../widgetHosts/editor/chatEditorInput.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentData, IChatAgentService } from '../../common/participants/chatAgents.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { IChatSession, IChatSessionContentProvider, IChatSessionItem, IChatSessionItemProvider, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsExtensionPoint, IChatSessionsService, isSessionInProgressStatus, SessionOptionsChangedCallback } from '../../common/chatSessionsService.js';
+import { IChatSession, IChatSessionContentProvider, IChatSessionItem, IChatSessionItemProvider, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsExtensionPoint, IChatSessionsService, isSessionInProgressStatus } from '../../common/chatSessionsService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { IChatEditorOptions } from '../widgetHosts/editor/chatEditor.js';
@@ -277,6 +277,8 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	public get onDidChangeSessionOptions() { return this._onDidChangeSessionOptions.event; }
 	private readonly _onDidChangeOptionGroups = this._register(new Emitter<string>());
 	public get onDidChangeOptionGroups() { return this._onDidChangeOptionGroups.event; }
+	private readonly _onRequestNotifyExtension = this._register(new Emitter<{ sessionResource: URI; updates: ReadonlyArray<{ optionId: string; value: string | IChatSessionProviderOptionItem }> }>());
+	public get onRequestNotifyExtension() { return this._onRequestNotifyExtension.event; }
 
 	private readonly inProgressMap: Map<string, number> = new Map();
 	private readonly _sessionTypeOptions: Map<string, IChatSessionProviderOptionGroup[]> = new Map();
@@ -1030,15 +1032,6 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		return this._sessionTypeOptions.get(chatSessionType);
 	}
 
-	private _optionsChangeCallback?: SessionOptionsChangedCallback;
-
-	/**
-	 * Set the callback for notifying extensions about option changes
-	 */
-	public setOptionsChangeCallback(callback: SessionOptionsChangedCallback): void {
-		this._optionsChangeCallback = callback;
-	}
-
 	/**
 	 * Notify extension about option changes for a session
 	 */
@@ -1046,9 +1039,8 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		if (!updates.length) {
 			return;
 		}
-		if (this._optionsChangeCallback) {
-			await this._optionsChangeCallback(sessionResource, updates);
-		}
+		// Fire event to notify MainThreadChatSessions (which forwards to extension host)
+		this._onRequestNotifyExtension.fire({ sessionResource, updates });
 		for (const u of updates) {
 			this.setSessionOption(sessionResource, u.optionId, u.value);
 		}
