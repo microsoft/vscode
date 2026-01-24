@@ -30,6 +30,7 @@ import { IChatRequestVariableEntry, IDiagnosticVariableEntryFilterData, IPromptF
 import { basename } from '../../../base/common/resources.js';
 import { Diagnostic } from './extHostTypeConverters.js';
 import { SymbolKind, SymbolKinds } from '../../../editor/common/languages.js';
+import * as objects from '../../../base/common/objects.js';
 
 type ChatSessionTiming = vscode.ChatSessionItem['timing'];
 
@@ -160,7 +161,7 @@ class ChatSessionItemImpl implements vscode.ChatSessionItem {
 	}
 
 	set metadata(value: { readonly [key: string]: unknown } | undefined) {
-		if (this.#metadata !== value) {
+		if (!objects.equals(this.#metadata, value)) {
 			this.#metadata = value;
 			this.#onChanged();
 		}
