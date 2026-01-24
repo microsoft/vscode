@@ -237,6 +237,24 @@ MenuRegistry.appendMenuItem(MenuId.CommandCenter, {
 	order: 10002 // to the right of the chat button
 });
 
+// Add to the global title bar if command center is disabled
+MenuRegistry.appendMenuItem(MenuId.TitleBar, {
+	submenu: MenuId.ChatTitleBarMenu,
+	title: localize('title4', "Chat"),
+	group: 'navigation',
+	icon: Codicon.chatSparkle,
+	when: ContextKeyExpr.and(
+		ChatContextKeys.supported,
+		ContextKeyExpr.and(
+			ChatContextKeys.Setup.hidden.negate(),
+			ChatContextKeys.Setup.disabled.negate()
+		),
+		ContextKeyExpr.has(`config.${ChatConfiguration.AgentStatusEnabled}`),
+		ContextKeyExpr.has('config.window.commandCenter').negate(),
+	),
+	order: 1
+});
+
 // Register a placeholder action to the submenu so it appears (required for submenus)
 MenuRegistry.appendMenuItem(MenuId.AgentsTitleBarControlMenu, {
 	command: {
