@@ -325,7 +325,6 @@ async function runNewChatAction(
 	}
 
 	widget.attachmentModel.clear(true);
-	widget.input.relatedFiles?.clear();
 	widget.focusInput();
 
 	accessibilityService.alert(localize('newChat', "New chat"));
