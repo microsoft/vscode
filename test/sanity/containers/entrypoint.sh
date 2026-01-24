@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 set -e
 
 if command -v Xvfb > /dev/null 2>&1; then
