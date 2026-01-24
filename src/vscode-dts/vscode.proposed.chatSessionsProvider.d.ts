@@ -97,7 +97,7 @@ declare module 'vscode' {
 		 *
 		 * This is also called on first load to get the initial set of items.
 		 */
-		refreshHandler: () => Thenable<void>;
+		refreshHandler: (token: CancellationToken) => Thenable<void>;
 
 		/**
 		 * Fired when an item's archived state changes.

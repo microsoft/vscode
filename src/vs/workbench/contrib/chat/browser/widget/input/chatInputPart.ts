@@ -63,7 +63,6 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { ServiceCollection } from '../../../../../../platform/instantiation/common/serviceCollection.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
-import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { WorkbenchList } from '../../../../../../platform/list/browser/listService.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { ObservableMemento, observableMemento } from '../../../../../../platform/observable/common/observableMemento.js';
@@ -119,7 +118,7 @@ import { IChatInputPickerOptions } from './chatInputPickerActionItem.js';
 import { ChatSelectedTools } from './chatSelectedTools.js';
 import { DelegationSessionPickerActionItem } from './delegationSessionPickerActionItem.js';
 import { IModelPickerDelegate, ModelPickerActionItem } from './modelPickerActionItem.js';
-import { IModePickerDelegate, isBuiltinImplementMode, ModePickerActionItem } from './modePickerActionItem.js';
+import { IModePickerDelegate, ModePickerActionItem } from './modePickerActionItem.js';
 import { SessionTypePickerActionItem } from './sessionTargetPickerActionItem.js';
 import { WorkspacePickerActionItem } from './workspacePickerActionItem.js';
 
@@ -476,7 +475,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		@IChatContextService private readonly chatContextService: IChatContextService,
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
-		@IProductService private readonly productService: IProductService,
 	) {
 		super();
 
@@ -629,19 +627,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			const model = mode.model?.read(r);
 			if (model) {
 				this.switchModelByQualifiedName(model);
-			} else {
-				// Check for implementation agent model override setting
-				if (isBuiltinImplementMode(mode, this.productService)) {
-					const implementModel = this.configurationService.getValue<string>(ChatConfiguration.ImplementationAgentModel);
-					if (implementModel && implementModel.length > 0) {
-						const success = this.switchModelByQualifiedName(implementModel);
-						if (success) {
-							this.logService.debug(`[ChatInputPart] Applied chat.implementationAgentModel setting: '${implementModel}'`);
-						} else {
-							this.logService.warn(`chat.implementationAgentModel setting value '${implementModel}' did not match any available model. Defaulting to currently selected model.`);
-						}
-					}
-				}
 			}
 		}));
 
@@ -744,6 +729,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this.setCurrentLanguageModel(model);
 			return true;
 		}
+		this.logService.warn(`[chat] Model "${qualifiedModelName}" not found. Use format "<name> (<vendor>)", e.g. "GPT-4o (copilot)".`);
 		return false;
 	}
 
@@ -1462,13 +1448,17 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}
 		}
 
-		// Step 3: Filter to visible groups (has items AND passes `when` clause)
+		// Step 3: Filter to visible groups (has items AND passes `when` clause AND session has option configured)
 		const visibleGroupIds = new Set<string>();
 		for (const optionGroup of optionGroups) {
 			const hasItems = optionGroup.items.length > 0 || (optionGroup.commands || []).length > 0;
 			const passesWhenClause = this.evaluateOptionGroupVisibility(optionGroup);
 
-			if (hasItems && passesWhenClause) {
+			// Only show picker if the session has this option configured once a real session exists.
+			// In the welcome view (no `ctx` yet), treat groups as eligible so they can be rendered.
+			const sessionHasOption = !ctx || this.chatSessionsService.getSessionOption(ctx.chatSessionResource, optionGroup.id) !== undefined;
+
+			if (hasItems && passesWhenClause && sessionHasOption) {
 				visibleGroupIds.add(optionGroup.id);
 			}
 		}
@@ -1576,7 +1566,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	/**
 	 * Get the current option for a specific option group.
-	 * If no option is currently set, initializes with the first item as default.
+	 * Returns undefined if the session doesn't have this option configured.
 	 */
 	private getCurrentOptionForGroup(optionGroupId: string): IChatSessionProviderOptionItem | undefined {
 		const sessionResource = this._widget?.viewModel?.model.sessionResource;
@@ -1585,6 +1575,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 		const ctx = this.chatService.getChatSessionFromInternalUri(sessionResource);
 		if (!ctx) {
+			return;
+		}
+
+		// Only return an option if the session has it configured
+		if (this.chatSessionsService.getSessionOption(ctx.chatSessionResource, optionGroupId) === undefined) {
 			return;
 		}
 

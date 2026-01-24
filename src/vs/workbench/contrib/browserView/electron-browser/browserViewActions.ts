@@ -11,7 +11,7 @@ import { KeybindingWeight } from '../../../../platform/keybinding/common/keybind
 import { KeyMod, KeyCode } from '../../../../base/common/keyCodes.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { BrowserEditor, CONTEXT_BROWSER_CAN_GO_BACK, CONTEXT_BROWSER_CAN_GO_FORWARD, CONTEXT_BROWSER_DEVTOOLS_OPEN, CONTEXT_BROWSER_FOCUSED, CONTEXT_BROWSER_STORAGE_SCOPE, CONTEXT_BROWSER_ELEMENT_SELECTION_ACTIVE } from './browserEditor.js';
+import { BrowserEditor, CONTEXT_BROWSER_CAN_GO_BACK, CONTEXT_BROWSER_CAN_GO_FORWARD, CONTEXT_BROWSER_DEVTOOLS_OPEN, CONTEXT_BROWSER_FOCUSED, CONTEXT_BROWSER_STORAGE_SCOPE, CONTEXT_BROWSER_ELEMENT_SELECTION_ACTIVE, CONTEXT_BROWSER_FIND_WIDGET_FOCUSED, CONTEXT_BROWSER_FIND_WIDGET_VISIBLE } from './browserEditor.js';
 import { BrowserViewUri } from '../../../../platform/browserView/common/browserViewUri.js';
 import { IBrowserViewWorkbenchService } from '../common/browserView.js';
 import { BrowserViewStorageScope } from '../../../../platform/browserView/common/browserView.js';
@@ -226,7 +226,7 @@ class OpenInExternalBrowserAction extends Action2 {
 			f1: false,
 			menu: {
 				id: MenuId.BrowserActionsToolbar,
-				group: '2_export',
+				group: '2_page',
 				order: 1
 			}
 		});
@@ -317,6 +317,122 @@ class OpenBrowserSettingsAction extends Action2 {
 	}
 }
 
+// Find actions
+
+class ShowBrowserFindAction extends Action2 {
+	static readonly ID = 'workbench.action.browser.showFind';
+
+	constructor() {
+		super({
+			id: ShowBrowserFindAction.ID,
+			title: localize2('browser.showFindAction', 'Find in Page'),
+			category: BrowserCategory,
+			f1: false,
+			menu: {
+				id: MenuId.BrowserActionsToolbar,
+				group: '2_page',
+				order: 2,
+			},
+			keybinding: {
+				when: BROWSER_EDITOR_ACTIVE,
+				weight: KeybindingWeight.EditorContrib,
+				primary: KeyMod.CtrlCmd | KeyCode.KeyF
+			}
+		});
+	}
+
+	run(accessor: ServicesAccessor, browserEditor = accessor.get(IEditorService).activeEditorPane): void {
+		if (browserEditor instanceof BrowserEditor) {
+			browserEditor.showFind();
+		}
+	}
+}
+
+class HideBrowserFindAction extends Action2 {
+	static readonly ID = 'workbench.action.browser.hideFind';
+
+	constructor() {
+		super({
+			id: HideBrowserFindAction.ID,
+			title: localize2('browser.hideFindAction', 'Close Find Widget'),
+			category: BrowserCategory,
+			f1: false,
+			keybinding: {
+				when: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_FIND_WIDGET_VISIBLE),
+				weight: KeybindingWeight.EditorContrib + 5,
+				primary: KeyCode.Escape
+			}
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		const browserEditor = accessor.get(IEditorService).activeEditorPane;
+		if (browserEditor instanceof BrowserEditor) {
+			browserEditor.hideFind();
+		}
+	}
+}
+
+class BrowserFindNextAction extends Action2 {
+	static readonly ID = 'workbench.action.browser.findNext';
+
+	constructor() {
+		super({
+			id: BrowserFindNextAction.ID,
+			title: localize2('browser.findNextAction', 'Find Next'),
+			category: BrowserCategory,
+			f1: false,
+			keybinding: [{
+				when: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_FIND_WIDGET_FOCUSED),
+				weight: KeybindingWeight.EditorContrib,
+				primary: KeyCode.Enter
+			}, {
+				when: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_FIND_WIDGET_VISIBLE),
+				weight: KeybindingWeight.EditorContrib,
+				primary: KeyCode.F3,
+				mac: { primary: KeyMod.CtrlCmd | KeyCode.KeyG }
+			}]
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		const browserEditor = accessor.get(IEditorService).activeEditorPane;
+		if (browserEditor instanceof BrowserEditor) {
+			browserEditor.findNext();
+		}
+	}
+}
+
+class BrowserFindPreviousAction extends Action2 {
+	static readonly ID = 'workbench.action.browser.findPrevious';
+
+	constructor() {
+		super({
+			id: BrowserFindPreviousAction.ID,
+			title: localize2('browser.findPreviousAction', 'Find Previous'),
+			category: BrowserCategory,
+			f1: false,
+			keybinding: [{
+				when: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_FIND_WIDGET_FOCUSED),
+				weight: KeybindingWeight.EditorContrib,
+				primary: KeyMod.Shift | KeyCode.Enter
+			}, {
+				when: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_FIND_WIDGET_VISIBLE),
+				weight: KeybindingWeight.EditorContrib,
+				primary: KeyMod.Shift | KeyCode.F3,
+				mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyG }
+			}]
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		const browserEditor = accessor.get(IEditorService).activeEditorPane;
+		if (browserEditor instanceof BrowserEditor) {
+			browserEditor.findPrevious();
+		}
+	}
+}
+
 // Register actions
 registerAction2(OpenIntegratedBrowserAction);
 registerAction2(GoBackAction);
@@ -328,3 +444,7 @@ registerAction2(OpenInExternalBrowserAction);
 registerAction2(ClearGlobalBrowserStorageAction);
 registerAction2(ClearWorkspaceBrowserStorageAction);
 registerAction2(OpenBrowserSettingsAction);
+registerAction2(ShowBrowserFindAction);
+registerAction2(HideBrowserFindAction);
+registerAction2(BrowserFindNextAction);
+registerAction2(BrowserFindPreviousAction);

@@ -83,7 +83,9 @@ async function checkCopilotChatCompatibility(): Promise<void> {
 	} catch (error) {
 		throw new Error(`Failed to load or parse product.json: ${error}`);
 	}
-	const productAllowlistedProposals = productJson?.extensionEnabledApiProposals?.[extensionId];
+	const extensionEnabledApiProposals = productJson?.extensionEnabledApiProposals;
+	const extensionIdKey = extensionEnabledApiProposals ? Object.keys(extensionEnabledApiProposals).find(key => key.toLowerCase() === extensionId.toLowerCase()) : undefined;
+	const productAllowlistedProposals = extensionIdKey ? extensionEnabledApiProposals[extensionIdKey] : undefined;
 
 	if (productAllowlistedProposals) {
 		console.log(`Product.json allowlisted proposals for ${extensionId}:`);

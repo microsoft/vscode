@@ -30,11 +30,13 @@ import { BrowserOverlayManager, BrowserOverlayType, IBrowserOverlayInfo } from '
 import { getZoomFactor, onDidChangeZoomLevel } from '../../../../base/browser/browser.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Lazy } from '../../../../base/common/lazy.js';
 import { WorkbenchHoverDelegate } from '../../../../platform/hover/browser/hover.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { IBrowserElementsService } from '../../../services/browserElements/browser/browserElementsService.js';
 import { IChatWidgetService } from '../../chat/browser/chat.js';
+import { BrowserFindWidget, CONTEXT_BROWSER_FIND_WIDGET_FOCUSED, CONTEXT_BROWSER_FIND_WIDGET_VISIBLE } from './browserFindWidget.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Codicon } from '../../../../base/common/codicons.js';
@@ -49,6 +51,9 @@ export const CONTEXT_BROWSER_FOCUSED = new RawContextKey<boolean>('browserFocuse
 export const CONTEXT_BROWSER_STORAGE_SCOPE = new RawContextKey<string>('browserStorageScope', '', localize('browser.storageScope', "The storage scope of the current browser view"));
 export const CONTEXT_BROWSER_DEVTOOLS_OPEN = new RawContextKey<boolean>('browserDevToolsOpen', false, localize('browser.devToolsOpen', "Whether developer tools are open for the current browser view"));
 export const CONTEXT_BROWSER_ELEMENT_SELECTION_ACTIVE = new RawContextKey<boolean>('browserElementSelectionActive', false, localize('browser.elementSelectionActive', "Whether element selection is currently active"));
+
+// Re-export find widget context keys for use in actions
+export { CONTEXT_BROWSER_FIND_WIDGET_FOCUSED, CONTEXT_BROWSER_FIND_WIDGET_VISIBLE };
 
 class BrowserNavigationBar extends Disposable {
 	private readonly _urlInput: HTMLInputElement;
@@ -168,6 +173,8 @@ export class BrowserEditor extends EditorPane {
 	private _overlayPauseDetail!: HTMLElement;
 	private _errorContainer!: HTMLElement;
 	private _welcomeContainer!: HTMLElement;
+	private _findWidgetContainer!: HTMLElement;
+	private _findWidget!: Lazy<BrowserFindWidget>;
 	private _canGoBackContext!: IContextKey<boolean>;
 	private _canGoForwardContext!: IContextKey<boolean>;
 	private _storageScopeContext!: IContextKey<string>;
@@ -224,6 +231,23 @@ export class BrowserEditor extends EditorPane {
 		this._navigationBar = this._register(new BrowserNavigationBar(this, toolbar, this.instantiationService, contextKeyService));
 
 		root.appendChild(toolbar);
+
+		// Create find widget container (between toolbar and browser container)
+		this._findWidgetContainer = $('.browser-find-widget-wrapper');
+		root.appendChild(this._findWidgetContainer);
+
+		// Create find widget (lazy initialization)
+		this._findWidget = new Lazy(() => {
+			const findWidget = this.instantiationService.createInstance(
+				BrowserFindWidget,
+				this._findWidgetContainer
+			);
+			if (this._model) {
+				findWidget.setModel(this._model);
+			}
+			return findWidget;
+		});
+		this._register(toDisposable(() => this._findWidget.rawValue?.dispose()));
 
 		// Create browser container (stub element for positioning)
 		this._browserContainer = $('.browser-container');
@@ -292,6 +316,9 @@ export class BrowserEditor extends EditorPane {
 
 		this._storageScopeContext.set(this._model.storageScope);
 		this._devToolsOpenContext.set(this._model.isDevToolsOpen);
+
+		// Update find widget with new model
+		this._findWidget.rawValue?.setModel(this._model);
 
 		// Clean up on input disposal
 		this._inputDisposables.add(input.onWillDispose(() => {
@@ -519,6 +546,35 @@ export class BrowserEditor extends EditorPane {
 	}
 
 	/**
+	 * Show the find widget
+	 */
+	showFind(): void {
+		this._findWidget.value.reveal();
+		this._findWidget.value.layout(this._findWidgetContainer.clientWidth);
+	}
+
+	/**
+	 * Hide the find widget
+	 */
+	hideFind(): void {
+		this._findWidget.rawValue?.hide();
+	}
+
+	/**
+	 * Find the next match
+	 */
+	findNext(): void {
+		this._findWidget.rawValue?.find(false);
+	}
+
+	/**
+	 * Find the previous match
+	 */
+	findPrevious(): void {
+		this._findWidget.rawValue?.find(true);
+	}
+
+	/**
 	 * Start element selection in the browser view, wait for a user selection, and add it to chat.
 	 */
 	async addElementToChat(): Promise<void> {
@@ -729,8 +785,9 @@ export class BrowserEditor extends EditorPane {
 		}
 	}
 
-	override layout(_dimension: Dimension, _position?: IDomPosition): void {
-		// no-op: layout is handled in layoutBrowserContainer()
+	override layout(dimension: Dimension, _position?: IDomPosition): void {
+		// Layout find widget if it exists
+		this._findWidget.rawValue?.layout(dimension.width);
 	}
 
 	/**
@@ -766,6 +823,10 @@ export class BrowserEditor extends EditorPane {
 			this._elementSelectionCts.dispose(true);
 			this._elementSelectionCts = undefined;
 		}
+
+		// Clear find widget model
+		this._findWidget.rawValue?.setModel(undefined);
+		this._findWidget.rawValue?.hide();
 
 		void this._model?.setVisible(false);
 		this._model = undefined;
