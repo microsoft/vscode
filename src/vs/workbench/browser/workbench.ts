@@ -26,6 +26,7 @@ import { NotificationService } from '../services/notification/common/notificatio
 import { NotificationsCenter } from './parts/notifications/notificationsCenter.js';
 import { NotificationsAlerts } from './parts/notifications/notificationsAlerts.js';
 import { NotificationsStatus } from './parts/notifications/notificationsStatus.js';
+import { AgentManagerPart } from './parts/agent/agentPart.js';
 import { registerNotificationCommands } from './parts/notifications/notificationsCommands.js';
 import { NotificationsToasts } from './parts/notifications/notificationsToasts.js';
 import { setARIAContainer } from '../../base/browser/ui/aria/aria.js';
@@ -351,7 +352,8 @@ export class Workbench extends Layout {
 			{ id: Parts.EDITOR_PART, role: 'main', classes: ['editor'], options: { restorePreviousState: this.willRestoreEditors() } },
 			{ id: Parts.PANEL_PART, role: 'none', classes: ['panel', 'basepanel', positionToString(this.getPanelPosition())] },
 			{ id: Parts.AUXILIARYBAR_PART, role: 'none', classes: ['auxiliarybar', 'basepanel', this.getSideBarPosition() === Position.LEFT ? 'right' : 'left'] },
-			{ id: Parts.STATUSBAR_PART, role: 'status', classes: ['statusbar'] }
+			{ id: Parts.STATUSBAR_PART, role: 'status', classes: ['statusbar'] },
+			{ id: Parts.AGENT_PART, role: 'none', classes: ['agent-part'] }
 		]) {
 			const partContainer = this.createPart(id, role, classes);
 

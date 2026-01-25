@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { mark } from '../../base/common/performance.js';
+import { ITelemetryService } from '../../platform/telemetry/common/telemetry.js';
+import { NullTelemetryService } from '../../platform/telemetry/common/telemetryUtils.js';
 import { domContentLoaded, detectFullscreen, getCookieValue, getWindow } from '../../base/browser/dom.js';
 import { assertReturnsDefined } from '../../base/common/types.js';
 import { ServiceCollection } from '../../platform/instantiation/common/serviceCollection.js';
@@ -273,6 +275,9 @@ export class BrowserMain extends Disposable {
 		// Product
 		const productService: IProductService = mixin({ _serviceBrand: undefined, ...product }, this.configuration.productConfiguration);
 		serviceCollection.set(IProductService, productService);
+
+		// Telemetry
+		serviceCollection.set(ITelemetryService, NullTelemetryService);
 
 		// Environment
 		const logsPath = URI.file(toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, '')).with({ scheme: 'vscode-log' });

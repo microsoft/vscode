@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../nls.js';
+import { ITelemetryService } from '../../platform/telemetry/common/telemetry.js';
+import { NullTelemetryService } from '../../platform/telemetry/common/telemetryUtils.js';
 import product from '../../platform/product/common/product.js';
 import { INativeWindowConfiguration, IWindowsConfiguration } from '../../platform/window/common/window.js';
 import { Workbench } from '../browser/workbench.js';
@@ -185,6 +187,9 @@ export class DesktopMain extends Disposable {
 		// Main Process
 		const mainProcessService = this._register(new ElectronIPCMainProcessService(this.configuration.windowId));
 		serviceCollection.set(IMainProcessService, mainProcessService);
+
+		// Telemetry
+		serviceCollection.set(ITelemetryService, NullTelemetryService);
 
 		// Product
 		const productService: IProductService = { _serviceBrand: undefined, ...product };

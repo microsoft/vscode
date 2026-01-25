@@ -40,6 +40,8 @@ import { DiffEditorInput } from '../common/editor/diffEditorInput.js';
 import { mark } from '../../base/common/performance.js';
 import { IExtensionService } from '../services/extensions/common/extensions.js';
 import { ILogService } from '../../platform/log/common/log.js';
+import { AgentManagerPart } from './parts/agent/agentPart.js';
+import { IInstantiationService } from '../../platform/instantiation/common/instantiation.js';
 import { DeferredPromise, Promises } from '../../base/common/async.js';
 import { IBannerService } from '../services/banner/browser/bannerService.js';
 import { IPaneCompositePartService } from '../services/panecomposite/browser/panecomposite.js';
@@ -272,6 +274,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private auxiliaryBarPartView!: ISerializableView;
 	private editorPartView!: ISerializableView;
 	private statusBarPartView!: ISerializableView;
+	private agentManagerPartView!: ISerializableView;
 
 	private environmentService!: IBrowserWorkbenchEnvironmentService;
 	private extensionService!: IExtensionService;
@@ -319,6 +322,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.auxiliaryWindowService = accessor.get(IAuxiliaryWindowService);
 
 		// Parts
+		this.registerPart(accessor.get(IInstantiationService).createInstance(AgentManagerPart));
 		this.editorService = accessor.get(IEditorService);
 		this.editorGroupService = accessor.get(IEditorGroupsService);
 		this.mainPartEditorService = this.editorService.createScoped(this.editorGroupService.mainPart, this._store);
@@ -1302,6 +1306,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				return !this.stateModel.getRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN);
 			case Parts.BANNER_PART:
 				return this.initialized ? this.workbenchGrid.isViewVisible(this.bannerPartView) : false;
+			case Parts.AGENT_PART:
+				return true;
 			default:
 				return false; // any other part cannot be hidden
 		}
@@ -1566,6 +1572,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		const auxiliaryBarPart = this.getPart(Parts.AUXILIARYBAR_PART);
 		const sideBar = this.getPart(Parts.SIDEBAR_PART);
 		const statusBar = this.getPart(Parts.STATUSBAR_PART);
+		const agentManagerPart = this.getPart(Parts.AGENT_PART);
 
 		// View references for all parts
 		this.titleBarPartView = titleBar;
@@ -1576,6 +1583,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.panelPartView = panelPart;
 		this.auxiliaryBarPartView = auxiliaryBarPart;
 		this.statusBarPartView = statusBar;
+		this.agentManagerPartView = agentManagerPart;
 
 		const viewMap = {
 			[Parts.ACTIVITYBAR_PART]: this.activityBarPartView,
@@ -1585,7 +1593,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			[Parts.PANEL_PART]: this.panelPartView,
 			[Parts.SIDEBAR_PART]: this.sideBarPartView,
 			[Parts.STATUSBAR_PART]: this.statusBarPartView,
-			[Parts.AUXILIARYBAR_PART]: this.auxiliaryBarPartView
+			[Parts.AUXILIARYBAR_PART]: this.auxiliaryBarPartView,
+			[Parts.AGENT_PART]: this.agentManagerPartView
 		};
 
 		const fromJSON = ({ type }: { type: Parts }) => viewMap[type];
@@ -1791,6 +1800,13 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 					}
 				}
 
+				break;
+			case Parts.AGENT_PART:
+				viewSize = this.workbenchGrid.getViewSize(this.agentManagerPartView);
+				this.workbenchGrid.resizeView(this.agentManagerPartView, {
+					width: viewSize.width + sizeChangePxWidth,
+					height: viewSize.height
+				});
 				break;
 			default:
 				return; // Cannot resize other parts
@@ -2603,13 +2619,27 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			visible: !this.stateModel.getRuntimeValue(LayoutStateKeys.PANEL_HIDDEN)
 		};
 
-		const middleSection: ISerializedNode[] = this.arrangeMiddleSectionNodes({
+		const agentManagerPartNode: ISerializedLeafNode = {
+			type: 'leaf',
+			data: { type: Parts.AGENT_PART },
+			size: 300, // Fixed width for Agent Part
+			visible: true
+		};
+
+		const nodes = {
 			activityBar: activityBarNode,
 			auxiliaryBar: auxiliaryBarNode,
-			editor: editorNode,
+			editor: {
+				type: 'branch' as const,
+				data: [editorNode, agentManagerPartNode],
+				size: 0, // Will be updated by arrangeEditorNodes
+				visible: editorNode.visible || agentManagerPartNode.visible
+			},
 			panel: panelNode,
 			sideBar: sideBarNode
-		}, width, middleSectionHeight);
+		};
+
+		const middleSection: ISerializedNode[] = this.arrangeMiddleSectionNodes(nodes, width, middleSectionHeight);
 
 		const result: ISerializedGrid = {
 			root: {
