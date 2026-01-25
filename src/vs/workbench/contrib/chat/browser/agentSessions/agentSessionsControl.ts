@@ -371,6 +371,10 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		this.sessionsList?.setSelection([]);
 	}
 
+	hasFocusOrSelection(): boolean {
+		return (this.sessionsList?.getFocus().length ?? 0) > 0 || (this.sessionsList?.getSelection().length ?? 0) > 0;
+	}
+
 	scrollToTop(): void {
 		if (this.sessionsList) {
 			this.sessionsList.scrollTop = 0;
@@ -383,14 +387,14 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		return focused.filter(e => isAgentSession(e));
 	}
 
-	reveal(sessionResource: URI): void {
+	reveal(sessionResource: URI): boolean {
 		if (!this.sessionsList) {
-			return;
+			return false;
 		}
 
 		const session = this.agentSessionsService.model.getSession(sessionResource);
 		if (!session || !this.sessionsList.hasNode(session)) {
-			return;
+			return false;
 		}
 
 		if (this.sessionsList.getRelativeTop(session) === null) {
@@ -399,5 +403,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 
 		this.sessionsList.setFocus([session]);
 		this.sessionsList.setSelection([session]);
+
+		return true;
 	}
 }

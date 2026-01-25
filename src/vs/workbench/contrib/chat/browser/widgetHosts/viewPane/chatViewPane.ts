@@ -596,6 +596,28 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 			const sessionResource = chatWidget.viewModel?.sessionResource;
 			if (sessionResource) {
+				const revealed = sessionsControl.reveal(sessionResource);
+				if (!revealed) {
+					// Session doesn't exist in the list yet (e.g., new untitled session),
+					// clear the selection so the list doesn't show stale selection
+					sessionsControl.clearFocus();
+				}
+			}
+		}));
+
+		// When sessions change (e.g., after first message in a new session)
+		// reveal it unless the user is interacting with the list already
+		this._register(this.agentSessionsService.model.onDidChangeSessions(() => {
+			if (this.sessionsViewerOrientation === AgentSessionsViewerOrientation.Stacked) {
+				return; // only reveal in side-by-side mode
+			}
+
+			if (sessionsControl.hasFocusOrSelection()) {
+				return; // do not reveal if user is interacting with sessions control
+			}
+
+			const sessionResource = chatWidget.viewModel?.sessionResource;
+			if (sessionResource) {
 				sessionsControl.reveal(sessionResource);
 			}
 		}));
