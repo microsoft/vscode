@@ -116,6 +116,7 @@ import { ExtHostWebviewViews } from './extHostWebviewView.js';
 import { IExtHostWindow } from './extHostWindow.js';
 import { IExtHostWorkspace } from './extHostWorkspace.js';
 import { ExtHostChatContext } from './extHostChatContext.js';
+import { StatusBarAlignment } from '../../services/statusbar/common/types.js';
 
 export interface IExtensionRegistries {
 	mine: ExtensionDescriptionRegistry;
@@ -831,14 +832,14 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			showSaveDialog(options) {
 				return extHostDialogs.showSaveDialog(options);
 			},
-			createStatusBarItem(alignmentOrId?: vscode.StatusBarAlignment | string, priorityOrAlignment?: number | vscode.StatusBarAlignment, priorityArg?: number): vscode.StatusBarItem {
+			createStatusBarItem(alignmentOrId?: vscode.StatusBarAlignment | string, priorityOrAlignment?: number | vscode.StatusBarAlignment | vscode.StatusBarEntryLocation, priorityArg?: number | vscode.StatusBarEntryLocation): vscode.StatusBarItem {
 				let id: string | undefined;
 				let alignment: number | undefined;
-				let priority: number | undefined;
+				let priority: number | undefined | vscode.StatusBarEntryLocation;
 
 				if (typeof alignmentOrId === 'string') {
 					id = alignmentOrId;
-					alignment = priorityOrAlignment;
+					alignment = priorityOrAlignment as number;
 					priority = priorityArg;
 				} else {
 					alignment = alignmentOrId;
@@ -1791,7 +1792,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			SnippetString: extHostTypes.SnippetString,
 			SourceBreakpoint: extHostTypes.SourceBreakpoint,
 			StandardTokenType: extHostTypes.StandardTokenType,
-			StatusBarAlignment: extHostTypes.StatusBarAlignment,
+			StatusBarAlignment: StatusBarAlignment,
 			SymbolInformation: extHostTypes.SymbolInformation,
 			SymbolKind: extHostTypes.SymbolKind,
 			SymbolTag: extHostTypes.SymbolTag,

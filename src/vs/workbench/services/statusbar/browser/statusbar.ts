@@ -11,6 +11,7 @@ import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { IManagedHoverTooltipHTMLElement, IManagedHoverTooltipMarkdownString } from '../../../../base/browser/ui/hover/hover.js';
 import { ColorIdentifier } from '../../../../platform/theme/common/colorRegistry.js';
 import { IAuxiliaryStatusbarPart, IStatusbarEntryContainer } from '../../../browser/parts/statusbar/statusbarPart.js';
+import { isStatusBarEntryLocation, IStatusBarEntryLocation, StatusBarAlignment } from '../common/types.js';
 
 export const IStatusbarService = createDecorator<IStatusbarService>('statusbarService');
 
@@ -35,42 +36,10 @@ export interface IStatusbarService extends IStatusbarEntryContainer {
 	createScoped(statusbarEntryContainer: IStatusbarEntryContainer, disposables: DisposableStore): IStatusbarService;
 }
 
-export const enum StatusbarAlignment {
-	LEFT,
-	RIGHT
-}
-
-export interface IStatusbarEntryLocation {
-
-	/**
-	 * The identifier and priority of another status bar
-	 * entry to position relative to. If the referenced
-	 * entry does not exist, the priority will be used.
-	 */
-	location: {
-		id: string;
-		priority: number;
-	};
-
-	/**
-	 * The alignment of the status bar entry relative
-	 * to the referenced entry.
-	 */
-	alignment: StatusbarAlignment;
-
-	/**
-	 * Whether to move the entry close to the location
-	 * so that it appears as if both this entry and
-	 * the location belong to each other.
-	 */
-	compact?: boolean;
-}
-
-export function isStatusbarEntryLocation(thing: unknown): thing is IStatusbarEntryLocation {
-	const candidate = thing as IStatusbarEntryLocation | undefined;
-
-	return typeof candidate?.location?.id === 'string' && typeof candidate.alignment === 'number';
-}
+export const StatusbarAlignment = {
+	LEFT: StatusBarAlignment.Left,
+	RIGHT: StatusBarAlignment.Right,
+};
 
 export interface IStatusbarEntryPriority {
 
@@ -83,7 +52,7 @@ export interface IStatusbarEntryPriority {
 	 *
 	 * May not be unique across all entries.
 	 */
-	readonly primary: number | IStatusbarEntryLocation;
+	readonly primary: number | IStatusBarEntryLocation;
 
 	/**
 	 * The secondary priority of the entry
@@ -98,7 +67,7 @@ export interface IStatusbarEntryPriority {
 export function isStatusbarEntryPriority(thing: unknown): thing is IStatusbarEntryPriority {
 	const candidate = thing as IStatusbarEntryPriority | undefined;
 
-	return (typeof candidate?.primary === 'number' || isStatusbarEntryLocation(candidate?.primary)) && typeof candidate?.secondary === 'number';
+	return (typeof candidate?.primary === 'number' || isStatusBarEntryLocation(candidate?.primary)) && typeof candidate?.secondary === 'number';
 }
 
 export const ShowTooltipCommand: Command = {

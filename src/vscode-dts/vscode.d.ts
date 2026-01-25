@@ -7538,6 +7538,42 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * StatusBar detail location.
+	 */
+	export interface StatusBarEntryLocation {
+
+		/**
+		 * The identifier and priority of another status bar
+		 * entry to position relative to. If the referenced
+		 * entry does not exist, the priority will be used.
+		 */
+		location: {
+			/**
+			 * status bar ID of the relative position target
+			 */
+			id: string;
+			/**
+			 * The Priority. Higher value means the item
+			 * should be shown more to the left.
+			 */
+			priority: number;
+		};
+
+		/**
+		 * The alignment of the status bar entry relative
+		 * to the referenced entry.
+		 */
+		alignment: StatusBarAlignment;
+
+		/**
+		 * Whether to move the entry close to the location
+		 * so that it appears as if both this entry and
+		 * the location belong to each other.
+		 */
+		compact?: boolean;
+	}
+
+	/**
 	 * A status bar item is a status bar contribution that can
 	 * show text and icons and run a command on click.
 	 */
@@ -11608,9 +11644,10 @@ declare module 'vscode' {
 		 * @param id The identifier of the item. Must be unique within the extension.
 		 * @param alignment The alignment of the item.
 		 * @param priority The priority of the item. Higher values mean the item should be shown more to the left.
+		 * 			or can be positioned relative to each other.
 		 * @returns A new status bar item.
 		 */
-		export function createStatusBarItem(id: string, alignment?: StatusBarAlignment, priority?: number): StatusBarItem;
+		export function createStatusBarItem(id: string, alignment?: StatusBarAlignment, priority?: number | StatusBarEntryLocation): StatusBarItem;
 
 		/**
 		 * Creates a status bar {@link StatusBarItem item}.
@@ -11618,9 +11655,10 @@ declare module 'vscode' {
 		 * @see {@link createStatusBarItem} for creating a status bar item with an identifier.
 		 * @param alignment The alignment of the item.
 		 * @param priority The priority of the item. Higher values mean the item should be shown more to the left.
+		 * 			or can be positioned relative to each other.
 		 * @returns A new status bar item.
 		 */
-		export function createStatusBarItem(alignment?: StatusBarAlignment, priority?: number): StatusBarItem;
+		export function createStatusBarItem(alignment?: StatusBarAlignment, priority?: number | StatusBarEntryLocation): StatusBarItem;
 
 		/**
 		 * Creates a {@link Terminal} with a backing shell process. The cwd of the terminal will be the workspace

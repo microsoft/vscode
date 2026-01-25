@@ -100,6 +100,7 @@ import { IExtHostDocumentSaveDelegate } from './extHostDocumentData.js';
 import { TerminalShellExecutionCommandLineConfidence } from './extHostTypes.js';
 import * as tasks from './shared/tasks.js';
 import { PromptsType } from '../../contrib/chat/common/promptSyntax/promptTypes.js';
+import { IStatusBarEntryLocation } from '../../services/statusbar/common/types.js';
 
 export type IconPathDto =
 	| UriComponents
@@ -778,7 +779,7 @@ export interface MainThreadQuickOpenShape extends IDisposable {
 }
 
 export interface MainThreadStatusBarShape extends IDisposable {
-	$setEntry(id: string, statusId: string, extensionId: string | undefined, statusName: string, text: string, tooltip: IMarkdownString | string | undefined, hasTooltipProvider: boolean, command: ICommandDto | undefined, color: string | ThemeColor | undefined, backgroundColor: string | ThemeColor | undefined, alignLeft: boolean, priority: number | undefined, accessibilityInformation: IAccessibilityInformation | undefined): void;
+	$setEntry(id: string, statusId: string, extensionId: string | undefined, statusName: string, text: string, tooltip: IMarkdownString | string | undefined, hasTooltipProvider: boolean, command: ICommandDto | undefined, color: string | ThemeColor | undefined, backgroundColor: string | ThemeColor | undefined, alignLeft: boolean, priority: number | undefined | IStatusBarEntryLocation, accessibilityInformation: IAccessibilityInformation | undefined): void;
 	$disposeEntry(id: string): void;
 }
 
