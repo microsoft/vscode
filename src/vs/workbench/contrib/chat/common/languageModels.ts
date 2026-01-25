@@ -911,7 +911,9 @@ export class LanguageModelsService implements ILanguageModelsService {
 				const propertySchema = schema.properties[property];
 				if (propertySchema && typeof propertySchema !== 'boolean' && propertySchema.defaultSnippets?.[0]) {
 					const snippet = propertySchema.defaultSnippets[0];
-					const bodyText = snippet.bodyText ?? JSON.stringify(snippet.body, null, '\t');
+					let bodyText = snippet.bodyText ?? JSON.stringify(snippet.body, null, '\t');
+					// Handle ^ prefix for raw values (numbers/booleans) - remove quotes around ^-prefixed values
+					bodyText = bodyText.replace(/"(\^[^"]*)"/g, (_, value) => value.substring(1));
 					return `"${property}": ${bodyText}`;
 				}
 			}
