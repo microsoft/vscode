@@ -117,8 +117,11 @@ export interface IAgentSessionsControl {
 
 	refresh(): void;
 	openFind(): void;
+
 	reveal(sessionResource: URI): boolean;
+
 	clearFocus(): void;
+	hasFocusOrSelection(): boolean;
 }
 
 export const agentSessionReadIndicatorForeground = registerColor(

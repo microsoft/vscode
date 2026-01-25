@@ -611,10 +611,12 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				return; // only reveal in side-by-side mode
 			}
 
+			if (sessionsControl.hasFocusOrSelection()) {
+				return; // do not reveal if user is interacting with sessions control
+			}
+
 			const sessionResource = chatWidget.viewModel?.sessionResource;
 			if (sessionResource) {
-				// Return value intentionally ignored - if reveal fails, the selection was already
-				// cleared when onDidChangeViewModel fired (which occurs before onDidChangeSessions)
 				sessionsControl.reveal(sessionResource);
 			}
 		}));
