@@ -11,7 +11,7 @@ import { isWindows, isLinux, isMacintosh, isWeb, isIOS } from '../../base/common
 import { EditorInputCapabilities, GroupIdentifier, isResourceEditorInput, IUntypedEditorInput, pathsToEditors } from '../common/editor.js';
 import { SidebarPart } from './parts/sidebar/sidebarPart.js';
 import { PanelPart } from './parts/panel/panelPart.js';
-import { Position, Parts, PartOpensMaximizedOptions, IWorkbenchLayoutService, positionFromString, positionToString, partOpensMaximizedFromString, PanelAlignment, ActivityBarPosition, LayoutSettings, MULTI_WINDOW_PARTS, SINGLE_WINDOW_PARTS, ZenModeSettings, EditorTabsMode, EditorActionsLocation, shouldShowCustomTitleBar, isHorizontal, isMultiWindowPart } from '../services/layout/browser/layoutService.js';
+import { Position, Parts, PartOpensMaximizedOptions, IWorkbenchLayoutService, positionFromString, positionToString, partOpensMaximizedFromString, PanelAlignment, ActivityBarPosition, LayoutSettings, MULTI_WINDOW_PARTS, SINGLE_WINDOW_PARTS, ZenModeSettings, EditorTabsMode, EditorActionsLocation, shouldShowCustomTitleBar, isHorizontal, isMultiWindowPart, IPartVisibilityChangeEvent } from '../services/layout/browser/layoutService.js';
 import { isTemporaryWorkspace, IWorkspaceContextService, WorkbenchState } from '../../platform/workspace/common/workspace.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../platform/storage/common/storage.js';
 import { IConfigurationChangeEvent, IConfigurationService, isConfigured } from '../../platform/configuration/common/configuration.js';
@@ -156,7 +156,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private readonly _onDidChangePanelPosition = this._register(new Emitter<string>());
 	readonly onDidChangePanelPosition = this._onDidChangePanelPosition.event;
 
-	private readonly _onDidChangePartVisibility = this._register(new Emitter<void>());
+	private readonly _onDidChangePartVisibility = this._register(new Emitter<IPartVisibilityChangeEvent>());
 	readonly onDidChangePartVisibility = this._onDidChangePartVisibility.event;
 
 	private readonly _onDidChangeNotificationsVisibility = this._register(new Emitter<boolean>());
@@ -383,9 +383,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			}));
 			this._register(this.editorGroupService.mainPart.onDidActivateGroup(showEditorIfHidden));
 
-			// Maybe maximize auxiliary bar when sidebar or panel visibility changes
-			this._register(this.onDidChangePartVisibility(() => {
-				maybeMaximizeAuxiliaryBar();
+			// Maybe maximize auxiliary bar when sidebar or panel hides
+			this._register(this.onDidChangePartVisibility(({ partId, visible }) => {
+				if (!visible && (partId === Parts.SIDEBAR_PART || partId === Parts.PANEL_PART)) {
+					maybeMaximizeAuxiliaryBar();
+				}
 			}));
 
 			// Revalidate center layout when active editor changes: diff editor quits centered mode
@@ -1632,7 +1634,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 					}
 				}
 
-				this._onDidChangePartVisibility.fire();
+				this._onDidChangePartVisibility.fire({ partId: part.getId(), visible });
 				this.handleContainerDidLayout(this.mainContainer, this._mainContainerDimension);
 			}));
 		}
