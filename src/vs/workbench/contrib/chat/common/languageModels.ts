@@ -849,7 +849,8 @@ export class LanguageModelsService implements ILanguageModelsService {
 				: await this._languageModelsConfigurationService.addLanguageModelsProviderGroup(languageModelProviderGroup);
 
 			if (vendor.configuration && this.canConfigure(configuration ?? {}, vendor.configuration)) {
-				await this._languageModelsConfigurationService.configureLanguageModels(saved.range);
+				const snippet = this.getSnippetForFirstUnconfiguredProperty(configuration ?? {}, vendor.configuration);
+				await this._languageModelsConfigurationService.configureLanguageModels({ group: saved, snippet });
 			}
 		} catch (error) {
 			if (isCancellationError(error)) {
@@ -899,6 +900,25 @@ export class LanguageModelsService implements ILanguageModelsService {
 			}
 		}
 		return false;
+	}
+
+	private getSnippetForFirstUnconfiguredProperty(configuration: IStringDictionary<unknown>, schema: IJSONSchema): string | undefined {
+		if (!schema.properties) {
+			return undefined;
+		}
+		for (const property of Object.keys(schema.properties)) {
+			if (configuration[property] === undefined) {
+				const propertySchema = schema.properties[property];
+				if (propertySchema && typeof propertySchema !== 'boolean' && propertySchema.defaultSnippets?.[0]) {
+					const snippet = propertySchema.defaultSnippets[0];
+					let bodyText = snippet.bodyText ?? JSON.stringify(snippet.body, null, '\t');
+					// Handle ^ prefix for raw values (numbers/booleans) - remove quotes around ^-prefixed values
+					bodyText = bodyText.replace(/"(\^[^"]*)"/g, (_, value) => value.substring(1));
+					return `"${property}": ${bodyText}`;
+				}
+			}
+		}
+		return undefined;
 	}
 
 	private async promptForName(languageModelProviderGroups: readonly ILanguageModelsProviderGroup[], vendor: IUserFriendlyLanguageModel, existing: ILanguageModelsProviderGroup | undefined): Promise<string | undefined> {
