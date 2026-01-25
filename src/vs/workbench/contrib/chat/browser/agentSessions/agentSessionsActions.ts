@@ -55,7 +55,7 @@ export class ShowAllAgentSessionsAction extends Action2 {
 			title: localize2('chat.showSessions.all', "All"),
 			toggled: ContextKeyExpr.and(
 				ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, true),
-				ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsShowPendingOnly}`, false)
+				ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsShowActiveOnly}`, false)
 			),
 			menu: {
 				id: showSessionsSubmenu,
@@ -69,19 +69,19 @@ export class ShowAllAgentSessionsAction extends Action2 {
 		const configurationService = accessor.get(IConfigurationService);
 
 		await configurationService.updateValue(ChatConfiguration.ChatViewSessionsEnabled, true);
-		await configurationService.updateValue(ChatConfiguration.ChatViewSessionsShowPendingOnly, false);
+		await configurationService.updateValue(ChatConfiguration.ChatViewSessionsShowActiveOnly, false);
 	}
 }
 
-export class ShowPendingAgentSessionsAction extends Action2 {
+export class ShowActiveAgentSessionsAction extends Action2 {
 
 	constructor() {
 		super({
-			id: 'workbench.action.chat.showPendingAgentSessions',
-			title: localize2('chat.showSessions.pending', "Pending"),
+			id: 'workbench.action.chat.showActiveAgentSessions',
+			title: localize2('chat.showSessions.active', "Active"),
 			toggled: ContextKeyExpr.and(
 				ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, true),
-				ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsShowPendingOnly}`, true)
+				ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsShowActiveOnly}`, true)
 			),
 			menu: {
 				id: showSessionsSubmenu,
@@ -95,7 +95,7 @@ export class ShowPendingAgentSessionsAction extends Action2 {
 		const configurationService = accessor.get(IConfigurationService);
 
 		await configurationService.updateValue(ChatConfiguration.ChatViewSessionsEnabled, true);
-		await configurationService.updateValue(ChatConfiguration.ChatViewSessionsShowPendingOnly, true);
+		await configurationService.updateValue(ChatConfiguration.ChatViewSessionsShowActiveOnly, true);
 	}
 }
 
@@ -271,7 +271,7 @@ export class ArchiveAgentSessionSectionAction extends Action2 {
 				order: 1,
 				when: ContextKeyExpr.and(
 					ChatContextKeys.agentSessionSection.notEqualsTo(AgentSessionSection.Archived),
-					ChatContextKeys.agentSessionSection.notEqualsTo(AgentSessionSection.Done)
+					ChatContextKeys.agentSessionSection.notEqualsTo(AgentSessionSection.History)
 				),
 			}, {
 				id: MenuId.AgentSessionSectionContext,
@@ -279,7 +279,7 @@ export class ArchiveAgentSessionSectionAction extends Action2 {
 				order: 2,
 				when: ContextKeyExpr.and(
 					ChatContextKeys.agentSessionSection.notEqualsTo(AgentSessionSection.Archived),
-					ChatContextKeys.agentSessionSection.notEqualsTo(AgentSessionSection.Done)
+					ChatContextKeys.agentSessionSection.notEqualsTo(AgentSessionSection.History)
 				),
 			}]
 		});

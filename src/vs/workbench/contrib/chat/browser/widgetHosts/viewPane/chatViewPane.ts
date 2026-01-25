@@ -129,7 +129,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		) {
 			this.viewState.sessionId = undefined; // clear persisted session on fresh start
 		}
-		this.sessionsViewerShowPendingOnly = this.configurationService.getValue<boolean>(ChatConfiguration.ChatViewSessionsShowPendingOnly) ?? true;
+		this.sessionsViewerShowPendingOnly = this.configurationService.getValue<boolean>(ChatConfiguration.ChatViewSessionsShowActiveOnly) ?? true;
 		this.sessionsViewerVisible = false; // will be updated from layout code
 		this.sessionsViewerSidebarWidth = Math.max(ChatViewPane.SESSIONS_SIDEBAR_MIN_WIDTH, this.viewState.sessionsSidebarWidth ?? ChatViewPane.SESSIONS_SIDEBAR_DEFAULT_WIDTH);
 
@@ -236,13 +236,13 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		// Sessions viewer show pending only setting changes
 		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => {
-			return e.affectsConfiguration(ChatConfiguration.ChatViewSessionsShowPendingOnly);
+			return e.affectsConfiguration(ChatConfiguration.ChatViewSessionsShowActiveOnly);
 		})(() => {
 			const oldSessionsViewerShowPendingOnly = this.sessionsViewerShowPendingOnly;
 			if (this.sessionsViewerOrientation === AgentSessionsViewerOrientation.SideBySide) {
 				this.sessionsViewerShowPendingOnly = false; // side by side always shows all
 			} else {
-				this.sessionsViewerShowPendingOnly = this.configurationService.getValue<boolean>(ChatConfiguration.ChatViewSessionsShowPendingOnly) ?? true;
+				this.sessionsViewerShowPendingOnly = this.configurationService.getValue<boolean>(ChatConfiguration.ChatViewSessionsShowActiveOnly) ?? true;
 			}
 
 			if (oldSessionsViewerShowPendingOnly !== this.sessionsViewerShowPendingOnly) {
@@ -374,7 +374,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		// Sessions Filter
 		const sessionsFilter = this._register(this.instantiationService.createInstance(AgentSessionsFilter, {
 			filterMenuId: MenuId.AgentSessionsViewerFilterSubMenu,
-			groupResults: () => this.sessionsViewerShowPendingOnly ? AgentSessionsGrouping.Pending : AgentSessionsGrouping.Default,
+			groupResults: () => this.sessionsViewerShowPendingOnly ? AgentSessionsGrouping.Active : AgentSessionsGrouping.Default,
 		}));
 		this._register(Event.runAndSubscribe(sessionsFilter.onDidChange, () => {
 			sessionsToolbarContainer.classList.toggle('filtered', !sessionsFilter.isDefault());
@@ -866,7 +866,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			if (this.sessionsViewerOrientation === AgentSessionsViewerOrientation.SideBySide) {
 				this.sessionsViewerShowPendingOnly = false; // side by side always shows all
 			} else {
-				this.sessionsViewerShowPendingOnly = this.configurationService.getValue<boolean>(ChatConfiguration.ChatViewSessionsShowPendingOnly) ?? true;
+				this.sessionsViewerShowPendingOnly = this.configurationService.getValue<boolean>(ChatConfiguration.ChatViewSessionsShowActiveOnly) ?? true;
 			}
 
 			const updatePromise = this.sessionsControl.update();
