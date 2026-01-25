@@ -1368,6 +1368,31 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		return undefined;
 	}
 
+	/**
+	 * Determines if a thinking part at the given content index is "look-ahead complete".
+	 * A thinking part is look-ahead complete if there are subsequent parts that will NOT
+	 * be pinned to it, meaning we know this thinking part is already done even though
+	 * the overall response is still in progress.
+	 */
+	private isThinkingLookAheadComplete(context: IChatContentPartRenderContext, element?: IChatResponseViewModel): boolean {
+		// If element is already complete, no need for look-ahead
+		if (element?.isComplete) {
+			return true;
+		}
+
+		// Look at all parts after the current content index
+		for (let i = context.contentIndex + 1; i < context.content.length; i++) {
+			const nextPart = context.content[i];
+			// If there's any part that would NOT be pinned to the thinking part,
+			// then this thinking part is already complete
+			if (!this.shouldPinPart(nextPart, element)) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
 	private getSubagentPart(renderedParts: ReadonlyArray<IChatContentPart> | undefined, subAgentInvocationId?: string): ChatSubagentContentPart | undefined {
 		if (!renderedParts || renderedParts.length === 0) {
 			return undefined;
@@ -1998,6 +2023,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			content.id = Date.now().toString();
 		}
 
+		// Determine if this thinking part is already complete based on look-ahead
+		// (i.e., there are subsequent parts that won't be pinned to this thinking part)
+		const element = isResponseVM(context.element) ? context.element : undefined;
+		const streamingCompleted = this.isThinkingLookAheadComplete(context, element);
+
 		// if array, we do a naive part by part rendering for now
 		if (Array.isArray(content.value)) {
 			if (content.value.length < 1) {
@@ -2013,7 +2043,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 						lastThinkingPart.setupThinkingContainer({ ...content, value: item });
 					} else {
 						const itemContent = { ...content, value: item };
-						const itemPart = templateData.instantiationService.createInstance(ChatThinkingContentPart, itemContent, context, this.chatContentMarkdownRenderer, context.element.isComplete);
+						const itemPart = templateData.instantiationService.createInstance(ChatThinkingContentPart, itemContent, context, this.chatContentMarkdownRenderer, streamingCompleted);
 						lastPart = itemPart;
 					}
 				}
@@ -2026,7 +2056,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				lastActiveThinking.setupThinkingContainer(content);
 				return lastActiveThinking;
 			} else {
-				const part = templateData.instantiationService.createInstance(ChatThinkingContentPart, content, context, this.chatContentMarkdownRenderer, context.element.isComplete);
+				const part = templateData.instantiationService.createInstance(ChatThinkingContentPart, content, context, this.chatContentMarkdownRenderer, streamingCompleted);
 				return part;
 			}
 
