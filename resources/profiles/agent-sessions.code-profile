@@ -6,7 +6,7 @@
 		"workbench.activityBar.location": "hidden",
 		"workbench.sideBar.location": "right",
 		"workbench.secondarySideBar.defaultVisibility": "maximized",
-		"workbench.secondarySideBar.restoreMaximized": true,
+		"workbench.secondarySideBar.forceMaximized": true,
 		"chat.restoreLastPanelSession": true,
 		"workbench.startupEditor": "none",
 		"workbench.editor.restoreEditors": false,
