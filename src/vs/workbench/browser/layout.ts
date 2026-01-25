@@ -340,8 +340,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Restore editor if hidden and an editor is to show
 		const showEditorIfHidden = () => {
-			if (this.isVisible(Parts.EDITOR_PART, mainWindow)) {
-				return; // not hidden
+			if (
+				this.isVisible(Parts.EDITOR_PART, mainWindow) ||		// already visible
+				this.mainPartEditorService.visibleEditors.length === 0	// no editor to show
+			) {
+				return;
 			}
 
 			if (this.isAuxiliaryBarMaximized()) {
