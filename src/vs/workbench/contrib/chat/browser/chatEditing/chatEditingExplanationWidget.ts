@@ -22,10 +22,11 @@ import { overviewRulerRangeHighlight } from '../../../../../editor/common/core/e
 import { IEditorDecorationsCollection } from '../../../../../editor/common/editorCommon.js';
 import { ITextModel, OverviewRulerLane } from '../../../../../editor/common/model.js';
 import { themeColorFromId } from '../../../../../platform/theme/common/themeService.js';
-import { ChatViewId, IChatWidgetService } from '../chat.js';
+import { ChatViewId, ChatViewPaneTarget, IChatWidget, IChatWidgetService } from '../chat.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import * as nls from '../../../../../nls.js';
 import { basename } from '../../../../../base/common/resources.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 
 /**
  * Simple diff info interface for explanation widgets
@@ -147,6 +148,7 @@ export class ChatEditingExplanationWidget extends Disposable implements IOverlay
 		diffInfo: IExplanationDiffInfo,
 		private readonly _chatWidgetService: IChatWidgetService,
 		private readonly _viewsService: IViewsService,
+		private readonly _chatSessionResource?: URI,
 	) {
 		super();
 
@@ -361,14 +363,19 @@ export class ChatEditingExplanationWidget extends Disposable implements IOverlay
 			// Reply button click handler
 			this._eventStore.add(addDisposableListener(replyButton, 'click', async (e) => {
 				e.stopPropagation();
-				const chatWidget = this._chatWidgetService.lastFocusedWidget;
+				const range = new Range(exp.startLineNumber, 1, exp.endLineNumber, 1);
+				let chatWidget: IChatWidget | undefined;
+				if (this._chatSessionResource) {
+					chatWidget = await this._chatWidgetService.openSession(this._chatSessionResource, ChatViewPaneTarget);
+				} else {
+					await this._viewsService.openView(ChatViewId, true);
+					chatWidget = this._chatWidgetService.lastFocusedWidget;
+				}
 				if (chatWidget) {
-					const range = new Range(exp.startLineNumber, 1, exp.endLineNumber, 1);
 					chatWidget.attachmentModel.addContext(
 						chatWidget.attachmentModel.asFileVariableEntry(this._uri, range)
 					);
 				}
-				await this._viewsService.openView(ChatViewId, true);
 			}));
 
 			// Click on item to mark as read
@@ -592,9 +599,10 @@ export class ChatEditingExplanationWidgetManager extends Disposable {
 	/**
 	 * Updates the diff info and generates explanations.
 	 * Creates widgets immediately and starts LLM generation.
-	 * @param visible Whether widgets should be visible (default: false)
+	 * @param visible Whether widgets should be visible
+	 * @param chatSessionResource Chat session resource to open when following up, or undefined
 	 */
-	update(diffInfo: IExplanationDiffInfo, visible: boolean = false): void {
+	update(diffInfo: IExplanationDiffInfo, visible: boolean, chatSessionResource: URI | undefined): void {
 		this._modelUri = diffInfo.modifiedModel.uri;
 
 		// Clear existing widgets
@@ -616,6 +624,7 @@ export class ChatEditingExplanationWidgetManager extends Disposable {
 				diffInfo,
 				this._chatWidgetService,
 				this._viewsService,
+				chatSessionResource,
 			);
 			this._widgets.push(widget);
 			this._register(widget);
@@ -650,7 +659,7 @@ export class ChatEditingExplanationWidgetManager extends Disposable {
 		widgets: readonly ChatEditingExplanationWidget[],
 		diffInfo: IExplanationDiffInfo,
 		languageModelsService: ILanguageModelsService,
-		cancellationToken: import('../../../../../base/common/cancellation.js').CancellationToken
+		cancellationToken: CancellationToken
 	): Promise<void> {
 		if (diffInfo.changes.length === 0) {
 			return;
