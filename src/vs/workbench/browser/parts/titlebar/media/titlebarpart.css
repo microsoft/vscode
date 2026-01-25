@@ -73,6 +73,7 @@
 	z-index: 2501;
 	-webkit-app-region: no-drag;
 }
+
 .monaco-workbench .part.titlebar > .titlebar-container.has-center > .titlebar-left {
 	order: 0;
 	width: 20%;
