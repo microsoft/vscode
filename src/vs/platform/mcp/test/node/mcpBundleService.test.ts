@@ -102,6 +102,7 @@ function createMockDownloadService(downloadContent: VSBuffer): Partial<IDownload
 interface McpBundleServiceTestable {
 	getBundleUrl(serverPackage: IMcpServerPackage): URI | undefined;
 	verifyChecksum(filePath: URI, expectedSha256: string): Promise<void>;
+	isSecureUrl(url: URI): boolean;
 }
 
 suite('McpBundleService', () => {
@@ -376,6 +377,78 @@ suite('McpBundleService', () => {
 
 			// Should not throw - normalization should handle this
 			await (service as unknown as McpBundleServiceTestable).verifyChecksum(URI.file('/test/file.zip'), uppercaseWithPrefix);
+		});
+	});
+
+	suite('isSecureUrl', () => {
+		function createService(): McpBundleServiceTestable {
+			return new McpBundleService(
+				createMockFileService(new Map()) as IFileService,
+				createMockDownloadService(VSBuffer.fromString('')) as IDownloadService,
+				new NullLogService()
+			) as unknown as McpBundleServiceTestable;
+		}
+
+		test('should allow HTTPS URLs', () => {
+			const service = createService();
+			assert.strictEqual(service.isSecureUrl(URI.parse('https://example.com/bundle.mcpb')), true);
+			assert.strictEqual(service.isSecureUrl(URI.parse('https://github.com/releases/v1.0.0/server.zip')), true);
+		});
+
+		test('should allow HTTP localhost', () => {
+			const service = createService();
+			assert.strictEqual(service.isSecureUrl(URI.parse('http://localhost/bundle.mcpb')), true);
+			assert.strictEqual(service.isSecureUrl(URI.parse('http://localhost:8080/bundle.mcpb')), true);
+		});
+
+		test('should allow HTTP 127.0.0.1', () => {
+			const service = createService();
+			assert.strictEqual(service.isSecureUrl(URI.parse('http://127.0.0.1/bundle.mcpb')), true);
+			assert.strictEqual(service.isSecureUrl(URI.parse('http://127.0.0.1:3000/bundle.mcpb')), true);
+		});
+
+		test('should allow HTTP ::1 (IPv6 localhost)', () => {
+			const service = createService();
+			// IPv6 addresses must be enclosed in brackets in URLs
+			assert.strictEqual(service.isSecureUrl(URI.parse('http://[::1]/bundle.mcpb')), true);
+			assert.strictEqual(service.isSecureUrl(URI.parse('http://[::1]:8080/bundle.mcpb')), true);
+		});
+
+		test('should reject HTTP for remote hosts', () => {
+			const service = createService();
+			assert.strictEqual(service.isSecureUrl(URI.parse('http://example.com/bundle.mcpb')), false);
+			assert.strictEqual(service.isSecureUrl(URI.parse('http://github.com/releases/bundle.zip')), false);
+			assert.strictEqual(service.isSecureUrl(URI.parse('http://192.168.1.1/bundle.mcpb')), false);
+		});
+
+		test('should reject non-HTTP/HTTPS schemes', () => {
+			const service = createService();
+			assert.strictEqual(service.isSecureUrl(URI.parse('ftp://example.com/bundle.mcpb')), false);
+			assert.strictEqual(service.isSecureUrl(URI.file('/local/path/bundle.mcpb')), false);
+		});
+	});
+
+	suite('downloadAndExtract - URL security', () => {
+		test('should reject insecure HTTP URLs for remote hosts', async () => {
+			const service = new McpBundleService(
+				createMockFileService(new Map()) as IFileService,
+				createMockDownloadService(VSBuffer.fromString('')) as IDownloadService,
+				new NullLogService()
+			);
+
+			const serverPackage: IMcpServerPackage = {
+				registryType: RegistryType.MCPB,
+				identifier: 'http://example.com/insecure-bundle.mcpb', // HTTP to remote host
+				transport: { type: TransportType.STDIO }
+			};
+
+			try {
+				await service.downloadAndExtract(serverPackage, URI.file('/tmp'), CancellationToken.None);
+				assert.fail('Should have thrown INSECURE_URL');
+			} catch (e) {
+				assert.ok(e instanceof McpBundleServiceError);
+				assert.strictEqual(e.code, 'INSECURE_URL');
+			}
 		});
 	});
 

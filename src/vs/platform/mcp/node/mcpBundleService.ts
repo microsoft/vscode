@@ -64,7 +64,7 @@ export interface IMcpBundleService {
 export class McpBundleServiceError extends Error {
 	constructor(
 		message: string,
-		readonly code: 'DOWNLOAD_FAILED' | 'CHECKSUM_MISMATCH' | 'CORRUPT_ZIP' | 'MISSING_MANIFEST' | 'INVALID_MANIFEST' | 'EXTRACTION_FAILED'
+		readonly code: 'DOWNLOAD_FAILED' | 'CHECKSUM_MISMATCH' | 'CORRUPT_ZIP' | 'MISSING_MANIFEST' | 'INVALID_MANIFEST' | 'EXTRACTION_FAILED' | 'INSECURE_URL'
 	) {
 		super(message);
 		this.name = 'McpBundleServiceError';
@@ -98,6 +98,15 @@ export class McpBundleService implements IMcpBundleService {
 				'DOWNLOAD_FAILED'
 			);
 		}
+
+		// Validate URL security - require HTTPS for remote downloads
+		if (!this.isSecureUrl(bundleUrl)) {
+			throw new McpBundleServiceError(
+				localize('mcpb.insecureUrl', "MCPB bundle URL must use HTTPS for security. HTTP is only allowed for localhost."),
+				'INSECURE_URL'
+			);
+		}
+
 		this.logService.info(`MCPB Bundle Service: Bundle URL: ${bundleUrl.toString()}`);
 
 		// Ensure target directory exists
@@ -350,6 +359,40 @@ export class McpBundleService implements IMcpBundleService {
 
 	private delay(ms: number): Promise<void> {
 		return new Promise(resolve => setTimeout(resolve, ms));
+	}
+
+	/**
+	 * Validates that the URL is secure for downloading MCPB bundles.
+	 * HTTPS is required for remote downloads to prevent man-in-the-middle attacks.
+	 * HTTP is only allowed for localhost addresses (for local testing).
+	 */
+	private isSecureUrl(url: URI): boolean {
+		const scheme = url.scheme.toLowerCase();
+
+		// HTTPS is always allowed
+		if (scheme === 'https') {
+			return true;
+		}
+
+		// HTTP is only allowed for localhost/local addresses (for testing)
+		if (scheme === 'http') {
+			const host = url.authority.toLowerCase();
+
+			// Handle IPv6 addresses (enclosed in brackets, e.g., [::1]:8080)
+			if (host.startsWith('[')) {
+				const bracketEnd = host.indexOf(']');
+				if (bracketEnd !== -1) {
+					const ipv6Host = host.substring(1, bracketEnd);
+					return ipv6Host === '::1';
+				}
+			}
+
+			// Extract hostname without port for IPv4/hostname
+			const hostname = host.includes(':') ? host.split(':')[0] : host;
+			return hostname === 'localhost' || hostname === '127.0.0.1';
+		}
+
+		return false;
 	}
 }
 
