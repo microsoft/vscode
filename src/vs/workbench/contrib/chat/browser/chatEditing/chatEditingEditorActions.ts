@@ -23,7 +23,7 @@ import { IEditorGroupsService } from '../../../../services/editor/common/editorG
 import { ACTIVE_GROUP, IEditorService } from '../../../../services/editor/common/editorService.js';
 import { CTX_HOVER_MODE } from '../../../inlineChat/common/inlineChat.js';
 import { MultiDiffEditor } from '../../../multiDiffEditor/browser/multiDiffEditor.js';
-import { MultiDiffEditorInput } from '../../../multiDiffEditor/browser/multiDiffEditorInput.js';
+import { IDocumentDiffItemWithMultiDiffEditorItem, MultiDiffEditorInput } from '../../../multiDiffEditor/browser/multiDiffEditorInput.js';
 import { NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_EDITOR_FOCUSED } from '../../../notebook/common/notebookContextKeys.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, IChatEditingService, IChatEditingSession, IModifiedFileEntry, IModifiedFileEntryChangeHunk, IModifiedFileEntryEditorIntegration, ModifiedFileEntryState, parseChatMultiDiffUri } from '../../common/editing/chatEditingService.js';
@@ -35,6 +35,7 @@ import { DiffEditorViewModel } from '../../../../../editor/browser/widget/diffEd
 import { IChatWidgetService } from '../chat.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../base/common/event.js';
 import { ChatConfiguration } from '../../common/constants.js';
@@ -470,6 +471,8 @@ abstract class MultiDiffAcceptDiscardAction extends Action2 {
 }
 
 
+const explainMultiDiffSchemes = [CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, 'copilotcli-worktree-changes', 'copilotcloud-pr-changes'];
+
 class ExplainMultiDiffAction extends Action2 {
 
 	private readonly _widgetsByInput = new WeakMap<EditorInput, DisposableStore>();
@@ -479,7 +482,7 @@ class ExplainMultiDiffAction extends Action2 {
 			id: 'chatEditing.multidiff.explain',
 			title: localize('explain', 'Explain'),
 			menu: {
-				when: ContextKeyExpr.and(ContextKeyExpr.or(ContextKeyExpr.equals('resourceScheme', 'copilotcli-worktree-changes'), ContextKeyExpr.equals('resourceScheme', 'copilotcloud-pr-changes')), ContextKeyExpr.has(`config.${ChatConfiguration.ExplainChangesEnabled}`)),
+				when: ContextKeyExpr.and(ContextKeyExpr.or(...explainMultiDiffSchemes.map(scheme => ContextKeyExpr.equals('resourceScheme', scheme))), ContextKeyExpr.has(`config.${ChatConfiguration.ExplainChangesEnabled}`)),
 				id: MenuId.MultiDiffEditorContent,
 				order: 10,
 			},
@@ -491,6 +494,7 @@ class ExplainMultiDiffAction extends Action2 {
 		const languageModelsService = accessor.get(ILanguageModelsService);
 		const chatWidgetService = accessor.get(IChatWidgetService);
 		const viewsService = accessor.get(IViewsService);
+		const chatEditingService = accessor.get(IChatEditingService);
 
 		const activePane = editorService.activeEditorPane;
 		if (!activePane) {
@@ -520,6 +524,35 @@ class ExplainMultiDiffAction extends Action2 {
 
 		const viewModel = activePane.viewModel;
 		const items = viewModel.items.get();
+
+		// Try to extract chat session resource from the multi-diff editor URI or by scanning sessions
+		let chatSessionResource: URI | undefined;
+		if (input instanceof MultiDiffEditorInput && input.resource?.scheme === CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME) {
+			chatSessionResource = parseChatMultiDiffUri(input.resource).chatSessionResource;
+		}
+		if (!chatSessionResource) {
+			// Scan sessions to find one that owns files in this multi-diff editor
+			// Use goToFileUri if available, otherwise extract file path from the modified URI
+			const fileUris = items.map(item => {
+				const docDiffItem = item.documentDiffItem as IDocumentDiffItemWithMultiDiffEditorItem | undefined;
+				const goToFileUri = docDiffItem?.multiDiffEditorItem?.goToFileUri;
+				if (goToFileUri) {
+					return goToFileUri;
+				}
+				// Fallback: extract file path from the modified URI (e.g., git: URIs have the path)
+				const modifiedUri = docDiffItem?.multiDiffEditorItem?.modifiedUri ?? item.modifiedUri;
+				if (modifiedUri?.path) {
+					return URI.file(modifiedUri.path);
+				}
+				return undefined;
+			}).filter((uri): uri is URI => !!uri);
+			for (const session of chatEditingService.editingSessionsObs.get()) {
+				if (fileUris.some(uri => session.getEntry(uri))) {
+					chatSessionResource = session.chatSessionResource;
+					break;
+				}
+			}
+		}
 
 		// First pass: collect all diffs grouped by file
 		const diffsByFile = new Map<string, {
@@ -587,7 +620,7 @@ class ExplainMultiDiffAction extends Action2 {
 			widgetsStore.add(manager);
 
 			// Update with diff info and show (but don't generate explanations yet)
-			manager.update(diffInfo, true);
+			manager.update(diffInfo, true, chatSessionResource);
 			managersWithDiffInfo.push({ manager, diffInfo });
 		}
 

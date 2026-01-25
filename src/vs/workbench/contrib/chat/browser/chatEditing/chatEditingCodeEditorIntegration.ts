@@ -12,6 +12,7 @@ import { DisposableStore, dispose, IDisposable, toDisposable } from '../../../..
 import { autorun, constObservable, derived, IObservable, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { basename, isEqual } from '../../../../../base/common/resources.js';
 import { themeColorFromId } from '../../../../../base/common/themables.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, IOverlayWidgetPositionCoordinates, IViewZone, MouseTargetType } from '../../../../../editor/browser/editorBrowser.js';
 import { observableCodeEditor } from '../../../../../editor/browser/observableCodeEditor.js';
 import { AccessibleDiffViewer, IAccessibleDiffViewerModel } from '../../../../../editor/browser/widget/diffEditor/components/accessibleDiffViewer.js';
@@ -124,7 +125,10 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 					this._explanationWidgetManager = this._store.add(new ChatEditingExplanationWidgetManager(this._editor, this._chatWidgetService, this._viewsService));
 					// Pass the current diff info when creating lazily (untracked - diff changes handled separately)
 					const diff = documentDiffInfo.read(undefined);
-					this._explanationWidgetManager.update(diff, true);
+					// Find the session that owns this entry to get the chat session resource
+					const session = this._chatEditingService.editingSessionsObs.read(undefined)
+						.find(candidate => candidate.getEntry(this._entry.modifiedURI));
+					this._explanationWidgetManager.update(diff, true, session?.chatSessionResource);
 					// Generate explanations asynchronously
 					ChatEditingExplanationWidgetManager.generateExplanations(
 						this._explanationWidgetManager.widgets,
@@ -500,15 +504,17 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 		}
 
 		// Update explanation widgets for chat changes
-		// Get visibility from session that owns this entry
+		// Get visibility and session resource from session that owns this entry
 		let explanationVisible = false;
+		let chatSessionResource: URI | undefined;
 		for (const session of this._chatEditingService.editingSessionsObs.get()) {
 			if (session.entries.get().some((e: IModifiedFileEntry) => e.entryId === this._entry.entryId)) {
 				explanationVisible = session.explanationWidgetVisible.get();
+				chatSessionResource = session.chatSessionResource;
 				break;
 			}
 		}
-		this._explanationWidgetManager?.update(diff, explanationVisible);
+		this._explanationWidgetManager?.update(diff, explanationVisible, chatSessionResource);
 
 		const positionObs = observableFromEvent(this._editor.onDidChangeCursorPosition, _ => this._editor.getPosition());
 
