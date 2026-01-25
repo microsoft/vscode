@@ -66,6 +66,8 @@ import './services/editor/browser/codeEditorService.js';
 import './services/preferences/browser/preferencesService.js';
 import './services/configuration/common/jsonEditingService.js';
 import './services/textmodelResolver/common/textModelResolverService.js';
+import './services/banner/browser/bannerService.js';
+import './services/agent/browser/agentService.js';
 import './services/editor/browser/editorService.js';
 import './services/editor/browser/editorResolverService.js';
 import './services/aiEmbeddingVector/common/aiEmbeddingVectorService.js';

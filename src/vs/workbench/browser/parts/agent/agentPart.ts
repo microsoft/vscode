@@ -1,14 +1,8 @@
-/*---------------------------------------------------------------------------------------------
- *  Copyright (c) Nikolaas Bender. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
- *--------------------------------------------------------------------------------------------*/
-
 import { Part } from '../../part.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { Parts, IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
-import { Dimension } from '../../../../base/browser/dom.js';
+import { IAgentService } from '../../../../platform/agent/common/agent.js';
 
 export class AgentManagerPart extends Part {
 
@@ -20,12 +14,14 @@ export class AgentManagerPart extends Part {
 	readonly maximumHeight: number = Number.POSITIVE_INFINITY;
 
 	private container: HTMLElement | undefined;
+	private statusElement: HTMLElement | undefined;
+	private outputElement: HTMLElement | undefined;
 
 	constructor(
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
-		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
+		@IAgentService private readonly agentService: IAgentService
 	) {
 		super(AgentManagerPart.ID, { hasTitle: true }, themeService, storageService, layoutService);
 	}
@@ -37,7 +33,7 @@ export class AgentManagerPart extends Part {
 		this.container.style.width = '100%';
 		this.container.style.display = 'flex';
 		this.container.style.flexDirection = 'column';
-		this.container.style.backgroundColor = 'var(--vscode-editor-background)'; // Match editor background for now
+		this.container.style.backgroundColor = 'var(--vscode-editor-background)';
 
 		// Header
 		const header = document.createElement('div');
@@ -47,22 +43,56 @@ export class AgentManagerPart extends Part {
 		header.innerText = 'AGENT DECK (PROJECT IRWIN)';
 		this.container.appendChild(header);
 
-		// Body
-		const body = document.createElement('div');
-		body.style.flex = '1';
-		body.style.padding = '20px';
-		body.innerText = 'Agent Runtime not connected.\n\nWaiting for container injection...';
-		this.container.appendChild(body);
+		// Status
+		this.statusElement = document.createElement('div');
+		this.statusElement.style.padding = '10px';
+		this.statusElement.innerText = this.agentService.connected ? 'Status: Connected' : 'Status: Disconnected';
+		this.statusElement.style.color = this.agentService.connected ? 'green' : 'red';
+		this.container.appendChild(this.statusElement);
+
+		// Controls
+		const controls = document.createElement('div');
+		controls.style.padding = '10px';
+
+		const helloButton = document.createElement('button');
+		helloButton.innerText = 'Send Hello';
+		helloButton.onclick = () => this.sendHello();
+		controls.appendChild(helloButton);
+
+		this.container.appendChild(controls);
+
+		// Output
+		this.outputElement = document.createElement('pre');
+		this.outputElement.style.padding = '10px';
+		this.outputElement.style.flex = '1';
+		this.outputElement.style.overflow = 'auto';
+		this.outputElement.innerText = 'Waiting for interaction...';
+		this.container.appendChild(this.outputElement);
 
 		parent.appendChild(this.container);
+
+		this._register(this.agentService.onDidChangeConnectionState(connected => {
+			if (this.statusElement) {
+				this.statusElement.innerText = connected ? 'Status: Connected' : 'Status: Disconnected';
+				this.statusElement.style.color = connected ? 'green' : 'red';
+			}
+		}));
+
 		return this.container;
+	}
+
+	private async sendHello() {
+		if (this.outputElement) {
+			this.outputElement.innerText += '\nSending "Hello"...';
+		}
+		await this.agentService.sendMessage('hello', { text: 'Hello from UI' });
+		if (this.outputElement) {
+			this.outputElement.innerText += '\nSent.';
+		}
 	}
 
 	override layout(width: number, height: number, top: number, left: number): void {
 		super.layout(width, height, top, left);
-		if (this.container) {
-			// Layout logic if needed
-		}
 	}
 
 	toJSON(): object {
