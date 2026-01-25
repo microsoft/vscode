@@ -8,16 +8,17 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '.
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { ILanguageModelsService } from '../../chat/common/languageModels.js';
+import { ILanguageModelsService, ILanguageModelChatMetadata } from '../../chat/common/languageModels.js';
 import { InlineChatConfigKeys } from '../common/inlineChat.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 
 export class InlineChatDefaultModel extends Disposable {
+	static readonly ID = 'workbench.contrib.inlineChatDefaultModel';
 	static readonly configName = InlineChatConfigKeys.DefaultModel;
 
-	static modelIds: (string | null)[] = [];
-	static modelLabels: string[] = [];
-	static modelDescriptions: string[] = [];
+	static modelIds: string[] = [''];
+	static modelLabels: string[] = [localize('defaultModel', 'Auto (Vendor Default)')];
+	static modelDescriptions: string[] = [localize('defaultModelDescription', 'Use the vendor\'s default model')];
 
 	constructor(
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
@@ -37,13 +38,13 @@ export class InlineChatDefaultModel extends Disposable {
 
 			// Add default/empty option
 			InlineChatDefaultModel.modelIds.push('');
-			InlineChatDefaultModel.modelLabels.push(localize('defaultModel', 'Default'));
+			InlineChatDefaultModel.modelLabels.push(localize('defaultModel', 'Auto (Vendor Default)'));
 			InlineChatDefaultModel.modelDescriptions.push(localize('defaultModelDescription', 'Use the vendor\'s default model'));
 
 			// Get all available models
 			const modelIds = this.languageModelsService.getLanguageModelIds();
 
-			const models: { identifier: string; metadata: import('../../chat/common/languageModels.js').ILanguageModelChatMetadata }[] = [];
+			const models: { identifier: string; metadata: ILanguageModelChatMetadata }[] = [];
 
 			// Look up each model's metadata
 			for (const modelId of modelIds) {
@@ -93,13 +94,13 @@ export class InlineChatDefaultModel extends Disposable {
 	}
 }
 
-registerWorkbenchContribution2(InlineChatDefaultModel.name, InlineChatDefaultModel, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2(InlineChatDefaultModel.ID, InlineChatDefaultModel, WorkbenchPhase.BlockRestore);
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	...{ id: 'inlineChat', title: localize('inlineChatConfigurationTitle', 'Inline Chat'), order: 30, type: 'object' },
 	properties: {
 		[InlineChatDefaultModel.configName]: {
-			description: localize('inlineChatDefaultModelDescription', "The default model to use for inline chat. If not set or empty, the vendor's default model will be used."),
+			description: localize('inlineChatDefaultModelDescription', "Select the default language model to use for inline chat from the available providers. Model names may include the provider in parentheses, for example 'GPT-4o (copilot)'."),
 			type: 'string',
 			default: '',
 			enum: InlineChatDefaultModel.modelIds,
