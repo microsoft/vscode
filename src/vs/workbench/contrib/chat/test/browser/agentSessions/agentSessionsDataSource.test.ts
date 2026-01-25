@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { AgentSessionsDataSource, AgentSessionListItem, groupAgentSessionsByPending, IAgentSessionsFilter } from '../../../browser/agentSessions/agentSessionsViewer.js';
+import { AgentSessionsDataSource, AgentSessionListItem, groupAgentSessionsByPending, IAgentSessionsFilter, WINDOW_SESSION_START_TIME } from '../../../browser/agentSessions/agentSessionsViewer.js';
 import { AgentSessionSection, IAgentSession, IAgentSessionSection, IAgentSessionsModel, isAgentSessionSection } from '../../../browser/agentSessions/agentSessionsModel.js';
 import { ChatSessionStatus, isSessionInProgressStatus } from '../../../common/chatSessionsService.js';
 import { ITreeSorter } from '../../../../../../base/browser/ui/tree/tree.js';
@@ -387,12 +387,13 @@ suite('AgentSessionsDataSource', () => {
 		});
 
 		test('In-progress sessions appear in Pending', () => {
-			const now = Date.now();
+			// Use session times before WINDOW_SESSION_START_TIME to isolate the in-progress logic
+			const beforeWindowSession = WINDOW_SESSION_START_TIME - ONE_DAY;
 			const sessions = [
-				createMockSession({ id: '1', status: ChatSessionStatus.InProgress, startTime: now }),
-				createMockSession({ id: '2', status: ChatSessionStatus.NeedsInput, startTime: now - 1000 }),
-				createMockSession({ id: '3', status: ChatSessionStatus.Completed, startTime: now - 2000 }),
-				createMockSession({ id: '4', status: ChatSessionStatus.Completed, startTime: now - ONE_DAY }),
+				createMockSession({ id: '1', status: ChatSessionStatus.InProgress, startTime: beforeWindowSession }),
+				createMockSession({ id: '2', status: ChatSessionStatus.NeedsInput, startTime: beforeWindowSession - 1000 }),
+				createMockSession({ id: '3', status: ChatSessionStatus.Completed, startTime: beforeWindowSession - 2000 }),
+				createMockSession({ id: '4', status: ChatSessionStatus.Completed, startTime: beforeWindowSession - ONE_DAY }),
 			];
 
 			const result = groupAgentSessionsByPending(sessions);
@@ -411,11 +412,12 @@ suite('AgentSessionsDataSource', () => {
 		});
 
 		test('Unread sessions appear in Pending', () => {
-			const now = Date.now();
+			// Use session times before WINDOW_SESSION_START_TIME to isolate the unread logic
+			const beforeWindowSession = WINDOW_SESSION_START_TIME - ONE_DAY;
 			const sessions = [
-				createMockSession({ id: '1', status: ChatSessionStatus.Completed, startTime: now, isRead: false }),
-				createMockSession({ id: '2', status: ChatSessionStatus.Completed, startTime: now - 1000 }),
-				createMockSession({ id: '3', status: ChatSessionStatus.Completed, startTime: now - 2000 }),
+				createMockSession({ id: '1', status: ChatSessionStatus.Completed, startTime: beforeWindowSession, isRead: false }),
+				createMockSession({ id: '2', status: ChatSessionStatus.Completed, startTime: beforeWindowSession - 1000 }),
+				createMockSession({ id: '3', status: ChatSessionStatus.Completed, startTime: beforeWindowSession - 2000 }),
 			];
 
 			const result = groupAgentSessionsByPending(sessions);
@@ -432,11 +434,12 @@ suite('AgentSessionsDataSource', () => {
 		});
 
 		test('Sessions with changes appear in Pending', () => {
-			const now = Date.now();
+			// Use session times before WINDOW_SESSION_START_TIME to isolate the changes logic
+			const beforeWindowSession = WINDOW_SESSION_START_TIME - ONE_DAY;
 			const sessions = [
-				createMockSession({ id: '1', status: ChatSessionStatus.Completed, startTime: now, hasChanges: true }),
-				createMockSession({ id: '2', status: ChatSessionStatus.Completed, startTime: now - 1000 }),
-				createMockSession({ id: '3', status: ChatSessionStatus.Completed, startTime: now - 2000, hasChanges: true }),
+				createMockSession({ id: '1', status: ChatSessionStatus.Completed, startTime: beforeWindowSession, hasChanges: true }),
+				createMockSession({ id: '2', status: ChatSessionStatus.Completed, startTime: beforeWindowSession - 1000 }),
+				createMockSession({ id: '3', status: ChatSessionStatus.Completed, startTime: beforeWindowSession - 2000, hasChanges: true }),
 			];
 
 			const result = groupAgentSessionsByPending(sessions);
@@ -453,11 +456,12 @@ suite('AgentSessionsDataSource', () => {
 		});
 
 		test('Most recent non-archived session always appears in Pending', () => {
-			const now = Date.now();
+			// Use session times clearly before WINDOW_SESSION_START_TIME to test only the "most recent" logic
+			const beforeWindowSession = WINDOW_SESSION_START_TIME - ONE_DAY;
 			const sessions = [
-				createMockSession({ id: '1', status: ChatSessionStatus.Completed, startTime: now }),
-				createMockSession({ id: '2', status: ChatSessionStatus.Completed, startTime: now - 1000 }),
-				createMockSession({ id: '3', status: ChatSessionStatus.Completed, startTime: now - 2000 }),
+				createMockSession({ id: '1', status: ChatSessionStatus.Completed, startTime: beforeWindowSession }),
+				createMockSession({ id: '2', status: ChatSessionStatus.Completed, startTime: beforeWindowSession - 1000 }),
+				createMockSession({ id: '3', status: ChatSessionStatus.Completed, startTime: beforeWindowSession - 2000 }),
 			];
 
 			const result = groupAgentSessionsByPending(sessions);
@@ -471,6 +475,30 @@ suite('AgentSessionsDataSource', () => {
 			assert.strictEqual(pendingSection.sessions[0].label, 'Session 1');
 			// Other sessions in Done
 			assert.strictEqual(doneSection.sessions.length, 2);
+		});
+
+		test('Sessions created during current window session appear in Pending', () => {
+			const now = Date.now();
+			const beforeWindowSession = WINDOW_SESSION_START_TIME - ONE_DAY;
+			const sessions = [
+				// Session created during current window session should be in Pending
+				createMockSession({ id: '1', status: ChatSessionStatus.Completed, startTime: now }),
+				// Session created before window session should be in Done
+				createMockSession({ id: '2', status: ChatSessionStatus.Completed, startTime: beforeWindowSession - 1000 }),
+				createMockSession({ id: '3', status: ChatSessionStatus.Completed, startTime: beforeWindowSession - 2000 }),
+			];
+
+			const result = groupAgentSessionsByPending(sessions);
+			const pendingSection = result.get(AgentSessionSection.Pending);
+			const doneSection = result.get(AgentSessionSection.Done);
+
+			assert.ok(pendingSection);
+			assert.ok(doneSection);
+			// Session 1 created during window session should be in Pending
+			assert.ok(pendingSection.sessions.some(s => s.label === 'Session 1'));
+			// Sessions 2 and 3 created before window session should be in Done
+			// (Session 2 is also made pending by "most recent from today/yesterday" logic)
+			assert.ok(doneSection.sessions.some(s => s.label === 'Session 3'));
 		});
 
 		test('Archived sessions go to Done even if unread or have changes', () => {
