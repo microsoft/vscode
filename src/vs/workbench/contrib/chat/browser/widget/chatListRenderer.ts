@@ -1934,7 +1934,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		this.handleRenderedCodeblocks(element, markdownPart, codeBlockStartIndex);
 
 		const collapsedToolsMode = this.configService.getValue<CollapsedToolsDisplayMode>('chat.agent.thinking.collapsedTools');
-		if (isResponseVM(context.element) && collapsedToolsMode !== CollapsedToolsDisplayMode.Off) {
+		if (isResponseVM(context.element) && collapsedToolsMode !== CollapsedToolsDisplayMode.Off && !isFinalAnswerPart) {
 
 			// append to thinking part when the codeblock is complete
 			const isComplete = this.isCodeblockComplete(markdown, context.element);
@@ -1974,7 +1974,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				return thinkingPart;
 			}
 
-			if (this.shouldPinPart(markdown, context.element) && isComplete && !isFinalAnswerPart) {
+			if (this.shouldPinPart(markdown, context.element) && isComplete) {
 				if (lastThinking && markdownPart?.domNode) {
 					// Factory wrapping already-created markdown part
 					lastThinking.appendItem(
@@ -1984,7 +1984,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 						templateData.value
 					);
 				}
-			} else if (!this.shouldPinPart(markdown, context.element) && !isFinalAnswerPart) {
+			} else if (!this.shouldPinPart(markdown, context.element)) {
 				this.finalizeCurrentThinkingPart(context, templateData);
 			}
 		}
