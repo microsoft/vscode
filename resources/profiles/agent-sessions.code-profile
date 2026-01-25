@@ -16,7 +16,7 @@
 		"window.title": "Agent Sessions",
 		"workbench.editor.showTabs": "single",
 		"workbench.colorTheme": "2026-dark-experimental",
-		"chat.agentsControl.triStateToggle": true,
+		"chat.agentsControl.clickBehavior": "focus",
 		"workbench.tips.enabled": false,
 		"chat.agent.maxRequests": 1000,
 		"workbench.layoutControl.type": "toggles",
