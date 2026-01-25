@@ -613,6 +613,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 			const sessionResource = chatWidget.viewModel?.sessionResource;
 			if (sessionResource) {
+				// Return value intentionally ignored - if reveal fails, the selection was already
+				// cleared when onDidChangeViewModel fired (which occurs before onDidChangeSessions)
 				sessionsControl.reveal(sessionResource);
 			}
 		}));
