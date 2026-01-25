@@ -129,7 +129,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		) {
 			this.viewState.sessionId = undefined; // clear persisted session on fresh start
 		}
-		this.sessionsViewerShowPendingOnly = this.configurationService.getValue<boolean>(ChatConfiguration.ChatViewSessionsShowActiveOnly) ?? true;
+		this.sessionsViewerShowActiveOnly = this.configurationService.getValue<boolean>(ChatConfiguration.ChatViewSessionsShowActiveOnly) ?? true;
 		this.sessionsViewerVisible = false; // will be updated from layout code
 		this.sessionsViewerSidebarWidth = Math.max(ChatViewPane.SESSIONS_SIDEBAR_MIN_WIDTH, this.viewState.sessionsSidebarWidth ?? ChatViewPane.SESSIONS_SIDEBAR_DEFAULT_WIDTH);
 
@@ -234,18 +234,18 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			return e.affectsConfiguration(LayoutSettings.ACTIVITY_BAR_LOCATION);
 		})(() => this.updateViewPaneClasses(true)));
 
-		// Sessions viewer show pending only setting changes
+		// Sessions viewer show active only setting changes
 		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => {
 			return e.affectsConfiguration(ChatConfiguration.ChatViewSessionsShowActiveOnly);
 		})(() => {
-			const oldSessionsViewerShowPendingOnly = this.sessionsViewerShowPendingOnly;
+			const oldSessionsViewerShowActiveOnly = this.sessionsViewerShowActiveOnly;
 			if (this.sessionsViewerOrientation === AgentSessionsViewerOrientation.SideBySide) {
-				this.sessionsViewerShowPendingOnly = false; // side by side always shows all
+				this.sessionsViewerShowActiveOnly = false; // side by side always shows all
 			} else {
-				this.sessionsViewerShowPendingOnly = this.configurationService.getValue<boolean>(ChatConfiguration.ChatViewSessionsShowActiveOnly) ?? true;
+				this.sessionsViewerShowActiveOnly = this.configurationService.getValue<boolean>(ChatConfiguration.ChatViewSessionsShowActiveOnly) ?? true;
 			}
 
-			if (oldSessionsViewerShowPendingOnly !== this.sessionsViewerShowPendingOnly) {
+			if (oldSessionsViewerShowActiveOnly !== this.sessionsViewerShowActiveOnly) {
 				this.sessionsControl?.update();
 			}
 		}));
@@ -342,7 +342,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private sessionsNewButtonContainer: HTMLElement | undefined;
 	private sessionsControlContainer: HTMLElement | undefined;
 	private sessionsControl: AgentSessionsControl | undefined;
-	private sessionsViewerShowPendingOnly: boolean;
+	private sessionsViewerShowActiveOnly: boolean;
 	private sessionsViewerVisible: boolean;
 	private sessionsViewerOrientation = AgentSessionsViewerOrientation.Stacked;
 	private sessionsViewerOrientationConfiguration: 'stacked' | 'sideBySide' = 'sideBySide';
@@ -374,7 +374,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		// Sessions Filter
 		const sessionsFilter = this._register(this.instantiationService.createInstance(AgentSessionsFilter, {
 			filterMenuId: MenuId.AgentSessionsViewerFilterSubMenu,
-			groupResults: () => this.sessionsViewerShowPendingOnly ? AgentSessionsGrouping.Active : AgentSessionsGrouping.Default,
+			groupResults: () => this.sessionsViewerShowActiveOnly ? AgentSessionsGrouping.Active : AgentSessionsGrouping.Default,
 		}));
 		this._register(Event.runAndSubscribe(sessionsFilter.onDidChange, () => {
 			sessionsToolbarContainer.classList.toggle('filtered', !sessionsFilter.isDefault());
@@ -861,12 +861,12 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			this.sessionsViewerOrientationContext.set(AgentSessionsViewerOrientation.Stacked);
 		}
 
-		// Update show pending only state based on orientation change
+		// Update show active only state based on orientation change
 		if (oldSessionsViewerOrientation !== this.sessionsViewerOrientation) {
 			if (this.sessionsViewerOrientation === AgentSessionsViewerOrientation.SideBySide) {
-				this.sessionsViewerShowPendingOnly = false; // side by side always shows all
+				this.sessionsViewerShowActiveOnly = false; // side by side always shows all
 			} else {
-				this.sessionsViewerShowPendingOnly = this.configurationService.getValue<boolean>(ChatConfiguration.ChatViewSessionsShowActiveOnly) ?? true;
+				this.sessionsViewerShowActiveOnly = this.configurationService.getValue<boolean>(ChatConfiguration.ChatViewSessionsShowActiveOnly) ?? true;
 			}
 
 			const updatePromise = this.sessionsControl.update();
