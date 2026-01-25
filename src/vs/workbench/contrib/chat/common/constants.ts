@@ -41,7 +41,7 @@ export enum ChatConfiguration {
 	ShowCodeBlockProgressAnimation = 'chat.agent.codeBlockProgress',
 	RestoreLastPanelSession = 'chat.restoreLastPanelSession',
 	ExitAfterDelegation = 'chat.exitAfterDelegation',
-	AgentsControlTriStateToggle = 'chat.agentsControl.triStateToggle',
+	AgentsControlClickBehavior = 'chat.agentsControl.clickBehavior',
 	ExplainChangesEnabled = 'chat.editing.explainChanges.enabled',
 }
 
@@ -80,6 +80,12 @@ export enum CollapsedToolsDisplayMode {
 	Off = 'off',
 	WithThinking = 'withThinking',
 	Always = 'always',
+}
+
+export enum AgentsControlClickBehavior {
+	Default = 'default',
+	TriStateToggle = 'triStateToggle',
+	Focus = 'focus',
 }
 
 export type RawChatParticipantLocation = 'panel' | 'terminal' | 'notebook' | 'editing-session';
