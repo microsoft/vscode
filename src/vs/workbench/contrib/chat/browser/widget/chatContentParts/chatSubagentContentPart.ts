@@ -6,6 +6,7 @@
 import * as dom from '../../../../../../base/browser/dom.js';
 import { $, AnimationFrameScheduler, DisposableResizeObserver } from '../../../../../../base/browser/dom.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
+import { IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { rcut } from '../../../../../../base/common/strings.js';
 import { localize } from '../../../../../../nls.js';
@@ -17,7 +18,7 @@ import { ChatTreeItem } from '../../chat.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 import { ChatCollapsibleContentPart } from './chatCollapsibleContentPart.js';
 import { ChatCollapsibleMarkdownContentPart } from './chatCollapsibleMarkdownContentPart.js';
-import { IChatToolInvocation, IChatToolInvocationSerialized } from '../../../common/chatService/chatService.js';
+import { IChatMarkdownContent, IChatToolInvocation, IChatToolInvocationSerialized } from '../../../common/chatService/chatService.js';
 import { IRunSubagentToolInputParams, RunSubagentTool } from '../../../common/tools/builtinTools/runSubagentTool.js';
 import { autorun } from '../../../../../../base/common/observable.js';
 import { Lazy } from '../../../../../../base/common/lazy.js';
@@ -36,10 +37,21 @@ const MAX_TITLE_LENGTH = 100;
  * Represents a lazy tool item that will be created when the subagent section is expanded.
  */
 interface ILazyToolItem {
+	kind: 'tool';
 	lazy: Lazy<ChatToolInvocationPart>;
 	toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized;
 	codeBlockStartIndex: number;
 }
+
+/**
+ * Represents a lazy markdown item (e.g., edit pill) that will be rendered when expanded.
+ */
+interface ILazyMarkdownItem {
+	kind: 'markdown';
+	lazy: Lazy<{ domNode: HTMLElement; disposable?: IDisposable }>;
+}
+
+type ILazyItem = ILazyToolItem | ILazyMarkdownItem;
 
 /**
  * This is generally copied from ChatThinkingContentPart. We are still experimenting with both UIs so I'm not
@@ -59,7 +71,7 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 	private prompt: string | undefined;
 
 	// Lazy rendering support
-	private readonly lazyItems: ILazyToolItem[] = [];
+	private readonly lazyItems: ILazyItem[] = [];
 	private hasExpandedOnce: boolean = false;
 	private pendingPromptRender: boolean = false;
 	private pendingResultText: string | undefined;
@@ -500,12 +512,68 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		} else {
 			// Defer rendering until expanded
 			const item: ILazyToolItem = {
+				kind: 'tool',
 				lazy: new Lazy(() => this.createToolPart(toolInvocation, codeBlockStartIndex)),
 				toolInvocation,
 				codeBlockStartIndex,
 			};
 			this.lazyItems.push(item);
 		}
+	}
+
+	/**
+	 * Appends a markdown item (e.g., an edit pill) to the subagent content part.
+	 * This is used to route codeblockUri parts with subAgentInvocationId to this subagent's container.
+	 */
+	public appendMarkdownItem(
+		factory: () => { domNode: HTMLElement; disposable?: IDisposable },
+		_codeblocksPartId: string | undefined,
+		_markdown: IChatMarkdownContent,
+		_originalParent?: HTMLElement
+	): void {
+		// If expanded or has been expanded once, render immediately
+		if (this.isExpanded() || this.hasExpandedOnce) {
+			const result = factory();
+			this.appendMarkdownItemToDOM(result.domNode);
+			if (result.disposable) {
+				this._register(result.disposable);
+			}
+		} else {
+			// Defer rendering until expanded
+			const item: ILazyMarkdownItem = {
+				kind: 'markdown',
+				lazy: new Lazy(factory),
+			};
+			this.lazyItems.push(item);
+		}
+	}
+
+	/**
+	 * Appends a markdown item's DOM node to the wrapper.
+	 */
+	private appendMarkdownItemToDOM(domNode: HTMLElement): void {
+		if (!domNode.hasChildNodes() || domNode.textContent?.trim() === '') {
+			return;
+		}
+
+		// Wrap with icon like other items
+		const itemWrapper = $('.chat-thinking-tool-wrapper');
+		const iconElement = createThinkingIcon(Codicon.edit);
+		itemWrapper.appendChild(domNode);
+		itemWrapper.insertBefore(iconElement, itemWrapper.firstChild);
+
+		// Insert before result container if it exists, otherwise append
+		if (this.wrapper) {
+			if (this.resultContainer) {
+				this.wrapper.insertBefore(itemWrapper, this.resultContainer);
+			} else {
+				this.wrapper.appendChild(itemWrapper);
+			}
+		}
+		this.lastItemWrapper = itemWrapper;
+
+		// Schedule layout to measure last item and scroll
+		this.layoutScheduler.schedule();
 	}
 
 	protected override shouldInitEarly(): boolean {
@@ -582,15 +650,23 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 	}
 
 	/**
-	 * Materializes a lazy tool item by creating the tool part and adding it to the DOM.
+	 * Materializes a lazy item by creating the content and adding it to the DOM.
 	 */
-	private materializeLazyItem(item: ILazyToolItem): void {
+	private materializeLazyItem(item: ILazyItem): void {
 		if (item.lazy.hasValue) {
 			return; // Already materialized
 		}
 
-		const part = item.lazy.value;
-		this.appendToolPartToDOM(part, item.toolInvocation);
+		if (item.kind === 'tool') {
+			const part = item.lazy.value;
+			this.appendToolPartToDOM(part, item.toolInvocation);
+		} else if (item.kind === 'markdown') {
+			const result = item.lazy.value;
+			this.appendMarkdownItemToDOM(result.domNode);
+			if (result.disposable) {
+				this._register(result.disposable);
+			}
+		}
 	}
 
 	/**
@@ -640,6 +716,10 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 	}
 
 	hasSameContent(other: IChatRendererContent, _followingContent: IChatRendererContent[], _element: ChatTreeItem): boolean {
+		if (other.kind === 'markdownContent') {
+			return true;
+		}
+
 		// Match subagent tool invocations with the same subAgentInvocationId to keep them grouped
 		if ((other.kind === 'toolInvocation' || other.kind === 'toolInvocationSerialized') && (other.subAgentInvocationId || other.toolId === RunSubagentTool.Id)) {
 			// For runSubagent tool, use toolCallId as the effective ID

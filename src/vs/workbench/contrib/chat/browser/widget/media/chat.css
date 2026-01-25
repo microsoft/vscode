@@ -2076,6 +2076,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: flex;
 	flex-direction: column;
 	gap: 2px;
+	line-height: 1.5em;
 }
 
 .interactive-response-progress-tree,
@@ -2173,6 +2174,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .chat-used-context-label .monaco-button {
 	padding: 2px 6px 2px 2px;
 	font-size: var(--vscode-chat-font-size-body-m);
+	line-height: unset;
 }
 
 .interactive-session .chat-file-changes-label .monaco-button:hover {
@@ -2204,8 +2206,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-item-container .progress-container {
 	display: flex;
 	align-items: center;
-	gap: 7px;
-	margin: 0 0 6px 4px;
+	gap: 4px;
+	margin: 0 0 6px 2px;
 
 	/* Tool calls transition from a progress to a collapsible list part, which needs to have this top padding.
 	The working progress also can be replaced by a tool progress part. So align this padding so the text doesn't appear to shift. */
@@ -2222,6 +2224,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	.codicon {
 		/* Very aggressive list styles try to apply focus colors to every codicon in a list row. */
 		color: var(--vscode-icon-foreground) !important;
+		/* Matching the margin on all .monaco-text-button .codicon */
+		margin: 0 .2em;
 
 		&.codicon-error {
 			color: var(--vscode-editorError-foreground) !important;

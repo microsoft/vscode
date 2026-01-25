@@ -813,6 +813,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				getOptionGroup: () => {
 					const groups = this.chatSessionsService.getOptionGroupsForSessionType(effectiveSessionType);
 					return groups?.find(g => g.id === optionGroup.id);
+				},
+				getSessionResource: () => {
+					return this._widget?.viewModel?.model.sessionResource;
 				}
 			};
 
@@ -1476,7 +1479,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				const currentOption = this.chatSessionsService.getSessionOption(ctx.chatSessionResource, groupId);
 				if (optionGroup && currentOption) {
 					const currentOptionId = typeof currentOption === 'string' ? currentOption : currentOption.id;
-					if (!optionGroup.items.some(item => item.id === currentOptionId)) {
+					// TODO: @osortega @joshspicer should we add a `placeHolder` item to option groups to straighten this check?
+					if (!optionGroup.items.some(item => item.id === currentOptionId) && typeof currentOption === 'string') {
 						allOptionsValid = false;
 						break;
 					}
@@ -1536,15 +1540,14 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					if (optionGroup) {
 						const currentOptionId = typeof currentOption === 'string' ? currentOption : currentOption.id;
 						const item = optionGroup.items.find((m: IChatSessionProviderOptionItem) => m.id === currentOptionId);
-						if (item) {
-							// If currentOption is an object (not a string ID), it represents a complete option item and should be used directly.
-							// Otherwise, if it's a string ID, look up the corresponding item and use that.
-							if (typeof currentOption === 'string') {
-								this.getOrCreateOptionEmitter(optionGroupId).fire(item);
-							} else {
-								this.getOrCreateOptionEmitter(optionGroupId).fire(currentOption);
-							}
+						// If currentOption is an object (not a string ID), it represents a complete option item and should be used directly.
+						// Otherwise, if it's a string ID, look up the corresponding item and use that.
+						if (item && typeof currentOption === 'string') {
+							this.getOrCreateOptionEmitter(optionGroupId).fire(item);
+						} else if (typeof currentOption !== 'string') {
+							this.getOrCreateOptionEmitter(optionGroupId).fire(currentOption);
 						}
+
 					}
 				}
 			}

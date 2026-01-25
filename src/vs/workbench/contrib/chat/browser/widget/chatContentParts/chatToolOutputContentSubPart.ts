@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../../base/browser/dom.js';
+import { disposableTimeout } from '../../../../../../base/common/async.js';
+import { decodeBase64 } from '../../../../../../base/common/buffer.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { basename, joinPath } from '../../../../../../base/common/resources.js';
@@ -41,7 +43,6 @@ import { ChatCollapsibleIOPart, IChatCollapsibleIOCodePart, IChatCollapsibleIODa
  * This is used by both ChatCollapsibleInputOutputContentPart and ChatToolPostExecuteConfirmationPart.
  */
 export class ChatToolOutputContentSubPart extends Disposable {
-	private _currentWidth: number = 0;
 	private readonly _editorReferences: IDisposableReference<CodeBlockPart>[] = [];
 	public readonly domNode: HTMLElement;
 	readonly codeblocks: IChatCodeBlockInfo[] = [];
@@ -59,7 +60,6 @@ export class ChatToolOutputContentSubPart extends Disposable {
 	) {
 		super();
 		this.domNode = this.createOutputContents();
-		this._currentWidth = context.currentWidth.get();
 	}
 
 	private toMdString(value: string | IMarkdownString): MarkdownString {
@@ -112,20 +112,44 @@ export class ChatToolOutputContentSubPart extends Disposable {
 		return el.root;
 	}
 
+	/**
+	 * Delay in milliseconds before decoding base64 image data.
+	 * This avoids expensive decode operations during scrolling.
+	 */
+	private static readonly IMAGE_DECODE_DELAY_MS = 100;
+
 	private async fillInResourceGroup(parts: IChatCollapsibleIODataPart[], itemsContainer: HTMLElement, actionsContainer: HTMLElement) {
-		const entries = await Promise.all(parts.map(async (part): Promise<IChatRequestVariableEntry> => {
+		// First pass: create entries immediately, using file placeholders for base64 images
+		const entries: IChatRequestVariableEntry[] = [];
+		const deferredImageParts: { index: number; part: IChatCollapsibleIODataPart }[] = [];
+
+		for (let i = 0; i < parts.length; i++) {
+			const part = parts[i];
 			if (part.mimeType && getAttachableImageExtension(part.mimeType)) {
-				const value = part.value ?? await this._fileService.readFile(part.uri).then(f => f.value.buffer, () => undefined);
-				return { kind: 'image', id: generateUuid(), name: basename(part.uri), value, mimeType: part.mimeType, isURL: false, references: [{ kind: 'reference', reference: part.uri }] };
+				if (part.base64Value) {
+					// Defer base64 decode - use file placeholder for now
+					entries.push({ kind: 'file', id: generateUuid(), name: basename(part.uri), fullName: part.uri.path, value: part.uri });
+					deferredImageParts.push({ index: i, part });
+				} else if (part.value) {
+					entries.push({ kind: 'image', id: generateUuid(), name: basename(part.uri), value: part.value, mimeType: part.mimeType, isURL: false, references: [{ kind: 'reference', reference: part.uri }] });
+				} else {
+					const value = await this._fileService.readFile(part.uri).then(f => f.value.buffer, () => undefined);
+					if (!value) {
+						entries.push({ kind: 'file', id: generateUuid(), name: basename(part.uri), fullName: part.uri.path, value: part.uri });
+					} else {
+						entries.push({ kind: 'image', id: generateUuid(), name: basename(part.uri), value, mimeType: part.mimeType, isURL: false, references: [{ kind: 'reference', reference: part.uri }] });
+					}
+				}
 			} else {
-				return { kind: 'file', id: generateUuid(), name: basename(part.uri), fullName: part.uri.path, value: part.uri };
+				entries.push({ kind: 'file', id: generateUuid(), name: basename(part.uri), fullName: part.uri.path, value: part.uri });
 			}
-		}));
+		}
 
 		if (this._store.isDisposed) {
 			return;
 		}
 
+		// Render attachments immediately with placeholders
 		const attachments = this._register(this._instantiationService.createInstance(
 			ChatAttachmentsContentPart,
 			{
@@ -160,6 +184,23 @@ export class ChatToolOutputContentSubPart extends Disposable {
 			},
 		}));
 		toolbar.context = { parts } satisfies IChatToolOutputResourceToolbarContext;
+
+		// Second pass: decode base64 images asynchronously and update in place
+		if (deferredImageParts.length > 0) {
+			this._register(disposableTimeout(() => {
+				for (const { index, part } of deferredImageParts) {
+					try {
+						const value = decodeBase64(part.base64Value!).buffer;
+						entries[index] = { kind: 'image', id: generateUuid(), name: basename(part.uri), value, mimeType: part.mimeType!, isURL: false, references: [{ kind: 'reference', reference: part.uri }] };
+					} catch {
+						// Keep the file placeholder on decode failure
+					}
+				}
+
+				// Update attachments in place
+				attachments.updateVariables(entries);
+			}, ChatToolOutputContentSubPart.IMAGE_DECODE_DELAY_MS));
+		}
 	}
 
 	private addCodeBlock(parts: IChatCollapsibleIOCodePart[], container: HTMLElement): void {
@@ -191,7 +232,7 @@ export class ChatToolOutputContentSubPart extends Disposable {
 			chatSessionResource: this.context.element.sessionResource,
 		};
 		const editorReference = this._register(this.context.editorPool.get());
-		editorReference.object.render(data, this._currentWidth || 300);
+		editorReference.object.render(data, this.context.currentWidth.get());
 		container.appendChild(editorReference.object.element);
 		this._editorReferences.push(editorReference);
 
@@ -209,7 +250,6 @@ export class ChatToolOutputContentSubPart extends Disposable {
 	}
 
 	layout(width: number): void {
-		this._currentWidth = width;
 		this._editorReferences.forEach(r => r.object.layout(width));
 	}
 }

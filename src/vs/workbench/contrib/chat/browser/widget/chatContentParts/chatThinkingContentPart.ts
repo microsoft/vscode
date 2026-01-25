@@ -171,7 +171,10 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			this.setExpanded(false);
 		} else if (configuredMode === ThinkingDisplayMode.CollapsedPreview) {
 			// Start expanded if still in progress
-			this.setExpanded(!this.element.isComplete);
+			// Use streamingCompleted to support look-ahead completion: when we know
+			// this thinking part is done (based on subsequent non-pinnable parts)
+			// even though the overall response is not complete
+			this.setExpanded(!this.streamingCompleted && !this.element.isComplete);
 		} else {
 			this.setExpanded(false);
 		}
@@ -241,7 +244,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	}
 
 	protected override shouldInitEarly(): boolean {
-		return this.fixedScrollingMode;
+		return this.fixedScrollingMode && !this.streamingCompleted;
 	}
 
 	// @TODO: @justschen Convert to template for each setting?

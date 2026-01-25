@@ -41,6 +41,7 @@ import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.
 import { MarkdownString, IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { AgentSessionHoverWidget } from './agentSessionHoverWidget.js';
 import { AgentSessionsGrouping } from './agentSessionsFilter.js';
+import { AgentSessionProviders } from './agentSessions.js';
 
 export type AgentSessionListItem = IAgentSession | IAgentSessionSection;
 
@@ -194,8 +195,20 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 		}
 		template.diffContainer.classList.toggle('has-diff', hasDiff);
 
-		// TODO@lszomoru - Only show the "View All Changes" action if the changes are in an array. We have to revisit this
-		ChatContextKeys.hasAgentSessionChanges.bindTo(template.contextKeyService).set(Array.isArray(diff) && diff.length > 0);
+		let hasAgentSessionChanges = false;
+		if (
+			session.element.providerType === AgentSessionProviders.Background ||
+			session.element.providerType === AgentSessionProviders.Cloud
+		) {
+			// Background and Cloud agents provide the list of changes directly,
+			// so we have to use the list of changes to determine whether to show
+			// the "View All Changes" action
+			hasAgentSessionChanges = Array.isArray(diff) && diff.length > 0;
+		} else {
+			hasAgentSessionChanges = hasDiff;
+		}
+
+		ChatContextKeys.hasAgentSessionChanges.bindTo(template.contextKeyService).set(hasAgentSessionChanges);
 
 		// Badge
 		let hasBadge = false;
@@ -642,8 +655,8 @@ export class AgentSessionsDataSource implements IAsyncDataSource<IAgentSessionsM
 		const result: AgentSessionListItem[] = [];
 
 		const sortedSessions = sessions.sort(this.sorter.compare.bind(this.sorter));
-		const groupedSessions = this.filter?.groupResults?.() === AgentSessionsGrouping.Pending
-			? groupAgentSessionsByPending(sortedSessions)
+		const groupedSessions = this.filter?.groupResults?.() === AgentSessionsGrouping.Active
+			? groupAgentSessionsByActive(sortedSessions)
 			: groupAgentSessionsByDefault(sortedSessions);
 
 		for (const { sessions, section, label } of groupedSessions.values()) {
@@ -668,8 +681,8 @@ export const AgentSessionSectionLabels = {
 	[AgentSessionSection.Week]: localize('agentSessions.weekSection', "Last Week"),
 	[AgentSessionSection.Older]: localize('agentSessions.olderSection', "Older"),
 	[AgentSessionSection.Archived]: localize('agentSessions.archivedSection', "Archived"),
-	[AgentSessionSection.Pending]: localize('agentSessions.pendingSection', "Pending"),
-	[AgentSessionSection.Done]: localize('agentSessions.doneSection', "Done"),
+	[AgentSessionSection.Active]: localize('agentSessions.activeSection', "Active"),
+	[AgentSessionSection.History]: localize('agentSessions.historySection', "History"),
 };
 
 export function groupAgentSessionsByDefault(sessions: IAgentSession[]): Map<AgentSessionSection, IAgentSessionSection> {
@@ -714,9 +727,9 @@ export function groupAgentSessionsByDefault(sessions: IAgentSession[]): Map<Agen
 	]);
 }
 
-export function groupAgentSessionsByPending(sessions: IAgentSession[]): Map<AgentSessionSection, IAgentSessionSection> {
-	const pendingSessions = new Set<IAgentSession>();
-	const doneSessions = new Set<IAgentSession>();
+export function groupAgentSessionsByActive(sessions: IAgentSession[]): Map<AgentSessionSection, IAgentSessionSection> {
+	const activeSessions = new Set<IAgentSession>();
+	const historySessions = new Set<IAgentSession>();
 
 	const now = Date.now();
 	const startOfToday = new Date(now).setHours(0, 0, 0, 0);
@@ -730,16 +743,17 @@ export function groupAgentSessionsByPending(sessions: IAgentSession[]): Map<Agen
 		}
 
 		if (session.isArchived()) {
-			doneSessions.add(session);
+			historySessions.add(session);
 		} else {
 			if (
-				isSessionInProgressStatus(session.status) ||								// in-progress
-				!session.isRead() ||														// unread
-				(getAgentChangesSummary(session.changes) && hasValidDiff(session.changes))	// has changes
+				isSessionInProgressStatus(session.status) ||									// in-progress
+				!session.isRead() ||															// unread
+				(getAgentChangesSummary(session.changes) && hasValidDiff(session.changes)) ||	// has changes
+				sessionTime >= startOfYesterday													// from today or yesterday
 			) {
-				pendingSessions.add(session);
+				activeSessions.add(session);
 			} else {
-				doneSessions.add(session);
+				historySessions.add(session);
 			}
 		}
 	}
@@ -749,15 +763,15 @@ export function groupAgentSessionsByPending(sessions: IAgentSession[]): Map<Agen
 	if (
 		mostRecentSession && !mostRecentSession.session.isArchived() &&
 		mostRecentSession.time >= startOfYesterday &&
-		!pendingSessions.has(mostRecentSession.session)
+		!activeSessions.has(mostRecentSession.session)
 	) {
-		doneSessions.delete(mostRecentSession.session);
-		pendingSessions.add(mostRecentSession.session);
+		historySessions.delete(mostRecentSession.session);
+		activeSessions.add(mostRecentSession.session);
 	}
 
 	return new Map<AgentSessionSection, IAgentSessionSection>([
-		[AgentSessionSection.Pending, { section: AgentSessionSection.Pending, label: AgentSessionSectionLabels[AgentSessionSection.Pending], sessions: [...pendingSessions] }],
-		[AgentSessionSection.Done, { section: AgentSessionSection.Done, label: localize('agentSessions.doneSectionWithCount', "Done ({0})", doneSessions.size), sessions: [...doneSessions] }],
+		[AgentSessionSection.Active, { section: AgentSessionSection.Active, label: AgentSessionSectionLabels[AgentSessionSection.Active], sessions: [...activeSessions] }],
+		[AgentSessionSection.History, { section: AgentSessionSection.History, label: localize('agentSessions.historySectionWithCount', "History ({0})", historySessions.size), sessions: [...historySessions] }],
 	]);
 }
 
