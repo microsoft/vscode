@@ -955,7 +955,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._currentLanguageModel.set(model, undefined);
 
 		if (this.cachedWidth) {
-			// For quick chat and editor chat, relayout because the input may need to shrink to accomodate the model name
+			// For quick chat and editor chat, relayout because the input may need to shrink to accommodate the model name
 			this.layout(this.cachedWidth);
 		}
 
