@@ -41,6 +41,11 @@ export interface IChatCollapsibleIOCodePart {
 export interface IChatCollapsibleIODataPart {
 	kind: 'data';
 	value?: Uint8Array;
+	/**
+	 * Base64-encoded value that can be decoded lazily to avoid expensive
+	 * decoding during scroll. Takes precedence over `value` when present.
+	 */
+	base64Value?: string;
 	audience?: LanguageModelPartAudience[];
 	mimeType: string | undefined;
 	uri: URI;
