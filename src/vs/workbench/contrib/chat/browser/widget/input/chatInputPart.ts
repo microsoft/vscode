@@ -1479,7 +1479,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				const currentOption = this.chatSessionsService.getSessionOption(ctx.chatSessionResource, groupId);
 				if (optionGroup && currentOption) {
 					const currentOptionId = typeof currentOption === 'string' ? currentOption : currentOption.id;
-					if (!optionGroup.items.some(item => item.id === currentOptionId)) {
+					// TODO: @osortega @joshspicer should we add a `placeHolder` item to option groups to straighten this check?
+					if (!optionGroup.items.some(item => item.id === currentOptionId) && typeof currentOption === 'string') {
 						allOptionsValid = false;
 						break;
 					}
