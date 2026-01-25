@@ -272,6 +272,7 @@ export interface IChatResponseCodeblockUriPart {
 	uri: URI;
 	isEdit?: boolean;
 	undoStopId?: string;
+	subAgentInvocationId?: string;
 }
 
 export interface IChatAgentMarkdownContentWithVulnerability {

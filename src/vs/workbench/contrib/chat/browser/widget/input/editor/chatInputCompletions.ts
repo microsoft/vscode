@@ -1243,7 +1243,6 @@ class ToolCompletions extends Disposable {
 						documentation,
 						insertText: withLeader + ' ',
 						kind: CompletionItemKind.Tool,
-						sortText: 'z',
 					});
 
 				}
