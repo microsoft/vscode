@@ -7,7 +7,7 @@ import assert from 'assert';
 import fs from 'fs';
 import path from 'path';
 import { Page } from 'playwright';
-import { TestContext } from './context';
+import { TestContext } from './context.js';
 
 /**
  * UI Test helper class to perform common UI actions and verifications.
@@ -82,7 +82,7 @@ export class UITest {
 		await page.keyboard.press('F1');
 		await page.getByPlaceholder(/^Type the name of a command/).fill(`>${command}`);
 		await page.locator('span.monaco-highlighted-label', { hasText: new RegExp(`^${command}$`) }).click();
-		await page.waitForTimeout(500);
+		await page.waitForTimeout(1000);
 	}
 
 	/**
@@ -105,7 +105,6 @@ export class UITest {
 		await page.keyboard.type('Hello, World!');
 
 		await this.runCommand(page, 'File: Save');
-		await page.waitForTimeout(1000);
 	}
 
 	/**
@@ -131,6 +130,7 @@ export class UITest {
 		this.context.log('Clicking Install on the first extension in the list');
 		await page.locator('.extension-list-item').getByText(/^GitHub Pull Requests$/).waitFor();
 		await page.locator('.extension-action:not(.disabled)', { hasText: /Install/ }).first().click();
+		await page.waitForTimeout(1000);
 
 		this.context.log('Waiting for extension to be installed');
 		await page.locator('.extension-action:not(.disabled)', { hasText: /Uninstall/ }).waitFor();

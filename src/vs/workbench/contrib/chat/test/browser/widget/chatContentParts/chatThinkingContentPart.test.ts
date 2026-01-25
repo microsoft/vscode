@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* eslint-disable no-restricted-syntax */
-
 import assert from 'assert';
 import { $ } from '../../../../../../../base/browser/dom.js';
 import { Event } from '../../../../../../../base/common/event.js';
@@ -804,6 +802,116 @@ suite('ChatThinkingContentPart', () => {
 				`placed first regardless of arrival order.`);
 			assert.ok(markdownIndex < tool2Index,
 				`Markdown (index ${markdownIndex}) should come before Tool2 (index ${tool2Index})`);
+		});
+
+		test('lazy thinking items should show updated content after streaming updates', () => {
+			// This test exposes the bug where streaming updates to thinking content are lost
+			// when the thinking part is collapsed.
+			//
+			// Bug flow:
+			// 1. setupThinkingContainer(content1) creates lazy item with content1
+			// 2. updateThinking(content2) is called with updated streaming content
+			//    - this.content is updated to content2
+			//    - this.currentThinkingValue is updated
+			//    - but the lazy item still stores content1
+			// 3. User expands:
+			//    - initContent creates a NEW textContainer with currentThinkingValue (latest)
+			//    - materializeLazyItem appends ANOTHER container from lazy item with stale content
+			//
+			// Result: Duplicate thinking containers, one with correct content, one with stale
+			const initialContent = createThinkingPart('', 'thinking-1');
+			const context = createMockRenderContext(false);
+
+			const part = store.add(instantiationService.createInstance(
+				ChatThinkingContentPart,
+				initialContent,
+				context,
+				mockMarkdownRenderer,
+				false
+			));
+
+			mainWindow.document.body.appendChild(part.domNode);
+			disposables.add({ dispose: () => part.domNode.remove() });
+
+			// Step 1: New thinking section arrives while collapsed
+			const thinkingContent1 = createThinkingPart('**Starting analysis**', 'thinking-2');
+			part.setupThinkingContainer(thinkingContent1);
+
+			// Step 2: Streaming continues - more content arrives via updateThinking
+			const thinkingContent2 = createThinkingPart('**Starting analysis** Looking at the code structure...', 'thinking-2');
+			part.updateThinking(thinkingContent2);
+
+			// Step 3: Even more streaming content
+			const thinkingContent3 = createThinkingPart('**Starting analysis** Looking at the code structure... Found the issue in the parser module.', 'thinking-2');
+			part.updateThinking(thinkingContent3);
+
+			// Now expand to trigger lazy rendering
+			const button = part.domNode.querySelector('.monaco-button') as HTMLElement;
+			button?.click();
+
+			// Get the rendered content
+			const wrapper = part.domNode.querySelector('.chat-used-context-list');
+			assert.ok(wrapper, 'Should have wrapper after expanding');
+
+			// Get ALL thinking items - the bug creates duplicate containers
+			const thinkingItems = wrapper!.querySelectorAll('.chat-thinking-item.markdown-content');
+
+			// BUG: There should only be ONE thinking item, but the bug causes TWO:
+			// 1. One from initContent with correct current content
+			// 2. One from materializeLazyItem with stale content
+			assert.strictEqual(thinkingItems.length, 1,
+				`BUG: Should have exactly 1 thinking item, but got ${thinkingItems.length}. ` +
+				`materializeLazyItem creates a duplicate container from the lazy item. ` +
+				`Items: ${Array.from(thinkingItems).map(i => `"${i.textContent}"`).join(', ')}`);
+
+			// Also verify the single item has the latest content
+			if (thinkingItems.length === 1) {
+				const renderedText = thinkingItems[0].textContent || '';
+				assert.ok(
+					renderedText.includes('Found the issue in the parser module'),
+					`Content should show latest streaming update. Got: "${renderedText}"`
+				);
+			}
+		});
+
+		test('lazy thinking items should work without streaming updates after setupThinkingContainer', () => {
+			// Edge case: setupThinkingContainer is called but no subsequent updateThinking arrives
+			// In this case, the lazy item's content should be used when materializing
+			const initialContent = createThinkingPart('', 'thinking-1');
+			const context = createMockRenderContext(false);
+
+			const part = store.add(instantiationService.createInstance(
+				ChatThinkingContentPart,
+				initialContent,
+				context,
+				mockMarkdownRenderer,
+				false
+			));
+
+			mainWindow.document.body.appendChild(part.domNode);
+			disposables.add({ dispose: () => part.domNode.remove() });
+
+			// Only call setupThinkingContainer, no subsequent updateThinking
+			const thinkingContent = createThinkingPart('**Analyzing files**', 'thinking-2');
+			part.setupThinkingContainer(thinkingContent);
+
+			// Expand to trigger lazy rendering
+			const button = part.domNode.querySelector('.monaco-button') as HTMLElement;
+			button?.click();
+
+			// Get the rendered content
+			const wrapper = part.domNode.querySelector('.chat-used-context-list');
+			assert.ok(wrapper, 'Should have wrapper after expanding');
+
+			const thinkingItems = wrapper!.querySelectorAll('.chat-thinking-item.markdown-content');
+			assert.strictEqual(thinkingItems.length, 1, 'Should have exactly 1 thinking item');
+
+			// The content should be the one from setupThinkingContainer
+			const renderedText = thinkingItems[0].textContent || '';
+			assert.ok(
+				renderedText.includes('Analyzing files'),
+				`Content should show setupThinkingContainer content. Got: "${renderedText}"`
+			);
 		});
 	});
 

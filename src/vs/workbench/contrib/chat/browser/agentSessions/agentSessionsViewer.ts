@@ -41,6 +41,7 @@ import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.
 import { MarkdownString, IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { AgentSessionHoverWidget } from './agentSessionHoverWidget.js';
 import { AgentSessionsGrouping } from './agentSessionsFilter.js';
+import { AgentSessionProviders } from './agentSessions.js';
 
 export type AgentSessionListItem = IAgentSession | IAgentSessionSection;
 
@@ -194,8 +195,20 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 		}
 		template.diffContainer.classList.toggle('has-diff', hasDiff);
 
-		// TODO@lszomoru - Only show the "View All Changes" action if the changes are in an array. We have to revisit this
-		ChatContextKeys.hasAgentSessionChanges.bindTo(template.contextKeyService).set(Array.isArray(diff) && diff.length > 0);
+		let hasAgentSessionChanges = false;
+		if (
+			session.element.providerType === AgentSessionProviders.Background ||
+			session.element.providerType === AgentSessionProviders.Cloud
+		) {
+			// Background and Cloud agents provide the list of changes directly,
+			// so we have to use the list of changes to determine whether to show
+			// the "View All Changes" action
+			hasAgentSessionChanges = Array.isArray(diff) && diff.length > 0;
+		} else {
+			hasAgentSessionChanges = hasDiff;
+		}
+
+		ChatContextKeys.hasAgentSessionChanges.bindTo(template.contextKeyService).set(hasAgentSessionChanges);
 
 		// Badge
 		let hasBadge = false;
@@ -660,6 +673,7 @@ export class AgentSessionsDataSource implements IAsyncDataSource<IAgentSessionsM
 
 const DAY_THRESHOLD = 24 * 60 * 60 * 1000;
 const WEEK_THRESHOLD = 7 * DAY_THRESHOLD;
+export const WINDOW_SESSION_START_TIME = Date.now();
 
 export const AgentSessionSectionLabels = {
 	[AgentSessionSection.InProgress]: localize('agentSessions.inProgressSection', "In Progress"),
@@ -733,9 +747,10 @@ export function groupAgentSessionsByPending(sessions: IAgentSession[]): Map<Agen
 			doneSessions.add(session);
 		} else {
 			if (
-				isSessionInProgressStatus(session.status) ||								// in-progress
-				!session.isRead() ||														// unread
-				(getAgentChangesSummary(session.changes) && hasValidDiff(session.changes))	// has changes
+				isSessionInProgressStatus(session.status) ||									// in-progress
+				!session.isRead() ||															// unread
+				(getAgentChangesSummary(session.changes) && hasValidDiff(session.changes)) ||	// has changes
+				sessionTime >= WINDOW_SESSION_START_TIME										// newer than this window session
 			) {
 				pendingSessions.add(session);
 			} else {

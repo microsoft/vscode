@@ -20,7 +20,9 @@ import {
 	IBrowserViewDevToolsStateEvent,
 	IBrowserViewService,
 	BrowserViewStorageScope,
-	IBrowserViewCaptureScreenshotOptions
+	IBrowserViewCaptureScreenshotOptions,
+	IBrowserViewFindInPageOptions,
+	IBrowserViewFindInPageResult
 } from '../../../../platform/browserView/common/browserView.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -95,6 +97,7 @@ export interface IBrowserViewModel extends IDisposable {
 	readonly onDidChangeTitle: Event<IBrowserViewTitleChangeEvent>;
 	readonly onDidChangeFavicon: Event<IBrowserViewFaviconChangeEvent>;
 	readonly onDidRequestNewPage: Event<IBrowserViewNewPageRequest>;
+	readonly onDidFindInPage: Event<IBrowserViewFindInPageResult>;
 	readonly onDidClose: Event<void>;
 	readonly onWillDispose: Event<void>;
 
@@ -110,6 +113,8 @@ export interface IBrowserViewModel extends IDisposable {
 	captureScreenshot(options?: IBrowserViewCaptureScreenshotOptions): Promise<VSBuffer>;
 	dispatchKeyEvent(keyEvent: IBrowserViewKeyDownEvent): Promise<void>;
 	focus(): Promise<void>;
+	findInPage(text: string, options?: IBrowserViewFindInPageOptions): Promise<void>;
+	stopFindInPage(keepSelection?: boolean): Promise<void>;
 }
 
 export class BrowserViewModel extends Disposable implements IBrowserViewModel {
@@ -181,6 +186,10 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 
 	get onDidRequestNewPage(): Event<IBrowserViewNewPageRequest> {
 		return this.browserViewService.onDynamicDidRequestNewPage(this.id);
+	}
+
+	get onDidFindInPage(): Event<IBrowserViewFindInPageResult> {
+		return this.browserViewService.onDynamicDidFindInPage(this.id);
 	}
 
 	get onDidClose(): Event<void> {
@@ -301,6 +310,14 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 
 	async focus(): Promise<void> {
 		return this.browserViewService.focus(this.id);
+	}
+
+	async findInPage(text: string, options?: IBrowserViewFindInPageOptions): Promise<void> {
+		return this.browserViewService.findInPage(this.id, text, options);
+	}
+
+	async stopFindInPage(keepSelection?: boolean): Promise<void> {
+		return this.browserViewService.stopFindInPage(this.id, keepSelection);
 	}
 
 	/**

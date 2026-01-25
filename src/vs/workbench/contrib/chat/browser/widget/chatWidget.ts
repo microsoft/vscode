@@ -784,13 +784,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	 * Updates the DOM visibility of welcome view and chat list immediately
 	 */
 	private updateChatViewVisibility(): void {
-		if (!this.viewModel) {
-			return;
+		if (this.viewModel) {
+			const numItems = this.viewModel.getItems().length;
+			dom.setVisibility(numItems === 0, this.welcomeMessageContainer);
+			dom.setVisibility(numItems !== 0, this.listContainer);
 		}
-
-		const numItems = this.viewModel.getItems().length;
-		dom.setVisibility(numItems === 0, this.welcomeMessageContainer);
-		dom.setVisibility(numItems !== 0, this.listContainer);
 
 		this._onDidChangeEmptyState.fire();
 	}

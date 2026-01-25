@@ -8,7 +8,7 @@ import { isWeb } from '../../../../base/common/platform.js';
 import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
-import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, ContextKeyExpression, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IUserDataProfile, IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { ILifecycleService, LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
@@ -35,6 +35,7 @@ import { IBrowserWorkbenchEnvironmentService } from '../../../services/environme
 import { Extensions as DndExtensions, IDragAndDropContributionRegistry, IResourceDropHandler } from '../../../../platform/dnd/browser/dnd.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { ITextEditorService } from '../../../services/textfile/common/textEditorService.js';
+import { ChatEntitlementContextKeys } from '../../../services/chat/common/chatEntitlementService.js';
 
 export const OpenProfileMenu = new MenuId('OpenProfile');
 const ProfilesMenu = new MenuId('Profiles');
@@ -287,6 +288,10 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		const disposables = new DisposableStore();
 
 		const id = `workbench.action.openProfile.${profile.name.replace('/\s+/', '_')}`;
+		let precondition: ContextKeyExpression | undefined = HAS_PROFILES_CONTEXT;
+		if (profile.id === 'agent-sessions') {
+			precondition = ContextKeyExpr.and(precondition, ChatEntitlementContextKeys.Setup.hidden.negate());
+		}
 
 		disposables.add(registerAction2(class NewWindowAction extends Action2 {
 
@@ -300,7 +305,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 					menu: {
 						id: OpenProfileMenu,
 						group: '0_profiles',
-						when: HAS_PROFILES_CONTEXT
+						when: precondition
 					}
 				});
 			}
@@ -316,7 +321,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 				id,
 				category: PROFILES_CATEGORY,
 				title: localize2('open', "Open {0} Profile", profile.name),
-				precondition: HAS_PROFILES_CONTEXT
+				precondition
 			},
 		}));
 
