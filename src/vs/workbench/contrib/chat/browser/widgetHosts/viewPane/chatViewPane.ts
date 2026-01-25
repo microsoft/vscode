@@ -605,7 +605,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			}
 		}));
 
-		// When sessions change (e.g., after first message in a new session), reveal the current session
+		// When sessions change (e.g., after first message in a new session)
+		// reveal it unless the user is interacting with the list already
 		this._register(this.agentSessionsService.model.onDidChangeSessions(() => {
 			if (this.sessionsViewerOrientation === AgentSessionsViewerOrientation.Stacked) {
 				return; // only reveal in side-by-side mode
