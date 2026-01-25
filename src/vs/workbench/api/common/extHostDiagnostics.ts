@@ -363,7 +363,11 @@ export class ExtHostDiagnostics implements ExtHostDiagnosticsShape {
 		}
 
 		for (const [uri, markers] of data) {
-			this._mirrorCollection.set(URI.revive(uri), markers.map(converter.Diagnostic.to));
+			if (markers.length === 0) {
+				this._mirrorCollection.delete(URI.revive(uri));
+			} else {
+				this._mirrorCollection.set(URI.revive(uri), markers.map(converter.Diagnostic.to));
+			}
 		}
 	}
 }
