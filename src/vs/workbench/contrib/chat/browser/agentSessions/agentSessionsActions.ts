@@ -55,7 +55,15 @@ export class ShowAllAgentSessionsAction extends Action2 {
 			title: localize2('chat.showSessions.all', "All"),
 			toggled: ContextKeyExpr.and(
 				ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, true),
-				ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsShowActiveOnly}`, false)
+				ContextKeyExpr.or(
+					// Stacked: based on setting
+					ContextKeyExpr.and(
+						ChatContextKeys.agentSessionsViewerOrientation.isEqualTo(AgentSessionsViewerOrientation.Stacked),
+						ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsShowActiveOnly}`, false)
+					),
+					// Side by side: always checked (active not applicable)
+					ChatContextKeys.agentSessionsViewerOrientation.isEqualTo(AgentSessionsViewerOrientation.SideBySide)
+				)
 			),
 			menu: {
 				id: showSessionsSubmenu,
@@ -86,7 +94,8 @@ export class ShowActiveAgentSessionsAction extends Action2 {
 			menu: {
 				id: showSessionsSubmenu,
 				group: 'navigation',
-				order: 2
+				order: 2,
+				when: ChatContextKeys.agentSessionsViewerOrientation.isEqualTo(AgentSessionsViewerOrientation.Stacked) // side-by-side does not support this mode
 			}
 		});
 	}
