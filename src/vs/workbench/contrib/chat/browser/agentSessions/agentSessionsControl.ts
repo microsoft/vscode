@@ -383,14 +383,14 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		return focused.filter(e => isAgentSession(e));
 	}
 
-	reveal(sessionResource: URI): void {
+	reveal(sessionResource: URI): boolean {
 		if (!this.sessionsList) {
-			return;
+			return false;
 		}
 
 		const session = this.agentSessionsService.model.getSession(sessionResource);
 		if (!session || !this.sessionsList.hasNode(session)) {
-			return;
+			return false;
 		}
 
 		if (this.sessionsList.getRelativeTop(session) === null) {
@@ -399,5 +399,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 
 		this.sessionsList.setFocus([session]);
 		this.sessionsList.setSelection([session]);
+
+		return true;
 	}
 }
