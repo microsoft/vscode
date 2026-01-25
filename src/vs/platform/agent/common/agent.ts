@@ -24,5 +24,19 @@ export interface IAgentService {
 	/**
 	 * Send a message to the agent runtime.
 	 */
+	/**
+	 * Send a message to the agent runtime.
+	 */
 	sendMessage(topic: string, message: any): Promise<void>;
+
+	/**
+	 * Register a tool that can be called by the agent.
+	 */
+	registerTool(tool: ITool): void;
+}
+
+export interface ITool {
+	name: string;
+	description: string;
+	execute(args: any): Promise<any>;
 }
