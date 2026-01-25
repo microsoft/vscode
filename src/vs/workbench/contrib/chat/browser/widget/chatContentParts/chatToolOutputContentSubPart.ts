@@ -41,7 +41,6 @@ import { ChatCollapsibleIOPart, IChatCollapsibleIOCodePart, IChatCollapsibleIODa
  * This is used by both ChatCollapsibleInputOutputContentPart and ChatToolPostExecuteConfirmationPart.
  */
 export class ChatToolOutputContentSubPart extends Disposable {
-	private _currentWidth: number = 0;
 	private readonly _editorReferences: IDisposableReference<CodeBlockPart>[] = [];
 	public readonly domNode: HTMLElement;
 	readonly codeblocks: IChatCodeBlockInfo[] = [];
@@ -59,7 +58,6 @@ export class ChatToolOutputContentSubPart extends Disposable {
 	) {
 		super();
 		this.domNode = this.createOutputContents();
-		this._currentWidth = context.currentWidth.get();
 	}
 
 	private toMdString(value: string | IMarkdownString): MarkdownString {
@@ -191,7 +189,7 @@ export class ChatToolOutputContentSubPart extends Disposable {
 			chatSessionResource: this.context.element.sessionResource,
 		};
 		const editorReference = this._register(this.context.editorPool.get());
-		editorReference.object.render(data, this._currentWidth || 300);
+		editorReference.object.render(data, this.context.currentWidth.get());
 		container.appendChild(editorReference.object.element);
 		this._editorReferences.push(editorReference);
 
@@ -209,7 +207,6 @@ export class ChatToolOutputContentSubPart extends Disposable {
 	}
 
 	layout(width: number): void {
-		this._currentWidth = width;
 		this._editorReferences.forEach(r => r.object.layout(width));
 	}
 }
