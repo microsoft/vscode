@@ -285,6 +285,16 @@
 .monaco-workbench .monaco-button:hover { box-shadow: var(--shadow-sm);  }
 .monaco-workbench .monaco-button:active { box-shadow: var(--shadow-button-active); }
 
+/* Todo List Widget - remove shadows from buttons */
+.monaco-workbench.vs .chat-todo-list-widget .todo-list-expand .monaco-button,
+.monaco-workbench.vs .chat-todo-list-widget .todo-list-expand .monaco-button:hover,
+.monaco-workbench.vs .chat-todo-list-widget .todo-list-expand .monaco-button:active,
+.monaco-workbench.vs .chat-todo-list-widget .todo-clear-button-container .monaco-button,
+.monaco-workbench.vs .chat-todo-list-widget .todo-clear-button-container .monaco-button:hover,
+.monaco-workbench.vs .chat-todo-list-widget .todo-clear-button-container .monaco-button:active {
+	box-shadow: none;
+}
+
 /* Dropdowns */
 .monaco-workbench .monaco-dropdown .dropdown-menu { box-shadow: var(--shadow-lg); border: none; border-radius: var(--radius-lg); }
 
