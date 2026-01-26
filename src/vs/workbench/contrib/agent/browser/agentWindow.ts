@@ -712,6 +712,7 @@ export function createAgentTerminalChatService(): ITerminalChatService {
 	const service = {
 		_serviceBrand: undefined,
 		onDidRegisterTerminalInstanceWithToolSession: Event.None,
+		onDidContinueInBackground: Event.None,
 		registerTerminalInstanceWithToolSession: () => { },
 		getTerminalInstanceByToolSessionId: async () => undefined,
 		getToolSessionTerminalInstances: () => [],
@@ -729,6 +730,7 @@ export function createAgentTerminalChatService(): ITerminalChatService {
 		hasChatSessionAutoApproval: () => false,
 		addSessionAutoApproveRule: () => { },
 		getSessionAutoApproveRules: () => ({}),
+		continueInBackground: () => { },
 	};
 	return service as unknown as ITerminalChatService;
 }
