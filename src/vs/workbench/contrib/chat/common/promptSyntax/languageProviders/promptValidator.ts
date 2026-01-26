@@ -535,7 +535,7 @@ export class PromptValidator {
 			return;
 		}
 		if (attribute.value.type !== 'string') {
-			report(toMarker(localize('promptValidator.inferMustBeStringOrBoolean', "The 'infer' attribute must be 'all', 'user', 'agent', 'hidden', or a boolean."), attribute.range, MarkerSeverity.Error));
+			report(toMarker(localize('promptValidator.inferMustBeStringOrBoolean', "The 'infer' attribute must be 'all', 'user', 'agent', 'hidden', or a boolean."), attribute.value.range, MarkerSeverity.Error));
 			return;
 		}
 		const validInferValues = ['all', 'user', 'agent', 'hidden'];
