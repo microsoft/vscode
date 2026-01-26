@@ -28,7 +28,6 @@ export interface ITerminalSandboxService {
 	getSandboxConfigPath(forceRefresh?: boolean): Promise<string | undefined>;
 	getTempDir(): URI | undefined;
 	setNeedsForceUpdateConfigFile(): void;
-	checkIfDomainsAreSandboxed(urls: string[]): boolean;
 }
 
 export class TerminalSandboxService implements ITerminalSandboxService {
@@ -40,7 +39,6 @@ export class TerminalSandboxService implements ITerminalSandboxService {
 	private _tempDir: URI | undefined;
 	private _sandboxSettingsId: string | undefined;
 	private _os: OperatingSystem = OS;
-	private _sandboxDomains: Set<string> = new Set<string>();
 
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -93,25 +91,8 @@ export class TerminalSandboxService implements ITerminalSandboxService {
 		if (!this._sandboxConfigPath || forceRefresh || this._needsForceUpdateConfigFile) {
 			this._sandboxConfigPath = await this._createSandboxConfig();
 			this._needsForceUpdateConfigFile = false;
-			this._setSandboxedDomains();
 		}
 		return this._sandboxConfigPath;
-	}
-
-	public checkIfDomainsAreSandboxed(domains: string[]): boolean {
-		for (const domain of domains) {
-			const lowerCaseDomain = domain.toLowerCase();
-			if (this._sandboxDomains.has(lowerCaseDomain)) {
-				return true;
-			}
-
-			for (const sandboxedDomain of this._sandboxDomains) {
-				if (sandboxedDomain.startsWith('*') && lowerCaseDomain.endsWith(`${sandboxedDomain.slice(1)}`)) {
-					return true;
-				}
-			}
-		}
-		return false;
 	}
 
 	private async _createSandboxConfig(): Promise<string | undefined> {
@@ -157,17 +138,4 @@ export class TerminalSandboxService implements ITerminalSandboxService {
 			}
 		}
 	}
-
-	private _setSandboxedDomains(): void {
-		const networkSettings = this._configurationService.getValue<ITerminalSandboxSettings['network']>(TerminalChatAgentToolsSettingId.TerminalSandboxNetwork) ?? {};
-		const allowedDomains = networkSettings.allowedDomains ?? [];
-		const deniedDomains = networkSettings.deniedDomains ?? [];
-		this._sandboxDomains.clear();
-		for (const domain of [...allowedDomains, ...deniedDomains]) {
-			if (domain) {
-				this._sandboxDomains.add(domain.toLowerCase());
-			}
-		}
-	}
-
 }
