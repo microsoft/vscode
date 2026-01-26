@@ -1,6 +1,6 @@
 {
 	"name": "Agent Sessions",
-	"icon": "vscode",
+	"icon": "copilot",
 	"settings": {
 		"workbench.statusBar.visible": false,
 		"workbench.activityBar.location": "hidden",
