@@ -195,6 +195,52 @@ export class ExtHostChatContext extends Disposable implements ExtHostChatContext
 		};
 	}
 
+	/**
+	 * @deprecated Use registerChatWorkspaceContextProvider, registerChatExplicitContextProvider, or registerChatResourceContextProvider instead.
+	 */
+	registerChatContextProvider(selector: vscode.DocumentSelector | undefined, id: string, provider: vscode.ChatContextProvider): vscode.Disposable {
+		const disposables: vscode.Disposable[] = [];
+
+		// Register workspace context provider if the provider supports it
+		if (provider.provideWorkspaceChatContext) {
+			const workspaceProvider: vscode.ChatWorkspaceContextProvider = {
+				onDidChangeWorkspaceChatContext: provider.onDidChangeWorkspaceChatContext,
+				provideChatContext: (token) => provider.provideWorkspaceChatContext!(token)
+			};
+			disposables.push(this.registerChatWorkspaceContextProvider(id, workspaceProvider));
+		}
+
+		// Register explicit context provider if the provider supports it
+		if (provider.provideChatContextExplicit) {
+			const explicitProvider: vscode.ChatExplicitContextProvider = {
+				provideChatContext: (token) => provider.provideChatContextExplicit!(token),
+				resolveChatContext: provider.resolveChatContext
+					? (context, token) => provider.resolveChatContext!(context, token)
+					: (context) => context
+			};
+			disposables.push(this.registerChatExplicitContextProvider(id, explicitProvider));
+		}
+
+		// Register resource context provider if the provider supports it and has a selector
+		if (provider.provideChatContextForResource && selector) {
+			const resourceProvider: vscode.ChatResourceContextProvider = {
+				provideChatContext: (options, token) => provider.provideChatContextForResource!(options, token),
+				resolveChatContext: provider.resolveChatContext
+					? (context, token) => provider.resolveChatContext!(context, token)
+					: (context) => context
+			};
+			disposables.push(this.registerChatResourceContextProvider(selector, id, resourceProvider));
+		}
+
+		return {
+			dispose: () => {
+				for (const disposable of disposables) {
+					disposable.dispose();
+				}
+			}
+		};
+	}
+
 	// Helper methods
 
 	private _clearProviderItems(handle: number): void {
