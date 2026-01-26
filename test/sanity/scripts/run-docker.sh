@@ -121,12 +121,11 @@ INITEOF
 		-m 2048 \
 		-smp 2 \
 		-kernel "$KERNEL_DIR/vmlinuz" \
-		-append "console=ttyAMA0 root=/dev/vda rw quiet init=/init" \
+		-append "console=ttyAMA0 root=/dev/vda rw init=/init" \
 		-drive file="$DISK_IMG",format=raw,if=virtio \
 		-netdev user,id=net0 -device virtio-net-pci,netdev=net0 \
 		-nographic \
-		-no-reboot \
-		2>&1 | tee /tmp/qemu.log
+		-no-reboot
 
 	# Cleanup
 	sudo rm -rf "$ROOTFS_DIR" "$KERNEL_DIR" "$DISK_IMG"
