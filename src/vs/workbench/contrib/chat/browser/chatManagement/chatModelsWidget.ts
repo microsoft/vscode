@@ -1285,7 +1285,7 @@ export class ChatModelsWidget extends Disposable {
 
 		this.addButtonHover.clear();
 		if (isManagedEntitlement && !this.chatEntitlementService.isInternal) {
-			this.addButtonHover.value = this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), this.addButton.element, localize('models.managedByOrganization', "Managed by your organization"));
+			this.addButtonHover.value = this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), this.addButton.element, localize('models.managedByOrganization', "Adding BYOK models is managed by your organization"));
 		}
 
 		this.dropdownActions = configurableVendors.map(vendor => toAction({
