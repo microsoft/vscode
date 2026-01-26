@@ -8,11 +8,12 @@ download_kernel() {
 	local url
 	local vmlinuz_path
 
-	# CentOS Stream 9 kernel packages for arm64
+	# Ubuntu 24.04 generic-64k kernel packages for arm64
+	# Using generic kernel (not cloud-specific) for better QEMU compatibility
 	case "$page_size" in
 		64k)
-			url="https://mirror.stream.centos.org/9-stream/BaseOS/aarch64/os/Packages/kernel-64k-core-5.14.0-661.el9.aarch64.rpm"
-			vmlinuz_path="lib/modules/5.14.0-661.el9.aarch64+64k/vmlinuz"
+			url="http://ports.ubuntu.com/ubuntu-ports/pool/main/l/linux/linux-image-unsigned-6.8.0-90-generic-64k_6.8.0-90.91_arm64.deb"
+			vmlinuz_path="boot/vmlinuz-6.8.0-90-generic-64k"
 			;;
 		*)
 			echo "Error: Unknown page size '$page_size'"
@@ -22,17 +23,18 @@ download_kernel() {
 
 	KERNEL_DIR=$(mktemp -d)
 	echo "Downloading kernel from $url..."
-	curl -sfL "$url" -o "$KERNEL_DIR/kernel-core.rpm"
+	curl -sfL "$url" -o "$KERNEL_DIR/kernel.deb"
 
 	echo "Extracting kernel package..."
-	(cd "$KERNEL_DIR" && rpm2cpio kernel-core.rpm | cpio -idm 2>&1)
-	rm -f "$KERNEL_DIR/kernel-core.rpm"
+	# Extract .deb using ar and tar (works without dpkg-deb)
+	(cd "$KERNEL_DIR" && ar x kernel.deb && tar xf data.tar* 2>&1)
+	rm -f "$KERNEL_DIR/kernel.deb" "$KERNEL_DIR/control.tar"* "$KERNEL_DIR/data.tar"* "$KERNEL_DIR/debian-binary"
 
 	VMLINUZ="$KERNEL_DIR/$vmlinuz_path"
 
 	if [ ! -f "$VMLINUZ" ]; then
 		echo "Error: Could not find kernel at $VMLINUZ"
-		ls -la "$KERNEL_DIR/lib/modules/" 2>/dev/null || true
+		ls -laR "$KERNEL_DIR/" 2>/dev/null || true
 		return 1
 	fi
 
@@ -85,7 +87,7 @@ if [ -n "$PAGE_SIZE" ]; then
 
 	if ! command -v qemu-system-aarch64 > /dev/null 2>&1; then
 		echo "Installing QEMU system emulation and tools"
-		sudo apt-get update && sudo apt-get install -y qemu-system-arm rpm cpio
+		sudo apt-get update && sudo apt-get install -y qemu-system-arm binutils
 	fi
 
 	echo "Setting up QEMU user-mode emulation for container build"

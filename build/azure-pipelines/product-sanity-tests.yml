@@ -122,20 +122,11 @@ extends:
 
           - template: build/azure-pipelines/common/sanity-tests.yml@self
             parameters:
-              name: centos_stream9_arm64_4k
-              displayName: CentOS Stream 9 arm64 (4K page)
+              name: centos_stream9_arm64
+              displayName: CentOS Stream 9 arm64
               poolName: 1es-mariner-2.0-arm64
               container: centos
               arch: arm64
-
-          - template: build/azure-pipelines/common/sanity-tests.yml@self
-            parameters:
-              name: centos_stream9_arm64_64k
-              displayName: CentOS Stream 9 arm64 (64K page)
-              poolName: 1es-ubuntu-22.04-x64
-              container: centos
-              arch: arm64
-              pageSize: 64k
 
           # Debian 10
           - template: build/azure-pipelines/common/sanity-tests.yml@self
@@ -322,3 +313,13 @@ extends:
               container: ubuntu
               baseImage: ubuntu:24.04
               arch: arm64
+
+          - template: build/azure-pipelines/common/sanity-tests.yml@self
+            parameters:
+              name: ubuntu_24_04_arm64_64k
+              displayName: Ubuntu 24.04 arm64 (64K page)
+              poolName: 1es-ubuntu-22.04-x64
+              container: ubuntu
+              baseImage: ubuntu:24.04
+              arch: arm64
+              pageSize: 64k
