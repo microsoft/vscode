@@ -994,7 +994,7 @@ suite('PromptsService', () => {
 					name: 'vscode-agent',
 					description: 'VS Code specialized agent.',
 					target: 'vscode',
-					model: 'gpt-4',
+					model: ['gpt-4'],
 					agentInstructions: {
 						content: 'I am specialized for VS Code editor tasks.',
 						toolReferences: [],
