@@ -48,7 +48,7 @@ export class ToggleShowAgentSessionsAction extends Action2 {
 			menu: {
 				id: MenuId.ChatWelcomeContext,
 				group: '0_sessions',
-				order: 3,
+				order: 1,
 				when: ChatContextKeys.inChatEditor.negate()
 			}
 		});
@@ -64,9 +64,9 @@ export class ToggleShowAgentSessionsAction extends Action2 {
 const agentSessionsOrientationSubmenu = new MenuId('chatAgentSessionsOrientationSubmenu');
 MenuRegistry.appendMenuItem(MenuId.ChatWelcomeContext, {
 	submenu: agentSessionsOrientationSubmenu,
-	title: localize2('chat.sessionsOrientation', "Layout Sessions"),
+	title: localize2('chat.sessionsOrientation', "Sessions Orientation"),
 	group: '0_sessions',
-	order: 1,
+	order: 2,
 	when: ChatContextKeys.inChatEditor.negate()
 });
 
