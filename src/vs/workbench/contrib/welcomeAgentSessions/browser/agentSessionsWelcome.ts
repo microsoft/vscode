@@ -787,9 +787,9 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		this.chatWidget?.focusInput();
 	}
 
-	private revealMaximizedChat(): void {
+	private async revealMaximizedChat(): Promise<void> {
 		try {
-			this.closeEditorAndMaximizeAuxiliaryBar();
+			await this.closeEditorAndMaximizeAuxiliaryBar();
 		} catch (error) {
 			this.logService.error('Failed to open maximized chat: {0}', toErrorMessage(error));
 		}
