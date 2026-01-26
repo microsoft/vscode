@@ -45,7 +45,7 @@ class ChatSessionItemImpl implements vscode.ChatSessionItem {
 	#archived?: boolean;
 	#tooltip?: string | vscode.MarkdownString;
 	#timing?: ChatSessionTiming;
-	#changes?: readonly vscode.ChatSessionChangedFile[] | { files: number; insertions: number; deletions: number };
+	#changes?: readonly vscode.ChatSessionChangedFile[];
 	#onChanged: () => void;
 
 	readonly resource: vscode.Uri;
@@ -144,11 +144,11 @@ class ChatSessionItemImpl implements vscode.ChatSessionItem {
 		}
 	}
 
-	get changes(): readonly vscode.ChatSessionChangedFile[] | { files: number; insertions: number; deletions: number } | undefined {
+	get changes(): readonly vscode.ChatSessionChangedFile[] | undefined {
 		return this.#changes;
 	}
 
-	set changes(value: readonly vscode.ChatSessionChangedFile[] | { files: number; insertions: number; deletions: number } | undefined) {
+	set changes(value: readonly vscode.ChatSessionChangedFile[] | undefined) {
 		if (this.#changes !== value) {
 			this.#changes = value;
 			this.#onChanged();
@@ -478,13 +478,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 				lastRequestStarted,
 				lastRequestEnded,
 			},
-			changes: sessionContent.changes instanceof Array
-				? sessionContent.changes :
-				(sessionContent.changes && {
-					files: sessionContent.changes?.files ?? 0,
-					insertions: sessionContent.changes?.insertions ?? 0,
-					deletions: sessionContent.changes?.deletions ?? 0,
-				}),
+			changes: sessionContent.changes instanceof Array ? sessionContent.changes : undefined,
 		};
 	}
 
