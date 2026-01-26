@@ -56,6 +56,8 @@ import type { ICommandLineRewriter } from './commandLineRewriter/commandLineRewr
 import { CommandLineCdPrefixRewriter } from './commandLineRewriter/commandLineCdPrefixRewriter.js';
 import { CommandLinePreventHistoryRewriter } from './commandLineRewriter/commandLinePreventHistoryRewriter.js';
 import { CommandLinePwshChainOperatorRewriter } from './commandLineRewriter/commandLinePwshChainOperatorRewriter.js';
+import type { IOutputAnalyzer } from './outputAnalyzer/outputAnalyzer.js';
+import { SandboxOutputAnalyzer } from './outputAnalyzer/sandboxOutputAnalyzer.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IHistoryService } from '../../../../../services/history/common/history.js';
 import { TerminalCommandArtifactCollector } from './terminalCommandArtifactCollector.js';
@@ -308,6 +310,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	private readonly _commandLineRewriters: ICommandLineRewriter[];
 	private readonly _commandLineAnalyzers: ICommandLineAnalyzer[];
 	private readonly _commandLinePresenters: ICommandLinePresenter[];
+	private readonly _outputAnalyzers: IOutputAnalyzer[];
 
 	protected readonly _sessionTerminalAssociations = new ResourceMap<IToolTerminal>();
 
@@ -370,6 +373,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			new NodeCommandLinePresenter(),
 			new PythonCommandLinePresenter(),
 			new RubyCommandLinePresenter(),
+		];
+		this._outputAnalyzers = [
+			this._register(this._instantiationService.createInstance(SandboxOutputAnalyzer)),
 		];
 
 		// Clear out warning accepted state if the setting is disabled
@@ -974,6 +980,12 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		}
 		if (didMoveToBackground && !args.isBackground) {
 			resultText.push(`Note: This terminal execution was moved to the background using the ID ${termId}\n`);
+		}
+		const outputAnalyzerMessages = this._outputAnalyzers
+			.map(analyzer => analyzer.analyze({ exitCode }))
+			.filter((message): message is string => !!message);
+		if (outputAnalyzerMessages.length > 0) {
+			resultText.unshift(`${outputAnalyzerMessages.join('\n')}\n`);
 		}
 		resultText.push(terminalResult);
 
