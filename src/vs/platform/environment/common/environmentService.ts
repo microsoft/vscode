@@ -111,6 +111,9 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 	get builtinProfilesHome(): URI { return joinPath(URI.file(this.appRoot), 'resources', 'profiles'); }
 
 	@memoize
+	get builtinWorkbenchModesHome(): URI { return joinPath(URI.file(this.appRoot), 'resources', 'workbenchModes'); }
+
+	@memoize
 	get builtinExtensionsPath(): string {
 		const cliBuiltinExtensionsDir = this.args['builtin-extensions-dir'];
 		if (cliBuiltinExtensionsDir) {

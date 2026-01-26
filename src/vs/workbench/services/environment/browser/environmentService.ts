@@ -142,6 +142,9 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 	get builtinProfilesHome(): URI { return joinPath(this.userRoamingDataHome, 'builtinProfiles'); }
 
 	@memoize
+	get builtinWorkbenchModesHome(): URI { return joinPath(this.userRoamingDataHome, 'builtinWorkbenchModes'); }
+
+	@memoize
 	get serviceMachineIdResource(): URI { return joinPath(this.userRoamingDataHome, 'machineid'); }
 
 	@memoize
