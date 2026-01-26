@@ -38,10 +38,14 @@ else
 	echo "Using cached container image: $CONTAINER"
 fi
 
-# Pass page size as environment variable for test validation
-PAGE_SIZE_ARGS=""
+# Configure QEMU page size for cross-architecture emulation (16K or 64K)
+QEMU_ARGS=""
 if [ -n "$PAGE_SIZE" ]; then
-	PAGE_SIZE_ARGS="-e PAGE_SIZE=$PAGE_SIZE"
+	case "$PAGE_SIZE" in
+		16k) QEMU_ARGS="-e QEMU_CPU=max,pauth-impdef=on -e QEMU_PAGESIZE=16384" ;;
+		64k) QEMU_ARGS="-e QEMU_CPU=max,pauth-impdef=on -e QEMU_PAGESIZE=65536" ;;
+		*) echo "Warning: Unknown page size '$PAGE_SIZE', using default" ;;
+	esac
 fi
 
 echo "Running sanity tests in container"
@@ -49,6 +53,6 @@ docker run \
 	--rm \
 	--platform "linux/$ARCH" \
 	--volume "$ROOT_DIR:/root" \
-	$PAGE_SIZE_ARGS \
+	$QEMU_ARGS \
 	"$CONTAINER" \
 	$ARGS

@@ -110,13 +110,12 @@ extends:
               poolName: 1es-mariner-2.0-arm64
               container: alpine
               arch: arm64
-              pageSize: 4k
 
           - template: build/azure-pipelines/common/sanity-tests.yml@self
             parameters:
               name: alpine_arm64_16k
               displayName: Alpine 3.23 arm64 (16K page)
-              poolName: 1es-mariner-2.0-arm64
+              poolName: 1es-ubuntu-22.04-x64
               container: alpine
               arch: arm64
               pageSize: 16k
@@ -125,7 +124,7 @@ extends:
             parameters:
               name: alpine_arm64_64k
               displayName: Alpine 3.23 arm64 (64K page)
-              poolName: 1es-mariner-2.0-arm64
+              poolName: 1es-ubuntu-22.04-x64
               container: alpine
               arch: arm64
               pageSize: 64k
