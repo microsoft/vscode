@@ -42,8 +42,6 @@ fi
 if [ "$PAGE_SIZE" = "64k" ]; then
 	exec "$SCRIPT_DIR/run-qemu-64k.sh" \
 		--container "$CONTAINER" \
-		--root-dir "$ROOT_DIR" \
-		--script-dir "$SCRIPT_DIR" \
 		-- $ARGS
 else
 	echo "Running sanity tests in container"
