@@ -2382,8 +2382,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		if (model !== undefined) {
-			const models = isString(model) ? [model] : model;
-			this.input.switchModelByQualifiedName(models);
+			this.input.switchModelByQualifiedName(model);
 		}
 	}
 
