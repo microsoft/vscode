@@ -40,8 +40,8 @@ import { Event } from '../../../../../base/common/event.js';
 import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
 import { MarkdownString, IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { AgentSessionHoverWidget } from './agentSessionHoverWidget.js';
-import { AgentSessionsGrouping } from './agentSessionsFilter.js';
 import { AgentSessionProviders } from './agentSessions.js';
+import { AgentSessionsGrouping } from '../../common/constants.js';
 
 export type AgentSessionListItem = IAgentSession | IAgentSessionSection;
 
@@ -664,9 +664,9 @@ export class AgentSessionsDataSource implements IAsyncDataSource<IAgentSessionsM
 		const result: AgentSessionListItem[] = [];
 
 		const sortedSessions = sessions.sort(this.sorter.compare.bind(this.sorter));
-		const groupedSessions = this.filter?.groupResults?.() === AgentSessionsGrouping.Active
-			? groupAgentSessionsByActive(sortedSessions)
-			: groupAgentSessionsByDefault(sortedSessions);
+		const groupedSessions = this.filter?.groupResults?.() === AgentSessionsGrouping.Activity
+			? groupAgentSessionsByActivity(sortedSessions)
+			: groupAgentSessionsByDate(sortedSessions);
 
 		for (const { sessions, section, label } of groupedSessions.values()) {
 			if (sessions.length === 0) {
@@ -694,7 +694,7 @@ export const AgentSessionSectionLabels = {
 	[AgentSessionSection.History]: localize('agentSessions.historySection', "History"),
 };
 
-export function groupAgentSessionsByDefault(sessions: IAgentSession[]): Map<AgentSessionSection, IAgentSessionSection> {
+export function groupAgentSessionsByDate(sessions: IAgentSession[]): Map<AgentSessionSection, IAgentSessionSection> {
 	const now = Date.now();
 	const startOfToday = new Date(now).setHours(0, 0, 0, 0);
 	const startOfYesterday = startOfToday - DAY_THRESHOLD;
@@ -736,7 +736,7 @@ export function groupAgentSessionsByDefault(sessions: IAgentSession[]): Map<Agen
 	]);
 }
 
-export function groupAgentSessionsByActive(sessions: IAgentSession[]): Map<AgentSessionSection, IAgentSessionSection> {
+export function groupAgentSessionsByActivity(sessions: IAgentSession[]): Map<AgentSessionSection, IAgentSessionSection> {
 	const activeSessions = new Set<IAgentSession>();
 	const historySessions = new Set<IAgentSession>();
 

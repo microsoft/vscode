@@ -1009,6 +1009,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			set workspaceFile(value) {
 				throw new errors.ReadonlyError('workspaceFile');
 			},
+			get isAgentSessionsWorkspace() {
+				checkProposedApiEnabled(extension, 'agentSessionsWorkspace');
+				return extHostWorkspace.isAgentSessionsWorkspace;
+			},
 			updateWorkspaceFolders: (index, deleteCount, ...workspaceFoldersToAdd) => {
 				return extHostWorkspace.updateWorkspaceFolders(extension, index, deleteCount || 0, ...workspaceFoldersToAdd);
 			},
@@ -1258,6 +1262,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			get isTrusted() {
 				return extHostWorkspace.trusted;
+			},
+			requestResourceTrust: (options: vscode.ResourceTrustRequestOptions) => {
+				checkProposedApiEnabled(extension, 'workspaceTrust');
+				return extHostWorkspace.requestResourceTrust(options);
 			},
 			requestWorkspaceTrust: (options?: vscode.WorkspaceTrustRequestOptions) => {
 				checkProposedApiEnabled(extension, 'workspaceTrust');

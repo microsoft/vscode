@@ -10,7 +10,7 @@ import { Range } from '../../../../../../editor/common/core/range.js';
 import { Hover, HoverContext, HoverProvider } from '../../../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
 import { localize } from '../../../../../../nls.js';
-import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../languageModels.js';
+import { ILanguageModelsService } from '../../languageModels.js';
 import { ILanguageModelToolsService, isToolSet, IToolSet } from '../../tools/languageModelToolsService.js';
 import { IChatModeService, isBuiltinChatMode } from '../../chatModes.js';
 import { getPromptsTypeForLanguageId, PromptsType } from '../promptTypes.js';
@@ -106,7 +106,7 @@ export class PromptHoverProvider implements HoverProvider {
 							case PromptHeaderAttributes.argumentHint:
 								return this.createHover(localize('promptHeader.agent.argumentHint', 'The argument-hint describes what inputs the custom agent expects or supports.'), attribute.range);
 							case PromptHeaderAttributes.model:
-								return this.getModelHover(attribute, attribute.range, localize('promptHeader.agent.model', 'Specify the model that runs this custom agent.'), isGithubTarget(promptType, header.target));
+								return this.getModelHover(attribute, position, localize('promptHeader.agent.model', 'Specify the model that runs this custom agent. Can also be a list of models. The first available model will be used.'), isGithubTarget(promptType, header.target));
 							case PromptHeaderAttributes.tools:
 								return this.getToolHover(attribute, position, localize('promptHeader.agent.tools', 'The set of tools that the custom agent has access to.'));
 							case PromptHeaderAttributes.handOffs:
@@ -132,7 +132,7 @@ export class PromptHoverProvider implements HoverProvider {
 							case PromptHeaderAttributes.argumentHint:
 								return this.createHover(localize('promptHeader.prompt.argumentHint', 'The argument-hint describes what inputs the prompt expects or supports.'), attribute.range);
 							case PromptHeaderAttributes.model:
-								return this.getModelHover(attribute, attribute.range, localize('promptHeader.prompt.model', 'The model to use in this prompt.'), false);
+								return this.getModelHover(attribute, position, localize('promptHeader.prompt.model', 'The model to use in this prompt. Can also be a list of models. The first available model will be used.'), false);
 							case PromptHeaderAttributes.tools:
 								return this.getToolHover(attribute, position, localize('promptHeader.prompt.tools', 'The tools to use in this prompt.'));
 							case PromptHeaderAttributes.agent:
@@ -184,27 +184,41 @@ export class PromptHoverProvider implements HoverProvider {
 		return this.createHover(lines.join('\n'), range);
 	}
 
-	private getModelHover(node: IHeaderAttribute, range: Range, baseMessage: string, isGitHubTarget: boolean): Hover | undefined {
+	private getModelHover(node: IHeaderAttribute, position: Position, baseMessage: string, isGitHubTarget: boolean): Hover | undefined {
 		if (isGitHubTarget) {
-			return this.createHover(baseMessage + '\n\n' + localize('promptHeader.agent.model.githubCopilot', 'Note: This attribute is not used when target is github-copilot.'), range);
+			return this.createHover(baseMessage + '\n\n' + localize('promptHeader.agent.model.githubCopilot', 'Note: This attribute is not used when target is github-copilot.'), node.range);
 		}
+		const modelHoverContent = (modelName: string): Hover | undefined => {
+			const meta = this.languageModelsService.lookupLanguageModelByQualifiedName(modelName);
+			if (meta) {
+				const lines: string[] = [];
+				lines.push(baseMessage + '\n');
+				lines.push(localize('modelName', '- Name: {0}', meta.name));
+				lines.push(localize('modelFamily', '- Family: {0}', meta.family));
+				lines.push(localize('modelVendor', '- Vendor: {0}', meta.vendor));
+				if (meta.tooltip) {
+					lines.push('', '', meta.tooltip);
+				}
+				return this.createHover(lines.join('\n'), node.range);
+			}
+			return undefined;
+		};
 		if (node.value.type === 'string') {
-			for (const id of this.languageModelsService.getLanguageModelIds()) {
-				const meta = this.languageModelsService.lookupLanguageModel(id);
-				if (meta && ILanguageModelChatMetadata.matchesQualifiedName(node.value.value, meta)) {
-					const lines: string[] = [];
-					lines.push(baseMessage + '\n');
-					lines.push(localize('modelName', '- Name: {0}', meta.name));
-					lines.push(localize('modelFamily', '- Family: {0}', meta.family));
-					lines.push(localize('modelVendor', '- Vendor: {0}', meta.vendor));
-					if (meta.tooltip) {
-						lines.push('', '', meta.tooltip);
+			const hover = modelHoverContent(node.value.value);
+			if (hover) {
+				return hover;
+			}
+		} else if (node.value.type === 'array') {
+			for (const item of node.value.items) {
+				if (item.type === 'string' && item.range.containsPosition(position)) {
+					const hover = modelHoverContent(item.value);
+					if (hover) {
+						return hover;
 					}
-					return this.createHover(lines.join('\n'), range);
 				}
 			}
 		}
-		return this.createHover(baseMessage, range);
+		return this.createHover(baseMessage, node.range);
 	}
 
 	private getAgentHover(agentAttribute: IHeaderAttribute, position: Position): Hover | undefined {
