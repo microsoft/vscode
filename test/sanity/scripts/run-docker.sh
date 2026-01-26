@@ -1,6 +1,47 @@
 #!/bin/sh
 set -e
 
+# Downloads and extracts kernel, sets KERNEL_DIR and verifies vmlinuz exists
+# Arguments: $1 = page size (e.g., "64k")
+download_kernel() {
+	local page_size="$1"
+	local url
+	local vmlinuz_path
+
+	# CentOS Stream 9 kernel packages for arm64
+	case "$page_size" in
+		64k)
+			url="https://mirror.stream.centos.org/9-stream/BaseOS/aarch64/os/Packages/kernel-64k-core-5.14.0-661.el9.aarch64.rpm"
+			vmlinuz_path="lib/modules/5.14.0-661.el9.aarch64+64k/vmlinuz"
+			;;
+		*)
+			echo "Error: Unknown page size '$page_size'"
+			return 1
+			;;
+	esac
+
+	KERNEL_DIR=$(mktemp -d)
+	echo "Downloading kernel from $url..."
+	curl -sfL "$url" -o "$KERNEL_DIR/kernel-core.rpm"
+
+	echo "Extracting kernel package..."
+	(cd "$KERNEL_DIR" && rpm2cpio kernel-core.rpm | cpio -idm 2>&1)
+	rm -f "$KERNEL_DIR/kernel-core.rpm"
+
+	VMLINUZ="$KERNEL_DIR/$vmlinuz_path"
+
+	if [ ! -f "$VMLINUZ" ]; then
+		echo "Error: Could not find kernel at $VMLINUZ"
+		ls -la "$KERNEL_DIR/lib/modules/" 2>/dev/null || true
+		return 1
+	fi
+
+	echo "Using kernel: $VMLINUZ"
+	cp "$VMLINUZ" "$KERNEL_DIR/vmlinuz"
+	# Clean up extracted kernel files except vmlinuz
+	rm -rf "$KERNEL_DIR/lib" "$KERNEL_DIR/boot" 2>/dev/null || true
+}
+
 CONTAINER=""
 ARCH="amd64"
 BASE_IMAGE=""
@@ -42,54 +83,32 @@ fi
 if [ -n "$PAGE_SIZE" ]; then
 	echo "Setting up QEMU system emulation for linux/$ARCH with $PAGE_SIZE page size"
 
-	# Install QEMU system emulation and tools if not present
 	if ! command -v qemu-system-aarch64 > /dev/null 2>&1; then
-		echo "Installing QEMU system emulation and tools..."
+		echo "Installing QEMU system emulation and tools"
 		sudo apt-get update && sudo apt-get install -y qemu-system-arm rpm cpio
 	fi
 
-	# Set up QEMU user-mode emulation for building arm64 container on x64
 	echo "Setting up QEMU user-mode emulation for container build"
 	docker run --privileged --rm tonistiigi/binfmt --install "$ARCH"
 
-	# Set kernel package URL based on page size
-	# CentOS Stream 9 kernel packages for arm64
-	case "$PAGE_SIZE" in
-		64k) KERNEL_URL="https://mirror.stream.centos.org/9-stream/BaseOS/aarch64/os/Packages/kernel-64k-core-5.14.0-661.el9.aarch64.rpm" ;;
-		*) echo "Error: Unknown page size '$PAGE_SIZE'"; exit 1 ;;
-	esac
-
-	# Export container filesystem (without installing kernel to save memory)
-	echo "Exporting container filesystem..."
+	echo "Exporting container filesystem"
 	CONTAINER_ID=$(docker create --platform "linux/$ARCH" "$CONTAINER")
 	ROOTFS_DIR=$(mktemp -d)
 	docker export "$CONTAINER_ID" | sudo tar -xf - -C "$ROOTFS_DIR"
 	docker rm -f "$CONTAINER_ID"
 
+	# Free disk space by removing docker image
+	docker rmi "$CONTAINER" 2>/dev/null || true
+	docker system prune -f 2>/dev/null || true
+
 	# Copy test files into rootfs
 	sudo cp -r "$ROOT_DIR"/* "$ROOTFS_DIR/root/"
 
-	# Download kernel RPM directly from CentOS repos (avoids running arm64 container)
-	KERNEL_DIR=$(mktemp -d)
-	echo "Downloading kernel from $KERNEL_URL..."
-	curl -sfL "$KERNEL_URL" -o "$KERNEL_DIR/kernel-core.rpm"
-
-	# Extract kernel from RPM
-	echo "Extracting kernel package..."
-	(cd "$KERNEL_DIR" && rpm2cpio kernel-core.rpm | cpio -idm 2>&1)
-
-	# Hardcoded vmlinuz path for CentOS Stream 9 kernel-64k-core package
-	VMLINUZ="$KERNEL_DIR/lib/modules/5.14.0-661.el9.aarch64+64k/vmlinuz"
-
-	if [ ! -f "$VMLINUZ" ]; then
-		echo "Error: Could not find kernel at $VMLINUZ"
-		ls -la "$KERNEL_DIR/lib/modules/" 2>/dev/null || true
-		sudo rm -rf "$ROOTFS_DIR" "$KERNEL_DIR"
+	# Download and extract kernel
+	download_kernel "$PAGE_SIZE" || {
+		sudo rm -rf "$ROOTFS_DIR"
 		exit 1
-	fi
-
-	echo "Using kernel: $VMLINUZ"
-	cp "$VMLINUZ" "$KERNEL_DIR/vmlinuz"
+	}
 
 	# Store test arguments in rootfs
 	echo "$ARGS" | sudo tee "$ROOTFS_DIR/test-args" > /dev/null
@@ -108,10 +127,13 @@ exec /entrypoint.sh $ARGS
 INITEOF
 	sudo chmod +x "$ROOTFS_DIR/init"
 
-	# Create a disk image from the rootfs (reduced size)
+	# Create a disk image from the rootfs
 	DISK_IMG=$(mktemp)
-	dd if=/dev/zero of="$DISK_IMG" bs=1M count=4096
+	dd if=/dev/zero of="$DISK_IMG" bs=1M count=2048
 	sudo mkfs.ext4 -q -d "$ROOTFS_DIR" "$DISK_IMG"
+
+	# Free disk space by removing rootfs (now in disk image)
+	sudo rm -rf "$ROOTFS_DIR"
 
 	echo "Running QEMU system emulation with ${PAGE_SIZE} page size"
 	timeout 1800 qemu-system-aarch64 \
@@ -121,7 +143,7 @@ INITEOF
 		-m 2048 \
 		-smp 2 \
 		-kernel "$KERNEL_DIR/vmlinuz" \
-		-append "console=ttyAMA0 root=/dev/vda rw init=/init" \
+		-append "console=ttyAMA0 root=/dev/vda rw init=/init earlyprintk=ttyAMA0 printk.devkmsg=on" \
 		-drive file="$DISK_IMG",format=raw,if=virtio \
 		-netdev user,id=net0 \
 		-device virtio-net-pci,netdev=net0 \
@@ -129,7 +151,7 @@ INITEOF
 		-no-reboot
 
 	# Cleanup
-	sudo rm -rf "$ROOTFS_DIR" "$KERNEL_DIR" "$DISK_IMG"
+	sudo rm -rf "$KERNEL_DIR" "$DISK_IMG"
 else
 	echo "Running sanity tests in container"
 	docker run \
