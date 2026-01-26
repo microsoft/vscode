@@ -203,7 +203,7 @@ suite('PromptValidator', () => {
 			const content = [
 				'---',
 				'description: "Test with model array"',
-				`model: ['MAE 4', 'MAE 4.1']`,
+				`model: ['MAE 4 (olama)', 'MAE 4.1']`,
 				'---',
 			].join('\n');
 			const markers = await validate(content, PromptsType.agent);
@@ -214,7 +214,7 @@ suite('PromptValidator', () => {
 			const content = [
 				'---',
 				'description: "Test with model array"',
-				`model: ['MAE 4', 'Unknown Model']`,
+				`model: ['MAE 4 (olama)', 'Unknown Model']`,
 				'---',
 			].join('\n');
 			const markers = await validate(content, PromptsType.agent);
@@ -227,7 +227,7 @@ suite('PromptValidator', () => {
 			const content = [
 				'---',
 				'description: "Test with model array"',
-				`model: ['MAE 4', 'MAE 3.5 Turbo']`,
+				`model: ['MAE 4 (olama)', 'MAE 3.5 Turbo']`,
 				'---',
 			].join('\n');
 			const markers = await validate(content, PromptsType.agent);
@@ -253,7 +253,7 @@ suite('PromptValidator', () => {
 			const content = [
 				'---',
 				'description: "Test with invalid model array"',
-				`model: ['MAE 4', 123]`,
+				`model: ['MAE 4 (olama)', 123]`,
 				'---',
 			].join('\n');
 			const markers = await validate(content, PromptsType.agent);
@@ -266,7 +266,7 @@ suite('PromptValidator', () => {
 			const content = [
 				'---',
 				'description: "Test with empty string in model array"',
-				`model: ['MAE 4', '']`,
+				`model: ['MAE 4 (olama)', '']`,
 				'---',
 			].join('\n');
 			const markers = await validate(content, PromptsType.agent);

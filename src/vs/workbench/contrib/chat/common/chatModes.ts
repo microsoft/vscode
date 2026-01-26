@@ -23,6 +23,7 @@ import { IHandOff } from './promptSyntax/promptFileParser.js';
 import { ExtensionAgentSourceType, IAgentSource, ICustomAgent, IPromptsService, PromptsStorage } from './promptSyntax/service/promptsService.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { isString } from '../../../../base/common/types.js';
 
 export const IChatModeService = createDecorator<IChatModeService>('chatModeService');
 export interface IChatModeService {
@@ -116,7 +117,7 @@ export class ChatModeService extends Disposable implements IChatModeService {
 						name: cachedMode.name,
 						description: cachedMode.description,
 						tools: cachedMode.customTools,
-						model: cachedMode.model,
+						model: isString(cachedMode.model) ? [cachedMode.model] : cachedMode.model,
 						argumentHint: cachedMode.argumentHint,
 						agentInstructions: cachedMode.modeInstructions ?? { content: cachedMode.body ?? '', toolReferences: [] },
 						handOffs: cachedMode.handOffs,
@@ -236,7 +237,7 @@ export interface IChatModeData {
 	readonly description?: string;
 	readonly kind: ChatModeKind;
 	readonly customTools?: readonly string[];
-	readonly model?: string | string[];
+	readonly model?: readonly string[] | string;
 	readonly argumentHint?: string;
 	readonly modeInstructions?: IChatModeInstructions;
 	readonly body?: string; /* deprecated */
@@ -258,7 +259,7 @@ export interface IChatMode {
 	readonly kind: ChatModeKind;
 	readonly customTools?: IObservable<readonly string[] | undefined>;
 	readonly handOffs?: IObservable<readonly IHandOff[] | undefined>;
-	readonly model?: IObservable<string | string[] | undefined>;
+	readonly model?: IObservable<readonly string[] | undefined>;
 	readonly argumentHint?: IObservable<string | undefined>;
 	readonly modeInstructions?: IObservable<IChatModeInstructions>;
 	readonly uri?: IObservable<URI>;
@@ -307,7 +308,7 @@ export class CustomChatMode implements IChatMode {
 	private readonly _customToolsObservable: ISettableObservable<readonly string[] | undefined>;
 	private readonly _modeInstructions: ISettableObservable<IChatModeInstructions>;
 	private readonly _uriObservable: ISettableObservable<URI>;
-	private readonly _modelObservable: ISettableObservable<string | string[] | undefined>;
+	private readonly _modelObservable: ISettableObservable<readonly string[] | undefined>;
 	private readonly _argumentHintObservable: ISettableObservable<string | undefined>;
 	private readonly _handoffsObservable: ISettableObservable<readonly IHandOff[] | undefined>;
 	private readonly _targetObservable: ISettableObservable<string | undefined>;
@@ -337,7 +338,7 @@ export class CustomChatMode implements IChatMode {
 		return this._customToolsObservable;
 	}
 
-	get model(): IObservable<string | string[] | undefined> {
+	get model(): IObservable<readonly string[] | undefined> {
 		return this._modelObservable;
 	}
 

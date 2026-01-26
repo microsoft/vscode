@@ -184,7 +184,7 @@ export class PromptHeader {
 		return this.getStringAttribute(PromptHeaderAttributes.agent) ?? this.getStringAttribute(PromptHeaderAttributes.mode);
 	}
 
-	public get model(): string | string[] | undefined {
+	public get model(): readonly string[] | undefined {
 		return this.getStringOrStringArrayAttribute(PromptHeaderAttributes.model);
 	}
 
@@ -294,13 +294,13 @@ export class PromptHeader {
 		return undefined;
 	}
 
-	private getStringOrStringArrayAttribute(key: string): string | string[] | undefined {
+	private getStringOrStringArrayAttribute(key: string): readonly string[] | undefined {
 		const attribute = this._parsedHeader.attributes.find(attr => attr.key === key);
 		if (!attribute) {
 			return undefined;
 		}
 		if (attribute.value.type === 'string') {
-			return attribute.value.value;
+			return [attribute.value.value];
 		}
 		if (attribute.value.type === 'array') {
 			const result: string[] = [];

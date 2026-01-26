@@ -146,13 +146,11 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 				mode = this.chatModeService.findModeByName(args.agentName);
 				if (mode) {
 					// Use mode-specific model if available
-					const modeModelQualifiedName = mode.model?.get();
-					if (modeModelQualifiedName) {
+					const modeModelQualifiedNames = mode.model?.get();
+					if (modeModelQualifiedNames) {
 						// Find the actual model identifier from the qualified name(s)
 						const modelIds = this.languageModelsService.getLanguageModelIds();
-						const qualifiedNames = Array.isArray(modeModelQualifiedName) ? modeModelQualifiedName : [modeModelQualifiedName];
-						
-						for (const qualifiedName of qualifiedNames) {
+						for (const qualifiedName of modeModelQualifiedNames) {
 							for (const modelId of modelIds) {
 								const metadata = this.languageModelsService.lookupLanguageModel(modelId);
 								if (metadata && ILanguageModelChatMetadata.matchesQualifiedName(qualifiedName, metadata)) {

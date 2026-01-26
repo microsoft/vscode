@@ -22,7 +22,7 @@ import { filter } from '../../../../../base/common/objects.js';
 import { autorun, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { basename, extUri, isEqual } from '../../../../../base/common/resources.js';
 import { MicrotaskDelay } from '../../../../../base/common/symbols.js';
-import { isDefined } from '../../../../../base/common/types.js';
+import { isDefined, isString } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
@@ -2382,16 +2382,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		if (model !== undefined) {
-			if (Array.isArray(model)) {
-				// If model is an array, try each one until one succeeds
-				for (const m of model) {
-					if (this.input.switchModelByQualifiedName(m)) {
-						break;
-					}
-				}
-			} else {
-				this.input.switchModelByQualifiedName(model);
-			}
+			const models = isString(model) ? [model] : model;
+			this.input.switchModelByQualifiedName(models);
 		}
 	}
 

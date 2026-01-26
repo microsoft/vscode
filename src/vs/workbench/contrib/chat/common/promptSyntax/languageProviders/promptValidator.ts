@@ -314,14 +314,14 @@ export class PromptValidator {
 			}
 		}
 
-		const languageModes = this.languageModelsService.getLanguageModelIds();
-		if (languageModes.length === 0) {
+		const languageModels = this.languageModelsService.getLanguageModelIds();
+		if (languageModels.length === 0) {
 			// likely the service is not initialized yet
 			return;
 		}
 
 		for (const modelName of modelNames) {
-			const modelMetadata = this.findModelByName(languageModes, modelName);
+			const modelMetadata = this.findModelByName(languageModels, modelName);
 			if (!modelMetadata) {
 				report(toMarker(localize('promptValidator.modelNotFound', "Unknown model '{0}'.", modelName), attribute.value.range, MarkerSeverity.Warning));
 			} else if (agentKind === ChatModeKind.Agent && !ILanguageModelChatMetadata.suitableForAgentMode(modelMetadata)) {
@@ -330,8 +330,8 @@ export class PromptValidator {
 		}
 	}
 
-	private findModelByName(languageModes: string[], modelName: string): ILanguageModelChatMetadata | undefined {
-		for (const model of languageModes) {
+	private findModelByName(languageModels: string[], modelName: string): ILanguageModelChatMetadata | undefined {
+		for (const model of languageModels) {
 			const metadata = this.languageModelsService.lookupLanguageModel(model);
 			if (metadata && metadata.isUserSelectable !== false && ILanguageModelChatMetadata.matchesQualifiedName(modelName, metadata)) {
 				return metadata;
