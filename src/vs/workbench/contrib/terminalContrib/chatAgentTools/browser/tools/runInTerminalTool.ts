@@ -812,7 +812,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					}
 				}));
 				const executeResult = await strategy.execute(command, executeCancellation.token, commandId);
-
 				// if sandboxing is enabled and the command files due to domains not allowed by the sandbox, provide a helpful message.
 				if (exitCode !== 0 && this._sandboxService.isEnabled()) {
 
