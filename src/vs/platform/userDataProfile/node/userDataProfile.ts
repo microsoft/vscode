@@ -60,7 +60,7 @@ export class UserDataProfilesService extends UserDataProfilesReadonlyService imp
 
 	protected override saveStoredProfiles(storedProfiles: StoredUserDataProfile[]): void {
 		if (storedProfiles.length) {
-			this.stateService.setItem(UserDataProfilesService.PROFILES_KEY, storedProfiles.map(profile => ({ ...profile, location: this.uriIdentityService.extUri.basename(profile.location) })));
+			this.stateService.setItem(UserDataProfilesService.PROFILES_KEY, storedProfiles.map(profile => ({ ...profile, location: this.uriIdentityService.extUri.relativePath(this.profilesHome, profile.location) })));
 		} else {
 			this.stateService.removeItem(UserDataProfilesService.PROFILES_KEY);
 		}

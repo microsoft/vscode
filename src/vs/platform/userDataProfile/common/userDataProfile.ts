@@ -220,6 +220,8 @@ export type StoredProfileAssociations = {
 	emptyWindows?: IStringDictionary<string>;
 };
 
+export const SYSTEM_PROFILES_HOME = 'builtin';
+
 export abstract class AbstractUserDataProfilesService extends Disposable implements IUserDataProfilesService {
 
 	readonly _serviceBrand: undefined;
@@ -394,6 +396,7 @@ export class UserDataProfilesService extends AbstractUserDataProfilesService imp
 		if (!this._profilesObject) {
 			const defaultProfile = this.createDefaultProfile();
 			const profiles: Array<Mutable<IUserDataProfile>> = [defaultProfile];
+			const profilesToRemove: IUserDataProfile[] = [];
 			try {
 				for (const storedProfile of this.getStoredProfiles()) {
 					if (!storedProfile.name || !isString(storedProfile.name) || !storedProfile.location) {
@@ -401,7 +404,7 @@ export class UserDataProfilesService extends AbstractUserDataProfilesService imp
 						continue;
 					}
 					const id = basename(storedProfile.location);
-					profiles.push(toUserDataProfile(
+					const profile = toUserDataProfile(
 						id,
 						storedProfile.name,
 						storedProfile.location,
@@ -412,7 +415,13 @@ export class UserDataProfilesService extends AbstractUserDataProfilesService imp
 							isSystem: storedProfile.isSystem,
 							templateResource: storedProfile.isSystem ? this.getSystemProfileTemplateFile(id) : storedProfile.templateResource
 						},
-						defaultProfile));
+						defaultProfile);
+
+					if (profile.isSystem && this.uriIdentityService.extUri.basename(this.uriIdentityService.extUri.dirname(profile.location)) !== SYSTEM_PROFILES_HOME) {
+						profilesToRemove.push(profile);
+					} else {
+						profiles.push(profile);
+					}
 				}
 			} catch (error) {
 				this.logService.error(error);
@@ -445,6 +454,9 @@ export class UserDataProfilesService extends AbstractUserDataProfilesService imp
 				}
 			}
 			this._profilesObject = { profiles, emptyWindows };
+			if (profilesToRemove.length) {
+				this.updateProfiles([], profilesToRemove, [], true);
+			}
 		}
 		return this._profilesObject;
 	}
@@ -524,7 +536,13 @@ export class UserDataProfilesService extends AbstractUserDataProfilesService imp
 						};
 					}
 
-					const profile = toUserDataProfile(id, name, joinPath(this.profilesHome, id), this.profilesCacheHome, options, this.defaultProfile);
+					const profile = toUserDataProfile(
+						id,
+						name,
+						this.uriIdentityService.extUri.joinPath(this.profilesHome, ...(options?.isSystem ? [SYSTEM_PROFILES_HOME, id] : [id])),
+						this.profilesCacheHome,
+						options,
+						this.defaultProfile);
 					await this.fileService.createFolder(profile.location);
 
 					if (systemProfileTemplate) {
@@ -685,7 +703,7 @@ export class UserDataProfilesService extends AbstractUserDataProfilesService imp
 		if (await this.fileService.exists(this.profilesHome)) {
 			const stat = await this.fileService.resolve(this.profilesHome);
 			await Promise.all((stat.children || [])
-				.filter(child => child.isDirectory && this.profiles.every(p => !this.uriIdentityService.extUri.isEqual(p.location, child.resource)))
+				.filter(child => child.isDirectory && child.name !== SYSTEM_PROFILES_HOME && this.profiles.every(p => !this.uriIdentityService.extUri.isEqual(p.location, child.resource)))
 				.map(child => this.fileService.del(child.resource, { recursive: true })));
 		}
 	}
@@ -746,7 +764,7 @@ export class UserDataProfilesService extends AbstractUserDataProfilesService imp
 		return false;
 	}
 
-	private updateProfiles(added: IUserDataProfile[], removed: IUserDataProfile[], updated: IUserDataProfile[]): void {
+	private updateProfiles(added: IUserDataProfile[], removed: IUserDataProfile[], updated: IUserDataProfile[], donotTrigger: boolean = false): void {
 		const allProfiles: Mutable<IUserDataProfile>[] = [...this.profiles, ...added];
 
 		const transientProfiles = this.transientProfilesObject.profiles;
@@ -792,7 +810,10 @@ export class UserDataProfilesService extends AbstractUserDataProfilesService imp
 		}
 
 		this.updateStoredProfiles(profiles);
-		this.triggerProfilesChanges(added, removed, updated);
+
+		if (!donotTrigger) {
+			this.triggerProfilesChanges(added, removed, updated);
+		}
 	}
 
 	protected triggerProfilesChanges(added: IUserDataProfile[], removed: IUserDataProfile[], updated: IUserDataProfile[]) {
