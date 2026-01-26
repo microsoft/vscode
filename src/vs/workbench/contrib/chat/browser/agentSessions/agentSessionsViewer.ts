@@ -735,16 +735,11 @@ export function groupAgentSessionsByActive(sessions: IAgentSession[]): Map<Agent
 	const startOfToday = new Date(now).setHours(0, 0, 0, 0);
 	const startOfYesterday = startOfToday - DAY_THRESHOLD;
 
-	let mostRecentSession: { session: IAgentSession; time: number } | undefined;
 	for (const session of sessions) {
-		const sessionTime = session.timing.lastRequestEnded ?? session.timing.lastRequestStarted ?? session.timing.created;
-		if (!mostRecentSession || sessionTime > mostRecentSession.time) {
-			mostRecentSession = { session, time: sessionTime }; // always keep track of the most recent session
-		}
-
 		if (session.isArchived()) {
 			historySessions.add(session);
 		} else {
+			const sessionTime = session.timing.lastRequestEnded ?? session.timing.lastRequestStarted ?? session.timing.created;
 			if (
 				isSessionInProgressStatus(session.status) ||									// in-progress
 				!session.isRead() ||															// unread
@@ -756,17 +751,6 @@ export function groupAgentSessionsByActive(sessions: IAgentSession[]): Map<Agent
 				historySessions.add(session);
 			}
 		}
-	}
-
-	// Consider most recent from today or yesterday. This helps
-	// restore the session after restart when chat is cleared.
-	if (
-		mostRecentSession && !mostRecentSession.session.isArchived() &&
-		mostRecentSession.time >= startOfYesterday &&
-		!activeSessions.has(mostRecentSession.session)
-	) {
-		historySessions.delete(mostRecentSession.session);
-		activeSessions.add(mostRecentSession.session);
 	}
 
 	return new Map<AgentSessionSection, IAgentSessionSection>([
