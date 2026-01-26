@@ -281,7 +281,7 @@ export class ToggleExplanationWidgetAction extends EditingSessionAction {
 		if (editingSession.hasExplanations()) {
 			editingSession.clearExplanations();
 		} else {
-			editingSession.triggerExplanationGeneration();
+			await editingSession.triggerExplanationGeneration();
 		}
 	}
 }
