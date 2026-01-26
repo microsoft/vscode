@@ -3,15 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-@keyframes chat-thinking-shimmer {
-	0% {
-		background-position: 120% 0;
-	}
-	100% {
-		background-position: -120% 0;
-	}
-}
-
 .interactive-session .interactive-response .chat-used-context-list.chat-thinking-items {
 	color: var(--vscode-descriptionForeground);
 	padding-top: 0;
