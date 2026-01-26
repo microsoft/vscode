@@ -25,6 +25,26 @@ export function getRemoteName(authority: string | undefined): string | undefined
 	return authority.substr(0, pos);
 }
 
+/**
+ * Returns the suffix part of the authority after the '+' character.
+ * For tunnel connections, this is the tunnel name.
+ * @param authority The remote authority string.
+ * @returns The suffix after the '+' character, or undefined if there is no '+' character.
+ */
+export function getRemoteServerRootPath(authority: string): string | undefined;
+export function getRemoteServerRootPath(authority: undefined): undefined;
+export function getRemoteServerRootPath(authority: string | undefined): string | undefined;
+export function getRemoteServerRootPath(authority: string | undefined): string | undefined {
+	if (!authority) {
+		return undefined;
+	}
+	const pos = authority.indexOf('+');
+	if (pos < 0) {
+		return undefined;
+	}
+	return authority.substring(pos + 1);
+}
+
 export function parseAuthorityWithPort(authority: string): { host: string; port: number } {
 	const { host, port } = parseAuthority(authority);
 	if (typeof port === 'undefined') {
