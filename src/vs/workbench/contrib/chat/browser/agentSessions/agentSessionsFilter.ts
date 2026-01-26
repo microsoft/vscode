@@ -279,6 +279,10 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 			return true;
 		}
 
+		if (this.excludes.archived && this.groupResults?.() === AgentSessionsGrouping.Capped && session.isArchived()) {
+			return true; // exclude archived sessions when grouped by capped where we have no "Archived" group
+		}
+
 		return false;
 	}
 
