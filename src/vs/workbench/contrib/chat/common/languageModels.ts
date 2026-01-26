@@ -298,7 +298,7 @@ export interface ILanguageModelsService {
 	lookupLanguageModel(modelId: string): ILanguageModelChatMetadata | undefined;
 
 	/**
-	 * Find a model by its qualified name. The qualified name is what is used in prompt and egnet files and is in the format "Model Name (Vendor)".
+	 * Find a model by its qualified name. The qualified name is what is used in prompt and agent files and is in the format "Model Name (Vendor)".
 	 */
 	lookupLanguageModelByQualifiedName(qualifiedName: string): ILanguageModelChatMetadata | undefined;
 
