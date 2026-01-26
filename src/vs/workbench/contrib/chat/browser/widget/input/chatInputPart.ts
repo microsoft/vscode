@@ -537,20 +537,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 		this.chatSessionHasCustomAgentTarget = ChatContextKeys.chatSessionHasCustomAgentTarget.bindTo(contextKeyService);
 
-		const chatToolCount = ChatContextKeys.chatToolCount.bindTo(contextKeyService);
-
-		this._register(autorun(reader => {
-			let count = 0;
-			const userSelectedTools = this.selectedToolsModel.userSelectedTools.read(reader);
-			for (const key in userSelectedTools) {
-				if (userSelectedTools[key] === true) {
-					count++;
-				}
-			}
-
-			chatToolCount.set(count);
-		}));
-
 		this.history = this._register(this.instantiationService.createInstance(ChatHistoryNavigator, this.location));
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {

@@ -20,10 +20,10 @@ import { IChatAgentService } from './participants/chatAgents.js';
 import { ChatContextKeys } from './actions/chatContextKeys.js';
 import { ChatConfiguration, ChatModeKind } from './constants.js';
 import { IHandOff } from './promptSyntax/promptFileParser.js';
-import { ExtensionAgentSourceType, IAgentSource, ICustomAgent, IPromptsService, PromptsStorage } from './promptSyntax/service/promptsService.js';
+import { ExtensionAgentSourceType, IAgentSource, ICustomAgent, InferValue, IPromptsService, PromptsStorage } from './promptSyntax/service/promptsService.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { isString } from '../../../../base/common/types.js';
+import { isBoolean, isString } from '../../../../base/common/types.js';
 
 export const IChatModeService = createDecorator<IChatModeService>('chatModeService');
 export interface IChatModeService {
@@ -122,7 +122,7 @@ export class ChatModeService extends Disposable implements IChatModeService {
 						agentInstructions: cachedMode.modeInstructions ?? { content: cachedMode.body ?? '', toolReferences: [] },
 						handOffs: cachedMode.handOffs,
 						target: cachedMode.target,
-						infer: cachedMode.infer,
+						infer: isBoolean(cachedMode.infer) ? (cachedMode.infer ? 'all' : 'user') : cachedMode.infer,
 						agents: cachedMode.agents,
 						source: reviveChatModeSource(cachedMode.source) ?? { storage: PromptsStorage.local }
 					};
@@ -154,6 +154,11 @@ export class ChatModeService extends Disposable implements IChatModeService {
 			const seenUris = new Set<string>();
 
 			for (const customMode of customModes) {
+				if (customMode.infer === 'agent' || customMode.infer === 'hidden') {
+					// Skip modes that are only for subagent use or hidden
+					continue;
+				}
+
 				const uriString = customMode.uri.toString();
 				seenUris.add(uriString);
 
@@ -245,7 +250,7 @@ export interface IChatModeData {
 	readonly uri?: URI;
 	readonly source?: IChatModeSourceData;
 	readonly target?: string;
-	readonly infer?: boolean;
+	readonly infer?: InferValue | boolean;
 	readonly agents?: readonly string[];
 }
 
@@ -265,7 +270,7 @@ export interface IChatMode {
 	readonly uri?: IObservable<URI>;
 	readonly source?: IAgentSource;
 	readonly target?: IObservable<string | undefined>;
-	readonly infer?: IObservable<boolean | undefined>;
+	readonly infer?: IObservable<InferValue | undefined>;
 	readonly agents?: IObservable<readonly string[] | undefined>;
 }
 
@@ -298,7 +303,7 @@ function isCachedChatModeData(data: unknown): data is IChatModeData {
 		(mode.uri === undefined || (typeof mode.uri === 'object' && mode.uri !== null)) &&
 		(mode.source === undefined || isChatModeSourceData(mode.source)) &&
 		(mode.target === undefined || typeof mode.target === 'string') &&
-		(mode.infer === undefined || typeof mode.infer === 'boolean') &&
+		(mode.infer === undefined || mode.infer === 'all' || mode.infer === 'user' || mode.infer === 'agent' || mode.infer === 'hidden' || typeof mode.infer === 'boolean') &&
 		(mode.agents === undefined || Array.isArray(mode.agents));
 }
 
@@ -312,7 +317,7 @@ export class CustomChatMode implements IChatMode {
 	private readonly _argumentHintObservable: ISettableObservable<string | undefined>;
 	private readonly _handoffsObservable: ISettableObservable<readonly IHandOff[] | undefined>;
 	private readonly _targetObservable: ISettableObservable<string | undefined>;
-	private readonly _inferObservable: ISettableObservable<boolean | undefined>;
+	private readonly _inferObservable: ISettableObservable<InferValue | undefined>;
 	private readonly _agentsObservable: ISettableObservable<readonly string[] | undefined>;
 	private _source: IAgentSource;
 
@@ -370,7 +375,7 @@ export class CustomChatMode implements IChatMode {
 		return this._targetObservable;
 	}
 
-	get infer(): IObservable<boolean | undefined> {
+	get infer(): IObservable<InferValue | undefined> {
 		return this._inferObservable;
 	}
 

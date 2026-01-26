@@ -139,7 +139,7 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 	get untitledWorkspacesHome(): URI { return joinPath(this.userRoamingDataHome, 'Workspaces'); }
 
 	@memoize
-	get builtinProfilesHome(): URI { return joinPath(this.userRoamingDataHome, 'builtinProfiles'); }
+	get builtinWorkbenchModesHome(): URI { return joinPath(this.userRoamingDataHome, 'builtinWorkbenchModes'); }
 
 	@memoize
 	get serviceMachineIdResource(): URI { return joinPath(this.userRoamingDataHome, 'machineid'); }
