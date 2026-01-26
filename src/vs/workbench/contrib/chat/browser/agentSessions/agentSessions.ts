@@ -111,6 +111,11 @@ export enum AgentSessionsViewerPosition {
 	Right,
 }
 
+export enum AgentSessionsGrouping {
+	Time = 'time',
+	Activity = 'activity',
+}
+
 export interface IAgentSessionsControl {
 
 	readonly element: HTMLElement | undefined;
