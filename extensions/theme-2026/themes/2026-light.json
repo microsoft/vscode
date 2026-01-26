@@ -124,7 +124,7 @@
 		"editorCodeLens.foreground": "#666666",
 		"editorBracketMatch.background": "#005FB855",
 		"editorBracketMatch.border": "#ECEDEEFF",
-		"editorWidget.background": "#FFFFFF",
+		"editorWidget.background": "#FFFFFF99",
 		"editorWidget.border": "#ECEDEEFF",
 		"editorWidget.foreground": "#202020",
 		"editorSuggestWidget.background": "#FFFFFF",
@@ -255,17 +255,22 @@
 				"comment"
 			],
 			"settings": {
-				"foreground": "#008000"
+				"foreground": "#4F5B4F"
 			}
 		},
 		{
 			"scope": [
 				"keyword",
 				"storage.modifier",
-				"storage.type"
+				"storage.type",
+				"keyword.operator.new",
+				"keyword.operator.expression",
+				"keyword.operator.cast",
+				"keyword.operator.sizeof",
+				"keyword.operator.instanceof"
 			],
 			"settings": {
-				"foreground": "#0000ff"
+				"foreground": "#5460C1"
 			}
 		},
 		{
@@ -273,7 +278,47 @@
 				"string"
 			],
 			"settings": {
-				"foreground": "#a31515"
+				"foreground": "#B86855"
+			}
+		},
+		{
+			"name": "HTML/XML tags",
+			"scope": [
+				"entity.name.tag",
+				"meta.tag.sgml",
+				"markup.deleted.git_gutter"
+			],
+			"settings": {
+				"foreground": "#5751DE"
+			}
+		},
+		{
+			"name": "HTML/XML tag punctuation",
+			"scope": [
+				"punctuation.definition.tag.html",
+				"punctuation.definition.tag.begin.html",
+				"punctuation.definition.tag.end.html"
+			],
+			"settings": {
+				"foreground": "#93201A"
+			}
+		},
+		{
+			"name": "HTML/XML attribute names",
+			"scope": [
+				"entity.other.attribute-name"
+			],
+			"settings": {
+				"foreground": "#E75854"
+			}
+		},
+		{
+			"name": "Operators",
+			"scope": [
+				"keyword.operator"
+			],
+			"settings": {
+				"foreground": "#573F35"
 			}
 		},
 		{
@@ -281,10 +326,12 @@
 			"scope": [
 				"entity.name.function",
 				"support.function",
-				"support.constant.handlebars"
+				"support.constant.handlebars",
+				"source.powershell variable.other.member",
+				"entity.name.operator.custom-literal"
 			],
 			"settings": {
-				"foreground": "#795E26"
+				"foreground": "#98863B"
 			}
 		},
 		{
@@ -294,19 +341,67 @@
 				"support.type",
 				"entity.name.type",
 				"entity.name.namespace",
-				"entity.name.class"
+				"entity.other.attribute",
+				"entity.name.scope-resolution",
+				"entity.name.class",
+				"storage.type.numeric.go",
+				"storage.type.byte.go",
+				"storage.type.boolean.go",
+				"storage.type.string.go",
+				"storage.type.uintptr.go",
+				"storage.type.error.go",
+				"storage.type.rune.go",
+				"storage.type.cs",
+				"storage.type.generic.cs",
+				"storage.type.modifier.cs",
+				"storage.type.variable.cs",
+				"storage.type.annotation.java",
+				"storage.type.generic.java",
+				"storage.type.java",
+				"storage.type.object.array.java",
+				"storage.type.primitive.array.java",
+				"storage.type.primitive.java",
+				"storage.type.token.java",
+				"storage.type.groovy",
+				"storage.type.annotation.groovy",
+				"storage.type.parameters.groovy",
+				"storage.type.generic.groovy",
+				"storage.type.object.array.groovy",
+				"storage.type.primitive.array.groovy",
+				"storage.type.primitive.groovy"
 			],
 			"settings": {
-				"foreground": "#267f99"
+				"foreground": "#46969A"
 			}
 		},
 		{
-			"name": "Control flow keywords",
+			"name": "Types declaration and references, TS grammar specific",
 			"scope": [
-				"keyword.control"
+				"meta.type.cast.expr",
+				"meta.type.new.expr",
+				"support.constant.math",
+				"support.constant.dom",
+				"support.constant.json",
+				"entity.other.inherited-class",
+				"punctuation.separator.namespace.ruby"
 			],
 			"settings": {
-				"foreground": "#AF00DB"
+				"foreground": "#419BB3"
+			}
+		},
+		{
+			"name": "Control flow / Special keywords",
+			"scope": [
+				"keyword.control",
+				"source.cpp keyword.operator.new",
+				"source.cpp keyword.operator.delete",
+				"keyword.other.using",
+				"keyword.other.directive.using",
+				"keyword.other.operator",
+				"entity.name.operator"
+			],
+			"settings": {
+				"foreground": "#8F41AD"
 			}
 		},
 		{
@@ -315,10 +410,11 @@
 				"variable",
 				"meta.definition.variable.name",
 				"support.variable",
-				"entity.name.variable"
+				"entity.name.variable",
+				"constant.other.placeholder"
 			],
 			"settings": {
-				"foreground": "#001080"
+				"foreground": "#282D85"
 			}
 		},
 		{
@@ -328,7 +424,93 @@
 				"variable.other.enummember"
 			],
 			"settings": {
-				"foreground": "#0070C1"
+				"foreground": "#3086C5"
+			}
+		},
+		{
+			"name": "Object keys, TS grammar specific",
+			"scope": [
+				"meta.object-literal.key"
+			],
+			"settings": {
+				"foreground": "#282D85"
+			}
+		},
+		{
+			"name": "CSS property value",
+			"scope": [
+				"support.constant.property-value",
+				"support.constant.font-name",
+				"support.constant.media-type",
+				"support.constant.media",
+				"constant.other.color.rgb-value",
+				"constant.other.rgb-value",
+				"support.constant.color"
+			],
+			"settings": {
+				"foreground": "#2D6AAE"
+			}
+		},
+		{
+			"name": "Regular expression groups",
+			"scope": [
+				"punctuation.definition.group.regexp",
+				"punctuation.definition.group.assertion.regexp",
+				"punctuation.definition.character-class.regexp",
+				"punctuation.character.set.begin.regexp",
+				"punctuation.character.set.end.regexp",
+				"keyword.operator.negation.regexp",
+				"support.other.parenthesis.regexp"
+			],
+			"settings": {
+				"foreground": "#D68490"
+			}
+		},
+		{
+			"scope": [
+				"constant.character.character-class.regexp",
+				"constant.other.character-class.set.regexp",
+				"constant.other.character-class.regexp",
+				"constant.character.set.regexp"
+			],
+			"settings": {
+				"foreground": "#A63350"
+			}
+		},
+		{
+			"scope": "keyword.operator.quantifier.regexp",
+			"settings": {
+				"foreground": "#573F35"
+			}
+		},
+		{
+			"scope": [
+				"keyword.operator.or.regexp",
+				"keyword.control.anchor.regexp"
+			],
+			"settings": {
+				"foreground": "#C54C5B"
+			}
+		},
+		{
+			"scope": [
+				"constant.character",
+				"constant.other.option"
+			],
+			"settings": {
+				"foreground": "#5751DE"
+			}
+		},
+		{
+			"scope": "constant.character.escape",
+			"settings": {
+				"foreground": "#E14A46"
+			}
+		},
+		{
+			"scope": "entity.name.label",
+			"settings": {
+				"foreground": "#5C3923"
 			}
 		},
 		{
@@ -337,7 +519,7 @@
 				"constant.numeric"
 			],
 			"settings": {
-				"foreground": "#098658"
+				"foreground": "#2B9A69"
 			}
 		}
 	],

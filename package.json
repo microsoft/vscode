@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.109.0",
-  "distro": "95dae17030071983e9d039a02bca8a9522b9fa2c",
+  "distro": "72945cc314eb760ebf12af077b51750cb02808e9",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -42,7 +42,6 @@
     "mixin-telemetry-docs": "node build/npm/mixin-telemetry-docs.ts",
     "smoketest": "node build/lib/preLaunch.ts && cd test/smoke && npm run compile && node test/index.js",
     "smoketest-no-compile": "cd test/smoke && node test/index.js",
-    "sanity-test": "cd test/sanity && npm run compile && node out/index.js",
     "download-builtin-extensions": "node build/lib/builtInExtensions.ts",
     "download-builtin-extensions-cg": "node build/lib/builtInExtensionsCG.ts",
     "monaco-compile-check": "tsgo --project src/tsconfig.monaco.json --noEmit",
@@ -78,6 +77,7 @@
     "@microsoft/1ds-post-js": "^3.2.13",
     "@parcel/watcher": "^2.5.6",
     "@types/semver": "^7.5.8",
+    "@vscode/codicons": "^0.0.45-0",
     "@vscode/deviceid": "^0.1.1",
     "@vscode/iconv-lite-umd": "0.7.1",
     "@vscode/native-watchdog": "^1.4.6",

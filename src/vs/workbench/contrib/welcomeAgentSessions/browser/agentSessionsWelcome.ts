@@ -43,13 +43,12 @@ import { AgentSessionsWelcomeEditorOptions, AgentSessionsWelcomeInput } from './
 import { IChatService } from '../../chat/common/chatService/chatService.js';
 import { IChatModel } from '../../chat/common/model/chatModel.js';
 import { ChatViewId, ISessionTypePickerDelegate, IWorkspacePickerDelegate, IWorkspacePickerItem } from '../../chat/browser/chat.js';
+import { ChatSessionPosition, getResourceForNewChatSession } from '../../chat/browser/chatSessions/chatSessions.contribution.js';
 import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 import { AgentSessionsControl, IAgentSessionsControlOptions } from '../../chat/browser/agentSessions/agentSessionsControl.js';
 import { IAgentSessionsFilter } from '../../chat/browser/agentSessions/agentSessionsViewer.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { IResolvedWalkthrough, IWalkthroughsService } from '../../welcomeGettingStarted/browser/gettingStartedService.js';
-import { IExtensionService } from '../../../services/extensions/common/extensions.js';
-import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { GettingStartedEditorOptions, GettingStartedInput } from '../../welcomeGettingStarted/browser/gettingStartedInput.js';
 import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
@@ -101,7 +100,6 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		@IProductService private readonly productService: IProductService,
 		@IWalkthroughsService private readonly walkthroughsService: IWalkthroughsService,
 		@IChatService private readonly chatService: IChatService,
-		@IExtensionService private readonly extensionService: IExtensionService,
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
@@ -220,11 +218,31 @@ export class AgentSessionsWelcomePage extends EditorPane {
 
 		// Create a delegate for the session target picker with independent local state
 		const onDidChangeActiveSessionProvider = this.contentDisposables.add(new Emitter<AgentSessionProviders>());
+		const recreateSessionForProvider = async (provider: AgentSessionProviders) => {
+			if (this.chatWidget && this.chatModelRef) {
+				this.chatWidget.setModel(undefined);
+				this.chatModelRef.dispose();
+				const newResource = getResourceForNewChatSession({
+					type: provider,
+					position: ChatSessionPosition.Sidebar,
+					displayName: ''
+				});
+				const ref = await this.chatService.loadSessionForResource(newResource, ChatAgentLocation.Chat, CancellationToken.None);
+				this.chatModelRef = ref ?? this.chatService.startSession(ChatAgentLocation.Chat);
+				this.contentDisposables.add(this.chatModelRef);
+				if (this.chatModelRef.object) {
+					this.chatWidget.setModel(this.chatModelRef.object);
+				}
+			}
+		};
 		const sessionTypePickerDelegate: ISessionTypePickerDelegate = {
 			getActiveSessionProvider: () => this._selectedSessionProvider,
 			setActiveSessionProvider: (provider: AgentSessionProviders) => {
 				this._selectedSessionProvider = provider;
 				onDidChangeActiveSessionProvider.fire(provider);
+				try {
+					recreateSessionForProvider(provider);
+				} catch { /* Ignore errors */ }
 			},
 			onDidChangeActiveSessionProvider: onDidChangeActiveSessionProvider.event
 		};
@@ -302,32 +320,8 @@ export class AgentSessionsWelcomePage extends EditorPane {
 			this.chatWidget?.focusInput();
 		}));
 
-		// Disable the chat input until the chat extension is installed and activated
-		const defaultChatAgent = this.productService.defaultChatAgent;
-		const updateInputEnabled = () => {
-			let chatExtensionActivated = false;
-			if (defaultChatAgent) {
-				const extensionStatus = this.extensionService.getExtensionsStatus();
-				const status = extensionStatus[defaultChatAgent.chatExtensionId];
-				chatExtensionActivated = !!status?.activationTimes;
-			}
-			this.chatWidget?.inputEditor.updateOptions({ readOnly: !chatExtensionActivated });
-		};
-		updateInputEnabled();
-
-		// Listen for extension status changes to enable the input when the extension activates
-		if (defaultChatAgent) {
-			this.contentDisposables.add(this.extensionService.onDidChangeExtensionsStatus(event => {
-				for (const ext of event) {
-					if (ExtensionIdentifier.equals(defaultChatAgent.chatExtensionId, ext.value)) {
-						updateInputEnabled();
-						return;
-					}
-				}
-			}));
-			// Check for prefill data from a workspace transfer
-			this.applyPrefillData();
-		}
+		// Check for prefill data from a workspace transfer
+		this.applyPrefillData();
 	}
 
 	private getWorkspaceLabel(workspace: IRecentWorkspace | IRecentFolder): string {
@@ -362,6 +356,7 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		const prefillData = {
 			query,
 			mode,
+			timestamp: Date.now(),
 		};
 		this.storageService.store(
 			'chat.welcomeViewPrefill',
@@ -400,7 +395,11 @@ export class AgentSessionsWelcomePage extends EditorPane {
 			// Remove immediately to prevent re-application
 			this.storageService.remove('chat.welcomeViewPrefill', StorageScope.APPLICATION);
 			try {
-				const { query, mode } = JSON.parse(prefillData);
+				const { query, mode, timestamp } = JSON.parse(prefillData);
+				// Invalidate entries older than 1 minute
+				if (timestamp && Date.now() - timestamp > 60 * 1000) {
+					return;
+				}
 				if (query && this.chatWidget) {
 					this.chatWidget.setInput(query);
 				}
@@ -632,6 +631,14 @@ export class AgentSessionsWelcomePage extends EditorPane {
 
 		const tosCard = append(container, $('.agentSessionsWelcome-walkthroughCard.agentSessionsWelcome-tosCard'));
 
+		const dismissNotice = () => {
+			this.storageService.store(AgentSessionsWelcomePage.PRIVACY_NOTICE_DISMISSED_KEY, true, StorageScope.APPLICATION, StorageTarget.USER);
+			tosCard.remove();
+		};
+
+		// Dismiss the notice when a chat request is sent
+		this.contentDisposables.add(this.chatService.onDidSubmitRequest(() => dismissNotice()));
+
 		// Icon
 		const iconContainer = append(tosCard, $('.agentSessionsWelcome-walkthroughCard-icon'));
 		iconContainer.appendChild(renderIcon(Codicon.chatSparkle));
@@ -639,7 +646,7 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		// Content
 		const content = append(tosCard, $('.agentSessionsWelcome-walkthroughCard-content'));
 		const title = append(content, $('.agentSessionsWelcome-walkthroughCard-title'));
-		title.textContent = localize('tosTitle', "AI Feature Trial is Active");
+		title.textContent = localize('tosTitle', "Your GitHub Copilot trial is active");
 
 		const desc = append(content, $('.agentSessionsWelcome-walkthroughCard-description'));
 		const descriptionMarkdown = new MarkdownString(
@@ -661,8 +668,7 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		dismissButton.title = localize('dismissPrivacyNotice', "Dismiss");
 		dismissButton.onclick = (e) => {
 			e.stopPropagation();
-			this.storageService.store(AgentSessionsWelcomePage.PRIVACY_NOTICE_DISMISSED_KEY, true, StorageScope.APPLICATION, StorageTarget.USER);
-			tosCard.remove();
+			dismissNotice();
 		};
 	}
 
@@ -771,6 +777,7 @@ export class AgentSessionsWelcomePage extends EditorPane {
 	}
 
 	private revealMaximizedChat(): void {
+		this.commandService.executeCommand('workbench.action.closeActiveEditor');
 		this.commandService.executeCommand('workbench.action.chat.open');
 		const chatViewLocation = this.viewDescriptorService.getViewLocationById(ChatViewId);
 		if (chatViewLocation === ViewContainerLocation.AuxiliaryBar) {

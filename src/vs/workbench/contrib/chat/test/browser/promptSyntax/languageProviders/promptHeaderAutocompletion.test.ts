@@ -178,6 +178,38 @@ suite('PromptHeaderAutocompletion', () => {
 			]);
 		});
 
+		test('complete model names inside model array', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'model: [|]',
+				'---',
+			].join('\n');
+
+			const actual = await getCompletions(content, PromptsType.agent);
+			// GPT 4 is excluded because it has agentMode: false
+			assert.deepStrictEqual(actual.sort(sortByLabel), [
+				{ label: 'MAE 4 (olama)', result: `model: ['MAE 4 (olama)']` },
+				{ label: 'MAE 4.1 (copilot)', result: `model: ['MAE 4.1 (copilot)']` },
+			].sort(sortByLabel));
+		});
+
+		test('complete model names inside model array with existing entries', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				`model: ['MAE 4 (olama)', |]`,
+				'---',
+			].join('\n');
+
+			const actual = await getCompletions(content, PromptsType.agent);
+			// GPT 4 is excluded because it has agentMode: false
+			assert.deepStrictEqual(actual.sort(sortByLabel), [
+				{ label: 'MAE 4 (olama)', result: `model: ['MAE 4 (olama)', 'MAE 4 (olama)']` },
+				{ label: 'MAE 4.1 (copilot)', result: `model: ['MAE 4 (olama)', 'MAE 4.1 (copilot)']` },
+			].sort(sortByLabel));
+		});
+
 		test('complete tool names inside tools array', async () => {
 			const content = [
 				'---',

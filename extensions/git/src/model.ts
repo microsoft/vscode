@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { workspace, WorkspaceFoldersChangeEvent, Uri, window, Event, EventEmitter, QuickPickItem, Disposable, SourceControl, SourceControlResourceGroup, TextEditor, Memento, commands, LogOutputChannel, l10n, ProgressLocation, WorkspaceFolder, ThemeIcon } from 'vscode';
+import { workspace, WorkspaceFoldersChangeEvent, Uri, window, Event, EventEmitter, QuickPickItem, Disposable, SourceControl, SourceControlResourceGroup, TextEditor, Memento, commands, LogOutputChannel, l10n, ProgressLocation, WorkspaceFolder, ThemeIcon, ResourceTrustRequestOptions } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import { IRepositoryResolver, Repository, RepositoryState } from './repository';
 import { memoize, sequentialize, debounce } from './decorators';
@@ -588,18 +588,15 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 			return;
 		}
 
-		if (!workspace.isTrusted) {
-			// Check if the folder is a bare repo: if it has a file named HEAD && `rev-parse --show -cdup` is empty
-			try {
-				fs.accessSync(path.join(repoPath, 'HEAD'), fs.constants.F_OK);
-				const result = await this.git.exec(repoPath, ['-C', repoPath, 'rev-parse', '--show-cdup']);
-				if (result.stderr.trim() === '' && result.stdout.trim() === '') {
-					this.logger.trace(`[Model][openRepository] Bare repository: ${repoPath}`);
-					return;
-				}
-			} catch {
-				// If this throw, we should be good to open the repo (e.g. HEAD doesn't exist)
-			}
+		// Repository trust check
+		const result = await workspace.requestResourceTrust({
+			message: l10n.t('You are opening a repository from a location that is not trusted. Do you trust the authors of the files in the repository you are opening?'),
+			uri: Uri.file(repoPath),
+		} satisfies ResourceTrustRequestOptions);
+
+		if (!result) {
+			this.logger.trace(`[Model][openRepository] Repository folder is not trusted: ${repoPath}`);
+			return;
 		}
 
 		try {
@@ -1088,7 +1085,12 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 	}
 
 	private async isRepositoryOutsideWorkspace(repositoryPath: string): Promise<boolean> {
-		const workspaceFolders = (workspace.workspaceFolders || [])
+		// Allow opening repositories in the empty workspace
+		if (workspace.workspaceFolders === undefined) {
+			return false;
+		}
+
+		const workspaceFolders = workspace.workspaceFolders
 			.filter(folder => folder.uri.scheme === 'file');
 
 		if (workspaceFolders.length === 0) {

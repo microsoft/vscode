@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { IMarker as IXtermMarker } from '@xterm/xterm';
-import { timeout, type CancelablePromise } from '../../../../../../base/common/async.js';
+import { DeferredPromise, timeout, type CancelablePromise } from '../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
@@ -28,12 +28,11 @@ import { TerminalToolConfirmationStorageKeys } from '../../../../chat/browser/wi
 import { IChatService, type IChatTerminalToolInvocationData } from '../../../../chat/common/chatService/chatService.js';
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolInvocationPresentation, ToolProgress } from '../../../../chat/common/tools/languageModelToolsService.js';
 import { ITerminalChatService, ITerminalService, type ITerminalInstance } from '../../../../terminal/browser/terminal.js';
-import type { XtermTerminal } from '../../../../terminal/browser/xterm/xtermTerminal.js';
 import { ITerminalProfileResolverService } from '../../../../terminal/common/terminal.js';
 import { TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
 import { getRecommendedToolsOverRunInTerminal } from '../alternativeRecommendation.js';
 import { BasicExecuteStrategy } from '../executeStrategy/basicExecuteStrategy.js';
-import type { ITerminalExecuteStrategy } from '../executeStrategy/executeStrategy.js';
+import type { ITerminalExecuteStrategy, ITerminalExecuteStrategyResult } from '../executeStrategy/executeStrategy.js';
 import { NoneExecuteStrategy } from '../executeStrategy/noneExecuteStrategy.js';
 import { RichExecuteStrategy } from '../executeStrategy/richExecuteStrategy.js';
 import { getOutput } from '../outputHelpers.js';
@@ -224,6 +223,10 @@ export async function createRunInTerminalToolData(
 					type: 'string',
 					description: 'A one-sentence description of what the command does. This will be shown to the user before the command is run.'
 				},
+				goal: {
+					type: 'string',
+					description: 'A short description of the goal or purpose of the command (e.g., "Install dependencies", "Start development server").'
+				},
 				isBackground: {
 					type: 'boolean',
 					description: 'Whether the command starts a background process. If true, the command will run in the background and you will not see the output. If false, the tool call will block on the command finishing, and then you will get the output. Examples of background processes: building in watch mode, starting a server. You can check the output of a background process later on by using get_terminal_output.'
@@ -236,6 +239,7 @@ export async function createRunInTerminalToolData(
 			required: [
 				'command',
 				'explanation',
+				'goal',
 				'isBackground',
 				'timeout',
 			]
@@ -261,8 +265,25 @@ interface IStoredTerminalAssociation {
 export interface IRunInTerminalInputParams {
 	command: string;
 	explanation: string;
+	goal: string;
 	isBackground: boolean;
 	timeout?: number;
+}
+
+/**
+ * Interface for accessing a running terminal execution.
+ * Used by tools that need to await or interact with background terminal commands.
+ */
+export interface IActiveTerminalExecution {
+	/**
+	 * Promise that resolves when the terminal command completes.
+	 */
+	readonly completionPromise: Promise<ITerminalExecuteStrategyResult>;
+
+	/**
+	 * Gets the current output from the terminal.
+	 */
+	getOutput(): string;
 }
 
 /**
@@ -293,13 +314,21 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	// Immutable window state
 	protected readonly _osBackend: Promise<OperatingSystem>;
 
-	private static readonly _backgroundExecutions = new Map<string, BackgroundTerminalExecution>();
+	private static readonly _activeExecutions = new Map<string, ActiveTerminalExecution>();
 	public static getBackgroundOutput(id: string): string {
-		const backgroundExecution = RunInTerminalTool._backgroundExecutions.get(id);
-		if (!backgroundExecution) {
+		const execution = RunInTerminalTool._activeExecutions.get(id);
+		if (!execution) {
 			throw new Error('Invalid terminal ID');
 		}
-		return backgroundExecution.getOutput();
+		return execution.getOutput();
+	}
+
+	/**
+	 * Gets an active terminal execution by ID. Returns undefined if not found.
+	 * Can be used to await the completion of a background terminal command.
+	 */
+	public static getExecution(id: string): IActiveTerminalExecution | undefined {
+		return RunInTerminalTool._activeExecutions.get(id);
 	}
 
 	constructor(
@@ -590,7 +619,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 		const confirmationMessages = isFinalAutoApproved ? undefined : {
 			title: confirmationTitle,
-			message: new MarkdownString(args.explanation),
+			message: new MarkdownString(localize('runInTerminal.confirmationMessage', "Explanation: {0}\n\nGoal: {1}", args.explanation, args.goal)),
 			disclaimer,
 			terminalCustomActions: customActions,
 		};
@@ -652,10 +681,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 		const store = new DisposableStore();
 
+		// Unified terminal initialization
 		this._logService.debug(`RunInTerminalTool: Creating ${args.isBackground ? 'background' : 'foreground'} terminal. termId=${termId}, chatSessionId=${chatSessionId}`);
-		const toolTerminal = await (args.isBackground
-			? this._initBackgroundTerminal(chatSessionResource, termId, terminalToolSessionId, token)
-			: this._initForegroundTerminal(chatSessionResource, termId, terminalToolSessionId, token));
+		const toolTerminal = await this._initTerminal(chatSessionResource, termId, terminalToolSessionId, args.isBackground, token);
 
 		this._handleTerminalVisibility(toolTerminal, chatSessionResource);
 
@@ -677,18 +705,99 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			inputUserSigint ||= data === '\x03';
 		}));
 
-		let didMoveToBackground = false;
+		// Unified execution: always use execute strategy for both background and foreground
+		let terminalResult = '';
+		let outputLineCount = -1;
+		let exitCode: number | undefined;
+		let altBufferResult: IToolResult | undefined;
+		let didTimeout = false;
+		let didMoveToBackground = args.isBackground;
+		let timeoutPromise: CancelablePromise<void> | undefined;
 		let outputMonitor: OutputMonitor | undefined;
-		if (args.isBackground) {
-			let pollingResult: IPollingResult & { pollDurationMs: number } | undefined;
-			try {
-				this._logService.debug(`RunInTerminalTool: Starting background execution \`${command}\``);
-				const execution = BackgroundTerminalExecution.start(toolTerminal.instance, xterm, command, chatSessionId, commandId!);
-				RunInTerminalTool._backgroundExecutions.set(termId, execution);
+		let pollingResult: IPollingResult & { pollDurationMs: number } | undefined;
+		const executeCancellation = store.add(new CancellationTokenSource(token));
 
-				outputMonitor = store.add(this._instantiationService.createInstance(OutputMonitor, execution, undefined, invocation.context!, token, command));
-				await Event.toPromise(outputMonitor.onDidFinishCommand);
-				const pollingResult = outputMonitor.pollingResult;
+		// Set up timeout if provided and the setting is enabled (only for foreground)
+		if (!args.isBackground && args.timeout !== undefined && args.timeout > 0) {
+			const shouldEnforceTimeout = this._configurationService.getValue(TerminalChatAgentToolsSettingId.EnforceTimeoutFromModel) === true;
+			if (shouldEnforceTimeout) {
+				timeoutPromise = timeout(args.timeout);
+				timeoutPromise.then(() => {
+					if (!executeCancellation.token.isCancellationRequested) {
+						didTimeout = true;
+						executeCancellation.cancel();
+					}
+				});
+			}
+		}
+
+		// Set up continue in background listener - uses a race promise instead of cancellation
+		// to allow the execution strategy to continue running and preserve its marker
+		let continueInBackgroundResolve: (() => void) | undefined;
+		const continueInBackgroundPromise = new Promise<void>(resolve => {
+			continueInBackgroundResolve = resolve;
+		});
+		if (terminalToolSessionId) {
+			store.add(this._terminalChatService.onDidContinueInBackground(sessionId => {
+				if (sessionId === terminalToolSessionId) {
+					const execution = RunInTerminalTool._activeExecutions.get(termId);
+					if (execution) {
+						execution.setBackground();
+					}
+					didMoveToBackground = true;
+					// Resolve the race promise instead of cancelling - this allows the execution
+					// to continue running so it can be awaited later
+					continueInBackgroundResolve?.();
+				}
+			}));
+		}
+
+		let executionPromise: Promise<ITerminalExecuteStrategyResult> | undefined;
+		try {
+			// Create unified ActiveTerminalExecution (creates and owns the strategy)
+			const execution = this._instantiationService.createInstance(
+				ActiveTerminalExecution,
+				chatSessionId,
+				termId,
+				toolTerminal,
+				commandDetection!,
+				args.isBackground
+			);
+			if (toolTerminal.shellIntegrationQuality === ShellIntegrationQuality.None) {
+				toolResultMessage = '$(info) Enable [shell integration](https://code.visualstudio.com/docs/terminal/shell-integration) to improve command detection';
+			}
+			this._logService.debug(`RunInTerminalTool: Using \`${execution.strategy.type}\` execute strategy for command \`${command}\``);
+			store.add(execution);
+			RunInTerminalTool._activeExecutions.set(termId, execution);
+
+			// Set up OutputMonitor when start marker is created
+			store.add(execution.strategy.onDidCreateStartMarker(startMarker => {
+				if (!outputMonitor) {
+					outputMonitor = store.add(this._instantiationService.createInstance(
+						OutputMonitor,
+						{
+							instance: toolTerminal.instance,
+							sessionId: invocation.context?.sessionId,
+							getOutput: (marker?: IXtermMarker) => execution.getOutput(marker ?? startMarker)
+						},
+						undefined,
+						invocation.context,
+						token,
+						command
+					));
+				}
+			}));
+
+			// Start execution (non-blocking - runs in background)
+			executionPromise = execution.start(command, executeCancellation.token, commandId);
+
+			if (args.isBackground) {
+				// Background mode: wait for OutputMonitor to detect idle, then return
+				this._logService.debug(`RunInTerminalTool: Starting background execution \`${command}\``);
+				if (outputMonitor) {
+					await Event.toPromise(outputMonitor.onDidFinishCommand);
+					pollingResult = outputMonitor.pollingResult;
+				}
 
 				await this._commandArtifactCollector.capture(toolSpecificData, toolTerminal.instance, commandId);
 				if (token.isCancellationRequested) {
@@ -720,249 +829,170 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 						value: resultText,
 					}],
 				};
-			} catch (e) {
-				if (termId) {
-					RunInTerminalTool._backgroundExecutions.get(termId)?.dispose();
-					RunInTerminalTool._backgroundExecutions.delete(termId);
-				}
-				error = e instanceof CancellationError ? 'canceled' : 'unexpectedException';
-				throw e;
-			} finally {
-				store.dispose();
-				this._logService.debug(`RunInTerminalTool: Finished polling \`${pollingResult?.output.length}\` lines of output in \`${pollingResult?.pollDurationMs}\``);
-				const timingExecuteMs = Date.now() - timingStart;
-				this._telemetry.logInvoke(toolTerminal.instance, {
-					terminalToolSessionId: toolSpecificData.terminalToolSessionId,
-					didUserEditCommand,
-					didToolEditCommand,
-					shellIntegrationQuality: toolTerminal.shellIntegrationQuality,
-					isBackground: true,
-					error,
-					exitCode: undefined,
-					isNewSession: true,
-					timingExecuteMs,
-					timingConnectMs,
-					terminalExecutionIdleBeforeTimeout: pollingResult?.state === OutputMonitorState.Idle,
-					outputLineCount: pollingResult?.output ? count(pollingResult.output, '\n') : 0,
-					pollDurationMs: pollingResult?.pollDurationMs,
-					inputUserChars,
-					inputUserSigint,
-					inputToolManualAcceptCount: outputMonitor?.outputMonitorTelemetryCounters.inputToolManualAcceptCount,
-					inputToolManualRejectCount: outputMonitor?.outputMonitorTelemetryCounters.inputToolManualRejectCount,
-					inputToolManualChars: outputMonitor?.outputMonitorTelemetryCounters.inputToolManualChars,
-					inputToolAutoAcceptCount: outputMonitor?.outputMonitorTelemetryCounters.inputToolAutoAcceptCount,
-					inputToolAutoChars: outputMonitor?.outputMonitorTelemetryCounters.inputToolAutoChars,
-					inputToolManualShownCount: outputMonitor?.outputMonitorTelemetryCounters.inputToolManualShownCount,
-					inputToolFreeFormInputCount: outputMonitor?.outputMonitorTelemetryCounters.inputToolFreeFormInputCount,
-					inputToolFreeFormInputShownCount: outputMonitor?.outputMonitorTelemetryCounters.inputToolFreeFormInputShownCount
-				});
-			}
-		} else {
-			let terminalResult = '';
+			} else {
+				// Foreground mode: race execution completion against continue in background
+				const raceResult = await Promise.race([
+					executionPromise.then(result => ({ type: 'completed' as const, result })),
+					continueInBackgroundPromise.then(() => ({ type: 'background' as const }))
+				]);
 
-			let outputLineCount = -1;
-			let exitCode: number | undefined;
-			let altBufferResult: IToolResult | undefined;
-			let didTimeout = false;
-			let didContinueInBackground = false;
-			let timeoutPromise: CancelablePromise<void> | undefined;
-			const executeCancellation = store.add(new CancellationTokenSource(token));
-
-			// Set up timeout if provided and the setting is enabled
-			if (args.timeout !== undefined && args.timeout > 0) {
-				const shouldEnforceTimeout = this._configurationService.getValue(TerminalChatAgentToolsSettingId.EnforceTimeoutFromModel) === true;
-				if (shouldEnforceTimeout) {
-					timeoutPromise = timeout(args.timeout);
-					timeoutPromise.then(() => {
-						if (!executeCancellation.token.isCancellationRequested) {
-							didTimeout = true;
-							executeCancellation.cancel();
-						}
-					});
-				}
-			}
-
-			// Set up continue in background listener
-			if (terminalToolSessionId) {
-				store.add(this._terminalChatService.onDidContinueInBackground(sessionId => {
-					if (sessionId === terminalToolSessionId) {
-						didContinueInBackground = true;
-						if (!executeCancellation.token.isCancellationRequested) {
-							executeCancellation.cancel();
-						}
-					}
-				}));
-			}
-
-			let startMarker: IXtermMarker | undefined;
-			try {
-				const strategy: ITerminalExecuteStrategy = this._getExecuteStrategy(toolTerminal.shellIntegrationQuality, toolTerminal, commandDetection!);
-				if (toolTerminal.shellIntegrationQuality === ShellIntegrationQuality.None) {
-					toolResultMessage = '$(info) Enable [shell integration](https://code.visualstudio.com/docs/terminal/shell-integration) to improve command detection';
-				}
-				this._logService.debug(`RunInTerminalTool: Using \`${strategy.type}\` execute strategy for command \`${command}\``);
-				store.add(strategy.onDidCreateStartMarker(startMarker_ => {
-					if (startMarker_) {
-						// Duplicate marker for use even if the execution strategy one gets disposed.
-						// Don't add to store - we may need to transfer ownership to BackgroundTerminalExecution.
-						startMarker = xterm.raw.registerMarker(startMarker_.line - (xterm.raw.buffer.active.cursorY + xterm.raw.buffer.active.baseY));
-					}
-					if (!outputMonitor) {
-						outputMonitor = store.add(this._instantiationService.createInstance(OutputMonitor, { instance: toolTerminal.instance, sessionId: invocation.context?.sessionId, getOutput: (marker?: IXtermMarker) => getOutput(toolTerminal.instance, marker ?? startMarker_) }, undefined, invocation.context, token, command));
-					}
-				}));
-				const executeResult = await strategy.execute(command, executeCancellation.token, commandId);
-				// Reset user input state after command execution completes
-				toolTerminal.receivedUserInput = false;
-				if (token.isCancellationRequested) {
-					throw new CancellationError();
-				}
-
-				if (executeResult.didEnterAltBuffer) {
-					const state = toolSpecificData.terminalCommandState ?? {};
-					state.timestamp = state.timestamp ?? timingStart;
-					toolSpecificData.terminalCommandState = state;
-					toolResultMessage = altBufferMessage;
-					outputLineCount = 0;
-					error = executeResult.error ?? 'alternateBuffer';
-					altBufferResult = {
-						toolResultMessage,
-						toolMetadata: {
-							exitCode: undefined
-						},
-						content: [{
-							kind: 'text',
-							value: altBufferMessage,
-						}]
-					};
-				} else {
-					await this._commandArtifactCollector.capture(toolSpecificData, toolTerminal.instance, commandId);
-					{
-						const state = toolSpecificData.terminalCommandState ?? {};
-						state.timestamp = state.timestamp ?? timingStart;
-						if (executeResult.exitCode !== undefined) {
-							state.exitCode = executeResult.exitCode;
-							if (state.timestamp !== undefined) {
-								state.duration = state.duration ?? Math.max(0, Date.now() - state.timestamp);
-							}
-						}
-						toolSpecificData.terminalCommandState = state;
-					}
-
-					this._logService.debug(`RunInTerminalTool: Finished \`${strategy.type}\` execute strategy with exitCode \`${executeResult.exitCode}\`, result.length \`${executeResult.output?.length}\`, error \`${executeResult.error}\``);
-					outputLineCount = executeResult.output === undefined ? 0 : count(executeResult.output.trim(), '\n') + 1;
-					exitCode = executeResult.exitCode;
-					error = executeResult.error;
-
-					const resultArr: string[] = [];
-					if (executeResult.output !== undefined) {
-						resultArr.push(executeResult.output);
-					}
-					if (executeResult.additionalInformation) {
-						resultArr.push(executeResult.additionalInformation);
-					}
-					terminalResult = resultArr.join('\n\n');
-				}
-			} catch (e) {
-				// Handle timeout case - get output collected so far and return it
-				if (didTimeout && e instanceof CancellationError) {
-					this._logService.debug(`RunInTerminalTool: Timeout reached, returning output collected so far`);
-					error = 'timeout';
-					const timeoutOutput = getOutput(toolTerminal.instance, undefined);
-					outputLineCount = timeoutOutput ? count(timeoutOutput.trim(), '\n') + 1 : 0;
-					terminalResult = timeoutOutput ?? '';
-				} else if (didContinueInBackground && e instanceof CancellationError) {
-					// Handle continue in background case - get output collected so far and return it
+				if (raceResult.type === 'background') {
+					// Moved to background - execution continues running, just return current output
 					this._logService.debug(`RunInTerminalTool: Continue in background triggered, returning output collected so far`);
 					error = 'continueInBackground';
-					didMoveToBackground = true;
-					if (!startMarker) {
-						this._logService.debug(`RunInTerminalTool: Start marker is undefined`);
-					} else if (startMarker.isDisposed) {
-						this._logService.debug(`RunInTerminalTool: Start marker is disposed`);
-					}
-					const execution = BackgroundTerminalExecution.adopt(toolTerminal.instance, xterm, command, chatSessionId, startMarker);
-					RunInTerminalTool._backgroundExecutions.set(termId, execution);
 					const backgroundOutput = execution.getOutput();
 					outputLineCount = backgroundOutput ? count(backgroundOutput.trim(), '\n') + 1 : 0;
-					terminalResult = backgroundOutput ?? '';
+					terminalResult = backgroundOutput;
 				} else {
-					this._logService.debug(`RunInTerminalTool: Threw exception`);
-					// Capture output snapshot before disposing on cancellation
-					if (e instanceof CancellationError) {
-						await this._commandArtifactCollector.capture(toolSpecificData, toolTerminal.instance, commandId);
+					const executeResult = raceResult.result;
+					// Reset user input state after command execution completes
+					toolTerminal.receivedUserInput = false;
+					if (token.isCancellationRequested) {
+						throw new CancellationError();
 					}
-					toolTerminal.instance.dispose();
-					error = e instanceof CancellationError ? 'canceled' : 'unexpectedException';
-					throw e;
+
+					if (executeResult.didEnterAltBuffer) {
+						const state = toolSpecificData.terminalCommandState ?? {};
+						state.timestamp = state.timestamp ?? timingStart;
+						toolSpecificData.terminalCommandState = state;
+						toolResultMessage = altBufferMessage;
+						outputLineCount = 0;
+						error = executeResult.error ?? 'alternateBuffer';
+						altBufferResult = {
+							toolResultMessage,
+							toolMetadata: {
+								exitCode: undefined
+							},
+							content: [{
+								kind: 'text',
+								value: altBufferMessage,
+							}]
+						};
+					} else {
+						await this._commandArtifactCollector.capture(toolSpecificData, toolTerminal.instance, commandId);
+						{
+							const state = toolSpecificData.terminalCommandState ?? {};
+							state.timestamp = state.timestamp ?? timingStart;
+							if (executeResult.exitCode !== undefined) {
+								state.exitCode = executeResult.exitCode;
+								if (state.timestamp !== undefined) {
+									state.duration = state.duration ?? Math.max(0, Date.now() - state.timestamp);
+								}
+							}
+							toolSpecificData.terminalCommandState = state;
+						}
+
+						this._logService.debug(`RunInTerminalTool: Finished \`${execution.strategy.type}\` execute strategy with exitCode \`${executeResult.exitCode}\`, result.length \`${executeResult.output?.length}\`, error \`${executeResult.error}\``);
+						outputLineCount = executeResult.output === undefined ? 0 : count(executeResult.output.trim(), '\n') + 1;
+						exitCode = executeResult.exitCode;
+						error = executeResult.error;
+
+						const resultArr: string[] = [];
+						if (executeResult.output !== undefined) {
+							resultArr.push(executeResult.output);
+						}
+						if (executeResult.additionalInformation) {
+							resultArr.push(executeResult.additionalInformation);
+						}
+						terminalResult = resultArr.join('\n\n');
+					}
 				}
-			} finally {
-				timeoutPromise?.cancel();
-				store.dispose();
-				// Clean up the marker if we didn't move to background (which takes ownership)
-				if (!didMoveToBackground) {
-					startMarker?.dispose();
+			}
+		} catch (e) {
+			// Handle timeout case - get output collected so far and return it
+			if (didTimeout && e instanceof CancellationError) {
+				this._logService.debug(`RunInTerminalTool: Timeout reached, returning output collected so far`);
+				error = 'timeout';
+				const timeoutOutput = getOutput(toolTerminal.instance, undefined);
+				outputLineCount = timeoutOutput ? count(timeoutOutput.trim(), '\n') + 1 : 0;
+				terminalResult = timeoutOutput ?? '';
+			} else {
+				this._logService.debug(`RunInTerminalTool: Threw exception`);
+				// Capture output snapshot before disposing on cancellation
+				if (e instanceof CancellationError) {
+					await this._commandArtifactCollector.capture(toolSpecificData, toolTerminal.instance, commandId);
 				}
-				const timingExecuteMs = Date.now() - timingStart;
-				this._telemetry.logInvoke(toolTerminal.instance, {
-					terminalToolSessionId: toolSpecificData.terminalToolSessionId,
-					didUserEditCommand,
-					didToolEditCommand,
-					isBackground: false,
-					shellIntegrationQuality: toolTerminal.shellIntegrationQuality,
-					error,
-					isNewSession,
-					outputLineCount,
-					exitCode,
-					timingExecuteMs,
-					timingConnectMs,
-					inputUserChars,
-					inputUserSigint,
-					terminalExecutionIdleBeforeTimeout: undefined,
-					pollDurationMs: undefined,
-					inputToolManualAcceptCount: outputMonitor?.outputMonitorTelemetryCounters?.inputToolManualAcceptCount,
-					inputToolManualRejectCount: outputMonitor?.outputMonitorTelemetryCounters?.inputToolManualRejectCount,
-					inputToolManualChars: outputMonitor?.outputMonitorTelemetryCounters?.inputToolManualChars,
-					inputToolAutoAcceptCount: outputMonitor?.outputMonitorTelemetryCounters?.inputToolAutoAcceptCount,
-					inputToolAutoChars: outputMonitor?.outputMonitorTelemetryCounters?.inputToolAutoChars,
-					inputToolManualShownCount: outputMonitor?.outputMonitorTelemetryCounters?.inputToolManualShownCount,
-					inputToolFreeFormInputCount: outputMonitor?.outputMonitorTelemetryCounters?.inputToolFreeFormInputCount,
-					inputToolFreeFormInputShownCount: outputMonitor?.outputMonitorTelemetryCounters?.inputToolFreeFormInputShownCount
+				// Clean up the execution on error
+				RunInTerminalTool._activeExecutions.get(termId)?.dispose();
+				RunInTerminalTool._activeExecutions.delete(termId);
+				toolTerminal.instance.dispose();
+				error = e instanceof CancellationError ? 'canceled' : 'unexpectedException';
+				throw e;
+			}
+		} finally {
+			timeoutPromise?.cancel();
+			if (didMoveToBackground && executionPromise) {
+				// Execution moved to background - attach error handler since we won't await it
+				executionPromise.catch((e: unknown) => {
+					if (!(e instanceof CancellationError)) {
+						this._logService.error(`RunInTerminalTool: Background execution error`, e);
+					}
 				});
+			} else {
+				// Foreground completed or error - clean up execution
+				RunInTerminalTool._activeExecutions.get(termId)?.dispose();
+				RunInTerminalTool._activeExecutions.delete(termId);
 			}
-
-			if (altBufferResult) {
-				return altBufferResult;
-			}
-
-			const resultText: string[] = [];
-			if (didUserEditCommand) {
-				resultText.push(`Note: The user manually edited the command to \`${command}\`, and this is the output of running that command instead:\n`);
-			} else if (didToolEditCommand) {
-				resultText.push(`Note: The tool simplified the command to \`${command}\`, and this is the output of running that command instead:\n`);
-			}
-			if (didMoveToBackground) {
-				resultText.push(`Note: This terminal execution was moved to the background using the ID ${termId}\n`);
-			}
-			resultText.push(terminalResult);
-
-			const isError = exitCode !== undefined && exitCode !== 0;
-			return {
-				toolResultMessage,
-				toolMetadata: {
-					exitCode: exitCode
-				},
-				toolResultDetails: isError ? {
-					input: command,
-					output: [{ type: 'embed', isText: true, value: terminalResult }],
-					isError: true
-				} : undefined,
-				content: [{
-					kind: 'text',
-					value: resultText.join(''),
-				}]
-			};
+			store.dispose();
+			const timingExecuteMs = Date.now() - timingStart;
+			this._telemetry.logInvoke(toolTerminal.instance, {
+				terminalToolSessionId: toolSpecificData.terminalToolSessionId,
+				didUserEditCommand,
+				didToolEditCommand,
+				isBackground: args.isBackground,
+				shellIntegrationQuality: toolTerminal.shellIntegrationQuality,
+				error,
+				isNewSession,
+				outputLineCount,
+				exitCode,
+				timingExecuteMs,
+				timingConnectMs,
+				inputUserChars,
+				inputUserSigint,
+				terminalExecutionIdleBeforeTimeout: pollingResult?.state === OutputMonitorState.Idle,
+				pollDurationMs: pollingResult?.pollDurationMs,
+				inputToolManualAcceptCount: outputMonitor?.outputMonitorTelemetryCounters?.inputToolManualAcceptCount,
+				inputToolManualRejectCount: outputMonitor?.outputMonitorTelemetryCounters?.inputToolManualRejectCount,
+				inputToolManualChars: outputMonitor?.outputMonitorTelemetryCounters?.inputToolManualChars,
+				inputToolAutoAcceptCount: outputMonitor?.outputMonitorTelemetryCounters?.inputToolAutoAcceptCount,
+				inputToolAutoChars: outputMonitor?.outputMonitorTelemetryCounters?.inputToolAutoChars,
+				inputToolManualShownCount: outputMonitor?.outputMonitorTelemetryCounters?.inputToolManualShownCount,
+				inputToolFreeFormInputCount: outputMonitor?.outputMonitorTelemetryCounters?.inputToolFreeFormInputCount,
+				inputToolFreeFormInputShownCount: outputMonitor?.outputMonitorTelemetryCounters?.inputToolFreeFormInputShownCount
+			});
 		}
+
+		if (altBufferResult) {
+			return altBufferResult;
+		}
+
+		const resultText: string[] = [];
+		if (didUserEditCommand) {
+			resultText.push(`Note: The user manually edited the command to \`${command}\`, and this is the output of running that command instead:\n`);
+		} else if (didToolEditCommand) {
+			resultText.push(`Note: The tool simplified the command to \`${command}\`, and this is the output of running that command instead:\n`);
+		}
+		if (didMoveToBackground && !args.isBackground) {
+			resultText.push(`Note: This terminal execution was moved to the background using the ID ${termId}\n`);
+		}
+		resultText.push(terminalResult);
+
+		const isError = exitCode !== undefined && exitCode !== 0;
+		return {
+			toolResultMessage,
+			toolMetadata: {
+				exitCode: exitCode
+			},
+			toolResultDetails: isError ? {
+				input: command,
+				output: [{ type: 'embed', isText: true, value: terminalResult }],
+				isError: true
+			} : undefined,
+			content: [{
+				kind: 'text',
+				value: resultText.join(''),
+			}]
+		};
 	}
 
 	private _handleTerminalVisibility(toolTerminal: IToolTerminal, chatSessionResource: URI) {
@@ -975,31 +1005,24 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 	// #region Terminal init
 
-	private async _initBackgroundTerminal(chatSessionResource: URI, termId: string, terminalToolSessionId: string | undefined, token: CancellationToken): Promise<IToolTerminal> {
-		this._logService.debug(`RunInTerminalTool: Creating background terminal with ID=${termId}`);
-		const profile = await this._profileFetcher.getCopilotProfile();
-		const os = await this._osBackend;
-		const toolTerminal = await this._terminalToolCreator.createTerminal(profile, os, token);
-		this._terminalChatService.registerTerminalInstanceWithToolSession(terminalToolSessionId, toolTerminal.instance);
-		this._terminalChatService.registerTerminalInstanceWithChatSession(chatSessionResource, toolTerminal.instance);
-		this._registerInputListener(toolTerminal);
-		this._sessionTerminalAssociations.set(chatSessionResource, toolTerminal);
-		if (token.isCancellationRequested) {
-			toolTerminal.instance.dispose();
-			throw new CancellationError();
+	/**
+	 * Initializes a terminal for command execution. For foreground mode, reuses existing cached
+	 * terminal from the session. For background mode, always creates a new terminal to allow
+	 * parallel execution.
+	 */
+	private async _initTerminal(chatSessionResource: URI, termId: string, terminalToolSessionId: string | undefined, isBackground: boolean, token: CancellationToken): Promise<IToolTerminal> {
+		// For foreground mode, try to reuse cached terminal
+		if (!isBackground) {
+			const cachedTerminal = this._sessionTerminalAssociations.get(chatSessionResource);
+			if (cachedTerminal) {
+				this._logService.debug(`RunInTerminalTool: Using cached terminal with session resource \`${chatSessionResource}\``);
+				this._terminalToolCreator.refreshShellIntegrationQuality(cachedTerminal);
+				this._terminalChatService.registerTerminalInstanceWithToolSession(terminalToolSessionId, cachedTerminal.instance);
+				return cachedTerminal;
+			}
 		}
-		await this._setupProcessIdAssociation(toolTerminal, chatSessionResource, termId, true);
-		return toolTerminal;
-	}
 
-	private async _initForegroundTerminal(chatSessionResource: URI, termId: string, terminalToolSessionId: string | undefined, token: CancellationToken): Promise<IToolTerminal> {
-		const cachedTerminal = this._sessionTerminalAssociations.get(chatSessionResource);
-		if (cachedTerminal) {
-			this._logService.debug(`RunInTerminalTool: Using cached foreground terminal with session resource \`${chatSessionResource}\``);
-			this._terminalToolCreator.refreshShellIntegrationQuality(cachedTerminal);
-			this._terminalChatService.registerTerminalInstanceWithToolSession(terminalToolSessionId, cachedTerminal.instance);
-			return cachedTerminal;
-		}
+		this._logService.debug(`RunInTerminalTool: Creating ${isBackground ? 'background' : 'foreground'} terminal with ID=${termId}`);
 		const profile = await this._profileFetcher.getCopilotProfile();
 		const os = await this._osBackend;
 		const toolTerminal = await this._terminalToolCreator.createTerminal(profile, os, token);
@@ -1011,7 +1034,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			toolTerminal.instance.dispose();
 			throw new CancellationError();
 		}
-		await this._setupProcessIdAssociation(toolTerminal, chatSessionResource, termId, false);
+		await this._setupProcessIdAssociation(toolTerminal, chatSessionResource, termId, isBackground);
 		return toolTerminal;
 	}
 
@@ -1124,80 +1147,125 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			this._sessionTerminalAssociations.delete(chatSessionResource);
 			toolTerminal.instance.dispose();
 
-			// Clean up any background executions associated with this session
+			// Clean up any active executions associated with this session
 			const terminalToRemove: string[] = [];
-			for (const [termId, execution] of RunInTerminalTool._backgroundExecutions.entries()) {
+			for (const [termId, execution] of RunInTerminalTool._activeExecutions.entries()) {
 				if (execution.instance === toolTerminal.instance) {
 					execution.dispose();
 					terminalToRemove.push(termId);
 				}
 			}
 			for (const termId of terminalToRemove) {
-				RunInTerminalTool._backgroundExecutions.delete(termId);
+				RunInTerminalTool._activeExecutions.delete(termId);
 			}
 		}
-	}
-
-	private _getExecuteStrategy(shellIntegrationQuality: ShellIntegrationQuality, toolTerminal: IToolTerminal, commandDetection: ICommandDetectionCapability): ITerminalExecuteStrategy {
-		let strategy: ITerminalExecuteStrategy;
-		switch (shellIntegrationQuality) {
-			case ShellIntegrationQuality.None:
-				strategy = this._instantiationService.createInstance(NoneExecuteStrategy, toolTerminal.instance, () => toolTerminal.receivedUserInput ?? false);
-				break;
-			case ShellIntegrationQuality.Basic:
-				strategy = this._instantiationService.createInstance(BasicExecuteStrategy, toolTerminal.instance, () => toolTerminal.receivedUserInput ?? false, commandDetection!);
-				break;
-			case ShellIntegrationQuality.Rich:
-				strategy = this._instantiationService.createInstance(RichExecuteStrategy, toolTerminal.instance, commandDetection!);
-				break;
-		}
-		return strategy;
 	}
 	// #endregion
 }
 
-class BackgroundTerminalExecution extends Disposable {
-	private _startMarker?: IXtermMarker;
+/**
+ * Represents an active terminal command execution that can run in either foreground or background
+ * mode. This unified class replaces the previous split between foreground strategy execution and
+ * BackgroundTerminalExecution, allowing seamless switching between modes.
+ */
+class ActiveTerminalExecution extends Disposable implements IActiveTerminalExecution {
+	private _startMarker: IXtermMarker | undefined;
+	private _isBackground: boolean;
+	private readonly _completionDeferred: DeferredPromise<ITerminalExecuteStrategyResult>;
 
-	static start(
-		instance: ITerminalInstance,
-		xterm: XtermTerminal,
-		commandLine: string,
-		sessionId: string,
-		commandId: string,
-	): BackgroundTerminalExecution {
-		return new BackgroundTerminalExecution(instance, xterm, commandLine, sessionId, commandId);
+	/**
+	 * The promise that resolves when the execute strategy completes. Can be awaited to get the
+	 * full result with exit code.
+	 */
+	get completionPromise(): Promise<ITerminalExecuteStrategyResult> {
+		return this._completionDeferred.p;
 	}
 
-	static adopt(
-		instance: ITerminalInstance,
-		xterm: XtermTerminal,
-		commandLine: string,
-		sessionId: string,
-		existingMarker?: IXtermMarker,
-	): BackgroundTerminalExecution {
-		const execution = new BackgroundTerminalExecution(instance, xterm, commandLine, sessionId);
-		if (existingMarker) {
-			execution._startMarker = execution._register(existingMarker);
-		}
-		return execution;
+	get isBackground(): boolean {
+		return this._isBackground;
 	}
 
-	private constructor(
-		readonly instance: ITerminalInstance,
-		private readonly _xterm: XtermTerminal,
-		private readonly _commandLine: string,
+	get startMarker(): IXtermMarker | undefined {
+		return this._startMarker;
+	}
+
+	readonly strategy: ITerminalExecuteStrategy;
+	private readonly _toolTerminal: IToolTerminal;
+
+	get instance(): ITerminalInstance {
+		return this._toolTerminal.instance;
+	}
+
+	constructor(
 		readonly sessionId: string,
-		commandId?: string,
+		readonly termId: string,
+		toolTerminal: IToolTerminal,
+		commandDetection: ICommandDetectionCapability,
+		isBackground: boolean,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
+		this._toolTerminal = toolTerminal;
+		this._isBackground = isBackground;
+		this._completionDeferred = new DeferredPromise<ITerminalExecuteStrategyResult>();
 
-		if (commandId !== undefined) {
-			this._startMarker = this._register(this._xterm.raw.registerMarker());
-			this.instance.runCommand(this._commandLine, true, commandId);
+		// Create and register the strategy for disposal to clean up its internal resources
+		this.strategy = this._register(this._createStrategy(commandDetection));
+
+		this._register(this.strategy.onDidCreateStartMarker(marker => {
+			if (marker) {
+				// Don't register marker - strategy already manages its lifecycle
+				this._startMarker = marker;
+			}
+		}));
+	}
+
+	private _createStrategy(commandDetection: ICommandDetectionCapability): ITerminalExecuteStrategy {
+		switch (this._toolTerminal.shellIntegrationQuality) {
+			case ShellIntegrationQuality.None:
+				return this._instantiationService.createInstance(NoneExecuteStrategy, this._toolTerminal.instance, () => this._toolTerminal.receivedUserInput ?? false);
+			case ShellIntegrationQuality.Basic:
+				return this._instantiationService.createInstance(BasicExecuteStrategy, this._toolTerminal.instance, () => this._toolTerminal.receivedUserInput ?? false, commandDetection);
+			case ShellIntegrationQuality.Rich:
+				return this._instantiationService.createInstance(RichExecuteStrategy, this._toolTerminal.instance, commandDetection);
 		}
 	}
 
+	/**
+	 * Starts the command execution using the execute strategy.
+	 * @param commandLine The command to execute
+	 * @param token Cancellation token
+	 * @param commandId Optional command ID for linking
+	 * @returns The execution result
+	 */
+	async start(commandLine: string, token: CancellationToken, commandId?: string): Promise<ITerminalExecuteStrategyResult> {
+		try {
+			const result = await this.strategy.execute(commandLine, token, commandId);
+			this._completionDeferred.complete(result);
+			return result;
+		} catch (e) {
+			this._completionDeferred.error(e);
+			throw e;
+		}
+	}
+
+	/**
+	 * Switches this execution to foreground mode, meaning callers will await its completion.
+	 */
+	setForeground(): void {
+		this._isBackground = false;
+	}
+
+	/**
+	 * Switches this execution to background mode.
+	 */
+	setBackground(): void {
+		this._isBackground = true;
+	}
+
+	/**
+	 * Gets the current output from the terminal.
+	 */
 	getOutput(marker?: IXtermMarker): string {
 		return getOutput(this.instance, marker ?? this._startMarker);
 	}

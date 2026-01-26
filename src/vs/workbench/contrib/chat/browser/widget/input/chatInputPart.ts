@@ -63,7 +63,6 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { ServiceCollection } from '../../../../../../platform/instantiation/common/serviceCollection.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
-import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { WorkbenchList } from '../../../../../../platform/list/browser/listService.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { ObservableMemento, observableMemento } from '../../../../../../platform/observable/common/observableMemento.js';
@@ -119,7 +118,7 @@ import { IChatInputPickerOptions } from './chatInputPickerActionItem.js';
 import { ChatSelectedTools } from './chatSelectedTools.js';
 import { DelegationSessionPickerActionItem } from './delegationSessionPickerActionItem.js';
 import { IModelPickerDelegate, ModelPickerActionItem } from './modelPickerActionItem.js';
-import { IModePickerDelegate, isBuiltinImplementMode, ModePickerActionItem } from './modePickerActionItem.js';
+import { IModePickerDelegate, ModePickerActionItem } from './modePickerActionItem.js';
 import { SessionTypePickerActionItem } from './sessionTargetPickerActionItem.js';
 import { WorkspacePickerActionItem } from './workspacePickerActionItem.js';
 
@@ -476,7 +475,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		@IChatContextService private readonly chatContextService: IChatContextService,
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
-		@IProductService private readonly productService: IProductService,
 	) {
 		super();
 
@@ -626,22 +624,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._register(autorun(r => {
 			const mode = this._currentModeObservable.read(r);
 			this.chatModeKindKey.set(mode.kind);
-			const model = mode.model?.read(r);
-			if (model) {
-				this.switchModelByQualifiedName(model);
-			} else {
-				// Check for implementation agent model override setting
-				if (isBuiltinImplementMode(mode, this.productService)) {
-					const implementModel = this.configurationService.getValue<string>(ChatConfiguration.ImplementationAgentModel);
-					if (implementModel && implementModel.length > 0) {
-						const success = this.switchModelByQualifiedName(implementModel);
-						if (success) {
-							this.logService.debug(`[ChatInputPart] Applied chat.implementationAgentModel setting: '${implementModel}'`);
-						} else {
-							this.logService.warn(`chat.implementationAgentModel setting value '${implementModel}' did not match any available model. Defaulting to currently selected model.`);
-						}
-					}
-				}
+			const models = mode.model?.read(r);
+			if (models) {
+				this.switchModelByQualifiedName(models);
 			}
 		}));
 
@@ -737,15 +722,19 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 	}
 
-	public switchModelByQualifiedName(qualifiedModelName: string): boolean {
+	public switchModelByQualifiedName(qualifiedModelNames: readonly string[]): boolean {
 		const models = this.getModels();
-		const model = models.find(m => ILanguageModelChatMetadata.matchesQualifiedName(qualifiedModelName, m.metadata));
-		if (model) {
-			this.setCurrentLanguageModel(model);
-			return true;
+		for (const qualifiedModelName of qualifiedModelNames) {
+			const model = models.find(m => ILanguageModelChatMetadata.matchesQualifiedName(qualifiedModelName, m.metadata));
+			if (model) {
+				this.setCurrentLanguageModel(model);
+				return true;
+			}
 		}
+		this.logService.warn(`[chat] Node of the models "${qualifiedModelNames.join(', ')}" not found. Use format "<name> (<vendor>)", e.g. "GPT-4o (copilot)".`);
 		return false;
 	}
+
 
 	public switchToNextModel(): void {
 		const models = this.getModels();
@@ -827,6 +816,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				getOptionGroup: () => {
 					const groups = this.chatSessionsService.getOptionGroupsForSessionType(effectiveSessionType);
 					return groups?.find(g => g.id === optionGroup.id);
+				},
+				getSessionResource: () => {
+					return this._widget?.viewModel?.model.sessionResource;
 				}
 			};
 
@@ -1490,7 +1482,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				const currentOption = this.chatSessionsService.getSessionOption(ctx.chatSessionResource, groupId);
 				if (optionGroup && currentOption) {
 					const currentOptionId = typeof currentOption === 'string' ? currentOption : currentOption.id;
-					if (!optionGroup.items.some(item => item.id === currentOptionId)) {
+					// TODO: @osortega @joshspicer should we add a `placeHolder` item to option groups to straighten this check?
+					if (!optionGroup.items.some(item => item.id === currentOptionId) && typeof currentOption === 'string') {
 						allOptionsValid = false;
 						break;
 					}
@@ -1550,15 +1543,14 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					if (optionGroup) {
 						const currentOptionId = typeof currentOption === 'string' ? currentOption : currentOption.id;
 						const item = optionGroup.items.find((m: IChatSessionProviderOptionItem) => m.id === currentOptionId);
-						if (item) {
-							// If currentOption is an object (not a string ID), it represents a complete option item and should be used directly.
-							// Otherwise, if it's a string ID, look up the corresponding item and use that.
-							if (typeof currentOption === 'string') {
-								this.getOrCreateOptionEmitter(optionGroupId).fire(item);
-							} else {
-								this.getOrCreateOptionEmitter(optionGroupId).fire(currentOption);
-							}
+						// If currentOption is an object (not a string ID), it represents a complete option item and should be used directly.
+						// Otherwise, if it's a string ID, look up the corresponding item and use that.
+						if (item && typeof currentOption === 'string') {
+							this.getOrCreateOptionEmitter(optionGroupId).fire(item);
+						} else if (typeof currentOption !== 'string') {
+							this.getOrCreateOptionEmitter(optionGroupId).fire(currentOption);
 						}
+
 					}
 				}
 			}
@@ -1853,10 +1845,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					}
 				}
 			}
-		}));
-
-		this._register(this._inputEditor.onDidScrollChange(e => {
-			toolbarsContainer.classList.toggle('scroll-top-decoration', e.scrollTop > 0);
 		}));
 
 		this._register(this._inputEditor.onDidChangeModelContent(() => {

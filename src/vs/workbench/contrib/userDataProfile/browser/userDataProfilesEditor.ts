@@ -510,6 +510,7 @@ class ProfileElementRenderer implements IListRenderer<AbstractUserDataProfileEle
 class ProfileWidget extends Disposable {
 
 	private readonly profileTitle: HTMLElement;
+	private readonly builtInLabel: HTMLElement;
 	private readonly profileTreeContainer: HTMLElement;
 	private readonly buttonContainer: HTMLElement;
 
@@ -533,7 +534,9 @@ class ProfileWidget extends Disposable {
 
 		const header = append(parent, $('.profile-header'));
 		const title = append(header, $('.profile-title-container'));
-		this.profileTitle = append(title, $(''));
+		this.profileTitle = append(title, $('.profile-title'));
+		this.builtInLabel = append(title, $('.profile-built-in-label', undefined, localize('builtIn', "Built-in")));
+		this.builtInLabel.classList.add('hide');
 
 		const body = append(parent, $('.profile-body'));
 
@@ -634,6 +637,7 @@ class ProfileWidget extends Disposable {
 		this._profileElement.value = { element: profileElement, dispose: () => disposables.dispose() };
 
 		this.profileTitle.textContent = profileElement.name;
+		this.builtInLabel.classList.toggle('hide', !(profileElement instanceof UserDataProfileElement && profileElement.profile.isSystem));
 		disposables.add(profileElement.onDidChange(e => {
 			if (e.name) {
 				this.profileTitle.textContent = profileElement.name;
@@ -980,14 +984,14 @@ class ProfileNameRenderer extends ProfilePropertyRenderer {
 		const renderName = (profileElement: ProfileTreeElement) => {
 			nameInput.value = profileElement.root.name;
 			nameInput.validate();
-			const isDefaultProfile = profileElement.root instanceof UserDataProfileElement && profileElement.root.profile.isDefault;
-			if (profileElement.root.disabled || isDefaultProfile) {
+			const isSystemProfile = profileElement.root instanceof UserDataProfileElement && (profileElement.root.profile.isDefault || profileElement.root.profile.isSystem);
+			if (profileElement.root.disabled || isSystemProfile) {
 				nameInput.disable();
 			} else {
 				nameInput.enable();
 			}
-			if (isDefaultProfile) {
-				nameInput.setTooltip(localize('defaultProfileName', "Name cannot be changed for the default profile"));
+			if (isSystemProfile) {
+				nameInput.setTooltip(localize('defaultProfileName', "Name cannot be changed for the built in profiles"));
 			} else {
 				nameInput.setTooltip(localize('profileName', "Profile Name"));
 			}

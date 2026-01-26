@@ -478,8 +478,15 @@ export class InlineChatController implements IEditorContribution {
 
 		const session = this._inlineChatSessionService.createSession(this._editor);
 
+
 		// Store for tracking model changes during this session
 		const sessionStore = new DisposableStore();
+
+		// Check for default model setting
+		const defaultModelSetting = this._configurationService.getValue<string>(InlineChatConfigKeys.DefaultModel);
+		if (defaultModelSetting && !this._zone.value.widget.chatWidget.input.switchModelByQualifiedName([defaultModelSetting])) {
+			this._logService.warn(`inlineChat.defaultModel setting value '${defaultModelSetting}' did not match any available model. Falling back to vendor default.`);
+		}
 
 		try {
 			await this._applyModelDefaults(session, sessionStore);

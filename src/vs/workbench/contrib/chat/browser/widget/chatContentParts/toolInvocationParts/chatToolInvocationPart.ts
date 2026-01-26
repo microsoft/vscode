@@ -97,6 +97,13 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 			subPartDomNode.replaceWith(this.subPart.domNode);
 			subPartDomNode = this.subPart.domNode;
 
+			// Add class when displaying a confirmation widget
+			const isConfirmation = this.subPart instanceof ToolConfirmationSubPart ||
+				this.subPart instanceof ChatTerminalToolConfirmationSubPart ||
+				this.subPart instanceof ExtensionsInstallConfirmationWidgetSubPart ||
+				this.subPart instanceof ChatToolPostExecuteConfirmationPart;
+			this.domNode.classList.toggle('has-confirmation', isConfirmation);
+
 			partStore.add(this.subPart.onNeedsRerender(render));
 		};
 
@@ -165,7 +172,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 		}
 
 		if (isToolResultOutputDetails(resultDetails)) {
-			return this.instantiationService.createInstance(ChatToolOutputSubPart, this.toolInvocation, this.context);
+			return this.instantiationService.createInstance(ChatToolOutputSubPart, this.toolInvocation, this.context, this._onDidRemount.event);
 		}
 
 		if (isToolResultInputOutputDetails(resultDetails)) {

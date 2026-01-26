@@ -12,7 +12,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IChatRequestVariableEntry } from '../attachments/chatVariableEntries.js';
-import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatCodeCitation, IChatContentReference, IChatFollowup, IChatMcpServersStarting, IChatProgressMessage, IChatResponseErrorDetails, IChatTask, IChatUsedContext } from '../chatService/chatService.js';
+import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatCodeCitation, IChatContentReference, IChatFollowup, IChatMcpServersStarting, IChatProgressMessage, IChatQuestionCarousel, IChatResponseErrorDetails, IChatTask, IChatUsedContext } from '../chatService/chatService.js';
 import { getFullyQualifiedId, IChatAgentCommand, IChatAgentData, IChatAgentNameService, IChatAgentResult } from '../participants/chatAgents.js';
 import { IParsedChatRequest } from '../requestParser/chatParserTypes.js';
 import { CodeBlockModelCollection } from '../widget/codeBlockModelCollection.js';
@@ -175,7 +175,7 @@ export interface IChatChangesSummaryPart {
 /**
  * Type for content parts rendered by IChatListRenderer (not necessarily in the model)
  */
-export type IChatRendererContent = IChatProgressRenderableResponseContent | IChatReferences | IChatCodeCitations | IChatErrorDetailsPart | IChatChangesSummaryPart | IChatWorkingProgress | IChatMcpServersStarting;
+export type IChatRendererContent = IChatProgressRenderableResponseContent | IChatReferences | IChatCodeCitations | IChatErrorDetailsPart | IChatChangesSummaryPart | IChatWorkingProgress | IChatMcpServersStarting | IChatQuestionCarousel;
 
 export interface IChatResponseViewModel {
 	readonly model: IChatResponseModel;
