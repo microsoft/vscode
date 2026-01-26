@@ -10,7 +10,7 @@ import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../../nls.js';
 import { ToolDataSource, type CountTokensCallback, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type ToolProgress } from '../../../../chat/common/tools/languageModelToolsService.js';
 import { RunInTerminalTool } from './runInTerminalTool.js';
-import { timeout } from '../../../../../../base/common/async.js';
+import { raceCancellationError, timeout } from '../../../../../../base/common/async.js';
 
 export const AwaitTerminalToolData: IToolData = {
 	id: 'await_terminal',
@@ -66,18 +66,17 @@ export class AwaitTerminalTool extends Disposable implements IToolImpl {
 
 		try {
 			let result: { output?: string; exitCode?: number; error?: string; didEnterAltBuffer?: boolean };
-			const hasTimeout = args.timeout > 0;
+			// Treat negative values as no timeout (same as 0)
+			const timeoutMs = Math.max(0, args.timeout);
+			const hasTimeout = timeoutMs > 0;
 
 			if (hasTimeout) {
-				// Race completion against timeout
-				const timeoutPromise = timeout(args.timeout).then(() => ({ type: 'timeout' as const }));
-				const completionPromise = execution.completionPromise.then(r => ({ type: 'completed' as const, result: r }));
+				// Race completion against timeout and cancellation
+				const timeoutPromise = timeout(timeoutMs).then(() => ({ type: 'timeout' as const }));
+				const completionPromise = raceCancellationError(execution.completionPromise, token)
+					.then(r => ({ type: 'completed' as const, result: r }));
 
 				const raceResult = await Promise.race([completionPromise, timeoutPromise]);
-
-				if (token.isCancellationRequested) {
-					throw new CancellationError();
-				}
 
 				if (raceResult.type === 'timeout') {
 					// Timeout reached - return partial output
@@ -89,19 +88,15 @@ export class AwaitTerminalTool extends Disposable implements IToolImpl {
 						},
 						content: [{
 							kind: 'text',
-							value: `Terminal ${args.id} timed out after ${args.timeout}ms. Output collected so far:\n${partialOutput}`
+							value: `Terminal ${args.id} timed out after ${timeoutMs}ms. Output collected so far:\n${partialOutput}`
 						}]
 					};
 				}
 
 				result = raceResult.result;
 			} else {
-				// No timeout - await completion directly
-				result = await execution.completionPromise;
-
-				if (token.isCancellationRequested) {
-					throw new CancellationError();
-				}
+				// No timeout - await completion directly with cancellation support
+				result = await raceCancellationError(execution.completionPromise, token);
 			}
 
 			// Command completed
