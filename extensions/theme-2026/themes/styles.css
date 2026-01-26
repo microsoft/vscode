@@ -203,6 +203,18 @@
 	backdrop-filter: var(--backdrop-blur-lg) !important;
 	-webkit-backdrop-filter: var(--backdrop-blur-lg) !important;
 }
+
+.monaco-workbench .defineKeybindingWidget {
+	box-shadow: var(--shadow-lg);
+	border-radius: var(--radius-lg);
+	backdrop-filter: var(--backdrop-blur-md);
+	-webkit-backdrop-filter: var(--backdrop-blur-md);
+}
+
+.monaco-workbench.vs-dark .defineKeybindingWidget {
+	border: 1px solid var(--vscode-editorWidget-border);
+}
+
 /* Settings */
 .monaco-workbench .settings-editor .settings-toc-container { box-shadow: var(--shadow-sm); }
 
