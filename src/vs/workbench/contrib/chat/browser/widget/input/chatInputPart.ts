@@ -12,6 +12,7 @@ import { ActionViewItem, BaseActionViewItem, IActionViewItemOptions } from '../.
 import * as aria from '../../../../../../base/browser/ui/aria/aria.js';
 import { ButtonWithIcon } from '../../../../../../base/browser/ui/button/button.js';
 import { createInstantHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { IHorizontalSashLayoutProvider, Orientation, Sash } from '../../../../../../base/browser/ui/sash/sash.js';
 import { renderLabelWithIcons } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IAction } from '../../../../../../base/common/actions.js';
 import { equals as arraysEqual } from '../../../../../../base/common/arrays.js';
@@ -123,6 +124,7 @@ import { WorkspacePickerActionItem } from './workspacePickerActionItem.js';
 const $ = dom.$;
 
 const INPUT_EDITOR_MAX_HEIGHT = 250;
+const INPUT_EDITOR_MIN_HEIGHT = 50;
 const CachedLanguageModelsKey = 'chat.cachedLanguageModels.v2';
 
 export interface IChatInputStyles {
@@ -251,6 +253,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private readonly inputEditorMaxHeight: number;
 	private inputEditorHeight: number = 0;
 	private container!: HTMLElement;
+
+	private _sash: Sash | undefined;
+	private _sashStartHeight: number | undefined;
+	private _userSetMinHeight: number | undefined;
 
 	private inputSideToolbarContainer?: HTMLElement;
 
@@ -1726,6 +1732,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		// This isolates chatSessionOption.* context keys to this specific chat input instance
 		this._scopedContextKeyService = this._register(this.contextKeyService.createScoped(this.container));
 
+		// Create the resize sash for the input part
+		this._createSash(this.container);
+
 		this.followupsContainer = elements.followupsContainer;
 		const inputAndSideToolbar = elements.inputAndSideToolbar; // The chat input and toolbar to the right
 		const inputContainer = elements.inputContainer; // The chat editor, attachments, and toolbars
@@ -1829,7 +1838,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}));
 
 		this._register(this._inputEditor.onDidChangeModelContent(() => {
-			const currentHeight = Math.min(this._inputEditor.getContentHeight(), this.inputEditorMaxHeight);
+			const contentHeight = Math.min(this._inputEditor.getContentHeight(), this._getMaxAllowedHeight());
+			const currentHeight = Math.max(contentHeight, this._getEffectiveMinHeight());
 			if (currentHeight !== this.inputEditorHeight) {
 				this.inputEditorHeight = currentHeight;
 				// Directly update editor layout - ResizeObserver will notify parent about height change
@@ -2663,7 +2673,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		const initialEditorScrollWidth = this._inputEditor.getScrollWidth();
 		const newEditorWidth = width - data.inputPartHorizontalPadding - data.editorBorder - data.inputPartHorizontalPaddingInside - data.toolbarsWidth - data.sideToolbarWidth;
-		const inputEditorHeight = Math.min(this._inputEditor.getContentHeight(), this.inputEditorMaxHeight);
+		const contentHeight = Math.min(this._inputEditor.getContentHeight(), this._getMaxAllowedHeight());
+		const inputEditorHeight = Math.max(contentHeight, this._getEffectiveMinHeight());
 		const newDimension = { width: newEditorWidth, height: inputEditorHeight };
 		if (!this.previousInputEditorDimension || (this.previousInputEditorDimension.width !== newDimension.width || this.previousInputEditorDimension.height !== newDimension.height)) {
 			// This layout call has side-effects that are hard to understand. eg if we are calling this inside a onDidChangeContent handler, this can trigger the next onDidChangeContent handler
@@ -2707,6 +2718,62 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			toolbarsWidth: this.options.renderStyle === 'compact' ? getToolbarsWidthCompact() : 0,
 			sideToolbarWidth: inputSideToolbarWidth > 0 ? inputSideToolbarWidth + 4 /*gap*/ : 0,
 		};
+	}
+
+	private _createSash(container: HTMLElement): void {
+		const layoutProvider: IHorizontalSashLayoutProvider = {
+			getHorizontalSashTop: () => 0
+		};
+
+		this._sash = this._register(new Sash(container, layoutProvider, { orientation: Orientation.HORIZONTAL }));
+
+		this._register(this._sash.onDidStart(() => {
+			this._sashStartHeight = this._getEffectiveMinHeight();
+		}));
+
+		this._register(this._sash.onDidChange((e) => {
+			if (this._sashStartHeight === undefined) {
+				return;
+			}
+
+			// Dragging up (currentY decreasing) should increase the editor height
+			const delta = e.startY - e.currentY;
+			const newHeight = Math.max(
+				INPUT_EDITOR_MIN_HEIGHT,
+				Math.min(this._sashStartHeight + delta, this._getMaxAllowedHeight())
+			);
+
+			this._userSetMinHeight = newHeight;
+
+			// Re-layout to apply the new height
+			if (this.cachedWidth) {
+				this._layout(this.cachedWidth);
+			}
+		}));
+
+		this._register(this._sash.onDidEnd(() => {
+			this._sashStartHeight = undefined;
+		}));
+
+		this._register(this._sash.onDidReset(() => {
+			// Double-click resets to default height
+			this._userSetMinHeight = undefined;
+
+			// Re-layout to apply the default height
+			if (this.cachedWidth) {
+				this._layout(this.cachedWidth);
+			}
+		}));
+	}
+
+	private _getEffectiveMinHeight(): number {
+		return this._userSetMinHeight ?? 0;
+	}
+
+	private _getMaxAllowedHeight(): number {
+		// Maximum allowed height is capped at 3x default max height
+		// Using window.innerHeight would be unreliable, so we use a sensible fixed maximum
+		return this.inputEditorMaxHeight * 3;
 	}
 }
 

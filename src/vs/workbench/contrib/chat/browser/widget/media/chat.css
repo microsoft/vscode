@@ -1509,6 +1509,11 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	position: relative;
 }
 
+.interactive-session .interactive-input-part > .monaco-sash {
+	/* Position the sash at the top of the input part */
+	top: 0;
+}
+
 .interactive-session .interactive-input-part.compact {
 	margin: 0;
 	padding: 8px 0 0 0
