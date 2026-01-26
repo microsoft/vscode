@@ -1072,7 +1072,9 @@ export class SettingsEditor2 extends EditorPane {
 								}
 								if (node.children && node.children.length > 0) {
 									const found = findInViewNodes(node.children);
-									if (found) return found;
+									if (found) {
+									    return found;
+									}
 								}
 							}
 							return undefined;
