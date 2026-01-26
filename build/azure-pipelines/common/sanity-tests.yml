@@ -95,7 +95,9 @@ jobs:
             cacheHitVar: DOCKER_CACHE_HIT
           displayName: Download Docker Image
 
-        - bash: docker load -i "$(DOCKER_CACHE_FILE)"
+        - bash: |
+            docker load -i "$(DOCKER_CACHE_FILE)"
+            rm -f "$(DOCKER_CACHE_FILE)"
           condition: eq(variables.DOCKER_CACHE_HIT, 'true')
           displayName: Load Docker Image
 

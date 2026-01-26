@@ -123,7 +123,8 @@ INITEOF
 		-kernel "$KERNEL_DIR/vmlinuz" \
 		-append "console=ttyAMA0 root=/dev/vda rw init=/init" \
 		-drive file="$DISK_IMG",format=raw,if=virtio \
-		-netdev user,id=net0 -device virtio-net-pci,netdev=net0 \
+		-netdev user,id=net0 \
+		-device virtio-net-pci,netdev=net0 \
 		-nographic \
 		-no-reboot
 
