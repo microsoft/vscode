@@ -11,6 +11,7 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { ILanguageModelsService, ILanguageModelChatMetadata } from '../../chat/common/languageModels.js';
 import { InlineChatConfigKeys } from '../common/inlineChat.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { DEFAULT_MODEL_PICKER_CATEGORY } from '../../chat/common/widget/input/modelPickerWidget.js';
 
 export class InlineChatDefaultModel extends Disposable {
 	static readonly ID = 'workbench.contrib.inlineChatDefaultModel';
@@ -74,8 +75,19 @@ export class InlineChatDefaultModel extends Disposable {
 				return true;
 			});
 
-			// Sort alphabetically by name
-			supportedModels.sort((a, b) => a.metadata.name.localeCompare(b.metadata.name));
+			// Sort by category order, then alphabetically by name within each category
+			supportedModels.sort((a, b) => {
+				const aCategory = a.metadata.modelPickerCategory ?? DEFAULT_MODEL_PICKER_CATEGORY;
+				const bCategory = b.metadata.modelPickerCategory ?? DEFAULT_MODEL_PICKER_CATEGORY;
+
+				// First sort by category order
+				if (aCategory.order !== bCategory.order) {
+					return aCategory.order - bCategory.order;
+				}
+
+				// Then sort by name within the same category
+				return a.metadata.name.localeCompare(b.metadata.name);
+			});
 
 			// Populate arrays with filtered models
 			for (const model of supportedModels) {
