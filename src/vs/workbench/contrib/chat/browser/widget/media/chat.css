@@ -1371,9 +1371,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 }
 
-.interactive-session .chat-input-toolbars.scroll-top-decoration {
-	box-shadow: var(--vscode-scrollbar-shadow) 0 6px 6px -6px inset
-}
+
 
 .interactive-session .chat-input-toolbar .chat-input-picker-item .action-label,
 .interactive-session .chat-input-toolbar .chat-sessionPicker-item .action-label {
