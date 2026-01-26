@@ -156,20 +156,20 @@ export interface IChatViewOpenOptions {
 	 * Identifiers can be tool IDs, tool reference names (`toolReferenceName`),
 	 * toolset IDs, or toolset reference names (`referenceName`).
 	 * When a toolset identifier matches, all tools in that toolset are included.
-	 * Can be combined with `excludeTools` for fine-grained control.
+	 * Can be combined with `toolsExclude` for fine-grained control.
 	 */
-	includeTools?: string[];
+	toolsInclude?: string[];
 
 	/**
 	 * A list of tool identifiers to exclude. When specified alone, all tools except these will be enabled.
 	 * Identifiers can be tool IDs, tool reference names (`toolReferenceName`),
 	 * toolset IDs, or toolset reference names (`referenceName`).
 	 * When a toolset identifier matches, all tools in that toolset are excluded.
-	 * Can be combined with `includeTools` - exclusions are applied after inclusions.
-	 * Explicit tool references in `includeTools` override toolset exclusions,
+	 * Can be combined with `toolsInclude` - exclusions are applied after inclusions.
+	 * Explicit tool references in `toolsInclude` override toolset exclusions,
 	 * but explicit tool exclusions always win.
 	 */
-	excludeTools?: string[];
+	toolsExclude?: string[];
 }
 
 export interface IChatViewOpenRequestEntry {
@@ -227,7 +227,7 @@ abstract class OpenChatGlobalAction extends Action2 {
 			await this.handleSwitchToMode(switchToMode, chatWidget, instaService, commandService);
 		}
 
-		if (opts?.includeTools || opts?.excludeTools) {
+		if (opts?.toolsInclude || opts?.toolsExclude) {
 			const model = chatWidget.input.selectedLanguageModel.get()?.metadata;
 			const allTools = Array.from(toolsService.getTools(model));
 			const allToolSets = Array.from(toolsService.getToolSetsForModel(model));
@@ -235,8 +235,8 @@ abstract class OpenChatGlobalAction extends Action2 {
 			const result = computeToolEnablementMap({
 				allTools,
 				allToolSets,
-				includeTools: opts.includeTools,
-				excludeTools: opts.excludeTools,
+				toolsInclude: opts.toolsInclude,
+				toolsExclude: opts.toolsExclude,
 			});
 
 			for (const identifier of result.unknownIdentifiers) {
@@ -985,8 +985,8 @@ export function stringifyItem(item: IChatRequestViewModel | IChatResponseViewMod
 export interface IToolFilteringOptions {
 	allTools: IToolData[];
 	allToolSets: IToolSet[];
-	includeTools?: string[];
-	excludeTools?: string[];
+	toolsInclude?: string[];
+	toolsExclude?: string[];
 }
 
 export interface IToolFilteringResult {
@@ -998,16 +998,16 @@ export interface IToolFilteringResult {
  * Computes the tool enablement map based on include/exclude filters.
  *
  * Resolution algorithm:
- * 1. If `includeTools` is specified, start with only those tools/toolsets enabled
- * 2. If `excludeTools` is specified, remove those tools/toolsets
- * 3. Explicit tool references in `includeTools` override toolset exclusions
+ * 1. If `toolsInclude` is specified, start with only those tools/toolsets enabled
+ * 2. If `toolsExclude` is specified, remove those tools/toolsets
+ * 3. Explicit tool references in `toolsInclude` override toolset exclusions
  * 4. Explicit tool exclusions always win
  * 5. Toolset enablement is calculated based on whether all member tools are enabled
  *
  * @throws Error if filtering results in zero enabled tools
  */
 export function computeToolEnablementMap(options: IToolFilteringOptions): IToolFilteringResult {
-	const { allTools, allToolSets, includeTools, excludeTools } = options;
+	const { allTools, allToolSets, toolsInclude, toolsExclude } = options;
 
 	const enablementMap = new Map<IToolData | IToolSet, boolean>();
 	const matchedIdentifiers = new Set<string>();
@@ -1038,12 +1038,12 @@ export function computeToolEnablementMap(options: IToolFilteringOptions): IToolF
 		return false;
 	};
 
-	// Track which tools are explicitly referenced in includeTools
+	// Track which tools are explicitly referenced in toolsInclude
 	const explicitlyIncludedTools = new Set<IToolData>();
 
-	// Step 1: Build initial set based on includeTools
-	if (includeTools) {
-		const includeSet = new Set(includeTools);
+	// Step 1: Build initial set based on toolsInclude
+	if (toolsInclude) {
+		const includeSet = new Set(toolsInclude);
 
 		// First, process toolsets - if a toolset matches, enable all its tools
 		for (const toolSet of allToolSets) {
@@ -1075,7 +1075,7 @@ export function computeToolEnablementMap(options: IToolFilteringOptions): IToolF
 			}
 		}
 	} else {
-		// No includeTools specified - start with all tools enabled
+		// No toolsInclude specified - start with all tools enabled
 		for (const tool of allTools) {
 			enablementMap.set(tool, true);
 		}
@@ -1086,9 +1086,9 @@ export function computeToolEnablementMap(options: IToolFilteringOptions): IToolF
 		}
 	}
 
-	// Step 2: Remove tools matching excludeTools
-	if (excludeTools) {
-		const excludeSet = new Set(excludeTools);
+	// Step 2: Remove tools matching toolsExclude
+	if (toolsExclude) {
+		const excludeSet = new Set(toolsExclude);
 
 		// First, process toolsets - if a toolset matches, disable all its tools
 		// (unless explicitly included as individual tools)
@@ -1119,7 +1119,7 @@ export function computeToolEnablementMap(options: IToolFilteringOptions): IToolF
 	}
 
 	// Collect unknown identifiers
-	const allIdentifiers = new Set([...(includeTools ?? []), ...(excludeTools ?? [])]);
+	const allIdentifiers = new Set([...(toolsInclude ?? []), ...(toolsExclude ?? [])]);
 	const unknownIdentifiers: string[] = [];
 	for (const identifier of allIdentifiers) {
 		if (!matchedIdentifiers.has(identifier)) {
