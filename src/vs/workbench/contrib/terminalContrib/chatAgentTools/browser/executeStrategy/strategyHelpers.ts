@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { DisposableStore, MutableDisposable, toDisposable, type IDisposable } from '../../../../../../base/common/lifecycle.js';
 import type { IMarker as IXtermMarker } from '@xterm/xterm';
 
@@ -42,4 +43,30 @@ export function setupRecreatingStartMarker(
 		fire(undefined);
 	}));
 	store.add(startMarker);
+}
+
+export function createAltBufferPromise(
+	xterm: { raw: { buffer: { active: unknown; alternate: unknown; onBufferChange: (callback: () => void) => IDisposable } } },
+	store: DisposableStore,
+	log?: (message: string) => void,
+): Promise<void> {
+	const deferred = new DeferredPromise<void>();
+	const complete = () => {
+		if (!deferred.isSettled) {
+			log?.('Detected alternate buffer entry');
+			deferred.complete();
+		}
+	};
+
+	if (xterm.raw.buffer.active === xterm.raw.buffer.alternate) {
+		complete();
+	} else {
+		store.add(xterm.raw.buffer.onBufferChange(() => {
+			if (xterm.raw.buffer.active === xterm.raw.buffer.alternate) {
+				complete();
+			}
+		}));
+	}
+
+	return deferred.p;
 }

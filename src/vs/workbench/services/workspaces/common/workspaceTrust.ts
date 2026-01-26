@@ -367,6 +367,11 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 			return { trusted: true, uri };
 		}
 
+		// Agent sessions workspace file is always trusted
+		if (this.uriIdentityService.extUri.isEqual(uri, this.environmentService.agentSessionsWorkspace)) {
+			return { trusted: true, uri };
+		}
+
 		if (this.isTrustedVirtualResource(uri)) {
 			return { trusted: true, uri };
 		}

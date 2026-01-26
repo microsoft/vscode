@@ -11,11 +11,15 @@ import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
-import { IChatModel } from '../../common/chatModel.js';
-import { IChatDetail, IChatService, ResponseModelState } from '../../common/chatService.js';
+import { IChatModel } from '../../common/model/chatModel.js';
+import { convertLegacyChatSessionTiming, IChatDetail, IChatService, ResponseModelState } from '../../common/chatService/chatService.js';
 import { ChatSessionStatus, IChatSessionItem, IChatSessionItemProvider, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
-import { getChatSessionType } from '../../common/chatUri.js';
-import { ChatSessionItemWithProvider } from '../chatSessions/common.js';
+import { getChatSessionType } from '../../common/model/chatUri.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
+
+interface IChatSessionItemWithProvider extends IChatSessionItem {
+	readonly provider: IChatSessionItemProvider;
+}
 
 export class LocalAgentsSessionsProvider extends Disposable implements IChatSessionItemProvider, IWorkbenchContribution {
 
@@ -32,6 +36,7 @@ export class LocalAgentsSessionsProvider extends Disposable implements IChatSess
 	constructor(
 		@IChatService private readonly chatService: IChatService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 
@@ -41,14 +46,12 @@ export class LocalAgentsSessionsProvider extends Disposable implements IChatSess
 	}
 
 	private registerListeners(): void {
-
 		this._register(this.chatSessionsService.registerChatModelChangeListeners(
 			this.chatService,
 			Schemas.vscodeLocalChatSession,
 			() => this._onDidChangeChatSessionItems.fire()
 		));
 
-		// Listen for global session items changes for our session type
 		this._register(this.chatSessionsService.onDidChangeSessionItems(sessionType => {
 			if (sessionType === this.chatSessionType) {
 				this._onDidChange.fire();
@@ -63,35 +66,8 @@ export class LocalAgentsSessionsProvider extends Disposable implements IChatSess
 		}));
 	}
 
-
-	private modelToStatus(model: IChatModel): ChatSessionStatus | undefined {
-		if (model.requestInProgress.get()) {
-			return ChatSessionStatus.InProgress;
-		}
-
-		const requests = model.getRequests();
-		if (requests.length > 0) {
-
-			// Check if the last request was completed successfully or failed
-			const lastRequest = requests[requests.length - 1];
-			if (lastRequest?.response) {
-				if (lastRequest.response.isCanceled || lastRequest.response.result?.errorDetails?.code === 'canceled') {
-					return ChatSessionStatus.Completed;
-				} else if (lastRequest.response.result?.errorDetails) {
-					return ChatSessionStatus.Failed;
-				} else if (lastRequest.response.isComplete) {
-					return ChatSessionStatus.Completed;
-				} else {
-					return ChatSessionStatus.InProgress;
-				}
-			}
-		}
-
-		return undefined;
-	}
-
 	async provideChatSessionItems(token: CancellationToken): Promise<IChatSessionItem[]> {
-		const sessions: ChatSessionItemWithProvider[] = [];
+		const sessions: IChatSessionItemWithProvider[] = [];
 		const sessionsByResource = new ResourceSet();
 
 		for (const sessionDetail of await this.chatService.getLiveSessionItems()) {
@@ -112,23 +88,17 @@ export class LocalAgentsSessionsProvider extends Disposable implements IChatSess
 		return sessions;
 	}
 
-	private async getHistoryItems(): Promise<ChatSessionItemWithProvider[]> {
+	private async getHistoryItems(): Promise<IChatSessionItemWithProvider[]> {
 		try {
 			const historyItems = await this.chatService.getHistorySessionItems();
-			return coalesce(historyItems.map(history => {
-				const sessionItem = this.toChatSessionItem(history);
-				return sessionItem ? {
-					...sessionItem,
-					//todo@bpasero remove this property once classic view is gone
-					history: true
-				} : undefined;
-			}));
+
+			return coalesce(historyItems.map(history => this.toChatSessionItem(history)));
 		} catch (error) {
 			return [];
 		}
 	}
 
-	private toChatSessionItem(chat: IChatDetail): ChatSessionItemWithProvider | undefined {
+	private toChatSessionItem(chat: IChatDetail): IChatSessionItemWithProvider | undefined {
 		const model = this.chatService.getSession(chat.sessionResource);
 
 		let description: string | undefined;
@@ -145,11 +115,9 @@ export class LocalAgentsSessionsProvider extends Disposable implements IChatSess
 			provider: this,
 			label: chat.title,
 			description,
-			status: model ?
-				this.modelToStatus(model) :
-				chatResponseStateToSessionStatus(chat.lastResponseState),
+			status: model ? this.modelToStatus(model) : this.chatResponseStateToStatus(chat.lastResponseState),
 			iconPath: Codicon.chatSparkle,
-			timing: chat.timing,
+			timing: convertLegacyChatSessionTiming(chat.timing),
 			changes: chat.stats ? {
 				insertions: chat.stats.added,
 				deletions: chat.stats.removed,
@@ -157,16 +125,43 @@ export class LocalAgentsSessionsProvider extends Disposable implements IChatSess
 			} : undefined
 		};
 	}
-}
 
-function chatResponseStateToSessionStatus(state: ResponseModelState): ChatSessionStatus {
-	switch (state) {
-		case ResponseModelState.Cancelled:
-		case ResponseModelState.Complete:
-			return ChatSessionStatus.Completed;
-		case ResponseModelState.Failed:
-			return ChatSessionStatus.Failed;
-		case ResponseModelState.Pending:
+	private modelToStatus(model: IChatModel): ChatSessionStatus | undefined {
+		if (model.requestInProgress.get()) {
+			this.logService.trace(`[agent sessions] Session ${model.sessionResource.toString()} request is in progress.`);
 			return ChatSessionStatus.InProgress;
+		}
+
+		const lastRequest = model.getRequests().at(-1);
+		this.logService.trace(`[agent sessions] Session ${model.sessionResource.toString()} last request response: state ${lastRequest?.response?.state}, isComplete ${lastRequest?.response?.isComplete}, isCanceled ${lastRequest?.response?.isCanceled}, error: ${lastRequest?.response?.result?.errorDetails?.message}.`);
+		if (lastRequest?.response) {
+			if (lastRequest.response.state === ResponseModelState.NeedsInput) {
+				return ChatSessionStatus.NeedsInput;
+			} else if (lastRequest.response.isCanceled || lastRequest.response.result?.errorDetails?.code === 'canceled') {
+				return ChatSessionStatus.Completed;
+			} else if (lastRequest.response.result?.errorDetails) {
+				return ChatSessionStatus.Failed;
+			} else if (lastRequest.response.isComplete) {
+				return ChatSessionStatus.Completed;
+			} else {
+				return ChatSessionStatus.InProgress;
+			}
+		}
+
+		return undefined;
+	}
+
+	private chatResponseStateToStatus(state: ResponseModelState): ChatSessionStatus {
+		switch (state) {
+			case ResponseModelState.Cancelled:
+			case ResponseModelState.Complete:
+				return ChatSessionStatus.Completed;
+			case ResponseModelState.Failed:
+				return ChatSessionStatus.Failed;
+			case ResponseModelState.Pending:
+				return ChatSessionStatus.InProgress;
+			case ResponseModelState.NeedsInput:
+				return ChatSessionStatus.NeedsInput;
+		}
 	}
 }

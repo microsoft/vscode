@@ -27,8 +27,8 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { CellEditType, CellUri, INotebookTextModel } from '../../../notebook/common/notebookCommon.js';
 import { INotebookEditorModelResolverService } from '../../../notebook/common/notebookEditorModelResolverService.js';
 import { INotebookService } from '../../../notebook/common/notebookService.js';
-import { emptySessionEntryDiff, IEditSessionDiffStats, IEditSessionEntryDiff, IModifiedEntryTelemetryInfo } from '../../common/chatEditingService.js';
-import { IChatRequestDisablement } from '../../common/chatModel.js';
+import { emptySessionEntryDiff, IEditSessionDiffStats, IEditSessionEntryDiff, IModifiedEntryTelemetryInfo } from '../../common/editing/chatEditingService.js';
+import { IChatRequestDisablement } from '../../common/model/chatModel.js';
 import { IChatEditingCheckpointTimeline } from './chatEditingCheckpointTimeline.js';
 import { FileOperation, FileOperationType, IChatEditingTimelineState, ICheckpoint, IFileBaseline, IReconstructedFileExistsState, IReconstructedFileNotExistsState, IReconstructedFileState } from './chatEditingOperations.js';
 import { ChatEditingSnapshotTextModelContentProvider } from './chatEditingTextModelContentProviders.js';
@@ -758,7 +758,7 @@ export class ChatEditingCheckpointTimelineImpl implements IChatEditingCheckpoint
 				end = findFirst(checkpoints, c => c.requestId !== startRequestId, startIndex + 1);
 			} else {
 				end = checkpoints.find(c => c.requestId === stopRequestId)
-					|| findFirst(checkpoints, c => c.requestId !== startRequestId, startIndex)
+					|| findFirst(checkpoints, c => c.requestId !== startRequestId, startIndex + 1)
 					|| checkpoints[checkpoints.length - 1];
 			}
 

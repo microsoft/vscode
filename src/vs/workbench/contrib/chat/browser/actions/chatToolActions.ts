@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { $ } from '../../../../../base/browser/dom.js';
+import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { markAsSingleton } from '../../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { localize, localize2 } from '../../../../../nls.js';
@@ -19,12 +21,12 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
-import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { ConfirmedReason, IChatToolInvocation, ToolConfirmKind } from '../../common/chatService.js';
-import { isResponseVM } from '../../common/chatViewModel.js';
-import { ChatModeKind } from '../../common/constants.js';
+import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { ConfirmedReason, IChatToolInvocation, ToolConfirmKind } from '../../common/chatService/chatService.js';
+import { isResponseVM } from '../../common/model/chatViewModel.js';
+import { ChatConfiguration, ChatModeKind } from '../../common/constants.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
-import { ToolsScope } from '../chatSelectedTools.js';
+import { ToolsScope } from '../widget/input/chatSelectedTools.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 import { showToolsPicker } from './chatToolPicker.js';
 
@@ -123,7 +125,11 @@ class ConfigureToolsAction extends Action2 {
 			category: CHAT_CATEGORY,
 			precondition: ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
 			menu: [{
-				when: ContextKeyExpr.and(ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent), ChatContextKeys.lockedToCodingAgent.negate()),
+				when: ContextKeyExpr.and(
+					ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
+					ChatContextKeys.lockedToCodingAgent.negate(),
+					ContextKeyExpr.notEquals(`config.${ChatConfiguration.AlternativeToolAction}`, true)
+				),
 				id: MenuId.ChatInput,
 				group: 'navigation',
 				order: 100,
@@ -139,19 +145,14 @@ class ConfigureToolsAction extends Action2 {
 
 		let widget = chatWidgetService.lastFocusedWidget;
 		if (!widget) {
-			type ChatActionContext = { widget: IChatWidget };
-			function isChatActionContext(obj: unknown): obj is ChatActionContext {
-				return !!obj && typeof obj === 'object' && !!(obj as ChatActionContext).widget;
-			}
-			const context = args[0];
-			if (isChatActionContext(context)) {
-				widget = context.widget;
-			}
+			widget = this.extractWidget(args);
 		}
 
 		if (!widget) {
 			return;
 		}
+
+		const source = this.extractSource(args) ?? 'chatInput';
 
 		let placeholder;
 		let description;
@@ -176,9 +177,23 @@ class ConfigureToolsAction extends Action2 {
 
 		}
 
-		const result = await instaService.invokeFunction(showToolsPicker, placeholder, description, () => entriesMap.get());
-		if (result) {
-			widget.input.selectedToolsModel.set(result, false);
+		// Create a cancellation token that cancels when the mode changes
+		const cts = new CancellationTokenSource();
+		const initialMode = widget.input.currentModeObs.get();
+		const modeListener = autorun(reader => {
+			if (initialMode.id !== widget.input.currentModeObs.read(reader).id) {
+				cts.cancel();
+			}
+		});
+
+		try {
+			const result = await instaService.invokeFunction(showToolsPicker, placeholder, source, description, () => entriesMap.get(), widget.input.selectedLanguageModel.get()?.metadata, cts.token);
+			if (result) {
+				widget.input.selectedToolsModel.set(result, false);
+			}
+		} finally {
+			modeListener.dispose();
+			cts.dispose();
 		}
 
 		const tools = widget.input.selectedToolsModel.entriesMap.get();
@@ -186,6 +201,36 @@ class ConfigureToolsAction extends Action2 {
 			total: tools.size,
 			enabled: Iterable.reduce(tools, (prev, [_, enabled]) => enabled ? prev + 1 : prev, 0),
 		});
+	}
+
+	private extractWidget(args: unknown[]): IChatWidget | undefined {
+		type ChatActionContext = { widget: IChatWidget };
+		function isChatActionContext(obj: unknown): obj is ChatActionContext {
+			return !!obj && typeof obj === 'object' && !!(obj as ChatActionContext).widget;
+		}
+
+		for (const arg of args) {
+			if (isChatActionContext(arg)) {
+				return arg.widget;
+			}
+		}
+
+		return undefined;
+	}
+
+	private extractSource(args: unknown[]): string | undefined {
+		type ChatActionSource = { source: string };
+		function isChatActionSource(obj: unknown): obj is ChatActionSource {
+			return !!obj && typeof obj === 'object' && !!(obj as ChatActionSource).source;
+		}
+
+		for (const arg of args) {
+			if (isChatActionSource(arg)) {
+				return arg.source;
+			}
+		}
+
+		return undefined;
 	}
 }
 

@@ -673,7 +673,7 @@ class SingleUpdatedNextEdit {
 			if (isInsertion && !shouldPreserveEditShape && change.replaceRange.start === editStart && editReplaceText.startsWith(change.newText)) {
 				editStart += change.newText.length;
 				editReplaceText = editReplaceText.substring(change.newText.length);
-				editEnd = Math.max(editStart, editEnd);
+				editEnd += change.newText.length;
 				editHasChanged = true;
 				continue;
 			}

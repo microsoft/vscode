@@ -16,15 +16,17 @@ import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
-import { ChatRequestVariableSet, IChatRequestVariableEntry, isPromptFileVariableEntry, toPromptFileVariableEntry, toPromptTextVariableEntry, PromptFileVariableKind, IPromptTextVariableEntry, ChatRequestToolReferenceEntry, toToolVariableEntry } from '../chatVariableEntries.js';
-import { ILanguageModelToolsService, IToolAndToolSetEnablementMap, IToolData, VSCodeToolReference } from '../languageModelToolsService.js';
+import { ChatRequestVariableSet, IChatRequestVariableEntry, isPromptFileVariableEntry, toPromptFileVariableEntry, toPromptTextVariableEntry, PromptFileVariableKind, IPromptTextVariableEntry, ChatRequestToolReferenceEntry, toToolVariableEntry } from '../attachments/chatVariableEntries.js';
+import { ILanguageModelToolsService, IToolData, VSCodeToolReference } from '../tools/languageModelToolsService.js';
 import { PromptsConfig } from './config/config.js';
 import { isPromptOrInstructionsFile } from './config/promptFileLocations.js';
 import { PromptsType } from './promptTypes.js';
 import { ParsedPromptFile } from './promptFileParser.js';
-import { IPromptPath, IPromptsService } from './service/promptsService.js';
+import { ICustomAgent, IPromptPath, IPromptsService } from './service/promptsService.js';
 import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
-import { ChatConfiguration } from '../constants.js';
+import { ChatConfiguration, ChatModeKind } from '../constants.js';
+import { UserSelectedTools } from '../participants/chatAgents.js';
+import { IChatMode } from '../chatModes.js';
 
 export type InstructionsCollectionEvent = {
 	applyingInstructionsCount: number;
@@ -52,7 +54,9 @@ export class ComputeAutomaticInstructions {
 	private _parseResults: ResourceMap<ParsedPromptFile> = new ResourceMap();
 
 	constructor(
-		private readonly _enabledTools: IToolAndToolSetEnablementMap | undefined,
+		private readonly _agent: IChatMode,
+		private readonly _enabledTools: UserSelectedTools | undefined,
+		private readonly _enabledSubagents: (readonly string[]) | undefined,
 		@IPromptsService private readonly _promptsService: IPromptsService,
 		@ILogService public readonly _logService: ILogService,
 		@ILabelService private readonly _labelService: ILabelService,
@@ -114,6 +118,11 @@ export class ComputeAutomaticInstructions {
 
 	/** public for testing */
 	public async addApplyingInstructions(instructionFiles: readonly IPromptPath[], context: { files: ResourceSet; instructions: ResourceSet }, variables: ChatRequestVariableSet, telemetryEvent: InstructionsCollectionEvent, token: CancellationToken): Promise<void> {
+		const includeApplyingInstructions = this._configurationService.getValue(PromptsConfig.INCLUDE_APPLYING_INSTRUCTIONS);
+		if (!includeApplyingInstructions && this._agent.kind !== ChatModeKind.Edit) {
+			this._logService.trace(`[InstructionsContextComputer] includeApplyingInstructions is disabled and agent kind is not Edit. No applying instructions will be added.`);
+			return;
+		}
 
 		for (const { uri } of instructionFiles) {
 			const parsedFile = await this._parseInstructionsFile(uri, token);
@@ -241,7 +250,7 @@ export class ComputeAutomaticInstructions {
 			return undefined;
 		}
 		const tool = this._languageModelToolsService.getToolByName(referenceName);
-		if (tool && this._enabledTools.get(tool)) {
+		if (tool && this._enabledTools[tool.id]) {
 			return { tool, variable: `#tool:${this._languageModelToolsService.getFullReferenceName(tool)}` };
 		}
 		return undefined;
@@ -258,11 +267,11 @@ export class ComputeAutomaticInstructions {
 			const agentsMdPromise = searchNestedAgentMd ? this._promptsService.findAgentMDsInWorkspace(token) : Promise.resolve([]);
 
 			entries.push('<instructions>');
-			entries.push('Here is a list of instruction files that contain rules for modifying or creating new code.');
-			entries.push('These files are important for ensuring that the code is modified or created correctly.');
+			entries.push('Here is a list of instruction files that contain rules for working with this codebase.');
+			entries.push('These files are important for understanding the codebase structure, conventions, and best practices.');
 			entries.push('Please make sure to follow the rules specified in these files when working with the codebase.');
 			entries.push(`If the file is not already available as attachment, use the ${readTool.variable} tool to acquire it.`);
-			entries.push('Make sure to acquire the instructions before making any changes to the code.');
+			entries.push('Make sure to acquire the instructions before working with the codebase.');
 			let hasContent = false;
 			for (const { uri } of instructionFiles) {
 				const parsedFile = await this._parseInstructionsFile(uri, token);
@@ -277,6 +286,8 @@ export class ComputeAutomaticInstructions {
 						if (applyTo) {
 							entries.push(`<applyTo>${applyTo}</applyTo>`);
 						}
+					} else {
+						entries.push(`<file>${getFilePath(uri)}</file>`);
 					}
 					entries.push('</instruction>');
 					hasContent = true;
@@ -285,15 +296,14 @@ export class ComputeAutomaticInstructions {
 
 			const agentsMdFiles = await agentsMdPromise;
 			for (const uri of agentsMdFiles) {
-				if (uri) {
-					const folderName = this._labelService.getUriLabel(dirname(uri), { relative: true });
-					const description = folderName.trim().length === 0 ? localize('instruction.file.description.agentsmd.root', 'Instructions for the workspace') : localize('instruction.file.description.agentsmd.folder', 'Instructions for folder \'{0}\'', folderName);
-					entries.push('<instruction>');
-					entries.push(`<description>${description}</description>`);
-					entries.push(`<file>${getFilePath(uri)}</file>`);
-					entries.push('</instruction>');
-					hasContent = true;
-				}
+				const folderName = this._labelService.getUriLabel(dirname(uri), { relative: true });
+				const description = folderName.trim().length === 0 ? localize('instruction.file.description.agentsmd.root', 'Instructions for the workspace') : localize('instruction.file.description.agentsmd.folder', 'Instructions for folder \'{0}\'', folderName);
+				entries.push('<instruction>');
+				entries.push(`<description>${description}</description>`);
+				entries.push(`<file>${getFilePath(uri)}</file>`);
+				entries.push('</instruction>');
+				hasContent = true;
+
 			}
 
 			if (!hasContent) {
@@ -302,13 +312,13 @@ export class ComputeAutomaticInstructions {
 				entries.push('</instructions>', '', ''); // add trailing newline
 			}
 
-			const claudeSkills = await this._promptsService.findClaudeSkills(token);
-			if (claudeSkills && claudeSkills.length > 0) {
+			const agentSkills = await this._promptsService.findAgentSkills(token);
+			if (agentSkills && agentSkills.length > 0) {
 				entries.push('<skills>');
 				entries.push('Here is a list of skills that contain domain specific knowledge on a variety of topics.');
 				entries.push('Each skill comes with a description of the topic and a file path that contains the detailed instructions.');
 				entries.push(`When a user asks you to perform a task that falls within the domain of a skill, use the ${readTool.variable} tool to acquire the full instructions from the file URI.`);
-				for (const skill of claudeSkills) {
+				for (const skill of agentSkills) {
 					entries.push('<skill>');
 					entries.push(`<name>${skill.name}</name>`);
 					if (skill.description) {
@@ -320,20 +330,23 @@ export class ComputeAutomaticInstructions {
 				entries.push('</skills>', '', ''); // add trailing newline
 			}
 		}
-		if (runSubagentTool) {
-			const subagentToolCustomAgents = this._configurationService.getValue(ChatConfiguration.SubagentToolCustomAgents);
-			if (subagentToolCustomAgents) {
-				const agents = await this._promptsService.getCustomAgents(token);
-				if (agents.length > 0) {
-					entries.push('<agents>');
-					entries.push('Here is a list of agents that can be used when running a subagent.');
-					entries.push('Each agent has optionally a description with the agent\'s purpose and expertise. When asked to run a subagent, choose the most appropriate agent from this list.');
-					entries.push(`Use the ${runSubagentTool.variable} tool with the agent name to run the subagent.`);
-					for (const agent of agents) {
-						if (agent.infer === false) {
-							// skip agents that are not meant for subagent use
-							continue;
-						}
+		if (runSubagentTool && this._configurationService.getValue(ChatConfiguration.SubagentToolCustomAgents)) {
+			const canUseAgent = (() => {
+				if (!this._enabledSubagents || this._enabledSubagents.includes('*')) {
+					return (agent: ICustomAgent) => (agent.infer !== false);
+				} else {
+					const subagents = this._enabledSubagents;
+					return (agent: ICustomAgent) => subagents.includes(agent.name);
+				}
+			})();
+			const agents = await this._promptsService.getCustomAgents(token);
+			if (agents.length > 0) {
+				entries.push('<agents>');
+				entries.push('Here is a list of agents that can be used when running a subagent.');
+				entries.push('Each agent has optionally a description with the agent\'s purpose and expertise. When asked to run a subagent, choose the most appropriate agent from this list.');
+				entries.push(`Use the ${runSubagentTool.variable} tool with the agent name to run the subagent.`);
+				for (const agent of agents) {
+					if (canUseAgent(agent)) {
 						entries.push('<agent>');
 						entries.push(`<name>${agent.name}</name>`);
 						if (agent.description) {
@@ -344,8 +357,8 @@ export class ComputeAutomaticInstructions {
 						}
 						entries.push('</agent>');
 					}
-					entries.push('</agents>', '', ''); // add trailing newline
 				}
+				entries.push('</agents>', '', ''); // add trailing newline
 			}
 		}
 		if (entries.length === 0) {
@@ -369,6 +382,12 @@ export class ComputeAutomaticInstructions {
 	}
 
 	private async _addReferencedInstructions(attachedContext: ChatRequestVariableSet, telemetryEvent: InstructionsCollectionEvent, token: CancellationToken): Promise<void> {
+		const includeReferencedInstructions = this._configurationService.getValue(PromptsConfig.INCLUDE_REFERENCED_INSTRUCTIONS);
+		if (!includeReferencedInstructions && this._agent.kind !== ChatModeKind.Edit) {
+			this._logService.trace(`[InstructionsContextComputer] includeReferencedInstructions is disabled and agent kind is not Edit. No referenced instructions will be added.`);
+			return;
+		}
+
 		const seen = new ResourceSet();
 		const todo: URI[] = [];
 		for (const variable of attachedContext.asArray()) {

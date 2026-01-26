@@ -27,6 +27,7 @@ import { localize } from '../../nls.js';
 import { ExtensionIdentifier } from '../../platform/extensions/common/extensions.js';
 import { IMarkerData } from '../../platform/markers/common/markers.js';
 import { EditDeltaInfo } from './textModelEditSource.js';
+import { FontTokensUpdate } from './textModelEvents.js';
 
 /**
  * @internal
@@ -67,6 +68,17 @@ export class TokenizationResult {
 /**
  * @internal
  */
+export interface IFontToken {
+	readonly startIndex: number;
+	readonly endIndex: number;
+	readonly fontFamily: string | null;
+	readonly fontSizeMultiplier: number | null;
+	readonly lineHeightMultiplier: number | null;
+}
+
+/**
+ * @internal
+ */
 export class EncodedTokenizationResult {
 	_encodedTokenizationResultBrand: void = undefined;
 
@@ -78,6 +90,7 @@ export class EncodedTokenizationResult {
 		 *
 		 */
 		public readonly tokens: Uint32Array,
+		public readonly fontInfo: IFontToken[],
 		public readonly endState: IState,
 	) {
 	}
@@ -139,6 +152,8 @@ export interface IBackgroundTokenizer extends IDisposable {
  */
 export interface IBackgroundTokenizationStore {
 	setTokens(tokens: ContiguousMultilineTokens[]): void;
+
+	setFontInfo(changes: FontTokensUpdate): void;
 
 	setEndState(lineNumber: number, state: IState): void;
 
@@ -738,6 +753,18 @@ export enum InlineCompletionTriggerKind {
 	Explicit = 1,
 }
 
+/**
+ * Arbitrary data that the provider can pass when firing {@link InlineCompletionsProvider.onDidChangeInlineCompletions}.
+ * This data is passed back to the provider in {@link InlineCompletionContext.changeHint}.
+ */
+export interface IInlineCompletionChangeHint {
+	/**
+	 * Arbitrary data that the provider can use to identify what triggered the change.
+	 * This data must be JSON serializable.
+	 */
+	readonly data?: unknown;
+}
+
 export interface InlineCompletionContext {
 
 	/**
@@ -760,6 +787,12 @@ export interface InlineCompletionContext {
 	readonly includeInlineCompletions: boolean;
 	readonly requestIssuedDateTime: number;
 	readonly earliestShownDateTime: number;
+
+	/**
+	 * The change hint that was passed to {@link InlineCompletionsProvider.onDidChangeInlineCompletions}.
+	 * Only set if this request was triggered by such an event.
+	 */
+	readonly changeHint?: IInlineCompletionChangeHint;
 }
 
 export interface IInlineCompletionModelInfo {
@@ -931,7 +964,12 @@ export interface InlineCompletionsProvider<T extends InlineCompletions = InlineC
 	*/
 	disposeInlineCompletions(completions: T, reason: InlineCompletionsDisposeReason): void;
 
-	onDidChangeInlineCompletions?: Event<void>;
+	/**
+	 * Fired when the provider wants to trigger a new completion request.
+	 * The event can pass a {@link IInlineCompletionChangeHint} which will be
+	 * included in the {@link InlineCompletionContext} of the subsequent request.
+	 */
+	onDidChangeInlineCompletions?: Event<IInlineCompletionChangeHint | void>;
 
 	/**
 	 * Only used for {@link yieldsToGroupIds}.
@@ -1033,6 +1071,7 @@ export enum InlineCompletionEndOfLifeReasonKind {
 
 export type InlineCompletionEndOfLifeReason<TInlineCompletion = InlineCompletion> = {
 	kind: InlineCompletionEndOfLifeReasonKind.Accepted; // User did an explicit action to accept
+	alternativeAction: boolean; // Whether the user performed an alternative action.
 } | {
 	kind: InlineCompletionEndOfLifeReasonKind.Rejected; // User did an explicit action to reject
 } | {
@@ -1076,9 +1115,9 @@ export type LifetimeSummary = {
 	availableProviders: string;
 	skuPlan: string | undefined;
 	skuType: string | undefined;
-	renameCreated: boolean;
+	renameCreated: boolean | undefined;
 	renameDuration: number | undefined;
-	renameTimedOut: boolean;
+	renameTimedOut: boolean | undefined;
 	renameDroppedOtherEdits: number | undefined;
 	renameDroppedRenameEdits: number | undefined;
 	editKind: string | undefined;

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { TimeoutTimer } from '../../../../../base/common/async.js';
-import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { IObservableWithChange, IObservable, runOnChange } from '../../../../../base/common/observable.js';
 import { BaseStringEdit } from '../../../../../editor/common/core/edits/stringEdit.js';
 import { StringText } from '../../../../../editor/common/core/text/abstractText.js';
@@ -25,16 +25,12 @@ export class ArcTelemetryReporter extends Disposable {
 		private readonly _gitRepo: IObservable<ScmRepoAdapter | undefined>,
 		private readonly _trackedEdit: BaseStringEdit,
 		private readonly _sendTelemetryEvent: (res: ArcTelemetryReporterData) => void,
-		private readonly _onBeforeDispose: () => void,
+		private readonly _dispose: () => void,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService
 	) {
 		super();
 
 		this._arcTracker = new ArcTracker(this._documentValueBeforeTrackedEdit, this._trackedEdit);
-
-		this._store.add(toDisposable(() => {
-			this._onBeforeDispose();
-		}));
 
 		this._store.add(runOnChange(this._document.value, (_val, _prevVal, changes) => {
 			const edit = BaseStringEdit.composeOrUndefined(changes.map(c => c.edit));
@@ -54,7 +50,7 @@ export class ArcTelemetryReporter extends Disposable {
 				this._report(timeMs);
 			} else {
 				this._reportAfter(timeMs, i === this._timesMs.length - 1 ? () => {
-					this.dispose();
+					this._dispose();
 				} : undefined);
 			}
 		}

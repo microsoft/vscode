@@ -21,7 +21,6 @@ import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { OutputViewPane } from './outputView.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { IDefaultLogLevelsService } from '../../logs/common/defaultLogLevels.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { localize } from '../../../../nls.js';
@@ -30,6 +29,7 @@ import { VSBuffer } from '../../../../base/common/buffer.js';
 import { telemetryLogId } from '../../../../platform/telemetry/common/telemetryUtils.js';
 import { toLocalISOString } from '../../../../base/common/date.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
+import { IDefaultLogLevelsService } from '../../../services/log/common/defaultLogLevels.js';
 
 const OUTPUT_ACTIVE_CHANNEL_KEY = 'output.activechannel';
 
@@ -132,14 +132,90 @@ class OutputViewFilters extends Disposable implements IOutputViewFilters {
 	filterHistory: string[];
 
 	private _filterText = '';
+	private _includePatterns: string[] = [];
+	private _excludePatterns: string[] = [];
 	get text(): string {
 		return this._filterText;
 	}
 	set text(filterText: string) {
 		if (this._filterText !== filterText) {
 			this._filterText = filterText;
+			const { includePatterns, excludePatterns } = this.parseText(filterText);
+			this._includePatterns = includePatterns;
+			this._excludePatterns = excludePatterns;
 			this._onDidChange.fire();
 		}
+	}
+	private parseText(filterText: string): { includePatterns: string[]; excludePatterns: string[] } {
+		const includePatterns: string[] = [];
+		const excludePatterns: string[] = [];
+
+		// Parse patterns respecting quoted strings
+		const patterns = this.splitByCommaRespectingQuotes(filterText);
+
+		for (const pattern of patterns) {
+			const trimmed = pattern.trim();
+			if (trimmed.length === 0) {
+				continue;
+			}
+
+			if (trimmed.startsWith('!')) {
+				// Negative filter - remove the ! prefix
+				const negativePattern = trimmed.substring(1).trim();
+				if (negativePattern.length > 0) {
+					excludePatterns.push(negativePattern);
+				}
+			} else {
+				includePatterns.push(trimmed);
+			}
+		}
+
+		return { includePatterns, excludePatterns };
+	}
+
+	get includePatterns(): string[] {
+		return this._includePatterns;
+	}
+
+	get excludePatterns(): string[] {
+		return this._excludePatterns;
+	}
+
+	private splitByCommaRespectingQuotes(text: string): string[] {
+		const patterns: string[] = [];
+		let current = '';
+		let inQuotes = false;
+		let quoteChar = '';
+
+		for (let i = 0; i < text.length; i++) {
+			const char = text[i];
+
+			if (!inQuotes && (char === '"')) {
+				// Start of quoted string
+				inQuotes = true;
+				quoteChar = char;
+				current += char;
+			} else if (inQuotes && char === quoteChar) {
+				// End of quoted string
+				inQuotes = false;
+				current += char;
+			} else if (!inQuotes && char === ',') {
+				// Comma outside quotes - split here
+				if (current.length > 0) {
+					patterns.push(current);
+				}
+				current = '';
+			} else {
+				current += char;
+			}
+		}
+
+		// Add the last pattern
+		if (current.length > 0) {
+			patterns.push(current);
+		}
+
+		return patterns;
 	}
 
 	private readonly _trace: IContextKey<boolean>;
@@ -529,7 +605,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 		const descriptor = this.activeChannel?.outputChannelDescriptor;
 		const channelLogLevel = descriptor ? this.getLogLevel(descriptor) : undefined;
 		if (channelLogLevel !== undefined) {
-			const channelDefaultLogLevel = await this.defaultLogLevelsService.getDefaultLogLevel(descriptor?.extensionId);
+			const channelDefaultLogLevel = this.defaultLogLevelsService.getDefaultLogLevel(descriptor?.extensionId);
 			this.activeOutputChannelLevelIsDefaultContext.set(channelDefaultLogLevel === channelLogLevel);
 		} else {
 			this.activeOutputChannelLevelIsDefaultContext.set(false);

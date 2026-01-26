@@ -37,16 +37,16 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { defaultButtonStyles, defaultCheckboxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { DomWidget } from '../../../../../platform/domWidget/browser/domWidget.js';
 import { EditorResourceAccessor, SideBySideEditor } from '../../../../common/editor.js';
-import { IChatEntitlementService, ChatEntitlementService, ChatEntitlement, IQuotaSnapshot } from '../../../../services/chat/common/chatEntitlementService.js';
+import { IChatEntitlementService, ChatEntitlementService, ChatEntitlement, IQuotaSnapshot, getChatPlanName } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
-import { openAgentSessionsView } from '../agentSessions/agentSessions.js';
 import { isNewUser, isCompletionsEnabled } from './chatStatus.js';
 import { IChatStatusItemService, ChatStatusEntry } from './chatStatusItemService.js';
 import product from '../../../../../platform/product/common/product.js';
 import { contrastBorder, inputValidationErrorBorder, inputValidationInfoBorder, inputValidationWarningBorder, registerColor, transparent } from '../../../../../platform/theme/common/colorRegistry.js';
 import { Color } from '../../../../../base/common/color.js';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IViewsService } from '../../../../services/views/common/viewsService.js';
+import { ChatViewId } from '../chat.js';
 
 const defaultChat = product.defaultChatAgent;
 
@@ -141,7 +141,7 @@ export class ChatStatusDashboard extends DomWidget {
 		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IViewsService private readonly viewService: IViewsService,
 	) {
 		super();
 
@@ -167,7 +167,8 @@ export class ChatStatusDashboard extends DomWidget {
 		// Quota Indicator
 		const { chat: chatQuota, completions: completionsQuota, premiumChat: premiumChatQuota, resetDate, resetDateHasTime } = this.chatEntitlementService.quotas;
 		if (chatQuota || completionsQuota || premiumChatQuota) {
-			addSeparator(localize('usageTitle', "Copilot Usage"), toAction({
+			const usageTitle = this.getUsageTitle();
+			addSeparator(usageTitle, toAction({
 				id: 'workbench.action.manageCopilot',
 				label: localize('quotaLabel', "Manage Chat"),
 				tooltip: localize('quotaTooltip', "Manage Chat"),
@@ -227,7 +228,7 @@ export class ChatStatusDashboard extends DomWidget {
 					tooltip: localize('viewChatSessionsTooltip', "View Agent Sessions"),
 					class: ThemeIcon.asClassName(Codicon.eye),
 					run: () => {
-						this.instantiationService.invokeFunction(openAgentSessionsView);
+						this.viewService.openView(ChatViewId, true);
 						this.hoverService.hideHover(true);
 					}
 				}));
@@ -385,6 +386,11 @@ export class ChatStatusDashboard extends DomWidget {
 		}
 
 		return true;
+	}
+
+	private getUsageTitle(): string {
+		const planName = getChatPlanName(this.chatEntitlementService.entitlement);
+		return localize('usageTitleWithPlan', "{0} Usage", planName);
 	}
 
 	private renderHeader(container: HTMLElement, disposables: DisposableStore, label: string, action?: IAction): void {

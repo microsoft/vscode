@@ -9,15 +9,19 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { ITaskService, IWorkspaceFolderTaskResult } from '../common/taskService.js';
 import { RunOnOptions, Task, TaskRunSource, TaskSource, TaskSourceKind, TASKS_CATEGORY, WorkspaceFileTaskSource, IWorkspaceTaskSource } from '../common/tasks.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IQuickPickItem, IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { Action2 } from '../../../../platform/actions/common/actions.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Event } from '../../../../base/common/event.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 
+const HAS_PROMPTED_FOR_AUTOMATIC_TASKS = 'task.hasPromptedForAutomaticTasks.v2';
 const ALLOW_AUTOMATIC_TASKS = 'task.allowAutomaticTasks';
 
 export class RunAutomaticTasks extends Disposable implements IWorkbenchContribution {
@@ -26,7 +30,10 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 		@ITaskService private readonly _taskService: ITaskService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
-		@ILogService private readonly _logService: ILogService) {
+		@ILogService private readonly _logService: ILogService,
+		@IStorageService private readonly _storageService: IStorageService,
+		@INotificationService private readonly _notificationService: INotificationService,
+		@IOpenerService private readonly _openerService: IOpenerService) {
 		super();
 		if (this._taskService.isReconnected) {
 			this._tryRunTasks();
@@ -40,7 +47,9 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 		if (!this._workspaceTrustManagementService.isWorkspaceTrusted()) {
 			return;
 		}
-		if (this._hasRunTasks || this._configurationService.getValue(ALLOW_AUTOMATIC_TASKS) === 'off') {
+		const hasShownPromptForAutomaticTasks = this._storageService.getBoolean(HAS_PROMPTED_FOR_AUTOMATIC_TASKS, StorageScope.WORKSPACE, false);
+		if (this._hasRunTasks ||
+			(this._configurationService.getValue(ALLOW_AUTOMATIC_TASKS) === 'off' && hasShownPromptForAutomaticTasks)) {
 			return;
 		}
 		this._hasRunTasks = true;
@@ -77,7 +86,7 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 			this._logService.trace(`RunAutomaticTasks: updated taskNames=${JSON.stringify(autoTasks.taskNames)}`);
 		}
 
-		this._runWithPermission(this._taskService, this._configurationService, autoTasks.tasks, autoTasks.taskNames);
+		this._runWithPermission(this._taskService, this._configurationService, this._storageService, this._notificationService, this._openerService, autoTasks.tasks, autoTasks.taskNames, autoTasks.locations);
 	}
 
 	private _runTasks(taskService: ITaskService, tasks: Array<Task | Promise<Task | undefined>>) {
@@ -149,14 +158,59 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 		return { tasks, taskNames, locations };
 	}
 
-	private async _runWithPermission(taskService: ITaskService, configurationService: IConfigurationService, tasks: (Task | Promise<Task | undefined>)[], taskNames: string[]) {
+	private async _runWithPermission(taskService: ITaskService, configurationService: IConfigurationService, storageService: IStorageService, notificationService: INotificationService, openerService: IOpenerService, tasks: (Task | Promise<Task | undefined>)[], taskNames: string[], locations: Map<string, URI>) {
 		if (taskNames.length === 0) {
 			return;
 		}
-		if (configurationService.getValue(ALLOW_AUTOMATIC_TASKS) === 'off') {
+		if (configurationService.getValue(ALLOW_AUTOMATIC_TASKS) === 'on') {
+			this._runTasks(taskService, tasks);
 			return;
 		}
-		this._runTasks(taskService, tasks);
+		const hasShownPromptForAutomaticTasks = storageService.getBoolean(HAS_PROMPTED_FOR_AUTOMATIC_TASKS, StorageScope.WORKSPACE, false);
+		if (hasShownPromptForAutomaticTasks) {
+			return;
+		}
+		// We have automatic tasks - prompt to allow.
+		const allow = await this._showPrompt(notificationService, storageService, openerService, configurationService, taskNames, locations);
+		if (allow) {
+			this._runTasks(taskService, tasks);
+		}
+	}
+
+	private _showPrompt(notificationService: INotificationService, storageService: IStorageService, openerService: IOpenerService, configurationService: IConfigurationService, taskNames: string[], locations: Map<string, URI>): Promise<boolean> {
+		return new Promise<boolean>(resolve => {
+			notificationService.prompt(Severity.Info, nls.localize('tasks.run.allowAutomatic',
+				"This workspace has tasks ({0}) defined ({1}) that run automatically when you open this workspace. Do you allow automatic tasks to run when you open this workspace?",
+				taskNames.join(', '),
+				Array.from(locations.keys()).join(', ')
+			),
+				[{
+					label: nls.localize('allow', "Allow and Run"),
+					run: () => {
+						resolve(true);
+						configurationService.updateValue(ALLOW_AUTOMATIC_TASKS, 'on', ConfigurationTarget.WORKSPACE);
+					}
+				},
+				{
+					label: nls.localize('disallow', "Disallow"),
+					run: () => {
+						resolve(false);
+						configurationService.updateValue(ALLOW_AUTOMATIC_TASKS, 'off', ConfigurationTarget.WORKSPACE);
+					}
+				},
+				{
+					label: locations.size === 1 ? nls.localize('openTask', "Open File") : nls.localize('openTasks', "Open Files"),
+					run: async () => {
+						for (const location of locations) {
+							await openerService.open(location[1]);
+						}
+						resolve(false);
+					}
+				}],
+				{ onCancel: () => resolve(false) }
+			);
+			storageService.store(HAS_PROMPTED_FOR_AUTOMATIC_TASKS, true, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		});
 	}
 }
 

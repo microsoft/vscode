@@ -14,19 +14,90 @@ import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { PreferredGroup } from '../../../services/editor/common/editorService.js';
-import { IChatAgentAttachmentCapabilities, IChatAgentCommand, IChatAgentData } from '../common/chatAgents.js';
-import { IChatResponseModel, IChatModelInputState } from '../common/chatModel.js';
+import { IChatAgentAttachmentCapabilities, IChatAgentCommand, IChatAgentData } from '../common/participants/chatAgents.js';
+import { IChatResponseModel, IChatModelInputState } from '../common/model/chatModel.js';
 import { IChatMode } from '../common/chatModes.js';
-import { IParsedChatRequest } from '../common/chatParserTypes.js';
-import { CHAT_PROVIDER_ID } from '../common/chatParticipantContribTypes.js';
-import { IChatElicitationRequest, IChatLocationData, IChatSendRequestOptions } from '../common/chatService.js';
-import { IChatRequestViewModel, IChatResponseViewModel, IChatViewModel } from '../common/chatViewModel.js';
+import { IParsedChatRequest } from '../common/requestParser/chatParserTypes.js';
+import { CHAT_PROVIDER_ID } from '../common/participants/chatParticipantContribTypes.js';
+import { IChatElicitationRequest, IChatLocationData, IChatSendRequestOptions } from '../common/chatService/chatService.js';
+import { IChatRequestViewModel, IChatResponseViewModel, IChatViewModel } from '../common/model/chatViewModel.js';
 import { ChatAgentLocation, ChatModeKind } from '../common/constants.js';
-import { ChatAttachmentModel } from './chatAttachmentModel.js';
-import { IChatEditorOptions } from './chatEditor.js';
-import { ChatInputPart } from './chatInputPart.js';
-import { ChatWidget, IChatWidgetContrib } from './chatWidget.js';
-import { ICodeBlockActionContext } from './codeBlockPart.js';
+import { ChatAttachmentModel } from './attachments/chatAttachmentModel.js';
+import { IChatEditorOptions } from './widgetHosts/editor/chatEditor.js';
+import { ChatInputPart } from './widget/input/chatInputPart.js';
+import { ChatWidget, IChatWidgetContrib } from './widget/chatWidget.js';
+import { ICodeBlockActionContext } from './widget/chatContentParts/codeBlockPart.js';
+import { AgentSessionProviders } from './agentSessions/agentSessions.js';
+
+/**
+ * A workspace item that can be selected in the workspace picker.
+ */
+export interface IWorkspacePickerItem {
+	readonly uri: URI;
+	readonly label: string;
+	readonly isFolder: boolean;
+}
+
+/**
+ * Delegate interface for the workspace picker.
+ * Allows consumers to get and set the target workspace for chat submissions in empty window contexts.
+ */
+export interface IWorkspacePickerDelegate {
+	/**
+	 * Returns the list of available workspaces to select from.
+	 */
+	getWorkspaces(): IWorkspacePickerItem[];
+	/**
+	 * Returns the currently selected workspace, if any.
+	 */
+	getSelectedWorkspace(): IWorkspacePickerItem | undefined;
+	/**
+	 * Sets the currently selected workspace.
+	 */
+	setSelectedWorkspace(workspace: IWorkspacePickerItem | undefined): void;
+	/**
+	 * Event that fires when the selected workspace changes.
+	 */
+	onDidChangeSelectedWorkspace: Event<IWorkspacePickerItem | undefined>;
+	/**
+	 * Event that fires when the available workspaces change.
+	 */
+	onDidChangeWorkspaces: Event<void>;
+	/**
+	 * Command ID to execute when user wants to open a new folder.
+	 */
+	openFolderCommand: string;
+}
+
+/**
+ * Delegate interface for the session target picker.
+ * Allows consumers to get and optionally set the active session provider.
+ */
+export interface ISessionTypePickerDelegate {
+	getActiveSessionProvider(): AgentSessionProviders | undefined;
+	/**
+	 * Optional setter for the active session provider.
+	 * When provided, the picker will call this instead of executing the openNewChatSessionInPlace command.
+	 * This allows the welcome view to maintain independent state from the main chat panel.
+	 */
+	setActiveSessionProvider?(provider: AgentSessionProviders): void;
+	/**
+	 * Optional getter for the pending delegation target - the target that will be used when submit is pressed.
+	 */
+	getPendingDelegationTarget?(): AgentSessionProviders | undefined;
+	/**
+	 * Optional setter for the pending delegation target.
+	 * When a user selects a different session provider in a non-empty chat,
+	 * this stores the target for delegation on the next submit instead of immediately creating a new session.
+	 */
+	setPendingDelegationTarget?(provider: AgentSessionProviders): void;
+	/**
+	 * Optional event that fires when the active session provider changes.
+	 * When provided, listeners (like chatInputPart) can react to session type changes
+	 * and update pickers accordingly.
+	 */
+	onDidChangeActiveSessionProvider?: Event<AgentSessionProviders>;
+}
 
 export const IChatWidgetService = createDecorator<IChatWidgetService>('chatWidgetService');
 
@@ -44,6 +115,11 @@ export interface IChatWidgetService {
 	readonly lastFocusedWidget: IChatWidget | undefined;
 
 	readonly onDidAddWidget: Event<IChatWidget>;
+
+	/**
+	 * Fires when a chat session is no longer open in any chat widget.
+	 */
+	readonly onDidBackgroundSession: Event<URI>;
 
 	/**
 	 * Reveals the widget, focusing its input unless `preserveFocus` is true.
@@ -106,9 +182,9 @@ export interface IQuickChatOpenOptions {
 export const IChatAccessibilityService = createDecorator<IChatAccessibilityService>('chatAccessibilityService');
 export interface IChatAccessibilityService {
 	readonly _serviceBrand: undefined;
-	acceptRequest(): number;
-	disposeRequest(requestId: number): void;
-	acceptResponse(widget: ChatWidget, container: HTMLElement, response: IChatResponseViewModel | string | undefined, requestId: number, isVoiceInput?: boolean): void;
+	acceptRequest(uri: URI, skipRequestSignal?: boolean): void;
+	disposeRequest(requestId: URI): void;
+	acceptResponse(widget: ChatWidget, container: HTMLElement, response: IChatResponseViewModel | string | undefined, requestId: URI | undefined, isVoiceInput?: boolean): void;
 	acceptElicitation(message: IChatElicitationRequest): void;
 }
 
@@ -137,7 +213,6 @@ export interface IChatListItemRendererOptions {
 	readonly renderStyle?: 'compact' | 'minimal';
 	readonly noHeader?: boolean;
 	readonly noFooter?: boolean;
-	readonly editableCodeBlock?: boolean;
 	readonly renderDetectedCommandsWithRequest?: boolean;
 	readonly restorable?: boolean;
 	readonly editable?: boolean;
@@ -178,6 +253,30 @@ export interface IChatWidgetViewOptions {
 	supportsChangingModes?: boolean;
 	dndContainer?: HTMLElement;
 	defaultMode?: IChatMode;
+	/**
+	 * Optional delegate for the session target picker.
+	 * When provided, allows the widget to maintain independent state for the selected session type.
+	 * This is useful for contexts like the welcome view where target selection should not
+	 * immediately open a new session.
+	 */
+	sessionTypePickerDelegate?: ISessionTypePickerDelegate;
+
+	/**
+	 * Optional delegate for the workspace picker.
+	 * When provided, shows a workspace picker in the chat input allowing users to select
+	 * a target workspace for their request. This is useful for empty window contexts where
+	 * the user wants to send a request to a specific workspace.
+	 */
+	workspacePickerDelegate?: IWorkspacePickerDelegate;
+
+	/**
+	 * Optional handler for chat submission.
+	 * When provided, this handler is called before the normal input acceptance flow.
+	 * If it returns true (handled), the normal submission is skipped.
+	 * This is useful for contexts like the welcome view where submission should
+	 * redirect to a different workspace rather than executing locally.
+	 */
+	submitHandler?: (query: string, mode: ChatModeKind) => Promise<boolean>;
 }
 
 export interface IChatViewViewContext {
@@ -203,11 +302,20 @@ export interface IChatAcceptInputOptions {
 	noCommandDetection?: boolean;
 	isVoiceInput?: boolean;
 	enableImplicitContext?: boolean; // defaults to true
+	// Whether to store the input to history. This defaults to 'true' if the input
+	// box's current content is being accepted, or 'false' if a specific input
+	// is being submitted to the widget.
+	storeToHistory?: boolean;
+}
+
+export interface IChatWidgetViewModelChangeEvent {
+	readonly previousSessionResource: URI | undefined;
+	readonly currentSessionResource: URI | undefined;
 }
 
 export interface IChatWidget {
 	readonly domNode: HTMLElement;
-	readonly onDidChangeViewModel: Event<void>;
+	readonly onDidChangeViewModel: Event<IChatWidgetViewModelChangeEvent>;
 	readonly onDidAcceptInput: Event<void>;
 	readonly onDidHide: Event<void>;
 	readonly onDidShow: Event<void>;
@@ -262,6 +370,7 @@ export interface IChatWidget {
 	clear(): Promise<void>;
 	getViewState(): IChatModelInputState | undefined;
 	lockToCodingAgent(name: string, displayName: string, agentId?: string): void;
+	unlockFromCodingAgent(): void;
 	handleDelegationExitIfNeeded(sourceAgent: Pick<IChatAgentData, 'id' | 'name'> | undefined, targetAgent: IChatAgentData | undefined): Promise<void>;
 
 	delegateScrollFromMouseWheelEvent(event: IMouseWheelEvent): void;
