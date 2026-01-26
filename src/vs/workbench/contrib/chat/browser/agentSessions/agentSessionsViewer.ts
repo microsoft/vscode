@@ -656,7 +656,7 @@ export class AgentSessionsDataSource implements IAsyncDataSource<IAgentSessionsM
 		const sortedSessions = sessions.sort(this.sorter.compare.bind(this.sorter));
 		const groupedSessions = this.filter?.groupResults?.() === AgentSessionsGrouping.Activity
 			? groupAgentSessionsByActivity(sortedSessions)
-			: groupAgentSessionsByDefault(sortedSessions);
+			: groupAgentSessionsByDate(sortedSessions);
 
 		for (const { sessions, section, label } of groupedSessions.values()) {
 			if (sessions.length === 0) {
@@ -684,7 +684,7 @@ export const AgentSessionSectionLabels = {
 	[AgentSessionSection.History]: localize('agentSessions.historySection', "History"),
 };
 
-export function groupAgentSessionsByDefault(sessions: IAgentSession[]): Map<AgentSessionSection, IAgentSessionSection> {
+export function groupAgentSessionsByDate(sessions: IAgentSession[]): Map<AgentSessionSection, IAgentSessionSection> {
 	const now = Date.now();
 	const startOfToday = new Date(now).setHours(0, 0, 0, 0);
 	const startOfYesterday = startOfToday - DAY_THRESHOLD;

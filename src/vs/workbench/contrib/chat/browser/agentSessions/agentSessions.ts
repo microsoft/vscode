@@ -112,7 +112,7 @@ export enum AgentSessionsViewerPosition {
 }
 
 export enum AgentSessionsGrouping {
-	Time = 'time',
+	Date = 'date',
 	Activity = 'activity',
 }
 

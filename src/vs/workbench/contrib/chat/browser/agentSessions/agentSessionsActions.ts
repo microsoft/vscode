@@ -79,7 +79,7 @@ export class GroupSessionsByTimeAction extends Action2 {
 		super({
 			id: 'workbench.action.chat.groupSessionsByTime',
 			title: localize2('chat.groupSessions.byTime', "By Time"),
-			toggled: ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsGrouping}`, AgentSessionsGrouping.Time),
+			toggled: ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsGrouping}`, AgentSessionsGrouping.Date),
 			menu: {
 				id: groupSessionsSubmenu,
 				group: 'navigation',
@@ -90,7 +90,7 @@ export class GroupSessionsByTimeAction extends Action2 {
 
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const configurationService = accessor.get(IConfigurationService);
-		await configurationService.updateValue(ChatConfiguration.ChatViewSessionsGrouping, AgentSessionsGrouping.Time);
+		await configurationService.updateValue(ChatConfiguration.ChatViewSessionsGrouping, AgentSessionsGrouping.Date);
 	}
 }
 

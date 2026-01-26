@@ -420,10 +420,10 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.ChatViewSessionsGrouping]: {
 			type: 'string',
-			enum: [AgentSessionsGrouping.Activity, AgentSessionsGrouping.Time],
+			enum: [AgentSessionsGrouping.Activity, AgentSessionsGrouping.Date],
 			enumDescriptions: [
 				nls.localize('chat.viewSessions.grouping.activity', "Group sessions by activity status, showing active sessions first."),
-				nls.localize('chat.viewSessions.grouping.time', "Group sessions chronologically by time.")
+				nls.localize('chat.viewSessions.grouping.date', "Group sessions chronologically by date.")
 			],
 			default: AgentSessionsGrouping.Activity,
 			markdownDescription: nls.localize('chat.viewSessions.grouping', "Controls how sessions are grouped in the stacked sessions view. This setting requires {0} to be enabled.", '`#chat.viewSessions.enabled#`'),

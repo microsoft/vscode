@@ -16,7 +16,7 @@ import { IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSepara
 import { openSession } from './agentSessionsOpener.js';
 import { IAgentSession, isLocalAgentSessionItem } from './agentSessionsModel.js';
 import { IAgentSessionsService } from './agentSessionsService.js';
-import { AgentSessionsSorter, groupAgentSessionsByActivity, groupAgentSessionsByDefault } from './agentSessionsViewer.js';
+import { AgentSessionsSorter, groupAgentSessionsByActivity, groupAgentSessionsByDate } from './agentSessionsViewer.js';
 import { AGENT_SESSION_DELETE_ACTION_ID, AGENT_SESSION_RENAME_ACTION_ID } from './agentSessions.js';
 import { ChatConfiguration, AgentSessionsGrouping } from '../../common/constants.js';
 
@@ -135,7 +135,7 @@ export class AgentSessionsPicker {
 		const grouping = this.configurationService.getValue<AgentSessionsGrouping>(ChatConfiguration.ChatViewSessionsGrouping);
 		const groupedSessions = grouping === AgentSessionsGrouping.Activity
 			? groupAgentSessionsByActivity(sessions)
-			: groupAgentSessionsByDefault(sessions);
+			: groupAgentSessionsByDate(sessions);
 
 		for (const group of groupedSessions.values()) {
 			if (group.sessions.length > 0) {

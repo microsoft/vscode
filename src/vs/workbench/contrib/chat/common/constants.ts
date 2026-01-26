@@ -90,7 +90,7 @@ export enum AgentsControlClickBehavior {
 
 export enum AgentSessionsGrouping {
 	Activity = 'activity',
-	Time = 'time',
+	Date = 'date',
 }
 
 export type RawChatParticipantLocation = 'panel' | 'terminal' | 'notebook' | 'editing-session';

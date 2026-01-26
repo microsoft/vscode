@@ -240,7 +240,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		})(() => {
 			const oldSessionsGrouping = this.sessionsGrouping;
 			if (this.sessionsViewerOrientation === AgentSessionsViewerOrientation.SideBySide) {
-				this.sessionsGrouping = AgentSessionsGrouping.Time; // side by side always shows all
+				this.sessionsGrouping = AgentSessionsGrouping.Date; // side by side always shows all
 			} else {
 				this.sessionsGrouping = this.configurationService.getValue<AgentSessionsGrouping>(ChatConfiguration.ChatViewSessionsGrouping) ?? AgentSessionsGrouping.Activity;
 			}
@@ -374,7 +374,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		// Sessions Filter
 		const sessionsFilter = this._register(this.instantiationService.createInstance(AgentSessionsFilter, {
 			filterMenuId: MenuId.AgentSessionsViewerFilterSubMenu,
-			groupResults: () => this.sessionsGrouping === AgentSessionsGrouping.Activity ? AgentSessionsGrouping.Activity : AgentSessionsGrouping.Time,
+			groupResults: () => this.sessionsGrouping === AgentSessionsGrouping.Activity ? AgentSessionsGrouping.Activity : AgentSessionsGrouping.Date,
 		}));
 		this._register(Event.runAndSubscribe(sessionsFilter.onDidChange, () => {
 			sessionsToolbarContainer.classList.toggle('filtered', !sessionsFilter.isDefault());

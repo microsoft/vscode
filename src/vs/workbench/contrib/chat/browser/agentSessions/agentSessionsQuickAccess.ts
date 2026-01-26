@@ -11,7 +11,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { IMatch, matchesFuzzy } from '../../../../../base/common/filters.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { IAgentSessionsService } from './agentSessionsService.js';
-import { AgentSessionsSorter, groupAgentSessionsByActivity, groupAgentSessionsByDefault } from './agentSessionsViewer.js';
+import { AgentSessionsSorter, groupAgentSessionsByActivity, groupAgentSessionsByDate } from './agentSessionsViewer.js';
 import { IAgentSession } from './agentSessionsModel.js';
 import { openSession } from './agentSessionsOpener.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -46,7 +46,7 @@ export class AgentSessionsQuickAccessProvider extends PickerQuickAccessProvider<
 		const grouping = this.configurationService.getValue<AgentSessionsGrouping>(ChatConfiguration.ChatViewSessionsGrouping);
 		const groupedSessions = grouping === AgentSessionsGrouping.Activity
 			? groupAgentSessionsByActivity(sessions)
-			: groupAgentSessionsByDefault(sessions);
+			: groupAgentSessionsByDate(sessions);
 
 		for (const group of groupedSessions.values()) {
 			if (group.sessions.length > 0) {
