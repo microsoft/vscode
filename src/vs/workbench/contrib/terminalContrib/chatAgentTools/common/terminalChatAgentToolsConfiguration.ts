@@ -618,7 +618,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 	[TerminalChatAgentToolsSettingId.EnforceTimeoutFromModel]: {
 		restricted: true,
 		type: 'boolean',
-		default: false,
+		default: true,
 		tags: ['experimental'],
 		experiment: {
 			mode: 'auto'
