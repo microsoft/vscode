@@ -91,6 +91,7 @@ import { ChatTaskContentPart } from './chatContentParts/chatTaskContentPart.js';
 import { ChatTextEditContentPart } from './chatContentParts/chatTextEditContentPart.js';
 import { ChatThinkingContentPart } from './chatContentParts/chatThinkingContentPart.js';
 import { ChatSubagentContentPart } from './chatContentParts/chatSubagentContentPart.js';
+import { ChatTipContentPart } from './chatContentParts/chatTipContentPart.js';
 import { ChatTreeContentPart, TreePool } from './chatContentParts/chatTreeContentPart.js';
 import { ChatWorkspaceEditContentPart } from './chatContentParts/chatWorkspaceEditContentPart.js';
 import { ChatToolInvocationPart } from './chatContentParts/toolInvocationParts/chatToolInvocationPart.js';
@@ -100,6 +101,7 @@ import { ChatCodeBlockContentProvider, CodeBlockPart } from './chatContentParts/
 import { autorun, observableValue } from '../../../../../base/common/observable.js';
 import { RunSubagentTool } from '../../common/tools/builtinTools/runSubagentTool.js';
 import { isEqual } from '../../../../../base/common/resources.js';
+import { IChatTipService } from '../chatTipService.js';
 
 const $ = dom.$;
 
@@ -239,6 +241,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 		@IChatService private readonly chatService: IChatService,
+		@IChatTipService private readonly chatTipService: IChatTipService,
 	) {
 		super();
 
@@ -935,6 +938,14 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		dom.clearNode(templateData.value);
 		const parts: IChatContentPart[] = [];
+
+		// Render tip above the request message (if available)
+		const tip = this.chatTipService.getNextTip(element.id);
+		if (tip) {
+			const tipPart = new ChatTipContentPart(tip, this.chatContentMarkdownRenderer);
+			templateData.value.appendChild(tipPart.domNode);
+			templateData.elementDisposables.add(tipPart);
+		}
 
 		let inlineSlashCommandRendered = false;
 		content.forEach((data, contentIndex) => {
