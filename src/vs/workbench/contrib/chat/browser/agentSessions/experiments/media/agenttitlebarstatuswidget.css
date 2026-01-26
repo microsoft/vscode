@@ -227,12 +227,6 @@
 	color: var(--vscode-commandCenter-foreground);
 }
 
-/* Force all badge icons/labels to use command center foreground */
-.agent-status-badge .codicon,
-.agent-status-badge .action-label {
-	color: var(--vscode-commandCenter-foreground) !important;
-}
-
 /* Badge sections */
 .agent-status-badge-section {
 	display: flex;
