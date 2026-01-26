@@ -198,6 +198,8 @@ extends:
         pool:
           name: AcesShared
           os: macOS
+          demands:
+            - ImageOverride -equals ACES_VM_SharedPool_Sequoia
         jobs:
           - template: build/azure-pipelines/product-compile.yml@self
 
@@ -432,6 +434,8 @@ extends:
           pool:
             name: AcesShared
             os: macOS
+            demands:
+              - ImageOverride -equals ACES_VM_SharedPool_Sequoia
           variables:
             BUILDSECMON_OPT_IN: true
           jobs:
