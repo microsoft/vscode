@@ -99,9 +99,9 @@ export class WorkbenchModeService extends Disposable implements IWorkbenchModeSe
 
 	async getWorkbenchModeConfigurations(): Promise<IWorkbenchModeConfiguration[]> {
 		const result: IWorkbenchModeConfiguration[] = [];
-		const profilesFolder = this.environmentService.builtinProfilesHome;
+		const workbenchModesFolder = this.environmentService.builtinWorkbenchModesHome;
 		try {
-			const stat = await this.fileService.resolve(profilesFolder);
+			const stat = await this.fileService.resolve(workbenchModesFolder);
 			if (!stat.children?.length) {
 				return result;
 			}
@@ -115,7 +115,7 @@ export class WorkbenchModeService extends Disposable implements IWorkbenchModeSe
 				}
 			}
 		} catch (error) {
-			this.logService.error(`Error while reading workbench mode files from ${profilesFolder.toString()}`, error);
+			this.logService.error(`Error while reading workbench mode files from ${workbenchModesFolder.toString()}`, error);
 		}
 		return result;
 	}
@@ -127,11 +127,11 @@ export class WorkbenchModeService extends Disposable implements IWorkbenchModeSe
 		try {
 			const content = (await this.fileService.readFile(workbenchConfigurationModeFile)).value.toString();
 			const name = this.uriIdentityService.extUri.basename(workbenchConfigurationModeFile);
-			const profile: IWorkbenchModeConfiguration = {
+			const workbenchModeConfiguration: IWorkbenchModeConfiguration = {
 				id: name.substring(0, name.length - '.code-workbench-mode'.length),
 				...parse(content)
 			};
-			return profile;
+			return workbenchModeConfiguration;
 		} catch (error) {
 			this.logService.error(`Error while reading workbench mode file from ${workbenchConfigurationModeFile.toString()}`, error);
 			return undefined;
