@@ -27,8 +27,9 @@ export interface IChatTipService {
 	 * Tips are only shown for requests created after the service was instantiated.
 	 * @param requestId The unique ID of the request (used for stable rerenders).
 	 * @param requestTimestamp The timestamp when the request was created.
+	 * @param contextKeyService The context key service to evaluate tip eligibility.
 	 */
-	getNextTip(requestId: string, requestTimestamp: number): IChatTip | undefined;
+	getNextTip(requestId: string, requestTimestamp: number, contextKeyService: IContextKeyService): IChatTip | undefined;
 }
 
 interface ITipDefinition {
@@ -56,18 +57,14 @@ const TIP_CATALOG: ITipDefinition[] = [
 		enabledCommands: ['workbench.action.chat.openEditSession'],
 	},
 	{
-		id: 'tip.askMode',
-		message: localize('tip.askMode', "Tip: Switch to [Ask mode](command:workbench.action.chat.openAskSession) for questions without making changes."),
-		when: ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
-		enabledCommands: ['workbench.action.chat.openAskSession'],
+		id: 'tip.planMode',
+		message: localize('tip.planMode', "Tip: Try [Plan mode](command:workbench.action.chat.openPlan) to let the agent perform deep analysis and planning before implementing changes."),
+		when: ChatContextKeys.chatModeName.notEqualsTo('Plan'),
+		enabledCommands: ['workbench.action.chat.openPlan'],
 	},
 	{
 		id: 'tip.attachFiles',
 		message: localize('tip.attachFiles', "Tip: Attach files or folders with # to give Copilot more context."),
-	},
-	{
-		id: 'tip.inlineChat',
-		message: localize('tip.inlineChat', "Tip: Press {0} in the editor for quick inline edits.", '`Ctrl+I`'),
 	},
 	{
 		id: 'tip.codeActions',
@@ -81,6 +78,11 @@ const TIP_CATALOG: ITipDefinition[] = [
 			ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Edit),
 		),
 	},
+	{
+		id: 'tip.customInstructions',
+		message: localize('tip.customInstructions', "Tip: [Generate workspace instructions](command:workbench.action.chat.generateInstructions) so Copilot always has the context it needs when starting a task."),
+		enabledCommands: ['workbench.action.chat.generateInstructions'],
+	}
 ];
 
 export class ChatTipService implements IChatTipService {
@@ -109,11 +111,10 @@ export class ChatTipService implements IChatTipService {
 	private _shownTip: ITipDefinition | undefined;
 
 	constructor(
-		@IProductService private readonly _productService: IProductService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@IProductService private readonly _productService: IProductService
 	) { }
 
-	getNextTip(requestId: string, requestTimestamp: number): IChatTip | undefined {
+	getNextTip(requestId: string, requestTimestamp: number, contextKeyService: IContextKeyService): IChatTip | undefined {
 		// Only show tips for Copilot
 		if (!this._isCopilotEnabled()) {
 			return undefined;
@@ -136,7 +137,7 @@ export class ChatTipService implements IChatTipService {
 		}
 
 		// Find eligible tips
-		const eligibleTips = TIP_CATALOG.filter(tip => this._isEligible(tip));
+		const eligibleTips = TIP_CATALOG.filter(tip => this._isEligible(tip, contextKeyService));
 
 		if (eligibleTips.length === 0) {
 			return undefined;
@@ -154,11 +155,11 @@ export class ChatTipService implements IChatTipService {
 		return this._createTip(selectedTip);
 	}
 
-	private _isEligible(tip: ITipDefinition): boolean {
+	private _isEligible(tip: ITipDefinition, contextKeyService: IContextKeyService): boolean {
 		if (!tip.when) {
 			return true;
 		}
-		return this._contextKeyService.contextMatchesRules(tip.when);
+		return contextKeyService.contextMatchesRules(tip.when);
 	}
 
 	private _isCopilotEnabled(): boolean {

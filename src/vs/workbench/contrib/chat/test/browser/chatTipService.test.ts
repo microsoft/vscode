@@ -11,11 +11,17 @@ import { MockContextKeyService } from '../../../../../platform/keybinding/test/c
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { ChatTipService } from '../../browser/chatTipService.js';
 
+class MockContextKeyServiceWithRulesMatching extends MockContextKeyService {
+	override contextMatchesRules(): boolean {
+		return true;
+	}
+}
+
 suite('ChatTipService', () => {
 	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let instantiationService: TestInstantiationService;
-	let contextKeyService: MockContextKeyService;
+	let contextKeyService: MockContextKeyServiceWithRulesMatching;
 
 	function createProductService(hasCopilot: boolean): IProductService {
 		return {
@@ -31,7 +37,7 @@ suite('ChatTipService', () => {
 
 	setup(() => {
 		instantiationService = testDisposables.add(new TestInstantiationService());
-		contextKeyService = new MockContextKeyService();
+		contextKeyService = new MockContextKeyServiceWithRulesMatching();
 		instantiationService.stub(IContextKeyService, contextKeyService);
 	});
 
@@ -40,7 +46,7 @@ suite('ChatTipService', () => {
 		const now = Date.now();
 
 		// Request created after service initialization
-		const tip = service.getNextTip('request-1', now + 1000);
+		const tip = service.getNextTip('request-1', now + 1000, contextKeyService);
 		assert.ok(tip, 'Should return a tip for requests created after service instantiation');
 		assert.ok(tip.id.startsWith('tip.'), 'Tip should have a valid ID');
 		assert.ok(tip.content.value.length > 0, 'Tip should have content');
@@ -51,7 +57,7 @@ suite('ChatTipService', () => {
 		const now = Date.now();
 
 		// Request created before service initialization (simulating restored chat)
-		const tip = service.getNextTip('old-request', now - 10000);
+		const tip = service.getNextTip('old-request', now - 10000, contextKeyService);
 		assert.strictEqual(tip, undefined, 'Should not return a tip for requests created before service instantiation');
 	});
 
@@ -60,11 +66,11 @@ suite('ChatTipService', () => {
 		const now = Date.now();
 
 		// First request gets a tip
-		const tip1 = service.getNextTip('request-1', now + 1000);
+		const tip1 = service.getNextTip('request-1', now + 1000, contextKeyService);
 		assert.ok(tip1, 'First request should get a tip');
 
 		// Second request does not get a tip
-		const tip2 = service.getNextTip('request-2', now + 2000);
+		const tip2 = service.getNextTip('request-2', now + 2000, contextKeyService);
 		assert.strictEqual(tip2, undefined, 'Second request should not get a tip');
 	});
 
@@ -73,11 +79,11 @@ suite('ChatTipService', () => {
 		const now = Date.now();
 
 		// First call gets a tip
-		const tip1 = service.getNextTip('request-1', now + 1000);
+		const tip1 = service.getNextTip('request-1', now + 1000, contextKeyService);
 		assert.ok(tip1);
 
 		// Same request ID gets the same tip on rerender
-		const tip2 = service.getNextTip('request-1', now + 1000);
+		const tip2 = service.getNextTip('request-1', now + 1000, contextKeyService);
 		assert.ok(tip2);
 		assert.strictEqual(tip1.id, tip2.id, 'Should return same tip for stable rerender');
 		assert.strictEqual(tip1.content.value, tip2.content.value);
@@ -87,7 +93,7 @@ suite('ChatTipService', () => {
 		const service = createService(/* hasCopilot */ false);
 		const now = Date.now();
 
-		const tip = service.getNextTip('request-1', now + 1000);
+		const tip = service.getNextTip('request-1', now + 1000, contextKeyService);
 		assert.strictEqual(tip, undefined, 'Should not return a tip when Copilot is not enabled');
 	});
 
@@ -96,11 +102,11 @@ suite('ChatTipService', () => {
 		const now = Date.now();
 
 		// Old request should not consume the tip allowance
-		const oldTip = service.getNextTip('old-request', now - 10000);
+		const oldTip = service.getNextTip('old-request', now - 10000, contextKeyService);
 		assert.strictEqual(oldTip, undefined);
 
 		// New request should still be able to get a tip
-		const newTip = service.getNextTip('new-request', now + 1000);
+		const newTip = service.getNextTip('new-request', now + 1000, contextKeyService);
 		assert.ok(newTip, 'New request should get a tip after old request was skipped');
 	});
 
@@ -109,12 +115,12 @@ suite('ChatTipService', () => {
 		const now = Date.now();
 
 		// Simulate multiple restored requests being rendered
-		service.getNextTip('old-1', now - 30000);
-		service.getNextTip('old-2', now - 20000);
-		service.getNextTip('old-3', now - 10000);
+		service.getNextTip('old-1', now - 30000, contextKeyService);
+		service.getNextTip('old-2', now - 20000, contextKeyService);
+		service.getNextTip('old-3', now - 10000, contextKeyService);
 
 		// New request should still get a tip
-		const tip = service.getNextTip('new-request', now + 1000);
+		const tip = service.getNextTip('new-request', now + 1000, contextKeyService);
 		assert.ok(tip, 'New request should get a tip after multiple old requests');
 	});
 });

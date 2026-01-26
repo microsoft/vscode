@@ -940,7 +940,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const parts: IChatContentPart[] = [];
 
 		// Render tip above the request message (if available)
-		const tip = this.chatTipService.getNextTip(element.id, element.timestamp);
+		const tip = this.chatTipService.getNextTip(element.id, element.timestamp, this.contextKeyService);
 		if (tip) {
 			const tipPart = new ChatTipContentPart(tip, this.chatContentMarkdownRenderer);
 			templateData.value.appendChild(tipPart.domNode);
