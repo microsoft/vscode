@@ -193,6 +193,12 @@ export class BrowserView extends Disposable {
 		webContents.on('did-stop-loading', () => fireLoadingEvent(false));
 		webContents.on('did-fail-load', (e, errorCode, errorDescription, validatedURL, isMainFrame) => {
 			if (isMainFrame) {
+				// Ignore ERR_ABORTED (-3) which is the expected error when user stops a page load.
+				if (errorCode === -3) {
+					fireLoadingEvent(false);
+					return;
+				}
+
 				this._lastError = {
 					url: validatedURL,
 					errorCode,
