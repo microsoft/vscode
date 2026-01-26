@@ -2257,8 +2257,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		}
 	}
 
-	/* shimmer animation stuffs */
-	&:has(.codicon-loading) .rendered-markdown.progress-step > p {
+	/* shimmer animation for working progress only */
+	&.working-progress:has(.codicon-loading) .rendered-markdown.progress-step > p {
 		background: linear-gradient(
 			90deg,
 			var(--vscode-descriptionForeground) 0%,
