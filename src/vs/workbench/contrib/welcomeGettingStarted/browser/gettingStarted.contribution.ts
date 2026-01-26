@@ -33,6 +33,7 @@ import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { GettingStartedAccessibleView } from './gettingStartedAccessibleView.js';
 import { AgentSessionsWelcomePage } from '../../welcomeAgentSessions/browser/agentSessionsWelcome.js';
+import { IWorkbenchAssignmentService } from '../../../services/assignment/common/assignmentService.js';
 
 export * as icons from './gettingStartedIcons.js';
 
@@ -62,13 +63,18 @@ registerAction2(class extends Action2 {
 		const editorService = accessor.get(IEditorService);
 		const commandService = accessor.get(ICommandService);
 		const configurationService = accessor.get(IConfigurationService);
+		const workbenchAssignmentService = accessor.get(IWorkbenchAssignmentService);
 
 		const toSide = typeof optionsOrToSide === 'object' ? optionsOrToSide.toSide : optionsOrToSide;
 		const inactive = typeof optionsOrToSide === 'object' ? optionsOrToSide.inactive : false;
 		const activeEditor = editorService.activeEditor;
 
-		// If no specific walkthrough is requested and agent sessions welcome is preferred, open that instead
-		if (!walkthroughID && configurationService.getValue<string>('workbench.startupEditor') === 'agentSessionsWelcomePage') {
+		// Check ExP service cache to see if agent sessions welcome should be shown
+		const agentSessionsTreatment = workbenchAssignmentService.getCachedTreatment<boolean>('agentSessionsWelcome');
+		const startupEditor = configurationService.getValue<string>('workbench.startupEditor');
+
+		// If no specific walkthrough is requested and agent sessions welcome is preferred (either by config or ExP), open that instead
+		if (!walkthroughID && (startupEditor === 'agentSessionsWelcomePage' || agentSessionsTreatment === true)) {
 			commandService.executeCommand(AgentSessionsWelcomePage.COMMAND_ID);
 			return;
 		} else {

@@ -21,6 +21,7 @@ import { CommandsRegistry } from '../../../../platform/commands/common/commands.
 import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
 import { AgentSessionsWelcomeInput } from './agentSessionsWelcomeInput.js';
 import { AgentSessionsWelcomePage, AgentSessionsWelcomeInputSerializer } from './agentSessionsWelcome.js';
+import { IWorkbenchAssignmentService } from '../../../services/assignment/common/assignmentService.js';
 
 // Registration priority
 const agentSessionsWelcomeInputTypeId = 'workbench.editors.agentSessionsWelcomeInput';
@@ -93,7 +94,8 @@ class AgentSessionsWelcomeRunnerContribution extends Disposable implements IWork
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IStorageService private readonly storageService: IStorageService
+		@IStorageService private readonly storageService: IStorageService,
+		@IWorkbenchAssignmentService private readonly workbenchAssignmentService: IWorkbenchAssignmentService
 	) {
 		super();
 		this.run();
@@ -103,8 +105,18 @@ class AgentSessionsWelcomeRunnerContribution extends Disposable implements IWork
 		// Get startup editor configuration
 		const startupEditor = this.configurationService.getValue<string>('workbench.startupEditor');
 
-		// Only proceed if configured to show agent sessions welcome page
-		if (startupEditor !== 'agentSessionsWelcomePage') {
+		// Check ExP service cache to see if agent sessions welcome should be enabled
+		// Use cached value to avoid delaying welcome page load
+		const treatmentValue = this.workbenchAssignmentService.getCachedTreatment<boolean>('agentSessionsWelcome');
+
+		// Only proceed if:
+		// 1. The startup editor is explicitly set to 'agentSessionsWelcomePage', OR
+		// 2. The ExP treatment is enabled and startup editor is 'welcomePage' or 'welcomePageInEmptyWorkbench'
+		const shouldShowAgentSessionsWelcome =
+			startupEditor === 'agentSessionsWelcomePage' ||
+			(treatmentValue === true && (startupEditor === 'welcomePage' || startupEditor === 'welcomePageInEmptyWorkbench'));
+
+		if (!shouldShowAgentSessionsWelcome) {
 			return;
 		}
 
