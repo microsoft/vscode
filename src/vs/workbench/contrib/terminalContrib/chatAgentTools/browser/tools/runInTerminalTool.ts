@@ -724,25 +724,24 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 		let executionPromise: Promise<ITerminalExecuteStrategyResult> | undefined;
 		try {
-			const strategy = this._getExecuteStrategy(toolTerminal.shellIntegrationQuality, toolTerminal, commandDetection!);
+			// Create unified ActiveTerminalExecution (creates and owns the strategy)
+			const execution = new ActiveTerminalExecution(
+				this._instantiationService,
+				chatSessionId,
+				termId,
+				toolTerminal,
+				commandDetection!,
+				args.isBackground
+			);
 			if (toolTerminal.shellIntegrationQuality === ShellIntegrationQuality.None) {
 				toolResultMessage = '$(info) Enable [shell integration](https://code.visualstudio.com/docs/terminal/shell-integration) to improve command detection';
 			}
-			this._logService.debug(`RunInTerminalTool: Using \`${strategy.type}\` execute strategy for command \`${command}\``);
-
-			// Create unified ActiveTerminalExecution
-			const execution = new ActiveTerminalExecution(
-				toolTerminal.instance,
-				chatSessionId,
-				termId,
-				strategy,
-				args.isBackground
-			);
-			// Don't add execution to store - its lifecycle is managed separately via _activeExecutions
+			this._logService.debug(`RunInTerminalTool: Using \`${execution.strategy.type}\` execute strategy for command \`${command}\``);
+			store.add(execution);
 			RunInTerminalTool._activeExecutions.set(termId, execution);
 
 			// Set up OutputMonitor when start marker is created
-			store.add(strategy.onDidCreateStartMarker(startMarker => {
+			store.add(execution.strategy.onDidCreateStartMarker(startMarker => {
 				if (!outputMonitor) {
 					outputMonitor = store.add(this._instantiationService.createInstance(
 						OutputMonitor,
@@ -853,7 +852,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 							toolSpecificData.terminalCommandState = state;
 						}
 
-						this._logService.debug(`RunInTerminalTool: Finished \`${strategy.type}\` execute strategy with exitCode \`${executeResult.exitCode}\`, result.length \`${executeResult.output?.length}\`, error \`${executeResult.error}\``);
+						this._logService.debug(`RunInTerminalTool: Finished \`${execution.strategy.type}\` execute strategy with exitCode \`${executeResult.exitCode}\`, result.length \`${executeResult.output?.length}\`, error \`${executeResult.error}\``);
 						outputLineCount = executeResult.output === undefined ? 0 : count(executeResult.output.trim(), '\n') + 1;
 						exitCode = executeResult.exitCode;
 						error = executeResult.error;
@@ -1131,22 +1130,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			}
 		}
 	}
-
-	private _getExecuteStrategy(shellIntegrationQuality: ShellIntegrationQuality, toolTerminal: IToolTerminal, commandDetection: ICommandDetectionCapability): ITerminalExecuteStrategy {
-		let strategy: ITerminalExecuteStrategy;
-		switch (shellIntegrationQuality) {
-			case ShellIntegrationQuality.None:
-				strategy = this._instantiationService.createInstance(NoneExecuteStrategy, toolTerminal.instance, () => toolTerminal.receivedUserInput ?? false);
-				break;
-			case ShellIntegrationQuality.Basic:
-				strategy = this._instantiationService.createInstance(BasicExecuteStrategy, toolTerminal.instance, () => toolTerminal.receivedUserInput ?? false, commandDetection!);
-				break;
-			case ShellIntegrationQuality.Rich:
-				strategy = this._instantiationService.createInstance(RichExecuteStrategy, toolTerminal.instance, commandDetection!);
-				break;
-		}
-		return strategy;
-	}
 	// #endregion
 }
 
@@ -1176,23 +1159,46 @@ class ActiveTerminalExecution extends Disposable {
 		return this._startMarker;
 	}
 
+	readonly strategy: ITerminalExecuteStrategy;
+	private readonly _toolTerminal: IToolTerminal;
+
+	get instance(): ITerminalInstance {
+		return this._toolTerminal.instance;
+	}
+
 	constructor(
-		readonly instance: ITerminalInstance,
+		instantiationService: IInstantiationService,
 		readonly sessionId: string,
 		readonly termId: string,
-		private readonly _strategy: ITerminalExecuteStrategy,
+		toolTerminal: IToolTerminal,
+		commandDetection: ICommandDetectionCapability,
 		isBackground: boolean,
 	) {
 		super();
+		this._toolTerminal = toolTerminal;
 		this._isBackground = isBackground;
 		this._completionDeferred = new DeferredPromise<ITerminalExecuteStrategyResult>();
 
-		this._register(this._strategy.onDidCreateStartMarker(marker => {
+		// Create and register the strategy for disposal to clean up its internal resources
+		this.strategy = this._register(this._createStrategy(instantiationService, commandDetection));
+
+		this._register(this.strategy.onDidCreateStartMarker(marker => {
 			if (marker) {
 				// Don't register marker - strategy already manages its lifecycle
 				this._startMarker = marker;
 			}
 		}));
+	}
+
+	private _createStrategy(instantiationService: IInstantiationService, commandDetection: ICommandDetectionCapability): ITerminalExecuteStrategy {
+		switch (this._toolTerminal.shellIntegrationQuality) {
+			case ShellIntegrationQuality.None:
+				return instantiationService.createInstance(NoneExecuteStrategy, this._toolTerminal.instance, () => this._toolTerminal.receivedUserInput ?? false);
+			case ShellIntegrationQuality.Basic:
+				return instantiationService.createInstance(BasicExecuteStrategy, this._toolTerminal.instance, () => this._toolTerminal.receivedUserInput ?? false, commandDetection);
+			case ShellIntegrationQuality.Rich:
+				return instantiationService.createInstance(RichExecuteStrategy, this._toolTerminal.instance, commandDetection);
+		}
 	}
 
 	/**
@@ -1204,7 +1210,7 @@ class ActiveTerminalExecution extends Disposable {
 	 */
 	async start(commandLine: string, token: CancellationToken, commandId?: string): Promise<ITerminalExecuteStrategyResult> {
 		try {
-			const result = await this._strategy.execute(commandLine, token, commandId);
+			const result = await this.strategy.execute(commandLine, token, commandId);
 			this._completionDeferred.complete(result);
 			return result;
 		} catch (e) {
