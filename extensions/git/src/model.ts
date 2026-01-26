@@ -1085,7 +1085,12 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 	}
 
 	private async isRepositoryOutsideWorkspace(repositoryPath: string): Promise<boolean> {
-		const workspaceFolders = (workspace.workspaceFolders || [])
+		// Allow opening repositories in the empty workspace
+		if (workspace.workspaceFolders === undefined) {
+			return false;
+		}
+
+		const workspaceFolders = workspace.workspaceFolders
 			.filter(folder => folder.uri.scheme === 'file');
 
 		if (workspaceFolders.length === 0) {
