@@ -777,7 +777,7 @@ export class WorkspaceTrustRequestService extends Disposable implements IWorkspa
 		}
 
 		const trusted = result === WorkspaceTrustUriResponse.Open;
-		this.workspaceTrustManagementService.setUrisTrust([uri], trusted);
+		await this.workspaceTrustManagementService.setUrisTrust([uri], trusted);
 
 		resolver(trusted);
 
