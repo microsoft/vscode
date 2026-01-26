@@ -10,7 +10,7 @@ import { Range } from '../../../../../../editor/common/core/range.js';
 import { Hover, HoverContext, HoverProvider } from '../../../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
 import { localize } from '../../../../../../nls.js';
-import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../languageModels.js';
+import { ILanguageModelsService } from '../../languageModels.js';
 import { ILanguageModelToolsService, isToolSet, IToolSet } from '../../tools/languageModelToolsService.js';
 import { IChatModeService, isBuiltinChatMode } from '../../chatModes.js';
 import { getPromptsTypeForLanguageId, PromptsType } from '../promptTypes.js';
@@ -189,21 +189,20 @@ export class PromptHoverProvider implements HoverProvider {
 			return this.createHover(baseMessage + '\n\n' + localize('promptHeader.agent.model.githubCopilot', 'Note: This attribute is not used when target is github-copilot.'), range);
 		}
 		if (node.value.type === 'string') {
-			for (const id of this.languageModelsService.getLanguageModelIds()) {
-				const meta = this.languageModelsService.lookupLanguageModel(id);
-				if (meta && ILanguageModelChatMetadata.matchesQualifiedName(node.value.value, meta)) {
-					const lines: string[] = [];
-					lines.push(baseMessage + '\n');
-					lines.push(localize('modelName', '- Name: {0}', meta.name));
-					lines.push(localize('modelFamily', '- Family: {0}', meta.family));
-					lines.push(localize('modelVendor', '- Vendor: {0}', meta.vendor));
-					if (meta.tooltip) {
-						lines.push('', '', meta.tooltip);
-					}
-					return this.createHover(lines.join('\n'), range);
+			const meta = this.languageModelsService.lookupLanguageModelByQualifiedName(node.value.value);
+			if (meta) {
+				const lines: string[] = [];
+				lines.push(baseMessage + '\n');
+				lines.push(localize('modelName', '- Name: {0}', meta.name));
+				lines.push(localize('modelFamily', '- Family: {0}', meta.family));
+				lines.push(localize('modelVendor', '- Vendor: {0}', meta.vendor));
+				if (meta.tooltip) {
+					lines.push('', '', meta.tooltip);
 				}
+				return this.createHover(lines.join('\n'), range);
 			}
 		}
+
 		return this.createHover(baseMessage, range);
 	}
 

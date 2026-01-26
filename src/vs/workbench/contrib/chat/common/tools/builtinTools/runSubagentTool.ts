@@ -21,7 +21,7 @@ import { ChatMode, IChatMode, IChatModeService } from '../../chatModes.js';
 import { IChatProgress, IChatService } from '../../chatService/chatService.js';
 import { ChatRequestVariableSet } from '../../attachments/chatVariableEntries.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../constants.js';
-import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../languageModels.js';
+import { ILanguageModelsService } from '../../languageModels.js';
 import {
 	CountTokensCallback,
 	ILanguageModelToolsService,
@@ -149,16 +149,10 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 					const modeModelQualifiedNames = mode.model?.get();
 					if (modeModelQualifiedNames) {
 						// Find the actual model identifier from the qualified name(s)
-						const modelIds = this.languageModelsService.getLanguageModelIds();
 						for (const qualifiedName of modeModelQualifiedNames) {
-							for (const modelId of modelIds) {
-								const metadata = this.languageModelsService.lookupLanguageModel(modelId);
-								if (metadata && ILanguageModelChatMetadata.matchesQualifiedName(qualifiedName, metadata)) {
-									modeModelId = modelId;
-									break;
-								}
-							}
-							if (modeModelId) {
+							const metadata = this.languageModelsService.lookupLanguageModelByQualifiedName(qualifiedName);
+							if (metadata) {
+								modeModelId = metadata.id;
 								break;
 							}
 						}

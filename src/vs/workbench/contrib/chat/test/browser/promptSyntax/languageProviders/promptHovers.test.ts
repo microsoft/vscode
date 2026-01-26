@@ -59,8 +59,13 @@ suite('PromptHoverProvider', () => {
 
 		instaService.stub(ILanguageModelsService, {
 			getLanguageModelIds() { return testModels.map(m => m.id); },
-			lookupLanguageModel(name: string) {
-				return testModels.find(m => m.id === name);
+			lookupLanguageModelByQualifiedName(qualifiedName: string) {
+				for (const metadata of testModels) {
+					if (ILanguageModelChatMetadata.matchesQualifiedName(qualifiedName, metadata)) {
+						return metadata;
+					}
+				}
+				return undefined;
 			}
 		});
 

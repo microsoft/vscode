@@ -321,7 +321,7 @@ export class PromptValidator {
 		}
 
 		for (const modelName of modelNames) {
-			const modelMetadata = this.findModelByName(languageModels, modelName);
+			const modelMetadata = this.findModelByName(modelName);
 			if (!modelMetadata) {
 				report(toMarker(localize('promptValidator.modelNotFound', "Unknown model '{0}'.", modelName), attribute.value.range, MarkerSeverity.Warning));
 			} else if (agentKind === ChatModeKind.Agent && !ILanguageModelChatMetadata.suitableForAgentMode(modelMetadata)) {
@@ -330,12 +330,10 @@ export class PromptValidator {
 		}
 	}
 
-	private findModelByName(languageModels: string[], modelName: string): ILanguageModelChatMetadata | undefined {
-		for (const model of languageModels) {
-			const metadata = this.languageModelsService.lookupLanguageModel(model);
-			if (metadata && metadata.isUserSelectable !== false && ILanguageModelChatMetadata.matchesQualifiedName(modelName, metadata)) {
-				return metadata;
-			}
+	private findModelByName(modelName: string): ILanguageModelChatMetadata | undefined {
+		const metadata = this.languageModelsService.lookupLanguageModelByQualifiedName(modelName);
+		if (metadata && metadata.isUserSelectable !== false) {
+			return metadata;
 		}
 		return undefined;
 	}
