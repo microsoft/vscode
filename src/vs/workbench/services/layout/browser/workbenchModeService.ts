@@ -60,7 +60,7 @@ export class WorkbenchModeService extends Disposable implements IWorkbenchModeSe
 			this.configurationRegistry.deregisterDefaultConfigurations([this.configurationDefaults]);
 		}
 		if (configurationDefaults) {
-			this.configurationDefaults = { overrides: configurationDefaults };
+			this.configurationDefaults = { overrides: configurationDefaults, donotCache: true };
 			this.configurationRegistry.registerDefaultConfigurations([this.configurationDefaults]);
 		} else {
 			this.configurationDefaults = undefined;

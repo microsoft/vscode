@@ -110,10 +110,15 @@ export class DefaultConfiguration extends BaseDefaultConfiguration {
 
 	private async updateCachedConfigurationDefaultsOverrides(): Promise<void> {
 		const cachedConfigurationDefaultsOverrides: IStringDictionary<unknown> = {};
-		const configurationDefaultsOverrides = this.configurationRegistry.getConfigurationDefaultsOverrides();
-		for (const [key, value] of configurationDefaultsOverrides) {
-			if (!OVERRIDE_PROPERTY_REGEX.test(key) && value.value !== undefined) {
-				cachedConfigurationDefaultsOverrides[key] = value.value;
+		const defaultConfigurations = this.configurationRegistry.getRegisteredDefaultConfigurations();
+		for (const defaultConfiguration of defaultConfigurations) {
+			if (defaultConfiguration.donotCache) {
+				continue;
+			}
+			for (const [key, value] of Object.entries(defaultConfiguration.overrides)) {
+				if (!OVERRIDE_PROPERTY_REGEX.test(key) && value !== undefined) {
+					cachedConfigurationDefaultsOverrides[key] = value;
+				}
 			}
 		}
 		try {
