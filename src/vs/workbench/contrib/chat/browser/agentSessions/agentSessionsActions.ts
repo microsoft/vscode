@@ -22,7 +22,7 @@ import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contex
 import { ChatEditorInput, showClearEditingSessionConfirmation } from '../widgetHosts/editor/chatEditorInput.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { AgentSessionsGrouping, ChatConfiguration } from '../../common/constants.js';
+import { ChatConfiguration } from '../../common/constants.js';
 import { ACTION_ID_NEW_CHAT, CHAT_CATEGORY } from '../actions/chatActions.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { ChatViewPane } from '../widgetHosts/viewPane/chatViewPane.js';
@@ -48,7 +48,7 @@ export class ToggleShowAgentSessionsAction extends Action2 {
 			menu: {
 				id: MenuId.ChatWelcomeContext,
 				group: '0_sessions',
-				order: 3,
+				order: 1,
 				when: ChatContextKeys.inChatEditor.negate()
 			}
 		});
@@ -61,66 +61,12 @@ export class ToggleShowAgentSessionsAction extends Action2 {
 	}
 }
 
-const groupSessionsSubmenu = new MenuId('chatGroupSessionsSubmenu');
-MenuRegistry.appendMenuItem(MenuId.ChatWelcomeContext, {
-	submenu: groupSessionsSubmenu,
-	title: localize2('chat.groupSessions', "Group Sessions"),
-	group: '0_sessions',
-	order: 2,
-	when: ContextKeyExpr.and(
-		ChatContextKeys.inChatEditor.negate(),
-		ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, true)
-	)
-});
-
-export class GroupSessionsByDateAction extends Action2 {
-
-	constructor() {
-		super({
-			id: 'workbench.action.chat.groupSessionsByDate',
-			title: localize2('chat.groupSessions.byDate', "By Date"),
-			toggled: ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsGrouping}`, AgentSessionsGrouping.Date),
-			menu: {
-				id: groupSessionsSubmenu,
-				group: 'navigation',
-				order: 2
-			}
-		});
-	}
-
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const configurationService = accessor.get(IConfigurationService);
-		await configurationService.updateValue(ChatConfiguration.ChatViewSessionsGrouping, AgentSessionsGrouping.Date);
-	}
-}
-
-export class GroupSessionsByActivityAction extends Action2 {
-
-	constructor() {
-		super({
-			id: 'workbench.action.chat.groupSessionsByActivity',
-			title: localize2('chat.groupSessions.byActivity', "By Activity"),
-			toggled: ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsGrouping}`, AgentSessionsGrouping.Activity),
-			menu: {
-				id: groupSessionsSubmenu,
-				group: 'navigation',
-				order: 1
-			}
-		});
-	}
-
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const configurationService = accessor.get(IConfigurationService);
-		await configurationService.updateValue(ChatConfiguration.ChatViewSessionsGrouping, AgentSessionsGrouping.Activity);
-	}
-}
-
 const agentSessionsOrientationSubmenu = new MenuId('chatAgentSessionsOrientationSubmenu');
 MenuRegistry.appendMenuItem(MenuId.ChatWelcomeContext, {
 	submenu: agentSessionsOrientationSubmenu,
-	title: localize2('chat.sessionsOrientation', "Layout Sessions"),
+	title: localize2('chat.sessionsOrientation', "Sessions Orientation"),
 	group: '0_sessions',
-	order: 1,
+	order: 2,
 	when: ChatContextKeys.inChatEditor.negate()
 });
 
@@ -263,18 +209,12 @@ export class ArchiveAgentSessionSectionAction extends Action2 {
 				id: MenuId.AgentSessionSectionToolbar,
 				group: 'navigation',
 				order: 1,
-				when: ContextKeyExpr.and(
-					ChatContextKeys.agentSessionSection.notEqualsTo(AgentSessionSection.Archived),
-					ChatContextKeys.agentSessionSection.notEqualsTo(AgentSessionSection.History)
-				),
+				when: ChatContextKeys.agentSessionSection.notEqualsTo(AgentSessionSection.Archived),
 			}, {
 				id: MenuId.AgentSessionSectionContext,
 				group: '1_edit',
 				order: 2,
-				when: ContextKeyExpr.and(
-					ChatContextKeys.agentSessionSection.notEqualsTo(AgentSessionSection.Archived),
-					ChatContextKeys.agentSessionSection.notEqualsTo(AgentSessionSection.History)
-				),
+				when: ChatContextKeys.agentSessionSection.notEqualsTo(AgentSessionSection.Archived),
 			}]
 		});
 	}
