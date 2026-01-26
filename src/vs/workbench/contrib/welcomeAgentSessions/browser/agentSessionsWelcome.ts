@@ -65,6 +65,18 @@ const MAX_SESSIONS = 6;
 const MAX_REPO_PICKS = 10;
 const MAX_WALKTHROUGHS = 10;
 
+type AgentSessionsWelcomeActionClassification = {
+	command: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The command being executed on the agent sessions welcome page.' };
+	argument: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'Additional arguments for the command' };
+	owner: 'lramos15';
+	comment: 'Help understand what actions are most commonly taken on the agent sessions welcome page';
+};
+
+type AgentSessionsWelcomeActionEvent = {
+	command: string;
+	argument: string | undefined;
+};
+
 export class AgentSessionsWelcomePage extends EditorPane {
 
 	static readonly ID = 'agentSessionsWelcomePage';
@@ -211,7 +223,10 @@ export class AgentSessionsWelcomePage extends EditorPane {
 			const button = append(container, $('button.agentSessionsWelcome-startEntry'));
 			button.appendChild(renderIcon(entry.icon));
 			button.appendChild(document.createTextNode(entry.label));
-			button.onclick = () => this.commandService.executeCommand(entry.command);
+			button.onclick = () => {
+				this.telemetryService.publicLog2<AgentSessionsWelcomeActionEvent, AgentSessionsWelcomeActionClassification>('gettingStarted.ActionExecuted', { command: 'startEntry', argument: entry.command });
+				this.commandService.executeCommand(entry.command);
+			};
 		}
 	}
 
@@ -600,6 +615,7 @@ export class AgentSessionsWelcomePage extends EditorPane {
 
 		card.onclick = () => {
 			const walkthrough = activeWalkthroughs[currentIndex];
+			this.telemetryService.publicLog2<AgentSessionsWelcomeActionEvent, AgentSessionsWelcomeActionClassification>('gettingStarted.ActionExecuted', { command: 'openWalkthrough', argument: walkthrough.id });
 			// Open walkthrough with returnToCommand so back button returns to agent sessions welcome
 			const options: GettingStartedEditorOptions = {
 				selectedCategory: walkthrough.id,
