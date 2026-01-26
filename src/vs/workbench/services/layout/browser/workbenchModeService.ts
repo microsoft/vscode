@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { IWorkbenchModeConfiguration, IWorkbenchModeService } from '../common/workbenchModeService.js';
@@ -30,7 +30,7 @@ export class WorkbenchModeService extends Disposable implements IWorkbenchModeSe
 	private readonly _onDidChangeWorkbenchMode = this._register(new Emitter<string | undefined>());
 	readonly onDidChangeWorkbenchMode: Event<string | undefined> = this._onDidChangeWorkbenchMode.event;
 
-	private readonly workbenchModeFileWatcher = this._register(new MutableDisposable());
+	private readonly workbenchModeFileWatcherDiposables = this._register(new DisposableStore());
 	private readonly configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 	private configurationDefaults: IConfigurationDefaults | undefined;
 
@@ -72,18 +72,18 @@ export class WorkbenchModeService extends Disposable implements IWorkbenchModeSe
 
 	private watchCurrentModeFile(): void {
 		if (!this._workbenchMode) {
-			this.workbenchModeFileWatcher.clear();
+			this.workbenchModeFileWatcherDiposables.clear();
 			return;
 		}
 
 		const workbenchModeFileUri = this.getWorkbenchModeFileUri(this._workbenchMode);
 		if (!workbenchModeFileUri) {
-			this.workbenchModeFileWatcher.clear();
+			this.workbenchModeFileWatcherDiposables.clear();
 			return;
 		}
 
-		this.workbenchModeFileWatcher.value = this.fileService.watch(workbenchModeFileUri);
-		this._register(this.fileService.onDidFilesChange(e => {
+		this.workbenchModeFileWatcherDiposables.add(this.fileService.watch(workbenchModeFileUri));
+		this.workbenchModeFileWatcherDiposables.add(this.fileService.onDidFilesChange(e => {
 			if (e.affects(workbenchModeFileUri)) {
 				this.updateWorkbenchModeConfiguration();
 				this._onDidChangeWorkbenchMode.fire(this._workbenchMode);
