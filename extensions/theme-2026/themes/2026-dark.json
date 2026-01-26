@@ -124,7 +124,7 @@
 		"editorCodeLens.foreground": "#888888",
 		"editorBracketMatch.background": "#3994BC55",
 		"editorBracketMatch.border": "#2A2B2CFF",
-		"editorWidget.background": "#20212280",
+		"editorWidget.background": "#202122AA",
 		"editorWidget.border": "#2A2B2CFF",
 		"editorWidget.foreground": "#bfbfbf",
 		"editorSuggestWidget.background": "#202122",
