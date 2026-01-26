@@ -7,8 +7,10 @@ import fs from 'fs';
 import path from 'path';
 import vfs from 'vinyl-fs';
 import filter from 'gulp-filter';
-import * as util from './util';
-import { getVersion } from './getVersion';
+import * as util from './util.ts';
+import { getVersion } from './getVersion.ts';
+import electron from '@vscode/gulp-electron';
+import json from 'gulp-json-editor';
 
 type DarwinDocumentSuffix = 'document' | 'script' | 'file' | 'source code';
 type DarwinDocumentType = {
@@ -24,9 +26,11 @@ function isDocumentSuffix(str?: string): str is DarwinDocumentSuffix {
 	return str === 'document' || str === 'script' || str === 'file' || str === 'source code';
 }
 
-const root = path.dirname(path.dirname(__dirname));
+const root = path.dirname(path.dirname(import.meta.dirname));
 const product = JSON.parse(fs.readFileSync(path.join(root, 'product.json'), 'utf8'));
 const commit = getVersion(root);
+const useVersionedUpdate = process.platform === 'win32' && (product as typeof product & { win32VersionedUpdate?: boolean })?.win32VersionedUpdate;
+const versionedResourcesFolder = useVersionedUpdate ? commit!.substring(0, 10) : '';
 
 function createTemplate(input: string): (params: Record<string, string>) => string {
 	return (params: Record<string, string>) => {
@@ -104,7 +108,7 @@ export const config = {
 	tag: product.electronRepository ? `v${electronVersion}-${msBuildId}` : undefined,
 	productAppName: product.nameLong,
 	companyName: 'Microsoft Corporation',
-	copyright: 'Copyright (C) 2024 Microsoft. All rights reserved',
+	copyright: 'Copyright (C) 2026 Microsoft. All rights reserved',
 	darwinIcon: 'resources/darwin/code.icns',
 	darwinBundleIdentifier: product.darwinBundleIdentifier,
 	darwinApplicationCategoryType: 'public.app-category.developer-tools',
@@ -201,13 +205,12 @@ export const config = {
 	repo: product.electronRepository || undefined,
 	validateChecksum: true,
 	checksumFile: path.join(root, 'build', 'checksums', 'electron.txt'),
+	createVersionedResources: useVersionedUpdate,
+	productVersionString: versionedResourcesFolder,
 };
 
 function getElectron(arch: string): () => NodeJS.ReadWriteStream {
 	return () => {
-		const electron = require('@vscode/gulp-electron');
-		const json = require('gulp-json-editor') as typeof import('gulp-json-editor');
-
 		const electronOpts = {
 			...config,
 			platform: process.platform,
@@ -227,7 +230,7 @@ function getElectron(arch: string): () => NodeJS.ReadWriteStream {
 async function main(arch: string = process.arch): Promise<void> {
 	const version = electronVersion;
 	const electronPath = path.join(root, '.build', 'electron');
-	const versionFile = path.join(electronPath, 'version');
+	const versionFile = path.join(electronPath, versionedResourcesFolder, 'version');
 	const isUpToDate = fs.existsSync(versionFile) && fs.readFileSync(versionFile, 'utf8') === `${version}`;
 
 	if (!isUpToDate) {
@@ -236,7 +239,7 @@ async function main(arch: string = process.arch): Promise<void> {
 	}
 }
 
-if (require.main === module) {
+if (import.meta.main) {
 	main(process.argv[2]).catch(err => {
 		console.error(err);
 		process.exit(1);

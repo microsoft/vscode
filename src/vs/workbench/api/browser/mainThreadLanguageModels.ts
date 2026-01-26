@@ -14,7 +14,7 @@ import { URI, UriComponents } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { ExtensionIdentifier } from '../../../platform/extensions/common/extensions.js';
 import { ILogService } from '../../../platform/log/common/log.js';
-import { resizeImage } from '../../contrib/chat/browser/imageUtils.js';
+import { resizeImage } from '../../contrib/chat/browser/chatImageUtils.js';
 import { ILanguageModelIgnoredFilesService } from '../../contrib/chat/common/ignoredFiles.js';
 import { IChatMessage, IChatResponsePart, ILanguageModelChatResponse, ILanguageModelChatSelector, ILanguageModelsService } from '../../contrib/chat/common/languageModels.js';
 import { IAuthenticationAccessService } from '../../services/authentication/browser/authenticationAccessService.js';
@@ -32,7 +32,7 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 	private readonly _store = new DisposableStore();
 	private readonly _providerRegistrations = new DisposableMap<string>();
 	private readonly _lmProviderChange = new Emitter<{ vendor: string }>();
-	private readonly _pendingProgress = new Map<number, { defer: DeferredPromise<any>; stream: AsyncIterableSource<IChatResponsePart | IChatResponsePart[]> }>();
+	private readonly _pendingProgress = new Map<number, { defer: DeferredPromise<unknown>; stream: AsyncIterableSource<IChatResponsePart | IChatResponsePart[]> }>();
 	private readonly _ignoredFileProviderRegistrations = new DisposableMap<number>();
 
 	constructor(
@@ -70,7 +70,7 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 				},
 				sendChatRequest: async (modelId, messages, from, options, token) => {
 					const requestId = (Math.random() * 1e6) | 0;
-					const defer = new DeferredPromise<any>();
+					const defer = new DeferredPromise<unknown>();
 					const stream = new AsyncIterableSource<IChatResponsePart | IChatResponsePart[]>();
 
 					try {
@@ -140,7 +140,7 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 		return this._chatProviderService.selectLanguageModels(selector);
 	}
 
-	async $tryStartChatRequest(extension: ExtensionIdentifier, modelIdentifier: string, requestId: number, messages: SerializableObjectWithBuffers<IChatMessage[]>, options: {}, token: CancellationToken): Promise<any> {
+	async $tryStartChatRequest(extension: ExtensionIdentifier, modelIdentifier: string, requestId: number, messages: SerializableObjectWithBuffers<IChatMessage[]>, options: {}, token: CancellationToken): Promise<void> {
 		this._logService.trace('[CHAT] request STARTED', extension.value, requestId);
 
 		let response: ILanguageModelChatResponse;
@@ -261,7 +261,7 @@ class LanguageModelAccessAuthProvider implements IAuthenticationProvider {
 	}
 	removeSession(sessionId: string): Promise<void> {
 		if (this._session) {
-			this._onDidChangeSessions.fire({ added: [], changed: [], removed: [this._session!] });
+			this._onDidChangeSessions.fire({ added: [], changed: [], removed: [this._session] });
 			this._session = undefined;
 		}
 		return Promise.resolve();

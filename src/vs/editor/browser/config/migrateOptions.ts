@@ -251,3 +251,10 @@ registerEditorSettingMigration('inlineSuggest.edits.codeShifting', (value, read,
 		write('inlineSuggest.edits.allowCodeShifting', value ? 'always' : 'never');
 	}
 });
+
+// Migrate Hover
+registerEditorSettingMigration('hover.enabled', (value, read, write) => {
+	if (typeof value === 'boolean') {
+		write('hover.enabled', value ? 'on' : 'off');
+	}
+});

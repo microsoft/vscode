@@ -484,7 +484,7 @@ export class ViewPaneContainer<MementoType extends object = object> extends Comp
 					} else if (dropData.type === 'view') {
 						const oldViewContainer = this.viewDescriptorService.getViewContainerByViewId(dropData.id);
 						const viewDescriptor = this.viewDescriptorService.getViewDescriptorById(dropData.id);
-						if (oldViewContainer !== this.viewContainer && viewDescriptor && viewDescriptor.canMoveView) {
+						if (oldViewContainer !== this.viewContainer && viewDescriptor?.canMoveView) {
 							this.viewDescriptorService.moveViewsToContainer([viewDescriptor], this.viewContainer, undefined, 'dnd');
 						}
 					}
@@ -684,7 +684,7 @@ export class ViewPaneContainer<MementoType extends object = object> extends Comp
 	}
 
 	protected createView(viewDescriptor: IViewDescriptor, options: IViewletViewOptions): ViewPane {
-		return this.instantiationService.createInstance(viewDescriptor.ctorDescriptor.ctor, ...(viewDescriptor.ctorDescriptor.staticArguments || []), options) as ViewPane;
+		return this.instantiationService.createInstance(viewDescriptor.ctorDescriptor.ctor, ...(viewDescriptor.ctorDescriptor.staticArguments || []), options);
 	}
 
 	getView(id: string): ViewPane | undefined {

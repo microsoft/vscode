@@ -402,7 +402,7 @@ class Rule implements monarchCommon.IRule {
 			sregex = re;
 		}
 		else if (re instanceof RegExp) {
-			sregex = (<RegExp>re).source;
+			sregex = re.source;
 		}
 		else {
 			throw monarchCommon.createError(lexer, 'rules must start with a match string or regular expression: ' + this.name);

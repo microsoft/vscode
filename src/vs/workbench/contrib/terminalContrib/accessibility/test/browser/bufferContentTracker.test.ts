@@ -80,7 +80,7 @@ suite('Buffer Content Tracker', () => {
 			capabilities.add(TerminalCapability.NaiveCwdDetection, null!);
 		}
 		const TerminalCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
-		xterm = store.add(instantiationService.createInstance(XtermTerminal, TerminalCtor, {
+		xterm = store.add(instantiationService.createInstance(XtermTerminal, undefined, TerminalCtor, {
 			cols: 80,
 			rows: 30,
 			xtermColorProvider: { getBackgroundColor: () => undefined },

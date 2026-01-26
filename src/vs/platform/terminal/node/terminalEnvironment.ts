@@ -17,6 +17,7 @@ import { deserializeEnvironmentVariableCollections } from '../common/environment
 import { MergedEnvironmentVariableCollection } from '../common/environmentVariableCollection.js';
 import { chmod, realpathSync, mkdirSync } from 'fs';
 import { promisify } from 'util';
+import { isString, SingleOrMany } from '../../../base/common/types.js';
 
 export function getWindowsBuildNumber(): number {
 	const osVersion = (/(\d+)\.(\d+)\.(\d+)/g).exec(os.release());
@@ -81,9 +82,9 @@ export async function getShellIntegrationInjection(
 	if (shellLaunchConfig.ignoreShellIntegration) {
 		return { type: 'failure', reason: ShellIntegrationInjectionFailureReason.IgnoreShellIntegrationFlag };
 	}
-	// Shell integration doesn't work with winpty
-	if (isWindows && (!options.windowsEnableConpty || getWindowsBuildNumber() < 18309)) {
-		return { type: 'failure', reason: ShellIntegrationInjectionFailureReason.Winpty };
+	// Shell integration requires Windows 10 build 18309+ (ConPTY support)
+	if (isWindows && getWindowsBuildNumber() < 18309) {
+		return { type: 'failure', reason: ShellIntegrationInjectionFailureReason.UnsupportedWindowsBuild };
 	}
 
 	const originalArgs = shellLaunchConfig.args;
@@ -102,7 +103,7 @@ export async function getShellIntegrationInjection(
 	const scopedDownShellEnvs = ['PATH', 'VIRTUAL_ENV', 'HOME', 'SHELL', 'PWD'];
 	if (shellLaunchConfig.shellIntegrationEnvironmentReporting) {
 		if (isWindows) {
-			const enableWindowsEnvReporting = options.windowsUseConptyDll || options.windowsEnableConpty && getWindowsBuildNumber() >= 22631 && shell !== 'bash.exe';
+			const enableWindowsEnvReporting = options.windowsUseConptyDll || getWindowsBuildNumber() >= 22631 && shell !== 'bash.exe';
 			if (enableWindowsEnvReporting) {
 				envMixin['VSCODE_SHELL_ENV_REPORTING'] = scopedDownShellEnvs.join(',');
 			}
@@ -348,8 +349,8 @@ const shLoginArgs = ['--login', '-l'];
 const shInteractiveArgs = ['-i', '--interactive'];
 const pwshImpliedArgs = ['-nol', '-nologo'];
 
-function arePwshLoginArgs(originalArgs: string | string[]): boolean {
-	if (typeof originalArgs === 'string') {
+function arePwshLoginArgs(originalArgs: SingleOrMany<string>): boolean {
+	if (isString(originalArgs)) {
 		return pwshLoginArgs.includes(originalArgs.toLowerCase());
 	} else {
 		return originalArgs.length === 1 && pwshLoginArgs.includes(originalArgs[0].toLowerCase()) ||
@@ -359,18 +360,18 @@ function arePwshLoginArgs(originalArgs: string | string[]): boolean {
 	}
 }
 
-function arePwshImpliedArgs(originalArgs: string | string[]): boolean {
-	if (typeof originalArgs === 'string') {
+function arePwshImpliedArgs(originalArgs: SingleOrMany<string>): boolean {
+	if (isString(originalArgs)) {
 		return pwshImpliedArgs.includes(originalArgs.toLowerCase());
 	} else {
 		return originalArgs.length === 0 || originalArgs?.length === 1 && pwshImpliedArgs.includes(originalArgs[0].toLowerCase());
 	}
 }
 
-function areZshBashFishLoginArgs(originalArgs: string | string[]): boolean {
-	if (typeof originalArgs !== 'string') {
+function areZshBashFishLoginArgs(originalArgs: SingleOrMany<string>): boolean {
+	if (!isString(originalArgs)) {
 		originalArgs = originalArgs.filter(arg => !shInteractiveArgs.includes(arg.toLowerCase()));
 	}
-	return originalArgs === 'string' && shLoginArgs.includes(originalArgs.toLowerCase())
-		|| typeof originalArgs !== 'string' && originalArgs.length === 1 && shLoginArgs.includes(originalArgs[0].toLowerCase());
+	return isString(originalArgs) && shLoginArgs.includes(originalArgs.toLowerCase())
+		|| !isString(originalArgs) && originalArgs.length === 1 && shLoginArgs.includes(originalArgs[0].toLowerCase());
 }

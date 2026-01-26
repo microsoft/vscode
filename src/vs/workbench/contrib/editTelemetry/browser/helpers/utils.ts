@@ -30,6 +30,9 @@ export function mapObservableDelta<T, TDelta, TDeltaNew>(obs: IObservableWithCha
 
 export function iterateObservableChanges<T, TChange>(obs: IObservableWithChange<T, TChange>, store: DisposableStore): AsyncIterable<{ value: T; prevValue: T; change: RemoveUndefined<TChange>[] }> {
 	return new AsyncIterableProducer<{ value: T; prevValue: T; change: RemoveUndefined<TChange>[] }>((e) => {
+		if (store.isDisposed) {
+			return;
+		}
 		store.add(runOnChange(obs, (value, prevValue, change) => {
 			e.emitOne({ value, prevValue, change: change });
 		}));

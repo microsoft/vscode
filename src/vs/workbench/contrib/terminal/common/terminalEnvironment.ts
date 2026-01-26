@@ -8,16 +8,17 @@
  */
 
 import * as path from '../../../../base/common/path.js';
-import { URI } from '../../../../base/common/uri.js';
+import { URI, uriToFsPath } from '../../../../base/common/uri.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
 import { IConfigurationResolverService } from '../../../services/configurationResolver/common/configurationResolver.js';
 import { sanitizeProcessEnvironment } from '../../../../base/common/processes.js';
-import { IShellLaunchConfig, ITerminalBackend, ITerminalEnvironment, TerminalShellType, WindowsShellType } from '../../../../platform/terminal/common/terminal.js';
+import { IShellLaunchConfig, ITerminalBackend, ITerminalEnvironment, TerminalSettingId, TerminalShellType, WindowsShellType } from '../../../../platform/terminal/common/terminal.js';
 import { IProcessEnvironment, isWindows, isMacintosh, language, OperatingSystem } from '../../../../base/common/platform.js';
 import { escapeNonWindowsPath, sanitizeCwd } from '../../../../platform/terminal/common/terminalEnvironment.js';
-import { isString } from '../../../../base/common/types.js';
+import { isNumber, isString } from '../../../../base/common/types.js';
 import { IHistoryService } from '../../../services/history/common/history.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import type { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 
 export function mergeEnvironments(parent: IProcessEnvironment, other: ITerminalEnvironment | undefined): void {
 	if (!other) {
@@ -51,7 +52,7 @@ export function mergeEnvironments(parent: IProcessEnvironment, other: ITerminalE
 }
 
 function _mergeEnvironmentValue(env: ITerminalEnvironment, key: string, value: string | null): void {
-	if (typeof value === 'string') {
+	if (isString(value)) {
 		env[key] = value;
 	} else {
 		delete env[key];
@@ -83,7 +84,7 @@ function mergeNonNullKeys(env: IProcessEnvironment, other: ITerminalEnvironment 
 
 async function resolveConfigurationVariables(variableResolver: VariableResolver, env: ITerminalEnvironment): Promise<ITerminalEnvironment> {
 	await Promise.all(Object.entries(env).map(async ([key, value]) => {
-		if (typeof value === 'string') {
+		if (isString(value)) {
 			try {
 				env[key] = await variableResolver(value);
 			} catch (e) {
@@ -172,7 +173,7 @@ export function getLangEnvVariable(locale?: string): string {
 			uk: 'UA',
 			zh: 'CN',
 		};
-		if (parts[0] in languageVariants) {
+		if (Object.prototype.hasOwnProperty.call(languageVariants, parts[0])) {
 			parts.push(languageVariants[parts[0]]);
 		}
 	} else {
@@ -314,7 +315,7 @@ export async function createTerminalEnvironment(
  * @param backend The backend for the terminal.
  * @param isWindowsFrontend Whether the frontend is Windows, this is only exposed for injection via
  * tests.
- * @returns An escaped version of the path to be execuded in the terminal.
+ * @returns An escaped version of the path to be executed in the terminal.
  */
 export async function preparePathForShell(resource: string | URI, executable: string | undefined, title: string, shellType: TerminalShellType | undefined, backend: Pick<ITerminalBackend, 'getWslPath'> | undefined, os: OperatingSystem | undefined, isWindowsFrontend: boolean = isWindows): Promise<string> {
 	let originalPath: string;
@@ -342,7 +343,6 @@ export async function preparePathForShell(resource: string | URI, executable: st
 		title === 'pwsh' ||
 		pathBasename === 'powershell' ||
 		title === 'powershell';
-
 
 	if (isPowerShell && (hasSpace || originalPath.includes('\''))) {
 		return `& '${originalPath.replace(/'/g, '\'\'')}'`;
@@ -380,7 +380,7 @@ export async function preparePathForShell(resource: string | URI, executable: st
 }
 
 export function getWorkspaceForTerminal(cwd: URI | string | undefined, workspaceContextService: IWorkspaceContextService, historyService: IHistoryService): IWorkspaceFolder | undefined {
-	const cwdUri = typeof cwd === 'string' ? URI.parse(cwd) : cwd;
+	const cwdUri = isString(cwd) ? URI.parse(cwd) : cwd;
 	let workspaceFolder = cwdUri ? workspaceContextService.getWorkspaceFolder(cwdUri) ?? undefined : undefined;
 	if (!workspaceFolder) {
 		// fallback to last active workspace if cwd is not available or it is not in workspace
@@ -389,4 +389,51 @@ export function getWorkspaceForTerminal(cwd: URI | string | undefined, workspace
 		workspaceFolder = activeWorkspaceRootUri ? workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri) ?? undefined : undefined;
 	}
 	return workspaceFolder;
+}
+
+export async function getUriLabelForShell(uri: URI | string, backend: Pick<ITerminalBackend, 'getWslPath'>, shellType?: TerminalShellType, os?: OperatingSystem, isWindowsFrontend: boolean = isWindows): Promise<string> {
+	let path = isString(uri) ? uri : uri.fsPath;
+	if (os === OperatingSystem.Windows) {
+		if (shellType === WindowsShellType.Wsl) {
+			return backend.getWslPath(path.replaceAll('/', '\\'), 'win-to-unix');
+		} else if (shellType === WindowsShellType.GitBash) {
+			// Convert \ to / and replace 'c:\' with '/c/'.
+			return path.replaceAll('\\', '/').replace(/^([a-zA-Z]):\//, '/$1/');
+		} else {
+			// If the frontend is not Windows but the terminal is, convert / to \.
+			path = isString(uri) ? path : uriToFsPath(uri, true);
+			return !isWindowsFrontend ? path.replaceAll('/', '\\') : path;
+		}
+	} else {
+		// If the frontend is Windows but the terminal is not, convert \ to /.
+		return isWindowsFrontend ? path.replaceAll('\\', '/') : path;
+	}
+}
+
+/**
+ * Gets the unified duration to wait for shell integration after the terminal launches before
+ * declaring the terminal lacks shell integration.
+ */
+export function getShellIntegrationTimeout(
+	configurationService: IConfigurationService,
+	siInjectionEnabled: boolean,
+	isRemote: boolean,
+	processReadyTimestamp?: number
+): number {
+	const timeoutValue = configurationService.getValue<unknown>(TerminalSettingId.ShellIntegrationTimeout);
+	let timeoutMs: number;
+
+	if (!isNumber(timeoutValue) || timeoutValue < 0) {
+		timeoutMs = siInjectionEnabled ? 5000 : (isRemote ? 3000 : 2000);
+	} else {
+		timeoutMs = Math.max(timeoutValue, 500);
+	}
+
+	// Adjust timeout based on how long the process has already been running
+	if (processReadyTimestamp !== undefined) {
+		const elapsed = Date.now() - processReadyTimestamp;
+		timeoutMs = Math.max(0, timeoutMs - elapsed);
+	}
+
+	return timeoutMs;
 }

@@ -34,7 +34,7 @@ export async function askForPromptSourceFolder(
 	const workspaceService = accessor.get(IWorkspaceContextService);
 
 	// get prompts source folders based on the prompt type
-	const folders = promptsService.getSourceFolders(type);
+	const folders = await promptsService.getSourceFolders(type);
 
 	// if no source folders found, show 'learn more' dialog
 	// note! this is a temporary solution and must be replaced with a dialog to select
@@ -106,11 +106,13 @@ export async function askForPromptSourceFolder(
 function getPlaceholderStringforNew(type: PromptsType): string {
 	switch (type) {
 		case PromptsType.instructions:
-			return localize('workbench.command.instructions.create.location.placeholder', "Select a location to create the instructions file in...");
+			return localize('workbench.command.instructions.create.location.placeholder', "Select a location to create the instructions file");
 		case PromptsType.prompt:
-			return localize('workbench.command.prompt.create.location.placeholder', "Select a location to create the prompt file in...");
+			return localize('workbench.command.prompt.create.location.placeholder', "Select a location to create the prompt file");
 		case PromptsType.agent:
-			return localize('workbench.command.agent.create.location.placeholder', "Select a location to create the agent file in...");
+			return localize('workbench.command.agent.create.location.placeholder', "Select a location to create the agent file");
+		case PromptsType.skill:
+			return localize('workbench.command.skill.create.location.placeholder', "Select a location to create the skill");
 		default:
 			throw new Error('Unknown prompt type');
 	}
@@ -120,22 +122,26 @@ function getPlaceholderStringforMove(type: PromptsType, isMove: boolean): string
 	if (isMove) {
 		switch (type) {
 			case PromptsType.instructions:
-				return localize('instructions.move.location.placeholder', "Select a location to move the instructions file to...");
+				return localize('instructions.move.location.placeholder', "Select a location to move the instructions file to");
 			case PromptsType.prompt:
-				return localize('prompt.move.location.placeholder', "Select a location to move the prompt file to...");
+				return localize('prompt.move.location.placeholder', "Select a location to move the prompt file to");
 			case PromptsType.agent:
-				return localize('agent.move.location.placeholder', "Select a location to move the agent file to...");
+				return localize('agent.move.location.placeholder', "Select a location to move the agent file to");
+			case PromptsType.skill:
+				return localize('skill.move.location.placeholder', "Select a location to move the skill to");
 			default:
 				throw new Error('Unknown prompt type');
 		}
 	}
 	switch (type) {
 		case PromptsType.instructions:
-			return localize('instructions.copy.location.placeholder', "Select a location to copy the instructions file to...");
+			return localize('instructions.copy.location.placeholder', "Select a location to copy the instructions file to");
 		case PromptsType.prompt:
-			return localize('prompt.copy.location.placeholder', "Select a location to copy the prompt file to...");
+			return localize('prompt.copy.location.placeholder', "Select a location to copy the prompt file to");
 		case PromptsType.agent:
-			return localize('agent.copy.location.placeholder', "Select a location to copy the agent file to...");
+			return localize('agent.copy.location.placeholder', "Select a location to copy the agent file to");
+		case PromptsType.skill:
+			return localize('skill.copy.location.placeholder', "Select a location to copy the skill to");
 		default:
 			throw new Error('Unknown prompt type');
 	}
@@ -179,6 +185,8 @@ function getLearnLabel(type: PromptsType): string {
 			return localize('commands.instructions.create.ask-folder.empty.docs-label', 'Learn how to configure reusable instructions');
 		case PromptsType.agent:
 			return localize('commands.agent.create.ask-folder.empty.docs-label', 'Learn how to configure custom agents');
+		case PromptsType.skill:
+			return localize('commands.skill.create.ask-folder.empty.docs-label', 'Learn how to configure skills');
 		default:
 			throw new Error('Unknown prompt type');
 	}
@@ -192,6 +200,8 @@ function getMissingSourceFolderString(type: PromptsType): string {
 			return localize('commands.prompts.create.ask-folder.empty.placeholder', 'No prompt source folders found.');
 		case PromptsType.agent:
 			return localize('commands.agent.create.ask-folder.empty.placeholder', 'No agent source folders found.');
+		case PromptsType.skill:
+			return localize('commands.skill.create.ask-folder.empty.placeholder', 'No skill source folders found.');
 		default:
 			throw new Error('Unknown prompt type');
 	}

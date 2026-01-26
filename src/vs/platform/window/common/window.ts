@@ -262,7 +262,7 @@ export function getTitleBarStyle(configurationService: IConfigurationService): T
 	if (configuration) {
 		const useNativeTabs = isMacintosh && configuration.nativeTabs === true;
 		if (useNativeTabs) {
-			return TitlebarStyle.NATIVE; // native tabs on sierra do not work with custom title style
+			return TitlebarStyle.NATIVE; // native tabs on macOS do not work with custom title style
 		}
 
 		const useSimpleFullScreen = isMacintosh && configuration.nativeFullScreen === false;
@@ -428,6 +428,7 @@ export interface INativeWindowConfiguration extends IWindowConfiguration, Native
 	machineId: string;
 	sqmId: string;
 	devDeviceId: string;
+	isPortable: boolean;
 
 	execPath: string;
 	backupPath?: string;

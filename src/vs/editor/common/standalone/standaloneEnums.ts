@@ -437,15 +437,15 @@ export enum InlayHintKind {
 	Parameter = 2
 }
 
-export enum InlineCompletionDisplayLocationKind {
-	Code = 1,
-	Label = 2
-}
-
 export enum InlineCompletionEndOfLifeReasonKind {
 	Accepted = 0,
 	Rejected = 1,
 	Ignored = 2
+}
+
+export enum InlineCompletionHintStyle {
+	Code = 1,
+	Label = 2
 }
 
 /**

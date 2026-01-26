@@ -5,11 +5,11 @@
 
 import fs from 'fs';
 import path from 'path';
-import { sign, SignOptions } from '@electron/osx-sign';
+import { sign, type SignOptions } from '@electron/osx-sign';
 import { spawn } from '@malept/cross-spawn-promise';
 
-const root = path.dirname(path.dirname(__dirname));
-const baseDir = path.dirname(__dirname);
+const root = path.dirname(path.dirname(import.meta.dirname));
+const baseDir = path.dirname(import.meta.dirname);
 const product = JSON.parse(fs.readFileSync(path.join(root, 'product.json'), 'utf8'));
 const helperAppBaseName = product.nameShort;
 const gpuHelperAppName = helperAppBaseName + ' Helper (GPU).app';
@@ -122,7 +122,7 @@ async function main(buildDir?: string): Promise<void> {
 	await retrySignOnKeychainError(() => sign(appOpts));
 }
 
-if (require.main === module) {
+if (import.meta.main) {
 	main(process.argv[2]).catch(async err => {
 		console.error(err);
 		const tempDir = process.env['AGENT_TEMPDIRECTORY'];

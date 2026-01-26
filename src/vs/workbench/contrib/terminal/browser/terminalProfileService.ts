@@ -23,6 +23,7 @@ import { ITerminalContributionService } from '../common/terminalExtensionPoints.
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
+import { hasKey, isString } from '../../../../base/common/types.js';
 
 /*
  * Links TerminalService with TerminalProfileResolverService
@@ -115,7 +116,7 @@ export class TerminalProfileService extends Disposable implements ITerminalProfi
 		let defaultProfileName: string | undefined;
 		if (os) {
 			defaultProfileName = this._configurationService.getValue(`${TerminalSettingPrefix.DefaultProfile}${this._getOsKey(os)}`);
-			if (!defaultProfileName || typeof defaultProfileName !== 'string') {
+			if (!defaultProfileName || !isString(defaultProfileName)) {
 				return undefined;
 			}
 		} else {
@@ -168,7 +169,7 @@ export class TerminalProfileService extends Disposable implements ITerminalProfi
 	private async _updateContributedProfiles(): Promise<boolean> {
 		const platformKey = await this.getPlatformKey();
 		const excludedContributedProfiles: string[] = [];
-		const configProfiles: { [key: string]: any } = this._configurationService.getValue(TerminalSettingPrefix.Profiles + platformKey);
+		const configProfiles: { [key: string]: ITerminalExecutable | null | undefined } = this._configurationService.getValue(TerminalSettingPrefix.Profiles + platformKey);
 		for (const [profileName, value] of Object.entries(configProfiles)) {
 			if (value === null) {
 				excludedContributedProfiles.push(profileName);
@@ -244,7 +245,7 @@ export class TerminalProfileService extends Disposable implements ITerminalProfi
 	async getContributedDefaultProfile(shellLaunchConfig: IShellLaunchConfig): Promise<IExtensionTerminalProfile | undefined> {
 		// prevents recursion with the MainThreadTerminalService call to create terminal
 		// and defers to the provided launch config when an executable is provided
-		if (shellLaunchConfig && !shellLaunchConfig.extHostTerminalId && !('executable' in shellLaunchConfig)) {
+		if (shellLaunchConfig && !shellLaunchConfig.extHostTerminalId && !hasKey(shellLaunchConfig, { executable: true })) {
 			const key = await this.getPlatformKey();
 			const defaultProfileName = this._configurationService.getValue(`${TerminalSettingPrefix.DefaultProfile}${key}`);
 			const contributedDefaultProfile = this.contributedProfiles.find(p => p.title === defaultProfileName);

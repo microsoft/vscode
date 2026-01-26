@@ -37,7 +37,7 @@ export class QuickTreeAccessibilityProvider<T extends IQuickTreeItem> implements
 
 	isChecked(element: T): IValueWithChangeEvent<CheckBoxAccessibleState> | undefined {
 		return {
-			get value() { return element.checked === 'partial' ? 'mixed' : !!element.checked; },
+			get value() { return element.checked === 'mixed' ? 'mixed' : !!element.checked; },
 			onDidChange: e => Event.filter(this.onCheckedEvent, e => e.item === element)(_ => e()),
 		};
 	}

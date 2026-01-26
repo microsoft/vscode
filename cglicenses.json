@@ -70,7 +70,7 @@
 	},
 	{
 		// Reason: The license cannot be found by the tool due to access controls on the repository
-		"name": "tas-client-umd",
+		"name": "tas-client",
 		"fullLicenseText": [
 			"MIT License",
 			"Copyright (c) 2020 - present Microsoft Corporation",

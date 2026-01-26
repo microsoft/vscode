@@ -7,9 +7,12 @@ import { disposableTimeout, timeout } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
-import { autorun } from '../../../../base/common/observable.js';
-import { ToolDataSource } from '../../chat/common/languageModelToolsService.js';
-import { IMcpServer, IMcpServerStartOpts, IMcpService, McpConnectionState, McpServerCacheState } from './mcpTypes.js';
+import { autorun, autorunSelfDisposable, IReader } from '../../../../base/common/observable.js';
+import { ILogger } from '../../../../platform/log/common/log.js';
+import { ToolDataSource } from '../../chat/common/tools/languageModelToolsService.js';
+import { IMcpServer, IMcpServerStartOpts, IMcpService, McpConnectionState, McpServerCacheState, McpServerTransportType } from './mcpTypes.js';
+import { MCP } from './modelContextProtocol.js';
+
 
 /**
  * Waits up to `timeout` for a server passing the filter to be discovered,
@@ -80,8 +83,8 @@ export async function startServerAndWaitForLiveTools(server: IMcpServer, opts?: 
 	return ok;
 }
 
-export function mcpServerToSourceData(server: IMcpServer): ToolDataSource {
-	const metadata = server.serverMetadata.get();
+export function mcpServerToSourceData(server: IMcpServer, reader?: IReader): ToolDataSource {
+	const metadata = server.serverMetadata.read(reader);
 	return {
 		type: 'mcp',
 		serverLabel: metadata?.serverName,
@@ -90,4 +93,87 @@ export function mcpServerToSourceData(server: IMcpServer): ToolDataSource {
 		collectionId: server.collection.id,
 		definitionId: server.definition.id
 	};
+}
+
+
+/**
+ * Validates whether the given HTTP or HTTPS resource is allowed for the specified MCP server.
+ *
+ * @param resource The URI of the resource to validate.
+ * @param server The MCP server instance to validate against, or undefined.
+ * @returns True if the resource request is valid for the server, false otherwise.
+ */
+export function canLoadMcpNetworkResourceDirectly(resource: URL, server: IMcpServer | undefined) {
+	let isResourceRequestValid = false;
+	if (resource.protocol === 'http:') {
+		const launch = server?.connection.get()?.launchDefinition;
+		if (launch && launch.type === McpServerTransportType.HTTP && launch.uri.authority.toLowerCase() === resource.host.toLowerCase()) {
+			isResourceRequestValid = true;
+		}
+	} else if (resource.protocol === 'https:') {
+		isResourceRequestValid = true;
+	}
+	return isResourceRequestValid;
+}
+
+export function isTaskResult(obj: MCP.Result | MCP.CreateTaskResult): obj is MCP.CreateTaskResult {
+	return (obj as MCP.CreateTaskResult).task !== undefined;
+}
+
+export function findMcpServer(mcpService: IMcpService, filter: (s: IMcpServer) => boolean, token?: CancellationToken) {
+	return new Promise<IMcpServer | undefined>((resolve) => {
+		autorunSelfDisposable(reader => {
+			if (token) {
+				if (token.isCancellationRequested) {
+					reader.dispose();
+					resolve(undefined);
+					return;
+				}
+
+				reader.store.add(token.onCancellationRequested(() => {
+					reader.dispose();
+					resolve(undefined);
+				}));
+			}
+
+			const servers = mcpService.servers.read(reader);
+			const server = servers.find(filter);
+			if (server) {
+				resolve(server);
+				reader.dispose();
+			}
+		});
+	});
+}
+
+export function translateMcpLogMessage(logger: ILogger, params: MCP.LoggingMessageNotificationParams, prefix = '') {
+	let contents = typeof params.data === 'string' ? params.data : JSON.stringify(params.data);
+	if (params.logger) {
+		contents = `${params.logger}: ${contents}`;
+	}
+	if (prefix) {
+		contents = `${prefix} ${contents}`;
+	}
+
+	switch (params?.level) {
+		case 'debug':
+			logger.debug(contents);
+			break;
+		case 'info':
+		case 'notice':
+			logger.info(contents);
+			break;
+		case 'warning':
+			logger.warn(contents);
+			break;
+		case 'error':
+		case 'critical':
+		case 'alert':
+		case 'emergency':
+			logger.error(contents);
+			break;
+		default:
+			logger.info(contents);
+			break;
+	}
 }

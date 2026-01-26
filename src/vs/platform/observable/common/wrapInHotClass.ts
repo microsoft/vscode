@@ -44,7 +44,7 @@ function createWrapper<T extends any[]>(clazz: IObservable<any>, B: new (...args
 		override init(...params: any[]) {
 			this._autorun = autorunWithStore((reader, store) => {
 				const clazz_ = clazz.read(reader);
-				this._instance = store.add(this.instantiationService.createInstance(clazz_, ...params) as IDisposable);
+				this._instance = store.add(this.instantiationService.createInstance(clazz_, ...params));
 			});
 		}
 

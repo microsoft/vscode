@@ -136,7 +136,7 @@ function append(node: Node, nodeToAppend: Node): Node {
 			if (parent.children.length >= 3) {
 				// we need to split to maintain (2,3)-tree property.
 				// Send the third element + the new element to the parent.
-				const newList = ListNode.create(parent.unappendChild()!, nodeToAppendOfCorrectHeight);
+				const newList = ListNode.create(parent.unappendChild(), nodeToAppendOfCorrectHeight);
 				nodeToAppendOfCorrectHeight = newList;
 			} else {
 				parent.appendChild(nodeToAppendOfCorrectHeight);

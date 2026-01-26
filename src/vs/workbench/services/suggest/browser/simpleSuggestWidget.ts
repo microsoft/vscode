@@ -21,7 +21,7 @@ import { SuggestWidgetStatus } from '../../../../editor/contrib/suggest/browser/
 import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { canExpandCompletionItem, SimpleSuggestDetailsOverlay, SimpleSuggestDetailsWidget } from './simpleSuggestWidgetDetails.js';
+import { canExpandCompletionItem, SimpleSuggestDetailsOverlay, SimpleSuggestDetailsWidget, type SimpleSuggestDetailsPlacement } from './simpleSuggestWidgetDetails.js';
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import * as strings from '../../../../base/common/strings.js';
 import { status } from '../../../../base/browser/ui/aria/aria.js';
@@ -62,6 +62,7 @@ export const SimpleSuggestContext = {
 	HasFocusedSuggestion: new RawContextKey<boolean>('simpleSuggestWidgetHasFocusedSuggestion', false, localize('simpleSuggestWidgetHasFocusedSuggestion', "Whether any simple suggestion is focused")),
 	HasNavigated: new RawContextKey<boolean>('simpleSuggestWidgetHasNavigated', false, localize('simpleSuggestWidgetHasNavigated', "Whether the simple suggestion widget has been navigated downwards")),
 	FirstSuggestionFocused: new RawContextKey<boolean>('simpleSuggestWidgetFirstSuggestionFocused', false, localize('simpleSuggestWidgetFirstSuggestionFocused', "Whether the first simple suggestion is focused")),
+	ExplicitlyInvoked: new RawContextKey<boolean>('simpleSuggestWidgetExplicitlyInvoked', false, localize('simpleSuggestWidgetExplicitlyInvoked', "Whether the simple suggestion widget was explicitly invoked")),
 };
 
 export interface IWorkbenchSuggestWidgetOptions {
@@ -80,6 +81,11 @@ export interface IWorkbenchSuggestWidgetOptions {
 	 * The setting for selection mode.
 	 */
 	selectionModeSettingId?: string;
+
+	/**
+	 * Disables specific detail placements when positioning the details overlay.
+	 */
+	preventDetailsPlacements?: readonly SimpleSuggestDetailsPlacement[];
 }
 
 /**
@@ -110,7 +116,6 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 	private static NO_SUGGESTIONS_MESSAGE: string = localize('suggestWidget.noSuggestions', "No suggestions.");
 
 	private _state: State = State.Hidden;
-	private _explicitlyInvoked: boolean = false;
 	private _loadingTimeout?: IDisposable;
 	private _completionModel?: TModel;
 	private _cappedHeight?: { wanted: number; capped: number };
@@ -148,6 +153,7 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 	private readonly _ctxSuggestWidgetHasFocusedSuggestion: IContextKey<boolean>;
 	private readonly _ctxSuggestWidgetHasBeenNavigated: IContextKey<boolean>;
 	private readonly _ctxFirstSuggestionFocused: IContextKey<boolean>;
+	private readonly _ctxSuggestWidgetExplicitlyInvoked: IContextKey<boolean>;
 
 	constructor(
 		private readonly _container: HTMLElement,
@@ -169,6 +175,7 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 		this._ctxSuggestWidgetHasFocusedSuggestion = SimpleSuggestContext.HasFocusedSuggestion.bindTo(_contextKeyService);
 		this._ctxSuggestWidgetHasBeenNavigated = SimpleSuggestContext.HasNavigated.bindTo(_contextKeyService);
 		this._ctxFirstSuggestionFocused = SimpleSuggestContext.FirstSuggestionFocused.bindTo(_contextKeyService);
+		this._ctxSuggestWidgetExplicitlyInvoked = SimpleSuggestContext.ExplicitlyInvoked.bindTo(_contextKeyService);
 
 		class ResizeState {
 			constructor(
@@ -269,11 +276,11 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 
 		const details: SimpleSuggestDetailsWidget = this._register(_instantiationService.createInstance(SimpleSuggestDetailsWidget, this._getFontInfo.bind(this), this._onDidFontConfigurationChange.bind(this), this._getAdvancedExplainModeDetails.bind(this)));
 		this._register(details.onDidClose(() => this.toggleDetails()));
-		this._details = this._register(new SimpleSuggestDetailsOverlay(details, this._listElement));
+		this._details = this._register(new SimpleSuggestDetailsOverlay(details, this._listElement, this._options.preventDetailsPlacements));
 		this._register(dom.addDisposableListener(this._details.widget.domNode, 'blur', (e) => this._onDidBlurDetails.fire(e)));
 
 		if (_options.statusBarMenuId && _options.showStatusBarSettingId && _configurationService.getValue(_options.showStatusBarSettingId)) {
-			this._status = this._register(_instantiationService.createInstance(SuggestWidgetStatus, this.element.domNode, _options.statusBarMenuId));
+			this._status = this._register(_instantiationService.createInstance(SuggestWidgetStatus, this.element.domNode, _options.statusBarMenuId, { showIconsNoKeybindings: true }));
 			this.element.domNode.classList.toggle('with-status-bar', true);
 		}
 
@@ -293,7 +300,7 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 			if (_options.statusBarMenuId && _options.showStatusBarSettingId && e.affectsConfiguration(_options.showStatusBarSettingId)) {
 				const showStatusBar: boolean = _configurationService.getValue(_options.showStatusBarSettingId);
 				if (showStatusBar && !this._status) {
-					this._status = this._register(_instantiationService.createInstance(SuggestWidgetStatus, this.element.domNode, _options.statusBarMenuId));
+					this._status = this._register(_instantiationService.createInstance(SuggestWidgetStatus, this.element.domNode, _options.statusBarMenuId, { showIconsNoKeybindings: true }));
 					this._status.show();
 				} else if (showStatusBar && this._status) {
 					this._status.show();
@@ -421,14 +428,23 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 		this._persistedSize.reset();
 	}
 
+	relayout(cursorPosition: { top: number; left: number; height: number }): void {
+		if (this._state === State.Hidden) {
+			return;
+		}
+		this._cursorPosition = cursorPosition;
+		this._layout(this.element.size);
+		this._afterRender();
+	}
+
 	showTriggered(explicitlyInvoked: boolean, cursorPosition: { top: number; left: number; height: number }) {
 		if (this._state !== State.Hidden) {
 			return;
 		}
 		this._cursorPosition = cursorPosition;
-		this._explicitlyInvoked = !!explicitlyInvoked;
+		this._ctxSuggestWidgetExplicitlyInvoked.set(!!explicitlyInvoked);
 
-		if (this._explicitlyInvoked) {
+		if (this._ctxSuggestWidgetExplicitlyInvoked.get()) {
 			this._loadingTimeout = disposableTimeout(() => this._setState(State.Loading), 250);
 		}
 	}
@@ -437,6 +453,10 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 		this._cursorPosition = cursorPosition;
 
 		this._loadingTimeout?.dispose();
+
+		const selectionMode = this._options?.selectionModeSettingId ? this._configurationService.getValue<SuggestSelectionMode>(this._options.selectionModeSettingId) : undefined;
+		// When explicitly invoked (not auto), always select the first item regardless of selectionMode
+		const noFocus = !this._ctxSuggestWidgetExplicitlyInvoked.get() && selectionMode === SuggestSelectionMode.Never;
 
 		// this._currentSuggestionDetails?.cancel();
 		// this._currentSuggestionDetails = undefined;
@@ -468,8 +488,6 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 			this._list.splice(0, this._list.length, this._completionModel?.items ?? []);
 			this._setState(isFrozen ? State.Frozen : State.Open);
 			this._list.reveal(selectionIndex, 0);
-			this._list.setFocus([selectionIndex]);
-			const noFocus = this._options?.selectionModeSettingId ? this._configurationService.getValue<SuggestSelectionMode>(this._options.selectionModeSettingId) === SuggestSelectionMode.Never : false;
 			this._list.setFocus(noFocus ? [] : [selectionIndex]);
 		} finally {
 			// this._onDidFocus.resume();
@@ -489,8 +507,10 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 	private _updateListStyles(): void {
 		if (this._options.selectionModeSettingId) {
 			const selectionMode = this._configurationService.getValue<SuggestSelectionMode>(this._options.selectionModeSettingId);
-			this._list.style(getListStylesWithMode(selectionMode === SuggestSelectionMode.Partial));
-			this.element.domNode.classList.toggle(Classes.PartialSelection, selectionMode === SuggestSelectionMode.Partial);
+			// When explicitly invoked, always show full selection (background) instead of partial (border)
+			const usePartialStyle = !this._ctxSuggestWidgetExplicitlyInvoked.get() && selectionMode === SuggestSelectionMode.Partial;
+			this._list.style(getListStylesWithMode(usePartialStyle));
+			this.element.domNode.classList.toggle(Classes.PartialSelection, usePartialStyle);
 		}
 	}
 
@@ -679,6 +699,7 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 		this._loadingTimeout?.dispose();
 		this._ctxSuggestWidgetHasBeenNavigated.reset();
 		this._ctxFirstSuggestionFocused.reset();
+		this._ctxSuggestWidgetExplicitlyInvoked.reset();
 		this._setState(State.Hidden);
 		this._onDidHide.fire(this);
 		dom.hide(this.element.domNode);
@@ -738,12 +759,19 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 		const preferredWidth = this._completionModel ? this._completionModel.stats.pLabelLen * info.typicalHalfwidthCharacterWidth : width;
 
 		// height math
-		const fullHeight = info.statusBarHeight + this._list.contentHeight + this._messageElement.clientHeight + info.borderHeight;
+		// Cap list content height to a reasonable maximum (12 items worth), matching suggestWidget behavior
+		const cappedListContentHeight = Math.min(this._list.contentHeight, info.itemHeight * 12);
+		const fullHeight = info.statusBarHeight + cappedListContentHeight + this._messageElement.clientHeight + info.borderHeight;
 		const minHeight = info.itemHeight + info.statusBarHeight;
 		// const editorBox = dom.getDomNodePagePosition(this.editor.getDomNode());
 		// const cursorBox = this.editor.getScrolledVisiblePosition(this.editor.getPosition());
 		const editorBox = dom.getDomNodePagePosition(this._container);
-		const cursorBox = this._cursorPosition; //this.editor.getScrolledVisiblePosition(this.editor.getPosition());
+		// Convert absolute cursor position to relative position (relative to container)
+		const cursorBox = {
+			top: this._cursorPosition.top - editorBox.top,
+			left: this._cursorPosition.left,
+			height: this._cursorPosition.height
+		};
 		const cursorBottom = editorBox.top + cursorBox.top + cursorBox.height;
 		const maxHeightBelow = Math.min(bodyBox.height - cursorBottom - info.verticalPadding, fullHeight);
 		const availableSpaceAbove = editorBox.top + cursorBox.top - info.verticalPadding;
@@ -764,7 +792,7 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 		}
 
 		const forceRenderingAboveRequiredSpace = 150;
-		if (height > maxHeightBelow || (this._forceRenderingAbove && availableSpaceAbove > forceRenderingAboveRequiredSpace)) {
+		if ((height > maxHeightBelow && maxHeightAbove > maxHeightBelow) || (this._forceRenderingAbove && availableSpaceAbove > forceRenderingAboveRequiredSpace)) {
 			this._preference = WidgetPositionPreference.Above;
 			this.element.enableSashes(true, true, false, false);
 			maxHeight = maxHeightAbove;
@@ -784,15 +812,16 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 			? { wanted: this._cappedHeight?.wanted ?? size.height, capped: height }
 			: undefined;
 		// }
-		this.element.domNode.style.left = `${this._cursorPosition.left}px`;
-
-		// Move anchor if widget will overflow the edge of the container
-		const containerWidth = this._container.clientWidth;
+		// Horizontal positioning: Position widget at cursor, flip to left if would overflow right
 		let anchorLeft = this._cursorPosition.left;
-		if (width > containerWidth) {
-			anchorLeft = Math.max(0, this._cursorPosition.left - width + containerWidth);
-			this.element.domNode.style.left = `${anchorLeft}px`;
+		const wouldOverflowRight = anchorLeft + width > bodyBox.width;
+
+		if (wouldOverflowRight) {
+			// Position right edge at cursor (extends left)
+			anchorLeft = this._cursorPosition.left - width;
 		}
+
+		this.element.domNode.style.left = `${anchorLeft}px`;
 		if (this._preference === WidgetPositionPreference.Above) {
 			this.element.domNode.style.top = `${this._cursorPosition.top - height - info.borderHeight}px`;
 		} else {

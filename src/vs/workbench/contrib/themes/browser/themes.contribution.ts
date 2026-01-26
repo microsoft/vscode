@@ -18,7 +18,7 @@ import { Color } from '../../../../base/common/color.js';
 import { ColorScheme, isHighContrast } from '../../../../platform/theme/common/theme.js';
 import { colorThemeSchemaId } from '../../../services/themes/common/colorThemeSchema.js';
 import { isCancellationError, onUnexpectedError } from '../../../../base/common/errors.js';
-import { IQuickInputButton, IQuickInputService, IQuickInputToggle, IQuickPick, IQuickPickItem, QuickPickInput } from '../../../../platform/quickinput/common/quickInput.js';
+import { IQuickInputButton, IQuickInputService, IQuickPick, IQuickPickItem, QuickInputButtonLocation, QuickPickInput } from '../../../../platform/quickinput/common/quickInput.js';
 import { DEFAULT_PRODUCT_ICON_THEME_ID, ProductIconThemeData } from '../../../services/themes/browser/productIconThemeData.js';
 import { ThrottledDelayer } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
@@ -39,8 +39,6 @@ import { INotificationService, Severity } from '../../../../platform/notificatio
 
 import { mainWindow } from '../../../../base/browser/window.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
-import { Toggle } from '../../../../base/browser/ui/toggle/toggle.js';
-import { defaultToggleStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 
 export const manageExtensionIcon = registerIcon('theme-selection-manage-extension', Codicon.gear, localize('manageExtensionIcon', 'Icon for the \'Manage\' action in the theme selection quick pick.'));
@@ -286,14 +284,14 @@ interface InstalledThemesPickerOptions {
 	readonly marketplaceTag: string;
 	readonly title?: string;
 	readonly description?: string;
-	readonly toggles?: IQuickInputToggle[];
-	readonly onToggle?: (toggle: IQuickInputToggle, quickInput: IQuickPick<ThemeItem, { useSeparators: boolean }>) => Promise<void>;
+	readonly buttons?: IQuickInputButton[];
+	readonly onButton?: (button: IQuickInputButton, quickInput: IQuickPick<ThemeItem, { useSeparators: boolean }>) => Promise<void>;
 }
 
 class InstalledThemesPicker {
 	constructor(
 		private readonly options: InstalledThemesPickerOptions,
-		private readonly setTheme: (theme: IWorkbenchTheme | undefined, settingsTarget: ThemeSettingTarget) => Promise<any>,
+		private readonly setTheme: (theme: IWorkbenchTheme | undefined, settingsTarget: ThemeSettingTarget) => Promise<unknown>,
 		private readonly getMarketplaceColorThemes: (publisher: string, name: string, version: string) => Promise<IWorkbenchTheme[]>,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
@@ -345,10 +343,8 @@ class InstalledThemesPicker {
 				quickpick.placeholder = this.options.placeholderMessage;
 				quickpick.activeItems = [picks[autoFocusIndex] as ThemeItem];
 				quickpick.canSelectMany = false;
-				quickpick.toggles = this.options.toggles;
-				quickpick.toggles?.forEach(toggle => {
-					disposables.add(toggle.onChange(() => this.options.onToggle?.(toggle, quickpick)));
-				});
+				quickpick.buttons = this.options.buttons ?? [];
+				disposables.add(quickpick.onDidTriggerButton(button => this.options.onButton?.(button, quickpick)));
 				quickpick.matchOnDescription = true;
 				disposables.add(quickpick.onDidAccept(async _ => {
 					isCompleted = true;
@@ -435,30 +431,21 @@ registerAction2(class extends Action2 {
 
 		const preferredColorScheme = themeService.getPreferredColorScheme();
 
-		let modeConfigureToggle;
-		if (preferredColorScheme) {
-			modeConfigureToggle = new Toggle({
-				title: localize('themes.configure.switchingEnabled', 'Detect system color mode enabled. Click to configure.'),
-				icon: Codicon.colorMode,
-				isChecked: false,
-				...defaultToggleStyles
-			});
-		} else {
-			modeConfigureToggle = new Toggle({
-				title: localize('themes.configure.switchingDisabled', 'Detect system color mode disabled. Click to configure.'),
-				icon: Codicon.colorMode,
-				isChecked: false,
-				...defaultToggleStyles
-			});
-		}
+		const modeConfigureButton: IQuickInputButton = {
+			tooltip: preferredColorScheme
+				? localize('themes.configure.switchingEnabled', 'Detect system color mode enabled. Click to configure.')
+				: localize('themes.configure.switchingDisabled', 'Detect system color mode disabled. Click to configure.'),
+			iconClass: ThemeIcon.asClassName(Codicon.colorMode),
+			location: QuickInputButtonLocation.Inline
+		};
 
 		const options = {
 			installMessage: localize('installColorThemes', "Install Additional Color Themes..."),
 			browseMessage: '$(plus) ' + localize('browseColorThemes', "Browse Additional Color Themes..."),
 			placeholderMessage: this.getTitle(preferredColorScheme),
 			marketplaceTag: 'category:themes',
-			toggles: [modeConfigureToggle],
-			onToggle: async (toggle, picker) => {
+			buttons: [modeConfigureButton],
+			onButton: async (_button, picker) => {
 				picker.hide();
 				await preferencesService.openSettings({ query: ThemeSettings.DETECT_COLOR_SCHEME });
 			}
@@ -611,7 +598,7 @@ interface ThemeItem extends IQuickPickItem {
 }
 
 function isItem(i: QuickPickInput<ThemeItem>): i is ThemeItem {
-	// eslint-disable-next-line local/code-no-any-casts
+	// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
 	return (<any>i)['type'] !== 'separator';
 }
 

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { NlsString, LanguageTranslations, Category, Policy, Translations, ProductJson } from './types';
+import type { NlsString, LanguageTranslations, Category, Policy, Translations, ProductJson } from './types.ts';
 
 export function renderADMLString(prefix: string, moduleName: string, nlsString: NlsString, translations?: LanguageTranslations): string {
 	let value: string | undefined;
@@ -292,4 +292,12 @@ export function renderGP(product: ProductJson, policies: Policy[], translations:
 				({ languageId, contents: renderADML(appName, versions, categories, policies, languageTranslations) }))
 		]
 	};
+}
+
+export function renderJsonPolicies(policies: Policy[]) {
+	const policyObject: { [key: string]: string | number | boolean | object | null } = {};
+	for (const policy of policies) {
+		policyObject[policy.name] = policy.renderJsonValue();
+	}
+	return policyObject;
 }

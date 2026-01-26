@@ -53,7 +53,7 @@ class LanguageStatusServiceImpl implements ILanguageStatusService {
 
 	private readonly _provider = new LanguageFeatureRegistry<ILanguageStatus>();
 
-	readonly onDidChange: Event<any> = this._provider.onDidChange;
+	readonly onDidChange = Event.map(this._provider.onDidChange, () => undefined);
 
 	addStatus(status: ILanguageStatus): IDisposable {
 		return this._provider.register(status.selector, status);

@@ -9,7 +9,7 @@ import { Disposable, DisposableStore } from '../../../../../base/common/lifecycl
 import { CoreEditingCommands, CoreNavigationCommands } from '../../../../browser/coreCommands.js';
 import { Position } from '../../../../common/core/position.js';
 import { ITextModel } from '../../../../common/model.js';
-import { InlineCompletion, InlineCompletionContext, InlineCompletions, InlineCompletionsProvider } from '../../../../common/languages.js';
+import { IInlineCompletionChangeHint, InlineCompletion, InlineCompletionContext, InlineCompletions, InlineCompletionsProvider } from '../../../../common/languages.js';
 import { ITestCodeEditor, TestCodeEditorInstantiationOptions, withAsyncTestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
 import { InlineCompletionsModel } from '../../browser/model/inlineCompletionsModel.js';
 import { autorun, derived } from '../../../../../base/common/observable.js';
@@ -24,6 +24,11 @@ import { Range } from '../../../../common/core/range.js';
 import { TextEdit } from '../../../../common/core/edits/textEdit.js';
 import { BugIndicatingError } from '../../../../../base/common/errors.js';
 import { PositionOffsetTransformer } from '../../../../common/core/text/positionToOffset.js';
+import { InlineSuggestionsView } from '../../browser/view/inlineSuggestionsView.js';
+import { IBulkEditService } from '../../../../browser/services/bulkEditService.js';
+import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { IRenameSymbolTrackerService, NullRenameSymbolTrackerService } from '../../../../browser/services/renameSymbolTrackerService.js';
 
 export class MockInlineCompletionsProvider implements InlineCompletionsProvider {
 	private returnValue: InlineCompletion[] = [];
@@ -31,6 +36,9 @@ export class MockInlineCompletionsProvider implements InlineCompletionsProvider 
 
 	private callHistory = new Array<unknown>();
 	private calledTwiceIn50Ms = false;
+
+	private readonly _onDidChangeEmitter = new Emitter<IInlineCompletionChangeHint | void>();
+	public readonly onDidChangeInlineCompletions: Event<IInlineCompletionChangeHint | void> = this._onDidChangeEmitter.event;
 
 	constructor(
 		public readonly enableForwardStability = false,
@@ -58,6 +66,13 @@ export class MockInlineCompletionsProvider implements InlineCompletionsProvider 
 		}
 	}
 
+	/**
+	 * Fire an onDidChange event with an optional change hint.
+	 */
+	public fireOnDidChange(changeHint?: IInlineCompletionChangeHint): void {
+		this._onDidChangeEmitter.fire(changeHint);
+	}
+
 	private lastTimeMs: number | undefined = undefined;
 
 	async provideInlineCompletions(model: ITextModel, position: Position, context: InlineCompletionContext, token: CancellationToken): Promise<InlineCompletions> {
@@ -70,7 +85,8 @@ export class MockInlineCompletionsProvider implements InlineCompletionsProvider 
 		this.callHistory.push({
 			position: position.toString(),
 			triggerKind: context.triggerKind,
-			text: model.getValue()
+			text: model.getValue(),
+			...(context.changeHint !== undefined ? { changeHint: context.changeHint } : {}),
 		});
 		const result = new Array<InlineCompletion>();
 		for (const v of this.returnValue) {
@@ -242,14 +258,34 @@ export async function withAsyncTestCodeEditorAndInlineCompletionsModel<T>(
 					playSignal: async () => { },
 					isSoundEnabled(signal: unknown) { return false; },
 				} as any);
+				options.serviceCollection.set(IBulkEditService, {
+					apply: async () => { throw new Error('IBulkEditService.apply not implemented'); },
+					hasPreviewHandler: () => { throw new Error('IBulkEditService.hasPreviewHandler not implemented'); },
+					setPreviewHandler: () => { throw new Error('IBulkEditService.setPreviewHandler not implemented'); },
+					_serviceBrand: undefined,
+				});
+				options.serviceCollection.set(IDefaultAccountService, {
+					_serviceBrand: undefined,
+					onDidChangeDefaultAccount: Event.None,
+					getDefaultAccount: async () => null,
+					setDefaultAccountProvider: () => { },
+					getDefaultAccountAuthenticationProvider: () => { return { id: 'mockProvider', name: 'Mock Provider', enterprise: false }; },
+					refresh: async () => { return null; },
+					signIn: async () => { return null; },
+				});
+				options.serviceCollection.set(IRenameSymbolTrackerService, new NullRenameSymbolTrackerService());
+
 				const d = languageFeaturesService.inlineCompletionsProvider.register({ pattern: '**' }, options.provider);
 				disposableStore.add(d);
 			}
 
 			let result: T;
 			await withAsyncTestCodeEditor(text, options, async (editor, editorViewModel, instantiationService) => {
+				instantiationService.stubInstance(InlineSuggestionsView, {
+					shouldShowHoverAtViewZone: () => false,
+					dispose: () => { },
+				});
 				const controller = instantiationService.createInstance(InlineCompletionsController, editor);
-				controller.testOnlyDisableUi();
 				const model = controller.model.get()!;
 				const context = new GhostTextContext(model, editor);
 				try {

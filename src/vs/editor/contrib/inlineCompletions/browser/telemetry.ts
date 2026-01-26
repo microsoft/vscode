@@ -19,6 +19,8 @@ export type InlineCompletionEndOfLifeEvent = {
 	typingIntervalCharacterCount: number;
 	selectedSuggestionInfo: boolean;
 	availableProviders: string;
+	skuPlan: string | undefined;
+	skuType: string | undefined;
 	// response
 	correlationId: string | undefined;
 	extensionId: string;
@@ -32,14 +34,20 @@ export type InlineCompletionEndOfLifeEvent = {
 	timeUntilProviderRequest: number | undefined;
 	timeUntilProviderResponse: number | undefined;
 	reason: 'accepted' | 'rejected' | 'ignored' | undefined;
+	acceptedAlternativeAction: boolean | undefined;
 	partiallyAccepted: number | undefined;
 	partiallyAcceptedCountSinceOriginal: number | undefined;
 	partiallyAcceptedRatioSinceOriginal: number | undefined;
 	partiallyAcceptedCharactersSinceOriginal: number | undefined;
 	preceeded: boolean | undefined;
 	superseded: boolean | undefined;
-	error: string | undefined;
 	notShownReason: string | undefined;
+	renameCreated: boolean | undefined;
+	renameDuration: number | undefined;
+	renameTimedOut: boolean | undefined;
+	renameDroppedOtherEdits: number | undefined;
+	renameDroppedRenameEdits: number | undefined;
+	performanceMarkers: string | undefined;
 	// rendering
 	viewKind: string | undefined;
 	cursorColumnDistance: number | undefined;
@@ -50,8 +58,12 @@ export type InlineCompletionEndOfLifeEvent = {
 	characterCountModified: number | undefined;
 	disjointReplacements: number | undefined;
 	sameShapeReplacements: boolean | undefined;
+	longDistanceHintVisible: boolean | undefined;
+	longDistanceHintDistance: number | undefined;
 	// empty
 	noSuggestionReason: string | undefined;
+	// shape
+	editKind: string | undefined;
 };
 
 type InlineCompletionsEndOfLifeClassification = {
@@ -63,6 +75,8 @@ type InlineCompletionsEndOfLifeClassification = {
 	extensionVersion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The version of the extension that contributed the inline completion' };
 	groupId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The group ID of the extension that contributed the inline completion' };
 	availableProviders: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The list of available inline completion providers at the time of the request' };
+	skuPlan: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The the plan the user is subscribed to' };
+	skuType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The sku type of the user' };
 	shown: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the inline completion was shown to the user' };
 	shownDuration: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The duration for which the inline completion was shown' };
 	shownDurationUncollapsed: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The duration for which the inline completion was shown without collapsing' };
@@ -70,6 +84,7 @@ type InlineCompletionsEndOfLifeClassification = {
 	timeUntilProviderRequest: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The time it took for the inline completion to be requested from the provider' };
 	timeUntilProviderResponse: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The time it took for the inline completion to be shown after the request' };
 	reason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The reason for the inline completion ending' };
+	acceptedAlternativeAction: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the user performed an alternative action when accepting the inline completion' };
 	selectedSuggestionInfo: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the inline completion was requested with a selected suggestion' };
 	partiallyAccepted: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How often the inline completion was partially accepted by the user' };
 	partiallyAcceptedCountSinceOriginal: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How often the inline completion was partially accepted since the original request' };
@@ -78,9 +93,13 @@ type InlineCompletionsEndOfLifeClassification = {
 	preceeded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the inline completion was preceeded by another one' };
 	languageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The language ID of the document where the inline completion was shown' };
 	requestReason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The reason for the inline completion request' };
-	error: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The error message if the inline completion failed' };
 	typingInterval: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The average typing interval of the user at the moment the inline completion was requested' };
 	typingIntervalCharacterCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The character count involved in the typing interval calculation' };
+	renameCreated: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether a rename operation was created' };
+	renameDuration: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The duration of the rename processor' };
+	renameTimedOut: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the rename prepare operation timed out' };
+	renameDroppedOtherEdits: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of non-rename edits dropped due to rename processing' };
+	renameDroppedRenameEdits: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of rename edits dropped due to rename processing' };
 	superseded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the inline completion was superseded by another one' };
 	editorType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The type of the editor where the inline completion was shown' };
 	viewKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The kind of the view where the inline completion was shown' };
@@ -92,6 +111,10 @@ type InlineCompletionsEndOfLifeClassification = {
 	characterCountModified: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of characters in the modified text' };
 	disjointReplacements: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of inner replacements made by the inline completion' };
 	sameShapeReplacements: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether all inner replacements are the same shape' };
+	longDistanceHintVisible: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether a long distance hint was rendered' };
+	longDistanceHintDistance: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The distance in lines between the long distance hint and the inline edit' };
 	noSuggestionReason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The reason why no inline completion was provided' };
 	notShownReason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The reason why the inline completion was not shown' };
+	performanceMarkers: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Performance markers for the inline completion lifecycle' };
+	editKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The kind of edit made by the inline completion' };
 };

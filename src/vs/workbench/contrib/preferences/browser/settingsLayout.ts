@@ -5,7 +5,7 @@
 
 import { isWeb, isWindows } from '../../../../base/common/platform.js';
 import { localize } from '../../../../nls.js';
-import { ExtensionToggleData } from '../common/preferences.js';
+import { ISetting, ISettingsGroup } from '../../../services/preferences/common/preferences.js';
 
 export interface ITOCFilter {
 	include?: {
@@ -41,11 +41,26 @@ const defaultCommonlyUsedSettings: string[] = [
 	'editor.formatOnPaste'
 ];
 
-export function getCommonlyUsedData(toggleData: ExtensionToggleData | undefined): ITOCEntry<string> {
+export function getCommonlyUsedData(settingGroups: ISettingsGroup[], commonlyUsed: string[] = defaultCommonlyUsedSettings): ITOCEntry<ISetting> {
+	const allSettings = new Map<string, ISetting>();
+	for (const group of settingGroups) {
+		for (const section of group.sections) {
+			for (const s of section.settings) {
+				allSettings.set(s.key, s);
+			}
+		}
+	}
+	const settings: ISetting[] = [];
+	for (const id of commonlyUsed) {
+		const setting = allSettings.get(id);
+		if (setting) {
+			settings.push(setting);
+		}
+	}
 	return {
 		id: 'commonlyUsed',
 		label: localize('commonlyUsed', "Commonly Used"),
-		settings: toggleData?.commonlyUsed ?? defaultCommonlyUsedSettings
+		settings
 	};
 }
 

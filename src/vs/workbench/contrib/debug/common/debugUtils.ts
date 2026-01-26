@@ -174,7 +174,7 @@ export async function getEvaluatableExpressionAtPosition(languageFeaturesService
 // RFC 2396, Appendix A: https://www.ietf.org/rfc/rfc2396.txt
 const _schemePattern = /^[a-zA-Z][a-zA-Z0-9\+\-\.]+:/;
 
-export function isUri(s: string | undefined): boolean {
+export function isUriString(s: string | undefined): boolean {
 	// heuristics: a valid uri starts with a scheme and
 	// the scheme has at least 2 characters so that it doesn't look like a drive letter.
 	return !!(s && s.match(_schemePattern));
@@ -185,7 +185,7 @@ function stringToUri(source: PathContainer): string | undefined {
 		if (typeof source.sourceReference === 'number' && source.sourceReference > 0) {
 			// if there is a source reference, don't touch path
 		} else {
-			if (isUri(source.path)) {
+			if (isUriString(source.path)) {
 				return <string><unknown>uri.parse(source.path);
 			} else {
 				// assume path

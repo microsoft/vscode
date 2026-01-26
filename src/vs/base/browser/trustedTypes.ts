@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { onUnexpectedError } from '../common/errors.js';
+import { getMonacoEnvironment } from './browser.js';
 
 type TrustedTypePolicyOptions = import('trusted-types/lib/index.d.ts').TrustedTypePolicyOptions;
 
@@ -12,14 +13,7 @@ export function createTrustedTypesPolicy<Options extends TrustedTypePolicyOption
 	policyOptions?: Options,
 ): undefined | Pick<TrustedTypePolicy, 'name' | Extract<keyof Options, keyof TrustedTypePolicyOptions>> {
 
-	interface IMonacoEnvironment {
-		createTrustedTypesPolicy<Options extends TrustedTypePolicyOptions>(
-			policyName: string,
-			policyOptions?: Options,
-		): undefined | Pick<TrustedTypePolicy, 'name' | Extract<keyof Options, keyof TrustedTypePolicyOptions>>;
-	}
-	// eslint-disable-next-line local/code-no-any-casts
-	const monacoEnvironment: IMonacoEnvironment | undefined = (globalThis as any).MonacoEnvironment;
+	const monacoEnvironment = getMonacoEnvironment();
 
 	if (monacoEnvironment?.createTrustedTypesPolicy) {
 		try {
@@ -30,7 +24,7 @@ export function createTrustedTypesPolicy<Options extends TrustedTypePolicyOption
 		}
 	}
 	try {
-		// eslint-disable-next-line local/code-no-any-casts
+		// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
 		return (globalThis as any).trustedTypes?.createPolicy(policyName, policyOptions);
 	} catch (err) {
 		onUnexpectedError(err);

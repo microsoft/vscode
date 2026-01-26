@@ -35,6 +35,7 @@ export interface IButtonOptions extends Partial<IButtonStyles> {
 	readonly supportIcons?: boolean;
 	readonly supportShortLabel?: boolean;
 	readonly secondary?: boolean;
+	readonly small?: boolean;
 	readonly hoverDelegate?: IHoverDelegate;
 	readonly disabled?: boolean;
 }
@@ -116,6 +117,7 @@ export class Button extends Disposable implements IButton {
 		this._element.setAttribute('role', 'button');
 
 		this._element.classList.toggle('secondary', !!options.secondary);
+		this._element.classList.toggle('small', !!options.small);
 		const background = options.secondary ? options.buttonSecondaryBackground : options.buttonBackground;
 		const foreground = options.secondary ? options.buttonSecondaryForeground : options.buttonForeground;
 
@@ -176,18 +178,18 @@ export class Button extends Disposable implements IButton {
 
 		this._register(addDisposableListener(this._element, EventType.MOUSE_OVER, e => {
 			if (!this._element.classList.contains('disabled')) {
-				this.updateBackground(true);
+				this.updateStyles(true);
 			}
 		}));
 
 		this._register(addDisposableListener(this._element, EventType.MOUSE_OUT, e => {
-			this.updateBackground(false); // restore standard styles
+			this.updateStyles(false); // restore standard styles
 		}));
 
 		// Also set hover background when button is focused for feedback
 		this.focusTracker = this._register(trackFocus(this._element));
-		this._register(this.focusTracker.onDidFocus(() => { if (this.enabled) { this.updateBackground(true); } }));
-		this._register(this.focusTracker.onDidBlur(() => { if (this.enabled) { this.updateBackground(false); } }));
+		this._register(this.focusTracker.onDidFocus(() => { if (this.enabled) { this.updateStyles(true); } }));
+		this._register(this.focusTracker.onDidBlur(() => { if (this.enabled) { this.updateStyles(false); } }));
 	}
 
 	public override dispose(): void {
@@ -218,16 +220,19 @@ export class Button extends Disposable implements IButton {
 		return elements;
 	}
 
-	private updateBackground(hover: boolean): void {
+	private updateStyles(hover: boolean): void {
 		let background;
+		let foreground;
 		if (this.options.secondary) {
 			background = hover ? this.options.buttonSecondaryHoverBackground : this.options.buttonSecondaryBackground;
+			foreground = this.options.buttonSecondaryForeground;
 		} else {
 			background = hover ? this.options.buttonHoverBackground : this.options.buttonBackground;
+			foreground = this.options.buttonForeground;
 		}
-		if (background) {
-			this._element.style.backgroundColor = background;
-		}
+
+		this._element.style.backgroundColor = background || '';
+		this._element.style.color = foreground || '';
 	}
 
 	get element(): HTMLElement {
@@ -251,6 +256,7 @@ export class Button extends Disposable implements IButton {
 			rendered.dispose();
 
 			// Don't include outer `<p>`
+			// eslint-disable-next-line no-restricted-syntax
 			const root = rendered.element.querySelector('p')?.innerHTML;
 			if (root) {
 				safeSetInnerHtml(labelElement, root, buttonSanitizerConfig);
@@ -324,6 +330,12 @@ export class Button extends Disposable implements IButton {
 
 	get enabled() {
 		return !this._element.classList.contains('disabled');
+	}
+
+	set secondary(value: boolean) {
+		this._element.classList.toggle('secondary', value);
+		(this.options as { secondary?: boolean }).secondary = value;
+		this.updateStyles(false);
 	}
 
 	set checked(value: boolean) {
@@ -621,6 +633,8 @@ export class ButtonWithIcon extends Button {
 
 	public get labelElement() { return this._mdlabelElement; }
 
+	public get iconElement() { return this._iconElement; }
+
 	constructor(container: HTMLElement, options: IButtonOptions) {
 		super(container, options);
 
@@ -652,6 +666,7 @@ export class ButtonWithIcon extends Button {
 			const rendered = renderMarkdown(value, undefined, document.createElement('span'));
 			rendered.dispose();
 
+			// eslint-disable-next-line no-restricted-syntax
 			const root = rendered.element.querySelector('p')?.innerHTML;
 			if (root) {
 				safeSetInnerHtml(this._mdlabelElement, root, buttonSanitizerConfig);

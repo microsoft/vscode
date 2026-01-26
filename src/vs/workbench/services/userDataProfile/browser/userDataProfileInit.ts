@@ -27,7 +27,7 @@ import { ProfileResourceType } from '../../../../platform/userDataProfile/common
 
 export class UserDataProfileInitializer implements IUserDataInitializer {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private readonly initialized: ProfileResourceType[] = [];
 	private readonly initializationFinished = new Barrier();

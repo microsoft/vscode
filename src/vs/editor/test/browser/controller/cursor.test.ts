@@ -1335,7 +1335,7 @@ suite('Editor Controller - Cursor', () => {
 			getInitialState: () => NullState,
 			tokenize: undefined!,
 			tokenizeEncoded: (line: string, hasEOL: boolean, state: IState): EncodedTokenizationResult => {
-				return new EncodedTokenizationResult(new Uint32Array(0), state);
+				return new EncodedTokenizationResult(new Uint32Array(0), [], state);
 			}
 		};
 
@@ -1533,7 +1533,7 @@ suite('Editor Controller', () => {
 					);
 					startIndex += tokens[i].length;
 				}
-				return new EncodedTokenizationResult(result, state);
+				return new EncodedTokenizationResult(result, [], state);
 
 				function advance(): void {
 					if (state instanceof BaseState) {
@@ -2239,6 +2239,37 @@ suite('Editor Controller', () => {
 		});
 	});
 
+	test('issue #256039: paste from multiple cursors with empty selections and multiCursorPaste full', () => {
+		usingCursor({
+			text: [
+				'line1',
+				'line2',
+				'line3'
+			],
+			editorOpts: {
+				multiCursorPaste: 'full'
+			}
+		}, (editor, model, viewModel) => {
+			// 2 cursors on lines 1 and 2
+			viewModel.setSelections('test', [new Selection(1, 1, 1, 1), new Selection(2, 1, 2, 1)]);
+
+			viewModel.paste(
+				'line1\nline2\n',
+				true,
+				['line1\n', 'line2\n']
+			);
+
+			// Each cursor gets its respective line
+			assert.strictEqual(model.getValue(), [
+				'line1',
+				'line1',
+				'line2',
+				'line2',
+				'line3'
+			].join('\n'));
+		});
+	});
+
 	test('issue #3071: Investigate why undo stack gets corrupted', () => {
 		const model = createTextModel(
 			[
@@ -2454,6 +2485,40 @@ suite('Editor Controller', () => {
 		withTestCodeEditor(model, {}, (editor, viewModel) => {
 			CoreNavigationCommands.WordSelect.runCoreEditorCommand(viewModel, { position: new Position(1, 5) });
 			assert.deepStrictEqual(viewModel.getSelection(), new Selection(1, 5, 1, 8));
+		});
+	});
+
+	test('Double-click on punctuation should select the character, not adjacent space', () => {
+		const model = createTextModel(
+			[
+				'// a b c 1 2 3 ~ ! @ # $ % ^ & * ( ) _ + \\ /'
+			].join('\n')
+		);
+
+		withTestCodeEditor(model, {}, (editor, viewModel) => {
+			// Test double-click on '@' at position 20
+			CoreNavigationCommands.WordSelect.runCoreEditorCommand(viewModel, { position: new Position(1, 20) });
+			assert.deepStrictEqual(viewModel.getSelection(), new Selection(1, 20, 1, 21), 'Should select @ character');
+
+			// Test double-click on '#' at position 22
+			CoreNavigationCommands.WordSelect.runCoreEditorCommand(viewModel, { position: new Position(1, 22) });
+			assert.deepStrictEqual(viewModel.getSelection(), new Selection(1, 22, 1, 23), 'Should select # character');
+
+			// Test double-click on '!' at position 18
+			CoreNavigationCommands.WordSelect.runCoreEditorCommand(viewModel, { position: new Position(1, 18) });
+			assert.deepStrictEqual(viewModel.getSelection(), new Selection(1, 18, 1, 19), 'Should select ! character');
+
+			// Test double-click on first '/' in '//' at position 1
+			CoreNavigationCommands.WordSelect.runCoreEditorCommand(viewModel, { position: new Position(1, 1) });
+			assert.deepStrictEqual(viewModel.getSelection(), new Selection(1, 1, 1, 3), 'Should select // token');
+
+			// Test double-click on second '/' in '//' at position 2
+			CoreNavigationCommands.WordSelect.runCoreEditorCommand(viewModel, { position: new Position(1, 2) });
+			assert.deepStrictEqual(viewModel.getSelection(), new Selection(1, 1, 1, 3), 'Should select // token');
+
+			// Test double-click on '\' at position 42
+			CoreNavigationCommands.WordSelect.runCoreEditorCommand(viewModel, { position: new Position(1, 42) });
+			assert.deepStrictEqual(viewModel.getSelection(), new Selection(1, 42, 1, 43), 'Should select \\ character');
 		});
 	});
 
@@ -2760,7 +2825,7 @@ suite('Editor Controller', () => {
 			getInitialState: () => NullState,
 			tokenize: undefined!,
 			tokenizeEncoded: (line: string, hasEOL: boolean, state: IState): EncodedTokenizationResult => {
-				return new EncodedTokenizationResult(new Uint32Array(0), state);
+				return new EncodedTokenizationResult(new Uint32Array(0), [], state);
 			}
 		};
 

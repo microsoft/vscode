@@ -776,7 +776,7 @@ const SETTINGS_EXTENSION_TOGGLE_TEMPLATE_ID = 'settings.extensionToggle.template
 
 export interface ISettingChangeEvent {
 	key: string;
-	value: any; // undefined => reset/unconfigure
+	value: unknown; // undefined => reset/unconfigure
 	type: SettingValueType | SettingValueType[];
 	manualReset: boolean;
 	scope: ConfigurationScope | undefined;
@@ -788,6 +788,7 @@ export interface ISettingLinkClickEvent {
 }
 
 function removeChildrenFromTabOrder(node: Element): void {
+	// eslint-disable-next-line no-restricted-syntax
 	const focusableElements = node.querySelectorAll(`
 		[tabindex="0"],
 		input:not([tabindex="-1"]),
@@ -805,6 +806,7 @@ function removeChildrenFromTabOrder(node: Element): void {
 }
 
 function addChildrenToTabOrder(node: Element): void {
+	// eslint-disable-next-line no-restricted-syntax
 	const focusableElements = node.querySelectorAll(
 		`[${AbstractSettingRenderer.ELEMENT_FOCUSABLE_ATTR}="true"]`
 	);
@@ -888,9 +890,9 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 
 	abstract renderTemplate(container: HTMLElement): any;
 
-	abstract renderElement(element: ITreeNode<SettingsTreeSettingElement, never>, index: number, templateData: any): void;
+	abstract renderElement(element: ITreeNode<SettingsTreeSettingElement, never>, index: number, templateData: unknown): void;
 
-	protected renderCommonTemplate(tree: any, _container: HTMLElement, typeClass: string): ISettingItemTemplate {
+	protected renderCommonTemplate(tree: unknown, _container: HTMLElement, typeClass: string): ISettingItemTemplate {
 		_container.classList.add('setting-item');
 		_container.classList.add('setting-item-' + typeClass);
 
@@ -961,11 +963,9 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 	}
 
 	protected renderSettingToolbar(container: HTMLElement): ToolBar {
-		const toggleMenuKeybinding = this._keybindingService.lookupKeybinding(SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU);
-		let toggleMenuTitle = localize('settingsContextMenuTitle', "More Actions... ");
-		if (toggleMenuKeybinding) {
-			toggleMenuTitle += ` (${toggleMenuKeybinding && toggleMenuKeybinding.getLabel()})`;
-		}
+		const toggleMenuTitle = this._keybindingService.appendKeybinding(
+			localize('settingsContextMenuTitle', "More Actions... "),
+			SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU);
 
 		const toolbar = new ToolBar(container, this._contextMenuService, {
 			toggleMenuTitle,
@@ -1016,7 +1016,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 			}
 		}));
 
-		const onChange = (value: any) => this._onDidChangeSetting.fire({
+		const onChange = (value: unknown) => this._onDidChangeSetting.fire({
 			key: element.setting.key,
 			value,
 			type: template.context!.valueType,
@@ -1039,6 +1039,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		template.indicatorsLabel.updateSyncIgnored(element, this.ignoredSettings);
 		template.indicatorsLabel.updateDefaultOverrideIndicator(element);
 		template.indicatorsLabel.updatePreviewIndicator(element);
+		template.indicatorsLabel.updateAdvancedIndicator(element);
 		template.elementDisposables.add(this.onDidChangeIgnoredSettings(() => {
 			template.indicatorsLabel.updateSyncIgnored(element, this.ignoredSettings);
 		}));
@@ -1086,7 +1087,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		return renderedMarkdown.element;
 	}
 
-	protected abstract renderValue(dataElement: SettingsTreeSettingElement, template: ISettingItemTemplate, onChange: (value: any) => void): void;
+	protected abstract renderValue(dataElement: SettingsTreeSettingElement, template: ISettingItemTemplate, onChange: (value: unknown) => void): void;
 
 	disposeTemplate(template: IDisposableTemplate): void {
 		template.toDispose.dispose();
@@ -1291,6 +1292,7 @@ class SettingArrayRenderer extends AbstractSettingRenderer implements ITreeRende
 
 	renderTemplate(container: HTMLElement): ISettingListItemTemplate {
 		const common = this.renderCommonTemplate(null, container, 'list');
+		// eslint-disable-next-line no-restricted-syntax
 		const descriptionElement = common.containerElement.querySelector('.setting-item-description')!;
 		const validationErrorMessageElement = $('.setting-item-validation-message');
 		descriptionElement.after(validationErrorMessageElement);
@@ -1403,6 +1405,7 @@ abstract class AbstractSettingObjectRenderer extends AbstractSettingRenderer imp
 		widget.domNode.classList.add(AbstractSettingRenderer.CONTROL_CLASS);
 		common.toDispose.add(widget);
 
+		// eslint-disable-next-line no-restricted-syntax
 		const descriptionElement = common.containerElement.querySelector('.setting-item-description')!;
 		const validationErrorMessageElement = $('.setting-item-validation-message');
 		descriptionElement.after(validationErrorMessageElement);
@@ -1514,7 +1517,7 @@ class SettingObjectRenderer extends AbstractSettingObjectRenderer implements ITr
 
 	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingObjectItemTemplate, onChange: (value: Record<string, unknown> | undefined) => void): void {
 		const items = getObjectDisplayValue(dataElement);
-		const { key, objectProperties, objectPatternProperties, objectAdditionalProperties } = dataElement.setting;
+		const { key, objectProperties, objectPatternProperties, objectAdditionalProperties, propertyNames } = dataElement.setting;
 
 		template.objectDropdownWidget!.setValue(items, {
 			settingKey: key,
@@ -1525,7 +1528,8 @@ class SettingObjectRenderer extends AbstractSettingObjectRenderer implements ITr
 				)
 				: true,
 			keySuggester: createObjectKeySuggester(dataElement),
-			valueSuggester: createObjectValueSuggester(dataElement)
+			valueSuggester: createObjectValueSuggester(dataElement),
+			propertyNames
 		});
 
 		template.context = dataElement;
@@ -1700,7 +1704,7 @@ abstract class SettingIncludeExcludeRenderer extends AbstractSettingRenderer imp
 
 	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingIncludeExcludeItemTemplate, onChange: (value: string) => void): void {
 		const value = getIncludeExcludeDisplayValue(dataElement);
-		template.includeExcludeWidget.setValue(value);
+		template.includeExcludeWidget.setValue(value, { isReadOnly: dataElement.hasPolicyValue });
 		template.context = dataElement;
 		template.elementDisposables.add(toDisposable(() => {
 			template.includeExcludeWidget.cancelEdit();
@@ -1771,6 +1775,7 @@ abstract class AbstractSettingTextRenderer extends AbstractSettingRenderer imple
 	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingTextItemTemplate, onChange: (value: string) => void): void {
 		template.onChange = undefined;
 		template.inputBox.value = dataElement.value;
+		template.inputBox.setEnabled(!dataElement.hasPolicyValue);
 		template.inputBox.setAriaLabel(dataElement.setting.key);
 		template.onChange = value => {
 			if (!renderValidations(dataElement, template, false)) {
@@ -1850,6 +1855,7 @@ class SettingEnumRenderer extends AbstractSettingRenderer implements ITreeRender
 
 		common.toDispose.add(selectBox);
 		selectBox.render(common.controlElement);
+		// eslint-disable-next-line no-restricted-syntax
 		const selectElement = common.controlElement.querySelector('select');
 		if (selectElement) {
 			selectElement.classList.add(AbstractSettingRenderer.CONTROL_CLASS);
@@ -1919,6 +1925,7 @@ class SettingEnumRenderer extends AbstractSettingRenderer implements ITreeRender
 
 		template.selectBox.setOptions(displayOptions);
 		template.selectBox.setAriaLabel(dataElement.setting.key);
+		template.selectBox.setEnabled(!dataElement.hasPolicyValue);
 
 		let idx = settingEnum.indexOf(dataElement.value);
 		if (idx === -1) {
@@ -1989,6 +1996,7 @@ class SettingNumberRenderer extends AbstractSettingRenderer implements ITreeRend
 			dataElement.value.toString() : '';
 		template.inputBox.step = dataElement.valueType.includes('integer') ? '1' : 'any';
 		template.inputBox.setAriaLabel(dataElement.setting.key);
+		template.inputBox.setEnabled(!dataElement.hasPolicyValue);
 		template.onChange = value => {
 			if (!renderValidations(dataElement, template, false)) {
 				onChange(nullNumParseFn(value));
@@ -2263,6 +2271,7 @@ export class SettingTreeRenderers extends Disposable {
 	}
 
 	showContextMenu(element: SettingsTreeSettingElement, settingDOMElement: HTMLElement): void {
+		// eslint-disable-next-line no-restricted-syntax
 		const toolbarElement = settingDOMElement.querySelector('.monaco-toolbar');
 		if (toolbarElement) {
 			this._contextMenuService.showContextMenu({
@@ -2283,6 +2292,7 @@ export class SettingTreeRenderers extends Disposable {
 	}
 
 	getDOMElementsForSettingKey(treeContainer: HTMLElement, key: string): NodeListOf<HTMLElement> {
+		// eslint-disable-next-line no-restricted-syntax
 		return treeContainer.querySelectorAll(`[${AbstractSettingRenderer.SETTING_KEY_ATTR}="${key}"]`);
 	}
 

@@ -119,7 +119,7 @@ export default abstract class BaseErrorTelemetry {
 			if (!this._buffer[idx].count) {
 				this._buffer[idx].count = 0;
 			}
-			this._buffer[idx].count! += 1;
+			this._buffer[idx].count += 1;
 		}
 
 		if (this._flushHandle === undefined) {

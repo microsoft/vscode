@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { NumberPolicy } from '../policies/numberPolicy.js';
-import { LanguageTranslations, PolicyType } from '../policies/types.js';
-import { CategoryDto, PolicyDto } from '../policies/policyDto.js';
+import { NumberPolicy } from '../policies/numberPolicy.ts';
+import { type LanguageTranslations, PolicyType } from '../policies/types.ts';
+import type { CategoryDto, PolicyDto } from '../policies/policyDto.ts';
 
 suite('NumberPolicy', () => {
 	const mockCategory: CategoryDto = {
@@ -95,6 +95,16 @@ suite('NumberPolicy', () => {
 		const presentation = policy.renderADMLPresentation();
 
 		assert.strictEqual(presentation, '<presentation id="TestNumberPolicy"><decimalTextBox refId="TestNumberPolicy" defaultValue="42">TestNumberPolicy</decimalTextBox></presentation>');
+	});
+
+	test('should render JSON value correctly', () => {
+		const policy = NumberPolicy.from(mockCategory, mockPolicy);
+
+		assert.ok(policy);
+
+		const jsonValue = policy.renderJsonValue();
+
+		assert.strictEqual(jsonValue, 42);
 	});
 
 	test('should render profile value correctly', () => {

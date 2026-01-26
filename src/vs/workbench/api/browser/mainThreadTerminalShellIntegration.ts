@@ -82,12 +82,12 @@ export class MainThreadTerminalShellIntegration extends Disposable implements Ma
 			// String paths are not exposed in the extension API
 			currentCommand = e.data;
 			const instanceId = e.instance.instanceId;
-			this._proxy.$shellExecutionStart(instanceId, e.data.command, convertToExtHostCommandLineConfidence(e.data), e.data.isTrusted, e.data.cwd);
+			this._proxy.$shellExecutionStart(instanceId, instanceSupportsExecuteCommandApi(e.instance), e.data.command, convertToExtHostCommandLineConfidence(e.data), e.data.isTrusted, e.data.cwd);
 
 			// TerminalShellExecution.createDataStream
 			// Debounce events to reduce the message count - when this listener is disposed the events will be flushed
 			instanceDataListeners.get(instanceId)?.dispose();
-			instanceDataListeners.set(instanceId, Event.accumulate(e.instance.onData, 50, this._store)(events => {
+			instanceDataListeners.set(instanceId, Event.accumulate(e.instance.onData, 50, true, this._store)(events => {
 				this._proxy.$shellExecutionData(instanceId, events.join(''));
 			}));
 		}));
@@ -117,7 +117,7 @@ export class MainThreadTerminalShellIntegration extends Disposable implements Ma
 		if (instance.shellType) {
 			this._extensionService.activateByEvent(`onTerminalShellIntegration:${instance.shellType}`);
 		}
-		this._proxy.$shellIntegrationChange(instance.instanceId);
+		this._proxy.$shellIntegrationChange(instance.instanceId, instanceSupportsExecuteCommandApi(instance));
 		const cwdDetection = instance.capabilities.get(TerminalCapability.CwdDetection);
 		if (cwdDetection) {
 			this._proxy.$cwdChange(instance.instanceId, cwdDetection.getCwd());
@@ -135,4 +135,8 @@ function convertToExtHostCommandLineConfidence(command: ITerminalCommand): Termi
 		default:
 			return TerminalShellExecutionCommandLineConfidence.Low;
 	}
+}
+
+function instanceSupportsExecuteCommandApi(instance: ITerminalInstance): boolean {
+	return instance.shellLaunchConfig.type !== 'Task';
 }

@@ -4,19 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { HierarchicalKind } from '../../../../base/common/hierarchicalKind.js';
-import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
+import { IJSONSchema, TypeFromJsonSchema } from '../../../../base/common/jsonSchema.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { escapeRegExpCharacters } from '../../../../base/common/strings.js';
 import { ICodeEditor } from '../../../browser/editorBrowser.js';
-import { EditorAction, EditorCommand, ServicesAccessor } from '../../../browser/editorExtensions.js';
+import { EditorAction, EditorAction2, EditorCommand, ServicesAccessor } from '../../../browser/editorExtensions.js';
 import { EditorContextKeys } from '../../../common/editorContextKeys.js';
 import { autoFixCommandId, codeActionCommandId, fixAllCommandId, organizeImportsCommandId, quickFixCommandId, refactorCommandId, sourceActionCommandId } from './codeAction.js';
 import * as nls from '../../../../nls.js';
+import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { CodeActionAutoApply, CodeActionCommandArgs, CodeActionFilter, CodeActionKind, CodeActionTriggerSource } from '../common/types.js';
 import { CodeActionController } from './codeActionController.js';
 import { SUPPORTED_CODE_ACTIONS } from './codeActionModel.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 
 function contextKeyForSupportedActions(kind: HierarchicalKind) {
 	return ContextKeyExpr.regex(
@@ -24,7 +26,7 @@ function contextKeyForSupportedActions(kind: HierarchicalKind) {
 		new RegExp('(\\s|^)' + escapeRegExpCharacters(kind.value) + '\\b'));
 }
 
-const argsSchema: IJSONSchema = {
+const argsSchema = {
 	type: 'object',
 	defaultSnippets: [{ body: { kind: '' } }],
 	properties: {
@@ -49,7 +51,7 @@ const argsSchema: IJSONSchema = {
 			description: nls.localize('args.schema.preferred', "Controls if only preferred code actions should be returned."),
 		}
 	}
-};
+} as const satisfies IJSONSchema;
 
 function triggerCodeActionsForEditorSelection(
 	editor: ICodeEditor,
@@ -64,22 +66,30 @@ function triggerCodeActionsForEditorSelection(
 	}
 }
 
-export class QuickFixAction extends EditorAction {
+export class QuickFixAction extends EditorAction2 {
 
 	constructor() {
 		super({
 			id: quickFixCommandId,
-			label: nls.localize2('quickfix.trigger.label', "Quick Fix..."),
+			title: nls.localize2('quickfix.trigger.label', "Quick Fix..."),
 			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasCodeActionsProvider),
-			kbOpts: {
-				kbExpr: EditorContextKeys.textInputFocus,
+			icon: Codicon.lightBulb,
+			f1: true,
+			keybinding: {
+				when: EditorContextKeys.textInputFocus,
 				primary: KeyMod.CtrlCmd | KeyCode.Period,
 				weight: KeybindingWeight.EditorContrib
+			},
+			menu: {
+				id: MenuId.InlineChatEditorAffordance,
+				group: '0_quickfix',
+				order: 0,
+				when: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasCodeActionsProvider)
 			}
 		});
 	}
 
-	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
+	override runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor): void {
 		return triggerCodeActionsForEditorSelection(editor, nls.localize('editor.action.quickFix.noneMessage', "No code actions available"), undefined, undefined, CodeActionTriggerSource.QuickFix);
 	}
 }
@@ -97,7 +107,7 @@ export class CodeActionCommand extends EditorCommand {
 		});
 	}
 
-	public runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor, userArgs: any) {
+	public runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor, userArgs?: TypeFromJsonSchema<typeof argsSchema>): void {
 		const args = CodeActionCommandArgs.fromUser(userArgs, {
 			kind: HierarchicalKind.Empty,
 			apply: CodeActionAutoApply.IfSingle,
@@ -149,7 +159,7 @@ export class RefactorAction extends EditorAction {
 		});
 	}
 
-	public run(_accessor: ServicesAccessor, editor: ICodeEditor, userArgs: any): void {
+	public run(_accessor: ServicesAccessor, editor: ICodeEditor, userArgs?: TypeFromJsonSchema<typeof argsSchema>): void {
 		const args = CodeActionCommandArgs.fromUser(userArgs, {
 			kind: CodeActionKind.Refactor,
 			apply: CodeActionAutoApply.Never
@@ -191,7 +201,7 @@ export class SourceAction extends EditorAction {
 		});
 	}
 
-	public run(_accessor: ServicesAccessor, editor: ICodeEditor, userArgs: any): void {
+	public run(_accessor: ServicesAccessor, editor: ICodeEditor, userArgs?: TypeFromJsonSchema<typeof argsSchema>): void {
 		const args = CodeActionCommandArgs.fromUser(userArgs, {
 			kind: CodeActionKind.Source,
 			apply: CodeActionAutoApply.Never

@@ -14,13 +14,13 @@ declare module 'vscode' {
 	 * {@link TerminalCompletionList} describing completions for the current command line.
 	 *
 	 * @example <caption>Simple provider returning a single completion</caption>
-	 * window.registerTerminalCompletionProvider('extension-provider-id', {
+	 * window.registerTerminalCompletionProvider({
 	 * 	provideTerminalCompletions(terminal, context) {
-	 * 		return [{ label: '--help', replacementIndex: Math.max(0, context.cursorPosition - 2), replacementLength: 2 }];
+	 * 		return [{ label: '--help', replacementRange: [Math.max(0, context.cursorPosition - 2), context.cursorPosition] }];
 	 * 	}
 	 * });
 	 */
-	export interface TerminalCompletionProvider<T extends TerminalCompletionItem> {
+	export interface TerminalCompletionProvider<T extends TerminalCompletionItem = TerminalCompletionItem> {
 		/**
 		 * Provide completions for the given terminal and context.
 		 * @param terminal The terminal for which completions are being provided.
@@ -31,15 +31,13 @@ declare module 'vscode' {
 		provideTerminalCompletions(terminal: Terminal, context: TerminalCompletionContext, token: CancellationToken): ProviderResult<T[] | TerminalCompletionList<T>>;
 	}
 
-
 	/**
 	 * Represents a completion suggestion for a terminal command line.
 	 *
 	 * @example <caption>Completion item for `ls -|`</caption>
 	 * const item = {
 	 * 	label: '-A',
-	 * 	replacementIndex: 3,
-	 * 	replacementLength: 1,
+	 * 	replacementRange: [3, 4], // replace the single character at index 3
 	 * 	detail: 'List all entries except for . and .. (always set for the super-user)',
 	 * 	kind: TerminalCompletionItemKind.Flag
 	 * };
@@ -47,21 +45,18 @@ declare module 'vscode' {
 	 * The fields on a completion item describe what text should be shown to the user
 	 * and which portion of the command line should be replaced when the item is accepted.
 	 */
-	export interface TerminalCompletionItem {
+	export class TerminalCompletionItem {
 		/**
 		 * The label of the completion.
 		 */
 		label: string | CompletionItemLabel;
 
 		/**
-		 * The index of the start of the range to replace.
+		 * The range in the command line to replace when the completion is accepted. Defined
+		 * as a tuple where the first entry is the inclusive start index and the second entry is the
+		 * exclusive end index.
 		 */
-		replacementIndex: number;
-
-		/**
-		 * The length of the range to replace.
-		 */
-		replacementLength: number;
+		replacementRange: readonly [number, number];
 
 		/**
 		 * The completion's detail which appears on the right of the list.
@@ -74,57 +69,122 @@ declare module 'vscode' {
 		documentation?: string | MarkdownString;
 
 		/**
-		 * The completion's kind. Note that this will map to an icon.
+		 * The completion's kind. Note that this will map to an icon. If no kind is provided, a generic icon representing plaintext will be provided.
 		 */
 		kind?: TerminalCompletionItemKind;
-	}
 
+		/**
+		 * Creates a new terminal completion item.
+		 *
+		 * @param label The label of the completion.
+		 * @param replacementRange The inclusive start and exclusive end index of the text to replace.
+		 * @param kind The completion's kind.
+		 */
+		constructor(
+			label: string | CompletionItemLabel,
+			replacementRange: readonly [number, number],
+			kind?: TerminalCompletionItemKind
+		);
+	}
 
 	/**
 	 * The kind of an individual terminal completion item.
 	 *
 	 * The kind is used to render an appropriate icon in the suggest list and to convey the semantic
 	 * meaning of the suggestion (file, folder, flag, commit, branch, etc.).
-	 *
 	 */
 	export enum TerminalCompletionItemKind {
+		/**
+		 * A file completion item.
+		 * Example: `README.md`
+		 */
 		File = 0,
+		/**
+		 * A folder completion item.
+		 * Example: `src/`
+		 */
 		Folder = 1,
+		/**
+		 * A method completion item.
+		 * Example: `git commit`
+		 */
 		Method = 2,
+		/**
+		 * An alias completion item.
+		 * Example: `ll` as an alias for `ls -l`
+		 */
 		Alias = 3,
+		/**
+		 * An argument completion item.
+		 * Example: `origin` in `git push origin main`
+		 */
 		Argument = 4,
 		/**
-		 * An option, for example in `code --locale`, `--locale` is the option
+		 * An option completion item. An option value is expected to follow.
+		 * Example: `--locale` in `code --locale en`
 		 */
 		Option = 5,
 		/**
-		 * The value of an option, for example in `code --locale en-US`, `en-US` is the option value
+		 * The value of an option completion item.
+		 * Example: `en-US` in `code --locale en-US`
 		 */
 		OptionValue = 6,
 		/**
-		 * A flag, for example in `git commit --amend"`, `--amend` is the flag
+		 * A flag completion item.
+		 * Example: `--amend` in `git commit --amend`
 		 */
 		Flag = 7,
+		/**
+		 * A symbolic link file completion item.
+		 * Example: `link.txt` (symlink to a file)
+		 */
 		SymbolicLinkFile = 8,
+		/**
+		 * A symbolic link folder completion item.
+		 * Example: `node_modules/` (symlink to a folder)
+		 */
 		SymbolicLinkFolder = 9,
+		/**
+		 * A source control commit completion item.
+		 * Example: `abc1234` (commit hash)
+		 */
 		ScmCommit = 10,
+		/**
+		 * A source control branch completion item.
+		 * Example: `main`
+		 */
 		ScmBranch = 11,
+		/**
+		 * A source control tag completion item.
+		 * Example: `v1.0.0`
+		 */
 		ScmTag = 12,
+		/**
+		 * A source control stash completion item.
+		 * Example: `stash@{0}`
+		 */
 		ScmStash = 13,
+		/**
+		 * A source control remote completion item.
+		 * Example: `origin`
+		 */
 		ScmRemote = 14,
+		/**
+		 * A pull request completion item.
+		 * Example: `#42 Add new feature`
+		 */
 		PullRequest = 15,
 		/**
-		 * The pull request has been closed
+		 * A closed pull request completion item.
+		 * Example: `#41 Fix bug (closed)`
 		 */
 		PullRequestDone = 16,
 	}
 
-
 	/**
 	 * Context information passed to {@link TerminalCompletionProvider.provideTerminalCompletions}.
 	 *
-	 * It contains the full command line, the current cursor position, and a flag indicating whether
-	 * fallback completions are allowed when the exact completion type cannot be determined.
+	 * It contains the full command line and the current cursor position.
 	 */
 	export interface TerminalCompletionContext {
 		/**
@@ -135,38 +195,16 @@ declare module 'vscode' {
 		 * The index of the cursor in the command line.
 		 */
 		readonly cursorIndex: number;
-		/**
-		 * Whether completions should be provided when none are explicitly suggested. This will display
-		 * fallback suggestions like files and folders.
-		 */
-		readonly allowFallbackCompletions: boolean;
-	}
-
-	export namespace window {
-		/**
-		 * Register a completion provider for terminals.
-		 * @param provider The completion provider.
-		 * @returns A {@link Disposable} that unregisters this provider when being disposed.
-		 *
-		 * @example <caption>Register a provider for an extension</caption>
-		 * window.registerTerminalCompletionProvider('extension-provider-id', {
-		 * 	provideTerminalCompletions(terminal, context) {
-		 * 		return new TerminalCompletionList([
-		 * 			{ label: '--version', replacementIndex: Math.max(0, context.cursorPosition - 2), replacementLength: 2 }
-		 * 		]);
-		 * 	}
-		 * });
-		 */
-		export function registerTerminalCompletionProvider<T extends TerminalCompletionItem>(provider: TerminalCompletionProvider<T>, ...triggerCharacters: string[]): Disposable;
 	}
 
 	/**
 	 * Represents a collection of {@link TerminalCompletionItem completion items} to be presented
-	 * in the terminal.
+	 * in the terminal plus {@link TerminalCompletionList.resourceOptions} which indicate
+	 * which file and folder resources should be requested for the terminal's cwd.
 	 *
 	 * @example <caption>Create a completion list that requests files for the terminal cwd</caption>
 	 * const list = new TerminalCompletionList([
-	 * 	{ label: 'ls', replacementIndex: 0, replacementLength: 0, kind: TerminalCompletionItemKind.Method }
+	 * 	{ label: 'ls', replacementRange: [0, 0], kind: TerminalCompletionItemKind.Method }
 	 * ], { showFiles: true, cwd: Uri.file('/home/user') });
 	 */
 	export class TerminalCompletionList<T extends TerminalCompletionItem = TerminalCompletionItem> {
@@ -190,7 +228,6 @@ declare module 'vscode' {
 		constructor(items: T[], resourceOptions?: TerminalCompletionResourceOptions);
 	}
 
-
 	/**
 	 * Configuration for requesting file and folder resources to be shown as completions.
 	 *
@@ -201,11 +238,11 @@ declare module 'vscode' {
 		/**
 		 * Show files as completion items.
 		 */
-		showFiles?: boolean;
+		showFiles: boolean;
 		/**
 		 * Show folders as completion items.
 		 */
-		showDirectories?: boolean;
+		showDirectories: boolean;
 		/**
 		 * A glob pattern string that controls which files suggest should surface. Note that this will only apply if {@param showFiles} or {@param showDirectories} is set to true.
 		 */
@@ -215,4 +252,35 @@ declare module 'vscode' {
 		 */
 		cwd: Uri;
 	}
+
+	export namespace window {
+		/**
+		 * Register a completion provider for terminals.
+		 * @param provider The completion provider.
+		 * @param triggerCharacters Optional characters that trigger completion. When any of these characters is typed,
+		 * the completion provider will be invoked. For example, passing `'-'` would cause the provider to be invoked
+		 * whenever the user types a dash character.
+		 * @returns A {@link Disposable} that unregisters this provider when being disposed.
+		 *
+		 * @example <caption>Register a provider for an extension</caption>
+		 * window.registerTerminalCompletionProvider({
+		 * 	provideTerminalCompletions(terminal, context) {
+		 * 		return new TerminalCompletionList([
+		 * 			{ label: '--version', replacementRange: [Math.max(0, context.cursorPosition - 2), context.cursorPosition] }
+		 * 		]);
+		 * 	}
+		 * });
+		 *
+		 * @example <caption>Register a provider with trigger characters</caption>
+		 * window.registerTerminalCompletionProvider({
+		 * 	provideTerminalCompletions(terminal, context) {
+		 * 		return new TerminalCompletionList([
+		 * 			{ label: '--help', replacementRange: [Math.max(0, context.cursorPosition - 2), context.cursorPosition] }
+		 * 		]);
+		 * 	}
+		 * }, '-');
+		 */
+		export function registerTerminalCompletionProvider<T extends TerminalCompletionItem>(provider: TerminalCompletionProvider<T>, ...triggerCharacters: string[]): Disposable;
+	}
 }
+

@@ -327,9 +327,33 @@ export type Mutable<T> = {
 };
 
 /**
+ * A type that adds readonly to all properties of T, recursively.
+ */
+export type DeepImmutable<T> = T extends (infer U)[]
+	? ReadonlyArray<DeepImmutable<U>>
+	: T extends ReadonlyArray<infer U>
+	? ReadonlyArray<DeepImmutable<U>>
+	: T extends Map<infer K, infer V>
+	? ReadonlyMap<K, DeepImmutable<V>>
+	: T extends Set<infer U>
+	? ReadonlySet<DeepImmutable<U>>
+	: T extends object
+	? {
+		readonly [K in keyof T]: DeepImmutable<T[K]>;
+	}
+	: T;
+
+/**
  * A single object or an array of the objects.
  */
 export type SingleOrMany<T> = T | T[];
+
+/**
+ * Given a `type X = { foo?: string }` checking that an object `satisfies X`
+ * will ensure each property was explicitly defined, ensuring no properties
+ * are omitted or forgotten.
+ */
+export type WithDefinedProps<T> = { [K in keyof Required<T>]: T[K] };
 
 
 /**
@@ -351,3 +375,36 @@ export type DeepPartial<T> = {
  * Represents a type that is a partial version of a given type `T`, except a subset.
  */
 export type PartialExcept<T, K extends keyof T> = Partial<Omit<T, K>> & Pick<T, K>;
+
+
+type KeysOfUnionType<T> = T extends T ? keyof T : never;
+type FilterType<T, TTest> = T extends TTest ? T : never;
+type MakeOptionalAndTrue<T extends object> = { [K in keyof T]?: true };
+
+/**
+ * Type guard that checks if an object has specific keys and narrows the type accordingly.
+ *
+ * @param x - The object to check
+ * @param key - An object with boolean values indicating which keys to check for
+ * @returns true if all specified keys exist in the object, false otherwise
+ *
+ * @example
+ * ```typescript
+ * type A = { a: string };
+ * type B = { b: number };
+ * const obj: A | B = getObject();
+ *
+ * if (hasKey(obj, { a: true })) {
+ *   // obj is now narrowed to type A
+ *   console.log(obj.a);
+ * }
+ * ```
+ */
+export function hasKey<T extends object, TKeys extends MakeOptionalAndTrue<T>>(x: T, key: TKeys): x is FilterType<T, { [K in KeysOfUnionType<T> & keyof TKeys]: unknown }> {
+	for (const k in key) {
+		if (!(k in x)) {
+			return false;
+		}
+	}
+	return true;
+}

@@ -79,7 +79,12 @@ export class McpService extends Disposable implements IMcpService {
 			state.set(IAutostartResult.Empty, undefined);
 		}));
 
-		this._autostart(autoStartConfig, state, cts.token).finally(() => store.dispose());
+		this._autostart(autoStartConfig, state, cts.token)
+			.catch(err => {
+				this._logService.error('Error during MCP autostart:', err);
+				state.set(IAutostartResult.Empty, undefined);
+			})
+			.finally(() => store.dispose());
 
 		return state;
 	}

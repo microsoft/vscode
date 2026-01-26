@@ -9,6 +9,7 @@ import { splitLinesIncludeSeparators } from '../../../../../base/common/strings.
 import { URI } from '../../../../../base/common/uri.js';
 import { parse, YamlNode, YamlParseError, Position as YamlPosition } from '../../../../../base/common/yaml.js';
 import { Range } from '../../../../../editor/common/core/range.js';
+import { InferValue, parseInferValue } from './service/promptsService.js';
 
 export class PromptFileParser {
 	constructor() {
@@ -62,6 +63,7 @@ interface ParsedHeader {
 }
 
 export namespace PromptHeaderAttributes {
+	export const name = 'name';
 	export const description = 'description';
 	export const agent = 'agent';
 	export const mode = 'mode';
@@ -70,6 +72,23 @@ export namespace PromptHeaderAttributes {
 	export const tools = 'tools';
 	export const handOffs = 'handoffs';
 	export const advancedOptions = 'advancedOptions';
+	export const argumentHint = 'argument-hint';
+	export const excludeAgent = 'excludeAgent';
+	export const target = 'target';
+	export const infer = 'infer';
+	export const license = 'license';
+	export const compatibility = 'compatibility';
+	export const metadata = 'metadata';
+	export const agents = 'agents';
+}
+
+export namespace GithubPromptHeaderAttributes {
+	export const mcpServers = 'mcp-servers';
+}
+
+export enum Target {
+	VSCode = 'vscode',
+	GitHubCopilot = 'github-copilot'
 }
 
 export class PromptHeader {
@@ -146,6 +165,10 @@ export class PromptHeader {
 		return undefined;
 	}
 
+	public get name(): string | undefined {
+		return this.getStringAttribute(PromptHeaderAttributes.name);
+	}
+
 	public get description(): string | undefined {
 		return this.getStringAttribute(PromptHeaderAttributes.description);
 	}
@@ -154,12 +177,31 @@ export class PromptHeader {
 		return this.getStringAttribute(PromptHeaderAttributes.agent) ?? this.getStringAttribute(PromptHeaderAttributes.mode);
 	}
 
-	public get model(): string | undefined {
-		return this.getStringAttribute(PromptHeaderAttributes.model);
+	public get model(): readonly string[] | undefined {
+		return this.getStringOrStringArrayAttribute(PromptHeaderAttributes.model);
 	}
 
 	public get applyTo(): string | undefined {
 		return this.getStringAttribute(PromptHeaderAttributes.applyTo);
+	}
+
+	public get argumentHint(): string | undefined {
+		return this.getStringAttribute(PromptHeaderAttributes.argumentHint);
+	}
+
+	public get target(): string | undefined {
+		return this.getStringAttribute(PromptHeaderAttributes.target);
+	}
+
+	public get infer(): InferValue | undefined {
+		const attribute = this._parsedHeader.attributes.find(attr => attr.key === PromptHeaderAttributes.infer);
+		if (attribute?.value.type === 'boolean') {
+			return attribute.value.value ? 'all' : 'user';
+		}
+		if (attribute?.value.type === 'string' && attribute.value.value) {
+			return parseInferValue(attribute.value.value);
+		}
+		return undefined;
 	}
 
 	public get tools(): string[] | undefined {
@@ -196,7 +238,7 @@ export class PromptHeader {
 			return undefined;
 		}
 		if (handoffsAttribute.value.type === 'array') {
-			// Array format: list of objects: { agent, label, prompt, send? }
+			// Array format: list of objects: { agent, label, prompt, send?, showContinueOn? }
 			const handoffs: IHandOff[] = [];
 			for (const item of handoffsAttribute.value.items) {
 				if (item.type === 'object') {
@@ -204,6 +246,7 @@ export class PromptHeader {
 					let label: string | undefined;
 					let prompt: string | undefined;
 					let send: boolean | undefined;
+					let showContinueOn: boolean | undefined;
 					for (const prop of item.properties) {
 						if (prop.key.value === 'agent' && prop.value.type === 'string') {
 							agent = prop.value.value;
@@ -213,10 +256,19 @@ export class PromptHeader {
 							prompt = prop.value.value;
 						} else if (prop.key.value === 'send' && prop.value.type === 'boolean') {
 							send = prop.value.value;
+						} else if (prop.key.value === 'showContinueOn' && prop.value.type === 'boolean') {
+							showContinueOn = prop.value.value;
 						}
 					}
 					if (agent && label && prompt !== undefined) {
-						handoffs.push({ agent, label, prompt, send });
+						const handoff: IHandOff = {
+							agent,
+							label,
+							prompt,
+							...(send !== undefined ? { send } : {}),
+							...(showContinueOn !== undefined ? { showContinueOn } : {})
+						};
+						handoffs.push(handoff);
 					}
 				}
 			}
@@ -224,9 +276,56 @@ export class PromptHeader {
 		}
 		return undefined;
 	}
+
+	private getStringArrayAttribute(key: string): string[] | undefined {
+		const attribute = this._parsedHeader.attributes.find(attr => attr.key === key);
+		if (!attribute) {
+			return undefined;
+		}
+		if (attribute.value.type === 'array') {
+			const result: string[] = [];
+			for (const item of attribute.value.items) {
+				if (item.type === 'string' && item.value) {
+					result.push(item.value);
+				}
+			}
+			return result;
+		}
+		return undefined;
+	}
+
+	private getStringOrStringArrayAttribute(key: string): readonly string[] | undefined {
+		const attribute = this._parsedHeader.attributes.find(attr => attr.key === key);
+		if (!attribute) {
+			return undefined;
+		}
+		if (attribute.value.type === 'string') {
+			return [attribute.value.value];
+		}
+		if (attribute.value.type === 'array') {
+			const result: string[] = [];
+			for (const item of attribute.value.items) {
+				if (item.type === 'string') {
+					result.push(item.value);
+				}
+			}
+			return result;
+		}
+		return undefined;
+	}
+
+	public get agents(): string[] | undefined {
+		return this.getStringArrayAttribute(PromptHeaderAttributes.agents);
+	}
 }
 
-export interface IHandOff { readonly agent: string; readonly label: string; readonly prompt: string; readonly send?: boolean }
+export interface IHandOff {
+	readonly agent: string;
+	readonly label: string;
+	readonly prompt: string;
+	readonly send?: boolean;
+	readonly showContinueOn?: boolean; // treated exactly like send (optional boolean)
+}
 
 export interface IHeaderAttribute {
 	readonly range: Range;
@@ -286,34 +385,39 @@ export class PromptBody {
 			const bodyOffset = Iterable.reduce(Iterable.slice(this.linesWithEOL, 0, this.range.startLineNumber - 1), (len, line) => line.length + len, 0);
 			for (let i = this.range.startLineNumber - 1, lineStartOffset = bodyOffset; i < this.range.endLineNumber - 1; i++) {
 				const line = this.linesWithEOL[i];
+				// Match markdown links: [text](link)
 				const linkMatch = line.matchAll(/\[(.*?)\]\((.+?)\)/g);
 				for (const match of linkMatch) {
+					if (match.index > 0 && line[match.index - 1] === '!') {
+						continue; // skip image links
+					}
 					const linkEndOffset = match.index + match[0].length - 1; // before the parenthesis
 					const linkStartOffset = match.index + match[0].length - match[2].length - 1;
 					const range = new Range(i + 1, linkStartOffset + 1, i + 1, linkEndOffset + 1);
 					fileReferences.push({ content: match[2], range, isMarkdownLink: true });
 					markdownLinkRanges.push(new Range(i + 1, match.index + 1, i + 1, match.index + match[0].length + 1));
 				}
-				const reg = new RegExp(`#([\\w]+:)?([^\\s#]+)`, 'g');
+				// Match #file:<filePath> and #tool:<toolName>
+				// Regarding the <toolName> pattern below, see also the variableReg regex in chatRequestParser.ts.
+				const reg = /#file:(?<filePath>[^\s#]+)|#tool:(?<toolName>[\w_\-\.\/]+)/gi;
 				const matches = line.matchAll(reg);
 				for (const match of matches) {
-					const fullRange = new Range(i + 1, match.index + 1, i + 1, match.index + match[0].length + 1);
+					const fullMatch = match[0];
+					const fullRange = new Range(i + 1, match.index + 1, i + 1, match.index + fullMatch.length + 1);
 					if (markdownLinkRanges.some(mdRange => Range.areIntersectingOrTouching(mdRange, fullRange))) {
 						continue;
 					}
-					const varType = match[1];
-					if (varType) {
-						if (varType === 'file:') {
-							const linkStartOffset = match.index + match[0].length - match[2].length;
-							const linkEndOffset = match.index + match[0].length;
-							const range = new Range(i + 1, linkStartOffset + 1, i + 1, linkEndOffset + 1);
-							fileReferences.push({ content: match[2], range, isMarkdownLink: false });
-						}
-					} else {
-						const contentStartOffset = match.index + 1; // after the #
-						const contentEndOffset = match.index + match[0].length;
-						const range = new Range(i + 1, contentStartOffset + 1, i + 1, contentEndOffset + 1);
-						variableReferences.push({ name: match[2], range, offset: lineStartOffset + match.index });
+					const contentMatch = match.groups?.['filePath'] || match.groups?.['toolName'];
+					if (!contentMatch) {
+						continue;
+					}
+					const startOffset = match.index + fullMatch.length - contentMatch.length;
+					const endOffset = match.index + fullMatch.length;
+					const range = new Range(i + 1, startOffset + 1, i + 1, endOffset + 1);
+					if (match.groups?.['filePath']) {
+						fileReferences.push({ content: match.groups?.['filePath'], range, isMarkdownLink: false });
+					} else if (match.groups?.['toolName']) {
+						variableReferences.push({ name: match.groups?.['toolName'], range, offset: lineStartOffset + match.index });
 					}
 				}
 				lineStartOffset += line.length;

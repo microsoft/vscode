@@ -4,16 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 
-import { CancellationToken, Disposable, Event, EventEmitter, FileDecoration, FileDecorationProvider, SourceControlHistoryItem, SourceControlHistoryItemChange, SourceControlHistoryOptions, SourceControlHistoryProvider, ThemeIcon, Uri, window, LogOutputChannel, SourceControlHistoryItemRef, l10n, SourceControlHistoryItemRefsChangeEvent, workspace, ConfigurationChangeEvent, MarkdownString, Command } from 'vscode';
+import { CancellationToken, Disposable, Event, EventEmitter, FileDecoration, FileDecorationProvider, SourceControlHistoryItem, SourceControlHistoryItemChange, SourceControlHistoryOptions, SourceControlHistoryProvider, ThemeIcon, Uri, window, LogOutputChannel, SourceControlHistoryItemRef, l10n, SourceControlHistoryItemRefsChangeEvent, workspace, ConfigurationChangeEvent, Command, commands } from 'vscode';
 import { Repository, Resource } from './repository';
-import { IDisposable, deltaHistoryItemRefs, dispose, filterEvent, fromNow, getCommitShortHash, subject, truncate } from './util';
+import { IDisposable, deltaHistoryItemRefs, dispose, filterEvent, subject, truncate } from './util';
 import { toMultiFileDiffEditorUris } from './uri';
 import { AvatarQuery, AvatarQueryCommit, Branch, LogOptions, Ref, RefType } from './api/git';
 import { emojify, ensureEmojis } from './emoji';
-import { Commit, CommitShortStat } from './git';
+import { Commit } from './git';
 import { OperationKind, OperationResult } from './operation';
 import { ISourceControlHistoryItemDetailsProviderRegistry, provideSourceControlHistoryItemAvatar, provideSourceControlHistoryItemHoverCommands, provideSourceControlHistoryItemMessageLinks } from './historyItemDetailsProvider';
 import { throttle } from './decorators';
+import { getHistoryItemHover, getHoverCommitHashCommands, processHoverRemoteCommands } from './hover';
 
 function compareSourceControlHistoryItemRef(ref1: SourceControlHistoryItemRef, ref2: SourceControlHistoryItemRef): number {
 	const getOrder = (ref: SourceControlHistoryItemRef): number => {
@@ -124,7 +125,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 								id: `refs/heads/${this.repository.HEAD.upstream.name}`,
 								name: this.repository.HEAD.upstream.name,
 								revision: this.repository.HEAD.upstream.commit,
-								icon: new ThemeIcon('gi-branch')
+								icon: new ThemeIcon('git-branch')
 							};
 						} else {
 							// Remote branch
@@ -183,6 +184,14 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 				this._currentHistoryItemBaseRef = undefined;
 				break;
 			}
+		}
+
+		// Update context keys for HEAD
+		if (this._HEAD?.ahead !== this.repository.HEAD?.ahead) {
+			commands.executeCommand('setContext', 'git.currentHistoryItemIsAhead', (this.repository.HEAD?.ahead ?? 0) > 0);
+		}
+		if (this._HEAD?.behind !== this.repository.HEAD?.behind) {
+			commands.executeCommand('setContext', 'git.currentHistoryItemIsBehind', (this.repository.HEAD?.behind ?? 0) > 0);
 		}
 
 		this._HEAD = this.repository.HEAD;
@@ -296,8 +305,8 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 				const references = this._resolveHistoryItemRefs(commit);
 
 				const commands: Command[][] = [
-					getHistoryItemHoverCommitHashCommands(Uri.file(this.repository.root), commit.hash),
-					processHistoryItemRemoteHoverCommands(remoteHoverCommands, commit.hash)
+					getHoverCommitHashCommands(Uri.file(this.repository.root), commit.hash),
+					processHoverRemoteCommands(remoteHoverCommands, commit.hash)
 				];
 
 				const tooltip = getHistoryItemHover(avatarUrl, commit.authorName, commit.authorEmail, commit.authorDate ?? commit.commitDate, messageWithLinks, commit.shortStat, commands);
@@ -330,7 +339,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 
 		const historyItemChangesUri: Uri[] = [];
 		const historyItemChanges: SourceControlHistoryItemChange[] = [];
-		const changes = await this.repository.diffTrees(historyItemParentId, historyItemId);
+		const changes = await this.repository.diffBetweenWithStats(historyItemParentId, historyItemId);
 
 		for (const change of changes) {
 			const historyItemUri = change.uri.with({
@@ -599,105 +608,4 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 	dispose(): void {
 		dispose(this.disposables);
 	}
-}
-
-export const AVATAR_SIZE = 20;
-
-export function getHistoryItemHoverCommitHashCommands(documentUri: Uri, hash: string): Command[] {
-	return [{
-		title: `$(git-commit) ${getCommitShortHash(documentUri, hash)}`,
-		tooltip: l10n.t('Open Commit'),
-		command: 'git.viewCommit',
-		arguments: [documentUri, hash, documentUri]
-	}, {
-		title: `$(copy)`,
-		tooltip: l10n.t('Copy Commit Hash'),
-		command: 'git.copyContentToClipboard',
-		arguments: [hash]
-	}] satisfies Command[];
-}
-
-export function processHistoryItemRemoteHoverCommands(commands: Command[], hash: string): Command[] {
-	return commands.map(command => ({
-		...command,
-		arguments: [...command.arguments ?? [], hash]
-	} satisfies Command));
-}
-
-export function getHistoryItemHover(authorAvatar: string | undefined, authorName: string | undefined, authorEmail: string | undefined, authorDate: Date | number | undefined, message: string, shortStats: CommitShortStat | undefined, commands: Command[][] | undefined): MarkdownString {
-	const markdownString = new MarkdownString('', true);
-	markdownString.isTrusted = {
-		enabledCommands: commands?.flat().map(c => c.command) ?? []
-	};
-
-	if (authorName) {
-		const avatar = authorAvatar ? `![${authorName}](${authorAvatar}|width=${AVATAR_SIZE},height=${AVATAR_SIZE})` : '$(account)';
-
-		if (authorEmail) {
-			const emailTitle = l10n.t('Email');
-			markdownString.appendMarkdown(`${avatar} [**${authorName}**](mailto:${authorEmail} "${emailTitle} ${authorName}")`);
-		} else {
-			markdownString.appendMarkdown(`${avatar} **${authorName}**`);
-		}
-
-		if (authorDate) {
-			const dateString = new Date(authorDate).toLocaleString(undefined, {
-				year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: 'numeric'
-			});
-			markdownString.appendMarkdown(`, $(history) ${fromNow(authorDate, true, true)} (${dateString})`);
-		}
-
-		markdownString.appendMarkdown('\n\n');
-	}
-
-	// Subject | Message
-	markdownString.appendMarkdown(`${emojify(message.replace(/\r\n|\r|\n/g, '\n\n'))}\n\n`);
-	markdownString.appendMarkdown(`---\n\n`);
-
-	// Short stats
-	if (shortStats) {
-		markdownString.appendMarkdown(`<span>${shortStats.files === 1 ?
-			l10n.t('{0} file changed', shortStats.files) :
-			l10n.t('{0} files changed', shortStats.files)}</span>`);
-
-		if (shortStats.insertions) {
-			markdownString.appendMarkdown(`,&nbsp;<span style="color:var(--vscode-scmGraph-historyItemHoverAdditionsForeground);">${shortStats.insertions === 1 ?
-				l10n.t('{0} insertion{1}', shortStats.insertions, '(+)') :
-				l10n.t('{0} insertions{1}', shortStats.insertions, '(+)')}</span>`);
-		}
-
-		if (shortStats.deletions) {
-			markdownString.appendMarkdown(`,&nbsp;<span style="color:var(--vscode-scmGraph-historyItemHoverDeletionsForeground);">${shortStats.deletions === 1 ?
-				l10n.t('{0} deletion{1}', shortStats.deletions, '(-)') :
-				l10n.t('{0} deletions{1}', shortStats.deletions, '(-)')}</span>`);
-		}
-
-		markdownString.appendMarkdown(`\n\n---\n\n`);
-	}
-
-	// References
-	// TODO@lszomoru - move these to core
-	// if (references && references.length > 0) {
-	// 	markdownString.appendMarkdown((references ?? []).map(ref => {
-	// 		console.log(ref);
-	// 		const labelIconId = ref.icon instanceof ThemeIcon ? ref.icon.id : '';
-	// 		return `<span style="color:var(--vscode-scmGraph-historyItemHoverDefaultLabelForeground);background-color:var(--vscode-scmGraph-historyItemHoverDefaultLabelBackground);border-radius:10px;">&nbsp;$(${labelIconId})&nbsp;${ref.name}&nbsp;&nbsp;</span>`;
-	// 	}).join('&nbsp;&nbsp;'));
-	// 	markdownString.appendMarkdown(`\n\n---\n\n`);
-	// }
-
-	// Commands
-	if (commands && commands.length > 0) {
-		for (let index = 0; index < commands.length; index++) {
-			if (index !== 0) {
-				markdownString.appendMarkdown('&nbsp;&nbsp;|&nbsp;&nbsp;');
-			}
-
-			const commandsMarkdown = commands[index]
-				.map(command => `[${command.title}](command:${command.command}?${encodeURIComponent(JSON.stringify(command.arguments))} "${command.tooltip}")`);
-			markdownString.appendMarkdown(commandsMarkdown.join('&nbsp;'));
-		}
-	}
-
-	return markdownString;
 }

@@ -23,6 +23,7 @@ export interface Policy {
 	renderADMX(regKey: string): string[];
 	renderADMLStrings(translations?: LanguageTranslations): string[];
 	renderADMLPresentation(): string;
+	renderJsonValue(): string | number | boolean | object | null;
 	renderProfile(): string[];
 	// https://github.com/ProfileManifests/ProfileManifests/wiki/Manifest-Format
 	renderProfileManifest(translations?: LanguageTranslations): string;
@@ -35,13 +36,14 @@ export interface Category {
 	readonly name: NlsString;
 }
 
-export enum PolicyType {
-	Boolean = 'boolean',
-	Number = 'number',
-	Object = 'object',
-	String = 'string',
-	StringEnum = 'stringEnum',
-}
+export const PolicyType = Object.freeze({
+	Boolean: 'boolean',
+	Number: 'number',
+	Object: 'object',
+	String: 'string',
+	StringEnum: 'stringEnum',
+});
+export type PolicyType = typeof PolicyType[keyof typeof PolicyType];
 
 export const Languages = {
 	'fr': 'fr-fr',

@@ -190,7 +190,7 @@
 }
 
 .monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .badge .codicon.badge-content {
-	font-size: 12px;
+	font-size: 13px;
 	font-weight: unset;
 	padding: 0;
 	justify-content: center;

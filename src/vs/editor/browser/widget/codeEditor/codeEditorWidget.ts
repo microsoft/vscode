@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import '../../services/markerDecorations.js';
+import '../../services/contribution.js';
 import * as dom from '../../../../base/browser/dom.js';
 import { IKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { IMouseWheelEvent } from '../../../../base/browser/mouseEvent.js';
@@ -18,6 +18,7 @@ import { applyFontInfo } from '../../config/domFontInfo.js';
 import { EditorConfiguration, IEditorConstructionOptions } from '../../config/editorConfiguration.js';
 import { TabFocus } from '../../config/tabFocus.js';
 import * as editorBrowser from '../../editorBrowser.js';
+import { IClipboardCopyEvent, IClipboardPasteEvent } from '../../controller/editContext/clipboardUtils.js';
 import { EditorExtensionsRegistry, IEditorContributionDescription } from '../../editorExtensions.js';
 import { ICodeEditorService } from '../../services/codeEditorService.js';
 import { IContentWidgetData, IGlyphMarginWidgetData, IOverlayWidgetData, View } from '../../view.js';
@@ -146,6 +147,15 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 	private readonly _onDidPaste: Emitter<editorBrowser.IPasteEvent> = this._register(new InteractionEmitter<editorBrowser.IPasteEvent>(this._contributions, this._deliveryQueue));
 	public readonly onDidPaste = this._onDidPaste.event;
+
+	private readonly _onWillCopy: Emitter<IClipboardCopyEvent> = this._register(new InteractionEmitter<IClipboardCopyEvent>(this._contributions, this._deliveryQueue));
+	public readonly onWillCopy = this._onWillCopy.event;
+
+	private readonly _onWillCut: Emitter<IClipboardCopyEvent> = this._register(new InteractionEmitter<IClipboardCopyEvent>(this._contributions, this._deliveryQueue));
+	public readonly onWillCut = this._onWillCut.event;
+
+	private readonly _onWillPaste: Emitter<IClipboardPasteEvent> = this._register(new InteractionEmitter<IClipboardPasteEvent>(this._contributions, this._deliveryQueue));
+	public readonly onWillPaste = this._onWillPaste.event;
 
 	private readonly _onMouseUp: Emitter<editorBrowser.IEditorMouseEvent> = this._register(new InteractionEmitter<editorBrowser.IEditorMouseEvent>(this._contributions, this._deliveryQueue));
 	public readonly onMouseUp: Event<editorBrowser.IEditorMouseEvent> = this._onMouseUp.event;
@@ -286,6 +296,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		this._configuration = this._register(this._createConfiguration(codeEditorWidgetOptions.isSimpleWidget || false,
 			codeEditorWidgetOptions.contextMenuId ?? (codeEditorWidgetOptions.isSimpleWidget ? MenuId.SimpleEditorContext : MenuId.EditorContext),
 			options, accessibilityService));
+		this._domElement.style?.setProperty('--editor-font-size', this._configuration.options.get(EditorOption.fontSize) + 'px');
 		this._register(this._configuration.onDidChange((e) => {
 			this._onDidChangeConfiguration.fire(e);
 
@@ -293,6 +304,9 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			if (e.hasChanged(EditorOption.layoutInfo)) {
 				const layoutInfo = options.get(EditorOption.layoutInfo);
 				this._onDidLayoutChange.fire(layoutInfo);
+			}
+			if (e.hasChanged(EditorOption.fontSize)) {
+				this._domElement.style.setProperty('--editor-font-size', options.get(EditorOption.fontSize) + 'px');
 			}
 		}));
 
@@ -599,8 +613,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		if (!this._modelData) {
 			return -1;
 		}
-		const maxCol = this._modelData.model.getLineMaxColumn(lineNumber);
-		return CodeEditorWidget._getVerticalOffsetAfterPosition(this._modelData, lineNumber, maxCol, includeViewZones);
+		return CodeEditorWidget._getVerticalOffsetAfterPosition(this._modelData, lineNumber, Number.MAX_SAFE_INTEGER, includeViewZones);
 	}
 
 	public getLineHeightForPosition(position: IPosition): number {
@@ -676,6 +689,13 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		const viewRange = this._modelData.viewModel.coordinatesConverter.convertModelRangeToViewRange(validatedModelRange);
 
 		this._modelData.viewModel.revealRange('api', revealHorizontal, viewRange, verticalType, scrollType);
+	}
+
+	public revealAllCursors(revealHorizontal: boolean, minimalReveal?: boolean): void {
+		if (!this._modelData) {
+			return;
+		}
+		this._modelData.viewModel.revealAllCursors('api', revealHorizontal, minimalReveal);
 	}
 
 	public revealLine(lineNumber: number, scrollType: editorCommon.ScrollType = editorCommon.ScrollType.Smooth): void {
@@ -784,7 +804,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		}
 
 		if (isSelection) {
-			this._setSelectionImpl(<ISelection>something, source);
+			this._setSelectionImpl(something, source);
 		} else if (isRange) {
 			// act as if it was an IRange
 			const selection: ISelection = {
@@ -1436,7 +1456,12 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			delete this._decorationTypeKeysToIds[decorationTypeKey];
 		}
 		if (this._decorationTypeSubtypes.hasOwnProperty(decorationTypeKey)) {
+			const items = this._decorationTypeSubtypes[decorationTypeKey];
+			for (const subType of Object.keys(items)) {
+				this._removeDecorationType(decorationTypeKey + '-' + subType);
+			}
 			delete this._decorationTypeSubtypes[decorationTypeKey];
+
 		}
 	}
 
@@ -1662,12 +1687,35 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		return this._modelData.view.getOffsetForColumn(lineNumber, column);
 	}
 
+	public getWidthOfLine(lineNumber: number): number {
+		if (!this._modelData || !this._modelData.hasRealView) {
+			return -1;
+		}
+		return this._modelData.view.getLineWidth(lineNumber);
+	}
+
+	public resetLineWidthCaches(): void {
+		if (!this._modelData || !this._modelData.hasRealView) {
+			return;
+		}
+		this._modelData.view.resetLineWidthCaches();
+	}
+
 	public render(forceRedraw: boolean = false): void {
 		if (!this._modelData || !this._modelData.hasRealView) {
 			return;
 		}
 		this._modelData.viewModel.batchEvents(() => {
 			this._modelData!.view.render(true, forceRedraw);
+		});
+	}
+
+	public renderAsync(forceRedraw: boolean = false): void {
+		if (!this._modelData || !this._modelData.hasRealView) {
+			return;
+		}
+		this._modelData.viewModel.batchEvents(() => {
+			this._modelData!.view.render(false, forceRedraw);
 		});
 	}
 
@@ -1858,6 +1906,11 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 			view.render(false, true);
 			view.domNode.domNode.setAttribute('data-uri', model.uri.toString());
+
+			// Connect clipboard events from View
+			listenersToRemove.push(view.onWillCopy(e => this._onWillCopy.fire(e)));
+			listenersToRemove.push(view.onWillCut(e => this._onWillCut.fire(e)));
+			listenersToRemove.push(view.onWillPaste(e => this._onWillPaste.fire(e)));
 		}
 
 		this._modelData = new ModelData(model, viewModel, view, hasRealView, listenersToRemove, attachedView);

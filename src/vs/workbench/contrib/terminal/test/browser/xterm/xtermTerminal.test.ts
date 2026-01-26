@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { WebglAddon } from '@xterm/addon-webgl';
-import type { IEvent, Terminal } from '@xterm/xterm';
+import type { Terminal } from '@xterm/xterm';
 import { deepStrictEqual, strictEqual } from 'assert';
 import { importAMDNodeModule } from '../../../../../../amdX.js';
 import { Color, RGBA } from '../../../../../../base/common/color.js';
@@ -22,38 +21,9 @@ import { XtermTerminal } from '../../../browser/xterm/xtermTerminal.js';
 import { ITerminalConfiguration, TERMINAL_VIEW_ID } from '../../../common/terminal.js';
 import { registerColors, TERMINAL_BACKGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_COLOR, TERMINAL_CURSOR_FOREGROUND_COLOR, TERMINAL_FOREGROUND_COLOR, TERMINAL_INACTIVE_SELECTION_BACKGROUND_COLOR, TERMINAL_SELECTION_BACKGROUND_COLOR, TERMINAL_SELECTION_FOREGROUND_COLOR } from '../../../common/terminalColorRegistry.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
-import { IXtermAddonNameToCtor, XtermAddonImporter } from '../../../browser/xterm/xtermAddonImporter.js';
+import { TestWebglAddon, TestXtermAddonImporter } from './xtermTestUtils.js';
 
 registerColors();
-
-class TestWebglAddon implements WebglAddon {
-	static shouldThrow = false;
-	static isEnabled = false;
-	readonly onChangeTextureAtlas = new Emitter().event as IEvent<HTMLCanvasElement>;
-	readonly onAddTextureAtlasCanvas = new Emitter().event as IEvent<HTMLCanvasElement>;
-	readonly onRemoveTextureAtlasCanvas = new Emitter().event as IEvent<HTMLCanvasElement, void>;
-	readonly onContextLoss = new Emitter().event as IEvent<void>;
-	activate() {
-		TestWebglAddon.isEnabled = !TestWebglAddon.shouldThrow;
-		if (TestWebglAddon.shouldThrow) {
-			throw new Error('Test webgl set to throw');
-		}
-	}
-	dispose() {
-		TestWebglAddon.isEnabled = false;
-	}
-	clearTextureAtlas() { }
-}
-
-class TestXtermAddonImporter extends XtermAddonImporter {
-	override async importAddon<T extends keyof IXtermAddonNameToCtor>(name: T): Promise<IXtermAddonNameToCtor[T]> {
-		if (name === 'webgl') {
-			// eslint-disable-next-line local/code-no-any-casts
-			return Promise.resolve(TestWebglAddon) as any;
-		}
-		return super.importAddon(name);
-	}
-}
 
 export class TestViewDescriptorService implements Partial<IViewDescriptorService> {
 	private _location = ViewContainerLocation.Panel;
@@ -67,8 +37,7 @@ export class TestViewDescriptorService implements Partial<IViewDescriptorService
 		this._location = to;
 		this._onDidChangeLocation.fire({
 			views: [
-				// eslint-disable-next-line local/code-no-any-casts
-				{ id: TERMINAL_VIEW_ID } as any
+				{ id: TERMINAL_VIEW_ID } as unknown as IViewDescriptor
 			],
 			from: oldLocation,
 			to
@@ -122,7 +91,7 @@ suite('XtermTerminal', () => {
 		XTermBaseCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
 
 		const capabilityStore = store.add(new TerminalCapabilityStore());
-		xterm = store.add(instantiationService.createInstance(XtermTerminal, XTermBaseCtor, {
+		xterm = store.add(instantiationService.createInstance(XtermTerminal, undefined, XTermBaseCtor, {
 			cols: 80,
 			rows: 30,
 			xtermColorProvider: { getBackgroundColor: () => undefined },
@@ -280,7 +249,7 @@ suite('XtermTerminal', () => {
 				[PANEL_BACKGROUND]: '#ff0000',
 				[SIDE_BAR_BACKGROUND]: '#00ff00'
 			}));
-			xterm = store.add(instantiationService.createInstance(XtermTerminal, XTermBaseCtor, {
+			xterm = store.add(instantiationService.createInstance(XtermTerminal, undefined, XTermBaseCtor, {
 				cols: 80,
 				rows: 30,
 				xtermAddonImporter: new TestXtermAddonImporter(),
@@ -316,7 +285,7 @@ suite('XtermTerminal', () => {
 				'terminal.ansiBrightCyan': '#150000',
 				'terminal.ansiBrightWhite': '#160000',
 			}));
-			xterm = store.add(instantiationService.createInstance(XtermTerminal, XTermBaseCtor, {
+			xterm = store.add(instantiationService.createInstance(XtermTerminal, undefined, XTermBaseCtor, {
 				cols: 80,
 				rows: 30,
 				xtermAddonImporter: new TestXtermAddonImporter(),

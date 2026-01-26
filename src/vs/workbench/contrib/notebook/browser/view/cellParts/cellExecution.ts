@@ -16,6 +16,7 @@ import { INotebookExecutionStateService } from '../../../common/notebookExecutio
 import { executingStateIcon } from '../../notebookIcons.js';
 import { renderLabelWithIcons } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { CellViewModelStateChangeEvent } from '../../notebookViewEvents.js';
+import { hasKey } from '../../../../../../base/common/types.js';
 
 const UPDATE_EXECUTION_ORDER_GRACE_PERIOD = 200;
 
@@ -38,7 +39,7 @@ export class CellExecutionPart extends CellContentPart {
 
 		// Add a method to watch for cell execution state changes
 		this._register(this._notebookExecutionStateService.onDidChangeExecution(e => {
-			if (this.currentCell && 'affectsCell' in e && e.affectsCell(this.currentCell.uri)) {
+			if (this.currentCell && hasKey(e, { affectsCell: true }) && e.affectsCell(this.currentCell.uri)) {
 				this._updatePosition();
 			}
 		}));
@@ -171,6 +172,7 @@ export class CellExecutionPart extends CellContentPart {
 				this._executionOrderLabel.classList.remove('sticky');
 				top = this.currentCell.layoutInfo.editorHeight - lineHeight; // Place at the bottom of the editor
 				// Only update content if we were previously sticky or content is not correct
+				// eslint-disable-next-line no-restricted-syntax
 				const iconIsPresent = this._executionOrderContent.querySelector('.codicon') !== null;
 				if (wasStickyHere || iconIsPresent) {
 					const executionOrder = this.currentCell.internalMetadata.executionOrder;

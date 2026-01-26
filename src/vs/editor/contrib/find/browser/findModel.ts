@@ -185,7 +185,7 @@ export class FindModelBoundToEditorModel {
 		if (typeof newFindScope !== 'undefined') {
 			if (newFindScope !== null) {
 				if (!Array.isArray(newFindScope)) {
-					findScopes = [newFindScope as Range];
+					findScopes = [newFindScope];
 				} else {
 					findScopes = newFindScope;
 				}

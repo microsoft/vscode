@@ -47,7 +47,7 @@ jobs:
           fi
         displayName: Check if package files were modified
 
-      - script: node build/setup-npm-registry.js $NPM_REGISTRY
+      - script: node build/setup-npm-registry.ts $NPM_REGISTRY
         condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'), eq(variables['SHOULD_VALIDATE'], 'true'))
         displayName: Setup NPM Registry
 
@@ -84,11 +84,11 @@ jobs:
 
             echo "Attempt $attempt: Running npm ci"
             if npm i --ignore-scripts; then
-              if node build/npm/postinstall.js; then
+              if node build/npm/postinstall.ts; then
                 echo "npm i succeeded on attempt $attempt"
                 exit 0
               else
-                echo "node build/npm/postinstall.js failed on attempt $attempt"
+                echo "node build/npm/postinstall.ts failed on attempt $attempt"
               fi
             else
               echo "npm i failed on attempt $attempt"

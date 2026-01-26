@@ -466,7 +466,7 @@ export function buildHelpMessage(productName: string, executableName: string, ve
 				subcommands.push({ command: optionId, description: o.description });
 			}
 		} else if (o.description && o.cat) {
-			const cat = o.cat as keyof typeof helpCategories;
+			const cat = o.cat;
 			let optionsByCat = optionsByCategory[cat];
 			if (!optionsByCat) {
 				optionsByCategory[cat] = optionsByCat = {};

@@ -17,6 +17,7 @@ import type * as performance from '../../../base/common/performance.js';
 import { ILogService } from '../../log/common/log.js';
 import type { IAction } from '../../../base/common/actions.js';
 import type { IDisposable } from '../../../base/common/lifecycle.js';
+import type { SingleOrMany } from '../../../base/common/types.js';
 
 export const enum TerminalSettingPrefix {
 	AutomationProfile = 'terminal.integrated.automationProfile.',
@@ -90,7 +91,6 @@ export const enum TerminalSettingId {
 	EnvironmentChangesRelaunch = 'terminal.integrated.environmentChangesRelaunch',
 	ShowExitAlert = 'terminal.integrated.showExitAlert',
 	SplitCwd = 'terminal.integrated.splitCwd',
-	WindowsEnableConpty = 'terminal.integrated.windowsEnableConpty',
 	WindowsUseConptyDll = 'terminal.integrated.windowsUseConptyDll',
 	WordSeparators = 'terminal.integrated.wordSeparators',
 	EnableFileLinks = 'terminal.integrated.enableFileLinks',
@@ -109,6 +109,8 @@ export const enum TerminalSettingId {
 	ShellIntegrationEnabled = 'terminal.integrated.shellIntegration.enabled',
 	ShellIntegrationShowWelcome = 'terminal.integrated.shellIntegration.showWelcome',
 	ShellIntegrationDecorationsEnabled = 'terminal.integrated.shellIntegration.decorationsEnabled',
+	ShellIntegrationTimeout = 'terminal.integrated.shellIntegration.timeout',
+	ShellIntegrationQuickFixEnabled = 'terminal.integrated.shellIntegration.quickFixEnabled',
 	ShellIntegrationEnvironmentReporting = 'terminal.integrated.shellIntegration.environmentReporting',
 	EnableImages = 'terminal.integrated.enableImages',
 	SmoothScrolling = 'terminal.integrated.smoothScrolling',
@@ -117,8 +119,11 @@ export const enum TerminalSettingId {
 	FontLigaturesEnabled = 'terminal.integrated.fontLigatures.enabled',
 	FontLigaturesFeatureSettings = 'terminal.integrated.fontLigatures.featureSettings',
 	FontLigaturesFallbackLigatures = 'terminal.integrated.fontLigatures.fallbackLigatures',
+	EnableKittyKeyboardProtocol = 'terminal.integrated.enableKittyKeyboardProtocol',
+	EnableWin32InputMode = 'terminal.integrated.enableWin32InputMode',
+	AllowInUntrustedWorkspace = 'terminal.integrated.allowInUntrustedWorkspace',
 
-	// Debug settings that are hidden from user
+	// Developer/debug settings
 
 	/** Simulated latency applied to all calls made to the pty host */
 	DeveloperPtyHostLatency = 'terminal.integrated.developer.ptyHost.latency',
@@ -149,6 +154,7 @@ export const enum GeneralShellType {
 	Julia = 'julia',
 	NuShell = 'nu',
 	Node = 'node',
+	Xonsh = 'xonsh',
 }
 export type TerminalShellType = PosixShellType | WindowsShellType | GeneralShellType | undefined;
 
@@ -252,7 +258,7 @@ export const enum ProcessPropertyType {
 	ShellIntegrationInjectionFailureReason = 'shellIntegrationInjectionFailureReason',
 }
 
-export interface IProcessProperty<T extends ProcessPropertyType> {
+export interface IProcessProperty<T extends ProcessPropertyType = ProcessPropertyType> {
 	type: T;
 	value: IProcessPropertyMap[T];
 }
@@ -298,7 +304,7 @@ export interface IPtyService {
 	readonly onProcessReplay: Event<{ id: number; event: IPtyHostProcessReplayEvent }>;
 	readonly onProcessOrphanQuestion: Event<{ id: number }>;
 	readonly onDidRequestDetach: Event<{ requestId: number; workspaceId: string; instanceId: number }>;
-	readonly onDidChangeProperty: Event<{ id: number; property: IProcessProperty<any> }>;
+	readonly onDidChangeProperty: Event<{ id: number; property: IProcessProperty }>;
 	readonly onProcessExit: Event<{ id: number; event: number | undefined }>;
 
 	createProcess(
@@ -337,6 +343,7 @@ export interface IPtyService {
 	getInitialCwd(id: number): Promise<string>;
 	getCwd(id: number): Promise<string>;
 	acknowledgeDataEvent(id: number, charCount: number): Promise<void>;
+	setNextCommandId(id: number, commandLine: string, commandId: string): Promise<void>;
 	setUnicodeVersion(id: number, version: '6' | '11'): Promise<void>;
 	processBinary(id: number, data: string): Promise<void>;
 	/** Confirm the process is _not_ an orphan. */
@@ -717,7 +724,6 @@ export interface ITerminalProcessOptions {
 		suggestEnabled: boolean;
 		nonce: string;
 	};
-	windowsEnableConpty: boolean;
 	windowsUseConptyDll: boolean;
 	environmentVariableCollections: ISerializableEnvironmentVariableCollections | undefined;
 	workspaceFolder: IWorkspaceFolder | undefined;
@@ -743,7 +749,7 @@ export interface IProcessReadyWindowsPty {
 	/**
 	 * What pty emulation backend is being used.
 	 */
-	backend: 'conpty' | 'winpty';
+	backend: 'conpty';
 	/**
 	 * The Windows build version (eg. 19045)
 	 */
@@ -770,7 +776,7 @@ export interface ITerminalChildProcess {
 	readonly onProcessData: Event<IProcessDataEvent | string>;
 	readonly onProcessReady: Event<IProcessReadyEvent>;
 	readonly onProcessReplayComplete?: Event<void>;
-	readonly onDidChangeProperty: Event<IProcessProperty<any>>;
+	readonly onDidChangeProperty: Event<IProcessProperty>;
 	readonly onProcessExit: Event<number | undefined>;
 	readonly onRestoreCommands?: Event<ISerializedCommandDetectionCapability>;
 
@@ -908,7 +914,7 @@ export interface ITerminalProfile {
 	 * cleaner to display this profile in the UI using only `basename(path)`.
 	 */
 	isFromPath?: boolean;
-	args?: string | string[] | undefined;
+	args?: SingleOrMany<string> | undefined;
 	env?: ITerminalEnvironment;
 	overrideName?: boolean;
 	color?: string;
@@ -928,7 +934,7 @@ export const enum ProfileSource {
 }
 
 export interface IBaseUnresolvedTerminalProfile {
-	args?: string | string[] | undefined;
+	args?: SingleOrMany<string> | undefined;
 	isAutoDetected?: boolean;
 	overrideName?: boolean;
 	icon?: string | ThemeIcon | URI | { light: URI; dark: URI };
@@ -937,15 +943,13 @@ export interface IBaseUnresolvedTerminalProfile {
 	requiresPath?: string | ITerminalUnsafePath;
 }
 
-type OneOrN<T> = T | T[];
-
 export interface ITerminalUnsafePath {
 	path: string;
 	isUnsafe: true;
 }
 
 export interface ITerminalExecutable extends IBaseUnresolvedTerminalProfile {
-	path: OneOrN<string | ITerminalUnsafePath>;
+	path: SingleOrMany<string | ITerminalUnsafePath>;
 }
 
 export interface ITerminalProfileSource extends IBaseUnresolvedTerminalProfile {
@@ -974,6 +978,8 @@ export interface IShellIntegration {
 	readonly onDidChangeSeenSequences: Event<ReadonlySet<string>>;
 
 	deserialize(serialized: ISerializedCommandDetectionCapability): void;
+
+	setNextCommandId(command: string, commandId: string): void;
 }
 
 export interface IDecorationAddon {
@@ -981,7 +987,6 @@ export interface IDecorationAddon {
 }
 
 export interface ITerminalCompletionProviderContribution {
-	id: string;
 	description?: string;
 }
 
@@ -1018,9 +1023,9 @@ export const enum ShellIntegrationInjectionFailureReason {
 	 */
 	IgnoreShellIntegrationFlag = 'ignoreShellIntegrationFlag',
 	/**
-	 * Shell integration doesn't work with winpty.
+	 * Shell integration doesn't work on older Windows builds that don't support ConPTY.
 	 */
-	Winpty = 'winpty',
+	UnsupportedWindowsBuild = 'unsupportedWindowsBuild',
 	/**
 	 * We're conservative whether we inject when we don't recognize the arguments used for the
 	 * shell as we would prefer launching one without shell integration than breaking their profile.
@@ -1142,6 +1147,7 @@ export interface ITerminalBackend extends ITerminalBackendPtyServiceContribution
 	setTerminalLayoutInfo(layoutInfo?: ITerminalsLayoutInfoById): Promise<void>;
 	updateTitle(id: number, title: string, titleSource: TitleEventSource): Promise<void>;
 	updateIcon(id: number, userInitiated: boolean, icon: TerminalIcon, color?: string): Promise<void>;
+	setNextCommandId(id: number, commandLine: string, commandId: string): Promise<void>;
 	getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined>;
 	getPerformanceMarks(): Promise<performance.PerformanceMark[]>;
 	reduceConnectionGraceTime(): Promise<void>;

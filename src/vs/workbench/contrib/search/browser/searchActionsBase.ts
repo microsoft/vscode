@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from '../../../../base/browser/dom.js';
-import { ResolvedKeybinding } from '../../../../base/common/keybindings.js';
 import * as nls from '../../../../nls.js';
 import { WorkbenchCompressibleAsyncDataTree } from '../../../../platform/list/browser/listService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
@@ -18,10 +17,6 @@ export const category = nls.localize2('search', "Search");
 export function isSearchViewFocused(viewsService: IViewsService): boolean {
 	const searchView = getSearchView(viewsService);
 	return !!(searchView && DOM.isAncestorOfActiveElement(searchView.getContainer()));
-}
-
-export function appendKeyBindingLabel(label: string, inputKeyBinding: ResolvedKeybinding | undefined): string {
-	return doAppendKeyBindingLabel(label, inputKeyBinding);
 }
 
 export function getSearchView(viewsService: IViewsService): SearchView | undefined {
@@ -68,8 +63,3 @@ function hasDownstreamMatch(elements: RenderableMatch[], focusElement: Renderabl
 export function openSearchView(viewsService: IViewsService, focus?: boolean): Promise<SearchView | undefined> {
 	return viewsService.openView(VIEW_ID, focus).then(view => (view as SearchView ?? undefined));
 }
-
-function doAppendKeyBindingLabel(label: string, keyBinding: ResolvedKeybinding | undefined): string {
-	return keyBinding ? label + ' (' + keyBinding.getLabel() + ')' : label;
-}
-

@@ -5,6 +5,7 @@
 
 import { CodeWindow } from '../../../../base/browser/window.js';
 import { Schemas } from '../../../../base/common/network.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -18,7 +19,7 @@ export interface WebviewInputInitInfo {
 	readonly viewType: string;
 	readonly providedId: string | undefined;
 	readonly name: string;
-	readonly iconPath: WebviewIcons | undefined;
+	readonly iconPath: WebviewIconPath | undefined;
 }
 
 export class WebviewInput extends EditorInput {
@@ -39,8 +40,8 @@ export class WebviewInput extends EditorInput {
 
 	private readonly _resourceId = generateUuid();
 
-	private _name: string;
-	private _iconPath?: WebviewIcons;
+	private _webviewTitle: string;
+	private _iconPath?: WebviewIconPath;
 	private _group?: GroupIdentifier;
 
 	private _webview: IOverlayWebview;
@@ -50,12 +51,12 @@ export class WebviewInput extends EditorInput {
 	get resource() {
 		return URI.from({
 			scheme: Schemas.webviewPanel,
-			path: `webview-panel/webview-${this._resourceId}`
+			path: `webview-panel/webview-${this.providerId}-${this._resourceId}`
 		});
 	}
 
 	public readonly viewType: string;
-	public readonly providedId: string | undefined;
+	public readonly providerId: string | undefined;
 
 	constructor(
 		init: WebviewInputInitInfo,
@@ -65,9 +66,10 @@ export class WebviewInput extends EditorInput {
 		super();
 
 		this.viewType = init.viewType;
-		this.providedId = init.providedId;
+		this.providerId = init.providedId;
 
-		this._name = init.name;
+		this._webviewTitle = init.name;
+		this._iconPath = init.iconPath;
 		this._webview = webview;
 
 		this._register(_themeService.onDidColorThemeChange(() => {
@@ -86,7 +88,7 @@ export class WebviewInput extends EditorInput {
 	}
 
 	public override getName(): string {
-		return this._name;
+		return this._webviewTitle;
 	}
 
 	public override getTitle(_verbosity?: Verbosity): string {
@@ -97,10 +99,14 @@ export class WebviewInput extends EditorInput {
 		return undefined;
 	}
 
-	public setName(value: string): void {
-		this._name = value;
+	public setWebviewTitle(value: string): void {
+		this._webviewTitle = value;
 		this.webview.setTitle(value);
 		this._onDidChangeLabel.fire();
+	}
+
+	public getWebviewTitle(): string | undefined {
+		return this._webviewTitle;
 	}
 
 	public get webview(): IOverlayWebview {
@@ -111,9 +117,13 @@ export class WebviewInput extends EditorInput {
 		return this.webview.extension;
 	}
 
-	override getIcon(): URI | undefined {
+	override getIcon(): URI | ThemeIcon | undefined {
 		if (!this._iconPath) {
 			return;
+		}
+
+		if (ThemeIcon.isThemeIcon(this._iconPath)) {
+			return this._iconPath;
 		}
 
 		return isDark(this._themeService.getColorTheme().type)
@@ -125,7 +135,7 @@ export class WebviewInput extends EditorInput {
 		return this._iconPath;
 	}
 
-	public set iconPath(value: WebviewIcons | undefined) {
+	public set iconPath(value: WebviewIconPath | undefined) {
 		this._iconPath = value;
 		this._onDidChangeLabel.fire();
 	}
@@ -155,8 +165,7 @@ export class WebviewInput extends EditorInput {
 		return this._webview.claim(claimant, targetWindow, scopedContextKeyService);
 	}
 }
-export interface WebviewIcons {
+export type WebviewIconPath = ThemeIcon | {
 	readonly light: URI;
 	readonly dark: URI;
-}
-
+};

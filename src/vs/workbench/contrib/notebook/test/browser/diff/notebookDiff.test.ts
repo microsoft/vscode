@@ -649,10 +649,8 @@ suite('NotebookDiff', () => {
 			assert.strictEqual(diffViewModel.items.length, 2);
 			assert.strictEqual(diffViewModel.items[0].type, 'placeholder');
 			diffViewModel.items[0].showHiddenCells();
-			// eslint-disable-next-line local/code-no-any-casts
-			assert.strictEqual((diffViewModel.items[0] as unknown as SideBySideDiffElementViewModel).original!.textModel.equal((diffViewModel.items[0] as any).modified!.textModel), true);
-			// eslint-disable-next-line local/code-no-any-casts
-			assert.strictEqual((diffViewModel.items[1] as any).original!.textModel.equal((diffViewModel.items[1] as any).modified!.textModel), false);
+			assert.strictEqual((diffViewModel.items[0] as unknown as SideBySideDiffElementViewModel).original!.textModel.equal((diffViewModel.items[0] as unknown as SideBySideDiffElementViewModel).modified!.textModel), true);
+			assert.strictEqual((diffViewModel.items[1] as unknown as SideBySideDiffElementViewModel).original!.textModel.equal((diffViewModel.items[1] as unknown as SideBySideDiffElementViewModel).modified!.textModel), false);
 
 			await verifyChangeEventIsNotFired(diffViewModel);
 		});

@@ -95,6 +95,20 @@
             "default": false
         },
         {
+            "key": "chat.tools.eligibleForAutoApproval",
+            "name": "ChatToolsEligibleForAutoApproval",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.107",
+            "localization": {
+                "description": {
+                    "key": "chat.tools.eligibleForAutoApproval",
+                    "value": "Controls which tools are eligible for automatic approval. Tools set to 'false' will always present a confirmation and will never offer the option to auto-approve. The default behavior (or setting a tool to 'true') may result in the tool offering auto-approval options."
+                }
+            },
+            "type": "object",
+            "default": {}
+        },
+        {
             "key": "chat.mcp.access",
             "name": "ChatMCP",
             "category": "InteractiveSession",
@@ -149,21 +163,7 @@
             "localization": {
                 "description": {
                     "key": "chat.agent.enabled.description",
-                    "value": "Enable agent mode for chat. When this is enabled, agent mode can be activated via the dropdown in the view."
-                }
-            },
-            "type": "boolean",
-            "default": true
-        },
-        {
-            "key": "chat.promptFiles",
-            "name": "ChatPromptFiles",
-            "category": "InteractiveSession",
-            "minimumVersion": "1.99",
-            "localization": {
-                "description": {
-                    "key": "chat.promptFiles.policy",
-                    "value": "Enables reusable prompt and instruction files in Chat sessions."
+                    "value": "When enabled, agent mode can be activated from chat and tools in agentic contexts with side effects can be used."
                 }
             },
             "type": "boolean",

@@ -326,7 +326,7 @@ export abstract class AbstractMessageLogger extends AbstractLogger implements IL
 	error(message: string | Error, ...args: unknown[]): void {
 		if (this.canLog(LogLevel.Error)) {
 			if (message instanceof Error) {
-				const array = Array.prototype.slice.call(arguments) as any[];
+				const array = Array.prototype.slice.call(arguments);
 				array[0] = message.stack;
 				this.log(LogLevel.Error, format(array));
 			} else {
@@ -649,7 +649,7 @@ export abstract class AbstractLoggerService extends Disposable implements ILogge
 	}
 
 	protected toResource(idOrResource: string | URI): URI {
-		return isString(idOrResource) ? joinPath(this.logsHome, `${idOrResource}.log`) : idOrResource;
+		return isString(idOrResource) ? joinPath(this.logsHome, `${idOrResource.replace(/[\\/:\*\?"<>\|]/g, '')}.log`) : idOrResource;
 	}
 
 	setLogLevel(logLevel: LogLevel): void;

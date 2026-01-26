@@ -1320,7 +1320,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		}
 
 		// let the user settings override how files are open in a new window or same window unless we are forced (not for extension development though)
-		let openFilesInNewWindow: boolean = false;
+		let openFilesInNewWindow = false;
 		if (openConfig.forceNewWindow || openConfig.forceReuseWindow) {
 			openFilesInNewWindow = !!openConfig.forceNewWindow && !openConfig.forceReuseWindow;
 		} else {
@@ -1483,6 +1483,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			machineId: this.machineId,
 			sqmId: this.sqmId,
 			devDeviceId: this.devDeviceId,
+			isPortable: this.environmentMainService.isPortable,
 
 			windowId: -1,	// Will be filled in by the window once loaded later
 

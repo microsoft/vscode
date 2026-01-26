@@ -1,5 +1,5 @@
 ---
-mode: Plan
+agent: Plan
 description: Clarify before planning in more detail
 ---
 Before doing your research workflow, gather preliminary context using #runSubagent (instructed to use max 5 tool calls) to get a high-level overview.

@@ -868,7 +868,8 @@ export enum TerminalShellType {
 	Python = 10,
 	Julia = 11,
 	NuShell = 12,
-	Node = 13
+	Node = 13,
+	Xonsh = 14
 }
 
 export class TerminalLink implements vscode.TerminalLink {
@@ -940,25 +941,23 @@ export enum TerminalCompletionItemKind {
 
 export class TerminalCompletionItem implements vscode.TerminalCompletionItem {
 	label: string | CompletionItemLabel;
-	icon?: ThemeIcon | undefined;
+	replacementRange: readonly [number, number];
 	detail?: string | undefined;
 	documentation?: string | vscode.MarkdownString | undefined;
+	kind?: TerminalCompletionItemKind | undefined;
 	isFile?: boolean | undefined;
 	isDirectory?: boolean | undefined;
 	isKeyword?: boolean | undefined;
-	replacementIndex: number;
-	replacementLength: number;
 
-	constructor(label: string | CompletionItemLabel, icon?: ThemeIcon, detail?: string, documentation?: string | vscode.MarkdownString, isFile?: boolean, isDirectory?: boolean, isKeyword?: boolean, replacementIndex?: number, replacementLength?: number) {
+	constructor(label: string | CompletionItemLabel, replacementRange: readonly [number, number], kind?: TerminalCompletionItemKind, detail?: string, documentation?: string | vscode.MarkdownString, isFile?: boolean, isDirectory?: boolean, isKeyword?: boolean) {
 		this.label = label;
-		this.icon = icon;
+		this.replacementRange = replacementRange;
+		this.kind = kind;
 		this.detail = detail;
 		this.documentation = documentation;
 		this.isFile = isFile;
 		this.isDirectory = isDirectory;
 		this.isKeyword = isKeyword;
-		this.replacementIndex = replacementIndex ?? 0;
-		this.replacementLength = replacementLength ?? 0;
 	}
 }
 
@@ -992,7 +991,7 @@ export class TerminalCompletionList<T extends TerminalCompletionItem = TerminalC
 
 export interface TerminalCompletionResourceOptions {
 	showFiles?: boolean;
-	showFolders?: boolean;
+	showDirectories?: boolean;
 	fileExtensions?: string[];
 	cwd?: vscode.Uri;
 }
@@ -3167,6 +3166,29 @@ export class ChatResponseMultiDiffPart {
 	}
 }
 
+export class McpToolInvocationContentData {
+	mimeType: string;
+	data: Uint8Array;
+	constructor(data: Uint8Array, mimeType: string) {
+		this.data = data;
+		this.mimeType = mimeType;
+	}
+}
+
+export class ChatResponseExternalEditPart {
+	applied: Thenable<string>;
+	didGetApplied!: (value: string) => void;
+
+	constructor(
+		public uris: vscode.Uri[],
+		public callback: () => Thenable<unknown>,
+	) {
+		this.applied = new Promise<string>((resolve) => {
+			this.didGetApplied = resolve;
+		});
+	}
+}
+
 export class ChatResponseAnchorPart implements vscode.ChatResponseAnchorPart {
 	value: vscode.Uri | vscode.Location;
 	title?: string;
@@ -3240,10 +3262,12 @@ export class ChatResponseReferencePart {
 
 export class ChatResponseCodeblockUriPart {
 	isEdit?: boolean;
+	undoStopId?: string;
 	value: vscode.Uri;
-	constructor(value: vscode.Uri, isEdit?: boolean) {
+	constructor(value: vscode.Uri, isEdit?: boolean, undoStopId?: string) {
 		this.value = value;
 		this.isEdit = isEdit;
+		this.undoStopId = undoStopId;
 	}
 }
 
@@ -3294,6 +3318,82 @@ export class ChatResponsePullRequestPart {
 	}
 }
 
+/**
+ * The type of question for a chat question carousel.
+ */
+export enum ChatQuestionType {
+	/**
+	 * A free-form text input question.
+	 */
+	Text = 1,
+	/**
+	 * A single-select question with radio buttons.
+	 */
+	SingleSelect = 2,
+	/**
+	 * A multi-select question with checkboxes.
+	 */
+	MultiSelect = 3
+}
+
+/**
+ * Represents a question to be displayed in a chat question carousel.
+ * Questions can be of type 'text' for free-form input, 'singleSelect' for radio buttons,
+ * or 'multiSelect' for checkboxes.
+ */
+export class ChatQuestion {
+	/** Unique identifier for the question. */
+	id: string;
+	/** The type of question: Text for free-form input, SingleSelect for radio buttons, MultiSelect for checkboxes. */
+	type: ChatQuestionType;
+	/** The title/header of the question. */
+	title: string;
+	/** Optional detailed message or description for the question. */
+	message?: string | vscode.MarkdownString;
+	/** Options for singleSelect or multiSelect questions. */
+	options?: { id: string; label: string; value: unknown }[];
+	/** The id(s) of the default selected option(s). */
+	defaultValue?: string | string[];
+	/** Whether to allow free-form text input in addition to predefined options. */
+	allowFreeformInput?: boolean;
+
+	constructor(
+		id: string,
+		type: ChatQuestionType,
+		title: string,
+		options?: {
+			message?: string | vscode.MarkdownString;
+			options?: { id: string; label: string; value: unknown }[];
+			defaultValue?: string | string[];
+			allowFreeformInput?: boolean;
+		}
+	) {
+		this.id = id;
+		this.type = type;
+		this.title = title;
+		this.message = options?.message;
+		this.options = options?.options;
+		this.defaultValue = options?.defaultValue;
+		this.allowFreeformInput = options?.allowFreeformInput;
+	}
+}
+
+/**
+ * A carousel view for presenting multiple questions inline in the chat response.
+ * Users can navigate between questions and submit their answers.
+ */
+export class ChatResponseQuestionCarouselPart {
+	/** The questions to display in the carousel. */
+	questions: ChatQuestion[];
+	/** Whether users can skip answering the questions. */
+	allowSkip: boolean;
+
+	constructor(questions: ChatQuestion[], allowSkip: boolean = true) {
+		this.questions = questions;
+		this.allowSkip = allowSkip;
+	}
+}
+
 export class ChatResponseTextEditPart implements vscode.ChatResponseTextEditPart {
 	uri: vscode.Uri;
 	edits: vscode.TextEdit[];
@@ -3325,16 +3425,12 @@ export class ChatResponseNotebookEditPart implements vscode.ChatResponseNotebook
 	}
 }
 
-export class ChatPrepareToolInvocationPart {
-	toolName: string;
-	/**
-	 * @param toolName The name of the tool being prepared for invocation.
-	 */
-	constructor(toolName: string) {
-		this.toolName = toolName;
+export class ChatResponseWorkspaceEditPart implements vscode.ChatResponseWorkspaceEditPart {
+	edits: vscode.ChatWorkspaceFileEdit[];
+	constructor(edits: vscode.ChatWorkspaceFileEdit[]) {
+		this.edits = edits;
 	}
 }
-
 
 export interface ChatTerminalToolInvocationData2 {
 	commandLine: {
@@ -3355,7 +3451,9 @@ export class ChatToolInvocationPart {
 	isConfirmed?: boolean;
 	isComplete?: boolean;
 	toolSpecificData?: ChatTerminalToolInvocationData2;
-	fromSubAgent?: boolean;
+	subAgentInvocationId?: string;
+	subAgentName?: string;
+	presentation?: 'hidden' | 'hiddenAfterComplete' | undefined;
 
 	constructor(toolName: string,
 		toolCallId: string,
@@ -3373,7 +3471,8 @@ export class ChatRequestTurn implements vscode.ChatRequestTurn2 {
 		readonly references: vscode.ChatPromptReference[],
 		readonly participant: string,
 		readonly toolReferences: vscode.ChatLanguageModelToolReference[],
-		readonly editedFileEvents?: vscode.ChatRequestEditedFileEvent[]
+		readonly editedFileEvents?: vscode.ChatRequestEditedFileEvent[],
+		readonly id?: string
 	) { }
 }
 
@@ -3410,6 +3509,14 @@ export enum ChatSessionStatus {
 	InProgress = 2
 }
 
+export class ChatSessionChangedFile {
+	constructor(public readonly modifiedUri: vscode.Uri, public readonly insertions: number, public readonly deletions: number, public readonly originalUri?: vscode.Uri) { }
+}
+
+export class ChatSessionChangedFile2 {
+	constructor(public readonly uri: vscode.Uri, public readonly originalUri: vscode.Uri | undefined, public readonly modifiedUri: vscode.Uri | undefined, public readonly insertions: number, public readonly deletions: number) { }
+}
+
 export enum ChatResponseReferencePartStatusKind {
 	Complete = 1,
 	Partial = 2,
@@ -3424,6 +3531,7 @@ export enum ChatResponseClearToPreviousToolInvocationReason {
 
 export class ChatRequestEditorData implements vscode.ChatRequestEditorData {
 	constructor(
+		readonly editor: vscode.TextEditor,
 		readonly document: vscode.TextDocument,
 		readonly selection: vscode.Selection,
 		readonly wholeRange: vscode.Range,
@@ -3786,6 +3894,7 @@ export class ExtendedLanguageModelToolResult extends LanguageModelToolResult {
 	toolResultMessage?: string | MarkdownString;
 	toolResultDetails?: Array<URI | Location>;
 	toolMetadata?: unknown;
+	hasError?: boolean;
 }
 
 export enum LanguageModelChatToolMode {
@@ -3869,6 +3978,10 @@ export class McpHttpServerDefinition implements vscode.McpHttpServerDefinition {
 		public headers: Record<string, string> = {},
 		public version?: string,
 		public metadata?: vscode.McpServerMetadata,
+		public authentication?: { providerId: string; scopes: string[] },
 	) { }
 }
+//#endregion
+
+//#region Chat Prompt Files
 //#endregion

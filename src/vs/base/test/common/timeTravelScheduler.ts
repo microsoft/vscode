@@ -38,15 +38,19 @@ const scheduledTaskComparator = tieBreakComparators<ExtendedScheduledTask>(
 
 export class TimeTravelScheduler implements Scheduler {
 	private taskCounter = 0;
-	private _now: TimeOffset = 0;
+	private _nowMs: TimeOffset = 0;
 	private readonly queue: PriorityQueue<ExtendedScheduledTask> = new SimplePriorityQueue<ExtendedScheduledTask>([], scheduledTaskComparator);
 
 	private readonly taskScheduledEmitter = new Emitter<{ task: ScheduledTask }>();
 	public readonly onTaskScheduled = this.taskScheduledEmitter.event;
 
+	constructor(startTimeMs: number) {
+		this._nowMs = startTimeMs;
+	}
+
 	schedule(task: ScheduledTask): IDisposable {
-		if (task.time < this._now) {
-			throw new Error(`Scheduled time (${task.time}) must be equal to or greater than the current time (${this._now}).`);
+		if (task.time < this._nowMs) {
+			throw new Error(`Scheduled time (${task.time}) must be equal to or greater than the current time (${this._nowMs}).`);
 		}
 		const extendedTask: ExtendedScheduledTask = { ...task, id: this.taskCounter++ };
 		this.queue.add(extendedTask);
@@ -55,7 +59,7 @@ export class TimeTravelScheduler implements Scheduler {
 	}
 
 	get now(): TimeOffset {
-		return this._now;
+		return this._nowMs;
 	}
 
 	get hasScheduledTasks(): boolean {
@@ -69,7 +73,7 @@ export class TimeTravelScheduler implements Scheduler {
 	runNext(): ScheduledTask | undefined {
 		const task = this.queue.removeMin();
 		if (task) {
-			this._now = task.time;
+			this._nowMs = task.time;
 			task.run();
 		}
 
@@ -164,26 +168,30 @@ export class AsyncSchedulerProcessor extends Disposable {
 }
 
 
-export async function runWithFakedTimers<T>(options: { useFakeTimers?: boolean; useSetImmediate?: boolean; maxTaskCount?: number }, fn: () => Promise<T>): Promise<T> {
+export async function runWithFakedTimers<T>(options: { startTime?: number; useFakeTimers?: boolean; useSetImmediate?: boolean; maxTaskCount?: number }, fn: () => Promise<T>): Promise<T> {
 	const useFakeTimers = options.useFakeTimers === undefined ? true : options.useFakeTimers;
 	if (!useFakeTimers) {
 		return fn();
 	}
 
-	const scheduler = new TimeTravelScheduler();
+	const scheduler = new TimeTravelScheduler(options.startTime ?? 0);
 	const schedulerProcessor = new AsyncSchedulerProcessor(scheduler, { useSetImmediate: options.useSetImmediate, maxTaskCount: options.maxTaskCount });
 	const globalInstallDisposable = scheduler.installGlobally();
 
+	let didThrow = true;
 	let result: T;
 	try {
 		result = await fn();
+		didThrow = false;
 	} finally {
 		globalInstallDisposable.dispose();
 
 		try {
-			// We process the remaining scheduled tasks.
-			// The global override is no longer active, so during this, no more tasks will be scheduled.
-			await schedulerProcessor.waitForEmptyQueue();
+			if (!didThrow) {
+				// We process the remaining scheduled tasks.
+				// The global override is no longer active, so during this, no more tasks will be scheduled.
+				await schedulerProcessor.waitForEmptyQueue();
+			}
 		} finally {
 			schedulerProcessor.dispose();
 		}

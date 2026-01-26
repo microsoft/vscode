@@ -7,7 +7,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import type { IStringDictionary } from '../../../../base/common/collections.js';
 import { IJSONSchemaSnippet } from '../../../../base/common/jsonSchema.js';
 import { isMacintosh, isWindows } from '../../../../base/common/platform.js';
-import { PolicyCategory } from '../../../../base/common/policy.js';
+import { isString } from '../../../../base/common/types.js';
 import { localize } from '../../../../nls.js';
 import { ConfigurationScope, Extensions, IConfigurationRegistry, type IConfigurationPropertySchema } from '../../../../platform/configuration/common/configurationRegistry.js';
 import product from '../../../../platform/product/common/product.js';
@@ -470,10 +470,14 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 		default: true
 	},
 	[TerminalSettingId.WindowsUseConptyDll]: {
-		markdownDescription: localize('terminal.integrated.windowsUseConptyDll', "Whether to use the experimental conpty.dll (v1.22.250204002) shipped with VS Code, instead of the one bundled with Windows."),
+		restricted: true,
+		markdownDescription: localize('terminal.integrated.windowsUseConptyDll', "Whether to use the experimental conpty.dll (v1.23.251008001) shipped with VS Code, instead of the one bundled with Windows."),
 		type: 'boolean',
 		tags: ['preview'],
-		default: false
+		default: false,
+		experiment: {
+			mode: 'auto'
+		},
 	},
 	[TerminalSettingId.SplitCwd]: {
 		description: localize('terminal.integrated.splitCwd', "Controls the working directory a split terminal starts with."),
@@ -485,11 +489,6 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 			localize('terminal.integrated.splitCwd.inherited', "On macOS and Linux, a new split terminal will use the working directory of the parent terminal. On Windows, this behaves the same as initial."),
 		],
 		default: 'inherited'
-	},
-	[TerminalSettingId.WindowsEnableConpty]: {
-		description: localize('terminal.integrated.windowsEnableConpty', "Whether to use ConPTY for Windows terminal process communication (requires Windows 10 build number 18309+). Winpty will be used if this is false."),
-		type: 'boolean',
-		default: true
 	},
 	[TerminalSettingId.WordSeparators]: {
 		markdownDescription: localize('terminal.integrated.wordSeparators', "A string containing all characters to be considered word separators when double-clicking to select word and in the fallback 'word' link detection. Since this is used for link detection, including characters such as `:` that are used when detecting links will cause the line and column part of links like `file:10:5` to be ignored."),
@@ -558,7 +557,7 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 			localize('hideOnStartup.whenEmpty', "Only hide the terminal when there are no persistent sessions restored."),
 			localize('hideOnStartup.always', "Always hide the terminal, even when there are persistent sessions restored.")
 		],
-		default: 'never'
+		default: 'never',
 	},
 	[TerminalSettingId.HideOnLastClosed]: {
 		description: localize('terminal.integrated.hideOnLastClosed', "Whether to hide the terminal view when the last terminal is closed. This will only happen when the terminal is the only visible view in the view container."),
@@ -566,7 +565,15 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 		default: true
 	},
 	[TerminalSettingId.CustomGlyphs]: {
-		markdownDescription: localize('terminal.integrated.customGlyphs', "Whether to draw custom glyphs for block element and box drawing characters instead of using the font, which typically yields better rendering with continuous lines. Note that this doesn't work when {0} is disabled.", `\`#${TerminalSettingId.GpuAcceleration}#\``),
+		markdownDescription: localize('terminal.integrated.customGlyphs', "Whether to draw custom glyphs instead of using the font for the following unicode ranges:\n\n{0}\n\nThis will typically result in better rendering with continuous lines, even when line height and letter spacing is used. This feature only works when {1} is enabled.", [
+			'- Box Drawing (U+2500-U+257F)',
+			'- Block Elements (U+2580-U+259F)',
+			'- Braille Patterns (U+2800-U+28FF)',
+			'- Powerline Symbols (U+E0A0-U+E0D4, Private Use Area)',
+			'- Progress Indicators (U+EE00-U+EE0B, Private Use Area)',
+			'- Git Branch Symbols (U+F5D0-U+F60D, Private Use Area)',
+			'- Symbols for Legacy Computing (U+1FB00-U+1FBFF)'
+		].join('\n'), `\`#${TerminalSettingId.GpuAcceleration}#\``),
 		type: 'boolean',
 		default: true
 	},
@@ -574,6 +581,26 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 		markdownDescription: localize('terminal.integrated.rescaleOverlappingGlyphs', "Whether to rescale glyphs horizontally that are a single cell wide but have glyphs that would overlap following cell(s). This typically happens for ambiguous width characters (eg. the roman numeral characters U+2160+) which aren't featured in monospace fonts. Emoji glyphs are never rescaled."),
 		type: 'boolean',
 		default: true
+	},
+	[TerminalSettingId.EnableKittyKeyboardProtocol]: {
+		restricted: true,
+		markdownDescription: localize('terminal.integrated.enableKittyKeyboardProtocol', "Whether to enable the kitty keyboard protocol, which provides more detailed keyboard input reporting to the terminal."),
+		type: 'boolean',
+		default: false,
+		tags: ['experimental', 'advanced'],
+		experiment: {
+			mode: 'auto'
+		}
+	},
+	[TerminalSettingId.EnableWin32InputMode]: {
+		restricted: true,
+		markdownDescription: localize('terminal.integrated.enableWin32InputMode', "Whether to enable the win32 input mode, which provides enhanced keyboard input support on Windows."),
+		type: 'boolean',
+		default: false,
+		tags: ['experimental', 'advanced'],
+		experiment: {
+			mode: 'auto'
+		}
 	},
 	[TerminalSettingId.ShellIntegrationEnabled]: {
 		restricted: true,
@@ -593,6 +620,20 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 			localize('terminal.integrated.shellIntegration.decorationsEnabled.never', "Do not show decorations"),
 		],
 		default: 'both'
+	},
+	[TerminalSettingId.ShellIntegrationTimeout]: {
+		restricted: true,
+		markdownDescription: localize('terminal.integrated.shellIntegration.timeout', "Configures the duration in milliseconds to wait for shell integration after launch before declaring it's not there. Set to {0} to wait the minimum time (500ms), the default value {1} means the wait time is variable based on whether shell integration injection is enabled and whether it's a remote window. Consider setting this to a small value if you intentionally disabled shell integration, or a large value if your shell starts very slowly.", '`0`', '`-1`'),
+		type: 'integer',
+		minimum: -1,
+		maximum: 60000,
+		default: -1
+	},
+	[TerminalSettingId.ShellIntegrationQuickFixEnabled]: {
+		restricted: true,
+		markdownDescription: localize('terminal.integrated.shellIntegration.quickFixEnabled', "When shell integration is enabled, enables quick fixes for terminal commands that appear as a lightbulb or sparkle icon to the left of the prompt."),
+		type: 'boolean',
+		default: true
 	},
 	[TerminalSettingId.ShellIntegrationEnvironmentReporting]: {
 		markdownDescription: localize('terminal.integrated.shellIntegration.environmentReporting', "Controls whether to report the shell environment, enabling its use in features such as {0}. This may cause a slowdown when printing your shell's prompt.", `\`#${TerminalContribSettingId.SuggestEnabled}#\``),
@@ -626,6 +667,32 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 			localize('terminal.integrated.focusAfterRun.none', "Do nothing."),
 		]
 	},
+	[TerminalSettingId.AllowInUntrustedWorkspace]: {
+		restricted: true,
+		markdownDescription: localize('terminal.integrated.allowInUntrustedWorkspace', "Controls whether terminals can be created in an untrusted workspace.\n\n**This feature bypasses a security protection that prevents terminals from launching in untrusted workspaces. The reason this is a security risk is because shells are often set up to potentially execute code automatically based on the contents of the current working directory. This should be safe to use provided your shell is set up in such a way that code execution in the folder never happens.**"),
+		type: 'boolean',
+		default: false
+	},
+	[TerminalSettingId.DeveloperPtyHostLatency]: {
+		description: localize('terminal.integrated.developer.ptyHost.latency', "Simulated latency in milliseconds applied to all calls made to the pty host. This is useful for testing terminal behavior under high latency conditions."),
+		type: 'number',
+		minimum: 0,
+		default: 0,
+		tags: ['advanced']
+	},
+	[TerminalSettingId.DeveloperPtyHostStartupDelay]: {
+		description: localize('terminal.integrated.developer.ptyHost.startupDelay', "Simulated startup delay in milliseconds for the pty host process. This is useful for testing terminal initialization under slow startup conditions."),
+		type: 'number',
+		minimum: 0,
+		default: 0,
+		tags: ['advanced']
+	},
+	[TerminalSettingId.DevMode]: {
+		description: localize('terminal.integrated.developer.devMode', "Enable developer mode for the terminal. This shows additional debug information and visualizations for shell integration sequences."),
+		type: 'boolean',
+		default: false,
+		tags: ['advanced']
+	},
 	...terminalContribConfiguration,
 };
 
@@ -636,27 +703,7 @@ export async function registerTerminalConfiguration(getFontSnippets: () => Promi
 		order: 100,
 		title: localize('terminalIntegratedConfigurationTitle', "Integrated Terminal"),
 		type: 'object',
-		properties: {
-			...terminalConfiguration,
-			// HACK: This is included here in order instead of in the contrib to support policy
-			// extraction as it doesn't compute runtime values.
-			[TerminalContribSettingId.EnableAutoApprove]: {
-				description: localize('autoApproveMode.description', "Controls whether to allow auto approval in the run in terminal tool."),
-				type: 'boolean',
-				default: true,
-				policy: {
-					name: 'ChatToolsTerminalEnableAutoApprove',
-					category: PolicyCategory.IntegratedTerminal,
-					minimumVersion: '1.104',
-					localization: {
-						description: {
-							key: 'autoApproveMode.description',
-							value: localize('autoApproveMode.description', "Controls whether to allow auto approval in the run in terminal tool."),
-						}
-					}
-				}
-			}
-		}
+		properties: terminalConfiguration,
 	});
 	terminalConfiguration[TerminalSettingId.FontFamily].defaultSnippets = await getFontSnippets();
 }
@@ -667,7 +714,7 @@ Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMi
 		migrateFn: (enableBell, accessor) => {
 			const configurationKeyValuePairs: ConfigurationKeyValuePairs = [];
 			let announcement = accessor('accessibility.signals.terminalBell')?.announcement ?? accessor('accessibility.alert.terminalBell');
-			if (announcement !== undefined && typeof announcement !== 'string') {
+			if (announcement !== undefined && !isString(announcement)) {
 				announcement = announcement ? 'auto' : 'off';
 			}
 			configurationKeyValuePairs.push(['accessibility.signals.terminalBell', { value: { sound: enableBell ? 'on' : 'off', announcement } }]);

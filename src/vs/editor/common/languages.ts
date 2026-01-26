@@ -27,6 +27,7 @@ import { localize } from '../../nls.js';
 import { ExtensionIdentifier } from '../../platform/extensions/common/extensions.js';
 import { IMarkerData } from '../../platform/markers/common/markers.js';
 import { EditDeltaInfo } from './textModelEditSource.js';
+import { FontTokensUpdate } from './textModelEvents.js';
 
 /**
  * @internal
@@ -67,6 +68,17 @@ export class TokenizationResult {
 /**
  * @internal
  */
+export interface IFontToken {
+	readonly startIndex: number;
+	readonly endIndex: number;
+	readonly fontFamily: string | null;
+	readonly fontSizeMultiplier: number | null;
+	readonly lineHeightMultiplier: number | null;
+}
+
+/**
+ * @internal
+ */
 export class EncodedTokenizationResult {
 	_encodedTokenizationResultBrand: void = undefined;
 
@@ -78,6 +90,7 @@ export class EncodedTokenizationResult {
 		 *
 		 */
 		public readonly tokens: Uint32Array,
+		public readonly fontInfo: IFontToken[],
 		public readonly endState: IState,
 	) {
 	}
@@ -139,6 +152,8 @@ export interface IBackgroundTokenizer extends IDisposable {
  */
 export interface IBackgroundTokenizationStore {
 	setTokens(tokens: ContiguousMultilineTokens[]): void;
+
+	setFontInfo(changes: FontTokensUpdate): void;
 
 	setEndState(lineNumber: number, state: IState): void;
 
@@ -738,6 +753,18 @@ export enum InlineCompletionTriggerKind {
 	Explicit = 1,
 }
 
+/**
+ * Arbitrary data that the provider can pass when firing {@link InlineCompletionsProvider.onDidChangeInlineCompletions}.
+ * This data is passed back to the provider in {@link InlineCompletionContext.changeHint}.
+ */
+export interface IInlineCompletionChangeHint {
+	/**
+	 * Arbitrary data that the provider can use to identify what triggered the change.
+	 * This data must be JSON serializable.
+	 */
+	readonly data?: unknown;
+}
+
 export interface InlineCompletionContext {
 
 	/**
@@ -760,6 +787,22 @@ export interface InlineCompletionContext {
 	readonly includeInlineCompletions: boolean;
 	readonly requestIssuedDateTime: number;
 	readonly earliestShownDateTime: number;
+
+	/**
+	 * The change hint that was passed to {@link InlineCompletionsProvider.onDidChangeInlineCompletions}.
+	 * Only set if this request was triggered by such an event.
+	 */
+	readonly changeHint?: IInlineCompletionChangeHint;
+}
+
+export interface IInlineCompletionModelInfo {
+	models: IInlineCompletionModel[];
+	currentModelId: string;
+}
+
+export interface IInlineCompletionModel {
+	name: string;
+	id: string;
 }
 
 export class SelectedSuggestionInfo {
@@ -788,30 +831,34 @@ export interface InlineCompletion {
 	 * The text can also be a snippet. In that case, a preview with default parameters is shown.
 	 * When accepting the suggestion, the full snippet is inserted.
 	*/
-	readonly insertText: string | { snippet: string };
+	readonly insertText: string | { snippet: string } | undefined;
 
 	/**
-	 * A text that is used to decide if this inline completion should be shown.
-	 * An inline completion is shown if the text to replace is a subword of the filter text.
-	 */
-	readonly filterText?: string;
+	 * The range to replace.
+	 * Must begin and end on the same line.
+	 * Refers to the current document or `uri` if provided.
+	*/
+	readonly range?: IRange;
 
 	/**
 	 * An optional array of additional text edits that are applied when
 	 * selecting this completion. Edits must not overlap with the main edit
 	 * nor with themselves.
+	 * Refers to the current document or `uri` if provided.
 	 */
 	readonly additionalTextEdits?: ISingleEditOperation[];
 
 	/**
-	 * The range to replace.
-	 * Must begin and end on the same line.
+	 * The file for which the edit applies to.
 	*/
-	readonly range?: IRange;
+	readonly uri?: UriComponents;
 
+	/**
+	 * A command that is run upon acceptance of this item.
+	*/
 	readonly command?: Command;
 
-	readonly action?: Command;
+	readonly gutterMenuLinkAction?: Command;
 
 	/**
 	 * Is called the first time an inline completion is shown.
@@ -828,16 +875,23 @@ export interface InlineCompletion {
 	readonly isInlineEdit?: boolean;
 	readonly showInlineEditMenu?: boolean;
 
+	/** Only show the inline suggestion when the cursor is in the showRange. */
 	readonly showRange?: IRange;
 
 	readonly warning?: InlineCompletionWarning;
 
-	readonly displayLocation?: InlineCompletionDisplayLocation;
+	readonly hint?: IInlineCompletionHint;
+
+	readonly supportsRename?: boolean;
 
 	/**
 	 * Used for telemetry.
 	 */
 	readonly correlationId?: string | undefined;
+
+	readonly jumpToPosition?: IPosition;
+
+	readonly doNotLog?: boolean;
 }
 
 export interface InlineCompletionWarning {
@@ -845,20 +899,19 @@ export interface InlineCompletionWarning {
 	icon?: IconPath;
 }
 
-export enum InlineCompletionDisplayLocationKind {
+export enum InlineCompletionHintStyle {
 	Code = 1,
 	Label = 2
 }
 
-export interface InlineCompletionDisplayLocation {
+export interface IInlineCompletionHint {
+	/** Refers to the current document. */
 	range: IRange;
-	kind: InlineCompletionDisplayLocationKind;
-	label: string;
+	style: InlineCompletionHintStyle;
+	content: string;
 }
 
-/**
- * TODO: add `| URI | { light: URI; dark: URI }`.
-*/
+// TODO: add `| URI | { light: URI; dark: URI }`.
 export type IconPath = ThemeIcon;
 
 export interface InlineCompletions<TItem extends InlineCompletion = InlineCompletion> {
@@ -911,7 +964,12 @@ export interface InlineCompletionsProvider<T extends InlineCompletions = InlineC
 	*/
 	disposeInlineCompletions(completions: T, reason: InlineCompletionsDisposeReason): void;
 
-	onDidChangeInlineCompletions?: Event<void>;
+	/**
+	 * Fired when the provider wants to trigger a new completion request.
+	 * The event can pass a {@link IInlineCompletionChangeHint} which will be
+	 * included in the {@link InlineCompletionContext} of the subsequent request.
+	 */
+	onDidChangeInlineCompletions?: Event<IInlineCompletionChangeHint | void>;
 
 	/**
 	 * Only used for {@link yieldsToGroupIds}.
@@ -933,6 +991,10 @@ export interface InlineCompletionsProvider<T extends InlineCompletions = InlineC
 	displayName?: string;
 
 	debounceDelayMs?: number;
+
+	modelInfo?: IInlineCompletionModelInfo;
+	onDidModelInfoChange?: Event<void>;
+	setModelId?(modelId: string): Promise<void>;
 
 	toString?(): string;
 }
@@ -1009,6 +1071,7 @@ export enum InlineCompletionEndOfLifeReasonKind {
 
 export type InlineCompletionEndOfLifeReason<TInlineCompletion = InlineCompletion> = {
 	kind: InlineCompletionEndOfLifeReasonKind.Accepted; // User did an explicit action to accept
+	alternativeAction: boolean; // Whether the user performed an alternative action.
 } | {
 	kind: InlineCompletionEndOfLifeReasonKind.Rejected; // User did an explicit action to reject
 } | {
@@ -1028,15 +1091,16 @@ export type LifetimeSummary = {
 	shownDuration: number;
 	shownDurationUncollapsed: number;
 	timeUntilShown: number | undefined;
+	timeUntilActuallyShown: number | undefined;
 	timeUntilProviderRequest: number;
 	timeUntilProviderResponse: number;
 	notShownReason: string | undefined;
 	editorType: string;
 	viewKind: string | undefined;
-	error: string | undefined;
 	preceeded: boolean;
 	languageId: string;
 	requestReason: string;
+	performanceMarkers?: string;
 	cursorColumnDistance?: number;
 	cursorLineDistance?: number;
 	lineCountOriginal?: number;
@@ -1049,6 +1113,16 @@ export type LifetimeSummary = {
 	typingIntervalCharacterCount: number;
 	selectedSuggestionInfo: boolean;
 	availableProviders: string;
+	skuPlan: string | undefined;
+	skuType: string | undefined;
+	renameCreated: boolean | undefined;
+	renameDuration: number | undefined;
+	renameTimedOut: boolean | undefined;
+	renameDroppedOtherEdits: number | undefined;
+	renameDroppedRenameEdits: number | undefined;
+	editKind: string | undefined;
+	longDistanceHintVisible?: boolean;
+	longDistanceHintDistance?: number;
 };
 
 export interface CodeAction {
@@ -2279,6 +2353,7 @@ export interface Comment {
 	readonly commentReactions?: CommentReaction[];
 	readonly label?: string;
 	readonly mode?: CommentMode;
+	readonly state?: CommentState;
 	readonly timestamp?: string;
 }
 

@@ -28,6 +28,7 @@ import { TestLoggerService, TestStorageService } from '../../../../test/common/w
 import { McpRegistry } from '../../common/mcpRegistry.js';
 import { IMcpHostDelegate, IMcpMessageTransport } from '../../common/mcpRegistryTypes.js';
 import { McpServerConnection } from '../../common/mcpServerConnection.js';
+import { McpTaskManager } from '../../common/mcpTaskManager.js';
 import { LazyCollectionState, McpCollectionDefinition, McpServerDefinition, McpServerLaunch, McpServerTransportStdio, McpServerTransportType, McpServerTrust, McpStartServerInteraction } from '../../common/mcpTypes.js';
 import { TestMcpMessageTransport } from './mcpRegistryTypes.js';
 
@@ -145,6 +146,7 @@ suite('Workbench - MCP - Registry', () => {
 	let configurationService: TestConfigurationService;
 	let logger: ILogger;
 	let trustNonceBearer: { trustedAtNonce: string | undefined };
+	let taskManager: McpTaskManager;
 
 	setup(() => {
 		testConfigResolverService = new TestConfigurationResolverService();
@@ -166,6 +168,7 @@ suite('Workbench - MCP - Registry', () => {
 		);
 
 		logger = new NullLogger();
+		taskManager = store.add(new McpTaskManager());
 
 		const instaService = store.add(new TestInstantiationService(services));
 		registry = store.add(instaService.createInstance(TestMcpRegistry));
@@ -267,7 +270,7 @@ suite('Workbench - MCP - Registry', () => {
 		testCollection.serverDefinitions.set([definition], undefined);
 		store.add(registry.registerCollection(testCollection));
 
-		const connection = await registry.resolveConnection({ collectionRef: testCollection, definitionRef: definition, logger, trustNonceBearer }) as McpServerConnection;
+		const connection = await registry.resolveConnection({ collectionRef: testCollection, definitionRef: definition, logger, trustNonceBearer, taskManager }) as McpServerConnection;
 
 		assert.ok(connection);
 		assert.strictEqual(connection.definition, definition);
@@ -275,7 +278,7 @@ suite('Workbench - MCP - Registry', () => {
 		assert.strictEqual((connection.launchDefinition as unknown as { env: { PATH: string } }).env.PATH, 'interactiveValue0');
 		connection.dispose();
 
-		const connection2 = await registry.resolveConnection({ collectionRef: testCollection, definitionRef: definition, logger, trustNonceBearer }) as McpServerConnection;
+		const connection2 = await registry.resolveConnection({ collectionRef: testCollection, definitionRef: definition, logger, trustNonceBearer, taskManager }) as McpServerConnection;
 
 		assert.ok(connection2);
 		assert.strictEqual((connection2.launchDefinition as unknown as { env: { PATH: string } }).env.PATH, 'interactiveValue0');
@@ -283,7 +286,7 @@ suite('Workbench - MCP - Registry', () => {
 
 		registry.clearSavedInputs(StorageScope.WORKSPACE);
 
-		const connection3 = await registry.resolveConnection({ collectionRef: testCollection, definitionRef: definition, logger, trustNonceBearer }) as McpServerConnection;
+		const connection3 = await registry.resolveConnection({ collectionRef: testCollection, definitionRef: definition, logger, trustNonceBearer, taskManager }) as McpServerConnection;
 
 		assert.ok(connection3);
 		assert.strictEqual((connection3.launchDefinition as unknown as { env: { PATH: string } }).env.PATH, 'interactiveValue4');
@@ -322,6 +325,7 @@ suite('Workbench - MCP - Registry', () => {
 			definitionRef: definition,
 			logger,
 			trustNonceBearer,
+			taskManager,
 		}) as McpServerConnection;
 
 		assert.ok(connection);
@@ -488,6 +492,7 @@ suite('Workbench - MCP - Registry', () => {
 				definitionRef: definition,
 				logger,
 				trustNonceBearer,
+				taskManager,
 			});
 
 			assert.ok(connection, 'Connection should be created for trusted collection');
@@ -504,6 +509,7 @@ suite('Workbench - MCP - Registry', () => {
 				definitionRef: definition,
 				logger,
 				trustNonceBearer,
+				taskManager,
 			});
 
 			assert.ok(connection, 'Connection should be created when nonce matches');
@@ -520,7 +526,7 @@ suite('Workbench - MCP - Registry', () => {
 				collectionRef: collection,
 				definitionRef: definition,
 				logger,
-				trustNonceBearer,
+				trustNonceBearer, taskManager,
 			});
 
 			assert.ok(connection, 'Connection should be created when user trusts');
@@ -537,7 +543,7 @@ suite('Workbench - MCP - Registry', () => {
 				collectionRef: collection,
 				definitionRef: definition,
 				logger,
-				trustNonceBearer,
+				trustNonceBearer, taskManager,
 			});
 
 			assert.strictEqual(connection, undefined, 'Connection should not be created when user rejects');
@@ -554,6 +560,7 @@ suite('Workbench - MCP - Registry', () => {
 				logger,
 				trustNonceBearer,
 				autoTrustChanges: true,
+				taskManager,
 			});
 
 			assert.ok(connection, 'Connection should be created with autoTrustChanges');
@@ -572,6 +579,7 @@ suite('Workbench - MCP - Registry', () => {
 				logger,
 				trustNonceBearer,
 				promptType: 'never',
+				taskManager,
 			});
 
 			assert.strictEqual(connection, undefined, 'Connection should not be created with promptType "never"');
@@ -588,6 +596,7 @@ suite('Workbench - MCP - Registry', () => {
 				logger,
 				trustNonceBearer,
 				promptType: 'only-new',
+				taskManager,
 			});
 
 			assert.strictEqual(connection, undefined, 'Connection should not be created for previously untrusted server');
@@ -605,6 +614,7 @@ suite('Workbench - MCP - Registry', () => {
 				logger,
 				trustNonceBearer,
 				promptType: 'all-untrusted',
+				taskManager,
 			});
 
 			assert.ok(connection, 'Connection should be created when user trusts previously untrusted server');
@@ -640,6 +650,7 @@ suite('Workbench - MCP - Registry', () => {
 					logger,
 					trustNonceBearer,
 					interaction,
+					taskManager,
 				}),
 				registry.resolveConnection({
 					collectionRef: collection,
@@ -647,6 +658,7 @@ suite('Workbench - MCP - Registry', () => {
 					logger,
 					trustNonceBearer: trustNonceBearer2,
 					interaction,
+					taskManager,
 				})
 			]);
 
@@ -687,6 +699,7 @@ suite('Workbench - MCP - Registry', () => {
 					logger,
 					trustNonceBearer,
 					interaction,
+					taskManager,
 				}),
 				registry.resolveConnection({
 					collectionRef: collection,
@@ -694,6 +707,7 @@ suite('Workbench - MCP - Registry', () => {
 					logger,
 					trustNonceBearer: trustNonceBearer2,
 					interaction,
+					taskManager,
 				})
 			]);
 
@@ -729,6 +743,7 @@ suite('Workbench - MCP - Registry', () => {
 					logger,
 					trustNonceBearer,
 					interaction,
+					taskManager,
 				}),
 				registry.resolveConnection({
 					collectionRef: collection,
@@ -736,6 +751,7 @@ suite('Workbench - MCP - Registry', () => {
 					logger,
 					trustNonceBearer: trustNonceBearer2,
 					interaction,
+					taskManager,
 				})
 			]);
 

@@ -33,6 +33,17 @@ function getCommentThreadWidgetStateColor(thread: languages.CommentThreadState |
 	return getCommentThreadStateBorderColor(thread, theme) ?? theme.getColor(peekViewBorder);
 }
 
+/**
+ * Check if a comment thread has any draft comments
+ */
+function commentThreadHasDraft(commentThread: languages.CommentThread): boolean {
+	const comments = commentThread.comments;
+	if (!comments) {
+		return false;
+	}
+	return comments.some(comment => comment.state === languages.CommentState.Draft);
+}
+
 export enum CommentWidgetFocus {
 	None = 0,
 	Widget = 1,
@@ -105,6 +116,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 	private _commentThreadWidget!: CommentThreadWidget;
 	private readonly _onDidClose = new Emitter<ReviewZoneWidget | undefined>();
 	private readonly _onDidCreateThread = new Emitter<ReviewZoneWidget>();
+	private readonly _onDidChangeExpandedState = new Emitter<boolean>();
 	private _isExpanded?: boolean;
 	private _initialCollapsibleState?: languages.CommentThreadCollapsibleState;
 	private _commentGlyph?: CommentGlyphWidget;
@@ -159,10 +171,10 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		this._globalToDispose.add(this.themeService.onDidColorThemeChange(this._applyTheme, this));
 		this._globalToDispose.add(this.editor.onDidChangeConfiguration(e => {
 			if (e.hasChanged(EditorOption.fontInfo)) {
-				this._applyTheme(this.themeService.getColorTheme());
+				this._applyTheme();
 			}
 		}));
-		this._applyTheme(this.themeService.getColorTheme());
+		this._applyTheme();
 
 	}
 
@@ -172,6 +184,10 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 
 	public get onDidCreateThread(): Event<ReviewZoneWidget> {
 		return this._onDidCreateThread.event;
+	}
+
+	public get onDidChangeExpandedState(): Event<boolean> {
+		return this._onDidChangeExpandedState.event;
 	}
 
 	public getPosition(): IPosition | undefined {
@@ -378,7 +394,8 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		const lineNumber = this._commentThread.range?.endLineNumber ?? 1;
 		let shouldMoveWidget = false;
 		if (this._commentGlyph) {
-			this._commentGlyph.setThreadState(commentThread.state);
+			const hasDraft = commentThreadHasDraft(commentThread);
+			this._commentGlyph.setThreadState(commentThread.state, hasDraft);
 			if (this._commentGlyph.getPosition().position!.lineNumber !== lineNumber) {
 				shouldMoveWidget = true;
 				this._commentGlyph.setLineNumber(lineNumber);
@@ -403,7 +420,8 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 	async display(range: IRange | undefined, shouldReveal: boolean) {
 		if (range) {
 			this._commentGlyph = new CommentGlyphWidget(this.editor, range?.endLineNumber ?? -1);
-			this._commentGlyph.setThreadState(this._commentThread.state);
+			const hasDraft = commentThreadHasDraft(this._commentThread);
+			this._commentGlyph.setThreadState(this._commentThread.state, hasDraft);
 			this._globalToDispose.add(this._commentGlyph.onDidChangeLineNumber(async e => {
 				if (!this._commentThread.range) {
 					return;
@@ -506,7 +524,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		}
 	}
 
-	private _applyTheme(theme: IColorTheme) {
+	private _applyTheme() {
 		const borderColor = getCommentThreadWidgetStateColor(this._commentThread.state, this.themeService.getColorTheme()) || Color.transparent;
 		this.style({
 			arrowColor: borderColor,
@@ -514,8 +532,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		});
 		const fontInfo = this.editor.getOption(EditorOption.fontInfo);
 
-		// Editor decorations should also be responsive to theme changes
-		this._commentThreadWidget.applyTheme(theme, fontInfo);
+		this._commentThreadWidget.applyTheme(fontInfo);
 	}
 
 	override show(rangeOrPos: IRange | IPosition | undefined, heightInLines: number): void {
@@ -528,10 +545,14 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			range = new Range(range.startLineNumber + distance, range.startColumn, range.endLineNumber + distance, range.endColumn);
 		}
 
+		const wasExpanded = this._isExpanded;
 		this._isExpanded = true;
 		super.show(range ?? new Range(0, 0, 0, 0), heightInLines);
 		this._commentThread.collapsibleState = languages.CommentThreadCollapsibleState.Expanded;
 		this._refresh(this._commentThreadWidget.getDimensions());
+		if (!wasExpanded) {
+			this._onDidChangeExpandedState.fire(true);
+		}
 	}
 
 	async collapseAndFocusRange() {
@@ -551,6 +572,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			if (!this._commentThread.comments || !this._commentThread.comments.length) {
 				this.deleteCommentThread();
 			}
+			this._onDidChangeExpandedState.fire(false);
 		}
 		super.hide();
 	}

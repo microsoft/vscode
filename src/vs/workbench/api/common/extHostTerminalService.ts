@@ -28,6 +28,7 @@ import { IExtHostCommands } from './extHostCommands.js';
 import { MarshalledId } from '../../../base/common/marshallingIds.js';
 import { ISerializedTerminalInstanceContext } from '../../contrib/terminal/common/terminal.js';
 import { isWindows } from '../../../base/common/platform.js';
+import { hasKey } from '../../../base/common/types.js';
 
 export interface IExtHostTerminalService extends ExtHostTerminalServiceShape, IDisposable {
 
@@ -83,7 +84,7 @@ export class ExtHostTerminal extends Disposable {
 	private _disposed: boolean = false;
 	private _pidPromise: Promise<number | undefined>;
 	private _cols: number | undefined;
-	private _pidPromiseComplete: ((value: number | undefined) => any) | undefined;
+	private _pidPromiseComplete: ((value: number | undefined) => unknown) | undefined;
 	private _rows: number | undefined;
 	private _exitStatus: vscode.TerminalExitStatus | undefined;
 	private _state: vscode.TerminalState = { isInteractedWith: false, shell: undefined };
@@ -218,11 +219,11 @@ export class ExtHostTerminal extends Disposable {
 
 	private _serializeParentTerminal(location?: TerminalLocation | vscode.TerminalEditorLocationOptions | vscode.TerminalSplitLocationOptions, parentTerminal?: ExtHostTerminalIdentifier): TerminalLocation | { viewColumn: EditorGroupColumn; preserveFocus?: boolean } | { parentTerminal: ExtHostTerminalIdentifier } | undefined {
 		if (typeof location === 'object') {
-			if ('parentTerminal' in location && location.parentTerminal && parentTerminal) {
+			if (hasKey(location, { parentTerminal: true }) && location.parentTerminal && parentTerminal) {
 				return { parentTerminal };
 			}
 
-			if ('viewColumn' in location) {
+			if (hasKey(location, { viewColumn: true })) {
 				return { viewColumn: ViewColumn.from(location.viewColumn), preserveFocus: location.preserveFocus };
 			}
 
@@ -310,7 +311,7 @@ class ExtHostPseudoterminal implements ITerminalChildProcess {
 	public readonly onProcessData: Event<string> = this._onProcessData.event;
 	private readonly _onProcessReady = new Emitter<IProcessReadyEvent>();
 	public get onProcessReady(): Event<IProcessReadyEvent> { return this._onProcessReady.event; }
-	private readonly _onDidChangeProperty = new Emitter<IProcessProperty<any>>();
+	private readonly _onDidChangeProperty = new Emitter<IProcessProperty>();
 	public readonly onDidChangeProperty = this._onDidChangeProperty.event;
 	private readonly _onProcessExit = new Emitter<number | undefined>();
 	public readonly onProcessExit: Event<number | undefined> = this._onProcessExit.event;
@@ -346,7 +347,7 @@ class ExtHostPseudoterminal implements ITerminalChildProcess {
 		this._pty.setDimensions?.({ columns: cols, rows });
 	}
 
-	clearBuffer(): void | Promise<void> {
+	clearBuffer(): void {
 		// no-op
 	}
 
@@ -465,9 +466,8 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		this._proxy.$registerProcessSupport(supportsProcesses);
 		this._extHostCommands.registerArgumentProcessor({
 			processArgument: arg => {
-				const deserialize = (arg: any) => {
-					const cast = arg as ISerializedTerminalInstanceContext;
-					return this.getTerminalById(cast.instanceId)?.value;
+				const deserialize = (arg: ISerializedTerminalInstanceContext) => {
+					return this.getTerminalById(arg.instanceId)?.value;
 				};
 				switch (arg?.$mid) {
 					case MarshalledId.TerminalContext: return deserialize(arg);
@@ -523,7 +523,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 
 	protected _serializeParentTerminal(options: vscode.TerminalOptions, internalOptions?: ITerminalInternalOptions): ITerminalInternalOptions {
 		internalOptions = internalOptions ? internalOptions : {};
-		if (options.location && typeof options.location === 'object' && 'parentTerminal' in options.location) {
+		if (options.location && typeof options.location === 'object' && hasKey(options.location, { parentTerminal: true })) {
 			const parentTerminal = options.location.parentTerminal;
 			if (parentTerminal) {
 				const parentExtHostTerminal = this._terminals.find(t => t.value === parentTerminal);
@@ -533,7 +533,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 			}
 		} else if (options.location && typeof options.location !== 'object') {
 			internalOptions.location = options.location;
-		} else if (internalOptions.location && typeof internalOptions.location === 'object' && 'splitActiveTerminal' in internalOptions.location) {
+		} else if (internalOptions.location && typeof internalOptions.location === 'object' && hasKey(internalOptions.location, { splitActiveTerminal: true })) {
 			internalOptions.location = { splitActiveTerminal: true };
 		}
 		return internalOptions;
@@ -846,15 +846,15 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		if (token.isCancellationRequested) {
 			return;
 		}
-		if (profile && !('options' in profile)) {
+		if (profile && !hasKey(profile, { options: true })) {
 			profile = { options: profile };
 		}
 
-		if (!profile || !('options' in profile)) {
+		if (!profile || !hasKey(profile, { options: true })) {
 			throw new Error(`No terminal profile options provided for id "${id}"`);
 		}
 
-		if ('pty' in profile.options) {
+		if (hasKey(profile.options, { pty: true })) {
 			this.createExtensionTerminal(profile.options, options);
 			return;
 		}
@@ -1218,7 +1218,7 @@ class ScopedEnvironmentVariableCollection implements IEnvironmentVariableCollect
 		return this.collection.get(variable, this.scope);
 	}
 
-	forEach(callback: (variable: string, mutator: vscode.EnvironmentVariableMutator, collection: vscode.EnvironmentVariableCollection) => any, thisArg?: any): void {
+	forEach(callback: (variable: string, mutator: vscode.EnvironmentVariableMutator, collection: vscode.EnvironmentVariableCollection) => unknown, thisArg?: unknown): void {
 		this.collection.getVariableMap(this.scope).forEach((value, variable) => callback.call(thisArg, variable, value, this), this.scope);
 	}
 
@@ -1266,7 +1266,7 @@ function asTerminalIcon(iconPath?: vscode.Uri | { light: vscode.Uri; dark: vscod
 		return undefined;
 	}
 
-	if (!('id' in iconPath)) {
+	if (!hasKey(iconPath, { id: true })) {
 		return iconPath;
 	}
 
@@ -1284,7 +1284,5 @@ function convertMutator(mutator: IEnvironmentVariableMutator): vscode.Environmen
 	const newMutator = { ...mutator };
 	delete newMutator.scope;
 	newMutator.options = newMutator.options ?? undefined;
-	// eslint-disable-next-line local/code-no-any-casts
-	delete (newMutator as any).variable;
 	return newMutator as vscode.EnvironmentVariableMutator;
 }

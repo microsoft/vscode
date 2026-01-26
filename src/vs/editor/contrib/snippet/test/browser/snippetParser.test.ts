@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { Choice, FormatString, Marker, Placeholder, Scanner, SnippetParser, Text, TextmateSnippet, TokenType, Transform, Variable } from '../../browser/snippetParser.js';
+import { Choice, FormatString, Marker, Placeholder, Scanner, SnippetParser, Text, TextmateSnippet, TokenType, Transform, Variable, VariableResolver } from '../../browser/snippetParser.js';
 
 suite('SnippetParser', () => {
 
@@ -668,6 +668,20 @@ suite('SnippetParser', () => {
 		assert.strictEqual(new FormatString(1, 'camelcase').resolve('snake_AndCamelCase'), 'snakeAndCamelCase');
 		assert.strictEqual(new FormatString(1, 'camelcase').resolve('kebab-AndCamelCase'), 'kebabAndCamelCase');
 		assert.strictEqual(new FormatString(1, 'camelcase').resolve('_JustCamelCase'), 'justCamelCase');
+		assert.strictEqual(new FormatString(1, 'kebabcase').resolve('barFoo'), 'bar-foo');
+		assert.strictEqual(new FormatString(1, 'kebabcase').resolve('BarFoo'), 'bar-foo');
+		assert.strictEqual(new FormatString(1, 'kebabcase').resolve('ABarFoo'), 'a-bar-foo');
+		assert.strictEqual(new FormatString(1, 'kebabcase').resolve('bar42Foo'), 'bar42-foo');
+		assert.strictEqual(new FormatString(1, 'kebabcase').resolve('snake_AndPascalCase'), 'snake-and-pascal-case');
+		assert.strictEqual(new FormatString(1, 'kebabcase').resolve('kebab-AndCamelCase'), 'kebab-and-camel-case');
+		assert.strictEqual(new FormatString(1, 'kebabcase').resolve('_justPascalCase'), 'just-pascal-case');
+		assert.strictEqual(new FormatString(1, 'kebabcase').resolve('__UPCASE__'), 'upcase');
+		assert.strictEqual(new FormatString(1, 'kebabcase').resolve('__BAR_FOO__'), 'bar-foo');
+		assert.strictEqual(new FormatString(1, 'snakecase').resolve('bar-foo'), 'bar_foo');
+		assert.strictEqual(new FormatString(1, 'snakecase').resolve('bar-42-foo'), 'bar_42_foo');
+		assert.strictEqual(new FormatString(1, 'snakecase').resolve('snake_AndPascalCase'), 'snake_and_pascal_case');
+		assert.strictEqual(new FormatString(1, 'snakecase').resolve('kebab-AndPascalCase'), 'kebab_and_pascal_case');
+		assert.strictEqual(new FormatString(1, 'snakecase').resolve('_justPascalCase'), '_just_pascal_case');
 		assert.strictEqual(new FormatString(1, 'notKnown').resolve('input'), 'input');
 
 		// if
@@ -684,6 +698,44 @@ suite('SnippetParser', () => {
 		assert.strictEqual(new FormatString(1, undefined, 'bar', 'foo').resolve(undefined), 'foo');
 		assert.strictEqual(new FormatString(1, undefined, 'bar', 'foo').resolve(''), 'foo');
 		assert.strictEqual(new FormatString(1, undefined, 'bar', 'foo').resolve('baz'), 'bar');
+	});
+
+	test('Unicode Variable Transformations', () => {
+		const resolver = new class implements VariableResolver {
+			resolve(variable: Variable): string | undefined {
+				const values: { [key: string]: string } = {
+					'RUSSIAN': 'одинДва',
+					'GREEK': 'έναςΔύο',
+					'TURKISH': 'istanbulLı',
+					'JAPANESE': 'こんにちは'
+				};
+				return values[variable.name];
+			}
+		};
+
+		function assertTransform(transformName: string, varName: string, expected: string) {
+			const p = new SnippetParser();
+			const snippet = p.parse(`\${${varName}/(.*)/\${1:/${transformName}}/}`);
+			const variable = snippet.children[0] as Variable;
+			variable.resolve(resolver);
+			const resolved = variable.toString();
+			assert.strictEqual(resolved, expected, `${transformName} failed for ${varName}`);
+		}
+
+		assertTransform('kebabcase', 'RUSSIAN', 'один-два');
+		assertTransform('kebabcase', 'GREEK', 'ένας-δύο');
+		assertTransform('snakecase', 'RUSSIAN', 'один_два');
+		assertTransform('snakecase', 'GREEK', 'ένας_δύο');
+		assertTransform('camelcase', 'RUSSIAN', 'одинДва');
+		assertTransform('camelcase', 'GREEK', 'έναςΔύο');
+		assertTransform('pascalcase', 'RUSSIAN', 'ОдинДва');
+		assertTransform('pascalcase', 'GREEK', 'ΈναςΔύο');
+		assertTransform('upcase', 'RUSSIAN', 'ОДИНДВА');
+		assertTransform('downcase', 'RUSSIAN', 'одиндва');
+		assertTransform('kebabcase', 'TURKISH', 'istanbul-lı');
+		assertTransform('pascalcase', 'TURKISH', 'IstanbulLı');
+		assertTransform('upcase', 'JAPANESE', 'こんにちは');
+		assertTransform('kebabcase', 'JAPANESE', 'こんにちは');
 	});
 
 	test('Snippet variable transformation doesn\'t work if regex is complicated and snippet body contains \'$$\' #55627', function () {

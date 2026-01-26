@@ -14,7 +14,7 @@ import { Schemas } from '../../../../base/common/network.js';
 import { isAbsolute } from '../../../../base/common/path.js';
 import { isWindows } from '../../../../base/common/platform.js';
 import { dirname } from '../../../../base/common/resources.js';
-import { isObject, isString } from '../../../../base/common/types.js';
+import { hasKey, isObject, isString } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
@@ -47,7 +47,7 @@ import { IConfigurationResolverService } from '../../../services/configurationRe
 import { ConfigurationResolverExpression } from '../../../services/configurationResolver/common/configurationResolverExpression.js';
 import { editorGroupToColumn } from '../../../services/editor/common/editorGroupColumn.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
-import { AUX_WINDOW_GROUP, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
+import { ACTIVE_GROUP, AUX_WINDOW_GROUP, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
 import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
@@ -63,8 +63,8 @@ import { killTerminalIcon, newTerminalIcon } from './terminalIcons.js';
 import { ITerminalQuickPickItem } from './terminalProfileQuickpick.js';
 import { TerminalTabList } from './terminalTabsList.js';
 import { ResourceContextKey } from '../../../common/contextkeys.js';
+import { SeparatorSelectOption } from '../../../../base/browser/ui/selectBox/selectBox.js';
 
-export const switchTerminalActionViewItemSeparator = '\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500';
 export const switchTerminalShowTabsTitle = localize('showTerminalTabs', "Show Tabs");
 
 const category = terminalStrings.actionCategory;
@@ -105,7 +105,7 @@ export async function getCwdForSplit(
 					const options: IPickOptions<IQuickPickItem> = {
 						placeHolder: localize('workbench.action.terminal.newWorkspacePlaceholder', "Select current working directory for new terminal")
 					};
-					const workspace = await commandService.executeCommand(PICK_WORKSPACE_FOLDER_COMMAND_ID, [options]);
+					const workspace = await commandService.executeCommand<IWorkspaceFolder>(PICK_WORKSPACE_FOLDER_COMMAND_ID, [options]);
 					if (!workspace) {
 						// Don't split the instance if the workspace picker was canceled
 						return undefined;
@@ -316,7 +316,10 @@ export function registerTerminalActions() {
 		id: TerminalCommandId.CreateTerminalEditor,
 		title: localize2('workbench.action.terminal.createTerminalEditor', 'Create New Terminal in Editor Area'),
 		run: async (c, _, args) => {
-			const options = (isObject(args) && 'location' in args) ? args as ICreateTerminalOptions : { location: TerminalLocation.Editor };
+			function isCreateTerminalOptions(obj: unknown): obj is ICreateTerminalOptions {
+				return isObject(obj) && 'location' in obj;
+			}
+			const options = isCreateTerminalOptions(args) ? args : { location: { viewColumn: ACTIVE_GROUP } };
 			const instance = await c.service.createTerminal(options);
 			await instance.focusWhenReady();
 		}
@@ -506,7 +509,7 @@ export function registerTerminalActions() {
 				return;
 			}
 			c.service.setActiveInstance(instance);
-			focusActiveTerminal(instance, c);
+			await focusActiveTerminal(instance, c);
 		}
 	});
 
@@ -596,7 +599,7 @@ export function registerTerminalActions() {
 			}
 
 			const instance = await c.service.getActiveOrCreateInstance({ acceptsInput: true });
-			const isRemote = instance ? instance.isRemote : (workbenchEnvironmentService.remoteAuthority ? true : false);
+			const isRemote = instance ? instance.hasRemoteAuthority : (workbenchEnvironmentService.remoteAuthority ? true : false);
 			const uri = editor.getModel().uri;
 			if ((!isRemote && uri.scheme !== Schemas.file && uri.scheme !== Schemas.vscodeUserData) || (isRemote && uri.scheme !== Schemas.vscodeRemote)) {
 				notificationService.warn(localize('workbench.action.terminal.runActiveFile.noFile', 'Only files on disk can be run in the terminal'));
@@ -998,7 +1001,7 @@ export function registerTerminalActions() {
 			}]
 		},
 		run: async (c, _, args) => {
-			const cwd = isObject(args) && 'cwd' in args ? toOptionalString(args.cwd) : undefined;
+			const cwd = args ? toOptionalString((<{ cwd?: string }>args).cwd) : undefined;
 			const instance = await c.service.createTerminal({ cwd });
 			if (!instance) {
 				return;
@@ -1032,7 +1035,7 @@ export function registerTerminalActions() {
 		f1: false,
 		run: async (activeInstance, c, accessor, args) => {
 			const notificationService = accessor.get(INotificationService);
-			const name = isObject(args) && 'name' in args ? toOptionalString(args.name) : undefined;
+			const name = args ? toOptionalString((<{ name?: string }>args).name) : undefined;
 			if (!name) {
 				notificationService.warn(localize('workbench.action.terminal.renameWithArg.noName', "No name argument provided"));
 				return;
@@ -1406,7 +1409,7 @@ export function registerTerminalActions() {
 			if (!item) {
 				return;
 			}
-			if (item === switchTerminalActionViewItemSeparator) {
+			if (item === SeparatorSelectOption.text) {
 				c.service.refreshActiveGroup();
 				return;
 			}
@@ -1511,9 +1514,13 @@ export function validateTerminalName(name: string): { content: string; severity:
 	return null;
 }
 
+function isTerminalProfile(obj: unknown): obj is ITerminalProfile {
+	return isObject(obj) && 'profileName' in obj;
+}
+
 function convertOptionsOrProfileToOptions(optionsOrProfile?: ICreateTerminalOptions | ITerminalProfile): ICreateTerminalOptions | undefined {
-	if (isObject(optionsOrProfile) && 'profileName' in optionsOrProfile) {
-		return { config: optionsOrProfile as ITerminalProfile, location: (optionsOrProfile as ICreateTerminalOptions).location };
+	if (isTerminalProfile(optionsOrProfile)) {
+		return { config: optionsOrProfile, location: (optionsOrProfile as ICreateTerminalOptions).location };
 	}
 	return optionsOrProfile;
 }
@@ -1574,13 +1581,16 @@ export function refreshTerminalActions(detectedProfiles: ITerminalProfile[]): ID
 			let instance: ITerminalInstance | undefined;
 			let cwd: string | URI | undefined;
 
-			if (isObject(eventOrOptionsOrProfile) && eventOrOptionsOrProfile && 'profileName' in eventOrOptionsOrProfile) {
+			if (isObject(eventOrOptionsOrProfile) && eventOrOptionsOrProfile && hasKey(eventOrOptionsOrProfile, { profileName: true })) {
 				const config = c.profileService.availableProfiles.find(profile => profile.profileName === eventOrOptionsOrProfile.profileName);
 				if (!config) {
 					throw new Error(`Could not find terminal profile "${eventOrOptionsOrProfile.profileName}"`);
 				}
 				options = { config };
-				if ('location' in eventOrOptionsOrProfile) {
+				function isSimpleArgs(obj: unknown): obj is { profileName: string; location?: 'view' | 'editor' | unknown } {
+					return isObject(obj) && 'location' in obj;
+				}
+				if (isSimpleArgs(eventOrOptionsOrProfile)) {
 					switch (eventOrOptionsOrProfile.location) {
 						case 'editor': options.location = TerminalLocation.Editor; break;
 						case 'view': options.location = TerminalLocation.Panel; break;
@@ -1608,7 +1618,7 @@ export function refreshTerminalActions(detectedProfiles: ITerminalProfile[]): ID
 				const options: IPickOptions<IQuickPickItem> = {
 					placeHolder: localize('workbench.action.terminal.newWorkspacePlaceholder', "Select current working directory for new terminal")
 				};
-				const workspace = await commandService.executeCommand(PICK_WORKSPACE_FOLDER_COMMAND_ID, [options]);
+				const workspace = await commandService.executeCommand<IWorkspaceFolder>(PICK_WORKSPACE_FOLDER_COMMAND_ID, [options]);
 				if (!workspace) {
 					// Don't create the instance if the workspace picker was canceled
 					return;
@@ -1712,13 +1722,17 @@ export function shrinkWorkspaceFolderCwdPairs(pairs: WorkspaceFolderCwdPair[]): 
 }
 
 async function focusActiveTerminal(instance: ITerminalInstance | undefined, c: ITerminalServicesCollection): Promise<void> {
-	// TODO@meganrogge: Is this the right logic for when instance is undefined?
-	if (instance?.target === TerminalLocation.Editor) {
-		await c.editorService.revealActiveEditor();
-		await instance.focusWhenReady(true);
-	} else {
-		await c.groupService.showPanel(true);
+	const target = instance
+		?? c.service.activeInstance
+		?? c.editorService.activeInstance
+		?? c.groupService.activeInstance;
+	if (!target) {
+		if (c.groupService.instances.length > 0) {
+			await c.groupService.showPanel(true);
+		}
+		return;
 	}
+	await c.service.focusInstance(target);
 }
 
 async function renameWithQuickPick(c: ITerminalServicesCollection, accessor: ServicesAccessor, resource?: unknown) {

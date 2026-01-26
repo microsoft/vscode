@@ -14,7 +14,7 @@ const enablementKey = 'sync.enable';
 
 export class UserDataSyncEnablementService extends Disposable implements IUserDataSyncEnablementService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	private _onDidChangeEnablement = new Emitter<boolean>();
 	readonly onDidChangeEnablement: Event<boolean> = this._onDidChangeEnablement.event;

@@ -329,7 +329,7 @@ registerAction2(class FindInWorkspaceAction extends Action2 {
 			searchView?.searchInFolders();
 		}
 		else {
-			return accessor.get(ICommandService).executeCommand(SearchEditorConstants.OpenEditorCommandId, {
+			await accessor.get(ICommandService).executeCommand(SearchEditorConstants.OpenEditorCommandId, {
 				location: mode === 'newEditor' ? 'new' : 'reuse',
 				filesToInclude: '',
 			});
