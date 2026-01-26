@@ -725,8 +725,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		let executionPromise: Promise<ITerminalExecuteStrategyResult> | undefined;
 		try {
 			// Create unified ActiveTerminalExecution (creates and owns the strategy)
-			const execution = new ActiveTerminalExecution(
-				this._instantiationService,
+			const execution = this._instantiationService.createInstance(
+				ActiveTerminalExecution,
 				chatSessionId,
 				termId,
 				toolTerminal,
@@ -1167,12 +1167,12 @@ class ActiveTerminalExecution extends Disposable {
 	}
 
 	constructor(
-		instantiationService: IInstantiationService,
 		readonly sessionId: string,
 		readonly termId: string,
 		toolTerminal: IToolTerminal,
 		commandDetection: ICommandDetectionCapability,
 		isBackground: boolean,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
 		this._toolTerminal = toolTerminal;
@@ -1180,7 +1180,7 @@ class ActiveTerminalExecution extends Disposable {
 		this._completionDeferred = new DeferredPromise<ITerminalExecuteStrategyResult>();
 
 		// Create and register the strategy for disposal to clean up its internal resources
-		this.strategy = this._register(this._createStrategy(instantiationService, commandDetection));
+		this.strategy = this._register(this._createStrategy(commandDetection));
 
 		this._register(this.strategy.onDidCreateStartMarker(marker => {
 			if (marker) {
@@ -1190,14 +1190,14 @@ class ActiveTerminalExecution extends Disposable {
 		}));
 	}
 
-	private _createStrategy(instantiationService: IInstantiationService, commandDetection: ICommandDetectionCapability): ITerminalExecuteStrategy {
+	private _createStrategy(commandDetection: ICommandDetectionCapability): ITerminalExecuteStrategy {
 		switch (this._toolTerminal.shellIntegrationQuality) {
 			case ShellIntegrationQuality.None:
-				return instantiationService.createInstance(NoneExecuteStrategy, this._toolTerminal.instance, () => this._toolTerminal.receivedUserInput ?? false);
+				return this._instantiationService.createInstance(NoneExecuteStrategy, this._toolTerminal.instance, () => this._toolTerminal.receivedUserInput ?? false);
 			case ShellIntegrationQuality.Basic:
-				return instantiationService.createInstance(BasicExecuteStrategy, this._toolTerminal.instance, () => this._toolTerminal.receivedUserInput ?? false, commandDetection);
+				return this._instantiationService.createInstance(BasicExecuteStrategy, this._toolTerminal.instance, () => this._toolTerminal.receivedUserInput ?? false, commandDetection);
 			case ShellIntegrationQuality.Rich:
-				return instantiationService.createInstance(RichExecuteStrategy, this._toolTerminal.instance, commandDetection);
+				return this._instantiationService.createInstance(RichExecuteStrategy, this._toolTerminal.instance, commandDetection);
 		}
 	}
 
