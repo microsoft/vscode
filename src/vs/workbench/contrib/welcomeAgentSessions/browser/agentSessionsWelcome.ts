@@ -182,9 +182,15 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		this.buildFooter(footer);
 
 		// Listen for session changes - store reference to avoid querySelector
+		let originalSessions = this.agentSessionsService.model.sessions.length > 0;
 		this.contentDisposables.add(this.agentSessionsService.model.onDidChangeSessions(() => {
-			clearNode(sessionsSection);
-			this.buildSessionsOrPrompts(sessionsSection);
+			const hasSessions = this.agentSessionsService.model.sessions.length > 0;
+			// Only rebuild if the amount of sessions changed, other updates should be managed by the control
+			if (hasSessions !== originalSessions) {
+				originalSessions = hasSessions;
+				clearNode(sessionsSection);
+				this.buildSessionsOrPrompts(sessionsSection);
+			}
 		}));
 
 		this.scrollableElement?.scanDomNode();
