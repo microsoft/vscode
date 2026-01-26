@@ -16,10 +16,13 @@ import { IWorkspaceContextService } from '../../../../platform/workspace/common/
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { Extensions, IConfigurationDefaults, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { IStringDictionary } from '../../../../base/common/collections.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 
 export class WorkbenchModeService extends Disposable implements IWorkbenchModeService {
 
 	declare readonly _serviceBrand: undefined;
+
+	private static readonly WORKBENCH_MODE_STORAGE_KEY = 'workbench.mode';
 
 	private _workbenchMode: string | undefined;
 	get workbenchMode(): string | undefined { return this._workbenchMode; }
@@ -32,14 +35,17 @@ export class WorkbenchModeService extends Disposable implements IWorkbenchModeSe
 	private configurationDefaults: IConfigurationDefaults | undefined;
 
 	constructor(
-		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IFileService private readonly fileService: IFileService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
-		@ILogService private readonly logService: ILogService
+		@ILogService private readonly logService: ILogService,
+		@IStorageService private readonly storageService: IStorageService
 	) {
 		super();
-		this._workbenchMode = workspaceContextService.getWorkspace().isAgentSessionsWorkspace ? 'agent-sessions' : undefined;
+		this._workbenchMode = this.workspaceContextService.getWorkspace().isAgentSessionsWorkspace
+			? 'agent-sessions'
+			: this.storageService.get(WorkbenchModeService.WORKBENCH_MODE_STORAGE_KEY, StorageScope.WORKSPACE);
 		this.watchCurrentModeFile();
 	}
 
@@ -48,10 +54,7 @@ export class WorkbenchModeService extends Disposable implements IWorkbenchModeSe
 	}
 
 	private async updateWorkbenchModeConfiguration(): Promise<void> {
-		if (!this._workbenchMode) {
-			return;
-		}
-		const workbenchModeConfiguration = await this.getWorkbenchModeConfiguration(this._workbenchMode);
+		const workbenchModeConfiguration = this._workbenchMode ? await this.getWorkbenchModeConfiguration(this._workbenchMode) : undefined;
 		this.updateConfigurationDefaults(workbenchModeConfiguration?.settings);
 	}
 
@@ -139,13 +142,26 @@ export class WorkbenchModeService extends Disposable implements IWorkbenchModeSe
 	}
 
 	async setWorkbenchMode(modeId: string | undefined): Promise<void> {
+		if (this.workspaceContextService.getWorkspace().isAgentSessionsWorkspace) {
+			throw new Error('Cannot set workbench mode in an agent sessions workspace');
+		}
+
 		if (this._workbenchMode === modeId) {
 			return;
 		}
 
-		this._workbenchMode = modeId;
-		this.updateWorkbenchModeConfiguration();
+		this.updateWorkbenchMode(modeId);
+		await this.updateWorkbenchModeConfiguration();
 		this.watchCurrentModeFile();
 		this._onDidChangeWorkbenchMode.fire(modeId);
+	}
+
+	private updateWorkbenchMode(modeId: string | undefined): void {
+		this._workbenchMode = modeId;
+		if (modeId === undefined) {
+			this.storageService.remove(WorkbenchModeService.WORKBENCH_MODE_STORAGE_KEY, StorageScope.WORKSPACE);
+		} else {
+			this.storageService.store(WorkbenchModeService.WORKBENCH_MODE_STORAGE_KEY, modeId, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		}
 	}
 }

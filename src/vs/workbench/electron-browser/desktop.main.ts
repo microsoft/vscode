@@ -325,7 +325,7 @@ export class DesktopMain extends Disposable {
 		]);
 
 		// Workbench Mode
-		const workbenchModeService: WorkbenchModeService = this._register(new WorkbenchModeService(configurationService, fileService, environmentService, uriIdentityService, logService));
+		const workbenchModeService: WorkbenchModeService = this._register(new WorkbenchModeService(configurationService, fileService, environmentService, uriIdentityService, logService, storageService));
 		serviceCollection.set(IWorkbenchModeService, workbenchModeService);
 
 		try {
