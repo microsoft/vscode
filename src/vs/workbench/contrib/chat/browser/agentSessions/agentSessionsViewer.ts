@@ -595,6 +595,8 @@ export interface IAgentSessionsFilter {
 
 export class AgentSessionsDataSource implements IAsyncDataSource<IAgentSessionsModel, AgentSessionListItem> {
 
+	private static readonly CAPPED_SESSIONS_LIMIT = 3;
+
 	constructor(
 		private readonly filter: IAgentSessionsFilter | undefined,
 		private readonly sorter: ITreeSorter<IAgentSession>,
@@ -673,9 +675,11 @@ export class AgentSessionsDataSource implements IAsyncDataSource<IAgentSessionsM
 	private groupSessionsCapped(sortedSessions: IAgentSession[]): AgentSessionListItem[] {
 		const result: AgentSessionListItem[] = [];
 
-		const TOP_SESSIONS_COUNT = 3;
-		const topSessions = sortedSessions.slice(0, TOP_SESSIONS_COUNT);
-		const othersSessions = sortedSessions.slice(TOP_SESSIONS_COUNT);
+		const firstArchivedIndex = sortedSessions.findIndex(session => session.isArchived());
+		const nonArchivedCount = firstArchivedIndex === -1 ? sortedSessions.length : firstArchivedIndex;
+
+		const topSessions = sortedSessions.slice(0, Math.min(AgentSessionsDataSource.CAPPED_SESSIONS_LIMIT, nonArchivedCount));
+		const othersSessions = sortedSessions.slice(topSessions.length);
 
 		// Add top sessions directly (no section header)
 		result.push(...topSessions);
@@ -718,7 +722,7 @@ export const AgentSessionSectionLabels = {
 	[AgentSessionSection.Week]: localize('agentSessions.weekSection', "Last Week"),
 	[AgentSessionSection.Older]: localize('agentSessions.olderSection', "Older"),
 	[AgentSessionSection.Archived]: localize('agentSessions.archivedSection', "Archived"),
-	[AgentSessionSection.More]: localize('agentSessions.historySection', "More"),
+	[AgentSessionSection.More]: localize('agentSessions.moreSection', "More"),
 };
 
 export function groupAgentSessionsByDate(sessions: IAgentSession[]): Map<AgentSessionSection, IAgentSessionSection> {
