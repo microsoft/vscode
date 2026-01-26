@@ -788,24 +788,24 @@ export class AgentSessionsWelcomePage extends EditorPane {
 	}
 
 	private revealMaximizedChat(): void {
-		this.closeEditorAndMaximizeAuxiliaryBar(async () => {
-			await this.commandService.executeCommand('workbench.action.chat.open');
-		});
+		this.closeEditorAndMaximizeAuxiliaryBar();
 	}
 
 	private async openSessionInChat(sessionResource: URI): Promise<void> {
 		try {
-			await this.closeEditorAndMaximizeAuxiliaryBar(async () => {
-				await this.chatWidgetService.openSession(sessionResource, ChatViewPaneTarget);
-			});
+			await this.closeEditorAndMaximizeAuxiliaryBar(sessionResource);
 		} catch (error) {
 			this.notificationService.error(localize('chat.openSessionFailed', "Failed to open chat session: {0}", toErrorMessage(error)));
 		}
 	}
 
-	private async closeEditorAndMaximizeAuxiliaryBar(chatOpeningCallback: () => Promise<void>): Promise<void> {
+	private async closeEditorAndMaximizeAuxiliaryBar(sessionResource?: URI): Promise<void> {
 		await this.commandService.executeCommand('workbench.action.closeActiveEditor');
-		await chatOpeningCallback();
+		if (sessionResource) {
+			await this.chatWidgetService.openSession(sessionResource, ChatViewPaneTarget);
+		} else {
+			await this.commandService.executeCommand('workbench.action.chat.open');
+		}
 		const chatViewLocation = this.viewDescriptorService.getViewLocationById(ChatViewId);
 		if (chatViewLocation === ViewContainerLocation.AuxiliaryBar) {
 			this.layoutService.setAuxiliaryBarMaximized(true);
