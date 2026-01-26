@@ -327,7 +327,7 @@ configurationRegistry.registerConfiguration({
 			],
 			'default': 'welcomePage',
 			'description': localize('workbench.startupEditor', "Controls which editor is shown at startup, if none are restored from the previous session."),
-			experiment: { mode: 'auto' }
+			'experiment': { mode: 'auto' }
 		},
 		'workbench.welcomePage.preferReducedMotion': {
 			scope: ConfigurationScope.APPLICATION,
