@@ -21,7 +21,7 @@ import { ChatViewModel } from '../../common/model/chatViewModel.js';
 import { CodeBlockModelCollection } from '../../common/widget/codeBlockModelCollection.js';
 import { IChatWidgetService } from '../chat.js';
 import { ChatListWidget } from '../widget/chatListWidget.js';
-import { AgentSessionProviders, getAgentSessionProvider, getAgentSessionProviderIcon } from './agentSessions.js';
+import { AgentSessionProviders, getAgentSessionProvider, getAgentSessionProviderIcon, getAgentSessionProviderName } from './agentSessions.js';
 import { AgentSessionStatus, getAgentChangesSummary, hasValidDiff, IAgentSession } from './agentSessionsModel.js';
 import './media/agentSessionHoverWidget.css';
 
@@ -163,10 +163,13 @@ export class AgentSessionHoverWidget extends Disposable {
 		// Details row: Provider icon + Duration/Time • Diff • Status (if not completed)
 		const detailsRow = dom.append(header, dom.$('.agent-session-hover-details'));
 
-		// Provider icon + Duration or start time
+		// Provider icon + name + Duration or start time
 		const providerType = getAgentSessionProvider(session.providerType);
-		const providerIcon = getAgentSessionProviderIcon(providerType ?? AgentSessionProviders.Local);
+		const provider = providerType ?? AgentSessionProviders.Local;
+		const providerIcon = getAgentSessionProviderIcon(provider);
 		dom.append(detailsRow, renderIcon(providerIcon));
+		dom.append(detailsRow, dom.$('span', undefined, getAgentSessionProviderName(provider)));
+		dom.append(detailsRow, dom.$('span.separator', undefined, '•'));
 
 		if (session.timing.lastRequestEnded && session.timing.lastRequestStarted) {
 			const duration = this.toDuration(session.timing.lastRequestStarted, session.timing.lastRequestEnded, true);
@@ -236,9 +239,11 @@ export class AgentSessionHoverWidget extends Disposable {
 		// Details line: Provider icon + Duration/Time • Diff • Status (if not completed)
 		const details: string[] = [];
 
-		// Provider icon + Duration or start time
+		// Provider icon + name + Duration or start time
 		const providerType = getAgentSessionProvider(session.providerType);
-		const providerIcon = getAgentSessionProviderIcon(providerType ?? AgentSessionProviders.Local);
+		const provider = providerType ?? AgentSessionProviders.Local;
+		const providerIcon = getAgentSessionProviderIcon(provider);
+		const providerName = getAgentSessionProviderName(provider);
 		let timeLabel: string;
 		if (session.timing.lastRequestEnded && session.timing.lastRequestStarted) {
 			const duration = this.toDuration(session.timing.lastRequestStarted, session.timing.lastRequestEnded, true);
@@ -247,7 +252,7 @@ export class AgentSessionHoverWidget extends Disposable {
 			const startTime = session.timing.lastRequestStarted ?? session.timing.created;
 			timeLabel = fromNow(startTime, true, true);
 		}
-		details.push(`$(${providerIcon.id}) ${timeLabel}`);
+		details.push(`$(${providerIcon.id}) ${providerName} • ${timeLabel}`);
 
 		// Diff information
 		const diff = getAgentChangesSummary(session.changes);

@@ -34,7 +34,7 @@ export enum ChatConfiguration {
 	TodosShowWidget = 'chat.tools.todos.showWidget',
 	NotifyWindowOnResponseReceived = 'chat.notifyWindowOnResponseReceived',
 	ChatViewSessionsEnabled = 'chat.viewSessions.enabled',
-	ChatViewSessionsShowActiveOnly = 'chat.viewSessions.showActiveOnly',
+	ChatViewSessionsGrouping = 'chat.viewSessions.grouping',
 	ChatViewSessionsOrientation = 'chat.viewSessions.orientation',
 	ChatViewTitleEnabled = 'chat.viewTitle.enabled',
 	SubagentToolCustomAgents = 'chat.customAgentInSubagent.enabled',
@@ -86,6 +86,11 @@ export enum AgentsControlClickBehavior {
 	Default = 'default',
 	TriStateToggle = 'triStateToggle',
 	Focus = 'focus',
+}
+
+export enum AgentSessionsGrouping {
+	Activity = 'activity',
+	Date = 'date',
 }
 
 export type RawChatParticipantLocation = 'panel' | 'terminal' | 'notebook' | 'editing-session';

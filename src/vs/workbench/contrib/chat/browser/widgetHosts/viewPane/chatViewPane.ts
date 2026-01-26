@@ -46,7 +46,7 @@ import { CHAT_PROVIDER_ID } from '../../../common/participants/chatParticipantCo
 import { IChatModelReference, IChatService } from '../../../common/chatService/chatService.js';
 import { IChatSessionsService, localChatSessionType } from '../../../common/chatSessionsService.js';
 import { LocalChatSessionUri, getChatSessionType } from '../../../common/model/chatUri.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../common/constants.js';
+import { AgentSessionsGrouping, ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../common/constants.js';
 import { AgentSessionsControl } from '../../agentSessions/agentSessionsControl.js';
 import { ACTION_ID_NEW_CHAT } from '../../actions/chatActions.js';
 import { ChatWidget } from '../../widget/chatWidget.js';
@@ -57,7 +57,7 @@ import { IProgressService } from '../../../../../../platform/progress/common/pro
 import { ChatViewId } from '../../chat.js';
 import { IActivityService, ProgressBadge } from '../../../../../services/activity/common/activity.js';
 import { disposableTimeout } from '../../../../../../base/common/async.js';
-import { AgentSessionsFilter, AgentSessionsGrouping } from '../../agentSessions/agentSessionsFilter.js';
+import { AgentSessionsFilter } from '../../agentSessions/agentSessionsFilter.js';
 import { IAgentSessionsService } from '../../agentSessions/agentSessionsService.js';
 import { HoverPosition } from '../../../../../../base/browser/ui/hover/hoverWidget.js';
 import { IAgentSession } from '../../agentSessions/agentSessionsModel.js';
@@ -129,7 +129,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		) {
 			this.viewState.sessionId = undefined; // clear persisted session on fresh start
 		}
-		this.sessionsViewerShowActiveOnly = this.configurationService.getValue<boolean>(ChatConfiguration.ChatViewSessionsShowActiveOnly) ?? true;
+		this.sessionsGrouping = this.configurationService.getValue<unknown>(ChatConfiguration.ChatViewSessionsGrouping) === AgentSessionsGrouping.Date ? AgentSessionsGrouping.Date : AgentSessionsGrouping.Activity;
 		this.sessionsViewerVisible = false; // will be updated from layout code
 		this.sessionsViewerSidebarWidth = Math.max(ChatViewPane.SESSIONS_SIDEBAR_MIN_WIDTH, this.viewState.sessionsSidebarWidth ?? ChatViewPane.SESSIONS_SIDEBAR_DEFAULT_WIDTH);
 
@@ -234,20 +234,13 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			return e.affectsConfiguration(LayoutSettings.ACTIVITY_BAR_LOCATION);
 		})(() => this.updateViewPaneClasses(true)));
 
-		// Sessions viewer show active only setting changes
+		// Sessions viewer grouping setting changes
 		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => {
-			return e.affectsConfiguration(ChatConfiguration.ChatViewSessionsShowActiveOnly);
+			return e.affectsConfiguration(ChatConfiguration.ChatViewSessionsGrouping);
 		})(() => {
-			const oldSessionsViewerShowActiveOnly = this.sessionsViewerShowActiveOnly;
-			if (this.sessionsViewerOrientation === AgentSessionsViewerOrientation.SideBySide) {
-				this.sessionsViewerShowActiveOnly = false; // side by side always shows all
-			} else {
-				this.sessionsViewerShowActiveOnly = this.configurationService.getValue<boolean>(ChatConfiguration.ChatViewSessionsShowActiveOnly) ?? true;
-			}
+			this.sessionsGrouping = this.configurationService.getValue<AgentSessionsGrouping>(ChatConfiguration.ChatViewSessionsGrouping) === AgentSessionsGrouping.Date ? AgentSessionsGrouping.Date : AgentSessionsGrouping.Activity;
 
-			if (oldSessionsViewerShowActiveOnly !== this.sessionsViewerShowActiveOnly) {
-				this.sessionsControl?.update();
-			}
+			this.sessionsControl?.update();
 		}));
 
 		// Entitlement changes
@@ -342,7 +335,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private sessionsNewButtonContainer: HTMLElement | undefined;
 	private sessionsControlContainer: HTMLElement | undefined;
 	private sessionsControl: AgentSessionsControl | undefined;
-	private sessionsViewerShowActiveOnly: boolean;
+	private sessionsGrouping: AgentSessionsGrouping;
 	private sessionsViewerVisible: boolean;
 	private sessionsViewerOrientation = AgentSessionsViewerOrientation.Stacked;
 	private sessionsViewerOrientationConfiguration: 'stacked' | 'sideBySide' = 'sideBySide';
@@ -374,7 +367,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		// Sessions Filter
 		const sessionsFilter = this._register(this.instantiationService.createInstance(AgentSessionsFilter, {
 			filterMenuId: MenuId.AgentSessionsViewerFilterSubMenu,
-			groupResults: () => this.sessionsViewerShowActiveOnly ? AgentSessionsGrouping.Active : AgentSessionsGrouping.Default,
+			groupResults: () => this.sessionsGrouping === AgentSessionsGrouping.Date ? AgentSessionsGrouping.Date : AgentSessionsGrouping.Activity,
 		}));
 		this._register(Event.runAndSubscribe(sessionsFilter.onDidChange, () => {
 			sessionsToolbarContainer.classList.toggle('filtered', !sessionsFilter.isDefault());
@@ -883,24 +876,14 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			this.sessionsViewerOrientationContext.set(AgentSessionsViewerOrientation.Stacked);
 		}
 
-		// Update show active only state based on orientation change
-		if (oldSessionsViewerOrientation !== this.sessionsViewerOrientation) {
-			if (this.sessionsViewerOrientation === AgentSessionsViewerOrientation.SideBySide) {
-				this.sessionsViewerShowActiveOnly = false; // side by side always shows all
-			} else {
-				this.sessionsViewerShowActiveOnly = this.configurationService.getValue<boolean>(ChatConfiguration.ChatViewSessionsShowActiveOnly) ?? true;
-			}
-
-			const updatePromise = this.sessionsControl.update();
-
-			// Switching to side-by-side, reveal the current session after elements have loaded
-			if (this.sessionsViewerOrientation === AgentSessionsViewerOrientation.SideBySide) {
-				updatePromise.then(() => {
-					const sessionResource = this._widget?.viewModel?.sessionResource;
-					if (sessionResource) {
-						this.sessionsControl?.reveal(sessionResource);
-					}
-				});
+		// Switching to side-by-side, reveal the current session
+		if (
+			oldSessionsViewerOrientation !== this.sessionsViewerOrientation &&
+			this.sessionsViewerOrientation === AgentSessionsViewerOrientation.SideBySide
+		) {
+			const sessionResource = this._widget?.viewModel?.sessionResource;
+			if (sessionResource) {
+				this.sessionsControl?.reveal(sessionResource);
 			}
 		}
 

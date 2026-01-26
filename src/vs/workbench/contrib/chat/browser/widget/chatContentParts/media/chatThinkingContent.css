@@ -17,6 +17,23 @@
 		margin: 0px;
 	}
 
+	/* shimmer animation stuffs */
+	.chat-thinking-spinner-item .chat-thinking-spinner-label {
+		background: linear-gradient(
+			90deg,
+			var(--vscode-descriptionForeground) 0%,
+			var(--vscode-descriptionForeground) 30%,
+			var(--vscode-chat-thinkingShimmer) 50%,
+			var(--vscode-descriptionForeground) 70%,
+			var(--vscode-descriptionForeground) 100%
+		);
+		background-size: 400% 100%;
+		background-clip: text;
+		-webkit-background-clip: text;
+		-webkit-text-fill-color: transparent;
+		animation: chat-thinking-shimmer 2s linear infinite;
+	}
+
 	&:not(.chat-used-context-collapsed) .chat-used-context-list.chat-thinking-collapsible {
 		overflow: visible;
 		max-height: none;
@@ -56,8 +73,8 @@
 				overflow: hidden;
 				padding: 10px 10px 10px 2px;
 
-				.codicon:not(.codicon-check) {
-						display: inline-flex;
+				.codicon:not(.codicon-check, .codicon-loading) {
+					display: inline-flex;
 				}
 			}
 
@@ -124,7 +141,8 @@
 
 		/* chain of thought lines */
 		.chat-thinking-tool-wrapper,
-		.chat-thinking-item.markdown-content {
+		.chat-thinking-item.markdown-content,
+		.chat-thinking-spinner-item {
 			position: relative;
 
 			&::before {
@@ -169,6 +187,15 @@
 				top: 10px;
 			}
 
+		}
+
+		.chat-thinking-spinner-item {
+			padding: 6px 12px 6px 24px;
+			font-size: var(--vscode-chat-font-size-body-s);
+
+			.chat-thinking-spinner-label {
+				color: var(--vscode-descriptionForeground);
+			}
 		}
 	}
 

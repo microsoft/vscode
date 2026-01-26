@@ -278,8 +278,11 @@ export class ToggleExplanationWidgetAction extends EditingSessionAction {
 	}
 
 	override async runEditingSessionAction(accessor: ServicesAccessor, editingSession: IChatEditingSession, chatWidget: IChatWidget, ...args: unknown[]) {
-		const current = editingSession.explanationWidgetVisible.get();
-		editingSession.explanationWidgetVisible.set(!current, undefined);
+		if (editingSession.hasExplanations()) {
+			editingSession.clearExplanations();
+		} else {
+			await editingSession.triggerExplanationGeneration();
+		}
 	}
 }
 registerAction2(ToggleExplanationWidgetAction);

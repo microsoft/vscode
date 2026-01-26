@@ -11,14 +11,10 @@ import { registerAction2, Action2, MenuId } from '../../../../../platform/action
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
+import { AgentSessionsGrouping } from '../../common/constants.js';
 import { AgentSessionProviders, getAgentSessionProviderName } from './agentSessions.js';
 import { AgentSessionStatus, IAgentSession } from './agentSessionsModel.js';
 import { IAgentSessionsFilter, IAgentSessionsFilterExcludes } from './agentSessionsViewer.js';
-
-export enum AgentSessionsGrouping {
-	Default = 'default',
-	Active = 'active',
-}
 
 export interface IAgentSessionsFilterOptions extends Partial<IAgentSessionsFilter> {
 
@@ -53,6 +49,12 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 
 	private readonly actionDisposables = this._register(new DisposableStore());
 
+	/**
+	 * Guard to skip redundant updateExcludes calls when storage
+	 * changes are triggered by our own storeExcludes call.
+	 */
+	private isStoringExcludes = false;
+
 	constructor(
 		private readonly options: IAgentSessionsFilterOptions,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
@@ -71,7 +73,14 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 		this._register(this.chatSessionsService.onDidChangeItemsProviders(() => this.updateFilterActions()));
 		this._register(this.chatSessionsService.onDidChangeAvailability(() => this.updateFilterActions()));
 
-		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, this.STORAGE_KEY, this._store)(() => this.updateExcludes(true)));
+		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, this.STORAGE_KEY, this._store)(() => {
+			// Skip if we triggered the change ourselves - storeExcludes already
+			// updated this.excludes and fired onDidChange. Re-running would cause
+			// action re-registration during a menu click which can corrupt state.
+			if (!this.isStoringExcludes) {
+				this.updateExcludes(true);
+			}
+		}));
 	}
 
 	private updateExcludes(fromEvent: boolean): void {
@@ -96,11 +105,22 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 	private storeExcludes(excludes: IAgentSessionsFilterExcludes): void {
 		this.excludes = excludes;
 
-		if (equals(this.excludes, DEFAULT_EXCLUDES)) {
-			this.storageService.remove(this.STORAGE_KEY, StorageScope.PROFILE);
-		} else {
-			this.storageService.store(this.STORAGE_KEY, JSON.stringify(this.excludes), StorageScope.PROFILE, StorageTarget.USER);
+		// Set guard before storage operation to prevent our own listener from
+		// re-triggering updateExcludes which would re-register actions mid-click
+		this.isStoringExcludes = true;
+		try {
+			if (equals(this.excludes, DEFAULT_EXCLUDES)) {
+				this.storageService.remove(this.STORAGE_KEY, StorageScope.PROFILE);
+			} else {
+				this.storageService.store(this.STORAGE_KEY, JSON.stringify(this.excludes), StorageScope.PROFILE, StorageTarget.USER);
+			}
+		} finally {
+			this.isStoringExcludes = false;
 		}
+
+		// Update filter actions and notify listeners
+		this.updateFilterActions();
+		this._onDidChange.fire();
 	}
 
 	private updateFilterActions(): void {

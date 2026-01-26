@@ -120,6 +120,15 @@
 	}
 }
 
+@keyframes chat-thinking-shimmer {
+	0% {
+		background-position: 120% 0;
+	}
+	100% {
+		background-position: -120% 0;
+	}
+}
+
 .interactive-item-container .chat-animated-ellipsis::after {
 	content: '';
 	white-space: nowrap;
@@ -1371,9 +1380,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 }
 
-.interactive-session .chat-input-toolbars.scroll-top-decoration {
-	box-shadow: var(--vscode-scrollbar-shadow) 0 6px 6px -6px inset
-}
+
 
 .interactive-session .chat-input-toolbar .chat-input-picker-item .action-label,
 .interactive-session .chat-input-toolbar .chat-sessionPicker-item .action-label {
@@ -2248,6 +2255,23 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		.chat-inline-anchor-widget {
 			display: inline;
 		}
+	}
+
+	/* shimmer animation stuffs */
+	&:has(.codicon-loading) .rendered-markdown.progress-step > p {
+		background: linear-gradient(
+			90deg,
+			var(--vscode-descriptionForeground) 0%,
+			var(--vscode-descriptionForeground) 30%,
+			var(--vscode-chat-thinkingShimmer) 50%,
+			var(--vscode-descriptionForeground) 70%,
+			var(--vscode-descriptionForeground) 100%
+		);
+		background-size: 400% 100%;
+		background-clip: text;
+		-webkit-background-clip: text;
+		-webkit-text-fill-color: transparent;
+		animation: chat-thinking-shimmer 2s linear infinite;
 	}
 }
 

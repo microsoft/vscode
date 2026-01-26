@@ -624,9 +624,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._register(autorun(r => {
 			const mode = this._currentModeObservable.read(r);
 			this.chatModeKindKey.set(mode.kind);
-			const model = mode.model?.read(r);
-			if (model) {
-				this.switchModelByQualifiedName(model);
+			const models = mode.model?.read(r);
+			if (models) {
+				this.switchModelByQualifiedName(models);
 			}
 		}));
 
@@ -722,16 +722,19 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 	}
 
-	public switchModelByQualifiedName(qualifiedModelName: string): boolean {
+	public switchModelByQualifiedName(qualifiedModelNames: readonly string[]): boolean {
 		const models = this.getModels();
-		const model = models.find(m => ILanguageModelChatMetadata.matchesQualifiedName(qualifiedModelName, m.metadata));
-		if (model) {
-			this.setCurrentLanguageModel(model);
-			return true;
+		for (const qualifiedModelName of qualifiedModelNames) {
+			const model = models.find(m => ILanguageModelChatMetadata.matchesQualifiedName(qualifiedModelName, m.metadata));
+			if (model) {
+				this.setCurrentLanguageModel(model);
+				return true;
+			}
 		}
-		this.logService.warn(`[chat] Model "${qualifiedModelName}" not found. Use format "<name> (<vendor>)", e.g. "GPT-4o (copilot)".`);
+		this.logService.warn(`[chat] Node of the models "${qualifiedModelNames.join(', ')}" not found. Use format "<name> (<vendor>)", e.g. "GPT-4o (copilot)".`);
 		return false;
 	}
+
 
 	public switchToNextModel(): void {
 		const models = this.getModels();
@@ -1842,10 +1845,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					}
 				}
 			}
-		}));
-
-		this._register(this._inputEditor.onDidScrollChange(e => {
-			toolbarsContainer.classList.toggle('scroll-top-decoration', e.scrollTop > 0);
 		}));
 
 		this._register(this._inputEditor.onDidChangeModelContent(() => {
