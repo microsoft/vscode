@@ -25,6 +25,9 @@ import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.j
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { experimentsEnabled } from '../../telemetry/common/workbenchTelemetryUtils.js';
 
+// Treatment names
+export const AGENT_SESSIONS_WELCOME_TREATMENT = 'agentSessionsWelcome';
+
 export interface IAssignmentFilter {
 	exclude(assignment: string): boolean;
 	onDidChange: Event<void>;

@@ -33,7 +33,7 @@ import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { GettingStartedAccessibleView } from './gettingStartedAccessibleView.js';
 import { AgentSessionsWelcomePage } from '../../welcomeAgentSessions/browser/agentSessionsWelcome.js';
-import { IWorkbenchAssignmentService } from '../../../services/assignment/common/assignmentService.js';
+import { AGENT_SESSIONS_WELCOME_TREATMENT, IWorkbenchAssignmentService } from '../../../services/assignment/common/assignmentService.js';
 
 export * as icons from './gettingStartedIcons.js';
 
@@ -70,7 +70,7 @@ registerAction2(class extends Action2 {
 		const activeEditor = editorService.activeEditor;
 
 		// Check ExP service cache to see if agent sessions welcome should be shown
-		const agentSessionsTreatment = workbenchAssignmentService.getCachedTreatment<boolean>('agentSessionsWelcome');
+		const agentSessionsTreatment = workbenchAssignmentService.getCachedTreatment<boolean>(AGENT_SESSIONS_WELCOME_TREATMENT);
 		const startupEditor = configurationService.getValue<string>('workbench.startupEditor');
 
 		// If no specific walkthrough is requested and agent sessions welcome is preferred (either by config or ExP), open that instead

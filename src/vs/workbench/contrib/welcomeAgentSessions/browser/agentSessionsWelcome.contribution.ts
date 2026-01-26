@@ -21,7 +21,7 @@ import { CommandsRegistry } from '../../../../platform/commands/common/commands.
 import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
 import { AgentSessionsWelcomeInput } from './agentSessionsWelcomeInput.js';
 import { AgentSessionsWelcomePage, AgentSessionsWelcomeInputSerializer } from './agentSessionsWelcome.js';
-import { IWorkbenchAssignmentService } from '../../../services/assignment/common/assignmentService.js';
+import { AGENT_SESSIONS_WELCOME_TREATMENT, IWorkbenchAssignmentService } from '../../../services/assignment/common/assignmentService.js';
 
 // Registration priority
 const agentSessionsWelcomeInputTypeId = 'workbench.editors.agentSessionsWelcomeInput';
@@ -107,7 +107,7 @@ class AgentSessionsWelcomeRunnerContribution extends Disposable implements IWork
 
 		// Check ExP service cache to see if agent sessions welcome should be enabled
 		// Use cached value to avoid delaying welcome page load
-		const treatmentValue = this.workbenchAssignmentService.getCachedTreatment<boolean>('agentSessionsWelcome');
+		const treatmentValue = this.workbenchAssignmentService.getCachedTreatment<boolean>(AGENT_SESSIONS_WELCOME_TREATMENT);
 
 		// Only proceed if:
 		// 1. The startup editor is explicitly set to 'agentSessionsWelcomePage', OR

@@ -31,7 +31,7 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { AuxiliaryBarMaximizedContext } from '../../../common/contextkeys.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { getActiveElement } from '../../../../base/browser/dom.js';
-import { IWorkbenchAssignmentService } from '../../../services/assignment/common/assignmentService.js';
+import { AGENT_SESSIONS_WELCOME_TREATMENT, IWorkbenchAssignmentService } from '../../../services/assignment/common/assignmentService.js';
 
 export const restoreWalkthroughsConfigurationKey = 'workbench.welcomePage.restorableWalkthroughs';
 export type RestoreWalkthroughsConfigurationValue = { folder: string; category?: string; step?: string };
@@ -139,7 +139,7 @@ export class StartupPageRunnerContribution extends Disposable implements IWorkbe
 
 				// Check ExP service cache to see if agent sessions welcome should override the regular welcome
 				// Use cached value to avoid delaying welcome page load
-				const agentSessionsTreatment = this.workbenchAssignmentService.getCachedTreatment<boolean>('agentSessionsWelcome');
+				const agentSessionsTreatment = this.workbenchAssignmentService.getCachedTreatment<boolean>(AGENT_SESSIONS_WELCOME_TREATMENT);
 
 				// If the treatment says to use agent sessions and the config is set to welcomePage,
 				// skip opening the regular welcome page (agent sessions welcome will be opened by its own contribution)
