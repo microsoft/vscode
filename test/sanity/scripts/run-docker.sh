@@ -115,18 +115,8 @@ if [ -n "$PAGE_SIZE" ]; then
 	# Store test arguments in rootfs
 	echo "$ARGS" | sudo tee "$ROOTFS_DIR/test-args" > /dev/null
 
-	# Create init script that sets up the system and runs entrypoint
-	sudo tee "$ROOTFS_DIR/init" > /dev/null << 'INITEOF'
-#!/bin/sh
-mount -t proc proc /proc
-mount -t sysfs sys /sys
-mount -t devtmpfs dev /dev
-mkdir -p /dev/pts
-mount -t devpts devpts /dev/pts
-export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-ARGS=$(cat /test-args)
-exec /entrypoint.sh $ARGS
-INITEOF
+	# Copy init script into rootfs
+	sudo cp "$SCRIPT_DIR/qemu-init.sh" "$ROOTFS_DIR/init"
 	sudo chmod +x "$ROOTFS_DIR/init"
 
 	# Create a disk image from the rootfs
