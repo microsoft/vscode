@@ -242,5 +242,5 @@
 .interactive-session .interactive-response .value .chat-thinking-box .chat-used-context-label code {
 	display: inline;
 	line-height: inherit;
-	padding: 0 4px;
+	padding: 1px 3px;
 }
