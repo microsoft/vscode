@@ -234,6 +234,44 @@ suite('PromptHoverProvider', () => {
 			assert.strictEqual(hover, 'Test Tool 1');
 		});
 
+		test('hover on model attribute with vscode target and model array', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'target: vscode',
+				`model: ['MAE 4 (olama)', 'MAE 4.1 (copilot)']`,
+				'---',
+			].join('\n');
+			const hover = await getHover(content, 4, 10, PromptsType.agent);
+			const expected = [
+				'Specify the model that runs this custom agent.',
+				'',
+				'- Name: MAE 4',
+				'- Family: mae',
+				'- Vendor: olama'
+			].join('\n');
+			assert.strictEqual(hover, expected);
+		});
+
+		test('hover on second model in model array', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'target: vscode',
+				`model: ['MAE 4 (olama)', 'MAE 4.1 (copilot)']`,
+				'---',
+			].join('\n');
+			const hover = await getHover(content, 4, 30, PromptsType.agent);
+			const expected = [
+				'Specify the model that runs this custom agent.',
+				'',
+				'- Name: MAE 4.1',
+				'- Family: mae',
+				'- Vendor: copilot'
+			].join('\n');
+			assert.strictEqual(hover, expected);
+		});
+
 		test('hover on description attribute', async () => {
 			const content = [
 				'---',

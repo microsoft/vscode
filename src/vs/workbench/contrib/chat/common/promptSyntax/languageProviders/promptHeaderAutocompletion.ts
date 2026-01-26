@@ -158,6 +158,13 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 		}
 
 		if (promptType === PromptsType.prompt || promptType === PromptsType.agent) {
+			if (attribute.key === PromptHeaderAttributes.model) {
+				if (attribute.value.type === 'array') {
+					// if the position is inside the tools metadata, we provide tool name completions
+					const getValues = async () => this.getModelNames(promptType === PromptsType.agent);
+					return this.provideArrayCompletions(model, position, attribute, getValues);
+				}
+			}
 			if (attribute.key === PromptHeaderAttributes.tools) {
 				if (attribute.value.type === 'array') {
 					// if the position is inside the tools metadata, we provide tool name completions
