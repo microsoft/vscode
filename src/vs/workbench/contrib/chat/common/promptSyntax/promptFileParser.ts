@@ -9,6 +9,7 @@ import { splitLinesIncludeSeparators } from '../../../../../base/common/strings.
 import { URI } from '../../../../../base/common/uri.js';
 import { parse, YamlNode, YamlParseError, Position as YamlPosition } from '../../../../../base/common/yaml.js';
 import { Range } from '../../../../../editor/common/core/range.js';
+import { InferValue, parseInferValue } from './service/promptsService.js';
 
 export class PromptFileParser {
 	constructor() {
@@ -164,14 +165,6 @@ export class PromptHeader {
 		return undefined;
 	}
 
-	private getBooleanAttribute(key: string): boolean | undefined {
-		const attribute = this._parsedHeader.attributes.find(attr => attr.key === key);
-		if (attribute?.value.type === 'boolean') {
-			return attribute.value.value;
-		}
-		return undefined;
-	}
-
 	public get name(): string | undefined {
 		return this.getStringAttribute(PromptHeaderAttributes.name);
 	}
@@ -200,8 +193,15 @@ export class PromptHeader {
 		return this.getStringAttribute(PromptHeaderAttributes.target);
 	}
 
-	public get infer(): boolean | undefined {
-		return this.getBooleanAttribute(PromptHeaderAttributes.infer);
+	public get infer(): InferValue | undefined {
+		const attribute = this._parsedHeader.attributes.find(attr => attr.key === PromptHeaderAttributes.infer);
+		if (attribute?.value.type === 'boolean') {
+			return attribute.value.value ? 'all' : 'user';
+		}
+		if (attribute?.value.type === 'string' && attribute.value.value) {
+			return parseInferValue(attribute.value.value);
+		}
+		return undefined;
 	}
 
 	public get tools(): string[] | undefined {
