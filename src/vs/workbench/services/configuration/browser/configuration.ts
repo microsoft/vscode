@@ -14,7 +14,7 @@ import { WorkspaceConfigurationModelParser, StandaloneConfigurationModelParser }
 import { TASKS_CONFIGURATION_KEY, FOLDER_SETTINGS_NAME, LAUNCH_CONFIGURATION_KEY, IConfigurationCache, ConfigurationKey, REMOTE_MACHINE_SCOPES, FOLDER_SCOPES, WORKSPACE_SCOPES, APPLY_ALL_PROFILES_SETTING, APPLICATION_SCOPES, MCP_CONFIGURATION_KEY } from '../common/configuration.js';
 import { IStoredWorkspaceFolder } from '../../../../platform/workspaces/common/workspaces.js';
 import { WorkbenchState, IWorkspaceFolder, IWorkspaceIdentifier } from '../../../../platform/workspace/common/workspace.js';
-import { ConfigurationScope, Extensions, IConfigurationDefaults, IConfigurationRegistry, OVERRIDE_PROPERTY_REGEX } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { ConfigurationScope, Extensions, IConfigurationRegistry, OVERRIDE_PROPERTY_REGEX } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { equals } from '../../../../base/common/objects.js';
 import { IRemoteAgentService } from '../../remote/common/remoteAgentService.js';
 import { hash } from '../../../../base/common/hash.js';
@@ -36,7 +36,6 @@ export class DefaultConfiguration extends BaseDefaultConfiguration {
 	private readonly configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 	private cachedConfigurationDefaultsOverrides: IStringDictionary<unknown> = {};
 	private readonly cacheKey: ConfigurationKey;
-	private profileDefaults: IConfigurationDefaults | undefined;
 
 	constructor(
 		cacheScope: string,
@@ -68,18 +67,6 @@ export class DefaultConfiguration extends BaseDefaultConfiguration {
 
 	hasCachedConfigurationDefaultsOverrides(): boolean {
 		return !isEmptyObject(this.cachedConfigurationDefaultsOverrides);
-	}
-
-	updateProfileDefaults(configurationDefaults: IStringDictionary<unknown> | undefined): void {
-		if (this.profileDefaults) {
-			this.configurationRegistry.deregisterDefaultConfigurations([this.profileDefaults]);
-		}
-		if (configurationDefaults) {
-			this.profileDefaults = { overrides: configurationDefaults };
-			this.configurationRegistry.registerDefaultConfigurations([this.profileDefaults]);
-		} else {
-			this.profileDefaults = undefined;
-		}
 	}
 
 	private initiaizeCachedConfigurationDefaultsOverridesPromise: Promise<void> | undefined;

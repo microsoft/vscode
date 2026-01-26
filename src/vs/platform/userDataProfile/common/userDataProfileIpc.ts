@@ -6,13 +6,10 @@
 import { Emitter, Event } from '../../../base/common/event.js';
 import { IChannel, IServerChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { URI, UriDto } from '../../../base/common/uri.js';
-import { AbstractUserDataProfilesService, DidChangeProfilesEvent, IUserDataProfile, IUserDataProfileOptions, IUserDataProfilesService, IUserDataProfileUpdateOptions, reviveProfile } from './userDataProfile.js';
+import { DidChangeProfilesEvent, IUserDataProfile, IUserDataProfileOptions, IUserDataProfilesService, IUserDataProfileUpdateOptions, reviveProfile } from './userDataProfile.js';
 import { IAnyWorkspaceIdentifier } from '../../workspace/common/workspace.js';
 import { IURITransformer, transformIncomingURIs, transformOutgoingURIs } from '../../../base/common/uriIpc.js';
-import { IFileService } from '../../files/common/files.js';
-import { ILogService } from '../../log/common/log.js';
-import { IUriIdentityService } from '../../uriIdentity/common/uriIdentity.js';
-import { IEnvironmentService } from '../../environment/common/environment.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
 
 export class RemoteUserDataProfilesServiceChannel implements IServerChannel {
 
@@ -57,7 +54,9 @@ export class RemoteUserDataProfilesServiceChannel implements IServerChannel {
 	}
 }
 
-export class UserDataProfilesService extends AbstractUserDataProfilesService implements IUserDataProfilesService {
+export class UserDataProfilesService extends Disposable implements IUserDataProfilesService {
+
+	readonly _serviceBrand: undefined;
 
 	get defaultProfile(): IUserDataProfile { return this.profiles[0]; }
 	private _profiles: IUserDataProfile[] = [];
@@ -72,12 +71,8 @@ export class UserDataProfilesService extends AbstractUserDataProfilesService imp
 		profiles: readonly UriDto<IUserDataProfile>[],
 		readonly profilesHome: URI,
 		private readonly channel: IChannel,
-		environmentService: IEnvironmentService,
-		fileService: IFileService,
-		uriIdentityService: IUriIdentityService,
-		logService: ILogService
 	) {
-		super(environmentService, fileService, uriIdentityService, logService);
+		super();
 		this._profiles = profiles.map(profile => reviveProfile(profile, this.profilesHome.scheme));
 		this._register(this.channel.listen<DidChangeProfilesEvent>('onDidChangeProfiles')(e => {
 			const added = e.added.map(profile => reviveProfile(profile, this.profilesHome.scheme));
@@ -132,9 +127,5 @@ export class UserDataProfilesService extends AbstractUserDataProfilesService imp
 
 	cleanUpTransientProfiles(): Promise<void> {
 		return this.channel.call('cleanUpTransientProfiles');
-	}
-
-	override updateStoredProfileTemplate(profile: IUserDataProfile): Promise<void> {
-		return this.channel.call('updateStoredProfileTemplate', [profile]);
 	}
 }
