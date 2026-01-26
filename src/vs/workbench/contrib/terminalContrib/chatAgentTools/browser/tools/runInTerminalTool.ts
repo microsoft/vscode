@@ -9,7 +9,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../../../ba
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
-import { MarkdownString, type IMarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { createCommandUri, MarkdownString, type IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { basename, posix, win32 } from '../../../../../../base/common/path.js';
@@ -812,6 +812,25 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					}
 				}));
 				const executeResult = await strategy.execute(command, executeCancellation.token, commandId);
+
+				// if sandboxing is enabled and the command files due to domains not allowed by the sandbox, provide a helpful message.
+				if (exitCode !== 0 && this._sandboxService.isEnabled()) {
+
+					if (this._checkForSandboxedHttpDomain(command)) {
+
+						this._logService.info(`RunInTerminalTool: Command exited with code ${executeResult.exitCode} while sandboxing was enabled. If the command failed due to network or file system access issues, consider updating the terminal sandbox settings to allow necessary access.`);
+						const settingsUri = createCommandUri('workbench.action.openSettings', { query: 'sandbox: Network' });
+						const settingsLink = new MarkdownString(
+							`[${localize('terminal.sandbox.network.settings', 'settings.')}](${settingsUri.toString()} "${localize('terminal.sandbox.retry.settings.tooltip', 'Open settings and search for sandbox')}")`,
+							{ isTrusted: { enabledCommands: ['workbench.action.openSettings'] } }
+						);
+						toolResultMessage = new MarkdownString(
+							`$(info) Domain is restricted due to sandbox ${settingsLink.value}`,
+							{ supportThemeIcons: true, isTrusted: { enabledCommands: ['workbench.action.openSettings'] } }
+						);
+					}
+				}
+
 				// Reset user input state after command execution completes
 				toolTerminal.receivedUserInput = false;
 				if (token.isCancellationRequested) {
@@ -965,6 +984,14 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		}
 	}
 
+	private _checkForSandboxedHttpDomain(command: string): boolean {
+		const domainRegex = /https?:\/\/([^\/\s"'`),]+)/g;
+		const domains = Array.from(command.matchAll(domainRegex), match => match[1]?.toLowerCase()).filter((domain): domain is string => !!domain);
+		if (domains.length === 0) {
+			return false;
+		}
+		return !this._sandboxService.checkIfDomainsAreSandboxed(domains);
+	}
 	private _handleTerminalVisibility(toolTerminal: IToolTerminal, chatSessionResource: URI) {
 		const chatSessionOpenInWidget = !!this._chatWidgetService.getWidgetBySessionResource(chatSessionResource);
 		if (this._configurationService.getValue(TerminalChatAgentToolsSettingId.OutputLocation) === 'terminal' && chatSessionOpenInWidget) {
