@@ -227,6 +227,21 @@ abstract class OpenChatGlobalAction extends Action2 {
 			await this.handleSwitchToMode(switchToMode, chatWidget, instaService, commandService);
 		}
 
+		if (opts?.modelSelector) {
+			const ids = await languageModelService.selectLanguageModels(opts.modelSelector);
+			const id = ids.sort().at(0);
+			if (!id) {
+				throw new Error(`No language models found matching selector: ${JSON.stringify(opts.modelSelector)}.`);
+			}
+
+			const model = languageModelService.lookupLanguageModel(id);
+			if (!model) {
+				throw new Error(`Language model not loaded: ${id}.`);
+			}
+
+			chatWidget.input.setCurrentLanguageModel({ metadata: model, identifier: id });
+		}
+
 		if (opts?.toolsInclude || opts?.toolsExclude) {
 			const model = chatWidget.input.selectedLanguageModel.get()?.metadata;
 			const allTools = Array.from(toolsService.getTools(model));
@@ -244,21 +259,6 @@ abstract class OpenChatGlobalAction extends Action2 {
 			}
 
 			chatWidget.input.selectedToolsModel.set(result.enablementMap, true);
-		}
-
-		if (opts?.modelSelector) {
-			const ids = await languageModelService.selectLanguageModels(opts.modelSelector);
-			const id = ids.sort().at(0);
-			if (!id) {
-				throw new Error(`No language models found matching selector: ${JSON.stringify(opts.modelSelector)}.`);
-			}
-
-			const model = languageModelService.lookupLanguageModel(id);
-			if (!model) {
-				throw new Error(`Language model not loaded: ${id}.`);
-			}
-
-			chatWidget.input.setCurrentLanguageModel({ metadata: model, identifier: id });
 		}
 
 		if (opts?.previousRequests?.length && chatWidget.viewModel) {
