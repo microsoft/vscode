@@ -154,6 +154,11 @@ export class ChatModeService extends Disposable implements IChatModeService {
 			const seenUris = new Set<string>();
 
 			for (const customMode of customModes) {
+				if (customMode.infer === 'agent' || customMode.infer === 'hidden') {
+					// Skip modes that are only for subagent use or hidden
+					continue;
+				}
+
 				const uriString = customMode.uri.toString();
 				seenUris.add(uriString);
 
