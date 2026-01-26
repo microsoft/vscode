@@ -126,8 +126,8 @@ abstract class AbstractUpdateService implements IUpdateService {
 		// noop
 	}
 
-	setDisableBackgroundUpdates(disable: boolean): void {
-		// noop
+	async disableProgressiveReleases(disable: boolean): Promise<void> {
+		// noop - not applicable for snap
 	}
 
 	abstract isLatestVersion(): Promise<boolean | undefined>;

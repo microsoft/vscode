@@ -290,8 +290,8 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		// noop
 	}
 
-	setDisableBackgroundUpdates(disable: boolean): void {
-		this.logService.info('update#setDisableBackgroundUpdates', disable);
+	async disableProgressiveReleases(disable: boolean): Promise<void> {
+		this.logService.info('update#disableProgressiveReleases', disable);
 		this._disableBackgroundUpdates = disable;
 	}
 

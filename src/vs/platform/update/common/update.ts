@@ -112,5 +112,5 @@ export interface IUpdateService {
 
 	isLatestVersion(): Promise<boolean | undefined>;
 	_applySpecificUpdate(packagePath: string): Promise<void>;
-	setDisableBackgroundUpdates(disable: boolean): void;
+	disableProgressiveReleases(disable: boolean): Promise<void>;
 }

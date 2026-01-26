@@ -703,7 +703,7 @@ export class DefaultAccountUpdateContribution extends Disposable implements IWor
 				org => org.includes('Visual-Studio-Code')
 			) ?? false;
 
-			this.updateService.setDisableBackgroundUpdates(shouldDisable);
+			await this.updateService.disableProgressiveReleases(shouldDisable);
 		} catch (error) {
 			// Silently ignore errors - if we can't get the account, we don't disable background updates
 		}
