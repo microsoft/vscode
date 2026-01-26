@@ -41,7 +41,7 @@ import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.
 import { MarkdownString, IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { AgentSessionHoverWidget } from './agentSessionHoverWidget.js';
 import { AgentSessionProviders } from './agentSessions.js';
-import { AgentSessionsGrouping } from '../../common/constants.js';
+import { AgentSessionsGrouping } from './agentSessionsFilter.js';
 
 export type AgentSessionListItem = IAgentSession | IAgentSessionSection;
 
@@ -664,9 +664,30 @@ export class AgentSessionsDataSource implements IAsyncDataSource<IAgentSessionsM
 		const result: AgentSessionListItem[] = [];
 
 		const sortedSessions = sessions.sort(this.sorter.compare.bind(this.sorter));
-		const groupedSessions = this.filter?.groupResults?.() === AgentSessionsGrouping.Activity
-			? groupAgentSessionsByActivity(sortedSessions)
-			: groupAgentSessionsByDate(sortedSessions);
+
+		// For Capped grouping: show first 3 sessions without header, rest in "Others" section
+		if (this.filter?.groupResults?.() === AgentSessionsGrouping.Capped) {
+			const TOP_SESSIONS_COUNT = 3;
+			const topSessions = sortedSessions.slice(0, TOP_SESSIONS_COUNT);
+			const othersSessions = sortedSessions.slice(TOP_SESSIONS_COUNT);
+
+			// Add top sessions directly (no section header)
+			result.push(...topSessions);
+
+			// Add "More" section for the rest
+			if (othersSessions.length > 0) {
+				result.push({
+					section: AgentSessionSection.History,
+					label: localize('agentSessions.moreSectionWithCount', "More ({0})", othersSessions.length),
+					sessions: othersSessions
+				});
+			}
+
+			return result;
+		}
+
+		// For Date grouping: use existing section logic
+		const groupedSessions = groupAgentSessionsByDate(sortedSessions);
 
 		for (const { sessions, section, label } of groupedSessions.values()) {
 			if (sessions.length === 0) {
@@ -691,7 +712,7 @@ export const AgentSessionSectionLabels = {
 	[AgentSessionSection.Older]: localize('agentSessions.olderSection', "Older"),
 	[AgentSessionSection.Archived]: localize('agentSessions.archivedSection', "Archived"),
 	[AgentSessionSection.Active]: localize('agentSessions.activeSection', "Active"),
-	[AgentSessionSection.History]: localize('agentSessions.historySection', "History"),
+	[AgentSessionSection.History]: localize('agentSessions.historySection', "More"),
 };
 
 export function groupAgentSessionsByDate(sessions: IAgentSession[]): Map<AgentSessionSection, IAgentSessionSection> {
@@ -733,38 +754,6 @@ export function groupAgentSessionsByDate(sessions: IAgentSession[]): Map<AgentSe
 		[AgentSessionSection.Week, { section: AgentSessionSection.Week, label: AgentSessionSectionLabels[AgentSessionSection.Week], sessions: weekSessions }],
 		[AgentSessionSection.Older, { section: AgentSessionSection.Older, label: AgentSessionSectionLabels[AgentSessionSection.Older], sessions: olderSessions }],
 		[AgentSessionSection.Archived, { section: AgentSessionSection.Archived, label: localize('agentSessions.archivedSectionWithCount', "Archived ({0})", archivedSessions.length), sessions: archivedSessions }],
-	]);
-}
-
-export function groupAgentSessionsByActivity(sessions: IAgentSession[]): Map<AgentSessionSection, IAgentSessionSection> {
-	const activeSessions = new Set<IAgentSession>();
-	const historySessions = new Set<IAgentSession>();
-
-	const now = Date.now();
-	const startOfToday = new Date(now).setHours(0, 0, 0, 0);
-	const startOfYesterday = startOfToday - DAY_THRESHOLD;
-
-	for (const session of sessions) {
-		if (session.isArchived()) {
-			historySessions.add(session);
-		} else {
-			const sessionTime = session.timing.lastRequestEnded ?? session.timing.lastRequestStarted ?? session.timing.created;
-			if (
-				isSessionInProgressStatus(session.status) ||									// in-progress
-				!session.isRead() ||															// unread
-				(getAgentChangesSummary(session.changes) && hasValidDiff(session.changes)) ||	// has changes
-				sessionTime >= startOfYesterday													// from today or yesterday
-			) {
-				activeSessions.add(session);
-			} else {
-				historySessions.add(session);
-			}
-		}
-	}
-
-	return new Map<AgentSessionSection, IAgentSessionSection>([
-		[AgentSessionSection.Active, { section: AgentSessionSection.Active, label: AgentSessionSectionLabels[AgentSessionSection.Active], sessions: [...activeSessions] }],
-		[AgentSessionSection.History, { section: AgentSessionSection.History, label: localize('agentSessions.historySectionWithCount', "History ({0})", historySessions.size), sessions: [...historySessions] }],
 	]);
 }
 
