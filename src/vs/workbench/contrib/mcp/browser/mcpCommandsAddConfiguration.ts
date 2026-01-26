@@ -645,9 +645,9 @@ export class McpInstallFromManifestCommand {
 
 		// Determine package type from manifest
 		let packageType: RegistryType;
-		if (galleryManifest.packages && galleryManifest.packages.length > 0) {
+		if (Array.isArray(galleryManifest.packages) && galleryManifest.packages.length > 0) {
 			packageType = galleryManifest.packages[0].registryType;
-		} else if (galleryManifest.remotes && galleryManifest.remotes.length > 0) {
+		} else if (Array.isArray(galleryManifest.remotes) && galleryManifest.remotes.length > 0) {
 			packageType = RegistryType.REMOTE;
 		} else {
 			this._notificationService.error(localize('mcp.installFromManifest.invalidManifest', "Invalid manifest: expected 'packages' or 'remotes' with at least one entry"));
