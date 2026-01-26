@@ -51,6 +51,7 @@ import { OutputMonitor } from './monitoring/outputMonitor.js';
 import { IPollingResult, OutputMonitorState } from './monitoring/types.js';
 import { ITerminalSandboxService } from '../../common/terminalSandboxService.js';
 import { chatSessionResourceToId, LocalChatSessionUri } from '../../../../chat/common/model/chatUri.js';
+import { TerminalToolId } from './toolIds.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import type { ICommandLineRewriter } from './commandLineRewriter/commandLineRewriter.js';
 import { CommandLineCdPrefixRewriter } from './commandLineRewriter/commandLineCdPrefixRewriter.js';
@@ -120,12 +121,9 @@ Command Execution:
 - Prefer pipelines | over temporary files for data flow
 - Never create a sub-shell (eg. bash -c "command") unless explicitly asked
 
-Current working directory:
-- When isBackground is false, the session is reused and therefore remembers the last current working directory
-- When isBackground is true, the current working directory will always be the workspace directory
-
 Directory Management:
-- Must use absolute paths to avoid navigation issues
+- Prefer relative paths when navigating directories, only use absolute when the path is far away or the current cwd is not expected
+- Remember when isBackground=false is specified, that shell and cwd is reused until it is moved to the background
 - Use $PWD for current directory references
 - Consider using pushd/popd for directory stack management
 - Supports directory shortcuts like ~ and -
@@ -209,7 +207,7 @@ export async function createRunInTerminalToolData(
 	}
 
 	return {
-		id: 'run_in_terminal',
+		id: TerminalToolId.RunInTerminal,
 		toolReferenceName: TOOL_REFERENCE_NAME,
 		legacyToolReferenceFullNames: LEGACY_TOOL_REFERENCE_FULL_NAMES,
 		displayName: localize('runInTerminalTool.displayName', 'Run in Terminal'),
@@ -234,7 +232,7 @@ export async function createRunInTerminalToolData(
 				},
 				isBackground: {
 					type: 'boolean',
-					description: 'Whether the command starts a background process.\n\n- If true, a new shell will be spawned where the cwd is the workspace directory and will run asynchronously in the background and you will not see the output.\n\n- If false, a single shell is shared between all non-background terminals where the cwd starts at the workspace directory and is remembered until that terminal is moved to the background, the tool call will block on the command finishing and only then you will get the output.\n\nExamples of background processes: building in watch mode, starting a server. You can check the output of a background process later on by using get_terminal_output.'
+					description: `Whether the command starts a background process.\n\n- If true, a new shell will be spawned where the cwd is the workspace directory and will run asynchronously in the background and you will not see the output.\n\n- If false, a single shell is shared between all non-background terminals where the cwd starts at the workspace directory and is remembered until that terminal is moved to the background, the tool call will block on the command finishing and only then you will get the output.\n\nExamples of background processes: building in watch mode, starting a server. You can check the output of a background process later on by using ${TerminalToolId.GetTerminalOutput}.`
 				},
 				timeout: {
 					type: 'number',
