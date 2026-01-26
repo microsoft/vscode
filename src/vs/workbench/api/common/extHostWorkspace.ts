@@ -802,6 +802,10 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 		return this._trusted;
 	}
 
+	requestResourceTrust(options: vscode.ResourceTrustRequestOptions): Promise<boolean | undefined> {
+		return this._proxy.$requestResourceTrust(options);
+	}
+
 	requestWorkspaceTrust(options?: vscode.WorkspaceTrustRequestOptions): Promise<boolean | undefined> {
 		return this._proxy.$requestWorkspaceTrust(options);
 	}

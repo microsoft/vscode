@@ -147,6 +147,36 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 			});
 		}));
 
+		// Resources trust request
+		this._register(this.workspaceTrustRequestService.onDidInitiateResourcesTrustRequest(async (options) => {
+			await this.workspaceTrustManagementService.workspaceResolved;
+
+			// Details
+			const markdownDetails = [
+				options?.message ?? localize('resourcesTrustDetails', "You are trying to open an untrusted folder. Do you trust the authors of this content?"),
+				localize('resourcesTrustLearnMore', "If you don't trust the authors of these files, we recommend not continuing as the files may be malicious. See [our docs](https://aka.ms/vscode-workspace-trust) to learn more.")
+			];
+
+			// Dialog
+			await this.dialogService.prompt<void>({
+				type: Severity.Info,
+				message: localize('resourcesTrustMessage', "Do you trust the authors of the files in this folder?"),
+				buttons: [
+					{
+						label: localize({ key: 'trustResources', comment: ['&& denotes a mnemonic'] }, "&&Trust Folder & Continue"),
+						run: () => this.workspaceTrustRequestService.completeResourcesTrustRequest(options.uri, WorkspaceTrustUriResponse.Open)
+					}
+				],
+				cancelButton: {
+					run: () => this.workspaceTrustRequestService.completeResourcesTrustRequest(options.uri, WorkspaceTrustUriResponse.Cancel)
+				},
+				custom: {
+					icon: Codicon.shield,
+					markdownDetails: markdownDetails.map(md => { return { markdown: new MarkdownString(md) }; })
+				}
+			});
+		}));
+
 		// Workspace trust request
 		this._register(this.workspaceTrustRequestService.onDidInitiateWorkspaceTrustRequest(async requestOptions => {
 			await this.workspaceTrustManagementService.workspaceResolved;
