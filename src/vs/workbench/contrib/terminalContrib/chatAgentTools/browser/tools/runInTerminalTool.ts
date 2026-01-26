@@ -121,12 +121,9 @@ Command Execution:
 - Prefer pipelines | over temporary files for data flow
 - Never create a sub-shell (eg. bash -c "command") unless explicitly asked
 
-Current working directory:
-- When isBackground is false, the session is reused and therefore remembers the last current working directory
-- When isBackground is true, the current working directory will always be the workspace directory
-
 Directory Management:
-- Must use absolute paths to avoid navigation issues
+- Prefer relative paths when navigating directories, only use absolute when the path is far away or the current cwd is not expected
+- Remember when isBackground=false is specified, that shell and cwd is reused until it is moved to the background
 - Use $PWD for current directory references
 - Consider using pushd/popd for directory stack management
 - Supports directory shortcuts like ~ and -
