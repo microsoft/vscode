@@ -677,7 +677,7 @@ export class AgentSessionsDataSource implements IAsyncDataSource<IAgentSessionsM
 			// Add "More" section for the rest
 			if (othersSessions.length > 0) {
 				result.push({
-					section: AgentSessionSection.History,
+					section: AgentSessionSection.More,
 					label: localize('agentSessions.moreSectionWithCount', "More ({0})", othersSessions.length),
 					sessions: othersSessions
 				});
@@ -711,8 +711,7 @@ export const AgentSessionSectionLabels = {
 	[AgentSessionSection.Week]: localize('agentSessions.weekSection', "Last Week"),
 	[AgentSessionSection.Older]: localize('agentSessions.olderSection', "Older"),
 	[AgentSessionSection.Archived]: localize('agentSessions.archivedSection', "Archived"),
-	[AgentSessionSection.Active]: localize('agentSessions.activeSection', "Active"),
-	[AgentSessionSection.History]: localize('agentSessions.historySection', "More"),
+	[AgentSessionSection.More]: localize('agentSessions.historySection', "More"),
 };
 
 export function groupAgentSessionsByDate(sessions: IAgentSession[]): Map<AgentSessionSection, IAgentSessionSection> {
