@@ -22,11 +22,13 @@ export interface IChatTipService {
 	readonly _serviceBrand: undefined;
 
 	/**
-	 * Gets the next tip to show for a request, or undefined if no tips are available.
-	 * Tips are not repeated within the same window session.
+	 * Gets a tip to show for a request, or undefined if a tip has already been shown this session.
+	 * Only one tip is shown per VS Code session (resets on reload).
+	 * Tips are only shown for requests created after the service was instantiated.
 	 * @param requestId The unique ID of the request (used for stable rerenders).
+	 * @param requestTimestamp The timestamp when the request was created.
 	 */
-	getNextTip(requestId: string): IChatTip | undefined;
+	getNextTip(requestId: string, requestTimestamp: number): IChatTip | undefined;
 }
 
 interface ITipDefinition {
@@ -85,59 +87,69 @@ export class ChatTipService implements IChatTipService {
 	readonly _serviceBrand: undefined;
 
 	/**
-	 * Set of tip IDs that have been shown in this window session.
+	 * Timestamp when this service was instantiated.
+	 * Used to only show tips for requests created after this time.
 	 */
-	private readonly _shownTipIds = new Set<string>();
+	private readonly _createdAt = Date.now();
 
 	/**
-	 * Map from request ID to the tip ID assigned to that request.
-	 * Used to ensure stable rerenders show the same tip.
+	 * Whether a tip has already been shown in this window session.
+	 * Only one tip is shown per session.
 	 */
-	private readonly _requestToTipId = new Map<string, string>();
+	private _hasShownTip = false;
 
 	/**
-	 * Index for round-robin tip selection among eligible tips.
+	 * The request ID that was assigned a tip (for stable rerenders).
 	 */
-	private _nextIndex = 0;
+	private _tipRequestId: string | undefined;
+
+	/**
+	 * The tip that was shown (for stable rerenders).
+	 */
+	private _shownTip: ITipDefinition | undefined;
 
 	constructor(
 		@IProductService private readonly _productService: IProductService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 	) { }
 
-	getNextTip(requestId: string): IChatTip | undefined {
+	getNextTip(requestId: string, requestTimestamp: number): IChatTip | undefined {
 		// Only show tips for Copilot
 		if (!this._isCopilotEnabled()) {
 			return undefined;
 		}
 
-		// Check if we already assigned a tip to this request (for stable rerenders)
-		const existingTipId = this._requestToTipId.get(requestId);
-		if (existingTipId) {
-			const tipDef = TIP_CATALOG.find(t => t.id === existingTipId);
-			if (tipDef) {
-				return this._createTip(tipDef);
-			}
+		// Check if this is the request that was assigned a tip (for stable rerenders)
+		if (this._tipRequestId === requestId && this._shownTip) {
+			return this._createTip(this._shownTip);
 		}
 
-		// Find eligible tips that haven't been shown yet
-		const eligibleTips = TIP_CATALOG.filter(
-			tip => this._isEligible(tip) && !this._shownTipIds.has(tip.id)
-		);
-
-		if (eligibleTips.length === 0) {
-			// All tips exhausted, stop showing tips
+		// Only show one tip per session
+		if (this._hasShownTip) {
 			return undefined;
 		}
 
-		// Pick the next tip (round-robin among eligible)
-		const tipIndex = this._nextIndex % eligibleTips.length;
-		const selectedTip = eligibleTips[tipIndex];
-		this._nextIndex++;
+		// Only show tips for requests created after the service was instantiated
+		// This prevents showing tips for old requests being re-rendered after reload
+		if (requestTimestamp < this._createdAt) {
+			return undefined;
+		}
 
-		// Record that this tip has been shown
-		this._shownTipIds.add(selectedTip.id);
-		this._requestToTipId.set(requestId, selectedTip.id);
+		// Find eligible tips
+		const eligibleTips = TIP_CATALOG.filter(tip => this._isEligible(tip));
+
+		if (eligibleTips.length === 0) {
+			return undefined;
+		}
+
+		// Pick a random tip from eligible tips
+		const randomIndex = Math.floor(Math.random() * eligibleTips.length);
+		const selectedTip = eligibleTips[randomIndex];
+
+		// Record that we've shown a tip this session
+		this._hasShownTip = true;
+		this._tipRequestId = requestId;
+		this._shownTip = selectedTip;
 
 		return this._createTip(selectedTip);
 	}
