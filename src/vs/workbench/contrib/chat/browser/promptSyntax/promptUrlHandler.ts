@@ -16,7 +16,6 @@ import { IURLHandler, IURLService } from '../../../../../platform/url/common/url
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { askForPromptFileName } from './pickers/askForPromptName.js';
 import { askForPromptSourceFolder } from './pickers/askForPromptSourceFolder.js';
-import { askForSkillName } from './pickers/askForSkillName.js';
 import { getCleanPromptName } from '../../common/promptSyntax/config/promptFileLocations.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -27,6 +26,7 @@ import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { dirname } from '../../../../../base/common/path.js';
+import { isValidBasename } from '../../../../../base/common/extpath.js';
 
 // example URL: code-oss:chat-prompt/install?url=https://gist.githubusercontent.com/aeschli/43fe78babd5635f062aef0195a476aad/raw/dfd71f60058a4dd25f584b55de3e20f5fd580e63/filterEvenNumbers.prompt.md
 
@@ -104,14 +104,25 @@ export class PromptUrlHandler extends Disposable implements IWorkbenchContributi
 			}
 
 			if (promptType === PromptsType.skill) {
-				const manifest = JSON.parse(responseData) as { files: { source: string; destination: string }[] };
-				// ask for skill folder name
-				const newName = await this.instantiationService.invokeFunction(askForSkillName, newFolder.uri);
-				if (!newName) {
+				const manifest = JSON.parse(responseData) as { name?: string; files: { source: string; destination: string }[] };
+
+				if (!manifest.name) {
+					this.notificationService.error(localize('missingSkillName', "The skill manifest does not contain a name."));
+					return true;
+				}
+
+				const newName = manifest.name;
+				if (!isValidBasename(newName)) {
+					this.notificationService.error(localize('invalidSkillName', "The skill name '{0}' is invalid.", newName));
 					return true;
 				}
 
 				const skillRootUri = URI.joinPath(newFolder.uri, newName);
+				if (await this.fileService.exists(skillRootUri)) {
+					this.notificationService.error(localize('skillExists', "A folder with the name '{0}' already exists.", newName));
+					return true;
+				}
+
 				await this.fileService.createFolder(skillRootUri);
 
 				// Process files
