@@ -57,7 +57,7 @@ import { AgentsControlClickBehavior, ChatAgentLocation, ChatConfiguration, ChatM
 import { ILanguageModelChatSelector, ILanguageModelsService } from '../../common/languageModels.js';
 import { CopilotUsageExtensionFeatureId } from '../../common/languageModelStats.js';
 import { ILanguageModelToolsConfirmationService } from '../../common/tools/languageModelToolsConfirmationService.js';
-import { ILanguageModelToolsService } from '../../common/tools/languageModelToolsService.js';
+import { ILanguageModelToolsService, IToolData, IToolSet } from '../../common/tools/languageModelToolsService.js';
 import { ChatViewId, IChatWidget, IChatWidgetService } from '../chat.js';
 import { IChatEditorOptions } from '../widgetHosts/editor/chatEditor.js';
 import { ChatEditorInput, showClearEditingSessionConfirmation } from '../widgetHosts/editor/chatEditorInput.js';
@@ -149,6 +149,18 @@ export interface IChatViewOpenOptions {
 	 * Wait to resolve the command until the chat response reaches a terminal state (complete, error, or pending user confirmation, etc.).
 	 */
 	blockOnResponse?: boolean;
+
+	/**
+	 * A list of tool IDs to include. Only these tools will be enabled.
+	 * This is mutually exclusive with `excludeTools`.
+	 */
+	includeTools?: string[];
+
+	/**
+	 * A list of tool IDs to exclude. All tools except these will be enabled.
+	 * This is mutually exclusive with `includeTools`.
+	 */
+	excludeTools?: string[];
 }
 
 export interface IChatViewOpenRequestEntry {
@@ -203,6 +215,57 @@ abstract class OpenChatGlobalAction extends Action2 {
 		const switchToMode = (opts?.mode ? chatModeService.findModeByName(opts?.mode) : undefined) ?? this.mode;
 		if (switchToMode) {
 			await this.handleSwitchToMode(switchToMode, chatWidget, instaService, commandService);
+		}
+
+		// Handle tool filtering - these options are mutually exclusive
+		if (opts?.includeTools && opts?.excludeTools) {
+			throw new Error('includeTools and excludeTools are mutually exclusive. Please specify only one.');
+		}
+
+		if ((opts?.includeTools || opts?.excludeTools) && chatWidget.input.currentModeKind === ChatModeKind.Agent) {
+			const model = chatWidget.input.selectedLanguageModel.get()?.metadata;
+			const allTools = Array.from(toolsService.getTools(model));
+			const allToolSets = Array.from(toolsService.getToolSetsForModel(model));
+
+			const enablementMap = new Map<IToolData | IToolSet, boolean>();
+
+			// First, set tool enablement based on include/exclude options
+			if (opts.includeTools) {
+				const includeSet = new Set(opts.includeTools);
+				for (const tool of allTools) {
+					enablementMap.set(tool, includeSet.has(tool.id));
+				}
+				// Also process tools from toolsets that may not be in allTools
+				for (const toolSet of allToolSets) {
+					for (const tool of toolSet.getTools()) {
+						if (!enablementMap.has(tool)) {
+							enablementMap.set(tool, includeSet.has(tool.id));
+						}
+					}
+				}
+			} else if (opts.excludeTools) {
+				const excludeSet = new Set(opts.excludeTools);
+				for (const tool of allTools) {
+					enablementMap.set(tool, !excludeSet.has(tool.id));
+				}
+				// Also process tools from toolsets that may not be in allTools
+				for (const toolSet of allToolSets) {
+					for (const tool of toolSet.getTools()) {
+						if (!enablementMap.has(tool)) {
+							enablementMap.set(tool, !excludeSet.has(tool.id));
+						}
+					}
+				}
+			}
+
+			// Then, calculate toolset enablement based on whether all member tools are enabled
+			for (const toolSet of allToolSets) {
+				const toolSetTools = Array.from(toolSet.getTools());
+				const allToolsEnabled = toolSetTools.length > 0 && toolSetTools.every(t => enablementMap.get(t) === true);
+				enablementMap.set(toolSet, allToolsEnabled);
+			}
+
+			chatWidget.input.selectedToolsModel.set(enablementMap, true);
 		}
 
 		if (opts?.modelSelector) {
