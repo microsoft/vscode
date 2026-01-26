@@ -1,6 +1,5 @@
 {
 	"name": "Agent Sessions",
-	"icon": "copilot",
 	"settings": {
 		"workbench.statusBar.visible": false,
 		"workbench.activityBar.location": "top",

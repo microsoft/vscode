@@ -51,6 +51,7 @@ import { OutputMonitor } from './monitoring/outputMonitor.js';
 import { IPollingResult, OutputMonitorState } from './monitoring/types.js';
 import { ITerminalSandboxService } from '../../common/terminalSandboxService.js';
 import { chatSessionResourceToId, LocalChatSessionUri } from '../../../../chat/common/model/chatUri.js';
+import { TerminalToolId } from './toolIds.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import type { ICommandLineRewriter } from './commandLineRewriter/commandLineRewriter.js';
 import { CommandLineCdPrefixRewriter } from './commandLineRewriter/commandLineCdPrefixRewriter.js';
@@ -82,7 +83,8 @@ function createPowerShellModelDescription(shell: string): string {
 		'- Never create a sub-shell (eg. powershell -c "command") unless explicitly asked',
 		'',
 		'Directory Management:',
-		'- Must use absolute paths to avoid navigation issues',
+		'- Prefer relative paths when navigating directories, only use absolute when the path is far away or the current cwd is not expected',
+		'- Remember when isBackground=false is specified, that the shell and cwd are reused until it is moved to the background',
 		'- Use $PWD or Get-Location for current directory',
 		'- Use Push-Location/Pop-Location for directory stack',
 		'',
@@ -120,7 +122,8 @@ Command Execution:
 - Never create a sub-shell (eg. bash -c "command") unless explicitly asked
 
 Directory Management:
-- Must use absolute paths to avoid navigation issues
+- Prefer relative paths when navigating directories, only use absolute when the path is far away or the current cwd is not expected
+- Remember when isBackground=false is specified, that shell and cwd is reused until it is moved to the background
 - Use $PWD for current directory references
 - Consider using pushd/popd for directory stack management
 - Supports directory shortcuts like ~ and -
@@ -204,7 +207,7 @@ export async function createRunInTerminalToolData(
 	}
 
 	return {
-		id: 'run_in_terminal',
+		id: TerminalToolId.RunInTerminal,
 		toolReferenceName: TOOL_REFERENCE_NAME,
 		legacyToolReferenceFullNames: LEGACY_TOOL_REFERENCE_FULL_NAMES,
 		displayName: localize('runInTerminalTool.displayName', 'Run in Terminal'),
@@ -229,7 +232,7 @@ export async function createRunInTerminalToolData(
 				},
 				isBackground: {
 					type: 'boolean',
-					description: 'Whether the command starts a background process. If true, the command will run in the background and you will not see the output. If false, the tool call will block on the command finishing, and then you will get the output. Examples of background processes: building in watch mode, starting a server. You can check the output of a background process later on by using get_terminal_output.'
+					description: `Whether the command starts a background process.\n\n- If true, a new shell will be spawned where the cwd is the workspace directory and will run asynchronously in the background and you will not see the output.\n\n- If false, a single shell is shared between all non-background terminals where the cwd starts at the workspace directory and is remembered until that terminal is moved to the background, the tool call will block on the command finishing and only then you will get the output.\n\nExamples of background processes: building in watch mode, starting a server. You can check the output of a background process later on by using ${TerminalToolId.GetTerminalOutput}.`
 				},
 				timeout: {
 					type: 'number',
@@ -412,7 +415,13 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		const args = context.parameters as IRunInTerminalInputParams;
 
 		const chatSessionResource = context.chatSessionResource ?? (context.chatSessionId ? LocalChatSessionUri.forSession(context.chatSessionId) : undefined);
-		const instance = chatSessionResource ? this._sessionTerminalAssociations.get(chatSessionResource)?.instance : undefined;
+		let instance: ITerminalInstance | undefined;
+		if (chatSessionResource) {
+			const toolTerminal = this._sessionTerminalAssociations.get(chatSessionResource);
+			if (toolTerminal && !toolTerminal.isBackground) {
+				instance = toolTerminal.instance;
+			}
+		}
 		const [os, shell, cwd] = await Promise.all([
 			this._osBackend,
 			this._profileFetcher.getCopilotShell(),
@@ -1011,10 +1020,10 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	 * parallel execution.
 	 */
 	private async _initTerminal(chatSessionResource: URI, termId: string, terminalToolSessionId: string | undefined, isBackground: boolean, token: CancellationToken): Promise<IToolTerminal> {
-		// For foreground mode, try to reuse cached terminal
+		// For foreground mode, try to reuse cached terminal (but not if it was a background terminal)
 		if (!isBackground) {
 			const cachedTerminal = this._sessionTerminalAssociations.get(chatSessionResource);
-			if (cachedTerminal) {
+			if (cachedTerminal && !cachedTerminal.isBackground) {
 				this._logService.debug(`RunInTerminalTool: Using cached terminal with session resource \`${chatSessionResource}\``);
 				this._terminalToolCreator.refreshShellIntegrationQuality(cachedTerminal);
 				this._terminalChatService.registerTerminalInstanceWithToolSession(terminalToolSessionId, cachedTerminal.instance);
@@ -1026,6 +1035,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		const profile = await this._profileFetcher.getCopilotProfile();
 		const os = await this._osBackend;
 		const toolTerminal = await this._terminalToolCreator.createTerminal(profile, os, token);
+		toolTerminal.isBackground = isBackground;
 		this._terminalChatService.registerTerminalInstanceWithToolSession(terminalToolSessionId, toolTerminal.instance);
 		this._terminalChatService.registerTerminalInstanceWithChatSession(chatSessionResource, toolTerminal.instance);
 		this._registerInputListener(toolTerminal);
@@ -1067,7 +1077,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 						this._logService.debug(`RunInTerminalTool: Restored terminal association for PID ${instance.processId}, session ${association.sessionId}`);
 						const toolTerminal: IToolTerminal = {
 							instance,
-							shellIntegrationQuality: association.shellIntegrationQuality
+							shellIntegrationQuality: association.shellIntegrationQuality,
+							isBackground: association.isBackground
 						};
 						this._sessionTerminalAssociations.set(chatSessionResource, toolTerminal);
 						this._terminalChatService.registerTerminalInstanceWithChatSession(chatSessionResource, instance);

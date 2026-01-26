@@ -42,7 +42,7 @@ import { IAgentSession } from '../../chat/browser/agentSessions/agentSessionsMod
 import { AgentSessionsWelcomeEditorOptions, AgentSessionsWelcomeInput } from './agentSessionsWelcomeInput.js';
 import { IChatService } from '../../chat/common/chatService/chatService.js';
 import { IChatModel } from '../../chat/common/model/chatModel.js';
-import { ChatViewId, ISessionTypePickerDelegate, IWorkspacePickerDelegate, IWorkspacePickerItem } from '../../chat/browser/chat.js';
+import { ChatViewId, ChatViewPaneTarget, IChatWidgetService, ISessionTypePickerDelegate, IWorkspacePickerDelegate, IWorkspacePickerItem } from '../../chat/browser/chat.js';
 import { ChatSessionPosition, getResourceForNewChatSession } from '../../chat/browser/chatSessions/chatSessions.contribution.js';
 import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 import { AgentSessionsControl, IAgentSessionsControlOptions } from '../../chat/browser/agentSessions/agentSessionsControl.js';
@@ -57,6 +57,8 @@ import { IWorkspacesService, IRecentFolder, IRecentWorkspace, isRecentFolder, is
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
+import { toErrorMessage } from '../../../../base/common/errorMessage.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 
 const configurationKey = 'workbench.startupEditor';
 const MAX_SESSIONS = 6;
@@ -107,6 +109,8 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		@IHostService private readonly hostService: IHostService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
+		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super(AgentSessionsWelcomePage.ID, group, telemetryService, themeService, storageService);
 
@@ -182,9 +186,15 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		this.buildFooter(footer);
 
 		// Listen for session changes - store reference to avoid querySelector
+		let originalSessions = this.agentSessionsService.model.sessions.length > 0;
 		this.contentDisposables.add(this.agentSessionsService.model.onDidChangeSessions(() => {
-			clearNode(sessionsSection);
-			this.buildSessionsOrPrompts(sessionsSection);
+			const hasSessions = this.agentSessionsService.model.sessions.length > 0;
+			// Only rebuild if the amount of sessions changed, other updates should be managed by the control
+			if (hasSessions !== originalSessions) {
+				originalSessions = hasSessions;
+				clearNode(sessionsSection);
+				this.buildSessionsOrPrompts(sessionsSection);
+			}
 		}));
 
 		this.scrollableElement?.scanDomNode();
@@ -318,6 +328,13 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		// This ensures our widget becomes lastFocusedWidget for the chatWidgetService
 		this.contentDisposables.add(addDisposableListener(chatWidgetContainer, 'mousedown', () => {
 			this.chatWidget?.focusInput();
+		}));
+
+		// Automatically open the chat view when a request is submitted from this welcome view
+		this.contentDisposables.add(this.chatService.onDidSubmitRequest(({ chatSessionResource }) => {
+			if (this.chatModelRef?.object?.sessionResource.toString() === chatSessionResource.toString()) {
+				this.openSessionInChat(chatSessionResource);
+			}
 		}));
 
 		// Check for prefill data from a workspace transfer
@@ -776,9 +793,29 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		this.chatWidget?.focusInput();
 	}
 
-	private revealMaximizedChat(): void {
-		this.commandService.executeCommand('workbench.action.closeActiveEditor');
-		this.commandService.executeCommand('workbench.action.chat.open');
+	private async revealMaximizedChat(): Promise<void> {
+		try {
+			await this.closeEditorAndMaximizeAuxiliaryBar();
+		} catch (error) {
+			this.logService.error('Failed to open maximized chat: {0}', toErrorMessage(error));
+		}
+	}
+
+	private async openSessionInChat(sessionResource: URI): Promise<void> {
+		try {
+			await this.closeEditorAndMaximizeAuxiliaryBar(sessionResource);
+		} catch (error) {
+			this.logService.error('Failed to open agent session: {0}', toErrorMessage(error));
+		}
+	}
+
+	private async closeEditorAndMaximizeAuxiliaryBar(sessionResource?: URI): Promise<void> {
+		await this.commandService.executeCommand('workbench.action.closeActiveEditor');
+		if (sessionResource) {
+			await this.chatWidgetService.openSession(sessionResource, ChatViewPaneTarget);
+		} else {
+			await this.commandService.executeCommand('workbench.action.chat.open');
+		}
 		const chatViewLocation = this.viewDescriptorService.getViewLocationById(ChatViewId);
 		if (chatViewLocation === ViewContainerLocation.AuxiliaryBar) {
 			this.layoutService.setAuxiliaryBarMaximized(true);

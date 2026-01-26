@@ -11,8 +11,6 @@ type Implementation = MCP.Implementation;
 type RequestId = MCP.RequestId;
 type Tool = MCP.Tool;
 
-//#region utilities
-
 export namespace McpApps {
 	export type AppRequest =
 		| MCP.CallToolRequest
@@ -27,7 +25,8 @@ export namespace McpApps {
 	export type AppNotification =
 		| McpUiInitializedNotification
 		| McpUiSizeChangedNotification
-		| MCP.LoggingMessageNotification;
+		| MCP.LoggingMessageNotification
+		| CustomSandboxWheelNotification;
 
 	export type AppMessage = AppRequest | AppNotification;
 
@@ -50,6 +49,18 @@ export namespace McpApps {
 		| McpUiSizeChangedNotification;
 
 	export type HostMessage = HostResult | HostNotification;
+
+
+	/** Custom notification used for bubbling up sandbox wheel events. */
+	export interface CustomSandboxWheelNotification {
+		method: 'ui/notifications/sandbox-wheel';
+		params: {
+			deltaMode: number;
+			deltaX: number;
+			deltaY: number;
+			deltaZ: number;
+		};
+	}
 }
 
 /* eslint-disable local/code-no-unexternalized-strings */

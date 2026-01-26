@@ -88,11 +88,6 @@ export enum AgentsControlClickBehavior {
 	Focus = 'focus',
 }
 
-export enum AgentSessionsGrouping {
-	Activity = 'activity',
-	Date = 'date',
-}
-
 export type RawChatParticipantLocation = 'panel' | 'terminal' | 'notebook' | 'editing-session';
 
 export enum ChatAgentLocation {

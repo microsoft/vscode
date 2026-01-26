@@ -333,7 +333,7 @@ export class ComputeAutomaticInstructions {
 		if (runSubagentTool && this._configurationService.getValue(ChatConfiguration.SubagentToolCustomAgents)) {
 			const canUseAgent = (() => {
 				if (!this._enabledSubagents || this._enabledSubagents.includes('*')) {
-					return (agent: ICustomAgent) => (agent.infer !== false);
+					return (agent: ICustomAgent) => (agent.infer === 'all' || agent.infer === 'agent');
 				} else {
 					const subagents = this._enabledSubagents;
 					return (agent: ICustomAgent) => subagents.includes(agent.name);
