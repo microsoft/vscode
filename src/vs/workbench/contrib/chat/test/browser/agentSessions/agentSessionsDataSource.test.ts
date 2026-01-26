@@ -12,7 +12,7 @@ import { ChatSessionStatus, isSessionInProgressStatus } from '../../../common/ch
 import { ITreeSorter } from '../../../../../../base/browser/ui/tree/tree.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Event } from '../../../../../../base/common/event.js';
-import { AgentSessionsGrouping } from '../../../browser/agentSessions/agentSessions.js';
+import { AgentSessionsGrouping } from '../../../common/constants.js';
 
 suite('AgentSessionsDataSource', () => {
 

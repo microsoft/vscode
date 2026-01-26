@@ -46,13 +46,13 @@ import { CHAT_PROVIDER_ID } from '../../../common/participants/chatParticipantCo
 import { IChatModelReference, IChatService } from '../../../common/chatService/chatService.js';
 import { IChatSessionsService, localChatSessionType } from '../../../common/chatSessionsService.js';
 import { LocalChatSessionUri, getChatSessionType } from '../../../common/model/chatUri.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../common/constants.js';
+import { AgentSessionsGrouping, ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../common/constants.js';
 import { AgentSessionsControl } from '../../agentSessions/agentSessionsControl.js';
 import { ACTION_ID_NEW_CHAT } from '../../actions/chatActions.js';
 import { ChatWidget } from '../../widget/chatWidget.js';
 import { ChatViewWelcomeController, IViewWelcomeDelegate } from '../../viewsWelcome/chatViewWelcomeController.js';
 import { IWorkbenchLayoutService, LayoutSettings, Position } from '../../../../../services/layout/browser/layoutService.js';
-import { AgentSessionsGrouping, AgentSessionsViewerOrientation, AgentSessionsViewerPosition } from '../../agentSessions/agentSessions.js';
+import { AgentSessionsViewerOrientation, AgentSessionsViewerPosition } from '../../agentSessions/agentSessions.js';
 import { IProgressService } from '../../../../../../platform/progress/common/progress.js';
 import { ChatViewId } from '../../chat.js';
 import { IActivityService, ProgressBadge } from '../../../../../services/activity/common/activity.js';
@@ -129,7 +129,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		) {
 			this.viewState.sessionId = undefined; // clear persisted session on fresh start
 		}
-		this.sessionsGrouping = this.configurationService.getValue<AgentSessionsGrouping>(ChatConfiguration.ChatViewSessionsGrouping) ?? AgentSessionsGrouping.Activity;
+		this.sessionsGrouping = this.configurationService.getValue<unknown>(ChatConfiguration.ChatViewSessionsGrouping) === AgentSessionsGrouping.Date ? AgentSessionsGrouping.Date : AgentSessionsGrouping.Activity;
 		this.sessionsViewerVisible = false; // will be updated from layout code
 		this.sessionsViewerSidebarWidth = Math.max(ChatViewPane.SESSIONS_SIDEBAR_MIN_WIDTH, this.viewState.sessionsSidebarWidth ?? ChatViewPane.SESSIONS_SIDEBAR_DEFAULT_WIDTH);
 
@@ -242,7 +242,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			if (this.sessionsViewerOrientation === AgentSessionsViewerOrientation.SideBySide) {
 				this.sessionsGrouping = AgentSessionsGrouping.Date; // side by side always shows all
 			} else {
-				this.sessionsGrouping = this.configurationService.getValue<AgentSessionsGrouping>(ChatConfiguration.ChatViewSessionsGrouping) ?? AgentSessionsGrouping.Activity;
+				this.sessionsGrouping = this.configurationService.getValue<AgentSessionsGrouping>(ChatConfiguration.ChatViewSessionsGrouping) === AgentSessionsGrouping.Date ? AgentSessionsGrouping.Date : AgentSessionsGrouping.Activity;
 			}
 
 			if (oldSessionsGrouping !== this.sessionsGrouping) {
@@ -883,20 +883,14 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			this.sessionsViewerOrientationContext.set(AgentSessionsViewerOrientation.Stacked);
 		}
 
-		// Update grouping state based on orientation change
-		if (oldSessionsViewerOrientation !== this.sessionsViewerOrientation) {
-			this.sessionsGrouping = this.configurationService.getValue<AgentSessionsGrouping>(ChatConfiguration.ChatViewSessionsGrouping) ?? AgentSessionsGrouping.Activity;
-
-			const updatePromise = this.sessionsControl.update();
-
-			// Switching to side-by-side, reveal the current session after elements have loaded
-			if (this.sessionsViewerOrientation === AgentSessionsViewerOrientation.SideBySide) {
-				updatePromise.then(() => {
-					const sessionResource = this._widget?.viewModel?.sessionResource;
-					if (sessionResource) {
-						this.sessionsControl?.reveal(sessionResource);
-					}
-				});
+		// Switching to side-by-side, reveal the current session
+		if (
+			oldSessionsViewerOrientation !== this.sessionsViewerOrientation &&
+			this.sessionsViewerOrientation === AgentSessionsViewerOrientation.SideBySide
+		) {
+			const sessionResource = this._widget?.viewModel?.sessionResource;
+			if (sessionResource) {
+				this.sessionsControl?.reveal(sessionResource);
 			}
 		}
 

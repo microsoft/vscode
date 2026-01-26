@@ -40,7 +40,8 @@ import { Event } from '../../../../../base/common/event.js';
 import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
 import { MarkdownString, IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { AgentSessionHoverWidget } from './agentSessionHoverWidget.js';
-import { AgentSessionProviders, AgentSessionsGrouping } from './agentSessions.js';
+import { AgentSessionProviders } from './agentSessions.js';
+import { AgentSessionsGrouping } from '../../common/constants.js';
 
 export type AgentSessionListItem = IAgentSession | IAgentSessionSection;
 

@@ -11,7 +11,8 @@ import { registerAction2, Action2, MenuId } from '../../../../../platform/action
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
-import { AgentSessionProviders, AgentSessionsGrouping, getAgentSessionProviderName } from './agentSessions.js';
+import { AgentSessionsGrouping } from '../../common/constants.js';
+import { AgentSessionProviders, getAgentSessionProviderName } from './agentSessions.js';
 import { AgentSessionStatus, IAgentSession } from './agentSessionsModel.js';
 import { IAgentSessionsFilter, IAgentSessionsFilterExcludes } from './agentSessionsViewer.js';
 

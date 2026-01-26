@@ -8,7 +8,7 @@ import { AgentSessionSection, IAgentSession, IAgentSessionSection, IMarshalledAg
 import { Action2, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
-import { AGENT_SESSION_DELETE_ACTION_ID, AGENT_SESSION_RENAME_ACTION_ID, AgentSessionProviders, AgentSessionsGrouping, AgentSessionsViewerOrientation, IAgentSessionsControl } from './agentSessions.js';
+import { AGENT_SESSION_DELETE_ACTION_ID, AGENT_SESSION_RENAME_ACTION_ID, AgentSessionProviders, AgentSessionsViewerOrientation, IAgentSessionsControl } from './agentSessions.js';
 import { IChatService } from '../../common/chatService/chatService.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatEditorOptions } from '../widgetHosts/editor/chatEditor.js';
@@ -22,7 +22,7 @@ import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contex
 import { ChatEditorInput, showClearEditingSessionConfirmation } from '../widgetHosts/editor/chatEditorInput.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { ChatConfiguration } from '../../common/constants.js';
+import { AgentSessionsGrouping, ChatConfiguration } from '../../common/constants.js';
 import { ACTION_ID_NEW_CHAT, CHAT_CATEGORY } from '../actions/chatActions.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { ChatViewPane } from '../widgetHosts/viewPane/chatViewPane.js';

@@ -132,10 +132,10 @@ export class AgentSessionsPicker {
 		const sessions = this.agentSessionsService.model.sessions.sort(this.sorter.compare.bind(this.sorter));
 		const items: (ISessionPickItem | IQuickPickSeparator)[] = [];
 
-		const grouping = this.configurationService.getValue<AgentSessionsGrouping>(ChatConfiguration.ChatViewSessionsGrouping);
-		const groupedSessions = grouping === AgentSessionsGrouping.Activity
-			? groupAgentSessionsByActivity(sessions)
-			: groupAgentSessionsByDate(sessions);
+		const grouping = this.configurationService.getValue<unknown>(ChatConfiguration.ChatViewSessionsGrouping);
+		const groupedSessions = grouping === AgentSessionsGrouping.Date
+			? groupAgentSessionsByDate(sessions)
+			: groupAgentSessionsByActivity(sessions);
 
 		for (const group of groupedSessions.values()) {
 			if (group.sessions.length > 0) {
