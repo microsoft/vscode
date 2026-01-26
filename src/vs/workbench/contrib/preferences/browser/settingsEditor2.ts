@@ -1634,6 +1634,14 @@ export class SettingsEditor2 extends EditorPane {
 				return await this.onSearchInputChanged(false);
 			}
 
+			// If there's a query present (e.g., opening with a filter like @tag:accessibility),
+			// trigger the search before rendering to avoid showing all settings first
+			if (this.viewState.query && !this.searchResultModel) {
+				await this.onSearchInputChanged(true);
+				// onSearchInputChanged already handles refreshing TOC and rendering the tree
+				return;
+			}
+
 			this.refreshTOCTree();
 			this.renderTree(undefined, forceRefresh);
 
