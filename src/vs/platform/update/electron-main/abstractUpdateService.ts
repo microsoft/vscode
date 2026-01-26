@@ -44,7 +44,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 	protected _overwrite: boolean = false;
 	private _hasCheckedForOverwriteOnQuit: boolean = false;
 	private readonly overwriteUpdatesCheckInterval = new IntervalTimer();
-	private _disableBackgroundUpdates: boolean = false;
+	private _disableProgressiveReleases: boolean = false;
 
 	private readonly _onStateChange = new Emitter<State>();
 	readonly onStateChange: Event<State> = this._onStateChange.event;
