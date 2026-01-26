@@ -42,7 +42,7 @@ import { IAgentSession } from '../../chat/browser/agentSessions/agentSessionsMod
 import { AgentSessionsWelcomeEditorOptions, AgentSessionsWelcomeInput } from './agentSessionsWelcomeInput.js';
 import { IChatService } from '../../chat/common/chatService/chatService.js';
 import { IChatModel } from '../../chat/common/model/chatModel.js';
-import { ChatViewId, ISessionTypePickerDelegate, IWorkspacePickerDelegate, IWorkspacePickerItem } from '../../chat/browser/chat.js';
+import { ChatViewId, ChatViewPaneTarget, IChatWidgetService, ISessionTypePickerDelegate, IWorkspacePickerDelegate, IWorkspacePickerItem } from '../../chat/browser/chat.js';
 import { ChatSessionPosition, getResourceForNewChatSession } from '../../chat/browser/chatSessions/chatSessions.contribution.js';
 import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 import { AgentSessionsControl, IAgentSessionsControlOptions } from '../../chat/browser/agentSessions/agentSessionsControl.js';
@@ -107,6 +107,7 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		@IHostService private readonly hostService: IHostService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
+		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 	) {
 		super(AgentSessionsWelcomePage.ID, group, telemetryService, themeService, storageService);
 
@@ -318,6 +319,13 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		// This ensures our widget becomes lastFocusedWidget for the chatWidgetService
 		this.contentDisposables.add(addDisposableListener(chatWidgetContainer, 'mousedown', () => {
 			this.chatWidget?.focusInput();
+		}));
+
+		// Automatically open the chat view when a request is submitted from this welcome view
+		this.contentDisposables.add(this.chatService.onDidSubmitRequest(({ chatSessionResource }) => {
+			if (this.chatModelRef?.object?.sessionResource.toString() === chatSessionResource.toString()) {
+				this.openSessionInChat(chatSessionResource);
+			}
 		}));
 
 		// Check for prefill data from a workspace transfer
@@ -779,6 +787,15 @@ export class AgentSessionsWelcomePage extends EditorPane {
 	private revealMaximizedChat(): void {
 		this.commandService.executeCommand('workbench.action.closeActiveEditor');
 		this.commandService.executeCommand('workbench.action.chat.open');
+		const chatViewLocation = this.viewDescriptorService.getViewLocationById(ChatViewId);
+		if (chatViewLocation === ViewContainerLocation.AuxiliaryBar) {
+			this.layoutService.setAuxiliaryBarMaximized(true);
+		}
+	}
+
+	private async openSessionInChat(sessionResource: URI): Promise<void> {
+		await this.commandService.executeCommand('workbench.action.closeActiveEditor');
+		await this.chatWidgetService.openSession(sessionResource, ChatViewPaneTarget);
 		const chatViewLocation = this.viewDescriptorService.getViewLocationById(ChatViewId);
 		if (chatViewLocation === ViewContainerLocation.AuxiliaryBar) {
 			this.layoutService.setAuxiliaryBarMaximized(true);
