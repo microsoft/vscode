@@ -271,6 +271,22 @@ export interface IRunInTerminalInputParams {
 }
 
 /**
+ * Interface for accessing a running terminal execution.
+ * Used by tools that need to await or interact with background terminal commands.
+ */
+export interface IActiveTerminalExecution {
+	/**
+	 * Promise that resolves when the terminal command completes.
+	 */
+	readonly completionPromise: Promise<ITerminalExecuteStrategyResult>;
+
+	/**
+	 * Gets the current output from the terminal.
+	 */
+	getOutput(): string;
+}
+
+/**
  * A set of characters to ignore when reporting telemetry
  */
 const telemetryIgnoredSequences = [
@@ -305,6 +321,14 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			throw new Error('Invalid terminal ID');
 		}
 		return execution.getOutput();
+	}
+
+	/**
+	 * Gets an active terminal execution by ID. Returns undefined if not found.
+	 * Can be used to await the completion of a background terminal command.
+	 */
+	public static getExecution(id: string): IActiveTerminalExecution | undefined {
+		return RunInTerminalTool._activeExecutions.get(id);
 	}
 
 	constructor(
@@ -1144,7 +1168,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
  * mode. This unified class replaces the previous split between foreground strategy execution and
  * BackgroundTerminalExecution, allowing seamless switching between modes.
  */
-class ActiveTerminalExecution extends Disposable {
+class ActiveTerminalExecution extends Disposable implements IActiveTerminalExecution {
 	private _startMarker: IXtermMarker | undefined;
 	private _isBackground: boolean;
 	private readonly _completionDeferred: DeferredPromise<ITerminalExecuteStrategyResult>;
