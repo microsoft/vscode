@@ -420,12 +420,12 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.ChatViewSessionsGrouping]: {
 			type: 'string',
-			enum: [AgentSessionsGrouping.Activity, AgentSessionsGrouping.Date],
+			enum: [AgentSessionsGrouping.Date, AgentSessionsGrouping.Activity],
 			enumDescriptions: [
-				nls.localize('chat.viewSessions.grouping.activity', "Group sessions by activity status, showing active sessions first."),
-				nls.localize('chat.viewSessions.grouping.date', "Group sessions chronologically by date.")
+				nls.localize('chat.viewSessions.grouping.date', "Group sessions chronologically by date."),
+				nls.localize('chat.viewSessions.grouping.activity', "Group sessions by activity status, showing active sessions first.")
 			],
-			default: AgentSessionsGrouping.Activity,
+			default: AgentSessionsGrouping.Date,
 			markdownDescription: nls.localize('chat.viewSessions.grouping', "Controls how sessions are grouped in the stacked sessions view. This setting requires {0} to be enabled.", '`#chat.viewSessions.enabled#`'),
 		},
 		[ChatConfiguration.ChatViewSessionsOrientation]: {

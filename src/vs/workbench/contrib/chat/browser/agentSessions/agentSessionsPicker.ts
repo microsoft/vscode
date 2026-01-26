@@ -133,9 +133,9 @@ export class AgentSessionsPicker {
 		const items: (ISessionPickItem | IQuickPickSeparator)[] = [];
 
 		const grouping = this.configurationService.getValue<unknown>(ChatConfiguration.ChatViewSessionsGrouping);
-		const groupedSessions = grouping === AgentSessionsGrouping.Date
-			? groupAgentSessionsByDate(sessions)
-			: groupAgentSessionsByActivity(sessions);
+		const groupedSessions = grouping === AgentSessionsGrouping.Activity
+			? groupAgentSessionsByActivity(sessions)
+			: groupAgentSessionsByDate(sessions);
 
 		for (const group of groupedSessions.values()) {
 			if (group.sessions.length > 0) {

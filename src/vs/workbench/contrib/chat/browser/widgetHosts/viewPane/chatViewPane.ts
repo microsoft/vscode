@@ -129,7 +129,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		) {
 			this.viewState.sessionId = undefined; // clear persisted session on fresh start
 		}
-		this.sessionsGrouping = this.configurationService.getValue<unknown>(ChatConfiguration.ChatViewSessionsGrouping) === AgentSessionsGrouping.Date ? AgentSessionsGrouping.Date : AgentSessionsGrouping.Activity;
+		this.sessionsGrouping = this.configurationService.getValue<unknown>(ChatConfiguration.ChatViewSessionsGrouping) === AgentSessionsGrouping.Activity ? AgentSessionsGrouping.Activity : AgentSessionsGrouping.Date;
 		this.sessionsViewerVisible = false; // will be updated from layout code
 		this.sessionsViewerSidebarWidth = Math.max(ChatViewPane.SESSIONS_SIDEBAR_MIN_WIDTH, this.viewState.sessionsSidebarWidth ?? ChatViewPane.SESSIONS_SIDEBAR_DEFAULT_WIDTH);
 
@@ -238,7 +238,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => {
 			return e.affectsConfiguration(ChatConfiguration.ChatViewSessionsGrouping);
 		})(() => {
-			this.sessionsGrouping = this.configurationService.getValue<AgentSessionsGrouping>(ChatConfiguration.ChatViewSessionsGrouping) === AgentSessionsGrouping.Date ? AgentSessionsGrouping.Date : AgentSessionsGrouping.Activity;
+			this.sessionsGrouping = this.configurationService.getValue<AgentSessionsGrouping>(ChatConfiguration.ChatViewSessionsGrouping) === AgentSessionsGrouping.Activity ? AgentSessionsGrouping.Activity : AgentSessionsGrouping.Date;
 
 			this.sessionsControl?.update();
 		}));

@@ -44,9 +44,9 @@ export class AgentSessionsQuickAccessProvider extends PickerQuickAccessProvider<
 
 		const sessions = this.agentSessionsService.model.sessions.sort(this.sorter.compare.bind(this.sorter));
 		const grouping = this.configurationService.getValue<unknown>(ChatConfiguration.ChatViewSessionsGrouping);
-		const groupedSessions = grouping === AgentSessionsGrouping.Date
-			? groupAgentSessionsByDate(sessions)
-			: groupAgentSessionsByActivity(sessions);
+		const groupedSessions = grouping === AgentSessionsGrouping.Activity
+			? groupAgentSessionsByActivity(sessions)
+			: groupAgentSessionsByDate(sessions);
 
 		for (const group of groupedSessions.values()) {
 			if (group.sessions.length > 0) {

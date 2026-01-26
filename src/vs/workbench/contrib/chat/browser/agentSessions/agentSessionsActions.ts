@@ -83,7 +83,7 @@ export class GroupSessionsByDateAction extends Action2 {
 			menu: {
 				id: groupSessionsSubmenu,
 				group: 'navigation',
-				order: 2
+				order: 1
 			}
 		});
 	}
@@ -104,7 +104,7 @@ export class GroupSessionsByActivityAction extends Action2 {
 			menu: {
 				id: groupSessionsSubmenu,
 				group: 'navigation',
-				order: 1
+				order: 2
 			}
 		});
 	}
