@@ -78,7 +78,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		this.hasProfilesContext.set(this.userDataProfilesService.profiles.length > 1);
 		this._register(this.userDataProfilesService.onDidChangeProfiles(e => this.hasProfilesContext.set(this.userDataProfilesService.profiles.length > 1)));
 
-		if (!this.environmentService.agentSessionsWindow) {
+		if (!this.workspaceContextService.getWorkspace().isAgentSessionsWorkspace) {
 
 			this.registerEditor();
 			this.registerActions();
@@ -91,8 +91,8 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 
 			this.reportWorkspaceProfileInfo();
 
-			if (environmentService.options?.profileToPreview) {
-				lifecycleService.when(LifecyclePhase.Restored).then(() => this.handleURL(URI.revive(environmentService.options!.profileToPreview!)));
+			if (this.environmentService.options?.profileToPreview) {
+				lifecycleService.when(LifecyclePhase.Restored).then(() => this.handleURL(URI.revive(this.environmentService.options!.profileToPreview!)));
 			}
 
 			this.registerDropHandler();
