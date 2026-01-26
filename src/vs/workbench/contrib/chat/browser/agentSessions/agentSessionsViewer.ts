@@ -661,32 +661,39 @@ export class AgentSessionsDataSource implements IAsyncDataSource<IAgentSessionsM
 	}
 
 	private groupSessionsIntoSections(sessions: IAgentSession[]): AgentSessionListItem[] {
-		const result: AgentSessionListItem[] = [];
-
 		const sortedSessions = sessions.sort(this.sorter.compare.bind(this.sorter));
 
-		// For Capped grouping: show first 3 sessions without header, rest in "Others" section
 		if (this.filter?.groupResults?.() === AgentSessionsGrouping.Capped) {
-			const TOP_SESSIONS_COUNT = 3;
-			const topSessions = sortedSessions.slice(0, TOP_SESSIONS_COUNT);
-			const othersSessions = sortedSessions.slice(TOP_SESSIONS_COUNT);
+			return this.groupSessionsCapped(sortedSessions);
+		} else {
+			return this.groupSessionsByDate(sortedSessions);
+		}
+	}
 
-			// Add top sessions directly (no section header)
-			result.push(...topSessions);
+	private groupSessionsCapped(sortedSessions: IAgentSession[]): AgentSessionListItem[] {
+		const result: AgentSessionListItem[] = [];
 
-			// Add "More" section for the rest
-			if (othersSessions.length > 0) {
-				result.push({
-					section: AgentSessionSection.More,
-					label: localize('agentSessions.moreSectionWithCount', "More ({0})", othersSessions.length),
-					sessions: othersSessions
-				});
-			}
+		const TOP_SESSIONS_COUNT = 3;
+		const topSessions = sortedSessions.slice(0, TOP_SESSIONS_COUNT);
+		const othersSessions = sortedSessions.slice(TOP_SESSIONS_COUNT);
 
-			return result;
+		// Add top sessions directly (no section header)
+		result.push(...topSessions);
+
+		// Add "More" section for the rest
+		if (othersSessions.length > 0) {
+			result.push({
+				section: AgentSessionSection.More,
+				label: localize('agentSessions.moreSectionWithCount', "More ({0})", othersSessions.length),
+				sessions: othersSessions
+			});
 		}
 
-		// For Date grouping: use existing section logic
+		return result;
+	}
+
+	private groupSessionsByDate(sortedSessions: IAgentSession[]): AgentSessionListItem[] {
+		const result: AgentSessionListItem[] = [];
 		const groupedSessions = groupAgentSessionsByDate(sortedSessions);
 
 		for (const { sessions, section, label } of groupedSessions.values()) {
