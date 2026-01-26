@@ -6,13 +6,11 @@
 import './media/chatEditorController.css';
 
 import { getTotalWidth } from '../../../../../base/browser/dom.js';
-import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../base/common/event.js';
 import { DisposableStore, dispose, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, IObservable, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { basename, isEqual } from '../../../../../base/common/resources.js';
 import { themeColorFromId } from '../../../../../base/common/themables.js';
-import { URI } from '../../../../../base/common/uri.js';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, IOverlayWidgetPositionCoordinates, IViewZone, MouseTargetType } from '../../../../../editor/browser/editorBrowser.js';
 import { observableCodeEditor } from '../../../../../editor/browser/observableCodeEditor.js';
 import { AccessibleDiffViewer, IAccessibleDiffViewerModel } from '../../../../../editor/browser/widget/diffEditor/components/accessibleDiffViewer.js';
@@ -45,7 +43,7 @@ import { IContextKeyService } from '../../../../../platform/contextkey/common/co
 import { ctxCursorInChangeRange } from './chatEditingEditorContextKeys.js';
 import { LinkedList } from '../../../../../base/common/linkedList.js';
 import { ChatEditingExplanationWidgetManager } from './chatEditingExplanationWidget.js';
-import { ILanguageModelsService } from '../../common/languageModels.js';
+import { IChatEditingExplanationModelManager } from './chatEditingExplanationModelManager.js';
 import { IChatWidgetService } from '../chat.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 
@@ -96,8 +94,6 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 
 	private readonly _accessibleDiffViewVisible = observableValue<boolean>(this, false);
 
-	private _explanationWidgetManager: ChatEditingExplanationWidgetManager | undefined = undefined;
-
 	constructor(
 		private readonly _entry: IModifiedFileEntry,
 		private readonly _editor: ICodeEditor,
@@ -107,8 +103,8 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 		@IAccessibilitySignalService private readonly _accessibilitySignalsService: IAccessibilitySignalService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IChatEditingService private readonly _chatEditingService: IChatEditingService,
-		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
+		@IChatEditingService _chatEditingService: IChatEditingService,
+		@IChatEditingExplanationModelManager private readonly _explanationModelManager: IChatEditingExplanationModelManager,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@IViewsService private readonly _viewsService: IViewsService,
 	) {
@@ -118,30 +114,14 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 		this._diffLineDecorations = this._editor.createDecorationsCollection(); // tracks the line range w/o visuals (used for navigate)
 		this._diffVisualDecorations = this._editor.createDecorationsCollection(); // tracks the real diff with character level inserts
 
-		this._store.add(autorun(r => {
-			const visible = this._entry.explanationWidgetVisible?.read(r) ?? false;
-			if (visible) {
-				if (!this._explanationWidgetManager) {
-					this._explanationWidgetManager = this._store.add(new ChatEditingExplanationWidgetManager(this._editor, this._chatWidgetService, this._viewsService));
-					// Pass the current diff info when creating lazily (untracked - diff changes handled separately)
-					const diff = documentDiffInfo.read(undefined);
-					// Find the session that owns this entry to get the chat session resource
-					const session = this._chatEditingService.editingSessionsObs.read(undefined)
-						.find(candidate => candidate.getEntry(this._entry.modifiedURI));
-					this._explanationWidgetManager.update(diff, true, session?.chatSessionResource);
-					// Generate explanations asynchronously
-					ChatEditingExplanationWidgetManager.generateExplanations(
-						this._explanationWidgetManager.widgets,
-						diff,
-						this._languageModelsService,
-						CancellationToken.None
-					);
-				}
-				this._explanationWidgetManager.show();
-			} else {
-				this._explanationWidgetManager?.hide();
-			}
-		}));
+		// Create explanation widget manager and connect it to the model manager
+		this._store.add(new ChatEditingExplanationWidgetManager(
+			this._editor,
+			this._chatWidgetService,
+			this._viewsService,
+			this._explanationModelManager,
+			this._entry.modifiedURI,
+		));
 
 		const enabledObs = derived(r => {
 			if (!isEqual(codeEditorObs.model.read(r)?.uri, documentDiffInfo.read(r).modifiedModel.uri)) {
@@ -502,19 +482,6 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 		for (const extraWidget of this._diffHunkWidgetPool.free) {
 			extraWidget.remove();
 		}
-
-		// Update explanation widgets for chat changes
-		// Get visibility and session resource from session that owns this entry
-		let explanationVisible = false;
-		let chatSessionResource: URI | undefined;
-		for (const session of this._chatEditingService.editingSessionsObs.get()) {
-			if (session.entries.get().some((e: IModifiedFileEntry) => e.entryId === this._entry.entryId)) {
-				explanationVisible = session.explanationWidgetVisible.get();
-				chatSessionResource = session.chatSessionResource;
-				break;
-			}
-		}
-		this._explanationWidgetManager?.update(diff, explanationVisible, chatSessionResource);
 
 		const positionObs = observableFromEvent(this._editor.onDidChangeCursorPosition, _ => this._editor.getPosition());
 

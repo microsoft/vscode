@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
@@ -26,17 +27,16 @@ import { MultiDiffEditor } from '../../../multiDiffEditor/browser/multiDiffEdito
 import { IDocumentDiffItemWithMultiDiffEditorItem, MultiDiffEditorInput } from '../../../multiDiffEditor/browser/multiDiffEditorInput.js';
 import { NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_EDITOR_FOCUSED } from '../../../notebook/common/notebookContextKeys.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, IChatEditingService, IChatEditingSession, IModifiedFileEntry, IModifiedFileEntryChangeHunk, IModifiedFileEntryEditorIntegration, ModifiedFileEntryState, parseChatMultiDiffUri } from '../../common/editing/chatEditingService.js';
+import { IChatEditingService, IChatEditingSession, IModifiedFileEntry, IModifiedFileEntryChangeHunk, IModifiedFileEntryEditorIntegration, ModifiedFileEntryState, parseChatMultiDiffUri, CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME } from '../../common/editing/chatEditingService.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { ctxCursorInChangeRange, ctxHasEditorModification, ctxHasRequestInProgress, ctxIsCurrentlyBeingModified, ctxIsGlobalEditingSession, ctxReviewModeEnabled } from './chatEditingEditorContextKeys.js';
-import { ILanguageModelsService } from '../../common/languageModels.js';
-import { ChatEditingExplanationWidgetManager, IExplanationDiffInfo } from './chatEditingExplanationWidget.js';
+import { ChatEditingExplanationWidgetManager } from './chatEditingExplanationWidget.js';
+import { IChatEditingExplanationModelManager, IExplanationDiffInfo } from './chatEditingExplanationModelManager.js';
 import { DiffEditorViewModel } from '../../../../../editor/browser/widget/diffEditor/diffEditorViewModel.js';
 import { IChatWidgetService } from '../chat.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../base/common/event.js';
 import { ChatConfiguration } from '../../common/constants.js';
 
@@ -491,7 +491,7 @@ class ExplainMultiDiffAction extends Action2 {
 
 	async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
 		const editorService = accessor.get(IEditorService);
-		const languageModelsService = accessor.get(ILanguageModelsService);
+		const explanationModelManager = accessor.get(IChatEditingExplanationModelManager);
 		const chatWidgetService = accessor.get(IChatWidgetService);
 		const viewsService = accessor.get(IViewsService);
 		const chatEditingService = accessor.get(IChatEditingService);
@@ -600,7 +600,7 @@ class ExplainMultiDiffAction extends Action2 {
 		}
 
 		// Second pass: create managers for each file with all its changes
-		const managersWithDiffInfo: { manager: ChatEditingExplanationWidgetManager; diffInfo: IExplanationDiffInfo }[] = [];
+		const allDiffInfos: IExplanationDiffInfo[] = [];
 
 		for (const fileData of diffsByFile.values()) {
 			// Build diff info with all changes for this file
@@ -610,28 +610,23 @@ class ExplainMultiDiffAction extends Action2 {
 				originalModel: fileData.originalModel,
 				modifiedModel: fileData.modifiedModel,
 			};
+			allDiffInfos.push(diffInfo);
 
-			// Create a widget manager for this file
+			// Create a widget manager for this file - it will observe state from model manager
 			const manager = new ChatEditingExplanationWidgetManager(
 				fileData.editor,
 				chatWidgetService,
 				viewsService,
+				explanationModelManager,
+				diffInfo.modifiedModel.uri,
 			);
 			widgetsStore.add(manager);
-
-			// Update with diff info and show (but don't generate explanations yet)
-			manager.update(diffInfo, true, chatSessionResource);
-			managersWithDiffInfo.push({ manager, diffInfo });
 		}
 
-		// Generate explanations for all managers
-		for (const { manager, diffInfo } of managersWithDiffInfo) {
-			await ChatEditingExplanationWidgetManager.generateExplanations(
-				manager.widgets,
-				diffInfo,
-				languageModelsService,
-				CancellationToken.None
-			);
+		// Generate explanations for all files in a single request
+		// This populates state which triggers the managers' autoruns to create widgets
+		if (allDiffInfos.length > 0) {
+			widgetsStore.add(explanationModelManager.generateExplanations(allDiffInfos, chatSessionResource, CancellationToken.None));
 		}
 	}
 }
