@@ -224,6 +224,10 @@ export async function createRunInTerminalToolData(
 					type: 'string',
 					description: 'A one-sentence description of what the command does. This will be shown to the user before the command is run.'
 				},
+				goal: {
+					type: 'string',
+					description: 'A short description of the goal or purpose of the command (e.g., "Install dependencies", "Start development server").'
+				},
 				isBackground: {
 					type: 'boolean',
 					description: 'Whether the command starts a background process. If true, the command will run in the background and you will not see the output. If false, the tool call will block on the command finishing, and then you will get the output. Examples of background processes: building in watch mode, starting a server. You can check the output of a background process later on by using get_terminal_output.'
@@ -236,6 +240,7 @@ export async function createRunInTerminalToolData(
 			required: [
 				'command',
 				'explanation',
+				'goal',
 				'isBackground',
 				'timeout',
 			]
@@ -261,6 +266,7 @@ interface IStoredTerminalAssociation {
 export interface IRunInTerminalInputParams {
 	command: string;
 	explanation: string;
+	goal: string;
 	isBackground: boolean;
 	timeout?: number;
 }
@@ -590,7 +596,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 		const confirmationMessages = isFinalAutoApproved ? undefined : {
 			title: confirmationTitle,
-			message: new MarkdownString(args.explanation),
+			message: new MarkdownString(localize('runInTerminal.confirmationMessage', "Explanation: {0}\n\nGoal: {1}", args.explanation, args.goal)),
 			disclaimer,
 			terminalCustomActions: customActions,
 		};
