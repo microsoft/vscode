@@ -284,6 +284,11 @@ export interface IActiveTerminalExecution {
 	readonly completionPromise: Promise<ITerminalExecuteStrategyResult>;
 
 	/**
+	 * The terminal instance associated with this execution.
+	 */
+	readonly instance: ITerminalInstance;
+
+	/**
 	 * Gets the current output from the terminal.
 	 */
 	getOutput(): string;
@@ -332,6 +337,20 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	 */
 	public static getExecution(id: string): IActiveTerminalExecution | undefined {
 		return RunInTerminalTool._activeExecutions.get(id);
+	}
+
+	/**
+	 * Removes an active terminal execution by ID and disposes it.
+	 * @returns true if the execution was found and removed, false otherwise.
+	 */
+	public static removeExecution(id: string): boolean {
+		const execution = RunInTerminalTool._activeExecutions.get(id);
+		if (!execution) {
+			return false;
+		}
+		execution.dispose();
+		RunInTerminalTool._activeExecutions.delete(id);
+		return true;
 	}
 
 	constructor(

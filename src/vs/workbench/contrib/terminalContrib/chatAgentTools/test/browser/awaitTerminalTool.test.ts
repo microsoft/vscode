@@ -14,6 +14,8 @@ import { RunInTerminalTool, type IActiveTerminalExecution } from '../../browser/
 import type { IToolInvocation } from '../../../../chat/common/tools/languageModelToolsService.js';
 import type { ITerminalExecuteStrategyResult } from '../../browser/executeStrategy/executeStrategy.js';
 
+import type { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
+
 suite('AwaitTerminalTool', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	let tool: AwaitTerminalTool;
@@ -48,6 +50,7 @@ suite('AwaitTerminalTool', () => {
 	): IActiveTerminalExecution {
 		return {
 			completionPromise,
+			instance: {} as ITerminalInstance,
 			getOutput: () => output
 		};
 	}
