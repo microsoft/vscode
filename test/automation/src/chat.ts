@@ -32,20 +32,10 @@ export class Chat {
 		// Wait for the editor to be focused
 		await this.waitForInputFocus();
 
-		// Dispatch a paste event with the message
-		await this.code.driver.currentPage.evaluate(({ selector, text }: { selector: string; text: string }) => {
-			const element = document.querySelector(selector);
-			if (element) {
-				const dataTransfer = new DataTransfer();
-				dataTransfer.setData('text/plain', text);
-				const pasteEvent = new ClipboardEvent('paste', {
-					clipboardData: dataTransfer,
-					bubbles: true,
-					cancelable: true
-				});
-				element.dispatchEvent(pasteEvent);
-			}
-		}, { selector: CHAT_INPUT, text: message });
+		// Type the message using pressSequentially - this works with Monaco editors
+		// Note: Newlines are replaced with spaces since Enter key submits in chat input
+		const sanitizedMessage = message.replace(/\n/g, ' ');
+		await this.code.driver.currentPage.locator(CHAT_INPUT).pressSequentially(sanitizedMessage);
 
 		// Submit the message
 		await this.code.dispatchKeybinding('enter', () => Promise.resolve());
