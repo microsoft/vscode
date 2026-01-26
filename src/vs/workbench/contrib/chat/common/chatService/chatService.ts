@@ -413,7 +413,6 @@ export interface IChatTerminalToolInvocationData {
 		original: string;
 		userEdited?: string;
 		toolEdited?: string;
-		sandboxWrapped?: string;
 	};
 	/** The working directory URI for the terminal */
 	cwd?: UriComponents;

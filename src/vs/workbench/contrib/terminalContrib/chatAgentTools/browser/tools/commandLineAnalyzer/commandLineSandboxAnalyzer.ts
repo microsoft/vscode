@@ -15,14 +15,14 @@ export class CommandLineSandboxAnalyzer extends Disposable implements ICommandLi
 	}
 
 	async analyze(_options: ICommandLineAnalyzerOptions): Promise<ICommandLineAnalyzerResult> {
-		if (!this._sandboxService.isEnabled()) {
+		if (!(await this._sandboxService.isEnabled())) {
 			return {
 				isAutoApproveAllowed: true,
 			};
 		}
 		return {
 			isAutoApproveAllowed: true,
-			autoApprovedForSandbox: true,
+			forceAutoApproval: true,
 		};
 	}
 }

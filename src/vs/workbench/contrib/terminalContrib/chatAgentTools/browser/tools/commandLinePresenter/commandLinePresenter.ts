@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type { MaybePromise } from '../../../../../../../base/common/async.js';
 import type { OperatingSystem } from '../../../../../../../base/common/platform.js';
 
 export interface ICommandLinePresenter {
@@ -14,7 +15,7 @@ export interface ICommandLinePresenter {
 	 *
 	 * @returns The presentation result if this presenter handles the command, undefined otherwise.
 	 */
-	present(options: ICommandLinePresenterOptions): ICommandLinePresenterResult | undefined;
+	present(options: ICommandLinePresenterOptions): MaybePromise<ICommandLinePresenterResult | undefined>;
 }
 
 export interface ICommandLinePresenterOptions {
@@ -43,4 +44,10 @@ export interface ICommandLinePresenterResult {
 	 * A human-readable name for the language (e.g., 'Python') used in UI labels.
 	 */
 	languageDisplayName?: string;
+
+	/**
+	 *  Whether other presenters should still process the command line.
+	 * Defaults to false - once a presenter handles a command, no further processing is done.
+	 */
+	processOtherPresenters?: boolean;
 }

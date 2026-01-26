@@ -17,12 +17,13 @@ export class SandboxedCommandLinePresenter implements ICommandLinePresenter {
 	) {
 	}
 
-	present(options: ICommandLinePresenterOptions): ICommandLinePresenterResult | undefined {
-		if (!this._sandboxService.isEnabled()) {
+	async present(options: ICommandLinePresenterOptions): Promise<ICommandLinePresenterResult | undefined> {
+		if (!(await this._sandboxService.isEnabled())) {
 			return undefined;
 		}
 		return {
-			commandLine: options.commandLine.original ?? options.commandLine.forDisplay
+			commandLine: options.commandLine.original ?? options.commandLine.forDisplay,
+			processOtherPresenters: true
 		};
 	}
 }

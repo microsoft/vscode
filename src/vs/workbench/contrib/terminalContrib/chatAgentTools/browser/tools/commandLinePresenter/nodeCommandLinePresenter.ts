@@ -13,7 +13,7 @@ import type { ICommandLinePresenter, ICommandLinePresenterOptions, ICommandLineP
  */
 export class NodeCommandLinePresenter implements ICommandLinePresenter {
 	present(options: ICommandLinePresenterOptions): ICommandLinePresenterResult | undefined {
-		const commandLine = options.commandLine.forDisplay ?? options.commandLine.original;
+		const commandLine = options.commandLine.forDisplay;
 		const extractedNode = extractNodeCommand(commandLine, options.shell, options.os);
 		if (extractedNode) {
 			return {

@@ -25,7 +25,7 @@ export const ITerminalSandboxService = createDecorator<ITerminalSandboxService>(
 
 export interface ITerminalSandboxService {
 	readonly _serviceBrand: undefined;
-	isEnabled(): boolean;
+	isEnabled(): Promise<boolean>;
 	wrapCommand(command: string): string;
 	getSandboxConfigPath(forceRefresh?: boolean): Promise<string | undefined>;
 	getTempDir(): URI | undefined;
@@ -40,7 +40,7 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 	private _needsForceUpdateConfigFile = true;
 	private _tempDir: URI | undefined;
 	private _sandboxSettingsId: string | undefined;
-	private _os: OperatingSystem | undefined;
+	private _os: Promise<OperatingSystem>;
 
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -57,9 +57,7 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		const nativeEnv = this._environmentService as IEnvironmentService & { execPath?: string };
 		this._execPath = nativeEnv.execPath;
 		this._sandboxSettingsId = generateUuid();
-		this._remoteAgentService.getEnvironment().then(remoteEnv => {
-			this._os = remoteEnv?.os ?? OS;
-		});
+		this._os = this._remoteAgentService.getEnvironment().then(remoteEnv => remoteEnv?.os ?? OS);
 
 		this._register(Event.runAndSubscribe(this._configurationService.onDidChangeConfiguration, (e: IConfigurationChangeEvent | undefined) => {
 			// If terminal sandbox settings changed, update sandbox config.
@@ -74,8 +72,9 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		}));
 	}
 
-	public isEnabled(): boolean {
-		if (!this._os || this._os === OperatingSystem.Windows) {
+	public async isEnabled(): Promise<boolean> {
+		const os = await this._os;
+		if (os === OperatingSystem.Windows) {
 			return false;
 		}
 		return this._configurationService.getValue<boolean>(TerminalChatAgentToolsSettingId.TerminalSandboxEnabled);
@@ -113,18 +112,16 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 
 	private async _createSandboxConfig(): Promise<string | undefined> {
 
-		if (this.isEnabled() && !this._tempDir) {
-			this._initTempDir();
+		if (await this.isEnabled() && !this._tempDir) {
+			await this._initTempDir();
 		}
 		if (this._tempDir) {
-			if (!this._os) {
-				return undefined;
-			}
+			const os = await this._os;
 			const networkSetting = this._configurationService.getValue<ITerminalSandboxSettings['network']>(TerminalChatAgentToolsSettingId.TerminalSandboxNetwork) ?? {};
-			const linuxFileSystemSetting = this._os === OperatingSystem.Linux
+			const linuxFileSystemSetting = os === OperatingSystem.Linux
 				? this._configurationService.getValue<ITerminalSandboxSettings['filesystem']>(TerminalChatAgentToolsSettingId.TerminalSandboxLinuxFileSystem) ?? {}
 				: {};
-			const macFileSystemSetting = this._os === OperatingSystem.Macintosh
+			const macFileSystemSetting = os === OperatingSystem.Macintosh
 				? this._configurationService.getValue<ITerminalSandboxSettings['filesystem']>(TerminalChatAgentToolsSettingId.TerminalSandboxMacFileSystem) ?? {}
 				: {};
 			const configFileUri = joinPath(this._tempDir, `vscode-sandbox-settings-${this._sandboxSettingsId}.json`);
@@ -134,9 +131,9 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 					deniedDomains: networkSetting.deniedDomains ?? []
 				},
 				filesystem: {
-					denyRead: this._os === OperatingSystem.Macintosh ? macFileSystemSetting.denyRead : linuxFileSystemSetting.denyRead,
-					allowWrite: this._os === OperatingSystem.Macintosh ? macFileSystemSetting.allowWrite : linuxFileSystemSetting.allowWrite,
-					denyWrite: this._os === OperatingSystem.Macintosh ? macFileSystemSetting.denyWrite : linuxFileSystemSetting.denyWrite,
+					denyRead: os === OperatingSystem.Macintosh ? macFileSystemSetting.denyRead : linuxFileSystemSetting.denyRead,
+					allowWrite: os === OperatingSystem.Macintosh ? macFileSystemSetting.allowWrite : linuxFileSystemSetting.allowWrite,
+					denyWrite: os === OperatingSystem.Macintosh ? macFileSystemSetting.denyWrite : linuxFileSystemSetting.denyWrite,
 				}
 			};
 			this._sandboxConfigPath = configFileUri.fsPath;
@@ -146,8 +143,8 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		return undefined;
 	}
 
-	private _initTempDir(): void {
-		if (this.isEnabled()) {
+	private async _initTempDir(): Promise<void> {
+		if (await this.isEnabled()) {
 			this._needsForceUpdateConfigFile = true;
 			const environmentService = this._environmentService as IEnvironmentService & { tmpDir?: URI };
 			this._tempDir = environmentService.tmpDir;

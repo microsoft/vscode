@@ -527,7 +527,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			commandLineAnalyzerResults.every(e => e.isAutoApproved !== false) &&
 			// All analyzers allow auto approval
 			analyzersIsAutoApproveAllowed
-		) || commandLineAnalyzerResults.some(e => e.autoApprovedForSandbox);
+		) || commandLineAnalyzerResults.some(e => e.forceAutoApproval);
 
 		const isFinalAutoApproved = (
 			// Is the setting enabled and the user has opted-in
@@ -584,7 +584,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		const commandForPresenter = extractedCd?.command ?? commandToDisplay;
 		let presenterInput = commandForPresenter;
 		for (const presenter of this._commandLinePresenters) {
-			const presenterResult = presenter.present({ commandLine: { original: args.command, forDisplay: presenterInput }, shell, os });
+			const presenterResult = await presenter.present({ commandLine: { original: args.command, forDisplay: presenterInput }, shell, os });
 			if (presenterResult) {
 				toolSpecificData.presentationOverrides = {
 					commandLine: presenterResult.commandLine,
@@ -599,15 +599,12 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 						? localize('runInTerminal.presentationOverride.background', "Run `{0}` command in `{1}` in background?", presenterResult.languageDisplayName, shellType)
 						: localize('runInTerminal.presentationOverride', "Run `{0}` command in `{1}`?", presenterResult.languageDisplayName, shellType);
 				}
-				// in sandboxed mode, the presenter just returns the original command with no language.
-				// the result should still be processed by other presenters.
-				if (presenterResult.language) {
+				if (!presenterResult.processOtherPresenters) {
 					break;
 				}
 				presenterInput = presenterResult.commandLine;
 			}
 		}
-
 
 		const confirmationMessages = isFinalAutoApproved ? undefined : {
 			title: confirmationTitle,

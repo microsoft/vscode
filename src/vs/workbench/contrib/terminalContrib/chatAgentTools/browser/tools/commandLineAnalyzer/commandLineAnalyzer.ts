@@ -63,6 +63,6 @@ export interface ICommandLineAnalyzerResult {
 	readonly disclaimers?: readonly (string | IMarkdownString)[];
 	readonly autoApproveInfo?: IMarkdownString;
 	readonly customActions?: ToolConfirmationAction[];
-	// Indicates that the command was auto approved because it will run in a sandbox.
-	readonly autoApprovedForSandbox?: boolean;
+	// Indicates that auto approval should be forced (e.g. sandboxed commands).
+	readonly forceAutoApproval?: boolean;
 }
