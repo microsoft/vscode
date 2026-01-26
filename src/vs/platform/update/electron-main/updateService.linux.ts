@@ -37,7 +37,7 @@ export class LinuxUpdateService extends AbstractUpdateService {
 			return;
 		}
 
-		const background = !explicit && !this.shouldDisableBackgroundUpdates();
+		const background = !explicit && !this.shouldDisableProgressiveReleases();
 		const url = this.buildUpdateFeedUrl(this.quality, this.productService.commit!, { background });
 		this.setState(State.CheckingForUpdates(explicit));
 
