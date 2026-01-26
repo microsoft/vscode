@@ -21,7 +21,7 @@ import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { Extensions, IOutputChannelRegistry, IOutputService } from '../../../../services/output/common/output.js';
-import { ChatSessionStatus as AgentSessionStatus, IChatSessionFileChange, IChatSessionItem, IChatSessionsExtensionPoint, IChatSessionsService } from '../../common/chatSessionsService.js';
+import { ChatSessionStatus as AgentSessionStatus, IChatSessionFileChange, IChatSessionFileChange2, IChatSessionItem, IChatSessionsExtensionPoint, IChatSessionsService } from '../../common/chatSessionsService.js';
 import { AgentSessionProviders, getAgentSessionProvider, getAgentSessionProviderIcon, getAgentSessionProviderName } from './agentSessions.js';
 
 //#region Interfaces, Types
@@ -35,6 +35,8 @@ export interface IAgentSessionsModel {
 
 	readonly onDidChangeSessions: Event<void>;
 	readonly onDidChangeSessionArchivedState: Event<IAgentSession>;
+
+	readonly resolved: boolean;
 
 	readonly sessions: IAgentSession[];
 	getSession(resource: URI): IAgentSession | undefined;
@@ -144,12 +146,18 @@ interface IAgentSessionState {
 }
 
 export const enum AgentSessionSection {
+
+	// Default Grouping
 	InProgress = 'inProgress',
 	Today = 'today',
 	Yesterday = 'yesterday',
 	Week = 'week',
 	Older = 'older',
 	Archived = 'archived',
+
+	// Active/History Grouping
+	Active = 'active',
+	History = 'history',
 }
 
 export interface IAgentSessionSection {
@@ -352,6 +360,9 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 	private readonly _onDidChangeSessionArchivedState = this._register(new Emitter<IAgentSession>());
 	readonly onDidChangeSessionArchivedState = this._onDidChangeSessionArchivedState.event;
 
+	private _resolved = false;
+	get resolved(): boolean { return this._resolved; }
+
 	private _sessions: ResourceMap<IInternalAgentSession>;
 	get sessions(): IAgentSession[] { return Array.from(this._sessions.values()); }
 
@@ -518,12 +529,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 		}
 
 		this._sessions = sessions;
-
-		for (const [resource] of this.sessionStates) {
-			if (!sessions.has(resource)) {
-				this.sessionStates.delete(resource); // clean up states for removed sessions
-			}
-		}
+		this._resolved = true;
 
 		this.logger.logAllStatsIfTrace('Sessions resolved from providers');
 
@@ -627,7 +633,7 @@ interface ISerializedAgentSession {
 		readonly endTime?: number;
 	};
 
-	readonly changes?: readonly IChatSessionFileChange[] | {
+	readonly changes?: readonly IChatSessionFileChange[] | readonly IChatSessionFileChange2[] | {
 		readonly files: number;
 		readonly insertions: number;
 		readonly deletions: number;

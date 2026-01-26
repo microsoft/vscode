@@ -354,7 +354,7 @@ class LocalServerFlow implements IFlow {
 				path: '/login/oauth/authorize',
 				query: searchParams.toString()
 			});
-			const server = new LoopbackAuthServer(path.join(__dirname, '../media'), loginUrl.toString(true), callbackUri.toString(true));
+			const server = new LoopbackAuthServer(path.join(__dirname, '../media'), loginUrl.toString(true), callbackUri.toString(true), env.isAppPortable);
 			const port = await server.start();
 
 			let codeToExchange;

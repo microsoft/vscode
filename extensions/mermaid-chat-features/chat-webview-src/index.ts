@@ -5,7 +5,7 @@
 import mermaid, { MermaidConfig } from 'mermaid';
 
 function getMermaidTheme() {
-	return document.body.classList.contains('vscode-dark') || document.body.classList.contains('vscode-high-contrast')
+	return document.body.classList.contains('vscode-dark') || (document.body.classList.contains('vscode-high-contrast') && !document.body.classList.contains('vscode-high-contrast-light'))
 		? 'dark'
 		: 'default';
 }

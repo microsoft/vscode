@@ -324,23 +324,23 @@
 }
 
 .inline-chat-gutter-menu .input {
-	padding: 0 18px;
+	padding: 0 8px;
 }
 
 .inline-chat-gutter-menu .monaco-action-bar.vertical .action-item {
 	display: flex;
 	justify-content: space-between;
-	padding: 0 .8em;
 	border-radius: 3px;
 	margin: 0 4px;
 }
 
 .inline-chat-gutter-menu .monaco-action-bar.vertical .action-item .action-label {
 	font-size: 13px;
+	width: 100%;
 }
 
 .inline-chat-gutter-menu .monaco-action-bar.vertical .action-item:not(.disabled):hover,
-.inline-chat-gutter-menu .monaco-action-bar.vertical .action-item:not(.disabled).focused {
+.inline-chat-gutter-menu .monaco-action-bar.vertical .action-item:not(.disabled):focus-within {
 	background-color: var(--vscode-list-activeSelectionBackground);
 	color: var(--vscode-list-activeSelectionForeground);
 	outline: 1px solid var(--vscode-menu-selectionBorder, transparent);
@@ -348,6 +348,8 @@
 }
 
 .inline-chat-gutter-menu .monaco-action-bar.vertical .action-item:not(.disabled):hover .action-label,
-.inline-chat-gutter-menu .monaco-action-bar.vertical .action-item:not(.disabled).focused .action-label {
+.inline-chat-gutter-menu .monaco-action-bar.vertical .action-item:not(.disabled):focus-within .action-label {
 	color: var(--vscode-list-activeSelectionForeground);
+	outline: 1px solid var(--vscode-menu-selectionBorder, transparent);
+	outline-offset: -1px;
 }

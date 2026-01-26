@@ -139,7 +139,7 @@ export interface ICustomAgent {
 	/**
 	 * Model metadata in the prompt header.
 	 */
-	readonly model?: string;
+	readonly model?: readonly string[];
 
 	/**
 	 * Argument hint metadata in the prompt header that describes what inputs the agent expects or supports.

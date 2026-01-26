@@ -29,6 +29,7 @@ import { Emitter, Event, EventBufferer, Relay } from '../../../common/event.js';
 import { fuzzyScore, FuzzyScore } from '../../../common/filters.js';
 import { KeyCode } from '../../../common/keyCodes.js';
 import { Disposable, DisposableStore, dispose, IDisposable, toDisposable } from '../../../common/lifecycle.js';
+import { isMacintosh } from '../../../common/platform.js';
 import { clamp } from '../../../common/numbers.js';
 import { ScrollEvent } from '../../../common/scrollable.js';
 import './media/tree.css';
@@ -3242,6 +3243,17 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		this.onDidChangeCollapseStateRelay.input = model.onDidChangeCollapseState;
 		this.onDidChangeRenderNodeCountRelay.input = model.onDidChangeRenderNodeCount;
 		this.onDidSpliceModelRelay.input = model.onDidSpliceModel;
+
+		// Announce collapse state changes for screen readers (VoiceOver doesn't reliably
+		// announce aria-expanded changes on already-focused elements)
+		if (isMacintosh) {
+			this.modelDisposables.add(model.onDidChangeCollapseState(e => {
+				const { node, deep } = e;
+				if (node.collapsible && !deep && this.isDOMFocused()) {
+					alert(node.collapsed ? localize('treeNodeCollapsed', "collapsed") : localize('treeNodeExpanded', "expanded"));
+				}
+			}));
+		}
 	}
 
 	navigate(start?: TRef): ITreeNavigator<T> {

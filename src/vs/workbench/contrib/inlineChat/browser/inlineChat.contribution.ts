@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import './inlineChatDefaultModel.js';
+
 import { EditorContributionInstantiation, registerEditorContribution } from '../../../../editor/browser/editorExtensions.js';
 import { IMenuItem, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { InlineChatController } from './inlineChatController.js';

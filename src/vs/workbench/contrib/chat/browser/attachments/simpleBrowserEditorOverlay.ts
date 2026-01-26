@@ -36,6 +36,9 @@ import { IContextMenuService } from '../../../../../platform/contextview/browser
 import { IAction, toAction } from '../../../../../base/common/actions.js';
 import { WebviewInput } from '../../../webviewPanel/browser/webviewEditorInput.js';
 import { IBrowserTargetLocator, getDisplayNameFromOuterHTML } from '../../../../../platform/browserElements/common/browserElements.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+
+type BrowserType = 'simpleBrowser' | 'livePreview';
 
 class SimpleBrowserOverlayWidget {
 
@@ -49,6 +52,8 @@ class SimpleBrowserOverlayWidget {
 
 	private _activeLocator: IBrowserTargetLocator | undefined = undefined;
 
+	private _browserType: BrowserType | undefined = undefined;
+
 	constructor(
 		private readonly _editor: IEditorGroup,
 		private readonly _container: HTMLElement,
@@ -61,6 +66,7 @@ class SimpleBrowserOverlayWidget {
 		@IPreferencesService private readonly _preferencesService: IPreferencesService,
 		@IBrowserElementsService private readonly _browserElementsService: IBrowserElementsService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		this._showStore.add(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('chat.sendElementsToChat.enabled')) {
@@ -226,8 +232,9 @@ class SimpleBrowserOverlayWidget {
 		}));
 	}
 
-	setActiveLocator(locator: IBrowserTargetLocator | undefined) {
+	setActiveLocator(locator: IBrowserTargetLocator | undefined, browserType: BrowserType | undefined) {
 		this._activeLocator = locator;
+		this._browserType = browserType;
 	}
 
 	hideElement(element: HTMLElement) {
@@ -245,6 +252,20 @@ class SimpleBrowserOverlayWidget {
 	}
 
 	async addElementToChat(cts: CancellationTokenSource) {
+		type SimpleBrowserAddElementToChatStartEvent = {
+			browserType: string;
+		};
+
+		type SimpleBrowserAddElementToChatStartClassification = {
+			browserType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The type of browser extension: simpleBrowser or livePreview.' };
+			owner: 'kycutler';
+			comment: 'The user initiated an Add Element to Chat action in Simple Browser overlay.';
+		};
+
+		this.telemetryService.publicLog2<SimpleBrowserAddElementToChatStartEvent, SimpleBrowserAddElementToChatStartClassification>('simpleBrowser.addElementToChat.start', {
+			browserType: this._browserType!
+		});
+
 		// eslint-disable-next-line no-restricted-syntax
 		const editorContainer = this._container.querySelector('.editor-container') as HTMLDivElement;
 		const editorContainerPosition = editorContainer ? editorContainer.getBoundingClientRect() : this._container.getBoundingClientRect();
@@ -302,6 +323,26 @@ class SimpleBrowserOverlayWidget {
 		}
 
 		widget?.attachmentModel?.addContext(...toAttach);
+
+		type SimpleBrowserAddElementToChatAddedEvent = {
+			browserType: string;
+			attachCss: boolean;
+			attachImages: boolean;
+		};
+
+		type SimpleBrowserAddElementToChatAddedClassification = {
+			browserType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The type of browser extension: simpleBrowser or livePreview.' };
+			attachCss: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether chat.sendElementsToChat.attachCSS was enabled.' };
+			attachImages: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether chat.sendElementsToChat.attachImages was enabled.' };
+			owner: 'kycutler';
+			comment: 'An element was successfully added to chat from Simple Browser overlay.';
+		};
+
+		this.telemetryService.publicLog2<SimpleBrowserAddElementToChatAddedEvent, SimpleBrowserAddElementToChatAddedClassification>('simpleBrowser.addElementToChat.added', {
+			browserType: this._browserType!,
+			attachCss,
+			attachImages: this.configurationService.getValue<boolean>('chat.sendElementsToChat.attachImages') ?? false
+		});
 	}
 
 	dispose() {
@@ -347,8 +388,8 @@ class SimpleBrowserOverlayController {
 
 
 		let cts = new CancellationTokenSource();
-		const show = async (locator: IBrowserTargetLocator) => {
-			widget.setActiveLocator(locator);
+		const show = async (locator: IBrowserTargetLocator, browserType: BrowserType) => {
+			widget.setActiveLocator(locator, browserType);
 
 			// Show the connecting indicator while establishing the session
 			connectingWebviewElement.textContent = localize('connectingWebviewElement', 'Connecting to webview...');
@@ -371,7 +412,7 @@ class SimpleBrowserOverlayController {
 		};
 
 		const hide = () => {
-			widget.setActiveLocator(undefined);
+			widget.setActiveLocator(undefined, undefined);
 			if (container.contains(this._domNode)) {
 				cts.cancel();
 				this._domNode.remove();
@@ -392,21 +433,22 @@ class SimpleBrowserOverlayController {
 
 			if (isSimpleBrowser || isLiveServer) {
 				const webviewInput = editor.input as WebviewInput;
-				return webviewInput.webview.container.id;
+				const browserType: BrowserType = isSimpleBrowser ? 'simpleBrowser' : 'livePreview';
+				return { webviewId: webviewInput.webview.container.id, browserType };
 			}
 			return undefined;
 		});
 
 		this._store.add(autorun(r => {
 
-			const webviewId = activeIdObs.read(r);
+			const activeEditor = activeIdObs.read(r);
 
-			if (!webviewId) {
+			if (!activeEditor) {
 				hide();
 				return;
 			}
 
-			show({ webviewId });
+			show({ webviewId: activeEditor.webviewId }, activeEditor.browserType);
 		}));
 	}
 

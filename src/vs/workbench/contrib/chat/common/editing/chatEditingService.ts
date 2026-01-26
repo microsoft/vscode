@@ -208,6 +208,21 @@ export interface IChatEditingSession extends IDisposable {
 	readonly canRedo: IObservable<boolean>;
 	undoInteraction(): Promise<void>;
 	redoInteraction(): Promise<void>;
+
+	/**
+	 * Triggers generation of explanations for all modified files in the session.
+	 */
+	triggerExplanationGeneration(): Promise<void>;
+
+	/**
+	 * Clears any active explanation generation.
+	 */
+	clearExplanations(): void;
+
+	/**
+	 * Whether explanations are currently being generated or displayed.
+	 */
+	hasExplanations(): boolean;
 }
 
 export function chatEditingSessionIsReady(session: IChatEditingSession): Promise<void> {
