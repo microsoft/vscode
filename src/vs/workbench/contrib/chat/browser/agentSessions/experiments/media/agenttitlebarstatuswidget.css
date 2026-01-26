@@ -247,7 +247,10 @@
 .agent-status-badge-section:first-child { border-radius: 5px 0 0 5px; }
 .agent-status-badge-section:last-child { border-radius: 0 5px 5px 0; }
 .agent-status-badge-section:hover { background-color: var(--vscode-commandCenter-activeBackground); }
-.agent-status-badge-section:focus { outline: none; }
+.agent-status-badge-section:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
 
 .agent-status-badge-section.filtered {
 	background-color: var(--vscode-inputOption-activeBackground);
