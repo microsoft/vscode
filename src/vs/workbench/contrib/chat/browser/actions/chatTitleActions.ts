@@ -19,12 +19,12 @@ import { MENU_INLINE_CHAT_WIDGET_SECONDARY } from '../../../inlineChat/common/in
 import { INotebookEditor } from '../../../notebook/browser/notebookBrowser.js';
 import { CellEditType, CellKind, NOTEBOOK_EDITOR_ID } from '../../../notebook/common/notebookCommon.js';
 import { NOTEBOOK_IS_ACTIVE_EDITOR } from '../../../notebook/common/notebookContextKeys.js';
-import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { applyingChatEditsFailedContextKey, isChatEditingActionContext } from '../../common/chatEditingService.js';
-import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatService } from '../../common/chatService.js';
-import { isResponseVM } from '../../common/chatViewModel.js';
+import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { applyingChatEditsFailedContextKey, isChatEditingActionContext } from '../../common/editing/chatEditingService.js';
+import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatService } from '../../common/chatService/chatService.js';
+import { isResponseVM } from '../../common/model/chatViewModel.js';
 import { ChatModeKind } from '../../common/constants.js';
-import { IChatWidgetService } from '../chat.js';
+import { IChatAccessibilityService, IChatWidgetService } from '../chat.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 
 export const MarkUnhelpfulActionId = 'workbench.action.chat.markUnhelpful';
@@ -43,7 +43,7 @@ export function registerChatTitleActions() {
 				menu: [{
 					id: MenuId.ChatMessageFooter,
 					group: 'navigation',
-					order: 1,
+					order: 2,
 					when: ContextKeyExpr.and(ChatContextKeys.extensionParticipantRegistered, ChatContextKeys.isResponse, ChatContextKeys.responseHasError.negate(), ContextKeyExpr.has(enableFeedbackConfig))
 				}, {
 					id: MENU_INLINE_CHAT_WIDGET_SECONDARY,
@@ -54,7 +54,7 @@ export function registerChatTitleActions() {
 			});
 		}
 
-		run(accessor: ServicesAccessor, ...args: any[]) {
+		run(accessor: ServicesAccessor, ...args: unknown[]) {
 			const item = args[0];
 			if (!isResponseVM(item)) {
 				return;
@@ -64,7 +64,7 @@ export function registerChatTitleActions() {
 			chatService.notifyUserAction({
 				agentId: item.agent?.id,
 				command: item.slashCommand?.name,
-				sessionId: item.sessionId,
+				sessionResource: item.session.sessionResource,
 				requestId: item.requestId,
 				result: item.result,
 				action: {
@@ -90,7 +90,7 @@ export function registerChatTitleActions() {
 				menu: [{
 					id: MenuId.ChatMessageFooter,
 					group: 'navigation',
-					order: 2,
+					order: 3,
 					when: ContextKeyExpr.and(ChatContextKeys.extensionParticipantRegistered, ChatContextKeys.isResponse, ContextKeyExpr.has(enableFeedbackConfig))
 				}, {
 					id: MENU_INLINE_CHAT_WIDGET_SECONDARY,
@@ -101,7 +101,7 @@ export function registerChatTitleActions() {
 			});
 		}
 
-		run(accessor: ServicesAccessor, ...args: any[]) {
+		run(accessor: ServicesAccessor, ...args: unknown[]) {
 			const item = args[0];
 			if (!isResponseVM(item)) {
 				return;
@@ -119,7 +119,7 @@ export function registerChatTitleActions() {
 			chatService.notifyUserAction({
 				agentId: item.agent?.id,
 				command: item.slashCommand?.name,
-				sessionId: item.sessionId,
+				sessionResource: item.session.sessionResource,
 				requestId: item.requestId,
 				result: item.result,
 				action: {
@@ -142,7 +142,7 @@ export function registerChatTitleActions() {
 				menu: [{
 					id: MenuId.ChatMessageFooter,
 					group: 'navigation',
-					order: 3,
+					order: 4,
 					when: ContextKeyExpr.and(ChatContextKeys.responseSupportsIssueReporting, ChatContextKeys.isResponse, ContextKeyExpr.has(enableFeedbackConfig))
 				}, {
 					id: MENU_INLINE_CHAT_WIDGET_SECONDARY,
@@ -153,7 +153,7 @@ export function registerChatTitleActions() {
 			});
 		}
 
-		run(accessor: ServicesAccessor, ...args: any[]) {
+		run(accessor: ServicesAccessor, ...args: unknown[]) {
 			const item = args[0];
 			if (!isResponseVM(item)) {
 				return;
@@ -163,7 +163,7 @@ export function registerChatTitleActions() {
 			chatService.notifyUserAction({
 				agentId: item.agent?.id,
 				command: item.slashCommand?.name,
-				sessionId: item.sessionId,
+				sessionResource: item.session.sessionResource,
 				requestId: item.requestId,
 				result: item.result,
 				action: {
@@ -199,30 +199,31 @@ export function registerChatTitleActions() {
 			});
 		}
 
-		async run(accessor: ServicesAccessor, ...args: any[]) {
+		async run(accessor: ServicesAccessor, ...args: unknown[]) {
 			const chatWidgetService = accessor.get(IChatWidgetService);
+			const chatAccessibilityService = accessor.get(IChatAccessibilityService);
+			const chatService = accessor.get(IChatService);
+			const configurationService = accessor.get(IConfigurationService);
+			const dialogService = accessor.get(IDialogService);
 
 			let item = args[0];
 			if (isChatEditingActionContext(item)) {
 				// Resolve chat editing action context to the last response VM
-				item = chatWidgetService.getWidgetBySessionId(item.sessionId)?.viewModel?.getItems().at(-1);
+				item = chatWidgetService.getWidgetBySessionResource(item.sessionResource)?.viewModel?.getItems().at(-1);
 			}
 			if (!isResponseVM(item)) {
 				return;
 			}
 
-			const chatService = accessor.get(IChatService);
-			const chatModel = chatService.getSession(item.sessionId);
+			const chatModel = chatService.getSession(item.sessionResource);
 			const chatRequests = chatModel?.getRequests();
 			if (!chatRequests) {
 				return;
 			}
 			const itemIndex = chatRequests?.findIndex(request => request.id === item.requestId);
-			const widget = chatWidgetService.getWidgetBySessionId(item.sessionId);
+			const widget = chatWidgetService.getWidgetBySessionResource(item.sessionResource);
 			const mode = widget?.input.currentModeKind;
 			if (chatModel && (mode === ChatModeKind.Edit || mode === ChatModeKind.Agent)) {
-				const configurationService = accessor.get(IConfigurationService);
-				const dialogService = accessor.get(IDialogService);
 				const currentEditingSession = widget?.viewModel?.model.editingSession;
 				if (!currentEditingSession) {
 					return;
@@ -260,6 +261,7 @@ export function registerChatTitleActions() {
 			const request = chatModel?.getRequests().find(candidate => candidate.id === item.requestId);
 			const languageModelId = widget?.input.currentLanguageModel;
 
+			chatAccessibilityService.acceptRequest(item.sessionResource);
 			chatService.resendRequest(request!, {
 				userSelectedModelId: languageModelId,
 				attempt: (request?.attempt ?? -1) + 1,
@@ -285,7 +287,7 @@ export function registerChatTitleActions() {
 			});
 		}
 
-		async run(accessor: ServicesAccessor, ...args: any[]) {
+		async run(accessor: ServicesAccessor, ...args: unknown[]) {
 			const item = args[0];
 			if (!isResponseVM(item)) {
 				return;

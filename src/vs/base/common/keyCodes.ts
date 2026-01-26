@@ -456,6 +456,7 @@ const userSettingsUSMap = new KeyCodeStrMap();
 const userSettingsGeneralMap = new KeyCodeStrMap();
 export const EVENT_KEY_CODE_MAP: { [keyCode: number]: KeyCode } = new Array(230);
 export const NATIVE_WINDOWS_KEY_CODE_TO_KEY_CODE: { [nativeKeyCode: string]: KeyCode } = {};
+export const SCAN_CODE_STR_TO_EVENT_KEY_CODE: { [scanCodeStr: string]: number } = {};
 const scanCodeIntToStr: string[] = [];
 const scanCodeStrToInt: { [code: string]: number } = Object.create(null);
 const scanCodeLowerCaseStrToInt: { [code: string]: number } = Object.create(null);
@@ -738,14 +739,7 @@ for (let i = 0; i <= KeyCode.MAX_VALUE; i++) {
 			scanCodeLowerCaseStrToInt[scanCodeStr.toLowerCase()] = scanCode;
 			if (immutable) {
 				IMMUTABLE_CODE_TO_KEY_CODE[scanCode] = keyCode;
-				if (
-					(keyCode !== KeyCode.Unknown)
-					&& (keyCode !== KeyCode.Enter)
-					&& (keyCode !== KeyCode.Ctrl)
-					&& (keyCode !== KeyCode.Shift)
-					&& (keyCode !== KeyCode.Alt)
-					&& (keyCode !== KeyCode.Meta)
-				) {
+				if ((keyCode !== KeyCode.Unknown) && (keyCode !== KeyCode.Enter) && !isModifierKey(keyCode)) {
 					IMMUTABLE_KEY_CODE_TO_CODE[keyCode] = scanCode;
 				}
 			}
@@ -761,6 +755,9 @@ for (let i = 0; i <= KeyCode.MAX_VALUE; i++) {
 		}
 		if (eventKeyCode) {
 			EVENT_KEY_CODE_MAP[eventKeyCode] = keyCode;
+		}
+		if (scanCodeStr) {
+			SCAN_CODE_STR_TO_EVENT_KEY_CODE[scanCodeStr] = eventKeyCode;
 		}
 		if (vkey) {
 			NATIVE_WINDOWS_KEY_CODE_TO_KEY_CODE[vkey] = keyCode;
@@ -827,4 +824,13 @@ export const enum KeyMod {
 export function KeyChord(firstPart: number, secondPart: number): number {
 	const chordPart = ((secondPart & 0x0000FFFF) << 16) >>> 0;
 	return (firstPart | chordPart) >>> 0;
+}
+
+export function isModifierKey(keyCode: KeyCode): boolean {
+	return (
+		keyCode === KeyCode.Ctrl
+		|| keyCode === KeyCode.Shift
+		|| keyCode === KeyCode.Alt
+		|| keyCode === KeyCode.Meta
+	);
 }

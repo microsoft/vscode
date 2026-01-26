@@ -6,7 +6,7 @@
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { CharCode } from '../../../../base/common/charCode.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { createCommandUri, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import * as platform from '../../../../base/common/platform.js';
 import { InvisibleCharacters, isBasicASCII } from '../../../../base/common/strings.js';
@@ -20,20 +20,19 @@ import { IModelDecoration, IModelDeltaDecoration, ITextModel, TrackedRangeSticki
 import { ModelDecorationOptions } from '../../../common/model/textModel.js';
 import { UnicodeHighlighterOptions, UnicodeHighlighterReason, UnicodeHighlighterReasonKind, UnicodeTextModelHighlighter } from '../../../common/services/unicodeTextModelHighlighter.js';
 import { IEditorWorkerService, IUnicodeHighlightsResult } from '../../../common/services/editorWorker.js';
-import { ILanguageService } from '../../../common/languages/language.js';
 import { HoverAnchor, HoverAnchorType, HoverParticipantRegistry, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart, IRenderedHoverParts } from '../../hover/browser/hoverTypes.js';
 import { MarkdownHover, renderMarkdownHovers } from '../../hover/browser/markdownHoverParticipant.js';
 import { BannerController } from './bannerController.js';
 import * as nls from '../../../../nls.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { safeIntl } from '../../../../base/common/date.js';
 import { isModelDecorationInComment, isModelDecorationInString, isModelDecorationVisible } from '../../../common/viewModel/viewModelDecoration.js';
+import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 
 export const warningIcon = registerIcon('extensions-warning-message', Codicon.warning, nls.localize('warningIcon', 'Icon shown with a warning message in the extensions editor.'));
 
@@ -419,10 +418,8 @@ export class UnicodeHighlighterHoverParticipant implements IEditorHoverParticipa
 
 	constructor(
 		private readonly _editor: ICodeEditor,
-		@ILanguageService private readonly _languageService: ILanguageService,
-		@IOpenerService private readonly _openerService: IOpenerService,
-	) {
-	}
+		@IMarkdownRendererService private readonly _markdownRendererService: IMarkdownRendererService,
+	) { }
 
 	computeSync(anchor: HoverAnchor, lineDecorations: IModelDecoration[]): MarkdownHover[] {
 		if (!this._editor.hasModel() || anchor.type !== HoverAnchorType.Range) {
@@ -502,7 +499,7 @@ export class UnicodeHighlighterHoverParticipant implements IEditorHoverParticipa
 			};
 
 			const adjustSettings = nls.localize('unicodeHighlight.adjustSettings', 'Adjust settings');
-			const uri = `command:${ShowExcludeOptions.ID}?${encodeURIComponent(JSON.stringify(adjustSettingsArgs))}`;
+			const uri = createCommandUri(ShowExcludeOptions.ID, adjustSettingsArgs);
 			const markdown = new MarkdownString('', true)
 				.appendMarkdown(reason)
 				.appendText(' ')
@@ -513,7 +510,7 @@ export class UnicodeHighlighterHoverParticipant implements IEditorHoverParticipa
 	}
 
 	public renderHoverParts(context: IEditorHoverRenderContext, hoverParts: MarkdownHover[]): IRenderedHoverParts<MarkdownHover> {
-		return renderMarkdownHovers(context, hoverParts, this._editor, this._languageService, this._openerService);
+		return renderMarkdownHovers(context, hoverParts, this._editor, this._markdownRendererService);
 	}
 
 	public getAccessibleContent(hoverPart: MarkdownHover): string {
@@ -589,8 +586,8 @@ export class DisableHighlightingInCommentsAction extends EditorAction implements
 		});
 	}
 
-	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor, args: any): Promise<void> {
-		const configurationService = accessor?.get(IConfigurationService);
+	public async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
+		const configurationService = accessor.get(IConfigurationService);
 		if (configurationService) {
 			this.runAction(configurationService);
 		}
@@ -612,8 +609,8 @@ export class DisableHighlightingInStringsAction extends EditorAction implements 
 		});
 	}
 
-	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor, args: any): Promise<void> {
-		const configurationService = accessor?.get(IConfigurationService);
+	public async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
+		const configurationService = accessor.get(IConfigurationService);
 		if (configurationService) {
 			this.runAction(configurationService);
 		}
@@ -636,8 +633,8 @@ export class DisableHighlightingOfAmbiguousCharactersAction extends Action2 impl
 		});
 	}
 
-	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor, args: any): Promise<void> {
-		const configurationService = accessor?.get(IConfigurationService);
+	public async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
+		const configurationService = accessor.get(IConfigurationService);
 		if (configurationService) {
 			this.runAction(configurationService);
 		}
@@ -660,8 +657,8 @@ export class DisableHighlightingOfInvisibleCharactersAction extends Action2 impl
 		});
 	}
 
-	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor, args: any): Promise<void> {
-		const configurationService = accessor?.get(IConfigurationService);
+	public async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
+		const configurationService = accessor.get(IConfigurationService);
 		if (configurationService) {
 			this.runAction(configurationService);
 		}
@@ -684,8 +681,8 @@ export class DisableHighlightingOfNonBasicAsciiCharactersAction extends Action2 
 		});
 	}
 
-	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor, args: any): Promise<void> {
-		const configurationService = accessor?.get(IConfigurationService);
+	public async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
+		const configurationService = accessor.get(IConfigurationService);
 		if (configurationService) {
 			this.runAction(configurationService);
 		}
@@ -714,13 +711,13 @@ export class ShowExcludeOptions extends Action2 {
 		});
 	}
 
-	public async run(accessor: ServicesAccessor | undefined, args: any): Promise<void> {
+	public async run(accessor: ServicesAccessor, args: any): Promise<void> {
 		const { codePoint, reason, inString, inComment } = args as ShowExcludeOptionsArgs;
 
 		const char = String.fromCodePoint(codePoint);
 
-		const quickPickService = accessor!.get(IQuickInputService);
-		const configurationService = accessor!.get(IConfigurationService);
+		const quickPickService = accessor.get(IQuickInputService);
+		const configurationService = accessor.get(IConfigurationService);
 
 		interface ExtendedOptions extends IQuickPickItem {
 			run(): Promise<void>;
@@ -794,6 +791,7 @@ async function excludeCharFromBeingHighlighted(configurationService: IConfigurat
 
 	let value: Record<string, boolean>;
 	if ((typeof existingValue === 'object') && existingValue) {
+		// eslint-disable-next-line local/code-no-any-casts
 		value = existingValue as any;
 	} else {
 		value = {};
@@ -812,6 +810,7 @@ async function excludeLocaleFromBeingHighlighted(configurationService: IConfigur
 	let value: Record<string, boolean>;
 	if ((typeof existingValue === 'object') && existingValue) {
 		// Copy value, as the existing value is read only
+		// eslint-disable-next-line local/code-no-any-casts
 		value = Object.assign({}, existingValue as any);
 	} else {
 		value = {};

@@ -6,7 +6,7 @@
 import { Range } from '../../../core/range.js';
 import { Length, lengthAdd, lengthDiffNonNegative, lengthLessThanEqual, lengthOfString, lengthToObj, positionToLength, toLength } from './length.js';
 import { TextLength } from '../../../core/text/textLength.js';
-import { IModelContentChange } from '../../../textModelEvents.js';
+import { IModelContentChange } from '../../mirrorTextModel.js';
 
 export class TextEditInfo {
 	public static fromModelContentChanges(changes: IModelContentChange[]): TextEditInfo[] {

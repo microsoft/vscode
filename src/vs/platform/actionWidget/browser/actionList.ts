@@ -3,13 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as dom from '../../../base/browser/dom.js';
+import { ActionBar } from '../../../base/browser/ui/actionbar/actionbar.js';
 import { KeybindingLabel } from '../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
 import { IListEvent, IListMouseEvent, IListRenderer, IListVirtualDelegate } from '../../../base/browser/ui/list/list.js';
 import { IListAccessibilityProvider, List } from '../../../base/browser/ui/list/listWidget.js';
+import { IAction } from '../../../base/common/actions.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { ResolvedKeybinding } from '../../../base/common/keybindings.js';
-import { Disposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { OS } from '../../../base/common/platform.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import './actionWidget.css';
@@ -19,6 +21,10 @@ import { IKeybindingService } from '../../keybinding/common/keybinding.js';
 import { defaultListStyles } from '../../theme/browser/defaultStyles.js';
 import { asCssVariable } from '../../theme/common/colorRegistry.js';
 import { ILayoutService } from '../../layout/browser/layoutService.js';
+import { IHoverService } from '../../hover/browser/hover.js';
+import { MarkdownString } from '../../../base/common/htmlContent.js';
+import { HoverPosition } from '../../../base/browser/ui/hover/hoverWidget.js';
+import { IHoverWidget } from '../../../base/browser/ui/hover/hover.js';
 
 export const acceptSelectedActionCommand = 'acceptSelectedCodeAction';
 export const previewSelectedActionCommand = 'previewSelectedCodeAction';
@@ -30,17 +36,35 @@ export interface IActionListDelegate<T> {
 	onFocus?(action: T | undefined): void;
 }
 
+/**
+ * Optional hover configuration shown when focusing/hovering over an action list item.
+ */
+export interface IActionListItemHover {
+	/**
+	 * Content to display in the hover.
+	 */
+	readonly content?: string;
+}
+
 export interface IActionListItem<T> {
 	readonly item?: T;
 	readonly kind: ActionListItemKind;
-	readonly group?: { kind?: any; icon?: ThemeIcon; title: string };
+	readonly group?: { kind?: unknown; icon?: ThemeIcon; title: string };
 	readonly disabled?: boolean;
 	readonly label?: string;
 	readonly description?: string;
+	/**
+	 * Optional hover configuration shown when focusing/hovering over the item.
+	 */
+	readonly hover?: IActionListItemHover;
 	readonly keybinding?: ResolvedKeybinding;
 	canPreview?: boolean | undefined;
 	readonly hideIcon?: boolean;
 	readonly tooltip?: string;
+	/**
+	 * Optional toolbar actions shown when the item is focused or hovered.
+	 */
+	readonly toolbarActions?: IAction[];
 }
 
 interface IActionMenuTemplateData {
@@ -49,11 +73,14 @@ interface IActionMenuTemplateData {
 	readonly text: HTMLElement;
 	readonly description?: HTMLElement;
 	readonly keybinding: KeybindingLabel;
+	readonly toolbar: HTMLElement;
+	readonly elementDisposables: DisposableStore;
 }
 
 export const enum ActionListItemKind {
 	Action = 'action',
-	Header = 'header'
+	Header = 'header',
+	Separator = 'separator'
 }
 
 interface IHeaderTemplateData {
@@ -79,6 +106,33 @@ class HeaderRenderer<T> implements IListRenderer<IActionListItem<T>, IHeaderTemp
 	}
 
 	disposeTemplate(_templateData: IHeaderTemplateData): void {
+		// noop
+	}
+}
+
+interface ISeparatorTemplateData {
+	readonly container: HTMLElement;
+	readonly text: HTMLElement;
+}
+
+class SeparatorRenderer<T> implements IListRenderer<IActionListItem<T>, ISeparatorTemplateData> {
+
+	get templateId(): string { return ActionListItemKind.Separator; }
+
+	renderTemplate(container: HTMLElement): ISeparatorTemplateData {
+		container.classList.add('separator');
+
+		const text = document.createElement('span');
+		container.append(text);
+
+		return { container, text };
+	}
+
+	renderElement(element: IActionListItem<T>, _index: number, templateData: ISeparatorTemplateData): void {
+		templateData.text.textContent = element.label ?? '';
+	}
+
+	disposeTemplate(_templateData: ISeparatorTemplateData): void {
 		// noop
 	}
 }
@@ -109,10 +163,19 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 
 		const keybinding = new KeybindingLabel(container, OS);
 
-		return { container, icon, text, description, keybinding };
+		const toolbar = document.createElement('div');
+		toolbar.className = 'action-list-item-toolbar';
+		container.append(toolbar);
+
+		const elementDisposables = new DisposableStore();
+
+		return { container, icon, text, description, keybinding, toolbar, elementDisposables };
 	}
 
 	renderElement(element: IActionListItem<T>, _index: number, data: IActionMenuTemplateData): void {
+		// Clear previous element disposables
+		data.elementDisposables.clear();
+
 		if (element.group?.icon) {
 			data.icon.className = ThemeIcon.asClassName(element.group.icon);
 			if (element.group.icon.color) {
@@ -147,7 +210,10 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 		const actionTitle = this._keybindingService.lookupKeybinding(acceptSelectedActionCommand)?.getLabel();
 		const previewTitle = this._keybindingService.lookupKeybinding(previewSelectedActionCommand)?.getLabel();
 		data.container.classList.toggle('option-disabled', element.disabled);
-		if (element.tooltip) {
+		if (element.hover !== undefined) {
+			// Don't show tooltip when hover content is configured - the rich hover will show instead
+			data.container.title = '';
+		} else if (element.tooltip) {
 			data.container.title = element.tooltip;
 		} else if (element.disabled) {
 			data.container.title = element.label;
@@ -160,10 +226,20 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 		} else {
 			data.container.title = '';
 		}
+
+		// Clear and render toolbar actions
+		dom.clearNode(data.toolbar);
+		data.container.classList.toggle('has-toolbar', !!element.toolbarActions?.length);
+		if (element.toolbarActions?.length) {
+			const actionBar = new ActionBar(data.toolbar);
+			data.elementDisposables.add(actionBar);
+			actionBar.push(element.toolbarActions, { icon: true, label: false });
+		}
 	}
 
 	disposeTemplate(templateData: IActionMenuTemplateData): void {
 		templateData.keybinding.dispose();
+		templateData.elementDisposables.dispose();
 	}
 }
 
@@ -176,7 +252,7 @@ class PreviewSelectedEvent extends UIEvent {
 }
 
 function getKeyboardNavigationLabel<T>(item: IActionListItem<T>): string | undefined {
-	// Filter out header vs. action
+	// Filter out header vs. action vs. separator
 	if (item.kind === 'action') {
 		return item.label;
 	}
@@ -189,12 +265,15 @@ export class ActionList<T> extends Disposable {
 
 	private readonly _list: List<IActionListItem<T>>;
 
-	private readonly _actionLineHeight = 24;
-	private readonly _headerLineHeight = 26;
+	private readonly _actionLineHeight = 28;
+	private readonly _headerLineHeight = 28;
+	private readonly _separatorLineHeight = 8;
 
 	private readonly _allMenuItems: readonly IActionListItem<T>[];
 
 	private readonly cts = this._register(new CancellationTokenSource());
+
+	private _hover = this._register(new MutableDisposable<IHoverWidget>());
 
 	constructor(
 		user: string,
@@ -205,12 +284,22 @@ export class ActionList<T> extends Disposable {
 		@IContextViewService private readonly _contextViewService: IContextViewService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@ILayoutService private readonly _layoutService: ILayoutService,
+		@IHoverService private readonly _hoverService: IHoverService,
 	) {
 		super();
 		this.domNode = document.createElement('div');
 		this.domNode.classList.add('actionList');
 		const virtualDelegate: IListVirtualDelegate<IActionListItem<T>> = {
-			getHeight: element => element.kind === ActionListItemKind.Header ? this._headerLineHeight : this._actionLineHeight,
+			getHeight: element => {
+				switch (element.kind) {
+					case ActionListItemKind.Header:
+						return this._headerLineHeight;
+					case ActionListItemKind.Separator:
+						return this._separatorLineHeight;
+					default:
+						return this._actionLineHeight;
+				}
+			},
 			getTemplateId: element => element.kind
 		};
 
@@ -218,6 +307,7 @@ export class ActionList<T> extends Disposable {
 		this._list = this._register(new List(user, this.domNode, virtualDelegate, [
 			new ActionItemRenderer<IActionListItem<T>>(preview, this._keybindingService),
 			new HeaderRenderer(),
+			new SeparatorRenderer(),
 		], {
 			keyboardSupport: false,
 			typeNavigationEnabled: true,
@@ -226,6 +316,9 @@ export class ActionList<T> extends Disposable {
 				getAriaLabel: element => {
 					if (element.kind === ActionListItemKind.Action) {
 						let label = element.label ? stripNewlines(element?.label) : '';
+						if (element.description) {
+							label = label + ', ' + stripNewlines(element.description);
+						}
 						if (element.disabled) {
 							label = localize({ key: 'customQuickFixWidget.labels', comment: [`Action widget labels for accessibility.`] }, "{0}, Disabled Reason: {1}", label, element.disabled);
 						}
@@ -234,7 +327,16 @@ export class ActionList<T> extends Disposable {
 					return null;
 				},
 				getWidgetAriaLabel: () => localize({ key: 'customQuickFixWidget', comment: [`An action widget option`] }, "Action Widget"),
-				getRole: (e) => e.kind === ActionListItemKind.Action ? 'option' : 'separator',
+				getRole: (e) => {
+					switch (e.kind) {
+						case ActionListItemKind.Action:
+							return 'option';
+						case ActionListItemKind.Separator:
+							return 'separator';
+						default:
+							return 'separator';
+					}
+				},
 				getWidgetRole: () => 'listbox',
 				...accessibilityProvider
 			},
@@ -262,15 +364,18 @@ export class ActionList<T> extends Disposable {
 	hide(didCancel?: boolean): void {
 		this._delegate.onHide(didCancel);
 		this.cts.cancel();
+		this._hover.clear();
 		this._contextViewService.hideContextView();
 	}
 
 	layout(minWidth: number): number {
 		// Updating list height, depending on how many separators and headers there are.
 		const numHeaders = this._allMenuItems.filter(item => item.kind === 'header').length;
+		const numSeparators = this._allMenuItems.filter(item => item.kind === 'separator').length;
 		const itemsHeight = this._allMenuItems.length * this._actionLineHeight;
 		const heightWithHeaders = itemsHeight + numHeaders * this._headerLineHeight - numHeaders * this._actionLineHeight;
-		this._list.layout(heightWithHeaders);
+		const heightWithSeparators = heightWithHeaders + numSeparators * this._separatorLineHeight - numSeparators * this._actionLineHeight;
+		this._list.layout(heightWithSeparators);
 		let maxWidth = minWidth;
 
 		if (this._allMenuItems.length >= 50) {
@@ -278,7 +383,7 @@ export class ActionList<T> extends Disposable {
 		} else {
 			// For finding width dynamically (not using resize observer)
 			const itemWidths: number[] = this._allMenuItems.map((_, index): number => {
-				const element = this.domNode.ownerDocument.getElementById(this._list.getElementID(index));
+				const element = this._getRowElement(index);
 				if (element) {
 					element.style.width = 'auto';
 					const width = element.getBoundingClientRect().width;
@@ -293,7 +398,7 @@ export class ActionList<T> extends Disposable {
 		}
 
 		const maxVhPrecentage = 0.7;
-		const height = Math.min(heightWithHeaders, this._layoutService.getContainer(dom.getWindow(this.domNode)).clientHeight * maxVhPrecentage);
+		const height = Math.min(heightWithSeparators, this._layoutService.getContainer(dom.getWindow(this.domNode)).clientHeight * maxVhPrecentage);
 		this._list.layout(height, maxWidth);
 
 		this.domNode.style.height = `${height}px`;
@@ -347,11 +452,56 @@ export class ActionList<T> extends Disposable {
 		const focusIndex = focused[0];
 		const element = this._list.element(focusIndex);
 		this._delegate.onFocus?.(element.item);
+
+		// Show hover on focus change
+		this._showHoverForElement(element, focusIndex);
+	}
+
+	private _getRowElement(index: number): HTMLElement | null {
+		// eslint-disable-next-line no-restricted-syntax
+		return this.domNode.ownerDocument.getElementById(this._list.getElementID(index));
+	}
+
+	private _showHoverForElement(element: IActionListItem<T>, index: number): void {
+		let newHover: IHoverWidget | undefined;
+
+		// Show hover if the element has hover content
+		if (element.hover?.content && this.focusCondition(element)) {
+			// The List widget separates data models from DOM elements, so we need to
+			// look up the actual DOM node to use as the hover target.
+			const rowElement = this._getRowElement(index);
+			if (rowElement) {
+				const markdown = element.hover.content ? new MarkdownString(element.hover.content) : undefined;
+				newHover = this._hoverService.showDelayedHover({
+					content: markdown ?? '',
+					target: rowElement,
+					additionalClasses: ['action-widget-hover'],
+					position: {
+						hoverPosition: HoverPosition.LEFT,
+						forcePosition: false,
+					},
+					appearance: {
+						showPointer: true,
+					},
+				}, { groupId: `actionListHover` });
+			}
+		}
+
+		this._hover.value = newHover;
 	}
 
 	private async onListHover(e: IListMouseEvent<IActionListItem<T>>) {
 		const element = e.element;
+
 		if (element && element.item && this.focusCondition(element)) {
+			// Check if the hover target is inside a toolbar - if so, skip the splice
+			// to avoid re-rendering which would destroy the toolbar mid-hover
+			const isHoveringToolbar = dom.isHTMLElement(e.browserEvent.target) && e.browserEvent.target.closest('.action-list-item-toolbar') !== null;
+			if (isHoveringToolbar) {
+				this._list.setFocus([]);
+				return;
+			}
+
 			if (this._delegate.onHover && !element.disabled && element.kind === ActionListItemKind.Action) {
 				const result = await this._delegate.onHover(element.item, this.cts.token);
 				element.canPreview = result ? result.canPreview : undefined;
@@ -359,9 +509,9 @@ export class ActionList<T> extends Disposable {
 			if (e.index) {
 				this._list.splice(e.index, 1, [element]);
 			}
-		}
 
-		this._list.setFocus(typeof e.index === 'number' ? [e.index] : []);
+			this._list.setFocus(typeof e.index === 'number' ? [e.index] : []);
+		}
 	}
 
 	private onListClick(e: IListMouseEvent<IActionListItem<T>>): void {

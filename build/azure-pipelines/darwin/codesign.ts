@@ -3,26 +3,34 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { printBanner, spawnCodesignProcess, streamProcessOutputAndCheckResult } from '../common/codesign';
-import { e } from '../common/publish';
+import { printBanner, spawnCodesignProcess, streamProcessOutputAndCheckResult } from '../common/codesign.ts';
+import { e } from '../common/publish.ts';
 
 async function main() {
 	const arch = e('VSCODE_ARCH');
 	const esrpCliDLLPath = e('EsrpCliDllPath');
 	const pipelineWorkspace = e('PIPELINE_WORKSPACE');
 
-	const folder = `${pipelineWorkspace}/unsigned_vscode_client_darwin_${arch}_archive`;
+	const folder = `${pipelineWorkspace}/vscode_client_darwin_${arch}_archive`;
+	const dmgFolder = `${pipelineWorkspace}/vscode_client_darwin_${arch}_dmg`;
 	const glob = `VSCode-darwin-${arch}.zip`;
+	const dmgGlob = `VSCode-darwin-${arch}.dmg`;
 
 	// Codesign
-	printBanner('Codesign');
-	const codeSignTask = spawnCodesignProcess(esrpCliDLLPath, 'sign-darwin', folder, glob);
-	await streamProcessOutputAndCheckResult('Codesign', codeSignTask);
+	const archiveCodeSignTask = spawnCodesignProcess(esrpCliDLLPath, 'sign-darwin', folder, glob);
+	const dmgCodeSignTask = spawnCodesignProcess(esrpCliDLLPath, 'sign-darwin', dmgFolder, dmgGlob);
+	printBanner('Codesign Archive');
+	await streamProcessOutputAndCheckResult('Codesign Archive', archiveCodeSignTask);
+	printBanner('Codesign DMG');
+	await streamProcessOutputAndCheckResult('Codesign DMG', dmgCodeSignTask);
 
 	// Notarize
-	printBanner('Notarize');
-	const notarizeTask = spawnCodesignProcess(esrpCliDLLPath, 'notarize-darwin', folder, glob);
-	await streamProcessOutputAndCheckResult('Notarize', notarizeTask);
+	const archiveNotarizeTask = spawnCodesignProcess(esrpCliDLLPath, 'notarize-darwin', folder, glob);
+	const dmgNotarizeTask = spawnCodesignProcess(esrpCliDLLPath, 'notarize-darwin', dmgFolder, dmgGlob);
+	printBanner('Notarize Archive');
+	await streamProcessOutputAndCheckResult('Notarize Archive', archiveNotarizeTask);
+	printBanner('Notarize DMG');
+	await streamProcessOutputAndCheckResult('Notarize DMG', dmgNotarizeTask);
 }
 
 main().then(() => {

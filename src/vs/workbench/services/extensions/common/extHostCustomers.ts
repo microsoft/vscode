@@ -18,7 +18,7 @@ export interface IExtHostContext extends IRPCProtocol {
 export interface IInternalExtHostContext extends IExtHostContext {
 	readonly internalExtensionService: IInternalExtensionService;
 	_setExtensionHostProxy(extensionHostProxy: IExtensionHostProxy): void;
-	_setAllMainProxyIdentifiers(mainProxyIdentifiers: ProxyIdentifier<any>[]): void;
+	_setAllMainProxyIdentifiers(mainProxyIdentifiers: ProxyIdentifier<unknown>[]): void;
 }
 
 export type IExtHostNamedCustomer<T extends IDisposable> = [ProxyIdentifier<T>, IExtHostCustomerCtor<T>];
@@ -50,8 +50,8 @@ class ExtHostCustomersRegistryImpl {
 
 	public static readonly INSTANCE = new ExtHostCustomersRegistryImpl();
 
-	private _namedCustomers: IExtHostNamedCustomer<any>[];
-	private _customers: IExtHostCustomerCtor<any>[];
+	private _namedCustomers: IExtHostNamedCustomer<IDisposable>[];
+	private _customers: IExtHostCustomerCtor<IDisposable>[];
 
 	constructor() {
 		this._namedCustomers = [];
@@ -62,14 +62,14 @@ class ExtHostCustomersRegistryImpl {
 		const entry: IExtHostNamedCustomer<T> = [id, ctor];
 		this._namedCustomers.push(entry);
 	}
-	public getNamedCustomers(): IExtHostNamedCustomer<any>[] {
+	public getNamedCustomers(): IExtHostNamedCustomer<IDisposable>[] {
 		return this._namedCustomers;
 	}
 
 	public registerCustomer<T extends IDisposable>(ctor: IExtHostCustomerCtor<T>): void {
 		this._customers.push(ctor);
 	}
-	public getCustomers(): IExtHostCustomerCtor<any>[] {
+	public getCustomers(): IExtHostCustomerCtor<IDisposable>[] {
 		return this._customers;
 	}
 }

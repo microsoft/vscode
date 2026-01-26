@@ -109,7 +109,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	}
 
 	readonly defaultKeybindingsResource = URI.from({ scheme: network.Schemas.vscode, authority: 'defaultsettings', path: '/keybindings.json' });
-	private readonly defaultSettingsRawResource = URI.from({ scheme: network.Schemas.vscode, authority: 'defaultsettings', path: '/defaultSettings.json' });
+	private readonly defaultSettingsRawResource = URI.from({ scheme: network.Schemas.vscode, authority: 'defaultsettings', path: '/defaultSettings.jsonc' });
 
 	get userSettingsResource(): URI {
 		return this.userDataProfileService.currentProfile.settingsResource;
@@ -247,6 +247,21 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			...options,
 			jsonEditor: options.jsonEditor ?? this.shouldOpenJsonByDefault()
 		};
+
+		if (options.jsonEditor && options.query && !options.revealSetting) {
+			const query = options.query.trim();
+			const idMatch = query.match(/^@id:(.+)$/);
+			let key: string | undefined;
+			if (idMatch) {
+				key = idMatch[1].trim();
+			} else if (Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties()[query.trim()]) {
+				key = query.trim();
+			}
+			options.query = undefined;
+			if (key) {
+				options.revealSetting = { key };
+			}
+		}
 
 		return options.jsonEditor ?
 			this.openSettingsJson(settingsResource, options) :
@@ -595,13 +610,17 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 				if (isObject(setting.value) || Array.isArray(setting.value)) {
 					position = { lineNumber: setting.valueRange.startLineNumber, column: setting.valueRange.startColumn + 1 };
 					codeEditor.setPosition(position);
-					await CoreEditingCommands.LineBreakInsert.runEditorCommand(null, codeEditor, null);
+					await this.instantiationService.invokeFunction(accessor => {
+						return CoreEditingCommands.LineBreakInsert.runEditorCommand(accessor, codeEditor, null);
+					});
 					position = { lineNumber: position.lineNumber + 1, column: model.getLineMaxColumn(position.lineNumber + 1) };
 					const firstNonWhiteSpaceColumn = model.getLineFirstNonWhitespaceColumn(position.lineNumber);
 					if (firstNonWhiteSpaceColumn) {
 						// Line has some text. Insert another new line.
 						codeEditor.setPosition({ lineNumber: position.lineNumber, column: firstNonWhiteSpaceColumn });
-						await CoreEditingCommands.LineBreakInsert.runEditorCommand(null, codeEditor, null);
+						await this.instantiationService.invokeFunction(accessor => {
+							return CoreEditingCommands.LineBreakInsert.runEditorCommand(accessor, codeEditor, null);
+						});
 						position = { lineNumber: position.lineNumber, column: model.getLineMaxColumn(position.lineNumber) };
 					}
 				} else {

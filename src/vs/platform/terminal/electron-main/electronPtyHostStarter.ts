@@ -17,6 +17,7 @@ import { validatedIpcMain } from '../../../base/parts/ipc/electron-main/ipcMain.
 import { Disposable, DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { Emitter } from '../../../base/common/event.js';
 import { deepClone } from '../../../base/common/objects.js';
+import { isNumber } from '../../../base/common/types.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { Schemas } from '../../../base/common/network.js';
 
@@ -94,11 +95,11 @@ export class ElectronPtyHostStarter extends Disposable implements IPtyHostStarte
 			VSCODE_RECONNECT_SCROLLBACK: String(this._reconnectConstants.scrollback),
 		};
 		const simulatedLatency = this._configurationService.getValue(TerminalSettingId.DeveloperPtyHostLatency);
-		if (simulatedLatency && typeof simulatedLatency === 'number') {
+		if (simulatedLatency && isNumber(simulatedLatency)) {
 			config.VSCODE_LATENCY = String(simulatedLatency);
 		}
 		const startupDelay = this._configurationService.getValue(TerminalSettingId.DeveloperPtyHostStartupDelay);
-		if (startupDelay && typeof startupDelay === 'number') {
+		if (startupDelay && isNumber(startupDelay)) {
 			config.VSCODE_STARTUP_DELAY = String(startupDelay);
 		}
 		this._environmentMainService.restoreSnapExportedVariables();

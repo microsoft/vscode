@@ -69,6 +69,18 @@ export class BrowserSecretStorageService extends BaseSecretStorageService {
 
 		return super.type;
 	}
+
+	override keys(): Promise<string[]> {
+		if (this._secretStorageProvider) {
+			if (!this._secretStorageProvider.keys) {
+				throw new Error('Secret storage provider does not support keys() method');
+			}
+			return this._secretStorageProvider!.keys();
+		}
+
+		return super.keys();
+
+	}
 }
 
 registerSingleton(ISecretStorageService, BrowserSecretStorageService, InstantiationType.Delayed);

@@ -22,7 +22,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { SnippetController2 } from '../../../../editor/contrib/snippet/browser/snippetController2.js';
 import { SnippetParser } from '../../../../editor/contrib/snippet/browser/snippetParser.js';
 import { ISnippetEdit } from '../../../../editor/contrib/snippet/browser/snippetSession.js';
-import { TextModelEditReason } from '../../../../editor/common/textModelEditReason.js';
+import { TextModelEditSource } from '../../../../editor/common/textModelEditSource.js';
 
 type ValidationResult = { canApply: true } | { canApply: false; reason: URI };
 
@@ -95,7 +95,7 @@ class ModelEditTask implements IDisposable {
 		return null;
 	}
 
-	apply(reason?: TextModelEditReason): void {
+	apply(reason?: TextModelEditSource): void {
 		if (this._edits.length > 0) {
 			this._edits = this._edits
 				.map(this._transformSnippetStringToInsertText, this) // no editor -> no snippet mode
@@ -135,7 +135,7 @@ class EditorEditTask extends ModelEditTask {
 		return this._canUseEditor() ? this._editor.getSelections() : null;
 	}
 
-	override apply(reason?: TextModelEditReason): void {
+	override apply(reason?: TextModelEditSource): void {
 
 		// Check that the editor is still for the wanted model. It might have changed in the
 		// meantime and that means we cannot use the editor anymore (instead we perform the edit through the model)
@@ -288,7 +288,7 @@ export class BulkTextEdits {
 		return { canApply: true };
 	}
 
-	async apply(reason?: TextModelEditReason): Promise<readonly URI[]> {
+	async apply(reason?: TextModelEditSource): Promise<readonly URI[]> {
 
 		this._validateBeforePrepare();
 		const tasks = await this._createEditsTasks();

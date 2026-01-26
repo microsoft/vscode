@@ -291,10 +291,10 @@ const visualizersExtensionPoint = ExtensionsRegistry.registerExtensionPoint<{ id
 			required: ['id', 'when']
 		}
 	},
-	activationEventsGenerator: (contribs, result: { push(item: string): void }) => {
+	activationEventsGenerator: function* (contribs) {
 		for (const contrib of contribs) {
 			if (contrib.id) {
-				result.push(`onDebugVisualizer:${contrib.id}`);
+				yield `onDebugVisualizer:${contrib.id}`;
 			}
 		}
 	}

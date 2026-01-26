@@ -20,7 +20,7 @@ import { IMenu, IMenuService } from '../../../../../platform/actions/common/acti
 import { TransientOptions } from '../../common/notebookCommon.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { AsyncIterableObject } from '../../../../../base/common/async.js';
+import { AsyncIterableProducer } from '../../../../../base/common/async.js';
 
 suite('NotebookKernelService', () => {
 
@@ -199,8 +199,8 @@ class TestNotebookKernel implements INotebookKernel {
 	cancelNotebookCellExecution(): Promise<void> {
 		throw new Error('Method not implemented.');
 	}
-	provideVariables(notebookUri: URI, parentId: number | undefined, kind: 'named' | 'indexed', start: number, token: CancellationToken): AsyncIterableObject<VariablesResult> {
-		return AsyncIterableObject.EMPTY;
+	provideVariables(notebookUri: URI, parentId: number | undefined, kind: 'named' | 'indexed', start: number, token: CancellationToken): AsyncIterableProducer<VariablesResult> {
+		return AsyncIterableProducer.EMPTY;
 	}
 
 	constructor(opts?: { languages?: string[]; label?: string; viewType?: string }) {

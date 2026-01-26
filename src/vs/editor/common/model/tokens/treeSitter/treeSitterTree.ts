@@ -10,7 +10,8 @@ import { setTimeout0 } from '../../../../../base/common/platform.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { TextLength } from '../../../core/text/textLength.js';
-import { IModelContentChangedEvent, IModelContentChange } from '../../../textModelEvents.js';
+import { IModelContentChangedEvent } from '../../../textModelEvents.js';
+import { IModelContentChange } from '../../mirrorTextModel.js';
 import { TextModel } from '../../textModel.js';
 import { gotoParent, getClosestPreviousNodes, nextSiblingOrParentSibling, gotoNthChild } from './cursorUtils.js';
 import { Range } from '../../../core/range.js';
@@ -404,7 +405,7 @@ export class TreeSitterTree extends Disposable {
 
 	public createParsedTreeSync(src: string): TreeSitter.Tree | undefined {
 		const parser = new this._parserClass();
-		parser.setLanguage(this._parser.language!);
+		parser.setLanguage(this._parser.language);
 		const tree = parser.parse(src);
 		parser.delete();
 		return tree ?? undefined;

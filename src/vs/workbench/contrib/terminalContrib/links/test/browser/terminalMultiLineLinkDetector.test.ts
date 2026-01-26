@@ -22,6 +22,8 @@ import { ITerminalLogService } from '../../../../../../platform/terminal/common/
 import { TerminalMultiLineLinkDetector } from '../../browser/terminalMultiLineLinkDetector.js';
 import { importAMDNodeModule } from '../../../../../../amdX.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { isString } from '../../../../../../base/common/types.js';
+import { TestXtermLogger } from '../../../../../../platform/terminal/test/common/terminalTestHelpers.js';
 
 const unixLinks: (string | { link: string; resource: URI })[] = [
 	// Absolute
@@ -153,7 +155,7 @@ suite('Workbench - TerminalMultiLineLinkDetector', () => {
 		validResources = [];
 
 		const TerminalCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
-		xterm = new TerminalCtor({ allowProposedApi: true, cols: 80, rows: 30 });
+		xterm = new TerminalCtor({ allowProposedApi: true, cols: 80, rows: 30, logger: TestXtermLogger });
 	});
 
 	suite('macOS/Linux', () => {
@@ -168,8 +170,8 @@ suite('Workbench - TerminalMultiLineLinkDetector', () => {
 		});
 
 		for (const l of unixLinks) {
-			const baseLink = typeof l === 'string' ? l : l.link;
-			const resource = typeof l === 'string' ? URI.file(l) : l.resource;
+			const baseLink = isString(l) ? l : l.link;
+			const resource = isString(l) ? URI.file(l) : l.resource;
 			suite(`Link: ${baseLink}`, () => {
 				for (let i = 0; i < supportedLinkFormats.length; i++) {
 					const linkFormat = supportedLinkFormats[i];
@@ -197,8 +199,8 @@ suite('Workbench - TerminalMultiLineLinkDetector', () => {
 			});
 
 			for (const l of windowsLinks) {
-				const baseLink = typeof l === 'string' ? l : l.link;
-				const resource = typeof l === 'string' ? URI.file(l) : l.resource;
+				const baseLink = isString(l) ? l : l.link;
+				const resource = isString(l) ? URI.file(l) : l.resource;
 				suite(`Link "${baseLink}"`, () => {
 					for (let i = 0; i < supportedLinkFormats.length; i++) {
 						const linkFormat = supportedLinkFormats[i];

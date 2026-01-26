@@ -32,6 +32,10 @@ export class ExtHostSecretState implements ExtHostSecretStateShape {
 	delete(extensionId: string, key: string): Promise<void> {
 		return this._proxy.$deletePassword(extensionId, key);
 	}
+
+	keys(extensionId: string): Promise<string[]> {
+		return this._proxy.$getKeys(extensionId);
+	}
 }
 
 export interface IExtHostSecretState extends ExtHostSecretState { }

@@ -4,9 +4,12 @@
 		"outDir": "./dist/",
 		"jsx": "react",
 		"lib": [
-			"es2018",
+			"ES2024",
 			"DOM",
 			"DOM.Iterable"
+		],
+		"typeRoots": [
+			"../node_modules/@types"
 		]
 	}
 }

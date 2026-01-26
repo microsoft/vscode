@@ -12,7 +12,7 @@ import { DeferredPromise, runWhenGlobalIdle } from '../../../../../../base/commo
 import { decodeBase64 } from '../../../../../../base/common/buffer.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { IDisposable } from '../../../../../../base/common/lifecycle.js';
-import { getExtensionForMimeType } from '../../../../../../base/common/mime.js';
+import { getExtensionForMimeType, isTextStreamMime } from '../../../../../../base/common/mime.js';
 import { FileAccess, Schemas, matchesScheme, matchesSomeScheme } from '../../../../../../base/common/network.js';
 import { equals } from '../../../../../../base/common/objects.js';
 import * as osPath from '../../../../../../base/common/path.js';
@@ -45,7 +45,7 @@ import { NOTEBOOK_WEBVIEW_BOUNDARY } from '../notebookCellList.js';
 import { preloadsScriptStr } from './webviewPreloads.js';
 import { transformWebviewThemeVars } from './webviewThemeMapping.js';
 import { MarkupCellViewModel } from '../../viewModel/markupCellViewModel.js';
-import { CellUri, ICellOutput, INotebookRendererInfo, isTextStreamMime, RendererMessagingSpec } from '../../../common/notebookCommon.js';
+import { CellUri, ICellOutput, INotebookRendererInfo, RendererMessagingSpec } from '../../../common/notebookCommon.js';
 import { INotebookKernel } from '../../../common/notebookKernelService.js';
 import { INotebookLoggingService } from '../../../common/notebookLoggingService.js';
 import { IScopedRendererMessaging } from '../../../common/notebookRendererMessagingService.js';

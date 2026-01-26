@@ -234,6 +234,7 @@ export class ExpressionContainer implements IExpressionContainer {
 		} catch (e) {
 			this.value = e.message || '';
 			this.reference = 0;
+			this.memoryReference = undefined;
 			return false;
 		}
 	}
@@ -331,6 +332,24 @@ export class Expression extends ExpressionContainer implements IExpression {
 		return `${this.name}\n${this.value}`;
 	}
 
+	toJSON() {
+		return {
+			sessionId: this.getSession()?.getId(),
+			variable: this.toDebugProtocolObject(),
+		};
+	}
+
+	toDebugProtocolObject(): DebugProtocol.Variable {
+		return {
+			name: this.name,
+			variablesReference: this.reference || 0,
+			memoryReference: this.memoryReference,
+			value: this.value,
+			type: this.type,
+			evaluateName: this.name
+		};
+	}
+
 	async setExpression(value: string, stackFrame: IStackFrame): Promise<void> {
 		if (!this.session) {
 			return;
@@ -375,7 +394,7 @@ export class Variable extends ExpressionContainer implements IExpression {
 		return this.threadId;
 	}
 
-	async setVariable(value: string, stackFrame: IStackFrame): Promise<any> {
+	async setVariable(value: string, stackFrame: IStackFrame): Promise<void> {
 		if (!this.session) {
 			return;
 		}
@@ -406,6 +425,16 @@ export class Variable extends ExpressionContainer implements IExpression {
 		return this.name ? `${this.name}: ${this.value}` : this.value;
 	}
 
+	toJSON() {
+		return {
+			sessionId: this.getSession()?.getId(),
+			container: this.parent instanceof Expression
+				? { expression: this.parent.name }
+				: (this.parent as (Variable | Scope)).toDebugProtocolObject(),
+			variable: this.toDebugProtocolObject()
+		};
+	}
+
 	protected override adoptLazyResponse(response: DebugProtocol.Variable): void {
 		this.evaluateName = response.evaluateName;
 	}
@@ -416,6 +445,7 @@ export class Variable extends ExpressionContainer implements IExpression {
 			variablesReference: this.reference || 0,
 			memoryReference: this.memoryReference,
 			value: this.value,
+			type: this.type,
 			evaluateName: this.evaluateName
 		};
 	}
@@ -434,6 +464,10 @@ export class Scope extends ExpressionContainer implements IScope {
 		public readonly range?: IRange
 	) {
 		super(stackFrame.thread.session, stackFrame.thread.threadId, reference, `scope:${name}:${id}`, namedVariables, indexedVariables);
+	}
+
+	get childrenHaveBeenLoaded(): boolean {
+		return !!this.children;
 	}
 
 	override toString(): string {
@@ -687,35 +721,35 @@ export class Thread implements IThread {
 		return Promise.resolve(undefined);
 	}
 
-	next(granularity?: DebugProtocol.SteppingGranularity): Promise<any> {
+	next(granularity?: DebugProtocol.SteppingGranularity): Promise<void> {
 		return this.session.next(this.threadId, granularity);
 	}
 
-	stepIn(granularity?: DebugProtocol.SteppingGranularity): Promise<any> {
+	stepIn(granularity?: DebugProtocol.SteppingGranularity): Promise<void> {
 		return this.session.stepIn(this.threadId, undefined, granularity);
 	}
 
-	stepOut(granularity?: DebugProtocol.SteppingGranularity): Promise<any> {
+	stepOut(granularity?: DebugProtocol.SteppingGranularity): Promise<void> {
 		return this.session.stepOut(this.threadId, granularity);
 	}
 
-	stepBack(granularity?: DebugProtocol.SteppingGranularity): Promise<any> {
+	stepBack(granularity?: DebugProtocol.SteppingGranularity): Promise<void> {
 		return this.session.stepBack(this.threadId, granularity);
 	}
 
-	continue(): Promise<any> {
+	continue(): Promise<void> {
 		return this.session.continue(this.threadId);
 	}
 
-	pause(): Promise<any> {
+	pause(): Promise<void> {
 		return this.session.pause(this.threadId);
 	}
 
-	terminate(): Promise<any> {
+	terminate(): Promise<void> {
 		return this.session.terminateThreads([this.threadId]);
 	}
 
-	reverseContinue(): Promise<any> {
+	reverseContinue(): Promise<void> {
 		return this.session.reverseContinue(this.threadId);
 	}
 }
@@ -957,14 +991,14 @@ export interface IBreakpointOptions extends IBaseBreakpointOptions {
 	uri: uri;
 	lineNumber: number;
 	column: number | undefined;
-	adapterData: any;
+	adapterData: unknown;
 	triggeredBy: string | undefined;
 }
 
 export class Breakpoint extends BaseBreakpoint implements IBreakpoint {
 	private sessionsDidTrigger?: Set<string>;
 	private readonly _uri: uri;
-	private _adapterData: any;
+	private _adapterData: unknown;
 	private _lineNumber: number;
 	private _column: number | undefined;
 	public triggeredBy: string | undefined;
@@ -1034,7 +1068,7 @@ export class Breakpoint extends BaseBreakpoint implements IBreakpoint {
 		return super.message;
 	}
 
-	get adapterData(): any {
+	get adapterData(): unknown {
 		return this.data && this.data.source && this.data.source.adapterData ? this.data.source.adapterData : this._adapterData;
 	}
 
@@ -1424,6 +1458,9 @@ export class DebugModel extends Disposable implements IDebugModel {
 	private breakpointsActivated = true;
 	private readonly _onDidChangeBreakpoints = this._register(new Emitter<IBreakpointsChangeEvent | undefined>());
 	private readonly _onDidChangeCallStack = this._register(new Emitter<void>());
+	private _onDidChangeCallStackFire = this._register(new RunOnceScheduler(() => {
+		this._onDidChangeCallStack.fire(undefined);
+	}, 100));
 	private readonly _onDidChangeWatchExpressions = this._register(new Emitter<IExpression | undefined>());
 	private readonly _onDidChangeWatchExpressionValue = this._register(new Emitter<IExpression | undefined>());
 	private readonly _breakpointModes = new Map<string, IBreakpointModeInternal>();
@@ -1541,15 +1578,28 @@ export class DebugModel extends Disposable implements IDebugModel {
 
 	clearThreads(id: string, removeThreads: boolean, reference: number | undefined = undefined): void {
 		const session = this.sessions.find(p => p.getId() === id);
-		this.schedulers.forEach(entry => {
-			entry.scheduler.dispose();
-			entry.completeDeferred.complete();
-		});
-		this.schedulers.clear();
-
 		if (session) {
+			let threads: IThread[];
+			if (reference === undefined) {
+				threads = session.getAllThreads();
+			} else {
+				const thread = session.getThread(reference);
+				threads = thread !== undefined ? [thread] : [];
+			}
+			for (const thread of threads) {
+				const threadId = thread.getId();
+				const entry = this.schedulers.get(threadId);
+				if (entry !== undefined) {
+					entry.scheduler.dispose();
+					entry.completeDeferred.complete();
+					this.schedulers.delete(threadId);
+				}
+			}
+
 			session.clearThreads(removeThreads, reference);
-			this._onDidChangeCallStack.fire(undefined);
+			if (!this._onDidChangeCallStackFire.isScheduled()) {
+				this._onDidChangeCallStackFire.schedule();
+			}
 		}
 	}
 

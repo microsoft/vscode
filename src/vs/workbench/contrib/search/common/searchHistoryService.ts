@@ -10,7 +10,7 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 
 export interface ISearchHistoryService {
 	readonly _serviceBrand: undefined;
-	onDidClearHistory: Event<void>;
+	readonly onDidClearHistory: Event<void>;
 	clearHistory(): void;
 	load(): ISearchHistoryValues;
 	save(history: ISearchHistoryValues): void;

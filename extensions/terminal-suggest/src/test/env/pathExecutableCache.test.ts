@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'mocha';
-import { strictEqual } from 'node:assert';
+import { deepStrictEqual, strictEqual } from 'node:assert';
 import type { MarkdownString } from 'vscode';
 import { PathExecutableCache } from '../../env/pathExecutableCache';
+import { WindowsExecutableExtensionsCache, windowsDefaultExecutableExtensions } from '../../helpers/executable';
 
 suite('PathExecutableCache', () => {
 	test('cache should return empty for empty PATH', async () => {
@@ -16,12 +17,12 @@ suite('PathExecutableCache', () => {
 		strictEqual(Array.from(result!.labels!).length, 0);
 	});
 
-	test('caching is working on successive calls', async () => {
+	test('results are the same on successive calls', async () => {
 		const cache = new PathExecutableCache();
 		const env = { PATH: process.env.PATH };
 		const result = await cache.getExecutablesInPath(env);
 		const result2 = await cache.getExecutablesInPath(env);
-		strictEqual(result, result2);
+		deepStrictEqual(result!.labels, result2!.labels);
 	});
 
 	test('refresh clears the cache', async () => {
@@ -65,6 +66,45 @@ suite('PathExecutableCache', () => {
 			const symlinkPath = path.join(fixtureDir, 'symlink-executable.sh');
 			strictEqual(realDoc, realPath);
 			strictEqual(symlinkDoc, `${symlinkPath} -> ${realPath}`);
+		});
+	}
+
+	if (process.platform === 'win32') {
+		suite('WindowsExecutableExtensionsCache', () => {
+			test('returns default extensions when not configured', () => {
+				const cache = new WindowsExecutableExtensionsCache();
+				const extensions = cache.getExtensions();
+
+				for (const ext of windowsDefaultExecutableExtensions) {
+					strictEqual(extensions.has(ext), true, `expected default extension ${ext}`);
+				}
+			});
+
+			test('honors configured additions and removals', () => {
+				const cache = new WindowsExecutableExtensionsCache({
+					'.added': true,
+					'.bat': false
+				});
+
+				const extensions = cache.getExtensions();
+				strictEqual(extensions.has('.added'), true);
+				strictEqual(extensions.has('.bat'), false);
+				strictEqual(extensions.has('.exe'), true);
+			});
+
+			test('recomputes only after update is called', () => {
+				const cache = new WindowsExecutableExtensionsCache({ '.one': true });
+
+				const first = cache.getExtensions();
+				const second = cache.getExtensions();
+				strictEqual(first, second, 'expected cached set to be reused');
+
+				cache.update({ '.two': true });
+				const third = cache.getExtensions();
+				strictEqual(third.has('.two'), true);
+				strictEqual(third.has('.one'), false);
+				strictEqual(third === first, false, 'expected cache to recompute after update');
+			});
 		});
 	}
 });

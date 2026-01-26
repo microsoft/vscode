@@ -12,7 +12,7 @@ export interface IMarcoPoloEvent {
 }
 
 export interface ITestService {
-	onMarco: Event<IMarcoPoloEvent>;
+	readonly onMarco: Event<IMarcoPoloEvent>;
 	marco(): Promise<string>;
 	pong(ping: string): Promise<{ incoming: string; outgoing: string }>;
 	cancelMe(): Promise<boolean>;
@@ -21,7 +21,7 @@ export interface ITestService {
 export class TestService implements ITestService {
 
 	private readonly _onMarco = new Emitter<IMarcoPoloEvent>();
-	onMarco: Event<IMarcoPoloEvent> = this._onMarco.event;
+	readonly onMarco: Event<IMarcoPoloEvent> = this._onMarco.event;
 
 	marco(): Promise<string> {
 		this._onMarco.fire({ answer: 'polo' });

@@ -5,12 +5,14 @@
 
 import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../base/common/actions.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
+import { Codicon } from '../../../base/common/codicons.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { isCancellationError } from '../../../base/common/errors.js';
-import { matchesContiguousSubString, matchesPrefix, matchesWords, or } from '../../../base/common/filters.js';
+import { IMatch, matchesBaseContiguousSubString, matchesWords, or } from '../../../base/common/filters.js';
 import { createSingleCallFunction } from '../../../base/common/functional.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { LRUCache } from '../../../base/common/map.js';
+import { ThemeIcon } from '../../../base/common/themables.js';
 import { TfIdfCalculator, normalizeTfIdfScores } from '../../../base/common/tfIdf.js';
 import { localize } from '../../../nls.js';
 import { ILocalizedString } from '../../action/common/action.js';
@@ -20,19 +22,23 @@ import { IDialogService } from '../../dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../keybinding/common/keybinding.js';
 import { ILogService } from '../../log/common/log.js';
-import { FastAndSlowPicks, IPickerQuickAccessItem, IPickerQuickAccessProviderOptions, PickerQuickAccessProvider, Picks } from './pickerQuickAccess.js';
+import { FastAndSlowPicks, IPickerQuickAccessItem, IPickerQuickAccessProviderOptions, PickerQuickAccessProvider, Picks, TriggerAction } from './pickerQuickAccess.js';
 import { IQuickAccessProviderRunOptions } from '../common/quickAccess.js';
-import { IQuickPickSeparator } from '../common/quickInput.js';
+import { IKeyMods, IQuickPickSeparator } from '../common/quickInput.js';
 import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from '../../storage/common/storage.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
+import { Categories } from '../../action/common/actionCommonCategories.js';
 
 export interface ICommandQuickPick extends IPickerQuickAccessItem {
 	readonly commandId: string;
 	readonly commandWhen?: string;
 	readonly commandAlias?: string;
 	readonly commandDescription?: ILocalizedString;
+	readonly commandCategory?: string;
+
+	readonly args?: unknown[];
+
 	tfIdfScore?: number;
-	readonly args?: any[];
 }
 
 export interface ICommandsQuickAccessOptions extends IPickerQuickAccessProviderOptions<ICommandQuickPick> {
@@ -47,7 +53,7 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 	private static readonly TFIDF_THRESHOLD = 0.5;
 	private static readonly TFIDF_MAX_RESULTS = 5;
 
-	private static WORD_FILTER = or(matchesPrefix, matchesWords, matchesContiguousSubString);
+	private static WORD_FILTER = or(matchesBaseContiguousSubString, matchesWords);
 
 	private readonly commandsHistory: CommandsHistory;
 
@@ -94,7 +100,11 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 		const filteredCommandPicks: ICommandQuickPick[] = [];
 		for (const commandPick of allCommandPicks) {
 			const labelHighlights = AbstractCommandsQuickAccessProvider.WORD_FILTER(filter, commandPick.label) ?? undefined;
-			const aliasHighlights = commandPick.commandAlias ? AbstractCommandsQuickAccessProvider.WORD_FILTER(filter, commandPick.commandAlias) ?? undefined : undefined;
+
+			let aliasHighlights: IMatch[] | undefined;
+			if (commandPick.commandAlias) {
+				aliasHighlights = AbstractCommandsQuickAccessProvider.WORD_FILTER(filter, commandPick.commandAlias) ?? undefined;
+			}
 
 			// Add if matching in label or alias
 			if (labelHighlights || aliasHighlights) {
@@ -141,11 +151,13 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 
 		// Sort by MRU order and fallback to name otherwise
 		filteredCommandPicks.sort((commandPickA, commandPickB) => {
+
 			// If a result came from tf-idf, we want to put that towards the bottom
 			if (commandPickA.tfIdfScore && commandPickB.tfIdfScore) {
 				if (commandPickA.tfIdfScore === commandPickB.tfIdfScore) {
 					return commandPickA.label.localeCompare(commandPickB.label); // prefer lexicographically smaller command
 				}
+
 				return commandPickB.tfIdfScore - commandPickA.tfIdfScore; // prefer higher tf-idf score
 			} else if (commandPickA.tfIdfScore) {
 				return 1; // first command has a score but other doesn't so other wins
@@ -184,6 +196,16 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 				}
 			}
 
+			// if one is Developer and the other isn't, put non-Developer first
+			const isDeveloperA = commandPickA.commandCategory === Categories.Developer.value;
+			const isDeveloperB = commandPickB.commandCategory === Categories.Developer.value;
+			if (isDeveloperA && !isDeveloperB) {
+				return 1;
+			}
+			if (!isDeveloperA && isDeveloperB) {
+				return -1;
+			}
+
 			// both commands were never used, so we sort by name
 			return commandPickA.label.localeCompare(commandPickB.label);
 		});
@@ -195,9 +217,10 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 		let addCommonlyUsedSeparator = !!this.options.suggestedCommandIds;
 		for (let i = 0; i < filteredCommandPicks.length; i++) {
 			const commandPick = filteredCommandPicks[i];
+			const isInHistory = !!this.commandsHistory.peek(commandPick.commandId);
 
 			// Separator: recently used
-			if (i === 0 && this.commandsHistory.peek(commandPick.commandId)) {
+			if (i === 0 && isInHistory) {
 				commandPicks.push({ type: 'separator', label: localize('recentlyUsed', "recently used") });
 				addOtherSeparator = true;
 			}
@@ -208,20 +231,20 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 			}
 
 			// Separator: commonly used
-			if (addCommonlyUsedSeparator && commandPick.tfIdfScore === undefined && !this.commandsHistory.peek(commandPick.commandId) && this.options.suggestedCommandIds?.has(commandPick.commandId)) {
+			if (addCommonlyUsedSeparator && commandPick.tfIdfScore === undefined && !isInHistory && this.options.suggestedCommandIds?.has(commandPick.commandId)) {
 				commandPicks.push({ type: 'separator', label: localize('commonlyUsed', "commonly used") });
 				addOtherSeparator = true;
 				addCommonlyUsedSeparator = false;
 			}
 
 			// Separator: other commands
-			if (addOtherSeparator && commandPick.tfIdfScore === undefined && !this.commandsHistory.peek(commandPick.commandId) && !this.options.suggestedCommandIds?.has(commandPick.commandId)) {
+			if (addOtherSeparator && commandPick.tfIdfScore === undefined && !isInHistory && !this.options.suggestedCommandIds?.has(commandPick.commandId)) {
 				commandPicks.push({ type: 'separator', label: localize('morecCommands', "other commands") });
 				addOtherSeparator = false;
 			}
 
 			// Command
-			commandPicks.push(this.toCommandPick(commandPick, runOptions));
+			commandPicks.push(this.toCommandPick(commandPick, runOptions, isInHistory));
 		}
 
 		if (!this.hasAdditionalCommandPicks(filter, token)) {
@@ -247,21 +270,35 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 		};
 	}
 
-	private toCommandPick(commandPick: ICommandQuickPick | IQuickPickSeparator, runOptions?: IQuickAccessProviderRunOptions): ICommandQuickPick | IQuickPickSeparator {
+	private toCommandPick(commandPick: ICommandQuickPick | IQuickPickSeparator, runOptions?: IQuickAccessProviderRunOptions, isRecentlyUsed: boolean = false): ICommandQuickPick | IQuickPickSeparator {
 		if (commandPick.type === 'separator') {
 			return commandPick;
 		}
+		const tooltip = commandPick.tooltip
+			?? commandPick.commandDescription?.value;
 
 		const keybinding = this.keybindingService.lookupKeybinding(commandPick.commandId);
 		const ariaLabel = keybinding ?
 			localize('commandPickAriaLabelWithKeybinding', "{0}, {1}", commandPick.label, keybinding.getAriaLabel()) :
 			commandPick.label;
 
+		// Add remove button for recently used items (as the last button, to the right)
+		const existingButtons = commandPick.buttons || [];
+		const buttons = isRecentlyUsed ? [
+			...existingButtons,
+			{
+				iconClass: ThemeIcon.asClassName(Codicon.close),
+				tooltip: localize('removeFromRecentlyUsed', "Remove from Recently Used")
+			}
+		] : commandPick.buttons;
+
 		return {
 			...commandPick,
+			tooltip,
 			ariaLabel,
 			detail: this.options.showAlias && commandPick.commandAlias !== commandPick.label ? commandPick.commandAlias : undefined,
 			keybinding,
+			buttons,
 			accept: async () => {
 
 				// Add to history
@@ -283,7 +320,20 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 						this.dialogService.error(localize('canNotRun', "Command '{0}' resulted in an error", commandPick.label), toErrorMessage(error));
 					}
 				}
-			}
+			},
+			trigger: isRecentlyUsed ? (buttonIndex: number, keyMods: IKeyMods): TriggerAction | Promise<TriggerAction> => {
+				// The remove button is now the last button
+				const removeButtonIndex = existingButtons.length;
+				if (buttonIndex === removeButtonIndex) {
+					this.commandsHistory.remove(commandPick.commandId);
+					return TriggerAction.REMOVE_ITEM;
+				}
+				// Handle other buttons (e.g., configure keybinding button)
+				if (commandPick.trigger) {
+					return commandPick.trigger(buttonIndex, keyMods);
+				}
+				return TriggerAction.NO_ACTION;
+			} : commandPick.trigger
 		};
 	}
 
@@ -409,6 +459,15 @@ export class CommandsHistory extends Disposable {
 		return CommandsHistory.cache?.peek(commandId);
 	}
 
+	remove(commandId: string): void {
+		if (!CommandsHistory.cache) {
+			return;
+		}
+
+		CommandsHistory.cache.delete(commandId);
+		CommandsHistory.hasChanges = true;
+	}
+
 	private saveState(): void {
 		if (!CommandsHistory.cache) {
 			return;
@@ -427,7 +486,7 @@ export class CommandsHistory extends Disposable {
 	}
 
 	static getConfiguredCommandHistoryLength(configurationService: IConfigurationService): number {
-		const config = <ICommandsQuickAccessConfiguration>configurationService.getValue();
+		const config = configurationService.getValue<ICommandsQuickAccessConfiguration>();
 
 		const configuredCommandHistoryLength = config.workbench?.commandPalette?.history;
 		if (typeof configuredCommandHistoryLength === 'number') {

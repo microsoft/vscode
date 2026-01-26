@@ -90,7 +90,7 @@ class AccountAccessSecretStorage implements IAccountAccessSecretStorage, Disposa
 	private readonly _onDidChangeEmitter = new EventEmitter<void>();
 	readonly onDidChange: Event<void> = this._onDidChangeEmitter.event;
 
-	private readonly _key = `accounts-${this._cloudName}`;
+	private readonly _key: string;
 
 	private constructor(
 		private readonly _secretStorage: SecretStorage,
@@ -98,6 +98,8 @@ class AccountAccessSecretStorage implements IAccountAccessSecretStorage, Disposa
 		private readonly _logger: LogOutputChannel,
 		private readonly _migrations?: { clientId: string; authority: string }[],
 	) {
+		this._key = `accounts-${this._cloudName}`;
+
 		this._disposable = Disposable.from(
 			this._onDidChangeEmitter,
 			this._secretStorage.onDidChange(e => {

@@ -126,6 +126,8 @@ export interface ICommonNativeHostService {
 	 */
 	updateWindowControls(options: INativeHostOptions & { height?: number; backgroundColor?: string; foregroundColor?: string }): Promise<void>;
 
+	updateWindowAccentColor(color: 'default' | 'off' | string, inactiveColor: string | undefined): Promise<void>;
+
 	setMinimumSize(width: number | undefined, height: number | undefined): Promise<void>;
 
 	saveWindowSplash(splash: IPartsSplash): Promise<void>;
@@ -211,6 +213,8 @@ export interface ICommonNativeHostService {
 	openDevTools(options?: Partial<OpenDevToolsOptions> & INativeHostOptions): Promise<void>;
 	toggleDevTools(options?: INativeHostOptions): Promise<void>;
 	openGPUInfoWindow(): Promise<void>;
+	openDevToolsWindow(url: string): Promise<void>;
+	openContentTracingWindow(): Promise<void>;
 	stopTracing(): Promise<void>;
 
 	// Perf Introspection
@@ -226,6 +230,15 @@ export interface ICommonNativeHostService {
 
 	// Registry (Windows only)
 	windowsGetStringRegKey(hive: 'HKEY_CURRENT_USER' | 'HKEY_LOCAL_MACHINE' | 'HKEY_CLASSES_ROOT' | 'HKEY_USERS' | 'HKEY_CURRENT_CONFIG', path: string, name: string): Promise<string | undefined>;
+
+	// Zip
+	/**
+	 * Creates a zip file at the specified path containing the provided files.
+	 *
+	 * @param zipPath The URI where the zip file should be created.
+	 * @param files An array of file entries to include in the zip, each with a relative path and string contents.
+	 */
+	createZipFile(zipPath: URI, files: { path: string; contents: string }[]): Promise<void>;
 }
 
 export const INativeHostService = createDecorator<INativeHostService>('nativeHostService');

@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore, dispose, IDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, dispose, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { localize2 } from '../../../../../../nls.js';
 import { Categories } from '../../../../../../platform/action/common/actionCommonCategories.js';
 import { Action2, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
 import { ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { getNotebookEditorFromEditorPane, ICellViewModel, ICommonCellViewModelLayoutChangeInfo, INotebookDeltaCellStatusBarItems, INotebookEditor, INotebookEditorContribution } from '../../notebookBrowser.js';
+import { getNotebookEditorFromEditorPane, ICellViewModel, INotebookDeltaCellStatusBarItems, INotebookEditor, INotebookEditorContribution } from '../../notebookBrowser.js';
 import { registerNotebookContribution } from '../../notebookEditorExtensions.js';
 import { NotebookEditorWidget } from '../../notebookEditorWidget.js';
 import { CellStatusbarAlignment, INotebookCellStatusBarItem } from '../../../common/notebookCommon.js';
@@ -20,10 +20,9 @@ export class TroubleshootController extends Disposable implements INotebookEdito
 	static id: string = 'workbench.notebook.troubleshoot';
 
 	private readonly _localStore = this._register(new DisposableStore());
-	private _cellStateListeners: IDisposable[] = [];
+	private _cellDisposables: DisposableStore[] = [];
 	private _enabled: boolean = false;
 	private _cellStatusItems: string[] = [];
-	private _cellOverlayIds: string[] = [];
 	private _notebookOverlayDomNode: HTMLElement | undefined;
 
 	constructor(private readonly _notebookEditor: INotebookEditor) {
@@ -43,17 +42,16 @@ export class TroubleshootController extends Disposable implements INotebookEdito
 
 	private _update() {
 		this._localStore.clear();
-		this._cellStateListeners.forEach(listener => listener.dispose());
-		this._removeCellOverlays();
+		this._cellDisposables.forEach(d => d.dispose());
+		this._cellDisposables = [];
 		this._removeNotebookOverlay();
 
 		if (!this._notebookEditor.hasModel()) {
 			return;
 		}
 
-		this._updateListener();
-
 		if (this._enabled) {
+			this._updateListener();
 			this._createNotebookOverlay();
 			this._createCellOverlays();
 		}
@@ -149,6 +147,7 @@ export class TroubleshootController extends Disposable implements INotebookEdito
 
 			if (this._notebookOverlayDomNode) {
 				// Update label
+				// eslint-disable-next-line no-restricted-syntax
 				const labelElement = this._notebookOverlayDomNode.querySelector('div:nth-child(2)') as HTMLElement;
 				if (labelElement) {
 					labelElement.textContent = `ScrollTop: ${scrollTop}px`;
@@ -156,6 +155,7 @@ export class TroubleshootController extends Disposable implements INotebookEdito
 				}
 
 				// Update top line
+				// eslint-disable-next-line no-restricted-syntax
 				const topLineElement = this._notebookOverlayDomNode.querySelector('div:first-child') as HTMLElement;
 				if (topLineElement) {
 					topLineElement.style.top = `${listViewTop}px`;
@@ -184,8 +184,11 @@ export class TroubleshootController extends Disposable implements INotebookEdito
 
 		const getLayoutInfo = () => {
 			const eol = cell.textBuffer.getEOL() === '\n' ? 'LF' : 'CRLF';
-			const scrollTop = this._notebookEditor.getAbsoluteTopOfElement(cell);
-			return `cell #${index} (handle: ${cell.handle}) | AbsoluteTopOfElement: ${scrollTop}px | EOL: ${eol}`;
+			let scrollTop = '';
+			if (cell.layoutInfo.layoutState > 0) {
+				scrollTop = `| AbsoluteTopOfElement: ${this._notebookEditor.getAbsoluteTopOfElement(cell)}px`;
+			}
+			return `cell #${index} (handle: ${cell.handle}) ${scrollTop} | EOL: ${eol}`;
 		};
 		const label = document.createElement('div');
 		label.textContent = getLayoutInfo();
@@ -212,7 +215,6 @@ export class TroubleshootController extends Disposable implements INotebookEdito
 		});
 
 		if (overlayId) {
-			this._cellOverlayIds.push(overlayId);
 
 			// Update overlay when layout changes
 			const updateLayout = () => {
@@ -227,33 +229,30 @@ export class TroubleshootController extends Disposable implements INotebookEdito
 				}
 			};
 
-			this._localStore.add(cell.onDidChangeLayout((e) => {
+			const disposables = this._cellDisposables[index];
+			disposables.add(cell.onDidChangeLayout((e) => {
 				updateLayout();
 			}));
-			this._localStore.add(cell.textBuffer.onDidChangeContent(() => {
+			disposables.add(cell.textBuffer.onDidChangeContent(() => {
 				updateLayout();
 			}));
 			if (cell.textModel) {
-				this._localStore.add(cell.textModel.onDidChangeContent(() => {
+				disposables.add(cell.textModel.onDidChangeContent(() => {
 					updateLayout();
 				}));
 			}
-			this._localStore.add(this._notebookEditor.onDidChangeLayout(() => {
+			disposables.add(this._notebookEditor.onDidChangeLayout(() => {
 				updateLayout();
+			}));
+			disposables.add(toDisposable(() => {
+				this._notebookEditor.changeCellOverlays((accessor) => {
+					if (overlayId) {
+						accessor.removeOverlay(overlayId);
+					}
+				});
 			}));
 		}
 
-	}
-
-	private _removeCellOverlays() {
-		if (this._cellOverlayIds.length > 0) {
-			this._notebookEditor.changeCellOverlays((accessor) => {
-				for (const id of this._cellOverlayIds) {
-					accessor.removeOverlay(id);
-				}
-			});
-			this._cellOverlayIds = [];
-		}
 	}
 
 	private _removeNotebookOverlay() {
@@ -271,7 +270,9 @@ export class TroubleshootController extends Disposable implements INotebookEdito
 		for (let i = 0; i < this._notebookEditor.getLength(); i++) {
 			const cell = this._notebookEditor.cellAt(i);
 
-			this._cellStateListeners.push(cell.onDidChangeLayout(e => {
+			const disposableStore = new DisposableStore();
+			this._cellDisposables.push(disposableStore);
+			disposableStore.add(cell.onDidChangeLayout(e => {
 				this._log(cell, e);
 			}));
 		}
@@ -279,14 +280,25 @@ export class TroubleshootController extends Disposable implements INotebookEdito
 		this._localStore.add(this._notebookEditor.onDidChangeViewCells(e => {
 			[...e.splices].reverse().forEach(splice => {
 				const [start, deleted, newCells] = splice;
-				const deletedCells = this._cellStateListeners.splice(start, deleted, ...newCells.map(cell => {
-					return cell.onDidChangeLayout((e: ICommonCellViewModelLayoutChangeInfo) => {
+				const deletedCells = this._cellDisposables.splice(start, deleted, ...newCells.map(cell => {
+					const disposableStore = new DisposableStore();
+					disposableStore.add(cell.onDidChangeLayout(e => {
 						this._log(cell, e);
-					});
+					}));
+					return disposableStore;
 				}));
 
 				dispose(deletedCells);
 			});
+
+			// Add the overlays
+			const addedCells = e.splices.reduce((acc, [, , newCells]) => [...acc, ...newCells], [] as ICellViewModel[]);
+			for (let i = 0; i < addedCells.length; i++) {
+				const cellIndex = this._notebookEditor.getCellIndex(addedCells[i]);
+				if (cellIndex !== undefined) {
+					this._createCellOverlay(addedCells[i], cellIndex);
+				}
+			}
 		}));
 
 		const vm = this._notebookEditor.getViewModel();
@@ -297,6 +309,7 @@ export class TroubleshootController extends Disposable implements INotebookEdito
 		}
 
 		this._cellStatusItems = vm.deltaCellStatusBarItems(this._cellStatusItems, items);
+
 	}
 
 	private _getItemsForCells(): INotebookDeltaCellStatusBarItems[] {
@@ -318,8 +331,7 @@ export class TroubleshootController extends Disposable implements INotebookEdito
 	}
 
 	override dispose() {
-		dispose(this._cellStateListeners);
-		this._removeCellOverlays();
+		dispose(this._cellDisposables);
 		this._removeNotebookOverlay();
 		this._localStore.clear();
 		super.dispose();

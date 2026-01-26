@@ -6,6 +6,8 @@
 import * as vscode from 'vscode';
 import { Command } from './commandManager';
 
+export const tsNativeExtensionId = 'typescriptteam.native-preview';
+
 export class EnableTsgoCommand implements Command {
 	public readonly id = 'typescript.experimental.enableTsgo';
 
@@ -27,7 +29,7 @@ export class DisableTsgoCommand implements Command {
  * @param enable Whether to enable or disable TypeScript Go
  */
 async function updateTsgoSetting(enable: boolean): Promise<void> {
-	const tsgoExtension = vscode.extensions.getExtension('typescript.typescript-lsp');
+	const tsgoExtension = vscode.extensions.getExtension(tsNativeExtensionId);
 	// Error if the TypeScript Go extension is not installed with a button to open the GitHub repo
 	if (!tsgoExtension) {
 		const selection = await vscode.window.showErrorMessage(
@@ -68,7 +70,5 @@ async function updateTsgoSetting(enable: boolean): Promise<void> {
 		}
 	}
 
-	// Update the setting, restart the extension host, and enable the TypeScript Go extension
 	await tsConfig.update('experimental.useTsgo', enable, target);
-	await vscode.commands.executeCommand('workbench.action.restartExtensionHost');
 }

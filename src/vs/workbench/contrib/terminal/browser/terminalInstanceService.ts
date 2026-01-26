@@ -16,6 +16,7 @@ import { TerminalContextKeys } from '../common/terminalContextKey.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { promiseWithResolvers } from '../../../../base/common/async.js';
+import { hasKey } from '../../../../base/common/types.js';
 
 export class TerminalInstanceService extends Disposable implements ITerminalInstanceService {
 	declare _serviceBrand: undefined;
@@ -54,7 +55,7 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 
 	convertProfileToShellLaunchConfig(shellLaunchConfigOrProfile?: IShellLaunchConfig | ITerminalProfile, cwd?: string | URI): IShellLaunchConfig {
 		// Profile was provided
-		if (shellLaunchConfigOrProfile && 'profileName' in shellLaunchConfigOrProfile) {
+		if (shellLaunchConfigOrProfile && hasKey(shellLaunchConfigOrProfile, { profileName: true })) {
 			const profile = shellLaunchConfigOrProfile;
 			if (!profile.path) {
 				return shellLaunchConfigOrProfile;

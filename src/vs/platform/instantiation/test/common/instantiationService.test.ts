@@ -288,7 +288,7 @@ suite('Instantiation Service', () => {
 
 	test('Invoke - get service, optional', function () {
 		const collection = new ServiceCollection([IService1, new Service1()]);
-		const service = new InstantiationService(collection);
+		const service = new InstantiationService(collection, true);
 
 		function test(accessor: ServicesAccessor) {
 			assert.ok(accessor.get(IService1) instanceof Service1);
@@ -467,7 +467,7 @@ suite('Instantiation Service', () => {
 		const A = createDecorator<A>('A');
 		interface A {
 			_serviceBrand: undefined;
-			onDidDoIt: Event<any>;
+			readonly onDidDoIt: Event<any>;
 			doIt(): void;
 		}
 
@@ -477,7 +477,7 @@ suite('Instantiation Service', () => {
 			_doIt = 0;
 
 			_onDidDoIt = new Emitter<this>();
-			onDidDoIt: Event<this> = this._onDidDoIt.event;
+			readonly onDidDoIt: Event<this> = this._onDidDoIt.event;
 
 			constructor() {
 				created = true;
@@ -531,7 +531,7 @@ suite('Instantiation Service', () => {
 		const A = createDecorator<A>('A');
 		interface A {
 			_serviceBrand: undefined;
-			onDidDoIt: Event<any>;
+			readonly onDidDoIt: Event<any>;
 			doIt(): void;
 			noop(): void;
 		}
@@ -542,7 +542,7 @@ suite('Instantiation Service', () => {
 			_doIt = 0;
 
 			_onDidDoIt = new Emitter<this>();
-			onDidDoIt: Event<this> = this._onDidDoIt.event;
+			readonly onDidDoIt: Event<this> = this._onDidDoIt.event;
 
 			constructor() {
 				created = true;
@@ -599,7 +599,7 @@ suite('Instantiation Service', () => {
 		const A = createDecorator<A>('A');
 		interface A {
 			_serviceBrand: undefined;
-			onDidDoIt: Event<any>;
+			readonly onDidDoIt: Event<any>;
 			doIt(): void;
 		}
 		let created = false;
@@ -608,7 +608,7 @@ suite('Instantiation Service', () => {
 			_doIt = 0;
 
 			_onDidDoIt = new Emitter<this>();
-			onDidDoIt: Event<this> = this._onDidDoIt.event;
+			readonly onDidDoIt: Event<this> = this._onDidDoIt.event;
 
 			constructor() {
 				created = true;

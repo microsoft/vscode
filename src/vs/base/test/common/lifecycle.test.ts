@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { Emitter } from '../../common/event.js';
-import { DisposableStore, dispose, IDisposable, markAsSingleton, ReferenceCollection, SafeDisposable, thenIfNotDisposed, toDisposable } from '../../common/lifecycle.js';
+import { DisposableStore, dispose, IDisposable, markAsSingleton, ReferenceCollection, thenIfNotDisposed, toDisposable } from '../../common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite, throwIfDisposablesAreLeaked } from './utils.js';
 
 class Disposable implements IDisposable {
@@ -107,25 +107,6 @@ suite('Lifecycle', () => {
 		const setValues = set.values();
 		const setValues2 = dispose(setValues);
 		assert.ok(setValues === setValues2);
-	});
-
-	test('SafeDisposable, dispose', function () {
-		let disposed = 0;
-		const actual = () => disposed += 1;
-		const d = new SafeDisposable();
-		d.set(actual);
-		d.dispose();
-		assert.strictEqual(disposed, 1);
-	});
-
-	test('SafeDisposable, unset', function () {
-		let disposed = 0;
-		const actual = () => disposed += 1;
-		const d = new SafeDisposable();
-		d.set(actual);
-		d.unset();
-		d.dispose();
-		assert.strictEqual(disposed, 0);
 	});
 });
 

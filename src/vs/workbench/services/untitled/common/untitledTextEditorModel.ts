@@ -65,6 +65,16 @@ export interface IUntitledTextEditorModel extends ITextEditorModel, ILanguageSup
 	 * Resolves the untitled model.
 	 */
 	resolve(): Promise<void>;
+
+	/**
+	 * Whether this model is resolved or not.
+	 */
+	isResolved(): this is IResolvedUntitledTextEditorModel;
+}
+
+export interface IResolvedUntitledTextEditorModel extends IUntitledTextEditorModel {
+
+	readonly textEditorModel: ITextModel;
 }
 
 export class UntitledTextEditorModel extends BaseTextEditorModel implements IUntitledTextEditorModel {
@@ -372,6 +382,10 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 		}
 
 		return super.resolve();
+	}
+
+	override isResolved(): this is IResolvedUntitledTextEditorModel {
+		return !!this.textEditorModelHandle;
 	}
 
 	protected override installModelListeners(model: ITextModel): void {

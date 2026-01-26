@@ -13,6 +13,7 @@ import { IconExtensionPoint } from '../../services/themes/common/iconExtensionPo
 import { TokenClassificationExtensionPoints } from '../../services/themes/common/tokenClassificationExtensionPoint.js';
 import { LanguageConfigurationFileHandler } from '../../contrib/codeEditor/common/languageConfigurationExtensionPoint.js';
 import { StatusBarItemsExtensionPoint } from './statusBarExtensionPoint.js';
+import { CSSExtensionPoint } from '../../services/themes/browser/cssExtensionPoint.js';
 
 // --- mainThread participants
 import './mainThreadLocalization.js';
@@ -90,7 +91,11 @@ import './mainThreadAiRelatedInformation.js';
 import './mainThreadAiEmbeddingVector.js';
 import './mainThreadAiSettingsSearch.js';
 import './mainThreadMcp.js';
+import './mainThreadChatContext.js';
 import './mainThreadChatStatus.js';
+import './mainThreadChatOutputRenderer.js';
+import './mainThreadChatSessions.js';
+import './mainThreadDataChannels.js';
 
 export class ExtensionPoints implements IWorkbenchContribution {
 
@@ -106,6 +111,7 @@ export class ExtensionPoints implements IWorkbenchContribution {
 		this.instantiationService.createInstance(TokenClassificationExtensionPoints);
 		this.instantiationService.createInstance(LanguageConfigurationFileHandler);
 		this.instantiationService.createInstance(StatusBarItemsExtensionPoint);
+		this.instantiationService.createInstance(CSSExtensionPoint);
 	}
 }
 

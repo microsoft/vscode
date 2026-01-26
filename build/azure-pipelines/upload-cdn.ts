@@ -10,7 +10,8 @@ import filter from 'gulp-filter';
 import gzip from 'gulp-gzip';
 import mime from 'mime';
 import { ClientAssertionCredential } from '@azure/identity';
-const azure = require('gulp-azure-storage');
+import { VinylStat } from '../lib/util.ts';
+import azure from 'gulp-azure-storage';
 
 const commit = process.env['BUILD_SOURCEVERSION'];
 const credential = new ClientAssertionCredential(process.env['AZURE_TENANT_ID']!, process.env['AZURE_CLIENT_ID']!, () => Promise.resolve(process.env['AZURE_ID_TOKEN']!));
@@ -70,7 +71,7 @@ const MimeTypesToCompress = new Set([
 function wait(stream: es.ThroughStream): Promise<void> {
 	return new Promise<void>((c, e) => {
 		stream.on('end', () => c());
-		stream.on('error', (err: any) => e(err));
+		stream.on('error', (err) => e(err));
 	});
 }
 
@@ -112,7 +113,7 @@ async function main(): Promise<void> {
 	const listing = new Vinyl({
 		path: 'files.txt',
 		contents: Buffer.from(files.join('\n')),
-		stat: { mode: 0o666 } as any
+		stat: new VinylStat({ mode: 0o666 })
 	});
 
 	const filesOut = es.readArray([listing])

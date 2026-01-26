@@ -59,9 +59,10 @@ export class Task {
 		await this.quickaccess.openFileQuickAccessAndWait('tasks.json', 'tasks.json');
 		await this.quickinput.selectQuickInputElement(0);
 		await this.quickaccess.runCommand('editor.action.selectAll');
-		await this.code.sendKeybinding('Delete');
-		// TODO https://github.com/microsoft/vscode/issues/242535
-		await wait(100);
+		await this.code.dispatchKeybinding('Delete', async () => {
+			// TODO https://github.com/microsoft/vscode/issues/242535
+			await wait(100);
+		});
 		const taskStringLines: string[] = [
 			'{', // Brackets auto close
 			'"version": "2.0.0",',
@@ -82,9 +83,10 @@ export class Task {
 		for (const [i, line] of taskStringLines.entries()) {
 			await this.editor.waitForTypeInEditor('tasks.json', `${line}`);
 			if (i !== taskStringLines.length - 1) {
-				await this.code.sendKeybinding('Enter');
-				// TODO https://github.com/microsoft/vscode/issues/242535
-				await wait(100);
+				await this.code.dispatchKeybinding('Enter', async () => {
+					// TODO https://github.com/microsoft/vscode/issues/242535
+					await wait(100);
+				});
 			}
 		}
 		await this.editors.saveOpenedFile();

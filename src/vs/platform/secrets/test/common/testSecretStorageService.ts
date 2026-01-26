@@ -29,6 +29,10 @@ export class TestSecretStorageService implements ISecretStorageService {
 		this._onDidChangeSecretEmitter.fire(key);
 	}
 
+	async keys(): Promise<string[]> {
+		return Array.from(this._storage.keys());
+	}
+
 	// Helper method for tests to clear all secrets
 	clear(): void {
 		this._storage.clear();

@@ -18,9 +18,11 @@ import { IOutputService } from '../../../../services/output/common/output.js';
 import { TestLoggerService, TestProductService, TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 import { IMcpHostDelegate, IMcpMessageTransport } from '../../common/mcpRegistryTypes.js';
 import { McpServerConnection } from '../../common/mcpServerConnection.js';
-import { McpCollectionDefinition, McpConnectionState, McpServerDefinition, McpServerTransportType } from '../../common/mcpTypes.js';
+import { McpCollectionDefinition, McpConnectionState, McpServerDefinition, McpServerLaunch, McpServerTransportType, McpServerTrust } from '../../common/mcpTypes.js';
 import { TestMcpMessageTransport } from './mcpRegistryTypes.js';
 import { ConfigurationTarget } from '../../../../../platform/configuration/common/configuration.js';
+import { Event } from '../../../../../base/common/event.js';
+import { McpTaskManager } from '../../common/mcpTaskManager.js';
 
 class TestMcpHostDelegate extends Disposable implements IMcpHostDelegate {
 	private readonly _transport: TestMcpMessageTransport;
@@ -31,6 +33,10 @@ class TestMcpHostDelegate extends Disposable implements IMcpHostDelegate {
 	constructor() {
 		super();
 		this._transport = this._register(new TestMcpMessageTransport());
+	}
+
+	substituteVariables(serverDefinition: McpServerDefinition, launch: McpServerLaunch): Promise<McpServerLaunch> {
+		return Promise.resolve(launch);
 	}
 
 	canStart(): boolean {
@@ -86,7 +92,7 @@ suite('Workbench - MCP - ServerConnection', () => {
 			label: 'Test Collection',
 			remoteAuthority: null,
 			serverDefinitions: observableValue('serverDefs', []),
-			isTrustedByDefault: true,
+			trustBehavior: McpServerTrust.Kind.Trusted,
 			scope: StorageScope.APPLICATION,
 			configTarget: ConfigurationTarget.USER,
 		};
@@ -95,6 +101,7 @@ suite('Workbench - MCP - ServerConnection', () => {
 		serverDefinition = {
 			id: 'test-server',
 			label: 'Test Server',
+			cacheNonce: 'a',
 			launch: {
 				type: McpServerTransportType.Stdio,
 				command: 'test-command',
@@ -132,6 +139,8 @@ suite('Workbench - MCP - ServerConnection', () => {
 			delegate,
 			serverDefinition.launch,
 			new NullLogger(),
+			false,
+			store.add(new McpTaskManager()),
 		);
 		store.add(connection);
 
@@ -160,6 +169,8 @@ suite('Workbench - MCP - ServerConnection', () => {
 			delegate,
 			serverDefinition.launch,
 			new NullLogger(),
+			false,
+			store.add(new McpTaskManager()),
 		);
 		store.add(connection);
 
@@ -179,6 +190,8 @@ suite('Workbench - MCP - ServerConnection', () => {
 			delegate,
 			serverDefinition.launch,
 			new NullLogger(),
+			false,
+			store.add(new McpTaskManager()),
 		);
 		store.add(connection);
 
@@ -205,6 +218,8 @@ suite('Workbench - MCP - ServerConnection', () => {
 			delegate,
 			serverDefinition.launch,
 			new NullLogger(),
+			false,
+			store.add(new McpTaskManager()),
 		);
 		store.add(connection);
 
@@ -229,6 +244,8 @@ suite('Workbench - MCP - ServerConnection', () => {
 			delegate,
 			serverDefinition.launch,
 			new NullLogger(),
+			false,
+			store.add(new McpTaskManager()),
 		);
 		store.add(connection);
 
@@ -263,6 +280,8 @@ suite('Workbench - MCP - ServerConnection', () => {
 			delegate,
 			serverDefinition.launch,
 			new NullLogger(),
+			false,
+			store.add(new McpTaskManager()),
 		);
 
 		// Start the connection
@@ -288,6 +307,7 @@ suite('Workbench - MCP - ServerConnection', () => {
 			delegate,
 			serverDefinition.launch,
 			{
+				onDidChangeLogLevel: Event.None,
 				getLevel: () => LogLevel.Debug,
 				info: (message: string) => {
 					loggedMessages.push(message);
@@ -295,6 +315,8 @@ suite('Workbench - MCP - ServerConnection', () => {
 				error: () => { },
 				dispose: () => { }
 			} as Partial<ILogger> as ILogger,
+			false,
+			store.add(new McpTaskManager()),
 		);
 		store.add(connection);
 
@@ -324,6 +346,8 @@ suite('Workbench - MCP - ServerConnection', () => {
 			delegate,
 			serverDefinition.launch,
 			new NullLogger(),
+			false,
+			store.add(new McpTaskManager()),
 		);
 		store.add(connection);
 
@@ -362,6 +386,8 @@ suite('Workbench - MCP - ServerConnection', () => {
 			delegate,
 			serverDefinition.launch,
 			new NullLogger(),
+			false,
+			store.add(new McpTaskManager()),
 		);
 		store.add(connection);
 

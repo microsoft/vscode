@@ -71,13 +71,13 @@ export function setup(options?: { skipSuite: boolean }) {
 			await beforeEachSetup();
 
 			// Standard multi-line prompt
-			await checkCommandAndOutput('sticky scroll 1', 0, "Multi-line\\r\\nPrompt> ", 2);
+			await checkCommandAndOutput('sticky scroll 1', 0, 'Multi-line\\r\\nPrompt> ', 2);
 
 			// New line before prompt
-			await checkCommandAndOutput('sticky scroll 2', 0, "\\r\\nMulti-line Prompt> ", 1);
+			await checkCommandAndOutput('sticky scroll 2', 0, '\\r\\nMulti-line Prompt> ', 1);
 
 			// New line before multi-line prompt
-			await checkCommandAndOutput('sticky scroll 3', 0, "\\r\\nMulti-line\\r\\nPrompt> ", 2);
+			await checkCommandAndOutput('sticky scroll 3', 0, '\\r\\nMulti-line\\r\\nPrompt> ', 2);
 		});
 	});
 }

@@ -366,6 +366,7 @@ export class FileMatchRenderer extends Disposable implements ICompressibleTreeRe
 
 		// when hidesExplorerArrows: true, then the file nodes should still have a twistie because it would otherwise
 		// be hard to tell whether the node is collapsed or expanded.
+		// eslint-disable-next-line no-restricted-syntax
 		const twistieContainer = templateData.el.parentElement?.parentElement?.querySelector('.monaco-tl-twistie');
 		twistieContainer?.classList.add('force-twistie');
 	}

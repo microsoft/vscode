@@ -165,7 +165,7 @@ export class LanguageConfigurationFileHandler extends Disposable {
 				result = result || {};
 				result.lineComment = source.lineComment;
 			} else if (types.isObject(source.lineComment)) {
-				const lineCommentObj = source.lineComment as any;
+				const lineCommentObj = source.lineComment;
 				if (typeof lineCommentObj.comment === 'string') {
 					result = result || {};
 					result.lineComment = {

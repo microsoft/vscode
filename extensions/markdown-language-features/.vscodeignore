@@ -12,7 +12,6 @@ cgmanifest.json
 package-lock.json
 preview-src/**
 webpack.config.js
-esbuild-notebook.js
-esbuild-preview.js
+esbuild-*
 .gitignore
 **/*.d.ts

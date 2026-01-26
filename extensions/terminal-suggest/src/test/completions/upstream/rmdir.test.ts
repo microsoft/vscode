@@ -10,7 +10,7 @@ import rmdirSpec from '../../../completions/upstream/rmdir';
 const allOptions = [
 	'-p',
 ];
-const expectedCompletions = [{ label: 'rmdir', description: (rmdirSpec as any).description }];
+const expectedCompletions = [{ label: 'rmdir', description: (rmdirSpec as Fig.Subcommand).description }];
 
 export const rmdirTestSuiteSpec: ISuiteSpec = {
 	name: 'rmdir',

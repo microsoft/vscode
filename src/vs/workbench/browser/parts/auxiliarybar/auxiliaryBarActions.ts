@@ -9,6 +9,7 @@ import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../plat
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
+import { alert } from '../../../../base/browser/ui/aria/aria.js';
 import { AuxiliaryBarMaximizedContext, AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext } from '../../../common/contextkeys.js';
 import { ViewContainerLocation, ViewContainerLocationToString } from '../../../common/views.js';
 import { ActivityBarPosition, IWorkbenchLayoutService, LayoutSettings, Parts } from '../../../services/layout/browser/layoutService.js';
@@ -17,10 +18,10 @@ import { ServicesAccessor } from '../../../../platform/instantiation/common/inst
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { SwitchCompositeViewAction } from '../compositeBarActions.js';
-import { closeIcon as panelCloseIcon } from '../panel/panelActions.js';
 
 const maximizeIcon = registerIcon('auxiliarybar-maximize', Codicon.screenFull, localize('maximizeIcon', 'Icon to maximize the secondary side bar.'));
-const closeIcon = registerIcon('auxiliarybar-close', panelCloseIcon, localize('closeIcon', 'Icon to close the secondary side bar.'));
+const restoreIcon = registerIcon('auxiliarybar-restore', Codicon.screenNormal, localize('restoreIcon', 'Icon to restore the secondary side bar.'));
+const closeIcon = registerIcon('auxiliarybar-close', Codicon.close, localize('closeIcon', 'Icon to close the secondary side bar.'));
 
 const auxiliaryBarRightIcon = registerIcon('auxiliarybar-right-layout-icon', Codicon.layoutSidebarRight, localize('toggleAuxiliaryIconRight', 'Icon to toggle the secondary side bar off in its right position.'));
 const auxiliaryBarRightOffIcon = registerIcon('auxiliarybar-right-off-layout-icon', Codicon.layoutSidebarRightOff, localize('toggleAuxiliaryIconRightOn', 'Icon to toggle the secondary side bar on in its right position.'));
@@ -69,7 +70,15 @@ export class ToggleAuxiliaryBarAction extends Action2 {
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const layoutService = accessor.get(IWorkbenchLayoutService);
-		layoutService.setPartHidden(layoutService.isVisible(Parts.AUXILIARYBAR_PART), Parts.AUXILIARYBAR_PART);
+		const isCurrentlyVisible = layoutService.isVisible(Parts.AUXILIARYBAR_PART);
+
+		layoutService.setPartHidden(isCurrentlyVisible, Parts.AUXILIARYBAR_PART);
+
+		// Announce visibility change to screen readers
+		const alertMessage = isCurrentlyVisible
+			? localize('auxiliaryBarHidden', "Secondary Side Bar hidden")
+			: localize('auxiliaryBarVisible', "Secondary Side Bar shown");
+		alert(alertMessage);
 	}
 }
 
@@ -249,8 +258,7 @@ class RestoreAuxiliaryBar extends Action2 {
 			category: Categories.View,
 			f1: true,
 			precondition: AuxiliaryBarMaximizedContext,
-			toggled: AuxiliaryBarMaximizedContext,
-			icon: maximizeIcon,
+			icon: restoreIcon,
 			menu: {
 				id: MenuId.AuxiliaryBarTitle,
 				group: 'navigation',
