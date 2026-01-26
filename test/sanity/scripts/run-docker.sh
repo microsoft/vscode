@@ -4,6 +4,7 @@ set -e
 CONTAINER=""
 ARCH="amd64"
 BASE_IMAGE=""
+PAGE_SIZE=""
 ARGS=""
 
 while [ $# -gt 0 ]; do
@@ -11,6 +12,7 @@ while [ $# -gt 0 ]; do
 		--container) CONTAINER="$2"; shift 2 ;;
 		--arch) ARCH="$2"; shift 2 ;;
 		--base-image) BASE_IMAGE="$2"; shift 2 ;;
+		--page-size) PAGE_SIZE="$2"; shift 2 ;;
 		*) ARGS="$ARGS $1"; shift ;;
 	esac
 done
@@ -36,10 +38,17 @@ else
 	echo "Using cached container image: $CONTAINER"
 fi
 
+# Pass page size as environment variable for test validation
+PAGE_SIZE_ARGS=""
+if [ -n "$PAGE_SIZE" ]; then
+	PAGE_SIZE_ARGS="-e PAGE_SIZE=$PAGE_SIZE"
+fi
+
 echo "Running sanity tests in container"
 docker run \
 	--rm \
 	--platform "linux/$ARCH" \
 	--volume "$ROOT_DIR:/root" \
+	$PAGE_SIZE_ARGS \
 	"$CONTAINER" \
 	$ARGS

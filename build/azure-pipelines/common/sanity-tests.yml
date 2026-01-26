@@ -17,6 +17,9 @@ parameters:
   - name: baseImage
     type: string
     default: ""
+  - name: pageSize
+    type: string
+    default: ""
   - name: args
     type: string
     default: ""
@@ -101,6 +104,7 @@ jobs:
               --container "${{ parameters.container }}" \
               --arch "${{ parameters.arch }}" \
               --base-image "${{ parameters.baseImage }}" \
+              --page-size "${{ parameters.pageSize }}" \
               --quality "$(BUILD_QUALITY)" \
               --commit "$(BUILD_COMMIT)" \
               --test-results "/root/results.xml" \
