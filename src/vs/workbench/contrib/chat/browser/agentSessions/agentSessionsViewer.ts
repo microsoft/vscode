@@ -198,7 +198,7 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 			}
 		}
 		template.diffContainer.classList.toggle('has-diff', hasDiff);
-		template.diffContainer.classList.toggle('has-diff-file-indicator', hasDiff && SESSION_DIFF_FILES_INDICATOR);
+		template.diffFilesSpan.classList.toggle('has-diff-file-indicator', hasDiff && SESSION_DIFF_FILES_INDICATOR);
 
 		let hasAgentSessionChanges = false;
 		if (
