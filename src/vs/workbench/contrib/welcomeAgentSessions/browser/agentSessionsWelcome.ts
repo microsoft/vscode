@@ -57,8 +57,8 @@ import { IWorkspacesService, IRecentFolder, IRecentWorkspace, isRecentFolder, is
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
-import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 
 const configurationKey = 'workbench.startupEditor';
 const MAX_SESSIONS = 6;
@@ -110,7 +110,7 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
-		@INotificationService private readonly notificationService: INotificationService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super(AgentSessionsWelcomePage.ID, group, telemetryService, themeService, storageService);
 
@@ -788,14 +788,18 @@ export class AgentSessionsWelcomePage extends EditorPane {
 	}
 
 	private revealMaximizedChat(): void {
-		this.closeEditorAndMaximizeAuxiliaryBar();
+		try {
+			this.closeEditorAndMaximizeAuxiliaryBar();
+		} catch (error) {
+			this.logService.error('Failed to open maximized chat: {0}', toErrorMessage(error));
+		}
 	}
 
 	private async openSessionInChat(sessionResource: URI): Promise<void> {
 		try {
 			await this.closeEditorAndMaximizeAuxiliaryBar(sessionResource);
 		} catch (error) {
-			this.notificationService.error(localize('chat.openSessionFailed', "Failed to open chat session: {0}", toErrorMessage(error)));
+			this.logService.error('Failed to open agent session: {0}', toErrorMessage(error));
 		}
 	}
 
