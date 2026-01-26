@@ -26,6 +26,6 @@
 		"github.copilot.chat.languageContext.typescript.enabled": true,
 		"diffEditor.renderSideBySide": false,
 		"diffEditor.hideUnchangedRegions.enabled": true,
-		"chat.viewSessions.showPendingOnly": false
+		"chat.viewSessions.showActiveOnly": false
 	}
 }
