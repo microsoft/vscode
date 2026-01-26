@@ -50,7 +50,7 @@ if [ -n "$PAGE_SIZE" ]; then
 
 	# Set up QEMU user-mode emulation for building arm64 container on x64
 	echo "Setting up QEMU user-mode emulation for container build"
-	docker run --privileged --rm tonistiigi/binfmt --install "$ARCH" > /dev/null
+	docker run --privileged --rm tonistiigi/binfmt --install "$ARCH"
 
 	# Set kernel package URL based on page size
 	# CentOS Stream 9 kernel packages for arm64
@@ -64,7 +64,7 @@ if [ -n "$PAGE_SIZE" ]; then
 	CONTAINER_ID=$(docker create --platform "linux/$ARCH" "$CONTAINER")
 	ROOTFS_DIR=$(mktemp -d)
 	docker export "$CONTAINER_ID" | sudo tar -xf - -C "$ROOTFS_DIR"
-	docker rm -f "$CONTAINER_ID" > /dev/null
+	docker rm -f "$CONTAINER_ID"
 
 	# Copy test files into rootfs
 	sudo cp -r "$ROOT_DIR"/* "$ROOTFS_DIR/root/"
@@ -75,12 +75,15 @@ if [ -n "$PAGE_SIZE" ]; then
 	curl -sfL "$KERNEL_URL" -o "$KERNEL_DIR/kernel-core.rpm"
 
 	# Extract kernel from RPM
-	(cd "$KERNEL_DIR" && rpm2cpio kernel-core.rpm | cpio -idm 2>/dev/null)
-	VMLINUZ=$(find "$KERNEL_DIR" -name "vmlinuz-*" | head -1)
+	echo "Extracting kernel package..."
+	(cd "$KERNEL_DIR" && rpm2cpio kernel-core.rpm | cpio -idm 2>&1)
 
-	if [ -z "$VMLINUZ" ]; then
-		echo "Error: Could not find kernel in downloaded package"
-		ls -laR "$KERNEL_DIR" || true
+	# Hardcoded vmlinuz path for CentOS Stream 9 kernel-64k-core package
+	VMLINUZ="$KERNEL_DIR/lib/modules/5.14.0-661.el9.aarch64+64k/vmlinuz"
+
+	if [ ! -f "$VMLINUZ" ]; then
+		echo "Error: Could not find kernel at $VMLINUZ"
+		ls -la "$KERNEL_DIR/lib/modules/" 2>/dev/null || true
 		sudo rm -rf "$ROOTFS_DIR" "$KERNEL_DIR"
 		exit 1
 	fi
@@ -107,7 +110,7 @@ INITEOF
 
 	# Create a disk image from the rootfs (reduced size)
 	DISK_IMG=$(mktemp)
-	dd if=/dev/zero of="$DISK_IMG" bs=1M count=4096 2>/dev/null
+	dd if=/dev/zero of="$DISK_IMG" bs=1M count=4096
 	sudo mkfs.ext4 -q -d "$ROOTFS_DIR" "$DISK_IMG"
 
 	echo "Running QEMU system emulation with ${PAGE_SIZE} page size"
