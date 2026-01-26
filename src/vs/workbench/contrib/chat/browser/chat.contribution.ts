@@ -46,7 +46,7 @@ import { ChatTodoListService, IChatTodoListService } from '../common/tools/chatT
 import { ChatTransferService, IChatTransferService } from '../common/model/chatTransferService.js';
 import { IChatVariablesService } from '../common/attachments/chatVariables.js';
 import { ChatWidgetHistoryService, IChatWidgetHistoryService } from '../common/widget/chatWidgetHistoryService.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../common/constants.js';
+import { AgentsControlClickBehavior, AgentSessionsGrouping, ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../common/constants.js';
 import { ILanguageModelIgnoredFilesService, LanguageModelIgnoredFilesService } from '../common/ignoredFiles.js';
 import { ILanguageModelsService, LanguageModelsService } from '../common/languageModels.js';
 import { ILanguageModelStatsService, LanguageModelStatsService } from '../common/languageModelStats.js';
@@ -184,10 +184,16 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('interactiveSession.editor.lineHeight', "Controls the line height in pixels in chat codeblocks. Use 0 to compute the line height from the font size."),
 			default: 0
 		},
-		[ChatConfiguration.AgentsControlTriStateToggle]: { // TODO@bpasero settle this
-			type: 'boolean',
-			markdownDescription: nls.localize('chat.agentsControl.triStateToggle', "When enabled, clicking the chat icon in the command center cycles through: show chat, maximize chat, hide chat. This requires chat to be contained in the secondary sidebar."),
-			default: product.quality !== 'stable',
+		[ChatConfiguration.AgentsControlClickBehavior]: {
+			type: 'string',
+			enum: [AgentsControlClickBehavior.Default, AgentsControlClickBehavior.TriStateToggle, AgentsControlClickBehavior.Focus],
+			enumDescriptions: [
+				nls.localize('chat.agentsControl.clickBehavior.default', "Clicking chat icon toggles chat visibility."),
+				nls.localize('chat.agentsControl.clickBehavior.triStateToggle', "Clicking chat icon cycles through: show chat, maximize chat, hide chat. This requires chat to be contained in the secondary sidebar."),
+				nls.localize('chat.agentsControl.clickBehavior.focus', "Clicking chat icon focuses the chat view.")
+			],
+			markdownDescription: nls.localize('chat.agentsControl.clickBehavior', "Controls the behavior when clicking on the chat icon in the command center."),
+			default: product.quality !== 'stable' ? AgentsControlClickBehavior.TriStateToggle : AgentsControlClickBehavior.Default,
 			tags: ['experimental']
 		},
 		[ChatConfiguration.AgentStatusEnabled]: {
@@ -406,10 +412,15 @@ configurationRegistry.registerConfiguration({
 			default: true,
 			description: nls.localize('chat.viewSessions.enabled', "Show chat agent sessions when chat is empty or to the side when chat view is wide enough."),
 		},
-		[ChatConfiguration.ChatViewSessionsShowPendingOnly]: {
-			type: 'boolean',
-			default: true,
-			markdownDescription: nls.localize('chat.viewSessions.showPendingOnly', "When enabled, only show pending sessions in the stacked sessions view. When disabled, show all sessions. This setting requires {0} to be enabled.", '`#chat.viewSessions.enabled#`'),
+		[ChatConfiguration.ChatViewSessionsGrouping]: {
+			type: 'string',
+			enum: [AgentSessionsGrouping.Activity, AgentSessionsGrouping.Date],
+			enumDescriptions: [
+				nls.localize('chat.viewSessions.grouping.activity', "Group sessions by activity status, showing active sessions first."),
+				nls.localize('chat.viewSessions.grouping.date', "Group sessions chronologically by date.")
+			],
+			default: AgentSessionsGrouping.Activity,
+			markdownDescription: nls.localize('chat.viewSessions.grouping', "Controls how sessions are grouped in the stacked sessions view. This setting requires {0} to be enabled.", '`#chat.viewSessions.enabled#`'),
 		},
 		[ChatConfiguration.ChatViewSessionsOrientation]: {
 			type: 'string',

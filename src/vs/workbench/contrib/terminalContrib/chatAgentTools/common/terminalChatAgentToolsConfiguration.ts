@@ -236,6 +236,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			'Get-Date': true,
 			'Get-Random': true,
 			'Get-Location': true,
+			'Set-Location': true,
 			'Write-Host': true,
 			'Write-Output': true,
 			'Out-String': true,

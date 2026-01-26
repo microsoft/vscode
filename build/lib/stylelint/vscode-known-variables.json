@@ -66,6 +66,7 @@
 		"--vscode-chat-requestCodeBorder",
 		"--vscode-chat-slashCommandBackground",
 		"--vscode-chat-slashCommandForeground",
+		"--vscode-chat-thinkingShimmer",
 		"--vscode-chatManagement-sashBorder",
 		"--vscode-checkbox-background",
 		"--vscode-checkbox-border",

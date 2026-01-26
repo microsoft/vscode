@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.109.0",
-  "distro": "95dae17030071983e9d039a02bca8a9522b9fa2c",
+  "distro": "72945cc314eb760ebf12af077b51750cb02808e9",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -77,6 +77,7 @@
     "@microsoft/1ds-post-js": "^3.2.13",
     "@parcel/watcher": "^2.5.6",
     "@types/semver": "^7.5.8",
+    "@vscode/codicons": "^0.0.45-0",
     "@vscode/deviceid": "^0.1.1",
     "@vscode/iconv-lite-umd": "0.7.1",
     "@vscode/native-watchdog": "^1.4.6",

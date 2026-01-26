@@ -282,36 +282,58 @@ export class PromptValidator {
 		if (!attribute) {
 			return;
 		}
-		if (attribute.value.type !== 'string') {
-			report(toMarker(localize('promptValidator.modelMustBeString', "The 'model' attribute must be a string."), attribute.value.range, MarkerSeverity.Error));
-			return;
-		}
-		const modelName = attribute.value.value.trim();
-		if (modelName.length === 0) {
-			report(toMarker(localize('promptValidator.modelMustBeNonEmpty', "The 'model' attribute must be a non-empty string."), attribute.value.range, MarkerSeverity.Error));
+		if (attribute.value.type !== 'string' && attribute.value.type !== 'array') {
+			report(toMarker(localize('promptValidator.modelMustBeStringOrArray', "The 'model' attribute must be a string or an array of strings."), attribute.value.range, MarkerSeverity.Error));
 			return;
 		}
 
-		const languageModes = this.languageModelsService.getLanguageModelIds();
-		if (languageModes.length === 0) {
+		const modelNames: [string, Range][] = [];
+		if (attribute.value.type === 'string') {
+			const modelName = attribute.value.value.trim();
+			if (modelName.length === 0) {
+				report(toMarker(localize('promptValidator.modelMustBeNonEmpty', "The 'model' attribute must be a non-empty string."), attribute.value.range, MarkerSeverity.Error));
+				return;
+			}
+			modelNames.push([modelName, attribute.value.range]);
+		} else if (attribute.value.type === 'array') {
+			if (attribute.value.items.length === 0) {
+				report(toMarker(localize('promptValidator.modelArrayMustNotBeEmpty', "The 'model' array must not be empty."), attribute.value.range, MarkerSeverity.Error));
+				return;
+			}
+			for (const item of attribute.value.items) {
+				if (item.type !== 'string') {
+					report(toMarker(localize('promptValidator.modelArrayMustContainStrings', "The 'model' array must contain only strings."), item.range, MarkerSeverity.Error));
+					return;
+				}
+				const modelName = item.value.trim();
+				if (modelName.length === 0) {
+					report(toMarker(localize('promptValidator.modelArrayItemMustBeNonEmpty', "Model names in the array must be non-empty strings."), item.range, MarkerSeverity.Error));
+					return;
+				}
+				modelNames.push([modelName, item.range]);
+			}
+		}
+
+		const languageModels = this.languageModelsService.getLanguageModelIds();
+		if (languageModels.length === 0) {
 			// likely the service is not initialized yet
 			return;
 		}
-		const modelMetadata = this.findModelByName(languageModes, modelName);
-		if (!modelMetadata) {
-			report(toMarker(localize('promptValidator.modelNotFound', "Unknown model '{0}'.", modelName), attribute.value.range, MarkerSeverity.Warning));
 
-		} else if (agentKind === ChatModeKind.Agent && !ILanguageModelChatMetadata.suitableForAgentMode(modelMetadata)) {
-			report(toMarker(localize('promptValidator.modelNotSuited', "Model '{0}' is not suited for agent mode.", modelName), attribute.value.range, MarkerSeverity.Warning));
+		for (const [modelName, range] of modelNames) {
+			const modelMetadata = this.findModelByName(modelName);
+			if (!modelMetadata) {
+				report(toMarker(localize('promptValidator.modelNotFound', "Unknown model '{0}'.", modelName), range, MarkerSeverity.Warning));
+			} else if (agentKind === ChatModeKind.Agent && !ILanguageModelChatMetadata.suitableForAgentMode(modelMetadata)) {
+				report(toMarker(localize('promptValidator.modelNotSuited', "Model '{0}' is not suited for agent mode.", modelName), range, MarkerSeverity.Warning));
+			}
 		}
 	}
 
-	private findModelByName(languageModes: string[], modelName: string): ILanguageModelChatMetadata | undefined {
-		for (const model of languageModes) {
-			const metadata = this.languageModelsService.lookupLanguageModel(model);
-			if (metadata && metadata.isUserSelectable !== false && ILanguageModelChatMetadata.matchesQualifiedName(modelName, metadata)) {
-				return metadata;
-			}
+	private findModelByName(modelName: string): ILanguageModelChatMetadata | undefined {
+		const metadata = this.languageModelsService.lookupLanguageModelByQualifiedName(modelName);
+		if (metadata && metadata.isUserSelectable !== false) {
+			return metadata;
 		}
 		return undefined;
 	}

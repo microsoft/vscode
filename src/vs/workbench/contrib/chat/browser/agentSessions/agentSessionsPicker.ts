@@ -10,13 +10,15 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
 import { openSession } from './agentSessionsOpener.js';
 import { IAgentSession, isLocalAgentSessionItem } from './agentSessionsModel.js';
 import { IAgentSessionsService } from './agentSessionsService.js';
-import { AgentSessionsSorter, groupAgentSessionsByDefault } from './agentSessionsViewer.js';
+import { AgentSessionsSorter, groupAgentSessionsByActivity, groupAgentSessionsByDate } from './agentSessionsViewer.js';
 import { AGENT_SESSION_DELETE_ACTION_ID, AGENT_SESSION_RENAME_ACTION_ID } from './agentSessions.js';
+import { ChatConfiguration, AgentSessionsGrouping } from '../../common/constants.js';
 
 interface ISessionPickItem extends IQuickPickItem {
 	readonly session: IAgentSession;
@@ -71,6 +73,7 @@ export class AgentSessionsPicker {
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ICommandService private readonly commandService: ICommandService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) { }
 
 	async pickAgentSession(): Promise<void> {
@@ -129,7 +132,10 @@ export class AgentSessionsPicker {
 		const sessions = this.agentSessionsService.model.sessions.sort(this.sorter.compare.bind(this.sorter));
 		const items: (ISessionPickItem | IQuickPickSeparator)[] = [];
 
-		const groupedSessions = groupAgentSessionsByDefault(sessions);
+		const grouping = this.configurationService.getValue<unknown>(ChatConfiguration.ChatViewSessionsGrouping);
+		const groupedSessions = grouping === AgentSessionsGrouping.Date
+			? groupAgentSessionsByDate(sessions)
+			: groupAgentSessionsByActivity(sessions);
 
 		for (const group of groupedSessions.values()) {
 			if (group.sessions.length > 0) {
