@@ -84,7 +84,7 @@ function createPowerShellModelDescription(shell: string): string {
 		'',
 		'Directory Management:',
 		'- Prefer relative paths when navigating directories, only use absolute when the path is far away or the current cwd is not expected',
-		'- Remember when isBackground=false is specified, that shell and cwd is reused until it is moved to the background',
+		'- Remember when isBackground=false is specified, that the shell and cwd are reused until it is moved to the background',
 		'- Use $PWD or Get-Location for current directory',
 		'- Use Push-Location/Pop-Location for directory stack',
 		'',

@@ -58,7 +58,6 @@ export interface IEnvironmentService {
 	workspaceStorageHome: URI;
 	localHistoryHome: URI;
 	cacheHome: URI;
-	builtinProfilesHome: URI;
 	builtinWorkbenchModesHome: URI;
 
 	// --- settings sync
