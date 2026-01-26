@@ -23,10 +23,12 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
+import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatMode, IChatMode, IChatModeService } from '../../../common/chatModes.js';
+import { isOrganizationPromptFile } from '../../../common/promptSyntax/utils/promptsServiceUtils.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../common/constants.js';
-import { ExtensionAgentSourceType, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
+import { PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { getOpenChatActionIdForMode } from '../../actions/chatActions.js';
 import { IToggleChatModeArgs, ToggleAgentModeActionId } from '../../actions/chatExecuteActions.js';
 import { ChatInputPickerActionViewItem, IChatInputPickerOptions } from './chatInputPickerActionItem.js';
@@ -57,7 +59,8 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 		@IChatModeService chatModeService: IChatModeService,
 		@IMenuService private readonly menuService: IMenuService,
 		@ICommandService commandService: ICommandService,
-		@IProductService private readonly _productService: IProductService
+		@IProductService private readonly _productService: IProductService,
+		@ITelemetryService telemetryService: ITelemetryService
 	) {
 		// Get custom agent target (if filtering is enabled)
 		const customAgentTarget = delegate.customAgentTarget?.();
@@ -68,6 +71,7 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 		const policyDisabledCategory = { label: localize('managedByOrganization', "Managed by your organization"), order: 999, showHeader: true };
 
 		const agentModeDisabledViaPolicy = configurationService.inspect<boolean>(ChatConfiguration.AgentEnabled).policyValue === false;
+		const alternativeToolActionEnabled = configurationService.getValue<boolean>(ChatConfiguration.AlternativeToolAction);
 
 		const makeAction = (mode: IChatMode, currentMode: IChatMode): IActionWidgetDropdownAction => {
 			const isDisabledViaPolicy =
@@ -75,6 +79,30 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 				agentModeDisabledViaPolicy;
 
 			const tooltip = chatAgentService.getDefaultAgent(ChatAgentLocation.Chat, mode.kind)?.description ?? action.tooltip;
+
+			const toolbarActions: IAction[] = [];
+			if (alternativeToolActionEnabled && mode.kind === ChatModeKind.Agent && !isDisabledViaPolicy) {
+				// Add toolbar actions for Agent modes when alternative tool action is enabled
+				const label = localize('configureToolsFor', "Configure tools for {0} {1}", mode.label.get(), isModeConsideredBuiltIn(mode, this._productService) ? 'mode' : 'agent');
+				toolbarActions.push({
+					id: 'configureToolsForMode',
+					label: label,
+					tooltip: label,
+					class: ThemeIcon.asClassName(Codicon.tools),
+					enabled: true,
+					run: async () => {
+						// First switch to the mode if not already selected
+						if (currentMode.id !== mode.id) {
+							await commandService.executeCommand(
+								ToggleAgentModeActionId,
+								{ modeId: mode.id, sessionResource: this.delegate.sessionResource() } satisfies IToggleChatModeArgs
+							);
+						}
+						// Then open the tools picker
+						await commandService.executeCommand('workbench.action.chat.configureTools', pickerOptions.actionContext, { source: 'modePicker' });
+					}
+				});
+			}
 
 			return {
 				...action,
@@ -86,6 +114,7 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 				checked: !isDisabledViaPolicy && currentMode.id === mode.id,
 				tooltip: '',
 				hover: { content: tooltip },
+				toolbarActions,
 				run: async () => {
 					if (isDisabledViaPolicy) {
 						return; // Block interaction if disabled by policy
@@ -120,6 +149,8 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 			return mode.source.storage === PromptsStorage.local || mode.source.storage === PromptsStorage.user;
 		};
 
+		const isImplementMode = (mode: IChatMode) => isBuiltinImplementMode(mode, this._productService);
+
 		const actionProviderWithCustomAgentTarget: IActionWidgetDropdownActionProvider = {
 			getActions: () => {
 				const modes = chatModeService.getModes();
@@ -128,7 +159,6 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 					const target = mode.target?.get();
 					return isUserDefinedCustomAgent(mode) && (!target || target === customAgentTarget);
 				});
-
 				// Always include the default "Agent" option first
 				const checked = currentMode.id === ChatMode.Agent.id;
 				const defaultAction = { ...makeAction(ChatMode.Agent, ChatMode.Agent), checked };
@@ -148,8 +178,9 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 				const shouldHideEditMode = configurationService.getValue<boolean>(ChatConfiguration.EditModeHidden) && chatAgentService.hasToolsAgent && currentMode.id !== ChatMode.Edit.id;
 
 				const otherBuiltinModes = modes.builtin.filter(mode => mode.id !== ChatMode.Agent.id && !(shouldHideEditMode && mode.id === ChatMode.Edit.id));
+				// Filter out 'implement' mode from the dropdown - it's available for handoffs but not user-selectable
 				const customModes = groupBy(
-					modes.custom,
+					modes.custom.filter(mode => !isImplementMode(mode)),
 					mode => isModeConsideredBuiltIn(mode, this._productService) ? 'builtin' : 'custom');
 
 				const customBuiltinModeActions = customModes.builtin?.map(mode => {
@@ -177,10 +208,11 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 			actionBarActionProvider: {
 				getActions: () => this.getModePickerActionBarActions()
 			},
-			showItemKeybindings: true
+			showItemKeybindings: true,
+			reporter: { name: 'ChatModePicker', includeOptions: true },
 		};
 
-		super(action, modePickerActionWidgetOptions, pickerOptions, actionWidgetService, keybindingService, contextKeyService);
+		super(action, modePickerActionWidgetOptions, pickerOptions, actionWidgetService, keybindingService, contextKeyService, telemetryService);
 
 		// Listen to changes in the current mode and its properties
 		this._register(autorun(reader => {
@@ -216,7 +248,7 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 		if (icon) {
 			labelElements.push(...renderLabelWithIcons(`$(${icon.id})`));
 		}
-		if (!isDefault || !icon) {
+		if (!isDefault || !icon || !this.pickerOptions.onlyShowIconsForDefaultActions.get()) {
 			labelElements.push(dom.$('span.chat-input-picker-label', undefined, state));
 		}
 		labelElements.push(...renderLabelWithIcons(`$(chevron-down)`));
@@ -226,9 +258,38 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 	}
 }
 
+/**
+ * Returns true if the mode is the built-in 'implement' mode from the chat extension.
+ * This mode is hidden from the mode picker but available for handoffs.
+ */
+export function isBuiltinImplementMode(mode: IChatMode, productService: IProductService): boolean {
+	if (mode.name.get().toLowerCase() !== 'implement') {
+		return false;
+	}
+	if (mode.source?.storage !== PromptsStorage.extension) {
+		return false;
+	}
+	const chatExtensionId = productService.defaultChatAgent?.chatExtensionId;
+	return !!chatExtensionId && mode.source.extensionId.value === chatExtensionId;
+}
+
 function isModeConsideredBuiltIn(mode: IChatMode, productService: IProductService): boolean {
 	if (mode.isBuiltin) {
 		return true;
 	}
-	return mode.source?.storage === PromptsStorage.extension && mode.source.extensionId.value === productService.defaultChatAgent?.chatExtensionId && mode.source.type === ExtensionAgentSourceType.contribution;
+	// Not built-in if not from the built-in chat extension
+	if (mode.source?.storage !== PromptsStorage.extension) {
+		return false;
+	}
+	const chatExtensionId = productService.defaultChatAgent?.chatExtensionId;
+	if (!chatExtensionId || mode.source.extensionId.value !== chatExtensionId) {
+		return false;
+	}
+	// Organization-provided agents (under /github/ path) are also not considered built-in
+	const modeUri = mode.uri?.get();
+	if (!modeUri) {
+		// If somehow there is no URI, but it's from the built-in chat extension, consider it built-in
+		return true;
+	}
+	return !isOrganizationPromptFile(modeUri, mode.source.extensionId, productService);
 }

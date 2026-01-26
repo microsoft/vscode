@@ -97,7 +97,7 @@ declare module 'vscode' {
 		 *
 		 * This is also called on first load to get the initial set of items.
 		 */
-		refreshHandler: () => Thenable<void>;
+		refreshHandler: (token: CancellationToken) => Thenable<void>;
 
 		/**
 		 * Fired when an item's archived state changes.
@@ -540,6 +540,13 @@ declare module 'vscode' {
 		 * @returns Additional items to display in the searchable QuickPick.
 		 */
 		readonly onSearch?: (query: string, token: CancellationToken) => Thenable<ChatSessionProviderOptionItem[]>;
+
+		/**
+		 * Optional commands.
+		 *
+		 * These commands will be displayed at the bottom of the group.
+		 */
+		readonly commands?: Command[];
 	}
 
 	export interface ChatSessionProviderOptions {

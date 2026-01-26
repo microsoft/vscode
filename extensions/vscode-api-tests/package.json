@@ -17,6 +17,7 @@
     "documentFiltersExclusive",
     "editorInsets",
     "embeddings",
+    "envIsAppPortable",
     "extensionRuntime",
     "extensionsAny",
     "externalUriOpener",

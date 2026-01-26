@@ -113,7 +113,7 @@ export abstract class BaseStringEdit<T extends BaseStringReplacement<T> = BaseSt
 					ourEdit.newText
 				));
 				ourIdx++;
-			} else if (ourEdit.replaceRange.intersectsOrTouches(baseEdit.replaceRange)) {
+			} else if (ourEdit.replaceRange.intersects(baseEdit.replaceRange) || areConcurrentInserts(ourEdit.replaceRange, baseEdit.replaceRange)) {
 				ourIdx++; // Don't take our edit, as it is conflicting -> skip
 				if (noOverlap) {
 					return undefined;
@@ -573,3 +573,11 @@ export class AnnotatedStringReplacement<T extends IEditData<T>> extends BaseStri
 	}
 }
 
+/**
+ * Returns true if both ranges are empty (inserts) at the exact same position.
+ * In this case, although they don't "intersect" in the traditional sense,
+ * they conflict because the order of insertion matters.
+ */
+function areConcurrentInserts(r1: OffsetRange, r2: OffsetRange): boolean {
+	return r1.isEmpty && r2.isEmpty && r1.start === r2.start;
+}

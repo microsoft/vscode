@@ -272,6 +272,7 @@ export interface IChatResponseCodeblockUriPart {
 	uri: URI;
 	isEdit?: boolean;
 	undoStopId?: string;
+	subAgentInvocationId?: string;
 }
 
 export interface IChatAgentMarkdownContentWithVulnerability {
@@ -331,6 +332,35 @@ export interface IChatConfirmation {
 	buttons?: string[];
 	isUsed?: boolean;
 	kind: 'confirmation';
+}
+
+/**
+ * Represents an individual question in a question carousel.
+ */
+export interface IChatQuestion {
+	id: string;
+	type: 'text' | 'singleSelect' | 'multiSelect';
+	title: string;
+	message?: string | IMarkdownString;
+	options?: { id: string; label: string; value: unknown }[];
+	defaultValue?: string | string[];
+	allowFreeformInput?: boolean;
+}
+
+/**
+ * A carousel for presenting multiple questions inline in the chat response.
+ * Users can navigate between questions and submit their answers.
+ */
+export interface IChatQuestionCarousel {
+	questions: IChatQuestion[];
+	allowSkip: boolean;
+	/** Unique identifier for resolving the carousel answers back to the extension */
+	resolveId?: string;
+	/** Storage for collected answers when user submits */
+	data?: Record<string, unknown>;
+	/** Whether the carousel has been submitted/skipped */
+	isUsed?: boolean;
+	kind: 'questionCarousel';
 }
 
 export const enum ElicitationState {
@@ -416,6 +446,8 @@ export interface IChatTerminalToolInvocationData {
 	terminalToolSessionId?: string;
 	/** The predefined command ID that will be used for this terminal command */
 	terminalCommandId?: string;
+	/** Whether the terminal command was started as a background execution */
+	isBackground?: boolean;
 	/** Serialized URI for the command that was executed in the terminal */
 	terminalCommandUri?: UriComponents;
 	/** Serialized output of the executed command */
@@ -435,6 +467,8 @@ export interface IChatTerminalToolInvocationData {
 		timestamp?: number;
 		duration?: number;
 	};
+	/** Whether the user chose to continue in background for this tool invocation */
+	didContinueInBackground?: boolean;
 	autoApproveInfo?: IMarkdownString;
 }
 
@@ -854,6 +888,7 @@ export type IChatProgress =
 	| IChatMoveMessage
 	| IChatResponseCodeblockUriPart
 	| IChatConfirmation
+	| IChatQuestionCarousel
 	| IChatClearToPreviousToolInvocation
 	| IChatToolInvocation
 	| IChatToolInvocationSerialized
@@ -1217,6 +1252,10 @@ export interface IChatService {
 
 	readonly onDidPerformUserAction: Event<IChatUserActionEvent>;
 	notifyUserAction(event: IChatUserActionEvent): void;
+
+	readonly onDidReceiveQuestionCarouselAnswer: Event<{ requestId: string; resolveId: string; answers: Record<string, unknown> | undefined }>;
+	notifyQuestionCarouselAnswer(requestId: string, resolveId: string, answers: Record<string, unknown> | undefined): void;
+
 	readonly onDidDisposeSession: Event<{ readonly sessionResource: URI[]; readonly reason: 'cleared' }>;
 
 	transferChatSession(transferredSessionResource: URI, toWorkspace: URI): Promise<void>;

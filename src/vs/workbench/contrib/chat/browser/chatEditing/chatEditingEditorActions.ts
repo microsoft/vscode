@@ -4,8 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
+import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
+import { DetailedLineRangeMapping } from '../../../../../editor/common/diff/rangeMapping.js';
 import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
+import { ITextModel } from '../../../../../editor/common/model.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, IAction2Options, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -15,15 +18,26 @@ import { IListService } from '../../../../../platform/list/browser/listService.j
 import { resolveCommandsContext } from '../../../../browser/parts/editor/editorCommandsContext.js';
 import { ActiveEditorContext } from '../../../../common/contextkeys.js';
 import { EditorResourceAccessor, SideBySideEditor, TEXT_DIFF_EDITOR_ID } from '../../../../common/editor.js';
+import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { ACTIVE_GROUP, IEditorService } from '../../../../services/editor/common/editorService.js';
 import { CTX_HOVER_MODE } from '../../../inlineChat/common/inlineChat.js';
+import { MultiDiffEditor } from '../../../multiDiffEditor/browser/multiDiffEditor.js';
 import { MultiDiffEditorInput } from '../../../multiDiffEditor/browser/multiDiffEditorInput.js';
 import { NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_EDITOR_FOCUSED } from '../../../notebook/common/notebookContextKeys.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, IChatEditingService, IChatEditingSession, IModifiedFileEntry, IModifiedFileEntryChangeHunk, IModifiedFileEntryEditorIntegration, ModifiedFileEntryState, parseChatMultiDiffUri } from '../../common/editing/chatEditingService.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { ctxCursorInChangeRange, ctxHasEditorModification, ctxHasRequestInProgress, ctxIsCurrentlyBeingModified, ctxIsGlobalEditingSession, ctxReviewModeEnabled } from './chatEditingEditorContextKeys.js';
+import { ILanguageModelsService } from '../../common/languageModels.js';
+import { ChatEditingExplanationWidgetManager, IExplanationDiffInfo } from './chatEditingExplanationWidget.js';
+import { DiffEditorViewModel } from '../../../../../editor/browser/widget/diffEditor/diffEditorViewModel.js';
+import { IChatWidgetService } from '../chat.js';
+import { IViewsService } from '../../../../services/views/common/viewsService.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { Event } from '../../../../../base/common/event.js';
+import { ChatConfiguration } from '../../common/constants.js';
 
 
 abstract class ChatEditingEditorAction extends Action2 {
@@ -396,17 +410,30 @@ export class AcceptAllEditsAction extends ChatEditingEditorAction {
 
 abstract class MultiDiffAcceptDiscardAction extends Action2 {
 
-	constructor(readonly accept: boolean) {
+	constructor(private readonly _options: { readonly location: 'title' | 'content'; readonly accept: boolean }) {
 		super({
-			id: accept ? 'chatEditing.multidiff.acceptAllFiles' : 'chatEditing.multidiff.discardAllFiles',
-			title: accept ? localize('accept4', 'Keep All Edits') : localize('discard4', 'Undo All Edits'),
-			icon: accept ? Codicon.check : Codicon.discard,
-			menu: {
-				when: ContextKeyExpr.equals('resourceScheme', CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME),
-				id: MenuId.EditorTitle,
-				order: accept ? 0 : 1,
-				group: 'navigation',
-			},
+			id: _options.location === 'title'
+				? _options.accept ? 'chatEditing.multidiff.title.acceptAllFiles' : 'chatEditing.multidiff.title.discardAllFiles'
+				: _options.accept ? 'chatEditing.multidiff.content.acceptAllFiles' : 'chatEditing.multidiff.content.discardAllFiles',
+			title: _options.location === 'title'
+				? _options.accept ? localize('accept4', 'Keep All Edits') : localize('discard4', 'Undo All Edits')
+				: _options.accept ? localize('accept5', 'Keep') : localize('discard5', 'Undo'),
+			icon: _options.location === 'title'
+				? _options.accept ? Codicon.check : Codicon.discard
+				: undefined,
+			menu: _options.location === 'title'
+				? {
+					when: ContextKeyExpr.equals('resourceScheme', CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME),
+					id: MenuId.EditorTitle,
+					order: _options.accept ? -100 : -99,
+					group: 'navigation',
+				}
+				: {
+					when: ContextKeyExpr.equals('resourceScheme', CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME),
+					id: MenuId.MultiDiffEditorContent,
+					order: _options.accept ? -100 : -99,
+					group: 'navigation'
+				}
 		});
 	}
 
@@ -431,13 +458,147 @@ abstract class MultiDiffAcceptDiscardAction extends Action2 {
 		const { chatSessionResource } = parseChatMultiDiffUri(editor.resource);
 		const session = chatEditingService.getEditingSession(chatSessionResource);
 		if (session) {
-			if (this.accept) {
+			if (this._options.accept) {
 				await session.accept();
 			} else {
 				await session.reject();
 			}
 
 			editorService.closeEditor({ editor, groupId: groupContext.group.id });
+		}
+	}
+}
+
+
+class ExplainMultiDiffAction extends Action2 {
+
+	private readonly _widgetsByInput = new WeakMap<EditorInput, DisposableStore>();
+
+	constructor() {
+		super({
+			id: 'chatEditing.multidiff.explain',
+			title: localize('explain', 'Explain'),
+			menu: {
+				when: ContextKeyExpr.and(ContextKeyExpr.or(ContextKeyExpr.equals('resourceScheme', 'copilotcli-worktree-changes'), ContextKeyExpr.equals('resourceScheme', 'copilotcloud-pr-changes')), ContextKeyExpr.has(`config.${ChatConfiguration.ExplainChangesEnabled}`)),
+				id: MenuId.MultiDiffEditorContent,
+				order: 10,
+			},
+		});
+	}
+
+	async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		const languageModelsService = accessor.get(ILanguageModelsService);
+		const chatWidgetService = accessor.get(IChatWidgetService);
+		const viewsService = accessor.get(IViewsService);
+
+		const activePane = editorService.activeEditorPane;
+		if (!activePane) {
+			return;
+		}
+
+		// Check if we're in a multi-diff editor
+		if (!(activePane instanceof MultiDiffEditor) || !activePane.viewModel) {
+			return;
+		}
+
+		const input = activePane.input;
+		if (!input) {
+			return;
+		}
+
+		// Dispose existing widgets for this input and create new store
+		this._widgetsByInput.get(input)?.dispose();
+		const widgetsStore = new DisposableStore();
+		this._widgetsByInput.set(input, widgetsStore);
+
+		// Dispose widgets when the input is disposed
+		Event.once(input.onWillDispose)(() => {
+			widgetsStore.dispose();
+			this._widgetsByInput.delete(input);
+		});
+
+		const viewModel = activePane.viewModel;
+		const items = viewModel.items.get();
+
+		// First pass: collect all diffs grouped by file
+		const diffsByFile = new Map<string, {
+			editor: ICodeEditor;
+			changes: DetailedLineRangeMapping[];
+			originalModel: ITextModel;
+			modifiedModel: ITextModel;
+		}>();
+
+		for (const item of items) {
+			const modifiedUri = item.modifiedUri;
+			if (!modifiedUri) {
+				continue;
+			}
+
+			// Try to get the editor for this item
+			const editorInfo = activePane.tryGetCodeEditor(modifiedUri);
+			if (!editorInfo) {
+				continue;
+			}
+
+			// Get diff info from the view model
+			const diffEditorVM = item.diffEditorViewModel as DiffEditorViewModel;
+			await diffEditorVM.waitForDiff();
+
+			const diff = diffEditorVM.diff.get();
+			if (!diff || diff.identical) {
+				continue;
+			}
+
+			const fileKey = modifiedUri.toString();
+			const existing = diffsByFile.get(fileKey);
+			if (existing) {
+				// Add changes to existing file entry
+				existing.changes.push(...diff.mappings.map(m => m.lineRangeMapping));
+			} else {
+				// Create new file entry
+				diffsByFile.set(fileKey, {
+					editor: editorInfo.editor,
+					changes: diff.mappings.map(m => m.lineRangeMapping),
+					originalModel: diffEditorVM.model.original,
+					modifiedModel: diffEditorVM.model.modified,
+				});
+			}
+		}
+
+		// Second pass: create managers for each file with all its changes
+		const managersWithDiffInfo: { manager: ChatEditingExplanationWidgetManager; diffInfo: IExplanationDiffInfo }[] = [];
+
+		for (const fileData of diffsByFile.values()) {
+			// Build diff info with all changes for this file
+			const diffInfo: IExplanationDiffInfo = {
+				changes: fileData.changes,
+				identical: false,
+				originalModel: fileData.originalModel,
+				modifiedModel: fileData.modifiedModel,
+			};
+
+			// Create a widget manager for this file
+			const manager = new ChatEditingExplanationWidgetManager(
+				fileData.editor,
+				chatWidgetService,
+				viewsService,
+			);
+			widgetsStore.add(manager);
+
+			// Update with diff info and show (but don't generate explanations yet)
+			manager.update(diffInfo, true);
+			managersWithDiffInfo.push({ manager, diffInfo });
+		}
+
+		// Generate explanations for all managers
+		for (const { manager, diffInfo } of managersWithDiffInfo) {
+			await ChatEditingExplanationWidgetManager.generateExplanations(
+				manager.widgets,
+				diffInfo,
+				languageModelsService,
+				CancellationToken.None
+			);
 		}
 	}
 }
@@ -455,8 +616,11 @@ export function registerChatEditorActions() {
 	registerAction2(ToggleDiffAction);
 	registerAction2(ToggleAccessibleDiffViewAction);
 
-	registerAction2(class extends MultiDiffAcceptDiscardAction { constructor() { super(true); } });
-	registerAction2(class extends MultiDiffAcceptDiscardAction { constructor() { super(false); } });
+	registerAction2(class extends MultiDiffAcceptDiscardAction { constructor() { super({ location: 'title', accept: true }); } });
+	registerAction2(class extends MultiDiffAcceptDiscardAction { constructor() { super({ location: 'title', accept: false }); } });
+	registerAction2(class extends MultiDiffAcceptDiscardAction { constructor() { super({ location: 'content', accept: true }); } });
+	registerAction2(class extends MultiDiffAcceptDiscardAction { constructor() { super({ location: 'content', accept: false }); } });
+	registerAction2(ExplainMultiDiffAction);
 
 	MenuRegistry.appendMenuItem(MenuId.ChatEditingEditorContent, {
 		command: {

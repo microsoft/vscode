@@ -126,20 +126,35 @@ export const {
 //#region External Focus Tracking
 
 /**
+ * Information about external focus state, including the associated window.
+ */
+export interface IExternalFocusInfo {
+	readonly hasFocus: boolean;
+	readonly window?: CodeWindow;
+}
+
+/**
+ * A function that checks if a component outside the normal DOM tree has focus.
+ * Returns focus info including which window the component is associated with.
+ */
+export type ExternalFocusChecker = () => IExternalFocusInfo;
+
+/**
  * A registry for functions that check if a component outside the normal DOM tree has focus.
  * This is used to extend the concept of "window has focus" to include things like
  * Electron WebContentsViews (browser views) that exist outside the workbench DOM.
  */
-const externalFocusCheckers = new Set<() => boolean>();
+const externalFocusCheckers = new Set<ExternalFocusChecker>();
 
 /**
  * Register a function that checks if a component outside the DOM has focus.
- * This allows `hasExternalFocus` to detect when focus is in components like browser views.
+ * This allows `hasExternalFocus` to detect when focus is in components like browser views,
+ * and `getExternalFocusWindow` to determine which window the focused component belongs to.
  *
- * @param checker A function that returns true if the component has focus
+ * @param checker A function that returns focus info for the component
  * @returns A disposable to unregister the checker
  */
-export function registerExternalFocusChecker(checker: () => boolean): IDisposable {
+export function registerExternalFocusChecker(checker: ExternalFocusChecker): IDisposable {
 	externalFocusCheckers.add(checker);
 
 	return toDisposable(() => {
@@ -156,11 +171,28 @@ export function registerExternalFocusChecker(checker: () => boolean): IDisposabl
  */
 export function hasExternalFocus(): boolean {
 	for (const checker of externalFocusCheckers) {
-		if (checker()) {
+		if (checker().hasFocus) {
 			return true;
 		}
 	}
 	return false;
+}
+
+/**
+ * Get the window associated with a focused external component.
+ * This is used to determine which window should receive UI like dialogs
+ * when an external component (like a browser view) has focus.
+ *
+ * @returns The window of the focused external component, or undefined if none
+ */
+export function getExternalFocusWindow(): CodeWindow | undefined {
+	for (const checker of externalFocusCheckers) {
+		const info = checker();
+		if (info.hasFocus && info.window) {
+			return info.window;
+		}
+	}
+	return undefined;
 }
 
 /**
@@ -1031,8 +1063,8 @@ export function isActiveDocument(element: Element): boolean {
 
 /**
  * Returns the active document across main and child windows.
- * Prefers the window with focus, otherwise falls back to
- * the main windows document.
+ * Prefers the window with focus (including external components like browser views),
+ * otherwise falls back to the main windows document.
  */
 export function getActiveDocument(): Document {
 	if (getWindowsCount() <= 1) {
@@ -1040,7 +1072,18 @@ export function getActiveDocument(): Document {
 	}
 
 	const documents = Array.from(getWindows()).map(({ window }) => window.document);
-	return documents.find(doc => doc.hasFocus()) ?? mainWindow.document;
+	const focusedDoc = documents.find(doc => doc.hasFocus());
+	if (focusedDoc) {
+		return focusedDoc;
+	}
+
+	// Check if an external component (like browser view) has focus
+	const externalWindow = getExternalFocusWindow();
+	if (externalWindow) {
+		return externalWindow.document;
+	}
+
+	return mainWindow.document;
 }
 
 /**

@@ -84,6 +84,19 @@ export interface IBrowserViewNewPageRequest {
 	background: boolean;
 }
 
+export interface IBrowserViewFindInPageOptions {
+	recompute?: boolean;
+	forward?: boolean;
+	matchCase?: boolean;
+}
+
+export interface IBrowserViewFindInPageResult {
+	activeMatchOrdinal: number;
+	matches: number;
+	selectionArea?: { x: number; y: number; width: number; height: number };
+	finalUpdate: boolean;
+}
+
 export enum BrowserViewStorageScope {
 	Global = 'global',
 	Workspace = 'workspace',
@@ -104,6 +117,7 @@ export interface IBrowserViewService {
 	onDynamicDidChangeTitle(id: string): Event<IBrowserViewTitleChangeEvent>;
 	onDynamicDidChangeFavicon(id: string): Event<IBrowserViewFaviconChangeEvent>;
 	onDynamicDidRequestNewPage(id: string): Event<IBrowserViewNewPageRequest>;
+	onDynamicDidFindInPage(id: string): Event<IBrowserViewFindInPageResult>;
 	onDynamicDidClose(id: string): Event<void>;
 
 	/**
@@ -203,6 +217,21 @@ export interface IBrowserViewService {
 	 * @param id The browser view identifier
 	 */
 	focus(id: string): Promise<void>;
+
+	/**
+	 * Find text in the browser view's page
+	 * @param id The browser view identifier
+	 * @param text The text to search for
+	 * @param options Find options (forward direction, find next)
+	 */
+	findInPage(id: string, text: string, options?: IBrowserViewFindInPageOptions): Promise<void>;
+
+	/**
+	 * Stop the find in page session
+	 * @param id The browser view identifier
+	 * @param keepSelection Whether to keep the current selection
+	 */
+	stopFindInPage(id: string, keepSelection?: boolean): Promise<void>;
 
 	/**
 	 * Clear all storage data for the global browser session
