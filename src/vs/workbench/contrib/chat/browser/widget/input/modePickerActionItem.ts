@@ -28,7 +28,7 @@ import { IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatMode, IChatMode, IChatModeService } from '../../../common/chatModes.js';
 import { isOrganizationPromptFile } from '../../../common/promptSyntax/utils/promptsServiceUtils.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../common/constants.js';
-import { PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
+import { normalizeAgentInferValue, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { getOpenChatActionIdForMode } from '../../actions/chatActions.js';
 import { IToggleChatModeArgs, ToggleAgentModeActionId } from '../../actions/chatExecuteActions.js';
 import { ChatInputPickerActionViewItem, IChatInputPickerOptions } from './chatInputPickerActionItem.js';
@@ -151,6 +151,12 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 			return mode.source.storage === PromptsStorage.local || mode.source.storage === PromptsStorage.user;
 		};
 
+		const shouldShowInPicker = (mode: IChatMode): boolean => {
+			const inferValue = mode.infer?.get();
+			const normalizedInfer = normalizeAgentInferValue(inferValue);
+			return normalizedInfer === 'all' || normalizedInfer === 'user';
+		};
+
 		const isImplementMode = (mode: IChatMode) => isBuiltinImplementMode(mode, this._productService);
 
 		const actionProviderWithCustomAgentTarget: IActionWidgetDropdownActionProvider = {
@@ -159,7 +165,7 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 				const currentMode = delegate.currentMode.get();
 				const filteredCustomModes = modes.custom.filter(mode => {
 					const target = mode.target?.get();
-					return isUserDefinedCustomAgent(mode) && (!target || target === customAgentTarget);
+					return isUserDefinedCustomAgent(mode) && shouldShowInPicker(mode) && (!target || target === customAgentTarget);
 				});
 				// Always include the default "Agent" option first
 				const checked = currentMode.id === ChatMode.Agent.id;
@@ -181,8 +187,9 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 
 				const otherBuiltinModes = modes.builtin.filter(mode => mode.id !== ChatMode.Agent.id && !(shouldHideEditMode && mode.id === ChatMode.Edit.id));
 				// Filter out 'implement' mode from the dropdown - it's available for handoffs but not user-selectable
+				// Also filter based on infer value - only show agents with 'all' or 'user'
 				const customModes = groupBy(
-					modes.custom.filter(mode => !isImplementMode(mode)),
+					modes.custom.filter(mode => !isImplementMode(mode) && shouldShowInPicker(mode)),
 					mode => isModeConsideredBuiltIn(mode, this._productService) ? 'builtin' : 'custom');
 
 				const customBuiltinModeActions = customModes.builtin?.map(mode => {

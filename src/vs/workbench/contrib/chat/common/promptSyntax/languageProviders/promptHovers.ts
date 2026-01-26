@@ -114,7 +114,7 @@ export class PromptHoverProvider implements HoverProvider {
 							case PromptHeaderAttributes.target:
 								return this.createHover(localize('promptHeader.agent.target', 'The target to which the header attributes like tools apply to. Possible values are `github-copilot` and `vscode`.'), attribute.range);
 							case PromptHeaderAttributes.infer:
-								return this.createHover(localize('promptHeader.agent.infer', 'Whether the agent can be used as a subagent.'), attribute.range);
+								return this.createHover(localize('promptHeader.agent.infer', 'Controls agent visibility and usage:\n- `all`: Available in custom agent picker AND as subagent\n- `user`: Only in custom agent picker\n- `agent`: Only as subagent\n- `hidden`: Neither in picker nor as subagent\n\nFor backward compatibility, boolean values are supported:\n- `true` maps to `all`\n- `false` maps to `user`'), attribute.range);
 							case PromptHeaderAttributes.agents:
 								return this.createHover(localize('promptHeader.agent.agents', 'One or more agents that this agent can use as subagents. Use \'*\' to specify all available agents.'), attribute.range);
 						}

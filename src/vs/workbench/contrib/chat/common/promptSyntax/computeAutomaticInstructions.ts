@@ -22,7 +22,7 @@ import { PromptsConfig } from './config/config.js';
 import { isPromptOrInstructionsFile } from './config/promptFileLocations.js';
 import { PromptsType } from './promptTypes.js';
 import { ParsedPromptFile } from './promptFileParser.js';
-import { ICustomAgent, IPromptPath, IPromptsService } from './service/promptsService.js';
+import { ICustomAgent, IPromptPath, IPromptsService, normalizeAgentInferValue } from './service/promptsService.js';
 import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
 import { ChatConfiguration, ChatModeKind } from '../constants.js';
 import { UserSelectedTools } from '../participants/chatAgents.js';
@@ -333,7 +333,10 @@ export class ComputeAutomaticInstructions {
 		if (runSubagentTool && this._configurationService.getValue(ChatConfiguration.SubagentToolCustomAgents)) {
 			const canUseAgent = (() => {
 				if (!this._enabledSubagents || this._enabledSubagents.includes('*')) {
-					return (agent: ICustomAgent) => (agent.infer !== false);
+					return (agent: ICustomAgent) => {
+						const normalizedInfer = normalizeAgentInferValue(agent.infer);
+						return normalizedInfer === 'all' || normalizedInfer === 'agent';
+					};
 				} else {
 					const subagents = this._enabledSubagents;
 					return (agent: ICustomAgent) => subagents.includes(agent.name);

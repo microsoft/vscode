@@ -21,7 +21,7 @@ import { Disposable, DisposableStore, toDisposable } from '../../../../../../bas
 import { Delayer } from '../../../../../../base/common/async.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
-import { IPromptsService } from '../service/promptsService.js';
+import { AgentInferValue, IPromptsService } from '../service/promptsService.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { AGENTS_SOURCE_FOLDER, LEGACY_MODE_FILE_EXTENSION } from '../config/promptFileLocations.js';
 import { Lazy } from '../../../../../../base/common/lazy.js';
@@ -530,10 +530,19 @@ export class PromptValidator {
 		if (!attribute) {
 			return;
 		}
-		if (attribute.value.type !== 'boolean') {
-			report(toMarker(localize('promptValidator.inferMustBeBoolean', "The 'infer' attribute must be a boolean."), attribute.value.range, MarkerSeverity.Error));
+		if (attribute.value.type === 'boolean') {
+			// Boolean values are allowed for backward compatibility
 			return;
 		}
+		if (attribute.value.type === 'string') {
+			const validValues: AgentInferValue[] = ['all', 'user', 'agent', 'hidden'];
+			if (!validValues.includes(attribute.value.value as AgentInferValue)) {
+				report(toMarker(localize('promptValidator.inferInvalidValue', "The 'infer' attribute must be one of: {0}, or a boolean (true/false) for backward compatibility.", validValues.join(', ')), attribute.value.range, MarkerSeverity.Error));
+			}
+			return;
+		}
+		report(toMarker(localize('promptValidator.inferMustBeBooleanOrString', "The 'infer' attribute must be a boolean or one of: 'all', 'user', 'agent', 'hidden'."), attribute.value.range, MarkerSeverity.Error));
+		return;
 	}
 
 	private validateTarget(attributes: IHeaderAttribute[], report: (markers: IMarkerData) => void): undefined {

@@ -115,6 +115,38 @@ export type IAgentSource = {
 	readonly storage: PromptsStorage.local | PromptsStorage.user;
 };
 
+/**
+ * Agent infer values control agent visibility and usage.
+ * - 'all': Available in custom agent picker AND as subagent
+ * - 'user': Only in custom agent picker
+ * - 'agent': Only as subagent
+ * - 'hidden': Neither in picker nor as subagent
+ * For backward compatibility, boolean values are supported:
+ * - true maps to 'all'
+ * - false maps to 'user'
+ */
+export type AgentInferValue = 'all' | 'user' | 'agent' | 'hidden';
+
+/**
+ * Normalizes the infer value to AgentInferValue.
+ * Converts boolean values to their corresponding enum values for backward compatibility.
+ * - true -> 'all'
+ * - false -> 'user'
+ * - undefined -> 'all' (default)
+ */
+export function normalizeAgentInferValue(infer: AgentInferValue | boolean | undefined): AgentInferValue {
+	if (infer === true) {
+		return 'all';
+	}
+	if (infer === false) {
+		return 'user';
+	}
+	if (infer === undefined) {
+		return 'all'; // default
+	}
+	return infer;
+}
+
 export interface ICustomAgent {
 	/**
 	 * URI of a custom agent file.
@@ -153,8 +185,10 @@ export interface ICustomAgent {
 
 	/**
 	 * Infer metadata in the prompt header.
+	 * Controls agent visibility: 'all', 'user', 'agent', or 'hidden'.
+	 * For backward compatibility, boolean values are supported (true='all', false='user').
 	 */
-	readonly infer?: boolean;
+	readonly infer?: AgentInferValue | boolean;
 
 	/**
 	 * Contents of the custom agent file body and other agent instructions.
