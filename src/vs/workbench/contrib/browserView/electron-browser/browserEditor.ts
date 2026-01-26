@@ -5,7 +5,7 @@
 
 import './media/browser.css';
 import { localize } from '../../../../nls.js';
-import { $, addDisposableListener, Dimension, disposableWindowInterval, EventType, IDomPosition, isHTMLElement, registerExternalFocusChecker } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, Dimension, disposableWindowInterval, EventType, IDomPosition, registerExternalFocusChecker } from '../../../../base/browser/dom.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { RawContextKey, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -55,6 +55,12 @@ export const CONTEXT_BROWSER_ELEMENT_SELECTION_ACTIVE = new RawContextKey<boolea
 
 // Re-export find widget context keys for use in actions
 export { CONTEXT_BROWSER_FIND_WIDGET_FOCUSED, CONTEXT_BROWSER_FIND_WIDGET_VISIBLE };
+
+/**
+ * Get the original implementation of HTMLElement focus (without window auto-focusing)
+ * before it gets overridden by the workbench.
+ */
+const originalHtmlElementFocus = HTMLElement.prototype.focus;
 
 class BrowserNavigationBar extends Disposable {
 	private readonly _urlInput: HTMLInputElement;
@@ -360,9 +366,7 @@ export class BrowserEditor extends EditorPane {
 			// but focus is removed from the workbench.
 			if (focused) {
 				this._onDidFocus?.fire();
-				if (isHTMLElement(this.window.document.activeElement)) {
-					this.window.document.activeElement.blur();
-				}
+				this.ensureBrowserFocus();
 			}
 		}));
 
@@ -411,6 +415,13 @@ export class BrowserEditor extends EditorPane {
 		this.updateVisibility();
 	}
 
+	/**
+	 * Make the browser container the active element without moving focus from the browser view.
+	 */
+	private ensureBrowserFocus(): void {
+		originalHtmlElementFocus.call(this._browserContainer);
+	}
+
 	private updateVisibility(): void {
 		const hasUrl = !!this._model?.url;
 		const hasError = !!this._model?.error;
@@ -430,8 +441,16 @@ export class BrowserEditor extends EditorPane {
 		this._overlayPauseContainer.classList.toggle('visible', isPaused);
 
 		if (this._model) {
-			// Blur the background placeholder screenshot if the view is hidden due to an overlay.
-			void this._model.setVisible(this.shouldShowView);
+			const show = this.shouldShowView;
+			void this._model.setVisible(show);
+			if (
+				show &&
+				this._browserContainer.ownerDocument.hasFocus() &&
+				this._browserContainer.ownerDocument.activeElement === this._browserContainer
+			) {
+				// If the editor is focused, ensure the browser view also gets focus
+				void this._model.focus();
+			}
 		}
 	}
 
@@ -526,6 +545,7 @@ export class BrowserEditor extends EditorPane {
 				url = 'http://' + url;
 			}
 
+			this.ensureBrowserFocus();
 			await this._model.loadURL(url);
 		}
 	}
@@ -607,6 +627,9 @@ export class BrowserEditor extends EditorPane {
 			if (!resourceUri) {
 				throw new Error('No resource URI found');
 			}
+
+			// Make the browser the focused view
+			this.ensureBrowserFocus();
 
 			// Create a locator - for integrated browser, use the URI scheme to identify
 			// Browser view URIs have a special scheme we can match against
