@@ -646,7 +646,11 @@ export class DisassemblyView extends EditorPane {
 				let targetIndex: number | undefined = undefined;
 				const refBaseAddress = this._referenceToMemoryAddress.get(instructionReference);
 				if (refBaseAddress !== undefined) {
-					targetIndex = this._disassembledInstructions!.findNextIndex(0, false, entry => entry.address === refBaseAddress);
+					const da = this._disassembledInstructions!;
+					targetIndex = binarySearch2(da.length, i => Number(da.row(i).address - refBaseAddress));
+					if (targetIndex < 0) {
+						targetIndex = ~targetIndex; // shouldn't happen, but fail gracefully if it does
+					}
 				}
 
 				// If didn't find the instructonReference, set the target instruction in the middle of the page.
