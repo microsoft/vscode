@@ -68,7 +68,7 @@ export namespace McpApps {
 	 * The SDK automatically handles version negotiation during initialization.
 	 * Apps and hosts don't need to manage protocol versions manually.
 	 */
-	export const LATEST_PROTOCOL_VERSION = "2025-11-21";
+	export const LATEST_PROTOCOL_VERSION = "2026-01-26";
 
 	/**
 	 * @description Color theme preference for the host environment.
@@ -515,12 +515,12 @@ export namespace McpApps {
 		};
 		/** @description Host accepts context updates (ui/update-model-context) to be included in the model's context for future turns. */
 		updateModelContext?: McpUiSupportedContentBlockModalities;
-		/** @description Host supports receiving content messages (ui/message) from the Guest UI. */
+		/** @description Host supports receiving content messages (ui/message) from the View. */
 		message?: McpUiSupportedContentBlockModalities;
 	}
 
 	/**
-	 * @description Capabilities provided by the Guest UI (App).
+	 * @description Capabilities provided by the View (App).
 	 * @see {@link McpUiInitializeRequest} for the initialization request that includes these capabilities
 	 */
 	export interface McpUiAppCapabilities {
@@ -531,6 +531,11 @@ export namespace McpApps {
 			/** @description App supports tools/list_changed notifications. */
 			listChanged?: boolean;
 		};
+		/**
+		 * @description Display modes the app supports. See Display Modes section of the spec for details.
+		 * @example ["inline", "fullscreen"]
+		 */
+		availableDisplayModes?: McpUiDisplayMode[];
 	}
 
 	/**
