@@ -17,11 +17,28 @@
 .unified-agents-bar .command-center .action-item.agent-status-container {
 	width: 38vw;
 	max-width: 600px;
+	display: flex;
+	flex-direction: row;
+	flex-wrap: nowrap;
+	align-items: center;
+	justify-content: flex-start;
+}
+
+/* Badge-only mode - compact layout next to command center */
+.agent-status-enabled:not(.unified-agents-bar) .command-center .action-item.agent-status-container {
+	display: flex;
+	flex-direction: row;
+	flex-wrap: nowrap;
+	align-items: center;
+	overflow: visible;
 }
 
 .agent-status-container {
 	display: flex;
+	flex-direction: row;
+	flex-wrap: nowrap;
 	align-items: center;
+	justify-content: flex-start;
 	gap: 4px;
 	padding-right: 22px;
 	-webkit-app-region: no-drag;
