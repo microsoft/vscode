@@ -13,7 +13,8 @@ class _vsCodeXonsh:
 			self._vscode_nonce = __xonsh__.env.get('VSCODE_NONCE', '')
 			self.stdout = sys.stdout
 			self.vsc_apply_xonshrc()
-			self.vsc_wrapped_prompt()
+			self.vsc_prompt_fields()
+			self.add_vsc_to_prompt()
 			self.add_vsc_events()
 			__xonsh__.env['VSCODE_SHELL_INTEGRATION'] = '1'
 			del __xonsh__.env['VSCODE_INJECTION']
@@ -40,19 +41,17 @@ class _vsCodeXonsh:
 		self.stdout.write(f"{msg}")
 		self._write_end_osc()
 
-	def vsc_wrapped_prompt(self):
+	def vsc_prompt_fields(self):
 		"""Generate prompt with A marker before it"""
-		_vsc_orig_prompt = $PROMPT
+		$PROMPT_FIELDS['vsc_prompt_start'] = "\001\x1b" + "]633;A" + "\x07\002"
+		$PROMPT_FIELDS['vsc_prompt_end'] = "\001\x1b" + "]633;B" + "\x07\002"
 
-		if callable(_vsc_orig_prompt):
-			original = _vsc_orig_prompt()
-		else:
-			original = str(_vsc_orig_prompt)
 
-		if '\001' in original:
-			return original
+	def add_vsc_to_prompt(self):
+		"""Add vscode markers to prompt"""
+		if 'vsc_prompt_start' not in $PROMPT:
+			$PROMPT = '{vsc_prompt_start}' + $PROMPT + '{vsc_prompt_end}'
 
-		$PROMPT = f'\001\x1b]633;A\x07\002{original}\001\x1b]633;B\x07\002'
 
 	def _vsc_escape_value(self, value):
 		"""
@@ -65,7 +64,11 @@ class _vsCodeXonsh:
 		result = []
 		for char in value:
 			code = ord(char)
-			if code < 32:
+			if char == '\n':
+				result.append(f'\\x{code:02x}')
+				rctrl_u = chr(21)
+				result.append(f'\\x{ord(rctrl_u):02x}')
+			elif code < 32:
 				result.append(f'\\x{code:02x}')
 			elif char == '\\':
 				result.append('\\\\')
@@ -85,6 +88,7 @@ class _vsCodeXonsh:
 		escaped_cmd = self._vsc_escape_value(trimmed_cmd)
 		self.write_osc(f'633;C')
 		self.write_osc(f'633;E;{escaped_cmd};{self._vscode_nonce}')
+
 
 	def _vsc_command_finished(self, cmd, exit_code=None):
 		"""Send OSC 633 ; D - Command finished with exit code"""
@@ -107,7 +111,7 @@ class _vsCodeXonsh:
 
 		@events.on_pre_prompt
 		def _vsc_on_pre_prompt(**kwargs):
-			self.vsc_wrapped_prompt()
+			self.add_vsc_to_prompt()
 
 
 if 'VSCODE_SHELL_INTEGRATION' not in __xonsh__.env:
