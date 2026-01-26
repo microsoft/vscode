@@ -7,7 +7,7 @@ import { localize } from '../../../../../../nls.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
-import { IPromptPath, IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
+import { IExtensionPromptPath, IPromptPath, IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { dirname, extUri, joinPath } from '../../../../../../base/common/resources.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
@@ -25,7 +25,9 @@ import { askForPromptSourceFolder } from './askForPromptSourceFolder.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { PromptsConfig } from '../../../common/promptSyntax/config/config.js';
+import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { PromptFileRewriter } from '../promptFileRewriter.js';
+import { isOrganizationPromptFile } from '../../../common/promptSyntax/utils/promptsServiceUtils.js';
 
 /**
  * Options for the {@link askToSelectInstructions} function.
@@ -120,6 +122,13 @@ interface IPromptPickerQuickPickItem extends IQuickPickItem {
 
 function isPromptFileItem(item: IPromptPickerQuickPickItem | IQuickPickSeparator): item is IPromptPickerQuickPickItem & { promptFileUri: URI } {
 	return item.type === 'item' && !!item.promptFileUri;
+}
+
+/**
+ * Type guard for extension prompt paths.
+ */
+function isExtensionPromptPath(prompt: IPromptPath): prompt is IExtensionPromptPath {
+	return prompt.storage === PromptsStorage.extension && !!prompt.extension;
 }
 
 type IPromptQuickPick = IQuickPick<IPromptPickerQuickPickItem, { useSeparators: true }>;
@@ -259,6 +268,7 @@ export class PromptFilePickers {
 		@IPromptsService private readonly _promptsService: IPromptsService,
 		@ILabelService private readonly _labelService: ILabelService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IProductService private readonly _productService: IProductService,
 	) {
 	}
 
@@ -373,10 +383,12 @@ export class PromptFilePickers {
 			getVisibility = p => !disabled.has(p.uri);
 		}
 
+		const sortByLabel = (items: IPromptPickerQuickPickItem[]): IPromptPickerQuickPickItem[] => items.sort((a, b) => a.label.localeCompare(b.label));
+
 		const locals = await this._promptsService.listPromptFilesForStorage(options.type, PromptsStorage.local, token);
 		if (locals.length) {
 			result.push({ type: 'separator', label: localize('separator.workspace', "Workspace") });
-			result.push(...await Promise.all(locals.map(l => this._createPromptPickItem(l, buttons, getVisibility(l), token))));
+			result.push(...sortByLabel(await Promise.all(locals.map(l => this._createPromptPickItem(l, buttons, getVisibility(l), token)))));
 		}
 
 		// Agent instruction files (copilot-instructions.md and AGENTS.md) are added here and not included in the output of
@@ -403,12 +415,11 @@ export class PromptFilePickers {
 		if (agentInstructionFiles.length) {
 			const agentButtons = buttons.filter(b => b !== RENAME_BUTTON);
 			result.push({ type: 'separator', label: localize('separator.workspace-agent-instructions', "Agent Instructions") });
-			result.push(...await Promise.all(agentInstructionFiles.map(l => this._createPromptPickItem(l, agentButtons, getVisibility(l), token))));
+			result.push(...sortByLabel(await Promise.all(agentInstructionFiles.map(l => this._createPromptPickItem(l, agentButtons, getVisibility(l), token)))));
 		}
 
-		const exts = await this._promptsService.listPromptFilesForStorage(options.type, PromptsStorage.extension, token);
+		const exts = (await this._promptsService.listPromptFilesForStorage(options.type, PromptsStorage.extension, token)).filter(isExtensionPromptPath);
 		if (exts.length) {
-			result.push({ type: 'separator', label: localize('separator.extensions', "Extensions") });
 			const extButtons: IQuickInputButton[] = [];
 			if (options.optionEdit !== false) {
 				extButtons.push(EDIT_BUTTON);
@@ -416,14 +427,38 @@ export class PromptFilePickers {
 			if (options.optionCopy !== false) {
 				extButtons.push(COPY_BUTTON);
 			}
-			result.push(...await Promise.all(exts.map(e => this._createPromptPickItem(e, extButtons, getVisibility(e), token))));
+
+			const groupedExts = new Map<string, IPromptPath[]>();
+			for (const ext of exts) {
+				const groupLabel = this._getExtensionGroupLabel(ext);
+				if (!groupedExts.has(groupLabel)) {
+					groupedExts.set(groupLabel, []);
+				}
+				groupedExts.get(groupLabel)!.push(ext);
+			}
+
+			const sortedGroupedExts = Array.from(groupedExts.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+			for (const [groupLabel, groupExts] of sortedGroupedExts) {
+				result.push({ type: 'separator', label: groupLabel });
+				result.push(...sortByLabel(await Promise.all(groupExts.map(e => this._createPromptPickItem(e, extButtons, getVisibility(e), token)))));
+			}
 		}
 		const users = await this._promptsService.listPromptFilesForStorage(options.type, PromptsStorage.user, token);
 		if (users.length) {
 			result.push({ type: 'separator', label: localize('separator.user', "User Data") });
-			result.push(...await Promise.all(users.map(u => this._createPromptPickItem(u, buttons, getVisibility(u), token))));
+			result.push(...sortByLabel(await Promise.all(users.map(u => this._createPromptPickItem(u, buttons, getVisibility(u), token)))));
 		}
 		return result;
+	}
+
+	private _getExtensionGroupLabel(extPath: IExtensionPromptPath): string {
+		if (isOrganizationPromptFile(extPath.uri, extPath.extension.identifier, this._productService)) {
+			return localize('separator.organization', "Organization");
+		}
+
+		// By default, extension prompt files are grouped under "Extensions"
+		return localize('separator.extensions', "Extensions");
+
 	}
 
 	private _getNewItems(type: PromptsType): IPromptPickerQuickPickItem[] {

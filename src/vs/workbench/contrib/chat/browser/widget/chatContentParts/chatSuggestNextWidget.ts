@@ -13,7 +13,7 @@ import { IContextMenuService } from '../../../../../../platform/contextview/brow
 import { IChatMode } from '../../../common/chatModes.js';
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { IHandOff } from '../../../common/promptSyntax/promptFileParser.js';
-import { AgentSessionProviders, getAgentSessionProviderIcon, getAgentSessionProviderName } from '../../agentSessions/agentSessions.js';
+import { getAgentCanContinueIn, getAgentSessionProvider, getAgentSessionProviderIcon, getAgentSessionProviderName } from '../../agentSessions/agentSessions.js';
 
 export interface INextPromptSelection {
 	readonly handoff: IHandOff;
@@ -116,8 +116,16 @@ export class ChatSuggestNextWidget extends Disposable {
 		const showContinueOn = handoff.showContinueOn ?? true;
 
 		// Get chat session contributions to show in chevron dropdown
+		// Filter to only first-party providers that support "continue in".
+		// TODO: Expand later to any agent with `canDelegate` === true.
 		const contributions = this.chatSessionsService.getAllChatSessionContributions();
-		const availableContributions = contributions.filter(c => c.canDelegate);
+		const availableContributions = contributions.filter(c => {
+			if (!c.canDelegate) {
+				return false;
+			}
+			const provider = getAgentSessionProvider(c.type);
+			return provider !== undefined && getAgentCanContinueIn(provider);
+		});
 
 		if (showContinueOn && availableContributions.length > 0) {
 			button.classList.add('chat-suggest-next-has-dropdown');
@@ -138,7 +146,7 @@ export class ChatSuggestNextWidget extends Disposable {
 				e.stopPropagation();
 
 				const actions = availableContributions.map(contrib => {
-					const provider = contrib.type === AgentSessionProviders.Background ? AgentSessionProviders.Background : AgentSessionProviders.Cloud;
+					const provider = getAgentSessionProvider(contrib.type)!;
 					const icon = getAgentSessionProviderIcon(provider);
 					const name = getAgentSessionProviderName(provider);
 					return new Action(

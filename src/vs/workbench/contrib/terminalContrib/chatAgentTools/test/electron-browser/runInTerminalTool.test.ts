@@ -32,6 +32,7 @@ import { TestIPCFileSystemProvider } from '../../../../../test/electron-browser/
 import { TerminalToolConfirmationStorageKeys } from '../../../../chat/browser/widget/chatContentParts/toolInvocationParts/chatTerminalToolConfirmationSubPart.js';
 import { IChatService, type IChatTerminalToolInvocationData } from '../../../../chat/common/chatService/chatService.js';
 import { LocalChatSessionUri } from '../../../../chat/common/model/chatUri.js';
+import { ITerminalSandboxService } from '../../common/terminalSandboxService.js';
 import { ILanguageModelToolsService, IPreparedToolInvocation, IToolInvocationPreparationContext, type ToolConfirmationAction } from '../../../../chat/common/tools/languageModelToolsService.js';
 import { ITerminalChatService, ITerminalService, type ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { ITerminalProfileResolverService } from '../../../../terminal/common/terminal.js';
@@ -91,6 +92,14 @@ suite('RunInTerminalTool', () => {
 		instantiationService.stub(IHistoryService, {
 			getLastActiveWorkspaceRoot: () => undefined
 		});
+		instantiationService.stub(ITerminalSandboxService, {
+			_serviceBrand: undefined,
+			isEnabled: () => false,
+			wrapCommand: command => command,
+			getSandboxConfigPath: async () => undefined,
+			getTempDir: () => undefined,
+			setNeedsForceUpdateConfigFile: () => { }
+		});
 
 		const treeSitterLibraryService = store.add(instantiationService.createInstance(TreeSitterLibraryService));
 		treeSitterLibraryService.isTest = true;
@@ -143,6 +152,7 @@ suite('RunInTerminalTool', () => {
 			parameters: {
 				command: 'echo hello',
 				explanation: 'Print hello to the console',
+				goal: 'Print hello',
 				isBackground: false,
 				...params
 			} as IRunInTerminalInputParams
@@ -192,6 +202,7 @@ suite('RunInTerminalTool', () => {
 			'echo "abc"',
 			'echo \'abc\'',
 			'ls -la',
+			'dir',
 			'pwd',
 			'cat file.txt',
 			'head -n 10 file.txt',
@@ -250,6 +261,7 @@ suite('RunInTerminalTool', () => {
 			'rg -i --color=never "TODO" src/',
 			'sed "s/foo/bar/g"',
 			'sed -n "1,10p" file.txt',
+			'sed -n \'45,80p\' /foo/bar/Example.java',
 			'sort file.txt',
 			'tree directory',
 
@@ -422,7 +434,8 @@ suite('RunInTerminalTool', () => {
 
 			const result = await executeToolTest({
 				command: 'rm file.txt',
-				explanation: 'Remove a file'
+				explanation: 'Remove a file',
+				goal: 'Remove a file'
 			});
 			assertConfirmationRequired(result, 'Run `bash` command?');
 		});
@@ -435,7 +448,8 @@ suite('RunInTerminalTool', () => {
 
 			const result = await executeToolTest({
 				command: 'rm dangerous-file.txt',
-				explanation: 'Remove a dangerous file'
+				explanation: 'Remove a dangerous file',
+				goal: 'Remove a dangerous file'
 			});
 			assertConfirmationRequired(result, 'Run `bash` command?');
 		});
@@ -448,6 +462,7 @@ suite('RunInTerminalTool', () => {
 			const result = await executeToolTest({
 				command: 'npm run watch',
 				explanation: 'Start watching for file changes',
+				goal: 'Start watching for file changes',
 				isBackground: true
 			});
 			assertConfirmationRequired(result, 'Run `bash` command in background?');
@@ -461,6 +476,7 @@ suite('RunInTerminalTool', () => {
 			const result = await executeToolTest({
 				command: 'npm run watch',
 				explanation: 'Start watching for file changes',
+				goal: 'Start watching for file changes',
 				isBackground: true
 			});
 			assertAutoApproved(result);
@@ -474,6 +490,7 @@ suite('RunInTerminalTool', () => {
 			const result = await executeToolTest({
 				command: 'npm run watch',
 				explanation: 'Start watching for file changes',
+				goal: 'Start watching for file changes',
 				isBackground: true
 			});
 			assertAutoApproved(result);
@@ -522,7 +539,8 @@ suite('RunInTerminalTool', () => {
 
 			const result = await executeToolTest({
 				command: '',
-				explanation: 'Empty command'
+				explanation: 'Empty command',
+				goal: 'Empty command'
 			});
 			assertAutoApproved(result);
 		});
@@ -604,7 +622,8 @@ suite('RunInTerminalTool', () => {
 			});
 			const result = await executeToolTest({
 				command: 'npm run build',
-				explanation: 'Build the project'
+				explanation: 'Build the project',
+				goal: 'Build the project'
 			});
 
 			assertConfirmationRequired(result, 'Run `bash` command?');
@@ -626,7 +645,8 @@ suite('RunInTerminalTool', () => {
 		test('should generate custom actions for single word commands', async () => {
 			const result = await executeToolTest({
 				command: 'foo',
-				explanation: 'Run foo command'
+				explanation: 'Run foo command',
+				goal: 'Run foo command'
 			});
 
 			assertConfirmationRequired(result);
@@ -648,7 +668,8 @@ suite('RunInTerminalTool', () => {
 			});
 			const result = await executeToolTest({
 				command: 'npm run build',
-				explanation: 'Build the project'
+				explanation: 'Build the project',
+				goal: 'Build the project'
 			});
 
 			assertAutoApproved(result);
@@ -660,7 +681,8 @@ suite('RunInTerminalTool', () => {
 			});
 			const result = await executeToolTest({
 				command: 'npm run build',
-				explanation: 'Build the project'
+				explanation: 'Build the project',
+				goal: 'Build the project'
 			});
 
 			assertConfirmationRequired(result, 'Run `bash` command?');
@@ -674,7 +696,8 @@ suite('RunInTerminalTool', () => {
 		test('should handle && in command line labels with proper mnemonic escaping', async () => {
 			const result = await executeToolTest({
 				command: 'npm install && npm run build',
-				explanation: 'Install dependencies and build'
+				explanation: 'Install dependencies and build',
+				goal: 'Install dependencies and build'
 			});
 
 			assertConfirmationRequired(result, 'Run `bash` command?');
@@ -699,7 +722,8 @@ suite('RunInTerminalTool', () => {
 			});
 			const result = await executeToolTest({
 				command: 'foo | head -20',
-				explanation: 'Run foo command and show first 20 lines'
+				explanation: 'Run foo command and show first 20 lines',
+				goal: 'Run foo command and show first 20 lines'
 			});
 
 			assertConfirmationRequired(result, 'Run `bash` command?');
@@ -725,7 +749,8 @@ suite('RunInTerminalTool', () => {
 			});
 			const result = await executeToolTest({
 				command: 'foo | head -20',
-				explanation: 'Run foo command and show first 20 lines'
+				explanation: 'Run foo command and show first 20 lines',
+				goal: 'Run foo command and show first 20 lines'
 			});
 
 			assertAutoApproved(result);
@@ -738,7 +763,8 @@ suite('RunInTerminalTool', () => {
 			});
 			const result = await executeToolTest({
 				command: 'foo | head -20 && bar | tail -10',
-				explanation: 'Run multiple piped commands'
+				explanation: 'Run multiple piped commands',
+				goal: 'Run multiple piped commands'
 			});
 
 			assertConfirmationRequired(result, 'Run `bash` command?');
@@ -760,7 +786,8 @@ suite('RunInTerminalTool', () => {
 		test('should suggest subcommand for git commands', async () => {
 			const result = await executeToolTest({
 				command: 'git status',
-				explanation: 'Check git status'
+				explanation: 'Check git status',
+				goal: 'Check git status'
 			});
 
 			assertConfirmationRequired(result);
@@ -782,7 +809,8 @@ suite('RunInTerminalTool', () => {
 		test('should suggest subcommand for npm commands', async () => {
 			const result = await executeToolTest({
 				command: 'npm test',
-				explanation: 'Run npm tests'
+				explanation: 'Run npm tests',
+				goal: 'Run npm tests'
 			});
 
 			assertConfirmationRequired(result);
@@ -804,7 +832,8 @@ suite('RunInTerminalTool', () => {
 		test('should suggest 3-part subcommand for npm run commands', async () => {
 			const result = await executeToolTest({
 				command: 'npm run build',
-				explanation: 'Run build script'
+				explanation: 'Run build script',
+				goal: 'Run build script'
 			});
 
 			assertConfirmationRequired(result);
@@ -826,7 +855,8 @@ suite('RunInTerminalTool', () => {
 		test('should suggest 3-part subcommand for yarn run commands', async () => {
 			const result = await executeToolTest({
 				command: 'yarn run test',
-				explanation: 'Run test script'
+				explanation: 'Run test script',
+				goal: 'Run test script'
 			});
 
 			assertConfirmationRequired(result);
@@ -848,7 +878,8 @@ suite('RunInTerminalTool', () => {
 		test('should not suggest subcommand for commands with flags', async () => {
 			const result = await executeToolTest({
 				command: 'foo --foo --bar',
-				explanation: 'Run foo with flags'
+				explanation: 'Run foo with flags',
+				goal: 'Run foo with flags'
 			});
 
 			assertConfirmationRequired(result);
@@ -870,7 +901,8 @@ suite('RunInTerminalTool', () => {
 		test('should not suggest subcommand for npm run with flags', async () => {
 			const result = await executeToolTest({
 				command: 'npm run abc --some-flag',
-				explanation: 'Run npm run abc with flags'
+				explanation: 'Run npm run abc with flags',
+				goal: 'Run npm run abc with flags'
 			});
 
 			assertConfirmationRequired(result);
@@ -892,7 +924,8 @@ suite('RunInTerminalTool', () => {
 		test('should handle mixed npm run and other commands', async () => {
 			const result = await executeToolTest({
 				command: 'npm run build && git status',
-				explanation: 'Build and check status'
+				explanation: 'Build and check status',
+				goal: 'Build and check status'
 			});
 
 			assertConfirmationRequired(result);
@@ -914,7 +947,8 @@ suite('RunInTerminalTool', () => {
 		test('should suggest mixed subcommands and base commands', async () => {
 			const result = await executeToolTest({
 				command: 'git push && echo "done"',
-				explanation: 'Push and print done'
+				explanation: 'Push and print done',
+				goal: 'Push and print done'
 			});
 
 			assertConfirmationRequired(result);
@@ -936,7 +970,8 @@ suite('RunInTerminalTool', () => {
 		test('should suggest subcommands for multiple git commands', async () => {
 			const result = await executeToolTest({
 				command: 'git status && git log --oneline',
-				explanation: 'Check status and log'
+				explanation: 'Check status and log',
+				goal: 'Check status and log'
 			});
 
 			assertConfirmationRequired(result);
@@ -958,7 +993,8 @@ suite('RunInTerminalTool', () => {
 		test('should suggest base command for non-subcommand tools', async () => {
 			const result = await executeToolTest({
 				command: 'foo bar',
-				explanation: 'Download from example.com'
+				explanation: 'Download from example.com',
+				goal: 'Download from example.com'
 			});
 
 			assertConfirmationRequired(result);
@@ -980,7 +1016,8 @@ suite('RunInTerminalTool', () => {
 		test('should handle single word commands from subcommand-aware tools', async () => {
 			const result = await executeToolTest({
 				command: 'git',
-				explanation: 'Run git command'
+				explanation: 'Run git command',
+				goal: 'Run git command'
 			});
 
 			assertConfirmationRequired(result);
@@ -994,7 +1031,8 @@ suite('RunInTerminalTool', () => {
 		test('should deduplicate identical subcommand suggestions', async () => {
 			const result = await executeToolTest({
 				command: 'npm test && npm test --verbose',
-				explanation: 'Run tests twice'
+				explanation: 'Run tests twice',
+				goal: 'Run tests twice'
 			});
 
 			assertConfirmationRequired(result);
@@ -1016,7 +1054,8 @@ suite('RunInTerminalTool', () => {
 		test('should handle flags differently than subcommands for suggestion logic', async () => {
 			const result = await executeToolTest({
 				command: 'foo --version',
-				explanation: 'Check foo version'
+				explanation: 'Check foo version',
+				goal: 'Check foo version'
 			});
 
 			assertConfirmationRequired(result);
@@ -1038,7 +1077,8 @@ suite('RunInTerminalTool', () => {
 		test('should not suggest overly permissive subcommand rules', async () => {
 			const result = await executeToolTest({
 				command: 'bash -c "echo hello"',
-				explanation: 'Run bash command'
+				explanation: 'Run bash command',
+				goal: 'Run bash command'
 			});
 
 			assertConfirmationRequired(result);
@@ -1239,6 +1279,7 @@ suite('RunInTerminalTool', () => {
 				parameters: {
 					command: 'rm dangerous-file.txt',
 					explanation: 'Remove a file',
+					goal: 'Remove a file',
 					isBackground: false
 				} as IRunInTerminalInputParams,
 				chatSessionResource: sessionResource
@@ -1294,7 +1335,8 @@ suite('RunInTerminalTool', () => {
 			});
 			const result = await executeToolTest({
 				command: 'npm run build',
-				explanation: 'Build the project'
+				explanation: 'Build the project',
+				goal: 'Build the project'
 			});
 
 			assertConfirmationRequired(result, 'Run `bash` command?');
@@ -1310,7 +1352,8 @@ suite('RunInTerminalTool', () => {
 			});
 			const result = await executeToolTest({
 				command: 'rm -rf temp',
-				explanation: 'Remove temp folder'
+				explanation: 'Remove temp folder',
+				goal: 'Remove temp folder'
 			});
 
 			assertConfirmationRequired(result, 'Run `bash` command?');
@@ -1327,7 +1370,8 @@ suite('RunInTerminalTool', () => {
 			});
 			const result = await executeToolTest({
 				command: 'sudo rm -rf /',
-				explanation: 'Dangerous command'
+				explanation: 'Dangerous command',
+				goal: 'Dangerous command'
 			});
 
 			assertConfirmationRequired(result, 'Run `bash` command?');
@@ -1343,7 +1387,8 @@ suite('RunInTerminalTool', () => {
 			});
 			const result = await executeToolTest({
 				command: 'npm run build',
-				explanation: 'Build the project'
+				explanation: 'Build the project',
+				goal: 'Build the project'
 			});
 
 			assertConfirmationRequired(result, 'Run `bash` command?');
@@ -1361,7 +1406,8 @@ suite('RunInTerminalTool', () => {
 			});
 			const result = await executeToolTest({
 				command: 'npm run build',
-				explanation: 'Build the project'
+				explanation: 'Build the project',
+				goal: 'Build the project'
 			});
 
 			assertConfirmationRequired(result, 'Run `bash` command?');

@@ -28,6 +28,7 @@ import { InlineSuggestionsView } from '../../browser/view/inlineSuggestionsView.
 import { IBulkEditService } from '../../../../browser/services/bulkEditService.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
+import { IRenameSymbolTrackerService, NullRenameSymbolTrackerService } from '../../../../browser/services/renameSymbolTrackerService.js';
 
 export class MockInlineCompletionsProvider implements InlineCompletionsProvider {
 	private returnValue: InlineCompletion[] = [];
@@ -267,8 +268,12 @@ export async function withAsyncTestCodeEditorAndInlineCompletionsModel<T>(
 					_serviceBrand: undefined,
 					onDidChangeDefaultAccount: Event.None,
 					getDefaultAccount: async () => null,
-					setDefaultAccount: () => { },
+					setDefaultAccountProvider: () => { },
+					getDefaultAccountAuthenticationProvider: () => { return { id: 'mockProvider', name: 'Mock Provider', enterprise: false }; },
+					refresh: async () => { return null; },
+					signIn: async () => { return null; },
 				});
+				options.serviceCollection.set(IRenameSymbolTrackerService, new NullRenameSymbolTrackerService());
 
 				const d = languageFeaturesService.inlineCompletionsProvider.register({ pattern: '**' }, options.provider);
 				disposableStore.add(d);

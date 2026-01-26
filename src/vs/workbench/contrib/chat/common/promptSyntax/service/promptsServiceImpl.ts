@@ -27,7 +27,6 @@ import { ITelemetryService } from '../../../../../../platform/telemetry/common/t
 import { IUserDataProfileService } from '../../../../../services/userDataProfile/common/userDataProfile.js';
 import { IVariableReference } from '../../chatModes.js';
 import { PromptsConfig } from '../config/config.js';
-import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { getCleanPromptName, IResolvedPromptFile, PromptFileSource } from '../config/promptFileLocations.js';
 import { PROMPT_LANGUAGE_ID, PromptsType, getPromptsTypeForLanguageId } from '../promptTypes.js';
 import { PromptFilesLocator } from '../utils/promptFilesLocator.js';
@@ -35,7 +34,6 @@ import { PromptFileParser, ParsedPromptFile, PromptHeaderAttributes } from '../p
 import { IAgentInstructions, IAgentSource, IChatPromptSlashCommand, ICustomAgent, IExtensionPromptPath, ILocalPromptPath, IPromptPath, IPromptsService, IAgentSkill, IUserPromptPath, PromptsStorage, ExtensionAgentSourceType, CUSTOM_AGENT_PROVIDER_ACTIVATION_EVENT, INSTRUCTIONS_PROVIDER_ACTIVATION_EVENT, IPromptFileContext, IPromptFileResource, PROMPT_FILE_PROVIDER_ACTIVATION_EVENT, SKILL_PROVIDER_ACTIVATION_EVENT } from './promptsService.js';
 import { Delayer } from '../../../../../../base/common/async.js';
 import { Schemas } from '../../../../../../base/common/network.js';
-import { IChatPromptContentStore } from '../chatPromptContentStore.js';
 
 /**
  * Error thrown when a skill file is missing the required name attribute.
@@ -129,9 +127,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		@IFilesConfigurationService private readonly filesConfigService: IFilesConfigurationService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IExtensionService private readonly extensionService: IExtensionService,
-		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IChatPromptContentStore private readonly chatPromptContentStore: IChatPromptContentStore
 	) {
 		super();
 
@@ -300,15 +296,6 @@ export class PromptsService extends Disposable implements IPromptsService {
 				}
 
 				for (const file of files) {
-					if (!file.isEditable) {
-						try {
-							await this.filesConfigService.updateReadonly(file.uri, true);
-						} catch (e) {
-							const msg = e instanceof Error ? e.message : String(e);
-							this.logger.error(`[listFromProviders] Failed to make file readonly: ${file.uri}`, msg);
-						}
-					}
-
 					result.push({
 						uri: file.uri,
 						storage: PromptsStorage.extension,
@@ -514,8 +501,8 @@ export class PromptsService extends Disposable implements IPromptsService {
 				if (!ast.header) {
 					return { uri, name, agentInstructions, source };
 				}
-				const { description, model, tools, handOffs, argumentHint, target, infer } = ast.header;
-				return { uri, name, description, model, tools, handOffs, argumentHint, target, infer, agentInstructions, source };
+				const { description, model, tools, handOffs, argumentHint, target, infer, agents } = ast.header;
+				return { uri, name, description, model, tools, handOffs, argumentHint, target, infer, agents, agentInstructions, source };
 			})
 		);
 
@@ -543,15 +530,6 @@ export class PromptsService extends Disposable implements IPromptsService {
 		const model = this.modelService.getModel(uri);
 		if (model) {
 			return this.getParsedPromptFile(model);
-		}
-
-		// Handle virtual prompt URIs - get content from the content store
-		if (uri.scheme === Schemas.vscodeChatPrompt) {
-			const content = this.chatPromptContentStore.getContent(uri);
-			if (content !== undefined) {
-				return new PromptFileParser().parse(uri, content);
-			}
-			throw new Error(`Content not found in store for virtual prompt URI: ${uri.toString()}`);
 		}
 
 		const fileContent = await this.fileService.readFile(uri);
@@ -756,9 +734,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 
 	public async findAgentSkills(token: CancellationToken): Promise<IAgentSkill[] | undefined> {
 		const useAgentSkills = this.configurationService.getValue(PromptsConfig.USE_AGENT_SKILLS);
-		const defaultAccount = await this.defaultAccountService.getDefaultAccount();
-		const previewFeaturesEnabled = defaultAccount?.chat_preview_features_enabled ?? true;
-		if (useAgentSkills && previewFeaturesEnabled) {
+		if (useAgentSkills) {
 			const result: IAgentSkill[] = [];
 			const seenNames = new Set<string>();
 			const skillTypes = new Map<string, number>();

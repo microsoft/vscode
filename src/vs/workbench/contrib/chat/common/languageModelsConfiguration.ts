@@ -4,16 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../../base/common/event.js';
+import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IRange } from '../../../../editor/common/core/range.js';
 import { IStringDictionary } from '../../../../base/common/collections.js';
 
 export const ILanguageModelsConfigurationService = createDecorator<ILanguageModelsConfigurationService>('ILanguageModelsConfigurationService');
 
+export interface ConfigureLanguageModelsOptions {
+	group: ILanguageModelsProviderGroup;
+	snippet?: string;
+}
+
 export interface ILanguageModelsConfigurationService {
 	readonly _serviceBrand: undefined;
 
-	readonly onDidChangeLanguageModelGroups: Event<void>;
+	readonly configurationFile: URI;
+
+	readonly onDidChangeLanguageModelGroups: Event<readonly ILanguageModelsProviderGroup[]>;
 
 	getLanguageModelsProviderGroups(): readonly ILanguageModelsProviderGroup[];
 
@@ -23,7 +31,7 @@ export interface ILanguageModelsConfigurationService {
 
 	removeLanguageModelsProviderGroup(languageModelGroup: ILanguageModelsProviderGroup): Promise<void>;
 
-	configureLanguageModels(range?: IRange): Promise<void>;
+	configureLanguageModels(options?: ConfigureLanguageModelsOptions): Promise<void>;
 }
 
 export interface ILanguageModelsProviderGroup extends IStringDictionary<unknown> {

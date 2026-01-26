@@ -97,6 +97,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 	private context: Context;
 	private heightInPx: number | undefined;
 	private triggeredByBreakpointInput: IBreakpoint | undefined;
+	private availableBreakpoints: IBreakpoint[] = [];
 
 	constructor(editor: ICodeEditor, private lineNumber: number, private column: number | undefined, context: Context | undefined,
 		@IContextViewService private readonly contextViewService: IContextViewService,
@@ -139,6 +140,10 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		this.store.add(this.debugService.getModel().onDidChangeBreakpoints(e => {
 			if (this.breakpoint && e && e.removed && e.removed.indexOf(this.breakpoint) >= 0) {
 				this.dispose();
+			}
+			// Update the breakpoint list when in trigger point context
+			if (this.context === Context.TRIGGER_POINT && this.selectBreakpointBox) {
+				this.updateTriggerBreakpointList();
 			}
 		}));
 		this.store.add(this.codeEditorService.registerDecorationType('breakpoint-widget', DECORATION_KEY, {}));
@@ -268,34 +273,17 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 	}
 
 	private createTriggerBreakpointInput(container: HTMLElement) {
-		const breakpoints = this.debugService.getModel().getBreakpoints().filter(bp => bp !== this.breakpoint && !bp.logMessage);
-		const breakpointOptions: ISelectOptionItem[] = [
-			{ text: nls.localize('noTriggerByBreakpoint', 'None'), isDisabled: true },
-			...breakpoints.map(bp => ({
-				text: `${this.labelService.getUriLabel(bp.uri, { relative: true })}: ${bp.lineNumber}`,
-				description: nls.localize('triggerByLoading', 'Loading...')
-			})),
-		];
+		this.availableBreakpoints = this.debugService.getModel().getBreakpoints().filter(bp => bp !== this.breakpoint && !bp.logMessage);
+		const breakpointOptions = this.buildBreakpointOptions();
 
-		const index = breakpoints.findIndex((bp) => this.breakpoint?.triggeredBy === bp.getId());
-		for (const [i, bp] of breakpoints.entries()) {
-			this.textModelService.createModelReference(bp.uri).then(ref => {
-				try {
-					breakpointOptions[i + 1].description = ref.object.textEditorModel.getLineContent(bp.lineNumber).trim();
-				} finally {
-					ref.dispose();
-				}
-			}).catch(() => {
-				breakpointOptions[i + 1].description = nls.localize('noBpSource', 'Could not load source.');
-			});
-		}
+		const index = this.availableBreakpoints.findIndex((bp) => this.breakpoint?.triggeredBy === bp.getId());
 
 		const selectBreakpointBox = this.selectBreakpointBox = this.store.add(new SelectBox(breakpointOptions, index + 1, this.contextViewService, defaultSelectBoxStyles, { ariaLabel: nls.localize('selectBreakpoint', 'Select breakpoint'), useCustomDrawn: !hasNativeContextMenu(this._configurationService) }));
 		this.store.add(selectBreakpointBox.onDidSelect(e => {
 			if (e.index === 0) {
 				this.triggeredByBreakpointInput = undefined;
 			} else {
-				this.triggeredByBreakpointInput = breakpoints[e.index - 1];
+				this.triggeredByBreakpointInput = this.availableBreakpoints[e.index - 1];
 			}
 		}));
 		this.selectBreakpointContainer = $('.select-breakpoint-container');
@@ -318,10 +306,58 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		this.store.add(closeButton);
 	}
 
+	private buildBreakpointOptions(): ISelectOptionItem[] {
+		const breakpointOptions: ISelectOptionItem[] = [
+			{ text: nls.localize('noTriggerByBreakpoint', 'None'), isDisabled: true },
+			...this.availableBreakpoints.map(bp => ({
+				text: `${this.labelService.getUriLabel(bp.uri, { relative: true })}: ${bp.lineNumber}`,
+				description: nls.localize('triggerByLoading', 'Loading...')
+			})),
+		];
+
+		// Load the source code for each breakpoint asynchronously
+		for (const [i, bp] of this.availableBreakpoints.entries()) {
+			this.textModelService.createModelReference(bp.uri).then(ref => {
+				try {
+					breakpointOptions[i + 1].description = ref.object.textEditorModel.getLineContent(bp.lineNumber).trim();
+				} finally {
+					ref.dispose();
+				}
+			}).catch(() => {
+				breakpointOptions[i + 1].description = nls.localize('noBpSource', 'Could not load source.');
+			});
+		}
+
+		return breakpointOptions;
+	}
+
+	private updateTriggerBreakpointList(): void {
+		this.availableBreakpoints = this.debugService.getModel().getBreakpoints().filter(bp => bp !== this.breakpoint && !bp.logMessage);
+
+		// Try to preserve the current selection if the breakpoint still exists
+		let selectedIndex = 0; // Default to "None"
+		if (this.triggeredByBreakpointInput) {
+			const newIndex = this.availableBreakpoints.findIndex(bp => bp.getId() === this.triggeredByBreakpointInput?.getId());
+			if (newIndex !== -1) {
+				selectedIndex = newIndex + 1;
+			} else {
+				// The selected breakpoint was removed, clear the selection
+				this.triggeredByBreakpointInput = undefined;
+			}
+		}
+
+		const breakpointOptions = this.buildBreakpointOptions();
+		this.selectBreakpointBox.setOptions(breakpointOptions, selectedIndex);
+	}
+
 	private updateContextInput() {
 		if (this.context === Context.TRIGGER_POINT) {
 			this.inputContainer.hidden = true;
 			this.selectBreakpointContainer.hidden = false;
+			// Update the breakpoint list when switching to trigger point context
+			if (this.selectBreakpointBox) {
+				this.updateTriggerBreakpointList();
+			}
 		} else {
 			this.inputContainer.hidden = false;
 			this.selectBreakpointContainer.hidden = true;

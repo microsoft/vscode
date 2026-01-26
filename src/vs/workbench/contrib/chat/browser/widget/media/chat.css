@@ -30,6 +30,10 @@
 	display: none !important;
 }
 
+.interactive-list > .chat-scroll-down {
+	padding: 4px;
+}
+
 .interactive-item-container {
 	padding: 12px 16px;
 	display: flex;
@@ -939,6 +943,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	flex-direction: row;
 	gap: 4px;
 	margin-top: 6px;
+	margin-right: 20px;
 	flex-wrap: wrap;
 	cursor: default;
 }
@@ -1020,14 +1025,13 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .chat-editing-session .chat-editing-session-actions .monaco-button.secondary.monaco-text-button.codicon {
 	cursor: pointer;
-	padding: 3px;
+	padding: 2px;
 	border-radius: 4px;
 	display: inline-flex;
 }
 
 .interactive-session .chat-editing-session .chat-editing-session-actions .monaco-button.secondary.monaco-text-button {
 	background-color: var(--vscode-button-secondaryBackground);
-	border: 1px solid var(--vscode-button-border);
 	color: var(--vscode-button-secondaryForeground);
 }
 
@@ -1367,9 +1371,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 }
 
-.interactive-session .chat-input-toolbars.scroll-top-decoration {
-	box-shadow: var(--vscode-scrollbar-shadow) 0 6px 6px -6px inset
-}
+
 
 .interactive-session .chat-input-toolbar .chat-input-picker-item .action-label,
 .interactive-session .chat-input-toolbar .chat-sessionPicker-item .action-label {
@@ -1565,7 +1567,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .interactive-input-part {
-	margin: 0px 16px;
+	margin: 0px 12px;
 	padding: 4px 0 12px 0px;
 	display: flex;
 	flex-direction: column;
@@ -1626,16 +1628,18 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .action-item.chat-mcp {
+	min-width: 22px !important;
 
 	.chat-mcp-state-indicator {
 		position: absolute;
 		bottom: 0;
-		right: 0;
+		left: 12px;
 		font-size: 12px !important;
 		background: var(--vscode-input-background);
 		width: fit-content;
 		height: fit-content;
 		border-radius: 100%;
+		pointer-events: none;
 
 		&.chat-mcp-state-new {
 			color: var(--vscode-button-foreground);
@@ -2070,6 +2074,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: flex;
 	flex-direction: column;
 	gap: 2px;
+	line-height: 1.5em;
 }
 
 .interactive-response-progress-tree,
@@ -2131,6 +2136,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	color: var(--vscode-descriptionForeground);
 	user-select: none;
 
+	a {
+		color: var(--vscode-descriptionForeground);
+	}
+
 	code {
 		font-size: var(--vscode-chat-font-size-body-xs);
 	}
@@ -2163,6 +2172,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .chat-used-context-label .monaco-button {
 	padding: 2px 6px 2px 2px;
 	font-size: var(--vscode-chat-font-size-body-m);
+	line-height: unset;
 }
 
 .interactive-session .chat-file-changes-label .monaco-button:hover {
@@ -2194,8 +2204,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-item-container .progress-container {
 	display: flex;
 	align-items: center;
-	gap: 7px;
-	margin: 0 0 6px 4px;
+	gap: 4px;
+	margin: 0 0 6px 2px;
 
 	/* Tool calls transition from a progress to a collapsible list part, which needs to have this top padding.
 	The working progress also can be replaced by a tool progress part. So align this padding so the text doesn't appear to shift. */
@@ -2212,6 +2222,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	.codicon {
 		/* Very aggressive list styles try to apply focus colors to every codicon in a list row. */
 		color: var(--vscode-icon-foreground) !important;
+		/* Matching the margin on all .monaco-text-button .codicon */
+		margin: 0 .2em;
 
 		&.codicon-error {
 			color: var(--vscode-editorError-foreground) !important;
@@ -2239,6 +2251,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-item-container .chat-command-button {
 	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
 	margin-bottom: 16px;
 }
 
@@ -2473,6 +2487,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	.hc-black .interactive-item-container.interactive-request .value .rendered-markdown,
 	.hc-light .interactive-item-container.interactive-request .value .rendered-markdown {
 		border: 1px dotted var(--vscode-focusBorder);
+	}
+
+	.interactive-item-container.interactive-request .value .rendered-markdown > :first-child {
+		margin-top: 0px;
 	}
 
 	.interactive-item-container.interactive-request .value .rendered-markdown > :last-child {
@@ -2720,7 +2738,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .chat-row-disabled-overlay,
-.interactive-item-container .chat-edit-input-container .chat-editing-session {
+.interactive-item-container .chat-edit-input-container .chat-editing-session,
+.chat-input-overlay {
 	display: none;
 }
 

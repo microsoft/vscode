@@ -20,6 +20,10 @@ export const enum TerminalChatAgentToolsSettingId {
 	ShellIntegrationTimeout = 'chat.tools.terminal.shellIntegrationTimeout',
 	AutoReplyToPrompts = 'chat.tools.terminal.autoReplyToPrompts',
 	OutputLocation = 'chat.tools.terminal.outputLocation',
+	TerminalSandboxEnabled = 'chat.tools.terminal.sandbox.enabled',
+	TerminalSandboxNetwork = 'chat.tools.terminal.sandbox.network',
+	TerminalSandboxLinuxFileSystem = 'chat.tools.terminal.sandbox.linuxFileSystem',
+	TerminalSandboxMacFileSystem = 'chat.tools.terminal.sandbox.macFileSystem',
 	PreventShellHistory = 'chat.tools.terminal.preventShellHistory',
 	EnforceTimeoutFromModel = 'chat.tools.terminal.enforceTimeoutFromModel',
 
@@ -159,6 +163,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			cd: true,
 			echo: true,
 			ls: true,
+			dir: true,
 			pwd: true,
 			cat: true,
 			head: true,
@@ -323,7 +328,8 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			//   detection if necessary
 			sed: true,
 			'/^sed\\b.*(-[a-zA-Z]*(e|f)[a-zA-Z]*|--expression|--file)\\b/': false,
-			'/^sed\\b.*(\/e|\/w|;W)/': false,
+			'/^sed\\b.*s\\/.*\\/.*\\/[ew]/': false,
+			'/^sed\\b.*;W/': false,
 
 			// sort
 			// - `-o`: Output redirection can write files (`sort -o /etc/something file`) which are
@@ -503,6 +509,99 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		experiment: {
 			mode: 'auto'
 		}
+	},
+	[TerminalChatAgentToolsSettingId.TerminalSandboxEnabled]: {
+		markdownDescription: localize('terminalSandbox.enabledSetting', "Controls whether to run commands in a sandboxed terminal for the run in terminal tool."),
+		type: 'boolean',
+		default: false,
+		tags: ['experimental'],
+		restricted: true,
+	},
+	[TerminalChatAgentToolsSettingId.TerminalSandboxNetwork]: {
+		markdownDescription: localize('terminalSandbox.networkSetting', "Note: this setting is applicable only when {0} is enabled. Controls network access in the terminal sandbox.", `\`#${TerminalChatAgentToolsSettingId.TerminalSandboxEnabled}#\``),
+		type: 'object',
+		properties: {
+			allowedDomains: {
+				type: 'array',
+				description: localize('terminalSandbox.networkSetting.allowedDomains', " Supports wildcards like {0} and an empty list means no network access.", '`*.example.com`'),
+				items: { type: 'string' },
+				default: []
+			},
+			deniedDomains: {
+				type: 'array',
+				description: localize('terminalSandbox.networkSetting.deniedDomains', "Array of denied domains (checked first, takes precedence over allowedDomains)."),
+				items: { type: 'string' },
+				default: []
+			}
+		},
+		default: {
+			allowedDomains: [],
+			deniedDomains: []
+		},
+		tags: ['experimental'],
+		restricted: true,
+	},
+	[TerminalChatAgentToolsSettingId.TerminalSandboxLinuxFileSystem]: {
+		markdownDescription: localize('terminalSandbox.linuxFileSystemSetting', "Note: this setting is applicable only when {0} is enabled. Controls file system access in the terminal sandbox on Linux.Paths does not support glob patterns, only literal paths (ex: ./src/, ~/.ssh, .env).", `\`#${TerminalChatAgentToolsSettingId.TerminalSandboxEnabled}#\``),
+		type: 'object',
+		properties: {
+			denyRead: {
+				type: 'array',
+				description: localize('terminalSandbox.linuxFileSystemSetting.denyRead', "Array of paths to deny read access. Leave empty to allow reading all paths."),
+				items: { type: 'string' },
+				default: []
+			},
+			allowWrite: {
+				type: 'array',
+				description: localize('terminalSandbox.linuxFileSystemSetting.allowWrite', "Array of paths to allow write access. Leave empty to disallow all writes."),
+				items: { type: 'string' },
+				default: ['.']
+			},
+			denyWrite: {
+				type: 'array',
+				description: localize('terminalSandbox.linuxFileSystemSetting.denyWrite', "Array of paths to deny write access within allowed paths (takes precedence over allowWrite)."),
+				items: { type: 'string' },
+				default: []
+			}
+		},
+		default: {
+			denyRead: [],
+			allowWrite: ['.'],
+			denyWrite: []
+		},
+		tags: ['experimental'],
+		restricted: true,
+	},
+	[TerminalChatAgentToolsSettingId.TerminalSandboxMacFileSystem]: {
+		markdownDescription: localize('terminalSandbox.macFileSystemSetting', "Note: this setting is applicable only when {0} is enabled. Controls file system access in the terminal sandbox on macOS.Paths also support git-style glob patterns(ex: *.ts, ./src, ./src/**/*.ts, file?.txt).", `\`#${TerminalChatAgentToolsSettingId.TerminalSandboxEnabled}#\``),
+		type: 'object',
+		properties: {
+			denyRead: {
+				type: 'array',
+				description: localize('terminalSandbox.macFileSystemSetting.denyRead', "Array of paths to deny read access. Leave empty to allow reading all paths."),
+				items: { type: 'string' },
+				default: []
+			},
+			allowWrite: {
+				type: 'array',
+				description: localize('terminalSandbox.macFileSystemSetting.allowWrite', "Array of paths to allow write access. Leave empty to disallow all writes."),
+				items: { type: 'string' },
+				default: ['.']
+			},
+			denyWrite: {
+				type: 'array',
+				description: localize('terminalSandbox.macFileSystemSetting.denyWrite', "Array of paths to deny write access within allowed paths (takes precedence over allowWrite)."),
+				items: { type: 'string' },
+				default: []
+			}
+		},
+		default: {
+			denyRead: [],
+			allowWrite: ['.'],
+			denyWrite: []
+		},
+		tags: ['experimental'],
+		restricted: true,
 	},
 	[TerminalChatAgentToolsSettingId.PreventShellHistory]: {
 		type: 'boolean',

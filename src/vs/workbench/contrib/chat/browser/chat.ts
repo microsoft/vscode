@@ -30,6 +30,46 @@ import { ICodeBlockActionContext } from './widget/chatContentParts/codeBlockPart
 import { AgentSessionProviders } from './agentSessions/agentSessions.js';
 
 /**
+ * A workspace item that can be selected in the workspace picker.
+ */
+export interface IWorkspacePickerItem {
+	readonly uri: URI;
+	readonly label: string;
+	readonly isFolder: boolean;
+}
+
+/**
+ * Delegate interface for the workspace picker.
+ * Allows consumers to get and set the target workspace for chat submissions in empty window contexts.
+ */
+export interface IWorkspacePickerDelegate {
+	/**
+	 * Returns the list of available workspaces to select from.
+	 */
+	getWorkspaces(): IWorkspacePickerItem[];
+	/**
+	 * Returns the currently selected workspace, if any.
+	 */
+	getSelectedWorkspace(): IWorkspacePickerItem | undefined;
+	/**
+	 * Sets the currently selected workspace.
+	 */
+	setSelectedWorkspace(workspace: IWorkspacePickerItem | undefined): void;
+	/**
+	 * Event that fires when the selected workspace changes.
+	 */
+	onDidChangeSelectedWorkspace: Event<IWorkspacePickerItem | undefined>;
+	/**
+	 * Event that fires when the available workspaces change.
+	 */
+	onDidChangeWorkspaces: Event<void>;
+	/**
+	 * Command ID to execute when user wants to open a new folder.
+	 */
+	openFolderCommand: string;
+}
+
+/**
  * Delegate interface for the session target picker.
  * Allows consumers to get and optionally set the active session provider.
  */
@@ -41,6 +81,16 @@ export interface ISessionTypePickerDelegate {
 	 * This allows the welcome view to maintain independent state from the main chat panel.
 	 */
 	setActiveSessionProvider?(provider: AgentSessionProviders): void;
+	/**
+	 * Optional getter for the pending delegation target - the target that will be used when submit is pressed.
+	 */
+	getPendingDelegationTarget?(): AgentSessionProviders | undefined;
+	/**
+	 * Optional setter for the pending delegation target.
+	 * When a user selects a different session provider in a non-empty chat,
+	 * this stores the target for delegation on the next submit instead of immediately creating a new session.
+	 */
+	setPendingDelegationTarget?(provider: AgentSessionProviders): void;
 	/**
 	 * Optional event that fires when the active session provider changes.
 	 * When provided, listeners (like chatInputPart) can react to session type changes
@@ -163,7 +213,6 @@ export interface IChatListItemRendererOptions {
 	readonly renderStyle?: 'compact' | 'minimal';
 	readonly noHeader?: boolean;
 	readonly noFooter?: boolean;
-	readonly editableCodeBlock?: boolean;
 	readonly renderDetectedCommandsWithRequest?: boolean;
 	readonly restorable?: boolean;
 	readonly editable?: boolean;
@@ -211,6 +260,23 @@ export interface IChatWidgetViewOptions {
 	 * immediately open a new session.
 	 */
 	sessionTypePickerDelegate?: ISessionTypePickerDelegate;
+
+	/**
+	 * Optional delegate for the workspace picker.
+	 * When provided, shows a workspace picker in the chat input allowing users to select
+	 * a target workspace for their request. This is useful for empty window contexts where
+	 * the user wants to send a request to a specific workspace.
+	 */
+	workspacePickerDelegate?: IWorkspacePickerDelegate;
+
+	/**
+	 * Optional handler for chat submission.
+	 * When provided, this handler is called before the normal input acceptance flow.
+	 * If it returns true (handled), the normal submission is skipped.
+	 * This is useful for contexts like the welcome view where submission should
+	 * redirect to a different workspace rather than executing locally.
+	 */
+	submitHandler?: (query: string, mode: ChatModeKind) => Promise<boolean>;
 }
 
 export interface IChatViewViewContext {
