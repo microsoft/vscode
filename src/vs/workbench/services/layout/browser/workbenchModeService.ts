@@ -143,22 +143,8 @@ export class WorkbenchModeService extends Disposable implements IWorkbenchModeSe
 			return;
 		}
 
-		if (!modeId) {
-			// Clear layout
-			this._workbenchMode = undefined;
-			this.watchCurrentModeFile();
-			this._onDidChangeWorkbenchMode.fire(undefined);
-			return;
-		}
-
-		// Verify the workbench mode exists
-		const workbenchModeConfiguration = await this.getWorkbenchModeConfiguration(modeId);
-		if (!workbenchModeConfiguration) {
-			this.logService.warn(`Workbench mode '${modeId}' not found`);
-			return;
-		}
-
 		this._workbenchMode = modeId;
+		this.updateWorkbenchModeConfiguration();
 		this.watchCurrentModeFile();
 		this._onDidChangeWorkbenchMode.fire(modeId);
 	}
