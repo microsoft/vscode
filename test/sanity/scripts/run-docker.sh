@@ -45,33 +45,25 @@ if [ -n "$PAGE_SIZE" ]; then
 	# Install QEMU system emulation and tools if not present
 	if ! command -v qemu-system-aarch64 > /dev/null 2>&1; then
 		echo "Installing QEMU system emulation and tools..."
-		sudo apt-get update && sudo apt-get install -y qemu-system-arm cpio
+		sudo apt-get update && sudo apt-get install -y qemu-system-arm rpm cpio
 	fi
 
 	# Set up QEMU user-mode emulation for building arm64 container on x64
 	echo "Setting up QEMU user-mode emulation for container build"
 	docker run --privileged --rm tonistiigi/binfmt --install "$ARCH" > /dev/null
 
-	# Convert page size to bytes and set kernel package name
-	# CentOS provides kernel-16k and kernel-64k packages for arm64
+	# Set kernel package URL based on page size
+	# CentOS Stream 9 kernel packages for arm64
+	CENTOS_MIRROR="https://mirror.stream.centos.org/9-stream/BaseOS/aarch64/os/Packages"
 	case "$PAGE_SIZE" in
-		16k)
-			PAGE_BYTES=16384
-			KERNEL_PKG="kernel-16k"
-			;;
-		64k)
-			PAGE_BYTES=65536
-			KERNEL_PKG="kernel-64k"
-			;;
+		16k) KERNEL_URL="$CENTOS_MIRROR/kernel-16k-core-5.14.0-586.el9.aarch64.rpm" ;;
+		64k) KERNEL_URL="$CENTOS_MIRROR/kernel-64k-core-5.14.0-586.el9.aarch64.rpm" ;;
 		*) echo "Error: Unknown page size '$PAGE_SIZE'"; exit 1 ;;
 	esac
 
-	# Create a temporary container with the kernel installed
-	echo "Building container with $KERNEL_PKG kernel..."
-	CONTAINER_ID=$(docker run -d --platform "linux/$ARCH" "$CONTAINER" sleep infinity)
-	docker exec "$CONTAINER_ID" dnf install -y "$KERNEL_PKG"
-
-	# Export container filesystem
+	# Export container filesystem (without installing kernel to save memory)
+	echo "Exporting container filesystem..."
+	CONTAINER_ID=$(docker create --platform "linux/$ARCH" "$CONTAINER")
 	ROOTFS_DIR=$(mktemp -d)
 	docker export "$CONTAINER_ID" | sudo tar -xf - -C "$ROOTFS_DIR"
 	docker rm -f "$CONTAINER_ID" > /dev/null
@@ -79,23 +71,23 @@ if [ -n "$PAGE_SIZE" ]; then
 	# Copy test files into rootfs
 	sudo cp -r "$ROOT_DIR"/* "$ROOTFS_DIR/root/"
 
-	# Find the kernel in /boot
-	VMLINUZ=$(find "$ROOTFS_DIR/boot" -name "vmlinuz-*${PAGE_SIZE}*" -o -name "vmlinuz-*+${PAGE_SIZE}*" 2>/dev/null | head -1)
-	if [ -z "$VMLINUZ" ]; then
-		# Try alternative naming pattern
-		VMLINUZ=$(find "$ROOTFS_DIR/boot" -name "vmlinuz-*" | grep -E "(${PAGE_SIZE}|${PAGE_BYTES})" | head -1)
-	fi
+	# Download kernel RPM directly from CentOS repos (avoids running arm64 container)
+	KERNEL_DIR=$(mktemp -d)
+	echo "Downloading kernel from $KERNEL_URL..."
+	curl -sfL "$KERNEL_URL" -o "$KERNEL_DIR/kernel-core.rpm"
+
+	# Extract kernel from RPM
+	(cd "$KERNEL_DIR" && rpm2cpio kernel-core.rpm | cpio -idm 2>/dev/null)
+	VMLINUZ=$(find "$KERNEL_DIR" -name "vmlinuz-*" | head -1)
 
 	if [ -z "$VMLINUZ" ]; then
-		echo "Error: Could not find ${PAGE_SIZE} kernel in /boot"
-		echo "Available kernels:"
-		ls -la "$ROOTFS_DIR/boot/" || true
-		sudo rm -rf "$ROOTFS_DIR"
+		echo "Error: Could not find kernel in downloaded package"
+		ls -laR "$KERNEL_DIR" || true
+		sudo rm -rf "$ROOTFS_DIR" "$KERNEL_DIR"
 		exit 1
 	fi
 
 	echo "Using kernel: $VMLINUZ"
-	KERNEL_DIR=$(mktemp -d)
 	cp "$VMLINUZ" "$KERNEL_DIR/vmlinuz"
 
 	# Store test arguments in rootfs
@@ -115,9 +107,9 @@ exec /entrypoint.sh $ARGS
 INITEOF
 	sudo chmod +x "$ROOTFS_DIR/init"
 
-	# Create a disk image from the rootfs
+	# Create a disk image from the rootfs (reduced size)
 	DISK_IMG=$(mktemp)
-	dd if=/dev/zero of="$DISK_IMG" bs=1M count=8192 2>/dev/null
+	dd if=/dev/zero of="$DISK_IMG" bs=1M count=4096 2>/dev/null
 	sudo mkfs.ext4 -q -d "$ROOTFS_DIR" "$DISK_IMG"
 
 	echo "Running QEMU system emulation with ${PAGE_SIZE} page size"
@@ -125,7 +117,7 @@ INITEOF
 		-M virt \
 		-cpu max,pauth-impdef=on \
 		-accel tcg,thread=multi \
-		-m 4096 \
+		-m 2048 \
 		-smp 2 \
 		-kernel "$KERNEL_DIR/vmlinuz" \
 		-append "console=ttyAMA0 root=/dev/vda rw quiet init=/init" \
