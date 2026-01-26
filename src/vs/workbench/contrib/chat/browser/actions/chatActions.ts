@@ -209,6 +209,7 @@ abstract class OpenChatGlobalAction extends Action2 {
 		const fileService = accessor.get(IFileService);
 		const languageModelService = accessor.get(ILanguageModelsService);
 		const scmService = accessor.get(ISCMService);
+		const logService = accessor.get(ILogService);
 
 		let chatWidget = widgetService.lastFocusedWidget;
 		// When this was invoked to switch to a mode via keybinding, and some chat widget is focused, use that one.
@@ -227,7 +228,6 @@ abstract class OpenChatGlobalAction extends Action2 {
 		}
 
 		if (opts?.includeTools || opts?.excludeTools) {
-			const logService = accessor.get(ILogService);
 			const model = chatWidget.input.selectedLanguageModel.get()?.metadata;
 			const allTools = Array.from(toolsService.getTools(model));
 			const allToolSets = Array.from(toolsService.getToolSetsForModel(model));
