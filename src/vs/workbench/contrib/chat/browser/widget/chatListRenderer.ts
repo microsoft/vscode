@@ -861,7 +861,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		// Show if no content, only "used references", ends with a complete tool call, or ends with complete text edits and there is no incomplete tool call (edits are still being applied some time after they are all generated)
 		const lastPart = findLast(partsToRender, part => part.kind !== 'markdownContent' || part.content.value.trim().length > 0);
 
-		// dont' show working progress when there is thinking content in partsToRender (about to be rendered)
+		// don't show working progress when there is thinking content in partsToRender (about to be rendered)
 		if (partsToRender.some(part => part.kind === 'thinking')) {
 			return false;
 		}
