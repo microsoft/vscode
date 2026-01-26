@@ -298,8 +298,8 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		}
 	}
 
-	protected shouldDisableBackgroundUpdates(): boolean {
-		return this._disableBackgroundUpdates;
+	protected shouldDisableProgressiveReleases(): boolean {
+		return this._disableProgressiveReleases;
 	}
 
 	protected getUpdateType(): UpdateType {
