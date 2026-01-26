@@ -826,8 +826,11 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 
 		// Detect if filtered to unread (read=true excludes read sessions, leaving only unread)
 		const isFilteredToUnread = filter.read === true && filter.states.length === 0;
-		// Detect if filtered to in-progress (2 excluded states = Completed + Failed)
-		const isFilteredToInProgress = filter.states?.length === 2 && filter.read === false;
+		// Detect if filtered to in-progress (exactly Completed + Failed are excluded)
+		const isFilteredToInProgress = filter.states?.length === 2
+			&& filter.read === false
+			&& filter.states.includes(AgentSessionStatus.Completed)
+			&& filter.states.includes(AgentSessionStatus.Failed);
 
 		return { isFilteredToUnread, isFilteredToInProgress };
 	}
