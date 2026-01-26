@@ -235,20 +235,6 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			this._onDidChangeHeight.fire();
 		}));
 
-		this._register(autorun(r => {
-			// Materialize lazy items when first expanded
-			if (this._isExpanded.read(r) && !this.hasExpandedOnce && this.lazyItems.length > 0) {
-				this.hasExpandedOnce = true;
-				for (const item of this.lazyItems) {
-					this.materializeLazyItem(item);
-				}
-			}
-			// Fire when expanded/collapsed
-			this._onDidChangeHeight.fire();
-		}));
-
-
-
 		const label = this.lastExtractedTitle ?? '';
 		if (!this.fixedScrollingMode && !this._isExpanded.get()) {
 			this.setTitle(label);
@@ -472,6 +458,17 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		const strippedContent = stripMarkdown(contentWithoutTitle);
 		const shouldDisable = !strippedContent || strippedContent === titleToCompare;
 		this.setDropdownClickable(!shouldDisable);
+	}
+
+	private appendToWrapper(element: HTMLElement): void {
+		if (!this.wrapper) {
+			return;
+		}
+		if (this.workingSpinnerElement && this.workingSpinnerElement.parentNode === this.wrapper) {
+			this.wrapper.insertBefore(element, this.workingSpinnerElement);
+		} else {
+			this.wrapper.appendChild(element);
+		}
 	}
 
 	public resetId(): void {
@@ -1024,16 +1021,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		itemWrapper.appendChild(iconElement);
 		itemWrapper.appendChild(content);
 
-		// With lazy rendering, wrapper may not be created yet if content hasn't been expanded
-		if (!this.wrapper) {
-			return;
-		}
-
-		if (this.workingSpinnerElement && this.workingSpinnerElement.parentNode === this.wrapper) {
-			this.wrapper.insertBefore(itemWrapper, this.workingSpinnerElement);
-		} else {
-			this.wrapper.appendChild(itemWrapper);
-		}
+		this.appendToWrapper(itemWrapper);
 
 		if (this.fixedScrollingMode && this.scrollableElement) {
 			setTimeout(() => this.scrollToBottomIfEnabled(), 0);
@@ -1043,13 +1031,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	private materializeLazyItem(item: ILazyItem): void {
 		if (item.kind === 'thinking') {
 			// Materialize thinking container
-			if (this.wrapper) {
-				if (this.workingSpinnerElement && this.workingSpinnerElement.parentNode === this.wrapper) {
-					this.wrapper.insertBefore(item.textContainer, this.workingSpinnerElement);
-				} else {
-					this.wrapper.appendChild(item.textContainer);
-				}
-			}
+			this.appendToWrapper(item.textContainer);
 			// Store reference to textContainer for updateThinking calls
 			this.textContainer = item.textContainer;
 			this.id = item.content.id;
@@ -1086,13 +1068,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			// Use lazy rendering when collapsed to preserve order with tool items
 			if (this.isExpanded() || this.hasExpandedOnce || (this.fixedScrollingMode && !this.streamingCompleted)) {
 				// Render immediately when expanded
-				if (this.wrapper) {
-					if (this.workingSpinnerElement && this.workingSpinnerElement.parentNode === this.wrapper) {
-						this.wrapper.insertBefore(this.textContainer, this.workingSpinnerElement);
-					} else {
-						this.wrapper.appendChild(this.textContainer);
-					}
-				}
+				this.appendToWrapper(this.textContainer);
 				this.id = content.id;
 				this.updateThinking(content);
 			} else {
