@@ -50,14 +50,9 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 	readonly groupResults = () => this.options.groupResults?.();
 
 	private excludes = DEFAULT_EXCLUDES;
+	private isStoringExcludes = false;
 
 	private readonly actionDisposables = this._register(new DisposableStore());
-
-	/**
-	 * Guard to skip redundant updateExcludes calls when storage
-	 * changes are triggered by our own storeExcludes call.
-	 */
-	private isStoringExcludes = false;
 
 	constructor(
 		private readonly options: IAgentSessionsFilterOptions,
@@ -77,26 +72,21 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 		this._register(this.chatSessionsService.onDidChangeItemsProviders(() => this.updateFilterActions()));
 		this._register(this.chatSessionsService.onDidChangeAvailability(() => this.updateFilterActions()));
 
-		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, this.STORAGE_KEY, this._store)(() => {
-			// Skip if we triggered the change ourselves - storeExcludes already
-			// updated this.excludes and fired onDidChange. Re-running would cause
-			// action re-registration during a menu click which can corrupt state.
-			if (!this.isStoringExcludes) {
-				this.updateExcludes(true);
-			}
-		}));
+		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, this.STORAGE_KEY, this._store)(() => this.updateExcludes(true)));
 	}
 
 	private updateExcludes(fromEvent: boolean): void {
-		const excludedTypesRaw = this.storageService.get(this.STORAGE_KEY, StorageScope.PROFILE);
-		if (excludedTypesRaw) {
-			try {
-				this.excludes = JSON.parse(excludedTypesRaw) as IAgentSessionsFilterExcludes;
-			} catch {
+		if (!this.isStoringExcludes) {
+			const excludedTypesRaw = this.storageService.get(this.STORAGE_KEY, StorageScope.PROFILE);
+			if (excludedTypesRaw) {
+				try {
+					this.excludes = JSON.parse(excludedTypesRaw) as IAgentSessionsFilterExcludes;
+				} catch {
+					this.excludes = { ...DEFAULT_EXCLUDES };
+				}
+			} else {
 				this.excludes = { ...DEFAULT_EXCLUDES };
 			}
-		} else {
-			this.excludes = { ...DEFAULT_EXCLUDES };
 		}
 
 		this.updateFilterActions();
@@ -121,10 +111,6 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 		} finally {
 			this.isStoringExcludes = false;
 		}
-
-		// Update filter actions and notify listeners
-		this.updateFilterActions();
-		this._onDidChange.fire();
 	}
 
 	private updateFilterActions(): void {
