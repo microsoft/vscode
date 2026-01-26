@@ -389,7 +389,9 @@ export class ChatMcpAppModel extends Disposable {
 					break;
 
 				case 'ui/request-display-mode':
-					break; // not supported
+					// VS Code only supports inline display mode
+					result = { mode: 'inline' } satisfies McpApps.McpUiRequestDisplayModeResult;
+					break;
 
 				case 'ui/notifications/initialized':
 					break;
@@ -431,7 +433,7 @@ export class ChatMcpAppModel extends Disposable {
 	}
 
 	/**
-	 * Handles the ui/initialize request from the MCP App.
+	 * Handles the ui/initialize request from the MCP App View.
 	 */
 	private async _handleInitialize(_params: McpApps.McpUiInitializeRequest['params']): Promise<McpApps.McpUiInitializeResult> {
 		this._announcedCapabilities = true;

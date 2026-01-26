@@ -606,7 +606,7 @@ configurationRegistry.registerConfiguration({
 		[ChatConfiguration.AlternativeToolAction]: {
 			type: 'boolean',
 			description: nls.localize('chat.alternativeToolAction', "When enabled, shows the Configure Tools action in the mode picker dropdown on hover instead of in the chat input."),
-			default: false,
+			default: true,
 			tags: ['experimental'],
 			experiment: {
 				mode: 'auto'
