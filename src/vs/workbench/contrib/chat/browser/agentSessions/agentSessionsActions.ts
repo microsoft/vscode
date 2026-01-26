@@ -73,12 +73,12 @@ MenuRegistry.appendMenuItem(MenuId.ChatWelcomeContext, {
 	)
 });
 
-export class GroupSessionsByTimeAction extends Action2 {
+export class GroupSessionsByDateAction extends Action2 {
 
 	constructor() {
 		super({
-			id: 'workbench.action.chat.groupSessionsByTime',
-			title: localize2('chat.groupSessions.byTime', "By Time"),
+			id: 'workbench.action.chat.groupSessionsByDate',
+			title: localize2('chat.groupSessions.byDate', "By Date"),
 			toggled: ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsGrouping}`, AgentSessionsGrouping.Date),
 			menu: {
 				id: groupSessionsSubmenu,
