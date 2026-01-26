@@ -4,13 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { VSBuffer } from '../../../../../base/common/buffer.js';
+import { Event } from '../../../../../base/common/event.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { FileAccess } from '../../../../../base/common/network.js';
 import { dirname, join } from '../../../../../base/common/path.js';
 import { OperatingSystem, OS } from '../../../../../base/common/platform.js';
 import { joinPath } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -30,7 +32,7 @@ export interface ITerminalSandboxService {
 	setNeedsForceUpdateConfigFile(): void;
 }
 
-export class TerminalSandboxService implements ITerminalSandboxService {
+export class TerminalSandboxService extends Disposable implements ITerminalSandboxService {
 	readonly _serviceBrand: undefined;
 	private _srtPath: string;
 	private _execPath?: string;
@@ -47,6 +49,7 @@ export class TerminalSandboxService implements ITerminalSandboxService {
 		@ILogService private readonly _logService: ILogService,
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
 	) {
+		super();
 		const appRoot = dirname(FileAccess.asFileUri('').fsPath);
 		// srt path is dist/cli.js inside the sandbox-runtime package.
 		this._srtPath = join(appRoot, 'node_modules', '@anthropic-ai', 'sandbox-runtime', 'dist', 'cli.js');
@@ -57,6 +60,18 @@ export class TerminalSandboxService implements ITerminalSandboxService {
 		this._remoteAgentService.getEnvironment().then(remoteEnv => {
 			this._os = remoteEnv?.os ?? OS;
 		});
+
+		this._register(Event.runAndSubscribe(this._configurationService.onDidChangeConfiguration, (e: IConfigurationChangeEvent | undefined) => {
+			// If terminal sandbox settings changed, update sandbox config.
+			if (
+				e?.affectsConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxEnabled) ||
+				e?.affectsConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxNetwork) ||
+				e?.affectsConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxLinuxFileSystem) ||
+				e?.affectsConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxMacFileSystem)
+			) {
+				this.setNeedsForceUpdateConfigFile();
+			}
+		}));
 	}
 
 	public isEnabled(): boolean {

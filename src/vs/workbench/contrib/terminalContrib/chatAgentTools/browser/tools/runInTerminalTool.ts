@@ -48,9 +48,9 @@ import { TreeSitterCommandParser, TreeSitterCommandParserLanguage } from '../tre
 import { type ICommandLineAnalyzer, type ICommandLineAnalyzerOptions } from './commandLineAnalyzer/commandLineAnalyzer.js';
 import { CommandLineAutoApproveAnalyzer } from './commandLineAnalyzer/commandLineAutoApproveAnalyzer.js';
 import { CommandLineFileWriteAnalyzer } from './commandLineAnalyzer/commandLineFileWriteAnalyzer.js';
+import { CommandLineSandboxAnalyzer } from './commandLineAnalyzer/commandLineSandboxAnalyzer.js';
 import { OutputMonitor } from './monitoring/outputMonitor.js';
 import { IPollingResult, OutputMonitorState } from './monitoring/types.js';
-import { ITerminalSandboxService } from '../../common/terminalSandboxService.js';
 import { chatSessionResourceToId, LocalChatSessionUri } from '../../../../chat/common/model/chatUri.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import type { ICommandLineRewriter } from './commandLineRewriter/commandLineRewriter.js';
@@ -347,7 +347,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
-		@ITerminalSandboxService private readonly _sandboxService: ITerminalSandboxService,
 	) {
 		super();
 
@@ -368,6 +367,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		this._commandLineAnalyzers = [
 			this._register(this._instantiationService.createInstance(CommandLineFileWriteAnalyzer, this._treeSitterCommandParser, (message, args) => this._logService.info(`RunInTerminalTool#CommandLineFileWriteAnalyzer: ${message}`, args))),
 			this._register(this._instantiationService.createInstance(CommandLineAutoApproveAnalyzer, this._treeSitterCommandParser, this._telemetry, (message, args) => this._logService.info(`RunInTerminalTool#CommandLineAutoApproveAnalyzer: ${message}`, args))),
+			this._register(this._instantiationService.createInstance(CommandLineSandboxAnalyzer)),
 		];
 		this._commandLinePresenters = [
 			this._instantiationService.createInstance(SandboxedCommandLinePresenter),
@@ -382,15 +382,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				if (this._configurationService.getValue(TerminalChatAgentToolsSettingId.EnableAutoApprove) !== true) {
 					this._storageService.remove(TerminalToolConfirmationStorageKeys.TerminalAutoApproveWarningAccepted, StorageScope.APPLICATION);
 				}
-			}
-			// If terminal sandbox settings changed, update sandbox config.
-			if (
-				e?.affectsConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxEnabled) ||
-				e?.affectsConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxNetwork) ||
-				e?.affectsConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxLinuxFileSystem) ||
-				e?.affectsConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxMacFileSystem)
-			) {
-				this._sandboxService.setNeedsForceUpdateConfigFile();
 			}
 		}));
 
@@ -457,7 +448,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			commandLine: {
 				original: args.command,
 				toolEdited: rewrittenCommand === args.command ? undefined : rewrittenCommand,
-				sandboxWrapped: this._sandboxService.isEnabled() ? args.command : undefined,
 			},
 			cwd,
 			language,
@@ -537,7 +527,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			commandLineAnalyzerResults.every(e => e.isAutoApproved !== false) &&
 			// All analyzers allow auto approval
 			analyzersIsAutoApproveAllowed
-		);
+		) || commandLineAnalyzerResults.some(e => e.autoApprovedForSandbox);
 
 		const isFinalAutoApproved = (
 			// Is the setting enabled and the user has opted-in
@@ -557,7 +547,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		}
 
 		// Extract cd prefix for display - show directory in title, command suffix in editor
-		const commandToDisplay = (toolSpecificData.commandLine.sandboxWrapped ?? toolSpecificData.commandLine.userEdited ?? toolSpecificData.commandLine.toolEdited ?? toolSpecificData.commandLine.original).trimStart();
+		const commandToDisplay = (toolSpecificData.commandLine.userEdited ?? toolSpecificData.commandLine.toolEdited ?? toolSpecificData.commandLine.original).trimStart();
 		const extractedCd = extractCdPrefix(commandToDisplay, shell, os);
 		let confirmationTitle: string;
 		if (extractedCd && cwd) {
@@ -594,7 +584,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		const commandForPresenter = extractedCd?.command ?? commandToDisplay;
 		let presenterInput = commandForPresenter;
 		for (const presenter of this._commandLinePresenters) {
-			const presenterResult = presenter.present({ commandLine: presenterInput, shell, os });
+			const presenterResult = presenter.present({ commandLine: { original: args.command, forDisplay: presenterInput }, shell, os });
 			if (presenterResult) {
 				toolSpecificData.presentationOverrides = {
 					commandLine: presenterResult.commandLine,
@@ -618,14 +608,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			}
 		}
 
-		// If in sandbox mode, skip confirmation logic. In sandbox mode, commands are run in a restricted environment and explicit
-		// user confirmation is not required.
-		if (this._sandboxService.isEnabled()) {
-			toolSpecificData.autoApproveInfo = new MarkdownString(localize('autoApprove.sandbox', 'In sandbox mode'));
-			return {
-				toolSpecificData
-			};
-		}
 
 		const confirmationMessages = isFinalAutoApproved ? undefined : {
 			title: confirmationTitle,

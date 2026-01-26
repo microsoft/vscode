@@ -18,9 +18,14 @@ export interface ICommandLinePresenter {
 }
 
 export interface ICommandLinePresenterOptions {
-	commandLine: string;
+	commandLine: ICommandLinePresentationInput;
 	shell: string;
 	os: OperatingSystem;
+}
+
+export interface ICommandLinePresentationInput {
+	original?: string;
+	forDisplay: string;
 }
 
 export interface ICommandLinePresenterResult {

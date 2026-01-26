@@ -3,26 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import { ITerminalSandboxService } from '../../../common/terminalSandboxService.js';
-import type { ICommandLinePresenter, ICommandLinePresenterOptions, ICommandLinePresenterResult } from './commandLinePresenter.js';
+import type { ICommandLineAnalyzer, ICommandLineAnalyzerOptions, ICommandLineAnalyzerResult } from './commandLineAnalyzer.js';
 
-/**
- * Command line presenter for sandboxed commands.
- * Extracts the original command from the sandbox wrapper for cleaner display,
- * while the actual sandboxed command runs unchanged.
- */
-export class SandboxedCommandLinePresenter implements ICommandLinePresenter {
+export class CommandLineSandboxAnalyzer extends Disposable implements ICommandLineAnalyzer {
 	constructor(
 		@ITerminalSandboxService private readonly _sandboxService: ITerminalSandboxService,
 	) {
+		super();
 	}
 
-	present(options: ICommandLinePresenterOptions): ICommandLinePresenterResult | undefined {
+	async analyze(_options: ICommandLineAnalyzerOptions): Promise<ICommandLineAnalyzerResult> {
 		if (!this._sandboxService.isEnabled()) {
-			return undefined;
+			return {
+				isAutoApproveAllowed: true,
+			};
 		}
 		return {
-			commandLine: options.commandLine.original!
+			isAutoApproveAllowed: true,
+			autoApprovedForSandbox: true,
 		};
 	}
 }

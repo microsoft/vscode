@@ -32,7 +32,7 @@ suite('SandboxedCommandLinePresenter', () => {
 		const presenter = createPresenter();
 		const commandLine = 'ELECTRON_RUN_AS_NODE=1 "/path/to/electron" "/path/to/srt/cli.js" TMPDIR=/tmp --settings "/tmp/sandbox.json" -c "echo hello"';
 		const result = presenter.present({
-			commandLine,
+			commandLine: { forDisplay: commandLine },
 			shell: 'bash',
 			os: OperatingSystem.Linux
 		});
@@ -46,7 +46,7 @@ suite('SandboxedCommandLinePresenter', () => {
 		const presenter = createPresenter();
 		const commandLine = 'echo hello';
 		const result = presenter.present({
-			commandLine,
+			commandLine: { forDisplay: commandLine },
 			shell: 'bash',
 			os: OperatingSystem.Linux
 		});
@@ -59,7 +59,7 @@ suite('SandboxedCommandLinePresenter', () => {
 	test('should return undefined when sandboxing is disabled', () => {
 		const presenter = createPresenter(false);
 		const result = presenter.present({
-			commandLine: 'ELECTRON_RUN_AS_NODE=1 "/path/to/electron" "/path/to/srt/cli.js" TMPDIR=/tmp --settings "/tmp/sandbox.json" -c "echo hello"',
+			commandLine: { forDisplay: 'ELECTRON_RUN_AS_NODE=1 "/path/to/electron" "/path/to/srt/cli.js" TMPDIR=/tmp --settings "/tmp/sandbox.json" -c "echo hello"' },
 			shell: 'bash',
 			os: OperatingSystem.Linux
 		});
