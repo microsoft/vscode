@@ -72,7 +72,7 @@ const TIP_CATALOG: ITipDefinition[] = [
 	},
 	{
 		id: 'tip.undoChanges',
-		message: localize('tip.undoChanges', "Tip: You can undo Copilot's changes with {0}.", '`Ctrl+Z`'),
+		message: localize('tip.undoChanges', "Tip: You can undo Copilot's changes to any point by clicking Restore Checkpoint."),
 		when: ContextKeyExpr.or(
 			ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
 			ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Edit),
