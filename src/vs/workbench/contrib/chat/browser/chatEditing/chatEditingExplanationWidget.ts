@@ -642,12 +642,12 @@ export class ChatEditingExplanationWidgetManager extends Disposable {
 		for (const explanation of explanations) {
 			for (const widget of this._widgets) {
 				// Try to set the explanation on the widget - it will match by line number
-				for (let i = 0; i < widget.explanationCount; i++) {
-					widget.setExplanationByLineNumber(
-						explanation.startLineNumber,
-						explanation.endLineNumber,
-						explanation.explanation
-					);
+				if (widget.setExplanationByLineNumber(
+					explanation.startLineNumber,
+					explanation.endLineNumber,
+					explanation.explanation
+				)) {
+					break; // Found the matching widget, no need to check others
 				}
 			}
 		}

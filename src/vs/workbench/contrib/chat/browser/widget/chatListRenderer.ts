@@ -861,6 +861,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		// Show if no content, only "used references", ends with a complete tool call, or ends with complete text edits and there is no incomplete tool call (edits are still being applied some time after they are all generated)
 		const lastPart = findLast(partsToRender, part => part.kind !== 'markdownContent' || part.content.value.trim().length > 0);
 
+		// don't show working progress when there is thinking content in partsToRender (about to be rendered)
+		if (partsToRender.some(part => part.kind === 'thinking')) {
+			return false;
+		}
+
 		// never show working progress when there is an active thinking piece
 		const lastThinking = this.getLastThinkingPart(templateData.renderedParts);
 		if (lastThinking) {
@@ -1342,6 +1347,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			if (IChatToolInvocation.isStreaming(part)) {
 				return true;
 			}
+			// don't pin if waiting for confirmation or post-approval
+			const state = part.state.get();
+			if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation || state.type === IChatToolInvocation.StateKind.WaitingForPostApproval) {
+				return false;
+			}
 			return !IChatToolInvocation.getConfirmationMessages(part);
 		}
 
@@ -1777,7 +1787,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			const state = toolInvocation.state.read(reader);
 			if (wasStreaming && state.type !== IChatToolInvocation.StateKind.Streaming) {
 				wasStreaming = false;
-				if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation) {
+				if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation || state.type === IChatToolInvocation.StateKind.WaitingForPostApproval) {
 					const createdPart = getCreatedPart();
 					// move the created part out of thinking and into the main template
 					if (createdPart?.domNode) {

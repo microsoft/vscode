@@ -108,6 +108,17 @@ interface ILazyThinkingItem {
 type ILazyItem = ILazyToolItem | ILazyThinkingItem;
 const THINKING_SCROLL_MAX_HEIGHT = 200;
 
+const workingMessages = [
+	localize('chat.thinking.working.1', 'Thinking...'),
+	localize('chat.thinking.working.2', 'Processing...'),
+	localize('chat.thinking.working.3', 'Analyzing...'),
+	localize('chat.thinking.working.4', 'Computing...'),
+	localize('chat.thinking.working.5', 'Loading...'),
+	localize('chat.thinking.working.6', 'Reasoning...'),
+	localize('chat.thinking.working.7', 'Evaluating...'),
+	localize('chat.thinking.working.8', 'Preparing...'),
+];
+
 export class ChatThinkingContentPart extends ChatCollapsibleContentPart implements IChatContentPart {
 	public readonly codeblocks: undefined;
 	public readonly codeblocksPartId: undefined;
@@ -134,6 +145,17 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	private singleItemInfo: { element: HTMLElement; originalParent: HTMLElement; originalNextSibling: Node | null } | undefined;
 	private lazyItems: ILazyItem[] = [];
 	private hasExpandedOnce: boolean = false;
+	private workingSpinnerElement: HTMLElement | undefined;
+	private workingSpinnerLabel: HTMLElement | undefined;
+	private availableWorkingMessages: string[] = [...workingMessages];
+
+	private getRandomWorkingMessage(): string {
+		if (this.availableWorkingMessages.length === 0) {
+			this.availableWorkingMessages = [...workingMessages];
+		}
+		const index = Math.floor(Math.random() * this.availableWorkingMessages.length);
+		return this.availableWorkingMessages.splice(index, 1)[0];
+	}
 
 	constructor(
 		content: IChatThinkingPart,
@@ -186,19 +208,20 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		if (this.fixedScrollingMode) {
 			node.classList.add('chat-thinking-fixed-mode');
 			this.currentTitle = this.defaultTitle;
-			if (this._collapseButton && !this.element.isComplete) {
-				this._collapseButton.icon = ThemeIcon.modify(Codicon.loading, 'spin');
-			}
 		}
 
 		// override for codicon chevron in the collapsible part
 		this._register(autorun(r => {
-			this.expanded.read(r);
-			if (this._collapseButton && this.wrapper) {
-				if (this.wrapper.classList.contains('chat-thinking-streaming') && !this.element.isComplete) {
-					this._collapseButton.icon = ThemeIcon.modify(Codicon.loading, 'spin');
-				} else {
+			const isExpanded = this.expanded.read(r);
+			if (this._collapseButton) {
+				if (this.streamingCompleted || this.element.isComplete) {
 					this._collapseButton.icon = Codicon.check;
+				} else if (!this.fixedScrollingMode) {
+					if (isExpanded) {
+						this._collapseButton.icon = Codicon.chevronDown;
+					} else {
+						this._collapseButton.icon = ThemeIcon.modify(Codicon.loading, 'spin');
+					}
 				}
 			}
 		}));
@@ -214,10 +237,6 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			// Fire when expanded/collapsed
 			this._onDidChangeHeight.fire();
 		}));
-
-		if (this._collapseButton && !this.streamingCompleted && !this.element.isComplete) {
-			this._collapseButton.icon = ThemeIcon.modify(Codicon.loading, 'spin');
-		}
 
 		const label = this.lastExtractedTitle ?? '';
 		if (!this.fixedScrollingMode && !this._isExpanded.get()) {
@@ -262,6 +281,17 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			this.textContainer = $('.chat-thinking-item.markdown-content');
 			this.wrapper.appendChild(this.textContainer);
 			this.renderMarkdown(this.currentThinkingValue);
+		}
+
+		// Create the persistent working spinner element only if still streaming
+		if (!this.streamingCompleted && !this.element.isComplete) {
+			this.workingSpinnerElement = $('.chat-thinking-item.chat-thinking-spinner-item');
+			const spinnerIcon = createThinkingIcon(ThemeIcon.modify(Codicon.loading, 'spin'));
+			this.workingSpinnerElement.appendChild(spinnerIcon);
+			this.workingSpinnerLabel = $('span.chat-thinking-spinner-label');
+			this.workingSpinnerLabel.textContent = this.getRandomWorkingMessage();
+			this.workingSpinnerElement.appendChild(this.workingSpinnerLabel);
+			this.wrapper.appendChild(this.workingSpinnerElement);
 		}
 
 		// wrap content in scrollable element for fixed scrolling mode
@@ -433,6 +463,17 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		this.setDropdownClickable(!shouldDisable);
 	}
 
+	private appendToWrapper(element: HTMLElement): void {
+		if (!this.wrapper) {
+			return;
+		}
+		if (this.workingSpinnerElement && this.workingSpinnerElement.parentNode === this.wrapper) {
+			this.wrapper.insertBefore(element, this.workingSpinnerElement);
+		} else {
+			this.wrapper.appendChild(element);
+		}
+	}
+
 	public resetId(): void {
 		this.id = undefined;
 	}
@@ -497,6 +538,11 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 
 	public markAsInactive(): void {
 		this.isActive = false;
+		if (this.workingSpinnerElement) {
+			this.workingSpinnerElement.remove();
+			this.workingSpinnerElement = undefined;
+			this.workingSpinnerLabel = undefined;
+		}
 	}
 
 	public finalizeTitleIfDefault(): void {
@@ -505,6 +551,12 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			this.wrapper.classList.remove('chat-thinking-streaming');
 		}
 		this.streamingCompleted = true;
+
+		if (this.workingSpinnerElement) {
+			this.workingSpinnerElement.remove();
+			this.workingSpinnerElement = undefined;
+			this.workingSpinnerLabel = undefined;
+		}
 
 		if (this._collapseButton) {
 			this._collapseButton.icon = Codicon.check;
@@ -761,6 +813,11 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		this.trackToolMetadata(toolInvocationId, toolInvocationOrMarkdown);
 		this.appendedItemCount++;
 
+		// get random title
+		if (this.workingSpinnerLabel) {
+			this.workingSpinnerLabel.textContent = this.getRandomWorkingMessage();
+		}
+
 		// If expanded or has been expanded once, render immediately
 		if (this.isExpanded() || this.hasExpandedOnce || (this.fixedScrollingMode && !this.streamingCompleted)) {
 			const result = factory();
@@ -967,12 +1024,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		itemWrapper.appendChild(iconElement);
 		itemWrapper.appendChild(content);
 
-		// With lazy rendering, wrapper may not be created yet if content hasn't been expanded
-		if (!this.wrapper) {
-			return;
-		}
-
-		this.wrapper.appendChild(itemWrapper);
+		this.appendToWrapper(itemWrapper);
 
 		if (this.fixedScrollingMode && this.scrollableElement) {
 			setTimeout(() => this.scrollToBottomIfEnabled(), 0);
@@ -982,15 +1034,17 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	private materializeLazyItem(item: ILazyItem): void {
 		if (item.kind === 'thinking') {
 			// Materialize thinking container
-			if (this.wrapper) {
-				this.wrapper.appendChild(item.textContainer);
-			}
+			this.appendToWrapper(item.textContainer);
 			// Store reference to textContainer for updateThinking calls
 			this.textContainer = item.textContainer;
 			this.id = item.content.id;
 			// Use item.content which is kept up-to-date during streaming via updateThinking
 			this.updateThinking(item.content);
 			return;
+		}
+
+		if (this.workingSpinnerLabel) {
+			this.workingSpinnerLabel.textContent = this.getRandomWorkingMessage();
 		}
 
 		// Handle tool items
@@ -1017,9 +1071,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			// Use lazy rendering when collapsed to preserve order with tool items
 			if (this.isExpanded() || this.hasExpandedOnce || (this.fixedScrollingMode && !this.streamingCompleted)) {
 				// Render immediately when expanded
-				if (this.wrapper) {
-					this.wrapper.appendChild(this.textContainer);
-				}
+				this.appendToWrapper(this.textContainer);
 				this.id = content.id;
 				this.updateThinking(content);
 			} else {
@@ -1034,6 +1086,10 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 					content
 				};
 				this.lazyItems.push(lazyThinking);
+			}
+
+			if (this.workingSpinnerLabel) {
+				this.workingSpinnerLabel.textContent = this.getRandomWorkingMessage();
 			}
 		}
 		this.updateDropdownClickability();
@@ -1071,6 +1127,11 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		if (this.markdownResult) {
 			this.markdownResult.dispose();
 			this.markdownResult = undefined;
+		}
+		if (this.workingSpinnerElement) {
+			this.workingSpinnerElement.remove();
+			this.workingSpinnerElement = undefined;
+			this.workingSpinnerLabel = undefined;
 		}
 		super.dispose();
 	}

@@ -411,30 +411,17 @@ export class AcceptAllEditsAction extends ChatEditingEditorAction {
 
 abstract class MultiDiffAcceptDiscardAction extends Action2 {
 
-	constructor(private readonly _options: { readonly location: 'title' | 'content'; readonly accept: boolean }) {
+	constructor(readonly accept: boolean) {
 		super({
-			id: _options.location === 'title'
-				? _options.accept ? 'chatEditing.multidiff.title.acceptAllFiles' : 'chatEditing.multidiff.title.discardAllFiles'
-				: _options.accept ? 'chatEditing.multidiff.content.acceptAllFiles' : 'chatEditing.multidiff.content.discardAllFiles',
-			title: _options.location === 'title'
-				? _options.accept ? localize('accept4', 'Keep All Edits') : localize('discard4', 'Undo All Edits')
-				: _options.accept ? localize('accept5', 'Keep') : localize('discard5', 'Undo'),
-			icon: _options.location === 'title'
-				? _options.accept ? Codicon.check : Codicon.discard
-				: undefined,
-			menu: _options.location === 'title'
-				? {
-					when: ContextKeyExpr.equals('resourceScheme', CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME),
-					id: MenuId.EditorTitle,
-					order: _options.accept ? -100 : -99,
-					group: 'navigation',
-				}
-				: {
-					when: ContextKeyExpr.equals('resourceScheme', CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME),
-					id: MenuId.MultiDiffEditorContent,
-					order: _options.accept ? -100 : -99,
-					group: 'navigation'
-				}
+			id: accept ? 'chatEditing.multidiff.acceptAllFiles' : 'chatEditing.multidiff.discardAllFiles',
+			title: accept ? localize('accept4', 'Keep All Edits') : localize('discard4', 'Undo All Edits'),
+			icon: accept ? Codicon.check : Codicon.discard,
+			menu: {
+				when: ContextKeyExpr.equals('resourceScheme', CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME),
+				id: MenuId.EditorTitle,
+				order: accept ? 0 : 1,
+				group: 'navigation',
+			},
 		});
 	}
 
@@ -459,7 +446,7 @@ abstract class MultiDiffAcceptDiscardAction extends Action2 {
 		const { chatSessionResource } = parseChatMultiDiffUri(editor.resource);
 		const session = chatEditingService.getEditingSession(chatSessionResource);
 		if (session) {
-			if (this._options.accept) {
+			if (this.accept) {
 				await session.accept();
 			} else {
 				await session.reject();
@@ -644,10 +631,8 @@ export function registerChatEditorActions() {
 	registerAction2(ToggleDiffAction);
 	registerAction2(ToggleAccessibleDiffViewAction);
 
-	registerAction2(class extends MultiDiffAcceptDiscardAction { constructor() { super({ location: 'title', accept: true }); } });
-	registerAction2(class extends MultiDiffAcceptDiscardAction { constructor() { super({ location: 'title', accept: false }); } });
-	registerAction2(class extends MultiDiffAcceptDiscardAction { constructor() { super({ location: 'content', accept: true }); } });
-	registerAction2(class extends MultiDiffAcceptDiscardAction { constructor() { super({ location: 'content', accept: false }); } });
+	registerAction2(class extends MultiDiffAcceptDiscardAction { constructor() { super(true); } });
+	registerAction2(class extends MultiDiffAcceptDiscardAction { constructor() { super(false); } });
 	registerAction2(ExplainMultiDiffAction);
 
 	MenuRegistry.appendMenuItem(MenuId.ChatEditingEditorContent, {

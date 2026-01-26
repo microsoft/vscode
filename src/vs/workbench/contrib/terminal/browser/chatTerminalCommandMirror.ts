@@ -380,19 +380,22 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 			const colorProvider = {
 				getBackgroundColor: (theme: IColorTheme) => getChatTerminalBackgroundColor(theme, this._contextKeyService)
 			};
+			const processInfo = new DetachedProcessInfo({ initialCwd: '' });
 			const detached = await this._terminalService.createDetachedTerminal({
 				cols: this._xtermTerminal.raw.cols ?? ChatTerminalMirrorMetrics.MirrorColCountFallback,
 				rows: ChatTerminalMirrorMetrics.MirrorRowCount,
 				readonly: false,
-				processInfo: new DetachedProcessInfo({ initialCwd: '' }),
+				processInfo,
 				disableOverviewRuler: true,
 				colorProvider
 			});
 			if (this._store.isDisposed) {
+				processInfo.dispose();
 				detached.dispose();
 				throw new CancellationError();
 			}
 			this._detachedTerminal = detached;
+			this._register(processInfo);
 			this._register(detached);
 
 			// Forward input from the mirror terminal to the source terminal
