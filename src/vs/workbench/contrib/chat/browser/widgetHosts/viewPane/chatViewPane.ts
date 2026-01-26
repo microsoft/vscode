@@ -238,16 +238,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => {
 			return e.affectsConfiguration(ChatConfiguration.ChatViewSessionsGrouping);
 		})(() => {
-			const oldSessionsGrouping = this.sessionsGrouping;
-			if (this.sessionsViewerOrientation === AgentSessionsViewerOrientation.SideBySide) {
-				this.sessionsGrouping = AgentSessionsGrouping.Date; // side by side always shows all
-			} else {
-				this.sessionsGrouping = this.configurationService.getValue<AgentSessionsGrouping>(ChatConfiguration.ChatViewSessionsGrouping) === AgentSessionsGrouping.Date ? AgentSessionsGrouping.Date : AgentSessionsGrouping.Activity;
-			}
+			this.sessionsGrouping = this.configurationService.getValue<AgentSessionsGrouping>(ChatConfiguration.ChatViewSessionsGrouping) === AgentSessionsGrouping.Date ? AgentSessionsGrouping.Date : AgentSessionsGrouping.Activity;
 
-			if (oldSessionsGrouping !== this.sessionsGrouping) {
-				this.sessionsControl?.update();
-			}
+			this.sessionsControl?.update();
 		}));
 
 		// Entitlement changes
@@ -374,7 +367,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		// Sessions Filter
 		const sessionsFilter = this._register(this.instantiationService.createInstance(AgentSessionsFilter, {
 			filterMenuId: MenuId.AgentSessionsViewerFilterSubMenu,
-			groupResults: () => this.sessionsGrouping === AgentSessionsGrouping.Activity ? AgentSessionsGrouping.Activity : AgentSessionsGrouping.Date,
+			groupResults: () => this.sessionsGrouping === AgentSessionsGrouping.Date ? AgentSessionsGrouping.Date : AgentSessionsGrouping.Activity,
 		}));
 		this._register(Event.runAndSubscribe(sessionsFilter.onDidChange, () => {
 			sessionsToolbarContainer.classList.toggle('filtered', !sessionsFilter.isDefault());
