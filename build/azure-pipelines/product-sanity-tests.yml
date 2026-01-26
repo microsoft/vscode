@@ -105,29 +105,11 @@ extends:
 
           - template: build/azure-pipelines/common/sanity-tests.yml@self
             parameters:
-              name: alpine_arm64_4k
-              displayName: Alpine 3.23 arm64 (4K page)
+              name: alpine_arm64
+              displayName: Alpine 3.23 arm64
               poolName: 1es-mariner-2.0-arm64
               container: alpine
               arch: arm64
-
-          - template: build/azure-pipelines/common/sanity-tests.yml@self
-            parameters:
-              name: alpine_arm64_16k
-              displayName: Alpine 3.23 arm64 (16K page)
-              poolName: 1es-ubuntu-22.04-x64
-              container: alpine
-              arch: arm64
-              pageSize: 16k
-
-          - template: build/azure-pipelines/common/sanity-tests.yml@self
-            parameters:
-              name: alpine_arm64_64k
-              displayName: Alpine 3.23 arm64 (64K page)
-              poolName: 1es-ubuntu-22.04-x64
-              container: alpine
-              arch: arm64
-              pageSize: 64k
 
           # CentOS Stream 9
           - template: build/azure-pipelines/common/sanity-tests.yml@self
@@ -140,11 +122,29 @@ extends:
 
           - template: build/azure-pipelines/common/sanity-tests.yml@self
             parameters:
-              name: centos_stream9_arm64
-              displayName: CentOS Stream 9 arm64
+              name: centos_stream9_arm64_4k
+              displayName: CentOS Stream 9 arm64 (4K page)
               poolName: 1es-mariner-2.0-arm64
               container: centos
               arch: arm64
+
+          - template: build/azure-pipelines/common/sanity-tests.yml@self
+            parameters:
+              name: centos_stream9_arm64_16k
+              displayName: CentOS Stream 9 arm64 (16K page)
+              poolName: 1es-ubuntu-22.04-x64
+              container: centos
+              arch: arm64
+              pageSize: 16k
+
+          - template: build/azure-pipelines/common/sanity-tests.yml@self
+            parameters:
+              name: centos_stream9_arm64_64k
+              displayName: CentOS Stream 9 arm64 (64K page)
+              poolName: 1es-ubuntu-22.04-x64
+              container: centos
+              arch: arm64
+              pageSize: 64k
 
           # Debian 10
           - template: build/azure-pipelines/common/sanity-tests.yml@self

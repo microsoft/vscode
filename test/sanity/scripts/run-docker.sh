@@ -46,6 +46,10 @@ if [ -n "$PAGE_SIZE" ]; then
 		64k) QEMU_ARGS="-e QEMU_CPU=max,pauth-impdef=on -e QEMU_PAGESIZE=65536" ;;
 		*) echo "Warning: Unknown page size '$PAGE_SIZE', using default" ;;
 	esac
+
+	# Set up QEMU user-mode emulation for cross-architecture builds
+	echo "Setting up QEMU emulation for linux/$ARCH"
+	docker run --privileged --rm tonistiigi/binfmt --install "$ARCH" > /dev/null
 fi
 
 echo "Running sanity tests in container"
