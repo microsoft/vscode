@@ -54,10 +54,8 @@ if [ -n "$PAGE_SIZE" ]; then
 
 	# Set kernel package URL based on page size
 	# CentOS Stream 9 kernel packages for arm64
-	CENTOS_MIRROR="https://mirror.stream.centos.org/9-stream/BaseOS/aarch64/os/Packages"
 	case "$PAGE_SIZE" in
-		16k) KERNEL_URL="$CENTOS_MIRROR/kernel-16k-core-5.14.0-586.el9.aarch64.rpm" ;;
-		64k) KERNEL_URL="$CENTOS_MIRROR/kernel-64k-core-5.14.0-586.el9.aarch64.rpm" ;;
+		64k) KERNEL_URL="https://mirror.stream.centos.org/9-stream/BaseOS/aarch64/os/Packages/kernel-64k-core-5.14.0-661.el9.aarch64.rpm" ;;
 		*) echo "Error: Unknown page size '$PAGE_SIZE'"; exit 1 ;;
 	esac
 
