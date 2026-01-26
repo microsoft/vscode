@@ -181,7 +181,7 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		const footer = append(this.contentContainer, $('.agentSessionsWelcome-footer'));
 		this.buildFooter(footer);
 
-		// Listen for session changes - store reference to avoid querySelecto
+		// Listen for session changes - store reference to avoid querySelector
 		let originalSessions = this.agentSessionsService.model.sessions.length > 0;
 		this.contentDisposables.add(this.agentSessionsService.model.onDidChangeSessions(() => {
 			const hasSessions = this.agentSessionsService.model.sessions.length > 0;
