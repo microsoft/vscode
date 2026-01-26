@@ -11,7 +11,6 @@ import { ProductQualityContext } from '../../../../../platform/contextkey/common
 import { INativeEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { INativeHostService } from '../../../../../platform/native/common/native.js';
-import { IUserDataProfilesService } from '../../../../../platform/userDataProfile/common/userDataProfile.js';
 import { ChatEntitlementContextKeys } from '../../../../services/chat/common/chatEntitlementService.js';
 import { CHAT_CATEGORY } from '../../browser/actions/chatActions.js';
 
@@ -29,7 +28,6 @@ export class OpenAgentSessionsWindowAction extends Action2 {
 	async run(accessor: ServicesAccessor) {
 		const environmentService = accessor.get(INativeEnvironmentService);
 		const nativeHostService = accessor.get(INativeHostService);
-		const userDataProfilesService = accessor.get(IUserDataProfilesService);
 		const fileService = accessor.get(IFileService);
 
 		// Create workspace file if it doesn't exist
@@ -44,8 +42,6 @@ export class OpenAgentSessionsWindowAction extends Action2 {
 			await fileService.writeFile(workspaceUri, VSBuffer.fromString(emptyWorkspaceContent));
 		}
 
-		const profile = await userDataProfilesService.createSystemProfile('agent-sessions');
-		await userDataProfilesService.updateProfile(profile, { workspaces: [workspaceUri] });
 		await nativeHostService.openWindow([{ workspaceUri }], { forceNewWindow: true });
 	}
 }
