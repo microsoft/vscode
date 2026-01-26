@@ -366,10 +366,6 @@ export class Table<TRow> implements ISpliceable<TRow>, IDisposable {
 		this.list.reveal(index, relativeTop);
 	}
 
-	findNextIndex(index: number, loop = false, filter?: (element: TRow) => boolean) {
-		return this.list.findNextIndex(index, loop, filter);
-	}
-
 	dispose(): void {
 		this.disposables.dispose();
 	}
