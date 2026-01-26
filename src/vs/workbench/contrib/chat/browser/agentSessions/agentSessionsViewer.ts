@@ -380,8 +380,9 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 			return; // the hover is complex and large, for now limit it to in-progress sessions only
 		}
 
+		const reducedDelay = session.element.status === AgentSessionStatus.NeedsInput;
 		template.elementDisposable.add(
-			this.hoverService.setupDelayedHover(template.element, () => this.buildHoverContent(session.element), { groupId: 'agent.sessions' })
+			this.hoverService.setupDelayedHover(template.element, () => this.buildHoverContent(session.element), { groupId: 'agent.sessions', reducedDelay })
 		);
 	}
 
