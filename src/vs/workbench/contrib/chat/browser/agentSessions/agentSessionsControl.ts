@@ -133,8 +133,8 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 
 		const collapseByDefault = (element: unknown) => {
 			if (isAgentSessionSection(element)) {
-				if (element.section === AgentSessionSection.History) {
-					return true; // History section is always collapsed
+				if (element.section === AgentSessionSection.More) {
+					return true; // More section is always collapsed
 				}
 				if (element.section === AgentSessionSection.Archived && this.options.filter.getExcludes().archived) {
 					return true; // Archived section is collapsed when archived are excluded
@@ -324,12 +324,12 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 					}
 					break;
 				}
-				case AgentSessionSection.History: {
-					const shouldCollapseHistory = !this.sessionsListFindIsOpen; // always expand when find is open
+				case AgentSessionSection.More: {
+					const shouldCollapseMore = !this.sessionsListFindIsOpen; // always expand when find is open
 
-					if (shouldCollapseHistory && !child.collapsed) {
+					if (shouldCollapseMore && !child.collapsed) {
 						this.sessionsList.collapse(child.element);
-					} else if (!shouldCollapseHistory && child.collapsed) {
+					} else if (!shouldCollapseMore && child.collapsed) {
 						this.sessionsList.expand(child.element);
 					}
 					break;
