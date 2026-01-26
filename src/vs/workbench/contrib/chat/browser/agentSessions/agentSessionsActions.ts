@@ -209,18 +209,12 @@ export class ArchiveAgentSessionSectionAction extends Action2 {
 				id: MenuId.AgentSessionSectionToolbar,
 				group: 'navigation',
 				order: 1,
-				when: ContextKeyExpr.and(
-					ChatContextKeys.agentSessionSection.notEqualsTo(AgentSessionSection.Archived),
-					ChatContextKeys.agentSessionSection.notEqualsTo(AgentSessionSection.More)
-				),
+				when: ChatContextKeys.agentSessionSection.notEqualsTo(AgentSessionSection.Archived),
 			}, {
 				id: MenuId.AgentSessionSectionContext,
 				group: '1_edit',
 				order: 2,
-				when: ContextKeyExpr.and(
-					ChatContextKeys.agentSessionSection.notEqualsTo(AgentSessionSection.Archived),
-					ChatContextKeys.agentSessionSection.notEqualsTo(AgentSessionSection.More)
-				),
+				when: ChatContextKeys.agentSessionSection.notEqualsTo(AgentSessionSection.Archived),
 			}]
 		});
 	}

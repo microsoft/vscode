@@ -883,7 +883,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		}
 
 		if (oldSessionsViewerOrientation !== this.sessionsViewerOrientation) {
-			const updatePromise = this.sessionsControl?.update(); // Changing orientation has an impact to grouping, so we need to update
+			const updatePromise = this.sessionsControl.update(); // Changing orientation has an impact to grouping, so we need to update
 
 			// Switching to side-by-side, reveal the current session after elements have loaded
 			if (this.sessionsViewerOrientation === AgentSessionsViewerOrientation.SideBySide) {
