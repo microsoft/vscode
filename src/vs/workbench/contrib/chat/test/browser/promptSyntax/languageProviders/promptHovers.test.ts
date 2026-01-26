@@ -126,7 +126,7 @@ suite('PromptHoverProvider', () => {
 			].join('\n');
 			const hover = await getHover(content, 4, 1, PromptsType.agent);
 			const expected = [
-				'Specify the model that runs this custom agent.',
+				'Specify the model that runs this custom agent. Can also be a list of models. The first available model will be used.',
 				'',
 				'Note: This attribute is not used when target is github-copilot.'
 			].join('\n');
@@ -143,7 +143,7 @@ suite('PromptHoverProvider', () => {
 			].join('\n');
 			const hover = await getHover(content, 4, 1, PromptsType.agent);
 			const expected = [
-				'Specify the model that runs this custom agent.',
+				'Specify the model that runs this custom agent. Can also be a list of models. The first available model will be used.',
 				'',
 				'- Name: MAE 4',
 				'- Family: mae',
@@ -244,7 +244,7 @@ suite('PromptHoverProvider', () => {
 			].join('\n');
 			const hover = await getHover(content, 4, 10, PromptsType.agent);
 			const expected = [
-				'Specify the model that runs this custom agent.',
+				'Specify the model that runs this custom agent. Can also be a list of models. The first available model will be used.',
 				'',
 				'- Name: MAE 4',
 				'- Family: mae',
@@ -263,7 +263,7 @@ suite('PromptHoverProvider', () => {
 			].join('\n');
 			const hover = await getHover(content, 4, 30, PromptsType.agent);
 			const expected = [
-				'Specify the model that runs this custom agent.',
+				'Specify the model that runs this custom agent. Can also be a list of models. The first available model will be used.',
 				'',
 				'- Name: MAE 4.1',
 				'- Family: mae',
@@ -341,7 +341,7 @@ suite('PromptHoverProvider', () => {
 			].join('\n');
 			const hover = await getHover(content, 3, 1, PromptsType.prompt);
 			const expected = [
-				'The model to use in this prompt.',
+				'The model to use in this prompt. Can also be a list of models. The first available model will be used.',
 				'',
 				'- Name: MAE 4',
 				'- Family: mae',
