@@ -237,6 +237,7 @@ suite('RunInTerminalTool', () => {
 			'Get-Date',
 			'Get-Random',
 			'Get-Location',
+			'Set-Location C:\\Users\\test',
 			'Write-Host "Hello"',
 			'Write-Output "Test"',
 			'Out-String',
