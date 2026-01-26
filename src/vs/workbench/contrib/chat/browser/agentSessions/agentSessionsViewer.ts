@@ -79,6 +79,10 @@ export interface IAgentSessionRendererOptions {
 	getHoverPosition(): HoverPosition;
 }
 
+// TODO@bpasero figure out these defaults going forward
+const SESSION_BADGE_ENABLED = false;
+const SESSION_DIFF_FILES_INDICATOR = false;
+
 export class AgentSessionRenderer extends Disposable implements ICompressibleTreeRenderer<IAgentSession, FuzzyScore, IAgentSessionItemTemplate> {
 
 	static readonly TEMPLATE_ID = 'agent-session';
@@ -194,6 +198,7 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 			}
 		}
 		template.diffContainer.classList.toggle('has-diff', hasDiff);
+		template.diffContainer.classList.toggle('has-diff-file-indicator', hasDiff && SESSION_DIFF_FILES_INDICATOR);
 
 		let hasAgentSessionChanges = false;
 		if (
@@ -230,6 +235,10 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 	}
 
 	private renderBadge(session: ITreeNode<IAgentSession, FuzzyScore>, template: IAgentSessionItemTemplate): boolean {
+		if (!SESSION_BADGE_ENABLED) {
+			return false;
+		}
+
 		const badge = session.element.badge;
 		if (badge) {
 			this.renderMarkdownOrText(badge, template.badge, template.elementDisposable);
@@ -260,7 +269,7 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 			return false;
 		}
 
-		if (diff.files > 0) {
+		if (diff.files > 0 && SESSION_DIFF_FILES_INDICATOR) {
 			template.diffFilesSpan.textContent = diff.files === 1 ? localize('diffFile', "1 file") : localize('diffFiles', "{0} files", diff.files);
 		}
 
