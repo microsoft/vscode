@@ -294,7 +294,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		this.logService.info('update#disableProgressiveReleases', disable);
 		// Once disabled, always stay disabled
 		if (disable) {
-			this._disableBackgroundUpdates = true;
+			this._disableProgressiveReleases = true;
 		}
 	}
 
