@@ -169,6 +169,10 @@
 
 				.agent-session-diff-files {
 					color: var(--vscode-descriptionForeground);
+
+					&:not(.has-diff-file-indicator) {
+						display: none;
+					}
 				}
 
 				.agent-session-diff-added {
