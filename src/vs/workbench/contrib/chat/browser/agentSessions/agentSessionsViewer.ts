@@ -655,7 +655,7 @@ export class AgentSessionsDataSource implements IAsyncDataSource<IAgentSessionsM
 		const result: AgentSessionListItem[] = [];
 
 		const sortedSessions = sessions.sort(this.sorter.compare.bind(this.sorter));
-		const groupedSessions = this.filter?.groupResults?.() === AgentSessionsGrouping.Active
+		const groupedSessions = this.filter?.groupResults?.() === AgentSessionsGrouping.Activity
 			? groupAgentSessionsByActive(sortedSessions)
 			: groupAgentSessionsByDefault(sortedSessions);
 

@@ -418,10 +418,15 @@ configurationRegistry.registerConfiguration({
 			default: true,
 			description: nls.localize('chat.viewSessions.enabled', "Show chat agent sessions when chat is empty or to the side when chat view is wide enough."),
 		},
-		[ChatConfiguration.ChatViewSessionsShowActiveOnly]: {
-			type: 'boolean',
-			default: true,
-			markdownDescription: nls.localize('chat.viewSessions.showActiveOnly', "When enabled, only show active sessions in the stacked sessions view. When disabled, show all sessions. This setting requires {0} to be enabled.", '`#chat.viewSessions.enabled#`'),
+		[ChatConfiguration.ChatViewSessionsGrouping]: {
+			type: 'string',
+			enum: ['activity', 'time'],
+			enumDescriptions: [
+				nls.localize('chat.viewSessions.grouping.activity', "Group sessions by activity status, showing active sessions first."),
+				nls.localize('chat.viewSessions.grouping.time', "Group sessions chronologically by time.")
+			],
+			default: 'activity',
+			markdownDescription: nls.localize('chat.viewSessions.grouping', "Controls how sessions are grouped in the stacked sessions view. This setting requires {0} to be enabled.", '`#chat.viewSessions.enabled#`'),
 		},
 		[ChatConfiguration.ChatViewSessionsOrientation]: {
 			type: 'string',

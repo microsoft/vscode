@@ -129,7 +129,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		) {
 			this.viewState.sessionId = undefined; // clear persisted session on fresh start
 		}
-		this.sessionsViewerShowActiveOnly = this.configurationService.getValue<boolean>(ChatConfiguration.ChatViewSessionsShowActiveOnly) ?? true;
+		this.sessionsGrouping = this.configurationService.getValue<AgentSessionsGrouping>(ChatConfiguration.ChatViewSessionsGrouping) ?? AgentSessionsGrouping.Activity;
 		this.sessionsViewerVisible = false; // will be updated from layout code
 		this.sessionsViewerSidebarWidth = Math.max(ChatViewPane.SESSIONS_SIDEBAR_MIN_WIDTH, this.viewState.sessionsSidebarWidth ?? ChatViewPane.SESSIONS_SIDEBAR_DEFAULT_WIDTH);
 
@@ -234,18 +234,18 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			return e.affectsConfiguration(LayoutSettings.ACTIVITY_BAR_LOCATION);
 		})(() => this.updateViewPaneClasses(true)));
 
-		// Sessions viewer show active only setting changes
+		// Sessions viewer grouping setting changes
 		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => {
-			return e.affectsConfiguration(ChatConfiguration.ChatViewSessionsShowActiveOnly);
+			return e.affectsConfiguration(ChatConfiguration.ChatViewSessionsGrouping);
 		})(() => {
-			const oldSessionsViewerShowActiveOnly = this.sessionsViewerShowActiveOnly;
+			const oldSessionsGrouping = this.sessionsGrouping;
 			if (this.sessionsViewerOrientation === AgentSessionsViewerOrientation.SideBySide) {
-				this.sessionsViewerShowActiveOnly = false; // side by side always shows all
+				this.sessionsGrouping = AgentSessionsGrouping.Time; // side by side always shows all
 			} else {
-				this.sessionsViewerShowActiveOnly = this.configurationService.getValue<boolean>(ChatConfiguration.ChatViewSessionsShowActiveOnly) ?? true;
+				this.sessionsGrouping = this.configurationService.getValue<AgentSessionsGrouping>(ChatConfiguration.ChatViewSessionsGrouping) ?? AgentSessionsGrouping.Activity;
 			}
 
-			if (oldSessionsViewerShowActiveOnly !== this.sessionsViewerShowActiveOnly) {
+			if (oldSessionsGrouping !== this.sessionsGrouping) {
 				this.sessionsControl?.update();
 			}
 		}));
@@ -342,7 +342,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private sessionsNewButtonContainer: HTMLElement | undefined;
 	private sessionsControlContainer: HTMLElement | undefined;
 	private sessionsControl: AgentSessionsControl | undefined;
-	private sessionsViewerShowActiveOnly: boolean;
+	private sessionsGrouping: AgentSessionsGrouping;
 	private sessionsViewerVisible: boolean;
 	private sessionsViewerOrientation = AgentSessionsViewerOrientation.Stacked;
 	private sessionsViewerOrientationConfiguration: 'stacked' | 'sideBySide' = 'sideBySide';
@@ -374,7 +374,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		// Sessions Filter
 		const sessionsFilter = this._register(this.instantiationService.createInstance(AgentSessionsFilter, {
 			filterMenuId: MenuId.AgentSessionsViewerFilterSubMenu,
-			groupResults: () => this.sessionsViewerShowActiveOnly ? AgentSessionsGrouping.Active : AgentSessionsGrouping.Default,
+			groupResults: () => this.sessionsGrouping === AgentSessionsGrouping.Activity ? AgentSessionsGrouping.Activity : AgentSessionsGrouping.Time,
 		}));
 		this._register(Event.runAndSubscribe(sessionsFilter.onDidChange, () => {
 			sessionsToolbarContainer.classList.toggle('filtered', !sessionsFilter.isDefault());
@@ -883,13 +883,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			this.sessionsViewerOrientationContext.set(AgentSessionsViewerOrientation.Stacked);
 		}
 
-		// Update show active only state based on orientation change
+		// Update grouping state based on orientation change
 		if (oldSessionsViewerOrientation !== this.sessionsViewerOrientation) {
-			if (this.sessionsViewerOrientation === AgentSessionsViewerOrientation.SideBySide) {
-				this.sessionsViewerShowActiveOnly = false; // side by side always shows all
-			} else {
-				this.sessionsViewerShowActiveOnly = this.configurationService.getValue<boolean>(ChatConfiguration.ChatViewSessionsShowActiveOnly) ?? true;
-			}
+			this.sessionsGrouping = this.configurationService.getValue<AgentSessionsGrouping>(ChatConfiguration.ChatViewSessionsGrouping) ?? AgentSessionsGrouping.Activity;
 
 			const updatePromise = this.sessionsControl.update();
 

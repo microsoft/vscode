@@ -16,8 +16,8 @@ import { AgentSessionStatus, IAgentSession } from './agentSessionsModel.js';
 import { IAgentSessionsFilter, IAgentSessionsFilterExcludes } from './agentSessionsViewer.js';
 
 export enum AgentSessionsGrouping {
-	Default = 'default',
-	Active = 'active',
+	Time = 'time',
+	Activity = 'activity',
 }
 
 export interface IAgentSessionsFilterOptions extends Partial<IAgentSessionsFilter> {

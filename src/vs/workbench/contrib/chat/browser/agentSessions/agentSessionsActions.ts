@@ -35,6 +35,7 @@ import { KeybindingWeight } from '../../../../../platform/keybinding/common/keyb
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { coalesce } from '../../../../../base/common/arrays.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { AgentSessionsGrouping } from './agentSessionsFilter.js';
 
 //#region Chat View
 
@@ -69,8 +70,7 @@ MenuRegistry.appendMenuItem(MenuId.ChatWelcomeContext, {
 	order: 2,
 	when: ContextKeyExpr.and(
 		ChatContextKeys.inChatEditor.negate(),
-		ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, true),
-		ChatContextKeys.agentSessionsViewerOrientation.isEqualTo(AgentSessionsViewerOrientation.Stacked) // side-by-side does not support grouping
+		ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, true)
 	)
 });
 
@@ -80,7 +80,7 @@ export class GroupSessionsByTimeAction extends Action2 {
 		super({
 			id: 'workbench.action.chat.groupSessionsByTime',
 			title: localize2('chat.groupSessions.byTime', "By Time"),
-			toggled: ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsShowActiveOnly}`, false),
+			toggled: ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsGrouping}`, AgentSessionsGrouping.Time),
 			menu: {
 				id: groupSessionsSubmenu,
 				group: 'navigation',
@@ -91,7 +91,7 @@ export class GroupSessionsByTimeAction extends Action2 {
 
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const configurationService = accessor.get(IConfigurationService);
-		await configurationService.updateValue(ChatConfiguration.ChatViewSessionsShowActiveOnly, false);
+		await configurationService.updateValue(ChatConfiguration.ChatViewSessionsGrouping, AgentSessionsGrouping.Time);
 	}
 }
 
@@ -101,7 +101,7 @@ export class GroupSessionsByActivityAction extends Action2 {
 		super({
 			id: 'workbench.action.chat.groupSessionsByActivity',
 			title: localize2('chat.groupSessions.byActivity', "By Activity"),
-			toggled: ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsShowActiveOnly}`, true),
+			toggled: ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsGrouping}`, AgentSessionsGrouping.Activity),
 			menu: {
 				id: groupSessionsSubmenu,
 				group: 'navigation',
@@ -112,7 +112,7 @@ export class GroupSessionsByActivityAction extends Action2 {
 
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const configurationService = accessor.get(IConfigurationService);
-		await configurationService.updateValue(ChatConfiguration.ChatViewSessionsShowActiveOnly, true);
+		await configurationService.updateValue(ChatConfiguration.ChatViewSessionsGrouping, AgentSessionsGrouping.Activity);
 	}
 }
 
