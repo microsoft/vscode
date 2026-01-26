@@ -126,6 +126,10 @@ abstract class AbstractUpdateService implements IUpdateService {
 		// noop
 	}
 
+	setDisableBackgroundUpdates(disable: boolean): void {
+		// noop
+	}
+
 	abstract isLatestVersion(): Promise<boolean | undefined>;
 
 	async _applySpecificUpdate(packagePath: string): Promise<void> {
