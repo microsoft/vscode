@@ -116,9 +116,7 @@ const workingMessages = [
 	localize('chat.thinking.working.5', 'Loading...'),
 	localize('chat.thinking.working.6', 'Reasoning...'),
 	localize('chat.thinking.working.7', 'Evaluating...'),
-	localize('chat.thinking.working.8', 'Generating...'),
-	localize('chat.thinking.working.9', 'Preparing...'),
-	localize('chat.thinking.working.10', 'Running...'),
+	localize('chat.thinking.working.8', 'Preparing...'),
 ];
 
 export class ChatThinkingContentPart extends ChatCollapsibleContentPart implements IChatContentPart {
@@ -815,6 +813,11 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		this.trackToolMetadata(toolInvocationId, toolInvocationOrMarkdown);
 		this.appendedItemCount++;
 
+		// get random title
+		if (this.workingSpinnerLabel) {
+			this.workingSpinnerLabel.textContent = this.getRandomWorkingMessage();
+		}
+
 		// If expanded or has been expanded once, render immediately
 		if (this.isExpanded() || this.hasExpandedOnce || (this.fixedScrollingMode && !this.streamingCompleted)) {
 			const result = factory();
@@ -1058,7 +1061,6 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		if (this.workingSpinnerLabel) {
 			this.workingSpinnerLabel.textContent = this.getRandomWorkingMessage();
 		}
-
 
 		// Handle tool items
 		if (item.lazy.hasValue) {

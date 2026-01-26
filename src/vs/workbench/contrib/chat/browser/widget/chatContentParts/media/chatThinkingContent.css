@@ -5,10 +5,10 @@
 
 @keyframes chat-thinking-shimmer {
 	0% {
-		background-position: 100% 0;
+		background-position: 120% 0;
 	}
 	100% {
-		background-position: -100% 0;
+		background-position: -120% 0;
 	}
 }
 
@@ -26,13 +26,13 @@
 		margin: 0px;
 	}
 
-	/* shimmer css */
+	/* shimmer animation stuffs */
 	.chat-thinking-spinner-item .chat-thinking-spinner-label {
 		background: linear-gradient(
 			90deg,
 			var(--vscode-descriptionForeground) 0%,
 			var(--vscode-descriptionForeground) 30%,
-			#fff 50%,
+			var(--vscode-chat-thinkingShimmer) 50%,
 			var(--vscode-descriptionForeground) 70%,
 			var(--vscode-descriptionForeground) 100%
 		);
@@ -40,7 +40,7 @@
 		background-clip: text;
 		-webkit-background-clip: text;
 		-webkit-text-fill-color: transparent;
-		animation: chat-thinking-shimmer 2.5s linear infinite;
+		animation: chat-thinking-shimmer 2s linear infinite;
 	}
 
 	&:not(.chat-used-context-collapsed) .chat-used-context-list.chat-thinking-collapsible {
