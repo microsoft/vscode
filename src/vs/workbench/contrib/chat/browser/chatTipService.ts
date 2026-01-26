@@ -10,6 +10,7 @@ import { localize } from '../../../../nls.js';
 import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ChatContextKeys } from '../common/actions/chatContextKeys.js';
 import { ChatModeKind } from '../common/constants.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 
 export const IChatTipService = createDecorator<IChatTipService>('chatTipService');
 
@@ -111,10 +112,16 @@ export class ChatTipService implements IChatTipService {
 	private _shownTip: ITipDefinition | undefined;
 
 	constructor(
-		@IProductService private readonly _productService: IProductService
+		@IProductService private readonly _productService: IProductService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) { }
 
 	getNextTip(requestId: string, requestTimestamp: number, contextKeyService: IContextKeyService): IChatTip | undefined {
+		// Check if tips are enabled
+		if (!this._configurationService.getValue<boolean>('chat.tips.enabled')) {
+			return undefined;
+		}
+
 		// Only show tips for Copilot
 		if (!this._isCopilotEnabled()) {
 			return undefined;

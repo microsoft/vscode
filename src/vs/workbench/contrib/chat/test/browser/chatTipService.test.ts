@@ -5,6 +5,8 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
@@ -22,6 +24,7 @@ suite('ChatTipService', () => {
 
 	let instantiationService: TestInstantiationService;
 	let contextKeyService: MockContextKeyServiceWithRulesMatching;
+	let configurationService: TestConfigurationService;
 
 	function createProductService(hasCopilot: boolean): IProductService {
 		return {
@@ -30,15 +33,18 @@ suite('ChatTipService', () => {
 		} as IProductService;
 	}
 
-	function createService(hasCopilot: boolean = true): ChatTipService {
+	function createService(hasCopilot: boolean = true, tipsEnabled: boolean = true): ChatTipService {
 		instantiationService.stub(IProductService, createProductService(hasCopilot));
+		configurationService.setUserConfiguration('chat.tips.enabled', tipsEnabled);
 		return instantiationService.createInstance(ChatTipService);
 	}
 
 	setup(() => {
 		instantiationService = testDisposables.add(new TestInstantiationService());
 		contextKeyService = new MockContextKeyServiceWithRulesMatching();
+		configurationService = new TestConfigurationService();
 		instantiationService.stub(IContextKeyService, contextKeyService);
+		instantiationService.stub(IConfigurationService, configurationService);
 	});
 
 	test('returns a tip for new requests with timestamp after service creation', () => {
@@ -95,6 +101,14 @@ suite('ChatTipService', () => {
 
 		const tip = service.getNextTip('request-1', now + 1000, contextKeyService);
 		assert.strictEqual(tip, undefined, 'Should not return a tip when Copilot is not enabled');
+	});
+
+	test('returns undefined when tips setting is disabled', () => {
+		const service = createService(/* hasCopilot */ true, /* tipsEnabled */ false);
+		const now = Date.now();
+
+		const tip = service.getNextTip('request-1', now + 1000, contextKeyService);
+		assert.strictEqual(tip, undefined, 'Should not return a tip when tips setting is disabled');
 	});
 
 	test('old requests do not consume the session tip allowance', () => {
