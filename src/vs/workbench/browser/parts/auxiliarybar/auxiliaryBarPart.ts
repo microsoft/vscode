@@ -34,6 +34,7 @@ import { getContextMenuActions } from '../../../../platform/actions/browser/menu
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 
 interface IAuxiliaryBarPartConfiguration {
+	globalPosition: ActivityBarPosition;
 	position: ActivityBarPosition;
 
 	canShowLabels: boolean;
@@ -125,7 +126,7 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 		this.configuration = this.resolveConfiguration();
 
 		this._register(configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(LayoutSettings.ACTIVITY_BAR_LOCATION)) {
+			if (e.affectsConfiguration(LayoutSettings.ACTIVITY_BAR_LOCATION) || e.affectsConfiguration(LayoutSettings.SECONDARY_SIDEBAR_ACTIVITY_BAR_LOCATION)) {
 				this.configuration = this.resolveConfiguration();
 				this.onDidChangeActivityBarLocation();
 			} else if (e.affectsConfiguration('workbench.secondarySideBar.showLabels')) {
@@ -136,12 +137,13 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 	}
 
 	private resolveConfiguration(): IAuxiliaryBarPartConfiguration {
-		const position = this.configurationService.getValue<ActivityBarPosition>(LayoutSettings.ACTIVITY_BAR_LOCATION);
+		const globalPosition = this.configurationService.getValue<ActivityBarPosition>(LayoutSettings.ACTIVITY_BAR_LOCATION);
+		const position = this.configurationService.getValue<ActivityBarPosition>(LayoutSettings.SECONDARY_SIDEBAR_ACTIVITY_BAR_LOCATION);
 
 		const canShowLabels = position !== ActivityBarPosition.TOP && position !== ActivityBarPosition.BOTTOM; // use same style as activity bar in this case
 		const showLabels = canShowLabels && this.configurationService.getValue('workbench.secondarySideBar.showLabels') !== false;
 
-		return { position, canShowLabels, showLabels };
+		return { globalPosition, position, canShowLabels, showLabels };
 	}
 
 	private onDidChangeActivityBarLocation(): void {
@@ -216,7 +218,7 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 			}
 		}
 
-		const activityBarPositionMenu = this.menuService.getMenuActions(MenuId.ActivityBarPositionMenu, this.contextKeyService, { shouldForwardArgs: true, renderShortTitle: true });
+		const activityBarPositionMenu = this.menuService.getMenuActions(MenuId.AuxiliaryBarActivityBarPositionMenu, this.contextKeyService, { shouldForwardArgs: true, renderShortTitle: true });
 		const positionActions = getContextMenuActions(activityBarPositionMenu).secondary;
 
 		const toggleShowLabelsAction = toAction({
@@ -228,7 +230,7 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 
 		actions.push(...[
 			new Separator(),
-			new SubmenuAction('workbench.action.panel.position', localize('activity bar position', "Activity Bar Position"), positionActions),
+			new SubmenuAction('workbench.action.auxiliarybar.activityBarPosition', localize('activity bar position', "Activity Bar Position"), positionActions),
 			toAction({ id: ToggleSidebarPositionAction.ID, label: currentPositionRight ? localize('move second side bar left', "Move Secondary Side Bar Left") : localize('move second side bar right', "Move Secondary Side Bar Right"), run: () => this.commandService.executeCommand(ToggleSidebarPositionAction.ID) }),
 			toggleShowLabelsAction,
 			toAction({ id: ToggleAuxiliaryBarAction.ID, label: localize('hide second side bar', "Hide Secondary Side Bar"), run: () => this.commandService.executeCommand(ToggleAuxiliaryBarAction.ID) })

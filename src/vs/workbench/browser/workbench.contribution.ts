@@ -596,6 +596,17 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'default': true,
 				'markdownDescription': localize('secondarySideBarShowLabels', "Controls whether activity items in the secondary side bar title are shown as label or icon. This setting only has an effect when {0} is not set to {1}.", '`#workbench.activityBar.location#`', '`top`'),
 			},
+			[LayoutSettings.SECONDARY_SIDEBAR_ACTIVITY_BAR_LOCATION]: {
+				'type': 'string',
+				'enum': ['top', 'bottom', 'hidden'],
+				'default': 'top',
+				'markdownDescription': localize('secondarySideBarActivityBarLocation', "Controls the location of the activity bar in the secondary side bar."),
+				'enumDescriptions': [
+					localize('workbench.secondarySideBar.activityBarLocation.top', "Show the activity bar in the secondary side bar at the top."),
+					localize('workbench.secondarySideBar.activityBarLocation.bottom', "Show the activity bar in the secondary side bar at the bottom."),
+					localize('workbench.secondarySideBar.activityBarLocation.hidden', "Hide the activity bar in the secondary side bar.")
+				]
+			},
 			'workbench.statusBar.visible': {
 				'type': 'boolean',
 				'default': true,

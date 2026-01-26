@@ -497,10 +497,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 MenuRegistry.appendMenuItem(MenuId.ViewContainerTitleContext, {
 	submenu: MenuId.ActivityBarPositionMenu,
 	title: localize('positionActivituBar', "Activity Bar Position"),
-	when: ContextKeyExpr.or(
-		ContextKeyExpr.equals('viewContainerLocation', ViewContainerLocationToString(ViewContainerLocation.Sidebar)),
-		ContextKeyExpr.equals('viewContainerLocation', ViewContainerLocationToString(ViewContainerLocation.AuxiliaryBar))
-	),
+	when: ContextKeyExpr.equals('viewContainerLocation', ViewContainerLocationToString(ViewContainerLocation.Sidebar)),
 	group: '3_workbench_layout_move',
 	order: 1
 });

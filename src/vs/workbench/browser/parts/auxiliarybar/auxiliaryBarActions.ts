@@ -18,6 +18,7 @@ import { ServicesAccessor } from '../../../../platform/instantiation/common/inst
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { SwitchCompositeViewAction } from '../compositeBarActions.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 
 const maximizeIcon = registerIcon('auxiliarybar-maximize', Codicon.screenFull, localize('maximizeIcon', 'Icon to maximize the secondary side bar.'));
 const restoreIcon = registerIcon('auxiliarybar-restore', Codicon.screenNormal, localize('restoreIcon', 'Icon to restore the secondary side bar.'));
@@ -296,3 +297,82 @@ class ToggleMaximizedAuxiliaryBar extends Action2 {
 	}
 }
 registerAction2(ToggleMaximizedAuxiliaryBar);
+
+// --- Activity Bar Position in Secondary Side Bar
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.auxiliaryBarActivityBarLocation.top',
+			title: {
+				...localize2('positionAuxiliaryBarActivityBarTop', 'Move Activity Bar of the Secondary Side Bar to Top'),
+				mnemonicTitle: localize({ key: 'miTopAuxiliaryBarActivityBar', comment: ['&& denotes a mnemonic'] }, "&&Top"),
+			},
+			shortTitle: localize('top', "Top"),
+			category: Categories.View,
+			toggled: ContextKeyExpr.equals(`config.${LayoutSettings.SECONDARY_SIDEBAR_ACTIVITY_BAR_LOCATION}`, ActivityBarPosition.TOP),
+			menu: [{
+				id: MenuId.AuxiliaryBarActivityBarPositionMenu,
+				order: 1
+			}]
+		});
+	}
+	run(accessor: ServicesAccessor): void {
+		const configurationService = accessor.get(IConfigurationService);
+		configurationService.updateValue(LayoutSettings.SECONDARY_SIDEBAR_ACTIVITY_BAR_LOCATION, ActivityBarPosition.TOP);
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.auxiliaryBarActivityBarLocation.bottom',
+			title: {
+				...localize2('positionAuxiliaryBarActivityBarBottom', 'Move Activity Bar of the Secondary Side Bar to Bottom'),
+				mnemonicTitle: localize({ key: 'miBottomAuxiliaryBarActivityBar', comment: ['&& denotes a mnemonic'] }, "&&Bottom"),
+			},
+			shortTitle: localize('bottom', "Bottom"),
+			category: Categories.View,
+			toggled: ContextKeyExpr.equals(`config.${LayoutSettings.SECONDARY_SIDEBAR_ACTIVITY_BAR_LOCATION}`, ActivityBarPosition.BOTTOM),
+			menu: [{
+				id: MenuId.AuxiliaryBarActivityBarPositionMenu,
+				order: 2
+			}]
+		});
+	}
+	run(accessor: ServicesAccessor): void {
+		const configurationService = accessor.get(IConfigurationService);
+		configurationService.updateValue(LayoutSettings.SECONDARY_SIDEBAR_ACTIVITY_BAR_LOCATION, ActivityBarPosition.BOTTOM);
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.auxiliaryBarActivityBarLocation.hide',
+			title: {
+				...localize2('hideAuxiliaryBarActivityBar', 'Hide the Activity Bar of the Secondary Side Bar'),
+				mnemonicTitle: localize({ key: 'miHideAuxiliaryBarActivityBar', comment: ['&& denotes a mnemonic'] }, "&&Hidden"),
+			},
+			shortTitle: localize('hide', "Hidden"),
+			category: Categories.View,
+			toggled: ContextKeyExpr.equals(`config.${LayoutSettings.SECONDARY_SIDEBAR_ACTIVITY_BAR_LOCATION}`, ActivityBarPosition.HIDDEN),
+			menu: [{
+				id: MenuId.AuxiliaryBarActivityBarPositionMenu,
+				order: 3
+			}]
+		});
+	}
+	run(accessor: ServicesAccessor): void {
+		const configurationService = accessor.get(IConfigurationService);
+		configurationService.updateValue(LayoutSettings.SECONDARY_SIDEBAR_ACTIVITY_BAR_LOCATION, ActivityBarPosition.HIDDEN);
+	}
+});
+
+MenuRegistry.appendMenuItem(MenuId.ViewContainerTitleContext, {
+	submenu: MenuId.AuxiliaryBarActivityBarPositionMenu,
+	title: localize('positionAuxiliaryBarActivityBar', "Activity Bar Position"),
+	when: ContextKeyExpr.equals('viewContainerLocation', ViewContainerLocationToString(ViewContainerLocation.AuxiliaryBar)),
+	group: '3_workbench_layout_move',
+	order: 1
+});
