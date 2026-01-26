@@ -22,24 +22,25 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { ResourceContextKey } from '../../../../common/contextkeys.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
-import { IChatAgentService } from '../../common/chatAgents.js';
-import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { chatEditingWidgetFileStateContextKey, ModifiedFileEntryState } from '../../common/chatEditingService.js';
-import { ChatModel } from '../../common/chatModel.js';
-import { ChatRequestParser } from '../../common/chatRequestParser.js';
-import { IChatService } from '../../common/chatService.js';
+import { IChatAgentService } from '../../common/participants/chatAgents.js';
+import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { chatEditingWidgetFileStateContextKey, ModifiedFileEntryState } from '../../common/editing/chatEditingService.js';
+import { ChatModel } from '../../common/model/chatModel.js';
+import { ChatRequestParser } from '../../common/requestParser/chatRequestParser.js';
+import { IChatService } from '../../common/chatService/chatService.js';
 import { IChatSessionsExtensionPoint, IChatSessionsService } from '../../common/chatSessionsService.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { PROMPT_LANGUAGE_ID } from '../../common/promptSyntax/promptTypes.js';
 import { AgentSessionProviders, getAgentSessionProviderIcon, getAgentSessionProviderName } from '../agentSessions/agentSessions.js';
-import { IChatWidgetService } from '../chat.js';
+import { IChatWidget, IChatWidgetService } from '../chat.js';
 import { ctxHasEditorModification } from '../chatEditing/chatEditingEditorContextKeys.js';
 import { CHAT_SETUP_ACTION_ID } from './chatActions.js';
-import { PromptFileVariableKind, toPromptFileVariableEntry } from '../../common/chatVariableEntries.js';
+import { PromptFileVariableKind, toPromptFileVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 
 export const enum ActionLocation {
 	ChatWidget = 'chatWidget',
@@ -98,12 +99,14 @@ export class ChatContinueInSessionActionItem extends ActionWidgetDropdownActionV
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IChatSessionsService chatSessionsService: IChatSessionsService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IOpenerService openerService: IOpenerService
+		@IOpenerService openerService: IOpenerService,
+		@ITelemetryService telemetryService: ITelemetryService
 	) {
 		super(action, {
 			actionProvider: ChatContinueInSessionActionItem.actionProvider(chatSessionsService, instantiationService, location),
-			actionBarActions: ChatContinueInSessionActionItem.getActionBarActions(openerService)
-		}, actionWidgetService, keybindingService, contextKeyService);
+			actionBarActions: ChatContinueInSessionActionItem.getActionBarActions(openerService),
+			reporter: { name: 'ChatContinueInSession', includeOptions: true },
+		}, actionWidgetService, keybindingService, contextKeyService, telemetryService);
 	}
 
 	protected static getActionBarActions(openerService: IOpenerService) {
@@ -202,14 +205,14 @@ export class ChatContinueInSessionActionItem extends ActionWidgetDropdownActionV
 
 const NEW_CHAT_SESSION_ACTION_ID = 'workbench.action.chat.openNewSessionEditor';
 
-class CreateRemoteAgentJobAction {
+export class CreateRemoteAgentJobAction {
 	constructor() { }
 
 	private openUntitledEditor(commandService: ICommandService, continuationTarget: IChatSessionsExtensionPoint) {
 		commandService.executeCommand(`${NEW_CHAT_SESSION_ACTION_ID}.${continuationTarget.type}`);
 	}
 
-	async run(accessor: ServicesAccessor, continuationTarget: IChatSessionsExtensionPoint) {
+	async run(accessor: ServicesAccessor, continuationTarget: IChatSessionsExtensionPoint, _widget?: IChatWidget) {
 		const contextKeyService = accessor.get(IContextKeyService);
 		const commandService = accessor.get(ICommandService);
 		const widgetService = accessor.get(IChatWidgetService);
@@ -222,7 +225,7 @@ class CreateRemoteAgentJobAction {
 		try {
 			remoteJobCreatingKey.set(true);
 
-			const widget = widgetService.lastFocusedWidget;
+			const widget = _widget ?? widgetService.lastFocusedWidget;
 			if (!widget || !widget.viewModel) {
 				return this.openUntitledEditor(commandService, continuationTarget);
 			}

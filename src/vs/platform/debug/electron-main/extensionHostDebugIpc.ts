@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { BrowserWindow } from 'electron';
+import { Server } from 'http';
 import { Socket } from 'net';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
@@ -39,7 +40,7 @@ export class ElectronExtensionHostDebugBroadcastChannel<TContext> extends Extens
 			return { success: false };
 		}
 
-		return this.openCdp(codeWindow.win);
+		return this.openCdp(codeWindow.win, true);
 	}
 
 	private async openExtensionDevelopmentHostWindow(args: string[], debugRenderer: boolean): Promise<IOpenExtensionWindowResult> {
@@ -67,15 +68,43 @@ export class ElectronExtensionHostDebugBroadcastChannel<TContext> extends Extens
 			return { success: true };
 		}
 
-		return this.openCdp(win);
+		return this.openCdp(win, false);
 	}
 
-	private async openCdpServer(ident: string, onSocket: (socket: ISocket) => void) {
+	private async openCdpServer(ident: string, onSocket: (socket: ISocket) => void): Promise<{ server: Server; wsUrl: string; port: number }> {
 		const { createServer } = await import('http'); // Lazy due to https://github.com/nodejs/node/issues/59686
 		const server = createServer((req, res) => {
+			if (req.url === '/json/list' || req.url === '/json') {
+				res.setHeader('Content-Type', 'application/json');
+				res.end(JSON.stringify([{
+					description: 'VS Code Renderer',
+					devtoolsFrontendUrl: '',
+					id: ident,
+					title: 'VS Code Renderer',
+					type: 'page',
+					url: 'vscode://renderer',
+					webSocketDebuggerUrl: wsUrl
+				}]));
+				return;
+			} else if (req.url === '/json/version') {
+				res.setHeader('Content-Type', 'application/json');
+				res.end(JSON.stringify({
+					'Browser': 'VS Code Renderer',
+					'Protocol-Version': '1.3',
+					'webSocketDebuggerUrl': wsUrl
+				}));
+				return;
+			}
+
 			res.statusCode = 404;
 			res.end();
 		});
+
+		await new Promise<void>(r => server.listen(0, '127.0.0.1', r));
+		const serverAddr = server.address();
+		const port = typeof serverAddr === 'object' && serverAddr ? serverAddr.port : 0;
+		const serverAddrBase = typeof serverAddr === 'string' ? serverAddr : `ws://127.0.0.1:${serverAddr?.port}`;
+		const wsUrl = `${serverAddrBase}/${ident}`;
 
 		server.on('upgrade', (req, socket) => {
 			if (!req.url?.includes(ident)) {
@@ -92,15 +121,16 @@ export class ElectronExtensionHostDebugBroadcastChannel<TContext> extends Extens
 			}
 		});
 
-		return server;
+		return { server, wsUrl, port };
 	}
 
-	private async openCdp(win: BrowserWindow): Promise<IOpenExtensionWindowResult> {
+	private async openCdp(win: BrowserWindow, debugRenderer: boolean): Promise<IOpenExtensionWindowResult> {
 		const debug = win.webContents.debugger;
 
 		let listeners = debug.isAttached() ? Infinity : 0;
 		const ident = generateUuid();
-		const server = await this.openCdpServer(ident, listener => {
+		const pageSessionId = debugRenderer ? `page-${ident}` : undefined;
+		const { server, wsUrl, port } = await this.openCdpServer(ident, listener => {
 			if (listeners++ === 0) {
 				debug.attach();
 			}
@@ -115,7 +145,7 @@ export class ElectronExtensionHostDebugBroadcastChannel<TContext> extends Extens
 			};
 
 			const onMessage = (_event: Electron.Event, method: string, params: unknown, sessionId?: string) =>
-				writeMessage({ method, params, sessionId });
+				writeMessage({ method, params, sessionId: sessionId || pageSessionId });
 
 			const onWindowClose = () => {
 				listener.end();
@@ -129,7 +159,7 @@ export class ElectronExtensionHostDebugBroadcastChannel<TContext> extends Extens
 			store.add(toDisposable(() => debug.removeListener('message', onMessage)));
 
 			store.add(listener.onData(rawData => {
-				let data: { id: number; sessionId: string; method: string; params: {} };
+				let data: { id: number; sessionId?: string; method: string; params: Record<string, unknown> };
 				try {
 					data = JSON.parse(rawData.toString());
 				} catch (e) {
@@ -137,7 +167,33 @@ export class ElectronExtensionHostDebugBroadcastChannel<TContext> extends Extens
 					return;
 				}
 
-				debug.sendCommand(data.method, data.params, data.sessionId)
+				if (debugRenderer) {
+					// Emulate Target.* methods that js-debug expects but Electron's debugger doesn't support
+					const targetInfo = { targetId: ident, type: 'page', title: 'VS Code Renderer', url: 'vscode://renderer' };
+					if (data.method === 'Target.setDiscoverTargets') {
+						writeMessage({ id: data.id, sessionId: data.sessionId, result: {} });
+						writeMessage({ method: 'Target.targetCreated', sessionId: data.sessionId, params: { targetInfo: { ...targetInfo, attached: false, canAccessOpener: false } } });
+						return;
+					}
+					if (data.method === 'Target.attachToTarget') {
+						writeMessage({ id: data.id, sessionId: data.sessionId, result: { sessionId: pageSessionId } });
+						writeMessage({ method: 'Target.attachedToTarget', params: { sessionId: pageSessionId, targetInfo: { ...targetInfo, attached: true, canAccessOpener: false }, waitingForDebugger: false } });
+						return;
+					}
+					if (data.method === 'Target.setAutoAttach' || data.method === 'Target.attachToBrowserTarget') {
+						writeMessage({ id: data.id, sessionId: data.sessionId, result: data.method === 'Target.attachToBrowserTarget' ? { sessionId: 'browser' } : {} });
+						return;
+					}
+					if (data.method === 'Target.getTargets') {
+						writeMessage({ id: data.id, sessionId: data.sessionId, result: { targetInfos: [{ ...targetInfo, attached: true }] } });
+						return;
+					}
+				}
+
+				// Forward to Electron's debugger, stripping our synthetic page sessionId
+				const forwardSessionId = data.sessionId === pageSessionId ? undefined : data.sessionId;
+
+				debug.sendCommand(data.method, data.params, forwardSessionId)
 					.then((result: object) => writeMessage({ id: data.id, sessionId: data.sessionId, result }))
 					.catch((error: Error) => writeMessage({ id: data.id, sessionId: data.sessionId, error: { code: 0, message: error.message } }));
 			}));
@@ -149,11 +205,8 @@ export class ElectronExtensionHostDebugBroadcastChannel<TContext> extends Extens
 			}));
 		});
 
-		await new Promise<void>(r => server.listen(0, '127.0.0.1', r));
 		win.on('close', () => server.close());
 
-		const serverAddr = server.address();
-		const serverAddrBase = typeof serverAddr === 'string' ? serverAddr : `ws://127.0.0.1:${serverAddr?.port}`;
-		return { rendererDebugAddr: `${serverAddrBase}/${ident}`, success: true };
+		return { rendererDebugAddr: wsUrl, success: true, port: port };
 	}
 }

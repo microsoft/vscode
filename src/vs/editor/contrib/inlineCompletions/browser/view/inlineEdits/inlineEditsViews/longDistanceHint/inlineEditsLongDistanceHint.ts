@@ -28,13 +28,14 @@ import { Point } from '../../../../../../../common/core/2d/point.js';
 import { Size2D } from '../../../../../../../common/core/2d/size.js';
 import { IThemeService } from '../../../../../../../../platform/theme/common/themeService.js';
 import { IKeybindingService } from '../../../../../../../../platform/keybinding/common/keybinding.js';
-import { getEditorBlendedColor, inlineEditIndicatorPrimaryBackground, inlineEditIndicatorSecondaryBackground, inlineEditIndicatorSuccessfulBackground, observeColor } from '../../theme.js';
-import { asCssVariable, descriptionForeground, editorBackground, editorWidgetBackground } from '../../../../../../../../platform/theme/common/colorRegistry.js';
+import { getEditorBackgroundColor, getEditorBlendedColor, inlineEditIndicatorPrimaryBackground, inlineEditIndicatorSecondaryBackground, inlineEditIndicatorSuccessfulBackground, observeColor } from '../../theme.js';
+import { asCssVariable, descriptionForeground, editorWidgetBackground } from '../../../../../../../../platform/theme/common/colorRegistry.js';
 import { editorWidgetBorder } from '../../../../../../../../platform/theme/common/colors/editorColors.js';
 import { ILongDistancePreviewProps, LongDistancePreviewEditor } from './longDistancePreviewEditor.js';
 import { InlineSuggestionGutterMenuData, SimpleInlineSuggestModel } from '../../components/gutterIndicatorView.js';
 import { jumpToNextInlineEditId } from '../../../../controller/commandIds.js';
 import { splitIntoContinuousLineRanges, WidgetLayoutConstants, WidgetOutline, WidgetPlacementContext } from './longDistnaceWidgetPlacement.js';
+import { InlineCompletionEditorType } from '../../../../model/provideInlineCompletions.js';
 
 const BORDER_RADIUS = 6;
 const MAX_WIDGET_WIDTH = { EMPTY_SPACE: 425, OVERLAY: 375 };
@@ -93,7 +94,7 @@ export class InlineEditsLongDistanceHint extends Disposable implements IInlineEd
 
 			return {
 				border: borderColor.toString(),
-				background: asCssVariable(editorBackground)
+				background: getEditorBackgroundColor(this._viewState.map(s => s?.editorType ?? InlineCompletionEditorType.TextEditor).read(reader)),
 			};
 		});
 
@@ -388,7 +389,7 @@ export class InlineEditsLongDistanceHint extends Disposable implements IInlineEd
 				style: {
 					overflow: 'hidden',
 					padding: this._previewEditorLayoutInfo.map(i => i?.previewEditorMargin),
-					background: asCssVariable(editorBackground),
+					background: this._styles.map(s => s.background),
 					pointerEvents: 'none',
 				},
 			}, [
@@ -481,6 +482,7 @@ export interface ILongDistanceViewState {
 	edit: InlineEditWithChanges;
 	diff: DetailedLineRangeMapping[];
 	nextCursorPosition: Position | null;
+	editorType: InlineCompletionEditorType;
 
 	model: SimpleInlineSuggestModel;
 	inlineSuggestInfo: InlineSuggestionGutterMenuData;

@@ -5,12 +5,12 @@
 
 import * as dom from '../../../../base/browser/dom.js';
 import { IKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
-import { Gesture } from '../../../../base/browser/touch.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { AriaRole } from '../../../../base/browser/ui/aria/aria.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IconLabel } from '../../../../base/browser/ui/iconLabel/iconLabel.js';
 import { InputBox } from '../../../../base/browser/ui/inputbox/inputBox.js';
+import { Checkbox, TriStateCheckbox } from '../../../../base/browser/ui/toggle/toggle.js';
 import { IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { IListAccessibilityProvider } from '../../../../base/browser/ui/list/listWidget.js';
 import { Orientation } from '../../../../base/browser/ui/splitview/splitview.js';
@@ -46,7 +46,7 @@ import { WorkbenchCompressibleObjectTree } from '../../../../platform/list/brows
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
-import { defaultInputBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { defaultCheckboxStyles, defaultInputBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { ViewAction, ViewPane } from '../../../browser/parts/views/viewPane.js';
 import { IViewletViewOptions } from '../../../browser/parts/views/viewsViewlet.js';
@@ -60,14 +60,14 @@ import { DisassemblyViewInput } from '../common/disassemblyViewInput.js';
 import * as icons from './debugIcons.js';
 import { DisassemblyView } from './disassemblyView.js';
 import { equals } from '../../../../base/common/arrays.js';
+import { hasKey } from '../../../../base/common/types.js';
 
 const $ = dom.$;
 
-function createCheckbox(disposables: DisposableStore): HTMLInputElement {
-	const checkbox = <HTMLInputElement>$('input');
-	checkbox.type = 'checkbox';
-	checkbox.tabIndex = -1;
-	disposables.add(Gesture.ignoreTarget(checkbox));
+function createCheckbox(disposables: DisposableStore): Checkbox {
+	const checkbox = new Checkbox('', false, defaultCheckboxStyles);
+	checkbox.domNode.tabIndex = -1;
+	disposables.add(checkbox);
 
 	return checkbox;
 }
@@ -278,7 +278,7 @@ export class BreakpointsView extends ViewPane {
 			}
 		}));
 
-		// Track collapsed state and update size (items are collapsed by default)
+		// Track collapsed state and update size (items are expanded by default)
 		this._register(this.tree.onDidChangeCollapseState(e => {
 			const element = e.node.element;
 			if (element instanceof BreakpointsFolderItem) {
@@ -541,15 +541,9 @@ export class BreakpointsView extends ViewPane {
 				result.push({
 					element: folderItem,
 					incompressible: false,
-					collapsed: this.collapsedState.has(folderItem.getId()) || !this.collapsedState.has(`_init_${folderItem.getId()}`),
+					collapsed: this.collapsedState.has(folderItem.getId()),
 					children
 				});
-
-				// Mark as initialized (will be collapsed by default on first render)
-				if (!this.collapsedState.has(`_init_${folderItem.getId()}`)) {
-					this.collapsedState.add(`_init_${folderItem.getId()}`);
-					this.collapsedState.add(folderItem.getId());
-				}
 			}
 		} else {
 			// Flat mode - just add all source breakpoints
@@ -626,7 +620,7 @@ class BreakpointsDelegate implements IListVirtualDelegate<BreakpointTreeElement>
 interface IBaseBreakpointTemplateData {
 	breakpoint: HTMLElement;
 	name: HTMLElement;
-	checkbox: HTMLInputElement;
+	checkbox: Checkbox;
 	context: BreakpointItem;
 	actionBar: ActionBar;
 	templateDisposables: DisposableStore;
@@ -661,7 +655,7 @@ interface IInstructionBreakpointTemplateData extends IBaseBreakpointWithIconTemp
 
 interface IFunctionBreakpointInputTemplateData {
 	inputBox: InputBox;
-	checkbox: HTMLInputElement;
+	checkbox: Checkbox;
 	icon: HTMLElement;
 	breakpoint: IFunctionBreakpoint;
 	templateDisposables: DisposableStore;
@@ -672,7 +666,7 @@ interface IFunctionBreakpointInputTemplateData {
 
 interface IDataBreakpointInputTemplateData {
 	inputBox: InputBox;
-	checkbox: HTMLInputElement;
+	checkbox: Checkbox;
 	icon: HTMLElement;
 	breakpoint: IDataBreakpoint;
 	elementDisposables: DisposableStore;
@@ -683,7 +677,7 @@ interface IDataBreakpointInputTemplateData {
 
 interface IExceptionBreakpointInputTemplateData {
 	inputBox: InputBox;
-	checkbox: HTMLInputElement;
+	checkbox: Checkbox;
 	currentBreakpoint?: IExceptionBreakpoint;
 	templateDisposables: DisposableStore;
 	elementDisposables: DisposableStore;
@@ -691,7 +685,7 @@ interface IExceptionBreakpointInputTemplateData {
 
 interface IBreakpointsFolderTemplateData {
 	container: HTMLElement;
-	checkbox: HTMLInputElement;
+	checkbox: TriStateCheckbox;
 	name: HTMLElement;
 	actionBar: ActionBar;
 	context: BreakpointsFolderItem;
@@ -728,15 +722,18 @@ class BreakpointsFolderRenderer implements ICompressibleTreeRenderer<Breakpoints
 			container.classList.remove('breakpoint', 'breakpoint-folder');
 		}));
 
-		data.checkbox = createCheckbox(data.templateDisposables);
-		data.templateDisposables.add(dom.addStandardDisposableListener(data.checkbox, 'change', (e) => {
-			const enabled = data.checkbox.checked;
+		data.checkbox = new TriStateCheckbox('', false, defaultCheckboxStyles);
+		data.checkbox.domNode.tabIndex = -1;
+		data.templateDisposables.add(data.checkbox);
+		data.templateDisposables.add(data.checkbox.onChange(() => {
+			const checked = data.checkbox.checked;
+			const enabled = checked === 'mixed' ? true : checked;
 			for (const bp of data.context.breakpoints) {
 				this.debugService.enableOrDisableBreakpoints(enabled, bp);
 			}
 		}));
 
-		dom.append(data.container, data.checkbox);
+		dom.append(data.container, data.checkbox.domNode);
 		data.name = dom.append(data.container, $('span.name'));
 		dom.append(data.container, $('span.file-path'));
 
@@ -758,10 +755,8 @@ class BreakpointsFolderRenderer implements ICompressibleTreeRenderer<Breakpoints
 
 		// Set checkbox state
 		if (folderItem.indeterminate) {
-			data.checkbox.checked = false;
-			data.checkbox.indeterminate = true;
+			data.checkbox.checked = 'mixed';
 		} else {
-			data.checkbox.indeterminate = false;
 			data.checkbox.checked = folderItem.enabled;
 		}
 
@@ -795,10 +790,8 @@ class BreakpointsFolderRenderer implements ICompressibleTreeRenderer<Breakpoints
 
 		// Set checkbox state
 		if (folderItem.indeterminate) {
-			data.checkbox.checked = false;
-			data.checkbox.indeterminate = true;
+			data.checkbox.checked = 'mixed';
 		} else {
-			data.checkbox.indeterminate = false;
 			data.checkbox.checked = folderItem.enabled;
 		}
 
@@ -868,12 +861,12 @@ class BreakpointsRenderer implements ICompressibleTreeRenderer<IBreakpoint, void
 		data.icon = $('.icon');
 		data.checkbox = createCheckbox(data.templateDisposables);
 
-		data.templateDisposables.add(dom.addStandardDisposableListener(data.checkbox, 'change', (e) => {
+		data.templateDisposables.add(data.checkbox.onChange(() => {
 			this.debugService.enableOrDisableBreakpoints(!data.context.enabled, data.context);
 		}));
 
 		dom.append(data.breakpoint, data.icon);
-		dom.append(data.breakpoint, data.checkbox);
+		dom.append(data.breakpoint, data.checkbox.domNode);
 
 		data.name = dom.append(data.breakpoint, $('span.name'));
 
@@ -1006,11 +999,11 @@ class ExceptionBreakpointsRenderer implements ICompressibleTreeRenderer<IExcepti
 		data.breakpoint = dom.append(container, $('.breakpoint'));
 
 		data.checkbox = createCheckbox(data.templateDisposables);
-		data.templateDisposables.add(dom.addStandardDisposableListener(data.checkbox, 'change', (e) => {
+		data.templateDisposables.add(data.checkbox.onChange(() => {
 			this.debugService.enableOrDisableBreakpoints(!data.context.enabled, data.context);
 		}));
 
-		dom.append(data.breakpoint, data.checkbox);
+		dom.append(data.breakpoint, data.checkbox.domNode);
 
 		data.name = dom.append(data.breakpoint, $('span.name'));
 		data.condition = dom.append(data.breakpoint, $('span.condition'));
@@ -1101,12 +1094,12 @@ class FunctionBreakpointsRenderer implements ICompressibleTreeRenderer<FunctionB
 
 		data.icon = $('.icon');
 		data.checkbox = createCheckbox(data.templateDisposables);
-		data.templateDisposables.add(dom.addStandardDisposableListener(data.checkbox, 'change', (e) => {
+		data.templateDisposables.add(data.checkbox.onChange(() => {
 			this.debugService.enableOrDisableBreakpoints(!data.context.enabled, data.context);
 		}));
 
 		dom.append(data.breakpoint, data.icon);
-		dom.append(data.breakpoint, data.checkbox);
+		dom.append(data.breakpoint, data.checkbox.domNode);
 
 		data.name = dom.append(data.breakpoint, $('span.name'));
 		data.condition = dom.append(data.breakpoint, $('span.condition'));
@@ -1206,12 +1199,12 @@ class DataBreakpointsRenderer implements ICompressibleTreeRenderer<DataBreakpoin
 
 		data.icon = $('.icon');
 		data.checkbox = createCheckbox(data.templateDisposables);
-		data.templateDisposables.add(dom.addStandardDisposableListener(data.checkbox, 'change', (e) => {
+		data.templateDisposables.add(data.checkbox.onChange(() => {
 			this.debugService.enableOrDisableBreakpoints(!data.context.enabled, data.context);
 		}));
 
 		dom.append(data.breakpoint, data.icon);
-		dom.append(data.breakpoint, data.checkbox);
+		dom.append(data.breakpoint, data.checkbox.domNode);
 
 		data.name = dom.append(data.breakpoint, $('span.name'));
 		data.accessType = dom.append(data.breakpoint, $('span.access-type'));
@@ -1316,12 +1309,12 @@ class InstructionBreakpointsRenderer implements ICompressibleTreeRenderer<IInstr
 
 		data.icon = $('.icon');
 		data.checkbox = createCheckbox(data.templateDisposables);
-		data.templateDisposables.add(dom.addStandardDisposableListener(data.checkbox, 'change', (e) => {
+		data.templateDisposables.add(data.checkbox.onChange(() => {
 			this.debugService.enableOrDisableBreakpoints(!data.context.enabled, data.context);
 		}));
 
 		dom.append(data.breakpoint, data.icon);
-		dom.append(data.breakpoint, data.checkbox);
+		dom.append(data.breakpoint, data.checkbox.domNode);
 
 		data.name = dom.append(data.breakpoint, $('span.name'));
 
@@ -1405,7 +1398,7 @@ class FunctionBreakpointInputRenderer implements ICompressibleTreeRenderer<IFunc
 		template.checkbox = createCheckbox(toDispose);
 
 		dom.append(breakpoint, template.icon);
-		dom.append(breakpoint, template.checkbox);
+		dom.append(breakpoint, template.checkbox.domNode);
 		this.view.breakpointInputFocused.set(true);
 		const inputBoxContainer = dom.append(breakpoint, $('.inputBoxContainer'));
 
@@ -1473,7 +1466,7 @@ class FunctionBreakpointInputRenderer implements ICompressibleTreeRenderer<IFunc
 		data.icon.className = ThemeIcon.asClassName(icon);
 		data.elementDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), data.icon, message ? message : ''));
 		data.checkbox.checked = functionBreakpoint.enabled;
-		data.checkbox.disabled = true;
+		data.checkbox.disable();
 		data.inputBox.value = functionBreakpoint.name || '';
 
 		let placeholder = localize('functionBreakpointPlaceholder', "Function to break on");
@@ -1538,7 +1531,7 @@ class DataBreakpointInputRenderer implements ICompressibleTreeRenderer<IDataBrea
 		template.checkbox = createCheckbox(toDispose);
 
 		dom.append(breakpoint, template.icon);
-		dom.append(breakpoint, template.checkbox);
+		dom.append(breakpoint, template.checkbox.domNode);
 		this.view.breakpointInputFocused.set(true);
 		const inputBoxContainer = dom.append(breakpoint, $('.inputBoxContainer'));
 
@@ -1598,7 +1591,7 @@ class DataBreakpointInputRenderer implements ICompressibleTreeRenderer<IDataBrea
 		data.icon.className = ThemeIcon.asClassName(icon);
 		data.elementDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), data.icon, message ?? ''));
 		data.checkbox.checked = dataBreakpoint.enabled;
-		data.checkbox.disabled = true;
+		data.checkbox.disable();
 		data.inputBox.value = '';
 		let placeholder = '';
 		let ariaLabel = '';
@@ -1660,7 +1653,7 @@ class ExceptionBreakpointInputRenderer implements ICompressibleTreeRenderer<IExc
 		breakpoint.classList.add('exception');
 		const checkbox = createCheckbox(toDispose);
 
-		dom.append(breakpoint, checkbox);
+		dom.append(breakpoint, checkbox.domNode);
 		this.view.breakpointInputFocused.set(true);
 		const inputBoxContainer = dom.append(breakpoint, $('.inputBoxContainer'));
 		const inputBox = new InputBox(inputBoxContainer, this.contextViewService, {
@@ -1718,7 +1711,7 @@ class ExceptionBreakpointInputRenderer implements ICompressibleTreeRenderer<IExc
 		data.inputBox.setPlaceHolder(placeHolder);
 		data.currentBreakpoint = exceptionBreakpoint;
 		data.checkbox.checked = exceptionBreakpoint.enabled;
-		data.checkbox.disabled = true;
+		data.checkbox.disable();
 		data.inputBox.value = exceptionBreakpoint.condition || '';
 		setTimeout(() => {
 			data.inputBox.focus();
@@ -1823,7 +1816,7 @@ export function getBreakpointMessageAndIcon(state: State, breakpointsActivated: 
 	}
 
 	const appendMessage = (text: string): string => {
-		return ('message' in breakpoint && breakpoint.message) ? text.concat(', ' + breakpoint.message) : text;
+		return breakpoint.message ? text.concat(', ' + breakpoint.message) : text;
 	};
 
 	if (debugActive && breakpoint instanceof Breakpoint && breakpoint.pending) {
@@ -1835,7 +1828,7 @@ export function getBreakpointMessageAndIcon(state: State, breakpointsActivated: 
 	if (debugActive && !breakpoint.verified) {
 		return {
 			icon: breakpointIcon.unverified,
-			message: ('message' in breakpoint && breakpoint.message) ? breakpoint.message : (breakpoint.logMessage ? localize('unverifiedLogpoint', "Unverified Logpoint") : localize('unverifiedBreakpoint', "Unverified Breakpoint")),
+			message: breakpoint.message ? breakpoint.message : (breakpoint.logMessage ? localize('unverifiedLogpoint', "Unverified Logpoint") : localize('unverifiedBreakpoint', "Unverified Breakpoint")),
 			showAdapterUnverifiedMessage: true
 		};
 	}
@@ -1935,7 +1928,7 @@ export function getBreakpointMessageAndIcon(state: State, breakpointsActivated: 
 		};
 	}
 
-	const message = ('message' in breakpoint && breakpoint.message) ? breakpoint.message : breakpoint instanceof Breakpoint && labelService ? labelService.getUriLabel(breakpoint.uri) : localize('breakpoint', "Breakpoint");
+	const message = breakpoint.message ? breakpoint.message : breakpoint instanceof Breakpoint && labelService ? labelService.getUriLabel(breakpoint.uri) : localize('breakpoint', "Breakpoint");
 	return {
 		icon: breakpointIcon.regular,
 		message
@@ -2047,7 +2040,7 @@ abstract class MemoryBreakpointAction extends Action2 {
 			}));
 			disposables.add(input.onDidAccept(() => {
 				const r = this.parseAddress(input.value, true);
-				if ('error' in r) {
+				if (hasKey(r, { error: true })) {
 					input.validationMessage = r.error;
 				} else {
 					resolve(r);

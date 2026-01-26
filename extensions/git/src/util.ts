@@ -141,6 +141,9 @@ export function groupBy<T>(arr: T[], fn: (el: T) => string): { [key: string]: T[
 	}, Object.create(null));
 }
 
+export function coalesce<T>(array: ReadonlyArray<T | undefined>): T[] {
+	return array.filter((e): e is T => !!e);
+}
 
 export async function mkdirp(path: string, mode?: number): Promise<boolean> {
 	const mkdir = async () => {
@@ -862,4 +865,12 @@ export function getStashDescription(stash: Stash): string | undefined {
 	}
 
 	return descriptionSegments.join(' \u2022 ');
+}
+
+export function isCopilotWorktree(path: string): boolean {
+	const lastSepIndex = path.lastIndexOf(sep);
+
+	return lastSepIndex !== -1
+		? path.substring(lastSepIndex + 1).startsWith('copilot-worktree-')
+		: path.startsWith('copilot-worktree-');
 }

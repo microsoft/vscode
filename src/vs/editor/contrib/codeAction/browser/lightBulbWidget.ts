@@ -8,6 +8,7 @@ import { Gesture } from '../../../../base/browser/touch.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { autorun, derived, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import './lightBulbWidget.css';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition, IEditorMouseEvent } from '../../../browser/editorBrowser.js';
@@ -28,6 +29,15 @@ const GUTTER_LIGHTBULB_AUTO_FIX_ICON = registerIcon('gutter-lightbulb-auto-fix',
 const GUTTER_LIGHTBULB_AIFIX_ICON = registerIcon('gutter-lightbulb-sparkle', Codicon.lightbulbSparkle, nls.localize('gutterLightbulbAIFixWidget', 'Icon which spawns code actions menu from the gutter when there is no space in the editor and an AI fix is available.'));
 const GUTTER_LIGHTBULB_AIFIX_AUTO_FIX_ICON = registerIcon('gutter-lightbulb-aifix-auto-fix', Codicon.lightbulbSparkleAutofix, nls.localize('gutterLightbulbAIFixAutoFixWidget', 'Icon which spawns code actions menu from the gutter when there is no space in the editor and an AI fix and a quick fix is available.'));
 const GUTTER_SPARKLE_FILLED_ICON = registerIcon('gutter-lightbulb-sparkle-filled', Codicon.sparkleFilled, nls.localize('gutterLightbulbSparkleFilledWidget', 'Icon which spawns code actions menu from the gutter when there is no space in the editor and an AI fix and a quick fix is available.'));
+
+export interface LightBulbInfo {
+	readonly actions: CodeActionSet;
+	readonly trigger: CodeActionTrigger;
+	readonly icon: ThemeIcon;
+	readonly autoRun: boolean;
+	readonly title: string;
+	readonly isGutter: boolean;
+}
 
 namespace LightBulbState {
 
@@ -71,8 +81,23 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 	private readonly _onClick = this._register(new Emitter<{ readonly x: number; readonly y: number; readonly actions: CodeActionSet; readonly trigger: CodeActionTrigger }>());
 	public readonly onClick = this._onClick.event;
 
-	private _state: LightBulbState.State = LightBulbState.Hidden;
-	private _gutterState: LightBulbState.State = LightBulbState.Hidden;
+	private readonly _state = observableValue<LightBulbState.State>(this, LightBulbState.Hidden);
+	private readonly _gutterState = observableValue<LightBulbState.State>(this, LightBulbState.Hidden);
+
+	private readonly _combinedInfo = derived(this, reader => {
+		const gutterState = this._gutterState.read(reader);
+		if (gutterState.type === LightBulbState.Type.Showing) {
+			return LightBulbWidget._computeLightBulbInfo(gutterState, true, this._preferredKbLabel.read(reader), this._quickFixKbLabel.read(reader));
+		}
+		const state = this._state.read(reader);
+		if (state.type === LightBulbState.Type.Showing) {
+			return LightBulbWidget._computeLightBulbInfo(state, false, this._preferredKbLabel.read(reader), this._quickFixKbLabel.read(reader));
+		}
+		return undefined;
+	});
+
+	public readonly lightBulbInfo: IObservable<LightBulbInfo | undefined> = this._combinedInfo;
+
 	private _iconClasses: string[] = [];
 
 	private readonly lightbulbClasses = [
@@ -83,10 +108,49 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 		'codicon-' + GUTTER_SPARKLE_FILLED_ICON.id
 	];
 
-	private _preferredKbLabel?: string;
-	private _quickFixKbLabel?: string;
+	private readonly _preferredKbLabel = observableValue<string | undefined>(this, undefined);
+	private readonly _quickFixKbLabel = observableValue<string | undefined>(this, undefined);
 
 	private gutterDecoration: ModelDecorationOptions = LightBulbWidget.GUTTER_DECORATION;
+
+	private static _computeLightBulbInfo(state: LightBulbState.State, forGutter: boolean, preferredKbLabel: string | undefined, quickFixKbLabel: string | undefined): LightBulbInfo | undefined {
+		if (state.type !== LightBulbState.Type.Showing) {
+			return undefined;
+		}
+
+		const { actions, trigger } = state;
+		let icon: ThemeIcon;
+		let autoRun = false;
+		if (actions.allAIFixes) {
+			icon = forGutter ? GUTTER_SPARKLE_FILLED_ICON : Codicon.sparkleFilled;
+			if (actions.validActions.length === 1) {
+				autoRun = true;
+			}
+		} else if (actions.hasAutoFix) {
+			if (actions.hasAIFix) {
+				icon = forGutter ? GUTTER_LIGHTBULB_AIFIX_AUTO_FIX_ICON : Codicon.lightbulbSparkleAutofix;
+			} else {
+				icon = forGutter ? GUTTER_LIGHTBULB_AUTO_FIX_ICON : Codicon.lightbulbAutofix;
+			}
+		} else if (actions.hasAIFix) {
+			icon = forGutter ? GUTTER_LIGHTBULB_AIFIX_ICON : Codicon.lightbulbSparkle;
+		} else {
+			icon = forGutter ? GUTTER_LIGHTBULB_ICON : Codicon.lightBulb;
+		}
+
+		let title: string;
+		if (autoRun) {
+			title = nls.localize('codeActionAutoRun', "Run: {0}", actions.validActions[0].action.title);
+		} else if (actions.hasAutoFix && preferredKbLabel) {
+			title = nls.localize('preferredcodeActionWithKb', "Show Code Actions. Preferred Quick Fix Available ({0})", preferredKbLabel);
+		} else if (!actions.hasAutoFix && quickFixKbLabel) {
+			title = nls.localize('codeActionWithKb', "Show Code Actions ({0})", quickFixKbLabel);
+		} else {
+			title = nls.localize('codeAction', "Show Code Actions");
+		}
+
+		return { actions, trigger, icon, autoRun, title, isGutter: forGutter };
+	}
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -103,17 +167,20 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 		this._register(this._editor.onDidChangeModelContent(_ => {
 			// cancel when the line in question has been removed
 			const editorModel = this._editor.getModel();
-			if (this.state.type !== LightBulbState.Type.Showing || !editorModel || this.state.editorPosition.lineNumber >= editorModel.getLineCount()) {
+			const state = this._state.get();
+			if (state.type !== LightBulbState.Type.Showing || !editorModel || state.editorPosition.lineNumber >= editorModel.getLineCount()) {
 				this.hide();
 			}
 
-			if (this.gutterState.type !== LightBulbState.Type.Showing || !editorModel || this.gutterState.editorPosition.lineNumber >= editorModel.getLineCount()) {
+			const gutterState = this._gutterState.get();
+			if (gutterState.type !== LightBulbState.Type.Showing || !editorModel || gutterState.editorPosition.lineNumber >= editorModel.getLineCount()) {
 				this.gutterHide();
 			}
 		}));
 
 		this._register(dom.addStandardDisposableGenericMouseDownListener(this._domNode, e => {
-			if (this.state.type !== LightBulbState.Type.Showing) {
+			const state = this._state.get();
+			if (state.type !== LightBulbState.Type.Showing) {
 				return;
 			}
 
@@ -127,15 +194,15 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 			const lineHeight = this._editor.getOption(EditorOption.lineHeight);
 
 			let pad = Math.floor(lineHeight / 3);
-			if (this.state.widgetPosition.position !== null && this.state.widgetPosition.position.lineNumber < this.state.editorPosition.lineNumber) {
+			if (state.widgetPosition.position !== null && state.widgetPosition.position.lineNumber < state.editorPosition.lineNumber) {
 				pad += lineHeight;
 			}
 
 			this._onClick.fire({
 				x: e.posx,
 				y: top + height + pad,
-				actions: this.state.actions,
-				trigger: this.state.trigger,
+				actions: state.actions,
+				trigger: state.trigger,
 			});
 		}));
 
@@ -150,9 +217,15 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 
 
 		this._register(Event.runAndSubscribe(this._keybindingService.onDidUpdateKeybindings, () => {
-			this._preferredKbLabel = this._keybindingService.lookupKeybinding(autoFixCommandId)?.getLabel() ?? undefined;
-			this._quickFixKbLabel = this._keybindingService.lookupKeybinding(quickFixCommandId)?.getLabel() ?? undefined;
-			this._updateLightBulbTitleAndIcon();
+			this._preferredKbLabel.set(this._keybindingService.lookupKeybinding(autoFixCommandId)?.getLabel() ?? undefined, undefined);
+			this._quickFixKbLabel.set(this._keybindingService.lookupKeybinding(quickFixCommandId)?.getLabel() ?? undefined, undefined);
+		}));
+
+		// Autorun to update the DOM based on state changes
+		this._register(autorun(reader => {
+			const info = this._combinedInfo.read(reader);
+			this._updateLightBulbTitleAndIcon(info);
+			this._updateGutterDecorationOptions(info);
 		}));
 
 		this._register(this._editor.onMouseDown(async (e: IEditorMouseEvent) => {
@@ -161,7 +234,8 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 				return;
 			}
 
-			if (this.gutterState.type !== LightBulbState.Type.Showing) {
+			const gutterState = this._gutterState.get();
+			if (gutterState.type !== LightBulbState.Type.Showing) {
 				return;
 			}
 
@@ -174,15 +248,15 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 			const lineHeight = this._editor.getOption(EditorOption.lineHeight);
 
 			let pad = Math.floor(lineHeight / 3);
-			if (this.gutterState.widgetPosition.position !== null && this.gutterState.widgetPosition.position.lineNumber < this.gutterState.editorPosition.lineNumber) {
+			if (gutterState.widgetPosition.position !== null && gutterState.widgetPosition.position.lineNumber < gutterState.editorPosition.lineNumber) {
 				pad += lineHeight;
 			}
 
 			this._onClick.fire({
 				x: e.event.posx,
 				y: top + height + pad,
-				actions: this.gutterState.actions,
-				trigger: this.gutterState.trigger,
+				actions: gutterState.actions,
+				trigger: gutterState.trigger,
 			});
 		}));
 	}
@@ -204,7 +278,8 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 	}
 
 	getPosition(): IContentWidgetPosition | null {
-		return this._state.type === LightBulbState.Type.Showing ? this._state.widgetPosition : null;
+		const state = this._state.get();
+		return state.type === LightBulbState.Type.Showing ? state.widgetPosition : null;
 	}
 
 	public update(actions: CodeActionSet, trigger: CodeActionTrigger, atPosition: IPosition) {
@@ -276,10 +351,10 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 
 				// check above and below. if both are blocked, display lightbulb in the gutter.
 				if (!nextLineEmptyOrIndented && !prevLineEmptyOrIndented && !hasDecoration) {
-					this.gutterState = new LightBulbState.Showing(actions, trigger, atPosition, {
+					this._gutterState.set(new LightBulbState.Showing(actions, trigger, atPosition, {
 						position: { lineNumber: effectiveLineNumber, column: effectiveColumnNumber },
 						preference: LightBulbWidget._posPref
-					});
+					}), undefined);
 					this.renderGutterLightbub();
 					return this.hide();
 				} else if (prevLineEmptyOrIndented || endLine || (prevLineEmptyOrIndented && !currLineEmptyOrIndented)) {
@@ -289,10 +364,10 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 				}
 			} else if (lineNumber === 1 && (lineNumber === model.getLineCount() || !isLineEmptyOrIndented(lineNumber + 1) && !isLineEmptyOrIndented(lineNumber))) {
 				// special checks for first line blocked vs. not blocked.
-				this.gutterState = new LightBulbState.Showing(actions, trigger, atPosition, {
+				this._gutterState.set(new LightBulbState.Showing(actions, trigger, atPosition, {
 					position: { lineNumber: effectiveLineNumber, column: effectiveColumnNumber },
 					preference: LightBulbWidget._posPref
-				});
+				}), undefined);
 
 				if (hasDecoration) {
 					this.gutterHide();
@@ -310,10 +385,10 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 			effectiveColumnNumber = /^\S\s*$/.test(model.getLineContent(effectiveLineNumber)) ? 2 : 1;
 		}
 
-		this.state = new LightBulbState.Showing(actions, trigger, atPosition, {
+		this._state.set(new LightBulbState.Showing(actions, trigger, atPosition, {
 			position: { lineNumber: effectiveLineNumber, column: effectiveColumnNumber },
 			preference: LightBulbWidget._posPref
-		});
+		}), undefined);
 
 		if (this._gutterDecorationID) {
 			this._removeGutterDecoration(this._gutterDecorationID);
@@ -331,16 +406,16 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 	}
 
 	public hide(): void {
-		if (this.state === LightBulbState.Hidden) {
+		if (this._state.get() === LightBulbState.Hidden) {
 			return;
 		}
 
-		this.state = LightBulbState.Hidden;
+		this._state.set(LightBulbState.Hidden, undefined);
 		this._editor.layoutContentWidget(this);
 	}
 
 	public gutterHide(): void {
-		if (this.gutterState === LightBulbState.Hidden) {
+		if (this._gutterState.get() === LightBulbState.Hidden) {
 			return;
 		}
 
@@ -348,84 +423,31 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 			this._removeGutterDecoration(this._gutterDecorationID);
 		}
 
-		this.gutterState = LightBulbState.Hidden;
+		this._gutterState.set(LightBulbState.Hidden, undefined);
 	}
 
-	private get state(): LightBulbState.State { return this._state; }
-
-	private set state(value) {
-		this._state = value;
-		this._updateLightBulbTitleAndIcon();
-	}
-
-	private get gutterState(): LightBulbState.State { return this._gutterState; }
-
-	private set gutterState(value) {
-		this._gutterState = value;
-		this._updateGutterLightBulbTitleAndIcon();
-	}
-
-	private _updateLightBulbTitleAndIcon(): void {
+	private _updateLightBulbTitleAndIcon(info: LightBulbInfo | undefined): void {
 		this._domNode.classList.remove(...this._iconClasses);
 		this._iconClasses = [];
-		if (this.state.type !== LightBulbState.Type.Showing) {
+		if (!info || info.isGutter) {
 			return;
 		}
-		let icon: ThemeIcon;
-		let autoRun = false;
-		if (this.state.actions.allAIFixes) {
-			icon = Codicon.sparkleFilled;
-			if (this.state.actions.validActions.length === 1) {
-				autoRun = true;
-			}
-		} else if (this.state.actions.hasAutoFix) {
-			if (this.state.actions.hasAIFix) {
-				icon = Codicon.lightbulbSparkleAutofix;
-			} else {
-				icon = Codicon.lightbulbAutofix;
-			}
-		} else if (this.state.actions.hasAIFix) {
-			icon = Codicon.lightbulbSparkle;
-		} else {
-			icon = Codicon.lightBulb;
-		}
-		this._updateLightbulbTitle(this.state.actions.hasAutoFix, autoRun);
-		this._iconClasses = ThemeIcon.asClassNameArray(icon);
+		this._domNode.title = info.title;
+		this._iconClasses = ThemeIcon.asClassNameArray(info.icon);
 		this._domNode.classList.add(...this._iconClasses);
 	}
 
-	private _updateGutterLightBulbTitleAndIcon(): void {
-		if (this.gutterState.type !== LightBulbState.Type.Showing) {
+	private _updateGutterDecorationOptions(info: LightBulbInfo | undefined): void {
+		if (!info || !info.isGutter) {
 			return;
 		}
-		let icon: ThemeIcon;
-		let autoRun = false;
-		if (this.gutterState.actions.allAIFixes) {
-			icon = GUTTER_SPARKLE_FILLED_ICON;
-			if (this.gutterState.actions.validActions.length === 1) {
-				autoRun = true;
-			}
-		} else if (this.gutterState.actions.hasAutoFix) {
-			if (this.gutterState.actions.hasAIFix) {
-				icon = GUTTER_LIGHTBULB_AIFIX_AUTO_FIX_ICON;
-			} else {
-				icon = GUTTER_LIGHTBULB_AUTO_FIX_ICON;
-			}
-		} else if (this.gutterState.actions.hasAIFix) {
-			icon = GUTTER_LIGHTBULB_AIFIX_ICON;
-		} else {
-			icon = GUTTER_LIGHTBULB_ICON;
-		}
-		this._updateLightbulbTitle(this.gutterState.actions.hasAutoFix, autoRun);
 
-		const GUTTER_DECORATION = ModelDecorationOptions.register({
+		this.gutterDecoration = ModelDecorationOptions.register({
 			description: 'codicon-gutter-lightbulb-decoration',
-			glyphMarginClassName: ThemeIcon.asClassName(icon),
+			glyphMarginClassName: ThemeIcon.asClassName(info.icon),
 			glyphMargin: { position: GlyphMarginLane.Left },
 			stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		});
-
-		this.gutterDecoration = GUTTER_DECORATION;
 	}
 
 	/* Gutter Helper Functions */
@@ -462,22 +484,5 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 		});
 	}
 
-	private _updateLightbulbTitle(autoFix: boolean, autoRun: boolean): void {
-		if (this.state.type !== LightBulbState.Type.Showing) {
-			return;
-		}
-		if (autoRun) {
-			this.title = nls.localize('codeActionAutoRun', "Run: {0}", this.state.actions.validActions[0].action.title);
-		} else if (autoFix && this._preferredKbLabel) {
-			this.title = nls.localize('preferredcodeActionWithKb', "Show Code Actions. Preferred Quick Fix Available ({0})", this._preferredKbLabel);
-		} else if (!autoFix && this._quickFixKbLabel) {
-			this.title = nls.localize('codeActionWithKb', "Show Code Actions ({0})", this._quickFixKbLabel);
-		} else if (!autoFix) {
-			this.title = nls.localize('codeAction', "Show Code Actions");
-		}
-	}
 
-	private set title(value: string) {
-		this._domNode.title = value;
-	}
 }

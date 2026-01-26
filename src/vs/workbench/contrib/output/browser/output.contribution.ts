@@ -29,7 +29,6 @@ import { Categories } from '../../../../platform/action/common/actionCommonCateg
 import { Disposable, dispose, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { ILoggerService, LogLevel, LogLevelToLocalizedString, LogLevelToString } from '../../../../platform/log/common/log.js';
-import { IDefaultLogLevelsService } from '../../logs/common/defaultLogLevels.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from '../../../../platform/accessibility/common/accessibility.js';
@@ -43,6 +42,7 @@ import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.
 import { basename } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { hasKey } from '../../../../base/common/types.js';
+import { IDefaultLogLevelsService } from '../../../services/log/common/defaultLogLevels.js';
 
 const IMPORTED_LOG_ID_PREFIX = 'importedLog.';
 
@@ -835,7 +835,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 	properties: {
 		'output.smartScroll.enabled': {
 			type: 'boolean',
-			description: nls.localize('output.smartScroll.enabled', "Enable/disable the ability of smart scrolling in the output view. Smart scrolling allows you to lock scrolling automatically when you click in the output view and unlocks when you click in the last line or scroll to the bottom."),
+			description: nls.localize('output.smartScroll.enabled', "Enable/disable the ability of smart scrolling in the output view. Smart scrolling allows you to lock scrolling automatically when you click in the output view and unlocks when you click in the last line."),
 			default: true,
 			scope: ConfigurationScope.WINDOW,
 			tags: ['output']

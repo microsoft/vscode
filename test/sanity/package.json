@@ -1,0 +1,24 @@
+{
+  "name": "code-oss-dev-sanity-test",
+  "version": "0.1.0",
+  "license": "MIT",
+  "type": "module",
+  "main": "./out/index.js",
+  "scripts": {
+    "compile": "tsc",
+    "start": "node ./out/index.js"
+  },
+  "dependencies": {
+    "minimist": "^1.2.8",
+    "mocha": "^11.7.5",
+    "mocha-junit-reporter": "^2.2.1",
+    "node-fetch": "^3.3.2",
+    "playwright": "^1.57.0"
+  },
+  "devDependencies": {
+    "@types/minimist": "^1.2.5",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "22.x",
+    "typescript": "^6.0.0-dev.20251110"
+  }
+}

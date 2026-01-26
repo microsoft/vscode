@@ -4,22 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { LogOutputChannel, SourceControlArtifactProvider, SourceControlArtifactGroup, SourceControlArtifact, Event, EventEmitter, ThemeIcon, l10n, workspace, Uri, Disposable, Command } from 'vscode';
-import { dispose, filterEvent, IDisposable } from './util';
+import { coalesce, dispose, filterEvent, IDisposable, isCopilotWorktree } from './util';
 import { Repository } from './repository';
-import { Ref, RefType } from './api/git';
+import { Ref, RefType, Worktree } from './api/git';
 import { OperationKind } from './operation';
-
-function getArtifactDescription(ref: Ref, shortCommitLength: number): string {
-	const segments: string[] = [];
-	if (ref.commit) {
-		segments.push(ref.commit.substring(0, shortCommitLength));
-	}
-	if (ref.commitDetails?.message) {
-		segments.push(ref.commitDetails.message.split('\n')[0]);
-	}
-
-	return segments.join(' \u2022 ');
-}
 
 /**
  * Sorts refs like a directory tree: refs with more path segments (directories) appear first
@@ -67,6 +55,16 @@ function sortRefByName(refA: Ref, refB: Ref): number {
 	return 0;
 }
 
+function sortByWorktreeTypeAndNameAsc(a: Worktree, b: Worktree): number {
+	if (a.main && !b.main) {
+		return -1;
+	} else if (!a.main && b.main) {
+		return 1;
+	} else {
+		return a.name.localeCompare(b.name);
+	}
+}
+
 export class GitArtifactProvider implements SourceControlArtifactProvider, IDisposable {
 	private readonly _onDidChangeArtifacts = new EventEmitter<string[]>();
 	readonly onDidChangeArtifacts: Event<string[]> = this._onDidChangeArtifacts.event;
@@ -81,7 +79,8 @@ export class GitArtifactProvider implements SourceControlArtifactProvider, IDisp
 		this._groups = [
 			{ id: 'branches', name: l10n.t('Branches'), icon: new ThemeIcon('git-branch'), supportsFolders: true },
 			{ id: 'stashes', name: l10n.t('Stashes'), icon: new ThemeIcon('git-stash'), supportsFolders: false },
-			{ id: 'tags', name: l10n.t('Tags'), icon: new ThemeIcon('tag'), supportsFolders: true }
+			{ id: 'tags', name: l10n.t('Tags'), icon: new ThemeIcon('tag'), supportsFolders: true },
+			{ id: 'worktrees', name: l10n.t('Worktrees'), icon: new ThemeIcon('worktree'), supportsFolders: false }
 		];
 
 		this._disposables.push(this._onDidChangeArtifacts);
@@ -104,6 +103,8 @@ export class GitArtifactProvider implements SourceControlArtifactProvider, IDisp
 		this._disposables.push(onDidRunWriteOperation(result => {
 			if (result.operation.kind === OperationKind.Stash) {
 				this._onDidChangeArtifacts.fire(['stashes']);
+			} else if (result.operation.kind === OperationKind.Worktree) {
+				this._onDidChangeArtifacts.fire(['worktrees']);
 			}
 		}));
 	}
@@ -124,7 +125,10 @@ export class GitArtifactProvider implements SourceControlArtifactProvider, IDisp
 				return refs.sort(sortRefByName).map(r => ({
 					id: `refs/heads/${r.name}`,
 					name: r.name ?? r.commit ?? '',
-					description: getArtifactDescription(r, shortCommitLength),
+					description: coalesce([
+						r.commit?.substring(0, shortCommitLength),
+						r.commitDetails?.message.split('\n')[0]
+					]).join(' \u2022 '),
 					icon: this.repository.HEAD?.type === RefType.Head && r.name === this.repository.HEAD?.name
 						? new ThemeIcon('target')
 						: new ThemeIcon('git-branch'),
@@ -137,7 +141,10 @@ export class GitArtifactProvider implements SourceControlArtifactProvider, IDisp
 				return refs.sort(sortRefByName).map(r => ({
 					id: `refs/tags/${r.name}`,
 					name: r.name ?? r.commit ?? '',
-					description: getArtifactDescription(r, shortCommitLength),
+					description: coalesce([
+						r.commit?.substring(0, shortCommitLength),
+						r.commitDetails?.message.split('\n')[0]
+					]).join(' \u2022 '),
 					icon: this.repository.HEAD?.type === RefType.Tag && r.name === this.repository.HEAD?.name
 						? new ThemeIcon('target')
 						: new ThemeIcon('tag'),
@@ -156,6 +163,23 @@ export class GitArtifactProvider implements SourceControlArtifactProvider, IDisp
 						title: l10n.t('View Stash'),
 						command: 'git.repositories.stashView'
 					} satisfies Command
+				}));
+			} else if (group === 'worktrees') {
+				const worktrees = await this.repository.getWorktreeDetails();
+
+				return worktrees.sort(sortByWorktreeTypeAndNameAsc).map(w => ({
+					id: w.path,
+					name: w.name,
+					description: coalesce([
+						w.detached ? l10n.t('detached') : w.ref.substring(11),
+						w.commitDetails?.hash.substring(0, shortCommitLength),
+						w.commitDetails?.message.split('\n')[0]
+					]).join(' \u2022 '),
+					icon: w.main
+						? new ThemeIcon('repo')
+						: isCopilotWorktree(w.path)
+							? new ThemeIcon('chat-sparkle')
+							: new ThemeIcon('worktree')
 				}));
 			}
 		} catch (err) {

@@ -24,8 +24,8 @@
     "contribSourceControlTitleMenu",
     "contribViewsWelcome",
     "editSessionIdentityProvider",
+    "findFiles2",
     "quickDiffProvider",
-    "quickInputButtonLocation",
     "quickPickSortByLabel",
     "scmActionButton",
     "scmArtifactProvider",
@@ -319,6 +319,13 @@
         "title": "%command.rename%",
         "category": "Git",
         "icon": "$(discard)",
+        "enablement": "!operationInProgress"
+      },
+      {
+        "command": "git.delete",
+        "title": "%command.delete%",
+        "category": "Git",
+        "icon": "$(trash)",
         "enablement": "!operationInProgress"
       },
       {
@@ -1110,6 +1117,33 @@
         "icon": "$(trash)",
         "category": "Git",
         "enablement": "!operationInProgress"
+      },
+      {
+        "command": "git.repositories.createWorktree",
+        "title": "%command.createWorktree%",
+        "icon": "$(plus)",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
+        "command": "git.repositories.openWorktree",
+        "title": "%command.openWorktree2%",
+        "icon": "$(folder-opened)",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
+        "command": "git.repositories.openWorktreeInNewWindow",
+        "title": "%command.openWorktreeInNewWindow2%",
+        "icon": "$(folder-opened)",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
+        "command": "git.repositories.deleteWorktree",
+        "title": "%command.deleteRef%",
+        "category": "Git",
+        "enablement": "!operationInProgress"
       }
     ],
     "continueEditSession": [
@@ -1269,6 +1303,10 @@
         {
           "command": "git.rename",
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && resourceScheme == file && scmActiveResourceRepository"
+        },
+        {
+          "command": "git.delete",
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && resourceScheme == file"
         },
         {
           "command": "git.commit",
@@ -1789,6 +1827,22 @@
         {
           "command": "git.repositories.stashDrop",
           "when": "false"
+        },
+        {
+          "command": "git.repositories.createWorktree",
+          "when": "false"
+        },
+        {
+          "command": "git.repositories.openWorktree",
+          "when": "false"
+        },
+        {
+          "command": "git.repositories.openWorktreeInNewWindow",
+          "when": "false"
+        },
+        {
+          "command": "git.repositories.deleteWorktree",
+          "when": "false"
         }
       ],
       "scm/title": [
@@ -1994,6 +2048,11 @@
           "submenu": "git.repositories.stash",
           "group": "inline@1",
           "when": "scmProvider == git && scmArtifactGroup == stashes"
+        },
+        {
+          "command": "git.repositories.createWorktree",
+          "group": "inline@1",
+          "when": "scmProvider == git && scmArtifactGroup == worktrees"
         }
       ],
       "scm/artifact/context": [
@@ -2067,6 +2126,26 @@
           "command": "git.repositories.compareRef",
           "group": "4_compare@1",
           "when": "scmProvider == git && (scmArtifactGroupId == branches || scmArtifactGroupId == tags)"
+        },
+        {
+          "command": "git.repositories.openWorktreeInNewWindow",
+          "group": "inline@1",
+          "when": "scmProvider == git && scmArtifactGroupId == worktrees"
+        },
+        {
+          "command": "git.repositories.openWorktree",
+          "group": "1_open@1",
+          "when": "scmProvider == git && scmArtifactGroupId == worktrees"
+        },
+        {
+          "command": "git.repositories.openWorktreeInNewWindow",
+          "group": "1_open@2",
+          "when": "scmProvider == git && scmArtifactGroupId == worktrees"
+        },
+        {
+          "command": "git.repositories.deleteWorktree",
+          "group": "2_modify@1",
+          "when": "scmProvider == git && scmArtifactGroupId == worktrees"
         }
       ],
       "scm/resourceGroup/context": [
@@ -3235,6 +3314,11 @@
           "description": "%config.confirmSync%",
           "default": true
         },
+        "git.confirmCommittedDelete": {
+          "type": "boolean",
+          "description": "%config.confirmCommittedDelete%",
+          "default": true
+        },
         "git.countBadge": {
           "type": "string",
           "enum": [
@@ -3502,6 +3586,18 @@
           "scope": "resource",
           "default": 50,
           "description": "%config.detectWorktreesLimit%"
+        },
+        "git.worktreeIncludeFiles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "markdownDescription": "%config.worktreeIncludeFiles%",
+          "scope": "resource",
+          "tags": [
+            "experimental"
+          ]
         },
         "git.alwaysShowStagedChangesResourceGroup": {
           "type": "boolean",
@@ -3835,6 +3931,11 @@
           "type": "string",
           "default": "${authorName} (${authorDateAgo})",
           "markdownDescription": "%config.blameStatusBarItem.template%"
+        },
+        "git.blame.ignoreWhitespace": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "%config.blameIgnoreWhitespace%"
         },
         "git.commitShortHashLength": {
           "type": "number",

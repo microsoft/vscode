@@ -17,16 +17,17 @@ import { localize } from '../../../nls.js';
 import { IDialogService } from '../../../platform/dialogs/common/dialogs.js';
 import { ILogService } from '../../../platform/log/common/log.js';
 import { hasValidDiff, IAgentSession } from '../../contrib/chat/browser/agentSessions/agentSessionsModel.js';
+import { IAgentSessionsService } from '../../contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { ChatViewPaneTarget, IChatWidgetService, isIChatViewViewContext } from '../../contrib/chat/browser/chat.js';
-import { IChatEditorOptions } from '../../contrib/chat/browser/chatEditor.js';
-import { ChatEditorInput } from '../../contrib/chat/browser/chatEditorInput.js';
+import { IChatEditorOptions } from '../../contrib/chat/browser/widgetHosts/editor/chatEditor.js';
+import { ChatEditorInput } from '../../contrib/chat/browser/widgetHosts/editor/chatEditorInput.js';
+import { IChatRequestVariableEntry } from '../../contrib/chat/common/attachments/chatVariableEntries.js';
 import { awaitStatsForSession } from '../../contrib/chat/common/chat.js';
-import { IChatAgentRequest } from '../../contrib/chat/common/chatAgents.js';
-import { IChatModel } from '../../contrib/chat/common/chatModel.js';
-import { IChatContentInlineReference, IChatProgress, IChatService, ResponseModelState } from '../../contrib/chat/common/chatService.js';
+import { IChatContentInlineReference, IChatProgress, IChatService, ResponseModelState } from '../../contrib/chat/common/chatService/chatService.js';
 import { ChatSessionStatus, IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionItemProvider, IChatSessionProviderOptionItem, IChatSessionsService } from '../../contrib/chat/common/chatSessionsService.js';
-import { IChatRequestVariableEntry } from '../../contrib/chat/common/chatVariableEntries.js';
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
+import { IChatModel } from '../../contrib/chat/common/model/chatModel.js';
+import { IChatAgentRequest } from '../../contrib/chat/common/participants/chatAgents.js';
 import { IEditorGroupsService } from '../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../services/editor/common/editorService.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
@@ -334,6 +335,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 
 	constructor(
 		private readonly _extHostContext: IExtHostContext,
+		@IAgentSessionsService private readonly _agentSessionsService: IAgentSessionsService,
 		@IChatSessionsService private readonly _chatSessionsService: IChatSessionsService,
 		@IChatService private readonly _chatService: IChatService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
@@ -346,12 +348,23 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 
 		this._proxy = this._extHostContext.getProxy(ExtHostContext.ExtHostChatSessions);
 
-		this._chatSessionsService.setOptionsChangeCallback(async (sessionResource: URI, updates: ReadonlyArray<{ optionId: string; value: string | IChatSessionProviderOptionItem }>) => {
+		this._register(this._chatSessionsService.onRequestNotifyExtension(({ sessionResource, updates, waitUntil }) => {
 			const handle = this._getHandleForSessionType(sessionResource.scheme);
+			this._logService.trace(`[MainThreadChatSessions] onRequestNotifyExtension received: scheme '${sessionResource.scheme}', handle ${handle}, ${updates.length} update(s)`);
 			if (handle !== undefined) {
-				await this.notifyOptionsChange(handle, sessionResource, updates);
+				waitUntil(this.notifyOptionsChange(handle, sessionResource, updates));
+			} else {
+				this._logService.warn(`[MainThreadChatSessions] Cannot notify option change for scheme '${sessionResource.scheme}': no provider registered. Registered schemes: [${Array.from(this._sessionTypeToHandle.keys()).join(', ')}]`);
 			}
-		});
+		}));
+
+		this._register(this._agentSessionsService.model.onDidChangeSessionArchivedState(session => {
+			for (const [handle, { provider }] of this._itemProvidersRegistrations) {
+				if (provider.chatSessionType === session.providerType) {
+					this._proxy.$onDidChangeChatSessionItemState(handle, session.resource, session.isArchived());
+				}
+			}
+		}));
 	}
 
 	private _getHandleForSessionType(chatSessionType: string): number | undefined {
@@ -381,7 +394,6 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 			() => changeEmitter.fire()
 		));
 	}
-
 
 	$onDidChangeChatSessionItems(handle: number): void {
 		this._itemProvidersRegistrations.get(handle)?.onDidChangeItems.fire();
@@ -491,6 +503,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 					resource: uri,
 					iconPath: session.iconPath,
 					tooltip: session.tooltip ? this._reviveTooltip(session.tooltip) : undefined,
+					archived: session.archived,
 				} satisfies IChatSessionItem;
 			}));
 		} catch (error) {
@@ -578,11 +591,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 
 		this._sessionTypeToHandle.set(chatSessionScheme, handle);
 		this._contentProvidersRegistrations.set(handle, this._chatSessionsService.registerChatSessionContentProvider(chatSessionScheme, provider));
-		this._proxy.$provideChatSessionProviderOptions(handle, CancellationToken.None).then(options => {
-			if (options?.optionGroups && options.optionGroups.length) {
-				this._chatSessionsService.setOptionGroupsForSessionType(chatSessionScheme, handle, options.optionGroups);
-			}
-		}).catch(err => this._logService.error('Error fetching chat session options', err));
+		this._refreshProviderOptions(handle, chatSessionScheme);
 	}
 
 	$unregisterChatSessionContentProvider(handle: number): void {
@@ -634,6 +643,37 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		// throw new Error('Method not implemented.');
 	}
 
+	$onDidChangeChatSessionProviderOptions(handle: number): void {
+		let sessionType: string | undefined;
+		for (const [type, h] of this._sessionTypeToHandle) {
+			if (h === handle) {
+				sessionType = type;
+				break;
+			}
+		}
+
+		if (!sessionType) {
+			this._logService.warn(`No session type found for chat session content provider handle ${handle} when refreshing provider options`);
+			return;
+		}
+
+		this._refreshProviderOptions(handle, sessionType);
+	}
+
+	private _refreshProviderOptions(handle: number, chatSessionScheme: string): void {
+		this._proxy.$provideChatSessionProviderOptions(handle, CancellationToken.None).then(options => {
+			if (options?.optionGroups && options.optionGroups.length) {
+				const groupsWithCallbacks = options.optionGroups.map(group => ({
+					...group,
+					onSearch: group.searchable ? async (query: string, token: CancellationToken) => {
+						return await this._proxy.$invokeOptionGroupSearch(handle, group.id, query, token);
+					} : undefined,
+				}));
+				this._chatSessionsService.setOptionGroupsForSessionType(chatSessionScheme, handle, groupsWithCallbacks);
+			}
+		}).catch(err => this._logService.error('Error fetching chat session options', err));
+	}
+
 	override dispose(): void {
 		for (const session of this._activeSessions.values()) {
 			session.dispose();
@@ -670,10 +710,12 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 	 * Notify the extension about option changes for a session
 	 */
 	async notifyOptionsChange(handle: number, sessionResource: URI, updates: ReadonlyArray<{ optionId: string; value: string | IChatSessionProviderOptionItem | undefined }>): Promise<void> {
+		this._logService.trace(`[MainThreadChatSessions] notifyOptionsChange: starting proxy call for handle ${handle}, sessionResource ${sessionResource}`);
 		try {
 			await this._proxy.$provideHandleOptionsChange(handle, sessionResource, updates, CancellationToken.None);
+			this._logService.trace(`[MainThreadChatSessions] notifyOptionsChange: proxy call completed for handle ${handle}, sessionResource ${sessionResource}`);
 		} catch (error) {
-			this._logService.error(`Error notifying extension about options change for handle ${handle}, sessionResource ${sessionResource}:`, error);
+			this._logService.error(`[MainThreadChatSessions] notifyOptionsChange: error for handle ${handle}, sessionResource ${sessionResource}:`, error);
 		}
 	}
 }

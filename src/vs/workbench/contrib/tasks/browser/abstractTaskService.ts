@@ -8,8 +8,8 @@ import { IStringDictionary } from '../../../../base/common/collections.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import * as glob from '../../../../base/common/glob.js';
 import * as json from '../../../../base/common/json.js';
-import { Disposable, DisposableStore, dispose, IDisposable, IReference, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { LRUCache, Touch } from '../../../../base/common/map.js';
+import { Disposable, DisposableMap, DisposableStore, dispose, IDisposable, IReference, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { LRUCache, ResourceMap, Touch } from '../../../../base/common/map.js';
 import * as Objects from '../../../../base/common/objects.js';
 import { ValidationState, ValidationStatus } from '../../../../base/common/parsers.js';
 import * as Platform from '../../../../base/common/platform.js';
@@ -86,8 +86,8 @@ import { IPreferencesService } from '../../../services/preferences/common/prefer
 import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { CHAT_OPEN_ACTION_ID } from '../../chat/browser/actions/chatActions.js';
-import { IChatAgentService } from '../../chat/common/chatAgents.js';
-import { IChatService } from '../../chat/common/chatService.js';
+import { IChatAgentService } from '../../chat/common/participants/chatAgents.js';
+import { IChatService } from '../../chat/common/chatService/chatService.js';
 import { configureTaskIcon, isWorkspaceFolder, ITaskQuickPickEntry, QUICKOPEN_DETAIL_CONFIG, QUICKOPEN_SKIP_CONFIG, TaskQuickPick } from './taskQuickPick.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import * as dom from '../../../../base/browser/dom.js';
@@ -106,13 +106,14 @@ export namespace ConfigureTaskAction {
 
 export type TaskQuickPickEntryType = (IQuickPickItem & { task: Task }) | (IQuickPickItem & { folder: IWorkspaceFolder }) | (IQuickPickItem & { settingType: string });
 
-class ProblemReporter implements TaskConfig.IProblemReporter {
+class ProblemReporter extends Disposable implements TaskConfig.IProblemReporter {
 
 	private _validationStatus: ValidationStatus;
-	private readonly _onDidError: Emitter<string> = new Emitter<string>();
+	private readonly _onDidError: Emitter<string> = this._register(new Emitter<string>());
 	public readonly onDidError: Event<string> = this._onDidError.event;
 
 	constructor(private _outputChannel: IOutputChannel) {
+		super();
 		this._validationStatus = new ValidationStatus();
 	}
 
@@ -258,6 +259,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	private _activatedTaskProviders: Set<string> = new Set();
 
 	private readonly notification = this._register(new MutableDisposable<DisposableStore>());
+	private readonly _workspaceTaskDisposables: DisposableMap<URI, IDisposable> = this._register(new DisposableMap(new ResourceMap()));
 
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -2190,8 +2192,11 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			if (updatedTask) {
 				await this.run(updatedTask);
 			} else {
-				// Task no longer exists, show warning
-				this._notificationService.warn(nls.localize('TaskSystem.taskNoLongerExists', 'Task {0} no longer exists or has been modified. Cannot restart.', task.configurationProperties.name));
+				const success = await this.run(task);
+				if (!success || (typeof success.exitCode === 'number' && success.exitCode !== 0)) {
+					// Task no longer exists, show warning
+					this._notificationService.warn(nls.localize('TaskSystem.taskNoLongerExists', 'Task {0} no longer exists or has been modified. Cannot restart.', task.configurationProperties.name));
+				}
 			}
 		} catch {
 			// eat the error, we don't care about it here
@@ -2640,8 +2645,10 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 		await ProblemMatcherRegistry.onReady();
 		const taskSystemInfo: ITaskSystemInfo | undefined = this._getTaskSystemInfo(workspaceFolder.uri.scheme);
-		const problemReporter = new ProblemReporter(this._outputChannel);
-		this._register(problemReporter.onDidError(error => this._showOutput(runSource, undefined, error)));
+		const store = new DisposableStore();
+		this._workspaceTaskDisposables.set(workspaceFolder.uri, store);
+		const problemReporter = store.add(new ProblemReporter(this._outputChannel));
+		store.add(problemReporter.onDidError(error => this._showOutput(runSource, undefined, error)));
 		const parseResult = TaskConfig.parse(workspaceFolder, undefined, taskSystemInfo ? taskSystemInfo.platform : Platform.platform, workspaceFolderConfiguration.config, problemReporter, TaskConfig.TaskConfigSource.TasksJson, this._contextKeyService);
 		let hasErrors = false;
 		if (!parseResult.validationStatus.isOK() && (parseResult.validationStatus.state !== ValidationState.Info)) {
@@ -2664,6 +2671,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			this._logService.warn('Custom workspace tasks are not supported.');
 		}
 		return { workspaceFolder, set: { tasks: this._jsonTasksSupported ? parseResult.custom : [] }, configurations: customizedTasks, hasErrors };
+
 	}
 
 	private _testParseExternalConfig(config: TaskConfig.IExternalTaskRunnerConfiguration | undefined, location: string): { config: TaskConfig.IExternalTaskRunnerConfiguration | undefined; hasParseErrors: boolean } {

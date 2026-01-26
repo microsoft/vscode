@@ -75,6 +75,10 @@ export namespace PromptHeaderAttributes {
 	export const excludeAgent = 'excludeAgent';
 	export const target = 'target';
 	export const infer = 'infer';
+	export const license = 'license';
+	export const compatibility = 'compatibility';
+	export const metadata = 'metadata';
+	export const agents = 'agents';
 }
 
 export namespace GithubPromptHeaderAttributes {
@@ -272,6 +276,27 @@ export class PromptHeader {
 		}
 		return undefined;
 	}
+
+	private getStringArrayAttribute(key: string): string[] | undefined {
+		const attribute = this._parsedHeader.attributes.find(attr => attr.key === key);
+		if (!attribute) {
+			return undefined;
+		}
+		if (attribute.value.type === 'array') {
+			const result: string[] = [];
+			for (const item of attribute.value.items) {
+				if (item.type === 'string' && item.value) {
+					result.push(item.value);
+				}
+			}
+			return result;
+		}
+		return undefined;
+	}
+
+	public get agents(): string[] | undefined {
+		return this.getStringArrayAttribute(PromptHeaderAttributes.agents);
+	}
 }
 
 export interface IHandOff {
@@ -343,6 +368,9 @@ export class PromptBody {
 				// Match markdown links: [text](link)
 				const linkMatch = line.matchAll(/\[(.*?)\]\((.+?)\)/g);
 				for (const match of linkMatch) {
+					if (match.index > 0 && line[match.index - 1] === '!') {
+						continue; // skip image links
+					}
 					const linkEndOffset = match.index + match[0].length - 1; // before the parenthesis
 					const linkStartOffset = match.index + match[0].length - match[2].length - 1;
 					const range = new Range(i + 1, linkStartOffset + 1, i + 1, linkEndOffset + 1);

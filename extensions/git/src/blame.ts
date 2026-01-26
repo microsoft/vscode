@@ -126,6 +126,10 @@ interface LineBlameInformation {
 class GitBlameInformationCache {
 	private readonly _cache = new Map<Repository, LRUCache<string, BlameInformation[]>>();
 
+	clear(): void {
+		this._cache.clear();
+	}
+
 	delete(repository: Repository): boolean {
 		return this._cache.delete(repository);
 	}
@@ -267,8 +271,16 @@ export class GitBlameController {
 
 	private _onDidChangeConfiguration(e?: ConfigurationChangeEvent): void {
 		if (e &&
+			!e.affectsConfiguration('git.blame.ignoreWhitespace') &&
 			!e.affectsConfiguration('git.blame.editorDecoration.enabled') &&
 			!e.affectsConfiguration('git.blame.statusBarItem.enabled')) {
+			return;
+		}
+
+		// Clear cache when ignoreWhitespace setting changes
+		if (e && e.affectsConfiguration('git.blame.ignoreWhitespace')) {
+			this._repositoryBlameCache.clear();
+			this._updateTextEditorBlameInformation(window.activeTextEditor);
 			return;
 		}
 

@@ -1,0 +1,107 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.chat-question-carousel-container {
+	margin: 8px 0;
+	padding: 12px;
+	border: 1px solid var(--vscode-widget-border);
+	border-radius: 6px;
+	background-color: var(--vscode-editorWidget-background);
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+}
+
+.chat-question-carousel-header {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+}
+
+.chat-question-carousel-title {
+	flex: 1;
+	font-weight: 600;
+	font-size: 14px;
+}
+
+.chat-question-carousel-progress {
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.chat-question-carousel-content {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.chat-question-title {
+	font-weight: 500;
+	font-size: 13px;
+	margin: 4px 0;
+}
+
+.chat-question-message {
+	font-size: 13px;
+	color: var(--vscode-foreground);
+	margin: 4px 0;
+	line-height: 1.5;
+}
+
+.chat-question-input-container {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	margin-top: 8px;
+}
+
+.chat-question-options {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.chat-question-option {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 6px 0;
+}
+
+.chat-question-option input[type="radio"],
+.chat-question-option input[type="checkbox"] {
+	margin: 0;
+}
+
+.chat-question-option label {
+	font-size: 13px;
+	color: var(--vscode-foreground);
+	cursor: pointer;
+}
+
+.chat-question-carousel-footer {
+	display: flex;
+	justify-content: flex-end;
+	gap: 8px;
+	margin-top: 8px;
+}
+
+.chat-question-carousel-footer .monaco-button.chat-question-nav-arrow {
+	min-width: 32px;
+	width: 32px;
+	padding: 4px;
+}
+
+.chat-question-freeform {
+	margin-top: 12px;
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.chat-question-freeform-label {
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+}

@@ -13,7 +13,7 @@ import { Range } from '../../../../../editor/common/core/range.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IMarkerData } from '../../../../../platform/markers/common/markers.js';
-import { IToolInvocationContext, ToolProgress } from '../../../chat/common/languageModelToolsService.js';
+import { IToolInvocationContext, ToolProgress } from '../../../chat/common/tools/languageModelToolsService.js';
 import { ConfiguringTask, ITaskDependency, Task } from '../../../tasks/common/tasks.js';
 import { ITaskService } from '../../../tasks/common/taskService.js';
 import { ITerminalInstance } from '../../../terminal/browser/terminal.js';
@@ -207,9 +207,11 @@ export async function collectTerminalResults(
 		taskLabelToTaskMap[dependencyTask._label] = dependencyTask;
 	}
 
-	for (const instance of terminals) {
-		progress.report({ message: new MarkdownString(`Checking output for \`${instance.shellLaunchConfig.name ?? 'unknown'}\``) });
+	// Process all terminals in parallel
+	const terminalNames = terminals.map(t => t.shellLaunchConfig.name ?? t.title ?? 'unknown');
+	progress.report({ message: new MarkdownString(`Checking output for ${terminalNames.map(n => `\`${n}\``).join(', ')}`) });
 
+	const terminalPromises = terminals.map(async (instance) => {
 		let terminalTask = task;
 
 		// For composite tasks, find the actual dependency task running in this terminal
@@ -255,9 +257,12 @@ export async function collectTerminalResults(
 		}
 
 		const outputMonitor = disposableStore.add(instantiationService.createInstance(OutputMonitor, execution, taskProblemPollFn, invocationContext, token, task._label));
-		await Event.toPromise(outputMonitor.onDidFinishCommand);
+		await Promise.race([
+			Event.toPromise(outputMonitor.onDidFinishCommand),
+			Event.toPromise(token.onCancellationRequested as Event<unknown>)
+		]);
 		const pollingResult = outputMonitor.pollingResult;
-		results.push({
+		return {
 			name: instance.shellLaunchConfig.name ?? instance.title ?? 'unknown',
 			output: pollingResult?.output ?? '',
 			pollDurationMs: pollingResult?.pollDurationMs ?? 0,
@@ -271,8 +276,11 @@ export async function collectTerminalResults(
 			inputToolManualShownCount: outputMonitor.outputMonitorTelemetryCounters.inputToolManualShownCount ?? 0,
 			inputToolFreeFormInputShownCount: outputMonitor.outputMonitorTelemetryCounters.inputToolFreeFormInputShownCount ?? 0,
 			inputToolFreeFormInputCount: outputMonitor.outputMonitorTelemetryCounters.inputToolFreeFormInputCount ?? 0,
-		});
-	}
+		};
+	});
+
+	const parallelResults = await Promise.all(terminalPromises);
+	results.push(...parallelResults);
 	return results;
 }
 

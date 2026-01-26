@@ -11,6 +11,7 @@ import { LanguageSelector } from '../../../../../editor/common/languageSelector.
 export const PROMPT_DOCUMENTATION_URL = 'https://aka.ms/vscode-ghcp-prompt-snippets';
 export const INSTRUCTIONS_DOCUMENTATION_URL = 'https://aka.ms/vscode-ghcp-custom-instructions';
 export const AGENT_DOCUMENTATION_URL = 'https://aka.ms/vscode-ghcp-custom-chat-modes'; // todo
+export const SKILL_DOCUMENTATION_URL = 'https://aka.ms/vscode-agent-skills';
 
 /**
  * Language ID for the reusable prompt syntax.
@@ -28,12 +29,17 @@ export const INSTRUCTIONS_LANGUAGE_ID = 'instructions';
 export const AGENT_LANGUAGE_ID = 'chatagent';
 
 /**
- * Prompt and instructions files language selector.
+ * Language ID for skill syntax.
  */
-export const ALL_PROMPTS_LANGUAGE_SELECTOR: LanguageSelector = [PROMPT_LANGUAGE_ID, INSTRUCTIONS_LANGUAGE_ID, AGENT_LANGUAGE_ID];
+export const SKILL_LANGUAGE_ID = 'skill';
 
 /**
- * The language id for for a prompts type.
+ * Prompt and instructions files language selector.
+ */
+export const ALL_PROMPTS_LANGUAGE_SELECTOR: LanguageSelector = [PROMPT_LANGUAGE_ID, INSTRUCTIONS_LANGUAGE_ID, AGENT_LANGUAGE_ID, SKILL_LANGUAGE_ID];
+
+/**
+ * The language id for a prompts type.
  */
 export function getLanguageIdForPromptsType(type: PromptsType): string {
 	switch (type) {
@@ -43,6 +49,8 @@ export function getLanguageIdForPromptsType(type: PromptsType): string {
 			return INSTRUCTIONS_LANGUAGE_ID;
 		case PromptsType.agent:
 			return AGENT_LANGUAGE_ID;
+		case PromptsType.skill:
+			return SKILL_LANGUAGE_ID;
 		default:
 			throw new Error(`Unknown prompt type: ${type}`);
 	}
@@ -56,6 +64,8 @@ export function getPromptsTypeForLanguageId(languageId: string): PromptsType | u
 			return PromptsType.instructions;
 		case AGENT_LANGUAGE_ID:
 			return PromptsType.agent;
+		case SKILL_LANGUAGE_ID:
+			return PromptsType.skill;
 		default:
 			return undefined;
 	}
@@ -68,7 +78,8 @@ export function getPromptsTypeForLanguageId(languageId: string): PromptsType | u
 export enum PromptsType {
 	instructions = 'instructions',
 	prompt = 'prompt',
-	agent = 'agent'
+	agent = 'agent',
+	skill = 'skill'
 }
 export function isValidPromptType(type: string): type is PromptsType {
 	return Object.values(PromptsType).includes(type as PromptsType);

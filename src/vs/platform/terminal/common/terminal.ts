@@ -91,7 +91,6 @@ export const enum TerminalSettingId {
 	EnvironmentChangesRelaunch = 'terminal.integrated.environmentChangesRelaunch',
 	ShowExitAlert = 'terminal.integrated.showExitAlert',
 	SplitCwd = 'terminal.integrated.splitCwd',
-	WindowsEnableConpty = 'terminal.integrated.windowsEnableConpty',
 	WindowsUseConptyDll = 'terminal.integrated.windowsUseConptyDll',
 	WordSeparators = 'terminal.integrated.wordSeparators',
 	EnableFileLinks = 'terminal.integrated.enableFileLinks',
@@ -120,6 +119,9 @@ export const enum TerminalSettingId {
 	FontLigaturesEnabled = 'terminal.integrated.fontLigatures.enabled',
 	FontLigaturesFeatureSettings = 'terminal.integrated.fontLigatures.featureSettings',
 	FontLigaturesFallbackLigatures = 'terminal.integrated.fontLigatures.fallbackLigatures',
+	EnableKittyKeyboardProtocol = 'terminal.integrated.enableKittyKeyboardProtocol',
+	EnableWin32InputMode = 'terminal.integrated.enableWin32InputMode',
+	AllowInUntrustedWorkspace = 'terminal.integrated.allowInUntrustedWorkspace',
 
 	// Developer/debug settings
 
@@ -152,6 +154,7 @@ export const enum GeneralShellType {
 	Julia = 'julia',
 	NuShell = 'nu',
 	Node = 'node',
+	Xonsh = 'xonsh',
 }
 export type TerminalShellType = PosixShellType | WindowsShellType | GeneralShellType | undefined;
 
@@ -721,7 +724,6 @@ export interface ITerminalProcessOptions {
 		suggestEnabled: boolean;
 		nonce: string;
 	};
-	windowsEnableConpty: boolean;
 	windowsUseConptyDll: boolean;
 	environmentVariableCollections: ISerializableEnvironmentVariableCollections | undefined;
 	workspaceFolder: IWorkspaceFolder | undefined;
@@ -747,7 +749,7 @@ export interface IProcessReadyWindowsPty {
 	/**
 	 * What pty emulation backend is being used.
 	 */
-	backend: 'conpty' | 'winpty';
+	backend: 'conpty';
 	/**
 	 * The Windows build version (eg. 19045)
 	 */
@@ -1021,9 +1023,9 @@ export const enum ShellIntegrationInjectionFailureReason {
 	 */
 	IgnoreShellIntegrationFlag = 'ignoreShellIntegrationFlag',
 	/**
-	 * Shell integration doesn't work with winpty.
+	 * Shell integration doesn't work on older Windows builds that don't support ConPTY.
 	 */
-	Winpty = 'winpty',
+	UnsupportedWindowsBuild = 'unsupportedWindowsBuild',
 	/**
 	 * We're conservative whether we inject when we don't recognize the arguments used for the
 	 * shell as we would prefer launching one without shell integration than breaking their profile.

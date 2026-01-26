@@ -82,7 +82,7 @@ export function layout(viewportSize: number, viewSize: number, anchor: ILayoutAn
 			return { position: layoutBeforeAnchorBoundary - viewSize, result: 'ok' }; // happy case, lay it out before the anchor
 		}
 
-		if (viewSize <= viewportSize - layoutAfterAnchorBoundary) {
+		if (viewSize <= viewportSize - layoutAfterAnchorBoundary && layoutBeforeAnchorBoundary < viewSize / 2) {
 			return { position: layoutAfterAnchorBoundary, result: 'flipped' }; // ok case, lay it out after the anchor
 		}
 
