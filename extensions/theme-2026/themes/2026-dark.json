@@ -63,7 +63,7 @@
 		"list.focusBackground": "#3994BC26",
 		"list.focusForeground": "#bfbfbf",
 		"list.focusOutline": "#3994BCB3",
-		"list.highlightForeground": "#bfbfbf",
+		"list.highlightForeground": "#48A0C7",
 		"list.invalidItemForeground": "#444444",
 		"list.errorForeground": "#f48771",
 		"list.warningForeground": "#e5ba7d",
