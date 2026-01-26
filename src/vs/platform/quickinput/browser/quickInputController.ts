@@ -878,18 +878,18 @@ export class QuickInputController extends Disposable {
 
 				if (anchorAlignment === AnchorAlignment.RIGHT) {
 					style.right = `${right}px`;
-					style.left = '';
+					style.left = 'initial';
 				} else {
 					style.left = `${left}px`;
-					style.right = '';
+					style.right = 'initial';
 				}
 
 				if (anchorPosition === AnchorPosition.BELOW) {
 					style.bottom = `${bottom}px`;
-					style.top = '';
+					style.top = 'initial';
 				} else {
 					style.top = `${top}px`;
-					style.bottom = '';
+					style.bottom = 'initial';
 				}
 
 				style.width = `${width}px`;
@@ -897,6 +897,8 @@ export class QuickInputController extends Disposable {
 			} else {
 				style.top = `${this.viewState?.top ? Math.round(this.dimension!.height * this.viewState.top) : this.titleBarOffset}px`;
 				style.left = `${Math.round((this.dimension!.width * (this.viewState?.left ?? 0.5 /* center */)) - (width / 2))}px`;
+				style.right = '';
+				style.bottom = '';
 				style.height = '';
 			}
 
