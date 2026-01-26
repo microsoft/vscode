@@ -95,7 +95,7 @@ export class WorkbenchContextKeysHandler extends Disposable {
 		this.virtualWorkspaceContext = VirtualWorkspaceContext.bindTo(this.contextKeyService);
 		this.temporaryWorkspaceContext = TemporaryWorkspaceContext.bindTo(this.contextKeyService);
 		this.isAgentSessionsWorkspaceContext = IsAgentSessionsWorkspaceContext.bindTo(this.contextKeyService);
-		this.isAgentSessionsWorkspaceContext.set(!!this.environmentService.agentSessionsWindow);
+		this.isAgentSessionsWorkspaceContext.set(!!this.contextService.getWorkspace().isAgentSessionsWorkspace);
 		this.updateWorkspaceContextKeys();
 
 		// Capabilities
