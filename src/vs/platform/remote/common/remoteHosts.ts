@@ -27,7 +27,11 @@ export function getRemoteName(authority: string | undefined): string | undefined
 
 /**
  * Returns the suffix part of the authority after the '+' character.
- * For tunnel connections, this is the tunnel name.
+ * For remote connections, this is typically the server/tunnel identifier.
+ * Examples:
+ * - For tunnels: `tunnel+myTunnel` returns `myTunnel`
+ * - For SSH: `ssh+myserver` returns `myserver`
+ * - For localhost: `localhost:8000` returns `undefined`
  * @param authority The remote authority string.
  * @returns The suffix after the '+' character, or undefined if there is no '+' character.
  */
