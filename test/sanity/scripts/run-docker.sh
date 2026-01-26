@@ -43,48 +43,59 @@ if [ -n "$PAGE_SIZE" ]; then
 	echo "Setting up QEMU system emulation for linux/$ARCH with $PAGE_SIZE page size"
 
 	# Install QEMU system emulation and tools if not present
-	if ! command -v qemu-system-aarch64 > /dev/null 2>&1 || ! command -v rpm2cpio > /dev/null 2>&1; then
+	if ! command -v qemu-system-aarch64 > /dev/null 2>&1; then
 		echo "Installing QEMU system emulation and tools..."
-		sudo apt-get update && sudo apt-get install -y qemu-system-arm rpm cpio
+		sudo apt-get update && sudo apt-get install -y qemu-system-arm cpio
 	fi
 
-	# Convert page size to bytes and set kernel URL
-	# Fedora provides kernel-16k and kernel-64k packages for arm64
+	# Set up QEMU user-mode emulation for building arm64 container on x64
+	echo "Setting up QEMU user-mode emulation for container build"
+	docker run --privileged --rm tonistiigi/binfmt --install "$ARCH" > /dev/null
+
+	# Convert page size to bytes and set kernel package name
+	# CentOS provides kernel-16k and kernel-64k packages for arm64
 	case "$PAGE_SIZE" in
 		16k)
 			PAGE_BYTES=16384
-			KERNEL_URL="https://dl.fedoraproject.org/pub/fedora/linux/releases/40/Everything/aarch64/os/Packages/k/kernel-16k-core-6.8.5-301.fc40.aarch64.rpm"
+			KERNEL_PKG="kernel-16k"
 			;;
 		64k)
 			PAGE_BYTES=65536
-			KERNEL_URL="https://dl.fedoraproject.org/pub/fedora/linux/releases/40/Everything/aarch64/os/Packages/k/kernel-64k-core-6.8.5-301.fc40.aarch64.rpm"
+			KERNEL_PKG="kernel-64k"
 			;;
 		*) echo "Error: Unknown page size '$PAGE_SIZE'"; exit 1 ;;
 	esac
 
+	# Create a temporary container with the kernel installed
+	echo "Building container with $KERNEL_PKG kernel..."
+	CONTAINER_ID=$(docker run -d --platform "linux/$ARCH" "$CONTAINER" sleep infinity)
+	docker exec "$CONTAINER_ID" dnf install -y "$KERNEL_PKG"
+
 	# Export container filesystem
-	CONTAINER_ID=$(docker create --platform "linux/$ARCH" "$CONTAINER")
 	ROOTFS_DIR=$(mktemp -d)
 	docker export "$CONTAINER_ID" | sudo tar -xf - -C "$ROOTFS_DIR"
-	docker rm "$CONTAINER_ID" > /dev/null
+	docker rm -f "$CONTAINER_ID" > /dev/null
 
 	# Copy test files into rootfs
 	sudo cp -r "$ROOT_DIR"/* "$ROOTFS_DIR/root/"
 
-	# Download Fedora kernel with appropriate page size
-	KERNEL_DIR=$(mktemp -d)
-
-	echo "Downloading kernel from $KERNEL_URL"
-	curl -sL "$KERNEL_URL" -o "$KERNEL_DIR/kernel.rpm"
-	(cd "$KERNEL_DIR" && rpm2cpio kernel.rpm | cpio -idm 2>/dev/null)
-	VMLINUZ=$(find "$KERNEL_DIR" -name "vmlinuz-*" | head -1)
+	# Find the kernel in /boot
+	VMLINUZ=$(find "$ROOTFS_DIR/boot" -name "vmlinuz-*${PAGE_SIZE}*" -o -name "vmlinuz-*+${PAGE_SIZE}*" 2>/dev/null | head -1)
+	if [ -z "$VMLINUZ" ]; then
+		# Try alternative naming pattern
+		VMLINUZ=$(find "$ROOTFS_DIR/boot" -name "vmlinuz-*" | grep -E "(${PAGE_SIZE}|${PAGE_BYTES})" | head -1)
+	fi
 
 	if [ -z "$VMLINUZ" ]; then
-		echo "Error: Could not find kernel in downloaded package"
-		sudo rm -rf "$ROOTFS_DIR" "$KERNEL_DIR"
+		echo "Error: Could not find ${PAGE_SIZE} kernel in /boot"
+		echo "Available kernels:"
+		ls -la "$ROOTFS_DIR/boot/" || true
+		sudo rm -rf "$ROOTFS_DIR"
 		exit 1
 	fi
 
+	echo "Using kernel: $VMLINUZ"
+	KERNEL_DIR=$(mktemp -d)
 	cp "$VMLINUZ" "$KERNEL_DIR/vmlinuz"
 
 	# Store test arguments in rootfs
@@ -112,7 +123,7 @@ INITEOF
 	echo "Running QEMU system emulation with ${PAGE_SIZE} page size"
 	timeout 1800 qemu-system-aarch64 \
 		-M virt \
-		-cpu max,pauth-impdef=on,pagesize=$PAGE_BYTES \
+		-cpu max,pauth-impdef=on \
 		-accel tcg,thread=multi \
 		-m 4096 \
 		-smp 2 \
