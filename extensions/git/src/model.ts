@@ -588,17 +588,6 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 			return;
 		}
 
-		// Repository trust check
-		const result = await workspace.requestResourceTrust({
-			message: l10n.t('You are opening a repository from a location that is not trusted. Do you trust the authors of the files in the repository you are opening?'),
-			uri: Uri.file(repoPath),
-		} satisfies ResourceTrustRequestOptions);
-
-		if (!result) {
-			this.logger.trace(`[Model][openRepository] Repository folder is not trusted: ${repoPath}`);
-			return;
-		}
-
 		try {
 			const { repositoryRoot, unsafeRepositoryMatch } = await this.getRepositoryRoot(repoPath);
 			this.logger.trace(`[Model][openRepository] Repository root for path ${repoPath} is: ${repositoryRoot}`);
@@ -651,6 +640,17 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 			// Handle repositories that were closed by the user
 			if (!openIfClosed && this._closedRepositoriesManager.isRepositoryClosed(repositoryRoot)) {
 				this.logger.trace(`[Model][openRepository] Repository for path ${repositoryRoot} is closed`);
+				return;
+			}
+
+			// Repository trust check
+			const result = await workspace.requestResourceTrust({
+				message: l10n.t('You are opening a repository from a location that is not trusted. Do you trust the authors of the files in the repository you are opening?'),
+				uri: Uri.file(repoPath),
+			} satisfies ResourceTrustRequestOptions);
+
+			if (!result) {
+				this.logger.trace(`[Model][openRepository] Repository folder is not trusted: ${repoPath}`);
 				return;
 			}
 
