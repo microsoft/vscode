@@ -22,7 +22,7 @@ import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contex
 import { ChatEditorInput, showClearEditingSessionConfirmation } from '../widgetHosts/editor/chatEditorInput.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { ChatConfiguration } from '../../common/constants.js';
+import { AgentSessionsGrouping, ChatConfiguration } from '../../common/constants.js';
 import { ACTION_ID_NEW_CHAT, CHAT_CATEGORY } from '../actions/chatActions.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { ChatViewPane } from '../widgetHosts/viewPane/chatViewPane.js';
@@ -38,53 +38,50 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../pla
 
 //#region Chat View
 
-const showSessionsSubmenu = new MenuId('chatShowSessionsSubmenu');
-MenuRegistry.appendMenuItem(MenuId.ChatWelcomeContext, {
-	submenu: showSessionsSubmenu,
-	title: localize2('chat.showSessions', "Show Sessions"),
-	group: '0_sessions',
-	order: 1,
-	when: ChatContextKeys.inChatEditor.negate()
-});
-
-export class ShowAllAgentSessionsAction extends Action2 {
+export class ToggleShowAgentSessionsAction extends Action2 {
 
 	constructor() {
 		super({
-			id: 'workbench.action.chat.showAllAgentSessions',
-			title: localize2('chat.showSessions.all', "All"),
-			toggled: ContextKeyExpr.and(
-				ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, true),
-				ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsShowPendingOnly}`, false)
-			),
+			id: 'workbench.action.chat.toggleShowAgentSessions',
+			title: localize2('chat.showSessions', "Show Sessions"),
+			toggled: ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, true),
 			menu: {
-				id: showSessionsSubmenu,
-				group: 'navigation',
-				order: 1
+				id: MenuId.ChatWelcomeContext,
+				group: '0_sessions',
+				order: 3,
+				when: ChatContextKeys.inChatEditor.negate()
 			}
 		});
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const configurationService = accessor.get(IConfigurationService);
-
-		await configurationService.updateValue(ChatConfiguration.ChatViewSessionsEnabled, true);
-		await configurationService.updateValue(ChatConfiguration.ChatViewSessionsShowPendingOnly, false);
+		const currentValue = configurationService.getValue<boolean>(ChatConfiguration.ChatViewSessionsEnabled);
+		await configurationService.updateValue(ChatConfiguration.ChatViewSessionsEnabled, !currentValue);
 	}
 }
 
-export class ShowPendingAgentSessionsAction extends Action2 {
+const groupSessionsSubmenu = new MenuId('chatGroupSessionsSubmenu');
+MenuRegistry.appendMenuItem(MenuId.ChatWelcomeContext, {
+	submenu: groupSessionsSubmenu,
+	title: localize2('chat.groupSessions', "Group Sessions"),
+	group: '0_sessions',
+	order: 2,
+	when: ContextKeyExpr.and(
+		ChatContextKeys.inChatEditor.negate(),
+		ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, true)
+	)
+});
+
+export class GroupSessionsByDateAction extends Action2 {
 
 	constructor() {
 		super({
-			id: 'workbench.action.chat.showPendingAgentSessions',
-			title: localize2('chat.showSessions.pending', "Pending"),
-			toggled: ContextKeyExpr.and(
-				ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, true),
-				ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsShowPendingOnly}`, true)
-			),
+			id: 'workbench.action.chat.groupSessionsByDate',
+			title: localize2('chat.groupSessions.byDate', "By Date"),
+			toggled: ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsGrouping}`, AgentSessionsGrouping.Date),
 			menu: {
-				id: showSessionsSubmenu,
+				id: groupSessionsSubmenu,
 				group: 'navigation',
 				order: 2
 			}
@@ -93,40 +90,37 @@ export class ShowPendingAgentSessionsAction extends Action2 {
 
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const configurationService = accessor.get(IConfigurationService);
-
-		await configurationService.updateValue(ChatConfiguration.ChatViewSessionsEnabled, true);
-		await configurationService.updateValue(ChatConfiguration.ChatViewSessionsShowPendingOnly, true);
+		await configurationService.updateValue(ChatConfiguration.ChatViewSessionsGrouping, AgentSessionsGrouping.Date);
 	}
 }
 
-export class HideAgentSessionsAction extends Action2 {
+export class GroupSessionsByActivityAction extends Action2 {
 
 	constructor() {
 		super({
-			id: 'workbench.action.chat.hideAgentSessions',
-			title: localize2('chat.showSessions.none', "None"),
-			toggled: ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, false),
+			id: 'workbench.action.chat.groupSessionsByActivity',
+			title: localize2('chat.groupSessions.byActivity', "By Activity"),
+			toggled: ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsGrouping}`, AgentSessionsGrouping.Activity),
 			menu: {
-				id: showSessionsSubmenu,
+				id: groupSessionsSubmenu,
 				group: 'navigation',
-				order: 3
+				order: 1
 			}
 		});
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const configurationService = accessor.get(IConfigurationService);
-
-		await configurationService.updateValue(ChatConfiguration.ChatViewSessionsEnabled, false);
+		await configurationService.updateValue(ChatConfiguration.ChatViewSessionsGrouping, AgentSessionsGrouping.Activity);
 	}
 }
 
 const agentSessionsOrientationSubmenu = new MenuId('chatAgentSessionsOrientationSubmenu');
 MenuRegistry.appendMenuItem(MenuId.ChatWelcomeContext, {
 	submenu: agentSessionsOrientationSubmenu,
-	title: localize2('chat.sessionsOrientation', "Sessions Orientation"),
+	title: localize2('chat.sessionsOrientation', "Layout Sessions"),
 	group: '0_sessions',
-	order: 2,
+	order: 1,
 	when: ChatContextKeys.inChatEditor.negate()
 });
 
@@ -271,7 +265,7 @@ export class ArchiveAgentSessionSectionAction extends Action2 {
 				order: 1,
 				when: ContextKeyExpr.and(
 					ChatContextKeys.agentSessionSection.notEqualsTo(AgentSessionSection.Archived),
-					ChatContextKeys.agentSessionSection.notEqualsTo(AgentSessionSection.Done)
+					ChatContextKeys.agentSessionSection.notEqualsTo(AgentSessionSection.History)
 				),
 			}, {
 				id: MenuId.AgentSessionSectionContext,
@@ -279,7 +273,7 @@ export class ArchiveAgentSessionSectionAction extends Action2 {
 				order: 2,
 				when: ContextKeyExpr.and(
 					ChatContextKeys.agentSessionSection.notEqualsTo(AgentSessionSection.Archived),
-					ChatContextKeys.agentSessionSection.notEqualsTo(AgentSessionSection.Done)
+					ChatContextKeys.agentSessionSection.notEqualsTo(AgentSessionSection.History)
 				),
 			}]
 		});

@@ -160,7 +160,7 @@ import { IHistoryService } from '../../services/history/common/history.js';
 import { IHostService } from '../../services/host/browser/host.js';
 import { LabelService } from '../../services/label/common/labelService.js';
 import { ILanguageDetectionService } from '../../services/languageDetection/common/languageDetectionWorkerService.js';
-import { IWorkbenchLayoutService, PanelAlignment, Position as PartPosition, Parts } from '../../services/layout/browser/layoutService.js';
+import { IPartVisibilityChangeEvent, IWorkbenchLayoutService, PanelAlignment, Position as PartPosition, Parts } from '../../services/layout/browser/layoutService.js';
 import { ILifecycleService, InternalBeforeShutdownEvent, IWillShutdownEventJoiner, ShutdownReason, WillShutdownEvent } from '../../services/lifecycle/common/lifecycle.js';
 import { IPaneCompositePartService } from '../../services/panecomposite/browser/panecomposite.js';
 import { IPathService } from '../../services/path/common/pathService.js';
@@ -636,7 +636,7 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	readonly onDidChangeWindowMaximized: Event<{ windowId: number; maximized: boolean }> = Event.None;
 	readonly onDidChangePanelPosition: Event<string> = Event.None;
 	readonly onDidChangePanelAlignment: Event<PanelAlignment> = Event.None;
-	readonly onDidChangePartVisibility: Event<void> = Event.None;
+	readonly onDidChangePartVisibility: Event<IPartVisibilityChangeEvent> = Event.None;
 	onDidLayoutMainContainer = Event.None;
 	onDidLayoutActiveContainer = Event.None;
 	onDidLayoutContainer = Event.None;

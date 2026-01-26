@@ -53,7 +53,7 @@ import { IChatService } from '../../common/chatService/chatService.js';
 import { ISCMHistoryItemChangeRangeVariableEntry, ISCMHistoryItemChangeVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM } from '../../common/model/chatViewModel.js';
 import { IChatWidgetHistoryService } from '../../common/widget/chatWidgetHistoryService.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
+import { AgentsControlClickBehavior, ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
 import { ILanguageModelChatSelector, ILanguageModelsService } from '../../common/languageModels.js';
 import { CopilotUsageExtensionFeatureId } from '../../common/languageModelStats.js';
 import { ILanguageModelToolsConfirmationService } from '../../common/tools/languageModelToolsConfirmationService.js';
@@ -468,15 +468,20 @@ export function registerChatActions() {
 
 			const chatLocation = viewDescriptorService.getViewLocationById(ChatViewId);
 
+			const clickBehavior = configurationService.getValue<AgentsControlClickBehavior>(ChatConfiguration.AgentsControlClickBehavior);
 			if (viewsService.isViewVisible(ChatViewId)) {
-				if (
-					chatLocation === ViewContainerLocation.AuxiliaryBar &&
-					configurationService.getValue<boolean>(ChatConfiguration.AgentsControlTriStateToggle) &&
-					!layoutService.isAuxiliaryBarMaximized()
-				) {
-					layoutService.setAuxiliaryBarMaximized(true);
+				if (clickBehavior === AgentsControlClickBehavior.Focus) {
+					(await widgetService.revealWidget())?.focusInput();
 				} else {
-					this.updatePartVisibility(layoutService, chatLocation, false);
+					if (
+						chatLocation === ViewContainerLocation.AuxiliaryBar &&
+						!layoutService.isAuxiliaryBarMaximized() &&
+						clickBehavior === AgentsControlClickBehavior.TriStateToggle
+					) {
+						layoutService.setAuxiliaryBarMaximized(true);
+					} else {
+						this.updatePartVisibility(layoutService, chatLocation, false);
+					}
 				}
 			} else {
 				this.updatePartVisibility(layoutService, chatLocation, true);

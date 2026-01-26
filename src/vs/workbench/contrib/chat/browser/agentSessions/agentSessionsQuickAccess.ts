@@ -7,15 +7,17 @@ import { IKeyMods, IQuickPickDidAcceptEvent, IQuickPickSeparator } from '../../.
 import { PickerQuickAccessProvider, IPickerQuickAccessItem, TriggerAction } from '../../../../../platform/quickinput/browser/pickerQuickAccess.js';
 import { localize } from '../../../../../nls.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IMatch, matchesFuzzy } from '../../../../../base/common/filters.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { IAgentSessionsService } from './agentSessionsService.js';
-import { AgentSessionsSorter, groupAgentSessionsByDefault } from './agentSessionsViewer.js';
+import { AgentSessionsSorter, groupAgentSessionsByActivity, groupAgentSessionsByDate } from './agentSessionsViewer.js';
 import { IAgentSession } from './agentSessionsModel.js';
 import { openSession } from './agentSessionsOpener.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { AGENT_SESSION_DELETE_ACTION_ID, AGENT_SESSION_RENAME_ACTION_ID } from './agentSessions.js';
 import { archiveButton, deleteButton, getSessionButtons, getSessionDescription, renameButton, unarchiveButton } from './agentSessionsPicker.js';
+import { ChatConfiguration, AgentSessionsGrouping } from '../../common/constants.js';
 
 export const AGENT_SESSIONS_QUICK_ACCESS_PREFIX = 'agent ';
 
@@ -27,6 +29,7 @@ export class AgentSessionsQuickAccessProvider extends PickerQuickAccessProvider<
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ICommandService private readonly commandService: ICommandService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super(AGENT_SESSIONS_QUICK_ACCESS_PREFIX, {
 			canAcceptInBackground: true,
@@ -40,7 +43,10 @@ export class AgentSessionsQuickAccessProvider extends PickerQuickAccessProvider<
 		const picks: Array<IPickerQuickAccessItem | IQuickPickSeparator> = [];
 
 		const sessions = this.agentSessionsService.model.sessions.sort(this.sorter.compare.bind(this.sorter));
-		const groupedSessions = groupAgentSessionsByDefault(sessions);
+		const grouping = this.configurationService.getValue<unknown>(ChatConfiguration.ChatViewSessionsGrouping);
+		const groupedSessions = grouping === AgentSessionsGrouping.Date
+			? groupAgentSessionsByDate(sessions)
+			: groupAgentSessionsByActivity(sessions);
 
 		for (const group of groupedSessions.values()) {
 			if (group.sessions.length > 0) {
