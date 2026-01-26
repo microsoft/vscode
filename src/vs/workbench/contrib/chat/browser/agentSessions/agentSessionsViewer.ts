@@ -655,7 +655,7 @@ export class AgentSessionsDataSource implements IAsyncDataSource<IAgentSessionsM
 
 		const sortedSessions = sessions.sort(this.sorter.compare.bind(this.sorter));
 		const groupedSessions = this.filter?.groupResults?.() === AgentSessionsGrouping.Activity
-			? groupAgentSessionsByActive(sortedSessions)
+			? groupAgentSessionsByActivity(sortedSessions)
 			: groupAgentSessionsByDefault(sortedSessions);
 
 		for (const { sessions, section, label } of groupedSessions.values()) {
@@ -726,7 +726,7 @@ export function groupAgentSessionsByDefault(sessions: IAgentSession[]): Map<Agen
 	]);
 }
 
-export function groupAgentSessionsByActive(sessions: IAgentSession[]): Map<AgentSessionSection, IAgentSessionSection> {
+export function groupAgentSessionsByActivity(sessions: IAgentSession[]): Map<AgentSessionSection, IAgentSessionSection> {
 	const activeSessions = new Set<IAgentSession>();
 	const historySessions = new Set<IAgentSession>();
 
