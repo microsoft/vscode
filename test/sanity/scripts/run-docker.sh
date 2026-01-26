@@ -58,11 +58,11 @@ if [ -n "$PAGE_SIZE" ]; then
 	# Export container filesystem
 	CONTAINER_ID=$(docker create --platform "linux/$ARCH" "$CONTAINER")
 	ROOTFS_DIR=$(mktemp -d)
-	docker export "$CONTAINER_ID" | tar -xf - -C "$ROOTFS_DIR"
+	docker export "$CONTAINER_ID" | sudo tar -xf - -C "$ROOTFS_DIR"
 	docker rm "$CONTAINER_ID" > /dev/null
 
 	# Copy test files into rootfs
-	cp -r "$ROOT_DIR"/* "$ROOTFS_DIR/root/"
+	sudo cp -r "$ROOT_DIR"/* "$ROOTFS_DIR/root/"
 
 	# Extract kernel from the container's /boot directory
 	KERNEL_DIR=$(mktemp -d)
@@ -71,7 +71,7 @@ if [ -n "$PAGE_SIZE" ]; then
 
 	if [ -z "$VMLINUZ" ] || [ -z "$INITRAMFS" ]; then
 		echo "Error: Could not find kernel or initramfs in container"
-		rm -rf "$ROOTFS_DIR" "$KERNEL_DIR"
+		sudo rm -rf "$ROOTFS_DIR" "$KERNEL_DIR"
 		exit 1
 	fi
 
@@ -81,7 +81,7 @@ if [ -n "$PAGE_SIZE" ]; then
 	# Create a disk image from the rootfs
 	DISK_IMG=$(mktemp)
 	dd if=/dev/zero of="$DISK_IMG" bs=1M count=2048 2>/dev/null
-	mkfs.ext4 -q -d "$ROOTFS_DIR" "$DISK_IMG"
+	sudo mkfs.ext4 -q -d "$ROOTFS_DIR" "$DISK_IMG"
 
 	echo "Running QEMU system emulation with ${PAGE_SIZE} page size"
 	timeout 1800 qemu-system-aarch64 \
@@ -100,7 +100,7 @@ if [ -n "$PAGE_SIZE" ]; then
 		2>&1 | tee /tmp/qemu.log
 
 	# Cleanup
-	rm -rf "$ROOTFS_DIR" "$KERNEL_DIR" "$DISK_IMG"
+	sudo rm -rf "$ROOTFS_DIR" "$KERNEL_DIR" "$DISK_IMG"
 else
 	echo "Running sanity tests in container"
 	docker run \
