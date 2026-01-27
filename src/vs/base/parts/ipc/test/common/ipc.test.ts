@@ -508,4 +508,43 @@ suite('Base IPC', function () {
 			client2.dispose();
 		});
 	});
+
+	suite('handle event lazily', function () {
+		let server: IPCServer;
+		let client: IPCClient;
+		let service: TestService;
+		let ipcService: ITestService;
+		const disposables = new DisposableStore();
+
+		setup(function () {
+			service = store.add(new TestService());
+			const testServer = disposables.add(new TestIPCServer());
+			server = testServer;
+
+			server.registerChannel(TestChannelId, ProxyChannel.fromService(service, disposables, { isLazyEvent: key => key === 'onPong' }));
+
+			client = disposables.add(testServer.createConnection('client1'));
+			ipcService = ProxyChannel.toService(client.getChannel(TestChannelId));
+		});
+
+		teardown(function () {
+			disposables.clear();
+		});
+
+		test('lazy event buffer', async function () {
+			// This message should be dropped
+			service.ping('hello 1');
+			// Listener should be called only once and the message should be 'hello 2'
+			const promise = new Promise(resolve => {
+				disposables.add(ipcService.onPong(msg => {
+					assert.strictEqual(msg, 'hello 2');
+					resolve(undefined);
+				}));
+			});
+			// This message should be received
+			service.ping('hello 2');
+			await promise;
+		});
+
+	});
 });

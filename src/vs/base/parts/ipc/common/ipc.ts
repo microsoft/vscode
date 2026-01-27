@@ -1103,7 +1103,14 @@ export namespace ProxyChannel {
 		disableMarshalling?: boolean;
 	}
 
-	export interface ICreateServiceChannelOptions extends IProxyOptions { }
+	export interface ICreateServiceChannelOptions extends IProxyOptions {
+		/**
+		 * If an event is triggered automatically but may not have subscribers,
+		 * then `isLazyEvent` should return `true`. Otherwise the event data will
+		 * be cached in the buffer which causing a memory leak
+		 */
+		isLazyEvent?: (key: string) => boolean;
+	}
 
 	export function fromService<TContext>(service: unknown, disposables: DisposableStore, options?: ICreateServiceChannelOptions): IServerChannel<TContext> {
 		const handler = service as { [key: string]: unknown };
@@ -1117,6 +1124,9 @@ export namespace ProxyChannel {
 		const mapEventNameToEvent = new Map<string, Event<unknown>>();
 		for (const key in handler) {
 			if (propertyIsEvent(key)) {
+				if (options?.isLazyEvent?.(key)) {
+					continue;
+				}
 				mapEventNameToEvent.set(key, Event.buffer(handler[key] as Event<unknown>, true, undefined, disposables));
 			}
 		}
