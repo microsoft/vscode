@@ -78,8 +78,13 @@ timeout 1800 qemu-system-aarch64 \
 echo "Extracting test results from disk image"
 MOUNT_DIR=$(mktemp -d)
 sudo mount -o loop "$DISK_IMG" "$MOUNT_DIR"
+echo "Contents of mounted root directory:"
+ls -la "$MOUNT_DIR/root/" || true
 if [ -f "$MOUNT_DIR/root/results.xml" ]; then
-	cp "$MOUNT_DIR/root/results.xml" "$TEST_DIR/results.xml"
+	echo "Copying test results to $TEST_DIR/results.xml"
+	sudo cp "$MOUNT_DIR/root/results.xml" "$TEST_DIR/results.xml"
+else
+	echo "Warning: Test results file not found at $MOUNT_DIR/root/results.xml"
 fi
 EXIT_CODE=$(cat "$MOUNT_DIR/exit-code" 2>/dev/null || echo 1)
 sudo umount "$MOUNT_DIR"
