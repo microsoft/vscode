@@ -165,4 +165,16 @@ export class ElectronWebviewElement extends WebviewElement {
 			this._webviewKeyboardHandler.didBlur();
 		}
 	}
+
+	public override copy() {
+		this._webviewMainService.triggerCopy({ windowId: this._nativeHostService.windowId }, this.id);
+	}
+
+	public override paste() {
+		this._webviewMainService.triggerPaste({ windowId: this._nativeHostService.windowId }, this.id);
+	}
+
+	public override cut() {
+		this._webviewMainService.triggerCut({ windowId: this._nativeHostService.windowId }, this.id);
+	}
 }
