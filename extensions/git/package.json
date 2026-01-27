@@ -160,13 +160,13 @@
         "command": "git.openFile",
         "title": "%command.openFile%",
         "category": "Git",
-        "icon": "$(go-to-file)"
+        "icon": "$(file)"
       },
       {
         "command": "git.openFile2",
         "title": "%command.openFile%",
         "category": "Git",
-        "icon": "$(go-to-file)"
+        "icon": "$(file)"
       },
       {
         "command": "git.openHEADFile",
