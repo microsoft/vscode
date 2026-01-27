@@ -5525,12 +5525,44 @@ export class CommandCenter {
 						options.modal = false;
 						break;
 					default: {
-						const hint = (err.stderr || err.message || String(err))
+						const lines = (err.stderr || err.message || String(err))
 							.replace(/^error: /mi, '')
 							.replace(/^> husky.*$/mi, '')
 							.split(/[\r\n]/)
-							.filter((line: string) => !!line)
-						[0];
+							.filter((line: string) => !!line);
+
+						// Regex patterns for identifying error and success messages
+						const FAILURE_PATTERNS = [
+							/Failed/i,
+							/exit code/i,
+							/hook id:/i
+						];
+						const SUCCESS_PATTERNS = [
+							/Passed/i,
+							/Skipped/i,
+							/no files to check/i
+						];
+
+						// Prioritize error messages over informational messages
+						// Look for lines indicating actual failures (Failed, exit code, hook id)
+						let hint = lines.find((line: string) =>
+							FAILURE_PATTERNS.some(pattern => pattern.test(line))
+						);
+
+						// If no explicit failure line found, look for lines that don't indicate success/skip
+						if (!hint) {
+							hint = lines.find((line: string) =>
+								!SUCCESS_PATTERNS.some(pattern => pattern.test(line))
+							);
+						}
+
+						// Fall back to first line only if it's not a success-related message
+						// If second find returned nothing, all lines are success messages, so we shouldn't use them
+						if (!hint && lines.length > 0) {
+							const firstLine = lines[0];
+							const isSuccessMessage = SUCCESS_PATTERNS.some(pattern => pattern.test(firstLine));
+							hint = isSuccessMessage ? undefined : firstLine;
+						}
 
 						message = hint
 							? l10n.t('Git: {0}', hint)
