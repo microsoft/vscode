@@ -1661,10 +1661,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		// Initialize lock state when rendering with a pre-selected session provider (e.g., welcome view restore)
 		const delegate = this.options.sessionTypePickerDelegate;
-		if (delegate?.setActiveSessionProvider) {
-			const initialSessionType = delegate.getActiveSessionProvider?.();
+		if (delegate?.setActiveSessionProvider && delegate?.getActiveSessionProvider) {
+			const initialSessionType = delegate.getActiveSessionProvider();
 			if (initialSessionType) {
-				this.agentSessionTypeKey.set(initialSessionType);
 				this.updateWidgetLockStateFromSessionType(initialSessionType);
 			}
 		}
