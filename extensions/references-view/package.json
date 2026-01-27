@@ -43,6 +43,15 @@
             "%config.references.preferredLocation.peek%",
             "%config.references.preferredLocation.view%"
           ]
+        },
+        "references.collapseResults": {
+          "description": "%config.references.collapseResults%",
+          "type": "string",
+          "default": "alwaysCollapse",
+          "enum": [
+            "alwaysCollapse",
+            "alwaysExpand"
+          ]
         }
       }
     },
