@@ -19,6 +19,7 @@ import { resolveNLSConfiguration } from './vs/base/node/nls.js';
 import { getUNCHost, addUNCHostToAllowlist } from './vs/base/node/unc.js';
 import { INLSConfiguration } from './vs/nls.js';
 import { NativeParsedArgs } from './vs/platform/environment/common/argv.js';
+import { getDesktopEnvironment } from './vs/base/common/desktopEnvironmentInfo.js';
 
 perf.mark('code/didStartMain');
 
@@ -350,7 +351,9 @@ function configureCommandlineSwitchesSync(cliArgs: NativeParsedArgs) {
 	// Use portal version 4 that supports current_folder option
 	// to address https://github.com/microsoft/vscode/issues/213780
 	// Runtime sets the default version to 3, refs https://github.com/electron/electron/pull/44426
-	app.commandLine.appendSwitch('xdg-portal-required-version', '4');
+	if (process.platform === 'linux' && getDesktopEnvironment() !== 'COSMIC') {
+		app.commandLine.appendSwitch('xdg-portal-required-version', '4');
+	}
 
 	// Increase the maximum number of active WebGL contexts as each terminal may
 	// use up to 2
