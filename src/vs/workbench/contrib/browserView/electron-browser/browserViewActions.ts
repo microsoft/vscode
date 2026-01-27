@@ -25,6 +25,9 @@ import { logBrowserOpen } from './browserViewTelemetry.js';
 const BROWSER_EDITOR_ACTIVE = ContextKeyExpr.equals('activeEditor', BrowserEditor.ID);
 
 const BrowserCategory = localize2('browserCategory', "Browser");
+const ActionGroupTabs = '1_tabs';
+const ActionGroupPage = '2_page';
+const ActionGroupSettings = '3_settings';
 
 class OpenIntegratedBrowserAction extends Action2 {
 	constructor() {
@@ -32,13 +35,7 @@ class OpenIntegratedBrowserAction extends Action2 {
 			id: 'workbench.action.browser.open',
 			title: localize2('browser.openAction', "Open Integrated Browser"),
 			category: BrowserCategory,
-			f1: true,
-			keybinding: {
-				// When already in a browser, Ctrl/Cmd + T opens a new tab
-				when: BROWSER_EDITOR_ACTIVE,
-				weight: KeybindingWeight.WorkbenchContrib + 50, // Priority over search actions
-				primary: KeyMod.CtrlCmd | KeyCode.KeyT,
-			}
+			f1: true
 		});
 	}
 
@@ -48,6 +45,38 @@ class OpenIntegratedBrowserAction extends Action2 {
 		const resource = BrowserViewUri.forUrl(url);
 
 		logBrowserOpen(telemetryService, url ? 'commandWithUrl' : 'commandWithoutUrl');
+
+		await editorService.openEditor({ resource });
+	}
+}
+
+class NewTabAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.browser.newTab',
+			title: localize2('browser.newTabAction', "New Tab"),
+			category: BrowserCategory,
+			f1: true,
+			menu: {
+				id: MenuId.BrowserActionsToolbar,
+				group: ActionGroupTabs,
+				order: 1,
+			},
+			keybinding: {
+				// When already in a browser, Ctrl/Cmd + T opens a new tab
+				when: BROWSER_EDITOR_ACTIVE,
+				weight: KeybindingWeight.WorkbenchContrib + 50, // Priority over search actions
+				primary: KeyMod.CtrlCmd | KeyCode.KeyT,
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor, _browserEditor = accessor.get(IEditorService).activeEditorPane): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		const telemetryService = accessor.get(ITelemetryService);
+		const resource = BrowserViewUri.forUrl(undefined);
+
+		logBrowserOpen(telemetryService, 'newTabCommand');
 
 		await editorService.openEditor({ resource });
 	}
@@ -226,8 +255,8 @@ class ToggleDevToolsAction extends Action2 {
 			toggled: ContextKeyExpr.equals(CONTEXT_BROWSER_DEVTOOLS_OPEN.key, true),
 			menu: {
 				id: MenuId.BrowserActionsToolbar,
-				group: '1_developer',
-				order: 1,
+				group: ActionGroupPage,
+				order: 5,
 			},
 			keybinding: {
 				when: BROWSER_EDITOR_ACTIVE,
@@ -256,8 +285,8 @@ class OpenInExternalBrowserAction extends Action2 {
 			f1: false,
 			menu: {
 				id: MenuId.BrowserActionsToolbar,
-				group: '2_page',
-				order: 1
+				group: ActionGroupPage,
+				order: 10
 			}
 		});
 	}
@@ -285,7 +314,7 @@ class ClearGlobalBrowserStorageAction extends Action2 {
 			f1: true,
 			menu: {
 				id: MenuId.BrowserActionsToolbar,
-				group: '3_settings',
+				group: ActionGroupSettings,
 				order: 1,
 				when: ContextKeyExpr.equals(CONTEXT_BROWSER_STORAGE_SCOPE.key, BrowserViewStorageScope.Global)
 			}
@@ -310,7 +339,7 @@ class ClearWorkspaceBrowserStorageAction extends Action2 {
 			f1: true,
 			menu: {
 				id: MenuId.BrowserActionsToolbar,
-				group: '3_settings',
+				group: ActionGroupSettings,
 				order: 1,
 				when: ContextKeyExpr.equals(CONTEXT_BROWSER_STORAGE_SCOPE.key, BrowserViewStorageScope.Workspace)
 			}
@@ -362,7 +391,7 @@ class OpenBrowserSettingsAction extends Action2 {
 			f1: false,
 			menu: {
 				id: MenuId.BrowserActionsToolbar,
-				group: '3_settings',
+				group: ActionGroupSettings,
 				order: 2
 			}
 		});
@@ -387,8 +416,8 @@ class ShowBrowserFindAction extends Action2 {
 			f1: false,
 			menu: {
 				id: MenuId.BrowserActionsToolbar,
-				group: '2_page',
-				order: 2,
+				group: ActionGroupPage,
+				order: 1,
 			},
 			keybinding: {
 				when: BROWSER_EDITOR_ACTIVE,
@@ -492,6 +521,7 @@ class BrowserFindPreviousAction extends Action2 {
 
 // Register actions
 registerAction2(OpenIntegratedBrowserAction);
+registerAction2(NewTabAction);
 registerAction2(GoBackAction);
 registerAction2(GoForwardAction);
 registerAction2(ReloadAction);
