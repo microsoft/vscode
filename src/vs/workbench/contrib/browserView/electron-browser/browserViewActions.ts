@@ -73,8 +73,8 @@ class GoBackAction extends Action2 {
 				when: BROWSER_EDITOR_ACTIVE,
 				weight: KeybindingWeight.WorkbenchContrib + 50, // Priority over editor navigation
 				primary: KeyMod.Alt | KeyCode.LeftArrow,
-				secondary: [KeyCode.BrowserBack, KeyMod.CtrlCmd | KeyCode.BracketLeft],
-				mac: { primary: KeyMod.CtrlCmd | KeyCode.LeftArrow, secondary: [KeyCode.BrowserBack, KeyMod.CtrlCmd | KeyCode.BracketLeft] }
+				secondary: [KeyCode.BrowserBack],
+				mac: { primary: KeyMod.CtrlCmd | KeyCode.BracketLeft, secondary: [KeyCode.BrowserBack, KeyMod.CtrlCmd | KeyCode.LeftArrow] }
 			}
 		});
 	}
@@ -107,8 +107,8 @@ class GoForwardAction extends Action2 {
 				when: BROWSER_EDITOR_ACTIVE,
 				weight: KeybindingWeight.WorkbenchContrib + 50, // Priority over editor navigation
 				primary: KeyMod.Alt | KeyCode.RightArrow,
-				secondary: [KeyCode.BrowserForward, KeyMod.CtrlCmd | KeyCode.BracketRight],
-				mac: { primary: KeyMod.CtrlCmd | KeyCode.RightArrow, secondary: [KeyCode.BrowserForward, KeyMod.CtrlCmd | KeyCode.BracketRight] }
+				secondary: [KeyCode.BrowserForward],
+				mac: { primary: KeyMod.CtrlCmd | KeyCode.BracketRight, secondary: [KeyCode.BrowserForward, KeyMod.CtrlCmd | KeyCode.RightArrow] }
 			}
 		});
 	}
@@ -137,10 +137,10 @@ class ReloadAction extends Action2 {
 			},
 			keybinding: {
 				when: CONTEXT_BROWSER_FOCUSED,
-				weight: KeybindingWeight.WorkbenchContrib + 75, // Priority over debug and reload window
+				weight: KeybindingWeight.WorkbenchContrib + 75, // Priority over debug and reload workbench
 				primary: KeyMod.CtrlCmd | KeyCode.KeyR,
 				secondary: [KeyCode.F5],
-				mac: { primary: KeyMod.CtrlCmd | KeyCode.KeyR, secondary: [KeyCode.F5] }
+				mac: { primary: KeyMod.CtrlCmd | KeyCode.KeyR, secondary: [] }
 			}
 		});
 	}
