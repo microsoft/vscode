@@ -8,6 +8,7 @@ import { memoize } from '../../../base/common/decorators.js';
 import { FileAccess, Schemas } from '../../../base/common/network.js';
 import { dirname, join, normalize, resolve } from '../../../base/common/path.js';
 import { env } from '../../../base/common/process.js';
+import { isLinux } from '../../../base/common/platform.js';
 import { joinPath } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { NativeParsedArgs } from './argv.js';
@@ -96,6 +97,15 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 		const vscodePortable = env['VSCODE_PORTABLE'];
 		if (vscodePortable) {
 			return URI.file(join(vscodePortable, 'argv.json'));
+		}
+
+		// On Linux, respect XDG_CONFIG_HOME as per XDG Base Directory Specification
+		if (isLinux) {
+			const xdgConfigHome = env['XDG_CONFIG_HOME'];
+			if (xdgConfigHome) {
+				return URI.file(join(xdgConfigHome, this.productService.dataFolderName, 'argv.json'));
+			}
+			return joinPath(this.userHome, '.config', this.productService.dataFolderName, 'argv.json');
 		}
 
 		return joinPath(this.userHome, this.productService.dataFolderName, 'argv.json');
