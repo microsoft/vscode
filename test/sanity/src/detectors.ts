@@ -14,7 +14,8 @@ export type Capability =
 	| 'x64' | 'arm64' | 'arm32'
 	| 'deb' | 'rpm' | 'snap'
 	| 'desktop'
-	| 'browser';
+	| 'browser'
+	| 'wsl';
 
 /**
  * Detect the capabilities of the current environment.
@@ -26,6 +27,7 @@ export function detectCapabilities(): ReadonlySet<Capability> {
 	detectPackageManagers(capabilities);
 	detectDesktop(capabilities);
 	detectBrowser(capabilities);
+	detectWSL(capabilities);
 	return capabilities;
 }
 
@@ -122,6 +124,22 @@ function detectBrowser(capabilities: Set<Capability>) {
 				capabilities.add('browser');
 			}
 			break;
+		}
+	}
+}
+
+/**
+ * Detect if WSL is available on Windows.
+ */
+function detectWSL(capabilities: Set<Capability>) {
+	if (process.platform !== 'win32') {
+		return;
+	}
+	const systemRoot = process.env['SystemRoot'];
+	if (systemRoot) {
+		const wslPath = `${systemRoot}\\System32\\wsl.exe`;
+		if (fs.existsSync(wslPath)) {
+			capabilities.add('wsl');
 		}
 	}
 }

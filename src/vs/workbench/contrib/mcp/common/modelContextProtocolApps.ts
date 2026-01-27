@@ -11,8 +11,6 @@ type Implementation = MCP.Implementation;
 type RequestId = MCP.RequestId;
 type Tool = MCP.Tool;
 
-//#region utilities
-
 export namespace McpApps {
 	export type AppRequest =
 		| MCP.CallToolRequest
@@ -27,7 +25,8 @@ export namespace McpApps {
 	export type AppNotification =
 		| McpUiInitializedNotification
 		| McpUiSizeChangedNotification
-		| MCP.LoggingMessageNotification;
+		| MCP.LoggingMessageNotification
+		| CustomSandboxWheelNotification;
 
 	export type AppMessage = AppRequest | AppNotification;
 
@@ -50,6 +49,18 @@ export namespace McpApps {
 		| McpUiSizeChangedNotification;
 
 	export type HostMessage = HostResult | HostNotification;
+
+
+	/** Custom notification used for bubbling up sandbox wheel events. */
+	export interface CustomSandboxWheelNotification {
+		method: 'ui/notifications/sandbox-wheel';
+		params: {
+			deltaMode: number;
+			deltaX: number;
+			deltaY: number;
+			deltaZ: number;
+		};
+	}
 }
 
 /* eslint-disable local/code-no-unexternalized-strings */
@@ -68,7 +79,7 @@ export namespace McpApps {
 	 * The SDK automatically handles version negotiation during initialization.
 	 * Apps and hosts don't need to manage protocol versions manually.
 	 */
-	export const LATEST_PROTOCOL_VERSION = "2025-11-21";
+	export const LATEST_PROTOCOL_VERSION = "2026-01-26";
 
 	/**
 	 * @description Color theme preference for the host environment.
@@ -515,12 +526,12 @@ export namespace McpApps {
 		};
 		/** @description Host accepts context updates (ui/update-model-context) to be included in the model's context for future turns. */
 		updateModelContext?: McpUiSupportedContentBlockModalities;
-		/** @description Host supports receiving content messages (ui/message) from the Guest UI. */
+		/** @description Host supports receiving content messages (ui/message) from the View. */
 		message?: McpUiSupportedContentBlockModalities;
 	}
 
 	/**
-	 * @description Capabilities provided by the Guest UI (App).
+	 * @description Capabilities provided by the View (App).
 	 * @see {@link McpUiInitializeRequest} for the initialization request that includes these capabilities
 	 */
 	export interface McpUiAppCapabilities {
@@ -531,6 +542,11 @@ export namespace McpApps {
 			/** @description App supports tools/list_changed notifications. */
 			listChanged?: boolean;
 		};
+		/**
+		 * @description Display modes the app supports. See Display Modes section of the spec for details.
+		 * @example ["inline", "fullscreen"]
+		 */
+		availableDisplayModes?: McpUiDisplayMode[];
 	}
 
 	/**

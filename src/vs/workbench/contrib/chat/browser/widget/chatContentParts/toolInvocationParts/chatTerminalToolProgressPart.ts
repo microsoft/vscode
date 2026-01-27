@@ -602,10 +602,11 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 				if (cursorLine > command.executedMarker.line) {
 					return true;
 				}
-				// If we've received multiple data events, treat it as real output even if cursor
+				// If we've received many data events, treat it as real output even if cursor
 				// hasn't moved past the marker (e.g., progress bars updating on same line)
-				// Shell integration sequences typically fire once, so multiple events indicate real data
-				return receivedDataCount > 1;
+				// Shell integration sequences fire multiple times per command (PromptStart, CommandStart,
+				// CommandExecuted, CommandFinished, etc.), so we need a higher threshold
+				return receivedDataCount > 4;
 			};
 
 			// Use the extracted auto-expand logic

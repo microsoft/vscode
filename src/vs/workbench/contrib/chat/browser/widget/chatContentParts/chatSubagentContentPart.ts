@@ -148,7 +148,6 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 
 		const node = this.domNode;
 		node.classList.add('chat-thinking-box', 'chat-thinking-fixed-mode', 'chat-subagent-part');
-		node.tabIndex = 0;
 
 		// Note: wrapper is created lazily in initContent(), so we can't set its style here
 

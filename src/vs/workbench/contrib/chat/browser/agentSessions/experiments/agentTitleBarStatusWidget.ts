@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/agenttitlebarstatuswidget.css';
-import { $, addDisposableListener, EventType, reset } from '../../../../../../base/browser/dom.js';
+import { $, addDisposableListener, EventType, getWindow, isHTMLElement, reset } from '../../../../../../base/browser/dom.js';
 import { renderIcon } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
@@ -83,6 +83,9 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 
 	/** Guard to prevent re-entrant rendering */
 	private _isRendering = false;
+
+	/** First focusable element for keyboard navigation */
+	private _firstFocusableElement: HTMLElement | undefined;
 
 	/** Reusable menu for CommandCenterCenter items (e.g., debug toolbar) */
 	private readonly _commandCenterMenu;
@@ -189,9 +192,32 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 		super.render(container);
 		this._container = container;
 		container.classList.add('agent-status-container');
+		// Container should not be focusable - inner elements handle focus
+		container.tabIndex = -1;
 
 		// Initial render
 		this._render();
+	}
+
+	// Override focus methods - the container itself shouldn't be focusable,
+	// focus is handled by the inner interactive elements (badge sections)
+	override setFocusable(_focusable: boolean): void {
+		// Don't set focusable on the container
+	}
+
+	override focus(): void {
+		// Focus the first focusable child instead
+		this._firstFocusableElement?.focus();
+	}
+
+	override blur(): void {
+		if (!this._container) {
+			return;
+		}
+		const activeElement = getWindow(this._container).document.activeElement;
+		if (isHTMLElement(activeElement) && this._container.contains(activeElement)) {
+			activeElement.blur();
+		}
 	}
 
 	private _render(): void {
@@ -258,8 +284,9 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 			// Clear existing content
 			reset(this._container);
 
-			// Clear previous disposables for dynamic content
+			// Clear previous disposables and focusable element for dynamic content
 			this._dynamicDisposables.clear();
+			this._firstFocusableElement = undefined;
 
 			if (this.agentTitleBarStatusService.mode === AgentStatusMode.Session) {
 				// Agent Session Projection mode - show session title + close button
@@ -341,6 +368,7 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 		pill.setAttribute('role', 'button');
 		pill.setAttribute('aria-label', localize('openQuickAccess', "Open Quick Access"));
 		pill.tabIndex = 0;
+		this._firstFocusableElement = pill;
 		this._container.appendChild(pill);
 
 		// Left icon container (sparkle by default, report+count when attention needed, search on hover)
@@ -617,6 +645,9 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 		searchButton.setAttribute('role', 'button');
 		searchButton.setAttribute('aria-label', localize('openQuickOpen', "Open Quick Open"));
 		searchButton.tabIndex = 0;
+		if (!this._firstFocusableElement) {
+			this._firstFocusableElement = searchButton;
+		}
 		container.appendChild(searchButton);
 
 		// Setup hover
@@ -665,6 +696,10 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 
 		// Sparkle dropdown button section (always visible on left) - proper button with dropdown menu
 		const sparkleContainer = $('span.agent-status-badge-section.sparkle');
+		sparkleContainer.tabIndex = 0;
+		if (!this._firstFocusableElement) {
+			this._firstFocusableElement = sparkleContainer;
+		}
 		badge.appendChild(sparkleContainer);
 
 		// Get menu actions for dropdown with proper group separators
@@ -720,6 +755,20 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 		);
 		sparkleDropdown.render(sparkleContainer);
 		disposables.add(sparkleDropdown);
+
+		// Add keyboard handler for Enter/Space on the sparkle container
+		disposables.add(addDisposableListener(sparkleContainer, EventType.KEY_DOWN, (e) => {
+			if (e.key === 'Enter' || e.key === ' ') {
+				e.preventDefault();
+				e.stopPropagation();
+				this.commandService.executeCommand(primaryActionId);
+			} else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+				// Open dropdown menu with arrow keys
+				e.preventDefault();
+				e.stopPropagation();
+				sparkleDropdown.showDropdown();
+			}
+		}));
 
 		// Hover delegate for status sections
 		const hoverDelegate = getDefaultHoverDelegate('mouse');
@@ -1004,6 +1053,9 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 		enterButton.setAttribute('role', 'button');
 		enterButton.setAttribute('aria-label', localize('enterAgentSessionProjection', "Enter Agent Session Projection"));
 		enterButton.tabIndex = 0;
+		if (!this._firstFocusableElement) {
+			this._firstFocusableElement = enterButton;
+		}
 		parent.appendChild(enterButton);
 
 		// Setup hover

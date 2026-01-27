@@ -57,7 +57,6 @@ import { CallHierarchyItem } from '../../contrib/callHierarchy/common/callHierar
 import { IChatAgentMetadata, IChatAgentRequest, IChatAgentResult, UserSelectedTools } from '../../contrib/chat/common/participants/chatAgents.js';
 import { ICodeMapperRequest, ICodeMapperResult } from '../../contrib/chat/common/editing/chatCodeMapperService.js';
 import { IChatContextItem } from '../../contrib/chat/common/contextContrib/chatContext.js';
-import { IChatRelatedFile, IChatRelatedFileProviderMetadata as IChatRelatedFilesProviderMetadata, IChatRequestDraft } from '../../contrib/chat/common/editing/chatEditingService.js';
 import { IChatProgressHistoryResponseContent, IChatRequestVariableData } from '../../contrib/chat/common/model/chatModel.js';
 import { ChatResponseClearToPreviousToolInvocationReason, IChatContentInlineReference, IChatExternalEditsDto, IChatFollowup, IChatMultiDiffData, IChatMultiDiffDataSerialized, IChatNotebookEdit, IChatProgress, IChatTask, IChatTaskDto, IChatUserActionEvent, IChatVoteAction } from '../../contrib/chat/common/chatService/chatService.js';
 import { IChatSessionItem, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem } from '../../contrib/chat/common/chatSessionsService.js';
@@ -1403,8 +1402,6 @@ export interface MainThreadChatAgentsShape2 extends IChatAgentProgressShape, IDi
 	$registerAgent(handle: number, extension: ExtensionIdentifier, id: string, metadata: IExtensionChatAgentMetadata, dynamicProps: IDynamicChatAgentProps | undefined): void;
 	$registerChatParticipantDetectionProvider(handle: number): void;
 	$unregisterChatParticipantDetectionProvider(handle: number): void;
-	$registerRelatedFilesProvider(handle: number, metadata: IChatRelatedFilesProviderMetadata): void;
-	$unregisterRelatedFilesProvider(handle: number): void;
 	$registerPromptFileProvider(handle: number, type: string, extension: ExtensionIdentifier): void;
 	$unregisterPromptFileProvider(handle: number): void;
 	$onDidChangePromptFiles(handle: number): void;
@@ -1473,7 +1470,6 @@ export interface ExtHostChatAgentsShape2 {
 	$provideChatSummary(handle: number, context: IChatAgentHistoryEntryDto[], token: CancellationToken): Promise<string | undefined>;
 	$releaseSession(sessionResource: UriComponents): void;
 	$detectChatParticipant(handle: number, request: Dto<IChatAgentRequest>, context: { history: IChatAgentHistoryEntryDto[] }, options: { participants: IChatParticipantMetadata[]; location: ChatAgentLocation }, token: CancellationToken): Promise<IChatParticipantDetectionResult | null | undefined>;
-	$provideRelatedFiles(handle: number, request: Dto<IChatRequestDraft>, token: CancellationToken): Promise<Dto<IChatRelatedFile>[] | undefined>;
 	$providePromptFiles(handle: number, type: PromptsType, context: IPromptFileContext, token: CancellationToken): Promise<Dto<IPromptFileResource>[] | undefined>;
 	$setRequestTools(requestId: string, tools: UserSelectedTools): void;
 }

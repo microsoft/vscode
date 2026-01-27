@@ -103,7 +103,8 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 
 		this.setState(State.CheckingForUpdates(explicit));
 
-		const url = this.buildUpdateFeedUrl(this.quality, pendingCommit ?? this.productService.commit!, { background: !explicit });
+		const background = !explicit && !this.shouldDisableProgressiveReleases();
+		const url = this.buildUpdateFeedUrl(this.quality, pendingCommit ?? this.productService.commit!, { background });
 
 		if (!url) {
 			return;

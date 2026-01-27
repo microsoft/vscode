@@ -10,10 +10,11 @@ import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../../nls.js';
 import { ToolDataSource, type CountTokensCallback, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type ToolProgress } from '../../../../chat/common/tools/languageModelToolsService.js';
 import { RunInTerminalTool } from './runInTerminalTool.js';
+import { TerminalToolId } from './toolIds.js';
 import { raceCancellationError, timeout } from '../../../../../../base/common/async.js';
 
 export const AwaitTerminalToolData: IToolData = {
-	id: 'await_terminal',
+	id: TerminalToolId.AwaitTerminal,
 	toolReferenceName: 'awaitTerminal',
 	displayName: localize('awaitTerminalTool.displayName', 'Await Terminal'),
 	modelDescription: 'Wait for a background terminal command to complete. Returns the output, exit code, or timeout status.',
@@ -24,7 +25,7 @@ export const AwaitTerminalToolData: IToolData = {
 		properties: {
 			id: {
 				type: 'string',
-				description: 'The ID of the terminal to await (returned by run_in_terminal when isBackground=true).'
+				description: `The ID of the terminal to await (returned by ${TerminalToolId.RunInTerminal} when isBackground=true).`
 			},
 			timeout: {
 				type: 'number',
