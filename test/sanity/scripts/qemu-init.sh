@@ -7,6 +7,9 @@ mkdir -p /dev/pts
 mount -t devpts devpts /dev/pts
 mkdir -p /dev/shm
 mount -t tmpfs tmpfs /dev/shm
+mount -t tmpfs tmpfs /tmp
+mount -t tmpfs tmpfs /run
+mkdir -p /run/dbus
 
 echo "Setting system clock"
 date -s "$(cat /host-time)"
