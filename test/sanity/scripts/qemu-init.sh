@@ -1,4 +1,5 @@
 #!/bin/sh
+set -e
 
 echo "Mounting essential filesystems"
 mount -t proc proc /proc
