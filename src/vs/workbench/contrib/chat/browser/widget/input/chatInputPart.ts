@@ -124,7 +124,7 @@ import { WorkspacePickerActionItem } from './workspacePickerActionItem.js';
 const $ = dom.$;
 
 const INPUT_EDITOR_MAX_HEIGHT = 250;
-const INPUT_EDITOR_MIN_HEIGHT = 50;
+const INPUT_EDITOR_MIN_HEIGHT = 30;
 const CachedLanguageModelsKey = 'chat.cachedLanguageModels.v2';
 
 export interface IChatInputStyles {
@@ -257,6 +257,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private _sash: Sash | undefined;
 	private _sashStartHeight: number | undefined;
 	private _userSetMinHeight: number | undefined;
+	private _containerHeight: number | undefined;
 
 	private inputSideToolbarContainer?: HTMLElement;
 
@@ -2657,9 +2658,14 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	/**
 	 * Layout the input part with the given width. Height is intrinsic - determined by content
 	 * and detected via ResizeObserver, which updates `inputPartHeight` for the parent to observe.
+	 * @param width The width of the input part
+	 * @param containerHeight The total height available in the chat widget container, used to constrain sash resizing
 	 */
-	layout(width: number) {
+	layout(width: number, containerHeight?: number) {
 		this.cachedWidth = width;
+		if (containerHeight !== undefined) {
+			this._containerHeight = containerHeight;
+		}
 
 		return this._layout(width);
 	}
@@ -2771,8 +2777,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	private _getMaxAllowedHeight(): number {
-		// Maximum allowed height is capped at 3x default max height
-		// Using window.innerHeight would be unreliable, so we use a sensible fixed maximum
+		if (this._containerHeight !== undefined) {
+			return this._containerHeight;
+		}
+
+		// Fallback to a sensible fixed maximum
 		return this.inputEditorMaxHeight * 3;
 	}
 }
