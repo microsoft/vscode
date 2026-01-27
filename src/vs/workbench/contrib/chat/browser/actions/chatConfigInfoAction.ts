@@ -3,31 +3,47 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IWorkbenchContribution } from '../../../../common/contributions.js';
-import { IChatSlashCommandService } from '../../common/participants/chatSlashCommands.js';
+import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
+import { localize2 } from '../../../../../nls.js';
+import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IPromptsService, PromptsStorage, IPromptFileDiscoveryResult, PromptFileSkipReason } from '../../common/promptSyntax/service/promptsService.js';
-import { ChatAgentLocation } from '../../common/constants.js';
 import { PromptsConfig } from '../../common/promptSyntax/config/config.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
-import { basename, dirname } from '../../../../../base/common/resources.js';
+import { basename, dirname, relativePath } from '../../../../../base/common/resources.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
-import { IProgress } from '../../../../../platform/progress/common/progress.js';
-import { IChatProgress } from '../../common/chatService/chatService.js';
 import { URI } from '../../../../../base/common/uri.js';
 import * as nls from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { COPILOT_CUSTOM_INSTRUCTIONS_FILENAME, IResolvedPromptSourceFolder } from '../../common/promptSyntax/config/promptFileLocations.js';
+import { IUntitledTextEditorService } from '../../../../services/untitled/common/untitledTextEditorService.js';
+import { CHAT_CATEGORY, CHAT_CONFIG_MENU_ID } from './chatActions.js';
+import { ChatViewId } from '../chat.js';
+import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
+
+/**
+ * Converts a URI to a relative path string for markdown links.
+ * Tries to make the path relative to a workspace folder if possible.
+ */
+function getRelativePath(uri: URI, workspaceFolders: readonly IWorkspaceFolder[]): string {
+	for (const folder of workspaceFolders) {
+		const relative = relativePath(folder.uri, uri);
+		if (relative) {
+			return relative;
+		}
+	}
+	// Fall back to fsPath if not under any workspace folder
+	return uri.fsPath;
+}
 
 // Tree prefixes
 // allow-any-unicode-next-line
-const TREE_BRANCH = '  ├─';
+const TREE_BRANCH = '├─';
 // allow-any-unicode-next-line
-const TREE_END = '  └─';
+const TREE_END = '└─';
 // allow-any-unicode-next-line
 const ICON_ERROR = '❌';
 // allow-any-unicode-next-line
@@ -74,106 +90,73 @@ export interface ITypeStatusInfo {
 }
 
 /**
- * Contribution that registers the /config-info slash command.
+ * Registers the View Config action for the chat context menu.
  */
-export class ChatConfigInfoSlashCommandContribution extends Disposable implements IWorkbenchContribution {
-	static readonly ID = 'workbench.contrib.chatConfigInfoSlashCommand';
+export function registerChatConfigInfoAction() {
+	registerAction2(class DiagnosticsAction extends Action2 {
+		constructor() {
+			super({
+				id: 'workbench.action.chat.diagnostics',
+				title: localize2('chat.diagnostics.label', "Diagnostics"),
+				f1: false,
+				category: CHAT_CATEGORY,
+				menu: [{
+					id: MenuId.ChatContext,
+					group: 'config',
+				}, {
+					id: CHAT_CONFIG_MENU_ID,
+					when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('view', ChatViewId)),
+					order: 20,
+					group: '3_configure'
+				}]
+			});
+		}
 
-	constructor(
-		@IChatSlashCommandService slashCommandService: IChatSlashCommandService,
-		@IInstantiationService instantiationService: IInstantiationService,
-	) {
-		super();
+		async run(accessor: ServicesAccessor): Promise<void> {
+			const promptsService = accessor.get(IPromptsService);
+			const configurationService = accessor.get(IConfigurationService);
+			const fileService = accessor.get(IFileService);
+			const untitledTextEditorService = accessor.get(IUntitledTextEditorService);
+			const commandService = accessor.get(ICommandService);
+			const workspaceContextService = accessor.get(IWorkspaceContextService);
 
-		this._store.add(slashCommandService.registerSlashCommand({
-			command: 'config-info',
-			detail: nls.localize('status.detail', "Show status of custom agents, instructions, prompts, and skills"),
-			sortText: 'z4_config-info',
-			executeImmediately: true,
-			locations: [ChatAgentLocation.Chat]
-		}, async (_prompt, progress, _history, _location, _sessionResource, token) => {
-			try {
-				await instantiationService.invokeFunction(async (accessor) => {
-					await executeConfigInfoCommand(accessor, progress, token);
-				});
-			} catch (e) {
-				progress.report({
-					content: new MarkdownString(`**Error:** ${e instanceof Error ? e.message : String(e)}`),
-					kind: 'markdownContent'
-				});
-			}
-			// Ensure response streams before function completes
-			await timeout(200);
-		}));
-	}
-}
+			const token = CancellationToken.None;
+			const workspaceFolders = workspaceContextService.getWorkspace().folders;
 
-/**
- * Executes the /config-info command to show detailed status information.
- */
-async function executeConfigInfoCommand(
-	accessor: ServicesAccessor,
-	progress: IProgress<IChatProgress>,
-	token: CancellationToken
-): Promise<void> {
-	const promptsService = accessor.get(IPromptsService);
-	const configurationService = accessor.get(IConfigurationService);
-	const fileService = accessor.get(IFileService);
+			// Collect status for each type
+			const statusInfos: ITypeStatusInfo[] = [];
 
-	// Collect status for each type
-	const statusInfos: ITypeStatusInfo[] = [];
+			// 1. Custom Agents
+			const agentsStatus = await collectAgentsStatus(promptsService, fileService, token);
+			statusInfos.push(agentsStatus);
 
-	// 1. Custom Agents
-	const agentsStatus = await collectAgentsStatus(
-		promptsService, fileService, token
-	);
-	statusInfos.push(agentsStatus);
+			// 2. Instructions
+			const instructionsStatus = await collectInstructionsStatus(promptsService, fileService, token);
+			statusInfos.push(instructionsStatus);
 
-	if (token.isCancellationRequested) {
-		return;
-	}
+			// 3. Prompt Files
+			const promptsStatus = await collectPromptsStatus(promptsService, fileService, token);
+			statusInfos.push(promptsStatus);
 
-	// 2. Instructions
-	const instructionsStatus = await collectInstructionsStatus(
-		promptsService, fileService, token
-	);
-	statusInfos.push(instructionsStatus);
+			// 4. Skills
+			const skillsStatus = await collectSkillsStatus(promptsService, configurationService, fileService, token);
+			statusInfos.push(skillsStatus);
 
-	if (token.isCancellationRequested) {
-		return;
-	}
+			// 5. Special files (AGENTS.md, copilot-instructions.md)
+			const specialFilesStatus = await collectSpecialFilesStatus(promptsService, configurationService, token);
 
-	// 3. Prompt Files
-	const promptsStatus = await collectPromptsStatus(
-		promptsService, fileService, token
-	);
-	statusInfos.push(promptsStatus);
+			// Generate the markdown output
+			const output = formatStatusOutput(statusInfos, specialFilesStatus, workspaceFolders);
 
-	if (token.isCancellationRequested) {
-		return;
-	}
+			// Create an untitled markdown document with the content
+			const untitledModel = untitledTextEditorService.create({
+				initialValue: output,
+				languageId: 'markdown'
+			});
 
-	// 4. Skills
-	const skillsStatus = await collectSkillsStatus(
-		promptsService, configurationService, fileService, token
-	);
-	statusInfos.push(skillsStatus);
-
-	if (token.isCancellationRequested) {
-		return;
-	}
-
-	// 5. Special files (AGENTS.md, copilot-instructions.md)
-	const specialFilesStatus = await collectSpecialFilesStatus(
-		promptsService, configurationService, token
-	);
-
-	// Generate the output
-	const output = formatStatusOutput(statusInfos, specialFilesStatus);
-
-	progress.report({
-		content: new MarkdownString(output),
-		kind: 'markdownContent'
+			// Open the markdown file in edit mode
+			await commandService.executeCommand('vscode.open', untitledModel.resource);
+		}
 	});
 }
 
@@ -402,13 +385,13 @@ function convertDiscoveryResultToFileStatus(result: IPromptFileDiscoveryResult):
  */
 export function formatStatusOutput(
 	statusInfos: ITypeStatusInfo[],
-	specialFiles: { agentsMd: { enabled: boolean; files: URI[] }; copilotInstructions: { enabled: boolean; files: URI[] } }
+	specialFiles: { agentsMd: { enabled: boolean; files: URI[] }; copilotInstructions: { enabled: boolean; files: URI[] } },
+	workspaceFolders: readonly IWorkspaceFolder[]
 ): string {
 	const lines: string[] = [];
-	const timestamp = new Date().toLocaleString();
 
-	lines.push(`## ${nls.localize('status.title', 'Chat Configuration')}`);
-	lines.push(`*${nls.localize('status.generatedAt', 'Generated at {0}', timestamp)}*`);
+	lines.push(`## ${nls.localize('status.title', 'Chat Customization Diagnostics')}`);
+	lines.push(`*${nls.localize('status.sensitiveWarning', 'WARNING: This file may contain sensitive information.')}*`);
 	lines.push('');
 
 	for (const info of statusInfos) {
@@ -437,7 +420,7 @@ export function formatStatusOutput(
 			loadedCount += specialFiles.copilotInstructions.files.length;
 		}
 
-		lines.push(`**${typeName}**${enabledStatus}`);
+		lines.push(`**${typeName}**${enabledStatus}<br>`);
 
 		// Show stats line - use "skills" for skills type, "files" for others
 		const statsParts: string[] = [];
@@ -487,13 +470,13 @@ export function formatStatusOutput(
 			const pathFiles = filesByPath.get(path.uri.toString()) || [];
 
 			if (path.exists) {
-				lines.push(`- ${path.displayPath}`);
+				lines.push(`${path.displayPath}<br>`);
 			} else if (path.isDefault) {
 				// Default folders that don't exist - no error icon
-				lines.push(`- ${path.displayPath}`);
+				lines.push(`${path.displayPath}<br>`);
 			} else {
 				// Custom folders that don't exist - show error
-				lines.push(`- ${ICON_ERROR} ${path.displayPath} - *${nls.localize('status.folderNotFound', 'Folder does not exist')}*`);
+				lines.push(`${ICON_ERROR} ${path.displayPath} - *${nls.localize('status.folderNotFound', 'Folder does not exist')}*<br>`);
 			}
 
 			if (path.exists && pathFiles.length > 0) {
@@ -508,12 +491,13 @@ export function formatStatusOutput(
 					}
 					const isLast = i === pathFiles.length - 1;
 					const prefix = isLast ? TREE_END : TREE_BRANCH;
+					const filePath = getRelativePath(file.uri, workspaceFolders);
 					if (file.status === 'loaded') {
-						lines.push(`${prefix} [\`${fileName}\`](${file.uri.toString()})`);
+						lines.push(`${prefix} [\`${fileName}\`](${filePath})<br>`);
 					} else if (file.status === 'overwritten') {
-						lines.push(`${prefix} ${ICON_WARN} [\`${fileName}\`](${file.uri.toString()}) - *${nls.localize('status.overwrittenByHigherPriority', 'Overwritten by higher priority file')}*`);
+						lines.push(`${prefix} ${ICON_WARN} [\`${fileName}\`](${filePath}) - *${nls.localize('status.overwrittenByHigherPriority', 'Overwritten by higher priority file')}*<br>`);
 					} else {
-						lines.push(`${prefix} ${ICON_ERROR} [\`${fileName}\`](${file.uri.toString()}) - *${file.reason}*`);
+						lines.push(`${prefix} ${ICON_ERROR} [\`${fileName}\`](${filePath}) - *${file.reason}*<br>`);
 					}
 				}
 			}
@@ -534,7 +518,7 @@ export function formatStatusOutput(
 
 			// Render each extension group
 			for (const [extId, extFiles] of filesByExtension) {
-				lines.push(`- ${nls.localize('status.extension', 'Extension')}: ${extId}`);
+				lines.push(`${nls.localize('status.extension', 'Extension')}: ${extId}<br>`);
 				for (let i = 0; i < extFiles.length; i++) {
 					const file = extFiles[i];
 					// Show the file ID: skill name for skills, basename for others
@@ -546,12 +530,13 @@ export function formatStatusOutput(
 					}
 					const isLast = i === extFiles.length - 1;
 					const prefix = isLast ? TREE_END : TREE_BRANCH;
+					const filePath = getRelativePath(file.uri, workspaceFolders);
 					if (file.status === 'loaded') {
-						lines.push(`${prefix} [\`${fileName}\`](${file.uri.toString()})`);
+						lines.push(`${prefix} [\`${fileName}\`](${filePath})<br>`);
 					} else if (file.status === 'overwritten') {
-						lines.push(`${prefix} ${ICON_WARN} [\`${fileName}\`](${file.uri.toString()}) - *${nls.localize('status.overwrittenByHigherPriority', 'Overwritten by higher priority file')}*`);
+						lines.push(`${prefix} ${ICON_WARN} [\`${fileName}\`](${filePath}) - *${nls.localize('status.overwrittenByHigherPriority', 'Overwritten by higher priority file')}*<br>`);
 					} else {
-						lines.push(`${prefix} ${ICON_ERROR} [\`${fileName}\`](${file.uri.toString()}) - *${file.reason}*`);
+						lines.push(`${prefix} ${ICON_ERROR} [\`${fileName}\`](${filePath}) - *${file.reason}*<br>`);
 					}
 				}
 			}
@@ -561,17 +546,18 @@ export function formatStatusOutput(
 		// Add special files for agents (AGENTS.md)
 		if (info.type === PromptsType.agent) {
 			if (specialFiles.agentsMd.enabled && specialFiles.agentsMd.files.length > 0) {
-				lines.push(`- AGENTS.md`);
+				lines.push(`AGENTS.md<br>`);
 				for (let i = 0; i < specialFiles.agentsMd.files.length; i++) {
 					const file = specialFiles.agentsMd.files[i];
 					const fileName = basename(file);
 					const isLast = i === specialFiles.agentsMd.files.length - 1;
 					const prefix = isLast ? TREE_END : TREE_BRANCH;
-					lines.push(`${prefix} [\`${fileName}\`](${file.toString()})`);
+					const filePath = getRelativePath(file, workspaceFolders);
+					lines.push(`${prefix} [\`${fileName}\`](${filePath})<br>`);
 				}
 				hasContent = true;
 			} else if (!specialFiles.agentsMd.enabled) {
-				lines.push(`- AGENTS.md -`);
+				lines.push(`AGENTS.md -<br>`);
 				hasContent = true;
 			}
 		}
@@ -579,17 +565,18 @@ export function formatStatusOutput(
 		// Add special files for instructions (copilot-instructions.md)
 		if (info.type === PromptsType.instructions) {
 			if (specialFiles.copilotInstructions.enabled && specialFiles.copilotInstructions.files.length > 0) {
-				lines.push(`- ${COPILOT_CUSTOM_INSTRUCTIONS_FILENAME}`);
+				lines.push(`${COPILOT_CUSTOM_INSTRUCTIONS_FILENAME}<br>`);
 				for (let i = 0; i < specialFiles.copilotInstructions.files.length; i++) {
 					const file = specialFiles.copilotInstructions.files[i];
 					const fileName = basename(file);
 					const isLast = i === specialFiles.copilotInstructions.files.length - 1;
 					const prefix = isLast ? TREE_END : TREE_BRANCH;
-					lines.push(`${prefix} [\`${fileName}\`](${file.toString()})`);
+					const filePath = getRelativePath(file, workspaceFolders);
+					lines.push(`${prefix} [\`${fileName}\`](${filePath})<br>`);
 				}
 				hasContent = true;
 			} else if (!specialFiles.copilotInstructions.enabled) {
-				lines.push(`- ${COPILOT_CUSTOM_INSTRUCTIONS_FILENAME} -`);
+				lines.push(`${COPILOT_CUSTOM_INSTRUCTIONS_FILENAME} -<br>`);
 				hasContent = true;
 			}
 		}

@@ -41,12 +41,7 @@ suite('formatStatusOutput', () => {
 		};
 	}
 
-	/**
-	 * Strips the timestamp line from output to make assertions stable.
-	 */
-	function stripTimestamp(output: string): string {
-		return output.replace(/\*Generated at [^*]+\*\n/, '*Generated at <timestamp>*\n');
-	}
+
 
 	/**
 	 * Builds expected output from lines array to avoid hygiene issues with template literal indentation.
@@ -57,9 +52,9 @@ suite('formatStatusOutput', () => {
 
 	// Tree prefixes
 	// allow-any-unicode-next-line
-	const TREE_BRANCH = '  ├─';
+	const TREE_BRANCH = '├─';
 	// allow-any-unicode-next-line
-	const TREE_END = '  └─';
+	const TREE_END = '└─';
 	// allow-any-unicode-next-line
 	const ICON_ERROR = '❌';
 	// allow-any-unicode-next-line
@@ -76,19 +71,19 @@ suite('formatStatusOutput', () => {
 			enabled: true
 		}];
 
-		const output = stripTimestamp(formatStatusOutput(statusInfos, emptySpecialFiles, []));
+		const output = formatStatusOutput(statusInfos, emptySpecialFiles, []);
 
 		assert.strictEqual(output, lines(
-			'## Chat Configuration',
-			'*Generated at <timestamp>*',
+			'## Chat Customization Diagnostics',
+			'*WARNING: This file may contain sensitive information.*',
 			'',
-			'**Custom Agents**',
+			'**Custom Agents**<br>',
 			'*2 files loaded*',
 			'',
-			'- .github/agents',
-			`${TREE_BRANCH} [\`code-reviewer.agent.md\`](file:///workspace/.github/agents/code-reviewer.agent.md)`,
-			`${TREE_END} [\`test-helper.agent.md\`](file:///workspace/.github/agents/test-helper.agent.md)`,
-			'- AGENTS.md -',
+			'.github/agents<br>',
+			`${TREE_BRANCH} [\`code-reviewer.agent.md\`](file:///workspace/.github/agents/code-reviewer.agent.md)<br>`,
+			`${TREE_END} [\`test-helper.agent.md\`](file:///workspace/.github/agents/test-helper.agent.md)<br>`,
+			'AGENTS.md -<br>',
 			''
 		));
 	});
@@ -104,19 +99,19 @@ suite('formatStatusOutput', () => {
 			enabled: true
 		}];
 
-		const output = stripTimestamp(formatStatusOutput(statusInfos, emptySpecialFiles, []));
+		const output = formatStatusOutput(statusInfos, emptySpecialFiles, []);
 
 		assert.strictEqual(output, lines(
-			'## Chat Configuration',
-			'*Generated at <timestamp>*',
+			'## Chat Customization Diagnostics',
+			'*WARNING: This file may contain sensitive information.*',
 			'',
-			'**Custom Agents**',
+			'**Custom Agents**<br>',
 			'*1 files loaded, 1 skipped*',
 			'',
-			'- .github/agents',
-			`${TREE_BRANCH} [\`good-agent.agent.md\`](file:///workspace/.github/agents/good-agent.agent.md)`,
-			`${TREE_END} ${ICON_ERROR} [\`broken-agent.agent.md\`](file:///workspace/.github/agents/broken-agent.agent.md) - *Missing name attribute*`,
-			'- AGENTS.md -',
+			'.github/agents<br>',
+			`${TREE_BRANCH} [\`good-agent.agent.md\`](file:///workspace/.github/agents/good-agent.agent.md)<br>`,
+			`${TREE_END} ${ICON_ERROR} [\`broken-agent.agent.md\`](file:///workspace/.github/agents/broken-agent.agent.md) - *Missing name attribute*<br>`,
+			'AGENTS.md -<br>',
 			''
 		));
 	});
@@ -135,20 +130,20 @@ suite('formatStatusOutput', () => {
 			enabled: true
 		}];
 
-		const output = stripTimestamp(formatStatusOutput(statusInfos, emptySpecialFiles, []));
+		const output = formatStatusOutput(statusInfos, emptySpecialFiles, []);
 
 		assert.strictEqual(output, lines(
-			'## Chat Configuration',
-			'*Generated at <timestamp>*',
+			'## Chat Customization Diagnostics',
+			'*WARNING: This file may contain sensitive information.*',
 			'',
-			'**Custom Agents**',
+			'**Custom Agents**<br>',
 			'*1 files loaded, 1 skipped*',
 			'',
-			'- .github/agents',
-			`${TREE_END} [\`my-agent.agent.md\`](file:///workspace/.github/agents/my-agent.agent.md)`,
-			'- ~/.copilot/agents',
-			`${TREE_END} ${ICON_WARN} [\`my-agent.agent.md\`](file:///workspace/home/.copilot/agents/my-agent.agent.md) - *Overwritten by higher priority file*`,
-			'- AGENTS.md -',
+			'.github/agents<br>',
+			`${TREE_END} [\`my-agent.agent.md\`](file:///workspace/.github/agents/my-agent.agent.md)<br>`,
+			'~/.copilot/agents<br>',
+			`${TREE_END} ${ICON_WARN} [\`my-agent.agent.md\`](file:///workspace/home/.copilot/agents/my-agent.agent.md) - *Overwritten by higher priority file*<br>`,
+			'AGENTS.md -<br>',
 			''
 		));
 	});
@@ -161,11 +156,11 @@ suite('formatStatusOutput', () => {
 			enabled: false
 		}];
 
-		const output = stripTimestamp(formatStatusOutput(statusInfos, emptySpecialFiles, []));
+		const output = formatStatusOutput(statusInfos, emptySpecialFiles, []);
 
 		assert.strictEqual(output, lines(
-			'## Chat Configuration',
-			'*Generated at <timestamp>*',
+			'## Chat Customization Diagnostics',
+			'*WARNING: This file may contain sensitive information.*',
 			'',
 			'**Skills**',
 			'*Skills are disabled. Enable them by setting `chat.useAgentSkills` to `true` in your settings.*',
@@ -184,18 +179,18 @@ suite('formatStatusOutput', () => {
 			enabled: true
 		}];
 
-		const output = stripTimestamp(formatStatusOutput(statusInfos, emptySpecialFiles, []));
+		const output = formatStatusOutput(statusInfos, emptySpecialFiles, []);
 
 		assert.strictEqual(output, lines(
-			'## Chat Configuration',
-			'*Generated at <timestamp>*',
+			'## Chat Customization Diagnostics',
+			'*WARNING: This file may contain sensitive information.*',
 			'',
-			'**Skills**',
+			'**Skills**<br>',
 			'*2 skills loaded*',
 			'',
-			'- .github/skills',
-			`${TREE_BRANCH} [\`search\`](file:///workspace/.github/skills/search)`,
-			`${TREE_END} [\`refactor\`](file:///workspace/.github/skills/refactor)`,
+			'.github/skills<br>',
+			`${TREE_BRANCH} [\`search\`](file:///workspace/.github/skills/search)<br>`,
+			`${TREE_END} [\`refactor\`](file:///workspace/.github/skills/refactor)<br>`,
 			''
 		));
 	});
@@ -215,19 +210,19 @@ suite('formatStatusOutput', () => {
 			copilotInstructions: { enabled: true, files: [URI.file('/workspace/.github/copilot-instructions.md')] }
 		};
 
-		const output = stripTimestamp(formatStatusOutput(statusInfos, specialFiles, []));
+		const output = formatStatusOutput(statusInfos, specialFiles, []);
 
 		assert.strictEqual(output, lines(
-			'## Chat Configuration',
-			'*Generated at <timestamp>*',
+			'## Chat Customization Diagnostics',
+			'*WARNING: This file may contain sensitive information.*',
 			'',
-			'**Instructions**',
+			'**Instructions**<br>',
 			'*2 files loaded*',
 			'',
-			'- .github/instructions',
-			`${TREE_END} [\`testing.instructions.md\`](file:///workspace/.github/instructions/testing.instructions.md)`,
-			'- copilot-instructions.md',
-			`${TREE_END} [\`copilot-instructions.md\`](file:///workspace/.github/copilot-instructions.md)`,
+			'.github/instructions<br>',
+			`${TREE_END} [\`testing.instructions.md\`](file:///workspace/.github/instructions/testing.instructions.md)<br>`,
+			'copilot-instructions.md<br>',
+			`${TREE_END} [\`copilot-instructions.md\`](file:///workspace/.github/copilot-instructions.md)<br>`,
 			''
 		));
 	});
@@ -245,19 +240,19 @@ suite('formatStatusOutput', () => {
 			copilotInstructions: { enabled: false, files: [] }
 		};
 
-		const output = stripTimestamp(formatStatusOutput(statusInfos, specialFiles, []));
+		const output = formatStatusOutput(statusInfos, specialFiles, []);
 
 		assert.strictEqual(output, lines(
-			'## Chat Configuration',
-			'*Generated at <timestamp>*',
+			'## Chat Customization Diagnostics',
+			'*WARNING: This file may contain sensitive information.*',
 			'',
-			'**Custom Agents**',
+			'**Custom Agents**<br>',
 			'*2 files loaded*',
 			'',
-			'- .github/agents',
-			'- AGENTS.md',
-			`${TREE_BRANCH} [\`AGENTS.md\`](file:///workspace/AGENTS.md)`,
-			`${TREE_END} [\`AGENTS.md\`](file:///workspace/docs/AGENTS.md)`,
+			'.github/agents<br>',
+			'AGENTS.md<br>',
+			`${TREE_BRANCH} [\`AGENTS.md\`](file:///workspace/AGENTS.md)<br>`,
+			`${TREE_END} [\`AGENTS.md\`](file:///workspace/docs/AGENTS.md)<br>`,
 			''
 		));
 	});
@@ -273,17 +268,17 @@ suite('formatStatusOutput', () => {
 			enabled: true
 		}];
 
-		const output = stripTimestamp(formatStatusOutput(statusInfos, emptySpecialFiles, []));
+		const output = formatStatusOutput(statusInfos, emptySpecialFiles, []);
 
 		assert.strictEqual(output, lines(
-			'## Chat Configuration',
-			'*Generated at <timestamp>*',
+			'## Chat Customization Diagnostics',
+			'*WARNING: This file may contain sensitive information.*',
 			'',
-			'**Custom Agents**',
+			'**Custom Agents**<br>',
 			'',
-			'- .github/agents',
-			`- ${ICON_ERROR} custom/agents - *Folder does not exist*`,
-			'- AGENTS.md -',
+			'.github/agents<br>',
+			`${ICON_ERROR} custom/agents - *Folder does not exist*<br>`,
+			'AGENTS.md -<br>',
 			''
 		));
 	});
@@ -298,16 +293,16 @@ suite('formatStatusOutput', () => {
 			enabled: true
 		}];
 
-		const output = stripTimestamp(formatStatusOutput(statusInfos, emptySpecialFiles, []));
+		const output = formatStatusOutput(statusInfos, emptySpecialFiles, []);
 
 		assert.strictEqual(output, lines(
-			'## Chat Configuration',
-			'*Generated at <timestamp>*',
+			'## Chat Customization Diagnostics',
+			'*WARNING: This file may contain sensitive information.*',
 			'',
-			'**Custom Agents**',
+			'**Custom Agents**<br>',
 			'',
-			'- .github/agents',
-			'- AGENTS.md -',
+			'.github/agents<br>',
+			'AGENTS.md -<br>',
 			''
 		));
 	});
@@ -325,20 +320,20 @@ suite('formatStatusOutput', () => {
 			enabled: true
 		}];
 
-		const output = stripTimestamp(formatStatusOutput(statusInfos, emptySpecialFiles, []));
+		const output = formatStatusOutput(statusInfos, emptySpecialFiles, []);
 
 		assert.strictEqual(output, lines(
-			'## Chat Configuration',
-			'*Generated at <timestamp>*',
+			'## Chat Customization Diagnostics',
+			'*WARNING: This file may contain sensitive information.*',
 			'',
-			'**Custom Agents**',
+			'**Custom Agents**<br>',
 			'*2 files loaded*',
 			'',
-			'- .github/agents',
-			`${TREE_END} [\`local-agent.agent.md\`](file:///workspace/.github/agents/local-agent.agent.md)`,
-			'- Extension: my-publisher.my-extension',
-			`${TREE_END} [\`ext-agent.agent.md\`](file:///workspace/extensions/my-publisher.my-extension/agents/ext-agent.agent.md)`,
-			'- AGENTS.md -',
+			'.github/agents<br>',
+			`${TREE_END} [\`local-agent.agent.md\`](file:///workspace/.github/agents/local-agent.agent.md)<br>`,
+			'Extension: my-publisher.my-extension<br>',
+			`${TREE_END} [\`ext-agent.agent.md\`](file:///workspace/extensions/my-publisher.my-extension/agents/ext-agent.agent.md)<br>`,
+			'AGENTS.md -<br>',
 			''
 		));
 	});
@@ -351,13 +346,13 @@ suite('formatStatusOutput', () => {
 			enabled: true
 		}];
 
-		const output = stripTimestamp(formatStatusOutput(statusInfos, emptySpecialFiles, []));
+		const output = formatStatusOutput(statusInfos, emptySpecialFiles, []);
 
 		assert.strictEqual(output, lines(
-			'## Chat Configuration',
-			'*Generated at <timestamp>*',
+			'## Chat Customization Diagnostics',
+			'*WARNING: This file may contain sensitive information.*',
 			'',
-			'**Prompt Files**',
+			'**Prompt Files**<br>',
 			'',
 			'*No files loaded*',
 			''
@@ -392,37 +387,37 @@ suite('formatStatusOutput', () => {
 			}
 		];
 
-		const output = stripTimestamp(formatStatusOutput(statusInfos, emptySpecialFiles, []));
+		const output = formatStatusOutput(statusInfos, emptySpecialFiles, []);
 
 		assert.strictEqual(output, lines(
-			'## Chat Configuration',
-			'*Generated at <timestamp>*',
+			'## Chat Customization Diagnostics',
+			'*WARNING: This file may contain sensitive information.*',
 			'',
-			'**Custom Agents**',
+			'**Custom Agents**<br>',
 			'*1 files loaded*',
 			'',
-			'- .github/agents',
-			`${TREE_END} [\`helper.agent.md\`](file:///workspace/.github/agents/helper.agent.md)`,
-			'- AGENTS.md -',
+			'.github/agents<br>',
+			`${TREE_END} [\`helper.agent.md\`](file:///workspace/.github/agents/helper.agent.md)<br>`,
+			'AGENTS.md -<br>',
 			'',
-			'**Instructions**',
+			'**Instructions**<br>',
 			'*1 files loaded*',
 			'',
-			'- .github/instructions',
-			`${TREE_END} [\`code-style.instructions.md\`](file:///workspace/.github/instructions/code-style.instructions.md)`,
-			'- copilot-instructions.md -',
+			'.github/instructions<br>',
+			`${TREE_END} [\`code-style.instructions.md\`](file:///workspace/.github/instructions/code-style.instructions.md)<br>`,
+			'copilot-instructions.md -<br>',
 			'',
-			'**Prompt Files**',
+			'**Prompt Files**<br>',
 			'*1 files loaded*',
 			'',
-			'- .github/prompts',
-			`${TREE_END} [\`fix-bug.prompt.md\`](file:///workspace/.github/prompts/fix-bug.prompt.md)`,
+			'.github/prompts<br>',
+			`${TREE_END} [\`fix-bug.prompt.md\`](file:///workspace/.github/prompts/fix-bug.prompt.md)<br>`,
 			'',
-			'**Skills**',
+			'**Skills**<br>',
 			'*1 skills loaded*',
 			'',
-			'- .github/skills',
-			`${TREE_END} [\`search\`](file:///workspace/.github/skills/search)`,
+			'.github/skills<br>',
+			`${TREE_END} [\`search\`](file:///workspace/.github/skills/search)<br>`,
 			''
 		));
 	});
