@@ -15,7 +15,8 @@ import { IRequestService } from '../../request/common/request.js';
 import { AvailableForDownload, DisablementReason, IUpdateService, State, StateType, UpdateType } from '../common/update.js';
 
 export function createUpdateURL(platform: string, quality: string, productService: IProductService): string {
-	return `${productService.updateUrl}/api/update/${platform}/${quality}/${productService.commit}`;
+	const baseUrl = process.env.UPDATE_URL || productService.updateUrl;
+	return `${baseUrl}/api/update/${platform}/${quality}/${productService.commit}`;
 }
 
 export type UpdateErrorClassification = {
