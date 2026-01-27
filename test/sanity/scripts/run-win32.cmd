@@ -1,5 +1,5 @@
 @echo off
-setlocal
+setlocal EnableDelayedExpansion
 
 echo Starting WSL if available
 wsl -d Ubuntu echo WSL is ready 2>nul
@@ -9,14 +9,14 @@ if errorlevel 1 (
     set "UBUNTU_ROOTFS=%TEMP%\ubuntu-rootfs.tar.gz"
     set "UBUNTU_INSTALL=%LOCALAPPDATA%\WSL\Ubuntu"
 
-    if not exist "%UBUNTU_ROOTFS%" (
+    if not exist "!UBUNTU_ROOTFS!" (
         echo Downloading Ubuntu rootfs
-        curl -L -o "%UBUNTU_ROOTFS%" https://cloud-images.ubuntu.com/wsl/jammy/current/ubuntu-jammy-wsl-amd64-ubuntu22.04lts.rootfs.tar.gz
+        curl -L -o "!UBUNTU_ROOTFS!" https://cloud-images.ubuntu.com/wsl/jammy/current/ubuntu-jammy-wsl-amd64-ubuntu22.04lts.rootfs.tar.gz
     )
 
     echo Importing Ubuntu into WSL
-    mkdir "%UBUNTU_INSTALL%" 2>nul
-    wsl --import Ubuntu "%UBUNTU_INSTALL%" "%UBUNTU_ROOTFS%"
+    mkdir "!UBUNTU_INSTALL!" 2>nul
+    wsl --import Ubuntu "!UBUNTU_INSTALL!" "!UBUNTU_ROOTFS!"
 
     echo Starting WSL
     wsl -d Ubuntu echo WSL is ready
