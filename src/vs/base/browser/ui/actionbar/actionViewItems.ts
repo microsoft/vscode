@@ -7,7 +7,7 @@ import { isFirefox } from '../../browser.js';
 import { DataTransfers } from '../../dnd.js';
 import { addDisposableListener, EventHelper, EventLike, EventType } from '../../dom.js';
 import { EventType as TouchEventType, Gesture } from '../../touch.js';
-import { IActionViewItem } from './actionbar.js';
+import { IActionViewItem, IResponsiveActionViewItem } from './actionbar.js';
 import { IContextViewProvider } from '../contextview/contextview.js';
 import { getDefaultHoverDelegate } from '../hover/hoverDelegateFactory.js';
 import { IHoverDelegate } from '../hover/hoverDelegate.js';
@@ -448,7 +448,7 @@ export class ActionViewItem extends BaseActionViewItem {
 	}
 }
 
-export class SelectActionViewItem<T = string> extends BaseActionViewItem {
+export class SelectActionViewItem<T = string> extends BaseActionViewItem implements IResponsiveActionViewItem {
 	protected selectBox: SelectBox;
 
 	constructor(ctx: unknown, action: IAction, options: ISelectOptionItem[], selected: number, contextViewProvider: IContextViewProvider, styles: ISelectBoxStyles, selectBoxOptions?: ISelectBoxOptions) {
@@ -459,6 +459,11 @@ export class SelectActionViewItem<T = string> extends BaseActionViewItem {
 
 		this._register(this.selectBox);
 		this.registerListeners();
+	}
+
+	getMinWidth(): number {
+		// min-width for .action-item.select-container and .action-item.select-box
+		return 100;
 	}
 
 	setOptions(options: ISelectOptionItem[], selected?: number): void {

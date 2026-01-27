@@ -12,7 +12,7 @@ import { createCSSRule } from '../../../../base/browser/domStylesheets.js';
 import { asCssValueWithDefault, asCSSUrl } from '../../../../base/browser/cssValue.js';
 import { DisposableMap, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Action, IAction, IActionRunner } from '../../../../base/common/actions.js';
-import { ActionsOrientation, IActionViewItem, prepareActions } from '../../../../base/browser/ui/actionbar/actionbar.js';
+import { ActionsOrientation, IActionViewItem, IResponsiveActionViewItem, prepareActions } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
@@ -701,7 +701,7 @@ export abstract class ViewPane extends Pane implements IView {
 	createActionViewItem(action: IAction, options?: IDropdownMenuActionViewItemOptions): IActionViewItem | undefined {
 		if (action.id === VIEWPANE_FILTER_ACTION.id) {
 			const that = this;
-			return new class extends BaseActionViewItem {
+			return new class extends BaseActionViewItem implements IResponsiveActionViewItem {
 				constructor() { super(null, action); }
 				override setFocusable(): void { /* noop input elements are focusable by default */ }
 				override get trapsArrowNavigation(): boolean { return true; }
@@ -710,6 +710,10 @@ export abstract class ViewPane extends Pane implements IView {
 					const filter = that.getFilterWidget()!;
 					append(container, filter.element);
 					filter.relayout();
+				}
+				getMinWidth(): number {
+					// This magic number comes from CSS .viewpane-filter-container
+					return 150;
 				}
 			};
 		}
