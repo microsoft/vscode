@@ -17,15 +17,8 @@ if [ -z "$CONTAINER" ]; then
 	exit 1
 fi
 
-echo "Setting up QEMU system emulation for ARM64 with 64K page size"
-
-if ! command -v qemu-system-aarch64 > /dev/null 2>&1; then
-	echo "Installing QEMU system emulation and tools"
-	sudo apt-get update && sudo apt-get install -y qemu-system-arm binutils
-fi
-
-echo "Setting up QEMU user-mode emulation for container operations"
-docker run --privileged --rm tonistiigi/binfmt --install arm64
+echo "Installing QEMU system emulation and tools"
+sudo apt-get update && sudo apt-get install -y qemu-system-arm binutils
 
 echo "Exporting container filesystem"
 CONTAINER_ID=$(docker create --platform linux/arm64 "$CONTAINER")
@@ -73,7 +66,7 @@ timeout 1800 qemu-system-aarch64 \
 	-m 2048 \
 	-smp 2 \
 	-kernel "$VMLINUZ" \
-	-append "console=ttyAMA0 root=/dev/vda rw init=/init" \
+	-append "console=ttyAMA0 root=/dev/vda rw init=/init net.ifnames=0" \
 	-drive file="$DISK_IMG",format=raw,if=virtio \
 	-netdev user,id=net0 \
 	-device virtio-net-pci,netdev=net0 \

@@ -28,6 +28,13 @@ ROOT_DIR=$(cd "$SCRIPT_DIR/.." && pwd)
 # Only build if image doesn't exist (i.e., not loaded from cache)
 if ! docker image inspect "$CONTAINER" > /dev/null 2>&1; then
 	echo "Building container image: $CONTAINER"
+
+	# Set up binfmt for cross-architecture builds
+	if [ "$ARCH" != "amd64" ]; then
+		echo "Setting up QEMU user-mode emulation for $ARCH"
+		docker run --privileged --rm tonistiigi/binfmt --install "$ARCH"
+	fi
+
 	docker buildx build \
 		--platform "linux/$ARCH" \
 		${BASE_IMAGE:+--build-arg "BASE_IMAGE=$BASE_IMAGE"} \
