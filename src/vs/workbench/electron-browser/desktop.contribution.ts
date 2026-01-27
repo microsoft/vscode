@@ -235,6 +235,12 @@ import { MAX_ZOOM_LEVEL, MIN_ZOOM_LEVEL } from '../../platform/window/electron-b
 				'scope': ConfigurationScope.APPLICATION,
 				'markdownDescription': localize('window.doubleClickIconToClose', "If enabled, this setting will close the window when the application icon in the title bar is double-clicked. The window will not be able to be dragged by the icon. This setting is effective only if {0} is set to `custom`.", '`#window.titleBarStyle#`')
 			},
+			'window.surfaceAllInstanceWindowsOnRefocus': {
+				'type': 'boolean',
+				'default': false,
+				'scope': ConfigurationScope.APPLICATION,
+				'description': localize('window.surfaceAllInstanceWindowsOnRefocus', "Controls whether refocusing the main window also brings any auxiliary windows from the same instance to the foreground."),
+			},
 			'window.titleBarStyle': {
 				'type': 'string',
 				'enum': ['native', 'custom'],

@@ -131,6 +131,38 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 				Event.fromNodeEventEmitter(screen, 'display-added'),
 				Event.fromNodeEventEmitter(screen, 'display-removed')
 			), () => { }, 100);
+
+			this._register(this.onDidFocusMainWindow(windowId => this.surfaceInstanceWindowsOnRefocus(windowId)));
+		}
+	}
+
+	private surfaceInstanceWindowsOnRefocus(mainWindowId: number): void {
+		if (!this.configurationService.getValue<boolean>('window.surfaceAllInstanceWindowsOnRefocus')) {
+			return;
+		}
+
+		const mainWindow = this.windowsMainService.getWindowById(mainWindowId);
+		if (!mainWindow?.win || mainWindow.win.isDestroyed()) {
+			return;
+		}
+
+		const auxiliaryWindows = this.auxiliaryWindowsMainService.getWindows().filter(window => window.parentId === mainWindowId && !!window.win && !window.win.isDestroyed());
+		if (!auxiliaryWindows.length) {
+			return;
+		}
+
+		const orderedAuxiliaries = auxiliaryWindows.slice().sort((a, b) => a.lastFocusTime - b.lastFocusTime);
+		for (const auxiliaryWindow of orderedAuxiliaries) {
+			const win = auxiliaryWindow.win;
+			if (!win || win.isDestroyed()) {
+				continue;
+			}
+
+			win.moveTop();
+		}
+
+		if (!mainWindow.win.isDestroyed()) {
+			mainWindow.win.moveTop();
 		}
 	}
 
