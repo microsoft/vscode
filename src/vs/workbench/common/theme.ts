@@ -401,6 +401,20 @@ export const ACTIVITY_BAR_FOREGROUND = registerColor('activityBar.foreground', {
 	hcLight: editorForeground
 }, localize('activityBarForeground', "Activity bar item foreground color when it is active. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
 
+export const ACTIVITY_BAR_HOVER_FOREGROUND = registerColor('activityBar.hoverForeground', {
+	dark: '#00a0df',
+	light: '#00a0df',
+	hcDark: '#00a0df',
+	hcLight: '#00a0df'
+}, localize('activityBarHoverForeground', "Activity bar item foreground color when it is hovered over."));
+
+export const ACTIVITY_BAR_HOVER_BACKGROUND = registerColor('activityBar.hoverBackground', {
+	dark: '#a4dcf3',
+	light: '#a4dcf3',
+	hcDark: '#a4dcf3',
+	hcLight: '#a4dcf3'
+}, localize('activityBarHoverBackground', "Activity bar item background color when it is hovered over."));
+
 export const ACTIVITY_BAR_INACTIVE_FOREGROUND = registerColor('activityBar.inactiveForeground', {
 	dark: transparent(ACTIVITY_BAR_FOREGROUND, 0.4),
 	light: transparent(ACTIVITY_BAR_FOREGROUND, 0.4),
@@ -453,6 +467,20 @@ export const ACTIVITY_BAR_TOP_FOREGROUND = registerColor('activityBarTop.foregro
 	hcDark: Color.white,
 	hcLight: editorForeground
 }, localize('activityBarTop', "Active foreground color of the item in the Activity bar when it is on top / bottom. The activity allows to switch between views of the side bar."));
+
+export const ACTIVITY_BAR_TOP_HOVER_FOREGROUND = registerColor('activityBarTop.hoverForeground', {
+	dark: '#00a0df',
+	light: '#00a0df',
+	hcDark: '#00a0df',
+	hcLight: '#00a0df'
+}, localize('activityBarTopHoverForeground', "Top activity bar item foreground color when it is hovered over."));
+
+export const ACTIVITY_BAR_TOP_HOVER_BACKGROUND = registerColor('activityBarTop.hoverBackground', {
+	dark: '#a4dcf3',
+	light: '#a4dcf3',
+	hcDark: '#a4dcf3',
+	hcLight: '#a4dcf3'
+}, localize('activityBarTopHoverBackground', "Top activity bar item background color when it is hovered over."));
 
 export const ACTIVITY_BAR_TOP_ACTIVE_BORDER = registerColor('activityBarTop.activeBorder', {
 	dark: ACTIVITY_BAR_TOP_FOREGROUND,
