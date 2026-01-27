@@ -243,4 +243,10 @@ export interface IBrowserViewService {
 	 * @param workspaceId The workspace identifier
 	 */
 	clearWorkspaceStorage(workspaceId: string): Promise<void>;
+
+	/**
+	 * Clear storage data for a specific browser view
+	 * @param id The browser view identifier
+	 */
+	clearStorage(id: string): Promise<void>;
 }

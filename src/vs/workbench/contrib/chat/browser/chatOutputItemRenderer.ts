@@ -15,6 +15,7 @@ import { autorun } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import * as nls from '../../../../nls.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWebview, IWebviewService, WebviewContentPurpose } from '../../../contrib/webview/browser/webview.js';
@@ -51,10 +52,12 @@ export interface RenderedOutputPart extends IDisposable {
 
 interface RenderOutputPartWebviewOptions {
 	readonly origin?: string;
+	readonly webviewState?: string;
 }
 
 
 interface RendererEntry {
+	readonly viewType: string;
 	readonly renderer: IChatOutputItemRenderer;
 	readonly options: RegisterOptions;
 }
@@ -69,8 +72,9 @@ export class ChatOutputRendererService extends Disposable implements IChatOutput
 	private readonly _renderers = new Map</*viewType*/ string, RendererEntry>();
 
 	constructor(
-		@IWebviewService private readonly _webviewService: IWebviewService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
+		@IWebviewService private readonly _webviewService: IWebviewService,
 	) {
 		super();
 
@@ -80,7 +84,7 @@ export class ChatOutputRendererService extends Disposable implements IChatOutput
 	}
 
 	registerRenderer(viewType: string, renderer: IChatOutputItemRenderer, options: RegisterOptions): IDisposable {
-		this._renderers.set(viewType, { renderer, options });
+		this._renderers.set(viewType, { viewType, renderer, options });
 		return {
 			dispose: () => {
 				this._renderers.delete(viewType);
@@ -103,6 +107,7 @@ export class ChatOutputRendererService extends Disposable implements IChatOutput
 		const webview = store.add(this._webviewService.createWebviewElement({
 			title: '',
 			origin: webviewOptions.origin ?? generateUuid(),
+			providedViewType: rendererData.viewType,
 			options: {
 				enableFindWidget: false,
 				purpose: WebviewContentPurpose.ChatOutputItem,
@@ -111,6 +116,7 @@ export class ChatOutputRendererService extends Disposable implements IChatOutput
 			contentOptions: {},
 			extension: rendererData.options.extension ? rendererData.options.extension : undefined,
 		}));
+		webview.setContextKeyService(store.add(this._contextKeyService.createScoped(parent)));
 
 		const onDidChangeHeight = store.add(new Emitter<number>());
 		store.add(autorun(reader => {
@@ -120,6 +126,10 @@ export class ChatOutputRendererService extends Disposable implements IChatOutput
 				parent.style.height = `${height.height}px`;
 			}
 		}));
+
+		if (webviewOptions.webviewState) {
+			webview.state = webviewOptions.webviewState;
+		}
 
 		webview.mountTo(parent, getWindow(parent));
 		await rendererData.renderer.renderOutputPart(mime, data, webview, token);

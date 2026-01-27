@@ -58,7 +58,7 @@ suite('ChatQuestionCarouselPart', () => {
 			assert.ok(widget.domNode.classList.contains('chat-question-carousel-container'));
 			assert.ok(widget.domNode.querySelector('.chat-question-carousel-header'));
 			assert.ok(widget.domNode.querySelector('.chat-question-carousel-content'));
-			assert.ok(widget.domNode.querySelector('.chat-question-carousel-footer'));
+			assert.ok(widget.domNode.querySelector('.chat-question-carousel-nav'));
 		});
 
 		test('renders question title', () => {
@@ -188,9 +188,9 @@ suite('ChatQuestionCarouselPart', () => {
 			]);
 			createWidget(carousel);
 
-			const buttons = widget.domNode.querySelectorAll('.chat-question-carousel-footer .monaco-button');
-			// Button order: Previous, Next
-			const prevButton = buttons[0] as HTMLButtonElement;
+			// Use dedicated class selectors for stability
+			const prevButton = widget.domNode.querySelector('.chat-question-nav-prev') as HTMLButtonElement;
+			assert.ok(prevButton, 'Previous button should exist');
 			assert.ok(prevButton.classList.contains('disabled') || prevButton.disabled, 'Previous button should be disabled on first question');
 		});
 
@@ -200,8 +200,9 @@ suite('ChatQuestionCarouselPart', () => {
 			]);
 			createWidget(carousel);
 
-			const buttons = widget.domNode.querySelectorAll('.chat-question-carousel-footer .monaco-button');
-			const nextButton = buttons[1] as HTMLElement; // Previous, Next
+			// Use dedicated class selector for stability
+			const nextButton = widget.domNode.querySelector('.chat-question-nav-next') as HTMLElement;
+			assert.ok(nextButton, 'Next button should exist');
 			assert.strictEqual(nextButton.title, 'Submit', 'Next button should have Submit title on last question');
 		});
 	});
@@ -301,9 +302,9 @@ suite('ChatQuestionCarouselPart', () => {
 			]);
 			createWidget(carousel);
 
-			const footer = widget.domNode.querySelector('.chat-question-carousel-footer');
-			assert.strictEqual(footer?.getAttribute('role'), 'navigation');
-			assert.ok(footer?.getAttribute('aria-label'), 'Navigation should have aria-label');
+			const nav = widget.domNode.querySelector('.chat-question-carousel-nav');
+			assert.strictEqual(nav?.getAttribute('role'), 'navigation');
+			assert.ok(nav?.getAttribute('aria-label'), 'Navigation should have aria-label');
 		});
 
 		test('radio buttons have proper name grouping', () => {
@@ -453,6 +454,77 @@ suite('ChatQuestionCarouselPart', () => {
 			widget.skip();
 			assert.ok(submittedAnswers instanceof Map);
 			assert.strictEqual(submittedAnswers?.size, 0, 'Should return empty map when no defaults');
+		});
+	});
+
+	suite('Used Carousel Summary', () => {
+		test('shows summary with answers after skip()', () => {
+			const carousel = createMockCarousel([
+				{ id: 'q1', type: 'text', title: 'Question 1', defaultValue: 'default answer' }
+			], true);
+			createWidget(carousel);
+
+			widget.skip();
+
+			assert.ok(widget.domNode.classList.contains('chat-question-carousel-used'), 'Should have used class');
+			const summary = widget.domNode.querySelector('.chat-question-carousel-summary');
+			assert.ok(summary, 'Should show summary container after skip');
+			const summaryItem = summary?.querySelector('.chat-question-summary-item');
+			assert.ok(summaryItem, 'Should have summary item for the question');
+			const summaryValue = summaryItem?.querySelector('.chat-question-summary-value');
+			assert.ok(summaryValue?.textContent?.includes('default answer'), 'Summary should show the default answer');
+		});
+
+		test('shows skipped message after ignore()', () => {
+			const carousel = createMockCarousel([
+				{ id: 'q1', type: 'text', title: 'Question 1' }
+			], true);
+			createWidget(carousel);
+
+			widget.ignore();
+
+			assert.ok(widget.domNode.classList.contains('chat-question-carousel-used'), 'Should have used class');
+			const summary = widget.domNode.querySelector('.chat-question-carousel-summary');
+			assert.ok(summary, 'Should show summary container after ignore');
+			const skippedMessage = summary?.querySelector('.chat-question-summary-skipped');
+			assert.ok(skippedMessage, 'Should show skipped message when ignored');
+		});
+
+		test('renders summary when constructed with isUsed and data', () => {
+			const carousel: IChatQuestionCarousel = {
+				kind: 'questionCarousel',
+				questions: [
+					{ id: 'q1', type: 'text', title: 'Question 1' }
+				],
+				allowSkip: true,
+				isUsed: true,
+				data: { q1: 'saved answer' }
+			};
+			createWidget(carousel);
+
+			assert.ok(widget.domNode.classList.contains('chat-question-carousel-used'), 'Should have used class');
+			const summary = widget.domNode.querySelector('.chat-question-carousel-summary');
+			assert.ok(summary, 'Should show summary container when isUsed is true');
+			const summaryValue = summary?.querySelector('.chat-question-summary-value');
+			assert.ok(summaryValue?.textContent?.includes('saved answer'), 'Summary should show saved answer from data');
+		});
+
+		test('shows skipped message when constructed with isUsed but no data', () => {
+			const carousel: IChatQuestionCarousel = {
+				kind: 'questionCarousel',
+				questions: [
+					{ id: 'q1', type: 'text', title: 'Question 1' }
+				],
+				allowSkip: true,
+				isUsed: true
+			};
+			createWidget(carousel);
+
+			assert.ok(widget.domNode.classList.contains('chat-question-carousel-used'), 'Should have used class');
+			const summary = widget.domNode.querySelector('.chat-question-carousel-summary');
+			assert.ok(summary, 'Should show summary container');
+			const skippedMessage = summary?.querySelector('.chat-question-summary-skipped');
+			assert.ok(skippedMessage, 'Should show skipped message when no data');
 		});
 	});
 });

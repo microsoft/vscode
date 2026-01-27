@@ -39,6 +39,7 @@ suite('HoverService', () => {
 
 		const configurationService = new TestConfigurationService();
 		configurationService.setUserConfiguration('workbench.hover.delay', 0);
+		configurationService.setUserConfiguration('workbench.hover.reducedDelay', 0);
 		instantiationService.stub(IConfigurationService, configurationService);
 
 		instantiationService.stub(IContextMenuService, {
@@ -438,6 +439,31 @@ suite('HoverService', () => {
 			disposable.dispose();
 			hoverService.hideHover(true);
 		}));
+
+		test('should use reduced delay when reducedDelay is true', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const target = createTarget();
+
+			// Configure reducedDelay to 150ms for this test
+			(instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration('workbench.hover.reducedDelay', 150);
+
+			const disposable = hoverService.setupDelayedHover(target, { content: 'Reduced delay' }, { reducedDelay: true });
+
+			// Trigger mouseover
+			target.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+
+			// Hover should not be visible before delay
+			await timeout(75);
+			const hoversBefore = mainWindow.document.querySelectorAll('.monaco-hover');
+			assert.strictEqual(hoversBefore.length, 0, 'Hover should not be visible before delay completes');
+
+			// Hover should be visible after delay
+			await timeout(150);
+			const hoversAfter = mainWindow.document.querySelectorAll('.monaco-hover');
+			assert.strictEqual(hoversAfter.length, 1, 'Hover should be visible after reduced delay');
+
+			disposable.dispose();
+			hoverService.hideHover(true);
+		}));
 	});
 
 	suite('setupManagedHover', () => {
@@ -495,6 +521,49 @@ suite('HoverService', () => {
 			lockedHover.dispose();
 			assertNotInDOM(lockedHover, 'Locked hover should be removed from DOM after dispose');
 		});
+
+		test('should use reduced delay when reducedDelay is true', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const target = createTarget();
+			const reducedDelay = 100;
+
+			// Configure reducedDelay setting for this test
+			(instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration('workbench.hover.reducedDelay', reducedDelay);
+
+			const hover = hoverService.showDelayedHover({
+				content: 'Reduced delay hover',
+				target
+			}, { reducedDelay: true });
+
+			assert.ok(hover, 'Hover should be created');
+			assertNotInDOM(hover, 'Hover should not be visible immediately');
+
+			// Wait less than reduced delay - hover should still not be visible
+			await timeout(reducedDelay / 2);
+			assertNotInDOM(hover, 'Hover should not be visible before delay completes');
+
+			// Wait for full delay - hover should now be visible
+			await timeout(reducedDelay);
+			assertInDOM(hover, 'Hover should be visible after reduced delay');
+
+			hover.dispose();
+		}));
+
+		test('should use default delay when custom delay is undefined', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const target = createTarget();
+			// Default delay is set to 0 in test setup
+			const hover = hoverService.showDelayedHover({
+				content: 'Default delay hover',
+				target
+			}, {});
+
+			assert.ok(hover, 'Hover should be created');
+
+			// Since default delay is 0 in tests, hover should appear after minimal timeout
+			await timeout(0);
+			assertInDOM(hover, 'Hover should be visible with default delay');
+
+			hover.dispose();
+		}));
 	});
 
 	suite('hover locking', () => {

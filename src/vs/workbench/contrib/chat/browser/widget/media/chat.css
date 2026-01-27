@@ -1720,7 +1720,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .interactive-item-container.interactive-request .chat-attached-context .chat-attached-context-attachment {
-	padding-right: 6px;
+	padding: 0 6px 0 4px;
 }
 
 .interactive-session-followups {
@@ -2300,6 +2300,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .chat-attached-context-attachment .attachment-additional-info {
 	opacity: 0.7;
 	font-size: .9em;
+	padding-left: 4px;
 }
 
 .chat-attached-context-attachment .chat-attached-context-pill-image {
