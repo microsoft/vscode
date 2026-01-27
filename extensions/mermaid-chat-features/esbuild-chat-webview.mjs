@@ -12,6 +12,7 @@ const outDir = path.join(import.meta.dirname, 'chat-webview-out');
 run({
 	entryPoints: [
 		path.join(srcDir, 'index.ts'),
+		path.join(srcDir, 'index-editor.ts'),
 	],
 	srcDir,
 	outdir: outDir,
