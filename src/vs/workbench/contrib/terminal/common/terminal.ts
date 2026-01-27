@@ -491,6 +491,7 @@ export const enum TerminalCommandId {
 	StartVoice = 'workbench.action.terminal.startVoice',
 	StopVoice = 'workbench.action.terminal.stopVoice',
 	RevealCommand = 'workbench.action.terminal.revealCommand',
+	RevealCwdInExplorer = 'workbench.action.terminal.revealCwdInExplorer',
 }
 
 export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [

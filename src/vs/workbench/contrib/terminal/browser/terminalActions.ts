@@ -56,6 +56,9 @@ import { IRemoteTerminalAttachTarget, ITerminalProfileResolverService, ITerminal
 import { TerminalContextKeys } from '../common/terminalContextKey.js';
 import { terminalStrings } from '../common/terminalStrings.js';
 import { Direction, ICreateTerminalOptions, IDetachedTerminalInstance, ITerminalConfigurationService, ITerminalEditorService, ITerminalEditingService, ITerminalGroupService, ITerminalInstance, ITerminalInstanceService, ITerminalService, IXtermTerminal } from './terminal.js';
+import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { IExplorerService } from '../../files/browser/files.js';
+import { VIEW_ID as EXPLORER_VIEW_ID } from '../../files/common/files.js';
 import { isAuxiliaryWindow } from '../../../../base/browser/window.js';
 import { InstanceContext } from './terminalContextMenu.js';
 import { getColorClass, getIconId, getUriClasses } from './terminalIcon.js';
@@ -609,6 +612,36 @@ export function registerTerminalActions() {
 			// TODO: Convert this to ctrl+c, ctrl+v for pwsh?
 			await instance.sendPath(uri, true);
 			return c.groupService.showPanel();
+		}
+	});
+
+	registerTerminalAction({
+		id: TerminalCommandId.RevealCwdInExplorer,
+		title: terminalStrings.revealCwdInExplorer,
+		precondition: sharedWhenClause.terminalAvailable_and_opened,
+		run: async (c, accessor) => {
+			const notificationService = accessor.get(INotificationService);
+			const workspaceContextService = accessor.get(IWorkspaceContextService);
+			const viewsService = accessor.get(IViewsService);
+			const explorerService = accessor.get(IExplorerService);
+			const activeInstance = c.service.activeInstance;
+			if (!activeInstance) {
+				notificationService.info(localize('workbench.action.terminal.revealCwdInExplorer.noActive', 'No active terminal is available to reveal.'));
+				return;
+			}
+			const cwdUri = await activeInstance.getCwdResource();
+			if (!cwdUri) {
+				notificationService.info(localize('workbench.action.terminal.revealCwdInExplorer.noCwd', 'Unable to determine the terminal\'s current working directory.'));
+				return;
+			}
+			const workspaceFolder = workspaceContextService.getWorkspaceFolder(cwdUri);
+			if (!workspaceFolder) {
+				notificationService.info(localize('workbench.action.terminal.revealCwdInExplorer.outsideWorkspace', 'The terminal\'s working directory is not inside the current workspace.'));
+				return;
+			}
+
+			await viewsService.openView(EXPLORER_VIEW_ID, false);
+			await explorerService.select(cwdUri, 'force');
 		}
 	});
 

@@ -43,4 +43,5 @@ export const terminalStrings = {
 	scrollToPreviousCommand: localize2('workbench.action.terminal.scrollToPreviousCommand', "Scroll to Previous Command"),
 	scrollToNextCommand: localize2('workbench.action.terminal.scrollToNextCommand', "Scroll to Next Command"),
 	revealCommand: localize2('workbench.action.terminal.revealCommand', "Reveal Command in Terminal"),
+	revealCwdInExplorer: localize2('workbench.action.terminal.revealCwdInExplorer', "Reveal Terminal Working Directory in Explorer"),
 };
