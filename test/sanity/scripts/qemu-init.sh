@@ -1,4 +1,5 @@
 #!/bin/sh
+set -e
 
 echo "Mounting essential filesystems"
 mount -t proc proc /proc
@@ -33,7 +34,7 @@ export XDG_RUNTIME_DIR=/run/user/0
 
 echo "Starting entrypoint"
 ARGS=$(cat /test-args)
-/entrypoint.sh $ARGS
+/entrypoint.sh "$ARGS"
 EXIT_CODE=$?
 echo $EXIT_CODE > /exit-code
 sync
