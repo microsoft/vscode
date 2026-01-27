@@ -100,13 +100,13 @@ export class Resource implements SourceControlResourceState {
 			case Status.INTENT_TO_ADD: return l10n.t('Intent to Add');
 			case Status.INTENT_TO_RENAME: return l10n.t('Intent to Rename');
 			case Status.TYPE_CHANGED: return l10n.t('Type Changed');
-			case Status.BOTH_DELETED: return l10n.t('Conflict: Both Deleted');
-			case Status.ADDED_BY_US: return l10n.t('Conflict: Added By Us');
-			case Status.DELETED_BY_THEM: return l10n.t('Conflict: Deleted By Them');
-			case Status.ADDED_BY_THEM: return l10n.t('Conflict: Added By Them');
-			case Status.DELETED_BY_US: return l10n.t('Conflict: Deleted By Us');
-			case Status.BOTH_ADDED: return l10n.t('Conflict: Both Added');
-			case Status.BOTH_MODIFIED: return l10n.t('Conflict: Both Modified');
+			case Status.BOTH_DELETED: return l10n.t('Conflict: Both you and the incoming changes deleted this file');
+			case Status.ADDED_BY_US: return l10n.t('Conflict: You added this file');
+			case Status.DELETED_BY_THEM: return l10n.t('Conflict: Incoming changes deleted this file');
+			case Status.ADDED_BY_THEM: return l10n.t('Conflict: Incoming changes added this file');
+			case Status.DELETED_BY_US: return l10n.t('Conflict: You deleted this file');
+			case Status.BOTH_ADDED: return l10n.t('Conflict: Both you and the incoming changes added this file');
+			case Status.BOTH_MODIFIED: return l10n.t('Conflict: Both you and the incoming changes modified this file');
 			default: return '';
 		}
 	}
@@ -649,32 +649,32 @@ class ResourceCommandResolver {
 			case Status.INDEX_MODIFIED:
 			case Status.INDEX_RENAMED:
 			case Status.INDEX_ADDED:
-				return l10n.t('{0} (Index)', basename);
+				return l10n.t('Index version of {0}', basename); // Localization key changed, update translations accordingly
 
 			case Status.MODIFIED:
 			case Status.BOTH_ADDED:
 			case Status.BOTH_MODIFIED:
-				return l10n.t('{0} (Working Tree)', basename);
+				return l10n.t('Your working copy of {0}', basename);
 
 			case Status.INDEX_DELETED:
 			case Status.DELETED:
-				return l10n.t('{0} (Deleted)', basename);
+				return l10n.t('Deleted file {0}', basename);
 
 			case Status.DELETED_BY_US:
-				return l10n.t('{0} (Theirs)', basename);
+				return l10n.t('Incoming version of {0}', basename);
 
 			case Status.DELETED_BY_THEM:
-				return l10n.t('{0} (Ours)', basename);
+				return l10n.t('Your version of {0}', basename);
 
 			case Status.UNTRACKED:
-				return l10n.t('{0} (Untracked)', basename);
+				return l10n.t('Untracked file {0}', basename);
 
 			case Status.INTENT_TO_ADD:
 			case Status.INTENT_TO_RENAME:
-				return l10n.t('{0} (Intent to add)', basename);
+				return l10n.t('Intent to add {0}', basename);
 
 			case Status.TYPE_CHANGED:
-				return l10n.t('{0} (Type changed)', basename);
+				return l10n.t('Type changed for {0}', basename);
 
 			default:
 				return '';

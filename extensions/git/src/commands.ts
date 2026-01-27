@@ -1522,9 +1522,9 @@ export class CommandCenter {
 		}
 
 		if (resource.type === Status.DELETED_BY_THEM) {
-			const keepIt = l10n.t('Keep Our Version');
-			const deleteIt = l10n.t('Delete File');
-			const result = await window.showInformationMessage(l10n.t('File "{0}" was deleted by them and modified by us.\n\nWhat would you like to do?', path.basename(uri.fsPath)), { modal: true }, keepIt, deleteIt);
+			const keepIt = l10n.t('Keep Your Modified File');
+			const deleteIt = l10n.t('Delete the File');
+			const result = await window.showInformationMessage(l10n.t('You deleted "{0}", but the incoming changes also modify this file. How would you like to resolve this conflict?', path.basename(uri.fsPath)), { modal: true }, keepIt, deleteIt);
 
 			if (result === keepIt) {
 				await repository.add([uri]);
@@ -1534,9 +1534,9 @@ export class CommandCenter {
 				throw new Error('Cancelled');
 			}
 		} else if (resource.type === Status.DELETED_BY_US) {
-			const keepIt = l10n.t('Keep Their Version');
-			const deleteIt = l10n.t('Delete File');
-			const result = await window.showInformationMessage(l10n.t('File "{0}" was deleted by us and modified by them.\n\nWhat would you like to do?', path.basename(uri.fsPath)), { modal: true }, keepIt, deleteIt);
+			const keepIt = l10n.t('Accept Incoming Modified File');
+			const deleteIt = l10n.t('Delete the File');
+			const result = await window.showInformationMessage(l10n.t('The incoming changes deleted "{0}", but you have made modifications to this file. How would you like to resolve this conflict?', path.basename(uri.fsPath)), { modal: true }, keepIt, deleteIt);
 
 			if (result === keepIt) {
 				await repository.add([uri]);
