@@ -700,7 +700,7 @@ export class DefaultAccountUpdateContribution extends Disposable implements IWor
 		try {
 			const defaultAccount = await this.defaultAccountService.getDefaultAccount();
 			const shouldDisable = defaultAccount?.entitlementsData?.organization_login_list?.some(
-				org => org.includes('Visual-Studio-Code')
+				org => org.toLowerCase() === 'visual-studio-code'
 			) ?? false;
 
 			await this.updateService.disableProgressiveReleases(shouldDisable);
