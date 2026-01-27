@@ -291,11 +291,13 @@ export abstract class AbstractUpdateService implements IUpdateService {
 	}
 
 	async disableProgressiveReleases(disable: boolean): Promise<void> {
-		this.logService.info('update#disableProgressiveReleases', disable);
-		// Once disabled, always stay disabled
-		if (disable) {
-			this._disableProgressiveReleases = true;
+		// Once disabled, always stay disabled. Calling with `false` is a no-op.
+		if (!disable) {
+			return;
 		}
+
+		this.logService.info('update#disableProgressiveReleases', disable);
+		this._disableProgressiveReleases = true;
 	}
 
 	protected shouldDisableProgressiveReleases(): boolean {
