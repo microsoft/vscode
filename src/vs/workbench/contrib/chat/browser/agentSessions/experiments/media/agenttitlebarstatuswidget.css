@@ -40,7 +40,6 @@
 	align-items: center;
 	justify-content: flex-start;
 	gap: 4px;
-	padding-right: 22px;
 	-webkit-app-region: no-drag;
 	overflow: visible;
 	color: var(--vscode-commandCenter-foreground);
