@@ -28,6 +28,7 @@ import '../terminalContrib/zoom/browser/terminal.zoom.contribution.js';
 import '../terminalContrib/stickyScroll/browser/terminal.stickyScroll.contribution.js';
 import '../terminalContrib/quickAccess/browser/terminal.quickAccess.contribution.js';
 import '../terminalContrib/quickFix/browser/terminal.quickFix.contribution.js';
+import '../terminalContrib/selectionDecoration/browser/terminal.selectionDecoration.contribution.js';
 import '../terminalContrib/typeAhead/browser/terminal.typeAhead.contribution.js';
 import '../terminalContrib/resizeDimensionsOverlay/browser/terminal.resizeDimensionsOverlay.contribution.js';
 import '../terminalContrib/sendSequence/browser/terminal.sendSequence.contribution.js';
