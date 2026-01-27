@@ -98,6 +98,9 @@ export class ChatService extends Disposable implements IChatService {
 	private readonly _onDidDisposeSession = this._register(new Emitter<{ readonly sessionResource: URI[]; reason: 'cleared' }>());
 	public readonly onDidDisposeSession = this._onDidDisposeSession.event;
 
+	private readonly _onDidChangeSessionTitle = this._register(new Emitter<{ readonly sessionResource: URI; readonly title: string }>());
+	public readonly onDidChangeSessionTitle = this._onDidChangeSessionTitle.event;
+
 	private readonly _sessionFollowupCancelTokens = this._register(new DisposableResourceMap<CancellationTokenSource>());
 	private readonly _chatServiceTelemetry: ChatServiceTelemetry;
 	private readonly _chatSessionStore: ChatSessionStore;
@@ -254,23 +257,16 @@ export class ChatService extends Disposable implements IChatService {
 		if (model) {
 			model.setCustomTitle(title);
 		} else {
-			let modelRef: IChatModelReference | undefined;
-			try {
-				modelRef = await this.getOrRestoreSession(sessionResource);
-				modelRef?.object.setCustomTitle(title);
-			} catch (e) {
-				this.error('setChatSessionTitle', `Failed to restore session ${sessionResource} to set title: ${toErrorMessage(e)}`);
-			} finally {
-				modelRef?.dispose();
-			}
-		}
 
-		// Update the title in the file storage
-		const localSessionId = LocalChatSessionUri.parseLocalSessionId(sessionResource);
-		if (localSessionId) {
-			await this._chatSessionStore.setSessionTitle(localSessionId, title);
-			// Trigger immediate save to ensure consistency
-			this.saveState();
+			// Update the title in the file storage
+			const localSessionId = LocalChatSessionUri.parseLocalSessionId(sessionResource);
+			if (localSessionId) {
+				await this._chatSessionStore.setSessionTitle(localSessionId, title);
+				// Trigger immediate save to ensure consistency
+				this.saveState();
+			}
+
+			this._onDidChangeSessionTitle.fire({ sessionResource, title });
 		}
 	}
 

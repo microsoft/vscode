@@ -1258,6 +1258,8 @@ export interface IChatService {
 
 	readonly onDidDisposeSession: Event<{ readonly sessionResource: URI[]; readonly reason: 'cleared' }>;
 
+	readonly onDidChangeSessionTitle: Event<{ readonly sessionResource: URI; readonly title: string }>;
+
 	transferChatSession(transferredSessionResource: URI, toWorkspace: URI): Promise<void>;
 
 	activateDefaultAgent(location: ChatAgentLocation): Promise<void>;
