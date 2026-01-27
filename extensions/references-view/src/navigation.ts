@@ -21,6 +21,10 @@ export class Navigation {
 		);
 	}
 
+	getSelection(): readonly unknown[] {
+		return this._view.selection;
+	}
+
 	dispose(): void {
 		vscode.Disposable.from(...this._disposables).dispose();
 	}
