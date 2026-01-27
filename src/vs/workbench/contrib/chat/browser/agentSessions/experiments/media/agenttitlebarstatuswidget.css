@@ -40,7 +40,6 @@
 	align-items: center;
 	justify-content: flex-start;
 	gap: 4px;
-	padding-right: 22px;
 	-webkit-app-region: no-drag;
 	overflow: visible;
 	color: var(--vscode-commandCenter-foreground);
@@ -240,6 +239,7 @@
 
 .agent-status-badge-section:first-child { border-radius: 5px 0 0 5px; }
 .agent-status-badge-section:last-child { border-radius: 0 5px 5px 0; }
+.agent-status-badge-section:only-child { border-radius: 5px; }
 .agent-status-badge-section:hover { background-color: var(--vscode-commandCenter-activeBackground); }
 .agent-status-badge-section:focus {
 	outline: 1px solid var(--vscode-focusBorder);
@@ -308,6 +308,7 @@
 	align-items: center;
 	justify-content: center;
 	height: 100%;
+	overflow: hidden;
 }
 
 .agent-status-badge-section.sparkle .action-container {
@@ -318,6 +319,12 @@
 .agent-status-badge-section.sparkle .dropdown-action-container {
 	width: 18px;
 	padding: 0;
+	border-radius: 0;
+}
+
+/* When sparkle is the only section, dropdown needs rounded right corners */
+.agent-status-badge-section.sparkle:last-child .dropdown-action-container {
+	border-radius: 0 5px 5px 0;
 }
 
 .agent-status-badge-section.sparkle .action-container:hover,
@@ -366,7 +373,16 @@
 	outline-offset: -1px;
 }
 
-/* Unread section - smaller dot */
+/* Unread section - smaller dot with adjusted padding for visual balance */
+.agent-status-badge-section.unread {
+	padding: 0 8px 0 6px;
+}
+
 .agent-status-badge-section.unread .agent-status-icon {
 	font-size: 8px;
+}
+
+/* Active section in needs-input state - uses report icon with warning color */
+.agent-status-badge-section.active.needs-input .agent-status-icon {
+	color: var(--vscode-notificationsWarningIcon-foreground);
 }
