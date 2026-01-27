@@ -32,13 +32,14 @@ suite('PromptValidator', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let instaService: TestInstantiationService;
+	let testConfigService: TestConfigurationService;
 
 	const existingRef1 = URI.parse('myFs://test/reference1.md');
 	const existingRef2 = URI.parse('myFs://test/reference2.md');
 
 	setup(async () => {
 
-		const testConfigService = new TestConfigurationService();
+		testConfigService = new TestConfigurationService();
 		testConfigService.setUserConfiguration(ChatConfiguration.ExtensionToolsEnabled, true);
 		instaService = workbenchInstantiationService({
 			contextKeyService: () => disposables.add(new ContextKeyService(testConfigService)),
@@ -831,8 +832,9 @@ suite('PromptValidator', () => {
 		});
 
 		test('infer attribute validation', async () => {
-			// Valid infer: true (maps to 'all')
+			// Valid infer: true (maps to 'all') - requires config enabled
 			{
+				testConfigService.setUserConfiguration(ChatConfiguration.SubagentToolCustomAgents, true);
 				const content = [
 					'---',
 					'name: "TestAgent"',
@@ -842,7 +844,7 @@ suite('PromptValidator', () => {
 					'Body',
 				].join('\n');
 				const markers = await validate(content, PromptsType.agent);
-				assert.deepStrictEqual(markers, [], 'Valid infer: true should not produce errors');
+				assert.deepStrictEqual(markers, [], 'Valid infer: true should not produce errors when config is enabled');
 			}
 
 			// Valid infer: false (maps to 'user')
@@ -887,8 +889,9 @@ suite('PromptValidator', () => {
 				assert.deepStrictEqual(markers, [], 'Valid infer: user should not produce errors');
 			}
 
-			// Valid infer: 'agent'
+			// Valid infer: 'agent' - requires config enabled
 			{
+				testConfigService.setUserConfiguration(ChatConfiguration.SubagentToolCustomAgents, true);
 				const content = [
 					'---',
 					'name: "TestAgent"',
@@ -898,7 +901,7 @@ suite('PromptValidator', () => {
 					'Body',
 				].join('\n');
 				const markers = await validate(content, PromptsType.agent);
-				assert.deepStrictEqual(markers, [], 'Valid infer: agent should not produce errors');
+				assert.deepStrictEqual(markers, [], 'Valid infer: agent should not produce errors when config is enabled');
 			}
 
 			// Valid infer: 'hidden'
@@ -961,7 +964,100 @@ suite('PromptValidator', () => {
 			}
 		});
 
+		test('infer attribute warns when customAgentInSubagent.enabled is disabled', async () => {
+			testConfigService.setUserConfiguration(ChatConfiguration.SubagentToolCustomAgents, false);
+
+			// infer: true should warn when config is disabled
+			{
+				const content = [
+					'---',
+					'name: "TestAgent"',
+					'description: "Test agent"',
+					'infer: true',
+					'---',
+					'Body',
+				].join('\n');
+				const markers = await validate(content, PromptsType.agent);
+				assert.strictEqual(markers.length, 1);
+				assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
+				assert.strictEqual(markers[0].message, `For agents to be used as subagent you also need to enable the 'chat.customAgentInSubagent.enabled' setting.`);
+			}
+
+			// infer: agent should warn when config is disabled
+			{
+				const content = [
+					'---',
+					'name: "TestAgent"',
+					'description: "Test agent"',
+					'infer: agent',
+					'---',
+					'Body',
+				].join('\n');
+				const markers = await validate(content, PromptsType.agent);
+				assert.strictEqual(markers.length, 1);
+				assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
+				assert.strictEqual(markers[0].message, `For agents to be used as subagent you also need to enable the 'chat.customAgentInSubagent.enabled' setting.`);
+			}
+
+			// infer: false should NOT warn
+			{
+				const content = [
+					'---',
+					'name: "TestAgent"',
+					'description: "Test agent"',
+					'infer: false',
+					'---',
+					'Body',
+				].join('\n');
+				const markers = await validate(content, PromptsType.agent);
+				assert.deepStrictEqual(markers, [], 'infer: false should not warn');
+			}
+
+			// infer: all should NOT warn
+			{
+				const content = [
+					'---',
+					'name: "TestAgent"',
+					'description: "Test agent"',
+					'infer: all',
+					'---',
+					'Body',
+				].join('\n');
+				const markers = await validate(content, PromptsType.agent);
+				assert.deepStrictEqual(markers, [], 'infer: all should not warn');
+			}
+
+			// infer: user should NOT warn
+			{
+				const content = [
+					'---',
+					'name: "TestAgent"',
+					'description: "Test agent"',
+					'infer: user',
+					'---',
+					'Body',
+				].join('\n');
+				const markers = await validate(content, PromptsType.agent);
+				assert.deepStrictEqual(markers, [], 'infer: user should not warn');
+			}
+
+			// infer: hidden should NOT warn
+			{
+				const content = [
+					'---',
+					'name: "TestAgent"',
+					'description: "Test agent"',
+					'infer: hidden',
+					'---',
+					'Body',
+				].join('\n');
+				const markers = await validate(content, PromptsType.agent);
+				assert.deepStrictEqual(markers, [], 'infer: hidden should not warn');
+			}
+		});
+
 		test('agents attribute must be an array', async () => {
+			testConfigService.setUserConfiguration(ChatConfiguration.SubagentToolCustomAgents, true);
 			const content = [
 				'---',
 				'description: "Test"',
@@ -973,6 +1069,7 @@ suite('PromptValidator', () => {
 		});
 
 		test('each agent name in agents attribute must be a string', async () => {
+			testConfigService.setUserConfiguration(ChatConfiguration.SubagentToolCustomAgents, true);
 			const content = [
 				'---',
 				'description: "Test"',
@@ -985,6 +1082,7 @@ suite('PromptValidator', () => {
 		});
 
 		test('agents attribute with non-empty value requires agent tool 1', async () => {
+			testConfigService.setUserConfiguration(ChatConfiguration.SubagentToolCustomAgents, true);
 			const content = [
 				'---',
 				'description: "Test"',
@@ -996,6 +1094,7 @@ suite('PromptValidator', () => {
 		});
 
 		test('agents attribute with non-empty value requires agent tool 2', async () => {
+			testConfigService.setUserConfiguration(ChatConfiguration.SubagentToolCustomAgents, true);
 			const content = [
 				'---',
 				'description: "Test"',
@@ -1008,6 +1107,7 @@ suite('PromptValidator', () => {
 		});
 
 		test('agents attribute with non-empty value requires agent tool 3', async () => {
+			testConfigService.setUserConfiguration(ChatConfiguration.SubagentToolCustomAgents, true);
 			const content = [
 				'---',
 				'description: "Test"',
@@ -1020,6 +1120,7 @@ suite('PromptValidator', () => {
 		});
 
 		test('agents attribute with non-empty value requires agent tool 4', async () => {
+			testConfigService.setUserConfiguration(ChatConfiguration.SubagentToolCustomAgents, true);
 			const content = [
 				'---',
 				'description: "Test"',
@@ -1032,6 +1133,7 @@ suite('PromptValidator', () => {
 		});
 
 		test('agents attribute with empty array does not require agent tool', async () => {
+			testConfigService.setUserConfiguration(ChatConfiguration.SubagentToolCustomAgents, true);
 			const content = [
 				'---',
 				'description: "Test"',
@@ -1040,6 +1142,19 @@ suite('PromptValidator', () => {
 			].join('\n');
 			const markers = await validate(content, PromptsType.agent);
 			assert.deepStrictEqual(markers, [], 'Empty array should not require agent tool');
+		});
+
+		test('agents attribute warns when customAgentInSubagent.enabled is disabled', async () => {
+			testConfigService.setUserConfiguration(ChatConfiguration.SubagentToolCustomAgents, false);
+			const content = [
+				'---',
+				'description: "Test"',
+				`agents: ['Planning', 'Research']`,
+				`tools: ['agent']`,
+				'---',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			assert.deepStrictEqual(markers.map(m => m.message), [`For agents to be used as subagent you also need to enable the 'chat.customAgentInSubagent.enabled' setting.`]);
 		});
 	});
 

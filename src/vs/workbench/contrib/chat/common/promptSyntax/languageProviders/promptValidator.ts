@@ -9,10 +9,11 @@ import { Range } from '../../../../../../editor/common/core/range.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { localize } from '../../../../../../nls.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IMarkerData, IMarkerService, MarkerSeverity } from '../../../../../../platform/markers/common/markers.js';
 import { IChatMode, IChatModeService } from '../../chatModes.js';
-import { ChatModeKind } from '../../constants.js';
+import { ChatConfiguration, ChatModeKind } from '../../constants.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../languageModels.js';
 import { ILanguageModelToolsService, SpecedToolAliases } from '../../tools/languageModelToolsService.js';
 import { getPromptsTypeForLanguageId, PromptsType } from '../promptTypes.js';
@@ -35,7 +36,8 @@ export class PromptValidator {
 		@IChatModeService private readonly chatModeService: IChatModeService,
 		@IFileService private readonly fileService: IFileService,
 		@ILabelService private readonly labelService: ILabelService,
-		@IPromptsService private readonly promptsService: IPromptsService
+		@IPromptsService private readonly promptsService: IPromptsService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) { }
 
 	public async validate(promptAST: ParsedPromptFile, promptType: PromptsType, report: (markers: IMarkerData) => void): Promise<void> {
@@ -532,6 +534,12 @@ export class PromptValidator {
 		}
 		// Accept boolean for backwards compatibility (true -> 'all', false -> 'user')
 		if (attribute.value.type === 'boolean') {
+			// Check if infer: true requires the config setting
+			if (attribute.value.value === true) {
+				if (!this.isCustomAgentInSubagentEnabled()) {
+					report(toMarker(localize('promptValidator.inferRequiresConfig', "For agents to be used as subagent you also need to enable the 'chat.customAgentInSubagent.enabled' setting."), attribute.value.range, MarkerSeverity.Warning));
+				}
+			}
 			return;
 		}
 		if (attribute.value.type !== 'string') {
@@ -542,6 +550,12 @@ export class PromptValidator {
 		if (!validInferValues.includes(attribute.value.value)) {
 			report(toMarker(localize('promptValidator.invalidInferValue', "The 'infer' attribute must be one of: {0}.", validInferValues.join(', ')), attribute.value.range, MarkerSeverity.Error));
 			return;
+		}
+		// Check if infer: 'agent' requires the config setting
+		if (attribute.value.value === 'agent') {
+			if (!this.isCustomAgentInSubagentEnabled()) {
+				report(toMarker(localize('promptValidator.inferRequiresConfig', "For agents to be used as subagent you also need to enable the 'chat.customAgentInSubagent.enabled' setting."), attribute.value.range, MarkerSeverity.Warning));
+			}
 		}
 	}
 
@@ -575,6 +589,11 @@ export class PromptValidator {
 			return;
 		}
 
+		// Check if the configuration setting is enabled
+		if (!this.isCustomAgentInSubagentEnabled()) {
+			report(toMarker(localize('promptValidator.agentsRequiresConfig', "For agents to be used as subagent you also need to enable the 'chat.customAgentInSubagent.enabled' setting."), attribute.range, MarkerSeverity.Warning));
+		}
+
 		// Check each item is a string
 		const agentNames: string[] = [];
 		for (const item of attribute.value.items) {
@@ -592,6 +611,10 @@ export class PromptValidator {
 				report(toMarker(localize('promptValidator.agentsRequiresAgentTool', "When 'agents' and 'tools' are specified, the 'agent' tool must be included in the 'tools' attribute."), attribute.value.range, MarkerSeverity.Warning));
 			}
 		}
+	}
+
+	private isCustomAgentInSubagentEnabled(): boolean {
+		return !!this.configurationService.getValue<boolean>(ChatConfiguration.SubagentToolCustomAgents);
 	}
 }
 
