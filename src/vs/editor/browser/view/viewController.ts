@@ -14,6 +14,8 @@ import { IViewModel } from '../../common/viewModel.js';
 import { IMouseWheelEvent } from '../../../base/browser/mouseEvent.js';
 import { EditorOption } from '../../common/config/editorOptions.js';
 import * as platform from '../../../base/common/platform.js';
+import { StandardTokenType } from '../../common/encodedTokenAttributes.js';
+import { ITextModel } from '../../common/model.js';
 
 export interface IMouseDispatchData {
 	position: Position;
@@ -129,6 +131,67 @@ export class ViewController {
 		}
 	}
 
+	/**
+	 * Selects content inside brackets if the position is right after an opening bracket or right before a closing bracket.
+	 * @param pos The position in the model.
+	 * @param model The text model.
+	 */
+	private static _trySelectBracketContent(model: ITextModel, pos: Position): Selection | undefined {
+		// Try to find bracket match if we're right after an opening bracket.
+		if (pos.column > 1) {
+			const pair = model.bracketPairs.matchBracket(pos.with(undefined, pos.column - 1));
+			if (pair && pair[0].getEndPosition().equals(pos)) {
+				return Selection.fromPositions(pair[0].getEndPosition(), pair[1].getStartPosition());
+			}
+		}
+
+		// Try to find bracket match if we're right before a closing bracket.
+		if (pos.column <= model.getLineMaxColumn(pos.lineNumber)) {
+			const pair = model.bracketPairs.matchBracket(pos);
+			if (pair && pair[1].getStartPosition().equals(pos)) {
+				return Selection.fromPositions(pair[0].getEndPosition(), pair[1].getStartPosition());
+			}
+		}
+
+		return undefined;
+	}
+
+	/**
+	 * Selects content inside a string if the position is right after an opening quote or right before a closing quote.
+	 * @param pos The position in the model.
+	 * @param model The text model.
+	 */
+	private static _trySelectStringContent(model: ITextModel, pos: Position): Selection | undefined {
+		const { lineNumber, column } = pos;
+		const { tokenization: tokens } = model;
+
+		// Ensure we have accurate tokens for the line.
+		if (!tokens.hasAccurateTokensForLine(lineNumber)) {
+			if (tokens.isCheapToTokenize(lineNumber)) {
+				tokens.forceTokenization(lineNumber);
+			} else {
+				return undefined;
+			}
+		}
+
+		// Check if current token is a string.
+		const lineTokens = tokens.getLineTokens(lineNumber);
+		const index = lineTokens.findTokenIndexAtOffset(column - 1);
+		if (lineTokens.getStandardTokenType(index) !== StandardTokenType.String) {
+			return undefined;
+		}
+
+		// Get 1-based boundaries of the string content (excluding quotes).
+		const start = lineTokens.getStartOffset(index) + 2;
+		const end = lineTokens.getEndOffset(index);
+
+		if (column !== start && column !== end) {
+			return undefined;
+		}
+
+		return new Selection(lineNumber, start, lineNumber, end);
+	}
+
 	public dispatchMouse(data: IMouseDispatchData): void {
 		const options = this.configuration.options;
 		const selectionClipboardIsOn = (platform.isLinux && options.get(EditorOption.selectionClipboard));
@@ -179,7 +242,14 @@ export class ViewController {
 					if (data.inSelectionMode) {
 						this._wordSelectDrag(data.position, data.revealType);
 					} else {
-						this._wordSelect(data.position, data.revealType);
+						const model = this.viewModel.model;
+						const modelPos = this._convertViewToModelPosition(data.position);
+						const selection = ViewController._trySelectBracketContent(model, modelPos) || ViewController._trySelectStringContent(model, modelPos);
+						if (selection) {
+							this._select(selection);
+						} else {
+							this._wordSelect(data.position, data.revealType);
+						}
 					}
 				}
 			}
@@ -284,6 +354,10 @@ export class ViewController {
 
 	private _lastCursorLineSelectDrag(viewPosition: Position, revealType: NavigationCommandRevealType): void {
 		CoreNavigationCommands.LastCursorLineSelectDrag.runCoreEditorCommand(this.viewModel, this._usualArgs(viewPosition, revealType));
+	}
+
+	private _select(selection: Selection): void {
+		CoreNavigationCommands.SetSelection.runCoreEditorCommand(this.viewModel, { source: 'mouse', selection });
 	}
 
 	private _selectAll(): void {

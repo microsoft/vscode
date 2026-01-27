@@ -19,7 +19,7 @@ import { EditorExtensions, IEditorFactoryRegistry, IEditorSerializer } from '../
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { RuntimeExtensionsInput } from '../common/runtimeExtensionsInput.js';
-import { DebugExtensionHostInNewWindowAction, DebugExtensionsContribution, DebugExtensionHostInDevToolsAction } from './debugExtensionHostAction.js';
+import { DebugExtensionHostInNewWindowAction, DebugExtensionsContribution, DebugExtensionHostInDevToolsAction, DebugRendererInNewWindowAction, DebugExtensionHostAndRendererAction } from './debugExtensionHostAction.js';
 import { ExtensionHostProfileService } from './extensionProfileService.js';
 import { CleanUpExtensionsFolderAction, OpenExtensionsFolderAction } from './extensionsActions.js';
 import { ExtensionsAutoProfiler } from './extensionsAutoProfiler.js';
@@ -77,6 +77,8 @@ workbenchRegistry.registerWorkbenchContribution(DebugExtensionsContribution, Lif
 // Register Commands
 
 registerAction2(DebugExtensionHostInNewWindowAction);
+registerAction2(DebugRendererInNewWindowAction);
+registerAction2(DebugExtensionHostAndRendererAction);
 registerAction2(StartExtensionHostProfileAction);
 registerAction2(StopExtensionHostProfileAction);
 registerAction2(SaveExtensionHostProfileAction);

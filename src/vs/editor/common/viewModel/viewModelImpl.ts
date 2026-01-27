@@ -10,7 +10,7 @@ import { Event } from '../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../base/common/lifecycle.js';
 import * as platform from '../../../base/common/platform.js';
 import * as strings from '../../../base/common/strings.js';
-import { ConfigurationChangedEvent, EditorOption, filterValidationDecorations, filterFontDecorations } from '../config/editorOptions.js';
+import { ConfigurationChangedEvent, EditorOption, filterValidationDecorations, filterFontDecorations, FindComputedEditorOptionValueById } from '../config/editorOptions.js';
 import { EDITOR_FONT_DEFAULTS } from '../config/fontInfo.js';
 import { CursorsController } from '../cursor/cursor.js';
 import { CursorConfiguration, CursorState, EditOperationType, IColumnSelectData, PartialCursorState } from '../cursorCommon.js';
@@ -178,6 +178,10 @@ export class ViewModel extends Disposable implements IViewModel {
 		this._eventDispatcher.dispose();
 	}
 
+	public getEditorOption<T extends EditorOption>(id: T): FindComputedEditorOptionValueById<T> {
+		return this._configuration.options.get(id);
+	}
+
 	public createLineBreaksComputer(): ILineBreaksComputer {
 		return this._lines.createLineBreaksComputer();
 	}
@@ -195,6 +199,7 @@ export class ViewModel extends Disposable implements IViewModel {
 		if (!allowVariableLineHeights) {
 			return [];
 		}
+		const defaultLineHeight = this._configuration.options.get(EditorOption.lineHeight);
 		const decorations = this.model.getCustomLineHeightsDecorations(this._editorId);
 		return decorations.map((d) => {
 			const lineNumber = d.range.startLineNumber;
@@ -203,7 +208,7 @@ export class ViewModel extends Disposable implements IViewModel {
 				decorationId: d.id,
 				startLineNumber: viewRange.startLineNumber,
 				endLineNumber: viewRange.endLineNumber,
-				lineHeight: d.options.lineHeight || 0
+				lineHeight: d.options.lineHeight ? d.options.lineHeight * defaultLineHeight : 0
 			};
 		});
 	}
@@ -451,10 +456,10 @@ export class ViewModel extends Disposable implements IViewModel {
 
 				this.viewLayout.changeSpecialLineHeights((accessor: ILineHeightChangeAccessor) => {
 					for (const change of filteredChanges) {
-						const { decorationId, lineNumber, lineHeight } = change;
+						const { decorationId, lineNumber, lineHeightMultiplier } = change;
 						const viewRange = this.coordinatesConverter.convertModelRangeToViewRange(new Range(lineNumber, 1, lineNumber, this.model.getLineMaxColumn(lineNumber)));
-						if (lineHeight !== null) {
-							accessor.insertOrChangeCustomLineHeight(decorationId, viewRange.startLineNumber, viewRange.endLineNumber, lineHeight);
+						if (lineHeightMultiplier !== null) {
+							accessor.insertOrChangeCustomLineHeight(decorationId, viewRange.startLineNumber, viewRange.endLineNumber, lineHeightMultiplier * this._configuration.options.get(EditorOption.lineHeight));
 						} else {
 							accessor.removeCustomLineHeight(decorationId);
 						}
@@ -768,6 +773,10 @@ export class ViewModel extends Disposable implements IViewModel {
 	 * Gives a hint that a lot of requests are about to come in for these line numbers.
 	 */
 	public setViewport(startLineNumber: number, endLineNumber: number, centeredLineNumber: number): void {
+		if (this._lines.getViewLineCount() === 0) {
+			// No visible lines to set viewport on
+			return;
+		}
 		this._viewportStart.update(this, startLineNumber);
 	}
 
@@ -853,13 +862,15 @@ export class ViewModel extends Disposable implements IViewModel {
 
 	public getViewportViewLineRenderingData(visibleRange: Range, lineNumber: number): ViewLineRenderingData {
 		const viewportDecorationsCollection = this._decorations.getDecorationsViewportData(visibleRange);
-		const inlineDecorations = viewportDecorationsCollection.inlineDecorations[lineNumber - visibleRange.startLineNumber];
-		return this._getViewLineRenderingData(lineNumber, inlineDecorations, viewportDecorationsCollection.hasVariableFonts, viewportDecorationsCollection.decorations);
+		const relativeLineNumber = lineNumber - visibleRange.startLineNumber;
+		const inlineDecorations = viewportDecorationsCollection.inlineDecorations[relativeLineNumber];
+		const hasVariableFonts = viewportDecorationsCollection.hasVariableFonts[relativeLineNumber];
+		return this._getViewLineRenderingData(lineNumber, inlineDecorations, hasVariableFonts, viewportDecorationsCollection.decorations);
 	}
 
 	public getViewLineRenderingData(lineNumber: number): ViewLineRenderingData {
 		const decorationsCollection = this._decorations.getDecorationsOnLine(lineNumber);
-		return this._getViewLineRenderingData(lineNumber, decorationsCollection.inlineDecorations[0], decorationsCollection.hasVariableFonts, decorationsCollection.decorations);
+		return this._getViewLineRenderingData(lineNumber, decorationsCollection.inlineDecorations[0], decorationsCollection.hasVariableFonts[0], decorationsCollection.decorations);
 	}
 
 	private _getViewLineRenderingData(lineNumber: number, inlineDecorations: InlineDecoration[], hasVariableFonts: boolean, decorations: ViewModelDecoration[]): ViewLineRenderingData {
@@ -969,7 +980,7 @@ export class ViewModel extends Disposable implements IViewModel {
 		return this.model.getPositionAt(resultOffset);
 	}
 
-	public getPlainTextToCopy(modelRanges: Range[], emptySelectionClipboard: boolean, forceCRLF: boolean): string | string[] {
+	public getPlainTextToCopy(modelRanges: Range[], emptySelectionClipboard: boolean, forceCRLF: boolean): { sourceRanges: Range[]; sourceText: string | string[] } {
 		const newLineCharacter = forceCRLF ? '\r\n' : this.model.getEOL();
 
 		modelRanges = modelRanges.slice(0);
@@ -987,34 +998,39 @@ export class ViewModel extends Disposable implements IViewModel {
 
 		if (!hasNonEmptyRange && !emptySelectionClipboard) {
 			// all ranges are empty
-			return '';
+			return { sourceRanges: [], sourceText: '' };
 		}
+
+		const ranges: Range[] = [];
+		const result: string[] = [];
+		const pushRange = (modelRange: Range, append: string = '') => {
+			ranges.push(modelRange);
+			result.push(this.model.getValueInRange(modelRange, forceCRLF ? EndOfLinePreference.CRLF : EndOfLinePreference.TextDefined) + append);
+		};
 
 		if (hasEmptyRange && emptySelectionClipboard) {
 			// some (maybe all) empty selections
-			const result: string[] = [];
 			let prevModelLineNumber = 0;
 			for (const modelRange of modelRanges) {
 				const modelLineNumber = modelRange.startLineNumber;
 				if (modelRange.isEmpty()) {
 					if (modelLineNumber !== prevModelLineNumber) {
-						result.push(this.model.getLineContent(modelLineNumber) + newLineCharacter);
+						pushRange(new Range(modelLineNumber, this.model.getLineMinColumn(modelLineNumber), modelLineNumber, this.model.getLineMaxColumn(modelLineNumber)), newLineCharacter);
 					}
 				} else {
-					result.push(this.model.getValueInRange(modelRange, forceCRLF ? EndOfLinePreference.CRLF : EndOfLinePreference.TextDefined));
+					pushRange(modelRange);
 				}
 				prevModelLineNumber = modelLineNumber;
 			}
-			return result.length === 1 ? result[0] : result;
-		}
-
-		const result: string[] = [];
-		for (const modelRange of modelRanges) {
-			if (!modelRange.isEmpty()) {
-				result.push(this.model.getValueInRange(modelRange, forceCRLF ? EndOfLinePreference.CRLF : EndOfLinePreference.TextDefined));
+		} else {
+			for (const modelRange of modelRanges) {
+				if (!modelRange.isEmpty()) {
+					pushRange(modelRange);
+				}
 			}
 		}
-		return result.length === 1 ? result[0] : result;
+
+		return { sourceRanges: ranges, sourceText: result.length === 1 ? result[0] : result };
 	}
 
 	public getRichTextToCopy(modelRanges: Range[], emptySelectionClipboard: boolean): { html: string; mode: string } | null {

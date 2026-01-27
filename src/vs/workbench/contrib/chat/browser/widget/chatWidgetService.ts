@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
-import { raceCancellablePromises, timeout } from '../../../../../base/common/async.js';
+import { timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { combinedDisposable, Disposable, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { isEqual } from '../../../../../base/common/resources.js';
@@ -153,11 +153,8 @@ export class ChatWidgetService extends Disposable implements IChatWidgetService 
 			const isGroupActive = () => dom.getWindow(this.layoutService.activeContainer).vscodeWindowId === existingEditorWindowId;
 
 			let ensureFocusTransfer: Promise<void> | undefined;
-			if (!isGroupActive()) {
-				ensureFocusTransfer = raceCancellablePromises([
-					timeout(500),
-					Event.toPromise(Event.once(Event.filter(this.layoutService.onDidChangeActiveContainer, isGroupActive))),
-				]);
+			if (!isGroupActive() && !options?.preserveFocus) {
+				ensureFocusTransfer = Event.toPromise(Event.once(Event.filter(this.layoutService.onDidChangeActiveContainer, isGroupActive)));
 			}
 
 			const pane = await existingEditor.group.openEditor(existingEditor.editor, options);

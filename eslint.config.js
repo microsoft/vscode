@@ -899,6 +899,7 @@ export default tseslint.config(
 					],
 					'verbs': [
 						'accept',
+						'archive',
 						'change',
 						'close',
 						'collapse',
@@ -1439,11 +1440,12 @@ export default tseslint.config(
 					// - electron-main
 					'when': 'hasNode',
 					'allow': [
-						'@vscode/watcher',
+						'@parcel/watcher',
 						'@vscode/sqlite3',
 						'@vscode/vscode-languagedetection',
 						'@vscode/ripgrep',
 						'@vscode/iconv-lite-umd',
+						'@vscode/native-watchdog',
 						'@vscode/policy-watcher',
 						'@vscode/proxy-agent',
 						'@vscode/spdlog',
@@ -1462,7 +1464,6 @@ export default tseslint.config(
 						'minimist',
 						'node:module',
 						'native-keymap',
-						'native-watchdog',
 						'net',
 						'node-pty',
 						'os',
@@ -1930,7 +1931,15 @@ export default tseslint.config(
 						'test/automation',
 						'test/smoke/**',
 						'@vscode/*',
+						'@parcel/*',
 						'@playwright/*',
+						'*' // node modules
+					]
+				},
+				{
+					'target': 'test/sanity/**',
+					'restrictions': [
+						'test/sanity/**',
 						'*' // node modules
 					]
 				},
@@ -1939,6 +1948,7 @@ export default tseslint.config(
 					'restrictions': [
 						'test/automation/**',
 						'@vscode/*',
+						'@parcel/*',
 						'playwright-core/**',
 						'@playwright/*',
 						'*' // node modules
@@ -1949,6 +1959,7 @@ export default tseslint.config(
 					'restrictions': [
 						'test/integration/**',
 						'@vscode/*',
+						'@parcel/*',
 						'@playwright/*',
 						'*' // node modules
 					]
@@ -1958,6 +1969,7 @@ export default tseslint.config(
 					'restrictions': [
 						'test/monaco/**',
 						'@vscode/*',
+						'@parcel/*',
 						'@playwright/*',
 						'*' // node modules
 					]
@@ -1968,6 +1980,7 @@ export default tseslint.config(
 						'test/automation',
 						'test/mcp/**',
 						'@vscode/*',
+						'@parcel/*',
 						'@playwright/*',
 						'@modelcontextprotocol/sdk/**/*',
 						'*' // node modules
@@ -2105,6 +2118,23 @@ export default tseslint.config(
 			'@typescript-eslint/prefer-optional-chain': 'warn',
 			'@typescript-eslint/prefer-readonly': 'warn',
 			'@typescript-eslint/consistent-generic-constructors': ['warn', 'constructor'],
+		}
+	},
+	// Allow querySelector/querySelectorAll in test files - it's acceptable for test assertions
+	{
+		files: [
+			'src/**/test/**/*.ts',
+			'extensions/**/test/**/*.ts',
+		],
+		rules: {
+			'no-restricted-syntax': [
+				'warn',
+				// Keep the Intl helper restriction even in tests
+				{
+					'selector': `NewExpression[callee.object.name='Intl']`,
+					'message': 'Use safeIntl helper instead for safe and lazy use of potentially expensive Intl methods.'
+				},
+			],
 		}
 	},
 );

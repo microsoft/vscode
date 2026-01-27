@@ -54,10 +54,8 @@ export abstract class AbstractToolConfirmationSubPart extends BaseChatToolInvoca
 	}
 	protected render(config: IToolConfirmationConfig) {
 		const { keybindingService, languageModelToolsService, toolInvocation } = this;
-		const allowKeybinding = keybindingService.lookupKeybinding(config.allowActionId)?.getLabel();
-		const allowTooltip = allowKeybinding ? `${config.allowLabel} (${allowKeybinding})` : config.allowLabel;
-		const skipKeybinding = keybindingService.lookupKeybinding(config.skipActionId)?.getLabel();
-		const skipTooltip = skipKeybinding ? `${config.skipLabel} (${skipKeybinding})` : config.skipLabel;
+		const allowTooltip = keybindingService.appendKeybinding(config.allowLabel, config.allowActionId);
+		const skipTooltip = keybindingService.appendKeybinding(config.skipLabel, config.skipActionId);
 
 
 		const additionalActions = this.additionalPrimaryActions();
@@ -107,7 +105,6 @@ export abstract class AbstractToolConfirmationSubPart extends BaseChatToolInvoca
 			this.chatWidgetService.getWidgetBySessionResource(this.context.element.sessionResource)?.focusInput();
 		}));
 
-		this._register(confirmWidget.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 		this._register(toDisposable(() => hasToolConfirmation.reset()));
 
 		this.domNode = confirmWidget.domNode;

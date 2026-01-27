@@ -14,7 +14,7 @@ import { TestInstantiationService } from '../../../../../../../platform/instanti
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { LanguageModelToolsService } from '../../../../browser/tools/languageModelToolsService.js';
 import { ChatMode, CustomChatMode, IChatModeService } from '../../../../common/chatModes.js';
-import { ChatConfiguration } from '../../../../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration } from '../../../../common/constants.js';
 import { ILanguageModelToolsService, IToolData, ToolDataSource } from '../../../../common/tools/languageModelToolsService.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../../common/languageModels.js';
 import { PromptHoverProvider } from '../../../../common/promptSyntax/languageProviders/promptHovers.js';
@@ -53,14 +53,19 @@ suite('PromptHoverProvider', () => {
 		instaService.set(ILanguageModelToolsService, toolService);
 
 		const testModels: ILanguageModelChatMetadata[] = [
-			{ id: 'mae-4', name: 'MAE 4', vendor: 'olama', version: '1.0', family: 'mae', modelPickerCategory: undefined, extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 8192, maxOutputTokens: 1024, capabilities: { agentMode: true, toolCalling: true } } satisfies ILanguageModelChatMetadata,
-			{ id: 'mae-4.1', name: 'MAE 4.1', vendor: 'copilot', version: '1.0', family: 'mae', modelPickerCategory: undefined, extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 8192, maxOutputTokens: 1024, capabilities: { agentMode: true, toolCalling: true } } satisfies ILanguageModelChatMetadata,
+			{ id: 'mae-4', name: 'MAE 4', vendor: 'olama', version: '1.0', family: 'mae', modelPickerCategory: undefined, extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 8192, maxOutputTokens: 1024, capabilities: { agentMode: true, toolCalling: true }, isDefaultForLocation: { [ChatAgentLocation.Chat]: true } } satisfies ILanguageModelChatMetadata,
+			{ id: 'mae-4.1', name: 'MAE 4.1', vendor: 'copilot', version: '1.0', family: 'mae', modelPickerCategory: undefined, extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 8192, maxOutputTokens: 1024, capabilities: { agentMode: true, toolCalling: true }, isDefaultForLocation: { [ChatAgentLocation.Chat]: true } } satisfies ILanguageModelChatMetadata,
 		];
 
 		instaService.stub(ILanguageModelsService, {
 			getLanguageModelIds() { return testModels.map(m => m.id); },
-			lookupLanguageModel(name: string) {
-				return testModels.find(m => m.id === name);
+			lookupLanguageModelByQualifiedName(qualifiedName: string) {
+				for (const metadata of testModels) {
+					if (ILanguageModelChatMetadata.matchesQualifiedName(qualifiedName, metadata)) {
+						return metadata;
+					}
+				}
+				return undefined;
 			}
 		});
 
@@ -121,7 +126,7 @@ suite('PromptHoverProvider', () => {
 			].join('\n');
 			const hover = await getHover(content, 4, 1, PromptsType.agent);
 			const expected = [
-				'Specify the model that runs this custom agent.',
+				'Specify the model that runs this custom agent. Can also be a list of models. The first available model will be used.',
 				'',
 				'Note: This attribute is not used when target is github-copilot.'
 			].join('\n');
@@ -138,7 +143,7 @@ suite('PromptHoverProvider', () => {
 			].join('\n');
 			const hover = await getHover(content, 4, 1, PromptsType.agent);
 			const expected = [
-				'Specify the model that runs this custom agent.',
+				'Specify the model that runs this custom agent. Can also be a list of models. The first available model will be used.',
 				'',
 				'- Name: MAE 4',
 				'- Family: mae',
@@ -229,6 +234,44 @@ suite('PromptHoverProvider', () => {
 			assert.strictEqual(hover, 'Test Tool 1');
 		});
 
+		test('hover on model attribute with vscode target and model array', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'target: vscode',
+				`model: ['MAE 4 (olama)', 'MAE 4.1 (copilot)']`,
+				'---',
+			].join('\n');
+			const hover = await getHover(content, 4, 10, PromptsType.agent);
+			const expected = [
+				'Specify the model that runs this custom agent. Can also be a list of models. The first available model will be used.',
+				'',
+				'- Name: MAE 4',
+				'- Family: mae',
+				'- Vendor: olama'
+			].join('\n');
+			assert.strictEqual(hover, expected);
+		});
+
+		test('hover on second model in model array', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'target: vscode',
+				`model: ['MAE 4 (olama)', 'MAE 4.1 (copilot)']`,
+				'---',
+			].join('\n');
+			const hover = await getHover(content, 4, 30, PromptsType.agent);
+			const expected = [
+				'Specify the model that runs this custom agent. Can also be a list of models. The first available model will be used.',
+				'',
+				'- Name: MAE 4.1',
+				'- Family: mae',
+				'- Vendor: copilot'
+			].join('\n');
+			assert.strictEqual(hover, expected);
+		});
+
 		test('hover on description attribute', async () => {
 			const content = [
 				'---',
@@ -272,7 +315,19 @@ suite('PromptHoverProvider', () => {
 				'---',
 			].join('\n');
 			const hover = await getHover(content, 4, 1, PromptsType.agent);
-			assert.strictEqual(hover, 'Whether the agent can be used as a subagent.');
+			assert.strictEqual(hover, 'Controls visibility of the agent.\n\n- `all`, `true`: Available in the agent picker and can be used as a subagent.\n- `user`, `false`: Only available in the agent picker.\n- `agent`: Only available as a subagent (not shown in picker).\n- `hidden`: Not available in the picker nor as a subagent.');
+		});
+
+		test('hover on agents attribute shows description', async () => {
+			const content = [
+				'---',
+				'name: "Test Agent"',
+				'description: "Test agent"',
+				'agents: ["*"]',
+				'---',
+			].join('\n');
+			const hover = await getHover(content, 4, 1, PromptsType.agent);
+			assert.strictEqual(hover, 'One or more agents that this agent can use as subagents. Use \'*\' to specify all available agents.');
 		});
 	});
 
@@ -286,7 +341,7 @@ suite('PromptHoverProvider', () => {
 			].join('\n');
 			const hover = await getHover(content, 3, 1, PromptsType.prompt);
 			const expected = [
-				'The model to use in this prompt.',
+				'The model to use in this prompt. Can also be a list of models. The first available model will be used.',
 				'',
 				'- Name: MAE 4',
 				'- Family: mae',
@@ -377,6 +432,42 @@ suite('PromptHoverProvider', () => {
 			].join('\n');
 			const hover = await getHover(content, 2, 1, PromptsType.instructions);
 			assert.strictEqual(hover, 'The name of the instruction file as shown in the UI. If not set, the name is derived from the file name.');
+		});
+	});
+
+	suite('skill hovers', () => {
+		test('hover on name attribute', async () => {
+			const content = [
+				'---',
+				'name: "My Skill"',
+				'description: "Test skill"',
+				'---',
+			].join('\n');
+			const hover = await getHover(content, 2, 1, PromptsType.skill);
+			assert.strictEqual(hover, 'The name of the skill.');
+		});
+
+		test('hover on description attribute', async () => {
+			const content = [
+				'---',
+				'name: "Test Skill"',
+				'description: "Test skill description"',
+				'---',
+			].join('\n');
+			const hover = await getHover(content, 3, 1, PromptsType.skill);
+			assert.strictEqual(hover, 'The description of the skill. The description is added to every request and will be used by the agent to decide when to load the skill.');
+		});
+
+		test('hover on file attribute', async () => {
+			const content = [
+				'---',
+				'name: "Test Skill"',
+				'description: "Test skill"',
+				'file: "SKILL.md"',
+				'---',
+			].join('\n');
+			const hover = await getHover(content, 4, 1, PromptsType.skill);
+			assert.strictEqual(hover, undefined);
 		});
 	});
 });

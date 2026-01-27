@@ -31,7 +31,7 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental'],
 		},
 		[AI_STATS_SETTING_ID]: {
-			markdownDescription: localize('editor.aiStats.enabled', "Controls whether to enable AI statistics in the editor. The gauge represents the average amount of code inserted by AI vs manual typing over a 24 hour period."),
+			markdownDescription: localize('editor.aiStats.enabled', "Controls whether to enable AI statistics in the editor. The gauge shows the average AI rate across 5-minute sessions, where each session's rate is calculated as AI-inserted characters divided by total inserted characters."),
 			type: 'boolean',
 			default: false,
 			tags: ['experimental'],

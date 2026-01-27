@@ -28,12 +28,10 @@ import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
 import { ChatToolOutputSubPart } from './chatToolOutputPart.js';
 import { ChatToolPostExecuteConfirmationPart } from './chatToolPostExecuteConfirmationPart.js';
 import { ChatToolProgressSubPart } from './chatToolProgressPart.js';
+import { ChatToolStreamingSubPart } from './chatToolStreamingSubPart.js';
 
 export class ChatToolInvocationPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
-
-	private _onDidChangeHeight = this._register(new Emitter<void>());
-	public readonly onDidChangeHeight = this._onDidChangeHeight.event;
 
 	public get codeblocks(): IChatCodeBlockInfo[] {
 		const codeblocks = this.subPart?.codeblocks ?? [];
@@ -67,9 +65,6 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 		super();
 
 		this.domNode = dom.$('.chat-tool-invocation-part');
-		if (toolInvocation.fromSubAgent) {
-			this.domNode.classList.add('from-sub-agent');
-		}
 		if (toolInvocation.presentation === 'hidden') {
 			return;
 		}
@@ -102,9 +97,14 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 			subPartDomNode.replaceWith(this.subPart.domNode);
 			subPartDomNode = this.subPart.domNode;
 
-			partStore.add(this.subPart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
+			// Add class when displaying a confirmation widget
+			const isConfirmation = this.subPart instanceof ToolConfirmationSubPart ||
+				this.subPart instanceof ChatTerminalToolConfirmationSubPart ||
+				this.subPart instanceof ExtensionsInstallConfirmationWidgetSubPart ||
+				this.subPart instanceof ChatToolPostExecuteConfirmationPart;
+			this.domNode.classList.toggle('has-confirmation', isConfirmation);
+
 			partStore.add(this.subPart.onNeedsRerender(render));
-			this._onDidChangeHeight.fire();
 		};
 
 		const mcpAppRenderData = this.getMcpAppRenderData();
@@ -123,17 +123,15 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 						ChatMcpAppSubPart,
 						this.toolInvocation,
 						this._onDidRemount.event,
-						mcpAppRenderData
+						context,
+						mcpAppRenderData,
 					));
 					appDomNode.replaceWith(this.mcpAppPart.domNode);
 					appDomNode = this.mcpAppPart.domNode;
-					r.store.add(this.mcpAppPart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 				} else {
 					this.mcpAppPart = undefined;
 					dom.clearNode(appDomNode);
 				}
-
-				this._onDidChangeHeight.fire();
 			}));
 		}
 
@@ -146,6 +144,12 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 				return this.instantiationService.createInstance(ExtensionsInstallConfirmationWidgetSubPart, this.toolInvocation, this.context);
 			}
 			const state = this.toolInvocation.state.get();
+
+			// Handle streaming state - show streaming progress
+			if (state.type === IChatToolInvocation.StateKind.Streaming) {
+				return this.instantiationService.createInstance(ChatToolStreamingSubPart, this.toolInvocation, this.context, this.renderer);
+			}
+
 			if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation) {
 				if (this.toolInvocation.toolSpecificData?.kind === 'terminal') {
 					return this.instantiationService.createInstance(ChatTerminalToolConfirmationSubPart, this.toolInvocation, this.toolInvocation.toolSpecificData, this.context, this.renderer, this.editorPool, this.currentWidthDelegate, this.codeBlockModelCollection, this.codeBlockStartIndex);
@@ -168,7 +172,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 		}
 
 		if (isToolResultOutputDetails(resultDetails)) {
-			return this.instantiationService.createInstance(ChatToolOutputSubPart, this.toolInvocation, this.context);
+			return this.instantiationService.createInstance(ChatToolOutputSubPart, this.toolInvocation, this.context, this._onDidRemount.event);
 		}
 
 		if (isToolResultInputOutputDetails(resultDetails)) {

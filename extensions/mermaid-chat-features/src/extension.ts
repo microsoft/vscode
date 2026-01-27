@@ -15,7 +15,19 @@ const viewType = 'vscode.chatMermaidDiagram';
  */
 const mime = 'text/vnd.mermaid';
 
+// Track active webviews for reset command
+let activeWebview: vscode.Webview | undefined;
+
 export function activate(context: vscode.ExtensionContext) {
+
+	// Register the reset pan/zoom command
+	context.subscriptions.push(
+		vscode.commands.registerCommand('mermaid-chat.resetPanZoom', () => {
+			if (activeWebview) {
+				activeWebview.postMessage({ type: 'resetPanZoom' });
+			}
+		})
+	);
 
 	// Register tools
 	context.subscriptions.push(
@@ -34,6 +46,9 @@ export function activate(context: vscode.ExtensionContext) {
 		vscode.chat.registerChatOutputRenderer(viewType, {
 			async renderChatOutput({ value }, webview, _ctx, _token) {
 				const mermaidSource = new TextDecoder().decode(value);
+
+				// Track this webview for the reset command
+				activeWebview = webview;
 
 				// Set the options for the webview
 				const mediaRoot = vscode.Uri.joinPath(context.extensionUri, 'chat-webview-out');
@@ -54,10 +69,16 @@ export function activate(context: vscode.ExtensionContext) {
 						<meta charset="UTF-8">
 						<meta name="viewport" content="width=device-width, initial-scale=1.0">
 						<title>Mermaid Diagram</title>
-						<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src ${webview.cspSource} 'nonce-${nonce}'; style-src 'self' 'unsafe-inline';" />
+						<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'nonce-${nonce}'; style-src 'self' 'unsafe-inline';" />
+
+						<style>
+							body {
+								padding: 0;
+							}
+						</style>
 					</head>
 
-					<body>
+					<body data-vscode-context='${JSON.stringify({ webviewSection: 'mermaid-diagram', preventDefaultContextMenuItems: true })}'>
 						<pre class="mermaid">
 							${escapeHtmlText(mermaidSource)}
 						</pre>

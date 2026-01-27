@@ -718,10 +718,7 @@ class CoverageToolbarWidget extends Disposable implements IOverlayWidget {
 			() => this.coverage.showInline.set(!this.coverage.showInline.get(), undefined),
 		);
 
-		const kb = this.keybindingService.lookupKeybinding(TOGGLE_INLINE_COMMAND_ID);
-		if (kb) {
-			toggleAction.tooltip = `${TOGGLE_INLINE_COMMAND_TEXT} (${kb.getLabel()})`;
-		}
+		toggleAction.tooltip = this.keybindingService.appendKeybinding(TOGGLE_INLINE_COMMAND_TEXT, TOGGLE_INLINE_COMMAND_ID);
 
 		const hasUncoveredStmt = current.coverage.statement.covered < current.coverage.statement.total;
 		// Navigation buttons for missed coverage lines

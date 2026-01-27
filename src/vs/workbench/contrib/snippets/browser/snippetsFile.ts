@@ -16,6 +16,8 @@ import { relativePath } from '../../../../base/common/resources.js';
 import { isObject } from '../../../../base/common/types.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { WindowIdleValue, getActiveWindow } from '../../../../base/browser/dom.js';
+import { match as matchGlob } from '../../../../base/common/glob.js';
+import { Schemas } from '../../../../base/common/network.js';
 
 class SnippetBodyInsights {
 
@@ -113,6 +115,8 @@ export class Snippet {
 		readonly source: string,
 		readonly snippetSource: SnippetSource,
 		readonly snippetIdentifier: string,
+		readonly include?: string[],
+		readonly exclude?: string[],
 		readonly extensionId?: ExtensionIdentifier,
 	) {
 		this.prefixLow = prefix.toLowerCase();
@@ -138,6 +142,34 @@ export class Snippet {
 	get usesSelection(): boolean {
 		return this._bodyInsights.value.usesSelectionVariable;
 	}
+
+	isFileIncluded(resourceUri: URI): boolean {
+		const uriPath = resourceUri.scheme === Schemas.file ? resourceUri.fsPath : resourceUri.path;
+		const fileName = basename(uriPath);
+
+		const getMatchTarget = (pattern: string): string => {
+			return pattern.includes('/') ? uriPath : fileName;
+		};
+
+		if (this.exclude) {
+			for (const pattern of this.exclude.filter(Boolean)) {
+				if (matchGlob(pattern, getMatchTarget(pattern), { ignoreCase: true })) {
+					return false;
+				}
+			}
+		}
+
+		if (this.include) {
+			for (const pattern of this.include.filter(Boolean)) {
+				if (matchGlob(pattern, getMatchTarget(pattern), { ignoreCase: true })) {
+					return true;
+				}
+			}
+			return false;
+		}
+
+		return true;
+	}
 }
 
 
@@ -147,6 +179,8 @@ interface JsonSerializedSnippet {
 	scope?: string;
 	prefix: string | string[] | undefined;
 	description: string;
+	include?: string | string[];
+	exclude?: string | string[];
 }
 
 function isJsonSerializedSnippet(thing: unknown): thing is JsonSerializedSnippet {
@@ -192,7 +226,7 @@ export class SnippetFile {
 	}
 
 	private _filepathSelect(selector: string, bucket: Snippet[]): void {
-		// for `fooLang.json` files all snippets are accepted
+		// for `fooLang.json` files apply inclusion/exclusion rules only
 		if (selector + '.json' === basename(this.location.path)) {
 			bucket.push(...this.data);
 		}
@@ -286,6 +320,24 @@ export class SnippetFile {
 			scopes = [];
 		}
 
+		let include: string[] | undefined;
+		if (snippet.include) {
+			if (Array.isArray(snippet.include)) {
+				include = snippet.include;
+			} else if (typeof snippet.include === 'string') {
+				include = [snippet.include];
+			}
+		}
+
+		let exclude: string[] | undefined;
+		if (snippet.exclude) {
+			if (Array.isArray(snippet.exclude)) {
+				exclude = snippet.exclude;
+			} else if (typeof snippet.exclude === 'string') {
+				exclude = [snippet.exclude];
+			}
+		}
+
 		let source: string;
 		if (this._extension) {
 			// extension snippet -> show the name of the extension
@@ -314,6 +366,8 @@ export class SnippetFile {
 				source,
 				this.source,
 				this._extension ? `${relativePath(this._extension.extensionLocation, this.location)}/${name}` : `${basename(this.location.path)}/${name}`,
+				include,
+				exclude,
 				this._extension?.identifier,
 			));
 		}

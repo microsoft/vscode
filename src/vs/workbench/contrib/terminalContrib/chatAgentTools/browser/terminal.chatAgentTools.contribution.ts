@@ -21,7 +21,9 @@ import { TerminalContextMenuGroup } from '../../../terminal/browser/terminalMenu
 import { TerminalContextKeys } from '../../../terminal/common/terminalContextKey.js';
 import { TerminalChatAgentToolsCommandId } from '../common/terminal.chatAgentTools.js';
 import { TerminalChatAgentToolsSettingId } from '../common/terminalChatAgentToolsConfiguration.js';
+import { AwaitTerminalTool, AwaitTerminalToolData } from './tools/awaitTerminalTool.js';
 import { GetTerminalLastCommandTool, GetTerminalLastCommandToolData } from './tools/getTerminalLastCommandTool.js';
+import { KillTerminalTool, KillTerminalToolData } from './tools/killTerminalTool.js';
 import { GetTerminalOutputTool, GetTerminalOutputToolData } from './tools/getTerminalOutputTool.js';
 import { GetTerminalSelectionTool, GetTerminalSelectionToolData } from './tools/getTerminalSelectionTool.js';
 import { ConfirmTerminalCommandTool, ConfirmTerminalCommandToolData } from './tools/runInTerminalConfirmationTool.js';
@@ -29,6 +31,14 @@ import { RunInTerminalTool, createRunInTerminalToolData } from './tools/runInTer
 import { CreateAndRunTaskTool, CreateAndRunTaskToolData } from './tools/task/createAndRunTaskTool.js';
 import { GetTaskOutputTool, GetTaskOutputToolData } from './tools/task/getTaskOutputTool.js';
 import { RunTaskTool, RunTaskToolData } from './tools/task/runTaskTool.js';
+import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
+import { ITerminalSandboxService, TerminalSandboxService } from '../common/terminalSandboxService.js';
+
+// #region Services
+
+registerSingleton(ITerminalSandboxService, TerminalSandboxService, InstantiationType.Delayed);
+
+// #endregion Services
 
 class ShellIntegrationTimeoutMigrationContribution extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'terminal.shellIntegrationTimeoutMigration';
@@ -49,6 +59,22 @@ class ShellIntegrationTimeoutMigrationContribution extends Disposable implements
 }
 registerWorkbenchContribution2(ShellIntegrationTimeoutMigrationContribution.ID, ShellIntegrationTimeoutMigrationContribution, WorkbenchPhase.Eventually);
 
+class OutputLocationMigrationContribution extends Disposable implements IWorkbenchContribution {
+	static readonly ID = 'terminal.outputLocationMigration';
+
+	constructor(
+		@IConfigurationService configurationService: IConfigurationService,
+	) {
+		super();
+		// Migrate legacy 'none' value to 'chat'
+		const currentValue = configurationService.getValue<unknown>(TerminalChatAgentToolsSettingId.OutputLocation);
+		if (currentValue === 'none') {
+			configurationService.updateValue(TerminalChatAgentToolsSettingId.OutputLocation, 'chat');
+		}
+	}
+}
+registerWorkbenchContribution2(OutputLocationMigrationContribution.ID, OutputLocationMigrationContribution, WorkbenchPhase.Eventually);
+
 class ChatAgentToolsContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'terminal.chatAgentTools';
@@ -66,6 +92,14 @@ class ChatAgentToolsContribution extends Disposable implements IWorkbenchContrib
 		const getTerminalOutputTool = instantiationService.createInstance(GetTerminalOutputTool);
 		this._register(toolsService.registerTool(GetTerminalOutputToolData, getTerminalOutputTool));
 		this._register(toolsService.executeToolSet.addTool(GetTerminalOutputToolData));
+
+		const awaitTerminalTool = instantiationService.createInstance(AwaitTerminalTool);
+		this._register(toolsService.registerTool(AwaitTerminalToolData, awaitTerminalTool));
+		this._register(toolsService.executeToolSet.addTool(AwaitTerminalToolData));
+
+		const killTerminalTool = instantiationService.createInstance(KillTerminalTool);
+		this._register(toolsService.registerTool(KillTerminalToolData, killTerminalTool));
+		this._register(toolsService.executeToolSet.addTool(KillTerminalToolData));
 
 		instantiationService.invokeFunction(createRunInTerminalToolData).then(runInTerminalToolData => {
 			const runInTerminalTool = instantiationService.createInstance(RunInTerminalTool);
