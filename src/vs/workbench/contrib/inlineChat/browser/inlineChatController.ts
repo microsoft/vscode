@@ -602,7 +602,7 @@ export class InlineChatController implements IEditorContribution {
 		if (InlineChatController._applyModelDefaultsThisSession) {
 			const defaultModelSetting = this._configurationService.getValue<string>(InlineChatConfigKeys.DefaultModel);
 			if (defaultModelSetting) {
-				if (!this._zone.value.widget.chatWidget.input.switchModelByQualifiedName(defaultModelSetting)) {
+				if (!this._zone.value.widget.chatWidget.input.switchModelByQualifiedName([defaultModelSetting])) {
 					this._logService.warn(`inlineChat.defaultModel setting value '${defaultModelSetting}' did not match any available model. Falling back to vendor default.`);
 					await this._selectVendorDefaultModel(session);
 				}
