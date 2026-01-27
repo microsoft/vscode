@@ -16,7 +16,6 @@
 		"workbench.activityBar.location": "top",
 		"workbench.editor.restoreEditors": false,
 		"workbench.editor.showTabs": "single",
-		"workbench.secondarySideBar.activityBar.location": "hidden",
 		"workbench.sideBar.location": "right",
 		"workbench.statusBar.visible": false,
 		"workbench.secondarySideBar.forceMaximized": true,
