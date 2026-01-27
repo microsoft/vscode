@@ -11,10 +11,6 @@
 	flex-direction: column;
 }
 
-.chat-question-carousel-container.chat-question-carousel-used {
-	/* Used carousel shows summary only */
-}
-
 .chat-question-carousel-summary {
 	display: flex;
 	flex-direction: column;
