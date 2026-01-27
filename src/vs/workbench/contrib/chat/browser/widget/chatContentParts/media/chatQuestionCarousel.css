@@ -44,6 +44,12 @@
 	word-break: break-word;
 }
 
+.chat-question-summary-skipped {
+	color: var(--vscode-descriptionForeground);
+	font-style: italic;
+	font-size: var(--vscode-chat-font-size-body-s);
+}
+
 .chat-question-carousel-header {
 	display: flex;
 	justify-content: space-between;
@@ -79,7 +85,7 @@
 	background: transparent !important;
 }
 
-.chat-question-carousel-nav .monaco-button.chat-question-nav-arrow:hover:not(:disabled) {
+.chat-question-carousel-nav .monaco-button.chat-question-nav-arrow:hover:not(.disabled) {
 	background: var(--vscode-toolbar-hoverBackground) !important;
 }
 

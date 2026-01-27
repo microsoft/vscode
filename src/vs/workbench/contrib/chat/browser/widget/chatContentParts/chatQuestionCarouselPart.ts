@@ -108,11 +108,13 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		this._nextButton.label = `$(${Codicon.chevronRight.id})`;
 		this._nextButton.element.title = localize('next', 'Next');
 
-		// Close/skip button (X)
-		this._skipAllButton = this._register(new Button(this._navigationButtons, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
-		this._skipAllButton.label = `$(${Codicon.close.id})`;
-		this._skipAllButton.element.title = localize('chat.questionCarousel.skipAllTitle', 'Skip all questions');
-		this._skipAllButton.element.classList.add('chat-question-nav-arrow', 'chat-question-close');
+		// Close/skip button (X) - only shown when allowSkip is true
+		if (carousel.allowSkip) {
+			this._skipAllButton = this._register(new Button(this._navigationButtons, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
+			this._skipAllButton.label = `$(${Codicon.close.id})`;
+			this._skipAllButton.element.title = localize('chat.questionCarousel.skipAllTitle', 'Skip all questions');
+			this._skipAllButton.element.classList.add('chat-question-nav-arrow', 'chat-question-close');
+		}
 
 		header.append(titleElement, this._navigationButtons);
 		this.domNode.append(header);
@@ -125,7 +127,9 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		// Register event listeners
 		this._register(this._prevButton.onDidClick(() => this.navigate(-1)));
 		this._register(this._nextButton.onDidClick(() => this.handleNext()));
-		this._register(this._skipAllButton.onDidClick(() => this.ignore()));
+		if (this._skipAllButton) {
+			this._register(this._skipAllButton.onDidClick(() => this.ignore()));
+		}
 
 		// Register keyboard navigation - only handle Enter on text inputs or navigation buttons
 		this._register(dom.addDisposableListener(this.domNode, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
@@ -201,6 +205,13 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		this._isSkipped = true;
 		this.domNode.classList.add('chat-question-carousel-used');
 
+		// Dispose interactive UI disposables before clearing DOM
+		this._inputBoxes.clear();
+		this._textInputBoxes.clear();
+		this._radioInputs.clear();
+		this._checkboxInputs.clear();
+		this._freeformTextareas.clear();
+
 		// Clear all carousel content except summary
 		dom.clearNode(this.domNode);
 
@@ -234,16 +245,24 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	 * Returns undefined to signal the carousel was ignored.
 	 */
 	public ignore(): boolean {
-		if (this._isSkipped) {
+		if (this._isSkipped || !this.carousel.allowSkip) {
 			return false;
 		}
 		this._isSkipped = true;
 
 		this._options.onSubmit(undefined);
 
-		// Hide UI without showing summary since no answers provided
+		// Dispose interactive UI disposables before clearing DOM
+		this._inputBoxes.clear();
+		this._textInputBoxes.clear();
+		this._radioInputs.clear();
+		this._checkboxInputs.clear();
+		this._freeformTextareas.clear();
+
+		// Hide UI and show skipped message
 		this.domNode.classList.add('chat-question-carousel-used');
 		dom.clearNode(this.domNode);
+		this.renderSkippedMessage();
 		this._onDidChangeHeight.fire();
 		return true;
 	}
@@ -639,9 +658,26 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	}
 
 	/**
+	 * Renders a "Skipped" message when the carousel is dismissed without answers.
+	 */
+	private renderSkippedMessage(): void {
+		const skippedContainer = dom.$('.chat-question-carousel-summary');
+		const skippedMessage = dom.$('.chat-question-summary-skipped');
+		skippedMessage.textContent = localize('chat.questionCarousel.skipped', 'Skipped');
+		skippedContainer.appendChild(skippedMessage);
+		this.domNode.appendChild(skippedContainer);
+	}
+
+	/**
 	 * Renders a summary of answers when the carousel is already used.
 	 */
 	private renderSummary(): void {
+		// If no answers, show skipped message
+		if (this._answers.size === 0) {
+			this.renderSkippedMessage();
+			return;
+		}
+
 		const summaryContainer = dom.$('.chat-question-carousel-summary');
 
 		for (const question of this.carousel.questions) {
@@ -679,7 +715,9 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 					const { selectedValue, freeformValue } = answer as { selectedValue?: unknown; freeformValue?: string };
 					const selectedLabel = question.options?.find(opt => opt.value === selectedValue)?.label;
 					if (freeformValue) {
-						return selectedLabel ? `${selectedLabel} (${freeformValue})` : freeformValue;
+						return selectedLabel
+							? localize('chat.questionCarousel.answerWithFreeform', '{0} ({1})', selectedLabel, freeformValue)
+							: freeformValue;
 					}
 					return selectedLabel ?? String(selectedValue ?? '');
 				}
@@ -692,16 +730,18 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 					const { selectedValues, freeformValue } = answer as { selectedValues?: unknown[]; freeformValue?: string };
 					const labels = (selectedValues ?? [])
 						.map(v => question.options?.find(opt => opt.value === v)?.label ?? String(v))
-						.join(', ');
+						.join(localize('chat.questionCarousel.listSeparator', ', '));
 					if (freeformValue) {
-						return labels ? `${labels} (${freeformValue})` : freeformValue;
+						return labels
+							? localize('chat.questionCarousel.answerWithFreeform', '{0} ({1})', labels, freeformValue)
+							: freeformValue;
 					}
 					return labels;
 				}
 				if (Array.isArray(answer)) {
 					return answer
 						.map(v => question.options?.find(opt => opt.value === v)?.label ?? String(v))
-						.join(', ');
+						.join(localize('chat.questionCarousel.listSeparator', ', '));
 				}
 				return String(answer);
 			}

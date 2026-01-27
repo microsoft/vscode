@@ -58,7 +58,7 @@ suite('ChatQuestionCarouselPart', () => {
 			assert.ok(widget.domNode.classList.contains('chat-question-carousel-container'));
 			assert.ok(widget.domNode.querySelector('.chat-question-carousel-header'));
 			assert.ok(widget.domNode.querySelector('.chat-question-carousel-content'));
-			assert.ok(widget.domNode.querySelector('.chat-question-carousel-footer'));
+			assert.ok(widget.domNode.querySelector('.chat-question-carousel-nav'));
 		});
 
 		test('renders question title', () => {
@@ -188,9 +188,9 @@ suite('ChatQuestionCarouselPart', () => {
 			]);
 			createWidget(carousel);
 
-			// Query previous button by its specific class
-			const prevButton = widget.domNode.querySelector('.chat-question-carousel-footer .chat-question-nav-prev') as HTMLButtonElement;
-			assert.ok(prevButton, 'Previous button should exist');
+			const buttons = widget.domNode.querySelectorAll('.chat-question-carousel-nav .monaco-button');
+			// Button order: Previous, Progress, Next, (optionally Close)
+			const prevButton = buttons[0] as HTMLButtonElement;
 			assert.ok(prevButton.classList.contains('disabled') || prevButton.disabled, 'Previous button should be disabled on first question');
 		});
 
@@ -200,9 +200,8 @@ suite('ChatQuestionCarouselPart', () => {
 			]);
 			createWidget(carousel);
 
-			// Query next button by its specific class
-			const nextButton = widget.domNode.querySelector('.chat-question-carousel-footer .chat-question-nav-next') as HTMLElement;
-			assert.ok(nextButton, 'Next button should exist');
+			const buttons = widget.domNode.querySelectorAll('.chat-question-carousel-nav .monaco-button');
+			const nextButton = buttons[1] as HTMLElement; // Previous, Next
 			assert.strictEqual(nextButton.title, 'Submit', 'Next button should have Submit title on last question');
 		});
 	});
@@ -302,9 +301,9 @@ suite('ChatQuestionCarouselPart', () => {
 			]);
 			createWidget(carousel);
 
-			const footer = widget.domNode.querySelector('.chat-question-carousel-footer');
-			assert.strictEqual(footer?.getAttribute('role'), 'navigation');
-			assert.ok(footer?.getAttribute('aria-label'), 'Navigation should have aria-label');
+			const nav = widget.domNode.querySelector('.chat-question-carousel-nav');
+			assert.strictEqual(nav?.getAttribute('role'), 'navigation');
+			assert.ok(nav?.getAttribute('aria-label'), 'Navigation should have aria-label');
 		});
 
 		test('radio buttons have proper name grouping', () => {
