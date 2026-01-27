@@ -22,6 +22,8 @@ import './media/scrollbars.css';
 const HIDE_TIMEOUT = 500;
 const SCROLL_WHEEL_SENSITIVITY = 50;
 const SCROLL_WHEEL_SMOOTH_SCROLL_ENABLED = true;
+const DRAG_SCROLL_TRIGGER_OFFSET = 10;
+const DRAG_SCROLL_STEP = 10;
 
 export interface IOverviewRulerLayoutInfo {
 	parent: HTMLElement;
@@ -189,6 +191,7 @@ export abstract class AbstractScrollableElement extends Widget {
 
 	private _isDragging: boolean;
 	private _mouseIsOver: boolean;
+	private _mouseIsDown: boolean;
 
 	private readonly _hideTimeout: TimeoutTimer;
 	private _shouldRender: boolean;
@@ -260,12 +263,16 @@ export abstract class AbstractScrollableElement extends Widget {
 		this._mouseWheelToDispose = [];
 		this._setListeningToMouseWheel(this._options.handleMouseWheel);
 
+		this.onmousemove(this._listenOnDomNode, (e) => this._onMouseMove(e));
+		this.onmousedown(this._listenOnDomNode, (e) => this._onMouseDown(e));
+		this.onmouseup(this._listenOnDomNode, () => this._onMouseUp());
 		this.onmouseover(this._listenOnDomNode, (e) => this._onMouseOver(e));
 		this.onmouseleave(this._listenOnDomNode, (e) => this._onMouseLeave(e));
 
 		this._hideTimeout = this._register(new TimeoutTimer());
 		this._isDragging = false;
 		this._mouseIsOver = false;
+		this._mouseIsDown = false;
 
 		this._shouldRender = true;
 
@@ -593,6 +600,59 @@ export abstract class AbstractScrollableElement extends Widget {
 		}
 	}
 
+	// ---------------------- mouse drag scrolling ----------------------
+
+	private _onMouseDown(e: IMouseEvent): void {
+		if (!this.options.handleDragScroll) {
+			return;
+		}
+		this._mouseIsDown = true;
+	}
+
+	private _onMouseUp(): void {
+		this._mouseIsDown = false;
+	}
+
+	private _onMouseMove(e: IMouseEvent): void {
+		if (!this._mouseIsOver || !this._mouseIsDown || !this.options.handleDragScroll) {
+			return;
+		}
+
+		const posX = e.posx;
+		const posY = e.posy;
+		const rect = this.getDomNode().getBoundingClientRect();
+
+		const scrollPosition = this._scrollable.getCurrentScrollPosition();
+		const currentScrollTop = scrollPosition.scrollTop;
+		const currentScrollLeft = scrollPosition.scrollLeft;
+
+		const scrollDimensions = this._scrollable.getScrollDimensions();
+		const maxScrollTop = scrollDimensions.scrollHeight - scrollDimensions.height;
+		const maxScrollLeft = scrollDimensions.scrollWidth - scrollDimensions.width;
+
+		const topTriggerZone = rect.top + DRAG_SCROLL_TRIGGER_OFFSET;
+		const bottomTriggerZone = rect.bottom - DRAG_SCROLL_TRIGGER_OFFSET;
+
+		const leftTriggerZone = rect.left + DRAG_SCROLL_TRIGGER_OFFSET;
+		const rightTriggerZone = rect.right - DRAG_SCROLL_TRIGGER_OFFSET;
+
+		// Set scrolling position on X axis
+		if (posX <= leftTriggerZone && currentScrollLeft > 0) {
+			this._scrollable.setScrollPositionNow({ scrollLeft: currentScrollLeft - DRAG_SCROLL_STEP });
+		}
+		else if (posX >= rightTriggerZone && currentScrollLeft < maxScrollLeft) {
+			this._scrollable.setScrollPositionNow({ scrollLeft: currentScrollLeft + DRAG_SCROLL_STEP });
+		}
+
+		// Set scrolling position on Y axis
+		if (posY <= topTriggerZone && currentScrollTop > 0) {
+			this._scrollable.setScrollPositionNow({ scrollTop: currentScrollTop - DRAG_SCROLL_STEP });
+		}
+		else if (posY >= bottomTriggerZone && currentScrollTop < maxScrollTop) {
+			this._scrollable.setScrollPositionNow({ scrollTop: currentScrollTop + DRAG_SCROLL_STEP });
+		}
+	}
+
 	// -------------------- fade in / fade out --------------------
 
 	private _onDragStart(): void {
@@ -732,6 +792,7 @@ function resolveOptions(opts: ScrollableElementCreationOptions): ScrollableEleme
 		lazyRender: (typeof opts.lazyRender !== 'undefined' ? opts.lazyRender : false),
 		className: (typeof opts.className !== 'undefined' ? opts.className : ''),
 		useShadows: (typeof opts.useShadows !== 'undefined' ? opts.useShadows : true),
+		handleDragScroll: (typeof opts.handleDragScroll !== 'undefined' ? opts.handleDragScroll : false),
 		handleMouseWheel: (typeof opts.handleMouseWheel !== 'undefined' ? opts.handleMouseWheel : true),
 		flipAxes: (typeof opts.flipAxes !== 'undefined' ? opts.flipAxes : false),
 		consumeMouseWheelIfScrollbarIsNeeded: (typeof opts.consumeMouseWheelIfScrollbarIsNeeded !== 'undefined' ? opts.consumeMouseWheelIfScrollbarIsNeeded : false),
