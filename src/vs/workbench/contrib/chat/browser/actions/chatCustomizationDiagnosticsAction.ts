@@ -90,9 +90,9 @@ export interface ITypeStatusInfo {
 }
 
 /**
- * Registers the View Config action for the chat context menu.
+ * Registers the Diagnostics action for the chat context menu.
  */
-export function registerChatConfigInfoAction() {
+export function registerChatCustomizationDiagnosticsAction() {
 	registerAction2(class DiagnosticsAction extends Action2 {
 		constructor() {
 			super({

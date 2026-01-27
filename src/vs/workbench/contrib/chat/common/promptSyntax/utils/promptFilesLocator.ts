@@ -6,6 +6,7 @@
 import { URI } from '../../../../../../base/common/uri.js';
 import { isAbsolute } from '../../../../../../base/common/path.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
+import * as nls from '../../../../../../nls.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { getPromptFileLocationsConfigKey, isTildePath, PromptsConfig } from '../config/config.js';
 import { basename, dirname, isEqualOrParent, joinPath } from '../../../../../../base/common/resources.js';
@@ -57,17 +58,10 @@ export class PromptFilesLocator {
 	}
 
 	private async listFilesInUserData(type: PromptsType, token: CancellationToken): Promise<readonly URI[]> {
-		const userHome = await this.pathService.userHome();
-		const configuredLocations = PromptsConfig.promptSourceFolders(this.configService, type);
-		const absoluteLocations = this.toAbsoluteLocations(type, configuredLocations, userHome);
-
+		const userStorageFolders = await this.getUserStorageFolders(type);
 		const paths = new ResourceSet();
 
-		// Search in config-based user locations (e.g., tilde paths like ~/.copilot/skills)
-		for (const { uri, storage } of absoluteLocations) {
-			if (storage !== PromptsStorage.user) {
-				continue;
-			}
+		for (const { uri } of userStorageFolders) {
 			const files = await this.resolveFilesAtLocation(uri, type, token);
 			for (const file of files) {
 				if (getPromptFileType(file) === type) {
@@ -79,18 +73,37 @@ export class PromptFilesLocator {
 			}
 		}
 
-		// Also search in the VS Code user data prompts folder (for all types except skills)
+		return [...paths];
+	}
+
+	/**
+	 * Gets all user storage folders for the given prompt type.
+	 * This includes configured tilde paths and the VS Code user data prompts folder.
+	 */
+	private async getUserStorageFolders(type: PromptsType): Promise<readonly IResolvedPromptSourceFolder[]> {
+		const userHome = await this.pathService.userHome();
+		const configuredLocations = PromptsConfig.promptSourceFolders(this.configService, type);
+		const absoluteLocations = this.toAbsoluteLocations(type, configuredLocations, userHome);
+
+		// Filter to only user storage locations
+		const result = absoluteLocations.filter(loc => loc.storage === PromptsStorage.user);
+
+		// Also include the VS Code user data prompts folder (for all types except skills)
 		if (type !== PromptsType.skill) {
 			const userDataPromptsHome = this.userDataService.currentProfile.promptsHome;
-			const files = await this.resolveFilesAtLocation(userDataPromptsHome, type, token);
-			for (const file of files) {
-				if (getPromptFileType(file) === type) {
-					paths.add(file);
+			return [
+				...result,
+				{
+					uri: userDataPromptsHome,
+					source: PromptFileSource.CopilotPersonal,
+					storage: PromptsStorage.user,
+					displayPath: nls.localize('promptsUserDataFolder', "User Data"),
+					isDefault: true
 				}
-			}
+			];
 		}
 
-		return [...paths];
+		return result;
 	}
 
 	/**
@@ -246,6 +259,16 @@ export class PromptFilesLocator {
 	 * @returns List of resolved source folders with metadata.
 	 */
 	public async getResolvedSourceFolders(type: PromptsType): Promise<readonly IResolvedPromptSourceFolder[]> {
+		const localFolders = await this.getLocalStorageFolders(type);
+		const userFolders = await this.getUserStorageFolders(type);
+		return this.dedupeSourceFolders([...localFolders, ...userFolders]);
+	}
+
+	/**
+	 * Gets all local (workspace) storage folders for the given prompt type.
+	 * This merges default folders with configured locations.
+	 */
+	private async getLocalStorageFolders(type: PromptsType): Promise<readonly IResolvedPromptSourceFolder[]> {
 		const userHome = await this.pathService.userHome();
 		const configuredLocations = PromptsConfig.promptSourceFolders(this.configService, type);
 		const defaultFolders = getPromptFileDefaultLocations(type);
@@ -256,20 +279,21 @@ export class PromptFilesLocator {
 			...configuredLocations.filter(loc => !defaultFolders.some(df => df.path === loc.path))
 		];
 
-		const result = [...this.toAbsoluteLocations(type, allFolders, userHome, defaultFolders)];
+		return this.toAbsoluteLocations(type, allFolders, userHome, defaultFolders);
+	}
 
-		// Also include the VS Code user data prompts folder (for all types except skills)
-		if (type !== PromptsType.skill) {
-			const userDataPromptsHome = this.userDataService.currentProfile.promptsHome;
-			result.push({
-				uri: userDataPromptsHome,
-				source: PromptFileSource.CopilotPersonal,
-				storage: PromptsStorage.user,
-				displayPath: 'User Data',
-				isDefault: true
-			});
+	/**
+	 * Deduplicates source folders by URI.
+	 */
+	private dedupeSourceFolders(folders: readonly IResolvedPromptSourceFolder[]): IResolvedPromptSourceFolder[] {
+		const seen = new ResourceSet();
+		const result: IResolvedPromptSourceFolder[] = [];
+		for (const folder of folders) {
+			if (!seen.has(folder.uri)) {
+				seen.add(folder.uri);
+				result.push(folder);
+			}
 		}
-
 		return result;
 	}
 

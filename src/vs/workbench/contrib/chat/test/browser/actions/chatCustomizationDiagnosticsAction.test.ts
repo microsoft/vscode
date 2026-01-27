@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { formatStatusOutput, IFileStatusInfo, IPathInfo, ITypeStatusInfo } from '../../../browser/actions/chatConfigInfoAction.js';
+import { formatStatusOutput, IFileStatusInfo, IPathInfo, ITypeStatusInfo } from '../../../browser/actions/chatCustomizationDiagnosticsAction.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 
