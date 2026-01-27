@@ -527,14 +527,14 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			commandLineAnalyzerResults.every(e => e.isAutoApproved !== false) &&
 			// All analyzers allow auto approval
 			analyzersIsAutoApproveAllowed
-		) || commandLineAnalyzerResults.some(e => e.forceAutoApproval);
+		);
 
 		const isFinalAutoApproved = (
 			// Is the setting enabled and the user has opted-in
 			isAutoApproveAllowed &&
 			// Would be auto-approved based on rules
 			wouldBeAutoApproved
-		);
+		) || commandLineAnalyzerResults.some(e => e.forceAutoApproval);
 
 		// Pass auto approve info if the command:
 		// - Was auto approved
