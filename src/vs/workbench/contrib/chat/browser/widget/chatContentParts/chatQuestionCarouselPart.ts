@@ -95,24 +95,24 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		this._navigationButtons.setAttribute('role', 'navigation');
 		this._navigationButtons.setAttribute('aria-label', localize('chat.questionCarousel.navigation', 'Question navigation'));
 
-		this._prevButton = this._register(new Button(this._navigationButtons, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
+		const previousLabel = localize('previous', 'Previous');
+		this._prevButton = this._register(new Button(this._navigationButtons, { ...defaultButtonStyles, secondary: true, supportIcons: true, title: previousLabel }));
 		this._prevButton.element.classList.add('chat-question-nav-arrow');
 		this._prevButton.label = `$(${Codicon.chevronLeft.id})`;
-		this._prevButton.element.title = localize('previous', 'Previous');
 
 		this._progressElement = dom.$('.chat-question-carousel-progress');
 		this._navigationButtons.appendChild(this._progressElement);
 
-		this._nextButton = this._register(new Button(this._navigationButtons, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
+		const nextLabel = localize('next', 'Next');
+		this._nextButton = this._register(new Button(this._navigationButtons, { ...defaultButtonStyles, secondary: true, supportIcons: true, title: nextLabel }));
 		this._nextButton.element.classList.add('chat-question-nav-arrow');
 		this._nextButton.label = `$(${Codicon.chevronRight.id})`;
-		this._nextButton.element.title = localize('next', 'Next');
 
 		// Close/skip button (X) - only shown when allowSkip is true
 		if (carousel.allowSkip) {
-			this._skipAllButton = this._register(new Button(this._navigationButtons, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
+			const skipAllTitle = localize('chat.questionCarousel.skipAllTitle', 'Skip all questions');
+			this._skipAllButton = this._register(new Button(this._navigationButtons, { ...defaultButtonStyles, secondary: true, supportIcons: true, title: skipAllTitle }));
 			this._skipAllButton.label = `$(${Codicon.close.id})`;
-			this._skipAllButton.element.title = localize('chat.questionCarousel.skipAllTitle', 'Skip all questions');
 			this._skipAllButton.element.classList.add('chat-question-nav-arrow', 'chat-question-close');
 		}
 
@@ -128,7 +128,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		this._register(this._prevButton.onDidClick(() => this.navigate(-1)));
 		this._register(this._nextButton.onDidClick(() => this.handleNext()));
 		if (this._skipAllButton) {
-			this._register(this._skipAllButton.onDidClick(() => this.ignore()));
+			this._register(this._skipAllButton.onDidClick(() => this.skip()));
 		}
 
 		// Register keyboard navigation - only handle Enter on text inputs or navigation buttons
@@ -384,12 +384,16 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 
 		// Update next button icon/label for last question
 		const isLastQuestion = this._currentIndex === this.carousel.questions.length - 1;
+		const submitLabel = localize('submit', 'Submit');
+		const nextLabel = localize('next', 'Next');
 		if (isLastQuestion) {
 			this._nextButton.label = `$(${Codicon.check.id})`;
-			this._nextButton.element.title = localize('submit', 'Submit');
+			this._nextButton.element.title = submitLabel;
+			this._nextButton.element.setAttribute('aria-label', submitLabel);
 		} else {
 			this._nextButton.label = `$(${Codicon.chevronRight.id})`;
-			this._nextButton.element.title = localize('next', 'Next');
+			this._nextButton.element.title = nextLabel;
+			this._nextButton.element.setAttribute('aria-label', nextLabel);
 		}
 
 		this._onDidChangeHeight.fire();
