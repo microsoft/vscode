@@ -377,7 +377,12 @@ function twodigits(n: number): string {
 async function cleanupOlderLogs(logsPath: string): Promise<void> {
 	const currentLog = path.basename(logsPath);
 	const logsRoot = path.dirname(logsPath);
-	const children = await Promises.readdir(logsRoot).catch(() => []);
+
+	if (!await Promises.exists(logsRoot)) {
+		return; // Logs root doesn't exist yet, nothing to clean up
+	}
+
+	const children = await Promises.readdir(logsRoot);
 	const allSessions = children.filter(name => /^\d{8}T\d{6}$/.test(name));
 	const oldSessions = allSessions.sort().filter((d) => d !== currentLog);
 	const toDelete = oldSessions.slice(0, Math.max(0, oldSessions.length - 9));
