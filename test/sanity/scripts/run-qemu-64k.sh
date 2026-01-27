@@ -64,7 +64,7 @@ timeout 1800 qemu-system-aarch64 \
 	-M virt \
 	-cpu max,pauth-impdef=on \
 	-accel tcg,thread=multi \
-	-m 2048 \
+	-m 4096 \
 	-smp 2 \
 	-kernel "$VMLINUZ" \
 	-append "console=ttyAMA0 root=/dev/vda rw init=/init net.ifnames=0" \
