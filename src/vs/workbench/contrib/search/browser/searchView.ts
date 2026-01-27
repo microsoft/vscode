@@ -1620,7 +1620,9 @@ export class SearchView extends ViewPane {
 		// Need the full match line to correctly calculate replace text, if this is a search/replace with regex group references ($1, $2, ...).
 		// 10000 chars is enough to avoid sending huge amounts of text around, if you do a replace with a longer match, it may or may not resolve the group refs correctly.
 		// https://github.com/microsoft/vscode/issues/58374
-		const charsPerLine = content.isRegExp ? 10000 : 1000;
+		const configuredChars = this.searchConfig.allowedSizeBeforeTruncation ?? 1000;
+		const charsPerLine = content.isRegExp ? Math.max(10000, configuredChars) : configuredChars;
+		const truncationMode = this.searchConfig.resultsTruncation ?? 'start';
 
 		const options: ITextQueryBuilderOptions = {
 			_reason: 'searchView',
@@ -1634,7 +1636,8 @@ export class SearchView extends ViewPane {
 			includePattern,
 			previewOptions: {
 				matchLines: 1,
-				charsPerLine
+				charsPerLine,
+				truncationMode
 			},
 			isSmartCase: this.searchConfig.smartCase,
 			expandPatterns: true
