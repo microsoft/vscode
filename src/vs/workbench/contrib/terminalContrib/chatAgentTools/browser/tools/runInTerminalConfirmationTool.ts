@@ -9,9 +9,10 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolInvocationPresentation, ToolProgress } from '../../../../chat/common/tools/languageModelToolsService.js';
 import { RunInTerminalTool } from './runInTerminalTool.js';
+import { TerminalToolId } from './toolIds.js';
 
 export const ConfirmTerminalCommandToolData: IToolData = {
-	id: 'vscode_get_terminal_confirmation',
+	id: TerminalToolId.ConfirmTerminalCommand,
 	displayName: localize('confirmTerminalCommandTool.displayName', 'Confirm Terminal Command'),
 	modelDescription: [
 		'This tool allows you to get explicit user confirmation for a terminal command without executing it.',

@@ -414,7 +414,11 @@ export class OpenModelPickerAction extends Action2 {
 							ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Chat),
 							ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.EditorInline),
 							ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Notebook),
-							ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Terminal))
+							ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Terminal)),
+						// Hide in welcome view when session type is not local
+						ContextKeyExpr.or(
+							ChatContextKeys.inAgentSessionsWelcome.negate(),
+							ChatContextKeys.agentSessionType.isEqualTo(AgentSessionProviders.Local))
 					)
 			}
 		});
@@ -457,7 +461,11 @@ export class OpenModePickerAction extends Action2 {
 						ChatContextKeys.inQuickChat.negate(),
 						ContextKeyExpr.or(
 							ChatContextKeys.lockedToCodingAgent.negate(),
-							ChatContextKeys.chatSessionHasCustomAgentTarget)),
+							ChatContextKeys.chatSessionHasCustomAgentTarget),
+						// Hide in welcome view when session type is not local
+						ContextKeyExpr.or(
+							ChatContextKeys.inAgentSessionsWelcome.negate(),
+							ChatContextKeys.agentSessionType.isEqualTo(AgentSessionProviders.Local))),
 					group: 'navigation',
 				},
 			]

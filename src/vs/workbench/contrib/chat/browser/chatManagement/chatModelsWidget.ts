@@ -978,7 +978,7 @@ export class ChatModelsWidget extends Disposable {
 		this.addButton = this._register(new Button(this.addButtonContainer, buttonOptions));
 		this.addButton.label = `$(${Codicon.add.id}) ${localize('models.enableModelProvider', 'Add Models...')}`;
 		this.addButton.element.classList.add('models-add-model-button');
-		this.addButton.enabled = false;
+		this.updateAddModelsButton();
 		this._register(this.addButton.onDidClick((e) => {
 			if (this.dropdownActions.length > 0) {
 				this.contextMenuService.showContextMenu({

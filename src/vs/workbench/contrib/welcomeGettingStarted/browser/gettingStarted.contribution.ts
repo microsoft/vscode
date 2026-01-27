@@ -326,7 +326,8 @@ configurationRegistry.registerConfiguration({
 				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.agentSessionsWelcomePage' }, "Open the Agent Sessions Welcome page."),
 			],
 			'default': 'welcomePage',
-			'description': localize('workbench.startupEditor', "Controls which editor is shown at startup, if none are restored from the previous session.")
+			'description': localize('workbench.startupEditor', "Controls which editor is shown at startup, if none are restored from the previous session."),
+			'experiment': { mode: 'auto' }
 		},
 		'workbench.welcomePage.preferReducedMotion': {
 			scope: ConfigurationScope.APPLICATION,
