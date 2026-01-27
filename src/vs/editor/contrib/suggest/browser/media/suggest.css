@@ -312,7 +312,7 @@
 	width: 16px;
 	margin-left: 2px;
 	background-repeat: no-repeat;
-	background-size: 80%;
+	background-size: contain;
 	background-position: center;
 }
 
