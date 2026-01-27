@@ -1227,6 +1227,7 @@ interface CachedParsedExpression {
  */
 export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 	private hiddenExpressionPerRoot = new Map<string, CachedParsedExpression>();
+	private explorerExpressionPerRoot = new Map<string, CachedParsedExpression>();
 	private editorsAffectingFilter = new Set<EditorInput>();
 	private _onDidChange = new Emitter<void>();
 	private toDispose: IDisposable[] = [];
@@ -1247,7 +1248,7 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 	) {
 		this.toDispose.push(this.contextService.onDidChangeWorkspaceFolders(() => this.updateConfiguration()));
 		this.toDispose.push(this.configurationService.onDidChangeConfiguration((e) => {
-			if (e.affectsConfiguration('files.exclude') || e.affectsConfiguration('explorer.excludeGitIgnore')) {
+			if (e.affectsConfiguration('files.exclude') || e.affectsConfiguration('explorer.exclude') || e.affectsConfiguration('explorer.excludeGitIgnore')) {
 				this.updateConfiguration();
 			}
 		}));
@@ -1309,6 +1310,7 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 		this.contextService.getWorkspace().folders.forEach(folder => {
 			const configuration = this.configurationService.getValue<IFilesConfiguration>({ resource: folder.uri });
 			const excludesConfig: glob.IExpression = configuration?.files?.exclude || Object.create(null);
+			const explorerExcludesConfig: glob.IExpression = configuration?.explorer?.exclude || Object.create(null);
 			const parseIgnoreFile: boolean = configuration.explorer.excludeGitIgnore;
 
 			// If we should be parsing ignoreFiles for this workspace and don't have an ignore tree initialize one
@@ -1327,12 +1329,15 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 
 			if (!shouldFire) {
 				const cached = this.hiddenExpressionPerRoot.get(folder.uri.toString());
-				shouldFire = !cached || !equals(cached.original, excludesConfig);
+				const explorerCached = this.explorerExpressionPerRoot.get(folder.uri.toString());
+				shouldFire = !cached || !equals(cached.original, excludesConfig) || !explorerCached || !equals(explorerCached.original, explorerExcludesConfig);
 			}
 
 			const excludesConfigCopy = deepClone(excludesConfig); // do not keep the config, as it gets mutated under our hoods
+			const explorerExcludesConfigCopy = deepClone(explorerExcludesConfig);
 
 			this.hiddenExpressionPerRoot.set(folder.uri.toString(), { original: excludesConfigCopy, parsed: glob.parse(excludesConfigCopy) });
+			this.explorerExpressionPerRoot.set(folder.uri.toString(), { original: explorerExcludesConfigCopy, parsed: glob.parse(explorerExcludesConfigCopy) });
 		});
 
 		if (shouldFire || updatedGitIgnoreSetting) {
@@ -1402,12 +1407,20 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 			return true; // always visible
 		}
 
-		// Hide those that match Hidden Patterns
+		// Hide those that match Hidden Patterns (files.exclude) or Explorer Patterns (explorer.exclude)
 		const cached = this.hiddenExpressionPerRoot.get(stat.root.resource.toString());
-		const globMatch = cached?.parsed(path.relative(stat.root.resource.path, stat.resource.path), stat.name, name => !!(stat.parent?.getChild(name)));
+		const explorerCached = this.explorerExpressionPerRoot.get(stat.root.resource.toString());
+		const relativePath = path.relative(stat.root.resource.path, stat.resource.path);
+		const siblingsFn = (name: string) => !!(stat.parent?.getChild(name));
+
+		const globMatch = cached?.parsed(relativePath, stat.name, siblingsFn);
+		const explorerGlobMatch = explorerCached?.parsed(relativePath, stat.name, siblingsFn);
+
 		// Small optimization to only run isHiddenResource (traverse gitIgnore) if the globMatch from fileExclude returned nothing
 		const isHiddenResource = globMatch ? true : this.isIgnored(stat.resource, stat.root.resource, stat.isDirectory);
-		if (isHiddenResource || stat.parent?.isExcluded) {
+		const isExplorerHidden = explorerGlobMatch ? true : false;
+
+		if (isHiddenResource || isExplorerHidden || stat.parent?.isExcluded) {
 			stat.isExcluded = true;
 			const editors = this.editorService.visibleEditors;
 			const editor = editors.find(e => e.resource && this.uriIdentityService.extUri.isEqualOrParent(e.resource, stat.resource));
