@@ -43,6 +43,8 @@ echo "Starting entrypoint"
 ARGS=$(cat /test-args)
 /entrypoint.sh $ARGS
 EXIT_CODE=$?
+echo $EXIT_CODE > /exit-code
+sync
 
 echo "Powering off"
 echo o > /proc/sysrq-trigger

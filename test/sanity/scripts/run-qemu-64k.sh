@@ -72,4 +72,15 @@ timeout 1800 qemu-system-aarch64 \
 	-netdev user,id=net0 \
 	-device virtio-net-pci,netdev=net0 \
 	-nographic \
-	-no-reboot
+	-no-reboot \
+	|| true
+
+echo "Extracting test results from disk image"
+MOUNT_DIR=$(mktemp -d)
+sudo mount -o loop "$DISK_IMG" "$MOUNT_DIR"
+if [ -f "$MOUNT_DIR/root/results.xml" ]; then
+	cp "$MOUNT_DIR/root/results.xml" "$TEST_DIR/results.xml"
+fi
+EXIT_CODE=$(cat "$MOUNT_DIR/exit-code" 2>/dev/null || echo 1)
+sudo umount "$MOUNT_DIR"
+exit $EXIT_CODE
