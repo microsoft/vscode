@@ -457,10 +457,7 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		this.sessionsControl = undefined;
 		this.sessionsLoadingContainer = undefined;
 
-		const sessions = this.agentSessionsService.model.sessions;
-
-		// Toggle no-sessions class for proper margin handling
-		container.classList.toggle('no-sessions', sessions.length === 0);
+		const sessions = this.agentSessionsService.model.sessions.filter(s => !s.isArchived());
 
 		if (sessions.length > 0) {
 			this.buildSessionsGrid(container, sessions);
@@ -714,16 +711,6 @@ export class AgentSessionsWelcomePage extends EditorPane {
 	}
 
 	private buildFooter(container: HTMLElement): void {
-		const updateNoSessionsClass = () => {
-			container.classList.toggle('no-sessions', this.agentSessionsService.model.sessions.length === 0);
-		};
-		// Set initial state
-		updateNoSessionsClass();
-
-		// Keep footer in sync with session changes
-		this.contentDisposables.add(this.agentSessionsService.model.onDidChangeSessions(() => {
-			updateNoSessionsClass();
-		}));
 		// Privacy notice
 		this.buildPrivacyNotice(container);
 
