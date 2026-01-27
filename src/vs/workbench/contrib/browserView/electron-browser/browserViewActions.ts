@@ -71,7 +71,7 @@ class GoBackAction extends Action2 {
 			precondition: CONTEXT_BROWSER_CAN_GO_BACK,
 			keybinding: {
 				when: BROWSER_EDITOR_ACTIVE,
-				weight: KeybindingWeight.WorkbenchContrib,
+				weight: KeybindingWeight.WorkbenchContrib + 50, // Priority over editor navigation
 				primary: KeyMod.Alt | KeyCode.LeftArrow,
 				secondary: [KeyCode.BrowserBack, KeyMod.CtrlCmd | KeyCode.BracketLeft],
 				mac: { primary: KeyMod.CtrlCmd | KeyCode.LeftArrow, secondary: [KeyCode.BrowserBack, KeyMod.CtrlCmd | KeyCode.BracketLeft] }
@@ -105,7 +105,7 @@ class GoForwardAction extends Action2 {
 			precondition: CONTEXT_BROWSER_CAN_GO_FORWARD,
 			keybinding: {
 				when: BROWSER_EDITOR_ACTIVE,
-				weight: KeybindingWeight.WorkbenchContrib,
+				weight: KeybindingWeight.WorkbenchContrib + 50, // Priority over editor navigation
 				primary: KeyMod.Alt | KeyCode.RightArrow,
 				secondary: [KeyCode.BrowserForward, KeyMod.CtrlCmd | KeyCode.BracketRight],
 				mac: { primary: KeyMod.CtrlCmd | KeyCode.RightArrow, secondary: [KeyCode.BrowserForward, KeyMod.CtrlCmd | KeyCode.BracketRight] }
