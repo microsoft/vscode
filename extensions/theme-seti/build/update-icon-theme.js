@@ -50,8 +50,12 @@ const inheritIconFromLanguage = {
 	"blade": 'php'
 };
 
-const ignoreExtAssociation = {
-	"properties": true
+const ignoreExtAssociationFromVSCode = {
+	"properties": true,
+};
+
+const ignoreExtAssociationFromTheme = {
+	"sss": true,
 };
 
 const FROM_DISK = true; // set to true to take content from a repo checked out next to the vscode repo
@@ -369,7 +373,10 @@ exports.update = function () {
 					continue; // no need to assign default color.
 				}
 				if (pattern[0] === '.') {
-					ext2Def[pattern.substr(1).toLowerCase()] = def;
+					const ext = pattern.substring(1).toLowerCase();
+					if (!ignoreExtAssociationFromTheme[ext]) {
+						ext2Def[ext] = def;
+					}
 				} else {
 					fileName2Def[pattern.toLowerCase()] = def;
 				}
@@ -404,7 +411,7 @@ exports.update = function () {
 					if (!nonBuiltInLanguages[lang] && !inheritIconFromLanguage[lang]) {
 						for (let i2 = 0; i2 < exts.length; i2++) {
 							// remove the extension association, unless it is different from the preferred
-							if (ext2Def[exts[i2]] === preferredDef || ignoreExtAssociation[exts[i2]]) {
+							if (ext2Def[exts[i2]] === preferredDef || ignoreExtAssociationFromVSCode[exts[i2]]) {
 								delete ext2Def[exts[i2]];
 							}
 						}
