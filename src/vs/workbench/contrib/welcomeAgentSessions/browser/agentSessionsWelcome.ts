@@ -67,7 +67,7 @@ const MAX_WALKTHROUGHS = 10;
 
 type AgentSessionsWelcomeActionClassification = {
 	action: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The action being executed on the agent sessions welcome page.' };
-	actionId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'Identifier for the action being executed, such as command ID or walkthrough ID.' };
+	actionId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'Identifier of the action being executed, such as command ID or walkthrough ID.' };
 	welcomeKind: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The kind of welcome page' };
 	owner: 'osortega';
 	comment: 'Help understand what actions are most commonly taken on the agent sessions welcome page';
