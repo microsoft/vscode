@@ -107,6 +107,12 @@ export class InlineChatController implements IEditorContribution {
 		return editor.getContribution<InlineChatController>(InlineChatController.ID) ?? undefined;
 	}
 
+	/**
+	 * Guard flag indicating whether model defaults (including vendor/default model selection)
+	 * should be applied for this session.
+	 */
+	private static _applyModelDefaultsThisSession: boolean = true;
+
 	private readonly _store = new DisposableStore();
 	private readonly _isActiveController = observableValue(this, false);
 	private readonly _renderMode: IObservable<'zone' | 'hover'>;
@@ -472,77 +478,87 @@ export class InlineChatController implements IEditorContribution {
 
 		const session = this._inlineChatSessionService.createSession(this._editor);
 
+
+		// Store for tracking model changes during this session
+		const sessionStore = new DisposableStore();
+
 		// Check for default model setting
 		const defaultModelSetting = this._configurationService.getValue<string>(InlineChatConfigKeys.DefaultModel);
-		if (defaultModelSetting && !this._zone.value.widget.chatWidget.input.switchModelByQualifiedName(defaultModelSetting)) {
+		if (defaultModelSetting && !this._zone.value.widget.chatWidget.input.switchModelByQualifiedName([defaultModelSetting])) {
 			this._logService.warn(`inlineChat.defaultModel setting value '${defaultModelSetting}' did not match any available model. Falling back to vendor default.`);
 		}
 
-		// ADD diagnostics
-		const entries: IChatRequestVariableEntry[] = [];
-		for (const [range, marker] of this._markerDecorationsService.getLiveMarkers(uri)) {
-			if (range.intersectRanges(this._editor.getSelection())) {
-				const filter = IDiagnosticVariableEntryFilterData.fromMarker(marker);
-				entries.push(IDiagnosticVariableEntryFilterData.toEntry(filter));
-			}
-		}
-		if (entries.length > 0) {
-			this._zone.value.widget.chatWidget.attachmentModel.addContext(...entries);
-			this._zone.value.widget.chatWidget.input.setValue(entries.length > 1
-				? localize('fixN', "Fix the attached problems")
-				: localize('fix1', "Fix the attached problem"),
-				true
-			);
-			this._zone.value.widget.chatWidget.inputEditor.setSelection(new Selection(1, 1, Number.MAX_SAFE_INTEGER, 1));
-		}
+		try {
+			await this._applyModelDefaults(session, sessionStore);
 
-		// Check args
-		if (arg && InlineChatRunOptions.isInlineChatRunOptions(arg)) {
-			if (arg.initialRange) {
-				this._editor.revealRange(arg.initialRange);
-			}
-			if (arg.initialSelection) {
-				this._editor.setSelection(arg.initialSelection);
-			}
-			if (arg.attachments) {
-				await Promise.all(arg.attachments.map(async attachment => {
-					await this._zone.value.widget.chatWidget.attachmentModel.addFile(attachment);
-				}));
-				delete arg.attachments;
-			}
-			if (arg.modelSelector) {
-				const id = (await this._languageModelService.selectLanguageModels(arg.modelSelector)).sort().at(0);
-				if (!id) {
-					throw new Error(`No language models found matching selector: ${JSON.stringify(arg.modelSelector)}.`);
-				}
-				const model = this._languageModelService.lookupLanguageModel(id);
-				if (!model) {
-					throw new Error(`Language model not loaded: ${id}.`);
-				}
-				this._zone.value.widget.chatWidget.input.setCurrentLanguageModel({ metadata: model, identifier: id });
-			}
-			if (arg.message) {
-				this._zone.value.widget.chatWidget.setInput(arg.message);
-				if (arg.autoSend) {
-					await this._zone.value.widget.chatWidget.acceptInput();
+			// ADD diagnostics
+			const entries: IChatRequestVariableEntry[] = [];
+			for (const [range, marker] of this._markerDecorationsService.getLiveMarkers(uri)) {
+				if (range.intersectRanges(this._editor.getSelection())) {
+					const filter = IDiagnosticVariableEntryFilterData.fromMarker(marker);
+					entries.push(IDiagnosticVariableEntryFilterData.toEntry(filter));
 				}
 			}
-		}
+			if (entries.length > 0) {
+				this._zone.value.widget.chatWidget.attachmentModel.addContext(...entries);
+				this._zone.value.widget.chatWidget.input.setValue(entries.length > 1
+					? localize('fixN', "Fix the attached problems")
+					: localize('fix1', "Fix the attached problem"),
+					true
+				);
+				this._zone.value.widget.chatWidget.inputEditor.setSelection(new Selection(1, 1, Number.MAX_SAFE_INTEGER, 1));
+			}
 
-		if (!arg?.resolveOnResponse) {
-			// DEFAULT: wait for the session to be accepted or rejected
-			await Event.toPromise(session.editingSession.onDidDispose);
-			const rejected = session.editingSession.getEntry(uri)?.state.get() === ModifiedFileEntryState.Rejected;
-			return !rejected;
+			// Check args
+			if (arg && InlineChatRunOptions.isInlineChatRunOptions(arg)) {
+				if (arg.initialRange) {
+					this._editor.revealRange(arg.initialRange);
+				}
+				if (arg.initialSelection) {
+					this._editor.setSelection(arg.initialSelection);
+				}
+				if (arg.attachments) {
+					await Promise.all(arg.attachments.map(async attachment => {
+						await this._zone.value.widget.chatWidget.attachmentModel.addFile(attachment);
+					}));
+					delete arg.attachments;
+				}
+				if (arg.modelSelector) {
+					const id = (await this._languageModelService.selectLanguageModels(arg.modelSelector)).sort().at(0);
+					if (!id) {
+						throw new Error(`No language models found matching selector: ${JSON.stringify(arg.modelSelector)}.`);
+					}
+					const model = this._languageModelService.lookupLanguageModel(id);
+					if (!model) {
+						throw new Error(`Language model not loaded: ${id}.`);
+					}
+					this._zone.value.widget.chatWidget.input.setCurrentLanguageModel({ metadata: model, identifier: id });
+				}
+				if (arg.message) {
+					this._zone.value.widget.chatWidget.setInput(arg.message);
+					if (arg.autoSend) {
+						await this._zone.value.widget.chatWidget.acceptInput();
+					}
+				}
+			}
 
-		} else {
-			// resolveOnResponse: ONLY wait for the file to be modified
-			const modifiedObs = derived(r => {
-				const entry = session.editingSession.readEntry(uri, r);
-				return entry?.state.read(r) === ModifiedFileEntryState.Modified && !entry?.isCurrentlyBeingModifiedBy.read(r);
-			});
-			await waitForState(modifiedObs, state => state === true);
-			return true;
+			if (!arg?.resolveOnResponse) {
+				// DEFAULT: wait for the session to be accepted or rejected
+				await Event.toPromise(session.editingSession.onDidDispose);
+				const rejected = session.editingSession.getEntry(uri)?.state.get() === ModifiedFileEntryState.Rejected;
+				return !rejected;
+
+			} else {
+				// resolveOnResponse: ONLY wait for the file to be modified
+				const modifiedObs = derived(r => {
+					const entry = session.editingSession.readEntry(uri, r);
+					return entry?.state.read(r) === ModifiedFileEntryState.Modified && !entry?.isCurrentlyBeingModifiedBy.read(r);
+				});
+				await waitForState(modifiedObs, state => state === true);
+				return true;
+			}
+		} finally {
+			sessionStore.dispose();
 		}
 	}
 
@@ -562,6 +578,55 @@ export class InlineChatController implements IEditorContribution {
 		}
 		await session.editingSession.reject();
 		session.dispose();
+	}
+
+	private async _selectVendorDefaultModel(session: IInlineChatSession2): Promise<void> {
+		const model = this._zone.value.widget.chatWidget.input.selectedLanguageModel.get();
+		if (model && !model.metadata.isDefaultForLocation[session.chatModel.initialLocation]) {
+			const ids = await this._languageModelService.selectLanguageModels({ vendor: model.metadata.vendor });
+			for (const identifier of ids) {
+				const candidate = this._languageModelService.lookupLanguageModel(identifier);
+				if (candidate?.isDefaultForLocation[session.chatModel.initialLocation]) {
+					this._zone.value.widget.chatWidget.input.setCurrentLanguageModel({ metadata: candidate, identifier });
+					break;
+				}
+			}
+		}
+	}
+
+	/**
+	 * Applies model defaults based on settings and tracks user model changes.
+	 * Prioritization: user session choice > inlineChat.defaultModel setting > vendor default
+	 */
+	private async _applyModelDefaults(session: IInlineChatSession2, sessionStore: DisposableStore): Promise<void> {
+		if (InlineChatController._applyModelDefaultsThisSession) {
+			const defaultModelSetting = this._configurationService.getValue<string>(InlineChatConfigKeys.DefaultModel);
+			if (defaultModelSetting) {
+				if (!this._zone.value.widget.chatWidget.input.switchModelByQualifiedName([defaultModelSetting])) {
+					this._logService.warn(`inlineChat.defaultModel setting value '${defaultModelSetting}' did not match any available model. Falling back to vendor default.`);
+					await this._selectVendorDefaultModel(session);
+				}
+			} else {
+				await this._selectVendorDefaultModel(session);
+			}
+		}
+
+		// Track model changes - disable automatic defaults once user explicitly changes the model.
+		// NOTE: This currently detects any model change, not just user-initiated ones.
+		let initialModelId: string | undefined;
+		sessionStore.add(autorun(r => {
+			const newModel = this._zone.value.widget.chatWidget.input.selectedLanguageModel.read(r);
+			if (!newModel) {
+				return;
+			}
+			if (!initialModelId) {
+				initialModelId = newModel.identifier;
+				return;
+			}
+			if (initialModelId !== newModel.identifier) {
+				InlineChatController._applyModelDefaultsThisSession = false;
+			}
+		}));
 	}
 
 	async createImageAttachment(attachment: URI): Promise<IChatRequestVariableEntry | undefined> {

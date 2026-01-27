@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.109.0",
-  "distro": "95dae17030071983e9d039a02bca8a9522b9fa2c",
+  "distro": "ce54912c8b9b4ad03645ec984f7fb9e0a6247c32",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -77,6 +77,7 @@
     "@microsoft/1ds-post-js": "^3.2.13",
     "@parcel/watcher": "^2.5.6",
     "@types/semver": "^7.5.8",
+    "@vscode/codicons": "^0.0.45-0",
     "@vscode/deviceid": "^0.1.1",
     "@vscode/iconv-lite-umd": "0.7.1",
     "@vscode/native-watchdog": "^1.4.6",
@@ -161,7 +162,7 @@
     "css-loader": "^6.9.1",
     "debounce": "^1.0.0",
     "deemon": "^1.13.6",
-    "electron": "39.2.7",
+    "electron": "39.3.0",
     "eslint": "^9.36.0",
     "eslint-formatter-compact": "^8.40.0",
     "eslint-plugin-header": "3.1.1",

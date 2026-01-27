@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IExtensionGalleryManifestService } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
-import { ExtensionGalleryManifestService as ExtensionGalleryManifestService } from '../../../../platform/extensionManagement/common/extensionGalleryManifestService.js';
+import { ExtensionGalleryManifestService } from '../../../../platform/extensionManagement/common/extensionGalleryManifestService.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IRemoteAgentService } from '../../remote/common/remoteAgentService.js';

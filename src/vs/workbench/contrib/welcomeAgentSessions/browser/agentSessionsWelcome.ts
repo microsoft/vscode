@@ -42,7 +42,7 @@ import { IAgentSession } from '../../chat/browser/agentSessions/agentSessionsMod
 import { AgentSessionsWelcomeEditorOptions, AgentSessionsWelcomeInput } from './agentSessionsWelcomeInput.js';
 import { IChatService } from '../../chat/common/chatService/chatService.js';
 import { IChatModel } from '../../chat/common/model/chatModel.js';
-import { ChatViewId, ISessionTypePickerDelegate, IWorkspacePickerDelegate, IWorkspacePickerItem } from '../../chat/browser/chat.js';
+import { ChatViewId, ChatViewPaneTarget, IChatWidgetService, ISessionTypePickerDelegate, IWorkspacePickerDelegate, IWorkspacePickerItem } from '../../chat/browser/chat.js';
 import { ChatSessionPosition, getResourceForNewChatSession } from '../../chat/browser/chatSessions/chatSessions.contribution.js';
 import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 import { AgentSessionsControl, IAgentSessionsControlOptions } from '../../chat/browser/agentSessions/agentSessionsControl.js';
@@ -57,11 +57,27 @@ import { IWorkspacesService, IRecentFolder, IRecentWorkspace, isRecentFolder, is
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
+import { toErrorMessage } from '../../../../base/common/errorMessage.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 
 const configurationKey = 'workbench.startupEditor';
 const MAX_SESSIONS = 6;
 const MAX_REPO_PICKS = 10;
 const MAX_WALKTHROUGHS = 10;
+
+type AgentSessionsWelcomeActionClassification = {
+	action: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The action being executed on the agent sessions welcome page.' };
+	actionId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'Identifier of the action being executed, such as command ID or walkthrough ID.' };
+	welcomeKind: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The kind of welcome page' };
+	owner: 'osortega';
+	comment: 'Help understand what actions are most commonly taken on the agent sessions welcome page';
+};
+
+type AgentSessionsWelcomeActionEvent = {
+	action: string;
+	welcomeKind: 'agentSessionsWelcomePage';
+	actionId: string | undefined;
+};
 
 export class AgentSessionsWelcomePage extends EditorPane {
 
@@ -107,6 +123,8 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		@IHostService private readonly hostService: IHostService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
+		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super(AgentSessionsWelcomePage.ID, group, telemetryService, themeService, storageService);
 
@@ -182,9 +200,15 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		this.buildFooter(footer);
 
 		// Listen for session changes - store reference to avoid querySelector
+		let originalSessions = this.agentSessionsService.model.sessions.length > 0;
 		this.contentDisposables.add(this.agentSessionsService.model.onDidChangeSessions(() => {
-			clearNode(sessionsSection);
-			this.buildSessionsOrPrompts(sessionsSection);
+			const hasSessions = this.agentSessionsService.model.sessions.length > 0;
+			// Only rebuild if the amount of sessions changed, other updates should be managed by the control
+			if (hasSessions !== originalSessions) {
+				originalSessions = hasSessions;
+				clearNode(sessionsSection);
+				this.buildSessionsOrPrompts(sessionsSection);
+			}
 		}));
 
 		this.scrollableElement?.scanDomNode();
@@ -201,7 +225,13 @@ export class AgentSessionsWelcomePage extends EditorPane {
 			const button = append(container, $('button.agentSessionsWelcome-startEntry'));
 			button.appendChild(renderIcon(entry.icon));
 			button.appendChild(document.createTextNode(entry.label));
-			button.onclick = () => this.commandService.executeCommand(entry.command);
+			button.onclick = () => {
+				this.telemetryService.publicLog2<AgentSessionsWelcomeActionEvent, AgentSessionsWelcomeActionClassification>(
+					'gettingStarted.ActionExecuted',
+					{ welcomeKind: 'agentSessionsWelcomePage', action: 'executeCommand', actionId: entry.command }
+				);
+				this.commandService.executeCommand(entry.command);
+			};
 		}
 	}
 
@@ -320,6 +350,13 @@ export class AgentSessionsWelcomePage extends EditorPane {
 			this.chatWidget?.focusInput();
 		}));
 
+		// Automatically open the chat view when a request is submitted from this welcome view
+		this.contentDisposables.add(this.chatService.onDidSubmitRequest(({ chatSessionResource }) => {
+			if (this.chatModelRef?.object?.sessionResource.toString() === chatSessionResource.toString()) {
+				this.openSessionInChat(chatSessionResource);
+			}
+		}));
+
 		// Check for prefill data from a workspace transfer
 		this.applyPrefillData();
 	}
@@ -420,10 +457,7 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		this.sessionsControl = undefined;
 		this.sessionsLoadingContainer = undefined;
 
-		const sessions = this.agentSessionsService.model.sessions;
-
-		// Toggle no-sessions class for proper margin handling
-		container.classList.toggle('no-sessions', sessions.length === 0);
+		const sessions = this.agentSessionsService.model.sessions.filter(s => !s.isArchived());
 
 		if (sessions.length > 0) {
 			this.buildSessionsGrid(container, sessions);
@@ -583,6 +617,10 @@ export class AgentSessionsWelcomePage extends EditorPane {
 
 		card.onclick = () => {
 			const walkthrough = activeWalkthroughs[currentIndex];
+			this.telemetryService.publicLog2<AgentSessionsWelcomeActionEvent, AgentSessionsWelcomeActionClassification>(
+				'gettingStarted.ActionExecuted',
+				{ welcomeKind: 'agentSessionsWelcomePage', action: 'openWalkthrough', actionId: walkthrough.id }
+			);
 			// Open walkthrough with returnToCommand so back button returns to agent sessions welcome
 			const options: GettingStartedEditorOptions = {
 				selectedCategory: walkthrough.id,
@@ -673,16 +711,6 @@ export class AgentSessionsWelcomePage extends EditorPane {
 	}
 
 	private buildFooter(container: HTMLElement): void {
-		const updateNoSessionsClass = () => {
-			container.classList.toggle('no-sessions', this.agentSessionsService.model.sessions.length === 0);
-		};
-		// Set initial state
-		updateNoSessionsClass();
-
-		// Keep footer in sync with session changes
-		this.contentDisposables.add(this.agentSessionsService.model.onDidChangeSessions(() => {
-			updateNoSessionsClass();
-		}));
 		// Privacy notice
 		this.buildPrivacyNotice(container);
 
@@ -776,9 +804,29 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		this.chatWidget?.focusInput();
 	}
 
-	private revealMaximizedChat(): void {
-		this.commandService.executeCommand('workbench.action.closeActiveEditor');
-		this.commandService.executeCommand('workbench.action.chat.open');
+	private async revealMaximizedChat(): Promise<void> {
+		try {
+			await this.closeEditorAndMaximizeAuxiliaryBar();
+		} catch (error) {
+			this.logService.error('Failed to open maximized chat: {0}', toErrorMessage(error));
+		}
+	}
+
+	private async openSessionInChat(sessionResource: URI): Promise<void> {
+		try {
+			await this.closeEditorAndMaximizeAuxiliaryBar(sessionResource);
+		} catch (error) {
+			this.logService.error('Failed to open agent session: {0}', toErrorMessage(error));
+		}
+	}
+
+	private async closeEditorAndMaximizeAuxiliaryBar(sessionResource?: URI): Promise<void> {
+		await this.commandService.executeCommand('workbench.action.closeActiveEditor');
+		if (sessionResource) {
+			await this.chatWidgetService.openSession(sessionResource, ChatViewPaneTarget);
+		} else {
+			await this.commandService.executeCommand('workbench.action.chat.open');
+		}
 		const chatViewLocation = this.viewDescriptorService.getViewLocationById(ChatViewId);
 		if (chatViewLocation === ViewContainerLocation.AuxiliaryBar) {
 			this.layoutService.setAuxiliaryBarMaximized(true);

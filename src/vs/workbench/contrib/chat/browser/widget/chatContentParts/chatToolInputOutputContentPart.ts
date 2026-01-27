@@ -41,6 +41,11 @@ export interface IChatCollapsibleIOCodePart {
 export interface IChatCollapsibleIODataPart {
 	kind: 'data';
 	value?: Uint8Array;
+	/**
+	 * Base64-encoded value that can be decoded lazily to avoid expensive
+	 * decoding during scroll. Takes precedence over `value` when present.
+	 */
+	base64Value?: string;
 	audience?: LanguageModelPartAudience[];
 	mimeType: string | undefined;
 	uri: URI;
@@ -57,7 +62,6 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
 	public readonly onDidChangeHeight = this._onDidChangeHeight.event;
 
-	private _currentWidth: number = 0;
 	private readonly _editorReferences: IDisposableReference<CodeBlockPart>[] = [];
 	private readonly _titlePart: ChatQueryTitlePart;
 	private _outputSubPart: ChatToolOutputContentSubPart | undefined;
@@ -99,7 +103,6 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 		@ILanguageService private readonly languageService: ILanguageService,
 	) {
 		super();
-		this._currentWidth = context.currentWidth.get();
 
 		const container = dom.h('.chat-confirmation-widget-container');
 		const titleEl = dom.h('.chat-confirmation-widget-title-inner');
@@ -234,7 +237,7 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 			chatSessionResource: this.context.element.sessionResource,
 		};
 		const editorReference = this._register(this.context.editorPool.get());
-		editorReference.object.render(data, this._currentWidth || 300);
+		editorReference.object.render(data, this.context.currentWidth.get() || 300);
 		this._register(editorReference.object.onDidChangeContentHeight(() => this._onDidChangeHeight.fire()));
 		container.appendChild(editorReference.object.element);
 		this._editorReferences.push(editorReference);
@@ -246,7 +249,6 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 	}
 
 	layout(width: number): void {
-		this._currentWidth = width;
 		this._editorReferences.forEach(r => r.object.layout(width));
 		this._outputSubPart?.layout(width);
 	}

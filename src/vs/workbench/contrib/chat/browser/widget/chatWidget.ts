@@ -435,12 +435,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._codeBlockModelCollection = this._register(instantiationService.createInstance(CodeBlockModelCollection, undefined));
 		this.chatSuggestNextWidget = this._register(this.instantiationService.createInstance(ChatSuggestNextWidget));
 
-		this._register(this.configurationService.onDidChangeConfiguration((e) => {
-			if (e.affectsConfiguration('chat.renderRelatedFiles')) {
-				this.input.renderChatRelatedFiles();
-			}
-		}));
-
 		this._register(autorun(r => {
 			const viewModel = viewModelObs.read(r);
 			const sessions = chatEditingService.editingSessionsObs.read(r);
@@ -784,13 +778,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	 * Updates the DOM visibility of welcome view and chat list immediately
 	 */
 	private updateChatViewVisibility(): void {
-		if (!this.viewModel) {
-			return;
+		if (this.viewModel) {
+			const numItems = this.viewModel.getItems().length;
+			dom.setVisibility(numItems === 0, this.welcomeMessageContainer);
+			dom.setVisibility(numItems !== 0, this.listContainer);
 		}
-
-		const numItems = this.viewModel.getItems().length;
-		dom.setVisibility(numItems === 0, this.welcomeMessageContainer);
-		dom.setVisibility(numItems !== 0, this.listContainer);
 
 		this._onDidChangeEmptyState.fire();
 	}

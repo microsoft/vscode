@@ -126,6 +126,10 @@ abstract class AbstractUpdateService implements IUpdateService {
 		// noop
 	}
 
+	async disableProgressiveReleases(): Promise<void> {
+		// noop - not applicable for snap
+	}
+
 	abstract isLatestVersion(): Promise<boolean | undefined>;
 
 	async _applySpecificUpdate(packagePath: string): Promise<void> {

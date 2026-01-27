@@ -265,6 +265,7 @@ export async function getApplication({ recordVideo, workspacePath }: { recordVid
 		headless: opts.headless,
 		browser: opts.browser,
 		extraArgs: (opts.electronArgs || '').split(' ').map(arg => arg.trim()).filter(arg => !!arg),
+		extensionDevelopmentPath: opts.extensionDevelopmentPath,
 	});
 	await application.start();
 	application.code.driver.currentPage.on('close', async () => {

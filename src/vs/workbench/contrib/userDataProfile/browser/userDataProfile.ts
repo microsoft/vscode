@@ -60,7 +60,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IURLService private readonly urlService: IURLService,
-		@IBrowserWorkbenchEnvironmentService private readonly environmentService: IBrowserWorkbenchEnvironmentService
+		@IBrowserWorkbenchEnvironmentService environmentService: IBrowserWorkbenchEnvironmentService
 	) {
 		super();
 
@@ -78,25 +78,22 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		this.hasProfilesContext.set(this.userDataProfilesService.profiles.length > 1);
 		this._register(this.userDataProfilesService.onDidChangeProfiles(e => this.hasProfilesContext.set(this.userDataProfilesService.profiles.length > 1)));
 
-		if (!this.environmentService.agentSessionsWindow) {
+		this.registerEditor();
+		this.registerActions();
 
-			this.registerEditor();
-			this.registerActions();
+		this._register(this.urlService.registerHandler(this));
 
-			this._register(this.urlService.registerHandler(this));
-
-			if (isWeb) {
-				lifecycleService.when(LifecyclePhase.Eventually).then(() => userDataProfilesService.cleanUp());
-			}
-
-			this.reportWorkspaceProfileInfo();
-
-			if (environmentService.options?.profileToPreview) {
-				lifecycleService.when(LifecyclePhase.Restored).then(() => this.handleURL(URI.revive(environmentService.options!.profileToPreview!)));
-			}
-
-			this.registerDropHandler();
+		if (isWeb) {
+			lifecycleService.when(LifecyclePhase.Eventually).then(() => userDataProfilesService.cleanUp());
 		}
+
+		this.reportWorkspaceProfileInfo();
+
+		if (environmentService.options?.profileToPreview) {
+			lifecycleService.when(LifecyclePhase.Restored).then(() => this.handleURL(URI.revive(environmentService.options!.profileToPreview!)));
+		}
+
+		this.registerDropHandler();
 	}
 
 	async handleURL(uri: URI): Promise<boolean> {
