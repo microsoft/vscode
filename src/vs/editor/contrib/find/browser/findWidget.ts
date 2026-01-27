@@ -1395,10 +1395,10 @@ registerThemingParticipant((theme, collector) => {
 	}
 	const findMatchForeground = theme.getColor(editorFindMatchForeground);
 	if (findMatchForeground) {
-		collector.addRule(`.monaco-editor .findMatchInline { color: ${findMatchForeground}; }`);
+		collector.addRule(`.monaco-editor .currentFindMatchInline { color: ${findMatchForeground}; }`);
 	}
 	const findMatchHighlightForeground = theme.getColor(editorFindMatchHighlightForeground);
 	if (findMatchHighlightForeground) {
-		collector.addRule(`.monaco-editor .currentFindMatchInline { color: ${findMatchHighlightForeground}; }`);
+		collector.addRule(`.monaco-editor .findMatchInline { color: ${findMatchHighlightForeground}; }`);
 	}
 });
