@@ -38,7 +38,7 @@ export class QuickInputBox extends Disposable {
 				hideHoverOnValueChange: true
 			}));
 		const input = this.findInput.inputBox.inputElement;
-		input.role = 'textbox';
+		input.role = 'combobox';
 		input.ariaHasPopup = 'menu';
 		input.ariaAutoComplete = 'list';
 	}
