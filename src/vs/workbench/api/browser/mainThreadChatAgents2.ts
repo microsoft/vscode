@@ -34,11 +34,12 @@ import { ChatRequestParser } from '../../contrib/chat/common/requestParser/chatR
 import { IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatNotebookEdit, IChatProgress, IChatService, IChatTask, IChatTaskSerialized, IChatWarningMessage } from '../../contrib/chat/common/chatService/chatService.js';
 import { IChatSessionsService } from '../../contrib/chat/common/chatSessionsService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../contrib/chat/common/constants.js';
-import { ILanguageModelToolsService } from '../../contrib/chat/common/tools/languageModelToolsService.js';
+import { ChatToolInvocation } from '../../contrib/chat/common/model/chatProgressTypes/chatToolInvocation.js';
+import { ILanguageModelToolsService, IPreparedToolInvocation } from '../../contrib/chat/common/tools/languageModelToolsService.js';
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
 import { IExtensionService } from '../../services/extensions/common/extensions.js';
 import { Dto } from '../../services/extensions/common/proxyIdentifier.js';
-import { ExtHostChatAgentsShape2, ExtHostContext, IChatNotebookEditDto, IChatParticipantMetadata, IChatProgressDto, IDynamicChatAgentProps, IExtensionChatAgentMetadata, MainContext, MainThreadChatAgentsShape2 } from '../common/extHost.protocol.js';
+import { ExtHostChatAgentsShape2, ExtHostContext, IChatExternalToolInvocationUpdateDto, IChatNotebookEditDto, IChatParticipantMetadata, IChatProgressDto, IDynamicChatAgentProps, IExtensionChatAgentMetadata, MainContext, MainThreadChatAgentsShape2 } from '../common/extHost.protocol.js';
 import { NotebookDto } from './mainThreadNotebookDto.js';
 
 interface AgentData {
@@ -103,6 +104,9 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 	private readonly _proxy: ExtHostChatAgentsShape2;
 
 	private readonly _activeTasks = new Map<string, IChatTask>();
+
+	/** Pending external tool invocations keyed by toolCallId */
+	private readonly _pendingExternalToolInvocations = new Map<string, ChatToolInvocation>();
 
 	private readonly _unresolvedAnchors = new Map</* requestId */string, Map</* id */ string, IChatContentInlineReference>>();
 
@@ -299,6 +303,14 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 				continue;
 			}
 
+			if (progress.kind === 'externalToolInvocationUpdate') {
+				const invocation = this._handleExternalToolInvocationUpdate(progress);
+				if (invocation) {
+					chatProgressParts.push(invocation);
+				}
+				continue;
+			}
+
 			const revivedProgress = progress.kind === 'notebookEdit'
 				? ChatNotebookEdit.fromChatEdit(progress)
 				: revive(progress) as IChatProgress;
@@ -351,6 +363,52 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		}
 
 		progress(chatProgressParts);
+	}
+
+	/**
+	 * Handle external tool invocation updates from extensions.
+	 * Returns the invocation if it's new and should be added to progress, otherwise undefined.
+	 */
+	private _handleExternalToolInvocationUpdate(progress: IChatExternalToolInvocationUpdateDto): ChatToolInvocation | undefined {
+		const existingInvocation = this._pendingExternalToolInvocations.get(progress.toolCallId);
+
+		if (existingInvocation) {
+			if (progress.isComplete) {
+				existingInvocation.completeExternalInvocation({
+					pastTenseMessage: progress.pastTenseMessage,
+					isError: progress.isError,
+				});
+				this._pendingExternalToolInvocations.delete(progress.toolCallId);
+			} else {
+				existingInvocation.updateExternalInvocation({
+					invocationMessage: progress.invocationMessage,
+					pastTenseMessage: progress.pastTenseMessage,
+				});
+			}
+			return undefined;
+		}
+
+		// Create a new external tool invocation
+		const invocation = ChatToolInvocation.createExternal({
+			toolCallId: progress.toolCallId,
+			toolName: progress.toolName,
+			invocationMessage: progress.invocationMessage,
+			pastTenseMessage: progress.pastTenseMessage,
+			toolSpecificData: progress.toolSpecificData as IPreparedToolInvocation['toolSpecificData'],
+		});
+
+		if (progress.isComplete) {
+			// Already completed on first push
+			invocation.completeExternalInvocation({
+				pastTenseMessage: progress.pastTenseMessage,
+				isError: progress.isError,
+			});
+		} else {
+			// Track for future updates
+			this._pendingExternalToolInvocations.set(progress.toolCallId, invocation);
+		}
+
+		return invocation;
 	}
 
 	$handleAnchorResolve(requestId: string, handle: string, resolveAnchor: Dto<IChatContentInlineReference> | undefined): void {

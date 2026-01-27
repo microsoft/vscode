@@ -18,6 +18,14 @@ export interface IStreamingToolCallOptions {
 	chatRequestId?: string;
 }
 
+export interface IExternalToolCallOptions {
+	toolCallId: string;
+	toolName: string;
+	invocationMessage?: string | IMarkdownString;
+	pastTenseMessage?: string | IMarkdownString;
+	toolSpecificData?: IPreparedToolInvocation['toolSpecificData'];
+}
+
 export class ChatToolInvocation implements IChatToolInvocation {
 	public readonly kind: 'toolInvocation' = 'toolInvocation';
 
@@ -52,6 +60,27 @@ export class ChatToolInvocation implements IChatToolInvocation {
 	 */
 	public static createStreaming(options: IStreamingToolCallOptions): ChatToolInvocation {
 		return new ChatToolInvocation(undefined, options.toolData, options.toolCallId, options.subagentInvocationId, undefined, true, options.chatRequestId);
+	}
+
+	/**
+	 * Options for creating an external tool invocation.
+	 */
+	public static createExternal(options: IExternalToolCallOptions): ChatToolInvocation {
+		// Create a minimal IToolData for external tools
+		const toolData: IToolData = {
+			id: options.toolName,
+			source: ToolDataSource.External,
+			displayName: options.toolName,
+			modelDescription: options.toolName,
+		};
+
+		const preparedInvocation: IPreparedToolInvocation = {
+			invocationMessage: options.invocationMessage,
+			pastTenseMessage: options.pastTenseMessage,
+			toolSpecificData: options.toolSpecificData,
+		};
+
+		return new ChatToolInvocation(preparedInvocation, toolData, options.toolCallId, undefined, undefined, false, undefined);
 	}
 
 	constructor(
@@ -138,6 +167,45 @@ export class ChatToolInvocation implements IChatToolInvocation {
 			return; // Only update in streaming state
 		}
 		this._streamingMessage.set(message, undefined);
+	}
+
+	/**
+	 * Update an external tool invocation with new messages.
+	 * Used when an extension pushes an update for an in-progress tool invocation.
+	 */
+	public updateExternalInvocation(options: {
+		invocationMessage?: string | IMarkdownString;
+		pastTenseMessage?: string | IMarkdownString;
+	}): void {
+		if (options.invocationMessage !== undefined) {
+			this.invocationMessage = options.invocationMessage;
+		}
+		if (options.pastTenseMessage !== undefined) {
+			this.pastTenseMessage = options.pastTenseMessage;
+		}
+	}
+
+	/**
+	 * Complete an external tool invocation.
+	 * Used when an extension pushes a completion for an in-progress tool invocation.
+	 */
+	public completeExternalInvocation(options?: {
+		pastTenseMessage?: string | IMarkdownString;
+		isError?: boolean;
+	}): void {
+		if (options?.pastTenseMessage !== undefined) {
+			this.pastTenseMessage = options.pastTenseMessage;
+		}
+
+		this._state.set({
+			type: IChatToolInvocation.StateKind.Completed,
+			confirmed: { type: ToolConfirmKind.ConfirmationNotNeeded },
+			resultDetails: undefined,
+			postConfirmed: undefined,
+			contentForModel: [],
+			parameters: this.parameters,
+			confirmationMessages: this.confirmationMessages,
+		}, undefined);
 	}
 
 	/**
