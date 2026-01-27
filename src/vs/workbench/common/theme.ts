@@ -685,6 +685,10 @@ export const TITLE_BAR_BORDER = registerColor('titleBar.border', {
 	hcLight: contrastBorder
 }, localize('titleBarBorder', "Title bar border color."));
 
+export const TITLE_BAR_ACTIVE_HOVER_BACKGROUND = registerColor('titleBar.activeHoverBackground', toolbarHoverBackground, localize('titleBarActiveHoverBackground', "Title bar background when hovering over title bar actions with the mouse. Title bar actions include the back and forward navigation buttons as well as the command center."));
+
+export const TITLE_BAR_ACTIVE_HOVER_FOREGROUND = registerColor('titleBar.activeHoverForeground', TITLE_BAR_ACTIVE_FOREGROUND, localize('titleBarActiveHoverForeground', "Title bar foreground when hovering over title bar actions with the mouse. Title bar actions include the back and forward navigation buttons as well as the command center."));
+
 // < --- Menubar --- >
 
 export const MENUBAR_SELECTION_FOREGROUND = registerColor('menubar.selectionForeground', TITLE_BAR_ACTIVE_FOREGROUND, localize('menubarSelectionForeground', "Foreground color of the selected menu item in the menubar."));

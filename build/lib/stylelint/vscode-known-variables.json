@@ -876,6 +876,8 @@
 		"--vscode-textSeparator-foreground",
 		"--vscode-titleBar-activeBackground",
 		"--vscode-titleBar-activeForeground",
+		"--vscode-titleBar-activeHoverBackground",
+		"--vscode-titleBar-activeHoverForeground",
 		"--vscode-titleBar-border",
 		"--vscode-titleBar-inactiveBackground",
 		"--vscode-titleBar-inactiveForeground",
