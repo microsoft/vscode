@@ -15,7 +15,8 @@ import { ToggleSidebarPositionAction, ToggleSidebarVisibilityAction } from '../.
 import { IThemeService, IColorTheme, registerThemingParticipant } from '../../../../platform/theme/common/themeService.js';
 import { ACTIVITY_BAR_BACKGROUND, ACTIVITY_BAR_BORDER, ACTIVITY_BAR_FOREGROUND, ACTIVITY_BAR_ACTIVE_BORDER, ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND, ACTIVITY_BAR_INACTIVE_FOREGROUND, ACTIVITY_BAR_ACTIVE_BACKGROUND, ACTIVITY_BAR_DRAG_AND_DROP_BORDER, ACTIVITY_BAR_ACTIVE_FOCUS_BORDER } from '../../../common/theme.js';
 import { activeContrastBorder, contrastBorder, focusBorder } from '../../../../platform/theme/common/colorRegistry.js';
-import { addDisposableListener, append, EventType, isAncestor, $, clearNode } from '../../../../base/browser/dom.js';
+import { addDisposableListener, append, EventType, isAncestor, $, clearNode, getWindow } from '../../../../base/browser/dom.js';
+import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { CustomMenubarControl } from '../titlebar/menubarControl.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -59,15 +60,55 @@ export class ActivitybarPart extends Part {
 	private readonly compositeBar = this._register(new MutableDisposable<PaneCompositeBar>());
 	private content: HTMLElement | undefined;
 
+	private readonly hoverOpenScheduler: RunOnceScheduler;
+	private _isHoverTriggering: boolean = false;
+	private _wasSideBarOpenedByHover: boolean = false;
+	private _isHoverTriggerEnabled: boolean = false;
+
 	constructor(
 		private readonly paneCompositePart: IPaneCompositePart,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super(Parts.ACTIVITYBAR_PART, { hasTitle: false }, themeService, storageService, layoutService);
+
+		this._isHoverTriggerEnabled = this.configurationService.getValue<boolean>('workbench.activityBar.hoverTrigger');
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('workbench.activityBar.hoverTrigger')) {
+				this._isHoverTriggerEnabled = this.configurationService.getValue<boolean>('workbench.activityBar.hoverTrigger');
+			}
+		}));
+
+		this.hoverOpenScheduler = this._register(new RunOnceScheduler(() => this.onHoverTrigger(), 250));
+
+		this._register(this.layoutService.onDidChangePartVisibility(() => {
+			if (this.layoutService.isVisible(Parts.SIDEBAR_PART)) {
+				if (this._isHoverTriggering) {
+					this._wasSideBarOpenedByHover = true;
+					this._isHoverTriggering = false;
+				} else {
+					this._wasSideBarOpenedByHover = false;
+				}
+			} else {
+				this._wasSideBarOpenedByHover = false;
+			}
+		}));
 	}
+
+	private onHoverTrigger(): void {
+		if (!this._isHoverTriggerEnabled) {
+			return;
+		}
+
+		if (!this.layoutService.isVisible(Parts.SIDEBAR_PART)) {
+			this._isHoverTriggering = true;
+			this.layoutService.setPartHidden(false, Parts.SIDEBAR_PART);
+		}
+	}
+
 
 	private createCompositeBar(): PaneCompositeBar {
 		return this.instantiationService.createInstance(ActivityBarCompositeBar, {
@@ -103,11 +144,32 @@ export class ActivitybarPart extends Part {
 		this.element = parent;
 		this.content = append(this.element, $('.content'));
 
+		this._register(addDisposableListener(this.element, EventType.MOUSE_ENTER, () => {
+			this.hoverOpenScheduler.schedule();
+		}));
+
+		this._register(addDisposableListener(this.element, EventType.MOUSE_LEAVE, () => {
+			this.hoverOpenScheduler.cancel();
+		}));
+
+		// Listen to clicks in the editor part to close the side bar if it was opened by hover
+		const targetWindow = getWindow(this.element);
+		const editorPartContainer = this.layoutService.getContainer(targetWindow, Parts.EDITOR_PART);
+		if (editorPartContainer) {
+			this._register(addDisposableListener(editorPartContainer, EventType.MOUSE_DOWN, () => this.onEditorClick()));
+		}
+
 		if (this.layoutService.isVisible(Parts.ACTIVITYBAR_PART)) {
 			this.show();
 		}
 
 		return this.content;
+	}
+
+	private onEditorClick(): void {
+		if (this._wasSideBarOpenedByHover && this.layoutService.isVisible(Parts.SIDEBAR_PART)) {
+			this.layoutService.setPartHidden(true, Parts.SIDEBAR_PART);
+		}
 	}
 
 	getPinnedPaneCompositeIds(): string[] {
