@@ -8,6 +8,7 @@ import { renderMarkdown } from '../../../../../../../base/browser/markdownRender
 import { decodeBase64 } from '../../../../../../../base/common/buffer.js';
 import { CancellationTokenSource } from '../../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
+import { Event } from '../../../../../../../base/common/event.js';
 import { ThemeIcon } from '../../../../../../../base/common/themables.js';
 import { generateUuid } from '../../../../../../../base/common/uuid.js';
 import { localize } from '../../../../../../../nls.js';
@@ -22,8 +23,9 @@ import { ChatProgressSubPart } from '../chatProgressContentPart.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
 
 interface OutputState {
-	readonly webviewOrigin: string;
+	webviewOrigin: string;
 	height: number;
+	webviewState?: string;
 }
 
 // TODO: see if we can reuse existing types instead of adding ChatToolOutputSubPart
@@ -41,6 +43,7 @@ export class ChatToolOutputSubPart extends BaseChatToolInvocationSubPart {
 	constructor(
 		toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized,
 		private readonly context: IChatContentPartRenderContext,
+		private readonly onDidRemount: Event<void>,
 		@IChatOutputRendererService private readonly chatOutputItemRendererService: IChatOutputRendererService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -59,13 +62,15 @@ export class ChatToolOutputSubPart extends BaseChatToolInvocationSubPart {
 
 		this.domNode = dom.$('div.tool-output-part');
 
-		const titleEl = dom.$('.output-title');
-		this.domNode.appendChild(titleEl);
-		if (typeof toolInvocation.invocationMessage === 'string') {
-			titleEl.textContent = toolInvocation.invocationMessage;
-		} else {
-			const md = this._register(renderMarkdown(toolInvocation.invocationMessage));
-			titleEl.appendChild(md.element);
+		if (toolInvocation.invocationMessage) {
+			const titleEl = dom.$('.output-title');
+			this.domNode.appendChild(titleEl);
+			if (typeof toolInvocation.invocationMessage === 'string') {
+				titleEl.textContent = toolInvocation.invocationMessage;
+			} else {
+				const md = this._register(renderMarkdown(toolInvocation.invocationMessage));
+				titleEl.appendChild(md.element);
+			}
 		}
 
 		this.domNode.appendChild(this.createOutputPart(toolInvocation, details));
@@ -101,6 +106,9 @@ export class ChatToolOutputSubPart extends BaseChatToolInvocationSubPart {
 		if (partState.height) {
 			parent.style.height = `${partState.height}px`;
 		}
+		if (partState.webviewOrigin) {
+			partState.webviewOrigin = partState.webviewOrigin;
+		}
 
 		const progressMessage = dom.$('span');
 		progressMessage.textContent = localize('loading', 'Rendering tool output...');
@@ -108,7 +116,7 @@ export class ChatToolOutputSubPart extends BaseChatToolInvocationSubPart {
 		parent.appendChild(progressPart.domNode);
 
 		// TODO: we also need to show the tool output in the UI
-		this.chatOutputItemRendererService.renderOutputPart(details.output.mimeType, details.output.value.buffer, parent, { origin: partState.webviewOrigin }, this._disposeCts.token).then((renderedItem) => {
+		this.chatOutputItemRendererService.renderOutputPart(details.output.mimeType, details.output.value.buffer, parent, { origin: partState.webviewOrigin, webviewState: partState.webviewState }, this._disposeCts.token).then((renderedItem) => {
 			if (this._disposeCts.token.isCancellationRequested) {
 				return;
 			}
@@ -116,6 +124,10 @@ export class ChatToolOutputSubPart extends BaseChatToolInvocationSubPart {
 			this._register(renderedItem);
 
 			progressPart.domNode.remove();
+
+			this._register(renderedItem.webview.onDidUpdateState(e => {
+				partState.webviewState = e;
+			}));
 
 			this._register(renderedItem.onDidChangeHeight(newHeight => {
 				partState.height = newHeight;
@@ -130,12 +142,15 @@ export class ChatToolOutputSubPart extends BaseChatToolInvocationSubPart {
 			}));
 
 			// When the webview is disconnected from the DOM due to being hidden, we need to reload it when it is shown again.
-			const widget = this.chatWidgetService.getWidgetBySessionResource(this.context.element.sessionResource);
-			if (widget) {
-				this._register(widget?.onDidShow(() => {
+			this._register(this.context.onDidChangeVisibility(visible => {
+				if (visible) {
 					renderedItem.reinitialize();
-				}));
-			}
+				}
+			}));
+
+			this._register(this.onDidRemount(() => {
+				renderedItem.reinitialize();
+			}));
 		}, (error) => {
 			console.error('Error rendering tool output:', error);
 

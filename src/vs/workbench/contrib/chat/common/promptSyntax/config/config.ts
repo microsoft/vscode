@@ -96,6 +96,16 @@ export namespace PromptsConfig {
 	export const USE_AGENT_SKILLS = 'chat.useAgentSkills';
 
 	/**
+	 * Configuration key for including applying instructions.
+	 */
+	export const INCLUDE_APPLYING_INSTRUCTIONS = 'chat.includeApplyingInstructions';
+
+	/**
+	 * Configuration key for including referenced instructions.
+	 */
+	export const INCLUDE_REFERENCED_INSTRUCTIONS = 'chat.includeReferencedInstructions';
+
+	/**
 	 * Get value of the `reusable prompt locations` configuration setting.
 	 * @see {@link PROMPT_LOCATIONS_CONFIG_KEY}, {@link INSTRUCTIONS_LOCATIONS_CONFIG_KEY}, {@link MODE_LOCATIONS_CONFIG_KEY}, {@link SKILLS_LOCATION_KEY}.
 	 */

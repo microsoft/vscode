@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isAncestorOfActiveElement } from '../../../../../base/browser/dom.js';
-import { mainWindow } from '../../../../../base/browser/window.js';
-import { toAction, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../../../base/common/actions.js';
+import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../../../base/common/actions.js';
 import { coalesce } from '../../../../../base/common/arrays.js';
 import { timeout } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -13,7 +12,6 @@ import { safeIntl } from '../../../../../base/common/date.js';
 import { Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
-import { Disposable, markAsSingleton } from '../../../../../base/common/lifecycle.js';
 import { language } from '../../../../../base/common/platform.js';
 import { basename } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -22,9 +20,7 @@ import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { EditorAction2 } from '../../../../../editor/browser/editorExtensions.js';
 import { IRange } from '../../../../../editor/common/core/range.js';
 import { localize, localize2 } from '../../../../../nls.js';
-import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
-import { DropdownWithPrimaryActionViewItem } from '../../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
-import { Action2, ICommandPaletteOptions, MenuId, MenuItemAction, MenuRegistry, registerAction2, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
+import { Action2, ICommandPaletteOptions, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -33,13 +29,12 @@ import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.j
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import product from '../../../../../platform/product/common/product.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { ToggleTitleBarConfigAction } from '../../../../browser/parts/titlebar/titlebarActions.js';
-import { ActiveEditorContext, IsCompactTitleBarContext } from '../../../../common/contextkeys.js';
-import { IWorkbenchContribution } from '../../../../common/contributions.js';
+import { ActiveEditorContext } from '../../../../common/contextkeys.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../../common/views.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { AUX_WINDOW_GROUP } from '../../../../services/editor/common/editorService.js';
@@ -59,11 +54,11 @@ import { IChatService } from '../../common/chatService/chatService.js';
 import { ISCMHistoryItemChangeRangeVariableEntry, ISCMHistoryItemChangeVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM } from '../../common/model/chatViewModel.js';
 import { IChatWidgetHistoryService } from '../../common/widget/chatWidgetHistoryService.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
+import { AgentsControlClickBehavior, ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
 import { ILanguageModelChatSelector, ILanguageModelsService } from '../../common/languageModels.js';
 import { CopilotUsageExtensionFeatureId } from '../../common/languageModelStats.js';
 import { ILanguageModelToolsConfirmationService } from '../../common/tools/languageModelToolsConfirmationService.js';
-import { ILanguageModelToolsService } from '../../common/tools/languageModelToolsService.js';
+import { ILanguageModelToolsService, IToolData, IToolSet, isToolSet } from '../../common/tools/languageModelToolsService.js';
 import { ChatViewId, IChatWidget, IChatWidgetService } from '../chat.js';
 import { IChatEditorOptions } from '../widgetHosts/editor/chatEditor.js';
 import { ChatEditorInput, showClearEditingSessionConfirmation } from '../widgetHosts/editor/chatEditorInput.js';
@@ -78,6 +73,13 @@ export const CHAT_OPEN_ACTION_ID = 'workbench.action.chat.open';
 export const CHAT_SETUP_ACTION_ID = 'workbench.action.chat.triggerSetup';
 export const CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID = 'workbench.action.chat.triggerSetupSupportAnonymousAction';
 const TOGGLE_CHAT_ACTION_ID = 'workbench.action.chat.toggle';
+
+const defaultChat = {
+	manageSettingsUrl: product.defaultChatAgent?.manageSettingsUrl ?? '',
+	provider: product.defaultChatAgent?.provider ?? { enterprise: { id: '' } },
+	completionsAdvancedSetting: product.defaultChatAgent?.completionsAdvancedSetting ?? '',
+	completionsMenuCommand: product.defaultChatAgent?.completionsMenuCommand ?? '',
+};
 
 export interface IChatViewOpenOptions {
 	/**
@@ -148,6 +150,26 @@ export interface IChatViewOpenOptions {
 	 * Wait to resolve the command until the chat response reaches a terminal state (complete, error, or pending user confirmation, etc.).
 	 */
 	blockOnResponse?: boolean;
+
+	/**
+	 * A list of tool identifiers to include. When specified alone, only these tools will be enabled.
+	 * Identifiers can be tool IDs, tool reference names (`toolReferenceName`),
+	 * toolset IDs, or toolset reference names (`referenceName`).
+	 * When a toolset identifier matches, all tools in that toolset are included.
+	 * Can be combined with `toolsExclude` for fine-grained control.
+	 */
+	toolsInclude?: string[];
+
+	/**
+	 * A list of tool identifiers to exclude. When specified alone, all tools except these will be enabled.
+	 * Identifiers can be tool IDs, tool reference names (`toolReferenceName`),
+	 * toolset IDs, or toolset reference names (`referenceName`).
+	 * When a toolset identifier matches, all tools in that toolset are excluded.
+	 * Can be combined with `toolsInclude` - exclusions are applied after inclusions.
+	 * Explicit tool references in `toolsInclude` override toolset exclusions,
+	 * but explicit tool exclusions always win.
+	 */
+	toolsExclude?: string[];
 }
 
 export interface IChatViewOpenRequestEntry {
@@ -187,6 +209,7 @@ abstract class OpenChatGlobalAction extends Action2 {
 		const fileService = accessor.get(IFileService);
 		const languageModelService = accessor.get(ILanguageModelsService);
 		const scmService = accessor.get(ISCMService);
+		const logService = accessor.get(ILogService);
 
 		let chatWidget = widgetService.lastFocusedWidget;
 		// When this was invoked to switch to a mode via keybinding, and some chat widget is focused, use that one.
@@ -217,6 +240,25 @@ abstract class OpenChatGlobalAction extends Action2 {
 			}
 
 			chatWidget.input.setCurrentLanguageModel({ metadata: model, identifier: id });
+		}
+
+		if (opts?.toolsInclude || opts?.toolsExclude) {
+			const model = chatWidget.input.selectedLanguageModel.get()?.metadata;
+			const allTools = Array.from(toolsService.getTools(model));
+			const allToolSets = Array.from(toolsService.getToolSetsForModel(model));
+
+			const result = computeToolEnablementMap({
+				allTools,
+				allToolSets,
+				toolsInclude: opts.toolsInclude,
+				toolsExclude: opts.toolsExclude,
+			});
+
+			for (const identifier of result.unknownIdentifiers) {
+				logService.warn(`Tool filtering: Unknown identifier '${identifier}' - no matching tool or toolset found.`);
+			}
+
+			chatWidget.input.selectedToolsModel.set(result.enablementMap, true);
 		}
 
 		if (opts?.previousRequests?.length && chatWidget.viewModel) {
@@ -467,15 +509,20 @@ export function registerChatActions() {
 
 			const chatLocation = viewDescriptorService.getViewLocationById(ChatViewId);
 
+			const clickBehavior = configurationService.getValue<AgentsControlClickBehavior>(ChatConfiguration.AgentsControlClickBehavior);
 			if (viewsService.isViewVisible(ChatViewId)) {
-				if (
-					chatLocation === ViewContainerLocation.AuxiliaryBar &&
-					configurationService.getValue<boolean>(ChatConfiguration.CommandCenterTriStateToggle) &&
-					!layoutService.isAuxiliaryBarMaximized()
-				) {
-					layoutService.setAuxiliaryBarMaximized(true);
+				if (clickBehavior === AgentsControlClickBehavior.Focus) {
+					(await widgetService.revealWidget())?.focusInput();
 				} else {
-					this.updatePartVisibility(layoutService, chatLocation, false);
+					if (
+						chatLocation === ViewContainerLocation.AuxiliaryBar &&
+						!layoutService.isAuxiliaryBarMaximized() &&
+						clickBehavior === AgentsControlClickBehavior.TriStateToggle
+					) {
+						layoutService.setAuxiliaryBarMaximized(true);
+					} else {
+						this.updatePartVisibility(layoutService, chatLocation, false);
+					}
 				}
 			} else {
 				this.updatePartVisibility(layoutService, chatLocation, true);
@@ -935,126 +982,167 @@ export function stringifyItem(item: IChatRequestViewModel | IChatResponseViewMod
 	}
 }
 
+export interface IToolFilteringOptions {
+	allTools: IToolData[];
+	allToolSets: IToolSet[];
+	toolsInclude?: string[];
+	toolsExclude?: string[];
+}
 
-// --- Title Bar Chat Controls
+export interface IToolFilteringResult {
+	enablementMap: Map<IToolData | IToolSet, boolean>;
+	unknownIdentifiers: string[];
+}
 
-const defaultChat = {
-	manageSettingsUrl: product.defaultChatAgent?.manageSettingsUrl ?? '',
-	provider: product.defaultChatAgent?.provider ?? { enterprise: { id: '' } },
-	completionsAdvancedSetting: product.defaultChatAgent?.completionsAdvancedSetting ?? '',
-	completionsMenuCommand: product.defaultChatAgent?.completionsMenuCommand ?? '',
-};
+/**
+ * Computes the tool enablement map based on include/exclude filters.
+ *
+ * Resolution algorithm:
+ * 1. If `toolsInclude` is specified, start with only those tools/toolsets enabled
+ * 2. If `toolsExclude` is specified, remove those tools/toolsets
+ * 3. Explicit tool references in `toolsInclude` override toolset exclusions
+ * 4. Explicit tool exclusions always win
+ * 5. Toolset enablement is calculated based on whether all member tools are enabled
+ *
+ * @throws Error if filtering results in zero enabled tools
+ */
+export function computeToolEnablementMap(options: IToolFilteringOptions): IToolFilteringResult {
+	const { allTools, allToolSets, toolsInclude, toolsExclude } = options;
 
-// Add next to the command center if command center is disabled
-MenuRegistry.appendMenuItem(MenuId.CommandCenter, {
-	submenu: MenuId.ChatTitleBarMenu,
-	title: localize('title4', "Chat"),
-	icon: Codicon.chatSparkle,
-	when: ContextKeyExpr.and(
-		ChatContextKeys.supported,
-		ContextKeyExpr.and(
-			ChatContextKeys.Setup.hidden.negate(),
-			ChatContextKeys.Setup.disabled.negate()
-		),
-		ContextKeyExpr.has('config.chat.commandCenter.enabled'),
-	),
-	order: 10003 // to the right of agent controls
-});
+	const enablementMap = new Map<IToolData | IToolSet, boolean>();
+	const matchedIdentifiers = new Set<string>();
 
-// Add to the global title bar if command center is disabled
-MenuRegistry.appendMenuItem(MenuId.TitleBar, {
-	submenu: MenuId.ChatTitleBarMenu,
-	title: localize('title4', "Chat"),
-	group: 'navigation',
-	icon: Codicon.chatSparkle,
-	when: ContextKeyExpr.and(
-		ChatContextKeys.supported,
-		ContextKeyExpr.and(
-			ChatContextKeys.Setup.hidden.negate(),
-			ChatContextKeys.Setup.disabled.negate()
-		),
-		ContextKeyExpr.has('config.chat.commandCenter.enabled'),
-		ContextKeyExpr.has('config.window.commandCenter').negate(),
-	),
-	order: 1
-});
+	// Helper to check if a tool matches any identifier (by id or toolReferenceName)
+	const toolMatches = (tool: IToolData, identifiers: Set<string>): boolean => {
+		if (identifiers.has(tool.id)) {
+			matchedIdentifiers.add(tool.id);
+			return true;
+		}
+		if (tool.toolReferenceName && identifiers.has(tool.toolReferenceName)) {
+			matchedIdentifiers.add(tool.toolReferenceName);
+			return true;
+		}
+		return false;
+	};
 
-registerAction2(class ToggleCopilotControl extends ToggleTitleBarConfigAction {
-	constructor() {
-		super(
-			'chat.commandCenter.enabled',
-			localize('toggle.chatControl', 'Chat Controls'),
-			localize('toggle.chatControlsDescription', "Toggle visibility of the Chat Controls in title bar"), 5,
-			ContextKeyExpr.and(
-				ContextKeyExpr.and(
-					ChatContextKeys.Setup.hidden.negate(),
-					ChatContextKeys.Setup.disabled.negate()
-				),
-				IsCompactTitleBarContext.negate(),
-				ChatContextKeys.supported
-			)
-		);
-	}
-});
+	// Helper to check if a toolset matches any identifier (by id or referenceName)
+	const toolSetMatches = (toolSet: IToolSet, identifiers: Set<string>): boolean => {
+		if (identifiers.has(toolSet.id)) {
+			matchedIdentifiers.add(toolSet.id);
+			return true;
+		}
+		if (identifiers.has(toolSet.referenceName)) {
+			matchedIdentifiers.add(toolSet.referenceName);
+			return true;
+		}
+		return false;
+	};
 
-export class CopilotTitleBarMenuRendering extends Disposable implements IWorkbenchContribution {
+	// Track which tools are explicitly referenced in toolsInclude
+	const explicitlyIncludedTools = new Set<IToolData>();
 
-	static readonly ID = 'workbench.contrib.copilotTitleBarMenuRendering';
+	// Step 1: Build initial set based on toolsInclude
+	if (toolsInclude) {
+		const includeSet = new Set(toolsInclude);
 
-	constructor(
-		@IActionViewItemService actionViewItemService: IActionViewItemService,
-		@IChatEntitlementService chatEntitlementService: IChatEntitlementService,
-	) {
-		super();
-
-		const disposable = actionViewItemService.register(MenuId.CommandCenter, MenuId.ChatTitleBarMenu, (action, options, instantiationService, windowId) => {
-			if (!(action instanceof SubmenuItemAction)) {
-				return undefined;
-			}
-
-			const dropdownAction = toAction({
-				id: 'copilot.titleBarMenuRendering.more',
-				label: localize('more', "More..."),
-				run() { }
-			});
-
-			const chatSentiment = chatEntitlementService.sentiment;
-			const chatQuotaExceeded = chatEntitlementService.quotas.chat?.percentRemaining === 0;
-			const signedOut = chatEntitlementService.entitlement === ChatEntitlement.Unknown;
-			const anonymous = chatEntitlementService.anonymous;
-			const free = chatEntitlementService.entitlement === ChatEntitlement.Free;
-
-			const isAuxiliaryWindow = windowId !== mainWindow.vscodeWindowId;
-			let primaryActionId = isAuxiliaryWindow ? CHAT_OPEN_ACTION_ID : TOGGLE_CHAT_ACTION_ID;
-			let primaryActionTitle = isAuxiliaryWindow ? localize('openChat', "Open Chat") : localize('toggleChat', "Toggle Chat");
-			let primaryActionIcon = Codicon.chatSparkle;
-			if (chatSentiment.installed && !chatSentiment.disabled) {
-				if (signedOut && !anonymous) {
-					primaryActionId = CHAT_SETUP_ACTION_ID;
-					primaryActionTitle = localize('signInToChatSetup', "Sign in to use AI features...");
-					primaryActionIcon = Codicon.chatSparkleError;
-				} else if (chatQuotaExceeded && free) {
-					primaryActionId = OPEN_CHAT_QUOTA_EXCEEDED_DIALOG;
-					primaryActionTitle = localize('chatQuotaExceededButton', "GitHub Copilot Free plan chat messages quota reached. Click for details.");
-					primaryActionIcon = Codicon.chatSparkleWarning;
+		// First, process toolsets - if a toolset matches, enable all its tools
+		for (const toolSet of allToolSets) {
+			if (toolSetMatches(toolSet, includeSet)) {
+				for (const tool of toolSet.getTools()) {
+					enablementMap.set(tool, true);
 				}
 			}
-			return instantiationService.createInstance(DropdownWithPrimaryActionViewItem, instantiationService.createInstance(MenuItemAction, {
-				id: primaryActionId,
-				title: primaryActionTitle,
-				icon: primaryActionIcon,
-			}, undefined, undefined, undefined, undefined), dropdownAction, action.actions, '', { ...options, skipTelemetry: true });
-		}, Event.any(
-			chatEntitlementService.onDidChangeSentiment,
-			chatEntitlementService.onDidChangeQuotaExceeded,
-			chatEntitlementService.onDidChangeEntitlement,
-			chatEntitlementService.onDidChangeAnonymous
-		));
+		}
 
-		// Reduces flicker a bit on reload/restart
-		markAsSingleton(disposable);
+		// Then process individual tools
+		for (const tool of allTools) {
+			if (toolMatches(tool, includeSet)) {
+				enablementMap.set(tool, true);
+				explicitlyIncludedTools.add(tool);
+			} else if (!enablementMap.has(tool)) {
+				enablementMap.set(tool, false);
+			}
+		}
+		// Also process tools from toolsets that may not be in allTools
+		for (const toolSet of allToolSets) {
+			for (const tool of toolSet.getTools()) {
+				if (toolMatches(tool, includeSet)) {
+					enablementMap.set(tool, true);
+					explicitlyIncludedTools.add(tool);
+				} else if (!enablementMap.has(tool)) {
+					enablementMap.set(tool, false);
+				}
+			}
+		}
+	} else {
+		// No toolsInclude specified - start with all tools enabled
+		for (const tool of allTools) {
+			enablementMap.set(tool, true);
+		}
+		for (const toolSet of allToolSets) {
+			for (const tool of toolSet.getTools()) {
+				enablementMap.set(tool, true);
+			}
+		}
 	}
+
+	// Step 2: Remove tools matching toolsExclude
+	if (toolsExclude) {
+		const excludeSet = new Set(toolsExclude);
+
+		// First, process toolsets - if a toolset matches, disable all its tools
+		// (unless explicitly included as individual tools)
+		for (const toolSet of allToolSets) {
+			if (toolSetMatches(toolSet, excludeSet)) {
+				for (const tool of toolSet.getTools()) {
+					// Explicit tool reference overrides toolset exclusion
+					if (!explicitlyIncludedTools.has(tool)) {
+						enablementMap.set(tool, false);
+					}
+				}
+			}
+		}
+
+		// Then process individual tools - explicit exclusion always wins
+		for (const tool of allTools) {
+			if (toolMatches(tool, excludeSet)) {
+				enablementMap.set(tool, false);
+			}
+		}
+		for (const toolSet of allToolSets) {
+			for (const tool of toolSet.getTools()) {
+				if (toolMatches(tool, excludeSet)) {
+					enablementMap.set(tool, false);
+				}
+			}
+		}
+	}
+
+	// Collect unknown identifiers
+	const allIdentifiers = new Set([...(toolsInclude ?? []), ...(toolsExclude ?? [])]);
+	const unknownIdentifiers: string[] = [];
+	for (const identifier of allIdentifiers) {
+		if (!matchedIdentifiers.has(identifier)) {
+			unknownIdentifiers.push(identifier);
+		}
+	}
+
+	// Validate at least one tool is enabled
+	const enabledToolCount = Array.from(enablementMap.entries()).filter(([item, enabled]) => enabled && !isToolSet(item)).length;
+	if (enabledToolCount === 0) {
+		throw new Error('Tool filtering resulted in zero enabled tools. At least one tool must be enabled.');
+	}
+
+	// Calculate toolset enablement based on whether all member tools are enabled
+	for (const toolSet of allToolSets) {
+		const toolSetTools = Array.from(toolSet.getTools());
+		const allToolsEnabled = toolSetTools.length > 0 && toolSetTools.every(t => enablementMap.get(t) === true);
+		enablementMap.set(toolSet, allToolsEnabled);
+	}
+
+	return { enablementMap, unknownIdentifiers };
 }
+
 
 /**
  * Returns whether we can continue clearing/switching chat sessions, false to cancel.
@@ -1176,7 +1264,7 @@ registerAction2(class EditToolApproval extends Action2 {
 	async run(accessor: ServicesAccessor, scope?: 'workspace' | 'profile' | 'session'): Promise<void> {
 		const confirmationService = accessor.get(ILanguageModelToolsConfirmationService);
 		const toolsService = accessor.get(ILanguageModelToolsService);
-		confirmationService.manageConfirmationPreferences([...toolsService.getTools()], scope ? { defaultScope: scope } : undefined);
+		confirmationService.manageConfirmationPreferences([...toolsService.getAllToolsIncludingDisabled()], scope ? { defaultScope: scope } : undefined);
 	}
 });
 

@@ -3,7 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+.inline-chat-gutter-menu .input .monaco-editor-background {
+	background-color: var(--vscode-menu-background);
+}
+
 .inline-chat-session-overlay-widget {
+	z-index: 1;
+	transition: top 100ms;
+}
+
+.inline-chat-session-overlay-container {
 	padding: 2px 4px;
 	color: var(--vscode-foreground);
 	background-color: var(--vscode-editorWidget-background);
@@ -18,71 +27,50 @@
 	overflow: hidden;
 }
 
-@keyframes inline-chat-session-pulse {
-	0% {
-		box-shadow: 0 2px 8px 0 var(--vscode-widget-shadow);
-	}
-	50% {
-		box-shadow: 0 2px 8px 4px var(--vscode-widget-shadow);
-	}
-	100% {
-		box-shadow: 0 2px 8px 0 var(--vscode-widget-shadow);
-	}
-}
-
-.inline-chat-session-overlay-widget.busy {
-	animation: inline-chat-session-pulse ease-in 2.3s infinite;
-}
-
-.inline-chat-session-overlay-widget .progress {
+.inline-chat-session-overlay-container .status {
 	align-items: center;
-	display: none;
+	display: inline-flex;
 	padding: 5px 0 5px 5px;
 	font-size: 12px;
 	overflow: hidden;
 	gap: 6px;
 }
 
-.inline-chat-session-overlay-widget.busy .progress {
-	display: inline-flex;
-}
-
-.inline-chat-session-overlay-widget .progress .progress-message {
+.inline-chat-session-overlay-container .status .message {
 	white-space: nowrap;
-	max-width: 13em;
 	overflow: hidden;
 	text-overflow: ellipsis;
 }
 
-.inline-chat-session-overlay-widget .progress .progress-message:not(:empty) {
+.inline-chat-session-overlay-container .status .message:not(:empty) {
 	padding-right: 2em;
 }
 
-.inline-chat-session-overlay-widget.busy .progress .codicon {
+.inline-chat-session-overlay-container .status .codicon {
 	color: var(--vscode-foreground);
 }
 
-.inline-chat-session-overlay-widget .action-item > .action-label {
+.inline-chat-session-overlay-container .action-item > .action-label {
 	padding: 4px 6px;
 	font-size: 11px;
 	line-height: 14px;
 	border-radius: 4px;
 }
 
-.inline-chat-session-overlay-widget .monaco-action-bar .actions-container {
+.inline-chat-session-overlay-container .monaco-action-bar .actions-container {
 	gap: 4px;
 }
 
-.inline-chat-session-overlay-widget .action-item.primary > .action-label {
+.inline-chat-session-overlay-container .action-item.primary > .action-label {
 	background-color: var(--vscode-button-background);
 	color: var(--vscode-button-foreground);
 }
 
-.monaco-workbench .inline-chat-session-overlay-widget .monaco-action-bar .action-item.primary > .action-label:hover {
+.monaco-workbench .inline-chat-session-overlay-container .monaco-action-bar .action-item.primary > .action-label:hover {
 	background-color: var(--vscode-button-hoverBackground);
 }
 
-.inline-chat-session-overlay-widget .action-item > .action-label.codicon:not(.separator) {
+.inline-chat-session-overlay-container .action-item > .action-label.codicon:not(.separator) {
 	color: var(--vscode-foreground);
 	width: 22px;
 	height: 22px;
@@ -94,7 +82,7 @@
 	justify-content: center;
 }
 
-.inline-chat-session-overlay-widget .monaco-action-bar .action-item.disabled {
+.inline-chat-session-overlay-container .monaco-action-bar .action-item.disabled {
 
 	> .action-label.codicon::before,
 	> .action-label.codicon,

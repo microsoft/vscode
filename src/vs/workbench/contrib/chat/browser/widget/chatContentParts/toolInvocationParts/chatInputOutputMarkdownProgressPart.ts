@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ProgressBar } from '../../../../../../../base/browser/ui/progressbar/progressbar.js';
-import { decodeBase64 } from '../../../../../../../base/common/buffer.js';
 import { Emitter } from '../../../../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { Lazy } from '../../../../../../../base/common/lazy.js';
@@ -14,7 +13,9 @@ import { autorun } from '../../../../../../../base/common/observable.js';
 import { basename } from '../../../../../../../base/common/resources.js';
 import { ILanguageService } from '../../../../../../../editor/common/languages/language.js';
 import { IModelService } from '../../../../../../../editor/common/services/model.js';
+import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
+import { ChatConfiguration } from '../../../../common/constants.js';
 import { ChatResponseResource } from '../../../../common/model/chatModel.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized } from '../../../../common/chatService/chatService.js';
 import { IToolResultInputOutputDetails } from '../../../../common/tools/languageModelToolsService.js';
@@ -49,6 +50,7 @@ export class ChatInputOutputMarkdownProgressPart extends BaseChatToolInvocationS
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IModelService modelService: IModelService,
 		@ILanguageService languageService: ILanguageService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super(toolInvocation);
 
@@ -98,24 +100,24 @@ export class ChatInputOutputMarkdownProgressPart extends BaseChatToolInvocationS
 					} else if (o.isText && !o.asResource) {
 						return createCodePart(o.value);
 					} else {
-						let decoded: Uint8Array | undefined;
-						try {
-							if (!o.isText) {
-								decoded = decodeBase64(o.value).buffer;
-							}
-						} catch {
-							// ignored
-						}
-
-						// Fall back to text if it's not valid base64
+						// Defer base64 decoding to avoid expensive decode during scroll.
+						// The value will be decoded lazily in ChatToolOutputContentSubPart.
 						const permalinkUri = ChatResponseResource.createUri(context.element.sessionResource, toolInvocation.toolCallId, i, permalinkBasename);
-						return { kind: 'data', value: decoded || new TextEncoder().encode(o.value), mimeType: o.mimeType, uri: permalinkUri, audience: o.audience };
+						if (!o.isText) {
+							// Pass base64 string for lazy decoding
+							return { kind: 'data', base64Value: o.value, mimeType: o.mimeType, uri: permalinkUri, audience: o.audience };
+						} else {
+							// Text content: encode immediately since it's not expensive
+							return { kind: 'data', value: new TextEncoder().encode(o.value), mimeType: o.mimeType, uri: permalinkUri, audience: o.audience };
+						}
 					}
 				}),
 			} : undefined,
 			isError,
-			// Expand by default when the tool is running, otherwise use the stored expanded state (defaulting to false)
-			!IChatToolInvocation.isComplete(toolInvocation) || (ChatInputOutputMarkdownProgressPart._expandedByDefault.get(toolInvocation) ?? false),
+			// Expand by default when there's an error (if setting enabled),
+			// otherwise use the stored expanded state (defaulting to false)
+			(isError && configurationService.getValue<boolean>(ChatConfiguration.AutoExpandToolFailures)) ||
+			(ChatInputOutputMarkdownProgressPart._expandedByDefault.get(toolInvocation) ?? false),
 		));
 		this._register(collapsibleListPart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 		this._register(toDisposable(() => ChatInputOutputMarkdownProgressPart._expandedByDefault.set(toolInvocation, collapsibleListPart.expanded)));

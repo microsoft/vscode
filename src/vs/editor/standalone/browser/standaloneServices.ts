@@ -21,6 +21,7 @@ import { IDisposable, IReference, ImmortalReference, toDisposable, DisposableSto
 import { OS, isLinux, isMacintosh } from '../../../base/common/platform.js';
 import Severity from '../../../base/common/severity.js';
 import { URI } from '../../../base/common/uri.js';
+import { IRenameSymbolTrackerService, NullRenameSymbolTrackerService } from '../../browser/services/renameSymbolTrackerService.js';
 import { IBulkEditOptions, IBulkEditResult, IBulkEditService, ResourceEdit, ResourceTextEdit } from '../../browser/services/bulkEditService.js';
 import { isDiffEditorConfigurationKey, isEditorConfigurationKey } from '../../common/config/editorConfigurationSchema.js';
 import { EditOperation, ISingleEditOperation } from '../../common/core/editOperation.js';
@@ -219,6 +220,7 @@ class StandaloneEnvironmentService implements IEnvironmentService {
 	readonly keyboardLayoutResource: URI = URI.from({ scheme: 'monaco', authority: 'keyboardLayoutResource' });
 	readonly argvResource: URI = URI.from({ scheme: 'monaco', authority: 'argvResource' });
 	readonly untitledWorkspacesHome: URI = URI.from({ scheme: 'monaco', authority: 'untitledWorkspacesHome' });
+	readonly builtinWorkbenchModesHome: URI = URI.from({ scheme: 'monaco', authority: 'builtinWorkbenchModesHome' });
 	readonly workspaceStorageHome: URI = URI.from({ scheme: 'monaco', authority: 'workspaceStorageHome' });
 	readonly localHistoryHome: URI = URI.from({ scheme: 'monaco', authority: 'localHistoryHome' });
 	readonly cacheHome: URI = URI.from({ scheme: 'monaco', authority: 'cacheHome' });
@@ -1178,6 +1180,7 @@ registerSingleton(ITreeSitterLibraryService, StandaloneTreeSitterLibraryService,
 registerSingleton(ILoggerService, NullLoggerService, InstantiationType.Eager);
 registerSingleton(IDataChannelService, NullDataChannelService, InstantiationType.Eager);
 registerSingleton(IDefaultAccountService, StandaloneDefaultAccountService, InstantiationType.Eager);
+registerSingleton(IRenameSymbolTrackerService, NullRenameSymbolTrackerService, InstantiationType.Eager);
 
 /**
  * We don't want to eagerly instantiate services because embedders get a one time chance

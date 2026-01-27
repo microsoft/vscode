@@ -5,7 +5,7 @@
 
 import type * as vscode from 'vscode';
 import { coalesce } from '../../../base/common/arrays.js';
-import { timeout } from '../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { Emitter } from '../../../base/common/event.js';
@@ -21,7 +21,6 @@ import { ExtensionIdentifier, IExtensionDescription, IRelaxedExtensionDescriptio
 import { ILogService } from '../../../platform/log/common/log.js';
 import { isChatViewTitleActionContext } from '../../contrib/chat/common/actions/chatActions.js';
 import { IChatAgentRequest, IChatAgentResult, IChatAgentResultTimings, UserSelectedTools } from '../../contrib/chat/common/participants/chatAgents.js';
-import { IChatRelatedFile, IChatRequestDraft } from '../../contrib/chat/common/editing/chatEditingService.js';
 import { ChatAgentVoteDirection, IChatContentReference, IChatFollowup, IChatResponseErrorDetails, IChatUserActionEvent, IChatVoteAction } from '../../contrib/chat/common/chatService/chatService.js';
 import { LocalChatSessionUri } from '../../contrib/chat/common/model/chatUri.js';
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
@@ -51,7 +50,8 @@ export class ChatAgentResponseStream {
 		private readonly _request: IChatAgentRequest,
 		private readonly _proxy: IChatAgentProgressShape,
 		private readonly _commandsConverter: CommandsConverter,
-		private readonly _sessionDisposables: DisposableStore
+		private readonly _sessionDisposables: DisposableStore,
+		private readonly _pendingCarouselResolvers: Map</* requestId */string, Map</* resolveId */ string, DeferredPromise<Record<string, unknown> | undefined>>>
 	) { }
 
 	close() {
@@ -310,6 +310,29 @@ export class ChatAgentResponseStream {
 					_report(dto);
 					return this;
 				},
+				async questionCarousel(questions: vscode.ChatQuestion[], allowSkip = true): Promise<Record<string, unknown> | undefined> {
+					throwIfDone(this.questionCarousel);
+					checkProposedApiEnabled(that._extension, 'chatParticipantAdditions');
+
+					const resolveId = generateUuid();
+					const part = new extHostTypes.ChatResponseQuestionCarouselPart(questions, allowSkip);
+					const dto = typeConvert.ChatResponseQuestionCarouselPart.from(part);
+					dto.resolveId = resolveId;
+
+					// Create a deferred promise to wait for the answer
+					const deferred = new DeferredPromise<Record<string, unknown> | undefined>();
+
+					// Store the deferred promise for later resolution
+					if (!that._pendingCarouselResolvers.has(that._request.requestId)) {
+						that._pendingCarouselResolvers.set(that._request.requestId, new Map());
+					}
+					that._pendingCarouselResolvers.get(that._request.requestId)!.set(resolveId, deferred);
+
+					_report(dto);
+
+					// Wait for the user to submit answers
+					return deferred.p;
+				},
 				beginToolInvocation(toolCallId, toolName, streamData) {
 					throwIfDone(this.beginToolInvocation);
 					checkProposedApiEnabled(that._extension, 'chatParticipantAdditions');
@@ -349,6 +372,7 @@ export class ChatAgentResponseStream {
 						part instanceof extHostTypes.ChatResponseMarkdownWithVulnerabilitiesPart ||
 						part instanceof extHostTypes.ChatResponseWarningPart ||
 						part instanceof extHostTypes.ChatResponseConfirmationPart ||
+						part instanceof extHostTypes.ChatResponseQuestionCarouselPart ||
 						part instanceof extHostTypes.ChatResponseCodeCitationPart ||
 						part instanceof extHostTypes.ChatResponseMovePart ||
 						part instanceof extHostTypes.ChatResponseExtensionsPart ||
@@ -421,9 +445,6 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 	private static _participantDetectionProviderIdPool = 0;
 	private readonly _participantDetectionProviders = new Map<number, ExtHostParticipantDetector>();
 
-	private static _relatedFilesProviderIdPool = 0;
-	private readonly _relatedFilesProviders = new Map<number, ExtHostRelatedFilesProvider>();
-
 	private static _contributionsProviderIdPool = 0;
 	private readonly _promptFileProviders = new Map<number, { extension: IExtensionDescription; provider: vscode.ChatCustomAgentProvider | vscode.ChatInstructionsProvider | vscode.ChatPromptFileProvider | vscode.ChatSkillProvider }>();
 
@@ -431,6 +452,9 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 	private readonly _completionDisposables: DisposableMap<number, DisposableStore> = this._register(new DisposableMap());
 
 	private readonly _inFlightRequests = new Set<InFlightChatRequest>();
+
+	// Map of requestId -> resolveId -> deferred promise for question carousel answers
+	private readonly _pendingCarouselResolvers = new Map<string, Map<string, DeferredPromise<Record<string, unknown> | undefined>>>();
 
 	private readonly _onDidChangeChatRequestTools = this._register(new Emitter<vscode.ChatRequest>());
 	readonly onDidChangeChatRequestTools = this._onDidChangeChatRequestTools.event;
@@ -495,16 +519,6 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		});
 	}
 
-	registerRelatedFilesProvider(extension: IExtensionDescription, provider: vscode.ChatRelatedFilesProvider, metadata: vscode.ChatRelatedFilesProviderMetadata): vscode.Disposable {
-		const handle = ExtHostChatAgents2._relatedFilesProviderIdPool++;
-		this._relatedFilesProviders.set(handle, new ExtHostRelatedFilesProvider(extension, provider));
-		this._proxy.$registerRelatedFilesProvider(handle, metadata);
-		return toDisposable(() => {
-			this._relatedFilesProviders.delete(handle);
-			this._proxy.$unregisterRelatedFilesProvider(handle);
-		});
-	}
-
 	/**
 	 * Internal method that handles all prompt file provider types.
 	 * Routes custom agents, instructions, prompt files, and skills to the unified internal implementation.
@@ -548,16 +562,6 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		return disposables;
 	}
 
-	async $provideRelatedFiles(handle: number, request: IChatRequestDraft, token: CancellationToken): Promise<Dto<IChatRelatedFile>[] | undefined> {
-		const provider = this._relatedFilesProviders.get(handle);
-		if (!provider) {
-			return Promise.resolve([]);
-		}
-
-		const extRequestDraft = typeConvert.ChatRequestDraft.to(request);
-		return await provider.provider.provideRelatedFiles(extRequestDraft, token) ?? undefined;
-	}
-
 	async $providePromptFiles(handle: number, type: PromptsType, context: IPromptFileContext, token: CancellationToken): Promise<IPromptFileResource[] | undefined> {
 		const providerData = this._promptFileProviders.get(handle);
 		if (!providerData) {
@@ -593,12 +597,13 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		const { request, location, history } = await this._createRequest(requestDto, context, detector.extension);
 
 		const model = await this.getModelForRequest(request, detector.extension);
+		const tools = await this.getToolsForRequest(detector.extension, request.userSelectedTools, model.id, token);
 		const extRequest = typeConvert.ChatAgentRequest.to(
 			request,
 			location,
 			model,
 			this.getDiagnosticsWhenEnabled(detector.extension),
-			this.getToolsForRequest(detector.extension, request.userSelectedTools),
+			tools,
 			detector.extension,
 			this._logService);
 
@@ -657,7 +662,8 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		}
 
 		request.extRequest.tools.clear();
-		for (const [k, v] of this.getToolsForRequest(request.extension, tools)) {
+		const toolsMap = await this.getToolsForRequest(request.extension, tools, request.extRequest.model.id, CancellationToken.None);
+		for (const [k, v] of toolsMap) {
 			request.extRequest.tools.set(k, v);
 		}
 		this._onDidChangeChatRequestTools.fire(request.extRequest);
@@ -682,15 +688,16 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 				this._sessionDisposables.set(request.sessionResource, sessionDisposables);
 			}
 
-			stream = new ChatAgentResponseStream(agent.extension, request, this._proxy, this._commands.converter, sessionDisposables);
+			stream = new ChatAgentResponseStream(agent.extension, request, this._proxy, this._commands.converter, sessionDisposables, this._pendingCarouselResolvers);
 
 			const model = await this.getModelForRequest(request, agent.extension);
+			const tools = await this.getToolsForRequest(agent.extension, request.userSelectedTools, model.id, token);
 			const extRequest = typeConvert.ChatAgentRequest.to(
 				request,
 				location,
 				model,
 				this.getDiagnosticsWhenEnabled(agent.extension),
-				this.getToolsForRequest(agent.extension, request.userSelectedTools),
+				tools,
 				agent.extension,
 				this._logService
 			);
@@ -739,7 +746,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 					checkProposedApiEnabled(agent.extension, 'chatParticipantPrivate');
 				}
 
-				return { errorDetails, timings: stream?.timings, metadata: result?.metadata, nextQuestion: result?.nextQuestion, details: result?.details } satisfies IChatAgentResult;
+				return { errorDetails, timings: stream?.timings, metadata: result?.metadata, nextQuestion: result?.nextQuestion, details: result?.details, usage: result?.usage } satisfies IChatAgentResult;
 			}), token);
 		} catch (e) {
 			this._logService.error(e, agent.extension);
@@ -756,6 +763,14 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 			if (inFlightRequest) {
 				this._inFlightRequests.delete(inFlightRequest);
 			}
+			// Clean up any pending carousel resolvers for this request
+			const pendingResolvers = this._pendingCarouselResolvers.get(requestDto.requestId);
+			if (pendingResolvers) {
+				for (const deferred of pendingResolvers.values()) {
+					deferred.complete(undefined);
+				}
+				this._pendingCarouselResolvers.delete(requestDto.requestId);
+			}
 			stream?.close();
 		}
 	}
@@ -767,14 +782,14 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		return this._diagnostics.getDiagnostics();
 	}
 
-	private getToolsForRequest(extension: IExtensionDescription, tools: UserSelectedTools | undefined): Map<string, boolean> {
+	private async getToolsForRequest(extension: IExtensionDescription, tools: UserSelectedTools | undefined, modelId: string, token: CancellationToken): Promise<Map<vscode.LanguageModelToolInformation, boolean>> {
 		if (!tools) {
 			return new Map();
 		}
-		const result = new Map<string, boolean>();
+		const result = new Map<vscode.LanguageModelToolInformation, boolean>();
 		for (const tool of this._tools.getTools(extension)) {
 			if (typeof tools[tool.name] === 'boolean') {
-				result.set(tool.name, tools[tool.name]);
+				result.set(tool, tools[tool.name]);
 			}
 		}
 		return result;
@@ -875,6 +890,24 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		agent.acceptFeedback(Object.freeze(feedback));
 	}
 
+	$handleQuestionCarouselAnswer(requestId: string, resolveId: string, answers: Record<string, unknown> | undefined): void {
+		const requestResolvers = this._pendingCarouselResolvers.get(requestId);
+		if (!requestResolvers) {
+			return;
+		}
+
+		const deferred = requestResolvers.get(resolveId);
+		if (deferred) {
+			deferred.complete(answers);
+			requestResolvers.delete(resolveId);
+		}
+
+		// Clean up if no more resolvers for this request
+		if (requestResolvers.size === 0) {
+			this._pendingCarouselResolvers.delete(requestId);
+		}
+	}
+
 	$acceptAction(handle: number, result: IChatAgentResult, event: IChatUserActionEvent): void {
 		const agent = this._agents.get(handle);
 		if (!agent) {
@@ -936,13 +969,6 @@ class ExtHostParticipantDetector {
 	constructor(
 		public readonly extension: IExtensionDescription,
 		public readonly provider: vscode.ChatParticipantDetectionProvider,
-	) { }
-}
-
-class ExtHostRelatedFilesProvider {
-	constructor(
-		public readonly extension: IExtensionDescription,
-		public readonly provider: vscode.ChatRelatedFilesProvider,
 	) { }
 }
 

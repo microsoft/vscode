@@ -47,6 +47,7 @@ import { InMemoryStorageService, IStorageService } from '../../../../../../../pl
 import { IPathService } from '../../../../../../services/path/common/pathService.js';
 import { IFileMatch, IFileQuery, ISearchService } from '../../../../../../services/search/common/search.js';
 import { IExtensionService } from '../../../../../../services/extensions/common/extensions.js';
+import { ChatMode } from '../../../../common/chatModes.js';
 
 suite('PromptsService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -68,6 +69,8 @@ suite('PromptsService', () => {
 		testConfigService.setUserConfiguration(PromptsConfig.USE_COPILOT_INSTRUCTION_FILES, true);
 		testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_MD, true);
 		testConfigService.setUserConfiguration(PromptsConfig.USE_NESTED_AGENT_MD, false);
+		testConfigService.setUserConfiguration(PromptsConfig.INCLUDE_REFERENCED_INSTRUCTIONS, true);
+		testConfigService.setUserConfiguration(PromptsConfig.INCLUDE_APPLYING_INSTRUCTIONS, true);
 		testConfigService.setUserConfiguration(PromptsConfig.INSTRUCTIONS_LOCATION_KEY, { [INSTRUCTIONS_DEFAULT_SOURCE_FOLDER]: true });
 		testConfigService.setUserConfiguration(PromptsConfig.PROMPT_LOCATIONS_KEY, { [PROMPT_DEFAULT_SOURCE_FOLDER]: true });
 		testConfigService.setUserConfiguration(PromptsConfig.MODE_LOCATION_KEY, { [LEGACY_MODE_DEFAULT_SOURCE_FOLDER]: true });
@@ -461,7 +464,7 @@ suite('PromptsService', () => {
 			]);
 
 			const instructionFiles = await service.listPromptFiles(PromptsType.instructions, CancellationToken.None);
-			const contextComputer = instaService.createInstance(ComputeAutomaticInstructions, undefined, undefined);
+			const contextComputer = instaService.createInstance(ComputeAutomaticInstructions, ChatMode.Agent, undefined, undefined);
 			const context = {
 				files: new ResourceSet([
 					URI.joinPath(rootFolderUri, 'folder1/main.tsx'),
@@ -632,7 +635,7 @@ suite('PromptsService', () => {
 			]);
 
 			const instructionFiles = await service.listPromptFiles(PromptsType.instructions, CancellationToken.None);
-			const contextComputer = instaService.createInstance(ComputeAutomaticInstructions, undefined, undefined);
+			const contextComputer = instaService.createInstance(ComputeAutomaticInstructions, ChatMode.Agent, undefined, undefined);
 			const context = {
 				files: new ResourceSet([
 					URI.joinPath(rootFolderUri, 'folder1/main.tsx'),
@@ -706,7 +709,7 @@ suite('PromptsService', () => {
 			]);
 
 
-			const contextComputer = instaService.createInstance(ComputeAutomaticInstructions, undefined, undefined);
+			const contextComputer = instaService.createInstance(ComputeAutomaticInstructions, ChatMode.Agent, undefined, undefined);
 			const context = new ChatRequestVariableSet();
 			context.add(toFileVariableEntry(URI.joinPath(rootFolderUri, 'README.md')));
 
@@ -991,7 +994,7 @@ suite('PromptsService', () => {
 					name: 'vscode-agent',
 					description: 'VS Code specialized agent.',
 					target: 'vscode',
-					model: 'gpt-4',
+					model: ['gpt-4'],
 					agentInstructions: {
 						content: 'I am specialized for VS Code editor tasks.',
 						toolReferences: [],
@@ -1032,7 +1035,7 @@ suite('PromptsService', () => {
 			);
 		});
 
-		test('agents with .md extension (no .agent.md)', async () => {
+		test('agents with .md extension should be recognized, except README.md', async () => {
 			const rootFolderName = 'custom-agents-md-extension';
 			const rootFolder = `/${rootFolderName}`;
 			const rootFolderUri = URI.file(rootFolder);
@@ -1051,9 +1054,9 @@ suite('PromptsService', () => {
 					]
 				},
 				{
-					path: `${rootFolder}/.github/agents/test.md`,
+					path: `${rootFolder}/.github/agents/README.md`,
 					contents: [
-						'Test agent without header.',
+						'This is a README file.',
 					]
 				}
 			]);
@@ -1076,24 +1079,14 @@ suite('PromptsService', () => {
 					infer: undefined,
 					agents: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/demonstrate.md'),
-					source: { storage: PromptsStorage.local },
-				},
-				{
-					name: 'test',
-					agentInstructions: {
-						content: 'Test agent without header.',
-						toolReferences: [],
-						metadata: undefined
-					},
-					uri: URI.joinPath(rootFolderUri, '.github/agents/test.md'),
-					source: { storage: PromptsStorage.local },
+					source: { storage: PromptsStorage.local }
 				}
 			];
 
 			assert.deepEqual(
 				result,
 				expected,
-				'Must get custom agents with .md extension from .github/agents/ folder.',
+				'Must recognize .md files as agents, except README.md',
 			);
 		});
 

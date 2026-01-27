@@ -65,6 +65,8 @@ import { IDefaultAccountService } from '../../platform/defaultAccount/common/def
 import { DefaultAccountService } from '../services/accounts/browser/defaultAccount.js';
 import { AccountPolicyService } from '../services/policies/common/accountPolicyService.js';
 import { MultiplexPolicyService } from '../services/policies/common/multiplexPolicyService.js';
+import { WorkbenchModeService } from '../services/layout/browser/workbenchModeService.js';
+import { IWorkbenchModeService } from '../services/layout/common/workbenchModeService.js';
 
 export class DesktopMain extends Disposable {
 
@@ -321,6 +323,16 @@ export class DesktopMain extends Disposable {
 				return service;
 			})
 		]);
+
+		// Workbench Mode
+		const workbenchModeService: WorkbenchModeService = this._register(new WorkbenchModeService(configurationService, fileService, environmentService, uriIdentityService, logService, storageService));
+		serviceCollection.set(IWorkbenchModeService, workbenchModeService);
+
+		try {
+			await workbenchModeService.initialize();
+		} catch (error) {
+			logService.error('Error while initializing workbench mode service', error);
+		}
 
 		// Workspace Trust Service
 		const workspaceTrustEnablementService = new WorkspaceTrustEnablementService(configurationService, environmentService);

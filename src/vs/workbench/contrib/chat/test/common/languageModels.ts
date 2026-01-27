@@ -40,6 +40,10 @@ export class NullLanguageModelsService implements ILanguageModelsService {
 		return undefined;
 	}
 
+	lookupLanguageModelByQualifiedName(qualifiedName: string) {
+		return undefined;
+	}
+
 	getLanguageModels(): ILanguageModelChatMetadataAndIdentifier[] {
 		return [];
 	}

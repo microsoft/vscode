@@ -97,7 +97,7 @@ export class BrowserOverlayManager extends Disposable implements IBrowserOverlay
 		}
 
 		// Setup structural observer to watch for element additions/removals
-		this._structuralObserver = new MutationObserver((mutations) => {
+		this._structuralObserver = new targetWindow.MutationObserver((mutations) => {
 			let didRemove = false;
 			for (const mutation of mutations) {
 				for (const node of mutation.removedNodes) {
@@ -130,7 +130,7 @@ export class BrowserOverlayManager extends Disposable implements IBrowserOverlay
 		for (const overlay of this.overlays()) {
 			// Create a new observer for this specific element if we don't already have one
 			if (!this._elementObservers.has(overlay.element)) {
-				const observer = new MutationObserver(() => {
+				const observer = new this.targetWindow.MutationObserver(() => {
 					this._overlayRectangles.delete(overlay.element);
 					this._onDidChangeOverlayState.fire();
 				});

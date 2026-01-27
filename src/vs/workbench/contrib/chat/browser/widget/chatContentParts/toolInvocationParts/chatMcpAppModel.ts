@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../../../base/browser/dom.js';
+import { IMouseWheelEvent } from '../../../../../../../base/browser/mouseEvent.js';
 import { softAssertNever } from '../../../../../../../base/common/assert.js';
 import { disposableTimeout } from '../../../../../../../base/common/async.js';
 import { decodeBase64 } from '../../../../../../../base/common/buffer.js';
@@ -12,7 +13,7 @@ import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { hash } from '../../../../../../../base/common/hash.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
-import { autorun, autorunSelfDisposable, derived, IObservable, observableValue } from '../../../../../../../base/common/observable.js';
+import { autorun, autorunSelfDisposable, IObservable, observableValue } from '../../../../../../../base/common/observable.js';
 import { basename } from '../../../../../../../base/common/resources.js';
 import { isFalsyOrWhitespace } from '../../../../../../../base/common/strings.js';
 import { hasKey, isDefined } from '../../../../../../../base/common/types.js';
@@ -153,30 +154,6 @@ export class ChatMcpAppModel extends Disposable {
 		// Set up message handling
 		this._register(this._webview.onMessage(async ({ message }) => {
 			await this._handleWebviewMessage(message as McpApps.AppMessage);
-		}));
-
-		const canScrollWithin = derived(reader => {
-			const contentSize = this._webview.intrinsicContentSize.read(reader);
-			const maxHeightValue = maxHeight.read(reader);
-			if (!contentSize) {
-				return false;
-			}
-
-			return contentSize.height > maxHeightValue;
-		});
-
-		// Handle wheel events for scroll delegation when the webview can scroll
-		this._register(autorun(reader => {
-			if (!canScrollWithin.read(reader)) {
-				const widget = this._chatWidgetService.getWidgetBySessionResource(this.renderData.sessionResource);
-				reader.store.add(this._webview.onDidWheel(e => {
-					widget?.delegateScrollFromMouseWheelEvent({
-						...e,
-						preventDefault: () => { },
-						stopPropagation: () => { }
-					});
-				}));
-			}
 		}));
 
 		// Start loading the content
@@ -329,6 +306,75 @@ export class ChatMcpAppModel extends Disposable {
 				};
 
 				window.parent = wrap(window.parent);
+
+				// Scroll boundary detection: bubble wheel events to parent when at scroll boundaries
+				const shouldBubbleScroll = (event) => {
+					// First check element-level scrolling (for elements with overflow: auto/scroll)
+					for (let node = event.target; node; node = node.parentNode) {
+						if (!(node instanceof Element)) {
+							continue;
+						}
+
+						// Skip HTML and BODY - we check document-level scroll separately
+						if (node === document.documentElement || node === document.body) {
+							continue;
+						}
+
+						// Check if the element can actually scroll
+						const overflow = window.getComputedStyle(node).overflowY;
+						if (overflow === 'hidden' || overflow === 'visible') {
+							continue;
+						}
+
+						// Scroll up: if there's content above (scrollTop > 0), don't bubble
+						if (event.deltaY < 0 && node.scrollTop > 0) {
+							return false;
+						}
+
+						// Scroll down: if there's content below, don't bubble
+						if (event.deltaY > 0 && node.scrollTop + node.clientHeight < node.scrollHeight) {
+							// Account for rounding: scrollTop isn't rounded but scrollHeight/clientHeight are
+							if (node.scrollHeight - node.scrollTop - node.clientHeight < 2) {
+								continue;
+							}
+							return false;
+						}
+					}
+
+					// Check document-level scrolling (works even with overflow: visible on html/body)
+					const docEl = document.documentElement;
+					const scrollTop = window.scrollY || docEl.scrollTop || document.body.scrollTop || 0;
+					const scrollHeight = Math.max(docEl.scrollHeight, document.body.scrollHeight);
+					const clientHeight = docEl.clientHeight;
+					const scrollableDistance = scrollHeight - clientHeight;
+
+					if (scrollableDistance > 2) {
+						// Document is scrollable
+						if (event.deltaY < 0 && scrollTop > 0) {
+							return false;
+						}
+						if (event.deltaY > 0 && scrollTop < scrollableDistance - 2) {
+							return false;
+						}
+					}
+
+					return true;
+				};
+
+				window.addEventListener('wheel', (event) => {
+					if (event.defaultPrevented || !shouldBubbleScroll(event)) {
+						return;
+					}
+					api.postMessage({
+						method: 'ui/notifications/sandbox-wheel',
+						params: {
+							deltaMode: event.deltaMode,
+							deltaX: event.deltaX,
+							deltaY: event.deltaY,
+							deltaZ: event.deltaZ,
+						}
+					});
+				}, { passive: true });
 			})();</script>
 		`;
 
@@ -389,7 +435,9 @@ export class ChatMcpAppModel extends Disposable {
 					break;
 
 				case 'ui/request-display-mode':
-					break; // not supported
+					// VS Code only supports inline display mode
+					result = { mode: 'inline' } satisfies McpApps.McpUiRequestDisplayModeResult;
+					break;
 
 				case 'ui/notifications/initialized':
 					break;
@@ -403,7 +451,11 @@ export class ChatMcpAppModel extends Disposable {
 					break;
 
 				case 'notifications/message':
-					await this._mcpToolCallUI.log(request.params as MCP.LoggingMessageNotification['params']);
+					await this._mcpToolCallUI.log(request.params);
+					break;
+
+				case 'ui/notifications/sandbox-wheel':
+					this._handleSandboxWheel(request.params);
 					break;
 
 				default: {
@@ -431,7 +483,7 @@ export class ChatMcpAppModel extends Disposable {
 	}
 
 	/**
-	 * Handles the ui/initialize request from the MCP App.
+	 * Handles the ui/initialize request from the MCP App View.
 	 */
 	private async _handleInitialize(_params: McpApps.McpUiInitializeRequest['params']): Promise<McpApps.McpUiInitializeResult> {
 		this._announcedCapabilities = true;
@@ -600,6 +652,30 @@ export class ChatMcpAppModel extends Disposable {
 			this._height = params.height;
 			this._onDidChangeHeight.fire();
 		}
+	}
+
+	private _handleSandboxWheel(params: McpApps.CustomSandboxWheelNotification['params']): void {
+		let defaultPrevented = false;
+		const evt: Partial<IMouseWheelEvent> = {
+			wheelDeltaX: params.deltaX,
+			wheelDeltaY: -params.deltaY,
+			wheelDelta: Math.abs(params.deltaY),
+
+			deltaX: params.deltaX,
+			deltaY: -params.deltaY,
+			deltaZ: params.deltaZ,
+			deltaMode: params.deltaMode,
+			preventDefault: () => {
+				defaultPrevented = true;
+			},
+			stopPropagation: () => { },
+			get defaultPrevented() {
+				return defaultPrevented;
+			}
+		};
+
+		const widget = this._chatWidgetService.getWidgetBySessionResource(this.renderData.sessionResource);
+		widget?.delegateScrollFromMouseWheelEvent(evt as IMouseWheelEvent);
 	}
 
 	private async _handleOpenLink(params: McpApps.McpUiOpenLinkRequest['params']): Promise<McpApps.McpUiOpenLinkResult> {

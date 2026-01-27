@@ -1155,7 +1155,7 @@ export class CommandCenter {
 			path = result[0].fsPath;
 		}
 
-		await this.model.openRepository(path, true);
+		await this.model.openRepository(path, true, true);
 	}
 
 	@command('git.reopenClosedRepositories', { repository: false })
@@ -1191,7 +1191,7 @@ export class CommandCenter {
 		}
 
 		for (const repository of closedRepositories) {
-			await this.model.openRepository(repository, true);
+			await this.model.openRepository(repository, true, true);
 		}
 	}
 
@@ -3701,7 +3701,7 @@ export class CommandCenter {
 	}
 
 	private async handleWorktreeConflict(path: string, message: string): Promise<void> {
-		await this.model.openRepository(path, true);
+		await this.model.openRepository(path, true, true);
 
 		const worktreeRepository = this.model.getRepository(path);
 

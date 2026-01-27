@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { coalesce, compareBy, delta } from '../../../../../base/common/arrays.js';
+import { compareBy, delta } from '../../../../../base/common/arrays.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { groupBy } from '../../../../../base/common/collections.js';
 import { ErrorNoTelemetry } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
-import { Disposable, DisposableStore, dispose, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, dispose, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { LinkedList } from '../../../../../base/common/linkedList.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
@@ -37,7 +37,7 @@ import { ILifecycleService } from '../../../../services/lifecycle/common/lifecyc
 import { IMultiDiffSourceResolver, IMultiDiffSourceResolverService, IResolvedMultiDiffSource, MultiDiffEditorItem } from '../../../multiDiffEditor/browser/multiDiffSourceResolverService.js';
 import { CellUri, ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
 import { INotebookService } from '../../../notebook/common/notebookService.js';
-import { CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingAgentSupportsReadonlyReferencesContextKey, chatEditingResourceContextKey, ChatEditingSessionState, IChatEditingService, IChatEditingSession, IChatRelatedFile, IChatRelatedFilesProvider, IModifiedFileEntry, inChatEditingSessionContextKey, IStreamingEdits, ModifiedFileEntryState, parseChatMultiDiffUri } from '../../common/editing/chatEditingService.js';
+import { CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingAgentSupportsReadonlyReferencesContextKey, chatEditingResourceContextKey, ChatEditingSessionState, IChatEditingService, IChatEditingSession, IModifiedFileEntry, inChatEditingSessionContextKey, IStreamingEdits, ModifiedFileEntryState, parseChatMultiDiffUri } from '../../common/editing/chatEditingService.js';
 import { ChatModel, ICellTextEditOperation, IChatResponseModel, isCellTextEditOperationArray } from '../../common/model/chatModel.js';
 import { IChatService } from '../../common/chatService/chatService.js';
 import { ChatEditorInput } from '../widgetHosts/editor/chatEditorInput.js';
@@ -56,8 +56,6 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		const result = Array.from(this._sessionsObs.read(r));
 		return result;
 	});
-
-	private _chatRelatedFilesProviders = new Map<number, IChatRelatedFilesProvider>();
 
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -354,34 +352,6 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 				}
 			}));
 		}
-	}
-
-	hasRelatedFilesProviders(): boolean {
-		return this._chatRelatedFilesProviders.size > 0;
-	}
-
-	registerRelatedFilesProvider(handle: number, provider: IChatRelatedFilesProvider): IDisposable {
-		this._chatRelatedFilesProviders.set(handle, provider);
-		return toDisposable(() => {
-			this._chatRelatedFilesProviders.delete(handle);
-		});
-	}
-
-	async getRelatedFiles(chatSessionResource: URI, prompt: string, files: URI[], token: CancellationToken): Promise<{ group: string; files: IChatRelatedFile[] }[] | undefined> {
-		const providers = Array.from(this._chatRelatedFilesProviders.values());
-		const result = await Promise.all(providers.map(async provider => {
-			try {
-				const relatedFiles = await provider.provideRelatedFiles({ prompt, files }, token);
-				if (relatedFiles?.length) {
-					return { group: provider.description, files: relatedFiles };
-				}
-				return undefined;
-			} catch (e) {
-				return undefined;
-			}
-		}));
-
-		return coalesce(result);
 	}
 }
 

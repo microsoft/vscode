@@ -21,6 +21,7 @@ import { ChatViewModel } from '../../common/model/chatViewModel.js';
 import { CodeBlockModelCollection } from '../../common/widget/codeBlockModelCollection.js';
 import { IChatWidgetService } from '../chat.js';
 import { ChatListWidget } from '../widget/chatListWidget.js';
+import { AgentSessionProviders, getAgentSessionProvider, getAgentSessionProviderIcon, getAgentSessionProviderName } from './agentSessions.js';
 import { AgentSessionStatus, getAgentChangesSummary, hasValidDiff, IAgentSession } from './agentSessionsModel.js';
 import './media/agentSessionHoverWidget.css';
 
@@ -32,6 +33,7 @@ export class AgentSessionHoverWidget extends Disposable {
 
 	readonly domNode: HTMLElement;
 	private modelRef?: Promise<IChatModel | undefined>;
+	private listWidget?: ChatListWidget;
 	private readonly contentElement: HTMLElement;
 	private readonly loadingElement: HTMLElement;
 	private readonly renderScheduler: RunOnceScheduler;
@@ -72,6 +74,8 @@ export class AgentSessionHoverWidget extends Disposable {
 		if (!this.hasRendered) {
 			this.hasRendered = true;
 			this.renderScheduler.schedule();
+		} else {
+			this.listWidget?.layout(CHAT_LIST_HEIGHT, CHAT_HOVER_WIDTH);
 		}
 	}
 
@@ -156,18 +160,17 @@ export class AgentSessionHoverWidget extends Disposable {
 		const titleRow = dom.append(header, dom.$('.agent-session-hover-title'));
 		dom.append(titleRow, dom.$('span', undefined, session.label));
 
-		// Details row: Status • Provider • Duration/Time • Diff
+		// Details row: Provider icon + Duration/Time • Diff • Status (if not completed)
 		const detailsRow = dom.append(header, dom.$('.agent-session-hover-details'));
 
-		// Status
-		dom.append(detailsRow, dom.$('span', undefined, this.toStatusLabel(session.status)));
+		// Provider icon + name + Duration or start time
+		const providerType = getAgentSessionProvider(session.providerType);
+		const provider = providerType ?? AgentSessionProviders.Local;
+		const providerIcon = getAgentSessionProviderIcon(provider);
+		dom.append(detailsRow, renderIcon(providerIcon));
+		dom.append(detailsRow, dom.$('span', undefined, getAgentSessionProviderName(provider)));
 		dom.append(detailsRow, dom.$('span.separator', undefined, '•'));
 
-		// Provider
-		dom.append(detailsRow, dom.$('span', undefined, session.providerLabel));
-		dom.append(detailsRow, dom.$('span.separator', undefined, '•'));
-
-		// Duration or start time
 		if (session.timing.lastRequestEnded && session.timing.lastRequestStarted) {
 			const duration = this.toDuration(session.timing.lastRequestStarted, session.timing.lastRequestEnded, true);
 			if (duration) {
@@ -192,6 +195,12 @@ export class AgentSessionHoverWidget extends Disposable {
 			if (diff.deletions > 0) {
 				dom.append(diffContainer, dom.$('span.deletions', undefined, `-${diff.deletions}`));
 			}
+		}
+
+		// Status (only show if not completed)
+		if (session.status !== AgentSessionStatus.Completed) {
+			dom.append(detailsRow, dom.$('span.separator', undefined, '•'));
+			dom.append(detailsRow, dom.$('span', undefined, this.toStatusLabel(session.status)));
 		}
 
 		// Archived indicator
@@ -227,27 +236,23 @@ export class AgentSessionHoverWidget extends Disposable {
 			}
 		}
 
-		// Details line: Status • Provider • Duration/Time
+		// Details line: Provider icon + Duration/Time • Diff • Status (if not completed)
 		const details: string[] = [];
 
-		// Status
-		details.push(this.toStatusLabel(session.status));
-
-		// Provider
-		details.push(session.providerLabel);
-
-		// Duration or start time
+		// Provider icon + name + Duration or start time
+		const providerType = getAgentSessionProvider(session.providerType);
+		const provider = providerType ?? AgentSessionProviders.Local;
+		const providerIcon = getAgentSessionProviderIcon(provider);
+		const providerName = getAgentSessionProviderName(provider);
+		let timeLabel: string;
 		if (session.timing.lastRequestEnded && session.timing.lastRequestStarted) {
 			const duration = this.toDuration(session.timing.lastRequestStarted, session.timing.lastRequestEnded, true);
-			if (duration) {
-				details.push(duration);
-			}
+			timeLabel = duration ?? fromNow(session.timing.lastRequestStarted, true, true);
 		} else {
 			const startTime = session.timing.lastRequestStarted ?? session.timing.created;
-			details.push(fromNow(startTime, true, true));
+			timeLabel = fromNow(startTime, true, true);
 		}
-
-		lines.push(details.join(' • '));
+		details.push(`$(${providerIcon.id}) ${providerName} • ${timeLabel}`);
 
 		// Diff information
 		const diff = getAgentChangesSummary(session.changes);
@@ -263,9 +268,16 @@ export class AgentSessionHoverWidget extends Disposable {
 				diffParts.push(`-${diff.deletions}`);
 			}
 			if (diffParts.length > 0) {
-				lines.push(`$(diff) ${diffParts.join(', ')}`);
+				details.push(diffParts.join(' '));
 			}
 		}
+
+		// Status (only show if not completed)
+		if (session.status !== AgentSessionStatus.Completed) {
+			details.push(this.toStatusLabel(session.status));
+		}
+
+		lines.push(details.join(' • '));
 
 		// Archived status
 		if (session.isArchived()) {
