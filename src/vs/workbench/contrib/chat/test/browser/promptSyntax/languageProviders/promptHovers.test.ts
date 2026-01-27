@@ -59,8 +59,13 @@ suite('PromptHoverProvider', () => {
 
 		instaService.stub(ILanguageModelsService, {
 			getLanguageModelIds() { return testModels.map(m => m.id); },
-			lookupLanguageModel(name: string) {
-				return testModels.find(m => m.id === name);
+			lookupLanguageModelByQualifiedName(qualifiedName: string) {
+				for (const metadata of testModels) {
+					if (ILanguageModelChatMetadata.matchesQualifiedName(qualifiedName, metadata)) {
+						return metadata;
+					}
+				}
+				return undefined;
 			}
 		});
 
@@ -121,7 +126,7 @@ suite('PromptHoverProvider', () => {
 			].join('\n');
 			const hover = await getHover(content, 4, 1, PromptsType.agent);
 			const expected = [
-				'Specify the model that runs this custom agent.',
+				'Specify the model that runs this custom agent. Can also be a list of models. The first available model will be used.',
 				'',
 				'Note: This attribute is not used when target is github-copilot.'
 			].join('\n');
@@ -138,7 +143,7 @@ suite('PromptHoverProvider', () => {
 			].join('\n');
 			const hover = await getHover(content, 4, 1, PromptsType.agent);
 			const expected = [
-				'Specify the model that runs this custom agent.',
+				'Specify the model that runs this custom agent. Can also be a list of models. The first available model will be used.',
 				'',
 				'- Name: MAE 4',
 				'- Family: mae',
@@ -229,6 +234,44 @@ suite('PromptHoverProvider', () => {
 			assert.strictEqual(hover, 'Test Tool 1');
 		});
 
+		test('hover on model attribute with vscode target and model array', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'target: vscode',
+				`model: ['MAE 4 (olama)', 'MAE 4.1 (copilot)']`,
+				'---',
+			].join('\n');
+			const hover = await getHover(content, 4, 10, PromptsType.agent);
+			const expected = [
+				'Specify the model that runs this custom agent. Can also be a list of models. The first available model will be used.',
+				'',
+				'- Name: MAE 4',
+				'- Family: mae',
+				'- Vendor: olama'
+			].join('\n');
+			assert.strictEqual(hover, expected);
+		});
+
+		test('hover on second model in model array', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'target: vscode',
+				`model: ['MAE 4 (olama)', 'MAE 4.1 (copilot)']`,
+				'---',
+			].join('\n');
+			const hover = await getHover(content, 4, 30, PromptsType.agent);
+			const expected = [
+				'Specify the model that runs this custom agent. Can also be a list of models. The first available model will be used.',
+				'',
+				'- Name: MAE 4.1',
+				'- Family: mae',
+				'- Vendor: copilot'
+			].join('\n');
+			assert.strictEqual(hover, expected);
+		});
+
 		test('hover on description attribute', async () => {
 			const content = [
 				'---',
@@ -272,7 +315,7 @@ suite('PromptHoverProvider', () => {
 				'---',
 			].join('\n');
 			const hover = await getHover(content, 4, 1, PromptsType.agent);
-			assert.strictEqual(hover, 'Whether the agent can be used as a subagent.');
+			assert.strictEqual(hover, 'Controls visibility of the agent.\n\n- `all`, `true`: Available in the agent picker and can be used as a subagent.\n- `user`, `false`: Only available in the agent picker.\n- `agent`: Only available as a subagent (not shown in picker).\n- `hidden`: Not available in the picker nor as a subagent.');
 		});
 
 		test('hover on agents attribute shows description', async () => {
@@ -298,7 +341,7 @@ suite('PromptHoverProvider', () => {
 			].join('\n');
 			const hover = await getHover(content, 3, 1, PromptsType.prompt);
 			const expected = [
-				'The model to use in this prompt.',
+				'The model to use in this prompt. Can also be a list of models. The first available model will be used.',
 				'',
 				'- Name: MAE 4',
 				'- Family: mae',

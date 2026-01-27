@@ -313,3 +313,13 @@ extends:
               container: ubuntu
               baseImage: ubuntu:24.04
               arch: arm64
+
+          - template: build/azure-pipelines/common/sanity-tests.yml@self
+            parameters:
+              name: ubuntu_24_04_arm64_64k
+              displayName: Ubuntu 24.04 arm64 (64K page)
+              poolName: 1es-ubuntu-22.04-x64
+              container: ubuntu
+              baseImage: ubuntu:24.04
+              arch: arm64
+              pageSize: 64k

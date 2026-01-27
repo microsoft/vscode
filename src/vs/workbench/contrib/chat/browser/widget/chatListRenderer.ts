@@ -91,6 +91,7 @@ import { ChatTaskContentPart } from './chatContentParts/chatTaskContentPart.js';
 import { ChatTextEditContentPart } from './chatContentParts/chatTextEditContentPart.js';
 import { ChatThinkingContentPart } from './chatContentParts/chatThinkingContentPart.js';
 import { ChatSubagentContentPart } from './chatContentParts/chatSubagentContentPart.js';
+import { ChatTipContentPart } from './chatContentParts/chatTipContentPart.js';
 import { ChatTreeContentPart, TreePool } from './chatContentParts/chatTreeContentPart.js';
 import { ChatWorkspaceEditContentPart } from './chatContentParts/chatWorkspaceEditContentPart.js';
 import { ChatToolInvocationPart } from './chatContentParts/toolInvocationParts/chatToolInvocationPart.js';
@@ -100,6 +101,7 @@ import { ChatCodeBlockContentProvider, CodeBlockPart } from './chatContentParts/
 import { autorun, observableValue } from '../../../../../base/common/observable.js';
 import { RunSubagentTool } from '../../common/tools/builtinTools/runSubagentTool.js';
 import { isEqual } from '../../../../../base/common/resources.js';
+import { IChatTipService } from '../chatTipService.js';
 
 const $ = dom.$;
 
@@ -239,6 +241,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 		@IChatService private readonly chatService: IChatService,
+		@IChatTipService private readonly chatTipService: IChatTipService,
 	) {
 		super();
 
@@ -814,9 +817,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private renderChatResponseBasic(element: IChatResponseViewModel, index: number, templateData: IChatListItemTemplate) {
 		templateData.rowContainer.classList.toggle('chat-response-loading', (isResponseVM(element) && !element.isComplete));
 
-		if (element.isCanceled) {
+		if (element.isComplete || element.isCanceled) {
 			const lastThinking = this.getLastThinkingPart(templateData.renderedParts);
-			if (lastThinking?.domNode) {
+			if (lastThinking?.domNode && lastThinking.getIsActive()) {
 				lastThinking.finalizeTitleIfDefault();
 				lastThinking.markAsInactive();
 			}
@@ -861,9 +864,24 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		// Show if no content, only "used references", ends with a complete tool call, or ends with complete text edits and there is no incomplete tool call (edits are still being applied some time after they are all generated)
 		const lastPart = findLast(partsToRender, part => part.kind !== 'markdownContent' || part.content.value.trim().length > 0);
 
+		// don't show working progress when there is thinking content in partsToRender (about to be rendered)
+		if (partsToRender.some(part => part.kind === 'thinking')) {
+			return false;
+		}
+
 		// never show working progress when there is an active thinking piece
 		const lastThinking = this.getLastThinkingPart(templateData.renderedParts);
 		if (lastThinking) {
+			return false;
+		}
+
+		const collapsedToolsMode = this.configService.getValue<CollapsedToolsDisplayMode>('chat.agent.thinking.collapsedTools');
+		if (collapsedToolsMode !== CollapsedToolsDisplayMode.Off &&
+			partsToRender.some(part =>
+				(part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') &&
+				part.presentation !== 'hidden' &&
+				this.shouldPinPart(part, element)
+			)) {
 			return false;
 		}
 
@@ -935,6 +953,14 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		dom.clearNode(templateData.value);
 		const parts: IChatContentPart[] = [];
+
+		// Render tip above the request message (if available)
+		const tip = this.chatTipService.getNextTip(element.id, element.timestamp, this.contextKeyService);
+		if (tip) {
+			const tipPart = new ChatTipContentPart(tip, this.chatContentMarkdownRenderer);
+			templateData.value.appendChild(tipPart.domNode);
+			templateData.elementDisposables.add(tipPart);
+		}
 
 		let inlineSlashCommandRendered = false;
 		content.forEach((data, contentIndex) => {
@@ -1342,6 +1368,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			if (IChatToolInvocation.isStreaming(part)) {
 				return true;
 			}
+			// don't pin if waiting for confirmation or post-approval
+			const state = part.state.get();
+			if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation || state.type === IChatToolInvocation.StateKind.WaitingForPostApproval) {
+				return false;
+			}
 			return !IChatToolInvocation.getConfirmationMessages(part);
 		}
 
@@ -1366,6 +1397,31 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		return undefined;
+	}
+
+	/**
+	 * Determines if a thinking part at the given content index is "look-ahead complete".
+	 * A thinking part is look-ahead complete if there are subsequent parts that will NOT
+	 * be pinned to it, meaning we know this thinking part is already done even though
+	 * the overall response is still in progress.
+	 */
+	private isThinkingLookAheadComplete(context: IChatContentPartRenderContext, element?: IChatResponseViewModel): boolean {
+		// If element is already complete, no need for look-ahead
+		if (element?.isComplete) {
+			return true;
+		}
+
+		// Look at all parts after the current content index
+		for (let i = context.contentIndex + 1; i < context.content.length; i++) {
+			const nextPart = context.content[i];
+			// If there's any part that would NOT be pinned to the thinking part,
+			// then this thinking part is already complete
+			if (!this.shouldPinPart(nextPart, element)) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	private getSubagentPart(renderedParts: ReadonlyArray<IChatContentPart> | undefined, subAgentInvocationId?: string): ChatSubagentContentPart | undefined {
@@ -1752,7 +1808,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			const state = toolInvocation.state.read(reader);
 			if (wasStreaming && state.type !== IChatToolInvocation.StateKind.Streaming) {
 				wasStreaming = false;
-				if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation) {
+				if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation || state.type === IChatToolInvocation.StateKind.WaitingForPostApproval) {
 					const createdPart = getCreatedPart();
 					// move the created part out of thinking and into the main template
 					if (createdPart?.domNode) {
@@ -1998,6 +2054,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			content.id = Date.now().toString();
 		}
 
+		// Determine if this thinking part is already complete based on look-ahead
+		// (i.e., there are subsequent parts that won't be pinned to this thinking part)
+		const element = isResponseVM(context.element) ? context.element : undefined;
+		const streamingCompleted = this.isThinkingLookAheadComplete(context, element);
+
 		// if array, we do a naive part by part rendering for now
 		if (Array.isArray(content.value)) {
 			if (content.value.length < 1) {
@@ -2013,7 +2074,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 						lastThinkingPart.setupThinkingContainer({ ...content, value: item });
 					} else {
 						const itemContent = { ...content, value: item };
-						const itemPart = templateData.instantiationService.createInstance(ChatThinkingContentPart, itemContent, context, this.chatContentMarkdownRenderer, context.element.isComplete);
+						const itemPart = templateData.instantiationService.createInstance(ChatThinkingContentPart, itemContent, context, this.chatContentMarkdownRenderer, streamingCompleted);
 						lastPart = itemPart;
 					}
 				}
@@ -2026,7 +2087,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				lastActiveThinking.setupThinkingContainer(content);
 				return lastActiveThinking;
 			} else {
-				const part = templateData.instantiationService.createInstance(ChatThinkingContentPart, content, context, this.chatContentMarkdownRenderer, context.element.isComplete);
+				const part = templateData.instantiationService.createInstance(ChatThinkingContentPart, content, context, this.chatContentMarkdownRenderer, streamingCompleted);
 				return part;
 			}
 

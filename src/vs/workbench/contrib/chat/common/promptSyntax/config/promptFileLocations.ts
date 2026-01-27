@@ -162,7 +162,8 @@ export function getPromptFileType(fileUri: URI): PromptsType | undefined {
 	}
 
 	// Check if it's a .md file in the .github/agents/ folder
-	if (filename.endsWith('.md') && isInAgentsFolder(fileUri)) {
+	// Exclude README.md to allow documentation files
+	if (filename.endsWith('.md') && filename !== 'README.md' && isInAgentsFolder(fileUri)) {
 		return PromptsType.agent;
 	}
 
@@ -236,7 +237,8 @@ export function getCleanPromptName(fileUri: URI): string {
 	}
 
 	// For .md files in .github/agents/ folder, treat them as agent files
-	if (fileName.endsWith('.md') && isInAgentsFolder(fileUri)) {
+	// Exclude README.md to allow documentation files
+	if (fileName.endsWith('.md') && fileName !== 'README.md' && isInAgentsFolder(fileUri)) {
 		return basename(fileUri.path, '.md');
 	}
 

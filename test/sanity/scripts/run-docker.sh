@@ -4,6 +4,7 @@ set -e
 CONTAINER=""
 ARCH="amd64"
 BASE_IMAGE=""
+PAGE_SIZE=""
 ARGS=""
 
 while [ $# -gt 0 ]; do
@@ -11,6 +12,7 @@ while [ $# -gt 0 ]; do
 		--container) CONTAINER="$2"; shift 2 ;;
 		--arch) ARCH="$2"; shift 2 ;;
 		--base-image) BASE_IMAGE="$2"; shift 2 ;;
+		--page-size) PAGE_SIZE="$2"; shift 2 ;;
 		*) ARGS="$ARGS $1"; shift ;;
 	esac
 done
@@ -25,6 +27,11 @@ ROOT_DIR=$(cd "$SCRIPT_DIR/.." && pwd)
 
 # Only build if image doesn't exist (i.e., not loaded from cache)
 if ! docker image inspect "$CONTAINER" > /dev/null 2>&1; then
+	if [ "$ARCH" != "amd64" ]; then
+		echo "Setting up QEMU user-mode emulation for $ARCH"
+		docker run --privileged --rm tonistiigi/binfmt --install "$ARCH"
+	fi
+
 	echo "Building container image: $CONTAINER"
 	docker buildx build \
 		--platform "linux/$ARCH" \
@@ -36,10 +43,17 @@ else
 	echo "Using cached container image: $CONTAINER"
 fi
 
-echo "Running sanity tests in container"
-docker run \
-	--rm \
-	--platform "linux/$ARCH" \
-	--volume "$ROOT_DIR:/root" \
-	"$CONTAINER" \
-	$ARGS
+# For 64K page size, use QEMU system emulation with a 64K kernel
+if [ "$PAGE_SIZE" = "64k" ]; then
+	exec "$SCRIPT_DIR/run-qemu-64k.sh" \
+		--container "$CONTAINER" \
+		-- $ARGS
+else
+	echo "Running sanity tests in container"
+	docker run \
+		--rm \
+		--platform "linux/$ARCH" \
+		--volume "$ROOT_DIR:/root" \
+		"$CONTAINER" \
+		$ARGS
+fi
