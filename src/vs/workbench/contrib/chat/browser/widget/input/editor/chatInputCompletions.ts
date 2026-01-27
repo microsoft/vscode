@@ -53,6 +53,7 @@ import { IChatRequestVariableEntry } from '../../../../common/attachments/chatVa
 import { IDynamicVariable } from '../../../../common/attachments/chatVariables.js';
 import { ChatAgentLocation, ChatModeKind, isSupportedChatFileScheme } from '../../../../common/constants.js';
 import { isToolSet } from '../../../../common/tools/languageModelToolsService.js';
+import { IChatSessionsService } from '../../../../common/chatSessionsService.js';
 import { IPromptsService } from '../../../../common/promptSyntax/service/promptsService.js';
 import { ChatSubmitAction, IChatExecuteActionContext } from '../../../actions/chatExecuteActions.js';
 import { IChatWidget, IChatWidgetService } from '../../../chat.js';
@@ -270,6 +271,7 @@ class AgentCompletions extends Disposable {
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 		@IChatAgentNameService private readonly chatAgentNameService: IChatAgentNameService,
+		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 	) {
 		super();
 
@@ -337,6 +339,9 @@ class AgentCompletions extends Disposable {
 				const agents = this.chatAgentService.getAgents()
 					.filter(a => a.locations.includes(widget.location));
 
+				// Filter out chatSessions contributions for slash command completions
+				const agentsForSlashCommands = agents.filter(a => !this.chatSessionsService.getChatSessionContribution(a.id));
+
 				// When the input is only `/`, items are sorted by sortText.
 				// When typing, filterText is used to score and sort.
 				// The same list is refiltered/ranked while typing.
@@ -369,7 +374,7 @@ class AgentCompletions extends Disposable {
 
 				return {
 					suggestions: justAgents.concat(
-						coalesce(agents.flatMap(agent => agent.slashCommands.map((c, i) => {
+						coalesce(agentsForSlashCommands.flatMap(agent => agent.slashCommands.map((c, i) => {
 							if (agent.isDefault && this.chatAgentService.getDefaultAgent(widget.location, widget.input.currentModeKind)?.id !== agent.id) {
 								return;
 							}
@@ -429,7 +434,9 @@ class AgentCompletions extends Disposable {
 				}
 
 				const agents = this.chatAgentService.getAgents()
-					.filter(a => a.locations.includes(widget.location) && a.modes.includes(widget.input.currentModeKind));
+					.filter(a => a.locations.includes(widget.location) && a.modes.includes(widget.input.currentModeKind))
+					// Filter out chatSessions contributions for slash command completions
+					.filter(a => !this.chatSessionsService.getChatSessionContribution(a.id));
 
 				return {
 					suggestions: coalesce(agents.flatMap(agent => agent.slashCommands.map((c, i) => {
