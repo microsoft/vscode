@@ -26,4 +26,4 @@ ARGS=$(cat /test-args)
 EXIT_CODE=$?
 
 echo "Powering off"
-poweroff -f
+echo o > /proc/sysrq-trigger
