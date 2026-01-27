@@ -44,6 +44,13 @@ suite('formatStatusOutput', () => {
 
 
 	/**
+	 * Returns the fsPath of a file URI for use in test expectations.
+	 */
+	function filePath(relativePath: string): string {
+		return URI.file(`/workspace/${relativePath}`).fsPath;
+	}
+
+	/**
 	 * Builds expected output from lines array to avoid hygiene issues with template literal indentation.
 	 */
 	function lines(...parts: string[]): string {
@@ -81,8 +88,8 @@ suite('formatStatusOutput', () => {
 			'*2 files loaded*',
 			'',
 			'.github/agents<br>',
-			`${TREE_BRANCH} [\`code-reviewer.agent.md\`](file:///workspace/.github/agents/code-reviewer.agent.md)<br>`,
-			`${TREE_END} [\`test-helper.agent.md\`](file:///workspace/.github/agents/test-helper.agent.md)<br>`,
+			`${TREE_BRANCH} [\`code-reviewer.agent.md\`](${filePath('.github/agents/code-reviewer.agent.md')})<br>`,
+			`${TREE_END} [\`test-helper.agent.md\`](${filePath('.github/agents/test-helper.agent.md')})<br>`,
 			'AGENTS.md -<br>',
 			''
 		));
@@ -109,8 +116,8 @@ suite('formatStatusOutput', () => {
 			'*1 files loaded, 1 skipped*',
 			'',
 			'.github/agents<br>',
-			`${TREE_BRANCH} [\`good-agent.agent.md\`](file:///workspace/.github/agents/good-agent.agent.md)<br>`,
-			`${TREE_END} ${ICON_ERROR} [\`broken-agent.agent.md\`](file:///workspace/.github/agents/broken-agent.agent.md) - *Missing name attribute*<br>`,
+			`${TREE_BRANCH} [\`good-agent.agent.md\`](${filePath('.github/agents/good-agent.agent.md')})<br>`,
+			`${TREE_END} ${ICON_ERROR} [\`broken-agent.agent.md\`](${filePath('.github/agents/broken-agent.agent.md')}) - *Missing name attribute*<br>`,
 			'AGENTS.md -<br>',
 			''
 		));
@@ -140,9 +147,9 @@ suite('formatStatusOutput', () => {
 			'*1 files loaded, 1 skipped*',
 			'',
 			'.github/agents<br>',
-			`${TREE_END} [\`my-agent.agent.md\`](file:///workspace/.github/agents/my-agent.agent.md)<br>`,
+			`${TREE_END} [\`my-agent.agent.md\`](${filePath('.github/agents/my-agent.agent.md')})<br>`,
 			'~/.copilot/agents<br>',
-			`${TREE_END} ${ICON_WARN} [\`my-agent.agent.md\`](file:///workspace/home/.copilot/agents/my-agent.agent.md) - *Overwritten by higher priority file*<br>`,
+			`${TREE_END} ${ICON_WARN} [\`my-agent.agent.md\`](${filePath('home/.copilot/agents/my-agent.agent.md')}) - *Overwritten by higher priority file*<br>`,
 			'AGENTS.md -<br>',
 			''
 		));
@@ -189,8 +196,8 @@ suite('formatStatusOutput', () => {
 			'*2 skills loaded*',
 			'',
 			'.github/skills<br>',
-			`${TREE_BRANCH} [\`search\`](file:///workspace/.github/skills/search)<br>`,
-			`${TREE_END} [\`refactor\`](file:///workspace/.github/skills/refactor)<br>`,
+			`${TREE_BRANCH} [\`search\`](${filePath('.github/skills/search')})<br>`,
+			`${TREE_END} [\`refactor\`](${filePath('.github/skills/refactor')})<br>`,
 			''
 		));
 	});
@@ -220,9 +227,9 @@ suite('formatStatusOutput', () => {
 			'*2 files loaded*',
 			'',
 			'.github/instructions<br>',
-			`${TREE_END} [\`testing.instructions.md\`](file:///workspace/.github/instructions/testing.instructions.md)<br>`,
+			`${TREE_END} [\`testing.instructions.md\`](${filePath('.github/instructions/testing.instructions.md')})<br>`,
 			'copilot-instructions.md<br>',
-			`${TREE_END} [\`copilot-instructions.md\`](file:///workspace/.github/copilot-instructions.md)<br>`,
+			`${TREE_END} [\`copilot-instructions.md\`](${filePath('.github/copilot-instructions.md')})<br>`,
 			''
 		));
 	});
@@ -251,8 +258,8 @@ suite('formatStatusOutput', () => {
 			'',
 			'.github/agents<br>',
 			'AGENTS.md<br>',
-			`${TREE_BRANCH} [\`AGENTS.md\`](file:///workspace/AGENTS.md)<br>`,
-			`${TREE_END} [\`AGENTS.md\`](file:///workspace/docs/AGENTS.md)<br>`,
+			`${TREE_BRANCH} [\`AGENTS.md\`](${filePath('AGENTS.md')})<br>`,
+			`${TREE_END} [\`AGENTS.md\`](${filePath('docs/AGENTS.md')})<br>`,
 			''
 		));
 	});
@@ -330,9 +337,9 @@ suite('formatStatusOutput', () => {
 			'*2 files loaded*',
 			'',
 			'.github/agents<br>',
-			`${TREE_END} [\`local-agent.agent.md\`](file:///workspace/.github/agents/local-agent.agent.md)<br>`,
+			`${TREE_END} [\`local-agent.agent.md\`](${filePath('.github/agents/local-agent.agent.md')})<br>`,
 			'Extension: my-publisher.my-extension<br>',
-			`${TREE_END} [\`ext-agent.agent.md\`](file:///workspace/extensions/my-publisher.my-extension/agents/ext-agent.agent.md)<br>`,
+			`${TREE_END} [\`ext-agent.agent.md\`](${filePath('extensions/my-publisher.my-extension/agents/ext-agent.agent.md')})<br>`,
 			'AGENTS.md -<br>',
 			''
 		));
@@ -397,27 +404,27 @@ suite('formatStatusOutput', () => {
 			'*1 files loaded*',
 			'',
 			'.github/agents<br>',
-			`${TREE_END} [\`helper.agent.md\`](file:///workspace/.github/agents/helper.agent.md)<br>`,
+			`${TREE_END} [\`helper.agent.md\`](${filePath('.github/agents/helper.agent.md')})<br>`,
 			'AGENTS.md -<br>',
 			'',
 			'**Instructions**<br>',
 			'*1 files loaded*',
 			'',
 			'.github/instructions<br>',
-			`${TREE_END} [\`code-style.instructions.md\`](file:///workspace/.github/instructions/code-style.instructions.md)<br>`,
+			`${TREE_END} [\`code-style.instructions.md\`](${filePath('.github/instructions/code-style.instructions.md')})<br>`,
 			'copilot-instructions.md -<br>',
 			'',
 			'**Prompt Files**<br>',
 			'*1 files loaded*',
 			'',
 			'.github/prompts<br>',
-			`${TREE_END} [\`fix-bug.prompt.md\`](file:///workspace/.github/prompts/fix-bug.prompt.md)<br>`,
+			`${TREE_END} [\`fix-bug.prompt.md\`](${filePath('.github/prompts/fix-bug.prompt.md')})<br>`,
 			'',
 			'**Skills**<br>',
 			'*1 skills loaded*',
 			'',
 			'.github/skills<br>',
-			`${TREE_END} [\`search\`](file:///workspace/.github/skills/search)<br>`,
+			`${TREE_END} [\`search\`](${filePath('.github/skills/search')})<br>`,
 			''
 		));
 	});
