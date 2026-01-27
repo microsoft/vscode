@@ -920,6 +920,7 @@ suite('ComputeAutomaticInstructions', () => {
 					contents: [
 						'---',
 						'name: \'typescript\'',
+						'description: \'TypeScript best practices\'',
 						'---',
 						'TypeScript skill content',
 					]
@@ -949,7 +950,7 @@ suite('ComputeAutomaticInstructions', () => {
 			assert.equal(xmlContents(skills[0], 'file')[0], getFilePath(`${rootFolder}/.claude/skills/javascript/SKILL.md`));
 			assert.equal(xmlContents(skills[0], 'name')[0], 'javascript');
 
-			assert.equal(xmlContents(skills[1], 'description')[0], undefined);
+			assert.equal(xmlContents(skills[1], 'description')[0], 'TypeScript best practices');
 			assert.equal(xmlContents(skills[1], 'file')[0], getFilePath(`${rootFolder}/.claude/skills/typescript/SKILL.md`));
 			assert.equal(xmlContents(skills[1], 'name')[0], 'typescript');
 		});
