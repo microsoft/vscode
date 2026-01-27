@@ -11,6 +11,7 @@
 	border: 1px solid var(--vscode-editorHoverWidget-border);
 	border-radius: 3px;
 	box-sizing: content-box;
+	padding-bottom: 2px;
 }
 
 .monaco-editor .monaco-resizable-hover > .monaco-hover {
@@ -51,7 +52,6 @@
 .monaco-editor .monaco-hover .hover-row .verbosity-actions {
 	border-right: 1px solid var(--vscode-editorHoverWidget-border);
 	width: 22px;
-	overflow-y: clip;
 }
 
 .monaco-editor .monaco-hover .hover-row .verbosity-actions-inner {
@@ -61,11 +61,17 @@
 	padding-right: 5px;
 	justify-content: flex-end;
 	position: relative;
+	gap: 4px;
 }
 
 .monaco-editor .monaco-hover .hover-row .verbosity-actions-inner .codicon {
 	cursor: pointer;
 	font-size: 11px;
+	position: relative;
+	display: inline-flex;
+	padding: 2px;
+	margin: -2px;
+	margin-bottom: -4px;
 }
 
 .monaco-editor .monaco-hover .hover-row .verbosity-actions-inner .codicon.enabled {
