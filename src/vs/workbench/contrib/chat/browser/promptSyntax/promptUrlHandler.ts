@@ -7,6 +7,8 @@ import { streamToBuffer, VSBuffer } from '../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { dirname } from '../../../../../base/common/path.js';
+import { isValidBasename } from '../../../../../base/common/extpath.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
@@ -25,8 +27,8 @@ import { Schemas } from '../../../../../base/common/network.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
-import { dirname } from '../../../../../base/common/path.js';
-import { isValidBasename } from '../../../../../base/common/extpath.js';
+
+
 
 // example URL: code-oss:chat-prompt/install?url=https://gist.githubusercontent.com/aeschli/43fe78babd5635f062aef0195a476aad/raw/dfd71f60058a4dd25f584b55de3e20f5fd580e63/filterEvenNumbers.prompt.md
 
