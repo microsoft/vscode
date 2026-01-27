@@ -230,6 +230,9 @@
       "node-addon-api": "7.1.0"
     }
   },
+  "engines": {
+    "node": ">=22.15.1 <23"
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/microsoft/vscode.git"
