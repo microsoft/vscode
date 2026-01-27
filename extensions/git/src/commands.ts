@@ -1155,7 +1155,7 @@ export class CommandCenter {
 			path = result[0].fsPath;
 		}
 
-		await this.model.openRepository(path, true);
+		await this.model.openRepository(path, true, true);
 	}
 
 	@command('git.reopenClosedRepositories', { repository: false })
