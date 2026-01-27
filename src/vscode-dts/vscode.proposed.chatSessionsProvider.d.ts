@@ -42,7 +42,7 @@ declare module 'vscode' {
 		/**
 		 * Creates a new {@link ChatSessionItemController chat session item controller} with the given unique identifier.
 		 */
-		export function createChatSessionItemController(id: string, refreshHandler: () => Thenable<void>): ChatSessionItemController;
+		export function createChatSessionItemController(id: string, refreshHandler: (token: CancellationToken) => Thenable<void>): ChatSessionItemController;
 	}
 
 	/**
@@ -97,7 +97,7 @@ declare module 'vscode' {
 		 *
 		 * This is also called on first load to get the initial set of items.
 		 */
-		refreshHandler: () => Thenable<void>;
+		refreshHandler: (token: CancellationToken) => Thenable<void>;
 
 		/**
 		 * Fired when an item's archived state changes.
@@ -231,22 +231,7 @@ declare module 'vscode' {
 		/**
 		 * Statistics about the chat session.
 		 */
-		changes?: readonly ChatSessionChangedFile[] | readonly ChatSessionChangedFile2[] | {
-			/**
-			 * Number of files edited during the session.
-			 */
-			files: number;
-
-			/**
-			 * Number of insertions made during the session.
-			 */
-			insertions: number;
-
-			/**
-			 * Number of deletions made during the session.
-			 */
-			deletions: number;
-		};
+		changes?: readonly ChatSessionChangedFile[] | readonly ChatSessionChangedFile2[];
 	}
 
 	export class ChatSessionChangedFile {
@@ -540,6 +525,13 @@ declare module 'vscode' {
 		 * @returns Additional items to display in the searchable QuickPick.
 		 */
 		readonly onSearch?: (query: string, token: CancellationToken) => Thenable<ChatSessionProviderOptionItem[]>;
+
+		/**
+		 * Optional commands.
+		 *
+		 * These commands will be displayed at the bottom of the group.
+		 */
+		readonly commands?: Command[];
 	}
 
 	export interface ChatSessionProviderOptions {

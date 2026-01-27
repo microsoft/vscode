@@ -24,7 +24,7 @@ import { ITextModel } from '../../../common/model.js';
 import { IModelContentChangedEvent } from '../../../common/textModelEvents.js';
 import { FoldingRange, FoldingRangeKind, FoldingRangeProvider } from '../../../common/languages.js';
 import { ILanguageConfigurationService } from '../../../common/languages/languageConfigurationRegistry.js';
-import { CollapseMemento, FoldingModel, getNextFoldLine, getParentFoldLine as getParentFoldLine, getPreviousFoldLine, setCollapseStateAtLevel, setCollapseStateForMatchingLines, setCollapseStateForRest, setCollapseStateForType, setCollapseStateLevelsDown, setCollapseStateLevelsUp, setCollapseStateUp, toggleCollapseState } from './foldingModel.js';
+import { CollapseMemento, FoldingModel, getNextFoldLine, getParentFoldLine, getPreviousFoldLine, setCollapseStateAtLevel, setCollapseStateForMatchingLines, setCollapseStateForRest, setCollapseStateForType, setCollapseStateLevelsDown, setCollapseStateLevelsUp, setCollapseStateUp, toggleCollapseState } from './foldingModel.js';
 import { HiddenRangeModel } from './hiddenRangeModel.js';
 import { IndentRangeProvider } from './indentRangeProvider.js';
 import * as nls from '../../../../nls.js';

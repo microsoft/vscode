@@ -25,14 +25,15 @@ import { IProductService } from '../../../../platform/product/common/productServ
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { editorBackground } from '../../../../platform/theme/common/colorRegistry.js';
-import { defaultToggleStyles, getListStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { getListStyles, getToggleStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
 import { IEditorOpenContext, IEditorSerializer } from '../../../common/editor.js';
 import { SIDE_BAR_FOREGROUND } from '../../../common/theme.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
-import { ChatAgentLocation, ChatModeKind } from '../../chat/common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../chat/common/constants.js';
 import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
 import { ChatWidget } from '../../chat/browser/widget/chatWidget.js';
 import { IAgentSessionsService } from '../../chat/browser/agentSessions/agentSessionsService.js';
@@ -41,25 +42,47 @@ import { IAgentSession } from '../../chat/browser/agentSessions/agentSessionsMod
 import { AgentSessionsWelcomeEditorOptions, AgentSessionsWelcomeInput } from './agentSessionsWelcomeInput.js';
 import { IChatService } from '../../chat/common/chatService/chatService.js';
 import { IChatModel } from '../../chat/common/model/chatModel.js';
-import { ISessionTypePickerDelegate, IWorkspacePickerDelegate, IWorkspacePickerItem } from '../../chat/browser/chat.js';
+import { ChatViewId, ChatViewPaneTarget, IChatWidgetService, ISessionTypePickerDelegate, IWorkspacePickerDelegate, IWorkspacePickerItem } from '../../chat/browser/chat.js';
+import { ChatSessionPosition, getResourceForNewChatSession } from '../../chat/browser/chatSessions/chatSessions.contribution.js';
 import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 import { AgentSessionsControl, IAgentSessionsControlOptions } from '../../chat/browser/agentSessions/agentSessionsControl.js';
 import { IAgentSessionsFilter } from '../../chat/browser/agentSessions/agentSessionsViewer.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { IResolvedWalkthrough, IWalkthroughsService } from '../../welcomeGettingStarted/browser/gettingStartedService.js';
+import { GettingStartedEditorOptions, GettingStartedInput } from '../../welcomeGettingStarted/browser/gettingStartedInput.js';
 import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { IWorkspacesService, IRecentFolder, IRecentWorkspace, isRecentFolder, isRecentWorkspace } from '../../../../platform/workspaces/common/workspaces.js';
 import { IHostService } from '../../../services/host/browser/host.js';
+import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
+import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
+import { toErrorMessage } from '../../../../base/common/errorMessage.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 
 const configurationKey = 'workbench.startupEditor';
 const MAX_SESSIONS = 6;
-const MAX_PICK = 10;
+const MAX_REPO_PICKS = 10;
+const MAX_WALKTHROUGHS = 10;
+
+type AgentSessionsWelcomeActionClassification = {
+	action: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The action being executed on the agent sessions welcome page.' };
+	actionId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'Identifier of the action being executed, such as command ID or walkthrough ID.' };
+	welcomeKind: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The kind of welcome page' };
+	owner: 'osortega';
+	comment: 'Help understand what actions are most commonly taken on the agent sessions welcome page';
+};
+
+type AgentSessionsWelcomeActionEvent = {
+	action: string;
+	welcomeKind: 'agentSessionsWelcomePage';
+	actionId: string | undefined;
+};
 
 export class AgentSessionsWelcomePage extends EditorPane {
 
 	static readonly ID = 'agentSessionsWelcomePage';
+	static readonly COMMAND_ID = 'workbench.action.openAgentSessionsWelcome';
 
 	private container!: HTMLElement;
 	private contentContainer!: HTMLElement;
@@ -68,6 +91,7 @@ export class AgentSessionsWelcomePage extends EditorPane {
 	private chatModelRef: IReference<IChatModel> | undefined;
 	private sessionsControl: AgentSessionsControl | undefined;
 	private sessionsControlContainer: HTMLElement | undefined;
+	private sessionsLoadingContainer: HTMLElement | undefined;
 	private readonly sessionsControlDisposables = this._register(new DisposableStore());
 	private readonly contentDisposables = this._register(new DisposableStore());
 	private contextService: IContextKeyService;
@@ -86,6 +110,7 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@ICommandService private readonly commandService: ICommandService,
+		@IEditorService private readonly editorService: IEditorService,
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IProductService private readonly productService: IProductService,
@@ -96,6 +121,10 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IWorkspacesService private readonly workspacesService: IWorkspacesService,
 		@IHostService private readonly hostService: IHostService,
+		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
+		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
+		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super(AgentSessionsWelcomePage.ID, group, telemetryService, themeService, storageService);
 
@@ -136,7 +165,16 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		this._isEmptyWorkspace = this.workspaceContextService.getWorkbenchState() === WorkbenchState.EMPTY;
 		if (this._isEmptyWorkspace) {
 			const recentlyOpened = await this.workspacesService.getRecentlyOpened();
-			this._recentWorkspaces = recentlyOpened.workspaces.slice(0, MAX_PICK);
+			const trustInfoPromises = recentlyOpened.workspaces.map(async ws => {
+				const uri = isRecentWorkspace(ws) ? ws.workspace.configPath : ws.folderUri;
+				const trustInfo = await this.workspaceTrustManagementService.getUriTrustInfo(uri);
+				return { workspace: ws, trusted: trustInfo.trusted };
+			});
+			const trustInfoResults = await Promise.all(trustInfoPromises);
+			const filteredWorkspaces = trustInfoResults
+				.filter(result => result.trusted)
+				.map(result => result.workspace);
+			this._recentWorkspaces = filteredWorkspaces.slice(0, MAX_REPO_PICKS);
 		}
 
 		// Get walkthroughs
@@ -154,23 +192,23 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		this.buildChatWidget(chatSection);
 
 		// Sessions or walkthroughs
-		const sessions = this.agentSessionsService.model.sessions;
 		const sessionsSection = append(this.contentContainer, $('.agentSessionsWelcome-sessionsSection'));
-		if (sessions.length > 0) {
-			this.buildSessionsGrid(sessionsSection, sessions);
-		} else {
-			const walkthroughsSection = append(this.contentContainer, $('.agentSessionsWelcome-walkthroughsSection'));
-			this.buildWalkthroughs(walkthroughsSection);
-		}
+		this.buildSessionsOrPrompts(sessionsSection);
 
 		// Footer
 		const footer = append(this.contentContainer, $('.agentSessionsWelcome-footer'));
 		this.buildFooter(footer);
 
 		// Listen for session changes - store reference to avoid querySelector
+		let originalSessions = this.agentSessionsService.model.sessions.length > 0;
 		this.contentDisposables.add(this.agentSessionsService.model.onDidChangeSessions(() => {
-			clearNode(sessionsSection);
-			this.buildSessionsOrPrompts(sessionsSection);
+			const hasSessions = this.agentSessionsService.model.sessions.length > 0;
+			// Only rebuild if the amount of sessions changed, other updates should be managed by the control
+			if (hasSessions !== originalSessions) {
+				originalSessions = hasSessions;
+				clearNode(sessionsSection);
+				this.buildSessionsOrPrompts(sessionsSection);
+			}
 		}));
 
 		this.scrollableElement?.scanDomNode();
@@ -187,7 +225,13 @@ export class AgentSessionsWelcomePage extends EditorPane {
 			const button = append(container, $('button.agentSessionsWelcome-startEntry'));
 			button.appendChild(renderIcon(entry.icon));
 			button.appendChild(document.createTextNode(entry.label));
-			button.onclick = () => this.commandService.executeCommand(entry.command);
+			button.onclick = () => {
+				this.telemetryService.publicLog2<AgentSessionsWelcomeActionEvent, AgentSessionsWelcomeActionClassification>(
+					'gettingStarted.ActionExecuted',
+					{ welcomeKind: 'agentSessionsWelcomePage', action: 'executeCommand', actionId: entry.command }
+				);
+				this.commandService.executeCommand(entry.command);
+			};
 		}
 	}
 
@@ -204,11 +248,31 @@ export class AgentSessionsWelcomePage extends EditorPane {
 
 		// Create a delegate for the session target picker with independent local state
 		const onDidChangeActiveSessionProvider = this.contentDisposables.add(new Emitter<AgentSessionProviders>());
+		const recreateSessionForProvider = async (provider: AgentSessionProviders) => {
+			if (this.chatWidget && this.chatModelRef) {
+				this.chatWidget.setModel(undefined);
+				this.chatModelRef.dispose();
+				const newResource = getResourceForNewChatSession({
+					type: provider,
+					position: ChatSessionPosition.Sidebar,
+					displayName: ''
+				});
+				const ref = await this.chatService.loadSessionForResource(newResource, ChatAgentLocation.Chat, CancellationToken.None);
+				this.chatModelRef = ref ?? this.chatService.startSession(ChatAgentLocation.Chat);
+				this.contentDisposables.add(this.chatModelRef);
+				if (this.chatModelRef.object) {
+					this.chatWidget.setModel(this.chatModelRef.object);
+				}
+			}
+		};
 		const sessionTypePickerDelegate: ISessionTypePickerDelegate = {
 			getActiveSessionProvider: () => this._selectedSessionProvider,
 			setActiveSessionProvider: (provider: AgentSessionProviders) => {
 				this._selectedSessionProvider = provider;
 				onDidChangeActiveSessionProvider.fire(provider);
+				try {
+					recreateSessionForProvider(provider);
+				} catch { /* Ignore errors */ }
 			},
 			onDidChangeActiveSessionProvider: onDidChangeActiveSessionProvider.event
 		};
@@ -286,6 +350,13 @@ export class AgentSessionsWelcomePage extends EditorPane {
 			this.chatWidget?.focusInput();
 		}));
 
+		// Automatically open the chat view when a request is submitted from this welcome view
+		this.contentDisposables.add(this.chatService.onDidSubmitRequest(({ chatSessionResource }) => {
+			if (this.chatModelRef?.object?.sessionResource.toString() === chatSessionResource.toString()) {
+				this.openSessionInChat(chatSessionResource);
+			}
+		}));
+
 		// Check for prefill data from a workspace transfer
 		this.applyPrefillData();
 	}
@@ -322,6 +393,7 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		const prefillData = {
 			query,
 			mode,
+			timestamp: Date.now(),
 		};
 		this.storageService.store(
 			'chat.welcomeViewPrefill',
@@ -360,7 +432,11 @@ export class AgentSessionsWelcomePage extends EditorPane {
 			// Remove immediately to prevent re-application
 			this.storageService.remove('chat.welcomeViewPrefill', StorageScope.APPLICATION);
 			try {
-				const { query, mode } = JSON.parse(prefillData);
+				const { query, mode, timestamp } = JSON.parse(prefillData);
+				// Invalidate entries older than 1 minute
+				if (timestamp && Date.now() - timestamp > 60 * 1000) {
+					return;
+				}
 				if (query && this.chatWidget) {
 					this.chatWidget.setInput(query);
 				}
@@ -379,24 +455,61 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		// Clear previous sessions control
 		this.sessionsControlDisposables.clear();
 		this.sessionsControl = undefined;
+		this.sessionsLoadingContainer = undefined;
 
-		const sessions = this.agentSessionsService.model.sessions;
+		const sessions = this.agentSessionsService.model.sessions.filter(s => !s.isArchived());
 
 		if (sessions.length > 0) {
 			this.buildSessionsGrid(container, sessions);
+		} else {
+			this.buildWalkthroughs(container);
+		}
+	}
+
+	private buildLoadingSkeleton(container: HTMLElement): HTMLElement {
+		const loadingContainer = append(container, $('.agentSessionsWelcome-sessionsLoading', {
+			'role': 'status',
+			'aria-busy': 'true',
+			'aria-label': localize('loadingSessions', "Loading sessions...")
+		}));
+
+		// Create skeleton items to match MAX_SESSIONS (6 items, arranged in 2 columns)
+		for (let i = 0; i < MAX_SESSIONS; i++) {
+			const skeleton = append(loadingContainer, $('.agentSessionsWelcome-sessionSkeleton', { 'aria-hidden': 'true' }));
+			append(skeleton, $('.agentSessionsWelcome-sessionSkeleton-icon'));
+			const content = append(skeleton, $('.agentSessionsWelcome-sessionSkeleton-content'));
+			append(content, $('.agentSessionsWelcome-sessionSkeleton-title'));
+			append(content, $('.agentSessionsWelcome-sessionSkeleton-description'));
+		}
+
+		return loadingContainer;
+	}
+
+	private hideLoadingSkeleton(): void {
+		// Hide loading skeleton and show the sessions control
+		if (this.sessionsLoadingContainer) {
+			this.sessionsLoadingContainer.style.display = 'none';
+		}
+		if (this.sessionsControlContainer) {
+			this.sessionsControlContainer.style.display = '';
+			this.layoutSessionsControl();
 		}
 	}
 
 
 	private buildSessionsGrid(container: HTMLElement, _sessions: IAgentSession[]): void {
+		// Show loading skeleton initially
+		this.sessionsLoadingContainer = this.buildLoadingSkeleton(container);
+
 		this.sessionsControlContainer = append(container, $('.agentSessionsWelcome-sessionsGrid'));
+		// Hide the control initially until loading completes
+		this.sessionsControlContainer.style.display = 'none';
 
 		// Create a filter that limits results and excludes archived sessions
 		const onDidChangeEmitter = this.sessionsControlDisposables.add(new Emitter<void>());
 		const filter: IAgentSessionsFilter = {
 			onDidChange: onDidChangeEmitter.event,
 			limitResults: () => MAX_SESSIONS,
-			groupResults: () => false,
 			exclude: (session: IAgentSession) => session.isArchived(),
 			getExcludes: () => ({
 				providers: [],
@@ -414,7 +527,12 @@ export class AgentSessionsWelcomePage extends EditorPane {
 			getHoverPosition: () => HoverPosition.BELOW,
 			trackActiveEditorSession: () => false,
 			source: 'welcomeView',
-			notifySessionOpened: () => this.layoutService.setAuxiliaryBarMaximized(true) // TODO@osortega what if the session did not open in the 2nd sidebar?
+			notifySessionOpened: () => {
+				const isProjectionEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.AgentSessionProjectionEnabled);
+				if (!isProjectionEnabled) {
+					this.revealMaximizedChat();
+				}
+			}
 		};
 
 		this.sessionsControl = this.sessionsControlDisposables.add(this.instantiationService.createInstance(
@@ -423,68 +541,124 @@ export class AgentSessionsWelcomePage extends EditorPane {
 			options
 		));
 
+		// Listen for loading state changes to toggle skeleton visibility
+		this.sessionsControlDisposables.add(this.agentSessionsService.model.onDidResolve(() => {
+			this.hideLoadingSkeleton();
+		}));
+
+		if (this.agentSessionsService.model.resolved) {
+			this.hideLoadingSkeleton();
+		}
+
 		// Schedule layout at next animation frame to ensure proper rendering
 		this.sessionsControlDisposables.add(scheduleAtNextAnimationFrame(getWindow(this.sessionsControlContainer), () => {
 			this.layoutSessionsControl();
 		}));
 
-		// "Open Agent Sessions" link
+		// "View all sessions" link
 		const openButton = append(container, $('button.agentSessionsWelcome-openSessionsButton'));
-		openButton.textContent = localize('openAgentSessions', "Open Agent Sessions");
+		openButton.textContent = localize('viewAllSessions', "View All Sessions");
 		openButton.onclick = () => {
-			this.commandService.executeCommand('workbench.action.chat.open');
-			if (!this.layoutService.isAuxiliaryBarMaximized()) {
-				this.layoutService.toggleMaximizedAuxiliaryBar();
-			}
+			this.revealMaximizedChat();
 		};
 	}
 
 	private buildWalkthroughs(container: HTMLElement): void {
 		const activeWalkthroughs = this.walkthroughs.filter(w =>
 			!w.when || this.contextService.contextMatchesRules(w.when)
-		).slice(0, 3);
+		).slice(0, MAX_WALKTHROUGHS);
 
 		if (activeWalkthroughs.length === 0) {
 			return;
 		}
 
-		for (const walkthrough of activeWalkthroughs) {
-			const card = append(container, $('.agentSessionsWelcome-walkthroughCard'));
-			card.onclick = () => {
-				this.commandService.executeCommand('workbench.action.openWalkthrough', walkthrough.id);
-			};
+		let currentIndex = 0;
 
-			// Icon
-			const iconContainer = append(card, $('.agentSessionsWelcome-walkthroughCard-icon'));
+		const card = append(container, $('.agentSessionsWelcome-walkthroughCard'));
+
+		// Icon
+		const iconContainer = append(card, $('.agentSessionsWelcome-walkthroughCard-icon'));
+
+		// Content
+		const content = append(card, $('.agentSessionsWelcome-walkthroughCard-content'));
+		const title = append(content, $('.agentSessionsWelcome-walkthroughCard-title'));
+		const desc = append(content, $('.agentSessionsWelcome-walkthroughCard-description'));
+
+		// Navigation arrows container
+		const navContainer = append(card, $('.agentSessionsWelcome-walkthroughCard-nav'));
+		const prevButton = append(navContainer, $('button.nav-button')) as HTMLButtonElement;
+		prevButton.appendChild(renderIcon(Codicon.chevronLeft));
+		prevButton.title = localize('previousWalkthrough', "Previous");
+
+		const nextButton = append(navContainer, $('button.nav-button')) as HTMLButtonElement;
+		nextButton.appendChild(renderIcon(Codicon.chevronRight));
+		nextButton.title = localize('nextWalkthrough', "Next");
+
+		const updateContent = () => {
+			const walkthrough = activeWalkthroughs[currentIndex];
+
+			// Update icon
+			clearNode(iconContainer);
 			if (walkthrough.icon.type === 'icon') {
 				iconContainer.appendChild(renderIcon(walkthrough.icon.icon));
 			}
 
-			// Content
-			const content = append(card, $('.agentSessionsWelcome-walkthroughCard-content'));
-			const title = append(content, $('.agentSessionsWelcome-walkthroughCard-title'));
+			// Update content
 			title.textContent = walkthrough.title;
+			desc.textContent = walkthrough.description || '';
 
-			if (walkthrough.description) {
-				const desc = append(content, $('.agentSessionsWelcome-walkthroughCard-description'));
-				desc.textContent = walkthrough.description;
+			// Update navigation button states
+			prevButton.disabled = currentIndex === 0;
+			nextButton.disabled = currentIndex === activeWalkthroughs.length - 1;
+		};
+
+		// Initialize content
+		updateContent();
+
+		card.onclick = () => {
+			const walkthrough = activeWalkthroughs[currentIndex];
+			this.telemetryService.publicLog2<AgentSessionsWelcomeActionEvent, AgentSessionsWelcomeActionClassification>(
+				'gettingStarted.ActionExecuted',
+				{ welcomeKind: 'agentSessionsWelcomePage', action: 'openWalkthrough', actionId: walkthrough.id }
+			);
+			// Open walkthrough with returnToCommand so back button returns to agent sessions welcome
+			const options: GettingStartedEditorOptions = {
+				selectedCategory: walkthrough.id,
+				returnToCommand: AgentSessionsWelcomePage.COMMAND_ID,
+			};
+			this.editorService.openEditor({
+				resource: GettingStartedInput.RESOURCE,
+				options
+			});
+		};
+
+		prevButton.onclick = (e) => {
+			e.stopPropagation();
+			if (currentIndex > 0) {
+				currentIndex--;
+				updateContent();
 			}
+		};
 
-			// Navigation arrows container
-			const navContainer = append(card, $('.agentSessionsWelcome-walkthroughCard-nav'));
-			const prevButton = append(navContainer, $('button.nav-button'));
-			prevButton.appendChild(renderIcon(Codicon.chevronLeft));
-			prevButton.onclick = (e) => { e.stopPropagation(); };
-
-			const nextButton = append(navContainer, $('button.nav-button'));
-			nextButton.appendChild(renderIcon(Codicon.chevronRight));
-			nextButton.onclick = (e) => { e.stopPropagation(); };
-		}
+		nextButton.onclick = (e) => {
+			e.stopPropagation();
+			if (currentIndex < activeWalkthroughs.length - 1) {
+				currentIndex++;
+				updateContent();
+			}
+		};
 	}
+
+	private static readonly PRIVACY_NOTICE_DISMISSED_KEY = 'agentSessionsWelcome.privacyNoticeDismissed';
 
 	private buildPrivacyNotice(container: HTMLElement): void {
 		// TOS/Privacy notice for users who are not signed in - reusing walkthrough card design
 		if (!this.chatEntitlementService.anonymous) {
+			return;
+		}
+
+		// Check if user has dismissed the notice
+		if (this.storageService.getBoolean(AgentSessionsWelcomePage.PRIVACY_NOTICE_DISMISSED_KEY, StorageScope.APPLICATION, false)) {
 			return;
 		}
 
@@ -495,14 +669,22 @@ export class AgentSessionsWelcomePage extends EditorPane {
 
 		const tosCard = append(container, $('.agentSessionsWelcome-walkthroughCard.agentSessionsWelcome-tosCard'));
 
+		const dismissNotice = () => {
+			this.storageService.store(AgentSessionsWelcomePage.PRIVACY_NOTICE_DISMISSED_KEY, true, StorageScope.APPLICATION, StorageTarget.USER);
+			tosCard.remove();
+		};
+
+		// Dismiss the notice when a chat request is sent
+		this.contentDisposables.add(this.chatService.onDidSubmitRequest(() => dismissNotice()));
+
 		// Icon
 		const iconContainer = append(tosCard, $('.agentSessionsWelcome-walkthroughCard-icon'));
-		iconContainer.appendChild(renderIcon(Codicon.commentDiscussion));
+		iconContainer.appendChild(renderIcon(Codicon.chatSparkle));
 
 		// Content
 		const content = append(tosCard, $('.agentSessionsWelcome-walkthroughCard-content'));
 		const title = append(content, $('.agentSessionsWelcome-walkthroughCard-title'));
-		title.textContent = localize('tosTitle', "AI Feature Trial is Active");
+		title.textContent = localize('tosTitle', "Your GitHub Copilot trial is active");
 
 		const desc = append(content, $('.agentSessionsWelcome-walkthroughCard-description'));
 		const descriptionMarkdown = new MarkdownString(
@@ -517,18 +699,20 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		);
 		const renderedMarkdown = this.markdownRendererService.render(descriptionMarkdown);
 		desc.appendChild(renderedMarkdown.element);
+
+		// Dismiss button
+		const dismissButton = append(tosCard, $('button.agentSessionsWelcome-tosCard-dismiss'));
+		dismissButton.appendChild(renderIcon(Codicon.close));
+		dismissButton.title = localize('dismissPrivacyNotice', "Dismiss");
+		dismissButton.onclick = (e) => {
+			e.stopPropagation();
+			dismissNotice();
+		};
 	}
 
 	private buildFooter(container: HTMLElement): void {
-
 		// Privacy notice
 		this.buildPrivacyNotice(container);
-
-		// Learning link
-		const learningLink = append(container, $('button.agentSessionsWelcome-footerLink'));
-		learningLink.appendChild(renderIcon(Codicon.mortarBoard));
-		learningLink.appendChild(document.createTextNode(localize('exploreHelp', "Explore Learning & Help Resources")));
-		learningLink.onclick = () => this.commandService.executeCommand('workbench.action.openWalkthrough');
 
 		// Show on startup checkbox
 		const showOnStartupContainer = append(container, $('.agentSessionsWelcome-showOnStartup'));
@@ -537,7 +721,11 @@ export class AgentSessionsWelcomePage extends EditorPane {
 			actionClassName: 'agentSessionsWelcome-checkbox',
 			isChecked: this.configurationService.getValue(configurationKey) === 'agentSessionsWelcomePage',
 			title: localize('checkboxTitle', "When checked, this page will be shown on startup."),
-			...defaultToggleStyles
+			...getToggleStyles({
+				inputActiveOptionBackground: 'var(--vscode-descriptionForeground)',
+				inputActiveOptionForeground: 'var(--vscode-editor-background)',
+				inputActiveOptionBorder: 'var(--vscode-descriptionForeground)',
+			})
 		}));
 		showOnStartupCheckbox.domNode.id = 'showOnStartup';
 		const showOnStartupLabel = $('label.caption', { for: 'showOnStartup' }, localize('showOnStartup', "Show welcome page on startup"));
@@ -614,6 +802,35 @@ export class AgentSessionsWelcomePage extends EditorPane {
 	override focus(): void {
 		super.focus();
 		this.chatWidget?.focusInput();
+	}
+
+	private async revealMaximizedChat(): Promise<void> {
+		try {
+			await this.closeEditorAndMaximizeAuxiliaryBar();
+		} catch (error) {
+			this.logService.error('Failed to open maximized chat: {0}', toErrorMessage(error));
+		}
+	}
+
+	private async openSessionInChat(sessionResource: URI): Promise<void> {
+		try {
+			await this.closeEditorAndMaximizeAuxiliaryBar(sessionResource);
+		} catch (error) {
+			this.logService.error('Failed to open agent session: {0}', toErrorMessage(error));
+		}
+	}
+
+	private async closeEditorAndMaximizeAuxiliaryBar(sessionResource?: URI): Promise<void> {
+		await this.commandService.executeCommand('workbench.action.closeActiveEditor');
+		if (sessionResource) {
+			await this.chatWidgetService.openSession(sessionResource, ChatViewPaneTarget);
+		} else {
+			await this.commandService.executeCommand('workbench.action.chat.open');
+		}
+		const chatViewLocation = this.viewDescriptorService.getViewLocationById(ChatViewId);
+		if (chatViewLocation === ViewContainerLocation.AuxiliaryBar) {
+			this.layoutService.setAuxiliaryBarMaximized(true);
+		}
 	}
 }
 

@@ -567,4 +567,183 @@ suite('MainThreadChatSessions', function () {
 
 		mainThread.$unregisterChatSessionContentProvider(handle);
 	});
+
+	test('getSessionOption returns undefined for unset options', async function () {
+		const sessionScheme = 'test-session-type';
+		mainThread.$registerChatSessionContentProvider(1, sessionScheme);
+
+		const sessionContent = {
+			id: 'test-session',
+			history: [],
+			hasActiveResponseCallback: false,
+			hasRequestHandler: false,
+			// No options provided
+		};
+
+		(proxy.$provideChatSessionContent as sinon.SinonStub).resolves(sessionContent);
+
+		const resource = URI.parse(`${sessionScheme}:/test-session`);
+		await chatSessionsService.getOrCreateChatSession(resource, CancellationToken.None);
+
+		// getSessionOption should return undefined for unset options
+		assert.strictEqual(chatSessionsService.getSessionOption(resource, 'models'), undefined);
+		assert.strictEqual(chatSessionsService.getSessionOption(resource, 'anyOption'), undefined);
+
+		mainThread.$unregisterChatSessionContentProvider(1);
+	});
+
+	test('getSessionOption returns value for explicitly set options', async function () {
+		const sessionScheme = 'test-session-type';
+		mainThread.$registerChatSessionContentProvider(1, sessionScheme);
+
+		const sessionContent = {
+			id: 'test-session',
+			history: [],
+			hasActiveResponseCallback: false,
+			hasRequestHandler: false,
+			options: {
+				'models': 'gpt-4',
+				'region': { id: 'us-east', name: 'US East' }
+			}
+		};
+
+		(proxy.$provideChatSessionContent as sinon.SinonStub).resolves(sessionContent);
+
+		const resource = URI.parse(`${sessionScheme}:/test-session`);
+		await chatSessionsService.getOrCreateChatSession(resource, CancellationToken.None);
+
+		// getSessionOption should return the configured values
+		assert.strictEqual(chatSessionsService.getSessionOption(resource, 'models'), 'gpt-4');
+		assert.deepStrictEqual(chatSessionsService.getSessionOption(resource, 'region'), { id: 'us-east', name: 'US East' });
+
+		// getSessionOption should return undefined for options not in the session
+		assert.strictEqual(chatSessionsService.getSessionOption(resource, 'notConfigured'), undefined);
+
+		mainThread.$unregisterChatSessionContentProvider(1);
+	});
+
+	test('option change notifications are sent to the extension', async function () {
+		const sessionScheme = 'test-session-type';
+		const handle = 1;
+
+		mainThread.$registerChatSessionContentProvider(handle, sessionScheme);
+
+		const sessionContent = {
+			id: 'test-session',
+			history: [],
+			hasActiveResponseCallback: false,
+			hasRequestHandler: false,
+			options: {
+				'models': 'gpt-4'
+			}
+		};
+
+		(proxy.$provideChatSessionContent as sinon.SinonStub).resolves(sessionContent);
+
+		const resource = URI.parse(`${sessionScheme}:/test-session`);
+		await chatSessionsService.getOrCreateChatSession(resource, CancellationToken.None);
+
+		// Clear the stub call history
+		(proxy.$provideHandleOptionsChange as sinon.SinonStub).resetHistory();
+
+		// Simulate an option change
+		await chatSessionsService.notifySessionOptionsChange(resource, [
+			{ optionId: 'models', value: 'gpt-4-turbo' }
+		]);
+
+		// Verify the extension was notified
+		assert.ok((proxy.$provideHandleOptionsChange as sinon.SinonStub).calledOnce);
+		const call = (proxy.$provideHandleOptionsChange as sinon.SinonStub).firstCall;
+		assert.strictEqual(call.args[0], handle);
+		assert.deepStrictEqual(call.args[1], resource);
+		assert.deepStrictEqual(call.args[2], [{ optionId: 'models', value: 'gpt-4-turbo' }]);
+
+		mainThread.$unregisterChatSessionContentProvider(handle);
+	});
+
+	test('option change notifications fail silently when provider not registered', async function () {
+		const sessionScheme = 'unregistered-session-type';
+
+		// Do NOT register a content provider for this scheme
+
+		const resource = URI.parse(`${sessionScheme}:/test-session`);
+
+		// Clear any previous calls
+		(proxy.$provideHandleOptionsChange as sinon.SinonStub).resetHistory();
+
+		// Attempt to notify option change for an unregistered scheme
+		// This should not throw, but also should not call the proxy
+		await chatSessionsService.notifySessionOptionsChange(resource, [
+			{ optionId: 'models', value: 'gpt-4-turbo' }
+		]);
+
+		// Verify the extension was NOT notified (no provider registered)
+		assert.strictEqual((proxy.$provideHandleOptionsChange as sinon.SinonStub).callCount, 0);
+	});
+
+	test('setSessionOption updates option and getSessionOption reflects change', async function () {
+		const sessionScheme = 'test-session-type';
+		mainThread.$registerChatSessionContentProvider(1, sessionScheme);
+
+		const sessionContent = {
+			id: 'test-session',
+			history: [],
+			hasActiveResponseCallback: false,
+			hasRequestHandler: false,
+			// Start with no options
+		};
+
+		(proxy.$provideChatSessionContent as sinon.SinonStub).resolves(sessionContent);
+
+		const resource = URI.parse(`${sessionScheme}:/test-session`);
+		await chatSessionsService.getOrCreateChatSession(resource, CancellationToken.None);
+
+		// Initially no options set
+		assert.strictEqual(chatSessionsService.getSessionOption(resource, 'models'), undefined);
+
+		// Set an option
+		chatSessionsService.setSessionOption(resource, 'models', 'gpt-4');
+
+		// Now getSessionOption should return the value
+		assert.strictEqual(chatSessionsService.getSessionOption(resource, 'models'), 'gpt-4');
+
+		mainThread.$unregisterChatSessionContentProvider(1);
+	});
+
+	test('hasAnySessionOptions returns correct values', async function () {
+		const sessionScheme = 'test-session-type';
+		mainThread.$registerChatSessionContentProvider(1, sessionScheme);
+
+		// Session with options
+		const sessionContentWithOptions = {
+			id: 'session-with-options',
+			history: [],
+			hasActiveResponseCallback: false,
+			hasRequestHandler: false,
+			options: { 'models': 'gpt-4' }
+		};
+
+		// Session without options
+		const sessionContentWithoutOptions = {
+			id: 'session-without-options',
+			history: [],
+			hasActiveResponseCallback: false,
+			hasRequestHandler: false,
+		};
+
+		(proxy.$provideChatSessionContent as sinon.SinonStub)
+			.onFirstCall().resolves(sessionContentWithOptions)
+			.onSecondCall().resolves(sessionContentWithoutOptions);
+
+		const resourceWithOptions = URI.parse(`${sessionScheme}:/session-with-options`);
+		const resourceWithoutOptions = URI.parse(`${sessionScheme}:/session-without-options`);
+
+		await chatSessionsService.getOrCreateChatSession(resourceWithOptions, CancellationToken.None);
+		await chatSessionsService.getOrCreateChatSession(resourceWithoutOptions, CancellationToken.None);
+
+		assert.strictEqual(chatSessionsService.hasAnySessionOptions(resourceWithOptions), true);
+		assert.strictEqual(chatSessionsService.hasAnySessionOptions(resourceWithoutOptions), false);
+
+		mainThread.$unregisterChatSessionContentProvider(1);
+	});
 });

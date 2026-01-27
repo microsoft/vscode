@@ -348,12 +348,15 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 
 		this._proxy = this._extHostContext.getProxy(ExtHostContext.ExtHostChatSessions);
 
-		this._chatSessionsService.setOptionsChangeCallback(async (sessionResource: URI, updates: ReadonlyArray<{ optionId: string; value: string | IChatSessionProviderOptionItem }>) => {
+		this._register(this._chatSessionsService.onRequestNotifyExtension(({ sessionResource, updates, waitUntil }) => {
 			const handle = this._getHandleForSessionType(sessionResource.scheme);
+			this._logService.trace(`[MainThreadChatSessions] onRequestNotifyExtension received: scheme '${sessionResource.scheme}', handle ${handle}, ${updates.length} update(s)`);
 			if (handle !== undefined) {
-				await this.notifyOptionsChange(handle, sessionResource, updates);
+				waitUntil(this.notifyOptionsChange(handle, sessionResource, updates));
+			} else {
+				this._logService.warn(`[MainThreadChatSessions] Cannot notify option change for scheme '${sessionResource.scheme}': no provider registered. Registered schemes: [${Array.from(this._sessionTypeToHandle.keys()).join(', ')}]`);
 			}
-		});
+		}));
 
 		this._register(this._agentSessionsService.model.onDidChangeSessionArchivedState(session => {
 			for (const [handle, { provider }] of this._itemProvidersRegistrations) {
@@ -707,10 +710,12 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 	 * Notify the extension about option changes for a session
 	 */
 	async notifyOptionsChange(handle: number, sessionResource: URI, updates: ReadonlyArray<{ optionId: string; value: string | IChatSessionProviderOptionItem | undefined }>): Promise<void> {
+		this._logService.trace(`[MainThreadChatSessions] notifyOptionsChange: starting proxy call for handle ${handle}, sessionResource ${sessionResource}`);
 		try {
 			await this._proxy.$provideHandleOptionsChange(handle, sessionResource, updates, CancellationToken.None);
+			this._logService.trace(`[MainThreadChatSessions] notifyOptionsChange: proxy call completed for handle ${handle}, sessionResource ${sessionResource}`);
 		} catch (error) {
-			this._logService.error(`Error notifying extension about options change for handle ${handle}, sessionResource ${sessionResource}:`, error);
+			this._logService.error(`[MainThreadChatSessions] notifyOptionsChange: error for handle ${handle}, sessionResource ${sessionResource}:`, error);
 		}
 	}
 }

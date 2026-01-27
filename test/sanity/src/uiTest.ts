@@ -7,7 +7,7 @@ import assert from 'assert';
 import fs from 'fs';
 import path from 'path';
 import { Page } from 'playwright';
-import { TestContext } from './context';
+import { TestContext } from './context.js';
 
 /**
  * UI Test helper class to perform common UI actions and verifications.
@@ -18,7 +18,7 @@ export class UITest {
 	private _userDataDir: string | undefined;
 
 	constructor(
-		private readonly context: TestContext,
+		protected readonly context: TestContext,
 		dataDir?: string
 	) {
 		if (dataDir) {
@@ -82,7 +82,7 @@ export class UITest {
 		await page.keyboard.press('F1');
 		await page.getByPlaceholder(/^Type the name of a command/).fill(`>${command}`);
 		await page.locator('span.monaco-highlighted-label', { hasText: new RegExp(`^${command}$`) }).click();
-		await page.waitForTimeout(500);
+		await page.waitForTimeout(1000);
 	}
 
 	/**
@@ -105,13 +105,12 @@ export class UITest {
 		await page.keyboard.type('Hello, World!');
 
 		await this.runCommand(page, 'File: Save');
-		await page.waitForTimeout(1000);
 	}
 
 	/**
 	 * Verify that the text file was created with the expected content.
 	 */
-	private verifyTextFileCreated() {
+	protected verifyTextFileCreated() {
 		this.context.log('Verifying file contents');
 		const filePath = `${this.workspaceDir}/helloWorld.txt`;
 		const fileContents = fs.readFileSync(filePath, 'utf-8');
@@ -131,6 +130,7 @@ export class UITest {
 		this.context.log('Clicking Install on the first extension in the list');
 		await page.locator('.extension-list-item').getByText(/^GitHub Pull Requests$/).waitFor();
 		await page.locator('.extension-action:not(.disabled)', { hasText: /Install/ }).first().click();
+		await page.waitForTimeout(1000);
 
 		this.context.log('Waiting for extension to be installed');
 		await page.locator('.extension-action:not(.disabled)', { hasText: /Uninstall/ }).waitFor();
@@ -139,7 +139,7 @@ export class UITest {
 	/**
 	 * Verify that the GitHub Pull Requests extension is installed.
 	 */
-	private verifyExtensionInstalled() {
+	protected verifyExtensionInstalled() {
 		this.context.log('Verifying extension is installed');
 		const extensions = fs.readdirSync(this.extensionsDir);
 		const hasExtension = extensions.some(ext => ext.startsWith('github.vscode-pull-request-github'));

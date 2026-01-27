@@ -48,33 +48,6 @@ export interface IChatEditingService {
 	 * Creates an editing session with state transferred from the provided session.
 	 */
 	transferEditingSession(chatModel: ChatModel, session: IChatEditingSession): IChatEditingSession;
-
-	//#region related files
-
-	hasRelatedFilesProviders(): boolean;
-	registerRelatedFilesProvider(handle: number, provider: IChatRelatedFilesProvider): IDisposable;
-	getRelatedFiles(chatSessionResource: URI, prompt: string, files: URI[], token: CancellationToken): Promise<{ group: string; files: IChatRelatedFile[] }[] | undefined>;
-
-	//#endregion
-}
-
-export interface IChatRequestDraft {
-	readonly prompt: string;
-	readonly files: readonly URI[];
-}
-
-export interface IChatRelatedFileProviderMetadata {
-	readonly description: string;
-}
-
-export interface IChatRelatedFile {
-	readonly uri: URI;
-	readonly description: string;
-}
-
-export interface IChatRelatedFilesProvider {
-	readonly description: string;
-	provideRelatedFiles(chatRequest: IChatRequestDraft, token: CancellationToken): Promise<IChatRelatedFile[] | undefined>;
 }
 
 export interface WorkingSetDisplayMetadata {
@@ -208,6 +181,21 @@ export interface IChatEditingSession extends IDisposable {
 	readonly canRedo: IObservable<boolean>;
 	undoInteraction(): Promise<void>;
 	redoInteraction(): Promise<void>;
+
+	/**
+	 * Triggers generation of explanations for all modified files in the session.
+	 */
+	triggerExplanationGeneration(): Promise<void>;
+
+	/**
+	 * Clears any active explanation generation.
+	 */
+	clearExplanations(): void;
+
+	/**
+	 * Whether explanations are currently being generated or displayed.
+	 */
+	hasExplanations(): boolean;
 }
 
 export function chatEditingSessionIsReady(session: IChatEditingSession): Promise<void> {

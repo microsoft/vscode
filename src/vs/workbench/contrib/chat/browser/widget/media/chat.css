@@ -120,6 +120,15 @@
 	}
 }
 
+@keyframes chat-thinking-shimmer {
+	0% {
+		background-position: 120% 0;
+	}
+	100% {
+		background-position: -120% 0;
+	}
+}
+
 .interactive-item-container .chat-animated-ellipsis::after {
 	content: '';
 	white-space: nowrap;
@@ -265,7 +274,7 @@
 }
 
 .interactive-item-container > .value .chat-used-context {
-	margin-bottom: 8px;
+	margin-bottom: 10px;
 }
 
 .interactive-item-container .value .rendered-markdown:not(:has(.chat-extensions-content-part)) {
@@ -563,7 +572,7 @@
 	}
 
 	&:not(:last-child) {
-		margin-bottom: 8px;
+		margin-bottom: 12px;
 	}
 }
 
@@ -948,81 +957,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	cursor: default;
 }
 
-.chat-related-files {
-	display: flex;
-	flex-wrap: wrap;
-	align-items: center;
-	gap: 4px;
-	max-width: 100%;
-}
-
-.chat-related-files .monaco-button-dropdown .monaco-text-button {
-	font-size: 11px;
-	justify-content: left;
-	width: fit-content;
-	padding: 0px;
-	border: none;
-	height: 18px;
-}
-
-.chat-related-files .monaco-button-dropdown .monaco-text-button span {
-	font-style: italic;
-	height: 18px;
-	opacity: 0.7;
-}
-
-.chat-related-files .monaco-button-dropdown {
-	border-radius: 4px;
-	height: 18px;
-	border: 1px solid var(--vscode-input-border);
-	border-style: dashed;
-	align-items: center;
-	overflow: hidden;
-	gap: 2px;
-	padding: 0 4px;
-}
-
-.chat-related-files .monaco-button.codicon.codicon-add {
-	display: flex;
-	flex-direction: column;
-	color: var(--vscode-descriptionForeground);
-	padding-top: 3px;
-	margin-left: -4px;
-	padding-left: 4px;
-	font-size: 14px;
-	/* The + codicon is large, make it look more like the x codicon */
-	height: calc(100% - 3px);
-	width: 17px;
-	outline-offset: -2px !important;
-}
-
-.interactive-session .chat-related-files .monaco-icon-label::before {
-	padding: 4px 3px 0 2px;
-}
-
-.interactive-session .chat-editing-session .chat-related-files .monaco-button.secondary:first-child {
-	margin: 3px 0px 3px 3px;
-	flex-shrink: 0;
-}
-
-.interactive-session .chat-editing-session .chat-related-files .monaco-button.secondary.monaco-icon-label::before {
-	display: inline-flex;
-	align-items: center;
-}
-
-.interactive-session .chat-editing-session .chat-related-files .monaco-button.secondary:only-child {
-	width: 100%;
-}
-
-.interactive-session .chat-editing-session .chat-related-files .monaco-button.secondary.disabled {
-	cursor: initial;
-}
-
-.interactive-session .chat-editing-session .chat-related-files .monaco-button.secondary .codicon {
-	font-size: 12px;
-	margin-left: 4px;
-}
-
 .interactive-session .chat-editing-session .chat-editing-session-actions .monaco-button.secondary.monaco-text-button.codicon {
 	cursor: pointer;
 	padding: 2px;
@@ -1371,9 +1305,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 }
 
-.interactive-session .chat-input-toolbars.scroll-top-decoration {
-	box-shadow: var(--vscode-scrollbar-shadow) 0 6px 6px -6px inset
-}
+
 
 .interactive-session .chat-input-toolbar .chat-input-picker-item .action-label,
 .interactive-session .chat-input-toolbar .chat-sessionPicker-item .action-label {
@@ -1677,7 +1609,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	font-size: 11px;
 }
 
-.chat-related-files .monaco-button.codicon.codicon-add:hover,
 .action-item.chat-attached-context-attachment.chat-add-files:hover,
 .interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-button:hover {
 	cursor: pointer;
@@ -1789,7 +1720,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .interactive-item-container.interactive-request .chat-attached-context .chat-attached-context-attachment {
-	padding-right: 6px;
+	padding: 0 6px 0 4px;
 }
 
 .interactive-session-followups {
@@ -2076,6 +2007,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: flex;
 	flex-direction: column;
 	gap: 2px;
+	line-height: 1.5em;
 }
 
 .interactive-response-progress-tree,
@@ -2173,6 +2105,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .chat-used-context-label .monaco-button {
 	padding: 2px 6px 2px 2px;
 	font-size: var(--vscode-chat-font-size-body-m);
+	line-height: unset;
 }
 
 .interactive-session .chat-file-changes-label .monaco-button:hover {
@@ -2204,8 +2137,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-item-container .progress-container {
 	display: flex;
 	align-items: center;
-	gap: 7px;
-	margin: 0 0 6px 4px;
+	gap: 4px;
+	margin: 0 0 6px 2px;
 
 	/* Tool calls transition from a progress to a collapsible list part, which needs to have this top padding.
 	The working progress also can be replaced by a tool progress part. So align this padding so the text doesn't appear to shift. */
@@ -2222,6 +2155,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	.codicon {
 		/* Very aggressive list styles try to apply focus colors to every codicon in a list row. */
 		color: var(--vscode-icon-foreground) !important;
+		/* Matching the margin on all .monaco-text-button .codicon */
+		margin: 0 .2em;
 
 		&.codicon-error {
 			color: var(--vscode-editorError-foreground) !important;
@@ -2244,6 +2179,23 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		.chat-inline-anchor-widget {
 			display: inline;
 		}
+	}
+
+	/* shimmer animation for working progress only */
+	&.working-progress:has(.codicon-loading) .rendered-markdown.progress-step > p {
+		background: linear-gradient(
+			90deg,
+			var(--vscode-descriptionForeground) 0%,
+			var(--vscode-descriptionForeground) 30%,
+			var(--vscode-chat-thinkingShimmer) 50%,
+			var(--vscode-descriptionForeground) 70%,
+			var(--vscode-descriptionForeground) 100%
+		);
+		background-size: 400% 100%;
+		background-clip: text;
+		-webkit-background-clip: text;
+		-webkit-text-fill-color: transparent;
+		animation: chat-thinking-shimmer 2s linear infinite;
 	}
 }
 
@@ -2348,6 +2300,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .chat-attached-context-attachment .attachment-additional-info {
 	opacity: 0.7;
 	font-size: .9em;
+	padding-left: 4px;
 }
 
 .chat-attached-context-attachment .chat-attached-context-pill-image {

@@ -15,6 +15,11 @@ import { AgentSessionProviders, getAgentSessionProviderName } from './agentSessi
 import { AgentSessionStatus, IAgentSession } from './agentSessionsModel.js';
 import { IAgentSessionsFilter, IAgentSessionsFilterExcludes } from './agentSessionsViewer.js';
 
+export enum AgentSessionsGrouping {
+	Capped = 'capped',
+	Date = 'date'
+}
+
 export interface IAgentSessionsFilterOptions extends Partial<IAgentSessionsFilter> {
 
 	readonly filterMenuId: MenuId;
@@ -22,7 +27,7 @@ export interface IAgentSessionsFilterOptions extends Partial<IAgentSessionsFilte
 	readonly limitResults?: () => number | undefined;
 	notifyResults?(count: number): void;
 
-	readonly groupResults?: () => boolean | undefined;
+	readonly groupResults?: () => AgentSessionsGrouping | undefined;
 
 	overrideExclude?(session: IAgentSession): boolean | undefined;
 }
@@ -45,6 +50,7 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 	readonly groupResults = () => this.options.groupResults?.();
 
 	private excludes = DEFAULT_EXCLUDES;
+	private isStoringExcludes = false;
 
 	private readonly actionDisposables = this._register(new DisposableStore());
 
@@ -70,15 +76,17 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 	}
 
 	private updateExcludes(fromEvent: boolean): void {
-		const excludedTypesRaw = this.storageService.get(this.STORAGE_KEY, StorageScope.PROFILE);
-		if (excludedTypesRaw) {
-			try {
-				this.excludes = JSON.parse(excludedTypesRaw) as IAgentSessionsFilterExcludes;
-			} catch {
+		if (!this.isStoringExcludes) {
+			const excludedTypesRaw = this.storageService.get(this.STORAGE_KEY, StorageScope.PROFILE);
+			if (excludedTypesRaw) {
+				try {
+					this.excludes = JSON.parse(excludedTypesRaw) as IAgentSessionsFilterExcludes;
+				} catch {
+					this.excludes = { ...DEFAULT_EXCLUDES };
+				}
+			} else {
 				this.excludes = { ...DEFAULT_EXCLUDES };
 			}
-		} else {
-			this.excludes = { ...DEFAULT_EXCLUDES };
 		}
 
 		this.updateFilterActions();
@@ -91,10 +99,17 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 	private storeExcludes(excludes: IAgentSessionsFilterExcludes): void {
 		this.excludes = excludes;
 
-		if (equals(this.excludes, DEFAULT_EXCLUDES)) {
-			this.storageService.remove(this.STORAGE_KEY, StorageScope.PROFILE);
-		} else {
-			this.storageService.store(this.STORAGE_KEY, JSON.stringify(this.excludes), StorageScope.PROFILE, StorageTarget.USER);
+		// Set guard before storage operation to prevent our own listener from
+		// re-triggering updateExcludes which would re-register actions mid-click
+		this.isStoringExcludes = true;
+		try {
+			if (equals(this.excludes, DEFAULT_EXCLUDES)) {
+				this.storageService.remove(this.STORAGE_KEY, StorageScope.PROFILE);
+			} else {
+				this.storageService.store(this.STORAGE_KEY, JSON.stringify(this.excludes), StorageScope.PROFILE, StorageTarget.USER);
+			}
+		} finally {
+			this.isStoringExcludes = false;
 		}
 	}
 
@@ -272,6 +287,10 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 
 		if (this.excludes.states.includes(session.status)) {
 			return true;
+		}
+
+		if (this.excludes.archived && this.groupResults?.() === AgentSessionsGrouping.Capped && session.isArchived()) {
+			return true; // exclude archived sessions when grouped by capped where we have no "Archived" group
 		}
 
 		return false;
