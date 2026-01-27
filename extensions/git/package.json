@@ -3239,7 +3239,7 @@
         },
         "git.branchPrefix": {
           "type": "string",
-          "description": "%config.branchPrefix%",
+          "markdownDescription": "%config.branchPrefix%",
           "default": "",
           "scope": "resource"
         },

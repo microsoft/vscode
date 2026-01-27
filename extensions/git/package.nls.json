@@ -178,7 +178,7 @@
 	"config.checkoutType.tags": "Tags",
 	"config.checkoutType.remote": "Remote branches",
 	"config.defaultBranchName": "The name of the default branch (example: main, trunk, development) when initializing a new Git repository. When set to empty, the default branch name configured in Git will be used. **Note:** Requires Git version `2.28.0` or later.",
-	"config.branchPrefix": "Prefix used when creating a new branch.",
+	"config.branchPrefix": "Prefix used when creating a new branch. Supported variables:\n\n* `branch`: the selected branch or the current active one if none selected.\n\n",
 	"config.branchProtection": "List of protected branches. By default, a prompt is shown before changes are committed to a protected branch. The prompt can be controlled using the `#git.branchProtectionPrompt#`  setting.",
 	"config.branchProtectionPrompt": "Controls whether a prompt is being shown before changes are committed to a protected branch.",
 	"config.branchProtectionPrompt.alwaysCommit": "Always commit changes to the protected branch.",
