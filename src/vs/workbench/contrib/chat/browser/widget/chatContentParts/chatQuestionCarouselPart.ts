@@ -8,7 +8,7 @@ import { StandardKeyboardEvent } from '../../../../../../base/browser/keyboardEv
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { KeyCode } from '../../../../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { hasKey } from '../../../../../../base/common/types.js';
 import { localize } from '../../../../../../nls.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -38,11 +38,11 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	private readonly _answers = new Map<string, unknown>();
 
 	private _titlePart: ChatQueryTitlePart | undefined;
-	private _progressElement!: HTMLElement;
-	private _questionContainer!: HTMLElement;
-	private _navigationButtons!: HTMLElement;
-	private _prevButton!: Button;
-	private _nextButton!: Button;
+	private _progressElement: HTMLElement | undefined;
+	private _questionContainer: HTMLElement | undefined;
+	private _navigationButtons: HTMLElement | undefined;
+	private _prevButton: Button | undefined;
+	private _nextButton: Button | undefined;
 	private _skipAllButton: Button | undefined;
 
 	private _isSkipped = false;
@@ -52,6 +52,12 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	private readonly _checkboxInputs: Map<string, HTMLInputElement[]> = new Map();
 	private readonly _freeformTextareas: Map<string, HTMLTextAreaElement> = new Map();
 	private readonly _inputBoxes: DisposableStore = this._register(new DisposableStore());
+
+	/**
+	 * Disposable store for interactive UI components (header, nav buttons, etc.)
+	 * that should be disposed when transitioning to summary view.
+	 */
+	private readonly _interactiveUIStore: MutableDisposable<DisposableStore> = this._register(new MutableDisposable());
 
 	constructor(
 		private readonly carousel: IChatQuestionCarousel,
@@ -79,16 +85,20 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			return;
 		}
 
+		// Create disposable store for interactive UI components
+		const interactiveStore = new DisposableStore();
+		this._interactiveUIStore.value = interactiveStore;
+
 		// Header with title and navigation controls
 		const header = dom.$('.chat-question-carousel-header');
 		const titleElement = dom.$('.chat-question-carousel-title');
-		this._titlePart = this._register(this.instantiationService.createInstance(
+		this._titlePart = interactiveStore.add(this.instantiationService.createInstance(
 			ChatQueryTitlePart,
 			titleElement,
 			new MarkdownString(localize('chat.questionCarousel.title', 'Please provide the following information')),
 			undefined
 		));
-		this._register(this._titlePart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
+		interactiveStore.add(this._titlePart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 
 		// Navigation controls in header (< 1 of 4 > X)
 		this._navigationButtons = dom.$('.chat-question-carousel-nav');
@@ -96,26 +106,30 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		this._navigationButtons.setAttribute('aria-label', localize('chat.questionCarousel.navigation', 'Question navigation'));
 
 		const previousLabel = localize('previous', 'Previous');
-		this._prevButton = this._register(new Button(this._navigationButtons, { ...defaultButtonStyles, secondary: true, supportIcons: true, title: previousLabel }));
-		this._prevButton.element.classList.add('chat-question-nav-arrow');
-		this._prevButton.label = `$(${Codicon.chevronLeft.id})`;
-		this._prevButton.element.setAttribute('aria-label', previousLabel);
+		const prevButton = interactiveStore.add(new Button(this._navigationButtons, { ...defaultButtonStyles, secondary: true, supportIcons: true, title: previousLabel }));
+		prevButton.element.classList.add('chat-question-nav-arrow', 'chat-question-nav-prev');
+		prevButton.label = `$(${Codicon.chevronLeft.id})`;
+		prevButton.element.setAttribute('aria-label', previousLabel);
+		this._prevButton = prevButton;
 
-		this._progressElement = dom.$('.chat-question-carousel-progress');
-		this._navigationButtons.appendChild(this._progressElement);
+		const progressElement = dom.$('.chat-question-carousel-progress');
+		this._navigationButtons.appendChild(progressElement);
+		this._progressElement = progressElement;
 
 		const nextLabel = localize('next', 'Next');
-		this._nextButton = this._register(new Button(this._navigationButtons, { ...defaultButtonStyles, secondary: true, supportIcons: true, title: nextLabel }));
-		this._nextButton.element.classList.add('chat-question-nav-arrow');
-		this._nextButton.label = `$(${Codicon.chevronRight.id})`;
+		const nextButton = interactiveStore.add(new Button(this._navigationButtons, { ...defaultButtonStyles, secondary: true, supportIcons: true, title: nextLabel }));
+		nextButton.element.classList.add('chat-question-nav-arrow', 'chat-question-nav-next');
+		nextButton.label = `$(${Codicon.chevronRight.id})`;
+		this._nextButton = nextButton;
 
 		// Close/skip button (X) - only shown when allowSkip is true
 		if (carousel.allowSkip) {
 			const skipAllTitle = localize('chat.questionCarousel.skipAllTitle', 'Skip all questions');
-			this._skipAllButton = this._register(new Button(this._navigationButtons, { ...defaultButtonStyles, secondary: true, supportIcons: true, title: skipAllTitle }));
-			this._skipAllButton.label = `$(${Codicon.close.id})`;
-			this._skipAllButton.element.classList.add('chat-question-nav-arrow', 'chat-question-close');
-			this._skipAllButton.element.setAttribute('aria-label', skipAllTitle);
+			const skipAllButton = interactiveStore.add(new Button(this._navigationButtons, { ...defaultButtonStyles, secondary: true, supportIcons: true, title: skipAllTitle }));
+			skipAllButton.label = `$(${Codicon.close.id})`;
+			skipAllButton.element.classList.add('chat-question-nav-arrow', 'chat-question-close');
+			skipAllButton.element.setAttribute('aria-label', skipAllTitle);
+			this._skipAllButton = skipAllButton;
 		}
 
 		header.append(titleElement, this._navigationButtons);
@@ -127,14 +141,14 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 
 
 		// Register event listeners
-		this._register(this._prevButton.onDidClick(() => this.navigate(-1)));
-		this._register(this._nextButton.onDidClick(() => this.handleNext()));
+		interactiveStore.add(prevButton.onDidClick(() => this.navigate(-1)));
+		interactiveStore.add(nextButton.onDidClick(() => this.handleNext()));
 		if (this._skipAllButton) {
-			this._register(this._skipAllButton.onDidClick(() => this.skip()));
+			interactiveStore.add(this._skipAllButton.onDidClick(() => this.skip()));
 		}
 
 		// Register keyboard navigation - only handle Enter on text inputs
-		this._register(dom.addDisposableListener(this.domNode, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+		interactiveStore.add(dom.addDisposableListener(this.domNode, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			const event = new StandardKeyboardEvent(e);
 			if (event.keyCode === KeyCode.Enter && !event.shiftKey) {
 				// Only handle Enter key for text inputs, not radio/checkbox or buttons
@@ -202,19 +216,36 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		this._isSkipped = true;
 		this.domNode.classList.add('chat-question-carousel-used');
 
-		// Dispose interactive UI disposables before clearing DOM
+		// Dispose interactive UI and clear DOM
+		this.clearInteractiveResources();
+		dom.clearNode(this.domNode);
+
+		// Render summary
+		this.renderSummary();
+		this._onDidChangeHeight.fire();
+	}
+
+	/**
+	 * Clears and disposes all interactive UI resources (header, nav buttons, input boxes, etc.)
+	 * and resets references to disposed elements.
+	 */
+	private clearInteractiveResources(): void {
+		// Dispose interactive UI disposables (header, nav buttons, etc.)
+		this._interactiveUIStore.clear();
 		this._inputBoxes.clear();
 		this._textInputBoxes.clear();
 		this._radioInputs.clear();
 		this._checkboxInputs.clear();
 		this._freeformTextareas.clear();
 
-		// Clear all carousel content except summary
-		dom.clearNode(this.domNode);
-
-		// Render summary
-		this.renderSummary();
-		this._onDidChangeHeight.fire();
+		// Clear references to disposed elements
+		this._titlePart = undefined;
+		this._prevButton = undefined;
+		this._nextButton = undefined;
+		this._skipAllButton = undefined;
+		this._progressElement = undefined;
+		this._questionContainer = undefined;
+		this._navigationButtons = undefined;
 	}
 
 	/**
@@ -250,12 +281,8 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 
 		this._options.onSubmit(undefined);
 
-		// Dispose interactive UI disposables before clearing DOM
-		this._inputBoxes.clear();
-		this._textInputBoxes.clear();
-		this._radioInputs.clear();
-		this._checkboxInputs.clear();
-		this._freeformTextareas.clear();
+		// Dispose interactive UI and clear DOM
+		this.clearInteractiveResources();
 
 		// Hide UI and show skipped message
 		this.domNode.classList.add('chat-question-carousel-used');
@@ -321,6 +348,10 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	}
 
 	private renderCurrentQuestion(): void {
+		if (!this._questionContainer || !this._progressElement || !this._prevButton || !this._nextButton) {
+			return;
+		}
+
 		// Clear previous input boxes and stale references
 		this._inputBoxes.clear();
 		this._textInputBoxes.clear();
@@ -360,21 +391,21 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		// Update progress indicator
 		this._progressElement.textContent = localize('chat.questionCarousel.progress', '{0} of {1}', this._currentIndex + 1, this.carousel.questions.length);
 
-		// Update navigation button states
-		this._prevButton.enabled = this._currentIndex > 0;
+		// Update navigation button states (prevButton and nextButton are guaranteed non-null from guard above)
+		this._prevButton!.enabled = this._currentIndex > 0;
 
 		// Update next button icon/label for last question
 		const isLastQuestion = this._currentIndex === this.carousel.questions.length - 1;
 		const submitLabel = localize('submit', 'Submit');
 		const nextLabel = localize('next', 'Next');
 		if (isLastQuestion) {
-			this._nextButton.label = `$(${Codicon.check.id})`;
-			this._nextButton.element.title = submitLabel;
-			this._nextButton.element.setAttribute('aria-label', submitLabel);
+			this._nextButton!.label = `$(${Codicon.check.id})`;
+			this._nextButton!.element.title = submitLabel;
+			this._nextButton!.element.setAttribute('aria-label', submitLabel);
 		} else {
-			this._nextButton.label = `$(${Codicon.chevronRight.id})`;
-			this._nextButton.element.title = nextLabel;
-			this._nextButton.element.setAttribute('aria-label', nextLabel);
+			this._nextButton!.label = `$(${Codicon.chevronRight.id})`;
+			this._nextButton!.element.title = nextLabel;
+			this._nextButton!.element.setAttribute('aria-label', nextLabel);
 		}
 
 		this._onDidChangeHeight.fire();
