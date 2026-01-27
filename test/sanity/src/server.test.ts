@@ -117,10 +117,7 @@ export function setup(context: TestContext) {
 	}
 
 	async function runWebTest(url: string) {
-		context.log(`Fetching ${url}`);
-		const response = await fetch(url);
-		assert.strictEqual(response.status, 200, `Expected status 200 but got ${response.status}`);
-
+		const response = await context.fetchNoErrors(url);
 		const text = await response.text();
 		assert.strictEqual(text, context.options.commit, `Expected commit ${context.options.commit} but got ${text}`);
 	}

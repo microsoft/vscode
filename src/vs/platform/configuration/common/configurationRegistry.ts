@@ -260,6 +260,7 @@ export type ConfigurationDefaultValueSource = IExtensionInfo | Map<string, IExte
 export interface IConfigurationDefaults {
 	overrides: IStringDictionary<unknown>;
 	source?: IExtensionInfo;
+	donotCache?: boolean;
 }
 
 export type IRegisteredConfigurationPropertySchema = IConfigurationPropertySchema & {

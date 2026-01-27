@@ -40,7 +40,6 @@ import { ProgressLocation as MainProgressLocation } from '../../../platform/prog
 import { DEFAULT_EDITOR_ASSOCIATION, SaveReason } from '../../common/editor.js';
 import { IViewBadge } from '../../common/views.js';
 import { IChatAgentRequest, IChatAgentResult } from '../../contrib/chat/common/participants/chatAgents.js';
-import { IChatRequestDraft } from '../../contrib/chat/common/editing/chatEditingService.js';
 import { IChatRequestModeInstructions } from '../../contrib/chat/common/model/chatModel.js';
 import { IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatExtensionsContent, IChatFollowup, IChatMarkdownContent, IChatMoveMessage, IChatMultiDiffDataSerialized, IChatProgressMessage, IChatPullRequestContent, IChatQuestionCarousel, IChatResponseCodeblockUriPart, IChatTaskDto, IChatTaskResult, IChatTerminalToolInvocationData, IChatTextEdit, IChatThinkingPart, IChatToolInvocationSerialized, IChatTreeData, IChatUserActionEvent, IChatWarningMessage, IChatWorkspaceEdit } from '../../contrib/chat/common/chatService/chatService.js';
 import { LocalChatSessionUri } from '../../contrib/chat/common/model/chatUri.js';
@@ -3341,15 +3340,6 @@ export namespace ChatAgentRequest {
 
 
 		return requestWithAllProps;
-	}
-}
-
-export namespace ChatRequestDraft {
-	export function to(request: IChatRequestDraft): vscode.ChatRequestDraft {
-		return {
-			prompt: request.prompt,
-			files: request.files.map((uri) => URI.revive(uri))
-		};
 	}
 }
 

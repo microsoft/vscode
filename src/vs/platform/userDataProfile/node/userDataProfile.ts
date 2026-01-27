@@ -32,7 +32,6 @@ export class UserDataProfilesReadonlyService extends BaseUserDataProfilesService
 		return storedProfilesState.map(p => ({
 			...p,
 			location: isString(p.location) ? this.uriIdentityService.extUri.joinPath(this.profilesHome, p.location) : URI.revive(p.location),
-			templateResource: p.templateResource ? URI.revive(p.templateResource) : undefined
 		}));
 	}
 
@@ -60,7 +59,7 @@ export class UserDataProfilesService extends UserDataProfilesReadonlyService imp
 
 	protected override saveStoredProfiles(storedProfiles: StoredUserDataProfile[]): void {
 		if (storedProfiles.length) {
-			this.stateService.setItem(UserDataProfilesService.PROFILES_KEY, storedProfiles.map(profile => ({ ...profile, location: this.uriIdentityService.extUri.basename(profile.location) })));
+			this.stateService.setItem(UserDataProfilesService.PROFILES_KEY, storedProfiles.map(profile => ({ ...profile, location: this.uriIdentityService.extUri.relativePath(this.profilesHome, profile.location) })));
 		} else {
 			this.stateService.removeItem(UserDataProfilesService.PROFILES_KEY);
 		}

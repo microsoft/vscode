@@ -119,8 +119,13 @@ suite('PromptValidator', () => {
 
 		instaService.stub(ILanguageModelsService, {
 			getLanguageModelIds() { return testModels.map(m => m.id); },
-			lookupLanguageModel(name: string) {
-				return testModels.find(m => m.id === name);
+			lookupLanguageModelByQualifiedName(qualifiedName: string) {
+				for (const metadata of testModels) {
+					if (ILanguageModelChatMetadata.matchesQualifiedName(qualifiedName, metadata)) {
+						return metadata;
+					}
+				}
+				return undefined;
 			}
 		});
 
@@ -197,6 +202,95 @@ suite('PromptValidator', () => {
 			const markers = await validate(content, PromptsType.agent);
 			assert.strictEqual(markers.length, 1);
 			assert.deepStrictEqual(markers.map(m => m.message), [`The 'tools' attribute must be an array.`]);
+		});
+
+		test('model as string array - valid', async () => {
+			const content = [
+				'---',
+				'description: "Test with model array"',
+				`model: ['MAE 4 (olama)', 'MAE 4.1']`,
+				'---',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			assert.deepStrictEqual(markers, []);
+		});
+
+		test('model as string array - unknown model', async () => {
+			const content = [
+				'---',
+				'description: "Test with model array"',
+				`model: ['MAE 4 (olama)', 'Unknown Model']`,
+				'---',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			assert.strictEqual(markers.length, 1);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
+			assert.strictEqual(markers[0].message, `Unknown model 'Unknown Model'.`);
+		});
+
+		test('model as string array - unsuitable model', async () => {
+			const content = [
+				'---',
+				'description: "Test with model array"',
+				`model: ['MAE 4 (olama)', 'MAE 3.5 Turbo']`,
+				'---',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			assert.strictEqual(markers.length, 1);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
+			assert.strictEqual(markers[0].message, `Model 'MAE 3.5 Turbo' is not suited for agent mode.`);
+		});
+
+		test('model as string array - empty array', async () => {
+			const content = [
+				'---',
+				'description: "Test with empty model array"',
+				`model: []`,
+				'---',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			assert.strictEqual(markers.length, 1);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
+			assert.strictEqual(markers[0].message, `The 'model' array must not be empty.`);
+		});
+
+		test('model as string array - non-string item', async () => {
+			const content = [
+				'---',
+				'description: "Test with invalid model array"',
+				`model: ['MAE 4 (olama)', 123]`,
+				'---',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			assert.strictEqual(markers.length, 1);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
+			assert.strictEqual(markers[0].message, `The 'model' array must contain only strings.`);
+		});
+
+		test('model as string array - empty string item', async () => {
+			const content = [
+				'---',
+				'description: "Test with empty string in model array"',
+				`model: ['MAE 4 (olama)', '']`,
+				'---',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			assert.strictEqual(markers.length, 1);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
+			assert.strictEqual(markers[0].message, `Model names in the array must be non-empty strings.`);
+		});
+
+		test('model as invalid type', async () => {
+			const content = [
+				'---',
+				'description: "Test with invalid model type"',
+				`model: 123`,
+				'---',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			assert.strictEqual(markers.length, 1);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
+			assert.strictEqual(markers[0].message, `The 'model' attribute must be a string or an array of strings.`);
 		});
 
 		test('each tool must be string', async () => {
@@ -737,7 +831,7 @@ suite('PromptValidator', () => {
 		});
 
 		test('infer attribute validation', async () => {
-			// Valid infer: true
+			// Valid infer: true (maps to 'all')
 			{
 				const content = [
 					'---',
@@ -751,7 +845,7 @@ suite('PromptValidator', () => {
 				assert.deepStrictEqual(markers, [], 'Valid infer: true should not produce errors');
 			}
 
-			// Valid infer: false
+			// Valid infer: false (maps to 'user')
 			{
 				const content = [
 					'---',
@@ -765,7 +859,63 @@ suite('PromptValidator', () => {
 				assert.deepStrictEqual(markers, [], 'Valid infer: false should not produce errors');
 			}
 
-			// Invalid infer: string value
+			// Valid infer: 'all'
+			{
+				const content = [
+					'---',
+					'name: "TestAgent"',
+					'description: "Test agent"',
+					'infer: all',
+					'---',
+					'Body',
+				].join('\n');
+				const markers = await validate(content, PromptsType.agent);
+				assert.deepStrictEqual(markers, [], 'Valid infer: all should not produce errors');
+			}
+
+			// Valid infer: 'user'
+			{
+				const content = [
+					'---',
+					'name: "TestAgent"',
+					'description: "Test agent"',
+					'infer: user',
+					'---',
+					'Body',
+				].join('\n');
+				const markers = await validate(content, PromptsType.agent);
+				assert.deepStrictEqual(markers, [], 'Valid infer: user should not produce errors');
+			}
+
+			// Valid infer: 'agent'
+			{
+				const content = [
+					'---',
+					'name: "TestAgent"',
+					'description: "Test agent"',
+					'infer: agent',
+					'---',
+					'Body',
+				].join('\n');
+				const markers = await validate(content, PromptsType.agent);
+				assert.deepStrictEqual(markers, [], 'Valid infer: agent should not produce errors');
+			}
+
+			// Valid infer: 'hidden'
+			{
+				const content = [
+					'---',
+					'name: "TestAgent"',
+					'description: "Test agent"',
+					'infer: hidden',
+					'---',
+					'Body',
+				].join('\n');
+				const markers = await validate(content, PromptsType.agent);
+				assert.deepStrictEqual(markers, [], 'Valid infer: hidden should not produce errors');
+			}
+
+			// Invalid infer: unknown string value
 			{
 				const content = [
 					'---',
@@ -778,7 +928,7 @@ suite('PromptValidator', () => {
 				const markers = await validate(content, PromptsType.agent);
 				assert.strictEqual(markers.length, 1);
 				assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
-				assert.strictEqual(markers[0].message, `The 'infer' attribute must be a boolean.`);
+				assert.strictEqual(markers[0].message, `The 'infer' attribute must be one of: all, user, agent, hidden.`);
 			}
 
 			// Invalid infer: number value
@@ -794,7 +944,7 @@ suite('PromptValidator', () => {
 				const markers = await validate(content, PromptsType.agent);
 				assert.strictEqual(markers.length, 1);
 				assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
-				assert.strictEqual(markers[0].message, `The 'infer' attribute must be a boolean.`);
+				assert.strictEqual(markers[0].message, `The 'infer' attribute must be 'all', 'user', 'agent', 'hidden', or a boolean.`);
 			}
 
 			// Missing infer attribute (should be optional)

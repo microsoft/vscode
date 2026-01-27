@@ -3,7 +3,7 @@ FROM ${BASE_IMAGE}
 
 # Utilities
 RUN apt-get update && \
-apt-get install -y curl
+apt-get install -y curl iproute2
 
 # Node.js 22
 RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && \

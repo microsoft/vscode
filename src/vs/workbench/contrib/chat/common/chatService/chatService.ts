@@ -272,6 +272,7 @@ export interface IChatResponseCodeblockUriPart {
 	uri: URI;
 	isEdit?: boolean;
 	undoStopId?: string;
+	subAgentInvocationId?: string;
 }
 
 export interface IChatAgentMarkdownContentWithVulnerability {
@@ -437,7 +438,7 @@ export interface IChatTerminalToolInvocationData {
 		/** The command line to display in the UI */
 		commandLine: string;
 		/** The language for syntax highlighting */
-		language: string;
+		language?: string;
 	};
 	/** Message for model recommending the use of an alternative tool */
 	alternativeRecommendation?: string;
