@@ -433,18 +433,11 @@ export class QueryBuilder {
 		}
 
 		const expandedSearchPaths = searchPaths.flatMap(searchPath => {
-			// 1 open folder => just resolve the search paths to absolute paths
-			let { pathPortion, globPortion } = splitGlobFromPath(searchPath);
-
-			if (globPortion) {
-				globPortion = normalizeGlobPattern(globPortion);
-			}
-
-			// One pathPortion to multiple expanded search paths (e.g. duplicate matching workspace folders)
-			const oneExpanded = this.expandOneSearchPath(pathPortion);
+			// One searchPath to multiple expanded search paths (e.g. duplicate matching workspace folders)
+			const oneExpanded = this.expandOneSearchPath(searchPath);
 
 			// Expanded search paths to multiple resolved patterns (with ** and without)
-			return oneExpanded.flatMap(oneExpandedResult => this.resolveOneSearchPathPattern(oneExpandedResult, globPortion));
+			return oneExpanded.flatMap(oneExpandedResult => this.resolveOneSearchPathPattern(oneExpandedResult));
 		});
 
 		const searchPathPatternMap = new Map<string, ISearchPathPattern>();
@@ -471,40 +464,54 @@ export class QueryBuilder {
 	 * Takes a searchPath like `./a/foo` or `../a/foo` and expands it to absolute paths for all the workspaces it matches.
 	 */
 	private expandOneSearchPath(searchPath: string): IOneSearchPathPattern[] {
+		let { pathPortion, globPortion } = splitGlobFromPath(searchPath);
+		if (globPortion) {
+			globPortion = normalizeGlobPattern(globPortion);
+		}
+
+		const joinPattern = (pattern?: string, globPortion?: string) => {
+			return pattern && globPortion ? `${pattern}/${globPortion}` : pattern || globPortion;
+		};
+
 		if (path.isAbsolute(searchPath)) {
 			const workspaceFolders = this.workspaceContextService.getWorkspace().folders;
 			if (workspaceFolders[0] && workspaceFolders[0].uri.scheme !== Schemas.file) {
 				return [{
-					searchPath: workspaceFolders[0].uri.with({ path: searchPath })
+					searchPath: workspaceFolders[0].uri.with({ path: pathPortion }),
+					pattern: globPortion
 				}];
 			}
 
 			// Currently only local resources can be searched for with absolute search paths.
 			// TODO convert this to a workspace folder + pattern, so excludes will be resolved properly for an absolute path inside a workspace folder
 			return [{
-				searchPath: uri.file(path.normalize(searchPath))
+				searchPath: uri.file(path.normalize(pathPortion)),
+				pattern: globPortion
 			}];
 		}
 
 		if (this.workspaceContextService.getWorkbenchState() === WorkbenchState.FOLDER) {
 			const workspaceUri = this.workspaceContextService.getWorkspace().folders[0].uri;
 
-			searchPath = normalizeSlashes(searchPath);
-			if (searchPath.startsWith('../') || searchPath === '..') {
-				const resolvedPath = path.posix.resolve(workspaceUri.path, searchPath);
+			pathPortion = normalizeSlashes(pathPortion);
+			if (pathPortion.startsWith('../') || pathPortion === '..') {
+				const resolvedPath = path.posix.resolve(workspaceUri.path, pathPortion);
 				return [{
-					searchPath: workspaceUri.with({ path: resolvedPath })
+					searchPath: workspaceUri.with({ path: resolvedPath }),
+					pattern: globPortion,
 				}];
 			}
 
-			const cleanedPattern = normalizeGlobPattern(searchPath);
+			const cleanedPattern = normalizeGlobPattern(pathPortion);
 			return [{
 				searchPath: workspaceUri,
-				pattern: cleanedPattern
+				pattern: joinPattern(cleanedPattern, globPortion),
 			}];
 		} else if (searchPath === './' || searchPath === '.\\') {
 			return []; // ./ or ./**/foo makes sense for single-folder but not multi-folder workspaces
 		} else {
+			// We need to use the original searchPath to determine if there's a workspace folder match, not the processed pathPortion
+			// Because workspace folder names may contain glob characters, the pathPortion obtained after splitGlobFromPath might be incorrectly truncated
 			const searchPathWithoutDotSlash = searchPath.replace(/^\.[\/\\]/, '');
 			const folders = this.workspaceContextService.getWorkspace().folders;
 			const folderMatches = folders.map(folder => {
@@ -520,12 +527,12 @@ export class QueryBuilder {
 					const patternMatch = match.match[1];
 					return {
 						searchPath: match.folder.uri,
-						pattern: patternMatch && normalizeGlobPattern(patternMatch)
+						pattern: patternMatch && normalizeGlobPattern(patternMatch),
 					};
 				});
 			} else {
-				const probableWorkspaceFolderNameMatch = searchPath.match(/\.[\/\\](.+)[\/\\]?/);
-				const probableWorkspaceFolderName = probableWorkspaceFolderNameMatch ? probableWorkspaceFolderNameMatch[1] : searchPath;
+				const probableWorkspaceFolderNameMatch = pathPortion.match(/\.[\/\\](.+)[\/\\]?/);
+				const probableWorkspaceFolderName = probableWorkspaceFolderNameMatch ? probableWorkspaceFolderNameMatch[1] : pathPortion;
 
 				// No root folder with name
 				const searchPathNotFoundError = nls.localize('search.noWorkspaceWithName', "Workspace folder does not exist: {0}", probableWorkspaceFolderName);
@@ -534,21 +541,17 @@ export class QueryBuilder {
 		}
 	}
 
-	private resolveOneSearchPathPattern(oneExpandedResult: IOneSearchPathPattern, globPortion?: string): IOneSearchPathPattern[] {
-		const pattern = oneExpandedResult.pattern && globPortion ?
-			`${oneExpandedResult.pattern}/${globPortion}` :
-			oneExpandedResult.pattern || globPortion;
-
+	private resolveOneSearchPathPattern(oneExpandedResult: IOneSearchPathPattern): IOneSearchPathPattern[] {
 		const results = [
 			{
 				searchPath: oneExpandedResult.searchPath,
-				pattern
+				pattern: oneExpandedResult.pattern,
 			}];
 
-		if (pattern && !pattern.endsWith('**')) {
+		if (oneExpandedResult.pattern && !oneExpandedResult.pattern.endsWith('**')) {
 			results.push({
 				searchPath: oneExpandedResult.searchPath,
-				pattern: pattern + '/**'
+				pattern: oneExpandedResult.pattern + '/**'
 			});
 		}
 
