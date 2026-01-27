@@ -16,7 +16,7 @@ import { debounce } from '../../../../base/common/decorators.js';
 import { BugIndicatingError, onUnexpectedError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
-import { ISeparator, template } from '../../../../base/common/labels.js';
+import { ISeparator, template, tildify } from '../../../../base/common/labels.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, ImmortalReference, MutableDisposable, dispose, toDisposable, type IReference } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import * as path from '../../../../base/common/path.js';
@@ -2623,7 +2623,7 @@ export class TerminalLabelComputer extends Disposable {
 		super();
 	}
 
-	refreshLabel(instance: Pick<ITerminalInstance, 'shellLaunchConfig' | 'shellType' | 'cwd' | 'fixedCols' | 'fixedRows' | 'initialCwd' | 'processName' | 'sequence' | 'userHome' | 'workspaceFolder' | 'staticTitle' | 'capabilities' | 'title' | 'description'>, reset?: boolean): void {
+	refreshLabel(instance: Pick<ITerminalInstance, 'shellLaunchConfig' | 'shellType' | 'cwd' | 'fixedCols' | 'fixedRows' | 'initialCwd' | 'processName' | 'sequence' | 'userHome' | 'workspaceFolder' | 'staticTitle' | 'capabilities' | 'title' | 'description' | 'os'>, reset?: boolean): void {
 		this._title = this.computeLabel(instance, this._terminalConfigurationService.config.tabs.title, TerminalLabelType.Title, reset);
 		this._description = this.computeLabel(instance, this._terminalConfigurationService.config.tabs.description, TerminalLabelType.Description);
 		if (this._title !== instance.title || this._description !== instance.description || reset) {
@@ -2632,7 +2632,7 @@ export class TerminalLabelComputer extends Disposable {
 	}
 
 	computeLabel(
-		instance: Pick<ITerminalInstance, 'shellLaunchConfig' | 'shellType' | 'cwd' | 'fixedCols' | 'fixedRows' | 'initialCwd' | 'processName' | 'sequence' | 'userHome' | 'workspaceFolder' | 'staticTitle' | 'capabilities' | 'title' | 'description' | 'progressState'>,
+		instance: Pick<ITerminalInstance, 'shellLaunchConfig' | 'shellType' | 'cwd' | 'fixedCols' | 'fixedRows' | 'initialCwd' | 'processName' | 'sequence' | 'userHome' | 'workspaceFolder' | 'staticTitle' | 'capabilities' | 'title' | 'description' | 'progressState' | 'os'>,
 		labelTemplate: string,
 		labelType: TerminalLabelType,
 		reset?: boolean
@@ -2641,8 +2641,17 @@ export class TerminalLabelComputer extends Disposable {
 		const commandDetection = instance.capabilities.get(TerminalCapability.CommandDetection);
 		const promptInputModel = commandDetection?.promptInputModel;
 		const nonTaskSpinner = type === 'Task' ? '' : ' $(loading~spin)';
+
+		// Replace "$HOME" with "~"
+		let cwd = instance.cwd || instance.initialCwd || '';
+		cwd = tildify(cwd, instance.userHome || '', instance.os ?? OS);
+		// Edge case: Handle user home with no suffix, because tildify() only handles user home paths when they're followed by "/"
+		if (cwd && instance.userHome && cwd === instance.userHome) {
+			cwd = '~';
+		}
+
 		const templateProperties: ITerminalLabelTemplateProperties = {
-			cwd: instance.cwd || instance.initialCwd || '',
+			cwd,
 			cwdFolder: '',
 			workspaceFolderName: instance.workspaceFolder?.name,
 			workspaceFolder: instance.workspaceFolder ? path.basename(instance.workspaceFolder.uri.fsPath) : undefined,
