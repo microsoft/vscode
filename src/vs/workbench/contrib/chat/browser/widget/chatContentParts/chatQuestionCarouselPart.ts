@@ -38,11 +38,11 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	private readonly _answers = new Map<string, unknown>();
 
 	private _titlePart: ChatQueryTitlePart | undefined;
-	private _progressElement: HTMLElement | undefined;
-	private _questionContainer: HTMLElement | undefined;
-	private _navigationButtons: HTMLElement | undefined;
-	private _prevButton: Button | undefined;
-	private _nextButton: Button | undefined;
+	private _progressElement!: HTMLElement;
+	private _questionContainer!: HTMLElement;
+	private _navigationButtons!: HTMLElement;
+	private _prevButton!: Button;
+	private _nextButton!: Button;
 	private _skipAllButton: Button | undefined;
 
 	private _isSkipped = false;
@@ -99,6 +99,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		this._prevButton = this._register(new Button(this._navigationButtons, { ...defaultButtonStyles, secondary: true, supportIcons: true, title: previousLabel }));
 		this._prevButton.element.classList.add('chat-question-nav-arrow');
 		this._prevButton.label = `$(${Codicon.chevronLeft.id})`;
+		this._prevButton.element.setAttribute('aria-label', previousLabel);
 
 		this._progressElement = dom.$('.chat-question-carousel-progress');
 		this._navigationButtons.appendChild(this._progressElement);
@@ -114,6 +115,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			this._skipAllButton = this._register(new Button(this._navigationButtons, { ...defaultButtonStyles, secondary: true, supportIcons: true, title: skipAllTitle }));
 			this._skipAllButton.label = `$(${Codicon.close.id})`;
 			this._skipAllButton.element.classList.add('chat-question-nav-arrow', 'chat-question-close');
+			this._skipAllButton.element.setAttribute('aria-label', skipAllTitle);
 		}
 
 		header.append(titleElement, this._navigationButtons);
@@ -131,15 +133,15 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			this._register(this._skipAllButton.onDidClick(() => this.skip()));
 		}
 
-		// Register keyboard navigation - only handle Enter on text inputs or navigation buttons
+		// Register keyboard navigation - only handle Enter on text inputs
 		this._register(dom.addDisposableListener(this.domNode, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			const event = new StandardKeyboardEvent(e);
 			if (event.keyCode === KeyCode.Enter && !event.shiftKey) {
-				// Only handle Enter key for text inputs and buttons, not radio/checkbox
+				// Only handle Enter key for text inputs, not radio/checkbox or buttons
+				// Buttons have their own Enter/Space handling via Button class
 				const target = e.target as HTMLElement;
 				const isTextInput = target.tagName === 'INPUT' && (target as HTMLInputElement).type === 'text';
-				const isButton = target.classList.contains('monaco-button');
-				if (isTextInput || isButton) {
+				if (isTextInput) {
 					e.preventDefault();
 					e.stopPropagation();
 					this.handleNext();
@@ -149,11 +151,6 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 
 		// Initialize the carousel
 		this.renderCurrentQuestion();
-
-		// If already submitted, disable interaction
-		if (this.carousel.isUsed) {
-			this.disableAllButtons();
-		}
 	}
 
 	/**
@@ -232,7 +229,8 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		const defaults = this.getDefaultAnswers();
 		this._options.onSubmit(defaults);
 
-		// Copy defaults to answers for summary display
+		// Reset answers to match submitted defaults for summary display
+		this._answers.clear();
 		for (const [key, value] of defaults) {
 			this._answers.set(key, value);
 		}
@@ -322,24 +320,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		}
 	}
 
-	private disableAllButtons(): void {
-		if (this._prevButton) {
-			this._prevButton.enabled = false;
-		}
-		if (this._nextButton) {
-			this._nextButton.enabled = false;
-		}
-		if (this._skipAllButton) {
-			this._skipAllButton.enabled = false;
-		}
-	}
-
 	private renderCurrentQuestion(): void {
-		// Guard against summary-only mode
-		if (!this._questionContainer || !this._progressElement || !this._prevButton || !this._nextButton) {
-			return;
-		}
-
 		// Clear previous input boxes and stale references
 		this._inputBoxes.clear();
 		this._textInputBoxes.clear();
@@ -485,13 +466,16 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		// Add freeform input if allowed
 		if (question.allowFreeformInput) {
 			const freeformContainer = dom.$('.chat-question-freeform');
+			const freeformLabelId = `freeform-label-${question.id}`;
 			const freeformLabel = dom.$('.chat-question-freeform-label');
+			freeformLabel.id = freeformLabelId;
 			freeformLabel.textContent = localize('chat.questionCarousel.orEnterOwn', 'Or enter your own:');
 			freeformContainer.appendChild(freeformLabel);
 
 			const freeformTextarea = dom.$<HTMLTextAreaElement>('textarea.chat-question-freeform-textarea');
 			freeformTextarea.placeholder = localize('chat.questionCarousel.enterCustomAnswer', 'Enter custom answer');
 			freeformTextarea.rows = 1;
+			freeformTextarea.setAttribute('aria-labelledby', freeformLabelId);
 
 			if (previousFreeform !== undefined) {
 				freeformTextarea.value = previousFreeform;
@@ -556,13 +540,16 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		// Add freeform input if allowed
 		if (question.allowFreeformInput) {
 			const freeformContainer = dom.$('.chat-question-freeform');
+			const freeformLabelId = `freeform-label-${question.id}`;
 			const freeformLabel = dom.$('.chat-question-freeform-label');
+			freeformLabel.id = freeformLabelId;
 			freeformLabel.textContent = localize('chat.questionCarousel.orEnterOwn', 'Or enter your own:');
 			freeformContainer.appendChild(freeformLabel);
 
 			const freeformTextarea = dom.$<HTMLTextAreaElement>('textarea.chat-question-freeform-textarea');
 			freeformTextarea.placeholder = localize('chat.questionCarousel.enterCustomAnswer', 'Enter custom answer');
 			freeformTextarea.rows = 1;
+			freeformTextarea.setAttribute('aria-labelledby', freeformLabelId);
 
 			if (previousFreeform !== undefined) {
 				freeformTextarea.value = previousFreeform;
