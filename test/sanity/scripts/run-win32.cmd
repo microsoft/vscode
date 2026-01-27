@@ -1,11 +1,11 @@
-@REM @echo off
+@echo off
 setlocal
 
 set "UBUNTU_ROOTFS=%TEMP%\ubuntu-rootfs.tar.gz"
 set "UBUNTU_INSTALL=%LOCALAPPDATA%\WSL\Ubuntu"
 
-echo Starting WSL if available
-wsl -d Ubuntu echo WSL is ready 2>nul
+echo Checking if Ubuntu WSL is available
+powershell -Command "wsl -d Ubuntu echo 'WSL is ready'" 2>nul
 if errorlevel 1 call :install_wsl
 
 set PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
