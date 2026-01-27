@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 .action-widget {
-	font-size: 13px;
+	font-size: 12px;
 	border-radius: 0;
 	min-width: 100px;
 	max-width: 80vw;
@@ -73,8 +73,8 @@
 
 .action-widget .monaco-list-row.group-header {
 	color: var(--vscode-descriptionForeground) !important;
-	font-weight: 600;
-	font-size: 13px;
+	font-weight: 500;
+	font-size: 12px;
 }
 
 .action-widget .monaco-list-row.group-header:not(:first-of-type) {
@@ -122,6 +122,7 @@
 	display: flex;
 	gap: 4px;
 	align-items: center;
+	height: 16px;
 }
 
 .action-widget .monaco-list-row.action.option-disabled,
@@ -174,8 +175,8 @@
 
 .action-widget-action-bar .action-label {
 	color: var(--vscode-textLink-activeForeground);
-	font-size: 13px;
-	line-height: 22px;
+	font-size: 12px;
+	line-height: 20px;
 	padding: 0;
 	pointer-events: all;
 }
