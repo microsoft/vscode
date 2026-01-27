@@ -378,4 +378,32 @@ suite('ContextKeyExpr', () => {
 			)!
 		));
 	});
+
+	test('check if object is empty with !== \'{}\'', () => {
+		const expr = ContextKeyExpr.deserialize('config.bar !== \'{}\'')!;
+		assert.strictEqual(expr.evaluate(createContext({ 'config.bar': {} })), false);
+		assert.strictEqual(expr.evaluate(createContext({ 'config.bar': { 'key': 'value' } })), true);
+		assert.strictEqual(expr.evaluate(createContext({ 'config.bar': { 'a': 1, 'b': 2 } })), true);
+		assert.strictEqual(expr.evaluate(createContext({ 'config.bar': null })), false);
+		assert.strictEqual(expr.evaluate(createContext({ 'config.bar': undefined })), false);
+		assert.strictEqual(expr.evaluate(createContext({})), false);
+		// Edge case: string value should return false
+		assert.strictEqual(expr.evaluate(createContext({ 'config.bar': 'some string' })), false);
+		// Edge case: array value should return false
+		assert.strictEqual(expr.evaluate(createContext({ 'config.bar': [1, 2, 3] })), false);
+	});
+
+	test('check if array is empty with !== \'[]\'', () => {
+		const expr = ContextKeyExpr.deserialize('config.items !== \'[]\'')!;
+		assert.strictEqual(expr.evaluate(createContext({ 'config.items': [] })), false);
+		assert.strictEqual(expr.evaluate(createContext({ 'config.items': [1, 2, 3] })), true);
+		assert.strictEqual(expr.evaluate(createContext({ 'config.items': ['a'] })), true);
+		assert.strictEqual(expr.evaluate(createContext({ 'config.items': null })), false);
+		assert.strictEqual(expr.evaluate(createContext({ 'config.items': undefined })), false);
+		assert.strictEqual(expr.evaluate(createContext({})), false);
+		// Edge case: string value should return false
+		assert.strictEqual(expr.evaluate(createContext({ 'config.items': 'some string' })), false);
+		// Edge case: object value should return false
+		assert.strictEqual(expr.evaluate(createContext({ 'config.items': { 'key': 'value' } })), false);
+	});
 });
