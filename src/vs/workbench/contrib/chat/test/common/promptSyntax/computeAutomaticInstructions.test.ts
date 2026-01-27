@@ -818,14 +818,54 @@ suite('ComputeAutomaticInstructions', () => {
 
 			await mockFiles(fileService, [
 				{
-					path: `${rootFolder}/.github/agents/test-agent.agent.md`,
+					path: `${rootFolder}/.github/agents/test-agent-1.agent.md`,
 					contents: [
 						'---',
-						'description: \'Test agent\'',
+						'description: \'Test agent 1\'',
+						'infer: all',
 						'---',
 						'Test agent content',
 					]
 				},
+				{
+					path: `${rootFolder}/.github/agents/test-agent-2.agent.md`,
+					contents: [
+						'---',
+						'description: \'Test agent 2\'',
+						'infer: user',
+						'---',
+						'Test agent content',
+					]
+				},
+				{
+					path: `${rootFolder}/.github/agents/test-agent-3.agent.md`,
+					contents: [
+						'---',
+						'description: \'Test agent 3\'',
+						'infer: agent',
+						'---',
+						'Test agent content',
+					]
+				},
+				{
+					path: `${rootFolder}/.github/agents/test-agent-4.agent.md`,
+					contents: [
+						'---',
+						'description: \'Test agent 4\'',
+						'infer: hidden',
+						'---',
+						'Test agent content',
+					]
+				},
+				{
+					path: `${rootFolder}/.github/agents/test-agent-5.agent.md`,
+					contents: [
+						'---',
+						'description: \'Test agent 5\'',
+						'---',
+						'Test agent content',
+					]
+				}
 			]);
 
 			const contextComputer = instaService.createInstance(
@@ -845,10 +885,13 @@ suite('ComputeAutomaticInstructions', () => {
 			assert.equal(agentsList.length, 1, 'There should be one agents list');
 
 			const agents = xmlContents(agentsList[0], 'agent');
-			assert.equal(agents.length, 1, 'There should be one agent');
+			assert.equal(agents.length, 2, 'There should be two agent');
 
-			assert.equal(xmlContents(agents[0], 'description')[0], 'Test agent');
-			assert.equal(xmlContents(agents[0], 'name')[0], `test-agent`);
+			assert.equal(xmlContents(agents[0], 'description')[0], 'Test agent 1');
+			assert.equal(xmlContents(agents[0], 'name')[0], `test-agent-1`);
+
+			assert.equal(xmlContents(agents[1], 'description')[0], 'Test agent 3');
+			assert.equal(xmlContents(agents[1], 'name')[0], `test-agent-3`);
 		});
 
 		test('should include skills list when readFile tool available', async () => {

@@ -104,7 +104,12 @@ export class DefaultConfiguration extends BaseDefaultConfiguration {
 			}
 			for (const [key, value] of Object.entries(defaultConfiguration.overrides)) {
 				if (!OVERRIDE_PROPERTY_REGEX.test(key) && value !== undefined) {
-					cachedConfigurationDefaultsOverrides[key] = value;
+					const existingValue = cachedConfigurationDefaultsOverrides[key];
+					if (isObject(existingValue) && isObject(value)) {
+						cachedConfigurationDefaultsOverrides[key] = { ...existingValue, ...value };
+					} else {
+						cachedConfigurationDefaultsOverrides[key] = value;
+					}
 				}
 			}
 		}
