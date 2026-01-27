@@ -5,7 +5,7 @@
 	"publisher": "vscode",
 	"version": "1.0.0",
 	"license": "MIT",
-  "icon": "media/icon.png",
+	"icon": "media/icon.png",
 	"engines": {
 		"vscode": "^1.57.0"
 	},
@@ -46,9 +46,9 @@
 		"watch": "npx gulp compile-watch:notebook-renderers",
 		"build-notebook": "node ./esbuild.mjs"
 	},
-	"dependencies": {},
 	"devDependencies": {
 		"@types/jsdom": "^21.1.0",
+		"@types/node": "^22.18.10",
 		"@types/vscode-notebook-renderer": "^1.60.0",
 		"jsdom": "^21.1.1"
 	},

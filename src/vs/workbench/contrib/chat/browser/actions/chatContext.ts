@@ -2,11 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { isElectron } from '../../../../../base/common/platform.js';
-import { dirname } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
@@ -21,14 +19,16 @@ import { IHostService } from '../../../../services/host/browser/host.js';
 import { UntitledTextEditorInput } from '../../../../services/untitled/common/untitledTextEditorInput.js';
 import { FileEditorInput } from '../../../files/browser/editors/fileEditorInput.js';
 import { NotebookEditorInput } from '../../../notebook/common/notebookEditorInput.js';
-import { IChatContextPickService, IChatContextValueItem, IChatContextPickerItem, IChatContextPickerPickItem, IChatContextPicker } from '../chatContextPickService.js';
-import { IChatEditingService } from '../../common/chatEditingService.js';
-import { IChatRequestToolEntry, IChatRequestToolSetEntry, IChatRequestVariableEntry, IImageVariableEntry, OmittedState, toToolSetVariableEntry, toToolVariableEntry } from '../../common/chatVariableEntries.js';
-import { ToolDataSource, ToolSet } from '../../common/languageModelToolsService.js';
+import { IChatContextPickService, IChatContextValueItem, IChatContextPickerItem, IChatContextPickerPickItem, IChatContextPicker } from '../attachments/chatContextPickService.js';
+import { IChatRequestToolEntry, IChatRequestToolSetEntry, IChatRequestVariableEntry, IImageVariableEntry, toToolSetVariableEntry, toToolVariableEntry } from '../../common/attachments/chatVariableEntries.js';
+import { isToolSet, ToolDataSource } from '../../common/tools/languageModelToolsService.js';
 import { IChatWidget } from '../chat.js';
-import { imageToHash, isImage } from '../chatPasteProviders.js';
-import { convertBufferToScreenshotVariable } from '../contrib/screenshot.js';
+import { imageToHash, isImage } from '../widget/input/editor/chatPasteProviders.js';
+import { convertBufferToScreenshotVariable } from '../attachments/chatScreenshotContext.js';
 import { ChatInstructionsPickerPick } from '../promptSyntax/attachInstructionsAction.js';
+import { ITerminalService } from '../../../terminal/browser/terminal.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { ITerminalCommand, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 
 
 export class ChatContextContributions extends Disposable implements IWorkbenchContribution {
@@ -52,7 +52,6 @@ export class ChatContextContributions extends Disposable implements IWorkbenchCo
 		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(ToolsContextPickerPick)));
 		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(ChatInstructionsPickerPick)));
 		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(OpenEditorContextValuePick)));
-		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(RelatedFilesContextPickerPick)));
 		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(ClipboardImageContextValuePick)));
 		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(ScreenshotContextValuePick)));
 	}
@@ -65,6 +64,10 @@ class ToolsContextPickerPick implements IChatContextPickerItem {
 	readonly icon: ThemeIcon = Codicon.tools;
 	readonly ordinal = -500;
 
+	isEnabled(widget: IChatWidget): boolean {
+		return !!widget.attachmentCapabilities.supportsToolAttachments;
+	}
+
 	asPicker(widget: IChatWidget): IChatContextPicker {
 
 		type Pick = IChatContextPickerPickItem & { toolInfo: { ordinal: number; label: string } };
@@ -72,7 +75,7 @@ class ToolsContextPickerPick implements IChatContextPickerItem {
 
 		for (const [entry, enabled] of widget.input.selectedToolsModel.entriesMap.get()) {
 			if (enabled) {
-				if (entry instanceof ToolSet) {
+				if (isToolSet(entry)) {
 					items.push({
 						toolInfo: ToolDataSource.classify(entry.source),
 						label: entry.referenceName,
@@ -161,66 +164,6 @@ class OpenEditorContextValuePick implements IChatContextValueItem {
 
 }
 
-class RelatedFilesContextPickerPick implements IChatContextPickerItem {
-
-	readonly type = 'pickerPick';
-
-	readonly label: string = localize('chatContext.relatedFiles', 'Related Files');
-	readonly icon: ThemeIcon = Codicon.sparkle;
-	readonly ordinal = 300;
-
-	constructor(
-		@IChatEditingService private readonly _chatEditingService: IChatEditingService,
-		@ILabelService private readonly _labelService: ILabelService,
-	) { }
-
-	isEnabled(widget: IChatWidget): boolean {
-		return this._chatEditingService.hasRelatedFilesProviders() && (Boolean(widget.getInput()) || widget.attachmentModel.fileAttachments.length > 0);
-	}
-
-	asPicker(widget: IChatWidget): IChatContextPicker {
-
-		const picks = (async () => {
-			const chatSessionId = widget.viewModel?.sessionId;
-			if (!chatSessionId) {
-				return [];
-			}
-			const relatedFiles = await this._chatEditingService.getRelatedFiles(chatSessionId, widget.getInput(), widget.attachmentModel.fileAttachments, CancellationToken.None);
-			if (!relatedFiles) {
-				return [];
-			}
-			const attachments = widget.attachmentModel.getAttachmentIDs();
-			return this._chatEditingService.getRelatedFiles(chatSessionId, widget.getInput(), widget.attachmentModel.fileAttachments, CancellationToken.None)
-				.then((files) => (files ?? []).reduce<(IChatContextPickerPickItem | IQuickPickSeparator)[]>((acc, cur) => {
-					acc.push({ type: 'separator', label: cur.group });
-					for (const file of cur.files) {
-						const label = this._labelService.getUriBasenameLabel(file.uri);
-						acc.push({
-							label: label,
-							description: this._labelService.getUriLabel(dirname(file.uri), { relative: true }),
-							disabled: attachments.has(file.uri.toString()),
-							asAttachment: () => {
-								return {
-									kind: 'file',
-									id: file.uri.toString(),
-									value: file.uri,
-									name: label,
-									omittedState: OmittedState.NotOmitted
-								};
-							}
-						});
-					}
-					return acc;
-				}, []));
-		})();
-
-		return {
-			placeholder: localize('relatedFiles', 'Add related files to your working set'),
-			picks,
-		};
-	}
-}
-
 
 class ClipboardImageContextValuePick implements IChatContextValueItem {
 	readonly type = 'valuePick';
@@ -232,7 +175,10 @@ class ClipboardImageContextValuePick implements IChatContextValueItem {
 	) { }
 
 	async isEnabled(widget: IChatWidget) {
-		if (!widget.input.selectedLanguageModel?.metadata.capabilities?.vision) {
+		if (!widget.attachmentCapabilities.supportsImageAttachments) {
+			return false;
+		}
+		if (!widget.input.selectedLanguageModel.get()?.metadata.capabilities?.vision) {
 			return false;
 		}
 		const imageData = await this._clipboardService.readImage();
@@ -251,6 +197,73 @@ class ClipboardImageContextValuePick implements IChatContextValueItem {
 	}
 }
 
+export class TerminalContext implements IChatContextValueItem {
+
+	readonly type = 'valuePick';
+	readonly icon = Codicon.terminal;
+	readonly label = localize('terminal', 'Terminal');
+	constructor(private readonly _resource: URI, @ITerminalService private readonly _terminalService: ITerminalService) {
+
+	}
+	isEnabled(widget: IChatWidget) {
+		const terminal = this._terminalService.getInstanceFromResource(this._resource);
+		return !!widget.attachmentCapabilities.supportsTerminalAttachments && terminal?.isDisposed === false;
+	}
+	async asAttachment(widget: IChatWidget): Promise<IChatRequestVariableEntry | undefined> {
+		const terminal = this._terminalService.getInstanceFromResource(this._resource);
+		if (!terminal) {
+			return;
+		}
+		const params = new URLSearchParams(this._resource.query);
+		const command = terminal.capabilities.get(TerminalCapability.CommandDetection)?.commands.find(cmd => cmd.id === params.get('command'));
+		if (!command) {
+			return;
+		}
+		const attachment: IChatRequestVariableEntry = {
+			kind: 'terminalCommand',
+			id: `terminalCommand:${Date.now()}}`,
+			value: this.asValue(command),
+			name: command.command,
+			command: command.command,
+			output: command.getOutput(),
+			exitCode: command.exitCode,
+			resource: this._resource
+		};
+		const cleanup = new DisposableStore();
+		let disposed = false;
+		const disposeCleanup = () => {
+			if (disposed) {
+				return;
+			}
+			disposed = true;
+			cleanup.dispose();
+		};
+		cleanup.add(widget.attachmentModel.onDidChange(e => {
+			if (e.deleted.includes(attachment.id)) {
+				disposeCleanup();
+			}
+		}));
+		cleanup.add(terminal.onDisposed(() => {
+			widget.attachmentModel.delete(attachment.id);
+			widget.refreshParsedInput();
+			disposeCleanup();
+		}));
+		return attachment;
+	}
+
+	private asValue(command: ITerminalCommand): string {
+		let value = `Command: ${command.command}`;
+		const output = command.getOutput();
+		if (output) {
+			value += `\nOutput:\n${output}`;
+		}
+		if (typeof command.exitCode === 'number') {
+			value += `\nExit Code: ${command.exitCode}`;
+		}
+		return value;
+	}
+}
+
 class ScreenshotContextValuePick implements IChatContextValueItem {
 
 	readonly type = 'valuePick';
@@ -264,7 +277,7 @@ class ScreenshotContextValuePick implements IChatContextValueItem {
 	) { }
 
 	async isEnabled(widget: IChatWidget) {
-		return !!widget.input.selectedLanguageModel?.metadata.capabilities?.vision;
+		return !!widget.attachmentCapabilities.supportsImageAttachments && !!widget.input.selectedLanguageModel.get()?.metadata.capabilities?.vision;
 	}
 
 	async asAttachment(): Promise<IChatRequestVariableEntry | undefined> {

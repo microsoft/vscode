@@ -6,7 +6,7 @@
 declare module 'vscode' {
 
 	export interface ChatParticipant {
-		onDidPerformAction: Event<ChatUserActionEvent>;
+		readonly onDidPerformAction: Event<ChatUserActionEvent>;
 	}
 
 	/**
@@ -32,7 +32,8 @@ declare module 'vscode' {
 	export class ChatResponseCodeblockUriPart {
 		isEdit?: boolean;
 		value: Uri;
-		constructor(value: Uri, isEdit?: boolean);
+		undoStopId?: string;
+		constructor(value: Uri, isEdit?: boolean, undoStopId?: string);
 	}
 
 	/**
@@ -64,12 +65,137 @@ declare module 'vscode' {
 		constructor(uri: Uri, edits: NotebookEdit | NotebookEdit[]);
 	}
 
+	/**
+	 * Represents a file-level edit (creation, deletion, or rename).
+	 */
+	export interface ChatWorkspaceFileEdit {
+		/**
+		 * The original file URI (undefined for new files).
+		 */
+		oldResource?: Uri;
+
+		/**
+		 * The new file URI (undefined for deleted files).
+		 */
+		newResource?: Uri;
+	}
+
+	/**
+	 * Represents a workspace edit containing file-level operations.
+	 */
+	export class ChatResponseWorkspaceEditPart {
+		edits: ChatWorkspaceFileEdit[];
+		constructor(edits: ChatWorkspaceFileEdit[]);
+	}
+
 	export class ChatResponseConfirmationPart {
 		title: string;
 		message: string | MarkdownString;
 		data: any;
 		buttons?: string[];
 		constructor(title: string, message: string | MarkdownString, data: any, buttons?: string[]);
+	}
+
+	/**
+	 * An option for a question in a carousel.
+	 */
+	export interface ChatQuestionOption {
+		/**
+		 * Unique identifier for the option.
+		 */
+		id: string;
+		/**
+		 * The display label for the option.
+		 */
+		label: string;
+		/**
+		 * The value returned when this option is selected.
+		 */
+		value: unknown;
+	}
+
+	/**
+	 * The type of question for a chat question carousel.
+	 */
+	export enum ChatQuestionType {
+		/**
+		 * A free-form text input question.
+		 */
+		Text = 1,
+		/**
+		 * A single-select question with radio buttons.
+		 */
+		SingleSelect = 2,
+		/**
+		 * A multi-select question with checkboxes.
+		 */
+		MultiSelect = 3
+	}
+
+	/**
+	 * A question to be displayed in a question carousel.
+	 */
+	export class ChatQuestion {
+		/**
+		 * Unique identifier for the question.
+		 */
+		id: string;
+		/**
+		 * The type of question: Text for free-form input, SingleSelect for radio buttons, MultiSelect for checkboxes.
+		 */
+		type: ChatQuestionType;
+		/**
+		 * The title/header of the question.
+		 */
+		title: string;
+		/**
+		 * Optional detailed message or description for the question.
+		 */
+		message?: string | MarkdownString;
+		/**
+		 * Options for singleSelect or multiSelect questions.
+		 */
+		options?: ChatQuestionOption[];
+		/**
+		 * The id(s) of the default selected option(s).
+		 * For SingleSelect, this should be a single option id.
+		 * For MultiSelect, this can be an array of option ids.
+		 */
+		defaultValue?: string | string[];
+		/**
+		 * Whether to allow free-form text input in addition to predefined options.
+		 * When true, users can provide their own text answer even for SingleSelect or MultiSelect questions.
+		 */
+		allowFreeformInput?: boolean;
+
+		constructor(
+			id: string,
+			type: ChatQuestionType,
+			title: string,
+			options?: {
+				message?: string | MarkdownString;
+				options?: ChatQuestionOption[];
+				defaultValue?: string | string[];
+				allowFreeformInput?: boolean;
+			}
+		);
+	}
+
+	/**
+	 * A carousel view for presenting multiple questions inline in the chat.
+	 * The UI is displayed but does not block the chat input.
+	 */
+	export class ChatResponseQuestionCarouselPart {
+		/**
+		 * The questions to display in the carousel.
+		 */
+		questions: ChatQuestion[];
+		/**
+		 * Whether users can skip answering the questions.
+		 */
+		allowSkip: boolean;
+
+		constructor(questions: ChatQuestion[], allowSkip?: boolean);
 	}
 
 	export class ChatResponseCodeCitationPart {
@@ -79,9 +205,12 @@ declare module 'vscode' {
 		constructor(value: Uri, license: string, snippet: string);
 	}
 
-	export class ChatPrepareToolInvocationPart {
-		toolName: string;
-		constructor(toolName: string);
+	export interface ChatToolInvocationStreamData {
+		/**
+		 * Partial or not-yet-validated arguments that have streamed from the language model.
+		 * Tools may use this to render interim UI while the full invocation input is collected.
+		 */
+		readonly partialInput?: unknown;
 	}
 
 	export interface ChatTerminalToolInvocationData {
@@ -91,6 +220,48 @@ declare module 'vscode' {
 			toolEdited?: string;
 		};
 		language: string;
+
+		/**
+		 * Terminal command output. Displayed when the terminal is no longer available.
+		 */
+		output?: {
+			/** The raw output text, may include ANSI escape codes. */
+			text: string;
+		};
+
+		/**
+		 * Command execution state.
+		 */
+		state?: {
+			/** Exit code of the command. */
+			exitCode?: number;
+			/** Duration of execution in milliseconds. */
+			duration?: number;
+		};
+	}
+
+	export class McpToolInvocationContentData {
+		/**
+		 * The mime type which determines how the data property is interpreted.
+		 */
+		mimeType: string;
+
+		/**
+		 * The byte data for this part.
+		 */
+		data: Uint8Array;
+
+		/**
+		 * Construct a generic data part with the given content.
+		 * @param data The byte data for this part.
+		 * @param mimeType The mime type of the data.
+		 */
+		constructor(data: Uint8Array, mimeType: string);
+	}
+
+	export interface ChatMcpToolInvocationData {
+		input: string;
+		output: McpToolInvocationContentData[];
 	}
 
 	export class ChatToolInvocationPart {
@@ -102,8 +273,9 @@ declare module 'vscode' {
 		pastTenseMessage?: string | MarkdownString;
 		isConfirmed?: boolean;
 		isComplete?: boolean;
-		toolSpecificData?: ChatTerminalToolInvocationData;
-		fromSubAgent?: boolean;
+		toolSpecificData?: ChatTerminalToolInvocationData | ChatMcpToolInvocationData;
+		subAgentInvocationId?: string;
+		presentation?: 'hidden' | 'hiddenAfterComplete' | undefined;
 
 		constructor(toolName: string, toolCallId: string, isError?: boolean);
 	}
@@ -153,14 +325,28 @@ declare module 'vscode' {
 		title: string;
 
 		/**
+		 * Whether the multi diff editor should be read-only.
+		 * When true, users cannot open individual files or interact with file navigation.
+		 */
+		readOnly?: boolean;
+
+		/**
 		 * Create a new ChatResponseMultiDiffPart.
 		 * @param value Array of file diff entries.
 		 * @param title The title for the multi diff editor.
+		 * @param readOnly Optional flag to make the multi diff editor read-only.
 		 */
-		constructor(value: ChatResponseDiffEntry[], title: string);
+		constructor(value: ChatResponseDiffEntry[], title: string, readOnly?: boolean);
 	}
 
-	export type ExtendedChatResponsePart = ChatResponsePart | ChatResponseTextEditPart | ChatResponseNotebookEditPart | ChatResponseConfirmationPart | ChatResponseCodeCitationPart | ChatResponseReferencePart2 | ChatResponseMovePart | ChatResponseExtensionsPart | ChatResponsePullRequestPart | ChatPrepareToolInvocationPart | ChatToolInvocationPart | ChatResponseMultiDiffPart | ChatResponseThinkingProgressPart;
+	export class ChatResponseExternalEditPart {
+		uris: Uri[];
+		callback: () => Thenable<unknown>;
+		applied: Thenable<string>;
+		constructor(uris: Uri[], callback: () => Thenable<unknown>);
+	}
+
+	export type ExtendedChatResponsePart = ChatResponsePart | ChatResponseTextEditPart | ChatResponseNotebookEditPart | ChatResponseWorkspaceEditPart | ChatResponseConfirmationPart | ChatResponseCodeCitationPart | ChatResponseReferencePart2 | ChatResponseMovePart | ChatResponseExtensionsPart | ChatResponsePullRequestPart | ChatToolInvocationPart | ChatResponseMultiDiffPart | ChatResponseThinkingProgressPart | ChatResponseExternalEditPart | ChatResponseQuestionCarouselPart;
 	export class ChatResponseWarningPart {
 		value: MarkdownString;
 		constructor(value: string | MarkdownString);
@@ -294,6 +480,20 @@ declare module 'vscode' {
 
 		notebookEdit(target: Uri, isDone: true): void;
 
+		/**
+		 * Push a workspace edit containing file-level operations (create, delete, rename).
+		 * @param edits Array of file-level edits to apply
+		 */
+		workspaceEdit(edits: ChatWorkspaceFileEdit[]): void;
+
+		/**
+		 * Makes an external edit to one or more resources. Changes to the
+		 * resources made within the `callback` and before it resolves will be
+		 * tracked as agent edits. This can be used to track edits made from
+		 * external tools that don't generate simple {@link textEdit textEdits}.
+		 */
+		externalEdit(target: Uri | Uri[], callback: () => Thenable<unknown>): Thenable<string>;
+
 		markdownWithVulnerabilities(value: string | MarkdownString, vulnerabilities: ChatVulnerability[]): void;
 		codeblockUri(uri: Uri, isEdit?: boolean): void;
 		push(part: ChatResponsePart | ChatResponseTextEditPart | ChatResponseWarningPart | ChatResponseProgressPart2): void;
@@ -311,6 +511,15 @@ declare module 'vscode' {
 		confirmation(title: string, message: string | MarkdownString, data: any, buttons?: string[]): void;
 
 		/**
+		 * Show an inline carousel of questions to gather information from the user.
+		 * This is a blocking call that waits for the user to submit or skip the questions.
+		 * @param questions Array of questions to display to the user
+		 * @param allowSkip Whether the user can skip questions without answering
+		 * @returns A promise that resolves with the user's answers, or undefined if skipped
+		 */
+		questionCarousel(questions: ChatQuestion[], allowSkip?: boolean): Thenable<Record<string, unknown> | undefined>;
+
+		/**
 		 * Push a warning to this stream. Short-hand for
 		 * `push(new ChatResponseWarningPart(message))`.
 		 *
@@ -325,7 +534,21 @@ declare module 'vscode' {
 
 		codeCitation(value: Uri, license: string, snippet: string): void;
 
-		prepareToolInvocation(toolName: string): void;
+		/**
+		 * Begin a tool invocation in streaming mode. This creates a tool invocation that will
+		 * display streaming progress UI until the tool is actually invoked.
+		 * @param toolCallId Unique identifier for this tool call, used to correlate streaming updates and final invocation.
+		 * @param toolName The name of the tool being invoked.
+		 * @param streamData Optional initial streaming data with partial arguments.
+		 */
+		beginToolInvocation(toolCallId: string, toolName: string, streamData?: ChatToolInvocationStreamData & { subagentInvocationId?: string }): void;
+
+		/**
+		 * Update the streaming data for a tool invocation that was started with `beginToolInvocation`.
+		 * @param toolCallId The tool call ID that was passed to `beginToolInvocation`.
+		 * @param streamData New streaming data with updated partial arguments.
+		 */
+		updateToolInvocation(toolCallId: string, streamData: ChatToolInvocationStreamData): void;
 
 		push(part: ExtendedChatResponsePart): void;
 
@@ -380,7 +603,7 @@ declare module 'vscode' {
 		/**
 		 * A map of all tools that should (`true`) and should not (`false`) be used in this request.
 		 */
-		readonly tools: Map<string, boolean>;
+		readonly tools: Map<LanguageModelToolInformation, boolean>;
 	}
 
 	export namespace lm {
@@ -442,7 +665,7 @@ declare module 'vscode' {
 		 * Event that fires when a request is paused or unpaused.
 		 * Chat requests are initially unpaused in the {@link requestHandler}.
 		 */
-		onDidChangePauseState: Event<ChatParticipantPauseStateEvent>;
+		readonly onDidChangePauseState: Event<ChatParticipantPauseStateEvent>;
 	}
 
 	export interface ChatParticipantPauseStateEvent {
@@ -470,6 +693,47 @@ declare module 'vscode' {
 
 	export type ChatExtendedRequestHandler = (request: ChatRequest, context: ChatContext, response: ChatResponseStream, token: CancellationToken) => ProviderResult<ChatResult | void>;
 
+	/**
+	 * Details about the prompt token usage by category and label.
+	 */
+	export interface ChatResultPromptTokenDetail {
+		/**
+		 * The category this token usage belongs to (e.g., "System", "Context", "Conversation").
+		 */
+		readonly category: string;
+
+		/**
+		 * The label for this specific token usage (e.g., "System prompt", "Attached files").
+		 */
+		readonly label: string;
+
+		/**
+		 * The percentage of the total prompt tokens this represents (0-100).
+		 */
+		readonly percentageOfPrompt: number;
+	}
+
+	/**
+	 * Token usage information for a chat request.
+	 */
+	export interface ChatResultUsage {
+		/**
+		 * The number of prompt tokens used in this request.
+		 */
+		readonly promptTokens: number;
+
+		/**
+		 * The number of completion tokens generated in this response.
+		 */
+		readonly completionTokens: number;
+
+		/**
+		 * Optional breakdown of prompt token usage by category and label.
+		 * If the percentages do not sum to 100%, the remaining will be shown as "Uncategorized".
+		 */
+		readonly promptTokenDetails?: readonly ChatResultPromptTokenDetail[];
+	}
+
 	export interface ChatResult {
 		nextQuestion?: {
 			prompt: string;
@@ -480,6 +744,12 @@ declare module 'vscode' {
 		 * An optional detail string that will be rendered at the end of the response in certain UI contexts.
 		 */
 		details?: string;
+
+		/**
+		 * Token usage information for this request, if available.
+		 * This is typically provided by the underlying language model.
+		 */
+		readonly usage?: ChatResultUsage;
 	}
 
 	export namespace chat {
@@ -644,6 +914,39 @@ declare module 'vscode' {
 
 	export interface LanguageModelToolInvocationOptions<T> {
 		model?: LanguageModelChat;
+		chatStreamToolCallId?: string;
+	}
+
+	export interface LanguageModelToolInvocationStreamOptions<T> {
+		/**
+		 * Raw argument payload, such as the streamed JSON fragment from the language model.
+		 */
+		readonly rawInput?: unknown;
+
+		readonly chatRequestId?: string;
+		/** @deprecated Use {@link chatSessionResource} instead */
+		readonly chatSessionId?: string;
+		readonly chatSessionResource?: Uri;
+		readonly chatInteractionId?: string;
+	}
+
+	export interface LanguageModelToolStreamResult {
+		/**
+		 * A customized progress message to show while the tool runs.
+		 */
+		invocationMessage?: string | MarkdownString;
+	}
+
+	export interface LanguageModelTool<T> {
+		/**
+		 * Called zero or more times before {@link LanguageModelTool.prepareInvocation} while the
+		 * language model streams argument data for the invocation. Use this to update progress
+		 * or UI with the partial arguments that have been generated so far.
+		 *
+		 * Implementations must be free of side-effects and should be resilient to receiving
+		 * malformed or incomplete input.
+		 */
+		handleToolStream?(options: LanguageModelToolInvocationStreamOptions<T>, token: CancellationToken): ProviderResult<LanguageModelToolStreamResult>;
 	}
 
 	export interface ChatRequest {
@@ -652,6 +955,7 @@ declare module 'vscode' {
 	}
 
 	export interface ChatRequestModeInstructions {
+		readonly name: string;
 		readonly content: string;
 		readonly toolReferences?: readonly ChatLanguageModelToolReference[];
 		readonly metadata?: Record<string, boolean | string | number>;

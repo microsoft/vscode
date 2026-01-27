@@ -14,16 +14,16 @@ declare module 'vscode' {
 		/**
 		 * The text pattern to search for.
 		 *
-		 * If explicitly contains a newline character (`\n`), the default search behavior
+		 * If pattern contains a newline character (`\n`), the default search behavior
 		 * will automatically enable {@link isMultiline}.
 		 */
 		pattern: string;
 
 		/**
-		 * Whether or not `pattern` should match multiple lines of text.
+		 * Whether or not {@link pattern} should match multiple lines of text.
 		 *
 		 * If using the default search provider, this will be interpreted as `true` if
-		 * `pattern` contains a newline character (`\n`).
+		 * {@link pattern} contains a newline character (`\n`).
 		 */
 		isMultiline?: boolean;
 

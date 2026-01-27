@@ -586,7 +586,9 @@
 		"action": "close",
 		"reason": "not_planned",
 		"comment": "Please look at the following meta issue: https://github.com/microsoft/vscode/issues/253132, if the bug you are experiencing is not there, please comment on this closed issue thread so we can re-open it.",
-		"assign": ["TylerLeonhardt"]
+		"assign": [
+			"TylerLeonhardt"
+		]
 	},
 	{
 		"type": "label",
@@ -600,7 +602,7 @@
 		"type": "label",
 		"name": "~chat-billing",
 		"removeLabel": "~chat-billing",
-		"addLabel":"chat-billing",
+		"addLabel": "chat-billing",
 		"action": "close",
 		"reason": "not_planned",
 		"comment": "Please look at the following meta issue: https://github.com/microsoft/vscode/issues/252230. Please refer to that issue for updates and discussions. Feel free to open a new issue if you think this is a different problem."
@@ -609,7 +611,7 @@
 		"type": "label",
 		"name": "~chat-infinite-response-loop",
 		"removeLabel": "~chat-infinite-response-loop",
-		"addLabel":"chat-infinite-response-loop",
+		"addLabel": "chat-infinite-response-loop",
 		"action": "close",
 		"reason": "not_planned",
 		"comment": "Please look at the following meta issue: https://github.com/microsoft/vscode/issues/253134. Please refer to that issue for updates and discussions. Feel free to open a new issue if you think this is a different problem."
@@ -630,7 +632,43 @@
 		"removeLabel": "~capi",
 		"assign": [
 			"samvantran",
-			"thispaul"
-		]
+			"sharonlo"
+		],
+		"comment": "Thank you for creating this issue! Please provide one or more `requestIds` to help the platform team investigate. You can follow instructions [found here](https://github.com/microsoft/vscode/wiki/Copilot-Issues#language-model-requests-and-responses) to locate the `requestId` value.\n\nHappy Coding!"
+	},
+	{
+		"type": "label",
+		"name": "*edu",
+		"action": "close",
+		"reason": "not_planned",
+		"comment": "We closed this issue because it seems to be about coursework or grading. This issue tracker is for issues about VS Code itself. For coursework-related issues, or issues related to your course's specific VS Code setup, please consider engaging directly with your course instructor.\n\nHappy Coding!"
+	},
+	{
+		"type": "comment",
+		"name": "edu",
+		"allowUsers": [
+			"cleidigh",
+			"usernamehw",
+			"gjsjohnmurray",
+			"IllusionMH"
+		],
+		"action": "updateLabels",
+		"addLabel": "*edu"
+	},
+	{
+		"type": "label",
+		"name": "~agent-behavior",
+		"action": "close",
+		"reason": "not_planned",
+		"addLabel": "agent-behavior",
+		"removeLabel": "~agent-behavior",
+		"comment": "Unfortunately I think you are hitting a AI quality issue that is not actionable enough for us to track a bug. We would recommend that you try other available models and look at the [Tips and tricks for Copilot in VS Code](https://code.visualstudio.com/docs/copilot/copilot-tips-and-tricks) doc page.\n\nWe are constantly improving AI quality in every release, thank you for the feedback! If you believe this is a technical bug, we recommend you report a new issue including logs described on the [Copilot Issues](https://github.com/microsoft/vscode/wiki/Copilot-Issues) wiki page."
+	},
+	{
+		"type": "label",
+		"name": "~accessibility-sla",
+		"addLabel": "accessibility-sla",
+		"removeLabel": "~accessibility-sla",
+		"comment": "The Visual Studio and VS Code teams have an agreement with the Accessibility team that 3:1 contrast is enough for inside the editor."
 	}
 ]

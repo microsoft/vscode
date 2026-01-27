@@ -13,8 +13,8 @@ import { ILabelService } from '../../../../platform/label/common/label.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { getExcludes, IFileQuery, ISearchComplete, ISearchConfiguration, ISearchService, QueryType, VIEW_ID } from '../../../services/search/common/search.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
-import { IChatContextPickerItem, IChatContextPickerPickItem, IChatContextPickService, IChatContextValueItem, picksWithPromiseFn } from '../../chat/browser/chatContextPickService.js';
-import { IChatRequestVariableEntry, ISymbolVariableEntry } from '../../chat/common/chatVariableEntries.js';
+import { IChatContextPickerItem, IChatContextPickerPickItem, IChatContextPickService, IChatContextValueItem, picksWithPromiseFn } from '../../chat/browser/attachments/chatContextPickService.js';
+import { IChatRequestVariableEntry, ISymbolVariableEntry } from '../../chat/common/attachments/chatVariableEntries.js';
 import { SearchContext } from '../common/constants.js';
 import { SearchView } from './searchView.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
@@ -33,7 +33,8 @@ import * as glob from '../../../../base/common/glob.js';
 import { ResourceSet } from '../../../../base/common/map.js';
 import { SymbolsQuickAccessProvider } from './symbolsQuickAccess.js';
 import { SymbolKinds } from '../../../../editor/common/languages.js';
-import { ChatUnsupportedFileSchemes } from '../../chat/common/constants.js';
+import { isSupportedChatFileScheme } from '../../chat/common/constants.js';
+import { IChatWidget } from '../../chat/browser/chat.js';
 
 export class SearchChatContextContribution extends Disposable implements IWorkbenchContribution {
 
@@ -63,8 +64,8 @@ class SearchViewResultChatContextPick implements IChatContextValueItem {
 		@ILabelService private readonly _labelService: ILabelService,
 	) { }
 
-	isEnabled(): Promise<boolean> | boolean {
-		return !!SearchContext.HasSearchResults.getValue(this._contextKeyService);
+	isEnabled(widget: IChatWidget): Promise<boolean> | boolean {
+		return !!SearchContext.HasSearchResults.getValue(this._contextKeyService) && !!widget.attachmentCapabilities.supportsSearchResultAttachments;
 	}
 
 	async asAttachment(): Promise<IChatRequestVariableEntry[]> {
@@ -100,6 +101,9 @@ class SymbolsContextPickerPick implements IChatContextPickerItem {
 		this._provider?.dispose();
 	}
 
+	isEnabled(widget: IChatWidget): boolean {
+		return !!widget.attachmentCapabilities.supportsSymbolAttachments;
+	}
 	asPicker() {
 
 		return {
@@ -156,6 +160,7 @@ class FilesAndFoldersPickerPick implements IChatContextPickerItem {
 		@IWorkspaceContextService private readonly _workspaceService: IWorkspaceContextService,
 		@IFileService private readonly _fileService: IFileService,
 		@IHistoryService private readonly _historyService: IHistoryService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) { }
 
 	asPicker() {
@@ -169,7 +174,7 @@ class FilesAndFoldersPickerPick implements IChatContextPickerItem {
 				const defaultItems: IChatContextPickerPickItem[] = [];
 				(await getTopLevelFolders(workspaces, this._fileService)).forEach(uri => defaultItems.push(this._createPickItem(uri, FileKind.FOLDER)));
 				this._historyService.getHistory()
-					.filter(a => a.resource && !ChatUnsupportedFileSchemes.has(a.resource.scheme))
+					.filter(a => a.resource && this._instantiationService.invokeFunction(accessor => isSupportedChatFileScheme(accessor, a.resource!.scheme)))
 					.slice(0, 30)
 					.forEach(uri => defaultItems.push(this._createPickItem(uri.resource!, FileKind.FILE)));
 
@@ -209,9 +214,7 @@ class FilesAndFoldersPickerPick implements IChatContextPickerItem {
 		return {
 			label: basename(resource),
 			description: this._labelService.getUriLabel(dirname(resource), { relative: true }),
-			iconClass: kind === FileKind.FILE
-				? getIconClasses(this._modelService, this._languageService, resource, FileKind.FILE).join(' ')
-				: ThemeIcon.asClassName(Codicon.folder),
+			iconClasses: getIconClasses(this._modelService, this._languageService, resource, kind),
 			asAttachment: () => {
 				return {
 					kind: kind === FileKind.FILE ? 'file' : 'directory',
@@ -233,7 +236,7 @@ export async function searchFilesAndFolders(
 	configurationService: IConfigurationService,
 	searchService: ISearchService
 ): Promise<{ folders: URI[]; files: URI[] }> {
-	const segmentMatchPattern = caseInsensitiveGlobPattern(fuzzyMatch ? fuzzyMatchingGlobPattern(pattern) : continousMatchingGlobPattern(pattern));
+	const segmentMatchPattern = fuzzyMatch ? fuzzyMatchingGlobPattern(pattern) : continousMatchingGlobPattern(pattern);
 
 	const searchExcludePattern = getExcludes(configurationService.getValue<ISearchConfiguration>({ resource: workspace })) || {};
 	const searchOptions: IFileQuery = {
@@ -246,6 +249,7 @@ export async function searchFilesAndFolders(
 		cacheKey,
 		excludePattern: searchExcludePattern,
 		sortByScore: true,
+		ignoreGlobCase: true,
 	};
 
 	let searchResult: ISearchComplete | undefined;
@@ -281,19 +285,6 @@ function continousMatchingGlobPattern(pattern: string): string {
 	return '*' + pattern + '*';
 }
 
-function caseInsensitiveGlobPattern(pattern: string): string {
-	let caseInsensitiveFilePattern = '';
-	for (let i = 0; i < pattern.length; i++) {
-		const char = pattern[i];
-		if (/[a-zA-Z]/.test(char)) {
-			caseInsensitiveFilePattern += `[${char.toLowerCase()}${char.toUpperCase()}]`;
-		} else {
-			caseInsensitiveFilePattern += char;
-		}
-	}
-	return caseInsensitiveFilePattern;
-}
-
 // TODO: remove this and have support from the search service
 function getMatchingFoldersFromFiles(resources: URI[], workspace: URI, segmentMatchPattern: string): URI[] {
 	const uniqueFolders = new ResourceSet();
@@ -315,7 +306,7 @@ function getMatchingFoldersFromFiles(resources: URI[], workspace: URI, segmentMa
 	for (const folderResource of uniqueFolders) {
 		const stats = folderResource.path.split('/');
 		const dirStat = stats[stats.length - 1];
-		if (!dirStat || !glob.match(segmentMatchPattern, dirStat)) {
+		if (!dirStat || !glob.match(segmentMatchPattern, dirStat, { ignoreCase: true })) {
 			continue;
 		}
 

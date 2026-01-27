@@ -179,8 +179,9 @@ async function startClientWithParticipants(languageParticipants: LanguagePartici
 					}
 					return r;
 				}
-				const isThenable = <T>(obj: ProviderResult<T>): obj is Thenable<T> => obj && (<any>obj)['then'];
-
+				function isThenable<T>(obj: unknown): obj is Thenable<T> {
+					return !!obj && typeof (obj as unknown as Thenable<T>).then === 'function';
+				}
 				const r = next(document, position, context, token);
 				if (isThenable<CompletionItem[] | CompletionList | null | undefined>(r)) {
 					return r.then(updateProposals);

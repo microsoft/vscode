@@ -60,8 +60,8 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
 					registryType: RegistryType.NODE,
-					registryBaseUrl: 'https://registry.npmjs.org',
 					identifier: '@modelcontextprotocol/server-brave-search',
+					transport: { type: TransportType.STDIO },
 					version: '1.0.2',
 					environmentVariables: [{
 						name: 'BRAVE_API_KEY',
@@ -81,13 +81,36 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 			assert.strictEqual(result.mcpServerConfiguration.inputs, undefined);
 		});
 
+		test('NPM package with custom registry URL', () => {
+			const manifest: IGalleryMcpServerConfiguration = {
+				packages: [{
+					registryType: RegistryType.NODE,
+					registryBaseUrl: 'https://custom-registry.example.com',
+					identifier: '@company/internal-package',
+					transport: { type: TransportType.STDIO },
+					version: '2.1.0'
+				}]
+			};
+
+			const result = service.getMcpServerConfigurationFromManifest(manifest, RegistryType.NODE);
+
+			assert.strictEqual(result.mcpServerConfiguration.config.type, McpServerType.LOCAL);
+			if (result.mcpServerConfiguration.config.type === McpServerType.LOCAL) {
+				assert.strictEqual(result.mcpServerConfiguration.config.command, 'npx');
+				assert.deepStrictEqual(result.mcpServerConfiguration.config.args, [
+					'--registry', 'https://custom-registry.example.com',
+					'@company/internal-package@2.1.0'
+				]);
+			}
+		});
+
 		test('NPM package without version', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
 					registryType: RegistryType.NODE,
-					registryBaseUrl: 'https://registry.npmjs.org',
 					identifier: '@modelcontextprotocol/everything',
-					version: ''
+					version: '',
+					transport: { type: TransportType.STDIO }
 				}]
 			};
 
@@ -104,6 +127,7 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
 					registryType: RegistryType.NODE,
+					transport: { type: TransportType.STDIO },
 					identifier: 'test-server',
 					version: '1.0.0',
 					environmentVariables: [{
@@ -137,6 +161,7 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
 					registryType: RegistryType.NODE,
+					transport: { type: TransportType.STDIO },
 					identifier: '@modelcontextprotocol/server-brave-search',
 					version: '1.0.2',
 					environmentVariables: [{
@@ -169,6 +194,7 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
 					registryType: RegistryType.NODE,
+					transport: { type: TransportType.STDIO },
 					identifier: 'test-server',
 					version: '1.0.0',
 					environmentVariables: [{
@@ -202,6 +228,7 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
 					registryType: RegistryType.NODE,
+					transport: { type: TransportType.STDIO },
 					identifier: 'snyk',
 					version: '1.1298.0',
 					packageArguments: [
@@ -230,7 +257,7 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
 					registryType: RegistryType.PYTHON,
-					registryBaseUrl: 'https://pypi.org',
+					transport: { type: TransportType.STDIO },
 					identifier: 'weather-mcp-server',
 					version: '0.5.0',
 					environmentVariables: [{
@@ -248,7 +275,7 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 			assert.strictEqual(result.mcpServerConfiguration.config.type, McpServerType.LOCAL);
 			if (result.mcpServerConfiguration.config.type === McpServerType.LOCAL) {
 				assert.strictEqual(result.mcpServerConfiguration.config.command, 'uvx');
-				assert.deepStrictEqual(result.mcpServerConfiguration.config.args, ['weather-mcp-server==0.5.0']);
+				assert.deepStrictEqual(result.mcpServerConfiguration.config.args, ['weather-mcp-server@0.5.0']);
 				assert.deepStrictEqual(result.mcpServerConfiguration.config.env, {
 					'WEATHER_API_KEY': 'test-key',
 					'WEATHER_UNITS': 'celsius'
@@ -256,10 +283,34 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 			}
 		});
 
+		test('Python package with custom registry URL', () => {
+			const manifest: IGalleryMcpServerConfiguration = {
+				packages: [{
+					registryType: RegistryType.PYTHON,
+					registryBaseUrl: 'https://custom-pypi.example.com/simple',
+					transport: { type: TransportType.STDIO },
+					identifier: 'internal-python-server',
+					version: '1.2.3'
+				}]
+			};
+
+			const result = service.getMcpServerConfigurationFromManifest(manifest, RegistryType.PYTHON);
+
+			assert.strictEqual(result.mcpServerConfiguration.config.type, McpServerType.LOCAL);
+			if (result.mcpServerConfiguration.config.type === McpServerType.LOCAL) {
+				assert.strictEqual(result.mcpServerConfiguration.config.command, 'uvx');
+				assert.deepStrictEqual(result.mcpServerConfiguration.config.args, [
+					'--index-url', 'https://custom-pypi.example.com/simple',
+					'internal-python-server@1.2.3'
+				]);
+			}
+		});
+
 		test('Python package without version', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
 					registryType: RegistryType.PYTHON,
+					transport: { type: TransportType.STDIO },
 					identifier: 'weather-mcp-server',
 					version: ''
 				}]
@@ -278,7 +329,7 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
 					registryType: RegistryType.DOCKER,
-					registryBaseUrl: 'https://docker.io',
+					transport: { type: TransportType.STDIO },
 					identifier: 'mcp/filesystem',
 					version: '1.0.2',
 					runtimeArguments: [{
@@ -316,10 +367,34 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 			}
 		});
 
+		test('Docker package with custom registry URL', () => {
+			const manifest: IGalleryMcpServerConfiguration = {
+				packages: [{
+					registryType: RegistryType.DOCKER,
+					registryBaseUrl: 'registry.company.com',
+					transport: { type: TransportType.STDIO },
+					identifier: 'internal/mcp-server',
+					version: '3.2.1'
+				}]
+			};
+
+			const result = service.getMcpServerConfigurationFromManifest(manifest, RegistryType.DOCKER);
+
+			assert.strictEqual(result.mcpServerConfiguration.config.type, McpServerType.LOCAL);
+			if (result.mcpServerConfiguration.config.type === McpServerType.LOCAL) {
+				assert.strictEqual(result.mcpServerConfiguration.config.command, 'docker');
+				assert.deepStrictEqual(result.mcpServerConfiguration.config.args, [
+					'run', '-i', '--rm',
+					'registry.company.com/internal/mcp-server:3.2.1'
+				]);
+			}
+		});
+
 		test('Docker package with variables in runtime arguments', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
 					registryType: RegistryType.DOCKER,
+					transport: { type: TransportType.STDIO },
 					identifier: 'example/database-manager-mcp',
 					version: '3.1.0',
 					runtimeArguments: [{
@@ -358,6 +433,7 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
 					registryType: RegistryType.DOCKER,
+					transport: { type: TransportType.STDIO },
 					identifier: 'example/database-manager-mcp',
 					version: '3.1.0',
 					packageArguments: [{
@@ -410,6 +486,7 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 				packages: [{
 					registryType: RegistryType.DOCKER,
 					identifier: 'example/test-image',
+					transport: { type: TransportType.STDIO },
 					version: '1.0.0'
 				}]
 			};
@@ -432,7 +509,7 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
 					registryType: RegistryType.NUGET,
-					registryBaseUrl: 'https://api.nuget.org',
+					transport: { type: TransportType.STDIO },
 					identifier: 'Knapcode.SampleMcpServer',
 					version: '0.5.0',
 					environmentVariables: [{
@@ -452,10 +529,35 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 			}
 		});
 
+		test('NuGet package with custom registry URL', () => {
+			const manifest: IGalleryMcpServerConfiguration = {
+				packages: [{
+					registryType: RegistryType.NUGET,
+					registryBaseUrl: 'https://nuget.company.com/v3/index.json',
+					transport: { type: TransportType.STDIO },
+					identifier: 'Company.Internal.McpServer',
+					version: '4.5.6'
+				}]
+			};
+
+			const result = service.getMcpServerConfigurationFromManifest(manifest, RegistryType.NUGET);
+
+			assert.strictEqual(result.mcpServerConfiguration.config.type, McpServerType.LOCAL);
+			if (result.mcpServerConfiguration.config.type === McpServerType.LOCAL) {
+				assert.strictEqual(result.mcpServerConfiguration.config.command, 'dnx');
+				assert.deepStrictEqual(result.mcpServerConfiguration.config.args, [
+					'Company.Internal.McpServer@4.5.6',
+					'--yes',
+					'--add-source', 'https://nuget.company.com/v3/index.json'
+				]);
+			}
+		});
+
 		test('NuGet package with package arguments', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
 					registryType: RegistryType.NUGET,
+					transport: { type: TransportType.STDIO },
 					identifier: 'Knapcode.SampleMcpServer',
 					version: '0.4.0-beta',
 					packageArguments: [{
@@ -610,6 +712,7 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 				packages: [{
 					registryType: RegistryType.NODE,
 					identifier: 'test-server',
+					transport: { type: TransportType.STDIO },
 					version: '1.0.0',
 					environmentVariables: [{
 						name: 'CONNECTION_STRING',
@@ -658,6 +761,7 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 				packages: [{
 					registryType: RegistryType.NODE,
 					identifier: 'test-server',
+					transport: { type: TransportType.STDIO },
 					version: '1.0.0',
 					runtimeArguments: [{
 						type: 'named',
@@ -688,6 +792,7 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 				packages: [{
 					registryType: RegistryType.DOCKER,
 					identifier: 'test-image',
+					transport: { type: TransportType.STDIO },
 					version: '1.0.0',
 					packageArguments: [{
 						type: 'named',
@@ -733,6 +838,7 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 				packages: [{
 					registryType: RegistryType.NODE,
 					identifier: '@example/math-tool',
+					transport: { type: TransportType.STDIO },
 					version: '2.0.1',
 					packageArguments: [{
 						type: 'positional',
@@ -777,6 +883,7 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
 					registryType: RegistryType.PYTHON,
+					transport: { type: TransportType.STDIO },
 					identifier: 'python-server',
 					version: '1.0.0'
 				}]
@@ -787,7 +894,7 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 			assert.strictEqual(result.mcpServerConfiguration.config.type, McpServerType.LOCAL);
 			if (result.mcpServerConfiguration.config.type === McpServerType.LOCAL) {
 				assert.strictEqual(result.mcpServerConfiguration.config.command, 'uvx'); // Python command since that's the package type
-				assert.deepStrictEqual(result.mcpServerConfiguration.config.args, ['python-server==1.0.0']);
+				assert.deepStrictEqual(result.mcpServerConfiguration.config.args, ['python-server@1.0.0']);
 			}
 		});
 
@@ -795,10 +902,12 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
 					registryType: RegistryType.PYTHON,
+					transport: { type: TransportType.STDIO },
 					identifier: 'python-server',
 					version: '1.0.0'
 				}, {
 					registryType: RegistryType.NODE,
+					transport: { type: TransportType.STDIO },
 					identifier: 'node-server',
 					version: '2.0.0'
 				}]
@@ -816,6 +925,7 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
 					registryType: RegistryType.NODE,
+					transport: { type: TransportType.STDIO },
 					identifier: 'test-server',
 					version: '1.0.0'
 				}]
@@ -832,6 +942,7 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
 					registryType: RegistryType.NODE,
+					transport: { type: TransportType.STDIO },
 					identifier: 'test-server',
 					version: '1.0.0',
 					runtimeArguments: [{
@@ -854,6 +965,7 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 				packages: [{
 					registryType: RegistryType.NODE,
 					identifier: 'test-server',
+					transport: { type: TransportType.STDIO },
 					version: '1.0.0',
 					packageArguments: [{
 						type: 'positional',
@@ -870,18 +982,46 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 			}
 		});
 
-		test('named argument with missing name should generate notice', () => {
+		test('named argument with no name should generate notice', () => {
+			const manifest = {
+				packages: [{
+					registryType: RegistryType.NODE,
+					identifier: 'test-server',
+					transport: { type: TransportType.STDIO },
+					version: '1.0.0',
+					runtimeArguments: [{
+						type: 'named',
+						value: 'some-value',
+						isRepeated: false
+					}]
+				}]
+			};
+
+			const result = service.getMcpServerConfigurationFromManifest(manifest as IGalleryMcpServerConfiguration, RegistryType.NODE);
+
+			// Should generate a notice about the missing name
+			assert.strictEqual(result.notices.length, 1);
+			assert.ok(result.notices[0].includes('Named argument is missing a name'));
+			assert.ok(result.notices[0].includes('some-value')); // Should include the argument details in JSON format
+
+			if (result.mcpServerConfiguration.config.type === McpServerType.LOCAL) {
+				assert.deepStrictEqual(result.mcpServerConfiguration.config.args, ['test-server@1.0.0']);
+			}
+		});
+
+		test('named argument with empty name should generate notice', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
 					registryType: RegistryType.NODE,
 					identifier: 'test-server',
+					transport: { type: TransportType.STDIO },
 					version: '1.0.0',
 					runtimeArguments: [{
 						type: 'named',
-						// name is intentionally missing/undefined
+						name: '',
 						value: 'some-value',
 						isRepeated: false
-					} as any] // Cast to any to bypass TypeScript validation for this test case
+					}]
 				}]
 			};
 
@@ -904,6 +1044,7 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 				packages: [{
 					registryType: RegistryType.NODE,
 					identifier: 'test-server',
+					transport: { type: TransportType.STDIO },
 					version: '1.0.0',
 					environmentVariables: [{
 						name: 'API_KEY',

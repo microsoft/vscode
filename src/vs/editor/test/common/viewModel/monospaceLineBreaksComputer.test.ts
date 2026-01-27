@@ -318,12 +318,12 @@ suite('Editor ViewModel - MonospaceLineBreaksComputer', () => {
 		assertLineBreaks(factory, 4, 8, '你好1111', WrappingIndent.Same, 'keepAll');
 	});
 
-	test('issue wrapOnEscapedLineFeeds: should work correctly after editor resize', () => {
+	test('issue #258022: wrapOnEscapedLineFeeds: should work correctly after editor resize', () => {
 		const factory = new MonospaceLineBreaksComputerFactory(EditorOptions.wordWrapBreakBeforeCharacters.defaultValue, EditorOptions.wordWrapBreakAfterCharacters.defaultValue);
 
 		// Test text with escaped line feeds - simulates a JSON string with \n
 		// The \n should trigger a soft wrap when wrapOnEscapedLineFeeds is enabled
-		const text = '"Short text with\\nescaped newline and more text after"';
+		const text = '"Short text with\\nescaped newline and an escaped\\\\nbackslash"';
 
 		// First, compute line breaks with wrapOnEscapedLineFeeds enabled at initial width
 		const initialBreakData = getLineBreakData(factory, 4, 30, 2, WrappingIndent.None, 'normal', true, text, null);

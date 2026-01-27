@@ -152,5 +152,6 @@ export class QuickDiffService extends Disposable implements IQuickDiffService {
 
 export async function getOriginalResource(quickDiffService: IQuickDiffService, uri: URI, language: string | undefined, isSynchronized: boolean | undefined): Promise<URI | null> {
 	const quickDiffs = await quickDiffService.getQuickDiffs(uri, language, isSynchronized);
-	return quickDiffs.length > 0 ? quickDiffs[0].originalResource : null;
+	const primaryQuickDiffs = quickDiffs.find(quickDiff => quickDiff.kind === 'primary');
+	return primaryQuickDiffs ? primaryQuickDiffs.originalResource : null;
 }

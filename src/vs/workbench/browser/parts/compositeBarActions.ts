@@ -29,6 +29,7 @@ import { Action2, IAction2Options } from '../../../platform/actions/common/actio
 import { ViewContainerLocation } from '../../common/views.js';
 import { IPaneCompositePartService } from '../../services/panecomposite/browser/panecomposite.js';
 import { createConfigureKeybindingAction } from '../../../platform/actions/common/menuService.js';
+import { HoverStyle } from '../../../base/browser/ui/hover/hover.js';
 
 export interface ICompositeBar {
 
@@ -260,16 +261,13 @@ export class CompositeBarActionViewItem extends BaseActionViewItem {
 
 		this._register(this.hoverService.setupDelayedHover(this.container, () => ({
 			content: this.computeTitle(),
+			style: HoverStyle.Pointer,
 			position: {
 				hoverPosition: this.options.hoverOptions.position(),
 			},
 			persistence: {
 				hideOnKeyDown: true,
 			},
-			appearance: {
-				showPointer: true,
-				compact: true,
-			}
 		}), { groupId: 'composite-bar-actions' }));
 
 		// Label

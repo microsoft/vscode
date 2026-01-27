@@ -49,7 +49,7 @@ export class JSONEditingService implements IJSONEditingService {
 		}
 	}
 
-	private async writeToBuffer(model: ITextModel, values: IJSONValue[]): Promise<any> {
+	private async writeToBuffer(model: ITextModel, values: IJSONValue[]): Promise<URI | undefined> {
 		let disposable: IDisposable | undefined;
 		try {
 			// Optimization: we apply edits to a text model and save it
@@ -69,6 +69,8 @@ export class JSONEditingService implements IJSONEditingService {
 		} finally {
 			disposable?.dispose();
 		}
+
+		return undefined;
 	}
 
 	private applyEditsToBuffer(edit: Edit, model: ITextModel): boolean {

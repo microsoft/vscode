@@ -56,7 +56,11 @@ interface CompositeItem {
 	readonly progress: IProgressIndicator;
 }
 
-export abstract class CompositePart<T extends Composite> extends Part {
+export interface ICompositePartOptions extends IPartOptions {
+	readonly trailingSeparator?: boolean;
+}
+
+export abstract class CompositePart<T extends Composite, MementoType extends object = object> extends Part<MementoType> {
 
 	protected readonly onDidCompositeOpen = this._register(new Emitter<{ composite: IComposite; focus: boolean }>());
 	protected readonly onDidCompositeClose = this._register(new Emitter<IComposite>());
@@ -76,6 +80,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 	private readonly actionsListener = this._register(new MutableDisposable());
 	private currentCompositeOpenToken: string | undefined;
 	private boundarySashes: IBoundarySashes | undefined;
+	private readonly trailingSeparator: boolean;
 
 	constructor(
 		private readonly notificationService: INotificationService,
@@ -94,12 +99,13 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		private readonly titleForegroundColor: string | undefined,
 		private readonly titleBorderColor: string | undefined,
 		id: string,
-		options: IPartOptions
+		options: ICompositePartOptions
 	) {
 		super(id, options, themeService, storageService, layoutService);
 
 		this.lastActiveCompositeId = storageService.get(activeCompositeSettingsKey, StorageScope.WORKSPACE, this.defaultCompositeId);
 		this.toolbarHoverDelegate = this._register(createInstantHoverDelegate());
+		this.trailingSeparator = options.trailingSeparator ?? false;
 	}
 
 	protected openComposite(id: string, focus?: boolean): Composite | undefined {
@@ -413,7 +419,8 @@ export abstract class CompositePart<T extends Composite> extends Part {
 			anchorAlignmentProvider: () => this.getTitleAreaDropDownAnchorAlignment(),
 			toggleMenuTitle: localize('viewsAndMoreActions', "Views and More Actions..."),
 			telemetrySource: this.nameForTelemetry,
-			hoverDelegate: this.toolbarHoverDelegate
+			hoverDelegate: this.toolbarHoverDelegate,
+			trailingSeparator: this.trailingSeparator,
 		}));
 
 		this.collectCompositeActions()();

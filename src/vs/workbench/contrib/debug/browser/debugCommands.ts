@@ -33,12 +33,12 @@ import { ViewContainerLocation } from '../../../common/views.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IPaneCompositePartService } from '../../../services/panecomposite/browser/panecomposite.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
-import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
+import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
 import { IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
 import { TEXT_FILE_EDITOR_ID } from '../../files/common/files.js';
 import { CONTEXT_BREAKPOINT_INPUT_FOCUSED, CONTEXT_BREAKPOINTS_FOCUSED, CONTEXT_DEBUG_STATE, CONTEXT_DEBUGGERS_AVAILABLE, CONTEXT_DISASSEMBLY_VIEW_FOCUS, CONTEXT_EXPRESSION_SELECTED, CONTEXT_FOCUSED_SESSION_IS_ATTACH, CONTEXT_IN_DEBUG_MODE, CONTEXT_IN_DEBUG_REPL, CONTEXT_JUMP_TO_CURSOR_SUPPORTED, CONTEXT_STEP_INTO_TARGETS_SUPPORTED, CONTEXT_VARIABLES_FOCUSED, CONTEXT_WATCH_EXPRESSIONS_FOCUSED, DataBreakpointSetType, EDITOR_CONTRIBUTION_ID, getStateLabel, IConfig, IDataBreakpointInfoResponse, IDebugConfiguration, IDebugEditorContribution, IDebugService, IDebugSession, IEnablement, IExceptionBreakpoint, isFrameDeemphasized, IStackFrame, IThread, REPL_VIEW_ID, State, VIEWLET_ID } from '../common/debug.js';
 import { Breakpoint, DataBreakpoint, Expression, FunctionBreakpoint, Thread, Variable } from '../common/debugModel.js';
-import { saveAllBeforeDebugStart } from '../common/debugUtils.js';
+import { saveAllBeforeDebugStart, resolveChildSession } from '../common/debugUtils.js';
 import { showLoadedScriptMenu } from '../common/loadedScriptsPicker.js';
 import { openBreakpointSource } from './breakpointsView.js';
 import { showDebugSessionMenu } from './debugSessionPicker.js';
@@ -625,7 +625,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	}
 });
 
-async function stopHandler(accessor: ServicesAccessor, _: string, context: CallStackContext | unknown, disconnect: boolean, suspend?: boolean): Promise<void> {
+async function stopHandler(accessor: ServicesAccessor, _: unknown, context: CallStackContext | unknown, disconnect: boolean, suspend?: boolean): Promise<void> {
 	const debugService = accessor.get(IDebugService);
 	let session: IDebugSession | undefined;
 	if (isSessionContext(context)) {
@@ -711,10 +711,7 @@ CommandsRegistry.registerCommand({
 	handler: async (accessor: ServicesAccessor, session: IDebugSession) => {
 		const debugService = accessor.get(IDebugService);
 		const editorService = accessor.get(IEditorService);
-		const stoppedChildSession = debugService.getModel().getSessions().find(s => s.parentSession === session && s.state === State.Stopped);
-		if (stoppedChildSession && session.state !== State.Stopped) {
-			session = stoppedChildSession;
-		}
+		session = resolveChildSession(session, debugService.getModel().getSessions());
 		await debugService.focusStackFrame(undefined, undefined, session, { explicit: true });
 		const stackFrame = debugService.getViewModel().focusedStackFrame;
 		if (stackFrame) {

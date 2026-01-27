@@ -82,6 +82,7 @@ if (-not $env:VSCODE_PYTHON_AUTOACTIVATE_GUARD) {
 
 		try {
 			Invoke-Expression $activateScript
+			$Global:__VSCodeState.OriginalPrompt = $function:Prompt
 		}
 		catch {
 			$activationError = $_
@@ -258,4 +259,13 @@ function Set-MappedKeyHandlers {
 
 if ($Global:__VSCodeState.HasPSReadLine) {
 	Set-MappedKeyHandlers
+
+	# Prevent AI-executed commands from polluting shell history
+	if ($env:VSCODE_PREVENT_SHELL_HISTORY -eq "1") {
+		Set-PSReadLineOption -AddToHistoryHandler {
+			param([string]$line)
+			return $false
+		}
+		$env:VSCODE_PREVENT_SHELL_HISTORY = $null
+	}
 }

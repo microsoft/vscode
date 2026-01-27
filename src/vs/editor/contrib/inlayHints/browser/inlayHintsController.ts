@@ -16,7 +16,8 @@ import { URI } from '../../../../base/common/uri.js';
 import { IActiveCodeEditor, ICodeEditor, IEditorMouseEvent, MouseTargetType } from '../../../browser/editorBrowser.js';
 import { ClassNameReference, CssProperties, DynamicCssRules } from '../../../browser/editorDom.js';
 import { StableEditorScrollState } from '../../../browser/stableEditorScroll.js';
-import { EditorOption, EDITOR_FONT_DEFAULTS } from '../../../common/config/editorOptions.js';
+import { EditorOption } from '../../../common/config/editorOptions.js';
+import { EDITOR_FONT_DEFAULTS } from '../../../common/config/fontInfo.js';
 import { EditOperation } from '../../../common/core/editOperation.js';
 import { Range } from '../../../common/core/range.js';
 import { IEditorContribution } from '../../../common/editorCommon.js';
@@ -94,7 +95,36 @@ const enum RenderMode {
 	Invisible
 }
 
+
+
+/**
+ *  Mix of CancellationTokenSource, DisposableStore and MutableDisposable
+ */
+class CancellationStore implements IDisposable {
+
+	private readonly _store = new MutableDisposable<DisposableStore>();
+	private _tokenSource = new CancellationTokenSource();
+
+	dispose() {
+		this._store.dispose();
+		this._tokenSource.dispose(true);
+	}
+
+	reset() {
+		this._tokenSource.dispose(true);
+		this._tokenSource = new CancellationTokenSource();
+		this._store.value = new DisposableStore();
+
+		return {
+			store: this._store.value,
+			token: this._tokenSource.token
+		};
+	}
+}
+
+
 // --- controller
+
 
 export class InlayHintsController implements IEditorContribution {
 
@@ -206,18 +236,19 @@ export class InlayHintsController implements IEditorContribution {
 		let cts: CancellationTokenSource | undefined;
 		const watchedProviders = new Set<languages.InlayHintsProvider>();
 
+		this._sessionDisposables.add(model.onWillDispose(() => cts?.cancel()));
+
+		const cancellationStore = this._sessionDisposables.add(new CancellationStore());
+
 		const scheduler = new RunOnceScheduler(async () => {
 			const t1 = Date.now();
 
-			cts?.dispose(true);
-			cts = new CancellationTokenSource();
-			const listener = model.onWillDispose(() => cts?.cancel());
+			const { store, token } = cancellationStore.reset();
 
 			try {
-				const myToken = cts.token;
-				const inlayHints = await InlayHintsFragments.create(this._languageFeaturesService.inlayHintsProvider, model, this._getHintsRanges(), myToken);
+				const inlayHints = await InlayHintsFragments.create(this._languageFeaturesService.inlayHintsProvider, model, this._getHintsRanges(), token);
 				scheduler.delay = this._debounceInfo.update(model, Date.now() - t1);
-				if (myToken.isCancellationRequested) {
+				if (token.isCancellationRequested) {
 					inlayHints.dispose();
 					return;
 				}
@@ -226,7 +257,7 @@ export class InlayHintsController implements IEditorContribution {
 				for (const provider of inlayHints.provider) {
 					if (typeof provider.onDidChangeInlayHints === 'function' && !watchedProviders.has(provider)) {
 						watchedProviders.add(provider);
-						this._sessionDisposables.add(provider.onDidChangeInlayHints(() => {
+						store.add(provider.onDidChangeInlayHints(() => {
 							if (!scheduler.isScheduled()) { // ignore event when request is already scheduled
 								scheduler.schedule();
 							}
@@ -234,22 +265,17 @@ export class InlayHintsController implements IEditorContribution {
 					}
 				}
 
-				this._sessionDisposables.add(inlayHints);
+				store.add(inlayHints);
+				store.add(toDisposable(() => watchedProviders.clear()));
 				this._updateHintsDecorators(inlayHints.ranges, inlayHints.items);
 				this._cacheHintsForFastRestore(model);
 
 			} catch (err) {
 				onUnexpectedError(err);
-
-			} finally {
-				cts.dispose();
-				listener.dispose();
 			}
-
 		}, this._debounceInfo.get(model));
 
 		this._sessionDisposables.add(scheduler);
-		this._sessionDisposables.add(toDisposable(() => cts?.dispose(true)));
 		scheduler.schedule(0);
 
 		this._sessionDisposables.add(this._editor.onDidScrollChange((e) => {

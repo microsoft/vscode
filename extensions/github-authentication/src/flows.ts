@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as path from 'path';
-import { ProgressLocation, Uri, commands, env, l10n, window } from 'vscode';
+import { ProgressLocation, Uri, commands, env, l10n, window, workspace } from 'vscode';
 import { Log } from './common/logger';
 import { Config } from './config';
 import { UriEventHandler } from './github';
@@ -354,7 +354,7 @@ class LocalServerFlow implements IFlow {
 				path: '/login/oauth/authorize',
 				query: searchParams.toString()
 			});
-			const server = new LoopbackAuthServer(path.join(__dirname, '../media'), loginUrl.toString(true), callbackUri.toString(true));
+			const server = new LoopbackAuthServer(path.join(__dirname, '../media'), loginUrl.toString(true), callbackUri.toString(true), env.isAppPortable);
 			const port = await server.start();
 
 			let codeToExchange;
@@ -612,7 +612,7 @@ const allFlows: IFlow[] = [
 ];
 
 export function getFlows(query: IFlowQuery) {
-	return allFlows.filter(flow => {
+	const validFlows = allFlows.filter(flow => {
 		let useFlow: boolean = true;
 		switch (query.target) {
 			case GitHubTarget.DotCom:
@@ -648,6 +648,16 @@ export function getFlows(query: IFlowQuery) {
 		}
 		return useFlow;
 	});
+
+	const preferDeviceCodeFlow = workspace.getConfiguration('github-authentication').get<boolean>('preferDeviceCodeFlow', false);
+	if (preferDeviceCodeFlow) {
+		return [
+			...validFlows.filter(flow => flow instanceof DeviceCodeFlow),
+			...validFlows.filter(flow => !(flow instanceof DeviceCodeFlow))
+		];
+	}
+
+	return validFlows;
 }
 
 /**

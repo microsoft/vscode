@@ -35,7 +35,7 @@ export interface IResourceLabelProps {
 }
 
 function toResource(props: IResourceLabelProps | undefined): URI | undefined {
-	if (!props || !props.resource) {
+	if (!props?.resource) {
 		return undefined;
 	}
 
@@ -631,6 +631,7 @@ class ResourceLabelWidget extends IconLabel {
 
 		const iconLabelOptions: IIconLabelValueOptions & { extraClasses: string[] } = {
 			title: '',
+			bold: this.options?.bold,
 			italic: this.options?.italic,
 			strikethrough: this.options?.strikethrough,
 			matches: this.options?.matches,
@@ -641,6 +642,7 @@ class ResourceLabelWidget extends IconLabel {
 			disabledCommand: this.options?.disabledCommand,
 			labelEscapeNewLines: this.options?.labelEscapeNewLines,
 			descriptionTitle: this.options?.descriptionTitle,
+			supportIcons: this.options?.supportIcons,
 		};
 
 		const resource = toResource(this.label);

@@ -171,12 +171,12 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 		});
 	}
 
-	executeCommand<T>(id: string, ...args: any[]): Promise<T> {
+	executeCommand<T>(id: string, ...args: unknown[]): Promise<T> {
 		this._logService.trace('ExtHostCommands#executeCommand', id);
 		return this._doExecuteCommand(id, args, true);
 	}
 
-	private async _doExecuteCommand<T>(id: string, args: any[], retry: boolean): Promise<T> {
+	private async _doExecuteCommand<T>(id: string, args: unknown[], retry: boolean): Promise<T> {
 
 		if (this._commands.has(id)) {
 			// - We stay inside the extension host and support
@@ -229,7 +229,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 		}
 	}
 
-	private async _executeContributedCommand<T = unknown>(id: string, args: any[], annotateError: boolean): Promise<T> {
+	private async _executeContributedCommand<T = unknown>(id: string, args: unknown[], annotateError: boolean): Promise<T> {
 		const command = this._commands.get(id);
 		if (!command) {
 			throw new Error('Unknown command');
@@ -310,7 +310,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 		});
 	}
 
-	$executeContributedCommand(id: string, ...args: any[]): Promise<unknown> {
+	$executeContributedCommand(id: string, ...args: unknown[]): Promise<unknown> {
 		this._logService.trace('ExtHostCommands#$executeContributedCommand', id);
 
 		const cmdHandler = this._commands.get(id);

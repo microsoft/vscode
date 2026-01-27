@@ -139,7 +139,7 @@ export class CursorUndo extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: unknown): void {
 		CursorUndoRedoController.get(editor)?.cursorUndo();
 	}
 }
@@ -153,7 +153,7 @@ export class CursorRedo extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: unknown): void {
 		CursorUndoRedoController.get(editor)?.cursorRedo();
 	}
 }

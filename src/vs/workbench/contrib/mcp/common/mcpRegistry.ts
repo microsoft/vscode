@@ -508,6 +508,10 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 				launch = await this._instantiationService.invokeFunction(accessor => accessor.get(IMcpDevModeDebugging).transform(definition, launch!));
 			}
 		} catch (e) {
+			if (e instanceof UserInteractionRequiredError) {
+				throw e;
+			}
+
 			this._notificationService.notify({
 				severity: Severity.Error,
 				message: localize('mcp.launchError', 'Error starting {0}: {1}', definition.label, String(e)),
@@ -538,6 +542,7 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 			launch,
 			logger,
 			opts.errorOnUserInteraction,
+			opts.taskManager,
 		);
 	}
 }

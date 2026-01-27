@@ -9,13 +9,13 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
 import { IEditorService } from '../../editor/common/editorService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IWindowSettings, IWindowOpenable, IOpenWindowOptions, isFolderToOpen, isWorkspaceToOpen, isFileToOpen, IOpenEmptyWindowOptions, IPathData, IFileToOpen } from '../../../../platform/window/common/window.js';
+import { IWindowSettings, IWindowOpenable, IOpenWindowOptions, isFolderToOpen, isWorkspaceToOpen, isFileToOpen, IOpenEmptyWindowOptions, IPathData, IFileToOpen, IOpenedMainWindow, IOpenedAuxiliaryWindow } from '../../../../platform/window/common/window.js';
 import { isResourceEditorInput, pathsToEditors } from '../../../common/editor.js';
 import { whenEditorClosed } from '../../../browser/editor.js';
 import { IWorkspace, IWorkspaceProvider } from '../../../browser/web.api.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { ILabelService, Verbosity } from '../../../../platform/label/common/label.js';
-import { EventType, ModifierKeyEmitter, addDisposableListener, addDisposableThrottledListener, detectFullscreen, disposableWindowInterval, getActiveDocument, getWindowId, onDidRegisterWindow, trackFocus } from '../../../../base/browser/dom.js';
+import { EventType, ModifierKeyEmitter, addDisposableListener, addDisposableThrottledListener, detectFullscreen, disposableWindowInterval, getActiveDocument, getActiveWindow, getWindowId, onDidRegisterWindow, trackFocus, getWindows as getDOMWindows } from '../../../../base/browser/dom.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { IBrowserWorkbenchEnvironmentService } from '../../environment/browser/environmentService.js';
 import { memoize } from '../../../../base/common/decorators.js';
@@ -32,7 +32,7 @@ import Severity from '../../../../base/common/severity.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { DomEmitter } from '../../../../base/browser/event.js';
 import { isUndefined } from '../../../../base/common/types.js';
-import { isTemporaryWorkspace, IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { isTemporaryWorkspace, IWorkspaceContextService, toWorkspaceIdentifier } from '../../../../platform/workspace/common/workspace.js';
 import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { ITextEditorOptions } from '../../../../platform/editor/common/editor.js';
@@ -416,7 +416,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 	private preservePayload(isEmptyWindow: boolean, options?: IOpenWindowOptions): Array<unknown> | undefined {
 
 		// Selectively copy payload: for now only extension debugging properties are considered
-		const newPayload: Array<unknown> = new Array();
+		const newPayload: Array<unknown> = [];
 		if (!isEmptyWindow && this.environmentService.extensionDevelopmentLocationURI) {
 			newPayload.push(['extensionDevelopmentPath', this.environmentService.extensionDevelopmentLocationURI.toString()]);
 
@@ -538,12 +538,25 @@ export class BrowserHostService extends Disposable implements IHostService {
 		}
 
 		// Safari and Edge 14 are all using webkit prefix
-		if ((<any>targetWindow.document).webkitIsFullScreen !== undefined) {
+
+		interface WebkitDocument extends Document {
+			webkitFullscreenElement: Element | null;
+			webkitExitFullscreen(): Promise<void>;
+			webkitIsFullScreen: boolean;
+		}
+
+		interface WebkitHTMLElement extends HTMLElement {
+			webkitRequestFullscreen(): Promise<void>;
+		}
+
+		const webkitDocument = targetWindow.document as WebkitDocument;
+		const webkitElement = target as WebkitHTMLElement;
+		if (webkitDocument.webkitIsFullScreen !== undefined) {
 			try {
-				if (!(<any>targetWindow.document).webkitIsFullScreen) {
-					(<any>target).webkitRequestFullscreen(); // it's async, but doesn't return a real promise.
+				if (!webkitDocument.webkitIsFullScreen) {
+					webkitElement.webkitRequestFullscreen(); // it's async, but doesn't return a real promise
 				} else {
-					(<any>targetWindow.document).webkitExitFullscreen(); // it's async, but doesn't return a real promise.
+					webkitDocument.webkitExitFullscreen(); // it's async, but doesn't return a real promise
 				}
 			} catch {
 				this.logService.warn('toggleFullScreen(): requestFullscreen/exitFullscreen failed');
@@ -557,6 +570,37 @@ export class BrowserHostService extends Disposable implements IHostService {
 
 	async getCursorScreenPoint(): Promise<undefined> {
 		return undefined;
+	}
+
+	getWindows(options: { includeAuxiliaryWindows: true }): Promise<Array<IOpenedMainWindow | IOpenedAuxiliaryWindow>>;
+	getWindows(options: { includeAuxiliaryWindows: false }): Promise<Array<IOpenedMainWindow>>;
+	async getWindows(options: { includeAuxiliaryWindows: boolean }): Promise<Array<IOpenedMainWindow | IOpenedAuxiliaryWindow>> {
+		const activeWindow = getActiveWindow();
+		const activeWindowId = getWindowId(activeWindow);
+
+		// Main window
+		const result: Array<IOpenedMainWindow | IOpenedAuxiliaryWindow> = [{
+			id: activeWindowId,
+			title: activeWindow.document.title,
+			workspace: toWorkspaceIdentifier(this.contextService.getWorkspace()),
+			dirty: false
+		}];
+
+		// Auxiliary windows
+		if (options.includeAuxiliaryWindows) {
+			for (const { window } of getDOMWindows()) {
+				const windowId = getWindowId(window);
+				if (windowId !== activeWindowId && isAuxiliaryWindow(window)) {
+					result.push({
+						id: windowId,
+						title: window.document.title,
+						parentId: activeWindowId
+					});
+				}
+			}
+		}
+
+		return result;
 	}
 
 	//#endregion

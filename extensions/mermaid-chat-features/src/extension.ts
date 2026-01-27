@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as vscode from 'vscode';
+import { generateUuid } from './uuid';
 
 /**
  * View type that uniquely identifies the Mermaid chat output renderer.
@@ -14,7 +15,19 @@ const viewType = 'vscode.chatMermaidDiagram';
  */
 const mime = 'text/vnd.mermaid';
 
+// Track active webviews for reset command
+let activeWebview: vscode.Webview | undefined;
+
 export function activate(context: vscode.ExtensionContext) {
+
+	// Register the reset pan/zoom command
+	context.subscriptions.push(
+		vscode.commands.registerCommand('mermaid-chat.resetPanZoom', () => {
+			if (activeWebview) {
+				activeWebview.postMessage({ type: 'resetPanZoom' });
+			}
+		})
+	);
 
 	// Register tools
 	context.subscriptions.push(
@@ -34,6 +47,9 @@ export function activate(context: vscode.ExtensionContext) {
 			async renderChatOutput({ value }, webview, _ctx, _token) {
 				const mermaidSource = new TextDecoder().decode(value);
 
+				// Track this webview for the reset command
+				activeWebview = webview;
+
 				// Set the options for the webview
 				const mediaRoot = vscode.Uri.joinPath(context.extensionUri, 'chat-webview-out');
 				webview.options = {
@@ -42,7 +58,7 @@ export function activate(context: vscode.ExtensionContext) {
 				};
 
 				// Set the HTML content for the webview
-				const nonce = getNonce();
+				const nonce = generateUuid();
 				const mermaidScript = vscode.Uri.joinPath(mediaRoot, 'index.js');
 
 				webview.html = `
@@ -53,10 +69,16 @@ export function activate(context: vscode.ExtensionContext) {
 						<meta charset="UTF-8">
 						<meta name="viewport" content="width=device-width, initial-scale=1.0">
 						<title>Mermaid Diagram</title>
-						<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src ${webview.cspSource} 'nonce-${nonce}'; style-src 'self' 'unsafe-inline';" />
+						<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'nonce-${nonce}'; style-src 'self' 'unsafe-inline';" />
+
+						<style>
+							body {
+								padding: 0;
+							}
+						</style>
 					</head>
 
-					<body>
+					<body data-vscode-context='${JSON.stringify({ webviewSection: 'mermaid-diagram', preventDefaultContextMenuItems: true })}'>
 						<pre class="mermaid">
 							${escapeHtmlText(mermaidSource)}
 						</pre>
@@ -96,11 +118,4 @@ function escapeHtmlText(str: string): string {
 		.replace(/'/g, '&#39;');
 }
 
-function getNonce() {
-	let text = '';
-	const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-	for (let i = 0; i < 64; i++) {
-		text += possible.charAt(Math.floor(Math.random() * possible.length));
-	}
-	return text;
-}
+

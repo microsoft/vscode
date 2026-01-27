@@ -30,7 +30,7 @@ export interface ILayoutContentResult {
  * Parts are layed out in the workbench and have their own layout that
  * arranges an optional title and mandatory content area to show content.
  */
-export abstract class Part extends Component implements ISerializableView {
+export abstract class Part<MementoType extends object = object> extends Component<MementoType> implements ISerializableView {
 
 	private _dimension: Dimension | undefined;
 	get dimension(): Dimension | undefined { return this._dimension; }
@@ -265,7 +265,7 @@ export interface IMultiWindowPart {
 	readonly element: HTMLElement;
 }
 
-export abstract class MultiWindowParts<T extends IMultiWindowPart> extends Component {
+export abstract class MultiWindowParts<T extends IMultiWindowPart, MementoType extends object = object> extends Component<MementoType> {
 
 	protected readonly _parts = new Set<T>();
 	get parts() { return Array.from(this._parts); }

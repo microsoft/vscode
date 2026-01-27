@@ -103,7 +103,7 @@ export interface ITaskDefinitionRegistry {
 	get(key: string): Tasks.ITaskDefinition;
 	all(): Tasks.ITaskDefinition[];
 	getJsonSchema(): IJSONSchema;
-	onDefinitionsChanged: Event<void>;
+	readonly onDefinitionsChanged: Event<void>;
 }
 
 class TaskDefinitionRegistryImpl implements ITaskDefinitionRegistry {

@@ -34,6 +34,7 @@ import { TerminalMultiLineLinkDetector } from './terminalMultiLineLinkDetector.j
 import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
 import type { IHoverAction } from '../../../../../base/browser/ui/hover/hover.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { isString } from '../../../../../base/common/types.js';
 
 export type XtermLinkMatcherHandler = (event: MouseEvent | undefined, link: string) => Promise<void>;
 
@@ -149,7 +150,10 @@ export class TerminalLinkManager extends DisposableStore {
 				activeHoverDisposable = undefined;
 				activeTooltipScheduler?.dispose();
 				activeTooltipScheduler = new RunOnceScheduler(() => {
-					const core = (this._xterm as any)._core as IXtermCore;
+					interface XtermWithCore extends Terminal {
+						_core: IXtermCore;
+					}
+					const core = (this._xterm as XtermWithCore)._core;
 					const cellDimensions = {
 						width: core._renderService.dimensions.css.cell.width,
 						height: core._renderService.dimensions.css.cell.height
@@ -208,7 +212,7 @@ export class TerminalLinkManager extends DisposableStore {
 			owner: 'tyriar';
 			comment: 'When the user opens a link in the terminal';
 			linkType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The type of link being opened' };
-		}>('terminal/openLink', { linkType: typeof link.type === 'string' ? link.type : `extension:${link.type.id}` });
+		}>('terminal/openLink', { linkType: isString(link.type) ? link.type : `extension:${link.type.id}` });
 		await opener.open(link);
 	}
 
@@ -347,7 +351,10 @@ export class TerminalLinkManager extends DisposableStore {
 			return;
 		}
 
-		const core = (this._xterm as any)._core as IXtermCore;
+		interface XtermWithCore extends Terminal {
+			_core: IXtermCore;
+		}
+		const core = (this._xterm as XtermWithCore)._core;
 		const cellDimensions = {
 			width: core._renderService.dimensions.css.cell.width,
 			height: core._renderService.dimensions.css.cell.height

@@ -49,13 +49,13 @@ steps:
       archiveFilePatterns: "$(Build.ArtifactStagingDirectory)/compilation.tar.gz"
       cleanDestinationFolder: false
 
-  - powershell: node build/setup-npm-registry.js $env:NPM_REGISTRY
+  - powershell: node build/setup-npm-registry.ts $env:NPM_REGISTRY
     condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM Registry
 
   - pwsh: |
       mkdir .build -ea 0
-      node build/azure-pipelines/common/computeNodeModulesCacheKey.js win32 $(VSCODE_ARCH) $(node -p process.arch) > .build/packagelockhash
+      node build/azure-pipelines/common/computeNodeModulesCacheKey.ts win32 $(VSCODE_ARCH) $(node -p process.arch) > .build/packagelockhash
     displayName: Prepare node_modules cache key
 
   - task: Cache@2
@@ -101,31 +101,33 @@ steps:
     displayName: Install dependencies
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
-  - powershell: node build/azure-pipelines/distro/mixin-npm
+  - powershell: node build/azure-pipelines/distro/mixin-npm.ts
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
     displayName: Mixin distro node modules
 
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
       $ErrorActionPreference = "Stop"
-      exec { node build/azure-pipelines/common/listNodeModules.js .build/node_modules_list.txt }
+      exec { node build/azure-pipelines/common/listNodeModules.ts .build/node_modules_list.txt }
       exec { mkdir -Force .build/node_modules_cache }
       exec { 7z.exe a .build/node_modules_cache/cache.7z -mx3 `@.build/node_modules_list.txt }
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
     displayName: Create node_modules archive
 
-  - powershell: node build/azure-pipelines/distro/mixin-quality
+  - powershell: node build/azure-pipelines/distro/mixin-quality.ts
     displayName: Mixin distro quality
 
   - template: ../../common/install-builtin-extensions.yml@self
 
   - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
-    - powershell: node build\lib\policies win32
+    - powershell: |
+        npm run copy-policy-dto --prefix build
+        node build\lib\policies\policyGenerator.ts build\lib\policies\policyData.jsonc win32
       displayName: Generate Group Policy definitions
       retryCountOnTaskFailure: 3
 
   - ${{ if and(ne(parameters.VSCODE_CIBUILD, true), ne(parameters.VSCODE_QUALITY, 'exploration')) }}:
-    - powershell: node build/win32/explorer-dll-fetcher .build/win32/appx
+    - powershell: node build/win32/explorer-dll-fetcher.ts .build/win32/appx
       displayName: Download Explorer dll
 
   - powershell: |
@@ -173,6 +175,7 @@ steps:
       exec { npm run gulp "vscode-reh-web-win32-$(VSCODE_ARCH)-min-ci" }
       mv ..\vscode-reh-web-win32-$(VSCODE_ARCH) ..\vscode-server-win32-$(VSCODE_ARCH)-web # TODO@joaomoreno
       echo "##vso[task.setvariable variable=BUILT_WEB]true"
+      echo "##vso[task.setvariable variable=CodeSigningFolderPath]$(CodeSigningFolderPath),$(Agent.BuildDirectory)/vscode-server-win32-$(VSCODE_ARCH)-web"
     env:
       GITHUB_TOKEN: "$(github-distro-mixin-password)"
     displayName: Build server (web)
@@ -190,7 +193,8 @@ steps:
         $ErrorActionPreference = "Stop"
         $ArtifactName = (gci -Path "$(Build.ArtifactStagingDirectory)/cli" | Select-Object -last 1).FullName
         Expand-Archive -Path $ArtifactName -DestinationPath "$(Build.ArtifactStagingDirectory)/cli"
-        $AppProductJson = Get-Content -Raw -Path "$(Agent.BuildDirectory)\VSCode-win32-$(VSCODE_ARCH)\resources\app\product.json" | ConvertFrom-Json
+        $ProductJsonPath = (Get-ChildItem -Path "$(Agent.BuildDirectory)\VSCode-win32-$(VSCODE_ARCH)" -Name "product.json" -Recurse | Select-Object -First 1)
+        $AppProductJson = Get-Content -Raw -Path "$(Agent.BuildDirectory)\VSCode-win32-$(VSCODE_ARCH)\$ProductJsonPath" | ConvertFrom-Json
         $CliAppName = $AppProductJson.tunnelApplicationName
         $AppName = $AppProductJson.applicationName
         Move-Item -Path "$(Build.ArtifactStagingDirectory)/cli/$AppName.exe" -Destination "$(Agent.BuildDirectory)/VSCode-win32-$(VSCODE_ARCH)/bin/$CliAppName.exe"
@@ -223,12 +227,9 @@ steps:
     - powershell: |
         . build/azure-pipelines/win32/exec.ps1
         $ErrorActionPreference = "Stop"
-        mkdir -Force .build/node-cpuprofile
-        exec { npx deemon --detach --wait -- npx zx build/azure-pipelines/win32/codesign.js }
+        exec { npx deemon --detach --wait -- npx zx build/azure-pipelines/win32/codesign.ts }
       env:
         SYSTEM_ACCESSTOKEN: $(System.AccessToken)
-        NODE_DEBUG: "net,child_process"
-        NODE_OPTIONS: "--report-filename=stdout --report-uncaught-exception --report-on-fatalerror --cpu-prof --cpu-prof-dir=.build/node-cpuprofile"
       displayName: ✍️ Codesign
 
   - ${{ if or(eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true), eq(parameters.VSCODE_RUN_BROWSER_TESTS, true), eq(parameters.VSCODE_RUN_REMOTE_TESTS, true)) }}:
@@ -243,38 +244,31 @@ steps:
     - powershell: |
         . build/azure-pipelines/win32/exec.ps1
         $ErrorActionPreference = "Stop"
-        exec { npx deemon --attach -- npx zx build/azure-pipelines/win32/codesign.js }
+        exec { npx deemon --attach -- npx zx build/azure-pipelines/win32/codesign.ts }
       condition: succeededOrFailed()
-      env:
-        NODE_DEBUG: "net,child_process"
-        NODE_OPTIONS: "--report-filename=stdout --report-uncaught-exception --report-on-fatalerror --cpu-prof --cpu-prof-dir=.build/node-cpuprofile"
       displayName: "✍️ Post-job: Codesign"
 
     - powershell: |
         $ErrorActionPreference = "Stop"
 
-        $PackageJson = Get-Content -Raw -Path ..\VSCode-win32-$(VSCODE_ARCH)\resources\app\package.json | ConvertFrom-Json
+        $PackageJsonPath = (Get-ChildItem -Path "..\VSCode-win32-$(VSCODE_ARCH)" -Name "package.json" -Recurse | Select-Object -First 1)
+        $PackageJson = Get-Content -Raw -Path ..\VSCode-win32-$(VSCODE_ARCH)\$PackageJsonPath | ConvertFrom-Json
         $Version = $PackageJson.version
 
-        $ClientArchivePath = ".build\win32-$(VSCODE_ARCH)\VSCode-win32-$(VSCODE_ARCH)-$Version.zip"
-        $ServerArchivePath = ".build\win32-$(VSCODE_ARCH)\vscode-server-win32-$(VSCODE_ARCH).zip"
-        $WebArchivePath = ".build\win32-$(VSCODE_ARCH)\vscode-server-win32-$(VSCODE_ARCH)-web.zip"
+        mkdir $(Build.ArtifactStagingDirectory)\out\system-setup -Force
+        mv .build\win32-$(VSCODE_ARCH)\system-setup\VSCodeSetup.exe $(Build.ArtifactStagingDirectory)\out\system-setup\VSCodeSetup-$(VSCODE_ARCH)-$Version.exe
 
-        $SystemSetupPath = ".build\win32-$(VSCODE_ARCH)\system-setup\VSCodeSetup-$(VSCODE_ARCH)-$Version.exe"
-        $UserSetupPath = ".build\win32-$(VSCODE_ARCH)\user-setup\VSCodeUserSetup-$(VSCODE_ARCH)-$Version.exe"
+        mkdir $(Build.ArtifactStagingDirectory)\out\user-setup -Force
+        mv .build\win32-$(VSCODE_ARCH)\user-setup\VSCodeSetup.exe $(Build.ArtifactStagingDirectory)\out\user-setup\VSCodeUserSetup-$(VSCODE_ARCH)-$Version.exe
 
-        mv .build\win32-$(VSCODE_ARCH)\system-setup\VSCodeSetup.exe $SystemSetupPath
-        mv .build\win32-$(VSCODE_ARCH)\user-setup\VSCodeSetup.exe $UserSetupPath
+        mkdir $(Build.ArtifactStagingDirectory)\out\archive -Force
+        mv .build\win32-$(VSCODE_ARCH)\VSCode-win32-$(VSCODE_ARCH).zip $(Build.ArtifactStagingDirectory)\out\archive\VSCode-win32-$(VSCODE_ARCH)-$Version.zip
 
-        echo "##vso[task.setvariable variable=CLIENT_PATH]$ClientArchivePath"
-        echo "##vso[task.setvariable variable=SERVER_PATH]$ServerArchivePath"
-        echo "##vso[task.setvariable variable=WEB_PATH]$WebArchivePath"
+        mkdir $(Build.ArtifactStagingDirectory)\out\server -Force
+        mv .build\win32-$(VSCODE_ARCH)\vscode-server-win32-$(VSCODE_ARCH).zip $(Build.ArtifactStagingDirectory)\out\server\vscode-server-win32-$(VSCODE_ARCH).zip
 
-        echo "##vso[task.setvariable variable=SYSTEM_SETUP_PATH]$SystemSetupPath"
-        echo "##vso[task.setvariable variable=USER_SETUP_PATH]$UserSetupPath"
-      condition: succeededOrFailed()
-      displayName: Move setup packages
+        mkdir $(Build.ArtifactStagingDirectory)\out\web -Force
+        mv .build\win32-$(VSCODE_ARCH)\vscode-server-win32-$(VSCODE_ARCH)-web.zip $(Build.ArtifactStagingDirectory)\out\web\vscode-server-win32-$(VSCODE_ARCH)-web.zip
 
-    - powershell: echo "##vso[task.setvariable variable=ARTIFACT_PREFIX]attempt$(System.JobAttempt)_"
-      condition: and(succeededOrFailed(), notIn(variables['Agent.JobStatus'], 'Succeeded', 'SucceededWithIssues'))
-      displayName: Generate artifact prefix
+        echo "##vso[task.setvariable variable=VSCODE_VERSION]$Version"
+      displayName: Move artifacts to out directory

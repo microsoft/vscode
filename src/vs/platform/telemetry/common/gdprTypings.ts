@@ -21,7 +21,7 @@ type IGDPRPropertyWithoutMetadata = Omit<IGDPRProperty, 'owner' | 'comment' | 'e
 export type OmitMetadata<T> = Omit<T, 'owner' | 'comment' | 'expiration'>;
 
 export type ClassifiedEvent<T extends IGDPRPropertyWithoutMetadata> = {
-	[k in keyof T]: any
+	[k in keyof T]: unknown;
 };
 
 export type StrictPropertyChecker<TEvent, TClassification, TError> = keyof TEvent extends keyof OmitMetadata<TClassification> ? keyof OmitMetadata<TClassification> extends keyof TEvent ? TEvent : TError : TError;

@@ -205,7 +205,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		// All other kinds of Quick things handle Accept, except Widget. In other words, Accepting is a detail on the things
 		// that extend IQuickInput
 		ContextKeyExpr.notEquals(quickInputTypeContextKeyValue, QuickInputType.QuickWidget),
-		inQuickInputContext
+		inQuickInputContext,
+		ContextKeyExpr.not('isComposing')
 	),
 	metadata: { description: localize('nonQuickWidget', "Used while in the context of some quick input. If you change one keybinding for this command, you should change all of the other keybindings (modifier variants) of this command as well.") },
 	handler: (accessor) => {
@@ -250,6 +251,29 @@ registerQuickInputCommandAndKeybindingRule(
 		}
 	},
 	{ withAltMod: true, withCtrlMod: true, withCmdMod: true }
+);
+
+//#endregion
+
+//#region Toggle Checkbox
+
+registerQuickPickCommandAndKeybindingRule(
+	{
+		id: 'quickInput.toggleCheckbox',
+		when: ContextKeyExpr.and(
+			inQuickInputContext,
+			ContextKeyExpr.or(
+				ContextKeyExpr.equals(quickInputTypeContextKeyValue, QuickInputType.QuickPick),
+				ContextKeyExpr.equals(quickInputTypeContextKeyValue, QuickInputType.QuickTree),
+			),
+			InputFocusedContext.negate()
+		),
+		primary: KeyCode.Space,
+		handler: accessor => {
+			const quickInputService = accessor.get(IQuickInputService);
+			quickInputService.toggle();
+		}
+	}
 );
 
 //#endregion

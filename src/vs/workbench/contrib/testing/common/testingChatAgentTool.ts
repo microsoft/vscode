@@ -29,7 +29,7 @@ import {
 	IToolResult,
 	ToolDataSource,
 	ToolProgress,
-} from '../../chat/common/languageModelToolsService.js';
+} from '../../chat/common/tools/languageModelToolsService.js';
 import { TestId } from './testId.js';
 import { FileCoverage, getTotalCoveragePercent } from './testCoverage.js';
 import { TestingContextKeys } from './testingContextKeys.js';
@@ -53,6 +53,7 @@ export class TestingChatAgentToolContribution extends Disposable implements IWor
 		super();
 		const runTestsTool = instantiationService.createInstance(RunTestTool);
 		this._register(toolsService.registerTool(RunTestTool.DEFINITION, runTestsTool));
+		this._register(toolsService.executeToolSet.addTool(RunTestTool.DEFINITION));
 
 		// todo@connor4312: temporary for 1.103 release during changeover
 		contextKeyService.createKey('chat.coreTestFailureToolEnabled', true).set(true);
@@ -74,7 +75,7 @@ class RunTestTool implements IToolImpl {
 	public static readonly DEFINITION: IToolData = {
 		id: this.ID,
 		toolReferenceName: 'runTests',
-		canBeReferencedInPrompt: true,
+		legacyToolReferenceFullNames: ['runTests'],
 		when: TestingContextKeys.hasRunnableTests,
 		displayName: 'Run tests',
 		modelDescription: 'Runs unit tests in files. Use this tool if the user asks to run tests or when you want to validate changes using unit tests, and prefer using this tool instead of the terminal tool. When possible, always try to provide `files` paths containing the relevant unit tests in order to avoid unnecessarily long test runs. This tool outputs detailed information about the results of the test run. Set mode="coverage" to also collect coverage and optionally provide coverageFiles for focused reporting.',
@@ -104,7 +105,7 @@ class RunTestTool implements IToolImpl {
 				}
 			},
 		},
-		userDescription: localize('runTestTool.userDescription', 'Runs unit tests (optionally with coverage)'),
+		userDescription: localize('runTestTool.userDescription', 'Run unit tests (optionally with coverage)'),
 		source: ToolDataSource.Internal,
 		tags: [
 			'vscode_editing_with_tests',
@@ -172,13 +173,13 @@ class RunTestTool implements IToolImpl {
 
 		return {
 			content: content as Mutable<IToolResult['content']>,
-			toolResultMessage: getTestProgressText(collectTestStateCounts(true, [result])),
+			toolResultMessage: getTestProgressText(collectTestStateCounts(false, [result])),
 		};
 	}
 
 	private async _buildSummary(result: LiveTestResult, mode: Mode, coverageFiles: string[] | undefined): Promise<string> {
 		const failures = result.counts[TestResultState.Errored] + result.counts[TestResultState.Failed];
-		let str = `<summary passed=${result.counts[TestResultState.Passed]} failed=${failures} />`;
+		let str = `<summary passed=${result.counts[TestResultState.Passed]} failed=${failures} />\n`;
 		if (failures !== 0) {
 			str += await this._getFailureDetails(result);
 		}
@@ -245,6 +246,7 @@ class RunTestTool implements IToolImpl {
 
 	private async _getFailureDetails(result: LiveTestResult): Promise<string> {
 		let str = '';
+		let hadMessages = false;
 		for (const failure of result.tests) {
 			if (!isFailedState(failure.ownComputedState)) {
 				continue;
@@ -256,6 +258,8 @@ class RunTestTool implements IToolImpl {
 			// Extract detailed failure information from error messages
 			for (const task of failure.tasks) {
 				for (const message of task.messages.filter(m => m.type === TestMessageType.Error)) {
+					hadMessages = true;
+
 					// Add expected/actual outputs if available
 					if (message.expected !== undefined && message.actual !== undefined) {
 						str += `<expectedOutput>\n${message.expected}\n</expectedOutput>\n`;
@@ -288,6 +292,14 @@ class RunTestTool implements IToolImpl {
 
 			str += `</testFailure>\n`;
 		}
+
+		if (!hadMessages) { // some adapters don't have any per-test messages and just output
+			const output = result.tasks.map(t => t.output.getRange(0, t.output.length).toString().trim()).join('\n');
+			if (output) {
+				str += `<output>\n${output}\n</output>\n`;
+			}
+		}
+
 		return str;
 	}
 
@@ -412,8 +424,10 @@ class RunTestTool implements IToolImpl {
 
 		const tests: IncrementalTestCollectionItem[] = [];
 		for (const uri of uris) {
-			for await (const file of testsInFile(this._testService, this._uriIdentityService, uri, undefined, false)) {
-				tests.push(file);
+			for await (const files of testsInFile(this._testService, this._uriIdentityService, uri, undefined, false)) {
+				for (const file of files) {
+					tests.push(file);
+				}
 			}
 		}
 

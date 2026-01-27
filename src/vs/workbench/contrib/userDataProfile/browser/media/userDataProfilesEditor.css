@@ -106,13 +106,19 @@
 }
 
 .profiles-editor .contents-container .profile-header .profile-title-container {
+	display: flex;
+	align-items: baseline;
+}
+
+.profiles-editor .contents-container .profile-header .profile-title-container .profile-title  {
 	font-size: 26px;
 	font-weight: 600;
 }
 
-.profiles-editor .contents-container .profile-title-container .monaco-inputbox {
-	margin-right: 10px;
-	flex: 1;
+.profiles-editor .contents-container .profile-header .profile-title-container .profile-built-in-label {
+	font-size: 16px;
+	font-style: italic;
+	margin-left: 10px;
 }
 
 .profiles-editor .contents-container .profile-header .profile-actions-container .actions-container .action-label {
@@ -365,7 +371,6 @@
 
 .profiles-editor .contents-container .profile-body .profile-row-container .profile-workspaces-button-container .monaco-button {
 	width: inherit;
-	padding: 2px 14px;
 }
 
 /* Profile Editor Tree Theming */
@@ -431,7 +436,7 @@
 	color: inherit !important;
 }
 
-.monaco-workbench:not(.reduce-motion) .profiles-editor .contents-container .profile-body .profile-tree .monaco-list-row:hover .profile-content-tree-header,
-.monaco-workbench:not(.reduce-motion) .profiles-editor .contents-container .profile-body .profile-tree .monaco-list-row:hover .profile-associations-table .monaco-table > .monaco-split-view2 {
+.monaco-workbench.monaco-enable-motion .profiles-editor .contents-container .profile-body .profile-tree .monaco-list-row:hover .profile-content-tree-header,
+.monaco-workbench.monaco-enable-motion .profiles-editor .contents-container .profile-body .profile-tree .monaco-list-row:hover .profile-associations-table .monaco-table > .monaco-split-view2 {
 	border-color: var(--vscode-tree-tableColumnsBorder) !important;
 }

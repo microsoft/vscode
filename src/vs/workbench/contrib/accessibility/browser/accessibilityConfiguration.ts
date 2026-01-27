@@ -51,7 +51,8 @@ export const enum AccessibilityVerbositySettingId {
 	MergeEditor = 'accessibility.verbosity.mergeEditor',
 	Chat = 'accessibility.verbosity.panelChat',
 	InlineChat = 'accessibility.verbosity.inlineChat',
-	TerminalChat = 'accessibility.verbosity.terminalChat',
+	TerminalInlineChat = 'accessibility.verbosity.terminalChat',
+	TerminalChatOutput = 'accessibility.verbosity.terminalChatOutput',
 	InlineCompletions = 'accessibility.verbosity.inlineCompletions',
 	KeybindingsEditor = 'accessibility.verbosity.keybindingsEditor',
 	Notebook = 'accessibility.verbosity.notebook',
@@ -139,6 +140,10 @@ const configuration: IConfigurationNode = {
 		},
 		[AccessibilityVerbositySettingId.InlineChat]: {
 			description: localize('verbosity.interactiveEditor.description', 'Provide information about how to access the inline editor chat accessibility help menu and alert with hints that describe how to use the feature when the input is focused.'),
+			...baseVerbosityProperty
+		},
+		[AccessibilityVerbositySettingId.TerminalChatOutput]: {
+			description: localize('verbosity.terminalChatOutput.description', 'Provide information about how to open the chat terminal output in the Accessible View.'),
 			...baseVerbosityProperty
 		},
 		[AccessibilityVerbositySettingId.InlineCompletions]: {
@@ -563,6 +568,10 @@ const configuration: IConfigurationNode = {
 		'accessibility.signals.progress': {
 			...signalFeatureBase,
 			'description': localize('accessibility.signals.progress', "Plays a signal - sound (audio cue) and/or announcement (alert) - on loop while progress is occurring."),
+			'default': {
+				'sound': 'auto',
+				'announcement': 'off'
+			},
 			'properties': {
 				'sound': {
 					'description': localize('accessibility.signals.progress.sound', "Plays a sound on loop while progress is occurring."),
@@ -805,7 +814,7 @@ const configuration: IConfigurationNode = {
 		},
 		'accessibility.openChatEditedFiles': {
 			'type': 'boolean',
-			'default': true,
+			'default': false,
 			'markdownDescription': localize('accessibility.openChatEditedFiles', "Controls whether files should be opened when the chat agent has applied edits to them.")
 		},
 		'accessibility.verboseChatProgressUpdates': {
@@ -856,7 +865,7 @@ export function registerAccessibilityConfiguration() {
 
 export { AccessibilityVoiceSettingId };
 
-export const SpeechTimeoutDefault = 1200;
+export const SpeechTimeoutDefault = 0;
 
 export class DynamicSpeechAccessibilityConfiguration extends Disposable implements IWorkbenchContribution {
 

@@ -17,21 +17,21 @@ jobs:
     templateContext:
       outputs:
         - output: pipelineArtifact
-          targetPath: .build/crashes
+          targetPath: $(Build.SourcesDirectory)/.build/crashes
           artifactName: crash-dump-linux-$(VSCODE_ARCH)-${{ lower(parameters.VSCODE_TEST_SUITE) }}-$(System.JobAttempt)
           displayName: Publish Crash Reports
           sbomEnabled: false
           isProduction: false
           condition: failed()
         - output: pipelineArtifact
-          targetPath: node_modules
+          targetPath: $(Build.SourcesDirectory)/node_modules
           artifactName: node-modules-linux-$(VSCODE_ARCH)-${{ lower(parameters.VSCODE_TEST_SUITE) }}-$(System.JobAttempt)
           displayName: Publish Node Modules
           sbomEnabled: false
           isProduction: false
           condition: failed()
         - output: pipelineArtifact
-          targetPath: .build/logs
+          targetPath: $(Build.SourcesDirectory)/.build/logs
           artifactName: logs-linux-$(VSCODE_ARCH)-${{ lower(parameters.VSCODE_TEST_SUITE) }}-$(System.JobAttempt)
           displayName: Publish Log Files
           sbomEnabled: false

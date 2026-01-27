@@ -211,7 +211,7 @@ suite('Workspace Configuration', () => {
 
 });
 
-function toConfigurationModel(obj: any): ConfigurationModel {
+function toConfigurationModel(obj: Record<string, unknown>): ConfigurationModel {
 	const parser = new ConfigurationModelParser('test', new NullLogService());
 	parser.parse(JSON.stringify(obj));
 	return parser.configurationModel;

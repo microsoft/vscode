@@ -61,11 +61,11 @@ steps:
       sudo service xvfb start
     displayName: Setup system services
 
-  - script: node build/setup-npm-registry.js $NPM_REGISTRY
+  - script: node build/setup-npm-registry.ts $NPM_REGISTRY
     condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM Registry
 
-  - script: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.js linux $VSCODE_ARCH $(node -p process.arch) > .build/packagelockhash
+  - script: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.ts linux $VSCODE_ARCH $(node -p process.arch) > .build/packagelockhash
     displayName: Prepare node_modules cache key
 
   - task: Cache@2
@@ -121,7 +121,7 @@ steps:
         SYSROOT_ARCH="amd64"
       fi
       export VSCODE_SYSROOT_DIR=$(Build.SourcesDirectory)/.build/sysroots/glibc-2.28-gcc-8.5.0
-      SYSROOT_ARCH="$SYSROOT_ARCH" VSCODE_SYSROOT_PREFIX="-glibc-2.28-gcc-8.5.0" node -e '(async () => { const { getVSCodeSysroot } = require("./build/linux/debian/install-sysroot.js"); await getVSCodeSysroot(process.env["SYSROOT_ARCH"]); })()'
+      SYSROOT_ARCH="$SYSROOT_ARCH" VSCODE_SYSROOT_PREFIX="-glibc-2.28-gcc-8.5.0" node -e 'import { getVSCodeSysroot } from "./build/linux/debian/install-sysroot.ts"; (async () => { await getVSCodeSysroot(process.env["SYSROOT_ARCH"]); })()'
     env:
       VSCODE_ARCH: $(VSCODE_ARCH)
       GITHUB_TOKEN: "$(github-distro-mixin-password)"
@@ -131,6 +131,10 @@ steps:
       set -e
 
       source ./build/azure-pipelines/linux/setup-env.sh
+
+      # Run preinstall script before root dependencies are installed
+      # so that v8 headers are patched correctly for native modules.
+      node build/npm/preinstall.ts
 
       for i in {1..5}; do # try 5 times
         npm ci && break
@@ -149,29 +153,35 @@ steps:
     displayName: Install dependencies
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
-  - script: node build/azure-pipelines/distro/mixin-npm
+  - script: node build/azure-pipelines/distro/mixin-npm.ts
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
     displayName: Mixin distro node modules
 
   - script: |
       set -e
-      node build/azure-pipelines/common/listNodeModules.js .build/node_modules_list.txt
+      node build/azure-pipelines/common/listNodeModules.ts .build/node_modules_list.txt
       mkdir -p .build/node_modules_cache
       tar -czf .build/node_modules_cache/cache.tgz --files-from .build/node_modules_list.txt
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
     displayName: Create node_modules archive
 
-  - script: node build/azure-pipelines/distro/mixin-quality
+  - script: node build/azure-pipelines/distro/mixin-quality.ts
     displayName: Mixin distro quality
 
   - template: ../../common/install-builtin-extensions.yml@self
 
+  - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
+    - script: npm run copy-policy-dto --prefix build && node build/lib/policies/policyGenerator.ts build/lib/policies/policyData.jsonc linux
+      displayName: Generate policy definitions
+      retryCountOnTaskFailure: 3
+
   - script: |
       set -e
       npm run gulp vscode-linux-$(VSCODE_ARCH)-min-ci
-      ARCHIVE_PATH=".build/linux/out/client/code-${{ parameters.VSCODE_QUALITY }}-$(VSCODE_ARCH)-$(date +%s).tar.gz"
+      ARCHIVE_PATH=".build/linux/client/code-${{ parameters.VSCODE_QUALITY }}-$(VSCODE_ARCH)-$(date +%s).tar.gz"
       mkdir -p $(dirname $ARCHIVE_PATH)
       echo "##vso[task.setvariable variable=CLIENT_PATH]$ARCHIVE_PATH"
+      echo "##vso[task.setvariable variable=CLIENT_ARCHIVE_NAME]$(basename $ARCHIVE_PATH)"
     env:
       GITHUB_TOKEN: "$(github-distro-mixin-password)"
     displayName: Build client
@@ -203,7 +213,7 @@ steps:
       set -e
       npm run gulp vscode-reh-linux-$(VSCODE_ARCH)-min-ci
       mv ../vscode-reh-linux-$(VSCODE_ARCH) ../vscode-server-linux-$(VSCODE_ARCH) # TODO@joaomoreno
-      ARCHIVE_PATH=".build/linux/out/server/vscode-server-linux-$(VSCODE_ARCH).tar.gz"
+      ARCHIVE_PATH=".build/linux/server/vscode-server-linux-$(VSCODE_ARCH).tar.gz"
       UNARCHIVE_PATH="`pwd`/../vscode-server-linux-$(VSCODE_ARCH)"
       mkdir -p $(dirname $ARCHIVE_PATH)
       tar --owner=0 --group=0 -czf $ARCHIVE_PATH -C .. vscode-server-linux-$(VSCODE_ARCH)
@@ -217,7 +227,7 @@ steps:
       set -e
       npm run gulp vscode-reh-web-linux-$(VSCODE_ARCH)-min-ci
       mv ../vscode-reh-web-linux-$(VSCODE_ARCH) ../vscode-server-linux-$(VSCODE_ARCH)-web # TODO@joaomoreno
-      ARCHIVE_PATH=".build/linux/out/web/vscode-server-linux-$(VSCODE_ARCH)-web.tar.gz"
+      ARCHIVE_PATH=".build/linux/web/vscode-server-linux-$(VSCODE_ARCH)-web.tar.gz"
       mkdir -p $(dirname $ARCHIVE_PATH)
       tar --owner=0 --group=0 -czf $ARCHIVE_PATH -C .. vscode-server-linux-$(VSCODE_ARCH)-web
       echo "##vso[task.setvariable variable=WEB_PATH]$ARCHIVE_PATH"
@@ -264,14 +274,15 @@ steps:
     - script:  |
         set -e
         npm run gulp "vscode-linux-$(VSCODE_ARCH)-build-deb"
-        mkdir -p .build/linux/out/deb
-        cp .build/linux/deb/*/deb/*.deb .build/linux/out/deb/
-        file_output=$(file $(ls .build/linux/out/deb/*.deb))
+        mkdir -p .build/linux/deb
+        cp .build/linux/deb/*/deb/*.deb .build/linux/deb/
+        file_output=$(file $(ls .build/linux/deb/*.deb))
         if [[ "$file_output" != *"data compression xz"* ]]; then
           echo "Error: unknown compression. $file_output"
           exit 1
         fi
-        echo "##vso[task.setvariable variable=DEB_PATH]$(ls .build/linux/out/deb/*.deb)"
+        echo "##vso[task.setvariable variable=DEB_PATH]$(ls .build/linux/deb/*.deb)"
+        echo "##vso[task.setvariable variable=DEB_PACKAGE_NAME]$(basename $(ls .build/linux/deb/*.deb))"
       displayName: Build deb package
 
     - script:  |
@@ -294,9 +305,10 @@ steps:
     - script:  |
         set -e
         npm run gulp "vscode-linux-$(VSCODE_ARCH)-build-rpm"
-        mkdir -p .build/linux/out/rpm
-        cp .build/linux/rpm/*/*.rpm .build/linux/out/rpm/
-        echo "##vso[task.setvariable variable=RPM_PATH]$(ls .build/linux/out/rpm/*.rpm)"
+        mkdir -p .build/linux/rpm
+        cp .build/linux/rpm/*/*.rpm .build/linux/rpm/
+        echo "##vso[task.setvariable variable=RPM_PATH]$(ls .build/linux/rpm/*.rpm)"
+        echo "##vso[task.setvariable variable=RPM_PACKAGE_NAME]$(basename $(ls .build/linux/rpm/*.rpm))"
       displayName: Build rpm package
 
     - ${{ if eq(parameters.VSCODE_ARCH, 'x64') }}:
@@ -316,14 +328,15 @@ steps:
             SNAP_ROOT="$(pwd)/.build/linux/snap/$(VSCODE_ARCH)"
             SNAP_EXTRACTED_PATH=$(find $SNAP_ROOT -maxdepth 1 -type d -name 'code-*')
 
-            mkdir -p .build/linux/out/snap
-            cp $(find $SNAP_ROOT -maxdepth 1 -type f -name '*.snap') .build/linux/out/snap/
+            mkdir -p .build/linux/snap
+            cp $(find $SNAP_ROOT -maxdepth 1 -type f -name '*.snap') .build/linux/snap/
 
             # SBOM tool doesn't like recursive symlinks
             sudo find $SNAP_EXTRACTED_PATH -type l -delete
 
             echo "##vso[task.setvariable variable=SNAP_EXTRACTED_PATH]$SNAP_EXTRACTED_PATH"
-            echo "##vso[task.setvariable variable=SNAP_PATH]$(ls .build/linux/out/snap/*.snap)"
+            echo "##vso[task.setvariable variable=SNAP_PATH]$(ls .build/linux/snap/*.snap)"
+            echo "##vso[task.setvariable variable=SNAP_PACKAGE_NAME]$(basename $(ls .build/linux/snap/*.snap))"
           env:
             VSCODE_ARCH: $(VSCODE_ARCH)
           displayName: Build snap package
@@ -352,7 +365,7 @@ steps:
         echo "##vso[task.setvariable variable=EsrpCliDllPath]$Version/net6.0/esrpcli.dll"
       displayName: Find ESRP CLI
 
-    - script: npx deemon --detach --wait node build/azure-pipelines/linux/codesign.js
+    - script: npx deemon --detach --wait node build/azure-pipelines/linux/codesign.ts
       env:
         EsrpCliDllPath: $(EsrpCliDllPath)
         SYSTEM_ACCESSTOKEN: $(System.AccessToken)
@@ -366,10 +379,37 @@ steps:
         VSCODE_RUN_REMOTE_TESTS: ${{ parameters.VSCODE_RUN_REMOTE_TESTS }}
 
   - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
-    - script: npx deemon --attach node build/azure-pipelines/linux/codesign.js
+    - script: npx deemon --attach node build/azure-pipelines/linux/codesign.ts
       condition: succeededOrFailed()
       displayName: "✍️ Post-job: Codesign deb & rpm"
 
-    - script: echo "##vso[task.setvariable variable=ARTIFACT_PREFIX]attempt$(System.JobAttempt)_"
-      condition: and(succeededOrFailed(), notIn(variables['Agent.JobStatus'], 'Succeeded', 'SucceededWithIssues'))
-      displayName: Generate artifact prefix
+    - script: |
+        set -e
+
+        mkdir -p $(Build.ArtifactStagingDirectory)/out/client
+        mv $(CLIENT_PATH) $(Build.ArtifactStagingDirectory)/out/client/$(CLIENT_ARCHIVE_NAME)
+
+        mkdir -p $(Build.ArtifactStagingDirectory)/out/server
+        mv $(SERVER_PATH) $(Build.ArtifactStagingDirectory)/out/server/$(basename $(SERVER_PATH))
+
+        mkdir -p $(Build.ArtifactStagingDirectory)/out/web
+        mv $(WEB_PATH) $(Build.ArtifactStagingDirectory)/out/web/$(basename $(WEB_PATH))
+
+        mkdir -p $(Build.ArtifactStagingDirectory)/out/deb
+        mv $(DEB_PATH) $(Build.ArtifactStagingDirectory)/out/deb/$(DEB_PACKAGE_NAME)
+
+        mkdir -p $(Build.ArtifactStagingDirectory)/out/rpm
+        mv $(RPM_PATH) $(Build.ArtifactStagingDirectory)/out/rpm/$(RPM_PACKAGE_NAME)
+
+        if [ -n "$SNAP_PATH" ]; then
+          mkdir -p $(Build.ArtifactStagingDirectory)/out/snap
+          mv $(SNAP_PATH) $(Build.ArtifactStagingDirectory)/out/snap/$(SNAP_PACKAGE_NAME)
+        fi
+
+        # SBOM generation uses hard links which are not supported by the Linux kernel
+        # for files that have the SUID bit set, so we need to remove the SUID bit from
+        # the chrome-sandbox file.
+        sudo ls -l $(Agent.BuildDirectory)/VSCode-linux-$(VSCODE_ARCH)/chrome-sandbox
+        sudo chmod u-s $(Agent.BuildDirectory)/VSCode-linux-$(VSCODE_ARCH)/chrome-sandbox
+        sudo ls -l $(Agent.BuildDirectory)/VSCode-linux-$(VSCODE_ARCH)/chrome-sandbox
+      displayName: Move artifacts to out directory

@@ -12,7 +12,8 @@ import { OUTPUT_MODE_ID, LOG_MODE_ID } from '../../../services/output/common/out
 import { OutputLinkComputer } from '../common/outputLinkComputer.js';
 import { IDisposable, dispose, Disposable } from '../../../../base/common/lifecycle.js';
 import { ILanguageFeaturesService } from '../../../../editor/common/services/languageFeatures.js';
-import { createWebWorker } from '../../../../base/browser/webWorkerFactory.js';
+import { WebWorkerDescriptor } from '../../../../platform/webWorker/browser/webWorkerDescriptor.js';
+import { IWebWorkerService } from '../../../../platform/webWorker/browser/webWorkerService.js';
 import { IWebWorkerClient } from '../../../../base/common/worker/webWorker.js';
 import { WorkerTextModelSyncClient } from '../../../../editor/common/services/textModelSync/textModelSync.impl.js';
 import { FileAccess } from '../../../../base/common/network.js';
@@ -29,6 +30,7 @@ export class OutputLinkProvider extends Disposable {
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IModelService private readonly modelService: IModelService,
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
+		@IWebWorkerService private readonly webWorkerService: IWebWorkerService,
 	) {
 		super();
 
@@ -70,7 +72,7 @@ export class OutputLinkProvider extends Disposable {
 		this.disposeWorkerScheduler.schedule();
 
 		if (!this.worker) {
-			this.worker = new OutputLinkWorkerClient(this.contextService, this.modelService);
+			this.worker = new OutputLinkWorkerClient(this.contextService, this.modelService, this.webWorkerService);
 		}
 
 		return this.worker;
@@ -96,11 +98,14 @@ class OutputLinkWorkerClient extends Disposable {
 	constructor(
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IModelService modelService: IModelService,
+		@IWebWorkerService webWorkerService: IWebWorkerService,
 	) {
 		super();
-		this._workerClient = this._register(createWebWorker<OutputLinkComputer>(
-			FileAccess.asBrowserUri('vs/workbench/contrib/output/common/outputLinkComputerMain.js'),
-			'OutputLinkDetectionWorker'
+		this._workerClient = this._register(webWorkerService.createWorkerClient<OutputLinkComputer>(
+			new WebWorkerDescriptor({
+				esmModuleLocation: FileAccess.asBrowserUri('vs/workbench/contrib/output/common/outputLinkComputerMain.js'),
+				label: 'OutputLinkDetectionWorker'
+			})
 		));
 		this._workerTextModelSyncClient = this._register(WorkerTextModelSyncClient.create(this._workerClient, modelService));
 		this._initializeBarrier = this._ensureWorkspaceFolders();

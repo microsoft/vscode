@@ -18,20 +18,19 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { verifiedPublisherIcon } from '../../../services/extensionManagement/common/extensionsIcons.js';
 import { IMcpServerContainer, IWorkbenchMcpServer, McpServerInstallState } from '../common/mcpTypes.js';
 import { IThemeService, registerThemingParticipant } from '../../../../platform/theme/common/themeService.js';
-import { ColorScheme } from '../../../../platform/theme/common/theme.js';
+import { isDark } from '../../../../platform/theme/common/theme.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { McpServerStatusAction } from './mcpServerActions.js';
 import { reset } from '../../../../base/browser/dom.js';
 import { mcpLicenseIcon, mcpServerIcon, mcpServerRemoteIcon, mcpServerWorkspaceIcon, mcpStarredIcon } from './mcpServerIcons.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
-import { renderMarkdown } from '../../../../base/browser/markdownRenderer.js';
-import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { ExtensionHoverOptions, ExtensionIconBadge } from '../../extensions/browser/extensionsWidgets.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { LocalMcpServerScope } from '../../../services/mcp/common/mcpWorkbenchManagementService.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { registerColor } from '../../../../platform/theme/common/colorUtils.js';
 import { textLinkForeground } from '../../../../platform/theme/common/colorRegistry.js';
+import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 
 export abstract class McpServerWidget extends Disposable implements IMcpServerContainer {
 	private _mcpServer: IWorkbenchMcpServer | null = null;
@@ -57,7 +56,7 @@ export function onClick(element: HTMLElement, callback: () => void): IDisposable
 
 export class McpServerIconWidget extends McpServerWidget {
 
-	private readonly disposables = this._register(new DisposableStore());
+	private readonly iconLoadingDisposable = this._register(new MutableDisposable());
 	private readonly element: HTMLElement;
 	private readonly iconElement: HTMLImageElement;
 	private readonly codiconIconElement: HTMLElement;
@@ -88,7 +87,7 @@ export class McpServerIconWidget extends McpServerWidget {
 		this.iconElement.style.display = 'none';
 		this.codiconIconElement.style.display = 'none';
 		this.codiconIconElement.className = ThemeIcon.asClassName(mcpServerIcon);
-		this.disposables.clear();
+		this.iconLoadingDisposable.clear();
 	}
 
 	render(): void {
@@ -98,16 +97,16 @@ export class McpServerIconWidget extends McpServerWidget {
 		}
 
 		if (this.mcpServer.icon) {
-			this.iconElement.style.display = 'inherit';
-			this.codiconIconElement.style.display = 'none';
 			const type = this.themeService.getColorTheme().type;
-			const iconUrl = type === ColorScheme.DARK || ColorScheme.HIGH_CONTRAST_DARK ? this.mcpServer.icon.dark : this.mcpServer.icon.light;
+			const iconUrl = isDark(type) ? this.mcpServer.icon.dark : this.mcpServer.icon.light;
 			if (this.iconUrl !== iconUrl) {
+				this.iconElement.style.display = 'inherit';
+				this.codiconIconElement.style.display = 'none';
 				this.iconUrl = iconUrl;
-				this.disposables.add(dom.addDisposableListener(this.iconElement, 'error', () => {
+				this.iconLoadingDisposable.value = dom.addDisposableListener(this.iconElement, 'error', () => {
 					this.iconElement.style.display = 'none';
 					this.codiconIconElement.style.display = 'inherit';
-				}, { once: true }));
+				}, { once: true });
 				this.iconElement.src = this.iconUrl;
 				if (!this.iconElement.complete) {
 					this.iconElement.style.visibility = 'hidden';
@@ -122,6 +121,7 @@ export class McpServerIconWidget extends McpServerWidget {
 			this.iconElement.src = '';
 			this.codiconIconElement.className = this.mcpServer.codicon ? `codicon ${this.mcpServer.codicon}` : ThemeIcon.asClassName(mcpServerIcon);
 			this.codiconIconElement.style.display = 'inherit';
+			this.iconLoadingDisposable.clear();
 		}
 	}
 }
@@ -451,7 +451,7 @@ export class McpServerStatusWidget extends McpServerWidget {
 	constructor(
 		private readonly container: HTMLElement,
 		private readonly extensionStatusAction: McpServerStatusAction,
-		@IOpenerService private readonly openerService: IOpenerService,
+		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
 	) {
 		super();
 		this.render();
@@ -476,11 +476,7 @@ export class McpServerStatusWidget extends McpServerWidget {
 					markdown.appendText(`\n`);
 				}
 			}
-			const rendered = disposables.add(renderMarkdown(markdown, {
-				actionHandler: (content) => {
-					this.openerService.open(content, { allowCommands: true }).catch(onUnexpectedError);
-				}
-			}));
+			const rendered = disposables.add(this.markdownRendererService.render(markdown));
 			dom.append(this.container, rendered.element);
 		}
 		this._onDidRender.fire();

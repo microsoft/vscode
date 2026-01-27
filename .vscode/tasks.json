@@ -257,7 +257,7 @@
 		},
 		{
 			"type": "shell",
-			"command": "node build/lib/preLaunch.js",
+			"command": "node build/lib/preLaunch.ts",
 			"label": "Ensure Prelaunch Dependencies",
 			"presentation": {
 				"reveal": "silent",
@@ -279,23 +279,30 @@
 			"detail": "node_modules/tsec/bin/tsec -p src/tsconfig.json --noEmit"
 		},
 		{
-			"label": "Launch Http Server",
+			"label": "Launch Monaco Editor Vite",
 			"type": "shell",
-			"command": "node_modules/.bin/ts-node -T ./scripts/playground-server",
+			"command": "npm run dev",
+			"options": {
+				"cwd": "./build/vite/"
+			},
 			"isBackground": true,
 			"problemMatcher": {
+				"owner": "vite",
+				"fileLocation": "absolute",
 				"pattern": {
-					"regexp": ""
+					"regexp": "^(.+?):(\\d+):(\\d+):\\s+(error|warning)\\s+(.*)$",
+					"file": 1,
+					"line": 2,
+					"column": 3,
+					"severity": 4,
+					"message": 5
 				},
 				"background": {
 					"activeOnStart": true,
-					"beginsPattern": "never match",
-					"endsPattern": ".*"
+					"beginsPattern": ".*VITE.*",
+					"endsPattern": "(Local|Network):.*"
 				}
-			},
-			"dependsOn": [
-				"Core - Build"
-			]
+			}
 		},
 		{
 			"label": "Launch MCP Server",

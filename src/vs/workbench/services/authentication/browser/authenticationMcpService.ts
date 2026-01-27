@@ -44,7 +44,7 @@ export interface IAuthenticationMcpService {
 	 * * A session preference is changed (because it's deprecated)
 	 * * A session preference is removed (because it's deprecated)
 	 */
-	onDidChangeAccountPreference: Event<{ mcpServerIds: string[]; providerId: string }>;
+	readonly onDidChangeAccountPreference: Event<{ mcpServerIds: string[]; providerId: string }>;
 	/**
 	 * Returns the accountName (also known as account.label) to pair with `IAuthenticationMCPServerAccessService` to get the account preference
 	 * @param providerId The authentication provider id

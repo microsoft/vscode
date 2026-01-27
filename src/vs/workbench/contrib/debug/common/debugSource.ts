@@ -11,7 +11,7 @@ import { DEBUG_SCHEME } from './debug.js';
 import { IRange } from '../../../../editor/common/core/range.js';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from '../../../services/editor/common/editorService.js';
 import { Schemas } from '../../../../base/common/network.js';
-import { isUri } from './debugUtils.js';
+import { isUriString } from './debugUtils.js';
 import { IEditorPane } from '../../../common/editor.js';
 import { TextEditorSelectionRevealType } from '../../../../platform/editor/common/editor.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
@@ -139,7 +139,7 @@ export function getUriFromSource(raw: DebugProtocol.Source, path: string | undef
 			});
 		}
 
-		if (path && isUri(path)) {	// path looks like a uri
+		if (path && isUriString(path)) {	// path looks like a uri
 			return uriIdentityService.asCanonicalUri(URI.parse(path));
 		}
 		// assume a filesystem path

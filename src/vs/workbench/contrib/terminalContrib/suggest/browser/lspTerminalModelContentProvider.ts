@@ -122,13 +122,10 @@ export class LspTerminalModelContentProvider extends Disposable implements ILspT
 		attachListener();
 
 		// Listen to onDidAddCapabilityType because command detection is not available until later
-		this._register(this._capabilitiesStore.onDidAddCapabilityType(e => {
-			if (e === TerminalCapability.CommandDetection) {
-				this._commandDetection = this._capabilitiesStore.get(TerminalCapability.CommandDetection);
-				attachListener();
-			}
+		this._register(this._capabilitiesStore.onDidAddCommandDetectionCapability(e => {
+			this._commandDetection = e;
+			attachListener();
 		}));
-
 	}
 
 	async provideTextContent(resource: URI): Promise<ITextModel | null> {

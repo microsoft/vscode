@@ -97,8 +97,10 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 				h('div.header-content', [
 					h('div.collapse-button@collapseButton'),
 					h('div.file-path', [
+						// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
 						h('div.title.modified.show-file-icons@primaryPath', [] as any),
 						h('div.status.deleted@status', ['R']),
+						// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
 						h('div.title.original.show-file-icons@secondaryPath', [] as any),
 					]),
 					h('div.actions@actions'),
@@ -111,6 +113,7 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 		]) as Record<string, HTMLElement>;
 		this.editor = this._register(this._instantiationService.createInstance(DiffEditorWidget, this._elements.editor, {
 			overflowWidgetsDomNode: this._overflowWidgetsDomNode,
+			fixedOverflowWidgets: true
 		}, {}));
 		this.isModifedFocused = observableCodeEditor(this.editor.getModifiedEditor()).isFocused;
 		this.isOriginalFocused = observableCodeEditor(this.editor.getOriginalEditor()).isFocused;
@@ -181,7 +184,7 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 		this._contextKeyService = this._register(_parentContextKeyService.createScoped(this._elements.actions));
 		const instantiationService = this._register(this._instantiationService.createChild(new ServiceCollection([IContextKeyService, this._contextKeyService])));
 		this._register(instantiationService.createInstance(MenuWorkbenchToolBar, this._elements.actions, MenuId.MultiDiffEditorFileToolbar, {
-			actionRunner: this._register(new ActionRunnerWithContext(() => (this._viewModel.get()?.modifiedUri))),
+			actionRunner: this._register(new ActionRunnerWithContext(() => (this._viewModel.get()?.modifiedUri ?? this._viewModel.get()?.originalUri))),
 			menuOptions: {
 				shouldForwardArgs: true,
 			},

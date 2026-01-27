@@ -4,18 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../base/browser/dom.js';
+import { ResizableHTMLElement } from '../../../../base/browser/ui/resizable/resizable.js';
 import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
-import { MarkdownRenderer } from '../../../browser/widget/markdownRenderer/browser/markdownRenderer.js';
-import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from '../../../browser/editorBrowser.js';
-import { EditorOption } from '../../../common/config/editorOptions.js';
-import { ResizableHTMLElement } from '../../../../base/browser/ui/resizable/resizable.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import * as nls from '../../../../nls.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { isHighContrast } from '../../../../platform/theme/common/theme.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from '../../../browser/editorBrowser.js';
+import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
+import { EditorOption } from '../../../common/config/editorOptions.js';
 import { CompletionItem } from './suggest.js';
 
 export function canExpandCompletionItem(item: CompletionItem | undefined): boolean {
@@ -40,19 +41,17 @@ export class SuggestDetailsWidget {
 	private readonly _docs: HTMLElement;
 	private readonly _disposables = new DisposableStore();
 
-	private readonly _markdownRenderer: MarkdownRenderer;
 	private readonly _renderDisposeable = new DisposableStore();
-	private _borderWidth: number = 1;
 	private _size = new dom.Dimension(330, 0);
 
 	constructor(
 		private readonly _editor: ICodeEditor,
-		@IInstantiationService instaService: IInstantiationService,
+		@IThemeService private readonly _themeService: IThemeService,
+		@IMarkdownRendererService private readonly _markdownRendererService: IMarkdownRendererService,
 	) {
 		this.domNode = dom.$('.suggest-details');
 		this.domNode.classList.add('no-docs');
 
-		this._markdownRenderer = instaService.createInstance(MarkdownRenderer, { editor: _editor });
 
 		this._body = dom.$('.body');
 
@@ -106,7 +105,7 @@ export class SuggestDetailsWidget {
 
 	getLayoutInfo() {
 		const lineHeight = this._editor.getOption(EditorOption.suggestLineHeight) || this._editor.getOption(EditorOption.fontInfo).lineHeight;
-		const borderWidth = this._borderWidth;
+		const borderWidth = isHighContrast(this._themeService.getColorTheme().type) ? 2 : 1;
 		const borderHeight = borderWidth * 2;
 		return {
 			lineHeight,
@@ -174,7 +173,8 @@ export class SuggestDetailsWidget {
 		} else if (documentation) {
 			this._docs.classList.add('markdown-docs');
 			dom.clearNode(this._docs);
-			const renderedContents = this._markdownRenderer.render(documentation, {
+			const renderedContents = this._markdownRendererService.render(documentation, {
+				context: this._editor,
 				asyncRenderCallback: () => {
 					this.layout(this._size.width, this._type.clientHeight + this._docs.clientHeight);
 					this._onDidChangeContents.fire(this);
@@ -250,14 +250,6 @@ export class SuggestDetailsWidget {
 
 	pageUp(): void {
 		this.scrollUp(80);
-	}
-
-	set borderWidth(width: number) {
-		this._borderWidth = width;
-	}
-
-	get borderWidth() {
-		return this._borderWidth;
 	}
 
 	focus() {
@@ -414,15 +406,25 @@ export class SuggestDetailsOverlay implements IOverlayWidget {
 		})();
 
 		// SOUTH
-		const southPacement: Placement = (function () {
+		const southPlacement: Placement = (function () {
 			const left = anchorBox.left;
 			const top = -info.borderWidth + anchorBox.top + anchorBox.height;
 			const maxSizeBottom = new dom.Dimension(anchorBox.width - info.borderHeight, bodyBox.height - anchorBox.top - anchorBox.height - info.verticalPadding);
 			return { top, left, fit: maxSizeBottom.height - size.height, maxSizeBottom, maxSizeTop: maxSizeBottom, minSize: defaultMinSize.with(maxSizeBottom.width) };
 		})();
 
+		// NORTH
+		const northPlacement: Placement = (function () {
+			const left = anchorBox.left;
+			const maxSizeTop = new dom.Dimension(anchorBox.width - info.borderHeight, anchorBox.top - info.verticalPadding);
+			const top = Math.max(info.verticalPadding, anchorBox.top - size.height);
+			return { top, left, fit: maxSizeTop.height - size.height, maxSizeTop, maxSizeBottom: maxSizeTop, minSize: defaultMinSize.with(maxSizeTop.width) };
+		})();
+
 		// take first placement that fits or the first with "least bad" fit
-		const placements = [eastPlacement, westPlacement, southPacement];
+		// when the suggest widget is rendering above the cursor (preferAlignAtTop=false), prefer NORTH over SOUTH
+		const verticalPlacement = preferAlignAtTop ? southPlacement : northPlacement;
+		const placements = [eastPlacement, westPlacement, verticalPlacement];
 		const placement = placements.find(p => p.fit >= 0) ?? placements.sort((a, b) => b.fit - a.fit)[0];
 
 		// top/bottom placement
@@ -453,7 +455,10 @@ export class SuggestDetailsOverlay implements IOverlayWidget {
 		}
 
 		let { top, left } = placement;
-		if (!alignAtTop && height > anchorBox.height) {
+		if (placement === northPlacement) {
+			// For NORTH placement, position the details above the anchor
+			top = anchorBox.top - height + info.borderWidth;
+		} else if (!alignAtTop && height > anchorBox.height) {
 			top = bottom - height;
 		}
 		const editorDomNode = this._editor.getDomNode();
@@ -465,7 +470,15 @@ export class SuggestDetailsOverlay implements IOverlayWidget {
 		}
 		this._applyTopLeft({ left, top });
 
-		this._resizable.enableSashes(!alignAtTop, placement === eastPlacement, alignAtTop, placement !== eastPlacement);
+		// enableSashes(north, east, south, west)
+		// For NORTH placement: enable north sash (resize upward from top), disable south (can't resize into the anchor)
+		// Also enable west sash for horizontal resizing, consistent with SOUTH placement
+		// For SOUTH placement and EAST/WEST placements: use existing logic based on alignAtTop
+		if (placement === northPlacement) {
+			this._resizable.enableSashes(true, false, false, true);
+		} else {
+			this._resizable.enableSashes(!alignAtTop, placement === eastPlacement, alignAtTop, placement !== eastPlacement);
+		}
 
 		this._resizable.minSize = placement.minSize;
 		this._resizable.maxSize = maxSize;

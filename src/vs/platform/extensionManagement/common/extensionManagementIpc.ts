@@ -18,6 +18,7 @@ import { ExtensionType, IExtensionManifest, TargetPlatform } from '../../extensi
 import { IProductService } from '../../product/common/productService.js';
 import { CommontExtensionManagementService } from './abstractExtensionManagementService.js';
 import { language } from '../../../base/common/platform.js';
+import { RemoteAgentConnectionContext } from '../../remote/common/remoteAgentEnvironment.js';
 
 function transformIncomingURI(uri: UriComponents, transformer: IURITransformer | null): URI;
 function transformIncomingURI(uri: UriComponents | undefined, transformer: IURITransformer | null): URI | undefined;
@@ -44,15 +45,15 @@ function transformOutgoingExtension(extension: ILocalExtension, transformer: IUR
 	return transformer ? cloneAndChange(extension, value => value instanceof URI ? transformer.transformOutgoingURI(value) : undefined) : extension;
 }
 
-export class ExtensionManagementChannel implements IServerChannel {
+export class ExtensionManagementChannel<TContext = RemoteAgentConnectionContext | string> implements IServerChannel<TContext> {
 
-	onInstallExtension: Event<InstallExtensionEvent>;
-	onDidInstallExtensions: Event<readonly InstallExtensionResult[]>;
-	onUninstallExtension: Event<UninstallExtensionEvent>;
-	onDidUninstallExtension: Event<DidUninstallExtensionEvent>;
-	onDidUpdateExtensionMetadata: Event<DidUpdateExtensionMetadata>;
+	readonly onInstallExtension: Event<InstallExtensionEvent>;
+	readonly onDidInstallExtensions: Event<readonly InstallExtensionResult[]>;
+	readonly onUninstallExtension: Event<UninstallExtensionEvent>;
+	readonly onDidUninstallExtension: Event<DidUninstallExtensionEvent>;
+	readonly onDidUpdateExtensionMetadata: Event<DidUpdateExtensionMetadata>;
 
-	constructor(private service: IExtensionManagementService, private getUriTransformer: (requestContext: any) => IURITransformer | null) {
+	constructor(private service: IExtensionManagementService, private getUriTransformer: (requestContext: TContext) => IURITransformer | null) {
 		this.onInstallExtension = Event.buffer(service.onInstallExtension, true);
 		this.onDidInstallExtensions = Event.buffer(service.onDidInstallExtensions, true);
 		this.onUninstallExtension = Event.buffer(service.onUninstallExtension, true);
@@ -60,6 +61,7 @@ export class ExtensionManagementChannel implements IServerChannel {
 		this.onDidUpdateExtensionMetadata = Event.buffer(service.onDidUpdateExtensionMetadata, true);
 	}
 
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	listen(context: any, event: string): Event<any> {
 		const uriTransformer = this.getUriTransformer(context);
 		switch (event) {
@@ -108,6 +110,7 @@ export class ExtensionManagementChannel implements IServerChannel {
 		throw new Error('Invalid listen');
 	}
 
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	async call(context: any, command: string, args?: any): Promise<any> {
 		const uriTransformer: IURITransformer | null = this.getUriTransformer(context);
 		switch (command) {
@@ -236,12 +239,13 @@ export class ExtensionManagementChannelClient extends CommontExtensionManagement
 		this._onDidUpdateExtensionMetadata.fire(event);
 	}
 
-	private isUriComponents(thing: unknown): thing is UriComponents {
-		if (!thing) {
+	private isUriComponents(obj: unknown): obj is UriComponents {
+		if (!obj) {
 			return false;
 		}
-		return typeof (<any>thing).path === 'string' &&
-			typeof (<any>thing).scheme === 'string';
+		const thing = obj as UriComponents | undefined;
+		return typeof thing?.path === 'string' &&
+			typeof thing?.scheme === 'string';
 	}
 
 	protected _targetPlatformPromise: Promise<TargetPlatform> | undefined;
@@ -341,10 +345,12 @@ export class ExtensionTipsChannel implements IServerChannel {
 	constructor(private service: IExtensionTipsService) {
 	}
 
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	listen(context: any, event: string): Event<any> {
 		throw new Error('Invalid listen');
 	}
 
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	call(context: any, command: string, args?: any): Promise<any> {
 		switch (command) {
 			case 'getConfigBasedTips': return this.service.getConfigBasedTips(URI.revive(args[0]));

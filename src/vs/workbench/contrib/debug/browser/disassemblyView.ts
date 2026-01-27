@@ -17,6 +17,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { applyFontInfo } from '../../../../editor/browser/config/domFontInfo.js';
 import { isCodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { BareFontInfo } from '../../../../editor/common/config/fontInfo.js';
+import { createBareFontInfoFromRawSettings } from '../../../../editor/common/config/fontInfoFromSettings.js';
 import { IRange, Range } from '../../../../editor/common/core/range.js';
 import { StringBuilder } from '../../../../editor/common/core/stringBuilder.js';
 import { ITextModel } from '../../../../editor/common/model.js';
@@ -40,7 +41,7 @@ import * as icons from './debugIcons.js';
 import { CONTEXT_LANGUAGE_SUPPORTS_DISASSEMBLE_REQUEST, DISASSEMBLY_VIEW_ID, IDebugConfiguration, IDebugService, IDebugSession, IInstructionBreakpoint, State } from '../common/debug.js';
 import { InstructionBreakpoint } from '../common/debugModel.js';
 import { getUriFromSource } from '../common/debugSource.js';
-import { isUri, sourcesEqual } from '../common/debugUtils.js';
+import { isUriString, sourcesEqual } from '../common/debugUtils.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
@@ -146,7 +147,7 @@ export class DisassemblyView extends EditorPane {
 	}
 
 	private createFontInfo() {
-		return BareFontInfo.createFromRawSettings(this._configurationService.getValue('editor'), PixelRatio.getInstance(this.window).value);
+		return createBareFontInfoFromRawSettings(this._configurationService.getValue('editor'), PixelRatio.getInstance(this.window).value);
 	}
 
 	get currentInstructionAddresses() {
@@ -269,6 +270,9 @@ export class DisassemblyView extends EditorPane {
 		}
 
 		this._register(this._disassembledInstructions.onDidScroll(e => {
+			if (this._disassembledInstructions?.row(0) === disassemblyNotAvailable) {
+				return;
+			}
 			if (this._loadingLock) {
 				return;
 			}
@@ -280,11 +284,10 @@ export class DisassemblyView extends EditorPane {
 					if (loaded > 0) {
 						this._disassembledInstructions!.reveal(prevTop + loaded, 0);
 					}
-					this._loadingLock = false;
-				});
+				}).finally(() => { this._loadingLock = false; });
 			} else if (e.oldScrollTop < e.scrollTop && e.scrollTop + e.height > e.scrollHeight - e.height) {
 				this._loadingLock = true;
-				this.scrollDown_LoadDisassembledInstructions(DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD).then(() => { this._loadingLock = false; });
+				this.scrollDown_LoadDisassembledInstructions(DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD).finally(() => { this._loadingLock = false; });
 			}
 		}));
 
@@ -638,9 +641,23 @@ export class DisassemblyView extends EditorPane {
 		this.clear();
 		this._instructionBpList = this._debugService.getModel().getInstructionBreakpoints();
 		this.loadDisassembledInstructions(instructionReference, offset, -DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD * 4, DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD * 8).then(() => {
-			// on load, set the target instruction in the middle of the page.
+			// on load, set the target instruction as the current instructionReference.
 			if (this._disassembledInstructions!.length > 0) {
-				const targetIndex = Math.floor(this._disassembledInstructions!.length / 2);
+				let targetIndex: number | undefined = undefined;
+				const refBaseAddress = this._referenceToMemoryAddress.get(instructionReference);
+				if (refBaseAddress !== undefined) {
+					const da = this._disassembledInstructions!;
+					targetIndex = binarySearch2(da.length, i => Number(da.row(i).address - refBaseAddress));
+					if (targetIndex < 0) {
+						targetIndex = ~targetIndex; // shouldn't happen, but fail gracefully if it does
+					}
+				}
+
+				// If didn't find the instructonReference, set the target instruction in the middle of the page.
+				if (targetIndex === undefined) {
+					targetIndex = Math.floor(this._disassembledInstructions!.length / 2);
+				}
+
 				this._disassembledInstructions!.reveal(targetIndex, 0.5);
 
 				// Always focus the target address on reload, or arrow key navigation would look terrible
@@ -953,7 +970,7 @@ class InstructionRenderer extends Disposable implements ITableRenderer<IDisassem
 	private getUriFromSource(instruction: DebugProtocol.DisassembledInstruction): URI {
 		// Try to resolve path before consulting the debugSession.
 		const path = instruction.location!.path;
-		if (path && isUri(path)) {	// path looks like a uri
+		if (path && isUriString(path)) {	// path looks like a uri
 			return this.uriService.asCanonicalUri(URI.parse(path));
 		}
 		// assume a filesystem path
