@@ -910,7 +910,7 @@ export function registerChatActions() {
 			// Use chat command to open and send the query
 			const query = `Analyze this codebase to generate or update \`.github/copilot-instructions.md\` for guiding AI coding agents.
 
-Focus on discovering the essential knowledge that would help an AI agents be immediately productive in this codebase. Consider aspects like:
+Focus on discovering the essential knowledge that would help AI agents be immediately productive in this codebase. Consider aspects like:
 - The "big picture" architecture that requires reading multiple files to understand - major components, service boundaries, data flows, and the "why" behind structural decisions
 - Critical developer workflows (builds, tests, debugging) especially commands that aren't obvious from file inspection alone
 - Project-specific conventions and patterns that differ from common practices
