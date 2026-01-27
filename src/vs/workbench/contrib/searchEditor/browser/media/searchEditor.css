@@ -30,6 +30,17 @@
 	display: flex;
 	align-items: center;
 	justify-content: center;
+	border: 1px solid transparent;
+	border-radius: 3px;
+}
+
+.search-editor .search-widget .toggle-replace-button:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.search-editor .search-widget .toggle-replace-button:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
 .search-editor .search-widget .search-container,
