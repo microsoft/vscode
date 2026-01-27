@@ -281,7 +281,7 @@ class ClearWorkspaceBrowserStorageAction extends Action2 {
 			menu: {
 				id: MenuId.BrowserActionsToolbar,
 				group: '3_settings',
-				order: 2,
+				order: 1,
 				when: ContextKeyExpr.equals(CONTEXT_BROWSER_STORAGE_SCOPE.key, BrowserViewStorageScope.Workspace)
 			}
 		});
@@ -290,6 +290,33 @@ class ClearWorkspaceBrowserStorageAction extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const browserViewWorkbenchService = accessor.get(IBrowserViewWorkbenchService);
 		await browserViewWorkbenchService.clearWorkspaceStorage();
+	}
+}
+
+class ClearEphemeralBrowserStorageAction extends Action2 {
+	static readonly ID = 'workbench.action.browser.clearEphemeralStorage';
+
+	constructor() {
+		super({
+			id: ClearEphemeralBrowserStorageAction.ID,
+			title: localize2('browser.clearEphemeralStorageAction', 'Clear Storage (Ephemeral)'),
+			category: BrowserCategory,
+			icon: Codicon.clearAll,
+			f1: true,
+			precondition: BROWSER_EDITOR_ACTIVE,
+			menu: {
+				id: MenuId.BrowserActionsToolbar,
+				group: '3_settings',
+				order: 1,
+				when: ContextKeyExpr.equals(CONTEXT_BROWSER_STORAGE_SCOPE.key, BrowserViewStorageScope.Ephemeral)
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor, browserEditor = accessor.get(IEditorService).activeEditorPane): Promise<void> {
+		if (browserEditor instanceof BrowserEditor) {
+			await browserEditor.clearStorage();
+		}
 	}
 }
 
@@ -306,7 +333,7 @@ class OpenBrowserSettingsAction extends Action2 {
 			menu: {
 				id: MenuId.BrowserActionsToolbar,
 				group: '3_settings',
-				order: 3
+				order: 2
 			}
 		});
 	}
@@ -443,6 +470,7 @@ registerAction2(ToggleDevToolsAction);
 registerAction2(OpenInExternalBrowserAction);
 registerAction2(ClearGlobalBrowserStorageAction);
 registerAction2(ClearWorkspaceBrowserStorageAction);
+registerAction2(ClearEphemeralBrowserStorageAction);
 registerAction2(OpenBrowserSettingsAction);
 registerAction2(ShowBrowserFindAction);
 registerAction2(HideBrowserFindAction);
