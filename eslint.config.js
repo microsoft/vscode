@@ -78,6 +78,7 @@ export default tseslint.config(
 			'semi': 'warn',
 			'local/code-translation-remind': 'warn',
 			'local/code-no-native-private': 'warn',
+			'local/code-no-bracket-notation-for-identifiers': 'warn',
 			'local/code-parameter-properties-must-have-explicit-accessibility': 'warn',
 			'local/code-no-nls-in-standalone-editor': 'warn',
 			'local/code-no-potentially-unsafe-disposables': 'warn',
