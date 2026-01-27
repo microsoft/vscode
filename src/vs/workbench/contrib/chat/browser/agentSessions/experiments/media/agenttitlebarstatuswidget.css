@@ -327,7 +327,8 @@
 
 .agent-status-badge-section.sparkle .action-container:focus-within,
 .agent-status-badge-section.sparkle .dropdown-action-container:focus-within {
-	outline: none;
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
 }
 
 .agent-status-badge-section.sparkle .action-label {
@@ -352,13 +353,17 @@
 	transform: translateY(1px);
 }
 
-/* Disable toolbar hover effects in sparkle */
+/* Disable toolbar hover effects in sparkle, but preserve focus */
 .agent-status-badge-section.sparkle .action-label:hover,
 .agent-status-badge-section.sparkle .action-label:active,
 .agent-status-badge-section.sparkle .action-item.active .action-label,
 .agent-status-badge-section.sparkle .monaco-dropdown.active .action-label {
-	outline: none !important;
 	background-color: transparent !important;
+}
+
+.agent-status-badge-section.sparkle .action-label:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
 }
 
 /* Unread section - smaller dot */
