@@ -32,7 +32,13 @@ class OpenIntegratedBrowserAction extends Action2 {
 			id: 'workbench.action.browser.open',
 			title: localize2('browser.openAction', "Open Integrated Browser"),
 			category: BrowserCategory,
-			f1: true
+			f1: true,
+			keybinding: {
+				// When already in a browser, Ctrl/Cmd + T opens a new tab
+				when: BROWSER_EDITOR_ACTIVE,
+				weight: KeybindingWeight.WorkbenchContrib + 50, // Priority over search actions
+				primary: KeyMod.CtrlCmd | KeyCode.KeyT,
+			}
 		});
 	}
 
@@ -65,10 +71,10 @@ class GoBackAction extends Action2 {
 			precondition: CONTEXT_BROWSER_CAN_GO_BACK,
 			keybinding: {
 				when: BROWSER_EDITOR_ACTIVE,
-				weight: KeybindingWeight.WorkbenchContrib,
+				weight: KeybindingWeight.WorkbenchContrib + 50, // Priority over editor navigation
 				primary: KeyMod.Alt | KeyCode.LeftArrow,
 				secondary: [KeyCode.BrowserBack],
-				mac: { primary: KeyMod.CtrlCmd | KeyCode.LeftArrow, secondary: [KeyCode.BrowserBack] }
+				mac: { primary: KeyMod.CtrlCmd | KeyCode.BracketLeft, secondary: [KeyCode.BrowserBack, KeyMod.CtrlCmd | KeyCode.LeftArrow] }
 			}
 		});
 	}
@@ -99,10 +105,10 @@ class GoForwardAction extends Action2 {
 			precondition: CONTEXT_BROWSER_CAN_GO_FORWARD,
 			keybinding: {
 				when: BROWSER_EDITOR_ACTIVE,
-				weight: KeybindingWeight.WorkbenchContrib,
+				weight: KeybindingWeight.WorkbenchContrib + 50, // Priority over editor navigation
 				primary: KeyMod.Alt | KeyCode.RightArrow,
 				secondary: [KeyCode.BrowserForward],
-				mac: { primary: KeyMod.CtrlCmd | KeyCode.RightArrow, secondary: [KeyCode.BrowserForward] }
+				mac: { primary: KeyMod.CtrlCmd | KeyCode.BracketRight, secondary: [KeyCode.BrowserForward, KeyMod.CtrlCmd | KeyCode.RightArrow] }
 			}
 		});
 	}
@@ -131,10 +137,10 @@ class ReloadAction extends Action2 {
 			},
 			keybinding: {
 				when: CONTEXT_BROWSER_FOCUSED,
-				weight: KeybindingWeight.WorkbenchContrib + 50, // Priority over debug
-				primary: KeyCode.F5,
-				secondary: [KeyMod.CtrlCmd | KeyCode.KeyR],
-				mac: { primary: KeyCode.F5, secondary: [KeyMod.CtrlCmd | KeyCode.KeyR] }
+				weight: KeybindingWeight.WorkbenchContrib + 75, // Priority over debug and reload workbench
+				primary: KeyMod.CtrlCmd | KeyCode.KeyR,
+				secondary: [KeyCode.F5],
+				mac: { primary: KeyMod.CtrlCmd | KeyCode.KeyR, secondary: [] }
 			}
 		});
 	}
@@ -142,6 +148,30 @@ class ReloadAction extends Action2 {
 	async run(accessor: ServicesAccessor, browserEditor = accessor.get(IEditorService).activeEditorPane): Promise<void> {
 		if (browserEditor instanceof BrowserEditor) {
 			await browserEditor.reload();
+		}
+	}
+}
+
+class FocusUrlInputAction extends Action2 {
+	static readonly ID = 'workbench.action.browser.focusUrlInput';
+
+	constructor() {
+		super({
+			id: FocusUrlInputAction.ID,
+			title: localize2('browser.focusUrlInputAction', 'Focus URL Input'),
+			category: BrowserCategory,
+			f1: false,
+			keybinding: {
+				when: BROWSER_EDITOR_ACTIVE,
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.CtrlCmd | KeyCode.KeyL,
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor, browserEditor = accessor.get(IEditorService).activeEditorPane): Promise<void> {
+		if (browserEditor instanceof BrowserEditor) {
+			await browserEditor.focusUrlInput();
 		}
 	}
 }
@@ -465,6 +495,7 @@ registerAction2(OpenIntegratedBrowserAction);
 registerAction2(GoBackAction);
 registerAction2(GoForwardAction);
 registerAction2(ReloadAction);
+registerAction2(FocusUrlInputAction);
 registerAction2(AddElementToChatAction);
 registerAction2(ToggleDevToolsAction);
 registerAction2(OpenInExternalBrowserAction);
