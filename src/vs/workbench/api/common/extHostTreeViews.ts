@@ -325,6 +325,10 @@ class ExtHostTreeView<T> extends Disposable {
 	// Track the latest child-fetch per element so that refresh-triggered cache clears ignore stale results.
 	// Without these tokens, an earlier getChildren promise resolving after refresh would re-register handles and hit the duplicate-id guard.
 	private readonly _childrenFetchTokens = new Map<T | typeof ExtHostTreeView.ROOT_FETCH_KEY, number>();
+	// Global counter for fetch tokens. Using a monotonically increasing counter ensures that even after
+	// _childrenFetchTokens.clear() during a root refresh, old in-flight fetches will have requestIds that
+	// can never match new fetches (e.g., old fetch has id=5, after clear new fetches get 6, 7, 8...).
+	private _globalFetchTokenCounter = 0;
 
 	private _visible: boolean = false;
 	get visible(): boolean { return this._visible; }
@@ -737,8 +741,7 @@ class ExtHostTreeView<T> extends Disposable {
 		// clear children cache
 		this._addChildrenToClear(parentElement);
 		const fetchKey = this._getFetchKey(parentElement);
-		let requestId = this._childrenFetchTokens.get(fetchKey) ?? 0;
-		requestId++;
+		const requestId = ++this._globalFetchTokenCounter;
 		this._childrenFetchTokens.set(fetchKey, requestId);
 
 		const cts = new CancellationTokenSource(this._refreshCancellationSource.token);
