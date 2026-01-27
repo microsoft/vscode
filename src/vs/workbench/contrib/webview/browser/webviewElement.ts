@@ -348,6 +348,7 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 
 	setContextKeyService(contextKeyService: IContextKeyService) {
 		this._contextKeyService = contextKeyService;
+		this._webviewFindWidget?.updateContextKeyService(contextKeyService);
 	}
 
 	private readonly _onMissingCsp = this._register(new Emitter<ExtensionIdentifier>());
