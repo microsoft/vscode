@@ -341,7 +341,7 @@ class AgentCompletions extends Disposable {
 
 				// Filter out chatSessions contributions for slash command completions
 				const chatSessionContributions = this.chatSessionsService.getAllChatSessionContributions();
-				const chatSessionAgentIds = new Set(chatSessionContributions.map(contribution => contribution.id));
+				const chatSessionAgentIds = new Set(chatSessionContributions.map(contribution => contribution.type));
 				const agentsForSlashCommands = agents.filter(a => !chatSessionAgentIds.has(a.id));
 
 				// When the input is only `/`, items are sorted by sortText.
