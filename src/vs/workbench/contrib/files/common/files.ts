@@ -129,6 +129,7 @@ export const enum SortOrder {
 	Type = 'type',
 	Modified = 'modified',
 	FoldersNestsFiles = 'foldersNestsFiles',
+	FilesFirstWhenNested = 'filesFirstWhenNested',
 }
 
 export const enum UndoConfirmLevel {
