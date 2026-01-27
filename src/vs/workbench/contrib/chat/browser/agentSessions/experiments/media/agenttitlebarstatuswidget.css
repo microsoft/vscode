@@ -365,7 +365,11 @@
 	outline-offset: -1px;
 }
 
-/* Unread section - smaller dot */
+/* Unread section - smaller dot with adjusted padding for visual balance */
+.agent-status-badge-section.unread {
+	padding: 0 8px 0 6px;
+}
+
 .agent-status-badge-section.unread .agent-status-icon {
 	font-size: 8px;
 }
