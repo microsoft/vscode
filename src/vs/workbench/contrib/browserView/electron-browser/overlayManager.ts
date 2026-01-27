@@ -175,26 +175,24 @@ export class BrowserOverlayManager extends Disposable implements IBrowserOverlay
 
 	private updateTrackedElements(shouldEmit = false): void {
 		// Track shadow roots using live collection
-		if (this._shadowRootHostCollection) {
-			for (const host of this._shadowRootHostCollection) {
-				const hostElement = host as HTMLElement;
-				const shadowRoot = hostElement.shadowRoot;
-				if (shadowRoot && !this._shadowRootObservers.has(shadowRoot)) {
-					// Create observer for this shadow root
-					const observer = new this.targetWindow.MutationObserver(() => {
-						// Clear element cache when shadow root structure changes
-						this._shadowRootOverlayCache.delete(shadowRoot);
-						this._onDidChangeOverlayState.fire();
-					});
+		for (const host of this._shadowRootHostCollection) {
+			const hostElement = host as HTMLElement;
+			const shadowRoot = hostElement.shadowRoot;
+			if (shadowRoot && !this._shadowRootObservers.has(shadowRoot)) {
+				// Create observer for this shadow root
+				const observer = new this.targetWindow.MutationObserver(() => {
+					// Clear element cache when shadow root structure changes
+					this._shadowRootOverlayCache.delete(shadowRoot);
+					this._onDidChangeOverlayState.fire();
+				});
 
-					observer.observe(shadowRoot, {
-						childList: true,
-						subtree: true
-					});
+				observer.observe(shadowRoot, {
+					childList: true,
+					subtree: true
+				});
 
-					this._shadowRootObservers.set(shadowRoot, observer);
-					shouldEmit = true;
-				}
+				this._shadowRootObservers.set(shadowRoot, observer);
+				shouldEmit = true;
 			}
 		}
 
@@ -277,8 +275,8 @@ export class BrowserOverlayManager extends Disposable implements IBrowserOverlay
 		}
 
 		// Disconnect all shadow root observers
-		for (const observer of this._shadowRootHostCollection) {
-			const shadowRoot = (observer as HTMLElement).shadowRoot;
+		for (const hostElement of this._shadowRootHostCollection) {
+			const shadowRoot = (hostElement as HTMLElement).shadowRoot;
 			const shadowObserver = this._shadowRootObservers.get(shadowRoot!);
 			shadowObserver?.disconnect();
 		}
