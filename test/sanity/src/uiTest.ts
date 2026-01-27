@@ -18,7 +18,7 @@ export class UITest {
 	private _userDataDir: string | undefined;
 
 	constructor(
-		private readonly context: TestContext,
+		protected readonly context: TestContext,
 		dataDir?: string
 	) {
 		if (dataDir) {
@@ -110,7 +110,7 @@ export class UITest {
 	/**
 	 * Verify that the text file was created with the expected content.
 	 */
-	private verifyTextFileCreated() {
+	protected verifyTextFileCreated() {
 		this.context.log('Verifying file contents');
 		const filePath = `${this.workspaceDir}/helloWorld.txt`;
 		const fileContents = fs.readFileSync(filePath, 'utf-8');
@@ -139,7 +139,7 @@ export class UITest {
 	/**
 	 * Verify that the GitHub Pull Requests extension is installed.
 	 */
-	private verifyExtensionInstalled() {
+	protected verifyExtensionInstalled() {
 		this.context.log('Verifying extension is installed');
 		const extensions = fs.readdirSync(this.extensionsDir);
 		const hasExtension = extensions.some(ext => ext.startsWith('github.vscode-pull-request-github'));
