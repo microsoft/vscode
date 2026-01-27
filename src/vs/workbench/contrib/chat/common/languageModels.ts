@@ -297,6 +297,11 @@ export interface ILanguageModelsService {
 
 	lookupLanguageModel(modelId: string): ILanguageModelChatMetadata | undefined;
 
+	/**
+	 * Find a model by its qualified name. The qualified name is what is used in prompt and agent files and is in the format "Model Name (Vendor)".
+	 */
+	lookupLanguageModelByQualifiedName(qualifiedName: string): ILanguageModelChatMetadata | undefined;
+
 	getLanguageModelGroups(vendor: string): ILanguageModelsGroup[];
 
 	/**
@@ -635,6 +640,15 @@ export class LanguageModelsService implements ILanguageModelsService {
 			return { ...model, isUserSelectable: this._modelPickerUserPreferences[modelIdentifier] };
 		}
 		return model;
+	}
+
+	lookupLanguageModelByQualifiedName(referenceName: string): ILanguageModelChatMetadata | undefined {
+		for (const model of this._modelCache.values()) {
+			if (ILanguageModelChatMetadata.matchesQualifiedName(referenceName, model)) {
+				return model;
+			}
+		}
+		return undefined;
 	}
 
 	private async _resolveAllLanguageModels(vendorId: string, silent: boolean): Promise<void> {

@@ -6,7 +6,7 @@
 import type { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ITerminalLogService } from '../../../../../../platform/terminal/common/terminal.js';
 import { waitForIdle, waitForIdleWithPromptHeuristics, type ITerminalExecuteStrategy, type ITerminalExecuteStrategyResult } from './executeStrategy.js';
 import type { IMarker as IXtermMarker } from '@xterm/xterm';
@@ -19,12 +19,12 @@ import { createAltBufferPromise, setupRecreatingStartMarker } from './strategyHe
  * with `sendText` instead of `shellIntegration.executeCommand` and relying on idle events instead
  * of execution events.
  */
-export class NoneExecuteStrategy implements ITerminalExecuteStrategy {
+export class NoneExecuteStrategy extends Disposable implements ITerminalExecuteStrategy {
 	readonly type = 'none';
-	private readonly _startMarker = new MutableDisposable<IXtermMarker>();
+	private readonly _startMarker = this._register(new MutableDisposable<IXtermMarker>());
 
 
-	private readonly _onDidCreateStartMarker = new Emitter<IXtermMarker | undefined>;
+	private readonly _onDidCreateStartMarker = this._register(new Emitter<IXtermMarker | undefined>);
 	public onDidCreateStartMarker: Event<IXtermMarker | undefined> = this._onDidCreateStartMarker.event;
 
 	constructor(
@@ -32,6 +32,7 @@ export class NoneExecuteStrategy implements ITerminalExecuteStrategy {
 		private readonly _hasReceivedUserInput: () => boolean,
 		@ITerminalLogService private readonly _logService: ITerminalLogService,
 	) {
+		super();
 	}
 
 	async execute(commandLine: string, token: CancellationToken, commandId?: string): Promise<ITerminalExecuteStrategyResult> {

@@ -91,6 +91,8 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 					class: ThemeIcon.asClassName(Codicon.tools),
 					enabled: true,
 					run: async () => {
+						// Hide the picker before opening the tools configuration
+						actionWidgetService.hide();
 						// First switch to the mode if not already selected
 						if (currentMode.id !== mode.id) {
 							await commandService.executeCommand(

@@ -10,7 +10,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { IMatch, matchesFuzzy } from '../../../../../base/common/filters.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { IAgentSessionsService } from './agentSessionsService.js';
-import { AgentSessionsSorter, groupAgentSessionsByDefault } from './agentSessionsViewer.js';
+import { AgentSessionsSorter, groupAgentSessionsByDate } from './agentSessionsViewer.js';
 import { IAgentSession } from './agentSessionsModel.js';
 import { openSession } from './agentSessionsOpener.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -40,7 +40,7 @@ export class AgentSessionsQuickAccessProvider extends PickerQuickAccessProvider<
 		const picks: Array<IPickerQuickAccessItem | IQuickPickSeparator> = [];
 
 		const sessions = this.agentSessionsService.model.sessions.sort(this.sorter.compare.bind(this.sorter));
-		const groupedSessions = groupAgentSessionsByDefault(sessions);
+		const groupedSessions = groupAgentSessionsByDate(sessions);
 
 		for (const group of groupedSessions.values()) {
 			if (group.sessions.length > 0) {

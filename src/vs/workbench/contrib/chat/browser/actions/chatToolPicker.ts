@@ -6,14 +6,11 @@ import { assertNever } from '../../../../../base/common/assert.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { createMarkdownCommandLink } from '../../../../../base/common/htmlContent.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
-import Severity from '../../../../../base/common/severity.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
-import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickTreeItem } from '../../../../../platform/quickinput/common/quickInput.js';
@@ -24,7 +21,6 @@ import { McpCommandIds } from '../../../mcp/common/mcpCommandIds.js';
 import { IMcpRegistry } from '../../../mcp/common/mcpRegistryTypes.js';
 import { IMcpServer, IMcpService, IMcpWorkbenchService, McpConnectionState, McpServerCacheState, McpServerEditorTab } from '../../../mcp/common/mcpTypes.js';
 import { startServerAndWaitForLiveTools } from '../../../mcp/common/mcpTypesUtils.js';
-import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ILanguageModelChatMetadata } from '../../common/languageModels.js';
 import { ILanguageModelToolsService, IToolData, IToolSet, ToolDataSource, ToolSet } from '../../common/tools/languageModelToolsService.js';
 import { ConfigureToolSets } from '../tools/toolSetsContribution.js';
@@ -210,7 +206,6 @@ export async function showToolsPicker(
 	const mcpWorkbenchService = accessor.get(IMcpWorkbenchService);
 	const toolsService = accessor.get(ILanguageModelToolsService);
 	const telemetryService = accessor.get(ITelemetryService);
-	const toolLimit = accessor.get(IContextKeyService).getContextKeyValue<number>(ChatContextKeys.chatToolGroupingThreshold.key);
 
 	const mcpServerByTool = new Map<string, IMcpServer>();
 	for (const server of mcpService.servers.get()) {
@@ -484,32 +479,6 @@ export async function showToolsPicker(
 		}
 	}));
 
-	const updateToolLimitMessage = () => {
-		if (toolLimit) {
-			let count = 0;
-			const traverse = (items: readonly AnyTreeItem[]) => {
-				for (const item of items) {
-					if (isBucketTreeItem(item) || isToolSetTreeItem(item)) {
-						if (item.children) {
-							traverse(item.children);
-						}
-					} else if (isToolTreeItem(item) && item.checked) {
-						count++;
-					}
-				}
-			};
-			traverse(treePicker.itemTree);
-			if (count > toolLimit) {
-				treePicker.severity = Severity.Warning;
-				treePicker.validationMessage = localize('toolLimitExceeded', "{0} tools are enabled. You may experience degraded tool calling above {1} tools.", count, createMarkdownCommandLink({ title: String(toolLimit), id: '_chat.toolPicker.closeAndOpenVirtualThreshold' }));
-			} else {
-				treePicker.severity = Severity.Ignore;
-				treePicker.validationMessage = undefined;
-			}
-		}
-	};
-	updateToolLimitMessage();
-
 	const collectResults = () => {
 
 		const result = new Map<IToolData | IToolSet, boolean>();
@@ -536,18 +505,6 @@ export async function showToolsPicker(
 		traverse(treePicker.itemTree);
 		return result;
 	};
-
-	// Temporary command to close the picker and open settings, for use in the validation message
-	store.add(CommandsRegistry.registerCommand({
-		id: '_chat.toolPicker.closeAndOpenVirtualThreshold',
-		handler: () => {
-			treePicker.hide();
-			commandService.executeCommand('workbench.action.openSettings', 'github.copilot.chat.virtualTools.threshold');
-		}
-	}));
-
-	// Handle checkbox state changes
-	store.add(treePicker.onDidChangeCheckedLeafItems(() => updateToolLimitMessage()));
 
 	// Handle acceptance
 	let didAccept = false;

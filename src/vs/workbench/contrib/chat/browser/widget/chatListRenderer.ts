@@ -91,6 +91,7 @@ import { ChatTaskContentPart } from './chatContentParts/chatTaskContentPart.js';
 import { ChatTextEditContentPart } from './chatContentParts/chatTextEditContentPart.js';
 import { ChatThinkingContentPart } from './chatContentParts/chatThinkingContentPart.js';
 import { ChatSubagentContentPart } from './chatContentParts/chatSubagentContentPart.js';
+import { ChatTipContentPart } from './chatContentParts/chatTipContentPart.js';
 import { ChatTreeContentPart, TreePool } from './chatContentParts/chatTreeContentPart.js';
 import { ChatWorkspaceEditContentPart } from './chatContentParts/chatWorkspaceEditContentPart.js';
 import { ChatToolInvocationPart } from './chatContentParts/toolInvocationParts/chatToolInvocationPart.js';
@@ -100,6 +101,7 @@ import { ChatCodeBlockContentProvider, CodeBlockPart } from './chatContentParts/
 import { autorun, observableValue } from '../../../../../base/common/observable.js';
 import { RunSubagentTool } from '../../common/tools/builtinTools/runSubagentTool.js';
 import { isEqual } from '../../../../../base/common/resources.js';
+import { IChatTipService } from '../chatTipService.js';
 
 const $ = dom.$;
 
@@ -239,6 +241,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 		@IChatService private readonly chatService: IChatService,
+		@IChatTipService private readonly chatTipService: IChatTipService,
 	) {
 		super();
 
@@ -861,6 +864,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		// Show if no content, only "used references", ends with a complete tool call, or ends with complete text edits and there is no incomplete tool call (edits are still being applied some time after they are all generated)
 		const lastPart = findLast(partsToRender, part => part.kind !== 'markdownContent' || part.content.value.trim().length > 0);
 
+		// don't show working progress when there is thinking content in partsToRender (about to be rendered)
+		if (partsToRender.some(part => part.kind === 'thinking')) {
+			return false;
+		}
+
 		// never show working progress when there is an active thinking piece
 		const lastThinking = this.getLastThinkingPart(templateData.renderedParts);
 		if (lastThinking) {
@@ -935,6 +943,14 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		dom.clearNode(templateData.value);
 		const parts: IChatContentPart[] = [];
+
+		// Render tip above the request message (if available)
+		const tip = this.chatTipService.getNextTip(element.id, element.timestamp, this.contextKeyService);
+		if (tip) {
+			const tipPart = new ChatTipContentPart(tip, this.chatContentMarkdownRenderer);
+			templateData.value.appendChild(tipPart.domNode);
+			templateData.elementDisposables.add(tipPart);
+		}
 
 		let inlineSlashCommandRendered = false;
 		content.forEach((data, contentIndex) => {
@@ -1341,6 +1357,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			// pin when streaming since we don't know if we have confirmation yet or not
 			if (IChatToolInvocation.isStreaming(part)) {
 				return true;
+			}
+			// don't pin if waiting for confirmation or post-approval
+			const state = part.state.get();
+			if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation || state.type === IChatToolInvocation.StateKind.WaitingForPostApproval) {
+				return false;
 			}
 			return !IChatToolInvocation.getConfirmationMessages(part);
 		}
@@ -1777,7 +1798,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			const state = toolInvocation.state.read(reader);
 			if (wasStreaming && state.type !== IChatToolInvocation.StateKind.Streaming) {
 				wasStreaming = false;
-				if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation) {
+				if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation || state.type === IChatToolInvocation.StateKind.WaitingForPostApproval) {
 					const createdPart = getCreatedPart();
 					// move the created part out of thinking and into the main template
 					if (createdPart?.domNode) {

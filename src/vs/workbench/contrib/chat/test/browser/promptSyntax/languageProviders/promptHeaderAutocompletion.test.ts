@@ -138,7 +138,7 @@ suite('PromptHeaderAutocompletion', () => {
 				{ label: 'agents', result: 'agents: ${0:["*"]}' },
 				{ label: 'argument-hint', result: 'argument-hint: $0' },
 				{ label: 'handoffs', result: 'handoffs: $0' },
-				{ label: 'infer', result: 'infer: ${0:true}' },
+				{ label: 'infer', result: 'infer: ${0:all}' },
 				{ label: 'model', result: 'model: ${0:MAE 4 (olama)}' },
 				{ label: 'name', result: 'name: $0' },
 				{ label: 'target', result: 'target: ${0:vscode}' },
@@ -176,6 +176,38 @@ suite('PromptHeaderAutocompletion', () => {
 				{ label: 'MAE 4 (olama)', result: 'model: MAE 4 (olama)' },
 				{ label: 'MAE 4.1 (copilot)', result: 'model: MAE 4.1 (copilot)' },
 			]);
+		});
+
+		test('complete model names inside model array', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'model: [|]',
+				'---',
+			].join('\n');
+
+			const actual = await getCompletions(content, PromptsType.agent);
+			// GPT 4 is excluded because it has agentMode: false
+			assert.deepStrictEqual(actual.sort(sortByLabel), [
+				{ label: 'MAE 4 (olama)', result: `model: ['MAE 4 (olama)']` },
+				{ label: 'MAE 4.1 (copilot)', result: `model: ['MAE 4.1 (copilot)']` },
+			].sort(sortByLabel));
+		});
+
+		test('complete model names inside model array with existing entries', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				`model: ['MAE 4 (olama)', |]`,
+				'---',
+			].join('\n');
+
+			const actual = await getCompletions(content, PromptsType.agent);
+			// GPT 4 is excluded because it has agentMode: false
+			assert.deepStrictEqual(actual.sort(sortByLabel), [
+				{ label: 'MAE 4 (olama)', result: `model: ['MAE 4 (olama)', 'MAE 4 (olama)']` },
+				{ label: 'MAE 4.1 (copilot)', result: `model: ['MAE 4 (olama)', 'MAE 4.1 (copilot)']` },
+			].sort(sortByLabel));
 		});
 
 		test('complete tool names inside tools array', async () => {
@@ -246,6 +278,25 @@ suite('PromptHeaderAutocompletion', () => {
 			const actual = await getCompletions(content, PromptsType.agent);
 			assert.deepStrictEqual(actual.sort(sortByLabel), [
 				{ label: 'agent1', result: `agents: ['agent1']` },
+			].sort(sortByLabel));
+		});
+
+		test('complete infer attribute value', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'infer: |',
+				'---',
+			].join('\n');
+
+			const actual = await getCompletions(content, PromptsType.agent);
+			assert.deepStrictEqual(actual.sort(sortByLabel), [
+				{ label: 'agent', result: 'infer: agent' },
+				{ label: 'all', result: 'infer: all' },
+				{ label: 'false', result: 'infer: false' },
+				{ label: 'hidden', result: 'infer: hidden' },
+				{ label: 'true', result: 'infer: true' },
+				{ label: 'user', result: 'infer: user' },
 			].sort(sortByLabel));
 		});
 	});
