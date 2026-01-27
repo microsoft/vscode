@@ -238,6 +238,41 @@ export class PromptFilesLocator {
 	}
 
 	/**
+	 * Gets all resolved source folders for the given prompt type with metadata.
+	 * This method merges configured locations with default locations and resolves them
+	 * to absolute paths, including displayPath and isDefault information.
+	 *
+	 * @param type The type of prompt files.
+	 * @returns List of resolved source folders with metadata.
+	 */
+	public async getResolvedSourceFolders(type: PromptsType): Promise<readonly IResolvedPromptSourceFolder[]> {
+		const userHome = await this.pathService.userHome();
+		const configuredLocations = PromptsConfig.promptSourceFolders(this.configService, type);
+		const defaultFolders = getPromptFileDefaultLocations(type);
+
+		// Merge default folders with configured locations, avoiding duplicates
+		const allFolders = [
+			...defaultFolders,
+			...configuredLocations.filter(loc => !defaultFolders.some(df => df.path === loc.path))
+		];
+
+		const result = [...this.toAbsoluteLocations(type, allFolders, userHome, defaultFolders)];
+
+		// Also include the VS Code user data prompts folder (for all types except skills)
+		if (type !== PromptsType.skill) {
+			const userDataPromptsHome = this.userDataService.currentProfile.promptsHome;
+			result.push({
+				uri: userDataPromptsHome,
+				storage: PromptsStorage.user,
+				displayPath: 'User Data',
+				isDefault: true
+			});
+		}
+
+		return result;
+	}
+
+	/**
 	 * Finds all existent prompt files in the configured local source folders.
 	 *
 	 * @returns List of prompt files found in the local source folders.
@@ -281,10 +316,13 @@ export class PromptFilesLocator {
 	 * If userHome is provided, paths starting with `~` will be expanded. Otherwise these paths are ignored.
 	 * Preserves the type and location properties from the source folder definitions.
 	 */
-	private toAbsoluteLocations(type: PromptsType, configuredLocations: readonly IPromptSourceFolder[], userHome: URI | undefined): readonly IResolvedPromptSourceFolder[] {
+	private toAbsoluteLocations(type: PromptsType, configuredLocations: readonly IPromptSourceFolder[], userHome: URI | undefined, defaultLocations?: readonly IPromptSourceFolder[]): readonly IResolvedPromptSourceFolder[] {
 		const result: IResolvedPromptSourceFolder[] = [];
 		const seen = new ResourceSet();
 		const { folders } = this.workspaceService.getWorkspace();
+
+		// Create a set of default paths for quick lookup
+		const defaultPaths = new Set(defaultLocations?.map(loc => loc.path));
 
 		// Filter and validate skill paths before resolving
 		const validLocations = configuredLocations.filter(sourceFolder => {
@@ -310,6 +348,7 @@ export class PromptFilesLocator {
 
 		for (const sourceFolder of validLocations) {
 			const configuredLocation = sourceFolder.path;
+			const isDefault = defaultPaths?.has(configuredLocation);
 			try {
 				// Handle tilde paths when userHome is provided
 				if (isTildePath(configuredLocation)) {
@@ -318,7 +357,7 @@ export class PromptFilesLocator {
 						const uri = joinPath(userHome, configuredLocation.substring(2));
 						if (!seen.has(uri)) {
 							seen.add(uri);
-							result.push({ uri, source: sourceFolder.source, storage: sourceFolder.storage });
+							result.push({ uri, source: sourceFolder.source, storage: sourceFolder.storage, displayPath: configuredLocation, isDefault });
 						}
 					}
 					continue;
@@ -334,14 +373,14 @@ export class PromptFilesLocator {
 					}
 					if (!seen.has(uri)) {
 						seen.add(uri);
-						result.push({ uri, source: sourceFolder.source, storage: sourceFolder.storage });
+						result.push({ uri, source: sourceFolder.source, storage: sourceFolder.storage, displayPath: configuredLocation, isDefault });
 					}
 				} else {
 					for (const workspaceFolder of folders) {
 						const absolutePath = joinPath(workspaceFolder.uri, configuredLocation);
 						if (!seen.has(absolutePath)) {
 							seen.add(absolutePath);
-							result.push({ uri: absolutePath, source: sourceFolder.source, storage: sourceFolder.storage });
+							result.push({ uri: absolutePath, source: sourceFolder.source, storage: sourceFolder.storage, displayPath: configuredLocation, isDefault });
 						}
 					}
 				}

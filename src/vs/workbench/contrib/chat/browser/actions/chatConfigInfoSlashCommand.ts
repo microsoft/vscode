@@ -10,27 +10,33 @@ import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { IChatSlashCommandService } from '../../common/participants/chatSlashCommands.js';
-import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
+import { IPromptsService, PromptsStorage, IPromptFileDiscoveryResult, PromptFileSkipReason } from '../../common/promptSyntax/service/promptsService.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { PromptsConfig } from '../../common/promptSyntax/config/config.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
-import { IPathService } from '../../../../services/path/common/pathService.js';
-import { joinPath, basename, dirname } from '../../../../../base/common/resources.js';
+import { basename, dirname } from '../../../../../base/common/resources.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
-import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IProgress } from '../../../../../platform/progress/common/progress.js';
 import { IChatProgress } from '../../common/chatService/chatService.js';
 import { URI } from '../../../../../base/common/uri.js';
 import * as nls from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { IUserDataProfileService } from '../../../../services/userDataProfile/common/userDataProfile.js';
-import { getPromptFileDefaultLocations, COPILOT_CUSTOM_INSTRUCTIONS_FILENAME, SKILL_FILENAME } from '../../common/promptSyntax/config/promptFileLocations.js';
-import { PromptFileParser } from '../../common/promptSyntax/promptFileParser.js';
+import { COPILOT_CUSTOM_INSTRUCTIONS_FILENAME, IResolvedPromptSourceFolder } from '../../common/promptSyntax/config/promptFileLocations.js';
+
+// Tree prefixes
+// allow-any-unicode-next-line
+const TREE_BRANCH = '  ├─';
+// allow-any-unicode-next-line
+const TREE_END = '  └─';
+// allow-any-unicode-next-line
+const ICON_ERROR = '❌';
+// allow-any-unicode-next-line
+const ICON_WARN = '⚠️';
 
 /**
  * Information about a file that was loaded or skipped.
  */
-interface IFileStatusInfo {
+export interface IFileStatusInfo {
 	uri: URI;
 	status: 'loaded' | 'skipped' | 'overwritten';
 	reason?: string;
@@ -45,7 +51,7 @@ interface IFileStatusInfo {
 /**
  * Path information with scan order.
  */
-interface IPathInfo {
+export interface IPathInfo {
 	uri: URI;
 	exists: boolean;
 	storage: PromptsStorage;
@@ -60,7 +66,7 @@ interface IPathInfo {
 /**
  * Status information for a specific type of prompt files.
  */
-interface ITypeStatusInfo {
+export interface ITypeStatusInfo {
 	type: PromptsType;
 	paths: IPathInfo[];
 	files: IFileStatusInfo[];
@@ -112,20 +118,14 @@ async function executeConfigInfoCommand(
 ): Promise<void> {
 	const promptsService = accessor.get(IPromptsService);
 	const configurationService = accessor.get(IConfigurationService);
-	const pathService = accessor.get(IPathService);
 	const fileService = accessor.get(IFileService);
-	const workspaceService = accessor.get(IWorkspaceContextService);
-	const userDataService = accessor.get(IUserDataProfileService);
-
-	const userHome = await pathService.userHome();
-	const { folders: workspaceFolders } = workspaceService.getWorkspace();
 
 	// Collect status for each type
 	const statusInfos: ITypeStatusInfo[] = [];
 
 	// 1. Custom Agents
 	const agentsStatus = await collectAgentsStatus(
-		promptsService, configurationService, fileService, userHome, workspaceFolders, userDataService, token
+		promptsService, fileService, token
 	);
 	statusInfos.push(agentsStatus);
 
@@ -135,7 +135,7 @@ async function executeConfigInfoCommand(
 
 	// 2. Instructions
 	const instructionsStatus = await collectInstructionsStatus(
-		promptsService, configurationService, fileService, userHome, workspaceFolders, userDataService, token
+		promptsService, fileService, token
 	);
 	statusInfos.push(instructionsStatus);
 
@@ -145,7 +145,7 @@ async function executeConfigInfoCommand(
 
 	// 3. Prompt Files
 	const promptsStatus = await collectPromptsStatus(
-		promptsService, configurationService, fileService, userHome, workspaceFolders, userDataService, token
+		promptsService, fileService, token
 	);
 	statusInfos.push(promptsStatus);
 
@@ -155,7 +155,7 @@ async function executeConfigInfoCommand(
 
 	// 4. Skills
 	const skillsStatus = await collectSkillsStatus(
-		promptsService, configurationService, fileService, userHome, workspaceFolders, token
+		promptsService, configurationService, fileService, token
 	);
 	statusInfos.push(skillsStatus);
 
@@ -165,7 +165,7 @@ async function executeConfigInfoCommand(
 
 	// 5. Special files (AGENTS.md, copilot-instructions.md)
 	const specialFilesStatus = await collectSpecialFilesStatus(
-		promptsService, configurationService, workspaceFolders, token
+		promptsService, configurationService, token
 	);
 
 	// Generate the output
@@ -182,114 +182,19 @@ async function executeConfigInfoCommand(
  */
 async function collectAgentsStatus(
 	promptsService: IPromptsService,
-	configurationService: IConfigurationService,
 	fileService: IFileService,
-	userHome: URI,
-	workspaceFolders: readonly { uri: URI }[],
-	userDataService: IUserDataProfileService,
 	token: CancellationToken
 ): Promise<ITypeStatusInfo> {
 	const type = PromptsType.agent;
 	const enabled = true; // Agents are always enabled
 
-	// Get configured paths
-	const configuredLocations = PromptsConfig.promptSourceFolders(configurationService, type);
-	const defaultFolders = getPromptFileDefaultLocations(type);
-	const allFolders = [...defaultFolders, ...configuredLocations.filter(loc => !defaultFolders.some(df => df.path === loc.path))];
+	// Get resolved source folders using the shared path resolution logic
+	const resolvedFolders = await promptsService.getResolvedSourceFolders(type);
+	const paths = await convertResolvedFoldersToPathInfo(resolvedFolders, fileService);
 
-	const paths: IPathInfo[] = [];
-	let scanOrder = 1;
-
-	for (const folder of allFolders) {
-		const isDefault = defaultFolders.some(df => df.path === folder.path);
-		if (folder.path.startsWith('~/')) {
-			const uri = joinPath(userHome, folder.path.substring(2));
-			const exists = await checkDirectoryExists(fileService, uri);
-			paths.push({ uri, exists, storage: PromptsStorage.user, scanOrder: scanOrder++, displayPath: folder.path, isDefault });
-		} else {
-			for (const workspaceFolder of workspaceFolders) {
-				const uri = joinPath(workspaceFolder.uri, folder.path);
-				const exists = await checkDirectoryExists(fileService, uri);
-				paths.push({ uri, exists, storage: PromptsStorage.local, scanOrder: scanOrder++, displayPath: folder.path, isDefault });
-			}
-		}
-	}
-
-	// Add user data folder
-	const userDataPromptsHome = userDataService.currentProfile.promptsHome;
-	const userDataExists = await checkDirectoryExists(fileService, userDataPromptsHome);
-	paths.push({ uri: userDataPromptsHome, exists: userDataExists, storage: PromptsStorage.user, scanOrder: scanOrder++, displayPath: 'User Data', isDefault: true });
-
-	// Get loaded agents and collect file status
-	// For agents, the ID is the basename of the file
-	const files: IFileStatusInfo[] = [];
-	const loadedIds = new Map<string, string>(); // basename -> uri of loaded agent
-
-	try {
-		const agents = await promptsService.getCustomAgents(token);
-		for (const agent of agents) {
-			const fileId = basename(agent.uri);
-			const extensionId = agent.source.storage === PromptsStorage.extension
-				? agent.source.extensionId.value
-				: undefined;
-			files.push({
-				uri: agent.uri,
-				status: 'loaded',
-				name: agent.name,
-				storage: agent.source.storage,
-				extensionId
-			});
-			if (!loadedIds.has(fileId)) {
-				loadedIds.set(fileId, agent.uri.toString());
-			}
-		}
-	} catch (e) {
-		// Error loading agents
-	}
-
-	// Check for files with errors or overwrites by listing all files and comparing
-	const allFiles = await promptsService.listPromptFiles(type, token);
-	for (const promptPath of allFiles) {
-		const isLoaded = files.some(f => f.uri.toString() === promptPath.uri.toString());
-		if (!isLoaded) {
-			const fileId = basename(promptPath.uri);
-			const extensionId = promptPath.extension?.identifier?.value;
-
-			// Check if this file was overwritten by another with the same basename
-			if (loadedIds.has(fileId)) {
-				files.push({
-					uri: promptPath.uri,
-					status: 'overwritten',
-					name: fileId,
-					storage: promptPath.storage,
-					overwrittenBy: fileId,
-					extensionId
-				});
-				continue;
-			}
-
-			// Try to parse to get the error
-			let reason = nls.localize('status.unknownError', 'Unknown error');
-			try {
-				const content = await fileService.readFile(promptPath.uri);
-				const parsed = new PromptFileParser().parse(promptPath.uri, content.value.toString());
-				if (!parsed.header?.name) {
-					reason = nls.localize('status.missingName', 'Missing name attribute');
-				}
-			} catch (e) {
-				if (e instanceof Error) {
-					reason = e.message;
-				}
-			}
-			files.push({
-				uri: promptPath.uri,
-				status: 'skipped',
-				reason,
-				storage: promptPath.storage,
-				extensionId
-			});
-		}
-	}
+	// Get discovery info from the service (handles all duplicate detection and error tracking)
+	const discoveryInfo = await promptsService.getPromptDiscoveryInfo(type, token);
+	const files = discoveryInfo.files.map(convertDiscoveryResultToFileStatus);
 
 	return { type, paths, files, enabled };
 }
@@ -299,95 +204,22 @@ async function collectAgentsStatus(
  */
 async function collectInstructionsStatus(
 	promptsService: IPromptsService,
-	configurationService: IConfigurationService,
 	fileService: IFileService,
-	userHome: URI,
-	workspaceFolders: readonly { uri: URI }[],
-	userDataService: IUserDataProfileService,
 	token: CancellationToken
 ): Promise<ITypeStatusInfo> {
 	const type = PromptsType.instructions;
 	const enabled = true;
 
-	// Get configured paths
-	const configuredLocations = PromptsConfig.promptSourceFolders(configurationService, type);
-	const defaultFolders = getPromptFileDefaultLocations(type);
-	const allFolders = [...defaultFolders, ...configuredLocations.filter(loc => !defaultFolders.some(df => df.path === loc.path))];
+	// Get resolved source folders using the shared path resolution logic
+	const resolvedFolders = await promptsService.getResolvedSourceFolders(type);
+	const paths = await convertResolvedFoldersToPathInfo(resolvedFolders, fileService);
 
-	const paths: IPathInfo[] = [];
-	let scanOrder = 1;
-
-	for (const folder of allFolders) {
-		const isDefault = defaultFolders.some(df => df.path === folder.path);
-		if (folder.path.startsWith('~/')) {
-			const uri = joinPath(userHome, folder.path.substring(2));
-			const exists = await checkDirectoryExists(fileService, uri);
-			paths.push({ uri, exists, storage: PromptsStorage.user, scanOrder: scanOrder++, displayPath: folder.path, isDefault });
-		} else {
-			for (const workspaceFolder of workspaceFolders) {
-				const uri = joinPath(workspaceFolder.uri, folder.path);
-				const exists = await checkDirectoryExists(fileService, uri);
-				paths.push({ uri, exists, storage: PromptsStorage.local, scanOrder: scanOrder++, displayPath: folder.path, isDefault });
-			}
-		}
-	}
-
-	// Add user data folder
-	const userDataPromptsHome = userDataService.currentProfile.promptsHome;
-	const userDataExists = await checkDirectoryExists(fileService, userDataPromptsHome);
-	paths.push({ uri: userDataPromptsHome, exists: userDataExists, storage: PromptsStorage.user, scanOrder: scanOrder++, displayPath: 'User Data', isDefault: true });
-
-	// Get files - for instructions, the ID is the basename
-	// Exclude copilot-instructions.md files as they are handled separately in the special files section
-	const files: IFileStatusInfo[] = [];
-	const seenBasenames = new Map<string, string>(); // basename -> uri of first file seen
-
-	const allFiles = await promptsService.listPromptFiles(type, token);
-	for (const promptPath of allFiles) {
-		const fileId = basename(promptPath.uri);
-
-		// Skip copilot-instructions.md files - they're shown in the special files section
-		if (fileId === COPILOT_CUSTOM_INSTRUCTIONS_FILENAME) {
-			continue;
-		}
-
-		const isOverwritten = seenBasenames.has(fileId);
-		const extensionId = promptPath.extension?.identifier?.value;
-
-		try {
-			const parsed = await promptsService.parseNew(promptPath.uri, token);
-			if (isOverwritten) {
-				files.push({
-					uri: promptPath.uri,
-					status: 'overwritten',
-					name: parsed.header?.name ?? fileId,
-					storage: promptPath.storage,
-					overwrittenBy: fileId,
-					extensionId
-				});
-			} else {
-				files.push({
-					uri: promptPath.uri,
-					status: 'loaded',
-					name: parsed.header?.name ?? fileId,
-					storage: promptPath.storage,
-					extensionId
-				});
-				seenBasenames.set(fileId, promptPath.uri.toString());
-			}
-		} catch (e) {
-			files.push({
-				uri: promptPath.uri,
-				status: 'skipped',
-				reason: e instanceof Error ? e.message : nls.localize('status.parseError', 'Parse error'),
-				storage: promptPath.storage,
-				extensionId
-			});
-			if (!isOverwritten) {
-				seenBasenames.set(fileId, promptPath.uri.toString());
-			}
-		}
-	}
+	// Get discovery info from the service
+	// Filter out copilot-instructions.md files as they are handled separately in the special files section
+	const discoveryInfo = await promptsService.getPromptDiscoveryInfo(type, token);
+	const files = discoveryInfo.files
+		.filter(f => basename(f.uri) !== COPILOT_CUSTOM_INSTRUCTIONS_FILENAME)
+		.map(convertDiscoveryResultToFileStatus);
 
 	return { type, paths, files, enabled };
 }
@@ -397,78 +229,19 @@ async function collectInstructionsStatus(
  */
 async function collectPromptsStatus(
 	promptsService: IPromptsService,
-	configurationService: IConfigurationService,
 	fileService: IFileService,
-	userHome: URI,
-	workspaceFolders: readonly { uri: URI }[],
-	userDataService: IUserDataProfileService,
 	token: CancellationToken
 ): Promise<ITypeStatusInfo> {
 	const type = PromptsType.prompt;
 	const enabled = true;
 
-	// Get configured paths
-	const configuredLocations = PromptsConfig.promptSourceFolders(configurationService, type);
-	const defaultFolders = getPromptFileDefaultLocations(type);
-	const allFolders = [...defaultFolders, ...configuredLocations.filter(loc => !defaultFolders.some(df => df.path === loc.path))];
+	// Get resolved source folders using the shared path resolution logic
+	const resolvedFolders = await promptsService.getResolvedSourceFolders(type);
+	const paths = await convertResolvedFoldersToPathInfo(resolvedFolders, fileService);
 
-	const paths: IPathInfo[] = [];
-	let scanOrder = 1;
-
-	for (const folder of allFolders) {
-		const isDefault = defaultFolders.some(df => df.path === folder.path);
-		if (folder.path.startsWith('~/')) {
-			const uri = joinPath(userHome, folder.path.substring(2));
-			const exists = await checkDirectoryExists(fileService, uri);
-			paths.push({ uri, exists, storage: PromptsStorage.user, scanOrder: scanOrder++, displayPath: folder.path, isDefault });
-		} else {
-			for (const workspaceFolder of workspaceFolders) {
-				const uri = joinPath(workspaceFolder.uri, folder.path);
-				const exists = await checkDirectoryExists(fileService, uri);
-				paths.push({ uri, exists, storage: PromptsStorage.local, scanOrder: scanOrder++, displayPath: folder.path, isDefault });
-			}
-		}
-	}
-
-	// Add user data folder
-	const userDataPromptsHome = userDataService.currentProfile.promptsHome;
-	const userDataExists = await checkDirectoryExists(fileService, userDataPromptsHome);
-	paths.push({ uri: userDataPromptsHome, exists: userDataExists, storage: PromptsStorage.user, scanOrder: scanOrder++, displayPath: 'User Data', isDefault: true });
-
-	// Get slash commands - for prompts, the ID is the basename
-	const files: IFileStatusInfo[] = [];
-	const seenBasenames = new Map<string, string>(); // basename -> uri of first file seen
-
-	try {
-		const slashCommands = await promptsService.getPromptSlashCommands(token);
-		for (const cmd of slashCommands) {
-			const fileId = basename(cmd.promptPath.uri);
-			const isOverwritten = seenBasenames.has(fileId);
-			const extensionId = cmd.promptPath.extension?.identifier?.value;
-
-			if (isOverwritten) {
-				files.push({
-					uri: cmd.promptPath.uri,
-					status: 'overwritten',
-					name: cmd.name,
-					storage: cmd.promptPath.storage,
-					overwrittenBy: fileId,
-					extensionId
-				});
-			} else {
-				files.push({
-					uri: cmd.promptPath.uri,
-					status: 'loaded',
-					name: cmd.name,
-					storage: cmd.promptPath.storage,
-					extensionId
-				});
-				seenBasenames.set(fileId, cmd.promptPath.uri.toString());
-			}
-		}
-	} catch (e) {
-		// Error loading
-	}
+	// Get discovery info from the service
+	const discoveryInfo = await promptsService.getPromptDiscoveryInfo(type, token);
+	const files = discoveryInfo.files.map(convertDiscoveryResultToFileStatus);
 
 	return { type, paths, files, enabled };
 }
@@ -480,151 +253,18 @@ async function collectSkillsStatus(
 	promptsService: IPromptsService,
 	configurationService: IConfigurationService,
 	fileService: IFileService,
-	userHome: URI,
-	workspaceFolders: readonly { uri: URI }[],
 	token: CancellationToken
 ): Promise<ITypeStatusInfo> {
 	const type = PromptsType.skill;
 	const enabled = configurationService.getValue<boolean>(PromptsConfig.USE_AGENT_SKILLS) ?? false;
 
-	// Get configured paths
-	const configuredLocations = PromptsConfig.promptSourceFolders(configurationService, type);
-	const defaultFolders = getPromptFileDefaultLocations(type);
-	const allFolders = [...defaultFolders, ...configuredLocations.filter(loc => !defaultFolders.some(df => df.path === loc.path))];
+	// Get resolved source folders using the shared path resolution logic
+	const resolvedFolders = await promptsService.getResolvedSourceFolders(type);
+	const paths = await convertResolvedFoldersToPathInfo(resolvedFolders, fileService);
 
-	const paths: IPathInfo[] = [];
-	let scanOrder = 1;
-
-	for (const folder of allFolders) {
-		const isDefault = defaultFolders.some(df => df.path === folder.path);
-		if (folder.path.startsWith('~/')) {
-			const uri = joinPath(userHome, folder.path.substring(2));
-			const exists = await checkDirectoryExists(fileService, uri);
-			paths.push({ uri, exists, storage: PromptsStorage.user, scanOrder: scanOrder++, displayPath: folder.path, isDefault });
-		} else {
-			for (const workspaceFolder of workspaceFolders) {
-				const uri = joinPath(workspaceFolder.uri, folder.path);
-				const exists = await checkDirectoryExists(fileService, uri);
-				paths.push({ uri, exists, storage: PromptsStorage.local, scanOrder: scanOrder++, displayPath: folder.path, isDefault });
-			}
-		}
-	}
-
-	// Get loaded skills and track names for duplicate detection
-	const files: IFileStatusInfo[] = [];
-	const loadedNames = new Map<string, string>(); // name -> uri of loaded skill
-
-	// Build a map of URI -> extensionId from listPromptFiles to get extension info
-	const extensionIdByUri = new Map<string, string>();
-	try {
-		const allSkillFiles = await promptsService.listPromptFiles(type, token);
-		for (const skillPath of allSkillFiles) {
-			if (skillPath.extension?.identifier?.value) {
-				extensionIdByUri.set(skillPath.uri.toString(), skillPath.extension.identifier.value);
-			}
-		}
-	} catch {
-		// Ignore errors
-	}
-
-	if (enabled) {
-		try {
-			const skills = await promptsService.findAgentSkills(token);
-			if (skills) {
-				for (const skill of skills) {
-					files.push({
-						uri: skill.uri,
-						status: 'loaded',
-						name: skill.name,
-						storage: skill.storage,
-						extensionId: extensionIdByUri.get(skill.uri.toString())
-					});
-					loadedNames.set(skill.name, skill.uri.toString());
-				}
-			}
-		} catch (e) {
-			// Error loading skills
-		}
-
-		// Check each path for skill folders that may have been skipped or overwritten
-		for (const { uri, exists, storage } of paths) {
-			if (!exists) {
-				continue;
-			}
-			try {
-				const stat = await fileService.resolve(uri);
-				if (stat.isDirectory && stat.children) {
-					for (const child of stat.children) {
-						if (child.isDirectory) {
-							const skillFile = joinPath(child.resource, SKILL_FILENAME);
-							try {
-								await fileService.stat(skillFile);
-								// Check if already in our files list
-								const existingEntry = files.find(f => f.uri.toString() === skillFile.toString());
-								if (existingEntry) {
-									continue; // Already processed
-								}
-
-								// Parse to get the name
-								let skillName: string | undefined;
-								let reason = nls.localize('status.unknownError', 'Unknown error');
-								try {
-									const content = await fileService.readFile(skillFile);
-									const parsed = new PromptFileParser().parse(skillFile, content.value.toString());
-									skillName = parsed.header?.name;
-									if (!skillName) {
-										reason = nls.localize('status.skillMissingName', 'Missing name attribute');
-									} else if (!parsed.header?.description) {
-										reason = nls.localize('status.skillMissingDescription', 'Missing description attribute');
-									} else {
-										const folderName = basename(dirname(skillFile));
-										if (skillName !== folderName) {
-											reason = nls.localize('status.skillNameMismatch', 'Name "{0}" does not match folder "{1}"', skillName, folderName);
-											skillName = undefined; // Invalid
-										}
-									}
-								} catch (e) {
-									if (e instanceof Error) {
-										reason = e.message;
-									}
-								}
-
-								// Check if this name was already loaded (overwritten)
-								if (skillName && loadedNames.has(skillName)) {
-									const winnerUri = loadedNames.get(skillName)!;
-									if (winnerUri !== skillFile.toString()) {
-										files.push({
-											uri: skillFile,
-											status: 'overwritten',
-											name: skillName,
-											storage,
-											overwrittenBy: skillName
-										});
-										continue;
-									}
-								}
-
-								// Not loaded and not overwritten - must be skipped due to error
-								if (!loadedNames.has(skillName || '')) {
-									files.push({
-										uri: skillFile,
-										status: 'skipped',
-										name: skillName,
-										reason,
-										storage
-									});
-								}
-							} catch {
-								// No SKILL.md in this folder - not an error
-							}
-						}
-					}
-				}
-			} catch {
-				// Can't read directory
-			}
-		}
-	}
+	// Get discovery info from the service (handles all duplicate detection and error tracking)
+	const discoveryInfo = await promptsService.getPromptDiscoveryInfo(type, token);
+	const files = discoveryInfo.files.map(convertDiscoveryResultToFileStatus);
 
 	return { type, paths, files, enabled };
 }
@@ -635,7 +275,6 @@ async function collectSkillsStatus(
 async function collectSpecialFilesStatus(
 	promptsService: IPromptsService,
 	configurationService: IConfigurationService,
-	workspaceFolders: readonly { uri: URI }[],
 	token: CancellationToken
 ): Promise<{ agentsMd: { enabled: boolean; files: URI[] }; copilotInstructions: { enabled: boolean; files: URI[] } }> {
 	// AGENTS.md
@@ -671,11 +310,97 @@ async function checkDirectoryExists(fileService: IFileService, uri: URI): Promis
 }
 
 /**
+ * Converts resolved source folders to path info with existence checks.
+ * This uses the shared path resolution logic from the prompts service.
+ */
+async function convertResolvedFoldersToPathInfo(
+	resolvedFolders: readonly IResolvedPromptSourceFolder[],
+	fileService: IFileService
+): Promise<IPathInfo[]> {
+	const paths: IPathInfo[] = [];
+	let scanOrder = 1;
+
+	for (const folder of resolvedFolders) {
+		const exists = await checkDirectoryExists(fileService, folder.uri);
+		paths.push({
+			uri: folder.uri,
+			exists,
+			storage: folder.storage,
+			scanOrder: scanOrder++,
+			displayPath: folder.displayPath ?? folder.uri.path,
+			isDefault: folder.isDefault ?? false
+		});
+	}
+
+	return paths;
+}
+
+/**
+ * Converts skip reason enum to user-friendly message.
+ */
+function getSkipReasonMessage(skipReason: PromptFileSkipReason | undefined, errorMessage: string | undefined): string {
+	switch (skipReason) {
+		case 'missing-name':
+			return nls.localize('status.missingName', 'Missing name attribute');
+		case 'missing-description':
+			return nls.localize('status.skillMissingDescription', 'Missing description attribute');
+		case 'name-mismatch':
+			return errorMessage ?? nls.localize('status.skillNameMismatch2', 'Name does not match folder');
+		case 'duplicate-name':
+			return nls.localize('status.overwrittenByHigherPriority', 'Overwritten by higher priority file');
+		case 'parse-error':
+			return errorMessage ?? nls.localize('status.parseError', 'Parse error');
+		case 'disabled':
+			return nls.localize('status.typeDisabled', 'Disabled');
+		default:
+			return errorMessage ?? nls.localize('status.unknownError', 'Unknown error');
+	}
+}
+
+/**
+ * Converts IPromptFileDiscoveryResult to IFileStatusInfo for display.
+ */
+function convertDiscoveryResultToFileStatus(result: IPromptFileDiscoveryResult): IFileStatusInfo {
+	if (result.status === 'loaded') {
+		return {
+			uri: result.uri,
+			status: 'loaded',
+			name: result.name,
+			storage: result.storage,
+			extensionId: result.extensionId
+		};
+	}
+
+	// Handle skipped files
+	if (result.skipReason === 'duplicate-name' && result.duplicateOf) {
+		// This is an overwritten file
+		return {
+			uri: result.uri,
+			status: 'overwritten',
+			name: result.name,
+			storage: result.storage,
+			overwrittenBy: result.name,
+			extensionId: result.extensionId
+		};
+	}
+
+	// Regular skip
+	return {
+		uri: result.uri,
+		status: 'skipped',
+		name: result.name,
+		reason: getSkipReasonMessage(result.skipReason, result.errorMessage),
+		storage: result.storage,
+		extensionId: result.extensionId
+	};
+}
+
+/**
  * Formats the status output as a compact markdown string with tree structure.
  * Files are grouped under their parent paths.
  * Special files (AGENTS.md, copilot-instructions.md) are merged into their respective sections.
  */
-function formatStatusOutput(
+export function formatStatusOutput(
 	statusInfos: ITypeStatusInfo[],
 	specialFiles: { agentsMd: { enabled: boolean; files: URI[] }; copilotInstructions: { enabled: boolean; files: URI[] } }
 ): string {
@@ -768,8 +493,7 @@ function formatStatusOutput(
 				lines.push(`- ${path.displayPath}`);
 			} else {
 				// Custom folders that don't exist - show error
-				// allow-any-unicode-next-line
-				lines.push(`- ❌ ${path.displayPath} - *${nls.localize('status.folderNotFound', 'Folder does not exist')}*`);
+				lines.push(`- ${ICON_ERROR} ${path.displayPath} - *${nls.localize('status.folderNotFound', 'Folder does not exist')}*`);
 			}
 
 			if (path.exists && pathFiles.length > 0) {
@@ -783,16 +507,13 @@ function formatStatusOutput(
 						fileName = basename(file.uri);
 					}
 					const isLast = i === pathFiles.length - 1;
-					// allow-any-unicode-next-line
-					const prefix = isLast ? '└─' : '├─';
+					const prefix = isLast ? TREE_END : TREE_BRANCH;
 					if (file.status === 'loaded') {
-						lines.push(`  ${prefix} [\`${fileName}\`](${file.uri.toString()})`);
+						lines.push(`${prefix} [\`${fileName}\`](${file.uri.toString()})`);
 					} else if (file.status === 'overwritten') {
-						// allow-any-unicode-next-line
-						lines.push(`  ${prefix} ⚠️ [\`${fileName}\`](${file.uri.toString()}) - *${nls.localize('status.overwrittenByHigherPriority', 'Overwritten by higher priority file')}*`);
+						lines.push(`${prefix} ${ICON_WARN} [\`${fileName}\`](${file.uri.toString()}) - *${nls.localize('status.overwrittenByHigherPriority', 'Overwritten by higher priority file')}*`);
 					} else {
-						// allow-any-unicode-next-line
-						lines.push(`  ${prefix} ❌ [\`${fileName}\`](${file.uri.toString()}) - *${file.reason}*`);
+						lines.push(`${prefix} ${ICON_ERROR} [\`${fileName}\`](${file.uri.toString()}) - *${file.reason}*`);
 					}
 				}
 			}
@@ -824,16 +545,13 @@ function formatStatusOutput(
 						fileName = basename(file.uri);
 					}
 					const isLast = i === extFiles.length - 1;
-					// allow-any-unicode-next-line
-					const prefix = isLast ? '└─' : '├─';
+					const prefix = isLast ? TREE_END : TREE_BRANCH;
 					if (file.status === 'loaded') {
-						lines.push(`  ${prefix} [\`${fileName}\`](${file.uri.toString()})`);
+						lines.push(`${prefix} [\`${fileName}\`](${file.uri.toString()})`);
 					} else if (file.status === 'overwritten') {
-						// allow-any-unicode-next-line
-						lines.push(`  ${prefix} ⚠️ [\`${fileName}\`](${file.uri.toString()}) - *${nls.localize('status.overwrittenByHigherPriority', 'Overwritten by higher priority file')}*`);
+						lines.push(`${prefix} ${ICON_WARN} [\`${fileName}\`](${file.uri.toString()}) - *${nls.localize('status.overwrittenByHigherPriority', 'Overwritten by higher priority file')}*`);
 					} else {
-						// allow-any-unicode-next-line
-						lines.push(`  ${prefix} ❌ [\`${fileName}\`](${file.uri.toString()}) - *${file.reason}*`);
+						lines.push(`${prefix} ${ICON_ERROR} [\`${fileName}\`](${file.uri.toString()}) - *${file.reason}*`);
 					}
 				}
 			}
@@ -848,9 +566,8 @@ function formatStatusOutput(
 					const file = specialFiles.agentsMd.files[i];
 					const fileName = basename(file);
 					const isLast = i === specialFiles.agentsMd.files.length - 1;
-					// allow-any-unicode-next-line
-					const prefix = isLast ? '└─' : '├─';
-					lines.push(`  ${prefix} [\`${fileName}\`](${file.toString()})`);
+					const prefix = isLast ? TREE_END : TREE_BRANCH;
+					lines.push(`${prefix} [\`${fileName}\`](${file.toString()})`);
 				}
 				hasContent = true;
 			} else if (!specialFiles.agentsMd.enabled) {
@@ -867,9 +584,8 @@ function formatStatusOutput(
 					const file = specialFiles.copilotInstructions.files[i];
 					const fileName = basename(file);
 					const isLast = i === specialFiles.copilotInstructions.files.length - 1;
-					// allow-any-unicode-next-line
-					const prefix = isLast ? '└─' : '├─';
-					lines.push(`  ${prefix} [\`${fileName}\`](${file.toString()})`);
+					const prefix = isLast ? TREE_END : TREE_BRANCH;
+					lines.push(`${prefix} [\`${fileName}\`](${file.toString()})`);
 				}
 				hasContent = true;
 			} else if (!specialFiles.copilotInstructions.enabled) {

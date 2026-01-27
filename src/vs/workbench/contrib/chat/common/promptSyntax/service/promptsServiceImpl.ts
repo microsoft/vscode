@@ -27,11 +27,11 @@ import { ITelemetryService } from '../../../../../../platform/telemetry/common/t
 import { IUserDataProfileService } from '../../../../../services/userDataProfile/common/userDataProfile.js';
 import { IVariableReference } from '../../chatModes.js';
 import { PromptsConfig } from '../config/config.js';
-import { getCleanPromptName, IResolvedPromptFile, PromptFileSource } from '../config/promptFileLocations.js';
+import { getCleanPromptName, IResolvedPromptFile, IResolvedPromptSourceFolder, PromptFileSource } from '../config/promptFileLocations.js';
 import { PROMPT_LANGUAGE_ID, PromptsType, getPromptsTypeForLanguageId } from '../promptTypes.js';
 import { PromptFilesLocator } from '../utils/promptFilesLocator.js';
 import { PromptFileParser, ParsedPromptFile, PromptHeaderAttributes } from '../promptFileParser.js';
-import { IAgentInstructions, IAgentSource, IChatPromptSlashCommand, ICustomAgent, IExtensionPromptPath, ILocalPromptPath, IPromptPath, IPromptsService, IAgentSkill, IUserPromptPath, PromptsStorage, ExtensionAgentSourceType, CUSTOM_AGENT_PROVIDER_ACTIVATION_EVENT, INSTRUCTIONS_PROVIDER_ACTIVATION_EVENT, IPromptFileContext, IPromptFileResource, PROMPT_FILE_PROVIDER_ACTIVATION_EVENT, SKILL_PROVIDER_ACTIVATION_EVENT } from './promptsService.js';
+import { IAgentInstructions, IAgentSource, IChatPromptSlashCommand, ICustomAgent, IExtensionPromptPath, ILocalPromptPath, IPromptPath, IPromptsService, IAgentSkill, IUserPromptPath, PromptsStorage, ExtensionAgentSourceType, CUSTOM_AGENT_PROVIDER_ACTIVATION_EVENT, INSTRUCTIONS_PROVIDER_ACTIVATION_EVENT, IPromptFileContext, IPromptFileResource, PROMPT_FILE_PROVIDER_ACTIVATION_EVENT, SKILL_PROVIDER_ACTIVATION_EVENT, IPromptDiscoveryInfo, IPromptFileDiscoveryResult, PromptFileSkipReason } from './promptsService.js';
 import { Delayer } from '../../../../../../base/common/async.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 
@@ -370,6 +370,10 @@ export class PromptsService extends Disposable implements IPromptsService {
 		}
 
 		return result;
+	}
+
+	public async getResolvedSourceFolders(type: PromptsType): Promise<readonly IResolvedPromptSourceFolder[]> {
+		return this.fileLocator.getResolvedSourceFolders(type);
 	}
 
 	// slash prompt commands
@@ -885,6 +889,216 @@ export class PromptsService extends Disposable implements IPromptsService {
 			return result;
 		}
 		return undefined;
+	}
+
+	public async getPromptDiscoveryInfo(type: PromptsType, token: CancellationToken): Promise<IPromptDiscoveryInfo> {
+		const files: IPromptFileDiscoveryResult[] = [];
+
+		if (type === PromptsType.skill) {
+			return this.getSkillDiscoveryInfo(token);
+		} else if (type === PromptsType.agent) {
+			return this.getAgentDiscoveryInfo(token);
+		} else if (type === PromptsType.prompt) {
+			return this.getPromptSlashCommandDiscoveryInfo(token);
+		} else if (type === PromptsType.instructions) {
+			return this.getInstructionsDiscoveryInfo(token);
+		}
+
+		return { type, files };
+	}
+
+	private async getSkillDiscoveryInfo(token: CancellationToken): Promise<IPromptDiscoveryInfo> {
+		const files: IPromptFileDiscoveryResult[] = [];
+		const useAgentSkills = this.configurationService.getValue(PromptsConfig.USE_AGENT_SKILLS);
+
+		if (!useAgentSkills) {
+			// Skills disabled - list all files as skipped with 'disabled' reason
+			const allFiles = await this.listPromptFiles(PromptsType.skill, token);
+			for (const promptPath of allFiles) {
+				files.push({
+					uri: promptPath.uri,
+					storage: promptPath.storage,
+					status: 'skipped',
+					skipReason: 'disabled',
+					extensionId: promptPath.extension?.identifier?.value
+				});
+			}
+			return { type: PromptsType.skill, files };
+		}
+
+		const seenNames = new Set<string>();
+		const nameToUri = new Map<string, URI>();
+
+		// Collect all skills with their metadata for sorting (same logic as findAgentSkills)
+		const allSkills: Array<IResolvedPromptFile> = [];
+		const discoveredSkills = await this.fileLocator.findAgentSkills(token);
+		const extensionSkills = await this.getExtensionPromptFiles(PromptsType.skill, token);
+		allSkills.push(...discoveredSkills, ...extensionSkills.map((extPath) => ({
+			fileUri: extPath.uri,
+			storage: extPath.storage,
+			source: extPath.source === ExtensionAgentSourceType.contribution ? PromptFileSource.ExtensionContribution : PromptFileSource.ExtensionAPI
+		})));
+
+		const getPriority = (skill: IResolvedPromptFile | IExtensionPromptPath): number => {
+			if (skill.storage === PromptsStorage.local) {
+				return 0;
+			}
+			if (skill.storage === PromptsStorage.user) {
+				return 1;
+			}
+			if (skill.source === PromptFileSource.ExtensionAPI) {
+				return 2;
+			}
+			if (skill.source === PromptFileSource.ExtensionContribution) {
+				return 3;
+			}
+			return 4;
+		};
+		allSkills.sort((a, b) => getPriority(a) - getPriority(b));
+
+		// Build map of URI to extension ID
+		const extensionIdByUri = new Map<string, string>();
+		for (const extSkill of extensionSkills) {
+			extensionIdByUri.set(extSkill.uri.toString(), extSkill.extension.identifier.value);
+		}
+
+		for (const skill of allSkills) {
+			const uri = skill.fileUri;
+			const storage = skill.storage;
+			const extensionId = extensionIdByUri.get(uri.toString());
+
+			try {
+				const parsedFile = await this.parseNew(uri, token);
+				const name = parsedFile.header?.name;
+				if (!name) {
+					files.push({ uri, storage, status: 'skipped', skipReason: 'missing-name', extensionId });
+					continue;
+				}
+
+				const sanitizedName = this.truncateAgentSkillName(name, uri);
+				const skillFolderUri = dirname(uri);
+				const folderName = basename(skillFolderUri);
+				if (sanitizedName !== folderName) {
+					files.push({ uri, storage, status: 'skipped', skipReason: 'name-mismatch', name: sanitizedName, extensionId });
+					continue;
+				}
+
+				if (seenNames.has(sanitizedName)) {
+					files.push({ uri, storage, status: 'skipped', skipReason: 'duplicate-name', name: sanitizedName, duplicateOf: nameToUri.get(sanitizedName), extensionId });
+					continue;
+				}
+
+				if (!parsedFile.header?.description) {
+					files.push({ uri, storage, status: 'skipped', skipReason: 'missing-description', name: sanitizedName, extensionId });
+					continue;
+				}
+
+				seenNames.add(sanitizedName);
+				nameToUri.set(sanitizedName, uri);
+				files.push({ uri, storage, status: 'loaded', name: sanitizedName, extensionId });
+			} catch (e) {
+				files.push({
+					uri,
+					storage,
+					status: 'skipped',
+					skipReason: 'parse-error',
+					errorMessage: e instanceof Error ? e.message : String(e),
+					extensionId
+				});
+			}
+		}
+
+		return { type: PromptsType.skill, files };
+	}
+
+	private async getAgentDiscoveryInfo(token: CancellationToken): Promise<IPromptDiscoveryInfo> {
+		const files: IPromptFileDiscoveryResult[] = [];
+		const disabledAgents = this.getDisabledPromptFiles(PromptsType.agent);
+
+		const agentFiles = await this.listPromptFiles(PromptsType.agent, token);
+		for (const promptPath of agentFiles) {
+			const uri = promptPath.uri;
+			const storage = promptPath.storage;
+			const extensionId = promptPath.extension?.identifier?.value;
+
+			if (disabledAgents.has(uri)) {
+				files.push({ uri, storage, status: 'skipped', skipReason: 'disabled', extensionId });
+				continue;
+			}
+
+			try {
+				const ast = await this.parseNew(uri, token);
+				const name = ast.header?.name ?? promptPath.name ?? getCleanPromptName(uri);
+				files.push({ uri, storage, status: 'loaded', name, extensionId });
+			} catch (e) {
+				files.push({
+					uri,
+					storage,
+					status: 'skipped',
+					skipReason: 'parse-error',
+					errorMessage: e instanceof Error ? e.message : String(e),
+					extensionId
+				});
+			}
+		}
+
+		return { type: PromptsType.agent, files };
+	}
+
+	private async getPromptSlashCommandDiscoveryInfo(token: CancellationToken): Promise<IPromptDiscoveryInfo> {
+		const files: IPromptFileDiscoveryResult[] = [];
+
+		const promptFiles = await this.listPromptFiles(PromptsType.prompt, token);
+		for (const promptPath of promptFiles) {
+			const uri = promptPath.uri;
+			const storage = promptPath.storage;
+			const extensionId = promptPath.extension?.identifier?.value;
+
+			try {
+				const parsedPromptFile = await this.parseNew(uri, token);
+				const name = parsedPromptFile?.header?.name ?? promptPath.name ?? getCleanPromptName(uri);
+				files.push({ uri, storage, status: 'loaded', name, extensionId });
+			} catch (e) {
+				files.push({
+					uri,
+					storage,
+					status: 'skipped',
+					skipReason: 'parse-error',
+					errorMessage: e instanceof Error ? e.message : String(e),
+					extensionId
+				});
+			}
+		}
+
+		return { type: PromptsType.prompt, files };
+	}
+
+	private async getInstructionsDiscoveryInfo(token: CancellationToken): Promise<IPromptDiscoveryInfo> {
+		const files: IPromptFileDiscoveryResult[] = [];
+
+		const instructionsFiles = await this.listPromptFiles(PromptsType.instructions, token);
+		for (const promptPath of instructionsFiles) {
+			const uri = promptPath.uri;
+			const storage = promptPath.storage;
+			const extensionId = promptPath.extension?.identifier?.value;
+
+			try {
+				const parsedPromptFile = await this.parseNew(uri, token);
+				const name = parsedPromptFile?.header?.name ?? promptPath.name ?? getCleanPromptName(uri);
+				files.push({ uri, storage, status: 'loaded', name, extensionId });
+			} catch (e) {
+				files.push({
+					uri,
+					storage,
+					status: 'skipped',
+					skipReason: 'parse-error',
+					errorMessage: e instanceof Error ? e.message : String(e),
+					extensionId
+				});
+			}
+		}
+
+		return { type: PromptsType.instructions, files };
 	}
 }
 
