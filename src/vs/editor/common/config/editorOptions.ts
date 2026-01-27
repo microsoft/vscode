@@ -5035,6 +5035,11 @@ export interface ISuggestOptions {
 	 * Show snippet-suggestions.
 	 */
 	showSnippets?: boolean;
+	/**
+	 * Characters in this list will not accept suggestions when typed as commit characters.
+	 * Useful to exclude characters like '.' in certain languages (e.g. C# collection expressions).
+	 */
+	excludeCommitCharacters?: string[];
 }
 
 /**
@@ -5086,6 +5091,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, ISuggestOptio
 			showSnippets: true,
 			showUsers: true,
 			showIssues: true,
+			excludeCommitCharacters: [] as string[],
 		};
 		super(
 			EditorOption.suggest, 'suggest', defaults,
@@ -5309,6 +5315,12 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, ISuggestOptio
 					type: 'boolean',
 					default: true,
 					markdownDescription: nls.localize('editor.suggest.showIssues', "When enabled IntelliSense shows `issues`-suggestions.")
+				},
+				'editor.suggest.excludeCommitCharacters': {
+					type: 'array',
+					default: defaults.excludeCommitCharacters,
+					items: { type: 'string' },
+					markdownDescription: nls.localize('editor.suggest.excludeCommitCharacters', "Characters in this list will not accept a suggestion when typed as commit characters. Can be configured per language, for example to exclude '.' in C# when typing collection expressions.")
 				}
 			}
 		);
@@ -5360,6 +5372,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, ISuggestOptio
 			showSnippets: boolean(input.showSnippets, this.defaultValue.showSnippets),
 			showUsers: boolean(input.showUsers, this.defaultValue.showUsers),
 			showIssues: boolean(input.showIssues, this.defaultValue.showIssues),
+			excludeCommitCharacters: Array.isArray(input.excludeCommitCharacters) ? input.excludeCommitCharacters.filter(e => typeof e === 'string') : this.defaultValue.excludeCommitCharacters,
 		};
 	}
 }
