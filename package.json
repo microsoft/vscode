@@ -225,6 +225,21 @@
     "yaserver": "^0.4.0"
   },
   "overrides": {
+    "ts-api-utils": {
+      "typescript": "$typescript"
+    },
+    "@typescript-eslint/typescript-estree": {
+      "typescript": "$typescript"
+    },
+    "@typescript-eslint/utils": {
+      "typescript": "$typescript"
+    },
+    "ts-node": {
+      "typescript": "$typescript"
+    },
+    "tsec": {
+      "typescript": "^5.9.0-dev.20250613"
+    },
     "node-gyp-build": "4.8.1",
     "kerberos@2.1.1": {
       "node-addon-api": "7.1.0"
