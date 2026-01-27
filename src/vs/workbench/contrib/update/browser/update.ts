@@ -703,7 +703,9 @@ export class DefaultAccountUpdateContribution extends Disposable implements IWor
 				org => org.toLowerCase() === 'visual-studio-code'
 			) ?? false;
 
-			await this.updateService.disableProgressiveReleases(shouldDisable);
+			if (shouldDisable) {
+				await this.updateService.disableProgressiveReleases(true);
+			}
 		} catch (error) {
 			// Silently ignore errors - if we can't get the account, we don't disable background updates
 		}
