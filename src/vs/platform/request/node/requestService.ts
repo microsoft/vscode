@@ -21,8 +21,25 @@ import { AbstractRequestService, AuthInfo, Credentials, IRequestService, systemC
 import { Agent, getProxyAgent } from './proxy.js';
 import { createGunzip } from 'zlib';
 
-const TRANSIENT_ERROR_REGEX = /EPROTO|ECONNRESET|ECONNREFUSED|ENETUNREACH|ETIMEDOUT|EAI_AGAIN|socket hang up|SSL routines/;
-const RETRYABLE_HTTP_METHODS_REGEX = /^(GET|HEAD|OPTIONS)$/i;
+const TRANSIENT_ERROR_CODES = new Set([
+	'EAI_AGAIN',     // DNS lookup timed out
+	'ECONNREFUSED',  // Connection refused by server
+	'EHOSTDOWN',     // Host is down
+	'EHOSTUNREACH',  // No route to host
+	'ENETDOWN',      // Network is down
+	'ENETUNREACH',   // Network is unreachable
+	'EPROTO'         // Protocol error (TLS/SSL handshake failure)
+]);
+
+const IDEMPOTENT_HTTP_METHODS_REGEX = /^(GET|HEAD|OPTIONS)$/i;
+
+function isTransientError(error: unknown): boolean {
+	if (error instanceof Error) {
+		const code = (error as NodeJS.ErrnoException).code;
+		return !!code && TRANSIENT_ERROR_CODES.has(code);
+	}
+	return false;
+}
 
 export interface IRawRequestFunction {
 	(options: http.RequestOptions, callback?: (res: http.IncomingMessage) => void): http.ClientRequest;
@@ -158,7 +175,7 @@ async function getNodeRequest(options: IRequestOptions): Promise<IRawRequestFunc
 export async function nodeRequest(options: NodeRequestOptions, token: CancellationToken): Promise<IRequestContext> {
 	const maxRetries = 3;
 	let lastError: Error | undefined;
-	const canRetry = RETRYABLE_HTTP_METHODS_REGEX.test(options.type || 'GET');
+	const isIdempotent = IDEMPOTENT_HTTP_METHODS_REGEX.test(options.type || 'GET');
 
 	for (let attempt = 1; attempt <= maxRetries; attempt++) {
 		try {
@@ -169,8 +186,7 @@ export async function nodeRequest(options: NodeRequestOptions, token: Cancellati
 				throw error;
 			}
 
-			const isTransientError = TRANSIENT_ERROR_REGEX.test(getErrorMessage(error));
-			if (!canRetry || !isTransientError || attempt === maxRetries) {
+			if (!isIdempotent || !isTransientError(error) || attempt === maxRetries) {
 				throw error;
 			}
 

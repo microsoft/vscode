@@ -53,7 +53,9 @@ suite('Request Service', () => {
 			const mockReq: any = {
 				on: (event: string, handler: Function) => {
 					if (event === 'error' && currentAttempt < 3) {
-						setTimeout(() => handler(new Error('ECONNRESET')), 0);
+						const err = new Error('Connection refused') as NodeJS.ErrnoException;
+						err.code = 'ECONNREFUSED';
+						setTimeout(() => handler(err), 0);
 					}
 				},
 				end: () => {
@@ -88,7 +90,9 @@ suite('Request Service', () => {
 			const mockReq: any = {
 				on: (event: string, handler: Function) => {
 					if (event === 'error') {
-						setTimeout(() => handler(new Error('ECONNRESET')), 0);
+						const err = new Error('Connection refused') as NodeJS.ErrnoException;
+						err.code = 'ECONNREFUSED';
+						setTimeout(() => handler(err), 0);
 					}
 				},
 				end: () => { },
@@ -120,7 +124,9 @@ suite('Request Service', () => {
 			const mockReq: any = {
 				on: (event: string, handler: Function) => {
 					if (event === 'error' && currentAttempt < 3) {
-						setTimeout(() => handler(new Error('ETIMEDOUT')), 0);
+						const err = new Error('Host unreachable') as NodeJS.ErrnoException;
+						err.code = 'EHOSTUNREACH';
+						setTimeout(() => handler(err), 0);
 					}
 				},
 				end: () => {
@@ -155,7 +161,9 @@ suite('Request Service', () => {
 			const mockReq: any = {
 				on: (event: string, handler: Function) => {
 					if (event === 'error' && currentAttempt < 3) {
-						setTimeout(() => handler(new Error('ENETUNREACH')), 0);
+						const err = new Error('Network unreachable') as NodeJS.ErrnoException;
+						err.code = 'ENETUNREACH';
+						setTimeout(() => handler(err), 0);
 					}
 				},
 				end: () => {
@@ -189,7 +197,9 @@ suite('Request Service', () => {
 			const mockReq: any = {
 				on: (event: string, handler: Function) => {
 					if (event === 'error') {
-						setTimeout(() => handler(new Error('ECONNRESET')), 0);
+						const err = new Error('Connection refused') as NodeJS.ErrnoException;
+						err.code = 'ECONNREFUSED';
+						setTimeout(() => handler(err), 0);
 					}
 				},
 				end: () => { },
@@ -220,7 +230,9 @@ suite('Request Service', () => {
 			const mockReq: any = {
 				on: (event: string, handler: Function) => {
 					if (event === 'error') {
-						setTimeout(() => handler(new Error('ECONNRESET')), 0);
+						const err = new Error('Connection refused') as NodeJS.ErrnoException;
+						err.code = 'ECONNREFUSED';
+						setTimeout(() => handler(err), 0);
 					}
 				},
 				end: () => { },
@@ -251,7 +263,9 @@ suite('Request Service', () => {
 			const mockReq: any = {
 				on: (event: string, handler: Function) => {
 					if (event === 'error') {
-						setTimeout(() => handler(new Error('ECONNRESET')), 0);
+						const err = new Error('Connection refused') as NodeJS.ErrnoException;
+						err.code = 'ECONNREFUSED';
+						setTimeout(() => handler(err), 0);
 					}
 				},
 				end: () => { },
