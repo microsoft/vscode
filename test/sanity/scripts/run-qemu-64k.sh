@@ -49,6 +49,7 @@ fi
 
 echo "Storing test arguments and installing init script"
 echo "$ARGS" > "$ROOTFS_DIR/test-args"
+date -u '+%Y-%m-%d %H:%M:%S' > "$ROOTFS_DIR/host-time"
 sudo mv "$ROOTFS_DIR/root/scripts/qemu-init.sh" "$ROOTFS_DIR/init"
 sudo chmod +x "$ROOTFS_DIR/init"
 
