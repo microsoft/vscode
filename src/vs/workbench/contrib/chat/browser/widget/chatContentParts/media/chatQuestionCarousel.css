@@ -169,17 +169,16 @@
 
 .chat-question-option input[type="radio"]:checked,
 .chat-question-option input[type="checkbox"]:checked {
-	background-color: var(--vscode-checkbox-background);
-	border-color: var(--vscode-focusBorder);
+	background-color: var(--vscode-checkbox-selectBackground, var(--vscode-checkbox-background));
 }
 
 .chat-question-option input[type="checkbox"]:checked::after {
 	content: '';
 	position: absolute;
-	top: 2px;
-	left: 5px;
-	width: 5px;
-	height: 10px;
+	top: 3px;
+	left: 6px;
+	width: 4px;
+	height: 8px;
 	border: solid var(--vscode-checkbox-foreground);
 	border-width: 0 2px 2px 0;
 	transform: rotate(45deg);
@@ -198,7 +197,6 @@
 
 .chat-question-option input[type="radio"]:focus,
 .chat-question-option input[type="checkbox"]:focus {
-	border-color: var(--vscode-focusBorder);
 	outline: 1px solid var(--vscode-focusBorder);
 	outline-offset: 1px;
 }
