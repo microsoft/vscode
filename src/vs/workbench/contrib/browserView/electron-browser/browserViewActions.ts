@@ -9,7 +9,7 @@ import { Action2, registerAction2, MenuId } from '../../../../platform/actions/c
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { KeyMod, KeyCode } from '../../../../base/common/keyCodes.js';
-import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { BrowserEditor, CONTEXT_BROWSER_CAN_GO_BACK, CONTEXT_BROWSER_CAN_GO_FORWARD, CONTEXT_BROWSER_DEVTOOLS_OPEN, CONTEXT_BROWSER_FOCUSED, CONTEXT_BROWSER_STORAGE_SCOPE, CONTEXT_BROWSER_ELEMENT_SELECTION_ACTIVE, CONTEXT_BROWSER_FIND_WIDGET_FOCUSED, CONTEXT_BROWSER_FIND_WIDGET_VISIBLE } from './browserEditor.js';
 import { BrowserViewUri } from '../../../../platform/browserView/common/browserViewUri.js';
@@ -29,6 +29,11 @@ const ActionGroupTabs = '1_tabs';
 const ActionGroupPage = '2_page';
 const ActionGroupSettings = '3_settings';
 
+interface IOpenBrowserOptions {
+	url?: string;
+	openToSide?: boolean;
+}
+
 class OpenIntegratedBrowserAction extends Action2 {
 	constructor() {
 		super({
@@ -39,14 +44,18 @@ class OpenIntegratedBrowserAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, url?: string): Promise<void> {
+	async run(accessor: ServicesAccessor, urlOrOptions?: string | IOpenBrowserOptions): Promise<void> {
 		const editorService = accessor.get(IEditorService);
 		const telemetryService = accessor.get(ITelemetryService);
-		const resource = BrowserViewUri.forUrl(url);
 
-		logBrowserOpen(telemetryService, url ? 'commandWithUrl' : 'commandWithoutUrl');
+		// Parse arguments
+		const options = typeof urlOrOptions === 'string' ? { url: urlOrOptions } : (urlOrOptions ?? {});
+		const resource = BrowserViewUri.forUrl(options.url);
+		const group = options.openToSide ? SIDE_GROUP : ACTIVE_GROUP;
 
-		await editorService.openEditor({ resource });
+		logBrowserOpen(telemetryService, options.url ? 'commandWithUrl' : 'commandWithoutUrl');
+
+		await editorService.openEditor({ resource }, group);
 	}
 }
 
