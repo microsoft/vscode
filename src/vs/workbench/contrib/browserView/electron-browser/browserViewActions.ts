@@ -68,7 +68,7 @@ class GoBackAction extends Action2 {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyMod.Alt | KeyCode.LeftArrow,
 				secondary: [KeyCode.BrowserBack],
-				mac: { primary: KeyMod.CtrlCmd | KeyCode.LeftArrow, secondary: [KeyCode.BrowserBack] }
+				mac: { primary: KeyMod.CtrlCmd | KeyCode.LeftArrow, secondary: [KeyCode.BrowserBack, KeyMod.CtrlCmd | KeyCode.BracketLeft] }
 			}
 		});
 	}
@@ -102,7 +102,7 @@ class GoForwardAction extends Action2 {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyMod.Alt | KeyCode.RightArrow,
 				secondary: [KeyCode.BrowserForward],
-				mac: { primary: KeyMod.CtrlCmd | KeyCode.RightArrow, secondary: [KeyCode.BrowserForward] }
+				mac: { primary: KeyMod.CtrlCmd | KeyCode.RightArrow, secondary: [KeyCode.BrowserForward, KeyMod.CtrlCmd | KeyCode.BracketRight] }
 			}
 		});
 	}
