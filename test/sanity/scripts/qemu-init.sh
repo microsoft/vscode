@@ -8,8 +8,11 @@ mount -t devpts devpts /dev/pts
 mkdir -p /dev/shm
 mount -t tmpfs tmpfs /dev/shm
 mount -t tmpfs tmpfs /tmp
+chmod 1777 /tmp
 mount -t tmpfs tmpfs /run
 mkdir -p /run/dbus
+mkdir -p /run/user/0
+chmod 700 /run/user/0
 mount -t tmpfs tmpfs /var/tmp
 
 echo "Setting up machine-id for D-Bus"
@@ -26,6 +29,15 @@ ip route add default via 10.0.2.2
 echo "nameserver 10.0.2.3" > /etc/resolv.conf
 
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+export XDG_RUNTIME_DIR=/run/user/0
+export DEBUG=pw:api
+export ELECTRON_ENABLE_LOGGING=1
+export DBUS_VERBOSE=1
+
+echo "Checking X11 and D-Bus prerequisites"
+ls -la /tmp
+ls -la /run/dbus
+cat /etc/machine-id
 
 echo "Starting entrypoint"
 ARGS=$(cat /test-args)
