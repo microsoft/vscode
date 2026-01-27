@@ -296,6 +296,12 @@ export class PromptsService extends Disposable implements IPromptsService {
 				}
 
 				for (const file of files) {
+					try {
+						await this.filesConfigService.updateReadonly(file.uri, true);
+					} catch (e) {
+						const msg = e instanceof Error ? e.message : String(e);
+						this.logger.error(`[listFromProviders] Failed to make file readonly: ${file.uri}`, msg);
+					}
 					result.push({
 						uri: file.uri,
 						storage: PromptsStorage.extension,
