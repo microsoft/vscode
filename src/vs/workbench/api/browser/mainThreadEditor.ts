@@ -420,22 +420,34 @@ export class MainThreadTextEditor {
 		}
 	}
 
-	public setDecorations(key: string, ranges: IDecorationOptions[]): void {
+	public setDecorations(key: string, versionIdCheck: number, ranges: IDecorationOptions[]): boolean {
 		if (!this._codeEditor) {
-			return;
+			return false;
+		}
+		if (this._model.getVersionId() !== versionIdCheck) {
+			// throw new Error('Model has changed in the meantime!');
+			// model changed in the meantime
+			return false;
 		}
 		this._codeEditor.setDecorationsByType('exthost-api', key, ranges);
+		return true;
 	}
 
-	public setDecorationsFast(key: string, _ranges: number[]): void {
+	public setDecorationsFast(key: string, versionIdCheck: number, _ranges: number[]): boolean {
 		if (!this._codeEditor) {
-			return;
+			return false;
+		}
+		if (this._model.getVersionId() !== versionIdCheck) {
+			// throw new Error('Model has changed in the meantime!');
+			// model changed in the meantime
+			return false;
 		}
 		const ranges: Range[] = [];
 		for (let i = 0, len = Math.floor(_ranges.length / 4); i < len; i++) {
 			ranges[i] = new Range(_ranges[4 * i], _ranges[4 * i + 1], _ranges[4 * i + 2], _ranges[4 * i + 3]);
 		}
 		this._codeEditor.setDecorationsByTypeFast(key, ranges);
+		return true;
 	}
 
 	public revealRange(range: IRange, revealType: TextEditorRevealType): void {
