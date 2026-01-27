@@ -17,4 +17,8 @@ export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 echo "Starting entrypoint"
 ARGS=$(cat /test-args)
-exec /entrypoint.sh $ARGS
+/entrypoint.sh $ARGS
+EXIT_CODE=$?
+
+echo "Powering off"
+poweroff -f
