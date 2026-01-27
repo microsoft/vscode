@@ -605,7 +605,6 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 	}
 
 	private async initializeConfiguration(trigger: boolean): Promise<void> {
-		await this.updateDefaultOverridesFromProfile(this.userDataProfileService.currentProfile);
 		await this.defaultConfiguration.initialize();
 
 		const initPolicyConfigurationPromise = this.policyConfiguration.initialize();
@@ -731,7 +730,6 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 					promises.push(this.reloadApplicationConfiguration(true));
 				}
 			}
-			await this.updateDefaultOverridesFromProfile(e.profile);
 			let [localUser, application] = await Promise.all(promises);
 			application = application ?? this._configuration.applicationConfiguration;
 			if (this.applicationConfiguration) {
@@ -845,11 +843,6 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 
 			await this.updateWorkspaceConfiguration(newFolders, this.workspaceConfiguration.getConfiguration(), fromCache);
 		}
-	}
-
-	private async updateDefaultOverridesFromProfile(profile: IUserDataProfile): Promise<void> {
-		const template = await this.userDataProfilesService.getStoredProfileTemplate(profile);
-		this.defaultConfiguration.updateProfileDefaults(template?.settings);
 	}
 
 	private updateRestrictedSettings(): void {

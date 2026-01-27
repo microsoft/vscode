@@ -435,12 +435,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._codeBlockModelCollection = this._register(instantiationService.createInstance(CodeBlockModelCollection, undefined));
 		this.chatSuggestNextWidget = this._register(this.instantiationService.createInstance(ChatSuggestNextWidget));
 
-		this._register(this.configurationService.onDidChangeConfiguration((e) => {
-			if (e.affectsConfiguration('chat.renderRelatedFiles')) {
-				this.input.renderChatRelatedFiles();
-			}
-		}));
-
 		this._register(autorun(r => {
 			const viewModel = viewModelObs.read(r);
 			const sessions = chatEditingService.editingSessionsObs.read(r);
@@ -1933,9 +1927,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		// Update capabilities for the locked agent
 		const agent = this.chatAgentService.getAgent(agentId);
 		this._updateAgentCapabilitiesContextKeys(agent);
-		this.listWidget.updateRendererOptions({ restorable: false, editable: false, noFooter: true, progressMessageAtBottomOfResponse: true });
+		this.listWidget?.updateRendererOptions({ restorable: false, editable: false, noFooter: true, progressMessageAtBottomOfResponse: true });
 		if (this.visible) {
-			this.listWidget.rerender();
+			this.listWidget?.rerender();
 		}
 	}
 
@@ -1952,10 +1946,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (this.viewModel) {
 			this.viewModel.resetInputPlaceholder();
 		}
-		this.inputEditor.updateOptions({ placeholder: undefined });
-		this.listWidget.updateRendererOptions({ restorable: true, editable: true, noFooter: false, progressMessageAtBottomOfResponse: mode => mode !== ChatModeKind.Ask });
+		this.inputEditor?.updateOptions({ placeholder: undefined });
+		this.listWidget?.updateRendererOptions({ restorable: true, editable: true, noFooter: false, progressMessageAtBottomOfResponse: mode => mode !== ChatModeKind.Ask });
 		if (this.visible) {
-			this.listWidget.rerender();
+			this.listWidget?.rerender();
 		}
 	}
 

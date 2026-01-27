@@ -530,8 +530,17 @@ export class PromptValidator {
 		if (!attribute) {
 			return;
 		}
-		if (attribute.value.type !== 'boolean') {
-			report(toMarker(localize('promptValidator.inferMustBeBoolean', "The 'infer' attribute must be a boolean."), attribute.value.range, MarkerSeverity.Error));
+		// Accept boolean for backwards compatibility (true -> 'all', false -> 'user')
+		if (attribute.value.type === 'boolean') {
+			return;
+		}
+		if (attribute.value.type !== 'string') {
+			report(toMarker(localize('promptValidator.inferMustBeStringOrBoolean', "The 'infer' attribute must be 'all', 'user', 'agent', 'hidden', or a boolean."), attribute.value.range, MarkerSeverity.Error));
+			return;
+		}
+		const validInferValues = ['all', 'user', 'agent', 'hidden'];
+		if (!validInferValues.includes(attribute.value.value)) {
+			report(toMarker(localize('promptValidator.invalidInferValue', "The 'infer' attribute must be one of: {0}.", validInferValues.join(', ')), attribute.value.range, MarkerSeverity.Error));
 			return;
 		}
 	}

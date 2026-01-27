@@ -17,6 +17,9 @@ parameters:
   - name: baseImage
     type: string
     default: ""
+  - name: pageSize
+    type: string
+    default: ""
   - name: args
     type: string
     default: ""
@@ -92,7 +95,9 @@ jobs:
             cacheHitVar: DOCKER_CACHE_HIT
           displayName: Download Docker Image
 
-        - bash: docker load -i "$(DOCKER_CACHE_FILE)"
+        - bash: |
+            docker load -i "$(DOCKER_CACHE_FILE)"
+            rm -f "$(DOCKER_CACHE_FILE)"
           condition: eq(variables.DOCKER_CACHE_HIT, 'true')
           displayName: Load Docker Image
 
@@ -101,6 +106,7 @@ jobs:
               --container "${{ parameters.container }}" \
               --arch "${{ parameters.arch }}" \
               --base-image "${{ parameters.baseImage }}" \
+              --page-size "${{ parameters.pageSize }}" \
               --quality "$(BUILD_QUALITY)" \
               --commit "$(BUILD_COMMIT)" \
               --test-results "/root/results.xml" \
@@ -108,11 +114,12 @@ jobs:
           workingDirectory: $(TEST_DIR)
           displayName: Run Sanity Tests
 
-        - bash: |
-            mkdir -p "$(DOCKER_CACHE_DIR)"
-            docker save -o "$(DOCKER_CACHE_FILE)" "${{ parameters.container }}"
-          condition: and(succeeded(), ne(variables.DOCKER_CACHE_HIT, 'true'))
-          displayName: Save Docker Image
+        - ${{ if eq(parameters.pageSize, '') }}:
+          - bash: |
+              mkdir -p "$(DOCKER_CACHE_DIR)"
+              docker save -o "$(DOCKER_CACHE_FILE)" "${{ parameters.container }}"
+            condition: and(succeeded(), ne(variables.DOCKER_CACHE_HIT, 'true'))
+            displayName: Save Docker Image
 
       - task: PublishTestResults@2
         inputs:

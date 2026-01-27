@@ -94,7 +94,7 @@ suite('RunInTerminalTool', () => {
 		});
 		instantiationService.stub(ITerminalSandboxService, {
 			_serviceBrand: undefined,
-			isEnabled: () => false,
+			isEnabled: async () => false,
 			wrapCommand: command => command,
 			getSandboxConfigPath: async () => undefined,
 			getTempDir: () => undefined,

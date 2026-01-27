@@ -1,0 +1,26 @@
+{
+	"name": "Agent Sessions",
+	"settings": {
+		"chat.agentsControl.clickBehavior": "focus",
+		"chat.agentsControl.enabled": true,
+		"chat.agent.maxRequests": 1000,
+		"chat.restoreLastPanelSession": true,
+		"chat.unifiedAgentsBar.enabled": true,
+		"diffEditor.renderSideBySide": false,
+		"diffEditor.hideUnchangedRegions.enabled": true,
+		"files.autoSave": "afterDelay",
+		"github.copilot.chat.claudeCode.enabled": true,
+		"github.copilot.chat.languageContext.typescript.enabled": true,
+		"inlineChat.affordance": "editor",
+		"inlineChat.renderMode": "hover",
+		"workbench.activityBar.location": "top",
+		"workbench.editor.restoreEditors": false,
+		"workbench.editor.showTabs": "single",
+		"workbench.sideBar.location": "right",
+		"workbench.statusBar.visible": false,
+		"workbench.secondarySideBar.forceMaximized": true,
+		"workbench.startupEditor": "none",
+		"workbench.tips.enabled": false,
+		"workbench.layoutControl.type": "toggles",
+	}
+}

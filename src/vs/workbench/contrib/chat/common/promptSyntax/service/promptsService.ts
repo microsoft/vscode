@@ -115,6 +115,32 @@ export type IAgentSource = {
 	readonly storage: PromptsStorage.local | PromptsStorage.user;
 };
 
+/**
+ * The visibility/availability of an agent.
+ * - 'all': available as custom agent in picker AND can be used as subagent
+ * - 'user': only available in the custom agent picker
+ * - 'agent': only usable as subagent by the subagent tool
+ * - 'hidden': neither in picker nor usable as subagent
+ */
+export type InferValue = 'all' | 'user' | 'agent' | 'hidden';
+
+/**
+ * Parses an infer value from the raw header value.
+ * Boolean true maps to 'all', false maps to 'user'.
+ */
+export function parseInferValue(value: boolean | string | undefined): InferValue | undefined {
+	if (value === undefined) {
+		return undefined;
+	}
+	if (typeof value === 'boolean') {
+		return value ? 'all' : 'user';
+	}
+	if (value === 'all' || value === 'user' || value === 'agent' || value === 'hidden') {
+		return value;
+	}
+	return undefined;
+}
+
 export interface ICustomAgent {
 	/**
 	 * URI of a custom agent file.
@@ -152,9 +178,13 @@ export interface ICustomAgent {
 	readonly target?: string;
 
 	/**
-	 * Infer metadata in the prompt header.
+	 * Infer metadata controlling agent visibility.
+	 * - 'all': available as custom agent in picker AND can be used as subagent
+	 * - 'user': only available in the custom agent picker
+	 * - 'agent': only usable as subagent by the subagent tool
+	 * - 'hidden': neither in picker nor usable as subagent
 	 */
-	readonly infer?: boolean;
+	readonly infer?: InferValue;
 
 	/**
 	 * Contents of the custom agent file body and other agent instructions.

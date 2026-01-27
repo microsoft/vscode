@@ -831,7 +831,7 @@ suite('PromptValidator', () => {
 		});
 
 		test('infer attribute validation', async () => {
-			// Valid infer: true
+			// Valid infer: true (maps to 'all')
 			{
 				const content = [
 					'---',
@@ -845,7 +845,7 @@ suite('PromptValidator', () => {
 				assert.deepStrictEqual(markers, [], 'Valid infer: true should not produce errors');
 			}
 
-			// Valid infer: false
+			// Valid infer: false (maps to 'user')
 			{
 				const content = [
 					'---',
@@ -859,7 +859,63 @@ suite('PromptValidator', () => {
 				assert.deepStrictEqual(markers, [], 'Valid infer: false should not produce errors');
 			}
 
-			// Invalid infer: string value
+			// Valid infer: 'all'
+			{
+				const content = [
+					'---',
+					'name: "TestAgent"',
+					'description: "Test agent"',
+					'infer: all',
+					'---',
+					'Body',
+				].join('\n');
+				const markers = await validate(content, PromptsType.agent);
+				assert.deepStrictEqual(markers, [], 'Valid infer: all should not produce errors');
+			}
+
+			// Valid infer: 'user'
+			{
+				const content = [
+					'---',
+					'name: "TestAgent"',
+					'description: "Test agent"',
+					'infer: user',
+					'---',
+					'Body',
+				].join('\n');
+				const markers = await validate(content, PromptsType.agent);
+				assert.deepStrictEqual(markers, [], 'Valid infer: user should not produce errors');
+			}
+
+			// Valid infer: 'agent'
+			{
+				const content = [
+					'---',
+					'name: "TestAgent"',
+					'description: "Test agent"',
+					'infer: agent',
+					'---',
+					'Body',
+				].join('\n');
+				const markers = await validate(content, PromptsType.agent);
+				assert.deepStrictEqual(markers, [], 'Valid infer: agent should not produce errors');
+			}
+
+			// Valid infer: 'hidden'
+			{
+				const content = [
+					'---',
+					'name: "TestAgent"',
+					'description: "Test agent"',
+					'infer: hidden',
+					'---',
+					'Body',
+				].join('\n');
+				const markers = await validate(content, PromptsType.agent);
+				assert.deepStrictEqual(markers, [], 'Valid infer: hidden should not produce errors');
+			}
+
+			// Invalid infer: unknown string value
 			{
 				const content = [
 					'---',
@@ -872,7 +928,7 @@ suite('PromptValidator', () => {
 				const markers = await validate(content, PromptsType.agent);
 				assert.strictEqual(markers.length, 1);
 				assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
-				assert.strictEqual(markers[0].message, `The 'infer' attribute must be a boolean.`);
+				assert.strictEqual(markers[0].message, `The 'infer' attribute must be one of: all, user, agent, hidden.`);
 			}
 
 			// Invalid infer: number value
@@ -888,7 +944,7 @@ suite('PromptValidator', () => {
 				const markers = await validate(content, PromptsType.agent);
 				assert.strictEqual(markers.length, 1);
 				assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
-				assert.strictEqual(markers[0].message, `The 'infer' attribute must be a boolean.`);
+				assert.strictEqual(markers[0].message, `The 'infer' attribute must be 'all', 'user', 'agent', 'hidden', or a boolean.`);
 			}
 
 			// Missing infer attribute (should be optional)

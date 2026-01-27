@@ -274,7 +274,7 @@
 }
 
 .interactive-item-container > .value .chat-used-context {
-	margin-bottom: 8px;
+	margin-bottom: 10px;
 }
 
 .interactive-item-container .value .rendered-markdown:not(:has(.chat-extensions-content-part)) {
@@ -572,7 +572,7 @@
 	}
 
 	&:not(:last-child) {
-		margin-bottom: 8px;
+		margin-bottom: 12px;
 	}
 }
 
@@ -955,81 +955,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	margin-right: 20px;
 	flex-wrap: wrap;
 	cursor: default;
-}
-
-.chat-related-files {
-	display: flex;
-	flex-wrap: wrap;
-	align-items: center;
-	gap: 4px;
-	max-width: 100%;
-}
-
-.chat-related-files .monaco-button-dropdown .monaco-text-button {
-	font-size: 11px;
-	justify-content: left;
-	width: fit-content;
-	padding: 0px;
-	border: none;
-	height: 18px;
-}
-
-.chat-related-files .monaco-button-dropdown .monaco-text-button span {
-	font-style: italic;
-	height: 18px;
-	opacity: 0.7;
-}
-
-.chat-related-files .monaco-button-dropdown {
-	border-radius: 4px;
-	height: 18px;
-	border: 1px solid var(--vscode-input-border);
-	border-style: dashed;
-	align-items: center;
-	overflow: hidden;
-	gap: 2px;
-	padding: 0 4px;
-}
-
-.chat-related-files .monaco-button.codicon.codicon-add {
-	display: flex;
-	flex-direction: column;
-	color: var(--vscode-descriptionForeground);
-	padding-top: 3px;
-	margin-left: -4px;
-	padding-left: 4px;
-	font-size: 14px;
-	/* The + codicon is large, make it look more like the x codicon */
-	height: calc(100% - 3px);
-	width: 17px;
-	outline-offset: -2px !important;
-}
-
-.interactive-session .chat-related-files .monaco-icon-label::before {
-	padding: 4px 3px 0 2px;
-}
-
-.interactive-session .chat-editing-session .chat-related-files .monaco-button.secondary:first-child {
-	margin: 3px 0px 3px 3px;
-	flex-shrink: 0;
-}
-
-.interactive-session .chat-editing-session .chat-related-files .monaco-button.secondary.monaco-icon-label::before {
-	display: inline-flex;
-	align-items: center;
-}
-
-.interactive-session .chat-editing-session .chat-related-files .monaco-button.secondary:only-child {
-	width: 100%;
-}
-
-.interactive-session .chat-editing-session .chat-related-files .monaco-button.secondary.disabled {
-	cursor: initial;
-}
-
-.interactive-session .chat-editing-session .chat-related-files .monaco-button.secondary .codicon {
-	font-size: 12px;
-	margin-left: 4px;
 }
 
 .interactive-session .chat-editing-session .chat-editing-session-actions .monaco-button.secondary.monaco-text-button.codicon {
@@ -1684,7 +1609,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	font-size: 11px;
 }
 
-.chat-related-files .monaco-button.codicon.codicon-add:hover,
 .action-item.chat-attached-context-attachment.chat-add-files:hover,
 .interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-button:hover {
 	cursor: pointer;
@@ -1796,7 +1720,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .interactive-item-container.interactive-request .chat-attached-context .chat-attached-context-attachment {
-	padding-right: 6px;
+	padding: 0 6px 0 4px;
 }
 
 .interactive-session-followups {
@@ -2257,8 +2181,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		}
 	}
 
-	/* shimmer animation stuffs */
-	&:has(.codicon-loading) .rendered-markdown.progress-step > p {
+	/* shimmer animation for working progress only */
+	&.working-progress:has(.codicon-loading) .rendered-markdown.progress-step > p {
 		background: linear-gradient(
 			90deg,
 			var(--vscode-descriptionForeground) 0%,
@@ -2376,6 +2300,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .chat-attached-context-attachment .attachment-additional-info {
 	opacity: 0.7;
 	font-size: .9em;
+	padding-left: 4px;
 }
 
 .chat-attached-context-attachment .chat-attached-context-pill-image {

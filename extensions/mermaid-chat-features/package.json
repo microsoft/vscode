@@ -24,8 +24,54 @@
   },
   "main": "./out/extension",
   "browser": "./dist/browser/extension",
-  "activationEvents": [],
+  "activationEvents": [
+    "onWebviewPanel:vscode.chat-mermaid-features.preview"
+  ],
   "contributes": {
+    "commands": [
+      {
+        "command": "_mermaid-chat.resetPanZoom",
+        "title": "Reset Pan and Zoom"
+      },
+      {
+        "command": "_mermaid-chat.openInEditor",
+        "title": "Open Diagram in Editor"
+      },
+      {
+        "command": "_mermaid-chat.copySource",
+        "title": "Copy Diagram Source"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "_mermaid-chat.resetPanZoom",
+          "when": "false"
+        },
+        {
+          "command": "_mermaid-chat.openInEditor",
+          "when": "false"
+        },
+        {
+          "command": "_mermaid-chat.copySource",
+          "when": "false"
+        }
+      ],
+      "webview/context": [
+        {
+          "command": "_mermaid-chat.resetPanZoom",
+          "when": "webviewId == 'vscode.chat-mermaid-features.chatOutputItem' || webviewId == 'vscode.chat-mermaid-features.preview'"
+        },
+        {
+          "command": "_mermaid-chat.openInEditor",
+          "when": "webviewId == 'vscode.chat-mermaid-features.chatOutputItem'"
+        },
+        {
+          "command": "_mermaid-chat.copySource",
+          "when": "webviewId == 'vscode.chat-mermaid-features.chatOutputItem' || webviewId == 'vscode.chat-mermaid-features.preview'"
+        }
+      ]
+    },
     "configuration": {
       "title": "Mermaid Chat Features",
       "properties": {
@@ -42,7 +88,7 @@
     },
     "chatOutputRenderers": [
       {
-        "viewType": "vscode.chatMermaidDiagram",
+        "viewType": "vscode.chat-mermaid-features.chatOutputItem",
         "mimeTypes": [
           "text/vnd.mermaid"
         ]

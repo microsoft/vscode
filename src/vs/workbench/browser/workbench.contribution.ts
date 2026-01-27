@@ -678,6 +678,12 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'default': isMacintosh ? 1500 : 500,
 				'minimum': 0
 			},
+			'workbench.hover.reducedDelay': {
+				'type': 'number',
+				'description': localize('workbench.hover.reducedDelay', "Controls the reduced delay in milliseconds used for showing hovers in specific contexts where faster feedback is beneficial."),
+				'default': 500,
+				'minimum': 0
+			},
 			'workbench.reduceMotion': {
 				type: 'string',
 				description: localize('workbench.reduceMotion', "Controls whether the workbench should render with fewer animations."),

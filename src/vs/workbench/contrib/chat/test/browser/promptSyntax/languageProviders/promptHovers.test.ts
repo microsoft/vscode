@@ -315,7 +315,7 @@ suite('PromptHoverProvider', () => {
 				'---',
 			].join('\n');
 			const hover = await getHover(content, 4, 1, PromptsType.agent);
-			assert.strictEqual(hover, 'Whether the agent can be used as a subagent.');
+			assert.strictEqual(hover, 'Controls visibility of the agent.\n\n- `all`, `true`: Available in the agent picker and can be used as a subagent.\n- `user`, `false`: Only available in the agent picker.\n- `agent`: Only available as a subagent (not shown in picker).\n- `hidden`: Not available in the picker nor as a subagent.');
 		});
 
 		test('hover on agents attribute shows description', async () => {

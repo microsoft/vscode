@@ -41,7 +41,7 @@ import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.
 import { MarkdownString, IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { AgentSessionHoverWidget } from './agentSessionHoverWidget.js';
 import { AgentSessionProviders } from './agentSessions.js';
-import { AgentSessionsGrouping } from '../../common/constants.js';
+import { AgentSessionsGrouping } from './agentSessionsFilter.js';
 
 export type AgentSessionListItem = IAgentSession | IAgentSessionSection;
 
@@ -380,8 +380,9 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 			return; // the hover is complex and large, for now limit it to in-progress sessions only
 		}
 
+		const reducedDelay = session.element.status === AgentSessionStatus.NeedsInput;
 		template.elementDisposable.add(
-			this.hoverService.setupDelayedHover(template.element, () => this.buildHoverContent(session.element), { groupId: 'agent.sessions' })
+			this.hoverService.setupDelayedHover(template.element, () => this.buildHoverContent(session.element), { groupId: 'agent.sessions', reducedDelay })
 		);
 	}
 
@@ -595,6 +596,8 @@ export interface IAgentSessionsFilter {
 
 export class AgentSessionsDataSource implements IAsyncDataSource<IAgentSessionsModel, AgentSessionListItem> {
 
+	private static readonly CAPPED_SESSIONS_LIMIT = 3;
+
 	constructor(
 		private readonly filter: IAgentSessionsFilter | undefined,
 		private readonly sorter: ITreeSorter<IAgentSession>,
@@ -661,12 +664,42 @@ export class AgentSessionsDataSource implements IAsyncDataSource<IAgentSessionsM
 	}
 
 	private groupSessionsIntoSections(sessions: IAgentSession[]): AgentSessionListItem[] {
+		const sortedSessions = sessions.sort(this.sorter.compare.bind(this.sorter));
+
+		if (this.filter?.groupResults?.() === AgentSessionsGrouping.Capped) {
+			return this.groupSessionsCapped(sortedSessions);
+		} else {
+			return this.groupSessionsByDate(sortedSessions);
+		}
+	}
+
+	private groupSessionsCapped(sortedSessions: IAgentSession[]): AgentSessionListItem[] {
 		const result: AgentSessionListItem[] = [];
 
-		const sortedSessions = sessions.sort(this.sorter.compare.bind(this.sorter));
-		const groupedSessions = this.filter?.groupResults?.() === AgentSessionsGrouping.Activity
-			? groupAgentSessionsByActivity(sortedSessions)
-			: groupAgentSessionsByDate(sortedSessions);
+		const firstArchivedIndex = sortedSessions.findIndex(session => session.isArchived());
+		const nonArchivedCount = firstArchivedIndex === -1 ? sortedSessions.length : firstArchivedIndex;
+
+		const topSessions = sortedSessions.slice(0, Math.min(AgentSessionsDataSource.CAPPED_SESSIONS_LIMIT, nonArchivedCount));
+		const othersSessions = sortedSessions.slice(topSessions.length);
+
+		// Add top sessions directly (no section header)
+		result.push(...topSessions);
+
+		// Add "More" section for the rest
+		if (othersSessions.length > 0) {
+			result.push({
+				section: AgentSessionSection.More,
+				label: localize('agentSessions.moreSectionWithCount', "More ({0})", othersSessions.length),
+				sessions: othersSessions
+			});
+		}
+
+		return result;
+	}
+
+	private groupSessionsByDate(sortedSessions: IAgentSession[]): AgentSessionListItem[] {
+		const result: AgentSessionListItem[] = [];
+		const groupedSessions = groupAgentSessionsByDate(sortedSessions);
 
 		for (const { sessions, section, label } of groupedSessions.values()) {
 			if (sessions.length === 0) {
@@ -690,8 +723,7 @@ export const AgentSessionSectionLabels = {
 	[AgentSessionSection.Week]: localize('agentSessions.weekSection', "Last Week"),
 	[AgentSessionSection.Older]: localize('agentSessions.olderSection', "Older"),
 	[AgentSessionSection.Archived]: localize('agentSessions.archivedSection', "Archived"),
-	[AgentSessionSection.Active]: localize('agentSessions.activeSection', "Active"),
-	[AgentSessionSection.History]: localize('agentSessions.historySection', "History"),
+	[AgentSessionSection.More]: localize('agentSessions.moreSection', "More"),
 };
 
 export function groupAgentSessionsByDate(sessions: IAgentSession[]): Map<AgentSessionSection, IAgentSessionSection> {
@@ -733,38 +765,6 @@ export function groupAgentSessionsByDate(sessions: IAgentSession[]): Map<AgentSe
 		[AgentSessionSection.Week, { section: AgentSessionSection.Week, label: AgentSessionSectionLabels[AgentSessionSection.Week], sessions: weekSessions }],
 		[AgentSessionSection.Older, { section: AgentSessionSection.Older, label: AgentSessionSectionLabels[AgentSessionSection.Older], sessions: olderSessions }],
 		[AgentSessionSection.Archived, { section: AgentSessionSection.Archived, label: localize('agentSessions.archivedSectionWithCount', "Archived ({0})", archivedSessions.length), sessions: archivedSessions }],
-	]);
-}
-
-export function groupAgentSessionsByActivity(sessions: IAgentSession[]): Map<AgentSessionSection, IAgentSessionSection> {
-	const activeSessions = new Set<IAgentSession>();
-	const historySessions = new Set<IAgentSession>();
-
-	const now = Date.now();
-	const startOfToday = new Date(now).setHours(0, 0, 0, 0);
-	const startOfYesterday = startOfToday - DAY_THRESHOLD;
-
-	for (const session of sessions) {
-		if (session.isArchived()) {
-			historySessions.add(session);
-		} else {
-			const sessionTime = session.timing.lastRequestEnded ?? session.timing.lastRequestStarted ?? session.timing.created;
-			if (
-				isSessionInProgressStatus(session.status) ||									// in-progress
-				!session.isRead() ||															// unread
-				(getAgentChangesSummary(session.changes) && hasValidDiff(session.changes)) ||	// has changes
-				sessionTime >= startOfYesterday													// from today or yesterday
-			) {
-				activeSessions.add(session);
-			} else {
-				historySessions.add(session);
-			}
-		}
-	}
-
-	return new Map<AgentSessionSection, IAgentSessionSection>([
-		[AgentSessionSection.Active, { section: AgentSessionSection.Active, label: AgentSessionSectionLabels[AgentSessionSection.Active], sessions: [...activeSessions] }],
-		[AgentSessionSection.History, { section: AgentSessionSection.History, label: localize('agentSessions.historySectionWithCount', "History ({0})", historySessions.size), sessions: [...historySessions] }],
 	]);
 }
 
