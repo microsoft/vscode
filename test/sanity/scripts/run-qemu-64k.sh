@@ -63,6 +63,7 @@ timeout 1800 qemu-system-aarch64 \
 	-M virt \
 	-cpu max,pauth-impdef=on \
 	-accel tcg,thread=multi \
+	-rtc base=utc \
 	-m 2048 \
 	-smp 2 \
 	-kernel "$VMLINUZ" \

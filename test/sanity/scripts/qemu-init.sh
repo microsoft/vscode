@@ -3,7 +3,6 @@
 echo "Mounting essential filesystems"
 mount -t proc proc /proc
 mount -t sysfs sys /sys
-mount -t devtmpfs dev /dev || true
 mkdir -p /dev/pts
 mount -t devpts devpts /dev/pts
 

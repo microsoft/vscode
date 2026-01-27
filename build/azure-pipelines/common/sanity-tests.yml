@@ -114,11 +114,12 @@ jobs:
           workingDirectory: $(TEST_DIR)
           displayName: Run Sanity Tests
 
-        - bash: |
-            mkdir -p "$(DOCKER_CACHE_DIR)"
-            docker save -o "$(DOCKER_CACHE_FILE)" "${{ parameters.container }}"
-          condition: and(succeeded(), ne(variables.DOCKER_CACHE_HIT, 'true'))
-          displayName: Save Docker Image
+        - ${{ if eq(parameters.pageSize, '') }}:
+          - bash: |
+              mkdir -p "$(DOCKER_CACHE_DIR)"
+              docker save -o "$(DOCKER_CACHE_FILE)" "${{ parameters.container }}"
+            condition: and(succeeded(), ne(variables.DOCKER_CACHE_HIT, 'true'))
+            displayName: Save Docker Image
 
       - task: PublishTestResults@2
         inputs:
