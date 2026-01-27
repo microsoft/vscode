@@ -13,7 +13,7 @@ import { ITextResourceConfigurationService } from '../../../../editor/common/ser
 import { localize } from '../../../../nls.js';
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
+import { INotificationHandle, INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { FloatingEditorClickWidget } from '../../../browser/codeeditor.js';
 import { Extensions, IConfigurationMigrationRegistry } from '../../../common/configuration.js';
@@ -67,6 +67,27 @@ class DiffEditorHelperContribution extends Disposable implements IDiffEditorCont
 						}],
 						{}
 					);
+				}
+			}));
+
+			// Subscribe to diff computation result to show a notifcation based on the diff
+			let identicalDiffContentHandle: INotificationHandle | undefined = undefined;
+			this._register(this._diffEditor.onDidUpdateDiff(() => {
+				const diffComputationResult = this._diffEditor.getDiffComputationResult();
+
+				if (diffComputationResult) {
+					// When the diff is identical, show a notification
+					if (diffComputationResult.identical && !identicalDiffContentHandle) {
+						identicalDiffContentHandle = this._notificationService.notify({
+							severity: Severity.Info,
+							message: localize('identicalDiffContent', "Contents are identical")
+						});
+					}
+					// WHen content becomes non-identical, close the notification if it exists
+					if (!diffComputationResult.identical && identicalDiffContentHandle) {
+						identicalDiffContentHandle.close();
+						identicalDiffContentHandle = undefined;
+					}
 				}
 			}));
 		}
