@@ -1927,9 +1927,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		// Update capabilities for the locked agent
 		const agent = this.chatAgentService.getAgent(agentId);
 		this._updateAgentCapabilitiesContextKeys(agent);
-		this.listWidget.updateRendererOptions({ restorable: false, editable: false, noFooter: true, progressMessageAtBottomOfResponse: true });
+		this.listWidget?.updateRendererOptions({ restorable: false, editable: false, noFooter: true, progressMessageAtBottomOfResponse: true });
 		if (this.visible) {
-			this.listWidget.rerender();
+			this.listWidget?.rerender();
 		}
 	}
 
@@ -1946,10 +1946,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (this.viewModel) {
 			this.viewModel.resetInputPlaceholder();
 		}
-		this.inputEditor.updateOptions({ placeholder: undefined });
-		this.listWidget.updateRendererOptions({ restorable: true, editable: true, noFooter: false, progressMessageAtBottomOfResponse: mode => mode !== ChatModeKind.Ask });
+		this.inputEditor?.updateOptions({ placeholder: undefined });
+		this.listWidget?.updateRendererOptions({ restorable: true, editable: true, noFooter: false, progressMessageAtBottomOfResponse: mode => mode !== ChatModeKind.Ask });
 		if (this.visible) {
-			this.listWidget.rerender();
+			this.listWidget?.rerender();
 		}
 	}
 
