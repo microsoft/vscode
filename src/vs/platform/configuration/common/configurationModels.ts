@@ -173,6 +173,19 @@ export class ConfigurationModel implements IConfigurationModel {
 					override.keys.push(...otherOverride.keys);
 					override.keys = arrays.distinct(override.keys);
 				} else {
+					// When adding a multi-language override, remove any existing single-language overrides
+					// for the same identifiers to allow workspace multi-language settings to override
+					// user single-language settings
+					if (otherOverride.identifiers.length > 1) {
+						for (const identifier of otherOverride.identifiers) {
+							const singleLangIndex = overrides.findIndex(
+								o => o.identifiers.length === 1 && o.identifiers[0] === identifier
+							);
+							if (singleLangIndex !== -1) {
+								overrides.splice(singleLangIndex, 1);
+							}
+						}
+					}
 					overrides.push(objects.deepClone(otherOverride));
 				}
 			}
