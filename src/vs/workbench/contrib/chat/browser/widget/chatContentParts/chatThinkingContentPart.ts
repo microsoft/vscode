@@ -148,6 +148,8 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	private workingSpinnerElement: HTMLElement | undefined;
 	private workingSpinnerLabel: HTMLElement | undefined;
 	private availableWorkingMessages: string[] = [...workingMessages];
+	private readonly toolWrappersByCallId = new Map<string, HTMLElement>();
+	private pendingRemovals: { toolCallId: string; toolLabel: string }[] = [];
 
 	private getRandomWorkingMessage(): string {
 		if (this.availableWorkingMessages.length === 0) {
@@ -808,6 +810,12 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		toolInvocationOrMarkdown?: IChatToolInvocation | IChatToolInvocationSerialized | IChatMarkdownContent,
 		originalParent?: HTMLElement
 	): void {
+		// remove any queued removals
+		for (const pending of this.pendingRemovals) {
+			this.removeStreamingToolEntry(pending.toolCallId, pending.toolLabel);
+		}
+		this.pendingRemovals = [];
+
 		// Track tool invocation metadata immediately (for title generation)
 		this.trackToolMetadata(toolInvocationId, toolInvocationOrMarkdown);
 		this.appendedItemCount++;
@@ -864,6 +872,43 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		return true;
 	}
 
+	// removes the tool entry that was previously streaming and now is not. removes item from dom and internal tracking.
+	private removeStreamingToolEntry(toolCallId: string, toolLabel: string): void {
+		const wrapper = this.toolWrappersByCallId.get(toolCallId);
+		if (wrapper) {
+			wrapper.remove();
+			this.toolWrappersByCallId.delete(toolCallId);
+		}
+
+		// make sure to remove any lazy item as well
+		const lazyIndex = this.lazyItems.findIndex(item =>
+			item.kind === 'tool' &&
+			item.toolInvocationOrMarkdown &&
+			(item.toolInvocationOrMarkdown.kind === 'toolInvocation' || item.toolInvocationOrMarkdown.kind === 'toolInvocationSerialized') &&
+			item.toolInvocationOrMarkdown.toolCallId === toolCallId
+		);
+		if (lazyIndex !== -1) {
+			this.lazyItems.splice(lazyIndex, 1);
+		}
+
+		this.appendedItemCount = Math.max(0, this.appendedItemCount - 1);
+		this.toolInvocationCount = Math.max(0, this.toolInvocationCount - 1);
+		const toolInvocationsIndex = this.toolInvocations.findIndex(t =>
+			(t.kind === 'toolInvocation' || t.kind === 'toolInvocationSerialized') && t.toolCallId === toolCallId
+		);
+		if (toolInvocationsIndex !== -1) {
+			this.toolInvocations.splice(toolInvocationsIndex, 1);
+		}
+
+		const titleIndex = this.extractedTitles.indexOf(toolLabel);
+		if (titleIndex !== -1) {
+			this.extractedTitles.splice(titleIndex, 1);
+		}
+
+		this.updateDropdownClickability();
+		this._onDidChangeHeight.fire();
+	}
+
 	private trackToolMetadata(
 		toolInvocationId?: string,
 		toolInvocationOrMarkdown?: IChatToolInvocation | IChatToolInvocationSerialized | IChatMarkdownContent
@@ -886,6 +931,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			if (toolInvocationOrMarkdown.kind === 'toolInvocation') {
 				let currentToolLabel = toolCallLabel;
 				let isComplete = false;
+				let isStreaming = IChatToolInvocation.isStreaming(toolInvocationOrMarkdown);
 
 				const updateTitle = (updatedMessage: string) => {
 					if (updatedMessage && updatedMessage !== currentToolLabel) {
@@ -919,6 +965,16 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 
 					const currentState = toolInvocationOrMarkdown.state.read(reader);
 
+					// queue item to be removed if it was streaming and presentation is hidden
+					if (isStreaming && currentState.type !== IChatToolInvocation.StateKind.Streaming) {
+						isStreaming = false;
+						if (toolInvocationOrMarkdown.presentation === 'hidden') {
+							this.pendingRemovals.push({ toolCallId: toolInvocationOrMarkdown.toolCallId, toolLabel: currentToolLabel });
+							isComplete = true;
+							return;
+						}
+					}
+
 					if (currentState.type === IChatToolInvocation.StateKind.Completed ||
 						currentState.type === IChatToolInvocation.StateKind.Cancelled) {
 						isComplete = true;
@@ -927,6 +983,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 
 					// streaming
 					if (currentState.type === IChatToolInvocation.StateKind.Streaming) {
+						isStreaming = true;
 						const streamingMessage = currentState.streamingMessage.read(reader);
 						if (streamingMessage) {
 							const updatedMessage = typeof streamingMessage === 'string' ? streamingMessage : streamingMessage.value;
@@ -1022,6 +1079,11 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		const iconElement = createThinkingIcon(icon);
 		itemWrapper.appendChild(iconElement);
 		itemWrapper.appendChild(content);
+
+		const isToolInvocation = toolInvocationOrMarkdown && (toolInvocationOrMarkdown.kind === 'toolInvocation' || toolInvocationOrMarkdown.kind === 'toolInvocationSerialized');
+		if (isToolInvocation && toolInvocationOrMarkdown.toolCallId) {
+			this.toolWrappersByCallId.set(toolInvocationOrMarkdown.toolCallId, itemWrapper);
+		}
 
 		this.appendToWrapper(itemWrapper);
 
