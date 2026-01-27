@@ -10,6 +10,10 @@ mount -t tmpfs tmpfs /dev/shm
 mount -t tmpfs tmpfs /tmp
 mount -t tmpfs tmpfs /run
 mkdir -p /run/dbus
+mount -t tmpfs tmpfs /var/tmp
+
+echo "Setting up machine-id for D-Bus"
+cat /proc/sys/kernel/random/uuid | tr -d '-' > /etc/machine-id
 
 echo "Setting system clock"
 date -s "$(cat /host-time)"
