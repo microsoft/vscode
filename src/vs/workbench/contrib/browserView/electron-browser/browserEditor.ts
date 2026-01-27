@@ -566,6 +566,10 @@ export class BrowserEditor extends EditorPane {
 		return this._model?.toggleDevTools();
 	}
 
+	async clearStorage(): Promise<void> {
+		return this._model?.clearStorage();
+	}
+
 	/**
 	 * Show the find widget
 	 */
