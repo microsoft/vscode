@@ -37,7 +37,7 @@ sudo cp -r "$TEST_DIR"/* "$ROOTFS_DIR/root/"
 echo "Downloading Ubuntu 24.04 generic-64k kernel for ARM64"
 KERNEL_URL="http://ports.ubuntu.com/ubuntu-ports/pool/main/l/linux/linux-image-unsigned-6.8.0-90-generic-64k_6.8.0-90.91_arm64.deb"
 KERNEL_DIR=$(mktemp -d)
-curl -sfL "$KERNEL_URL" -o "$KERNEL_DIR/kernel.deb"
+curl -fL "$KERNEL_URL" -o "$KERNEL_DIR/kernel.deb"
 
 echo "Extracting kernel"
 (cd "$KERNEL_DIR" && ar x kernel.deb && tar xf data.tar*)
