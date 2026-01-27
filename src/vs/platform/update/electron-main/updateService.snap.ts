@@ -126,7 +126,7 @@ abstract class AbstractUpdateService implements IUpdateService {
 		// noop
 	}
 
-	async disableProgressiveReleases(disable: boolean): Promise<void> {
+	async disableProgressiveReleases(): Promise<void> {
 		// noop - not applicable for snap
 	}
 
