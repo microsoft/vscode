@@ -1183,6 +1183,10 @@ export class Repository implements Disposable {
 		return this.run(Operation.Config(true), () => this.repository.config('get', 'local', key));
 	}
 
+	getAnyConfig(key: string): Promise<string> {
+		return this.run(Operation.Config(true), () => this.repository.config('get', '', key));
+	}
+
 	getGlobalConfig(key: string): Promise<string> {
 		return this.run(Operation.Config(true), () => this.repository.config('get', 'global', key));
 	}
