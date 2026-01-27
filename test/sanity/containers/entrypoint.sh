@@ -1,6 +1,8 @@
 #!/bin/sh
 set -e
 
+echo "System: $(uname -s) $(uname -r) $(uname -m), page size: $(getconf PAGESIZE) bytes"
+
 if command -v Xvfb > /dev/null 2>&1; then
 	echo "Starting X11 Server"
 	export DISPLAY=:99
