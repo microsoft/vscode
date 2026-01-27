@@ -239,6 +239,7 @@
 
 .agent-status-badge-section:first-child { border-radius: 5px 0 0 5px; }
 .agent-status-badge-section:last-child { border-radius: 0 5px 5px 0; }
+.agent-status-badge-section:only-child { border-radius: 5px; }
 .agent-status-badge-section:hover { background-color: var(--vscode-commandCenter-activeBackground); }
 .agent-status-badge-section:focus {
 	outline: 1px solid var(--vscode-focusBorder);
@@ -307,6 +308,7 @@
 	align-items: center;
 	justify-content: center;
 	height: 100%;
+	overflow: hidden;
 }
 
 .agent-status-badge-section.sparkle .action-container {
@@ -317,6 +319,12 @@
 .agent-status-badge-section.sparkle .dropdown-action-container {
 	width: 18px;
 	padding: 0;
+	border-radius: 0;
+}
+
+/* When sparkle is the only section, dropdown needs rounded right corners */
+.agent-status-badge-section.sparkle:last-child .dropdown-action-container {
+	border-radius: 0 5px 5px 0;
 }
 
 .agent-status-badge-section.sparkle .action-container:hover,
