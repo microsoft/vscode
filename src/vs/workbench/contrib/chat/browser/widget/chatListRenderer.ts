@@ -817,9 +817,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private renderChatResponseBasic(element: IChatResponseViewModel, index: number, templateData: IChatListItemTemplate) {
 		templateData.rowContainer.classList.toggle('chat-response-loading', (isResponseVM(element) && !element.isComplete));
 
-		if (element.isCanceled) {
+		if (element.isComplete || element.isCanceled) {
 			const lastThinking = this.getLastThinkingPart(templateData.renderedParts);
-			if (lastThinking?.domNode) {
+			if (lastThinking?.domNode && lastThinking.getIsActive()) {
 				lastThinking.finalizeTitleIfDefault();
 				lastThinking.markAsInactive();
 			}
@@ -872,6 +872,16 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		// never show working progress when there is an active thinking piece
 		const lastThinking = this.getLastThinkingPart(templateData.renderedParts);
 		if (lastThinking) {
+			return false;
+		}
+
+		const collapsedToolsMode = this.configService.getValue<CollapsedToolsDisplayMode>('chat.agent.thinking.collapsedTools');
+		if (collapsedToolsMode !== CollapsedToolsDisplayMode.Off &&
+			partsToRender.some(part =>
+				(part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') &&
+				part.presentation !== 'hidden' &&
+				this.shouldPinPart(part, element)
+			)) {
 			return false;
 		}
 
