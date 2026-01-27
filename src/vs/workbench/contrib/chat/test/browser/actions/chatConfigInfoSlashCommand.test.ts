@@ -52,7 +52,7 @@ suite('formatStatusOutput', () => {
 	 * Builds expected output from lines array to avoid hygiene issues with template literal indentation.
 	 */
 	function lines(...parts: string[]): string {
-		return parts.join('\n') + '\n';
+		return parts.join('\n');
 	}
 
 	// Tree prefixes
