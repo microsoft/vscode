@@ -335,7 +335,10 @@ export class PromptsService extends Disposable implements IPromptsService {
 
 	private async getExtensionPromptFiles(type: PromptsType, token: CancellationToken): Promise<IExtensionPromptPath[]> {
 		await this.extensionService.whenInstalledExtensionsRegistered();
-		const contributedFiles = await Promise.all(this.contributedFiles[type].values());
+		const settledResults = await Promise.allSettled(this.contributedFiles[type].values());
+		const contributedFiles = settledResults
+			.filter((result): result is PromiseFulfilledResult<IExtensionPromptPath> => result.status === 'fulfilled')
+			.map(result => result.value);
 
 		const activationEvent = this.getProviderActivationEvent(type);
 		const providerFiles = await this.listFromProviders(type, activationEvent, token);
