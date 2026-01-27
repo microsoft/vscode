@@ -5,7 +5,7 @@
 
 
 import { WorkspaceFileEditOptions } from '../../../../editor/common/languages.js';
-import { IFileService, FileSystemProviderCapabilities, IFileContent, IFileStatWithMetadata } from '../../../../platform/files/common/files.js';
+import { IFileService, FileSystemProviderCapabilities, IFileStatWithMetadata, IFileDeleteOptions, IFileStat } from '../../../../platform/files/common/files.js';
 import { IProgress } from '../../../../platform/progress/common/progress.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IWorkingCopyFileService, IFileOperationUndoRedoInfo, IMoveOperation, ICopyOperation, IDeleteOperation, ICreateOperation, ICreateFileOperation } from '../../../services/workingCopy/common/workingCopyFileService.js';
@@ -246,28 +246,50 @@ class DeleteOperation implements IFileOperation {
 				continue;
 			}
 
+			const fileDeleteOptions: IFileDeleteOptions = {
+				useTrash: !edit.options.skipTrashBin && this._fileService.hasCapability(edit.oldUri, FileSystemProviderCapabilities.Trash) && this._configurationService.getValue<boolean>('files.enableTrash'),
+				recursive: !!edit.options.recursive, // Ensure boolean value
+				atomic: false // Added atomic property
+			};
+
 			deletes.push({
 				resource: edit.oldUri,
-				recursive: edit.options.recursive,
-				useTrash: !edit.options.skipTrashBin && this._fileService.hasCapability(edit.oldUri, FileSystemProviderCapabilities.Trash) && this._configurationService.getValue<boolean>('files.enableTrash')
+				...fileDeleteOptions
 			});
 
+			// Logic to prepare CreateEdits for the undo operation
+			if (!edit.undoesCreate) {
+				if (edit.options.folder) {
+					// For the folder itself, to be created by undo operation
+					undoes.push(new CreateEdit(edit.oldUri, { folder: true }, undefined));
 
-			// read file contents for undo operation. when a file is too large it won't be restored
-			let fileContent: IFileContent | undefined;
-			let fileContentExceedsMaxSize = false;
-			if (!edit.undoesCreate && !edit.options.folder) {
-				fileContentExceedsMaxSize = typeof edit.options.maxSize === 'number' && fileStat.size > edit.options.maxSize;
-				if (!fileContentExceedsMaxSize) {
-					try {
-						fileContent = await this._fileService.readFile(edit.oldUri);
-					} catch (err) {
-						this._logService.error(err);
+					// Recursively collect CreateEdits for all children
+					const childrenUndoEdits = await this._collectChildrenForUndo(edit.oldUri, edit.options);
+					undoes.push(...childrenUndoEdits);
+				} else { // It's a file
+					let fileBuffer: VSBuffer | undefined;
+					// fileStat is guaranteed to be defined here if we didn't continue above
+					let fileContentExceedsMaxSize = false;
+					if (typeof edit.options.maxSize === 'number' && fileStat!.size > edit.options.maxSize) {
+						fileContentExceedsMaxSize = true;
+						this._logService.warn(`[Undo] File ${edit.oldUri.toString()} (${fileStat!.size} bytes) exceeds maxSize (${edit.options.maxSize} bytes) and will not be restored with content.`);
 					}
+
+					if (!fileContentExceedsMaxSize) {
+						try {
+							const fileContent = await this._fileService.readFile(edit.oldUri);
+							fileBuffer = fileContent.value;
+						} catch (err) {
+							this._logService.error(`[Undo] Error reading file ${edit.oldUri.toString()} for undo:`, err);
+						}
+					}
+					undoes.push(new CreateEdit(edit.oldUri, { folder: false }, fileBuffer));
 				}
-			}
-			if (!fileContentExceedsMaxSize) {
-				undoes.push(new CreateEdit(edit.oldUri, edit.options, fileContent?.value));
+			} else { // edit.undoesCreate is true
+				// This delete is undoing a prior create. The undo of this delete is to redo that create.
+				// CreateEdit for the item (file or folder), without content (assuming DeleteEdit doesn't carry it).
+				// If DeleteEdit were enhanced to carry originalContent, it would be used here.
+				undoes.push(new CreateEdit(edit.oldUri, { folder: !!edit.options.folder }, /* edit.originalContentIfAny || */ undefined));
 			}
 		}
 
@@ -281,6 +303,59 @@ class DeleteOperation implements IFileOperation {
 			return new Noop();
 		}
 		return this._instaService.createInstance(CreateOperation, undoes, { isUndoing: true });
+	}
+
+	private async _collectChildrenForUndo(folderUri: URI, parentDeleteOptions: WorkspaceFileEditOptions): Promise<CreateEdit[]> {
+		const collectedUndoEdits: CreateEdit[] = [];
+		let children: IFileStat[] | undefined; // MODIFIED: IFileStatWithMetadata[] -> IFileStat[]
+
+		try {
+			const resolvedFolder = await this._fileService.resolve(folderUri, { resolveMetadata: true });
+			if (resolvedFolder.isDirectory && resolvedFolder.children) {
+				children = resolvedFolder.children; // Now type-compatible
+			} else {
+				this._logService.warn(`[Undo] Could not resolve children for folder ${folderUri.toString()} or it's not a directory.`);
+				return collectedUndoEdits;
+			}
+		} catch (error) {
+			this._logService.error(`[Undo] Failed to resolve children of ${folderUri.toString()} for undo:`, error);
+			return collectedUndoEdits;
+		}
+
+		if (!children) { // ADDED: Check for undefined children before loop
+			this._logService.warn(`[Undo] Children collection for ${folderUri.toString()} resulted in undefined children list prior to processing.`);
+			return collectedUndoEdits;
+		}
+		for (const child of children) { // Now children is guaranteed to be IFileStat[]
+			const childUri = child.resource;
+
+			if (child.isDirectory) {
+				// Add CreateEdit for the subdirectory itself (empty content)
+				collectedUndoEdits.push(new CreateEdit(childUri, { folder: true }, undefined));
+				// Recursively collect contents of the subdirectory
+				collectedUndoEdits.push(...await this._collectChildrenForUndo(childUri, parentDeleteOptions));
+			} else { // It's a file
+				let fileBuffer: VSBuffer | undefined;
+				let fileContentExceedsMaxSize = false;
+
+				if (typeof parentDeleteOptions.maxSize === 'number' && typeof child.size === 'number' && child.size > parentDeleteOptions.maxSize) {
+					fileContentExceedsMaxSize = true;
+					this._logService.warn(`[Undo] File ${childUri.toString()} in folder ${folderUri.toString()} (${child.size} bytes) exceeds maxSize (${parentDeleteOptions.maxSize} bytes) and will not be restored with content.`);
+				}
+
+				if (!fileContentExceedsMaxSize) {
+					try {
+						const content = await this._fileService.readFile(childUri);
+						fileBuffer = content.value;
+					} catch (err) {
+						this._logService.error(`[Undo] Error reading file ${childUri.toString()} in folder ${folderUri.toString()} for undo:`, err);
+					}
+				}
+				// CreateEdit for the file, with content if available
+				collectedUndoEdits.push(new CreateEdit(childUri, { folder: false }, fileBuffer));
+			}
+		}
+		return collectedUndoEdits;
 	}
 
 	toString(): string {
