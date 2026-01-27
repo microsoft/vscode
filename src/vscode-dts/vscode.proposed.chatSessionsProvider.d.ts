@@ -42,7 +42,7 @@ declare module 'vscode' {
 		/**
 		 * Creates a new {@link ChatSessionItemController chat session item controller} with the given unique identifier.
 		 */
-		export function createChatSessionItemController(id: string, refreshHandler: () => Thenable<void>): ChatSessionItemController;
+		export function createChatSessionItemController(id: string, refreshHandler: (token: CancellationToken) => Thenable<void>): ChatSessionItemController;
 	}
 
 	/**
