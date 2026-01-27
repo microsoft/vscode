@@ -72,7 +72,65 @@
 
 .chat-question-option input[type="radio"],
 .chat-question-option input[type="checkbox"] {
+	appearance: none;
+	-webkit-appearance: none;
+	-moz-appearance: none;
+	width: 18px;
+	height: 18px;
+	min-width: 18px;
+	min-height: 18px;
 	margin: 0;
+	border: 1px solid var(--vscode-checkbox-border);
+	background-color: var(--vscode-checkbox-background);
+	border-radius: 3px;
+	cursor: pointer;
+	position: relative;
+	outline: none;
+}
+
+.chat-question-option input[type="radio"] {
+	border-radius: 50%;
+}
+
+.chat-question-option input[type="radio"]:checked,
+.chat-question-option input[type="checkbox"]:checked {
+	background-color: var(--vscode-checkbox-background);
+	border-color: var(--vscode-focusBorder);
+}
+
+.chat-question-option input[type="checkbox"]:checked::after {
+	content: '';
+	position: absolute;
+	top: 2px;
+	left: 5px;
+	width: 5px;
+	height: 10px;
+	border: solid var(--vscode-checkbox-foreground);
+	border-width: 0 2px 2px 0;
+	transform: rotate(45deg);
+}
+
+.chat-question-option input[type="radio"]:checked::after {
+	content: '';
+	position: absolute;
+	top: 4px;
+	left: 4px;
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	background-color: var(--vscode-checkbox-foreground);
+}
+
+.chat-question-option input[type="radio"]:focus,
+.chat-question-option input[type="checkbox"]:focus {
+	border-color: var(--vscode-focusBorder);
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 1px;
+}
+
+.chat-question-option input[type="radio"]:hover,
+.chat-question-option input[type="checkbox"]:hover {
+	background-color: var(--vscode-inputOption-hoverBackground);
 }
 
 .chat-question-option label {
@@ -83,15 +141,28 @@
 
 .chat-question-carousel-footer {
 	display: flex;
-	justify-content: flex-end;
+	align-items: center;
 	gap: 8px;
 	margin-top: 8px;
+}
+
+.chat-question-nav-spacer {
+	flex: 1;
+}
+
+.chat-question-carousel-footer .monaco-button.chat-question-skip-all {
+	min-width: auto;
+	white-space: nowrap;
 }
 
 .chat-question-carousel-footer .monaco-button.chat-question-nav-arrow {
 	min-width: 32px;
 	width: 32px;
 	padding: 4px;
+}
+
+.chat-question-carousel-footer .monaco-button.chat-question-nav-hidden {
+	display: none;
 }
 
 .chat-question-freeform {

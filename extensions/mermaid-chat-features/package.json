@@ -26,6 +26,20 @@
   "browser": "./dist/browser/extension",
   "activationEvents": [],
   "contributes": {
+    "commands": [
+      {
+        "command": "mermaid-chat.resetPanZoom",
+        "title": "Reset Pan and Zoom"
+      }
+    ],
+    "menus": {
+      "webview/context": [
+        {
+          "command": "mermaid-chat.resetPanZoom",
+          "when": "webviewId == 'vscode.chatMermaidDiagram'"
+        }
+      ]
+    },
     "configuration": {
       "title": "Mermaid Chat Features",
       "properties": {

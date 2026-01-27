@@ -23,8 +23,9 @@ import { ChatProgressSubPart } from '../chatProgressContentPart.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
 
 interface OutputState {
-	readonly webviewOrigin: string;
+	webviewOrigin: string;
 	height: number;
+	webviewState?: string;
 }
 
 // TODO: see if we can reuse existing types instead of adding ChatToolOutputSubPart
@@ -105,6 +106,9 @@ export class ChatToolOutputSubPart extends BaseChatToolInvocationSubPart {
 		if (partState.height) {
 			parent.style.height = `${partState.height}px`;
 		}
+		if (partState.webviewOrigin) {
+			partState.webviewOrigin = partState.webviewOrigin;
+		}
 
 		const progressMessage = dom.$('span');
 		progressMessage.textContent = localize('loading', 'Rendering tool output...');
@@ -112,7 +116,7 @@ export class ChatToolOutputSubPart extends BaseChatToolInvocationSubPart {
 		parent.appendChild(progressPart.domNode);
 
 		// TODO: we also need to show the tool output in the UI
-		this.chatOutputItemRendererService.renderOutputPart(details.output.mimeType, details.output.value.buffer, parent, { origin: partState.webviewOrigin }, this._disposeCts.token).then((renderedItem) => {
+		this.chatOutputItemRendererService.renderOutputPart(details.output.mimeType, details.output.value.buffer, parent, { origin: partState.webviewOrigin, webviewState: partState.webviewState }, this._disposeCts.token).then((renderedItem) => {
 			if (this._disposeCts.token.isCancellationRequested) {
 				return;
 			}
@@ -120,6 +124,10 @@ export class ChatToolOutputSubPart extends BaseChatToolInvocationSubPart {
 			this._register(renderedItem);
 
 			progressPart.domNode.remove();
+
+			this._register(renderedItem.webview.onDidUpdateState(e => {
+				partState.webviewState = e;
+			}));
 
 			this._register(renderedItem.onDidChangeHeight(newHeight => {
 				partState.height = newHeight;
