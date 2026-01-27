@@ -111,19 +111,19 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		const spacer = dom.$('.chat-question-nav-spacer');
 		this._navigationButtons.appendChild(spacer);
 
-		// Back button (only show if more than one question)
+		// Back button (hidden for single-question carousels)
 		this._prevButton = this._register(new Button(this._navigationButtons, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
-		this._prevButton.element.classList.add('chat-question-nav-arrow');
+		this._prevButton.element.classList.add('chat-question-nav-arrow', 'chat-question-nav-prev');
 		this._prevButton.label = `$(${Codicon.arrowLeft.id})`;
 		this._prevButton.element.title = localize('previous', 'Previous');
 
-		// Hide back button if only one question
+		// Hide back button when there is at most one question
 		if (this.carousel.questions.length <= 1) {
 			this._prevButton.element.style.display = 'none';
 		}
 
 		this._nextButton = this._register(new Button(this._navigationButtons, { ...defaultButtonStyles, supportIcons: true }));
-		this._nextButton.element.classList.add('chat-question-nav-arrow');
+		this._nextButton.element.classList.add('chat-question-nav-arrow', 'chat-question-nav-next');
 		this._nextButton.label = `$(${Codicon.arrowRight.id})`;
 		this._nextButton.element.title = localize('next', 'Next');
 		this.domNode.append(this._navigationButtons);

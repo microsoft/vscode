@@ -188,9 +188,9 @@ suite('ChatQuestionCarouselPart', () => {
 			]);
 			createWidget(carousel);
 
-			// Navigation arrows have class 'chat-question-nav-arrow'
-			const navButtons = widget.domNode.querySelectorAll('.chat-question-carousel-footer .chat-question-nav-arrow');
-			const prevButton = navButtons[0] as HTMLButtonElement; // First nav arrow is Previous
+			// Query previous button by its specific class
+			const prevButton = widget.domNode.querySelector('.chat-question-carousel-footer .chat-question-nav-prev') as HTMLButtonElement;
+			assert.ok(prevButton, 'Previous button should exist');
 			assert.ok(prevButton.classList.contains('disabled') || prevButton.disabled, 'Previous button should be disabled on first question');
 		});
 
@@ -200,9 +200,9 @@ suite('ChatQuestionCarouselPart', () => {
 			]);
 			createWidget(carousel);
 
-			// Navigation arrows have class 'chat-question-nav-arrow'
-			const navButtons = widget.domNode.querySelectorAll('.chat-question-carousel-footer .chat-question-nav-arrow');
-			const nextButton = navButtons[1] as HTMLElement; // Second nav arrow is Next
+			// Query next button by its specific class
+			const nextButton = widget.domNode.querySelector('.chat-question-carousel-footer .chat-question-nav-next') as HTMLElement;
+			assert.ok(nextButton, 'Next button should exist');
 			assert.strictEqual(nextButton.title, 'Submit', 'Next button should have Submit title on last question');
 		});
 	});
