@@ -99,17 +99,17 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		this._navigationButtons.setAttribute('role', 'navigation');
 		this._navigationButtons.setAttribute('aria-label', localize('chat.questionCarousel.navigation', 'Question navigation'));
 
-		// Skip all button (left side)
+		// Skip all button (left side) with spacer to push navigation buttons to the right
 		if (this.carousel.allowSkip) {
 			this._skipAllButton = this._register(new Button(this._navigationButtons, { ...defaultButtonStyles, secondary: true }));
 			this._skipAllButton.label = localize('skipAll', 'Skip All');
 			this._skipAllButton.element.classList.add('chat-question-skip-all');
 			this._register(this._skipAllButton.onDidClick(() => this.ignore()));
-		}
 
-		// Spacer to push navigation buttons to the right
-		const spacer = dom.$('.chat-question-nav-spacer');
-		this._navigationButtons.appendChild(spacer);
+			// Spacer to push navigation buttons to the right
+			const spacer = dom.$('.chat-question-nav-spacer');
+			this._navigationButtons.appendChild(spacer);
+		}
 
 		// Back button (hidden for single-question carousels)
 		this._prevButton = this._register(new Button(this._navigationButtons, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
@@ -119,7 +119,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 
 		// Hide back button when there is at most one question
 		if (this.carousel.questions.length <= 1) {
-			this._prevButton.element.style.display = 'none';
+			this._prevButton.element.classList.add('chat-question-nav-hidden');
 		}
 
 		this._nextButton = this._register(new Button(this._navigationButtons, { ...defaultButtonStyles, supportIcons: true }));
