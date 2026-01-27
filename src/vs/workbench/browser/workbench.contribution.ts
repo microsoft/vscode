@@ -36,6 +36,33 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				included: isNative,
 				restricted: true
 			},
+			'workbench.autoRevealPairedFile.enabled': {
+				'type': 'boolean',
+				'default': false,
+				'scope': ConfigurationScope.WINDOW,
+				'markdownDescription': localize('workbench.autoRevealPairedFile.enabled', "Controls whether the Explorer automatically reveals a configured paired file (for example a matching test file) when you open an editor. Configure patterns via {0}.", '`#workbench.autoRevealPairedFile.patterns#`')
+			},
+			'workbench.autoRevealPairedFile.patterns': {
+				'type': 'array',
+				'default': [],
+				'scope': ConfigurationScope.WINDOW,
+				'markdownDescription': localize('workbench.autoRevealPairedFile.patterns', "Defines how files map to their paired matches using regular expressions. Each item must include `source` and `test` patterns. Capture group references (for example `$1`) from the match are substituted into the paired path.\n\nExample:\n```json\n[\n  {\n    \"source\": \"src/(.*)\\\\.ts\",\n    \"test\": \"tests/$1.test.ts\"\n  }\n]\n```"),
+				'items': {
+					'type': 'object',
+					'required': ['source', 'test'],
+					'properties': {
+						'source': {
+							'type': 'string',
+							'markdownDescription': localize('workbench.autoRevealPairedFile.patterns.source', "Regular expression that matches the active file path to identify the source side of a pair. Use capture groups to reference path segments.")
+						},
+						'test': {
+							'type': 'string',
+							'markdownDescription': localize('workbench.autoRevealPairedFile.patterns.test', "Replacement pattern that produces the paired file path. Supports capture group placeholders like `$1` from the source match.")
+						}
+					},
+					'additionalProperties': false
+				}
+			},
 			'workbench.editor.titleScrollbarSizing': {
 				type: 'string',
 				enum: ['default', 'large'],
