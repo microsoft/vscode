@@ -161,7 +161,7 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 
 		// Re-render when settings change
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(ChatConfiguration.UnifiedAgentsBar) || e.affectsConfiguration(ChatConfiguration.AgentStatusEnabled)) {
+			if (e.affectsConfiguration(ChatConfiguration.UnifiedAgentsBar) || e.affectsConfiguration(ChatConfiguration.AgentStatusEnabled) || e.affectsConfiguration(ChatConfiguration.ChatViewSessionsEnabled)) {
 				this._lastRenderState = undefined; // Force re-render
 				this._render();
 			}
@@ -259,6 +259,7 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 			// Check which settings are enabled (these are independent settings)
 			const unifiedAgentsBarEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.UnifiedAgentsBar) === true;
 			const agentStatusEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.AgentStatusEnabled) === true;
+			const viewSessionsEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.ChatViewSessionsEnabled) !== false;
 
 			// Build state key for comparison
 			const stateKey = JSON.stringify({
@@ -273,6 +274,7 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 				isFilteredToInProgress,
 				unifiedAgentsBarEnabled,
 				agentStatusEnabled,
+				viewSessionsEnabled,
 			});
 
 			// Skip re-render if state hasn't changed
@@ -776,8 +778,11 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 		// Hover delegate for status sections
 		const hoverDelegate = getDefaultHoverDelegate('mouse');
 
+		// Only show status indicators if chat.viewSessions.enabled is true
+		const viewSessionsEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.ChatViewSessionsEnabled) !== false;
+
 		// Unread section (blue dot + count)
-		if (hasUnreadSessions) {
+		if (viewSessionsEnabled && hasUnreadSessions) {
 			const { isFilteredToUnread } = this._getCurrentFilterState();
 			const unreadSection = $('span.agent-status-badge-section.unread');
 			if (isFilteredToUnread) {
@@ -816,7 +821,7 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 
 		// In-progress/Needs-input section - shows "needs input" state when any session needs attention,
 		// otherwise shows "in progress" state. This is a single section that transforms based on state.
-		if (hasActiveSessions) {
+		if (viewSessionsEnabled && hasActiveSessions) {
 			const { isFilteredToInProgress } = this._getCurrentFilterState();
 			const activeSection = $('span.agent-status-badge-section.active');
 			if (hasAttentionNeeded) {
