@@ -2213,7 +2213,14 @@ export class Repository implements Disposable {
 
 		if (head && head.name && head.upstream) {
 			remote = head.upstream.remote;
-			branch = `${head.name}:${head.upstream.name}`;
+
+			// Respect push.default=current configuration
+			const pushDefault = await this.run(Operation.Config(true), () => this.repository.config('get', '', 'push.default'));
+			if (pushDefault === 'current') {
+				branch = head.name;
+			} else {
+				branch = `${head.name}:${head.upstream.name}`;
+			}
 		}
 
 		await this.run(Operation.Push, () => this._push(remote, branch, undefined, undefined, forcePushMode));
