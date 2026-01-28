@@ -10,9 +10,12 @@ import { KeyCode } from '../../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { hasKey } from '../../../../../../base/common/types.js';
 import { localize } from '../../../../../../nls.js';
-import { defaultButtonStyles, defaultInputBoxStyles } from '../../../../../../platform/theme/browser/defaultStyles.js';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { IMarkdownRendererService } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
+import { defaultButtonStyles, defaultCheckboxStyles, defaultInputBoxStyles } from '../../../../../../platform/theme/browser/defaultStyles.js';
 import { Button } from '../../../../../../base/browser/ui/button/button.js';
 import { InputBox } from '../../../../../../base/browser/ui/inputbox/inputBox.js';
+import { Checkbox } from '../../../../../../base/browser/ui/toggle/toggle.js';
 import { IChatQuestion, IChatQuestionCarousel } from '../../../common/chatService/chatService.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 import { IChatRendererContent } from '../../../common/model/chatViewModel.js';
@@ -42,8 +45,8 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	private _isSkipped = false;
 
 	private readonly _textInputBoxes: Map<string, InputBox> = new Map();
-	private readonly _radioInputs: Map<string, HTMLInputElement[]> = new Map();
-	private readonly _checkboxInputs: Map<string, HTMLInputElement[]> = new Map();
+	private readonly _singleSelectItems: Map<string, { items: HTMLElement[]; selectedIndex: number }> = new Map();
+	private readonly _multiSelectCheckboxes: Map<string, Checkbox[]> = new Map();
 	private readonly _freeformTextareas: Map<string, HTMLTextAreaElement> = new Map();
 	private readonly _inputBoxes: DisposableStore = this._register(new DisposableStore());
 
@@ -213,8 +216,8 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		this._interactiveUIStore.clear();
 		this._inputBoxes.clear();
 		this._textInputBoxes.clear();
-		this._radioInputs.clear();
-		this._checkboxInputs.clear();
+		this._singleSelectItems.clear();
+		this._multiSelectCheckboxes.clear();
 		this._freeformTextareas.clear();
 
 		// Clear references to disposed elements
@@ -332,8 +335,8 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		// Clear previous input boxes and stale references
 		this._inputBoxes.clear();
 		this._textInputBoxes.clear();
-		this._radioInputs.clear();
-		this._checkboxInputs.clear();
+		this._singleSelectItems.clear();
+		this._multiSelectCheckboxes.clear();
 		this._freeformTextareas.clear();
 
 		// Clear previous content
@@ -426,9 +429,10 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 
 	private renderSingleSelect(container: HTMLElement, question: IChatQuestion): void {
 		const options = question.options || [];
-		const selectContainer = dom.$('.chat-question-options');
-		selectContainer.setAttribute('role', 'radiogroup');
+		const selectContainer = dom.$('.chat-question-list');
+		selectContainer.setAttribute('role', 'listbox');
 		selectContainer.setAttribute('aria-label', question.title);
+		selectContainer.tabIndex = 0;
 		container.appendChild(selectContainer);
 
 		// Restore previous answer if exists
@@ -443,35 +447,98 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		// Get default option id (for singleSelect, defaultValue is a single string)
 		const defaultOptionId = typeof question.defaultValue === 'string' ? question.defaultValue : undefined;
 
-		const radioInputs: HTMLInputElement[] = [];
+		// Determine initially selected index
+		let selectedIndex = -1;
 		options.forEach((option, index) => {
-			const optionLabel = dom.$('.chat-question-option');
-			const radioInput = dom.$<HTMLInputElement>('input.chat-question-radio');
-			radioInput.type = 'radio';
-			radioInput.name = `question-${question.id}`;
-			radioInput.value = String(index);
-			radioInput.id = `option-${question.id}-${index}`;
-			radioInput.setAttribute('aria-describedby', `label-${question.id}-${index}`);
-
-			// Check if this was previously selected or is default
-			if (previousSelectedValue !== undefined) {
-				radioInput.checked = option.value === previousSelectedValue;
-			} else if (defaultOptionId !== undefined && option.id === defaultOptionId) {
-				radioInput.checked = true;
+			if (previousSelectedValue !== undefined && option.value === previousSelectedValue) {
+				selectedIndex = index;
+			} else if (selectedIndex === -1 && defaultOptionId !== undefined && option.id === defaultOptionId) {
+				selectedIndex = index;
 			}
-
-			const label = dom.$<HTMLLabelElement>('label.chat-question-option-label');
-			label.htmlFor = `option-${question.id}-${index}`;
-			label.id = `label-${question.id}-${index}`;
-			label.textContent = option.label;
-
-			optionLabel.appendChild(radioInput);
-			optionLabel.appendChild(label);
-			selectContainer.appendChild(optionLabel);
-			radioInputs.push(radioInput);
 		});
 
-		this._radioInputs.set(question.id, radioInputs);
+		const listItems: HTMLElement[] = [];
+		const indicators: HTMLElement[] = [];
+		const updateSelection = (newIndex: number) => {
+			// Update visual state
+			listItems.forEach((item, i) => {
+				const isSelected = i === newIndex;
+				item.classList.toggle('selected', isSelected);
+				item.setAttribute('aria-selected', String(isSelected));
+				const indicator = indicators[i];
+				indicator.classList.toggle('codicon', isSelected);
+				indicator.classList.toggle('codicon-check', isSelected);
+			});
+			// Update tracked state
+			const data = this._singleSelectItems.get(question.id);
+			if (data) {
+				data.selectedIndex = newIndex;
+			}
+		};
+
+		options.forEach((option, index) => {
+			const isSelected = index === selectedIndex;
+			const listItem = dom.$('.chat-question-list-item');
+			listItem.setAttribute('role', 'option');
+			listItem.setAttribute('aria-selected', String(isSelected));
+			listItem.id = `option-${question.id}-${index}`;
+			listItem.tabIndex = -1;
+
+			// Selection indicator (checkmark when selected)
+			const indicator = dom.$('.chat-question-list-indicator');
+			if (isSelected) {
+				indicator.classList.add('codicon', 'codicon-check');
+			}
+			listItem.appendChild(indicator);
+			indicators.push(indicator);
+
+			// Label
+			const label = dom.$('.chat-question-list-label');
+			label.textContent = option.label;
+			listItem.appendChild(label);
+
+			if (isSelected) {
+				listItem.classList.add('selected');
+			}
+
+			// Click handler
+			this._inputBoxes.add(dom.addDisposableListener(listItem, dom.EventType.CLICK, (e: MouseEvent) => {
+				e.preventDefault();
+				e.stopPropagation();
+				updateSelection(index);
+			}));
+
+			selectContainer.appendChild(listItem);
+			listItems.push(listItem);
+		});
+
+		this._singleSelectItems.set(question.id, { items: listItems, selectedIndex });
+
+		// Keyboard navigation for the list
+		this._inputBoxes.add(dom.addDisposableListener(selectContainer, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+			const event = new StandardKeyboardEvent(e);
+			const data = this._singleSelectItems.get(question.id);
+			if (!data) {
+				return;
+			}
+			let newIndex = data.selectedIndex;
+
+			if (event.keyCode === KeyCode.DownArrow) {
+				e.preventDefault();
+				newIndex = Math.min(data.selectedIndex + 1, listItems.length - 1);
+			} else if (event.keyCode === KeyCode.UpArrow) {
+				e.preventDefault();
+				newIndex = Math.max(data.selectedIndex - 1, 0);
+			} else if (event.keyCode === KeyCode.Space || event.keyCode === KeyCode.Enter) {
+				// Space/Enter confirms current selection (already selected, nothing extra to do)
+				e.preventDefault();
+				return;
+			}
+
+			if (newIndex !== data.selectedIndex && newIndex >= 0) {
+				updateSelection(newIndex);
+			}
+		}));
 
 		// Add freeform input if allowed
 		if (question.allowFreeformInput) {
@@ -499,9 +566,11 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 
 	private renderMultiSelect(container: HTMLElement, question: IChatQuestion): void {
 		const options = question.options || [];
-		const selectContainer = dom.$('.chat-question-options');
-		selectContainer.setAttribute('role', 'group');
+		const selectContainer = dom.$('.chat-question-list');
+		selectContainer.setAttribute('role', 'listbox');
+		selectContainer.setAttribute('aria-multiselectable', 'true');
 		selectContainer.setAttribute('aria-label', question.title);
+		selectContainer.tabIndex = 0;
 		container.appendChild(selectContainer);
 
 		// Restore previous answer if exists
@@ -518,34 +587,82 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			? question.defaultValue
 			: (typeof question.defaultValue === 'string' ? [question.defaultValue] : []);
 
-		const checkboxInputs: HTMLInputElement[] = [];
-		options.forEach((option, index) => {
-			const optionLabel = dom.$('.chat-question-option');
-			const checkboxInput = dom.$<HTMLInputElement>('input.chat-question-checkbox');
-			checkboxInput.type = 'checkbox';
-			checkboxInput.value = String(index);
-			checkboxInput.id = `option-${question.id}-${index}`;
-			checkboxInput.setAttribute('aria-describedby', `label-${question.id}-${index}`);
+		const checkboxes: Checkbox[] = [];
+		const listItems: HTMLElement[] = [];
+		let focusedIndex = 0;
 
-			// Check if this was previously selected or is default
+		options.forEach((option, index) => {
+			// Determine initial checked state
+			let isChecked = false;
 			if (previousSelectedValues && previousSelectedValues.length > 0) {
-				checkboxInput.checked = previousSelectedValues.includes(option.value);
+				isChecked = previousSelectedValues.includes(option.value);
 			} else if (defaultOptionIds.includes(option.id)) {
-				checkboxInput.checked = true;
+				isChecked = true;
 			}
 
-			const label = dom.$<HTMLLabelElement>('label.chat-question-option-label');
-			label.htmlFor = `option-${question.id}-${index}`;
-			label.id = `label-${question.id}-${index}`;
-			label.textContent = option.label;
+			const listItem = dom.$('.chat-question-list-item.multi-select');
+			listItem.setAttribute('role', 'option');
+			listItem.setAttribute('aria-selected', String(isChecked));
+			listItem.id = `option-${question.id}-${index}`;
+			listItem.tabIndex = -1;
 
-			optionLabel.appendChild(checkboxInput);
-			optionLabel.appendChild(label);
-			selectContainer.appendChild(optionLabel);
-			checkboxInputs.push(checkboxInput);
+			// Create checkbox using the VS Code Checkbox component
+			const checkbox = this._inputBoxes.add(new Checkbox(option.label, isChecked, defaultCheckboxStyles));
+			checkbox.domNode.classList.add('chat-question-list-checkbox');
+			// Remove checkbox from tab order since list items are navigable with arrow keys
+			checkbox.domNode.tabIndex = -1;
+			listItem.appendChild(checkbox.domNode);
+
+			// Label
+			const label = dom.$('.chat-question-list-label');
+			label.textContent = option.label;
+			listItem.appendChild(label);
+
+			if (isChecked) {
+				listItem.classList.add('checked');
+			}
+
+			// Sync checkbox state with list item visual state
+			this._inputBoxes.add(checkbox.onChange(() => {
+				listItem.classList.toggle('checked', checkbox.checked);
+				listItem.setAttribute('aria-selected', String(checkbox.checked));
+			}));
+
+			// Click handler for the entire row (toggle checkbox)
+			this._inputBoxes.add(dom.addDisposableListener(listItem, dom.EventType.CLICK, (e: MouseEvent) => {
+				// Don't toggle if the click was on the checkbox itself (it handles itself)
+				if (e.target !== checkbox.domNode && !checkbox.domNode.contains(e.target as Node)) {
+					checkbox.checked = !checkbox.checked;
+				}
+			}));
+
+			selectContainer.appendChild(listItem);
+			checkboxes.push(checkbox);
+			listItems.push(listItem);
 		});
 
-		this._checkboxInputs.set(question.id, checkboxInputs);
+		this._multiSelectCheckboxes.set(question.id, checkboxes);
+
+		// Keyboard navigation for the list
+		this._inputBoxes.add(dom.addDisposableListener(selectContainer, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+			const event = new StandardKeyboardEvent(e);
+
+			if (event.keyCode === KeyCode.DownArrow) {
+				e.preventDefault();
+				focusedIndex = Math.min(focusedIndex + 1, listItems.length - 1);
+				listItems[focusedIndex].focus();
+			} else if (event.keyCode === KeyCode.UpArrow) {
+				e.preventDefault();
+				focusedIndex = Math.max(focusedIndex - 1, 0);
+				listItems[focusedIndex].focus();
+			} else if (event.keyCode === KeyCode.Space) {
+				e.preventDefault();
+				// Toggle the currently focused checkbox
+				if (focusedIndex >= 0 && focusedIndex < checkboxes.length) {
+					checkboxes[focusedIndex].checked = !checkboxes[focusedIndex].checked;
+				}
+			}
+		}));
 
 		// Add freeform input if allowed
 		if (question.allowFreeformInput) {
@@ -584,16 +701,10 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			}
 
 			case 'singleSelect': {
-				const radioInputs = this._radioInputs.get(question.id);
+				const data = this._singleSelectItems.get(question.id);
 				let selectedValue: unknown = undefined;
-				if (radioInputs) {
-					for (const radio of radioInputs) {
-						if (radio.checked) {
-							const index = parseInt(radio.value);
-							selectedValue = question.options?.[index]?.value;
-							break;
-						}
-					}
+				if (data && data.selectedIndex >= 0) {
+					selectedValue = question.options?.[data.selectedIndex]?.value;
 				}
 				// Find default option if nothing selected (defaultValue is the option id)
 				if (selectedValue === undefined && typeof question.defaultValue === 'string') {
@@ -615,18 +726,17 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			}
 
 			case 'multiSelect': {
-				const checkboxInputs = this._checkboxInputs.get(question.id);
+				const checkboxes = this._multiSelectCheckboxes.get(question.id);
 				const selectedValues: unknown[] = [];
-				if (checkboxInputs) {
-					for (const checkbox of checkboxInputs) {
+				if (checkboxes) {
+					checkboxes.forEach((checkbox, index) => {
 						if (checkbox.checked) {
-							const index = parseInt(checkbox.value);
 							const value = question.options?.[index]?.value;
 							if (value !== undefined) {
 								selectedValues.push(value);
 							}
 						}
-					}
+					});
 				}
 				// Include defaults if nothing selected (defaultValue is option id or array of ids)
 				let finalSelectedValues = selectedValues;
