@@ -169,7 +169,7 @@ export class TestContext {
 	 */
 	public deleteWslDir(dir: string): void {
 		this.log(`Deleting WSL directory: ${dir}`);
-		this.run('wsl', 'rm', '-rf', dir);
+		this.runNoErrors('wsl', 'rm', '-rf', dir);
 	}
 
 	/**
