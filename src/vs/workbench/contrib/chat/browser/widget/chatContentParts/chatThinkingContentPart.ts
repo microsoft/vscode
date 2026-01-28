@@ -444,7 +444,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			return;
 		}
 
-		if (this.wrapper.children.length > 1 || this.toolInvocationCount > 0) {
+		if (this.wrapper.children.length > 1 || this.toolInvocationCount > 0 || this.lazyItems.length > 0) {
 			this.setDropdownClickable(true);
 			return;
 		}
