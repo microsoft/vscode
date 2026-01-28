@@ -90,18 +90,23 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		this._navigationButtons.setAttribute('role', 'navigation');
 		this._navigationButtons.setAttribute('aria-label', localize('chat.questionCarousel.navigation', 'Question navigation'));
 
+		// Group prev/next buttons together
+		const arrowsContainer = dom.$('.chat-question-nav-arrows');
+
 		const previousLabel = localize('previous', 'Previous');
-		const prevButton = interactiveStore.add(new Button(this._navigationButtons, { ...defaultButtonStyles, secondary: true, supportIcons: true, title: previousLabel }));
+		const prevButton = interactiveStore.add(new Button(arrowsContainer, { ...defaultButtonStyles, secondary: true, supportIcons: true, title: previousLabel }));
 		prevButton.element.classList.add('chat-question-nav-arrow', 'chat-question-nav-prev');
 		prevButton.label = `$(${Codicon.chevronLeft.id})`;
 		prevButton.element.setAttribute('aria-label', previousLabel);
 		this._prevButton = prevButton;
 
 		const nextLabel = localize('next', 'Next');
-		const nextButton = interactiveStore.add(new Button(this._navigationButtons, { ...defaultButtonStyles, secondary: true, supportIcons: true, title: nextLabel }));
+		const nextButton = interactiveStore.add(new Button(arrowsContainer, { ...defaultButtonStyles, secondary: true, supportIcons: true, title: nextLabel }));
 		nextButton.element.classList.add('chat-question-nav-arrow', 'chat-question-nav-next');
 		nextButton.label = `$(${Codicon.chevronRight.id})`;
 		this._nextButton = nextButton;
+
+		this._navigationButtons.appendChild(arrowsContainer);
 
 		// Close/skip button (X) - only shown when allowSkip is true
 		if (carousel.allowSkip) {

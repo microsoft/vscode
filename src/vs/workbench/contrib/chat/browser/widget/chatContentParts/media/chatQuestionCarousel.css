@@ -73,6 +73,12 @@
 @container (max-width: 300px) {
 	.chat-question-header-row .chat-question-carousel-nav {
 		order: -1;
+		width: 100%;
+		justify-content: space-between;
+	}
+
+	.chat-question-carousel-nav > .monaco-button.chat-question-close {
+		margin-left: 0;
 	}
 
 	.chat-question-header-row .chat-question-title {
@@ -87,6 +93,16 @@
 	flex-shrink: 0;
 }
 
+.chat-question-nav-arrows {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+}
+
+.chat-question-carousel-nav > .monaco-button.chat-question-close {
+	margin-left: 4px;
+}
+
 .chat-question-carousel-nav .monaco-button.chat-question-nav-arrow {
 	min-width: 22px;
 	width: 22px;
@@ -99,10 +115,6 @@
 
 .chat-question-carousel-nav .monaco-button.chat-question-nav-arrow:hover:not(.disabled) {
 	background: var(--vscode-toolbar-hoverBackground) !important;
-}
-
-.chat-question-carousel-nav .monaco-button.chat-question-close {
-	margin-left: 4px;
 }
 
 .chat-question-carousel-content {
