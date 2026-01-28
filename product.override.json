@@ -1,0 +1,19 @@
+{
+  "defaultAccount": {
+    "preferredExtensions": ["GitHub.copilot-chat", "GitHub.copilot"],
+    "authenticationProvider": {
+      "id": "github",
+      "enterpriseProviderId": "github-enterprise",
+      "enterpriseProviderConfig": "github.copilot.advanced.authProvider",
+      "enterpriseProviderUriSetting": "github-enterprise.uri",
+      "scopes": [
+        ["read:user", "user:email", "repo", "workflow"],
+        ["user:email"],
+        ["read:user"]
+      ]
+    },
+    "chatEntitlementUrl": "https://api.github.com/copilot_internal/user",
+    "tokenEntitlementUrl": "https://api.github.com/copilot_internal/v2/token",
+    "mcpRegistryDataUrl": "https://api.github.com/copilot/mcp_registry"
+  }
+}
