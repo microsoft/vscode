@@ -357,6 +357,13 @@ export interface IStartExtensionTerminalRequest {
 	callback: (error: ITerminalLaunchError | undefined) => void;
 }
 
+export interface IBrowserOpenRequest {
+	persistentProcessId: number;
+	url: string;
+	resolve: () => void;
+	reject: (error: Error) => void;
+}
+
 export interface ITerminalStatus {
 	/** An internal string ID used to identify the status. */
 	id: string;

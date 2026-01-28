@@ -98,7 +98,7 @@ class RemoteTerminalBackend extends BaseTerminalBackend implements ITerminalBack
 			}
 		});
 
-		const allowedCommands = ['_remoteCLI.openExternal', '_remoteCLI.windowOpen', '_remoteCLI.getSystemStatus', '_remoteCLI.manageExtensions'];
+		const allowedCommands = ['_remoteCLI.openExternal', '_remoteCLI.windowOpen', '_remoteCLI.getSystemStatus', '_remoteCLI.manageExtensions', '_remoteCLI.browserOpen'];
 		this._remoteTerminalChannel.onExecuteCommand(async e => {
 			// Ensure this request for for this window
 			const pty = this._ptys.get(e.persistentProcessId);
@@ -110,6 +110,10 @@ class RemoteTerminalBackend extends BaseTerminalBackend implements ITerminalBack
 			if (!allowedCommands.includes(commandId)) {
 				this._remoteTerminalChannel.sendCommandResult(reqId, true, 'Invalid remote cli command: ' + commandId);
 				return;
+			}
+			// For browserOpen, prepend the persistentProcessId so the command handler knows which terminal triggered it
+			if (commandId === '_remoteCLI.browserOpen') {
+				e.commandArgs.unshift('' + e.persistentProcessId);
 			}
 			const commandArgs = e.commandArgs.map(arg => revive(arg));
 			try {
@@ -192,6 +196,7 @@ class RemoteTerminalBackend extends BaseTerminalBackend implements ITerminalBack
 			isFeatureTerminal: shellLaunchConfig.isFeatureTerminal,
 			tabActions: shellLaunchConfig.tabActions,
 			shellIntegrationEnvironmentReporting: shellLaunchConfig.shellIntegrationEnvironmentReporting,
+			hookIntoBrowser: shellLaunchConfig.hookIntoBrowser,
 		};
 		const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot();
 

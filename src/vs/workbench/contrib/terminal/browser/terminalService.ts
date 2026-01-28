@@ -35,7 +35,7 @@ import { TerminalEditorInput } from './terminalEditorInput.js';
 import { getColorStyleContent, getUriClasses } from './terminalIcon.js';
 import { TerminalProfileQuickpick } from './terminalProfileQuickpick.js';
 import { getInstanceFromResource, getTerminalUri, parseTerminalUri } from './terminalUri.js';
-import { IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalProcessExtHostProxy, ITerminalProfileService } from '../common/terminal.js';
+import { IBrowserOpenRequest, IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalProcessExtHostProxy, ITerminalProfileService } from '../common/terminal.js';
 import { TerminalContextKeys } from '../common/terminalContextKey.js';
 import { columnToEditorGroup } from '../../../services/editor/common/editorGroupColumn.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
@@ -136,6 +136,8 @@ export class TerminalService extends Disposable implements ITerminalService {
 	get onDidChangeConnectionState(): Event<void> { return this._onDidChangeConnectionState.event; }
 	private readonly _onDidRequestStartExtensionTerminal = this._register(new Emitter<IStartExtensionTerminalRequest>());
 	get onDidRequestStartExtensionTerminal(): Event<IStartExtensionTerminalRequest> { return this._onDidRequestStartExtensionTerminal.event; }
+	private readonly _onDidRequestBrowserOpen = this._register(new Emitter<IBrowserOpenRequest>());
+	get onDidRequestBrowserOpen(): Event<IBrowserOpenRequest> { return this._onDidRequestBrowserOpen.event; }
 
 	// ITerminalInstanceHost events
 	private readonly _onDidDisposeInstance = this._register(new Emitter<ITerminalInstance>());
@@ -617,6 +619,12 @@ export class TerminalService extends Disposable implements ITerminalService {
 		// The initial request came from the extension host, no need to wait for it
 		return new Promise<ITerminalLaunchError | undefined>(callback => {
 			this._onDidRequestStartExtensionTerminal.fire({ proxy, cols, rows, callback });
+		});
+	}
+
+	requestBrowserOpen(persistentProcessId: number, url: string): Promise<void> {
+		return new Promise<void>((resolve, reject) => {
+			this._onDidRequestBrowserOpen.fire({ persistentProcessId, url, resolve, reject });
 		});
 	}
 

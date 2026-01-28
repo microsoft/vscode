@@ -44,7 +44,13 @@ export interface ExtensionManagementPipeArgs {
 	force?: boolean;
 }
 
-export type PipeCommand = OpenCommandPipeArgs | StatusPipeArgs | OpenExternalCommandPipeArgs | ExtensionManagementPipeArgs;
+export interface BrowserOpenCommandPipeArgs {
+	type: 'browserOpen';
+	url: string;
+	waitMarkerFilePath?: string;
+}
+
+export type PipeCommand = OpenCommandPipeArgs | StatusPipeArgs | OpenExternalCommandPipeArgs | ExtensionManagementPipeArgs | BrowserOpenCommandPipeArgs;
 
 export interface ICommandsExecuter {
 	executeCommand<T>(id: string, ...args: any[]): Promise<T>;
@@ -105,6 +111,9 @@ export class CLIServerBase {
 						break;
 					case 'extensionManagement':
 						returnObj = await this.manageExtensions(data);
+						break;
+					case 'browserOpen':
+						returnObj = await this.browserOpen(data);
 						break;
 					default:
 						sendResponse(404, `Unknown message type: ${data.type}`);
@@ -174,6 +183,10 @@ export class CLIServerBase {
 
 	private async getStatus(data: StatusPipeArgs): Promise<string | undefined> {
 		return await this._commands.executeCommand<string | undefined>('_remoteCLI.getSystemStatus');
+	}
+
+	private async browserOpen(data: BrowserOpenCommandPipeArgs): Promise<undefined> {
+		await this._commands.executeCommand('_remoteCLI.browserOpen', data.url, data.waitMarkerFilePath);
 	}
 
 	dispose(): void {

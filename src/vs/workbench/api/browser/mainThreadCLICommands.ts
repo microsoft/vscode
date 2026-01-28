@@ -22,6 +22,8 @@ import { IOpenWindowOptions, IWindowOpenable } from '../../../platform/window/co
 import { IWorkbenchEnvironmentService } from '../../services/environment/common/environmentService.js';
 import { IExtensionManagementServerService } from '../../services/extensionManagement/common/extensionManagement.js';
 import { IExtensionManifestPropertiesService } from '../../services/extensions/common/extensionManifestPropertiesService.js';
+import { ITerminalService } from '../../contrib/terminal/browser/terminal.js';
+import { IFileService } from '../../../platform/files/common/files.js';
 
 
 // this class contains the commands that the CLI server is reying on
@@ -42,6 +44,22 @@ CommandsRegistry.registerCommand('_remoteCLI.windowOpen', function (accessor: Se
 CommandsRegistry.registerCommand('_remoteCLI.getSystemStatus', function (accessor: ServicesAccessor): Promise<string | undefined> {
 	const commandService = accessor.get(ICommandService);
 	return commandService.executeCommand<string>('_issues.getSystemStatus');
+});
+
+CommandsRegistry.registerCommand('_remoteCLI.browserOpen', async function (accessor: ServicesAccessor, persistentProcessId: number, url: string, waitMarkerFilePath?: string): Promise<void> {
+	const terminalService = accessor.get(ITerminalService);
+	const fileService = accessor.get(IFileService);
+
+	await terminalService.requestBrowserOpen(persistentProcessId, url);
+
+	// Delete the wait marker file to unblock the CLI
+	if (waitMarkerFilePath) {
+		try {
+			await fileService.del(URI.file(waitMarkerFilePath));
+		} catch {
+			// Ignore errors deleting the marker file
+		}
+	}
 });
 
 interface ManageExtensionsArgs {

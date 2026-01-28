@@ -13,6 +13,7 @@ import { URI } from '../../base/common/uri.js';
 import { IURITransformer } from '../../base/common/uriIpc.js';
 import { IServerChannel } from '../../base/parts/ipc/common/ipc.js';
 import { createRandomIPCHandle } from '../../base/parts/ipc/node/ipc.net.js';
+import { FileAccess } from '../../base/common/network.js';
 import { RemoteAgentConnectionContext } from '../../platform/remote/common/remoteAgentEnvironment.js';
 import { IPtyHostService, IShellLaunchConfig, ITerminalProfile } from '../../platform/terminal/common/terminal.js';
 import { IGetTerminalLayoutInfoArgs, ISetTerminalLayoutInfoArgs } from '../../platform/terminal/common/terminalProcess.js';
@@ -206,6 +207,7 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 			isFeatureTerminal: args.shellLaunchConfig.isFeatureTerminal,
 			tabActions: args.shellLaunchConfig.tabActions,
 			shellIntegrationEnvironmentReporting: args.shellLaunchConfig.shellIntegrationEnvironmentReporting,
+			hookIntoBrowser: args.shellLaunchConfig.hookIntoBrowser,
 		};
 
 
@@ -261,6 +263,12 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 		// Setup the CLI server to support forwarding commands run from the CLI
 		const ipcHandlePath = createRandomIPCHandle();
 		env.VSCODE_IPC_HOOK_CLI = ipcHandlePath;
+
+		// Setup BROWSER environment variable interception if requested
+		if (shellLaunchConfig.hookIntoBrowser) {
+			const browserOpenScript = FileAccess.asFileUri('vs/workbench/contrib/terminal/common/scripts/browser-open.sh').fsPath;
+			env.BROWSER = `"${browserOpenScript}" "${ipcHandlePath}"`;
+		}
 
 		const persistentProcessId = await this._ptyHostService.createProcess(shellLaunchConfig, initialCwd, args.cols, args.rows, args.unicodeVersion, env, baseEnv, args.options, args.shouldPersistTerminal, args.workspaceId, args.workspaceName);
 		const commandsExecuter: ICommandsExecuter = {

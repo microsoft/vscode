@@ -670,6 +670,11 @@ export interface IShellLaunchConfig {
 	 * This allows extensions to control shell integration for terminals they create.
 	 */
 	shellIntegrationNonce?: string;
+
+	/**
+	 * Hook into the BROWSER environment variable to.
+	 */
+	hookIntoBrowser?: boolean;
 }
 
 export interface ITerminalTabAction {
@@ -712,6 +717,7 @@ export interface IShellLaunchConfigDto {
 	isFeatureTerminal?: boolean;
 	tabActions?: ITerminalTabAction[];
 	shellIntegrationEnvironmentReporting?: boolean;
+	hookIntoBrowser?: boolean;
 }
 
 /**
