@@ -2511,6 +2511,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 						sessionResource,
 					} satisfies IChatViewTitleActionContext),
 				},
+				disableWhileRunning: isSessionMenu,
 				buttonConfigProvider: (action) => {
 					if (action.id === ChatEditingShowChangesAction.ID || action.id === ViewPreviousEditsAction.Id || action.id === ViewAllSessionChangesAction.ID) {
 						return { showIcon: true, showLabel: false, isSecondary: true };
