@@ -222,12 +222,29 @@ suite('WorkspaceContextService - Workspace', () => {
 		const folderA = joinPath(ROOT, 'a');
 		const folderB = joinPath(ROOT, 'b');
 		const configResource = joinPath(ROOT, 'vsctests.code-workspace');
-		const workspace = { folders: [{ path: folderA.path }, { path: folderB.path }] };
+		const localConfigResource = configResource.with({ path: `${configResource.path}.local` });
+		const workspace = {
+			folders: [{ path: folderA.path }, { path: folderB.path }],
+			settings: {
+				'editor.formatOnSave': true,
+				'typescript.preferences.importModuleSpecifier': 'relative'
+			}
+		};
+		const localWorkspace = {
+			folders: [],
+			settings: {
+				'editor.formatOnSave': false,
+				'workbench.colorCustomizations': {
+					'titleBar.activeBackground': '#dd0531'
+				}
+			}
+		};
 
 		await fileService.createFolder(appSettingsHome);
 		await fileService.createFolder(folderA);
 		await fileService.createFolder(folderB);
 		await fileService.writeFile(configResource, VSBuffer.fromString(JSON.stringify(workspace, null, '\t')));
+		await fileService.writeFile(localConfigResource, VSBuffer.fromString(JSON.stringify(localWorkspace, null, '\t')));
 
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		const environmentService = TestEnvironmentService;
@@ -256,6 +273,14 @@ suite('WorkspaceContextService - Workspace', () => {
 		assert.strictEqual(actual.length, 2);
 		assert.strictEqual(basename(actual[0].uri), 'a');
 		assert.strictEqual(basename(actual[1].uri), 'b');
+	});
+
+	test('workspace local overrides are merged', () => {
+		assert.strictEqual(testObject.getValue('editor.formatOnSave'), false);
+		assert.strictEqual(testObject.getValue('typescript.preferences.importModuleSpecifier'), 'relative');
+		const colorCustomizations = testObject.getValue('workbench.colorCustomizations') as { [key: string]: string } | undefined;
+		assert.ok(colorCustomizations);
+		assert.strictEqual(colorCustomizations['titleBar.activeBackground'], '#dd0531');
 	});
 
 	test('getWorkbenchState()', () => {
