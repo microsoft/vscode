@@ -716,6 +716,18 @@
         "enablement": "!operationInProgress"
       },
       {
+        "command": "git.graph.revertCommit",
+        "title": "%command.graphRevertCommit%",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
+        "command": "git.graph.resetCommit",
+        "title": "%command.graphResetCommit%",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
         "command": "git.cherryPickAbort",
         "title": "%command.cherryPickAbort%",
         "category": "Git",
@@ -2607,6 +2619,16 @@
           "command": "git.graph.compareRef",
           "when": "scmProvider == git",
           "group": "5_compare@3"
+        },
+        {
+          "command": "git.graph.revertCommit",
+          "when": "scmProvider == git",
+          "group": "4_modify@2"
+        },
+        {
+          "command": "git.graph.resetCommit",
+          "when": "scmProvider == git",
+          "group": "4_modify@3"
         },
         {
           "command": "git.copyCommitId",
