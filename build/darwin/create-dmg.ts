@@ -13,6 +13,7 @@ const product = JSON.parse(fs.readFileSync(path.join(root, 'product.json'), 'utf
 interface DmgBuildSettings {
 	title: string;
 	icon?: string | null;
+	'badge-icon'?: string | null;
 	background?: string;
 	'background-color'?: string;
 	'icon-size'?: number;
@@ -70,7 +71,7 @@ async function main(buildDir?: string, outDir?: string): Promise<void> {
 	const dmgName = `VSCode-darwin-${arch}`;
 	const artifactPath = path.join(outDir, `${dmgName}.dmg`);
 	const backgroundPath = path.join(import.meta.dirname, `dmg-background-${quality}.tiff`);
-	const appIconPath = path.join(appPath, 'Contents', 'Resources', `${product.nameShort}.icns`);
+	const diskIconPath = path.join(root, 'resources', 'darwin', 'code.icns');
 	let title = 'Code OSS';
 	switch (quality) {
 		case 'stable':
@@ -99,7 +100,7 @@ async function main(buildDir?: string, outDir?: string): Promise<void> {
 
 	const settings: DmgBuildSettings = {
 		title,
-		icon: appIconPath,
+		'badge-icon': diskIconPath,
 		background: backgroundPath,
 		format: 'ULMO',
 		'text-size': 12,

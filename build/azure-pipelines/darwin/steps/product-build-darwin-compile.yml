@@ -226,9 +226,12 @@ steps:
 
     - script: |
         set -e
+        # Needed for https://github.com/dmgbuild/dmgbuild/blob/main/src/dmgbuild/badge.py
+        python3 -m pip install pyobjc-framework-Quartz
         DMG_OUT="$(Pipeline.Workspace)/vscode_client_darwin_$(VSCODE_ARCH)_dmg"
         mkdir -p $DMG_OUT
         node build/darwin/create-dmg.ts $(agent.builddirectory) $DMG_OUT
+        python3 build/darwin/patch-dmg.py $DMG_OUT/VSCode-darwin-$(VSCODE_ARCH).dmg resources/darwin/disk.icns
         echo "##vso[task.setvariable variable=DMG_PATH]$DMG_OUT/VSCode-darwin-$(VSCODE_ARCH).dmg"
       condition: eq(variables['BUILT_CLIENT'], 'true')
       displayName: Create DMG installer
