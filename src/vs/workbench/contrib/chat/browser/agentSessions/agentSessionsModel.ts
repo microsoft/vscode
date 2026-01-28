@@ -413,6 +413,8 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 		));
 		this.logger.logAllStatsIfTrace('Loaded cached sessions');
 
+		this.runMarkAllReadMigrationOnce(); // TODO@bpasero remove this in the future
+
 		this.registerListeners();
 	}
 
@@ -562,11 +564,6 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 
 	//#region States
 
-	// In order to reduce the amount of sessions showing as unread, we maintain
-	// a certain cut off date that we consider good, given the issues we fixed
-	// around unread tracking. This is ~1 week before we ship 1.109 stable.
-	private static readonly READ_STATE_INITIAL_DATE = Date.UTC(2026, 0 /* January */, 28);
-
 	private readonly sessionStates: ResourceMap<IAgentSessionState>;
 
 	private isArchived(session: IInternalAgentSessionData): boolean {
@@ -598,10 +595,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 			return true; // archived sessions are always read
 		}
 
-		const readDate = Math.max(
-			this.sessionStates.get(session.resource)?.read ?? 0, 	// stored last read date
-			AgentSessionsModel.READ_STATE_INITIAL_DATE				// hardcoded date we pick as start
-		);
+		const readDate = this.sessionStates.get(session.resource)?.read ?? 0;
 
 		// Install a heuristic to reduce false positives: a user might observe
 		// the output of a session and quickly click on another session before
@@ -614,7 +608,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 		return session.timing.lastRequestEnded ?? session.timing.lastRequestStarted ?? session.timing.created;
 	}
 
-	private setRead(session: IInternalAgentSessionData, read: boolean): void {
+	private setRead(session: IInternalAgentSessionData, read: boolean, skipEvent?: boolean): void {
 		const state = this.sessionStates.get(session.resource) ?? { archived: false, read: 0 };
 
 		let newRead: number;
@@ -633,7 +627,40 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 
 		this.sessionStates.set(session.resource, { ...state, read: newRead });
 
-		this._onDidChangeSessions.fire();
+		if (!skipEvent) {
+			this._onDidChangeSessions.fire();
+		}
+	}
+
+	private static readonly MARK_ALL_READ_MIGRATION_KEY = 'agentSessions.markAllReadMigration';
+	private static readonly MARK_ALL_READ_MIGRATION_VERSION = 1;
+
+	private migrationCompleted = false;
+
+	private runMarkAllReadMigrationOnce(): void {
+		if (this.migrationCompleted) {
+			return;
+		}
+
+		const storedVersion = this.storageService.getNumber(AgentSessionsModel.MARK_ALL_READ_MIGRATION_KEY, StorageScope.WORKSPACE, 0);
+		if (storedVersion >= AgentSessionsModel.MARK_ALL_READ_MIGRATION_VERSION) {
+			this.migrationCompleted = true;
+			return; // migration already completed for this version
+		}
+
+		this.logger.logIfTrace(`Running mark-all-read migration from version ${storedVersion} to ${AgentSessionsModel.MARK_ALL_READ_MIGRATION_VERSION}`);
+
+		// Mark all currently unread sessions as read
+		for (const session of this._sessions.values()) {
+			if (!this.isRead(session)) {
+				this.setRead(session, true, true /* skipEvent */);
+			}
+		}
+
+		// Store the migration version
+		this.storageService.store(AgentSessionsModel.MARK_ALL_READ_MIGRATION_KEY, AgentSessionsModel.MARK_ALL_READ_MIGRATION_VERSION, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+
+		this.migrationCompleted = true;
 	}
 
 	//#endregion
