@@ -186,6 +186,7 @@ export class SCMRepositoryMenus implements ISCMRepositoryMenus, IDisposable {
 
 	private artifactGroupMenus = new Map<string /* artifactGroupId */, IContextualMenuItem>();
 	private artifactMenus = new Map<string /* artifactGroupId */, IContextualMenuItem>();
+	private artifactFolderMenus = new Map<string /* artifactGroupId */, IContextualMenuItem>();
 
 	private readonly resourceGroupMenusItems = new Map<ISCMResourceGroup, SCMMenusItem>();
 
@@ -252,6 +253,26 @@ export class SCMRepositoryMenus implements ISCMRepositoryMenus, IDisposable {
 			};
 
 			this.artifactMenus.set(key, item);
+		}
+
+		return item.menu;
+	}
+
+	getArtifactFolderMenu(artifactGroup: ISCMArtifactGroup): IMenu {
+		let item = this.artifactFolderMenus.get(artifactGroup.id);
+
+		if (!item) {
+			const contextKeyService = this.contextKeyService.createOverlay([
+				['scmArtifactGroupId', artifactGroup.id]]);
+			const menu = this.menuService.createMenu(MenuId.SCMArtifactContext, contextKeyService);
+
+			item = {
+				menu, dispose() {
+					menu.dispose();
+				}
+			};
+
+			this.artifactFolderMenus.set(artifactGroup.id, item);
 		}
 
 		return item.menu;

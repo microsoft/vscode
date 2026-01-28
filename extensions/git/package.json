@@ -1080,6 +1080,12 @@
         "enablement": "!operationInProgress && !scmArtifactIsHistoryItemRef"
       },
       {
+        "command": "git.repositories.deleteBranches",
+        "title": "%command.deleteBranches%",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
         "command": "git.repositories.deleteTag",
         "title": "%command.deleteRef%",
         "category": "Git",
@@ -2116,6 +2122,11 @@
         {
           "command": "git.repositories.deleteBranch",
           "group": "3_modify@2",
+          "when": "scmProvider == git && scmArtifactGroupId == branches"
+        },
+        {
+          "command": "git.repositories.deleteBranches",
+          "group": "3_modify@3",
           "when": "scmProvider == git && scmArtifactGroupId == branches"
         },
         {

@@ -713,7 +713,45 @@ export class SCMRepositoriesViewPane extends ViewPane {
 				getActions: () => actions,
 				getActionsContext: () => artifact
 			});
+		} else if (isSCMArtifactNode(e.element)) {
+			// Artifact Folder (Branch Collection)
+			const provider = e.element.context.repository.provider;
+			const artifactGroup = e.element.context.artifactGroup;
+
+			// Collect all child artifacts from this node
+			const childArtifacts = this.collectChildArtifacts(e.element);
+
+			const menus = this.scmViewService.menus.getRepositoryMenus(provider);
+			const menu = menus.getArtifactFolderMenu(artifactGroup);
+			const actions = collectContextMenuActions(menu, provider);
+
+			this.contextMenuService.showContextMenu({
+				getAnchor: () => e.anchor,
+				getActions: () => actions,
+				getActionsContext: () => childArtifacts
+			});
 		}
+	}
+
+	private collectChildArtifacts(node: IResourceNode<SCMArtifactTreeElement, SCMArtifactGroupTreeElement>): SCMArtifactTreeElement[] {
+		const artifacts: SCMArtifactTreeElement[] = [];
+
+		const collectRecursive = (currentNode: IResourceNode<SCMArtifactTreeElement, SCMArtifactGroupTreeElement>) => {
+			// Only add leaf nodes (actual artifacts, not folder nodes)
+			// In the resource tree structure:
+			// - Folder nodes have children but no element (e.g., "copilot" prefix folder)
+			// - Leaf nodes have an element and no children (e.g., actual branch "copilot/fix-1")
+			if (currentNode.element && currentNode.childrenCount === 0) {
+				artifacts.push(currentNode.element);
+			}
+
+			for (const child of currentNode.children) {
+				collectRecursive(child);
+			}
+		};
+
+		collectRecursive(node);
+		return artifacts;
 	}
 
 	private onTreeSelectionChange(e: ITreeEvent<TreeElement>): void {

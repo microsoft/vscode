@@ -5278,6 +5278,56 @@ export class CommandCenter {
 		await this._deleteBranch(repository, undefined, artifact.name, { remote: false });
 	}
 
+	@command('git.repositories.deleteBranches', { repository: true })
+	async artifactDeleteBranches(repository: Repository, artifacts: unknown): Promise<void> {
+		if (!repository || !Array.isArray(artifacts) || artifacts.length === 0) {
+			return;
+		}
+
+		// Extract artifact tree elements from the array
+		// Each element should have an 'artifact' property with a 'name' field
+		interface ArtifactTreeElement {
+			artifact: { name: string };
+		}
+
+		const isArtifactTreeElement = (item: unknown): item is ArtifactTreeElement => {
+			if (typeof item !== 'object' || item === null) {
+				return false;
+			}
+			const candidate = item as { artifact?: unknown };
+			if (typeof candidate.artifact !== 'object' || candidate.artifact === null) {
+				return false;
+			}
+			const artifact = candidate.artifact as { name?: unknown };
+			return typeof artifact.name === 'string';
+		};
+
+		const artifactElements = artifacts.filter(isArtifactTreeElement);
+		if (artifactElements.length === 0) {
+			return;
+		}
+
+		const branchNames = artifactElements.map(a => a.artifact.name);
+		const branchCount = branchNames.length;
+
+		const message = l10n.t('Are you sure you want to delete {0} branches? This action will permanently remove the branch references from the repository.', branchCount);
+		const yes = l10n.t('Delete Branches');
+		const result = await window.showWarningMessage(message, { modal: true }, yes);
+		if (result !== yes) {
+			return;
+		}
+
+		// Delete all branches
+		for (const branchName of branchNames) {
+			try {
+				await this._deleteBranch(repository, undefined, branchName, { remote: false });
+			} catch (err) {
+				// Continue with other branches even if one fails
+				this.logger.error(`Failed to delete branch ${branchName}: ${err}`);
+			}
+		}
+	}
+
 	@command('git.repositories.deleteTag', { repository: true })
 	async artifactDeleteTag(repository: Repository, artifact: SourceControlArtifact): Promise<void> {
 		if (!repository || !artifact) {
