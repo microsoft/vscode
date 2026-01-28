@@ -30,7 +30,7 @@ ROOT_DIR=$(cd "$SCRIPT_DIR/.." && pwd)
 if ! docker image inspect "$CONTAINER" > /dev/null 2>&1; then
 	if [ "$ARCH" != "amd64" ]; then
 		echo "Setting up QEMU user-mode emulation for $ARCH"
-		docker run --privileged --rm "${MIRROR}tonistiigi/binfmt" --install "$ARCH"
+		docker run --privileged --rm tonistiigi/binfmt --install "$ARCH"
 	fi
 
 	echo "Building container image: $CONTAINER"

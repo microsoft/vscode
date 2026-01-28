@@ -1,9 +1,5 @@
-ARG MIRROR
-ARG BASE_IMAGE=opensuse/leap:16.0
-FROM ${MIRROR}${BASE_IMAGE}
-
-# Node.js 22
-RUN zypper install -y nodejs22
+ARG BASE_IMAGE=registry.opensuse.org/opensuse/bci/nodejs:22
+FROM ${BASE_IMAGE}
 
 # Chromium
 RUN zypper install -y chromium pciutils Mesa-libGL1

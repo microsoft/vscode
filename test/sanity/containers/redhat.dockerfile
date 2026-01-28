@@ -1,10 +1,5 @@
-ARG MIRROR
-ARG BASE_IMAGE=redhat/ubi9:9.7
-FROM ${MIRROR}${BASE_IMAGE}
-
-# Node.js 22
-RUN curl -fsSL https://rpm.nodesource.com/setup_22.x | bash - && \
-	dnf install -y nodejs-22.21.1
+ARG BASE_IMAGE=registry.access.redhat.com/ubi9/nodejs-22
+FROM ${BASE_IMAGE}
 
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
