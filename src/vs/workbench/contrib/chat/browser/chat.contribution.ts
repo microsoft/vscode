@@ -440,6 +440,11 @@ configurationRegistry.registerConfiguration({
 			default: true,
 			description: nls.localize('chat.viewTitle.enabled', "Show the title of the chat above the chat in the chat view."),
 		},
+		[ChatConfiguration.ChatViewProgressBadgeEnabled]: {
+			type: 'boolean',
+			default: false,
+			description: nls.localize('chat.viewProgressBadge.enabled', "Show a progress badge on the chat view when an agent session is in progress that is opened in that view."),
+		},
 		[ChatConfiguration.NotifyWindowOnResponseReceived]: {
 			type: 'boolean',
 			default: true,
