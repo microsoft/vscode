@@ -723,6 +723,11 @@ export interface IEditorOptions {
 	 */
 	renderWhitespace?: 'none' | 'boundary' | 'selection' | 'trailing' | 'all';
 	/**
+	 * Enable rendering of word wrap indicators.
+	 * Defaults to false.
+	 */
+	renderWordWrapIndicator?: boolean;
+	/**
 	 * Enable rendering of control characters.
 	 * Defaults to true.
 	 */
@@ -5837,6 +5842,7 @@ export const enum EditorOption {
 	renderLineHighlightOnlyWhenFocus,
 	renderValidationDecorations,
 	renderWhitespace,
+	renderWordWrapIndicator,
 	revealHorizontalRightPadding,
 	roundedSelection,
 	rulers,
@@ -6525,6 +6531,10 @@ export const EditorOptions = {
 			],
 			description: nls.localize('renderWhitespace', "Controls how the editor should render whitespace characters.")
 		}
+	)),
+	renderWordWrapIndicator: register(new EditorBooleanOption(
+		EditorOption.renderWordWrapIndicator, 'renderWordWrapIndicator', false,
+		{ description: nls.localize('renderWordWrapIndicator', "Controls whether the editor should render visual indicators at word wrap points.") }
 	)),
 	revealHorizontalRightPadding: register(new EditorIntOption(
 		EditorOption.revealHorizontalRightPadding, 'revealHorizontalRightPadding',

@@ -41,6 +41,7 @@ import { SelectionsOverlay } from './viewParts/selections/selections.js';
 import { ViewCursors } from './viewParts/viewCursors/viewCursors.js';
 import { ViewZones } from './viewParts/viewZones/viewZones.js';
 import { WhitespaceOverlay } from './viewParts/whitespace/whitespace.js';
+import { WordWrapIndicatorOverlay } from './viewParts/wordWrapIndicator/wordWrapIndicator.js';
 import { IEditorConfiguration } from '../common/config/editorConfiguration.js';
 import { EditorOption } from '../common/config/editorOptions.js';
 import { Position } from '../common/core/position.js';
@@ -218,6 +219,7 @@ export class View extends ViewEventHandler {
 		contentViewOverlays.addDynamicOverlay(new IndentGuidesOverlay(this._context));
 		contentViewOverlays.addDynamicOverlay(new DecorationsOverlay(this._context));
 		contentViewOverlays.addDynamicOverlay(new WhitespaceOverlay(this._context));
+		contentViewOverlays.addDynamicOverlay(new WordWrapIndicatorOverlay(this._context));
 
 		const marginViewOverlays = new MarginViewOverlays(this._context);
 		this._viewParts.push(marginViewOverlays);
