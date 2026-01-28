@@ -50,6 +50,7 @@ export type ExtensionListRendererOptions = {
 	hoverOptions: {
 		position: () => HoverPosition;
 	};
+	showPublisherInName?: boolean;
 };
 
 export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
@@ -190,7 +191,10 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		updateEnablement();
 		this.extensionService.onDidChangeExtensions(() => updateEnablement(), this, data.extensionDisposables);
 
-		data.name.textContent = extension.displayName;
+		// Show publisher in the name when requested for better visibility
+		data.name.textContent = this.options.showPublisherInName
+			? `${extension.displayName} (${extension.publisher})`
+			: extension.displayName;
 		data.description.textContent = extension.description;
 
 		data.installCount.style.display = '';
