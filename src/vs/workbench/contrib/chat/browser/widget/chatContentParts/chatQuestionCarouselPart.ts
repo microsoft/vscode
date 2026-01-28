@@ -339,7 +339,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			return;
 		}
 
-		// Render question header row with title and navigation
+		// Render question header row with navigation and title
 		const headerRow = dom.$('.chat-question-header-row');
 
 		// Render question message with title styling, prefixed with progress indicator

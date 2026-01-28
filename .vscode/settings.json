@@ -203,5 +203,5 @@
 	],
 	"azureMcp.serverMode": "all",
 	"azureMcp.readOnly": true,
-	"debug.breakpointsView.presentation": "tree",
+	"debug.breakpointsView.presentation": "tree"
 }
