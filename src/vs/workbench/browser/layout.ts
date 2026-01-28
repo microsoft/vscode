@@ -354,12 +354,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			}
 		};
 
-		// Maybe maximize auxiliary bar when no editors, sidebar hidden, and panel hidden
+		// Maybe maximize auxiliary bar when no editors are visible
 		const maybeMaximizeAuxiliaryBar = () => {
 			if (
 				this.mainPartEditorService.visibleEditors.length === 0 &&
-				!this.isVisible(Parts.SIDEBAR_PART) &&
-				!this.isVisible(Parts.PANEL_PART) &&
 				this.configurationService.getValue(WorkbenchLayoutSettings.AUXILIARYBAR_FORCE_MAXIMIZED) === true
 			) {
 				this.setAuxiliaryBarMaximized(true);
@@ -382,13 +380,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				}
 			}));
 			this._register(this.editorGroupService.mainPart.onDidActivateGroup(showEditorIfHidden));
-
-			// Maybe maximize auxiliary bar when sidebar or panel hides
-			this._register(this.onDidChangePartVisibility(({ partId, visible }) => {
-				if (!visible && (partId === Parts.SIDEBAR_PART || partId === Parts.PANEL_PART)) {
-					maybeMaximizeAuxiliaryBar();
-				}
-			}));
 
 			// Revalidate center layout when active editor changes: diff editor quits centered mode
 			this._register(this.mainPartEditorService.onDidActiveEditorChange(() => this.centerMainEditorLayout(this.stateModel.getRuntimeValue(LayoutStateKeys.MAIN_EDITOR_CENTERED))));

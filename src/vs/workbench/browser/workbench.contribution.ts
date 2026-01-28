@@ -589,7 +589,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'type': 'boolean',
 				'default': false,
 				tags: ['experimental'],
-				'description': localize('secondarySideBarForceMaximized', "Controls whether the secondary side bar is enforced to always show maximized unless other parts or editors are showing."),
+				'description': localize('secondarySideBarForceMaximized', "Controls whether the secondary side bar is enforced to always show maximized on startup and when there are no open editors, in layouts that support a maximized secondary side bar."),
 			},
 			'workbench.secondarySideBar.showLabels': {
 				'type': 'boolean',
