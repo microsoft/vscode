@@ -832,8 +832,8 @@ export class TextAreaEditContext extends AbstractEditContext {
 		const tac = this.textAreaCover;
 
 		applyFontInfo(ta, this._fontInfo);
-		ta.setTop(renderData.top);
-		ta.setLeft(renderData.left);
+		ta.domNode.style.transform = `translate3d(${renderData.left}px, ${renderData.top}px, 0)`;
+		ta.domNode.style.willChange = 'transform';
 		ta.setWidth(renderData.width);
 		ta.setHeight(renderData.height);
 		ta.setLineHeight(renderData.height);
@@ -847,8 +847,8 @@ export class TextAreaEditContext extends AbstractEditContext {
 		}
 		ta.setTextDecoration(`${renderData.underline ? ' underline' : ''}${renderData.strikethrough ? ' line-through' : ''}`);
 
-		tac.setTop(renderData.useCover ? renderData.top : 0);
-		tac.setLeft(renderData.useCover ? renderData.left : 0);
+		tac.domNode.style.transform = `translate3d(${renderData.useCover ? renderData.left : 0}px, ${renderData.useCover ? renderData.top : 0}px, 0)`;
+		tac.domNode.style.willChange = 'transform';
 		tac.setWidth(renderData.useCover ? renderData.width : 0);
 		tac.setHeight(renderData.useCover ? renderData.height : 0);
 
