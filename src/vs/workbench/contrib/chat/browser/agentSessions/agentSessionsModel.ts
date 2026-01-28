@@ -417,7 +417,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 		));
 		this.logger.logAllStatsIfTrace('Loaded cached sessions');
 
-		this.runMarkAllReadMigrationOnce(); // TODO@bpasero remove this in the future
+		this.readDateBaseline = this.resolveReadDateBaseline(); // we use this to account for bugfixes in the read/unread tracking
 
 		this.registerListeners();
 	}
@@ -568,6 +568,8 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 
 	//#region States
 
+	private static readonly UNREAD_MARKER = -1;
+
 	private readonly sessionStates: ResourceMap<IAgentSessionState>;
 
 	private isArchived(session: IInternalAgentSessionData): boolean {
@@ -599,7 +601,12 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 			return true; // archived sessions are always read
 		}
 
-		const readDate = this.sessionStates.get(session.resource)?.read ?? 0;
+		const storedReadDate = this.sessionStates.get(session.resource)?.read;
+		if (storedReadDate === AgentSessionsModel.UNREAD_MARKER) {
+			return false;
+		}
+
+		const readDate = Math.max(storedReadDate ?? 0, this.readDateBaseline /* Use read date baseline when no read date is stored */);
 
 		// Install a heuristic to reduce false positives: a user might observe
 		// the output of a session and quickly click on another session before
@@ -628,8 +635,8 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 				return; // already read with a sufficient timestamp
 			}
 		} else {
-			newRead = 0;
-			if (state.read === 0) {
+			newRead = AgentSessionsModel.UNREAD_MARKER;
+			if (state.read === AgentSessionsModel.UNREAD_MARKER) {
 				return; // already unread
 			}
 		}
@@ -641,42 +648,25 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 		}
 	}
 
-	private static readonly MARK_ALL_READ_MIGRATION_KEY = 'agentSessions.markAllReadMigration';
-	private static readonly MARK_ALL_READ_MIGRATION_VERSION = 1;
+	private static readonly READ_DATE_BASELINE_KEY = 'agentSessions.readDateBaseline';
 
-	private migrationCompleted = false;
+	private readonly readDateBaseline: number;
 
-	private runMarkAllReadMigrationOnce(): void {
-		if (this.migrationCompleted) {
-			return;
+	private resolveReadDateBaseline(): number {
+		let readDateBaseline = this.storageService.getNumber(AgentSessionsModel.READ_DATE_BASELINE_KEY, StorageScope.WORKSPACE, 0);
+		if (readDateBaseline > 0) {
+			return readDateBaseline; // already resolved
 		}
 
-		const storedVersion = this.storageService.getNumber(AgentSessionsModel.MARK_ALL_READ_MIGRATION_KEY, StorageScope.WORKSPACE, 0);
-		if (storedVersion >= AgentSessionsModel.MARK_ALL_READ_MIGRATION_VERSION) {
-			this.migrationCompleted = true;
-			return; // migration already completed for this version
-		}
+		// For stable, preserve unread state for sessions from the last 7 days
+		// For other qualities, mark all sessions as read
+		readDateBaseline = this.productService.quality === 'stable'
+			? Date.now() - (7 * 24 * 60 * 60 * 1000)
+			: Date.now();
 
-		this.logger.logIfTrace(`Running mark-all-read migration from version ${storedVersion} to ${AgentSessionsModel.MARK_ALL_READ_MIGRATION_VERSION}`);
+		this.storageService.store(AgentSessionsModel.READ_DATE_BASELINE_KEY, readDateBaseline, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 
-		const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
-		for (const session of this._sessions.values()) {
-			if (!this.isRead(session)) {
-				let markRead = true;
-				if (this.productService.quality === 'stable' && this.sessionTimeForReadStateTracking(session) >= sevenDaysAgo) {
-					markRead = false; // for stable, preserve state for up to 1 week ago
-				}
-
-				if (markRead) {
-					this.setRead(session, true, true /* skipEvent */);
-				}
-			}
-		}
-
-		// Store the migration version
-		this.storageService.store(AgentSessionsModel.MARK_ALL_READ_MIGRATION_KEY, AgentSessionsModel.MARK_ALL_READ_MIGRATION_VERSION, StorageScope.WORKSPACE, StorageTarget.MACHINE);
-
-		this.migrationCompleted = true;
+		return readDateBaseline;
 	}
 
 	//#endregion
