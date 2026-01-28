@@ -397,11 +397,16 @@ class SimpleBrowserOverlayController {
 				container.appendChild(connectingWebviewElement);
 			}
 
+			cts.cancel();
 			cts = new CancellationTokenSource();
 			try {
 				await this._browserElementsService.startDebugSession(cts.token, locator);
 			} catch (error) {
 				connectingWebviewElement.textContent = localize('reopenErrorWebviewElement', 'Please reopen the preview.');
+				return;
+			}
+
+			if (cts.token.isCancellationRequested) {
 				return;
 			}
 
@@ -413,8 +418,8 @@ class SimpleBrowserOverlayController {
 
 		const hide = () => {
 			widget.setActiveLocator(undefined, undefined);
+			cts.cancel();
 			if (container.contains(this._domNode)) {
-				cts.cancel();
 				this._domNode.remove();
 			}
 			connectingWebviewElement.remove();
@@ -473,7 +478,7 @@ export class SimpleBrowserOverlay implements IWorkbenchContribution {
 			() => editorGroupsService.groups
 		);
 
-		const overlayWidgets = new DisposableMap<IEditorGroup>();
+		const overlayWidgets = this._store.add(new DisposableMap<IEditorGroup>());
 
 		this._store.add(autorun(r => {
 
