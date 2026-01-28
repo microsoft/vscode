@@ -323,3 +323,4 @@ extends:
               baseImage: ubuntu:24.04
               arch: arm64
               pageSize: 64k
+              args: --grep "desktop-linux-arm64"
