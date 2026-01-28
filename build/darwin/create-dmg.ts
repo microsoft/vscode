@@ -71,7 +71,7 @@ async function main(buildDir?: string, outDir?: string): Promise<void> {
 	const dmgName = `VSCode-darwin-${arch}`;
 	const artifactPath = path.join(outDir, `${dmgName}.dmg`);
 	const backgroundPath = path.join(import.meta.dirname, `dmg-background-${quality}.tiff`);
-	const diskIconPath = path.join(root, 'resources', 'darwin', 'disk.icns');
+	const diskIconPath = path.join(root, 'resources', 'darwin', 'code.icns');
 	let title = 'Code OSS';
 	switch (quality) {
 		case 'stable':
