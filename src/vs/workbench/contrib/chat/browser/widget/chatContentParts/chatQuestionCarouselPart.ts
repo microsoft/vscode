@@ -5,20 +5,16 @@
 
 import * as dom from '../../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../../base/browser/keyboardEvent.js';
-import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { KeyCode } from '../../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { hasKey } from '../../../../../../base/common/types.js';
 import { localize } from '../../../../../../nls.js';
-import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { IMarkdownRendererService } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { defaultButtonStyles, defaultInputBoxStyles } from '../../../../../../platform/theme/browser/defaultStyles.js';
 import { Button } from '../../../../../../base/browser/ui/button/button.js';
 import { InputBox } from '../../../../../../base/browser/ui/inputbox/inputBox.js';
 import { IChatQuestion, IChatQuestionCarousel } from '../../../common/chatService/chatService.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
-import { ChatQueryTitlePart } from './chatConfirmationWidget.js';
 import { IChatRendererContent } from '../../../common/model/chatViewModel.js';
 import { ChatTreeItem } from '../../chat.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
@@ -37,8 +33,6 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	private _currentIndex = 0;
 	private readonly _answers = new Map<string, unknown>();
 
-	private _titlePart: ChatQueryTitlePart | undefined;
-	private _progressElement: HTMLElement | undefined;
 	private _questionContainer: HTMLElement | undefined;
 	private _navigationButtons: HTMLElement | undefined;
 	private _prevButton: Button | undefined;
@@ -63,8 +57,6 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		private readonly carousel: IChatQuestionCarousel,
 		_context: IChatContentPartRenderContext,
 		private readonly _options: IChatQuestionCarouselOptions,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
 	) {
 		super();
 
@@ -89,18 +81,11 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		const interactiveStore = new DisposableStore();
 		this._interactiveUIStore.value = interactiveStore;
 
-		// Header with title and navigation controls
-		const header = dom.$('.chat-question-carousel-header');
-		const titleElement = dom.$('.chat-question-carousel-title');
-		this._titlePart = interactiveStore.add(this.instantiationService.createInstance(
-			ChatQueryTitlePart,
-			titleElement,
-			new MarkdownString(localize('chat.questionCarousel.title', 'Please provide the following information')),
-			undefined
-		));
-		interactiveStore.add(this._titlePart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
+		// Question container
+		this._questionContainer = dom.$('.chat-question-carousel-content');
+		this.domNode.append(this._questionContainer);
 
-		// Navigation controls in header (< 1 of 4 > X)
+		// Navigation controls (< > X) - will be placed in header row with question
 		this._navigationButtons = dom.$('.chat-question-carousel-nav');
 		this._navigationButtons.setAttribute('role', 'navigation');
 		this._navigationButtons.setAttribute('aria-label', localize('chat.questionCarousel.navigation', 'Question navigation'));
@@ -111,10 +96,6 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		prevButton.label = `$(${Codicon.chevronLeft.id})`;
 		prevButton.element.setAttribute('aria-label', previousLabel);
 		this._prevButton = prevButton;
-
-		const progressElement = dom.$('.chat-question-carousel-progress');
-		this._navigationButtons.appendChild(progressElement);
-		this._progressElement = progressElement;
 
 		const nextLabel = localize('next', 'Next');
 		const nextButton = interactiveStore.add(new Button(this._navigationButtons, { ...defaultButtonStyles, secondary: true, supportIcons: true, title: nextLabel }));
@@ -131,13 +112,6 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			skipAllButton.element.setAttribute('aria-label', skipAllTitle);
 			this._skipAllButton = skipAllButton;
 		}
-
-		header.append(titleElement, this._navigationButtons);
-		this.domNode.append(header);
-
-		// Question container
-		this._questionContainer = dom.$('.chat-question-carousel-content');
-		this.domNode.append(this._questionContainer);
 
 
 		// Register event listeners
@@ -239,11 +213,9 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		this._freeformTextareas.clear();
 
 		// Clear references to disposed elements
-		this._titlePart = undefined;
 		this._prevButton = undefined;
 		this._nextButton = undefined;
 		this._skipAllButton = undefined;
-		this._progressElement = undefined;
 		this._questionContainer = undefined;
 		this._navigationButtons = undefined;
 	}
@@ -348,7 +320,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	}
 
 	private renderCurrentQuestion(): void {
-		if (!this._questionContainer || !this._progressElement || !this._prevButton || !this._nextButton) {
+		if (!this._questionContainer || !this._prevButton || !this._nextButton) {
 			return;
 		}
 
@@ -367,29 +339,31 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			return;
 		}
 
-		// Render question title
-		const title = dom.$('.chat-question-title');
-		title.textContent = question.title;
-		this._questionContainer.appendChild(title);
+		// Render question header row with title and navigation
+		const headerRow = dom.$('.chat-question-header-row');
 
-		// Render question message if present (with markdown support)
+		// Render question message with title styling, prefixed with progress indicator
 		if (question.message) {
-			const messageContainer = dom.$('.chat-question-message');
-			const markdownContent = typeof question.message === 'string'
-				? new MarkdownString(question.message)
-				: question.message;
-			const renderedMessage = this._inputBoxes.add(this.markdownRendererService.render(markdownContent));
-			messageContainer.appendChild(renderedMessage.element);
-			this._questionContainer.appendChild(messageContainer);
+			const title = dom.$('.chat-question-title');
+			const messageContent = typeof question.message === 'string'
+				? question.message
+				: question.message.value;
+			const progressPrefix = localize('chat.questionCarousel.progressPrefix', '({0}/{1}) ', this._currentIndex + 1, this.carousel.questions.length);
+			title.textContent = progressPrefix + messageContent;
+			headerRow.appendChild(title);
 		}
+
+		// Add navigation buttons to header row
+		if (this._navigationButtons) {
+			headerRow.appendChild(this._navigationButtons);
+		}
+
+		this._questionContainer.appendChild(headerRow);
 
 		// Render input based on question type
 		const inputContainer = dom.$('.chat-question-input-container');
 		this.renderInput(inputContainer, question);
 		this._questionContainer.appendChild(inputContainer);
-
-		// Update progress indicator
-		this._progressElement.textContent = localize('chat.questionCarousel.progress', '{0} of {1}', this._currentIndex + 1, this.carousel.questions.length);
 
 		// Update navigation button states (prevButton and nextButton are guaranteed non-null from guard above)
 		this._prevButton!.enabled = this._currentIndex > 0;
