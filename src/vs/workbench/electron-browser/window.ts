@@ -285,6 +285,18 @@ export class NativeWindow extends BaseWindow {
 		ipcRenderer.on('vscode:enterFullScreen', () => setFullscreen(true, mainWindow));
 		ipcRenderer.on('vscode:leaveFullScreen', () => setFullscreen(false, mainWindow));
 
+		// Browser Open (from CLI for terminal BROWSER env var interception)
+		ipcRenderer.on('vscode:browserOpen', async (event: unknown, ...argsRaw: unknown[]) => {
+			const args = argsRaw[0] as { url: string; terminalId?: string; waitMarkerFilePath?: string };
+			try {
+				// Use the existing _remoteCLI.browserOpen command which handles terminal service integration
+				// For local terminals, we use processId to find the terminal
+				await this.commandService.executeCommand('_localCLI.browserOpen', args.url, args.terminalId, args.waitMarkerFilePath);
+			} catch (error) {
+				this.logService.error('Failed to handle browser open request:', error);
+			}
+		});
+
 		// Proxy Login Dialog
 		ipcRenderer.on('vscode:openProxyAuthenticationDialog', async (event: unknown, ...argsRaw: unknown[]) => {
 			const payload = argsRaw[0] as { authInfo: AuthInfo; username?: string; password?: string; replyChannel: string };

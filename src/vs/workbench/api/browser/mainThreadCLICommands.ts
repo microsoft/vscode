@@ -62,6 +62,27 @@ CommandsRegistry.registerCommand('_remoteCLI.browserOpen', async function (acces
 	}
 });
 
+CommandsRegistry.registerCommand('_localCLI.browserOpen', async function (accessor: ServicesAccessor, url: string, terminalId?: string, waitMarkerFilePath?: string): Promise<void> {
+	const terminalService = accessor.get(ITerminalService);
+	const fileService = accessor.get(IFileService);
+
+	// For local terminals, we receive the persistent process ID directly (passed as terminalId)
+	// and fire the browser open event
+	const persistentProcessId = terminalId ? parseInt(terminalId, 10) : undefined;
+	if (persistentProcessId !== undefined && !isNaN(persistentProcessId)) {
+		await terminalService.requestBrowserOpen(persistentProcessId, url);
+	}
+
+	// Delete the wait marker file to unblock the CLI
+	if (waitMarkerFilePath) {
+		try {
+			await fileService.del(URI.file(waitMarkerFilePath));
+		} catch {
+			// Ignore errors deleting the marker file
+		}
+	}
+});
+
 interface ManageExtensionsArgs {
 	list?: { showVersions?: boolean; category?: string };
 	install?: (string | URI)[];

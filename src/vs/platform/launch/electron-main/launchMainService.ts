@@ -27,11 +27,19 @@ export interface IStartArguments {
 	readonly userEnv: IProcessEnvironment;
 }
 
+export interface IBrowserOpenArguments {
+	readonly url: string;
+	readonly terminalId?: string;
+	readonly waitMarkerFilePath?: string;
+}
+
 export interface ILaunchMainService {
 
 	readonly _serviceBrand: undefined;
 
 	start(args: NativeParsedArgs, userEnv: IProcessEnvironment): Promise<void>;
+
+	browserOpen(args: IBrowserOpenArguments): Promise<void>;
 
 	getMainProcessId(): Promise<number>;
 }
@@ -222,6 +230,21 @@ export class LaunchMainService implements ILaunchMainService {
 				whenDeleted(waitMarkerFileURI.fsPath)
 			]).then(() => undefined, () => undefined);
 		}
+	}
+
+	async browserOpen(args: IBrowserOpenArguments): Promise<void> {
+		console.log('Received browser open request:', args);
+		this.logService.trace('Received browser open request from CLI:', args);
+
+		// Get the last active window to handle the browser open request
+		const window = this.windowsMainService.getLastActiveWindow();
+		if (!window) {
+			this.logService.warn('No active window to handle browser open request');
+			return;
+		}
+
+		// Send the browser open request to the window to be handled by the terminal service
+		window.send('vscode:browserOpen', args);
 	}
 
 	async getMainProcessId(): Promise<number> {

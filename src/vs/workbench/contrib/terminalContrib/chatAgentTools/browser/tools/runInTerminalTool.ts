@@ -763,6 +763,34 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			}));
 		}
 
+		// Set up BROWSER env var interception - demote to background when browser is called
+		let browserUrl: string | undefined;
+		let browserOpenResolve: (() => void) | undefined;
+		const browserOpenPromise = new Promise<void>(resolve => {
+			browserOpenResolve = resolve;
+		});
+		store.add(this._terminalService.onDidRequestBrowserOpen(e => {
+			// Check if this is for our terminal by matching persistent process ID
+			const persistentProcessId = toolTerminal.instance.persistentProcessId;
+			if (persistentProcessId !== undefined && e.persistentProcessId === persistentProcessId) {
+				browserUrl = e.url;
+				this._logService.debug(`RunInTerminalTool: BROWSER called with URL=${browserUrl}, demoting to background`);
+
+				const execution = RunInTerminalTool._activeExecutions.get(termId);
+				if (execution) {
+					execution.setBackground();
+				}
+				didMoveToBackground = true;
+				toolTerminal.isBackground = true;
+
+				// Resolve the browser open request to unblock the script
+				e.resolve();
+
+				// Resolve the race promise to return early with browser info
+				browserOpenResolve?.();
+			}
+		}));
+
 		let executionPromise: Promise<ITerminalExecuteStrategyResult> | undefined;
 		try {
 			// Create unified ActiveTerminalExecution (creates and owns the strategy)
@@ -841,16 +869,24 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					}],
 				};
 			} else {
-				// Foreground mode: race execution completion against continue in background
+				// Foreground mode: race execution completion against continue in background or browser open
 				const raceResult = await Promise.race([
 					executionPromise.then(result => ({ type: 'completed' as const, result })),
-					continueInBackgroundPromise.then(() => ({ type: 'background' as const }))
+					continueInBackgroundPromise.then(() => ({ type: 'background' as const })),
+					browserOpenPromise.then(() => ({ type: 'browserOpen' as const }))
 				]);
 
 				if (raceResult.type === 'background') {
 					// Moved to background - execution continues running, just return current output
 					this._logService.debug(`RunInTerminalTool: Continue in background triggered, returning output collected so far`);
 					error = 'continueInBackground';
+					const backgroundOutput = execution.getOutput();
+					outputLineCount = backgroundOutput ? count(backgroundOutput.trim(), '\n') + 1 : 0;
+					terminalResult = backgroundOutput;
+				} else if (raceResult.type === 'browserOpen') {
+					// Browser was called - execution continues running in background, return URL info
+					this._logService.debug(`RunInTerminalTool: Browser open triggered with URL=${browserUrl}, returning output collected so far`);
+					error = 'browserOpen';
 					const backgroundOutput = execution.getOutput();
 					outputLineCount = backgroundOutput ? count(backgroundOutput.trim(), '\n') + 1 : 0;
 					terminalResult = backgroundOutput;
@@ -983,7 +1019,10 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		} else if (didToolEditCommand) {
 			resultText.push(`Note: The tool simplified the command to \`${command}\`, and this is the output of running that command instead:\n`);
 		}
-		if (didMoveToBackground && !args.isBackground) {
+		if (browserUrl) {
+			resultText.push(`Note: The command requested to open a URL in the browser: ${browserUrl}\n`);
+			resultText.push(`The terminal was moved to background with ID ${termId}.\n`);
+		} else if (didMoveToBackground && !args.isBackground) {
 			resultText.push(`Note: This terminal execution was moved to the background using the ID ${termId}\n`);
 		}
 		resultText.push(terminalResult);

@@ -181,6 +181,8 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'open-url': { type: 'boolean' },
 	'file-write': { type: 'boolean' },
 	'file-chmod': { type: 'boolean' },
+	'browser-open': { type: 'string' },
+	'browser-terminal-id': { type: 'string' },
 	'install-builtin-extension': { type: 'string[]' },
 	'force': { type: 'boolean' },
 	'do-not-sync': { type: 'boolean' },

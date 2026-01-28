@@ -119,6 +119,8 @@ export interface NativeParsedArgs {
 	'skip-add-to-recently-opened'?: boolean;
 	'file-write'?: boolean;
 	'file-chmod'?: boolean;
+	'browser-open'?: string;
+	'browser-terminal-id'?: string;
 	'enable-smoke-test-driver'?: boolean;
 	'remote'?: string;
 	'force'?: boolean;

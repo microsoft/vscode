@@ -143,6 +143,49 @@ export async function main(argv: string[]): Promise<void> {
 		return;
 	}
 
+	// Browser Open (for terminal BROWSER env var interception)
+	else if (args['browser-open']) {
+		console.log('Starting browser open request from CLI...');
+		const url = args['browser-open'];
+		const terminalId = args['browser-terminal-id'];
+
+		// Connect to running VS Code instance and send browser open request
+		const { connect } = await import('../../base/parts/ipc/node/ipc.net.js');
+		const { createStaticIPCHandle } = await import('../../base/parts/ipc/node/ipc.net.js');
+		const { ProxyChannel } = await import('../../base/parts/ipc/common/ipc.js');
+
+		// Compute the IPC handle path (same as VS Code main process)
+		const userDataPath = args['user-data-dir'] || join(homedir(), product.dataFolderName);
+		const mainIPCHandle = createStaticIPCHandle(userDataPath, 'main', product.version);
+
+		try {
+			const client = await connect(mainIPCHandle, 'browser-open');
+			const launchService = ProxyChannel.toService<{ browserOpen(args: { url: string; terminalId?: string; waitMarkerFilePath?: string }): Promise<void> }>(client.getChannel('launch'), { disableMarshalling: true });
+
+			// Create wait marker file if --wait is specified
+			let waitMarkerFilePath: string | undefined;
+			if (args.wait) {
+				waitMarkerFilePath = createWaitMarkerFileSync(args.verbose);
+			}
+
+			await launchService.browserOpen({ url, terminalId, waitMarkerFilePath });
+
+			// If waiting, block until the marker file is deleted
+			if (waitMarkerFilePath) {
+				await whenDeleted(waitMarkerFilePath);
+			}
+
+			client.dispose();
+		} catch (error) {
+			// If we can't connect to VS Code, fall back to opening in system browser
+			console.error('Could not connect to VS Code, opening in system browser:', error);
+			const { shell } = await import('electron');
+			shell.openExternal(url);
+		}
+
+		return;
+	}
+
 	// Write File
 	else if (args['file-write']) {
 		const argsFile = args._[0];

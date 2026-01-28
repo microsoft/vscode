@@ -33,6 +33,7 @@ import * as performance from '../../../base/common/performance.js';
 import pkg from '@xterm/headless';
 import { AutoRepliesPtyServiceContribution } from './terminalContrib/autoReplies/autoRepliesContribController.js';
 import { hasKey, isFunction, isNumber, isString } from '../../../base/common/types.js';
+import { FileAccess } from '../../../base/common/network.js';
 
 type XtermTerminal = pkg.Terminal;
 const { Terminal: XtermTerminal } = pkg;
@@ -157,6 +158,16 @@ export class PtyService extends Disposable implements IPtyService {
 
 		this._contributions = [this._autoRepliesContribution];
 
+	}
+
+	/**
+	 * Gets the path to the VS Code CLI executable.
+	 * Adapted from nativeHostMainService.ts cliPath getter.
+	 */
+	@memoize
+	private get _cliPath(): string {
+		// TOOD: make it work without hard-coding
+		return '/Users/skn0tt/dev/microsoft/vscode/scripts/code-cli.sh';
 	}
 
 	@traceRpc
@@ -313,7 +324,15 @@ export class PtyService extends Disposable implements IPtyService {
 		if (shellLaunchConfig.attachPersistentProcess) {
 			throw new Error('Attempt to create a process when attach object was provided');
 		}
+
 		const id = ++this._lastPtyId;
+
+		// Setup BROWSER environment variable interception if requested
+		// We pass the persistent process ID explicitly so VS Code can identify the terminal
+		if (shellLaunchConfig.hookIntoBrowser) {
+			const browserOpenScript = FileAccess.asFileUri('vs/workbench/contrib/terminal/common/scripts/browser-open-local.sh').fsPath;
+			env.BROWSER = `"${browserOpenScript}" "${this._cliPath}" ${id}`;
+		}
 		const process = new TerminalProcess(shellLaunchConfig, cwd, cols, rows, env, executableEnv, options, this._logService, this._productService);
 		const processLaunchOptions: IPersistentTerminalProcessLaunchConfig = {
 			env,

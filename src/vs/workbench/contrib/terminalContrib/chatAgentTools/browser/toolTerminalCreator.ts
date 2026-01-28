@@ -168,6 +168,7 @@ export class ToolTerminalCreator {
 			hideFromUser: true,
 			forcePersist: true,
 			env,
+			hookIntoBrowser: true,
 		};
 
 		if (isString(shellOrProfile)) {
