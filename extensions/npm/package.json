@@ -373,6 +373,16 @@
           "lineMatcher": "Did you mean (?:this|one of these)\\?((?:\\n.+?npm .+ #.+)+)",
           "offset": 2
         }
+      },
+      {
+        "id": "ms-vscode.npm-audit",
+        "commandLineMatcher": "npm",
+        "outputMatcher": {
+          "anchor": "bottom",
+          "length": 20,
+          "lineMatcher": "vulnerabilities([\\s\\S]{0,2000})",
+          "offset": 0
+        }
       }
     ]
   },
