@@ -31,6 +31,7 @@ import { IExtHostRpcService } from './extHostRpcService.js';
 import * as typeConvert from './extHostTypeConverters.js';
 import { Diagnostic } from './extHostTypeConverters.js';
 import * as extHostTypes from './extHostTypes.js';
+import * as objects from '../../../base/common/objects.js';
 
 type ChatSessionTiming = vscode.ChatSessionItem['timing'];
 
@@ -46,6 +47,7 @@ class ChatSessionItemImpl implements vscode.ChatSessionItem {
 	#tooltip?: string | vscode.MarkdownString;
 	#timing?: ChatSessionTiming;
 	#changes?: readonly vscode.ChatSessionChangedFile[];
+	#metadata?: { readonly [key: string]: unknown };
 	#onChanged: () => void;
 
 	readonly resource: vscode.Uri;
@@ -151,6 +153,17 @@ class ChatSessionItemImpl implements vscode.ChatSessionItem {
 	set changes(value: readonly vscode.ChatSessionChangedFile[] | undefined) {
 		if (this.#changes !== value) {
 			this.#changes = value;
+			this.#onChanged();
+		}
+	}
+
+	get metadata(): { readonly [key: string]: unknown } | undefined {
+		return this.#metadata;
+	}
+
+	set metadata(value: { readonly [key: string]: unknown } | undefined) {
+		if (!objects.equals(this.#metadata, value)) {
+			this.#metadata = value;
 			this.#onChanged();
 		}
 	}
@@ -479,6 +492,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 				lastRequestEnded,
 			},
 			changes: sessionContent.changes instanceof Array ? sessionContent.changes : undefined,
+			metadata: sessionContent.metadata,
 		};
 	}
 
