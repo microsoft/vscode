@@ -268,6 +268,12 @@ export function validateExtensionManifest(productVersion: string, productDate: P
 			return validations;
 		}
 	}
+	if (typeof extensionManifest.extensionAffinity !== 'undefined') {
+		if (!isStringArray(extensionManifest.extensionAffinity)) {
+			validations.push([Severity.Error, nls.localize('extensionDescription.extensionAffinity', "property `{0}` can be omitted or must be of type `string[]`", 'extensionAffinity')]);
+			return validations;
+		}
+	}
 	if (typeof extensionManifest.activationEvents !== 'undefined') {
 		if (!isStringArray(extensionManifest.activationEvents)) {
 			validations.push([Severity.Error, nls.localize('extensionDescription.activationEvents1', "property `{0}` can be omitted or must be of type `string[]`", 'activationEvents')]);

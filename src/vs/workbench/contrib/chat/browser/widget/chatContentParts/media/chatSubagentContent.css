@@ -28,6 +28,12 @@
 			margin-left: 2px;
 			padding-left: 2px;
 		}
+
+		/* Hide the border for subagent prompt/result sections */
+		.chat-used-context-list {
+			border: none;
+			padding: 0px 2px;
+		}
 	}
 
 	.chat-thinking-tool-wrapper {
@@ -40,6 +46,11 @@
 		/* renable icons in confirmation widget */
 		.chat-confirmation-widget-container .codicon:not(.codicon-terminal) {
 			display: inline-flex;
+		}
+
+		/* Remove padding from tool invocation part when it displays a confirmation widget */
+		.chat-tool-invocation-part.has-confirmation {
+			padding: 4px;
 		}
 
 		.chat-collapsible-markdown-content {

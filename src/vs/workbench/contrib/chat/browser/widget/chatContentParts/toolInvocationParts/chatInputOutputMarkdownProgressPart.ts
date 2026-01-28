@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ProgressBar } from '../../../../../../../base/browser/ui/progressbar/progressbar.js';
-import { decodeBase64 } from '../../../../../../../base/common/buffer.js';
 import { Emitter } from '../../../../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { Lazy } from '../../../../../../../base/common/lazy.js';
@@ -101,18 +100,16 @@ export class ChatInputOutputMarkdownProgressPart extends BaseChatToolInvocationS
 					} else if (o.isText && !o.asResource) {
 						return createCodePart(o.value);
 					} else {
-						let decoded: Uint8Array | undefined;
-						try {
-							if (!o.isText) {
-								decoded = decodeBase64(o.value).buffer;
-							}
-						} catch {
-							// ignored
-						}
-
-						// Fall back to text if it's not valid base64
+						// Defer base64 decoding to avoid expensive decode during scroll.
+						// The value will be decoded lazily in ChatToolOutputContentSubPart.
 						const permalinkUri = ChatResponseResource.createUri(context.element.sessionResource, toolInvocation.toolCallId, i, permalinkBasename);
-						return { kind: 'data', value: decoded || new TextEncoder().encode(o.value), mimeType: o.mimeType, uri: permalinkUri, audience: o.audience };
+						if (!o.isText) {
+							// Pass base64 string for lazy decoding
+							return { kind: 'data', base64Value: o.value, mimeType: o.mimeType, uri: permalinkUri, audience: o.audience };
+						} else {
+							// Text content: encode immediately since it's not expensive
+							return { kind: 'data', value: new TextEncoder().encode(o.value), mimeType: o.mimeType, uri: permalinkUri, audience: o.audience };
+						}
 					}
 				}),
 			} : undefined,

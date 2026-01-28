@@ -236,6 +236,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			'Get-Date': true,
 			'Get-Random': true,
 			'Get-Location': true,
+			'Set-Location': true,
 			'Write-Host': true,
 			'Write-Output': true,
 			'Out-String': true,
@@ -617,7 +618,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 	[TerminalChatAgentToolsSettingId.EnforceTimeoutFromModel]: {
 		restricted: true,
 		type: 'boolean',
-		default: false,
+		default: true,
 		tags: ['experimental'],
 		experiment: {
 			mode: 'auto'

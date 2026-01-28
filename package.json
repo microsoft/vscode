@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.109.0",
-  "distro": "6a99d1523914b4c2a7f354c085188a82aa38bb0e",
+  "distro": "ce54912c8b9b4ad03645ec984f7fb9e0a6247c32",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -42,7 +42,6 @@
     "mixin-telemetry-docs": "node build/npm/mixin-telemetry-docs.ts",
     "smoketest": "node build/lib/preLaunch.ts && cd test/smoke && npm run compile && node test/index.js",
     "smoketest-no-compile": "cd test/smoke && node test/index.js",
-    "sanity-test": "cd test/sanity && npm run compile && node out/index.js",
     "download-builtin-extensions": "node build/lib/builtInExtensions.ts",
     "download-builtin-extensions-cg": "node build/lib/builtInExtensionsCG.ts",
     "monaco-compile-check": "tsgo --project src/tsconfig.monaco.json --noEmit",
@@ -76,8 +75,9 @@
     "@anthropic-ai/sandbox-runtime": "0.0.23",
     "@microsoft/1ds-core-js": "^3.2.13",
     "@microsoft/1ds-post-js": "^3.2.13",
-    "@parcel/watcher": "^2.5.4",
+    "@parcel/watcher": "^2.5.6",
     "@types/semver": "^7.5.8",
+    "@vscode/codicons": "^0.0.45-0",
     "@vscode/deviceid": "^0.1.1",
     "@vscode/iconv-lite-umd": "0.7.1",
     "@vscode/native-watchdog": "^1.4.6",
@@ -117,7 +117,7 @@
     "v8-inspect-profiler": "^0.1.1",
     "vscode-oniguruma": "1.7.0",
     "vscode-regexpp": "^3.1.0",
-    "vscode-textmate": "^9.3.1",
+    "vscode-textmate": "^9.3.2",
     "yauzl": "^3.0.0",
     "yazl": "^2.4.3"
   },
@@ -162,7 +162,7 @@
     "css-loader": "^6.9.1",
     "debounce": "^1.0.0",
     "deemon": "^1.13.6",
-    "electron": "39.2.7",
+    "electron": "39.3.0",
     "eslint": "^9.36.0",
     "eslint-formatter-compact": "^8.40.0",
     "eslint-plugin-header": "3.1.1",

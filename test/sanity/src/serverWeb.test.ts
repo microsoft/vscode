@@ -4,90 +4,70 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { spawn } from 'child_process';
-import { test } from 'mocha';
-import os from 'os';
-import { TestContext } from './context';
-import { UITest } from './uiTest';
+import { TestContext } from './context.js';
+import { UITest } from './uiTest.js';
 
 export function setup(context: TestContext) {
-	if (context.skipRuntimeCheck || context.platform === 'linux-arm64') {
-		test('server-web-alpine-arm64', async () => {
-			const dir = await context.downloadAndUnpack('server-alpine-arm64-web');
-			const entryPoint = context.getServerEntryPoint(dir);
-			await testServer(entryPoint);
-		});
-	}
+	context.test('server-web-alpine-arm64', ['alpine', 'arm64', 'browser'], async () => {
+		const dir = await context.downloadAndUnpack('server-alpine-arm64-web');
+		const entryPoint = context.getServerEntryPoint(dir);
+		await testServer(entryPoint);
+	});
 
-	if (context.skipRuntimeCheck || context.platform === 'linux-x64') {
-		test('server-web-alpine-x64', async () => {
-			const dir = await context.downloadAndUnpack('server-linux-alpine-web');
-			const entryPoint = context.getServerEntryPoint(dir);
-			await testServer(entryPoint);
-		});
-	}
+	context.test('server-web-alpine-x64', ['alpine', 'x64', 'browser'], async () => {
+		const dir = await context.downloadAndUnpack('server-linux-alpine-web');
+		const entryPoint = context.getServerEntryPoint(dir);
+		await testServer(entryPoint);
+	});
 
-	if (context.skipRuntimeCheck || context.platform === 'darwin-arm64') {
-		test('server-web-darwin-arm64', async () => {
-			const dir = await context.downloadAndUnpack('server-darwin-arm64-web');
-			context.validateAllCodesignSignatures(dir);
-			const entryPoint = context.getServerEntryPoint(dir);
-			await testServer(entryPoint);
-		});
-	}
+	context.test('server-web-darwin-arm64', ['darwin', 'arm64', 'browser'], async () => {
+		const dir = await context.downloadAndUnpack('server-darwin-arm64-web');
+		context.validateAllCodesignSignatures(dir);
+		const entryPoint = context.getServerEntryPoint(dir);
+		await testServer(entryPoint);
+	});
 
-	if (context.skipRuntimeCheck || context.platform === 'darwin-x64') {
-		test('server-web-darwin-x64', async () => {
-			const dir = await context.downloadAndUnpack('server-darwin-web');
-			context.validateAllCodesignSignatures(dir);
-			const entryPoint = context.getServerEntryPoint(dir);
-			await testServer(entryPoint);
-		});
-	}
+	context.test('server-web-darwin-x64', ['darwin', 'x64', 'browser'], async () => {
+		const dir = await context.downloadAndUnpack('server-darwin-web');
+		context.validateAllCodesignSignatures(dir);
+		const entryPoint = context.getServerEntryPoint(dir);
+		await testServer(entryPoint);
+	});
 
-	if (context.skipRuntimeCheck || context.platform === 'linux-arm64') {
-		test('server-web-linux-arm64', async () => {
-			const dir = await context.downloadAndUnpack('server-linux-arm64-web');
-			const entryPoint = context.getServerEntryPoint(dir);
-			await testServer(entryPoint);
-		});
-	}
+	context.test('server-web-linux-arm64', ['linux', 'arm64', 'browser'], async () => {
+		const dir = await context.downloadAndUnpack('server-linux-arm64-web');
+		const entryPoint = context.getServerEntryPoint(dir);
+		await testServer(entryPoint);
+	});
 
-	if (context.skipRuntimeCheck || context.platform === 'linux-arm') {
-		test('server-web-linux-armhf', async () => {
-			const dir = await context.downloadAndUnpack('server-linux-armhf-web');
-			const entryPoint = context.getServerEntryPoint(dir);
-			await testServer(entryPoint);
-		});
-	}
+	context.test('server-web-linux-armhf', ['linux', 'arm32', 'browser'], async () => {
+		const dir = await context.downloadAndUnpack('server-linux-armhf-web');
+		const entryPoint = context.getServerEntryPoint(dir);
+		await testServer(entryPoint);
+	});
 
-	if (context.skipRuntimeCheck || context.platform === 'linux-x64') {
-		test('server-web-linux-x64', async () => {
-			const dir = await context.downloadAndUnpack('server-linux-x64-web');
-			const entryPoint = context.getServerEntryPoint(dir);
-			await testServer(entryPoint);
-		});
-	}
+	context.test('server-web-linux-x64', ['linux', 'x64', 'browser'], async () => {
+		const dir = await context.downloadAndUnpack('server-linux-x64-web');
+		const entryPoint = context.getServerEntryPoint(dir);
+		await testServer(entryPoint);
+	});
 
-	if (context.skipRuntimeCheck || context.platform === 'win32-arm64') {
-		test('server-web-win32-arm64', async () => {
-			const dir = await context.downloadAndUnpack('server-win32-arm64-web');
-			context.validateAllAuthenticodeSignatures(dir);
-			const entryPoint = context.getServerEntryPoint(dir);
-			await testServer(entryPoint);
-		});
-	}
+	context.test('server-web-win32-arm64', ['windows', 'arm64', 'browser'], async () => {
+		const dir = await context.downloadAndUnpack('server-win32-arm64-web');
+		context.validateAllAuthenticodeSignatures(dir);
+		const entryPoint = context.getServerEntryPoint(dir);
+		await testServer(entryPoint);
+	});
 
-	if (context.skipRuntimeCheck || context.platform === 'win32-x64') {
-		test('server-web-win32-x64', async () => {
-			const dir = await context.downloadAndUnpack('server-win32-x64-web');
-			context.validateAllAuthenticodeSignatures(dir);
-			const entryPoint = context.getServerEntryPoint(dir);
-			await testServer(entryPoint);
-		});
-	}
+	context.test('server-web-win32-x64', ['windows', 'x64', 'browser'], async () => {
+		const dir = await context.downloadAndUnpack('server-win32-x64-web');
+		context.validateAllAuthenticodeSignatures(dir);
+		const entryPoint = context.getServerEntryPoint(dir);
+		await testServer(entryPoint);
+	});
 
 	async function testServer(entryPoint: string) {
-		if (context.skipRuntimeCheck) {
+		if (context.options.downloadOnly) {
 			return;
 		}
 
@@ -95,7 +75,7 @@ export function setup(context: TestContext) {
 		const test = new UITest(context);
 		const args = [
 			'--accept-server-license-terms',
-			'--port', context.getRandomPort(),
+			'--port', context.getUniquePort(),
 			'--connection-token', token,
 			'--server-data-dir', context.createTempDir(),
 			'--extensions-dir', test.extensionsDir,
@@ -103,12 +83,16 @@ export function setup(context: TestContext) {
 		];
 
 		context.log(`Starting server ${entryPoint} with args ${args.join(' ')}`);
-		const server = spawn(entryPoint, args, { shell: true, detached: os.platform() !== 'win32' });
+		const detached = !context.capabilities.has('windows');
+		const server = spawn(entryPoint, args, { shell: true, detached });
 
 		let testError: Error | undefined;
 
 		server.stderr.on('data', (data) => {
-			context.error(`[Server Error] ${data.toString().trim()}`);
+			const text = data.toString().trim();
+			if (!/ECONNRESET/.test(text)) {
+				context.error(`[Server Error] ${text}`);
+			}
 		});
 
 		server.stdout.on('data', (data) => {
@@ -138,7 +122,7 @@ export function setup(context: TestContext) {
 
 	async function runUITest(url: string, test: UITest) {
 		const browser = await context.launchBrowser();
-		const page = await browser.newPage();
+		const page = await context.getPage(browser.newPage());
 
 		context.log(`Navigating to ${url}`);
 		await page.goto(url, { waitUntil: 'networkidle' });

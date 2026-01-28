@@ -14,9 +14,11 @@ import { IKeybindingService } from '../../../../../platform/keybinding/common/ke
 import { ActionWidgetDropdownActionViewItem } from '../../../../../platform/actions/browser/actionWidgetDropdownActionViewItem.js';
 import { IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem } from '../../common/chatSessionsService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { renderLabelWithIcons, renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { localize } from '../../../../../nls.js';
+import { URI } from '../../../../../base/common/uri.js';
 
 
 export interface IChatSessionPickerDelegate {
@@ -24,6 +26,7 @@ export interface IChatSessionPickerDelegate {
 	getCurrentOption(): IChatSessionProviderOptionItem | undefined;
 	setOption(option: IChatSessionProviderOptionItem): void;
 	getOptionGroup(): IChatSessionProviderOptionGroup | undefined;
+	getSessionResource: () => URI | undefined;
 }
 
 /**
@@ -42,6 +45,7 @@ export class ChatSessionPickerActionItem extends ActionWidgetDropdownActionViewI
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@ICommandService protected readonly commandService: ICommandService,
+		@ITelemetryService telemetryService: ITelemetryService,
 	) {
 		const { group, item } = initialState;
 		const actionWithLabel: IAction = {
@@ -56,9 +60,10 @@ export class ChatSessionPickerActionItem extends ActionWidgetDropdownActionViewI
 				getActions: () => this.getDropdownActions()
 			},
 			actionBarActionProvider: undefined,
+			reporter: { name: `ChatSession:${group.name}`, includeOptions: false },
 		};
 
-		super(actionWithLabel, sessionPickerActionWidgetOptions, actionWidgetService, keybindingService, contextKeyService);
+		super(actionWithLabel, sessionPickerActionWidgetOptions, actionWidgetService, keybindingService, contextKeyService, telemetryService);
 		this.currentOption = item;
 
 		this._register(this.delegate.onDidChangeOption(newOption => {
@@ -106,6 +111,11 @@ export class ChatSessionPickerActionItem extends ActionWidgetDropdownActionViewI
 		if (group.commands?.length) {
 			const addSeparator = actions.length > 0;
 			for (const command of group.commands) {
+				const args = command.arguments ? [...command.arguments] : [];
+				const sessionResource = this.delegate.getSessionResource();
+				if (sessionResource) {
+					args.unshift(sessionResource);
+				}
 				actions.push({
 					id: command.command,
 					enabled: true,
@@ -117,7 +127,7 @@ export class ChatSessionPickerActionItem extends ActionWidgetDropdownActionViewI
 					// Use category to create a separator before commands (only if there are options)
 					category: addSeparator ? { label: '', order: Number.MAX_SAFE_INTEGER } : undefined,
 					run: () => {
-						this.commandService.executeCommand(command.command, ...(command.arguments ?? []));
+						this.commandService.executeCommand(command.command, ...args);
 					}
 				} satisfies IActionWidgetDropdownAction);
 			}

@@ -60,7 +60,8 @@ export function annotateSpecialMarkdownContent(response: Iterable<IChatProgressR
 		} else if (item.kind === 'codeblockUri') {
 			if (previousItem?.kind === 'markdownContent') {
 				const isEditText = item.isEdit ? ` isEdit` : '';
-				const markdownText = `<vscode_codeblock_uri${isEditText}>${item.uri.toString()}</vscode_codeblock_uri>`;
+				const subAgentText = item.subAgentInvocationId ? ` subAgentInvocationId="${encodeURIComponent(item.subAgentInvocationId)}"` : '';
+				const markdownText = `<vscode_codeblock_uri${isEditText}${subAgentText}>${item.uri.toString()}</vscode_codeblock_uri>`;
 				const merged = appendMarkdownString(previousItem.content, new MarkdownString(markdownText));
 				// delete the previous and append to ensure that we don't reorder the edit before the undo stop containing it
 				result.splice(previousItemIndex, 1);
@@ -79,14 +80,34 @@ export interface IMarkdownVulnerability {
 	readonly description: string;
 	readonly range: IRange;
 }
-export function extractCodeblockUrisFromText(text: string): { uri: URI; isEdit?: boolean; textWithoutResult: string } | undefined {
-	const match = /<vscode_codeblock_uri( isEdit)?>(.*?)<\/vscode_codeblock_uri>/ms.exec(text);
+export function extractCodeblockUrisFromText(text: string): { uri: URI; isEdit?: boolean; subAgentInvocationId?: string; textWithoutResult: string } | undefined {
+	const match = /<vscode_codeblock_uri( isEdit)?( subAgentInvocationId="([^"]*)")?>([\s\S]*?)<\/vscode_codeblock_uri>/ms.exec(text);
 	if (match) {
-		const [all, isEdit, uriString] = match;
+		const [all, isEdit, , encodedSubAgentId, uriString] = match;
 		if (uriString) {
 			const result = URI.parse(uriString);
 			const textWithoutResult = text.substring(0, match.index) + text.substring(match.index + all.length);
-			return { uri: result, textWithoutResult, isEdit: !!isEdit };
+			let subAgentInvocationId: string | undefined;
+			if (encodedSubAgentId) {
+				try {
+					subAgentInvocationId = decodeURIComponent(encodedSubAgentId);
+				} catch {
+					subAgentInvocationId = encodedSubAgentId;
+				}
+			}
+			return { uri: result, textWithoutResult, isEdit: !!isEdit, subAgentInvocationId };
+		}
+	}
+	return undefined;
+}
+
+export function extractSubAgentInvocationIdFromText(text: string): string | undefined {
+	const match = /<vscode_codeblock_uri[^>]* subAgentInvocationId="([^"]*)"/ms.exec(text);
+	if (match) {
+		try {
+			return decodeURIComponent(match[1]);
+		} catch {
+			return match[1];
 		}
 	}
 	return undefined;

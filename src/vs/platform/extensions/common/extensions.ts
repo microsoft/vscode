@@ -312,6 +312,7 @@ export interface IRelaxedExtensionManifest {
 	keywords?: string[];
 	activationEvents?: readonly string[];
 	extensionDependencies?: string[];
+	extensionAffinity?: string[];
 	extensionPack?: string[];
 	extensionKind?: ExtensionKind | ExtensionKind[];
 	contributes?: IExtensionContributions;

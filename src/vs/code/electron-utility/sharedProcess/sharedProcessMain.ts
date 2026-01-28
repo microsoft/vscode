@@ -132,7 +132,6 @@ import { McpManagementChannel } from '../../../platform/mcp/common/mcpManagement
 import { AllowedMcpServersService } from '../../../platform/mcp/common/allowedMcpServersService.js';
 import { IMcpGalleryManifestService } from '../../../platform/mcp/common/mcpGalleryManifest.js';
 import { McpGalleryManifestIPCService } from '../../../platform/mcp/common/mcpGalleryManifestServiceIpc.js';
-import { UserDataProfileTemplatesWatcher } from '../../../platform/userDataProfile/common/userDataProfileTemplateWatcher.js';
 
 class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 
@@ -198,8 +197,7 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 			instantiationService.createInstance(LocalizationsUpdater),
 			instantiationService.createInstance(ExtensionsContributions),
 			instantiationService.createInstance(UserDataProfilesCleaner),
-			instantiationService.createInstance(DefaultExtensionsInitializer),
-			instantiationService.createInstance(UserDataProfileTemplatesWatcher)
+			instantiationService.createInstance(DefaultExtensionsInitializer)
 		));
 	}
 

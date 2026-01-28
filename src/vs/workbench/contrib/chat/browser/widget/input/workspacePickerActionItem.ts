@@ -15,6 +15,7 @@ import { IActionWidgetDropdownAction, IActionWidgetDropdownActionProvider, IActi
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
+import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { ChatInputPickerActionViewItem, IChatInputPickerOptions } from './chatInputPickerActionItem.js';
 import { IWorkspacePickerDelegate } from '../../chat.js';
 import { IActionProvider } from '../../../../../../base/browser/ui/dropdown/dropdown.js';
@@ -34,6 +35,7 @@ export class WorkspacePickerActionItem extends ChatInputPickerActionViewItem {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ICommandService private readonly commandService: ICommandService,
+		@ITelemetryService telemetryService: ITelemetryService,
 	) {
 		const actionProvider: IActionWidgetDropdownActionProvider = {
 			getActions: () => {
@@ -81,9 +83,10 @@ export class WorkspacePickerActionItem extends ChatInputPickerActionViewItem {
 			actionProvider,
 			actionBarActionProvider,
 			showItemKeybindings: false,
+			reporter: { name: 'ChatWorkspacePicker', includeOptions: false },
 		};
 
-		super(action, workspacePickerOptions, pickerOptions, actionWidgetService, keybindingService, contextKeyService);
+		super(action, workspacePickerOptions, pickerOptions, actionWidgetService, keybindingService, contextKeyService, telemetryService);
 
 		this._register(this.delegate.onDidChangeSelectedWorkspace(() => {
 			if (this.element) {

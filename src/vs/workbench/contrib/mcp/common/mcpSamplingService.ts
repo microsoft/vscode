@@ -18,7 +18,7 @@ import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
-import { ChatAgentLocation } from '../../chat/common/constants.js';
+import { ChatAgentLocation, ChatConfiguration } from '../../chat/common/constants.js';
 import { ChatImageMimeType, ChatMessageRole, IChatMessage, IChatMessagePart, ILanguageModelsService } from '../../chat/common/languageModels.js';
 import { McpCommandIds } from './mcpCommandIds.js';
 import { IMcpServerSamplingConfiguration, mcpServerSamplingSection } from './mcpConfiguration.js';
@@ -126,8 +126,14 @@ export class McpSamplingService extends Disposable implements IMcpSamplingServic
 
 	private async _getMatchingModel(opts: ISamplingOptions): Promise<string> {
 		const model = await this._getMatchingModelInner(opts.server, opts.isDuringToolCall, opts.params.modelPreferences);
+		const globalAutoApprove = this._configurationService.getValue<boolean>(ChatConfiguration.GlobalAutoApprove);
 
 		if (model === ModelMatch.UnsureAllowedDuringChat) {
+			// In YOLO mode, auto-approve MCP sampling requests without prompting
+			if (globalAutoApprove) {
+				this._sessionSets.allowedDuringChat.set(opts.server.definition.id, true);
+				return this._getMatchingModel(opts);
+			}
 			const retry = await this._showContextual(
 				opts.isDuringToolCall,
 				localize('mcp.sampling.allowDuringChat.title', 'Allow MCP tools from "{0}" to make LLM requests?', opts.server.definition.label),
@@ -139,6 +145,11 @@ export class McpSamplingService extends Disposable implements IMcpSamplingServic
 			}
 			throw McpError.notAllowed();
 		} else if (model === ModelMatch.UnsureAllowedOutsideChat) {
+			// In YOLO mode, auto-approve MCP sampling requests without prompting
+			if (globalAutoApprove) {
+				this._sessionSets.allowedOutsideChat.set(opts.server.definition.id, true);
+				return this._getMatchingModel(opts);
+			}
 			const retry = await this._showContextual(
 				opts.isDuringToolCall,
 				localize('mcp.sampling.allowOutsideChat.title', 'Allow MCP server "{0}" to make LLM requests?', opts.server.definition.label),

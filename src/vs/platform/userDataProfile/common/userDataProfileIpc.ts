@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from '../../../base/common/event.js';
-import { Disposable } from '../../../base/common/lifecycle.js';
 import { IChannel, IServerChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { URI, UriDto } from '../../../base/common/uri.js';
 import { DidChangeProfilesEvent, IUserDataProfile, IUserDataProfileOptions, IUserDataProfilesService, IUserDataProfileUpdateOptions, reviveProfile } from './userDataProfile.js';
 import { IAnyWorkspaceIdentifier } from '../../workspace/common/workspace.js';
 import { IURITransformer, transformIncomingURIs, transformOutgoingURIs } from '../../../base/common/uriIpc.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
 
 export class RemoteUserDataProfilesServiceChannel implements IServerChannel {
 
@@ -94,11 +94,6 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 		return reviveProfile(result, this.profilesHome.scheme);
 	}
 
-	async createSystemProfile(id: string): Promise<IUserDataProfile> {
-		const result = await this.channel.call<UriDto<IUserDataProfile>>('createSystemProfile', [id]);
-		return reviveProfile(result, this.profilesHome.scheme);
-	}
-
 	async createTransientProfile(workspaceIdentifier?: IAnyWorkspaceIdentifier): Promise<IUserDataProfile> {
 		const result = await this.channel.call<UriDto<IUserDataProfile>>('createTransientProfile', [workspaceIdentifier]);
 		return reviveProfile(result, this.profilesHome.scheme);
@@ -128,5 +123,4 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 	cleanUpTransientProfiles(): Promise<void> {
 		return this.channel.call('cleanUpTransientProfiles');
 	}
-
 }
