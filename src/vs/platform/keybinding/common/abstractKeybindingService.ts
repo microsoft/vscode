@@ -108,6 +108,16 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 		}
 	}
 
+	/**
+	 * Returns the command ID that is currently being dispatched via a keybinding,
+	 * or null if no command is currently being dispatched from a keybinding.
+	 * This can be used to distinguish between commands triggered by keybindings
+	 * versus commands triggered by UI actions.
+	 */
+	public get currentlyDispatchingCommandId(): string | null {
+		return this._currentlyDispatchingCommandId;
+	}
+
 	public getDefaultKeybindings(): readonly ResolvedKeybindingItem[] {
 		return this._getResolver().getDefaultKeybindings();
 	}
