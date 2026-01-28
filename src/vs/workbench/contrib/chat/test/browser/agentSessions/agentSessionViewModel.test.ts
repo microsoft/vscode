@@ -1400,9 +1400,8 @@ suite('AgentSessions', () => {
 			instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
 			instantiationService.stub(IChatSessionsService, mockChatSessionsService);
 			instantiationService.stub(ILifecycleService, disposables.add(new TestLifecycleService()));
-			// Set migration key to indicate migration has already happened
 			const storageService = instantiationService.get(IStorageService);
-			storageService.store('agentSessions.markAllReadMigration', 1, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+			storageService.store('agentSessions.readDateBaseline', 1, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		});
 
 		teardown(() => {
