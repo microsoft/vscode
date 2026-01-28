@@ -414,7 +414,6 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 		this.logger.logAllStatsIfTrace('Loaded cached sessions');
 
 		this.registerListeners();
-
 	}
 
 	private registerListeners(): void {
@@ -599,18 +598,37 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 			return true; // archived sessions are always read
 		}
 
-		const readDate = this.sessionStates.get(session.resource)?.read;
+		const readDate = Math.max(
+			this.sessionStates.get(session.resource)?.read ?? 0, 	// stored last read date
+			AgentSessionsModel.READ_STATE_INITIAL_DATE				// hardcoded date we pick as start
+		);
 
-		return (readDate ?? AgentSessionsModel.READ_STATE_INITIAL_DATE) >= (session.timing.lastRequestEnded ?? session.timing.lastRequestStarted ?? session.timing.created);
+		// Compare using sec precision to rule out minor differences
+		return Math.floor(readDate / 1000) >= Math.floor(this.sessionTimeForReadStateTracking(session) / 1000);
+	}
+
+	private sessionTimeForReadStateTracking(session: IInternalAgentSessionData): number {
+		return session.timing.lastRequestEnded ?? session.timing.lastRequestStarted ?? session.timing.created;
 	}
 
 	private setRead(session: IInternalAgentSessionData, read: boolean): void {
-		if (read === this.isRead(session)) {
-			return; // no change
+		const state = this.sessionStates.get(session.resource) ?? { archived: false, read: 0 };
+
+		let newRead: number;
+		if (read) {
+			newRead = Math.max(Date.now(), this.sessionTimeForReadStateTracking(session));
+
+			if (state.read >= newRead) {
+				return; // already read with a sufficient timestamp
+			}
+		} else {
+			newRead = 0;
+			if (state.read === 0) {
+				return; // already unread
+			}
 		}
 
-		const state = this.sessionStates.get(session.resource) ?? { archived: false, read: 0 };
-		this.sessionStates.set(session.resource, { ...state, read: read ? Date.now() : 0 });
+		this.sessionStates.set(session.resource, { ...state, read: newRead });
 
 		this._onDidChangeSessions.fire();
 	}

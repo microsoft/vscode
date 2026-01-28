@@ -24,7 +24,7 @@ import { TestInstantiationService } from '../../../../../../platform/instantiati
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { AgentSessionProviders, getAgentSessionProviderIcon, getAgentSessionProviderName } from '../../../browser/agentSessions/agentSessions.js';
 
-suite('Agent Sessions', () => {
+suite('AgentSessions', () => {
 
 	suite('AgentSessionsViewModel', () => {
 
@@ -1410,11 +1410,22 @@ suite('Agent Sessions', () => {
 
 		test('should mark session as read and unread', async () => {
 			return runWithFakedTimers({}, async () => {
+				// Create session with timing after READ_STATE_INITIAL_DATE so it can be marked unread
+				const futureSessionTiming: IChatSessionItem['timing'] = {
+					created: Date.UTC(2026, 1 /* February */, 1),
+					lastRequestStarted: Date.UTC(2026, 1 /* February */, 1),
+					lastRequestEnded: Date.UTC(2026, 1 /* February */, 2),
+				};
+
 				const provider: IChatSessionItemProvider = {
 					chatSessionType: 'test-type',
 					onDidChangeChatSessionItems: Event.None,
 					provideChatSessionItems: async () => [
-						makeSimpleSessionItem('session-1'),
+						{
+							resource: URI.parse('test://session-1'),
+							label: 'Session 1',
+							timing: futureSessionTiming,
+						},
 					]
 				};
 
@@ -1813,8 +1824,9 @@ suite('Agent Sessions', () => {
 				// Archive the session
 				session.setArchived(true);
 
-				// Should fire once (for archived state change only, not for read since already read)
-				assert.strictEqual(changeEventCount, 1);
+				// Should fire twice: once when setRead(true) stores explicit timestamp, once for archived state change
+				// Even though isRead() returns true due to initial date, setRead still stores explicit timestamp
+				assert.strictEqual(changeEventCount, 2);
 			});
 		});
 	});
