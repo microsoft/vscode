@@ -101,6 +101,7 @@ class TestBasics(unittest.TestCase):
         self.assertIsNone(model['cursorIdx'])
         self.assertFalse(model['dragging'])
         self.assertIsNone(model['extendDirection'])
+        self.assertIsNone(model['insertAfterSegment'])
         self.assertIsNone(model['stringValue'])
         self.assertEqual(model['undoHistory'], [])
         self.assertEqual(model['redoHistory'], [])
@@ -441,6 +442,43 @@ class TestExtendLeft(unittest.TestCase):
         self.source_code = "x = 'hello world'"
         self.source_line = 1
 
+    def test_click_immediately_left_of_literal_extends_with_fuzzy(self):
+        """Click char immediately left of literal selection extends it with fuzzy.
+
+        BUG: Previously clicking the char immediately to the left of a literal
+        selection would reset the selection instead of extending it.
+
+        For "hello world":
+            Augmented: 0=\\A, 1=^, 2=h, 3=e, 4=l, 5=l, 6=o, 7=' ', 8=w, 9=o, 10=r, 11=l, 12=d, 13=$, 14=\\Z
+
+        If we select "world" (indices 8-12), clicking on index 7 (the space immediately
+        to the left) should extend the selection to the left, not reset it.
+        """
+        # Select "world" (indices 8-12)
+        model, _ = update(make_mouse_down_event(8, top_half=True),
+                         self.source_code, self.source_line, self.model)
+        model, _ = update(make_mouse_move_event(12),
+                         self.source_code, self.source_line, model)
+        model, _ = update(make_mouse_up_event(12),
+                         self.source_code, self.source_line, model)
+
+        self.assertEqual(model['selectionRegex'], '/(world)/')
+
+        # Get start index - this is 8 (the 'w')
+        start_idx = get_first_segment_start_internal_idx(model['selectionRegex'], model['stringValue'])
+        self.assertEqual(start_idx, 8)
+
+        # Click on index 7 (the space immediately to the left) with fuzzy (bottom half)
+        # This should extend left, NOT reset the selection
+        model, _ = update(make_mouse_down_event(7, top_half=False),
+                         self.source_code, self.source_line, model)
+        model, _ = update(make_mouse_up_event(7),
+                         self.source_code, self.source_line, model)
+
+        # Should prepend fuzzy: /(.*)(world)/
+        self.assertEqual(model['selectionRegex'], '/(.*)(world)/')
+        self.assertEqual(model['undoHistory'], [None, '/(world)/'])
+
     def test_prepend_fuzzy_to_world(self):
         """Select 'world', then prepend fuzzy -> /(.*)(world)/."""
         # Select "world" (indices 8-12)
@@ -457,10 +495,10 @@ class TestExtendLeft(unittest.TestCase):
         start_idx = get_first_segment_start_internal_idx(model['selectionRegex'], model['stringValue'])
         self.assertEqual(start_idx, 8)
 
-        # Prepend with fuzzy
-        model, _ = update(make_mouse_down_event(start_idx, top_half=False),
+        # Prepend with fuzzy by clicking the char immediately to the left (start_idx - 1 = 7)
+        model, _ = update(make_mouse_down_event(start_idx - 1, top_half=False),
                          self.source_code, self.source_line, model)
-        model, _ = update(make_mouse_up_event(start_idx),
+        model, _ = update(make_mouse_up_event(start_idx - 1),
                          self.source_code, self.source_line, model)
 
         self.assertEqual(model['selectionRegex'], '/(.*)(world)/')
@@ -477,10 +515,11 @@ class TestExtendLeft(unittest.TestCase):
                          self.source_code, self.source_line, model)
 
         start_idx = get_first_segment_start_internal_idx(model['selectionRegex'], model['stringValue'])
+        self.assertEqual(start_idx, 8)
 
-        # Prepend by clicking at start and dragging left to index 6
-        # This selects indices 6, 7 = 'o', ' '
-        model, _ = update(make_mouse_down_event(start_idx, top_half=True),
+        # Prepend by clicking at the char immediately to the left (start_idx - 1 = 7)
+        # and dragging left to index 6. This selects indices 6, 7 = 'o', ' '
+        model, _ = update(make_mouse_down_event(start_idx - 1, top_half=True),
                          self.source_code, self.source_line, model)
         model, _ = update(make_mouse_move_event(6),
                          self.source_code, self.source_line, model)
@@ -545,6 +584,181 @@ class TestClickInsideFuzzy(unittest.TestCase):
         self.assertTrue(model['dragging'])
         self.assertEqual(model['anchorIdx'], click_idx)
         self.assertEqual(model['selectionRegex'], '/(hello)(.*)/')  # Still the old one
+
+    def test_anchor_fuzzy_with_literal_inside_appends_to_right(self):
+        """
+        BUG TEST: Clicking inside a fuzzy segment to anchor it with a literal
+        should produce the pattern in the correct order: (1)(.*)(2).
+
+        Where:
+        - (1) = first literal selection
+        - (2) = second literal selection (clicked inside fuzzy)
+
+        Scenario:
+        1. Select "hello" = (1) -> /(hello)/
+        2. Extend with fuzzy at end -> /(hello)(.*)/
+        3. Click inside the fuzzy region on "world" = (2)
+        
+        Expected: /(hello)(.*)(world)/ = (1)(.*)(2)
+        Bug would produce: /(.*)(world)(hello)/ = (.*)(2)(1) - WRONG ORDER!
+
+        The bug was that the literal was being added to the wrong position.
+        """
+        # For "hello world goodbye":
+        # Augmented: 0=\A, 1=^, 2=h, 3=e, 4=l, 5=l, 6=o, 7=' ', 8=w, 9=o, 10=r, 11=l, 12=d, 13=' ', 14=g, ...
+
+        # Step 1: Select "hello" (indices 2-6) = (1)
+        model, _ = update(make_mouse_down_event(2, top_half=True),
+                         self.source_code, self.source_line, self.model)
+        model, _ = update(make_mouse_move_event(6),
+                         self.source_code, self.source_line, model)
+        model, _ = update(make_mouse_up_event(6),
+                         self.source_code, self.source_line, model)
+
+        self.assertEqual(model['selectionRegex'], '/(hello)/')
+
+        # Step 2: Extend with fuzzy at end of hello
+        end_idx = get_last_segment_end_internal_idx(model['selectionRegex'], model['stringValue'])
+        self.assertEqual(end_idx, 7)
+        model, _ = update(make_mouse_down_event(end_idx, top_half=False),
+                         self.source_code, self.source_line, model)
+        model, _ = update(make_mouse_up_event(end_idx),
+                         self.source_code, self.source_line, model)
+
+        self.assertEqual(model['selectionRegex'], '/(hello)(.*)/')
+
+        # Step 3: Click inside the fuzzy on "world" (indices 8-12) = (2)
+        # This is a click-drag to select "world"
+        model, _ = update(make_mouse_down_event(8, top_half=True),
+                         self.source_code, self.source_line, model)
+        model, _ = update(make_mouse_move_event(12),
+                         self.source_code, self.source_line, model)
+        model, _ = update(make_mouse_up_event(12),
+                         self.source_code, self.source_line, model)
+
+        # Expected: (1)(.*)(2) = /(hello)(.*)(world)/
+        # Bug would produce: (.*)(2)(1) = /(.*)(world)(hello)/ - WRONG!
+        self.assertEqual(model['selectionRegex'], '/(hello)(.*)(world)/')
+        
+        # Verify segment order explicitly
+        highlights = parse_regex_for_highlighting(model['selectionRegex'], model['stringValue'])
+        # Should be: [(2, 7, 'literal'), (7, 8, 'fuzzy'), (8, 13, 'literal')]
+        # i.e., hello first, then fuzzy, then world
+        self.assertEqual(len(highlights), 3)
+        self.assertEqual(highlights[0][2], 'literal')  # hello
+        self.assertEqual(highlights[1][2], 'fuzzy')    # (.*)
+        self.assertEqual(highlights[2][2], 'literal')  # world
+
+    def test_anchor_leading_fuzzy_inserts_before_fuzzy_to_maintain_text_order(self):
+        """
+        BUG TEST: When clicking inside a LEADING fuzzy segment (segment index 0),
+        the new literal should be inserted BEFORE the fuzzy to maintain text order.
+
+        Scenario:
+        1. Select "world" -> /(world)/
+        2. Prepend with fuzzy (click left of "world") -> /(.*)(world)/
+        3. Click inside the leading fuzzy on "ello" -> should get /(ello)(.*)(world)/
+
+        The key insight: the new literal "ello" comes BEFORE "world" in the text,
+        so it should come before the fuzzy (which matches what's between them).
+
+        Bug was: /(.*)(ello)(world)/ - fuzzy wrongly before the literal
+        """
+        # For "hello world":
+        # Augmented: 0=\A, 1=^, 2=h, 3=e, 4=l, 5=l, 6=o, 7=' ', 8=w, 9=o, 10=r, 11=l, 12=d, 13=$, 14=\Z
+
+        model = init_model()
+        model['stringValue'] = "hello world"
+        source_code = "x = 'hello world'"
+
+        # Step 1: Select "world" (indices 8-12)
+        model, _ = update(make_mouse_down_event(8, top_half=True),
+                         source_code, 1, model)
+        model, _ = update(make_mouse_move_event(12),
+                         source_code, 1, model)
+        model, _ = update(make_mouse_up_event(12),
+                         source_code, 1, model)
+
+        self.assertEqual(model['selectionRegex'], '/(world)/')
+
+        # Step 2: Prepend with fuzzy (click at first_start - 1 = 7)
+        first_start = get_first_segment_start_internal_idx(model['selectionRegex'], model['stringValue'])
+        self.assertEqual(first_start, 8)
+        model, _ = update(make_mouse_down_event(first_start - 1, top_half=False),
+                         source_code, 1, model)
+        model, _ = update(make_mouse_up_event(first_start - 1),
+                         source_code, 1, model)
+
+        self.assertEqual(model['selectionRegex'], '/(.*)(world)/')
+
+        # Verify the fuzzy segment spans indices 0-8 (matches "^hello ")
+        highlights = parse_regex_for_highlighting(model['selectionRegex'], model['stringValue'])
+        fuzzy_segment = None
+        for start, end, seg_type in highlights:
+            if seg_type == 'fuzzy':
+                fuzzy_segment = (start, end, seg_type)
+                break
+        self.assertIsNotNone(fuzzy_segment)
+        fuzzy_start, fuzzy_end, _ = fuzzy_segment
+
+        # Step 3: Click inside the leading fuzzy on "ello" (indices 3-6)
+        # This is inside the fuzzy region
+        self.assertTrue(fuzzy_start <= 3 < fuzzy_end)
+
+        model, _ = update(make_mouse_down_event(3, top_half=True),
+                         source_code, 1, model)
+        model, _ = update(make_mouse_move_event(6),
+                         source_code, 1, model)
+        model, _ = update(make_mouse_up_event(6),
+                         source_code, 1, model)
+
+        # The literal "ello" should be inserted BEFORE the fuzzy to maintain text order:
+        # Text order: ello ... (space) ... world
+        # Regex: (ello)(.*)(world) - where (.*) matches the space between
+        self.assertEqual(model['selectionRegex'], '/(ello)(.*)(world)/')
+
+    def test_anchor_leading_fuzzy_abc_scenario(self):
+        """
+        BUG TEST: Exact reproduction of user's bug report.
+
+        String: 'ABC'
+        Click (1): literal C -> /(C)/
+        Click (2): fuzzy B (extend left) -> /(.*)(C)/
+        Click (3): literal A (inside fuzzy) -> Expected: /(A)(.*)(C)/
+
+        Bug was producing: /(.*)(A)(C)/ - wrong order!
+        """
+        model = init_model()
+        model['stringValue'] = 'ABC'
+        source_code = "x = 'ABC'"
+
+        # Augmented: 0=\A, 1=^, 2=A, 3=B, 4=C, 5=$, 6=\Z
+
+        # Click (1): literal C (index 4)
+        model, _ = update(make_mouse_down_event(4, top_half=True),
+                         source_code, 1, model)
+        model, _ = update(make_mouse_up_event(4),
+                         source_code, 1, model)
+        self.assertEqual(model['selectionRegex'], '/(C)/')
+
+        # Click (2): fuzzy B (extend left from C)
+        first_start = get_first_segment_start_internal_idx(model['selectionRegex'], model['stringValue'])
+        self.assertEqual(first_start, 4)
+        model, _ = update(make_mouse_down_event(first_start - 1, top_half=False),
+                         source_code, 1, model)
+        model, _ = update(make_mouse_up_event(first_start - 1),
+                         source_code, 1, model)
+        self.assertEqual(model['selectionRegex'], '/(.*)(C)/')
+
+        # Click (3): literal A (inside fuzzy at index 2)
+        model, _ = update(make_mouse_down_event(2, top_half=True),
+                         source_code, 1, model)
+        model, _ = update(make_mouse_up_event(2),
+                         source_code, 1, model)
+
+        # Expected: (A)(.*)(C) - A first, then fuzzy for B, then C
+        # Bug was: (.*)(A)(C) - wrong order
+        self.assertEqual(model['selectionRegex'], '/(A)(.*)(C)/')
 
 
 # =============================================================================

@@ -542,6 +542,59 @@ def prepend_segment_to_regex(current_regex: str | None, segment_type: str, text:
     return f"/{new_segment}{inner_pattern}/"
 
 
+def insert_segment_at_position(current_regex: str | None, position: int, segment_type: str, text: str) -> str:
+    """
+    Insert a new segment at a specific position in the regex pattern.
+
+    Used when clicking inside a fuzzy segment to split/anchor it. The position
+    determines where in the regex the new segment goes to maintain text order.
+
+    Args:
+        current_regex: Current regex pattern with / delimiters (e.g., "/(.*)(world)/") or None
+        position: The 0-based position to insert at (0 = prepend, len = append)
+        segment_type: 'literal' or 'fuzzy'
+        text: The text to add (from augmented string, may contain sentinel chars)
+
+    Returns:
+        New regex pattern with the segment inserted at the given position.
+    """
+    if current_regex is None:
+        return append_segment_to_regex(None, segment_type, text)
+
+    # Build the new segment
+    if segment_type == 'literal':
+        regex_parts = [char_to_regex_literal(char) for char in text]
+        new_segment = f"({''.join(regex_parts)})"
+    else:  # fuzzy
+        new_segment = "(.*)"
+
+    # Parse the existing segments (simple approach: find top-level groups)
+    inner_pattern = current_regex[1:-1]
+    segments = []
+    depth = 0
+    current_start = 0
+
+    for i, char in enumerate(inner_pattern):
+        if char == '(' and (i == 0 or inner_pattern[i-1] != '\\'):
+            if depth == 0:
+                current_start = i
+            depth += 1
+        elif char == ')' and (i == 0 or inner_pattern[i-1] != '\\'):
+            depth -= 1
+            if depth == 0:
+                segments.append(inner_pattern[current_start:i+1])
+
+    # Insert the new segment at the specified position
+    if position <= 0:
+        segments.insert(0, new_segment)
+    elif position >= len(segments):
+        segments.append(new_segment)
+    else:
+        segments.insert(position, new_segment)
+
+    return f"/{''.join(segments)}/"
+
+
 def get_regex_inner_pattern(selection_regex: str | None) -> str | None:
     """
     Extract the inner pattern from a selection regex (strips / delimiters).
@@ -1060,6 +1113,7 @@ def init_model():
         "cursorIdx": None,
         "dragging": False,
         "extendDirection": None,  # "left", "right", or None - which side we're extending from
+        "insertAfterSegment": None,  # Segment index to insert after (for clicking inside fuzzy)
         "stringValue": None,
         "undoHistory": [],        # Stack of previous selectionRegex states
         "redoHistory": [],        # Stack for redo
@@ -1086,6 +1140,7 @@ def finalize_segment(model: dict) -> dict:
     string_value = model.get('stringValue')
     anchor_type = model.get('anchorType', 'literal')
     extend_direction = model.get('extendDirection')
+    insert_after_segment = model.get('insertAfterSegment')
 
     if isinstance(a, int) and isinstance(c, int) and string_value is not None:
         start = min(a, c)
@@ -1105,6 +1160,15 @@ def finalize_segment(model: dict) -> dict:
             # Fuzzy is always (.*), no text needed
             if extend_direction == 'left':
                 model['selectionRegex'] = prepend_segment_to_regex(current_regex, 'fuzzy', '')
+            elif insert_after_segment is not None:
+                # When clicking inside a fuzzy to add a new segment:
+                # - If fuzzy is first segment (index 0), insert BEFORE it to maintain text order
+                # - Otherwise, insert AFTER the fuzzy segment
+                if insert_after_segment == 0:
+                    insert_position = 0  # Insert before the leading fuzzy
+                else:
+                    insert_position = insert_after_segment + 1  # Insert after the fuzzy
+                model['selectionRegex'] = insert_segment_at_position(current_regex, insert_position, 'fuzzy', '')
             else:
                 model['selectionRegex'] = append_segment_to_regex(current_regex, 'fuzzy', '')
         else:
@@ -1113,12 +1177,22 @@ def finalize_segment(model: dict) -> dict:
             selected_text = augmented[start:end]
             if extend_direction == 'left':
                 model['selectionRegex'] = prepend_segment_to_regex(current_regex, 'literal', selected_text)
+            elif insert_after_segment is not None:
+                # When clicking inside a fuzzy to add a new segment:
+                # - If fuzzy is first segment (index 0), insert BEFORE it to maintain text order
+                # - Otherwise, insert AFTER the fuzzy segment
+                if insert_after_segment == 0:
+                    insert_position = 0  # Insert before the leading fuzzy
+                else:
+                    insert_position = insert_after_segment + 1  # Insert after the fuzzy
+                model['selectionRegex'] = insert_segment_at_position(current_regex, insert_position, 'literal', selected_text)
             else:
                 model['selectionRegex'] = append_segment_to_regex(current_regex, 'literal', selected_text)
 
         model['anchorIdx'] = None
         model['cursorIdx'] = None
         model['extendDirection'] = None
+        model['insertAfterSegment'] = None
 
     model['dragging'] = False
     return model
@@ -1166,21 +1240,27 @@ def update(event, source_code:str, source_line:int, model:dict) -> Tuple[dict, L
                 model['anchorType'] = anchor_type
                 model['cursorIdx'] = idx
                 model['extendDirection'] = 'right'
-            # Check if extending from the left (start of first segment)
-            elif first_start is not None and isinstance(idx, int) and idx == first_start:
-                # Keep existing regex, start new segment from start of first
+                model['insertAfterSegment'] = None  # Not inserting at specific position
+            # Check if extending from the left (char immediately to the left of first segment)
+            # This is symmetric with right extension: click the adjacent char to extend
+            elif first_start is not None and isinstance(idx, int) and idx == first_start - 1:
+                # Keep existing regex, start new segment extending left from first
+                # Anchor at first_start so the selection can span from cursor (first_start-1) to anchor
                 model['anchorIdx'] = first_start
                 model['anchorType'] = anchor_type
                 model['cursorIdx'] = idx
                 model['extendDirection'] = 'left'
+                model['insertAfterSegment'] = None  # Not inserting at specific position
             # Check if clicking inside a fuzzy segment (to split it)
             elif fuzzy_info is not None and isinstance(idx, int):
                 # Allow starting a new segment inside the fuzzy region
                 # This will constrain/split the fuzzy match
+                # Track which segment we clicked inside so we can insert after it
                 model['anchorIdx'] = idx
                 model['anchorType'] = anchor_type
                 model['cursorIdx'] = idx
-                model['extendDirection'] = 'right'  # New segment appends after existing
+                model['extendDirection'] = None  # Not a simple left/right extend
+                model['insertAfterSegment'] = fuzzy_info['segment_index']  # Insert after this segment
             else:
                 # Fresh start: reset selection
                 model = init_model()
@@ -1236,6 +1316,7 @@ def update(event, source_code:str, source_line:int, model:dict) -> Tuple[dict, L
                 model['anchorIdx'] = None
                 model['cursorIdx'] = None
                 model['dragging'] = False
+                model['insertAfterSegment'] = None
 
             elif key == 'z' and meta_key and not shift_key:
                 # Cmd-Z: Undo
@@ -1250,6 +1331,7 @@ def update(event, source_code:str, source_line:int, model:dict) -> Tuple[dict, L
                     model['anchorIdx'] = None
                     model['cursorIdx'] = None
                     model['dragging'] = False
+                    model['insertAfterSegment'] = None
 
             elif key == 'z' and meta_key and shift_key:
                 # Cmd-Shift-Z: Redo
@@ -1264,5 +1346,6 @@ def update(event, source_code:str, source_line:int, model:dict) -> Tuple[dict, L
                     model['anchorIdx'] = None
                     model['cursorIdx'] = None
                     model['dragging'] = False
+                    model['insertAfterSegment'] = None
 
     return (model, commands)
