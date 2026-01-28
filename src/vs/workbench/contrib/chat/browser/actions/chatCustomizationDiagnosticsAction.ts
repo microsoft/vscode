@@ -102,7 +102,8 @@ export function registerChatCustomizationDiagnosticsAction() {
 				category: CHAT_CATEGORY,
 				menu: [{
 					id: MenuId.ChatContext,
-					group: 'config',
+					group: 'z_clear',
+					order: -1
 				}, {
 					id: CHAT_CONFIG_MENU_ID,
 					when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('view', ChatViewId)),
