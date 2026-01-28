@@ -147,24 +147,20 @@ export class StartupPageRunnerContribution extends Disposable implements IWorkbe
 
 		const startupEditorValue = await this.getStartupEditorValue();
 		const enabled = isStartupPageEnabled(startupEditorValue, this.contextService, this.environmentService);
-
-		// Check for prefill data to support workspace-transfer scenarios
 		const hasPrefillData = !!this.storageService.get('chat.welcomeViewPrefill', StorageScope.APPLICATION);
 
 		if (enabled) {
-			// Open the welcome even if we opened a set of default editors
-			if ((!this.editorService.activeEditor || this.layoutService.openedDefaultEditors)) {
-				// We open the agent sessions welcome page even on reloads or when prefill data is present
-				if (startupEditorValue === 'agentSessionsWelcomePage' || hasPrefillData) {
+			if (startupEditorValue === 'agentSessionsWelcomePage') {
+				if (!this.editorService.activeEditor || this.layoutService.openedDefaultEditors || hasPrefillData) {
 					await this.openAgentSessionsWelcome();
-				} else if (this.lifecycleService.startupKind !== StartupKind.ReloadedWindow) {
-					if (startupEditorValue === 'readme') {
-						await this.openReadme();
-					} else if (startupEditorValue === 'welcomePage' || startupEditorValue === 'welcomePageInEmptyWorkbench') {
-						await this.openGettingStarted(true);
-					} else if (startupEditorValue === 'terminal') {
-						this.commandService.executeCommand(TerminalCommandId.CreateTerminalEditor);
-					}
+				}
+			} else if (this.lifecycleService.startupKind !== StartupKind.ReloadedWindow && (!this.editorService.activeEditor || this.layoutService.openedDefaultEditors)) {
+				if (startupEditorValue === 'readme') {
+					await this.openReadme();
+				} else if (startupEditorValue === 'welcomePage' || startupEditorValue === 'welcomePageInEmptyWorkbench') {
+					await this.openGettingStarted(true);
+				} else if (startupEditorValue === 'terminal') {
+					this.commandService.executeCommand(TerminalCommandId.CreateTerminalEditor);
 				}
 			}
 		}
