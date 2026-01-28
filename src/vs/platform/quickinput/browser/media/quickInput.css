@@ -20,6 +20,11 @@
 	border-top-left-radius: 5px;
 }
 
+.quick-input-widget.no-drag .quick-input-titlebar,
+.quick-input-widget.no-drag .quick-input-title,
+.quick-input-widget.no-drag .quick-input-header {
+	cursor: default;
+}
 .quick-input-widget .monaco-inputbox .monaco-action-bar {
 	top: 0;
 }

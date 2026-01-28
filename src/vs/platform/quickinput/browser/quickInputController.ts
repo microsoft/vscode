@@ -37,6 +37,8 @@ import { TriStateCheckbox, createToggleActionViewItemProvider } from '../../../b
 import { defaultCheckboxStyles } from '../../theme/browser/defaultStyles.js';
 import { QuickInputTreeController } from './tree/quickInputTreeController.js';
 import { QuickTree } from './tree/quickTree.js';
+import { AnchorAlignment, AnchorPosition, layout2d } from '../../../base/common/layout.js';
+import { getAnchorRect } from '../../../base/browser/ui/contextview/contextview.js';
 
 const $ = dom.$;
 
@@ -535,6 +537,7 @@ export class QuickInputController extends Disposable {
 			input.quickNavigate = options.quickNavigate;
 			input.hideInput = !!options.hideInput;
 			input.contextKey = options.contextKey;
+			input.anchor = options.anchor;
 			input.busy = true;
 			Promise.all([picks, options.activeItem])
 				.then(([items, _activeItem]) => {
@@ -704,6 +707,7 @@ export class QuickInputController extends Disposable {
 
 		ui.container.style.display = '';
 		this.updateLayout();
+		this.dndController?.setEnabled(!controller.anchor);
 		this.dndController?.layoutContainer();
 		ui.inputBox.setFocus();
 		this.quickInputTypeContext.set(controller.type);
@@ -855,16 +859,52 @@ export class QuickInputController extends Disposable {
 	private updateLayout() {
 		if (this.ui && this.isVisible()) {
 			const style = this.ui.container.style;
-			const width = Math.min(this.dimension!.width * 0.62 /* golden cut */, QuickInputController.MAX_WIDTH);
+			let width = Math.min(this.dimension!.width * 0.62 /* golden cut */, QuickInputController.MAX_WIDTH);
 			style.width = width + 'px';
 
+			let listHeight = this.dimension && this.dimension.height * 0.4;
+
 			// Position
-			style.top = `${this.viewState?.top ? Math.round(this.dimension!.height * this.viewState.top) : this.titleBarOffset}px`;
-			style.left = `${Math.round((this.dimension!.width * (this.viewState?.left ?? 0.5 /* center */)) - (width / 2))}px`;
+			if (this.controller?.anchor) {
+				const container = this.layoutService.getContainer(dom.getActiveWindow()).getBoundingClientRect();
+				const anchor = getAnchorRect(this.controller.anchor);
+				width = 380;
+				listHeight = this.dimension ? Math.min(this.dimension.height * 0.2, 200) : 200;
+
+				// Beware:
+				// We need to add some extra pixels to the height to account for the input and padding.
+				const containerHeight = Math.floor(listHeight) + 6 + 26 + 16;
+				const { top, left, right, bottom, anchorAlignment, anchorPosition } = layout2d(container, { width, height: containerHeight }, anchor);
+
+				if (anchorAlignment === AnchorAlignment.RIGHT) {
+					style.right = `${right}px`;
+					style.left = 'initial';
+				} else {
+					style.left = `${left}px`;
+					style.right = 'initial';
+				}
+
+				if (anchorPosition === AnchorPosition.BELOW) {
+					style.bottom = `${bottom}px`;
+					style.top = 'initial';
+				} else {
+					style.top = `${top}px`;
+					style.bottom = 'initial';
+				}
+
+				style.width = `${width}px`;
+				style.height = '';
+			} else {
+				style.top = `${this.viewState?.top ? Math.round(this.dimension!.height * this.viewState.top) : this.titleBarOffset}px`;
+				style.left = `${Math.round((this.dimension!.width * (this.viewState?.left ?? 0.5 /* center */)) - (width / 2))}px`;
+				style.right = '';
+				style.bottom = '';
+				style.height = '';
+			}
 
 			this.ui.inputBox.layout();
-			this.ui.list.layout(this.dimension && this.dimension.height * 0.4);
-			this.ui.tree.layout(this.dimension && this.dimension.height * 0.4);
+			this.ui.list.layout(listHeight);
+			this.ui.tree.layout(listHeight);
 		}
 	}
 
@@ -959,6 +999,8 @@ export interface IQuickInputControllerHost extends ILayoutService { }
 class QuickInputDragAndDropController extends Disposable {
 	readonly dndViewState = observableValue<{ top?: number; left?: number; done: boolean } | undefined>(this, undefined);
 
+	private _enabled = true;
+
 	private readonly _snapThreshold = 20;
 	private readonly _snapLineHorizontalRatio = 0.25;
 
@@ -994,6 +1036,10 @@ class QuickInputDragAndDropController extends Disposable {
 	}
 
 	layoutContainer(dimension = this._layoutService.activeContainerDimension): void {
+		if (!this._enabled) {
+			return;
+		}
+
 		const state = this.dndViewState.get();
 		const dragAreaRect = this._quickInputContainer.getBoundingClientRect();
 		if (state?.top && state?.left) {
@@ -1003,6 +1049,11 @@ class QuickInputDragAndDropController extends Disposable {
 			const d = a * b - c / 2;
 			this._layout(state.top * dimension.height, d);
 		}
+	}
+
+	setEnabled(enabled: boolean): void {
+		this._enabled = enabled;
+		this._quickInputContainer.classList.toggle('no-drag', !enabled);
 	}
 
 	setAlignment(alignment: 'top' | 'center' | { top: number; left: number }, done = true): void {
@@ -1035,6 +1086,10 @@ class QuickInputDragAndDropController extends Disposable {
 
 		// Double click
 		this._register(dom.addDisposableGenericMouseUpListener(dragArea, (event: MouseEvent) => {
+			if (!this._enabled) {
+				return;
+			}
+
 			const originEvent = new StandardMouseEvent(dom.getWindow(dragArea), event);
 			if (originEvent.detail !== 2) {
 				return;
@@ -1051,6 +1106,10 @@ class QuickInputDragAndDropController extends Disposable {
 
 		// Mouse down
 		this._register(dom.addDisposableGenericMouseDownListener(dragArea, (e: MouseEvent) => {
+			if (!this._enabled) {
+				return;
+			}
+
 			const activeWindow = dom.getWindow(this._layoutService.activeContainer);
 			const originEvent = new StandardMouseEvent(activeWindow, e);
 
