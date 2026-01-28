@@ -24,7 +24,7 @@ suite('resolveCopyDestination', () => {
 		}
 		{
 			const dest = resolveCopyDestination(documentUri, 'img.png', '../${fileName}', () => vscode.Uri.parse('test://projects/project/'));
-			assert.strictEqual(dest.toString(), 'test://projects/project/img.png');
+			assert.strictEqual(dest.toString(), 'test://projects/project/img.pngFAIL');
 		}
 	});
 
