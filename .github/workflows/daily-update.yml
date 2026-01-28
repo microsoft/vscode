@@ -1,0 +1,26 @@
+name: Daily Update
+
+on:
+  schedule:
+    - cron: "0 0 * * *"   # Runs every day at midnight UTC
+  workflow_dispatch:       # Allows manual trigger too
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Configure Git
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Run update script
+        run: |
+          echo "Automated update on $(date)" >> updates.log
+          git add updates.log
+          git commit -m "Daily automated update"
+          git push
