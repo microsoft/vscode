@@ -32,7 +32,7 @@
 			"flags": "i"
 		},
 		"increaseIndentPattern": {
-			"pattern": "^\\s*((If|ElseIf).*Then(?!.*End\\s+If)\\s*(('|REM).*)?|(Else|While|For|Do|Select\\s+Case|Case|Sub|Function|Class|Module|Enum|Structure|Interface|Namespace|With|Try|Catch|Finally|SyncLock|Using|Property|Get|Set|AddHandler|RaiseEvent|RemoveHandler|Event|Operator)\\b(?!.*\\bEnd\\s+(If|Sub|Function|Class|Module|Enum|Structure|Interface|Namespace|With|Select|Try|While|For|Property|Get|Set|SyncLock|Using|AddHandler|RaiseEvent|RemoveHandler|Event|Operator)\\b).*(('|REM).*)?)$",
+			"pattern": "^\\s*((If|ElseIf)\\b.*\\bThen\\s*(('|REM).*)?|(Else|While|For|Do|Select\\s+Case|Case|Sub|Function|Class|Module|Enum|Structure|Interface|Namespace|With|Try|Catch|Finally|SyncLock|Using|Property|Get|Set|AddHandler|RaiseEvent|RemoveHandler|Event|Operator)\\b(?!.*\\bEnd\\s+(If|Sub|Function|Class|Module|Enum|Structure|Interface|Namespace|With|Select|Try|While|For|Property|Get|Set|SyncLock|Using|AddHandler|RaiseEvent|RemoveHandler|Event|Operator)\\b).*(('|REM).*)?)$",
 			"flags": "i"
 		}
 	},
