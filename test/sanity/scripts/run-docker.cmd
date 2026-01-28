@@ -35,6 +35,13 @@ if "%CONTAINER%"=="" (
 	exit /b 1
 )
 
+set HOST_ARCH=amd64
+if "%PROCESSOR_ARCHITECTURE%"=="ARM64" set HOST_ARCH=arm64
+if not "%ARCH%"=="%HOST_ARCH%" (
+	echo Setting up QEMU emulation for %ARCH% on %HOST_ARCH% host
+	docker run --privileged --rm tonistiigi/binfmt --install all >nul 2>&1
+)
+
 set BASE_IMAGE_ARG=
 if not "%BASE_IMAGE%"=="" set BASE_IMAGE_ARG=--build-arg "BASE_IMAGE=%BASE_IMAGE%"
 
