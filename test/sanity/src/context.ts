@@ -946,7 +946,17 @@ export class TestContext {
 			default: {
 				const executablePath = process.env['PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH'] ?? '/usr/bin/chromium-browser';
 				this.log(`Using Chromium executable at: ${executablePath}`);
-				return await chromium.launch({ headless, executablePath, args: ['--disable-gpu'] });
+				return await chromium.launch({
+					headless,
+					executablePath,
+					args: [
+						'--disable-gpu',
+						'--disable-gpu-compositing',
+						'--disable-software-rasterizer',
+						'--single-process',
+						'--no-zygote',
+					]
+				});
 			}
 		}
 	}
