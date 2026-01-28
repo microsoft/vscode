@@ -19,7 +19,7 @@ import './media/quickInput.css';
 import { localize } from '../../../nls.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { IQuickInputButton } from '../common/quickInput.js';
-import { IAction } from '../../../base/common/actions.js';
+import { Action, IAction } from '../../../base/common/actions.js';
 
 const iconPathToClass: Record<string, string> = {};
 const iconClassGenerator = new IdGenerator('quick-input-button-icon-');
@@ -43,34 +43,24 @@ function getIconClass(iconPath: { dark: URI; light?: URI } | undefined): string 
 	return iconClass;
 }
 
-class QuickInputToggleButtonAction implements IAction {
-	class: string | undefined;
-
+class QuickInputToggleButtonAction extends Action {
 	constructor(
-		public readonly id: string,
-		public label: string,
-		public tooltip: string,
+		id: string,
+		label: string,
+		tooltip: string,
 		className: string | undefined,
-		public enabled: boolean,
-		private _checked: boolean,
+		enabled: boolean,
+		checked: boolean,
 		private _run: () => unknown
 	) {
-		this.class = className;
+		super(id, label, className, enabled);
+		this.tooltip = tooltip;
+		this._checked = checked;
 	}
 
-	get checked(): boolean {
-		return this._checked;
-	}
-
-	set checked(value: boolean) {
-		this._checked = value;
-		// Toggles behave like buttons. When clicked, they run... the only difference is that their checked state also changes.
-		this._run();
-	}
-
-	run() {
-		this._checked = !this._checked;
-		return this._run();
+	override async run(): Promise<void> {
+		this.checked = !this.checked;
+		await this._run();
 	}
 }
 
