@@ -24,6 +24,7 @@ import { IChatEntitlementService } from '../../../../services/chat/common/chatEn
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { Extensions, IOutputChannelRegistry, IOutputService } from '../../../../services/output/common/output.js';
 import { ChatSessionStatus as AgentSessionStatus, IChatSessionFileChange, IChatSessionFileChange2, IChatSessionItem, IChatSessionsExtensionPoint, IChatSessionsService } from '../../common/chatSessionsService.js';
+import { IChatWidgetService } from '../chat.js';
 import { AgentSessionProviders, getAgentSessionProvider, getAgentSessionProviderIcon, getAgentSessionProviderName } from './agentSessions.js';
 
 //#region Interfaces, Types
@@ -393,7 +394,8 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IStorageService private readonly storageService: IStorageService,
-		@IProductService private readonly productService: IProductService
+		@IProductService private readonly productService: IProductService,
+		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService
 	) {
 		super();
 
@@ -603,7 +605,12 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 		// the output of a session and quickly click on another session before
 		// it is finished. Strictly speaking the session is unread, but we
 		// allow a certain threshold of time to count as read to accommodate.
-		return readDate >= this.sessionTimeForReadStateTracking(session) - 2000;
+		if (readDate >= this.sessionTimeForReadStateTracking(session) - 2000) {
+			return true;
+		}
+
+		// Never consider a session as unread if its connected to a widget
+		return !!this.chatWidgetService.getWidgetBySessionResource(session.resource);
 	}
 
 	private sessionTimeForReadStateTracking(session: IInternalAgentSessionData): number {
