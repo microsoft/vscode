@@ -19,6 +19,6 @@ RUN dnf install -y dbus-x11 && \
 RUN dnf install -y xorg-x11-server-Xvfb
 
 # VS Code dependencies
-RUN dnf install -y  \
+RUN dnf install -y \
 	ca-certificates \
 	xdg-utils
