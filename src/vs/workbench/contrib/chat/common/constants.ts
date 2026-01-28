@@ -84,7 +84,7 @@ export enum CollapsedToolsDisplayMode {
 
 export enum AgentsControlClickBehavior {
 	Default = 'default',
-	TriStateToggle = 'triStateToggle',
+	Cycle = 'cycle',
 	Focus = 'focus',
 }
 
