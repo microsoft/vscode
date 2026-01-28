@@ -2831,4 +2831,6 @@ export class ConnectionObserverElement extends HTMLElement {
 	}
 }
 
-customElements.define('connection-observer', ConnectionObserverElement);
+if (!customElements.get('connection-observer')) {
+	customElements.define('connection-observer', ConnectionObserverElement);
+}
