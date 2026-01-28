@@ -116,7 +116,7 @@ export class ChatContextUsageWidget extends Disposable {
 	) {
 		super();
 
-		this.domNode = $('.chat-context-usage-widget.action-label');
+		this.domNode = $('.chat-context-usage-widget');
 		this.domNode.style.display = 'none';
 		this.domNode.setAttribute('tabindex', '0');
 		this.domNode.setAttribute('role', 'button');

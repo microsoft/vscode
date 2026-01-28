@@ -3,6 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/* Remove the outline and change border color on focus instead */
+.workbench-hover-container.locked:has(.chat-context-usage-details) .monaco-hover.workbench-hover {
+	outline: none;
+}
+.workbench-hover-container:focus-within.locked:has(.chat-context-usage-details) .monaco-hover.workbench-hover {
+	outline: none;
+	border-color: var(--vscode-focusBorder);
+}
+
 .chat-context-usage-details {
 	display: flex;
 	flex-direction: column;
