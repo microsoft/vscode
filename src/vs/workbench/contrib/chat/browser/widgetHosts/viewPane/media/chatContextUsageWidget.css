@@ -6,15 +6,13 @@
 .chat-context-usage-widget {
 	display: flex;
 	align-items: center;
-	justify-content: flex-end;
+	justify-content: center;
 	height: 22px;
 	flex-shrink: 0;
 	cursor: pointer;
 	padding: 3px;
 	border-radius: 5px;
 	box-sizing: border-box;
-	overflow: hidden;
-	transition: background-color 0.15s ease;
 }
 
 .chat-context-usage-widget .icon-container {
@@ -24,28 +22,6 @@
 	width: 16px;
 	height: 16px;
 	flex-shrink: 0;
-}
-
-.chat-context-usage-widget .token-label {
-	max-width: 0;
-	opacity: 0;
-	overflow: hidden;
-	white-space: nowrap;
-	font-size: 11px;
-	color: var(--vscode-foreground);
-	transition: max-width 0.2s ease, opacity 0.2s ease, margin-right 0.2s ease;
-	margin-right: 0;
-	order: -1;
-}
-
-/* Expand on hover, focus, or when details are shown (expanded class) */
-.chat-context-usage-widget:hover .token-label,
-.chat-context-usage-widget:focus .token-label,
-.chat-context-usage-widget:focus-within .token-label,
-.chat-context-usage-widget.expanded .token-label {
-	max-width: 100px;
-	opacity: 1;
-	margin-right: 6px;
 }
 
 .chat-context-usage-widget:hover {
@@ -79,7 +55,6 @@
 .chat-context-usage-widget .progress-pie {
 	fill: var(--vscode-icon-foreground);
 	opacity: 0.8;
-	transition: d 0.3s ease;
 	pointer-events: none;
 }
 
@@ -89,12 +64,4 @@
 
 .chat-context-usage-widget.error .progress-pie {
 	fill: var(--vscode-editorError-foreground);
-}
-
-.chat-context-usage-widget.warning .token-label {
-	color: var(--vscode-editorWarning-foreground);
-}
-
-.chat-context-usage-widget.error .token-label {
-	color: var(--vscode-editorError-foreground);
 }

@@ -63,10 +63,6 @@
           "when": "webviewId == 'vscode.chat-mermaid-features.chatOutputItem'"
         },
         {
-          "command": "_mermaid-chat.openInEditor",
-          "when": "webviewId == 'vscode.chat-mermaid-features.chatOutputItem'"
-        },
-        {
           "command": "_mermaid-chat.copySource",
           "when": "webviewId == 'vscode.chat-mermaid-features.chatOutputItem' || webviewId == 'vscode.chat-mermaid-features.preview'"
         }
@@ -77,12 +73,9 @@
       "properties": {
         "mermaid-chat.enabled": {
           "type": "boolean",
-          "default": false,
+          "default": true,
           "description": "%config.enabled.description%",
-          "scope": "application",
-          "tags": [
-            "experimental"
-          ]
+          "scope": "application"
         }
       }
     },

@@ -99,7 +99,6 @@ export class InlineChatEditorAffordance extends Disposable implements IContentWi
 	constructor(
 		private readonly _editor: ICodeEditor,
 		selection: IObservable<Selection | undefined>,
-		suppressAffordance: ISettableObservable<boolean>,
 		_hover: ISettableObservable<{ rect: DOMRect; above: boolean; lineNumber: number } | undefined>,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
@@ -124,8 +123,7 @@ export class InlineChatEditorAffordance extends Disposable implements IContentWi
 
 		this._store.add(autorun(r => {
 			const sel = selection.read(r);
-			const suppressed = suppressAffordance.read(r);
-			if (sel && !suppressed) {
+			if (sel) {
 				this._show(sel);
 			} else {
 				this._hide();

@@ -46,7 +46,7 @@ import { IChatService } from '../../chat/common/chatService/chatService.js';
 import { IChatRequestVariableEntry, IDiagnosticVariableEntryFilterData } from '../../chat/common/attachments/chatVariableEntries.js';
 import { isResponseVM } from '../../chat/common/model/chatViewModel.js';
 import { ChatAgentLocation } from '../../chat/common/constants.js';
-import { ILanguageModelChatSelector, ILanguageModelsService, isILanguageModelChatSelector } from '../../chat/common/languageModels.js';
+import { ILanguageModelChatMetadata, ILanguageModelChatSelector, ILanguageModelsService, isILanguageModelChatSelector } from '../../chat/common/languageModels.js';
 import { isNotebookContainingCellEditor as isNotebookWithCellEditor } from '../../notebook/browser/notebookEditor.js';
 import { INotebookEditorService } from '../../notebook/browser/services/notebookEditorService.js';
 import { CellUri, ICellEditOperation } from '../../notebook/common/notebookCommon.js';
@@ -108,10 +108,10 @@ export class InlineChatController implements IEditorContribution {
 	}
 
 	/**
-	 * Guard flag indicating whether model defaults (including vendor/default model selection)
-	 * should be applied for this session.
+	 * Stores the user's explicitly chosen model (qualified name) from a previous inline chat request in the same session.
+	 * When set, this takes priority over the inlineChat.defaultModel setting.
 	 */
-	private static _applyModelDefaultsThisSession: boolean = true;
+	private static _userSelectedModel: string | undefined;
 
 	private readonly _store = new DisposableStore();
 	private readonly _isActiveController = observableValue(this, false);
@@ -482,12 +482,6 @@ export class InlineChatController implements IEditorContribution {
 		// Store for tracking model changes during this session
 		const sessionStore = new DisposableStore();
 
-		// Check for default model setting
-		const defaultModelSetting = this._configurationService.getValue<string>(InlineChatConfigKeys.DefaultModel);
-		if (defaultModelSetting && !this._zone.value.widget.chatWidget.input.switchModelByQualifiedName([defaultModelSetting])) {
-			this._logService.warn(`inlineChat.defaultModel setting value '${defaultModelSetting}' did not match any available model. Falling back to vendor default.`);
-		}
-
 		try {
 			await this._applyModelDefaults(session, sessionStore);
 
@@ -599,19 +593,34 @@ export class InlineChatController implements IEditorContribution {
 	 * Prioritization: user session choice > inlineChat.defaultModel setting > vendor default
 	 */
 	private async _applyModelDefaults(session: IInlineChatSession2, sessionStore: DisposableStore): Promise<void> {
-		if (InlineChatController._applyModelDefaultsThisSession) {
-			const defaultModelSetting = this._configurationService.getValue<string>(InlineChatConfigKeys.DefaultModel);
-			if (defaultModelSetting) {
-				if (!this._zone.value.widget.chatWidget.input.switchModelByQualifiedName([defaultModelSetting])) {
-					this._logService.warn(`inlineChat.defaultModel setting value '${defaultModelSetting}' did not match any available model. Falling back to vendor default.`);
-					await this._selectVendorDefaultModel(session);
-				}
-			} else {
-				await this._selectVendorDefaultModel(session);
+		const userSelectedModel = InlineChatController._userSelectedModel;
+		const defaultModelSetting = this._configurationService.getValue<string>(InlineChatConfigKeys.DefaultModel);
+
+		let modelApplied = false;
+
+		// 1. Try user's explicitly chosen model from a previous inline chat in the same session
+		if (userSelectedModel) {
+			modelApplied = this._zone.value.widget.chatWidget.input.switchModelByQualifiedName([userSelectedModel]);
+			if (!modelApplied) {
+				// User's previously selected model is no longer available, clear it
+				InlineChatController._userSelectedModel = undefined;
 			}
 		}
 
-		// Track model changes - disable automatic defaults once user explicitly changes the model.
+		// 2. Try inlineChat.defaultModel setting
+		if (!modelApplied && defaultModelSetting) {
+			modelApplied = this._zone.value.widget.chatWidget.input.switchModelByQualifiedName([defaultModelSetting]);
+			if (!modelApplied) {
+				this._logService.warn(`inlineChat.defaultModel setting value '${defaultModelSetting}' did not match any available model. Falling back to vendor default.`);
+			}
+		}
+
+		// 3. Fall back to vendor default
+		if (!modelApplied) {
+			await this._selectVendorDefaultModel(session);
+		}
+
+		// Track model changes - store user's explicit choice in the given sessions.
 		// NOTE: This currently detects any model change, not just user-initiated ones.
 		let initialModelId: string | undefined;
 		sessionStore.add(autorun(r => {
@@ -624,7 +633,9 @@ export class InlineChatController implements IEditorContribution {
 				return;
 			}
 			if (initialModelId !== newModel.identifier) {
-				InlineChatController._applyModelDefaultsThisSession = false;
+				// User explicitly changed model, store their choice as qualified name
+				InlineChatController._userSelectedModel = ILanguageModelChatMetadata.asQualifiedName(newModel.metadata);
+				initialModelId = newModel.identifier;
 			}
 		}));
 	}

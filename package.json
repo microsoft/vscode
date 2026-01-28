@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.109.0",
-  "distro": "1468752e41ea530021336a556d31c13ff82e02b9",
+  "distro": "84c8b9580d546487fee8ff25a29c5f3f49d33799",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -33,7 +33,7 @@
     "watch-extensions": "npm run gulp watch-extensions watch-extension-media",
     "watch-extensionsd": "deemon npm run watch-extensions",
     "kill-watch-extensionsd": "deemon --kill npm run watch-extensions",
-    "precommit": "node build/hygiene.ts",
+    "precommit": "node --experimental-strip-types build/hygiene.ts",
     "gulp": "node --max-old-space-size=8192 ./node_modules/gulp/bin/gulp.js",
     "electron": "node build/lib/electron.ts",
     "7z": "7z",

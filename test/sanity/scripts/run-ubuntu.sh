@@ -1,6 +1,13 @@
 #!/bin/sh
 set -e
 
+echo "System: $(uname -s) $(uname -r) $(uname -m)"
+echo "Memory: $(free -h | awk '/^Mem:/ {print $2 " total, " $3 " used, " $7 " available"}')"
+echo "Disk: $(df -h / | awk 'NR==2 {print $2 " total, " $3 " used, " $4 " available"}')"
+
+echo "Configuring Azure mirror"
+sudo sed -i 's|http://archive.ubuntu.com|http://azure.archive.ubuntu.com|g' /etc/apt/sources.list
+
 echo "Installing dependencies"
 sudo apt-get update
 sudo apt-get install -y dbus-x11 x11-utils xvfb

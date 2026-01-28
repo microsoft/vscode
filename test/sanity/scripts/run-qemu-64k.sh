@@ -26,8 +26,8 @@ ROOTFS_DIR=$(mktemp -d)
 docker export "$CONTAINER_ID" | sudo tar -xf - -C "$ROOTFS_DIR"
 docker rm -f "$CONTAINER_ID"
 
-echo "Removing container image to free disk space"
-docker rmi "$CONTAINER" || true
+# echo "Removing container image to free disk space"
+# docker rmi "$CONTAINER" || true
 docker system prune -f || true
 
 echo "Copying test files into root filesystem"
@@ -35,12 +35,13 @@ TEST_DIR=$(cd "$(dirname "$0")/.." && pwd)
 sudo cp -r "$TEST_DIR"/* "$ROOTFS_DIR/root/"
 
 echo "Downloading Ubuntu 24.04 generic-64k kernel for ARM64"
-KERNEL_URL="http://ports.ubuntu.com/ubuntu-ports/pool/main/l/linux/linux-image-unsigned-6.8.0-90-generic-64k_6.8.0-90.91_arm64.deb"
+KERNEL_URL="https://ports.ubuntu.com/ubuntu-ports/pool/main/l/linux/linux-image-unsigned-6.8.0-90-generic-64k_6.8.0-90.91_arm64.deb"
 KERNEL_DIR=$(mktemp -d)
 curl -fL "$KERNEL_URL" -o "$KERNEL_DIR/kernel.deb"
 
 echo "Extracting kernel"
-(cd "$KERNEL_DIR" && ar x kernel.deb && tar xf data.tar*)
+cd "$KERNEL_DIR" && ar x kernel.deb && rm kernel.deb
+tar xf data.tar* && rm -f debian-binary control.tar* data.tar*
 VMLINUZ="$KERNEL_DIR/boot/vmlinuz-6.8.0-90-generic-64k"
 if [ ! -f "$VMLINUZ" ]; then
 	echo "Error: Could not find kernel at $VMLINUZ"
@@ -72,15 +73,14 @@ timeout 1800 qemu-system-aarch64 \
 	-netdev user,id=net0 \
 	-device virtio-net-pci,netdev=net0 \
 	-nographic \
-	-no-reboot \
-	|| true
+	-no-reboot
 
 echo "Extracting test results from disk image"
 MOUNT_DIR=$(mktemp -d)
 sudo mount -o loop "$DISK_IMG" "$MOUNT_DIR"
-if [ -f "$MOUNT_DIR/root/results.xml" ]; then
-	cp "$MOUNT_DIR/root/results.xml" "$TEST_DIR/results.xml"
-fi
-EXIT_CODE=$(cat "$MOUNT_DIR/exit-code" 2>/dev/null || echo 1)
+sudo cp "$MOUNT_DIR/root/results.xml" "$TEST_DIR/results.xml"
+sudo chown "$(id -u):$(id -g)" "$TEST_DIR/results.xml"
+
+EXIT_CODE=$(sudo cat "$MOUNT_DIR/exit-code" 2>/dev/null || echo 1)
 sudo umount "$MOUNT_DIR"
 exit $EXIT_CODE

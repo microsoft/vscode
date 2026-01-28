@@ -3,11 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/* Remove the outline and change border color on focus instead */
+.workbench-hover-container.locked:has(.chat-context-usage-details) .monaco-hover.workbench-hover {
+	outline: none;
+}
+.workbench-hover-container:focus-within.locked:has(.chat-context-usage-details) .monaco-hover.workbench-hover {
+	outline: none;
+	border-color: var(--vscode-focusBorder);
+}
+
 .chat-context-usage-details {
 	display: flex;
 	flex-direction: column;
-	padding: 12px;
-	min-width: 220px;
+	padding: 4px 0;
+	min-width: 200px;
 }
 
 .chat-context-usage-details:focus {
@@ -16,14 +25,14 @@
 
 /* Using same structure as ChatUsageWidget quota items */
 .chat-context-usage-details .quota-item {
-	margin-bottom: 8px;
+	margin-bottom: 4px;
 }
 
 .chat-context-usage-details .quota-item-header {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
-	margin-bottom: 4px;
+	margin-bottom: 2px;
 }
 
 .chat-context-usage-details .quota-item-label {
@@ -34,6 +43,18 @@
 	color: var(--vscode-descriptionForeground);
 }
 
+.chat-context-usage-details .token-row {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	margin-bottom: 2px;
+}
+
+.chat-context-usage-details .token-count-label {
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+}
+
 /* Progress bar - matching chat usage implementation */
 .chat-context-usage-details .quota-item .quota-bar {
 	width: 100%;
@@ -41,7 +62,7 @@
 	background-color: var(--vscode-gauge-background);
 	border-radius: 4px;
 	border: 1px solid var(--vscode-gauge-border);
-	margin: 4px 0;
+	margin: 2px 0;
 }
 
 .chat-context-usage-details .quota-item .quota-bar .quota-bit {
@@ -70,22 +91,22 @@
 .chat-context-usage-details .warning-message {
 	font-size: 12px;
 	color: var(--vscode-descriptionForeground);
-	margin-bottom: 8px;
+	margin-bottom: 4px;
 }
 
 /* Token details breakdown */
 .chat-context-usage-details .token-details-container {
-	margin-top: 8px;
+	margin-top: 4px;
 }
 
 .chat-context-usage-details .token-category {
-	margin-bottom: 8px;
+	margin-bottom: 4px;
 }
 
 .chat-context-usage-details .token-category-header {
 	font-weight: 600;
 	color: var(--vscode-foreground);
-	margin-bottom: 4px;
+	margin-bottom: 2px;
 }
 
 .chat-context-usage-details .token-detail-item {
@@ -105,24 +126,24 @@
 
 .chat-context-usage-details .actions-section .separator {
 	border-top: 1px solid var(--vscode-editorHoverWidget-border);
-	margin: 8px 0;
+	margin: 4px 0;
 }
 
 .chat-context-usage-details .actions-section .actions-header {
 	font-weight: 600;
 	color: var(--vscode-foreground);
-	margin-bottom: 8px;
+	margin-bottom: 4px;
 }
 
 .chat-context-usage-details .actions-section .button-bar-container {
 	display: flex;
 	flex-direction: column;
-	gap: 6px;
+	gap: 4px;
 }
 
 .chat-context-usage-details .actions-section .button-bar-container .monaco-button-bar {
 	flex-direction: column;
-	gap: 6px;
+	gap: 4px;
 }
 
 .chat-context-usage-details .actions-section .button-bar-container .monaco-button {

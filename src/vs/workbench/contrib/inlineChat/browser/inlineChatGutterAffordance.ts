@@ -24,7 +24,6 @@ export class InlineChatGutterAffordance extends InlineEditsGutterIndicator {
 	constructor(
 		private readonly _myEditorObs: ObservableCodeEditor,
 		selection: IObservable<Selection | undefined>,
-		suppressAffordance: ISettableObservable<boolean>,
 		private readonly _hover: ISettableObservable<{ rect: DOMRect; above: boolean; lineNumber: number } | undefined>,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IHoverService hoverService: HoverService,
@@ -34,7 +33,7 @@ export class InlineChatGutterAffordance extends InlineEditsGutterIndicator {
 	) {
 		const data = derived<InlineEditsGutterIndicatorData | undefined>(r => {
 			const value = selection.read(r);
-			if (!value || suppressAffordance.read(r)) {
+			if (!value) {
 				return undefined;
 			}
 
