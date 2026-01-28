@@ -85,7 +85,7 @@ export class ExtensionManagementCLI {
 
 			const installVSIXInfos: InstallVSIXInfo[] = [];
 			const installExtensionInfos: InstallGalleryExtensionInfo[] = [];
-			const addInstallExtensionInfo = (id: string, version: string | undefined, isBuiltin: boolean) => {			// Force prerelease for non-stable quality, release for stable quality for curated extensions
+			const addInstallExtensionInfo = (id: string, version: string | undefined, isBuiltin: boolean) => {
 				if (this.extensionsForceVersionByQuality?.some(e => e === id.toLowerCase())) {
 					version = this.productService.quality !== 'stable' ? 'prerelease' : undefined;
 				}
