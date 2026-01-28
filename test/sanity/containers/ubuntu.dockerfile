@@ -1,5 +1,6 @@
+ARG MIRROR
 ARG BASE_IMAGE=ubuntu:22.04
-FROM mcr.microsoft.com/mirror/docker/library/${BASE_IMAGE}
+FROM ${MIRROR}${BASE_IMAGE}
 
 # Utilities
 RUN apt-get update && \

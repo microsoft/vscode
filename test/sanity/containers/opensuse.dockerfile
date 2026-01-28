@@ -1,5 +1,6 @@
+ARG MIRROR
 ARG BASE_IMAGE=opensuse/leap:16.0
-FROM mcr.microsoft.com/mirror/docker/library/${BASE_IMAGE}
+FROM ${MIRROR}${BASE_IMAGE}
 
 # Node.js 22
 RUN zypper install -y nodejs22

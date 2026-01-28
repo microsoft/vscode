@@ -4,6 +4,7 @@ setlocal enabledelayedexpansion
 set ROOT=%~dp0..
 set CONTAINER=
 set ARCH=amd64
+set MIRROR=mcr.microsoft.com/mirror/docker/library/
 set BASE_IMAGE=
 set ARGS=
 
@@ -40,6 +41,7 @@ if not "%BASE_IMAGE%"=="" set BASE_IMAGE_ARG=--build-arg "BASE_IMAGE=%BASE_IMAGE
 echo Building container image: %CONTAINER%
 docker buildx build ^
 	--platform "linux/%ARCH%" ^
+	--build-arg "MIRROR=%MIRROR%" ^
 	%BASE_IMAGE_ARG% ^
 	--tag "%CONTAINER%" ^
 	--file "%ROOT%\containers\%CONTAINER%.dockerfile" ^

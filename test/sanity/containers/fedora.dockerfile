@@ -1,5 +1,6 @@
+ARG MIRROR
 ARG BASE_IMAGE=fedora:36
-FROM mcr.microsoft.com/mirror/docker/library/${BASE_IMAGE}
+FROM ${MIRROR}${BASE_IMAGE}
 
 # Node.js 22
 RUN curl -fsSL https://rpm.nodesource.com/setup_22.x | bash - && \
