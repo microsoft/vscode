@@ -89,9 +89,9 @@ jobs:
       - ${{ if ne(parameters.container, '') }}:
         - task: Cache@2
           inputs:
-            key: 'docker-v3 | "${{ parameters.container }}" | "${{ parameters.arch }}" | "$(Agent.OS)" | $(TEST_DIR)/containers/${{ parameters.container }}.dockerfile'
+            key: 'docker-v3 | "${{ parameters.container }}" | "${{ parameters.arch }}" | "${{ parameters.pageSize }}" | "$(Agent.OS)" | $(TEST_DIR)/containers/${{ parameters.container }}.dockerfile'
             path: $(DOCKER_CACHE_DIR)
-            restoreKeys: docker-v3 | "${{ parameters.container }}" | "${{ parameters.arch }}" | "$(Agent.OS)"
+            restoreKeys: docker-v3 | "${{ parameters.container }}" | "${{ parameters.arch }}" | "${{ parameters.pageSize }}" | "$(Agent.OS)"
             cacheHitVar: DOCKER_CACHE_HIT
           displayName: Download Docker Image
 
@@ -110,16 +110,16 @@ jobs:
               --quality "$(BUILD_QUALITY)" \
               --commit "$(BUILD_COMMIT)" \
               --test-results "/root/results.xml" \
-              --verbose
+              --verbose \
+              ${{ parameters.args }}
           workingDirectory: $(TEST_DIR)
           displayName: Run Sanity Tests
 
-        - ${{ if eq(parameters.pageSize, '') }}:
-          - bash: |
-              mkdir -p "$(DOCKER_CACHE_DIR)"
-              docker save -o "$(DOCKER_CACHE_FILE)" "${{ parameters.container }}"
-            condition: and(succeeded(), ne(variables.DOCKER_CACHE_HIT, 'true'))
-            displayName: Save Docker Image
+        - bash: |
+            mkdir -p "$(DOCKER_CACHE_DIR)"
+            docker save -o "$(DOCKER_CACHE_FILE)" "${{ parameters.container }}"
+          condition: and(succeeded(), ne(variables.DOCKER_CACHE_HIT, 'true'))
+          displayName: Save Docker Image
 
       - task: PublishTestResults@2
         inputs:
