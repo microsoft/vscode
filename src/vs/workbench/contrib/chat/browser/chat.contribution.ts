@@ -964,7 +964,7 @@ configurationRegistry.registerConfiguration({
 			default: true,
 			markdownDescription: nls.localize('chat.tools.autoExpandFailures', "When enabled, tool failures are automatically expanded in the chat UI to show error details."),
 		},
-		'chat.disableAIFeatures': {
+		[ChatConfiguration.AIDisabled]: {
 			type: 'boolean',
 			description: nls.localize('chat.disableAIFeatures', "Disable and hide built-in AI features provided by GitHub Copilot, including chat and inline suggestions."),
 			default: false,

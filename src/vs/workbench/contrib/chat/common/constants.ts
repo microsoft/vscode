@@ -9,6 +9,7 @@ import { ServicesAccessor } from '../../../../platform/instantiation/common/inst
 import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 
 export enum ChatConfiguration {
+	AIDisabled = 'chat.disableAIFeatures',
 	AgentEnabled = 'chat.agent.enabled',
 	AgentStatusEnabled = 'chat.agentsControl.enabled',
 	EditorAssociations = 'chat.editorAssociations',
