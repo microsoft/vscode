@@ -93,11 +93,10 @@ jobs:
       - ${{ if ne(parameters.container, '') }}:
         - task: Cache@2
           inputs:
-            key: 'docker-v3 | "${{ parameters.container }}" | "${{ parameters.arch }}" | "$(Agent.OS)" | $(TEST_DIR)/containers/${{ parameters.container }}.dockerfile'
+            key: 'docker-v3 | "${{ parameters.container }}" | "${{ parameters.arch }}" | "${{ parameters.pageSize }}" | "$(Agent.OS)" | $(TEST_DIR)/containers/${{ parameters.container }}.dockerfile'
             path: $(DOCKER_CACHE_DIR)
-            restoreKeys: docker-v3 | "${{ parameters.container }}" | "${{ parameters.arch }}" | "$(Agent.OS)"
+            restoreKeys: docker-v3 | "${{ parameters.container }}" | "${{ parameters.arch }}" | "${{ parameters.pageSize }}" | "$(Agent.OS)"
             cacheHitVar: DOCKER_CACHE_HIT
-          condition: eq('${{ parameters.pageSize }}', '')
           displayName: Download Docker Image
 
         - bash: |
@@ -123,7 +122,7 @@ jobs:
         - bash: |
             mkdir -p "$(DOCKER_CACHE_DIR)"
             docker save -o "$(DOCKER_CACHE_FILE)" "${{ parameters.container }}"
-          condition: and(succeeded(), ne(variables.DOCKER_CACHE_HIT, 'true'), eq('${{ parameters.pageSize }}', ''))
+          condition: and(succeeded(), ne(variables.DOCKER_CACHE_HIT, 'true'))
           displayName: Save Docker Image
 
       - task: PublishTestResults@2
