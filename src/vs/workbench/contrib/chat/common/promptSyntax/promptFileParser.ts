@@ -325,6 +325,7 @@ export interface IHandOff {
 	readonly prompt: string;
 	readonly send?: boolean;
 	readonly showContinueOn?: boolean; // treated exactly like send (optional boolean)
+	readonly model?: readonly string[]; // qualified model name(s) to switch to (e.g., "GPT-4o (copilot)")
 }
 
 export interface IHeaderAttribute {
