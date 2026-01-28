@@ -25,6 +25,10 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 	static readonly GO_TO_LINE_PREFIX = ':';
 	static readonly GO_TO_OFFSET_PREFIX = '::';
 	private static readonly ZERO_BASED_OFFSET_STORAGE_KEY = 'gotoLine.useZeroBasedOffset';
+	private static readonly DISABLE_AUTO_REVEAL_STORAGE_KEY = 'gotoLine.disableAutoReveal';
+	private static readonly AUTO_REVEAL_CONFIG_SNAPSHOT_STORAGE_KEY = 'gotoLine.autoRevealConfigSnapshot';
+
+	private sessionDisableAutoReveal: boolean | undefined;
 
 	constructor() {
 		super({ canAcceptInBackground: true });
@@ -47,6 +51,102 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 			StorageTarget.USER);
 	}
 
+	private get disableAutoReveal() {
+		if (typeof this.sessionDisableAutoReveal === 'boolean') {
+			return this.sessionDisableAutoReveal;
+		}
+
+		const persisted = this.getPersistedAutoRevealPreference();
+		if (typeof persisted === 'boolean') {
+			return persisted;
+		}
+
+		const configured = this.getConfiguredAutoReveal();
+		if (typeof configured === 'boolean') {
+			const value = !configured;
+			this.persistAutoRevealPreference(value, configured);
+			return value;
+		}
+
+		return !this.isAutoRevealEnabledByDefault();
+	}
+
+	private set disableAutoReveal(value: boolean) {
+		this.sessionDisableAutoReveal = value;
+		this.persistAutoRevealPreference(value);
+	}
+
+	protected onAutoRevealConfigurationChanged(): void {
+		this.sessionDisableAutoReveal = undefined;
+		const configured = this.getConfiguredAutoReveal();
+		if (typeof configured === 'boolean') {
+			this.persistAutoRevealPreference(!configured, configured);
+			return;
+		}
+
+		this.clearPersistedAutoRevealPreference();
+	}
+
+	protected isAutoRevealEnabledByDefault(): boolean {
+		return true;
+	}
+
+	protected getConfiguredAutoReveal(): boolean | undefined {
+		return undefined;
+	}
+
+	private getPersistedAutoRevealPreference(): boolean | undefined {
+		const value = this.storageService.getBoolean(
+			AbstractGotoLineQuickAccessProvider.DISABLE_AUTO_REVEAL_STORAGE_KEY,
+			StorageScope.APPLICATION
+		);
+		if (typeof value !== 'boolean') {
+			return undefined;
+		}
+
+		const snapshotRaw = this.storageService.get(
+			AbstractGotoLineQuickAccessProvider.AUTO_REVEAL_CONFIG_SNAPSHOT_STORAGE_KEY,
+			StorageScope.APPLICATION
+		);
+		const snapshot = snapshotRaw === 'true' ? true : snapshotRaw === 'false' ? false : undefined;
+
+		const configured = this.getConfiguredAutoReveal();
+		if (snapshot !== configured) {
+			if (typeof configured === 'boolean') {
+				this.persistAutoRevealPreference(!configured, configured);
+				return !configured;
+			}
+
+			this.clearPersistedAutoRevealPreference();
+			return undefined;
+		}
+
+		return value;
+	}
+
+	private persistAutoRevealPreference(value: boolean, configuredSnapshot: boolean | undefined = this.getConfiguredAutoReveal()): void {
+		this.storageService.store(
+			AbstractGotoLineQuickAccessProvider.DISABLE_AUTO_REVEAL_STORAGE_KEY,
+			value,
+			StorageScope.APPLICATION,
+			StorageTarget.USER);
+
+		if (typeof configuredSnapshot === 'boolean') {
+			this.storageService.store(
+				AbstractGotoLineQuickAccessProvider.AUTO_REVEAL_CONFIG_SNAPSHOT_STORAGE_KEY,
+				configuredSnapshot ? 'true' : 'false',
+				StorageScope.APPLICATION,
+				StorageTarget.USER);
+		} else {
+			this.storageService.remove(AbstractGotoLineQuickAccessProvider.AUTO_REVEAL_CONFIG_SNAPSHOT_STORAGE_KEY, StorageScope.APPLICATION);
+		}
+	}
+
+	private clearPersistedAutoRevealPreference(): void {
+		this.storageService.remove(AbstractGotoLineQuickAccessProvider.DISABLE_AUTO_REVEAL_STORAGE_KEY, StorageScope.APPLICATION);
+		this.storageService.remove(AbstractGotoLineQuickAccessProvider.AUTO_REVEAL_CONFIG_SNAPSHOT_STORAGE_KEY, StorageScope.APPLICATION);
+	}
+
 	protected provideWithoutTextEditor(picker: IQuickPick<IGotoLineQuickPickItem, { useSeparators: true }>): IDisposable {
 		const label = localize('gotoLine.noEditor', "Open a text editor first to go to a line or an offset.");
 
@@ -57,22 +157,25 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 	}
 
 	protected provideWithTextEditor(context: IQuickAccessTextEditorContext, picker: IQuickPick<IGotoLineQuickPickItem, { useSeparators: true }>, token: CancellationToken): IDisposable {
+		this.sessionDisableAutoReveal = undefined;
 		const editor = context.editor;
 		const disposables = new DisposableStore();
+		disposables.add(toDisposable(() => {
+			this.sessionDisableAutoReveal = undefined;
+		}));
 
 		// Goto line once picked
 		disposables.add(picker.onDidAccept(event => {
-			const [item] = picker.selectedItems;
-			if (item) {
-				if (!item.lineNumber) {
-					return;
-				}
+			const item = picker.selectedItems[0];
+			if (!item || !item.lineNumber) {
+				return;
+			}
 
-				this.gotoLocation(context, { range: this.toRange(item.lineNumber, item.column), keyMods: picker.keyMods, preserveFocus: event.inBackground });
+			const range = this.toRange(item.lineNumber, item.column);
+			this.gotoLocation(context, { range, keyMods: picker.keyMods, preserveFocus: event.inBackground });
 
-				if (!event.inBackground) {
-					picker.hide();
-				}
+			if (!event.inBackground) {
+				picker.hide();
 			}
 		}));
 
@@ -84,13 +187,24 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 			toggle: { checked: this.useZeroBasedOffset }
 		};
 
+		const autoRevealButton: IQuickInputButton = {
+			iconClass: ThemeIcon.asClassName(Codicon.eye),
+			tooltip: localize('gotoLineAutoRevealToggleButton', "Toggle Auto Reveal"),
+			location: QuickInputButtonLocation.Inline,
+			secondary: true,
+			toggle: { checked: !this.disableAutoReveal }
+		};
+
 		// React to picker changes
 		const updatePickerAndEditor = () => {
 			const inputText = picker.value.trim().substring(AbstractGotoLineQuickAccessProvider.GO_TO_LINE_PREFIX.length);
 			const { inOffsetMode, lineNumber, column, label } = this.parsePosition(editor, inputText);
 
-			// Show toggle only when input text starts with '::'.
-			picker.buttons = inOffsetMode ? [offsetButton] : [];
+			const buttons: IQuickInputButton[] = [autoRevealButton];
+			if (inOffsetMode) {
+				buttons.push(offsetButton);
+			}
+			picker.buttons = buttons;
 
 			// Picker
 			picker.items = [{
@@ -105,17 +219,25 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 				return;
 			}
 
-			// Reveal
 			const range = this.toRange(lineNumber, column);
-			editor.revealRangeInCenter(range, ScrollType.Smooth);
 
-			// Decorate
+			// Always update decorations so the target line is highlighted
 			this.addDecorations(editor, range);
+
+			if (this.disableAutoReveal) {
+				return;
+			}
+
+			// Reveal only when auto reveal is enabled
+			editor.revealRangeInCenter(range, ScrollType.Smooth);
 		};
 
 		disposables.add(picker.onDidTriggerButton(button => {
 			if (button === offsetButton) {
 				this.useZeroBasedOffset = button.toggle?.checked ?? !this.useZeroBasedOffset;
+				updatePickerAndEditor();
+			} else if (button === autoRevealButton) {
+				this.disableAutoReveal = !(button.toggle?.checked ?? !this.disableAutoReveal);
 				updatePickerAndEditor();
 			}
 		}));

@@ -34,6 +34,11 @@ export class GotoLineQuickAccessProvider extends AbstractGotoLineQuickAccessProv
 	) {
 		super();
 		this.onDidActiveTextEditorControlChange = this.editorService.onDidActiveEditorChange;
+		this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('editor.gotoLine.autoReveal')) {
+				this.onAutoRevealConfigurationChanged();
+			}
+		});
 	}
 
 	private get configuration() {
@@ -46,6 +51,16 @@ export class GotoLineQuickAccessProvider extends AbstractGotoLineQuickAccessProv
 
 	protected get activeTextEditorControl() {
 		return this.editorService.activeTextEditorControl;
+	}
+
+	protected override isAutoRevealEnabledByDefault(): boolean {
+		const value = this.configurationService.getValue<boolean>('editor.gotoLine.autoReveal');
+		return value ?? true;
+	}
+
+	protected override getConfiguredAutoReveal(): boolean | undefined {
+		const inspect = this.configurationService.inspect<boolean>('editor.gotoLine.autoReveal');
+		return inspect.memoryValue ?? inspect.workspaceFolderValue ?? inspect.workspaceValue ?? inspect.userRemoteValue ?? inspect.userLocalValue ?? inspect.userValue ?? inspect.applicationValue;
 	}
 
 	protected override gotoLocation(context: IQuickAccessTextEditorContext, options: { range: IRange; keyMods: IKeyMods; forceSideBySide?: boolean; preserveFocus?: boolean }): void {
