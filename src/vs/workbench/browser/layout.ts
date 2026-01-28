@@ -425,7 +425,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			// Auxiliary Sidebar
 			if (e.affectsConfiguration(WorkbenchLayoutSettings.AUXILIARYBAR_FORCE_MAXIMIZED)) {
 				const forceMaximized = this.configurationService.getValue(WorkbenchLayoutSettings.AUXILIARYBAR_FORCE_MAXIMIZED);
-				if (forceMaximized === true) {
+				if (forceMaximized === true && this.mainPartEditorService.visibleEditors.length === 0) {
 					this.setAuxiliaryBarMaximized(true);
 				} else if (forceMaximized === false && this.isAuxiliaryBarMaximized()) {
 					this.setAuxiliaryBarMaximized(false);
