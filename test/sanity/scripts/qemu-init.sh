@@ -33,16 +33,8 @@ export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 export XDG_RUNTIME_DIR=/run/user/0
 
 echo "Starting entrypoint"
-ARGS=$(cat /test-args)
-echo "Test arguments: $ARGS"
-/entrypoint.sh $ARGS
-EXIT_CODE=$?
-echo "Entrypoint exit code: $EXIT_CODE"
-
-echo "Contents of /root:"
-ls -la /root/ || true
-
-echo $EXIT_CODE > /exit-code
+/entrypoint.sh $(cat /test-args)
+echo $? > /exit-code
 sync
 
 echo "Powering off"
