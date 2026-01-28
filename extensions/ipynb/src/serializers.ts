@@ -120,9 +120,23 @@ function createRawCellFromNotebookCell(cell: NotebookCellData): nbformat.IRawCel
 		source: splitCellSourceIntoMultilineString(cell.value),
 		metadata: cellMetadata?.metadata || {} // This cannot be empty.
 	};
+	
+	// Only include attachments that are actually referenced in the cell content
 	if (cellMetadata?.attachments) {
-		rawCell.attachments = cellMetadata.attachments;
+		const referencedAttachments = getReferencedAttachmentNames(cell.value);
+		const usedAttachments: { [key: string]: any } = {};
+		
+		for (const [filename, attachmentData] of Object.entries(cellMetadata.attachments)) {
+			if (referencedAttachments.has(filename)) {
+				usedAttachments[filename] = attachmentData;
+			}
+		}
+		
+		if (Object.keys(usedAttachments).length > 0) {
+			rawCell.attachments = usedAttachments;
+		}
 	}
+	
 	if (cellMetadata?.id) {
 		rawCell.id = cellMetadata.id;
 	}
@@ -156,6 +170,21 @@ function splitMultilineString(source: nbformat.MultilineString): string[] {
 			.filter(s => s.length > 0); // Skip last one if empty (it's the only one that could be length 0)
 	}
 	return [];
+}
+
+function getReferencedAttachmentNames(source: string): Set<string> {
+	const filenames = new Set<string>();
+	// Match: ![...](attachment:filename) or ![...](<attachment:filename>)
+	// Uses non-greedy match to stop at first ) or > that ends the link
+	const re = /!\[.*?\]\(<?attachment:(.*?)>?\)/gm;
+
+	let match;
+	while ((match = re.exec(source))) {
+		if (match[1]) {
+			filenames.add(match[1]);
+		}
+	}
+	return filenames;
 }
 
 function translateCellDisplayOutput(output: NotebookCellOutput): JupyterOutput {
@@ -380,9 +409,23 @@ export function createMarkdownCellFromNotebookCell(cell: NotebookCellData): nbfo
 		source: splitCellSourceIntoMultilineString(cell.value),
 		metadata: cellMetadata?.metadata || {} // This cannot be empty.
 	};
+	
+	// Only include attachments that are actually referenced in the cell content
 	if (cellMetadata?.attachments) {
-		markdownCell.attachments = cellMetadata.attachments;
+		const referencedAttachments = getReferencedAttachmentNames(cell.value);
+		const usedAttachments: { [key: string]: any } = {};
+		
+		for (const [filename, attachmentData] of Object.entries(cellMetadata.attachments)) {
+			if (referencedAttachments.has(filename)) {
+				usedAttachments[filename] = attachmentData;
+			}
+		}
+		
+		if (Object.keys(usedAttachments).length > 0) {
+			markdownCell.attachments = usedAttachments;
+		}
 	}
+	
 	if (cellMetadata?.id) {
 		markdownCell.id = cellMetadata.id;
 	}
