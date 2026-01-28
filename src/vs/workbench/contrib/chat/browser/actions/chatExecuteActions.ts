@@ -491,7 +491,7 @@ export class OpenSessionTargetPickerAction extends Action2 {
 			tooltip: localize('setSessionTarget', "Set Session Target"),
 			category: CHAT_CATEGORY,
 			f1: false,
-			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.hasCanDelegateProviders, ContextKeyExpr.or(ChatContextKeys.chatSessionIsEmpty, ChatContextKeys.inAgentSessionsWelcome)),
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.or(ChatContextKeys.chatSessionIsEmpty, ChatContextKeys.inAgentSessionsWelcome)),
 			menu: [
 				{
 					id: MenuId.ChatInput,
@@ -500,8 +500,7 @@ export class OpenSessionTargetPickerAction extends Action2 {
 						ChatContextKeys.enabled,
 						ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
 						ChatContextKeys.inQuickChat.negate(),
-						ChatContextKeys.hasCanDelegateProviders,
-						ContextKeyExpr.or(ChatContextKeys.chatSessionIsEmpty, ChatContextKeys.hasCanDelegateProviders.negate())),
+						ChatContextKeys.chatSessionIsEmpty),
 					group: 'navigation',
 				},
 			]
@@ -527,7 +526,7 @@ export class OpenDelegationPickerAction extends Action2 {
 			tooltip: localize('delegateSession', "Delegate Session"),
 			category: CHAT_CATEGORY,
 			f1: false,
-			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.hasCanDelegateProviders, ChatContextKeys.chatSessionIsEmpty.negate()),
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.chatSessionIsEmpty.negate()),
 			menu: [
 				{
 					id: MenuId.ChatInput,
@@ -536,8 +535,7 @@ export class OpenDelegationPickerAction extends Action2 {
 						ChatContextKeys.enabled,
 						ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
 						ChatContextKeys.inQuickChat.negate(),
-						ChatContextKeys.hasCanDelegateProviders,
-						ContextKeyExpr.and(ChatContextKeys.chatSessionIsEmpty.negate(), ChatContextKeys.hasCanDelegateProviders)),
+						ChatContextKeys.chatSessionIsEmpty.negate()),
 					group: 'navigation',
 				},
 			]

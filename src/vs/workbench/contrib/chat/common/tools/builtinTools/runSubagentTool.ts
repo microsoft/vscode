@@ -9,7 +9,7 @@ import { Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { IJSONSchema, IJSONSchemaMap } from '../../../../../../base/common/jsonSchema.js';
-import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../nls.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -129,6 +129,8 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 
 		const request = model.getRequests().at(-1)!;
 
+		const store = new DisposableStore();
+
 		try {
 			// Get the default agent
 			const defaultAgent = this.chatAgentService.getDefaultAgent(ChatAgentLocation.Chat, ChatModeKind.Agent);
@@ -194,7 +196,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 			const progressCallback = (parts: IChatProgress[]) => {
 				for (const part of parts) {
 					// Write certain parts immediately to the model
-					if (part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized' || part.kind === 'textEdit' || part.kind === 'notebookEdit' || part.kind === 'codeblockUri') {
+					if (part.kind === 'textEdit' || part.kind === 'notebookEdit' || part.kind === 'codeblockUri') {
 						if (part.kind === 'codeblockUri' && !inEdit) {
 							inEdit = true;
 							model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('```\n') });
@@ -204,11 +206,6 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 							model.acceptResponseProgress(request, { ...part, subAgentInvocationId });
 						} else {
 							model.acceptResponseProgress(request, part);
-						}
-
-						// When we see a tool invocation starting, reset markdown collection
-						if (part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') {
-							markdownParts.length = 0; // Clear previously collected markdown
 						}
 					} else if (part.kind === 'markdownContent') {
 						if (inEdit) {
@@ -240,11 +237,18 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 				variables: { variables: variableSet.asArray() },
 				location: ChatAgentLocation.Chat,
 				subAgentInvocationId: invocation.callId,
-				subAgentName: args.agentName,
+				subAgentName: args.agentName ?? 'subagent',
 				userSelectedModelId: modeModelId,
 				userSelectedTools: modeTools,
 				modeInstructions,
 			};
+
+			// Subscribe to tool invocations to clear markdown parts when a tool is invoked
+			store.add(this.languageModelToolsService.onDidInvokeTool(e => {
+				if (e.subagentInvocationId === subAgentInvocationId) {
+					markdownParts.length = 0;
+				}
+			}));
 
 			// Invoke the agent
 			const result = await this.chatAgentService.invokeAgent(
@@ -260,19 +264,34 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 				return createToolSimpleTextResult(`Agent error: ${result.errorDetails.message}`);
 			}
 
-			const resultText = markdownParts.join('') || 'Agent completed with no output';
+			// This is a hack due to the fact that edits are represented as empty codeblocks with URIs. That needs to be cleaned up,
+			// in the meantime, just strip an empty codeblock left behind.
+			const resultText = markdownParts.join('').replace(/^\n*```\n+```\n*/g, '').trim() || 'Agent completed with no output';
 
 			// Store result in toolSpecificData for serialization
 			if (invocation.toolSpecificData?.kind === 'subagent') {
 				invocation.toolSpecificData.result = resultText;
 			}
 
-			return createToolSimpleTextResult(resultText);
+			// Return result with toolMetadata containing subAgentInvocationId for trajectory tracking
+			return {
+				content: [{
+					kind: 'text',
+					value: resultText
+				}],
+				toolMetadata: {
+					subAgentInvocationId,
+					description: args.description,
+					agentName: agentRequest.subAgentName,
+				}
+			};
 
 		} catch (error) {
 			const errorMessage = `Error invoking subagent: ${error instanceof Error ? error.message : 'Unknown error'}`;
 			this.logService.error(errorMessage, error);
 			return createToolSimpleTextResult(errorMessage);
+		} finally {
+			store.dispose();
 		}
 	}
 

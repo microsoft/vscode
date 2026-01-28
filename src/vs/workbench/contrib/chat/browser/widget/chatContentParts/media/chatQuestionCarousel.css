@@ -79,6 +79,7 @@
 	padding: 0;
 	border: none;
 	background: transparent !important;
+	color: var(--vscode-foreground) !important;
 }
 
 .chat-question-carousel-nav .monaco-button.chat-question-nav-arrow:hover:not(.disabled) {

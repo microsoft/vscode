@@ -782,6 +782,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			RunInTerminalTool._activeExecutions.set(termId, execution);
 
 			// Set up OutputMonitor when start marker is created
+			const startMarkerPromise = Event.toPromise(execution.strategy.onDidCreateStartMarker);
 			store.add(execution.strategy.onDidCreateStartMarker(startMarker => {
 				if (!outputMonitor) {
 					outputMonitor = store.add(this._instantiationService.createInstance(
@@ -805,6 +806,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			if (args.isBackground) {
 				// Background mode: wait for OutputMonitor to detect idle, then return
 				this._logService.debug(`RunInTerminalTool: Starting background execution \`${command}\``);
+				// Wait for the start marker to be created (which creates the outputMonitor)
+				await startMarkerPromise;
 				if (outputMonitor) {
 					await Event.toPromise(outputMonitor.onDidFinishCommand);
 					pollingResult = outputMonitor.pollingResult;

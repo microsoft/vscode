@@ -33,6 +33,7 @@ const defaultCommonlyUsedSettings: string[] = [
 	'files.autoSave',
 	'editor.defaultFormatter',
 	'editor.fontFamily',
+	'chat.agent.maxRequests',
 	'editor.wordWrap',
 	'files.exclude',
 	'workbench.colorTheme',

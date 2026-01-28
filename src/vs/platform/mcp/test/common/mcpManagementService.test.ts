@@ -548,7 +548,7 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 				assert.deepStrictEqual(result.mcpServerConfiguration.config.args, [
 					'Company.Internal.McpServer@4.5.6',
 					'--yes',
-					'--add-source', 'https://nuget.company.com/v3/index.json'
+					'--source', 'https://nuget.company.com/v3/index.json'
 				]);
 			}
 		});

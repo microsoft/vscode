@@ -50,6 +50,8 @@ export type McpAppLoadState =
  * The webview is created lazily on first claim and survives across re-renders.
  */
 export class ChatMcpAppModel extends Disposable {
+	private static readonly heightCache = new WeakMap<IChatToolInvocation | IChatToolInvocationSerialized, number>();
+
 	/** Origin store for persistent webview origins per server */
 	private readonly _originStore: WebviewOriginStore;
 
@@ -69,7 +71,7 @@ export class ChatMcpAppModel extends Disposable {
 	private _latestCsp: McpApps.McpUiResourceCsp | undefined = undefined;
 
 	/** Current height of the webview */
-	private _height: number = 300;
+	private _height: number;
 
 	/** The persistent webview origin */
 	private readonly _webviewOrigin: string;
@@ -104,6 +106,7 @@ export class ChatMcpAppModel extends Disposable {
 		this._originStore = new WebviewOriginStore(ORIGIN_STORE_KEY, storageService);
 		this._webviewOrigin = this._originStore.getOrigin('mcpApp', renderData.serverDefinitionId);
 		this._mcpToolCallUI = this._register(this._instantiationService.createInstance(McpToolCallUI, renderData));
+		this._height = ChatMcpAppModel.heightCache.get(this.toolInvocation) ?? 300;
 
 		// Create the webview element
 		this._webview = this._register(this._webviewService.createWebviewElement({
@@ -648,8 +651,9 @@ export class ChatMcpAppModel extends Disposable {
 	}
 
 	private _handleSizeChanged(params: McpApps.McpUiSizeChangedNotification['params']): void {
-		if (params.height !== undefined) {
+		if (params.height !== undefined && params.height !== this._height) {
 			this._height = params.height;
+			ChatMcpAppModel.heightCache.set(this.toolInvocation, params.height);
 			this._onDidChangeHeight.fire();
 		}
 	}
