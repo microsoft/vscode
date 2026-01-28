@@ -211,6 +211,10 @@ export class MarkAllAgentSessionsReadAction extends Action2 {
 		const agentSessionsService = accessor.get(IAgentSessionsService);
 
 		const sessionsToMarkRead = agentSessionsService.model.sessions.filter(session => !session.isArchived() && !session.isRead());
+		if (sessionsToMarkRead.length === 0) {
+			return;
+		}
+
 		for (const session of sessionsToMarkRead) {
 			session.setRead(true);
 		}
