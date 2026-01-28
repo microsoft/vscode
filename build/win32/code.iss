@@ -1589,7 +1589,7 @@ begin
 #if "user" == InstallTarget
     ShellExec('', 'powershell.exe', '-NoLogo -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -Command ' + AddQuotes('Remove-AppxPackage -Package ''' + AppxPackageFullname + ''''), '', SW_HIDE, ewWaitUntilTerminated, RemoveAppxPackageResultCode);
 #else
-    ShellExec('', 'powershell.exe', '-NoLogo -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -Command ' + AddQuotes('$packages = Get-AppxPackage ''' + AppxPackageFullname + '''; foreach ($package in $packages) { Remove-AppxProvisionedPackage -PackageName $package.PackageFullName -Online }; foreach ($package in $packages) { Remove-AppxPackage -Package $package.PackageFullName -AllUsers }'), '', SW_HIDE, ewWaitUntilTerminated, RemoveAppxPackageResultCode);
+    ShellExec('', 'powershell.exe', '-NoLogo -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -Command ' + AddQuotes('$packages = Get-AppxPackage ''' + ExpandConstant('{#AppxPackageName}') + '''; foreach ($package in $packages) { Remove-AppxProvisionedPackage -PackageName $package.PackageFullName -Online }; foreach ($package in $packages) { Remove-AppxPackage -Package $package.PackageFullName -AllUsers }'), '', SW_HIDE, ewWaitUntilTerminated, RemoveAppxPackageResultCode);
 #endif
     Log('Remove-AppxPackage for current appx installation complete.');
   end;
