@@ -20,7 +20,3 @@ RUN apt-get install -y dbus-x11 && \
 
 # X11 Server
 RUN apt-get install -y xvfb
-
-COPY entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
-ENTRYPOINT [ "/entrypoint.sh" ]

@@ -52,5 +52,6 @@ docker run ^
 	--rm ^
 	--platform "linux/%ARCH%" ^
 	--volume "%ROOT%:/root" ^
+	--entrypoint /root/containers/entrypoint.sh ^
 	"%CONTAINER%" ^
 	%ARGS%

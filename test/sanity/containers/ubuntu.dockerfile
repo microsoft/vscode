@@ -29,7 +29,3 @@ RUN apt-get install -y libasound2 || apt-get install -y libasound2t64 && \
 		libgbm1 \
 		libnss3 \
 		xdg-utils
-
-COPY entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
-ENTRYPOINT [ "/entrypoint.sh" ]

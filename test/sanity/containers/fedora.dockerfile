@@ -19,7 +19,3 @@ RUN dnf install -y xorg-x11-server-Xvfb
 
 # VS Code dependencies
 RUN dnf install -y xdg-utils
-
-COPY entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
-ENTRYPOINT [ "/entrypoint.sh" ]

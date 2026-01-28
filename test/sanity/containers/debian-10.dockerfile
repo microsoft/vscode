@@ -39,7 +39,3 @@ RUN apt-get install -y xvfb
 
 # Install newer libxkbfile1 from Debian 11 since Debian 10 version is too old
 RUN apt-get install -y -t bullseye libxkbfile1
-
-COPY entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
-ENTRYPOINT [ "/entrypoint.sh" ]
