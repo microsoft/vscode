@@ -2000,6 +2000,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 							this.updateAgentSessionTypeContextKey();
 							this.refreshChatSessionPickers();
 						},
+						getSessionResource: () => {
+							return this._widget?.viewModel?.sessionResource;
+						},
 					};
 					const isWelcomeViewMode = !!this.options.sessionTypePickerDelegate?.setActiveSessionProvider;
 					const Picker = (action.id === OpenSessionTargetPickerAction.ID || isWelcomeViewMode) ? SessionTypePickerActionItem : DelegationSessionPickerActionItem;
