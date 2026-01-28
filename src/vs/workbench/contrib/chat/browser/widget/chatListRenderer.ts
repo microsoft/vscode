@@ -1914,6 +1914,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				carousels = new Set();
 				this.pendingQuestionCarousels.set(context.element.sessionResource, carousels);
 			}
+			carousels.add(part);
 
 			// Clean up when the part is disposed
 			part.addDisposable({ dispose: () => this.removeCarouselFromTracking(context, part) });
