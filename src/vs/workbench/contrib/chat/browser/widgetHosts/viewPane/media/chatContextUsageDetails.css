@@ -43,6 +43,18 @@
 	color: var(--vscode-descriptionForeground);
 }
 
+.chat-context-usage-details .token-row {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	margin-bottom: 4px;
+}
+
+.chat-context-usage-details .token-count-label {
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+}
+
 /* Progress bar - matching chat usage implementation */
 .chat-context-usage-details .quota-item .quota-bar {
 	width: 100%;
