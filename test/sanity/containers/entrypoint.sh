@@ -2,6 +2,8 @@
 set -e
 
 echo "System: $(uname -s) $(uname -r) $(uname -m), page size: $(getconf PAGESIZE) bytes"
+echo "Memory: $(free -h | awk '/^Mem:/ {print $2 " total, " $3 " used, " $7 " available"}')"
+echo "Disk: $(df -h / | awk 'NR==2 {print $2 " total, " $3 " used, " $4 " available"}')"
 
 if command -v Xvfb > /dev/null 2>&1; then
 	echo "Starting X11 Server"

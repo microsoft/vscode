@@ -1,6 +1,10 @@
 #!/bin/sh
 set -e
 
+echo "System: $(uname -s) $(uname -r) $(uname -m)"
+echo "Memory: $(free -h | awk '/^Mem:/ {print $2 " total, " $3 " used, " $7 " available"}')"
+echo "Disk: $(df -h / | awk 'NR==2 {print $2 " total, " $3 " used, " $4 " available"}')"
+
 echo "Installing dependencies"
 sudo apt-get update
 sudo apt-get install -y dbus-x11 x11-utils xvfb
