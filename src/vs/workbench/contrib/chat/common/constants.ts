@@ -85,7 +85,7 @@ export enum CollapsedToolsDisplayMode {
 export enum AgentsControlClickBehavior {
 	Default = 'default',
 	Cycle = 'cycle',
-	Maximize = 'maximize',
+	Focus = 'focus',
 }
 
 export type RawChatParticipantLocation = 'panel' | 'terminal' | 'notebook' | 'editing-session';

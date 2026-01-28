@@ -1,7 +1,7 @@
 {
 	"name": "Agent Sessions",
 	"settings": {
-		"chat.agentsControl.clickBehavior": "maximize",
+		"chat.agentsControl.clickBehavior": "focus",
 		"chat.agentsControl.enabled": true,
 		"chat.agent.maxRequests": 1000,
 		"chat.restoreLastPanelSession": true,
