@@ -25,7 +25,7 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { Lazy } from '../../../../../../base/common/lazy.js';
 import { Emitter } from '../../../../../../base/common/event.js';
-import { IDisposable } from '../../../../../../base/common/lifecycle.js';
+import { DisposableMap, DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../../base/common/observable.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
@@ -149,6 +149,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	private workingSpinnerLabel: HTMLElement | undefined;
 	private availableWorkingMessages: string[] = [...workingMessages];
 	private readonly toolWrappersByCallId = new Map<string, HTMLElement>();
+	private readonly toolDisposables = this._register(new DisposableMap<string, DisposableStore>());
 	private pendingRemovals: { toolCallId: string; toolLabel: string }[] = [];
 
 	private getRandomWorkingMessage(): string {
@@ -539,6 +540,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 
 	public markAsInactive(): void {
 		this.isActive = false;
+		this.processPendingRemovals();
 		if (this.workingSpinnerElement) {
 			this.workingSpinnerElement.remove();
 			this.workingSpinnerElement = undefined;
@@ -547,6 +549,8 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	}
 
 	public finalizeTitleIfDefault(): void {
+		this.processPendingRemovals();
+
 		// With lazy rendering, wrapper may not be created yet if content hasn't been expanded
 		if (this.wrapper) {
 			this.wrapper.classList.remove('chat-thinking-streaming');
@@ -810,11 +814,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		toolInvocationOrMarkdown?: IChatToolInvocation | IChatToolInvocationSerialized | IChatMarkdownContent,
 		originalParent?: HTMLElement
 	): void {
-		// remove any queued removals
-		for (const pending of this.pendingRemovals) {
-			this.removeStreamingToolEntry(pending.toolCallId, pending.toolLabel);
-		}
-		this.pendingRemovals = [];
+		this.processPendingRemovals();
 
 		// Track tool invocation metadata immediately (for title generation)
 		this.trackToolMetadata(toolInvocationId, toolInvocationOrMarkdown);
@@ -830,7 +830,12 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			const result = factory();
 			this.appendItemToDOM(result.domNode, toolInvocationId, toolInvocationOrMarkdown, originalParent);
 			if (result.disposable) {
-				this._register(result.disposable);
+				const toolCallId = toolInvocationOrMarkdown && (toolInvocationOrMarkdown.kind === 'toolInvocation' || toolInvocationOrMarkdown.kind === 'toolInvocationSerialized') ? toolInvocationOrMarkdown.toolCallId : undefined;
+				if (toolCallId) {
+					this.toolDisposables.get(toolCallId)?.add(result.disposable);
+				} else {
+					this._register(result.disposable);
+				}
 			}
 		} else {
 			// Defer rendering until expanded
@@ -872,8 +877,17 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		return true;
 	}
 
+	private processPendingRemovals(): void {
+		for (const pending of this.pendingRemovals) {
+			this.removeStreamingToolEntry(pending.toolCallId, pending.toolLabel);
+		}
+		this.pendingRemovals = [];
+	}
+
 	// removes the tool entry that was previously streaming and now is not. removes item from dom and internal tracking.
 	private removeStreamingToolEntry(toolCallId: string, toolLabel: string): void {
+		this.toolDisposables.deleteAndDispose(toolCallId);
+
 		const wrapper = this.toolWrappersByCallId.get(toolCallId);
 		if (wrapper) {
 			wrapper.remove();
@@ -933,6 +947,9 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 				let isComplete = false;
 				let isStreaming = IChatToolInvocation.isStreaming(toolInvocationOrMarkdown);
 
+				const toolStore = new DisposableStore();
+				this.toolDisposables.set(toolInvocationOrMarkdown.toolCallId, toolStore);
+
 				const updateTitle = (updatedMessage: string) => {
 					if (updatedMessage && updatedMessage !== currentToolLabel) {
 						// replace old title if exists, otherwise add new
@@ -958,7 +975,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 					}
 				};
 
-				this._register(autorun(reader => {
+				const autorunDisposable = autorun(reader => {
 					if (isComplete) {
 						return;
 					}
@@ -1014,7 +1031,8 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 						const updatedMessage = typeof invocationMsg === 'string' ? invocationMsg : invocationMsg.value;
 						updateTitle(updatedMessage);
 					}
-				}));
+				});
+				toolStore.add(autorunDisposable);
 			}
 		} else if (toolInvocationOrMarkdown?.kind === 'markdownContent') {
 			const codeblockInfo = extractCodeblockUrisFromText(toolInvocationOrMarkdown.content.value);
@@ -1117,7 +1135,12 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		this.appendItemToDOM(result.domNode, item.toolInvocationId, item.toolInvocationOrMarkdown, item.originalParent);
 
 		if (result.disposable) {
-			this._register(result.disposable);
+			const toolCallId = item.toolInvocationOrMarkdown && (item.toolInvocationOrMarkdown.kind === 'toolInvocation' || item.toolInvocationOrMarkdown.kind === 'toolInvocationSerialized') ? item.toolInvocationOrMarkdown.toolCallId : undefined;
+			if (toolCallId) {
+				this.toolDisposables.get(toolCallId)?.add(result.disposable);
+			} else {
+				this._register(result.disposable);
+			}
 		}
 	}
 
