@@ -122,6 +122,7 @@ import { IModelPickerDelegate, ModelPickerActionItem } from './modelPickerAction
 import { IModePickerDelegate, ModePickerActionItem } from './modePickerActionItem.js';
 import { SessionTypePickerActionItem } from './sessionTargetPickerActionItem.js';
 import { WorkspacePickerActionItem } from './workspacePickerActionItem.js';
+import { ChatContextUsageWidget } from '../../widgetHosts/viewPane/chatContextUsageWidget.js';
 
 const $ = dom.$;
 
@@ -284,6 +285,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private chatInputTodoListWidgetContainer!: HTMLElement;
 	private chatInputWidgetsContainer!: HTMLElement;
 	private readonly _widgetController = this._register(new MutableDisposable<ChatInputPartWidgetController>());
+
+	private contextUsageWidget?: ChatContextUsageWidget;
+	private contextUsageWidgetContainer!: HTMLElement;
+	private readonly _contextUsageDisposables = this._register(new MutableDisposable<DisposableStore>());
 
 	readonly height = observableValue<number>(this, 0);
 
@@ -1672,6 +1677,31 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 	}
 
+	/**
+	 * Updates the context usage widget based on the current model.
+	 */
+	private updateContextUsageWidget(): void {
+		this._contextUsageDisposables.clear();
+
+		const model = this._widget?.viewModel?.model;
+		if (!model || !this.contextUsageWidget) {
+			return;
+		}
+
+		const store = new DisposableStore();
+		this._contextUsageDisposables.value = store;
+
+		// Subscribe to model changes to update when requests complete
+		store.add(model.onDidChange(e => {
+			if (e.kind === 'completedRequest') {
+				this.contextUsageWidget?.update(model.lastRequest);
+			}
+		}));
+
+		// Initial update
+		this.contextUsageWidget.update(model.lastRequest);
+	}
+
 	render(container: HTMLElement, initialValue: string, widget: IChatWidget) {
 		this._widget = widget;
 		this.computeVisibleOptionGroups();
@@ -1691,6 +1721,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this.updateAgentSessionTypeContextKey();
 			this.refreshChatSessionPickers();
 			this.tryUpdateWidgetController();
+			this.updateContextUsageWidget();
 		}));
 
 		let elements;
@@ -1702,6 +1733,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					dom.h('.chat-editing-session@chatEditingSessionWidgetContainer'),
 					dom.h('.interactive-input-and-side-toolbar@inputAndSideToolbar', [
 						dom.h('.chat-input-container@inputContainer', [
+							dom.h('.chat-context-usage-container@contextUsageWidgetContainer'),
 							dom.h('.chat-editor-container@editorContainer'),
 							dom.h('.chat-input-toolbars@inputToolbars'),
 						]),
@@ -1721,6 +1753,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				dom.h('.chat-editing-session@chatEditingSessionWidgetContainer'),
 				dom.h('.interactive-input-and-side-toolbar@inputAndSideToolbar', [
 					dom.h('.chat-input-container@inputContainer', [
+						dom.h('.chat-context-usage-container@contextUsageWidgetContainer'),
 						dom.h('.chat-attachments-container@attachmentsContainer', [
 							dom.h('.chat-attachment-toolbar@attachmentToolbar'),
 							dom.h('.chat-attached-context@attachedContextContainer'),
@@ -1752,6 +1785,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.chatEditingSessionWidgetContainer = elements.chatEditingSessionWidgetContainer;
 		this.chatInputTodoListWidgetContainer = elements.chatInputTodoListWidgetContainer;
 		this.chatInputWidgetsContainer = elements.chatInputWidgetsContainer;
+		this.contextUsageWidgetContainer = elements.contextUsageWidgetContainer;
+
+		// Context usage widget
+		this.contextUsageWidget = this._register(this.instantiationService.createInstance(ChatContextUsageWidget));
+		this.contextUsageWidgetContainer.appendChild(this.contextUsageWidget.domNode);
 
 		if (this.options.enableImplicitContext && !this._implicitContext) {
 			this._implicitContext = this._register(
