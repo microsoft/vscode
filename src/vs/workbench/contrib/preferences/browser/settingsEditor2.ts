@@ -178,7 +178,7 @@ export class SettingsEditor2 extends EditorPane {
 	private controlsElement!: HTMLElement;
 	private settingsTargetsWidget!: SettingsTargetsWidget;
 
-	private splitView!: SplitView<number>;
+	private splitView: SplitView<number> | undefined;
 
 	private settingsTreeContainer!: HTMLElement;
 	private settingsTree!: SettingsTree;
@@ -975,12 +975,12 @@ export class SettingsEditor2 extends EditorPane {
 		this.createTOC(this.tocTreeContainer);
 		this.createSettingsTree(this.settingsTreeContainer);
 
-		this.splitView = this._register(new SplitView(this.bodyContainer, {
+		const splitView = this.splitView = this._register(new SplitView<number>(this.bodyContainer, {
 			orientation: Orientation.HORIZONTAL,
 			proportionalLayout: true
 		}));
 		const startingWidth = this.storageService.getNumber('settingsEditor2.splitViewWidth', StorageScope.PROFILE, SettingsEditor2.TOC_RESET_WIDTH);
-		this.splitView.addView({
+		splitView.addView({
 			onDidChange: Event.None,
 			element: this.tocTreeContainer,
 			minimumSize: SettingsEditor2.TOC_MIN_WIDTH,
@@ -990,7 +990,7 @@ export class SettingsEditor2 extends EditorPane {
 				this.tocTree.layout(height, width);
 			}
 		}, startingWidth, undefined, true);
-		this.splitView.addView({
+		splitView.addView({
 			onDidChange: Event.None,
 			element: this.settingsTreeContainer,
 			minimumSize: SettingsEditor2.EDITOR_MIN_WIDTH,
@@ -1000,17 +1000,23 @@ export class SettingsEditor2 extends EditorPane {
 				this.settingsTree.layout(height, width);
 			}
 		}, Sizing.Distribute, undefined, true);
-		this._register(this.splitView.onDidSashReset(() => {
+		this._register(splitView.onDidSashReset(() => {
+			if (!this.splitView) {
+				return;
+			}
 			const totalSize = this.splitView.getViewSize(0) + this.splitView.getViewSize(1);
 			this.splitView.resizeView(0, SettingsEditor2.TOC_RESET_WIDTH);
 			this.splitView.resizeView(1, totalSize - SettingsEditor2.TOC_RESET_WIDTH);
 		}));
-		this._register(this.splitView.onDidSashChange(() => {
+		this._register(splitView.onDidSashChange(() => {
+			if (!this.splitView) {
+				return;
+			}
 			const width = this.splitView.getViewSize(0);
 			this.storageService.store('settingsEditor2.splitViewWidth', width, StorageScope.PROFILE, StorageTarget.USER);
 		}));
 		const borderColor = this.theme.getColor(settingsSashBorder)!;
-		this.splitView.style({ separatorBorder: borderColor });
+		splitView.style({ separatorBorder: borderColor });
 	}
 
 	private addCtrlAInterceptor(container: HTMLElement): void {
@@ -1832,6 +1838,9 @@ export class SettingsEditor2 extends EditorPane {
 	 * depending on the behavior.
 	 */
 	private toggleTocBySearchBehaviorType() {
+		if (!this.splitView) {
+			return;
+		}
 		const tocBehavior = this.configurationService.getValue<'filter' | 'hide'>(SEARCH_TOC_BEHAVIOR_KEY);
 		const hideToc = tocBehavior === 'hide';
 		if (hideToc) {
@@ -2139,7 +2148,9 @@ export class SettingsEditor2 extends EditorPane {
 			}
 
 			this.rootElement.classList.remove('no-results');
-			this.splitView.el.style.visibility = 'visible';
+			if (this.splitView) {
+				this.splitView.el.style.visibility = 'visible';
+			}
 			return;
 		} else {
 			const count = this.searchResultModel.getUniqueResultsCount();
@@ -2169,7 +2180,9 @@ export class SettingsEditor2 extends EditorPane {
 			}
 			this.layout(this.dimension);
 			this.rootElement.classList.toggle('no-results', count === 0);
-			this.splitView.el.style.visibility = count === 0 ? 'hidden' : 'visible';
+			if (this.splitView) {
+				this.splitView.el.style.visibility = count === 0 ? 'hidden' : 'visible';
+			}
 		}
 	}
 
@@ -2186,7 +2199,7 @@ export class SettingsEditor2 extends EditorPane {
 	}
 
 	private layoutSplitView(dimension: DOM.Dimension): void {
-		if (!this.isVisible()) {
+		if (!this.isVisible() || !this.splitView) {
 			return;
 		}
 		const listHeight = dimension.height - (72 + 11 + 14 /* header height + editor padding */);
