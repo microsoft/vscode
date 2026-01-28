@@ -2144,6 +2144,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 					width: this.stateModel.getRuntimeValue(LayoutStateKeys.AUXILIARYBAR_LAST_NON_MAXIMIZED_SIZE),
 					height: size.height
 				});
+
+				// Ensure part positions are adjusted according to panel alignment (e.g., 'justify')
+				this.adjustPartPositions(this.getSideBarPosition(), this.getPanelAlignment(), this.getPanelPosition());
 			} finally {
 				this.inMaximizedAuxiliaryBarTransition = false;
 			}
