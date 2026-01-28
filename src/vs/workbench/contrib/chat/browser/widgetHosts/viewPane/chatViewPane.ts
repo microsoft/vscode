@@ -55,7 +55,6 @@ import { IWorkbenchLayoutService, LayoutSettings, Position } from '../../../../.
 import { AgentSessionsViewerOrientation, AgentSessionsViewerPosition } from '../../agentSessions/agentSessions.js';
 import { IProgressService } from '../../../../../../platform/progress/common/progress.js';
 import { ChatViewId } from '../../chat.js';
-import { IActivityService, ProgressBadge } from '../../../../../services/activity/common/activity.js';
 import { disposableTimeout } from '../../../../../../base/common/async.js';
 import { AgentSessionsFilter, AgentSessionsGrouping } from '../../agentSessions/agentSessionsFilter.js';
 import { IAgentSessionsService } from '../../agentSessions/agentSessionsService.js';
@@ -90,8 +89,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private restoringSession: Promise<void> | undefined;
 	private readonly modelRef = this._register(new MutableDisposable<IChatModelReference>());
 
-	private readonly activityBadge = this._register(new MutableDisposable());
-
 	constructor(
 		options: IViewPaneOptions,
 		@IKeybindingService keybindingService: IKeybindingService,
@@ -115,7 +112,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 		@ICommandService private readonly commandService: ICommandService,
-		@IActivityService private readonly activityService: IActivityService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
@@ -378,23 +374,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			trackActiveEditorSession: () => {
 				return !this._widget || this._widget.isEmpty(); // only track and reveal if chat widget is empty
 			},
-			overrideCompare: (sessionA: IAgentSession, sessionB: IAgentSession): number | undefined => {
-
-				// When stacked where only few sessions show, sort unread sessions to the top
-				if (this.sessionsViewerOrientation === AgentSessionsViewerOrientation.Stacked) {
-					const aIsUnread = !sessionA.isRead();
-					const bIsUnread = !sessionB.isRead();
-
-					if (aIsUnread && !bIsUnread) {
-						return -1; // a (unread) comes before b (read)
-					}
-					if (!aIsUnread && bIsUnread) {
-						return 1; // a (read) comes after b (unread)
-					}
-				}
-
-				return undefined;
-			},
 			overrideSessionOpenOptions: openEvent => {
 				if (this.sessionsViewerOrientation === AgentSessionsViewerOrientation.Stacked && !openEvent.sideBySide) {
 					return { ...openEvent, editorOptions: { ...openEvent.editorOptions, preserveFocus: false /* focus the chat widget when opening from stacked sessions viewer since this closes the stacked viewer */ } };
@@ -628,29 +607,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				this.relayout();
 			}
 		}));
-
-		// Show progress badge when the current session is in progress
-		const progressBadgeDisposables = this._register(new MutableDisposable<DisposableStore>());
-		const updateProgressBadge = () => {
-			progressBadgeDisposables.value = new DisposableStore();
-
-			const model = chatWidget.viewModel?.model;
-			if (model) {
-				progressBadgeDisposables.value.add(autorun(reader => {
-					if (model.requestInProgress.read(reader)) {
-						this.activityBadge.value = this.activityService.showViewActivity(this.id, {
-							badge: new ProgressBadge(() => localize('sessionInProgress', "Agent Session in Progress"))
-						});
-					} else {
-						this.activityBadge.clear();
-					}
-				}));
-			} else {
-				this.activityBadge.clear();
-			}
-		};
-		this._register(chatWidget.onDidChangeViewModel(() => updateProgressBadge()));
-		updateProgressBadge();
 	}
 
 	private setupContextMenu(parent: HTMLElement): void {

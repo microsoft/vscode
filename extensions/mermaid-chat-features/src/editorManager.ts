@@ -132,12 +132,10 @@ class MermaidPreview extends Disposable {
 	): MermaidPreview {
 		const webviewPanel = vscode.window.createWebviewPanel(
 			mermaidEditorViewType,
-			'Mermaid Diagram',
+			'', // Filled in later
 			viewColumn,
 			{
-				enableScripts: true,
-				retainContextWhenHidden: true,
-				localResourceRoots: [vscode.Uri.joinPath(extensionUri, 'chat-webview-out')],
+				retainContextWhenHidden: false,
 			}
 		);
 
@@ -162,6 +160,9 @@ class MermaidPreview extends Disposable {
 		private readonly _webviewManager: MermaidWebviewManager
 	) {
 		super();
+
+		this._webviewPanel.title = vscode.l10n.t('Mermaid Diagram'); // TODO: Can we generate a better title from the content?
+		this._webviewPanel.iconPath = new vscode.ThemeIcon('graph');
 
 		this._webviewPanel.webview.options = {
 			enableScripts: true,
@@ -206,6 +207,9 @@ class MermaidPreview extends Disposable {
 		const scriptUri = this._webviewPanel.webview.asWebviewUri(
 			vscode.Uri.joinPath(mediaRoot, 'index-editor.js')
 		);
+		const codiconsUri = this._webviewPanel.webview.asWebviewUri(
+			vscode.Uri.joinPath(mediaRoot, 'codicon.css')
+		);
 
 		return /* html */`<!DOCTYPE html>
 			<html lang="en">
@@ -213,7 +217,8 @@ class MermaidPreview extends Disposable {
 				<meta charset="UTF-8">
 				<meta name="viewport" content="width=device-width, initial-scale=1.0">
 				<title>Mermaid Diagram</title>
-				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'nonce-${nonce}'; style-src 'self' 'unsafe-inline';" />
+				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'nonce-${nonce}'; style-src ${this._webviewPanel.webview.cspSource} 'unsafe-inline'; font-src data:;" />
+				<link rel="stylesheet" type="text/css" href="${codiconsUri}">
 				<style>
 					html, body {
 						margin: 0;
@@ -232,9 +237,41 @@ class MermaidPreview extends Disposable {
 						height: 100%;
 						width: 100%;
 					}
+					.zoom-controls {
+						position: absolute;
+						top: 8px;
+						right: 8px;
+						display: flex;
+						gap: 2px;
+						z-index: 100;
+						background: var(--vscode-editorWidget-background);
+						border: 1px solid var(--vscode-editorWidget-border);
+						border-radius: 6px;
+						padding: 3px;
+					}
+					.zoom-controls button {
+						display: flex;
+						align-items: center;
+						justify-content: center;
+						width: 26px;
+						height: 26px;
+						background: transparent;
+						color: var(--vscode-icon-foreground);
+						border: none;
+						border-radius: 4px;
+						cursor: pointer;
+					}
+					.zoom-controls button:hover {
+						background: var(--vscode-toolbar-hoverBackground);
+					}
 				</style>
 			</head>
 			<body data-vscode-context='${JSON.stringify({ preventDefaultContextMenuItems: true, mermaidWebviewId: this.diagramId })}' data-vscode-mermaid-webview-id="${this.diagramId}">
+				<div class="zoom-controls">
+					<button class="zoom-out-btn" title="${vscode.l10n.t('Zoom Out')}"><i class="codicon codicon-zoom-out"></i></button>
+					<button class="zoom-in-btn" title="${vscode.l10n.t('Zoom In')}"><i class="codicon codicon-zoom-in"></i></button>
+					<button class="zoom-reset-btn" title="${vscode.l10n.t('Reset Zoom')}"><i class="codicon codicon-screen-normal"></i></button>
+				</div>
 				<pre class="mermaid">
 					${escapeHtmlText(this._mermaidSource)}
 				</pre>

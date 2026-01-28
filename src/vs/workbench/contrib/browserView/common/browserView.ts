@@ -115,6 +115,7 @@ export interface IBrowserViewModel extends IDisposable {
 	focus(): Promise<void>;
 	findInPage(text: string, options?: IBrowserViewFindInPageOptions): Promise<void>;
 	stopFindInPage(keepSelection?: boolean): Promise<void>;
+	clearStorage(): Promise<void>;
 }
 
 export class BrowserViewModel extends Disposable implements IBrowserViewModel {
@@ -318,6 +319,10 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 
 	async stopFindInPage(keepSelection?: boolean): Promise<void> {
 		return this.browserViewService.stopFindInPage(this.id, keepSelection);
+	}
+
+	async clearStorage(): Promise<void> {
+		return this.browserViewService.clearStorage(this.id);
 	}
 
 	/**

@@ -162,6 +162,13 @@ export class PanZoomHandler {
 		if (!this.isPanning) {
 			return;
 		}
+
+		// Handle case where mouse was released outside the webview
+		if (e.buttons === 0) {
+			this.handleMouseUp();
+			return;
+		}
+
 		const dx = e.clientX - this.startX - this.translateX;
 		const dy = e.clientY - this.startY - this.translateY;
 		if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
@@ -255,6 +262,16 @@ export class PanZoomHandler {
 		});
 	}
 
+	public zoomIn(): void {
+		const rect = this.container.getBoundingClientRect();
+		this.zoomAtPoint(1.25, rect.width / 2, rect.height / 2);
+	}
+
+	public zoomOut(): void {
+		const rect = this.container.getBoundingClientRect();
+		this.zoomAtPoint(0.8, rect.width / 2, rect.height / 2);
+	}
+
 	private zoomAtPoint(factor: number, x: number, y: number): void {
 		const newScale = Math.min(this.maxScale, Math.max(this.minScale, this.scale * factor));
 		const scaleFactor = newScale / this.scale;
@@ -304,10 +321,10 @@ async function rerenderMermaidDiagram(
 	});
 }
 
-export async function initializeMermaidWebview(vscode: VsCodeApi): Promise<void> {
+export async function initializeMermaidWebview(vscode: VsCodeApi): Promise<PanZoomHandler | undefined> {
 	const diagram = document.querySelector<HTMLElement>('.mermaid');
 	if (!diagram) {
-		return undefined;
+		return;
 	}
 
 	// Capture diagram state
@@ -379,4 +396,6 @@ export async function initializeMermaidWebview(vscode: VsCodeApi): Promise<void>
 
 		rerenderMermaidDiagram(diagramNode, state.mermaidSource, newTheme);
 	}).observe(document.body, { attributes: true, attributeFilter: ['class'] });
+
+	return panZoomHandler;
 }

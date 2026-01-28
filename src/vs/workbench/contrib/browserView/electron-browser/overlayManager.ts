@@ -22,6 +22,8 @@ const OVERLAY_DEFINITIONS: ReadonlyArray<{ className: string; type: BrowserOverl
 	{ className: 'monaco-menu-container', type: BrowserOverlayType.Menu },
 	{ className: 'quick-input-widget', type: BrowserOverlayType.QuickInput },
 	{ className: 'monaco-hover', type: BrowserOverlayType.Hover },
+	{ className: 'editor-widget', type: BrowserOverlayType.Hover },
+	{ className: 'suggest-details-container', type: BrowserOverlayType.Hover },
 	{ className: 'monaco-dialog-modal-block', type: BrowserOverlayType.Dialog },
 	{ className: 'notifications-center', type: BrowserOverlayType.Notification },
 	{ className: 'notification-toast-container', type: BrowserOverlayType.Notification },
@@ -80,13 +82,16 @@ export class BrowserOverlayManager extends Disposable implements IBrowserOverlay
 	private _elementObservers = new WeakMap<HTMLElement, MutationObserver>();
 	private _structuralObserver: MutationObserver;
 	private _observerIsConnected: boolean = false;
+	private _shadowRootHostCollection: HTMLCollectionOf<Element>;
+	private _shadowRootObservers = new WeakMap<ShadowRoot, MutationObserver>();
+	private _shadowRootOverlayCache = new WeakMap<ShadowRoot, Array<{ element: HTMLElement; type: BrowserOverlayType }>>();
 
 	constructor(
 		private readonly targetWindow: CodeWindow
 	) {
 		super();
 
-		// Initialize live collections for each overlay selector
+		// Initialize live collections for each overlay selector in main document
 		for (const overlayDefinition of OVERLAY_DEFINITIONS) {
 			this._overlayCollections.set(overlayDefinition.className, {
 				type: overlayDefinition.type,
@@ -96,11 +101,17 @@ export class BrowserOverlayManager extends Disposable implements IBrowserOverlay
 			});
 		}
 
+		// Initialize live collection for shadow root hosts
+		// We need dynamic collections for overlay detection, using getElementsByClassName is intentional here
+		// eslint-disable-next-line no-restricted-syntax
+		this._shadowRootHostCollection = this.targetWindow.document.getElementsByClassName('shadow-root-host');
+
 		// Setup structural observer to watch for element additions/removals
 		this._structuralObserver = new targetWindow.MutationObserver((mutations) => {
 			let didRemove = false;
 			for (const mutation of mutations) {
 				for (const node of mutation.removedNodes) {
+					// Clean up element observers
 					if (this._elementObservers.has(node as HTMLElement)) {
 						const observer = this._elementObservers.get(node as HTMLElement);
 						observer?.disconnect();
@@ -111,6 +122,19 @@ export class BrowserOverlayManager extends Disposable implements IBrowserOverlay
 					if (this._overlayRectangles.delete(node as HTMLElement)) {
 						didRemove = true;
 					}
+
+					// Clean up shadow root observers when shadow-root-host elements are removed
+					const hostElement = node as HTMLElement;
+					if (hostElement.shadowRoot) {
+						const shadowRoot = hostElement.shadowRoot;
+						const observer = this._shadowRootObservers.get(shadowRoot);
+						if (observer) {
+							observer.disconnect();
+							this._shadowRootObservers.delete(shadowRoot);
+							this._shadowRootOverlayCache.delete(shadowRoot);
+							didRemove = true;
+						}
+					}
 				}
 			}
 			this.updateTrackedElements(didRemove);
@@ -118,14 +142,60 @@ export class BrowserOverlayManager extends Disposable implements IBrowserOverlay
 	}
 
 	private *overlays(): Iterable<{ element: HTMLElement; type: BrowserOverlayType }> {
+		// Yield overlays from main document live collections
 		for (const entry of this._overlayCollections.values()) {
 			for (const element of entry.collection) {
 				yield { element: element as HTMLElement, type: entry.type };
 			}
 		}
+
+		// Yield overlays from shadow roots
+		for (const hostElement of this._shadowRootHostCollection) {
+			const shadowRoot = hostElement.shadowRoot;
+			if (shadowRoot) {
+				let cache = this._shadowRootOverlayCache.get(shadowRoot);
+				if (!cache) {
+					// Rebuild cache
+					cache = [];
+					for (const overlayDefinition of OVERLAY_DEFINITIONS) {
+						// We need to query shadow roots for overlay detection, using querySelectorAll is intentional here
+						// eslint-disable-next-line no-restricted-syntax
+						const elements = shadowRoot.querySelectorAll(`.${overlayDefinition.className}`);
+						for (const element of elements) {
+							cache.push({ element: element as HTMLElement, type: overlayDefinition.type });
+						}
+					}
+					this._shadowRootOverlayCache.set(shadowRoot, cache);
+				}
+
+				yield* cache;
+			}
+		}
 	}
 
 	private updateTrackedElements(shouldEmit = false): void {
+		// Track shadow roots using live collection
+		for (const host of this._shadowRootHostCollection) {
+			const hostElement = host as HTMLElement;
+			const shadowRoot = hostElement.shadowRoot;
+			if (shadowRoot && !this._shadowRootObservers.has(shadowRoot)) {
+				// Create observer for this shadow root
+				const observer = new this.targetWindow.MutationObserver(() => {
+					// Clear element cache when shadow root structure changes
+					this._shadowRootOverlayCache.delete(shadowRoot);
+					this._onDidChangeOverlayState.fire();
+				});
+
+				observer.observe(shadowRoot, {
+					childList: true,
+					subtree: true
+				});
+
+				this._shadowRootObservers.set(shadowRoot, observer);
+				shouldEmit = true;
+			}
+		}
+
 		// Scan all overlay collections for elements and ensure they have observers
 		for (const overlay of this.overlays()) {
 			// Create a new observer for this specific element if we don't already have one
@@ -198,10 +268,21 @@ export class BrowserOverlayManager extends Disposable implements IBrowserOverlay
 	}
 
 	private stopTrackingElements(): void {
+		// Disconnect all element observers
 		for (const overlay of this.overlays()) {
 			const observer = this._elementObservers.get(overlay.element);
 			observer?.disconnect();
 		}
+
+		// Disconnect all shadow root observers
+		for (const hostElement of this._shadowRootHostCollection) {
+			const shadowRoot = (hostElement as HTMLElement).shadowRoot;
+			const shadowObserver = this._shadowRootObservers.get(shadowRoot!);
+			shadowObserver?.disconnect();
+		}
+
+		this._shadowRootObservers = new WeakMap();
+		this._shadowRootOverlayCache = new WeakMap();
 		this._overlayRectangles = new WeakMap();
 		this._elementObservers = new WeakMap();
 	}

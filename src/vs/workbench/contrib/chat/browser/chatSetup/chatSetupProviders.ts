@@ -68,22 +68,28 @@ const ToolsAgentContextKey = ContextKeyExpr.and(
 
 export class SetupAgent extends Disposable implements IChatAgentImplementation {
 
-	static registerDefaultAgents(instantiationService: IInstantiationService, location: ChatAgentLocation, mode: ChatModeKind | undefined, context: ChatEntitlementContext, controller: Lazy<ChatSetupController>): { agent: SetupAgent; disposable: IDisposable } {
+	static registerDefaultAgents(instantiationService: IInstantiationService, location: ChatAgentLocation, mode: ChatModeKind, context: ChatEntitlementContext, controller: Lazy<ChatSetupController>): { agent: SetupAgent; disposable: IDisposable } {
 		return instantiationService.invokeFunction(accessor => {
 			const chatAgentService = accessor.get(IChatAgentService);
 
+			let description;
+			if (mode === ChatModeKind.Ask) {
+				description = ChatMode.Ask.description.get();
+			} else if (mode === ChatModeKind.Edit) {
+				description = ChatMode.Edit.description.get();
+			} else {
+				description = ChatMode.Agent.description.get();
+			}
+
 			let id: string;
-			let description = ChatMode.Ask.description.get();
 			switch (location) {
 				case ChatAgentLocation.Chat:
 					if (mode === ChatModeKind.Ask) {
 						id = 'setup.chat';
 					} else if (mode === ChatModeKind.Edit) {
 						id = 'setup.edits';
-						description = ChatMode.Edit.description.get();
 					} else {
 						id = 'setup.agent';
-						description = ChatMode.Agent.description.get();
 					}
 					break;
 				case ChatAgentLocation.Terminal:
@@ -108,15 +114,15 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 			const disposables = new DisposableStore();
 
 			// Register VSCode agent
-			const { disposable: vscodeDisposable } = SetupAgent.doRegisterAgent(instantiationService, chatAgentService, 'setup.vscode', 'vscode', false, localize2('vscodeAgentDescription', "Ask questions about VS Code").value, ChatAgentLocation.Chat, undefined, context, controller);
+			const { disposable: vscodeDisposable } = SetupAgent.doRegisterAgent(instantiationService, chatAgentService, 'setup.vscode', 'vscode', false, localize2('vscodeAgentDescription', "Ask questions about VS Code").value, ChatAgentLocation.Chat, ChatModeKind.Agent, context, controller);
 			disposables.add(vscodeDisposable);
 
 			// Register workspace agent
-			const { disposable: workspaceDisposable } = SetupAgent.doRegisterAgent(instantiationService, chatAgentService, 'setup.workspace', 'workspace', false, localize2('workspaceAgentDescription', "Ask about your workspace").value, ChatAgentLocation.Chat, undefined, context, controller);
+			const { disposable: workspaceDisposable } = SetupAgent.doRegisterAgent(instantiationService, chatAgentService, 'setup.workspace', 'workspace', false, localize2('workspaceAgentDescription', "Ask about your workspace").value, ChatAgentLocation.Chat, ChatModeKind.Agent, context, controller);
 			disposables.add(workspaceDisposable);
 
 			// Register terminal agent
-			const { disposable: terminalDisposable } = SetupAgent.doRegisterAgent(instantiationService, chatAgentService, 'setup.terminal.agent', 'terminal', false, localize2('terminalAgentDescription', "Ask how to do something in the terminal").value, ChatAgentLocation.Chat, undefined, context, controller);
+			const { disposable: terminalDisposable } = SetupAgent.doRegisterAgent(instantiationService, chatAgentService, 'setup.terminal.agent', 'terminal', false, localize2('terminalAgentDescription', "Ask how to do something in the terminal").value, ChatAgentLocation.Chat, ChatModeKind.Agent, context, controller);
 			disposables.add(terminalDisposable);
 
 			// Register tools
@@ -136,14 +142,14 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 		});
 	}
 
-	private static doRegisterAgent(instantiationService: IInstantiationService, chatAgentService: IChatAgentService, id: string, name: string, isDefault: boolean, description: string, location: ChatAgentLocation, mode: ChatModeKind | undefined, context: ChatEntitlementContext, controller: Lazy<ChatSetupController>): { agent: SetupAgent; disposable: IDisposable } {
+	private static doRegisterAgent(instantiationService: IInstantiationService, chatAgentService: IChatAgentService, id: string, name: string, isDefault: boolean, description: string, location: ChatAgentLocation, mode: ChatModeKind, context: ChatEntitlementContext, controller: Lazy<ChatSetupController>): { agent: SetupAgent; disposable: IDisposable } {
 		const disposables = new DisposableStore();
 		disposables.add(chatAgentService.registerAgent(id, {
 			id,
 			name,
 			isDefault,
 			isCore: true,
-			modes: mode ? [mode] : [ChatModeKind.Ask],
+			modes: [mode],
 			when: mode === ChatModeKind.Agent ? ToolsAgentContextKey?.serialize() : undefined,
 			slashCommands: [],
 			disambiguation: [],

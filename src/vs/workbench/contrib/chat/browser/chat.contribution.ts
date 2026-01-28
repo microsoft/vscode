@@ -84,6 +84,7 @@ import { registerChatTitleActions } from './actions/chatTitleActions.js';
 import { registerChatElicitationActions } from './actions/chatElicitationActions.js';
 import { registerChatToolActions } from './actions/chatToolActions.js';
 import { ChatTransferContribution } from './actions/chatTransfer.js';
+import { registerChatCustomizationDiagnosticsAction } from './actions/chatCustomizationDiagnosticsAction.js';
 import './agentSessions/agentSessions.contribution.js';
 import { IAgentSessionsService } from './agentSessions/agentSessionsService.js';
 import { IChatAccessibilityService, IChatCodeBlockContextProviderService, IChatWidgetService, IQuickChatService } from './chat.js';
@@ -199,7 +200,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.AgentStatusEnabled]: {
 			type: 'boolean',
-			markdownDescription: nls.localize('chat.agentsControl.enabled', "Controls whether the 'Agent Status' indicator is shown in the title bar command center. Enabling this setting will automatically enable {0}.", '`#window.commandCenter#`'),
+			markdownDescription: nls.localize('chat.agentsControl.enabled', "Controls whether the 'Agent Status' indicator is shown in the title bar command center. Enabling this setting will automatically enable {0}. The unread/in-progress session indicators require {1} to be enabled.", '`#window.commandCenter#`', '`#chat.viewSessions.enabled#`'),
 			default: true,
 			tags: ['experimental']
 		},
@@ -829,6 +830,18 @@ configurationRegistry.registerConfiguration({
 			disallowConfigurationDefault: true,
 			tags: ['prompts', 'reusable prompts', 'prompt snippets', 'instructions']
 		},
+		[PromptsConfig.USE_SKILL_ADHERENCE_PROMPT]: {
+			type: 'boolean',
+			title: nls.localize('chat.useSkillAdherencePrompt.title', "Use Skill Adherence Prompt",),
+			markdownDescription: nls.localize('chat.useSkillAdherencePrompt.description', "Controls whether a stronger skill adherence prompt is used that encourages the model to immediately invoke skills when relevant rather than just announcing them."),
+			default: false,
+			restricted: true,
+			disallowConfigurationDefault: true,
+			tags: ['experimental', 'prompts', 'reusable prompts', 'prompt snippets', 'instructions'],
+			experiment: {
+				mode: 'auto'
+			}
+		},
 		[PromptsConfig.INCLUDE_APPLYING_INSTRUCTIONS]: {
 			type: 'boolean',
 			title: nls.localize('chat.includeApplyingInstructions.title', "Include Applying Instructions",),
@@ -1344,6 +1357,7 @@ Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEdit
 registerWorkbenchContribution2(ChatResolverContribution.ID, ChatResolverContribution, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(ChatLanguageModelsDataContribution.ID, ChatLanguageModelsDataContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatSlashStaticSlashCommandsContribution.ID, ChatSlashStaticSlashCommandsContribution, WorkbenchPhase.Eventually);
+
 registerWorkbenchContribution2(ChatExtensionPointHandler.ID, ChatExtensionPointHandler, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(LanguageModelToolsExtensionPointHandler.ID, LanguageModelToolsExtensionPointHandler, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatPromptFilesExtensionPointHandler.ID, ChatPromptFilesExtensionPointHandler, WorkbenchPhase.BlockRestore);
@@ -1377,6 +1391,7 @@ registerWorkbenchContribution2(ChatRepoInfoContribution.ID, ChatRepoInfoContribu
 registerChatActions();
 registerChatAccessibilityActions();
 registerChatCopyActions();
+registerChatCustomizationDiagnosticsAction();
 registerChatCodeBlockActions();
 registerChatCodeCompareBlockActions();
 registerChatFileTreeActions();

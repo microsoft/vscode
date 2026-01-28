@@ -12,6 +12,7 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
  *   This typically means the user ran the command manually from the Command Palette.
  * - `'commandWithUrl'`: opened via the "Open Integrated Browser" command with a URL argument.
  *   This typically means another extension or component invoked the command programmatically.
+ * - `'newTabCommand'`: opened via the "New Tab" command from an existing tab.
  * - `'localhostLinkOpener'`: opened via the localhost link opener when the
  *   `workbench.browser.openLocalhostLinks` setting is enabled. This happens when clicking
  *   localhost links from the terminal, chat, or other sources.
@@ -22,7 +23,7 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
  * - `'copyToNewWindow'`: opened when the user copies a browser editor to a new window
  *   via "Copy into New Window".
  */
-export type IntegratedBrowserOpenSource = 'commandWithoutUrl' | 'commandWithUrl' | 'localhostLinkOpener' | 'browserLinkForeground' | 'browserLinkBackground' | 'copyToNewWindow';
+export type IntegratedBrowserOpenSource = 'commandWithoutUrl' | 'commandWithUrl' | 'newTabCommand' | 'localhostLinkOpener' | 'browserLinkForeground' | 'browserLinkBackground' | 'copyToNewWindow';
 
 type IntegratedBrowserOpenEvent = {
 	source: IntegratedBrowserOpenSource;

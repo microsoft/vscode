@@ -314,10 +314,23 @@ export class ComputeAutomaticInstructions {
 
 			const agentSkills = await this._promptsService.findAgentSkills(token);
 			if (agentSkills && agentSkills.length > 0) {
+				const useSkillAdherencePrompt = this._configurationService.getValue(PromptsConfig.USE_SKILL_ADHERENCE_PROMPT);
 				entries.push('<skills>');
-				entries.push('Here is a list of skills that contain domain specific knowledge on a variety of topics.');
-				entries.push('Each skill comes with a description of the topic and a file path that contains the detailed instructions.');
-				entries.push(`When a user asks you to perform a task that falls within the domain of a skill, use the ${readTool.variable} tool to acquire the full instructions from the file URI.`);
+				if (useSkillAdherencePrompt) {
+					// Stronger skill adherence prompt for experimental feature
+					entries.push('Skills are curated collections of best practices and detailed guidance for producing high-quality outputs across various domains. Each skill folder contains refined instructions developed through extensive testing to help achieve professional results. Examples include presentation skills for creating polished slides, document skills for well-formatted reports, and many others. Multiple skills can be combined when a task spans different domains.');
+					entries.push(`IMPORTANT: Reading skill documentation BEFORE taking action significantly improves output quality. When you receive a task, first review the available skills listed below to identify which ones apply. Use the ${readTool.variable} tool to load the relevant SKILL.md file(s) and follow their guidance.`);
+					entries.push('Examples of proper skill usage:');
+					entries.push(`- Task: "Create a presentation about our product roadmap" -> First load the presentation skill via ${readTool.variable}`);
+					entries.push(`- Task: "Clean up the formatting in this document" -> First load the document editing skill via ${readTool.variable}`);
+					entries.push(`- Task: "Add a flowchart to the README" -> Load both the documentation skill and any diagram-related skill`);
+					entries.push('Taking time to read the skill instructions first leads to substantially better results.');
+					entries.push('Available skills:');
+				} else {
+					entries.push('Here is a list of skills that contain domain specific knowledge on a variety of topics.');
+					entries.push('Each skill comes with a description of the topic and a file path that contains the detailed instructions.');
+					entries.push(`When a user asks you to perform a task that falls within the domain of a skill, use the ${readTool.variable} tool to acquire the full instructions from the file URI.`);
+				}
 				for (const skill of agentSkills) {
 					entries.push('<skill>');
 					entries.push(`<name>${skill.name}</name>`);

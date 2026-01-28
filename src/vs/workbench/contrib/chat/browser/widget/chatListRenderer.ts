@@ -1799,7 +1799,34 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		context: IChatContentPartRenderContext,
 		templateData: IChatListItemTemplate
 	): void {
-		if (toolInvocation.kind !== 'toolInvocation' || !IChatToolInvocation.isStreaming(toolInvocation)) {
+		if (toolInvocation.kind !== 'toolInvocation') {
+			return;
+		}
+
+		const removeConfirmationWidget = () => {
+			const createdPart = getCreatedPart();
+			// move the created part out of thinking and into the main template
+			if (createdPart?.domNode) {
+				const wrapper = createdPart.domNode.parentElement;
+				if (wrapper?.classList.contains('chat-thinking-tool-wrapper')) {
+					wrapper.remove();
+				}
+				templateData.value.appendChild(createdPart.domNode);
+			} else {
+				thinkingPart.removeLazyItem(toolInvocation.toolId);
+				const { domNode } = createToolPart();
+				templateData.value.appendChild(domNode);
+			}
+			this.finalizeCurrentThinkingPart(context, templateData);
+		};
+
+		const currentState = toolInvocation.state.get();
+		if (currentState.type === IChatToolInvocation.StateKind.WaitingForConfirmation || currentState.type === IChatToolInvocation.StateKind.WaitingForPostApproval) {
+			removeConfirmationWidget();
+			return;
+		}
+
+		if (currentState.type !== IChatToolInvocation.StateKind.Streaming) {
 			return;
 		}
 
@@ -1809,20 +1836,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			if (wasStreaming && state.type !== IChatToolInvocation.StateKind.Streaming) {
 				wasStreaming = false;
 				if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation || state.type === IChatToolInvocation.StateKind.WaitingForPostApproval) {
-					const createdPart = getCreatedPart();
-					// move the created part out of thinking and into the main template
-					if (createdPart?.domNode) {
-						const wrapper = createdPart.domNode.parentElement;
-						if (wrapper?.classList.contains('chat-thinking-tool-wrapper')) {
-							wrapper.remove();
-						}
-						templateData.value.appendChild(createdPart.domNode);
-					} else {
-						thinkingPart.removeLazyItem(toolInvocation.toolId);
-						const { domNode } = createToolPart();
-						templateData.value.appendChild(domNode);
-					}
-					this.finalizeCurrentThinkingPart(context, templateData);
+					removeConfirmationWidget();
 				}
 			}
 		});
@@ -1860,11 +1874,15 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return this.renderNoContent(other => elicitation.kind === other.kind);
 		}
 
+		this.finalizeCurrentThinkingPart(context, templateData);
+
 		const part = this.instantiationService.createInstance(ChatElicitationContentPart, elicitation, context);
 		return part;
 	}
 
 	private renderQuestionCarousel(context: IChatContentPartRenderContext, carousel: IChatQuestionCarousel, templateData: IChatListItemTemplate): IChatContentPart {
+		this.finalizeCurrentThinkingPart(context, templateData);
+
 		const part = this.instantiationService.createInstance(ChatQuestionCarouselPart, carousel, context, {
 			onSubmit: async (answers) => {
 				// Mark the carousel as used and store the answers

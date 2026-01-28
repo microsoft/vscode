@@ -341,7 +341,7 @@ export class BrowserEditor extends EditorPane {
 		this.setBackgroundImage(this._model.screenshot);
 
 		if (context.newInGroup) {
-			this._navigationBar.focusUrlInput();
+			this.focusUrlInput();
 		}
 
 		// Listen to model events for UI updates
@@ -550,6 +550,10 @@ export class BrowserEditor extends EditorPane {
 		}
 	}
 
+	focusUrlInput(): void {
+		this._navigationBar.focusUrlInput();
+	}
+
 	async goBack(): Promise<void> {
 		return this._model?.goBack();
 	}
@@ -564,6 +568,10 @@ export class BrowserEditor extends EditorPane {
 
 	async toggleDevTools(): Promise<void> {
 		return this._model?.toggleDevTools();
+	}
+
+	async clearStorage(): Promise<void> {
+		return this._model?.clearStorage();
 	}
 
 	/**
