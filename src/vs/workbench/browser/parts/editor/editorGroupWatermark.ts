@@ -110,6 +110,7 @@ export class EditorGroupWatermark extends Disposable {
 		this.renderSkeletonRows();
 
 		this.registerListeners();
+		this.updateLoadingState();
 
 		this.render();
 	}
