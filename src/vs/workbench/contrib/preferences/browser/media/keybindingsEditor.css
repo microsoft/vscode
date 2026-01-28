@@ -100,7 +100,7 @@
 .keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table-tr .monaco-table-td {
 	align-items: center;
 	display: flex;
-	overflow: hidden;
+	overflow: visible;
 }
 
 /** Actions column styling **/
