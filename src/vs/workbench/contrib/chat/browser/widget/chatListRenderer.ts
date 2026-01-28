@@ -115,11 +115,12 @@ export interface IChatListItemTemplate {
 	 */
 	renderedParts?: IChatContentPart[];
 	/**
-	 * Whether the parts are mounted in the DOM. This is undefined after
-	 * the element is disposed so the `renderedParts.onDidMount` can be
-	 * called on the next render as appropriate.
+	 * Element used to track whether the template is mounted in the DOM.
+	 * Check `connectionObserver.isConnected` to determine mount state.
 	 */
 	renderedPartsMounted?: boolean;
+	readonly connectionObserver: dom.ConnectionObserverElement;
+
 	readonly rowContainer: HTMLElement;
 	readonly titleToolbar?: MenuWorkbenchToolBar;
 	readonly header?: HTMLElement;
@@ -535,7 +536,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				this.hoverService.hideHover();
 			}
 		}));
-		const template: IChatListItemTemplate = { header, avatarContainer, requestHover, username, detail, value, rowContainer, elementDisposables, templateDisposables, contextKeyService, instantiationService: scopedInstantiationService, agentHover, titleToolbar, footerToolbar, footerDetailsContainer, disabledOverlay, checkpointToolbar, checkpointRestoreToolbar, checkpointContainer, checkpointRestoreContainer };
+		const connectionObserver = document.createElement('connection-observer') as dom.ConnectionObserverElement;
+		dom.append(container, connectionObserver);
+		const template: IChatListItemTemplate = { header, avatarContainer, requestHover, username, detail, value, rowContainer, elementDisposables, templateDisposables, contextKeyService, instantiationService: scopedInstantiationService, agentHover, titleToolbar, footerToolbar, footerDetailsContainer, disabledOverlay, checkpointToolbar, checkpointRestoreToolbar, checkpointContainer, checkpointRestoreContainer, connectionObserver };
+
+		connectionObserver.onDidDisconnect = () => {
+			template.renderedPartsMounted = false;
+		};
 
 		templateDisposables.add(this._onDidUpdateViewModel.event(() => {
 			if (!template.currentElement || !this.viewModel?.sessionResource || !isEqual(template.currentElement.sessionResource, this.viewModel.sessionResource)) {
@@ -2115,7 +2122,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	disposeElement(node: ITreeNode<ChatTreeItem, FuzzyScore>, index: number, templateData: IChatListItemTemplate, details?: IListElementRenderDetails): void {
 		this.traceLayout('disposeElement', `Disposing element, index=${index}`);
 		templateData.elementDisposables.clear();
-		templateData.renderedPartsMounted = false;
 
 		if (templateData.currentElement && !this.viewModel?.editing) {
 			this.templateDataByRequestId.delete(templateData.currentElement.id);
