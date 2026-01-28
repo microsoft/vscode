@@ -26,9 +26,17 @@ fi
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 ROOT_DIR=$(cd "$SCRIPT_DIR/.." && pwd)
 
+# Map uname -m to Docker platform arch
+HOST_ARCH=$(uname -m)
+case "$HOST_ARCH" in
+	x86_64) HOST_ARCH="amd64" ;;
+	aarch64) HOST_ARCH="arm64" ;;
+	armv7l) HOST_ARCH="arm" ;;
+esac
+
 # Only build if image doesn't exist (i.e., not loaded from cache)
 if ! docker image inspect "$CONTAINER" > /dev/null 2>&1; then
-	if [ "$ARCH" != "amd64" ]; then
+	if [ "$ARCH" != "$HOST_ARCH" ]; then
 		echo "Setting up QEMU user-mode emulation for $ARCH"
 		docker run --privileged --rm tonistiigi/binfmt --install "$ARCH"
 	fi
