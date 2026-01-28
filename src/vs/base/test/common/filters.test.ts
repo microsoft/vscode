@@ -631,4 +631,8 @@ suite('Filters', () => {
 		assertMatches('i', 'machine/{id}', 'machine/{^id}', fuzzyScore);
 		assertMatches('ok', 'obobobf{ok}/user', '^obobobf{o^k}/user', fuzzyScore);
 	});
+
+	test('Exact substring match should score higher than fuzzy match #285449', function () {
+		assertTopScore(fuzzyScore, 'joint', 1, 'john.is.not.here', 'he.has.a.joint.account');
+	});
 });

@@ -794,9 +794,12 @@ export function fuzzyScore(pattern: string, patternLow: string, patternStart: nu
 		result[0] += 2;
 	}
 
-	// Add 1 penalty for each skipped character in the word
+	// Add 1 penalty for each skipped character in the word only if
+	// the pattern doesn't exist as a contiguous substring within the word
 	const skippedCharsCount = maxMatchColumn - patternLen;
-	result[0] -= skippedCharsCount;
+	if (wordLow.indexOf(patternLow, wordStart) === -1) {
+		result[0] -= skippedCharsCount;
+	}
 
 	return result;
 }
