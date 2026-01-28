@@ -7,6 +7,7 @@ import { MermaidEditorManager } from './editorManager';
 import { MermaidWebviewManager } from './webviewManager';
 import { escapeHtmlText } from './util/html';
 import { generateUuid } from './util/uuid';
+import { disposeAll } from './util/dispose';
 
 /**
  * Mime type used to identify Mermaid diagram data in chat output.
@@ -25,13 +26,13 @@ class MermaidChatOutputRenderer implements vscode.ChatOutputRenderer {
 		private readonly _webviewManager: MermaidWebviewManager
 	) { }
 
-	async renderChatOutput({ value }: vscode.ChatOutputDataItem, webview: vscode.Webview, _ctx: unknown, _token: vscode.CancellationToken): Promise<void> {
+	async renderChatOutput({ value }: vscode.ChatOutputDataItem, chatOutputWebview: vscode.ChatOutputWebview, _ctx: unknown, _token: vscode.CancellationToken): Promise<void> {
+		const webview = chatOutputWebview.webview;
 		const mermaidSource = new TextDecoder().decode(value);
 
 		// Generate unique ID for this webview
 		const webviewId = generateUuid();
 
-		// TODO: we need a way to know when to dispose this, but that requires an API change
 		const disposables: vscode.Disposable[] = [];
 
 		// Register and set as active
@@ -44,6 +45,11 @@ class MermaidChatOutputRenderer implements vscode.ChatOutputRenderer {
 			}
 		}));
 
+		// Dispose resources when webview is disposed
+		chatOutputWebview.onDidDispose(() => {
+			disposeAll(disposables);
+		});
+
 		// Set the options for the webview
 		const mediaRoot = vscode.Uri.joinPath(this._extensionUri, 'chat-webview-out');
 		webview.options = {
@@ -54,6 +60,7 @@ class MermaidChatOutputRenderer implements vscode.ChatOutputRenderer {
 		// Set the HTML content for the webview
 		const nonce = generateUuid();
 		const mermaidScript = vscode.Uri.joinPath(mediaRoot, 'index.js');
+		const codiconsUri = webview.asWebviewUri(vscode.Uri.joinPath(mediaRoot, 'codicon.css'));
 
 		webview.html = `
 			<!DOCTYPE html>
@@ -63,7 +70,8 @@ class MermaidChatOutputRenderer implements vscode.ChatOutputRenderer {
 				<meta charset="UTF-8">
 				<meta name="viewport" content="width=device-width, initial-scale=1.0">
 				<title>Mermaid Diagram</title>
-				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'nonce-${nonce}'; style-src 'self' 'unsafe-inline';" />
+				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'nonce-${nonce}'; style-src ${webview.cspSource} 'unsafe-inline'; font-src data:;" />
+				<link rel="stylesheet" type="text/css" href="${codiconsUri}">
 
 				<style>
 					body {
@@ -79,13 +87,16 @@ class MermaidChatOutputRenderer implements vscode.ChatOutputRenderer {
 						position: absolute;
 						top: 8px;
 						right: 8px;
-						background: var(--vscode-button-secondaryBackground);
-						color: var(--vscode-button-secondaryForeground);
-						border: none;
-						padding: 4px 8px;
-						border-radius: 2px;
+						display: flex;
+						align-items: center;
+						justify-content: center;
+						width: 26px;
+						height: 26px;
+						background: var(--vscode-editorWidget-background);
+						color: var(--vscode-icon-foreground);
+						border: 1px solid var(--vscode-editorWidget-border);
+						border-radius: 6px;
 						cursor: pointer;
-						font-size: 12px;
 						z-index: 100;
 						opacity: 0;
 						transition: opacity 0.2s;
@@ -94,13 +105,13 @@ class MermaidChatOutputRenderer implements vscode.ChatOutputRenderer {
 						opacity: 1;
 					}
 					.open-in-editor-btn:hover {
-						background: var(--vscode-button-secondaryHoverBackground);
+						background: var(--vscode-toolbar-hoverBackground);
 					}
 				</style>
 			</head>
 
 			<body data-vscode-context='${JSON.stringify({ preventDefaultContextMenuItems: true, mermaidWebviewId: webviewId })}' data-vscode-mermaid-webview-id="${webviewId}">
-				<button class="open-in-editor-btn" title="Open in Editor">Open in Editor</button>
+				<button class="open-in-editor-btn" title="${vscode.l10n.t('Open in Editor')}"><i class="codicon codicon-open-preview"></i></button>
 				<pre class="mermaid">
 					${escapeHtmlText(mermaidSource)}
 				</pre>
