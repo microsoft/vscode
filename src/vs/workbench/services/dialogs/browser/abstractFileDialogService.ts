@@ -102,6 +102,14 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 			return preferredHome;
 		}
 
+		const startParent = this.configurationService.getValue<boolean>('files.dialog.useParentPathForOpenFolder') !== false;
+		if (!startParent) {
+			try {
+				return (await this.fileService.stat(candidate)).isDirectory ? candidate : resources.dirname(candidate);
+			} catch {
+				// fall back to parent.
+			}
+		}
 		return resources.dirname(candidate);
 	}
 
