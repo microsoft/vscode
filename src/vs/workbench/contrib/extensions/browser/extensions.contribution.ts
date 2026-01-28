@@ -159,6 +159,12 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				scope: ConfigurationScope.APPLICATION,
 				tags: ['usesOnlineServices']
 			},
+			'extensions.excludeDisabledAutoUpdateFromBadge': {
+				type: 'boolean',
+				description: localize('extensionsExcludeDisabledAutoUpdateFromBadge', "When enabled, extensions with automatic updates disabled will not be included in the badge count on the Extensions icon in the Activity Bar."),
+				default: false,
+				scope: ConfigurationScope.APPLICATION
+			},
 			'extensions.ignoreRecommendations': {
 				type: 'boolean',
 				description: localize('extensionsIgnoreRecommendations', "When enabled, the notifications for extension recommendations will not be shown."),
