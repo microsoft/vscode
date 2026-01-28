@@ -512,10 +512,7 @@ export function registerChatActions() {
 			const clickBehavior = configurationService.getValue<AgentsControlClickBehavior>(ChatConfiguration.AgentsControlClickBehavior);
 			switch (clickBehavior) {
 				case AgentsControlClickBehavior.Focus:
-					if (
-						chatLocation === ViewContainerLocation.AuxiliaryBar &&
-						!layoutService.isAuxiliaryBarMaximized()
-					) {
+					if (chatLocation === ViewContainerLocation.AuxiliaryBar) {
 						layoutService.setAuxiliaryBarMaximized(true);
 					} else {
 						this.updatePartVisibility(layoutService, chatLocation, true);
