@@ -123,12 +123,12 @@ export function registerChatCustomizationDiagnosticsAction() {
 				}, {
 					id: CHAT_CONFIG_MENU_ID,
 					when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('view', ChatViewId)),
-					order: 20,
+					order: 14,
 					group: '3_configure'
 				}, {
 					id: MenuId.ChatWelcomeContext,
 					group: '2_settings',
-					order: 2,
+					order: 0,
 					when: ChatContextKeys.inChatEditor.negate()
 				}]
 			});
