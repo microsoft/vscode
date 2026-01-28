@@ -115,11 +115,10 @@ export interface IChatListItemTemplate {
 	 */
 	renderedParts?: IChatContentPart[];
 	/**
-	 * Whether the parts are mounted in the DOM. This is undefined after
-	 * the element is disposed so the `renderedParts.onDidMount` can be
-	 * called on the next render as appropriate.
+	 * Element used to track whether the template is mounted in the DOM.
 	 */
 	renderedPartsMounted?: boolean;
+
 	readonly rowContainer: HTMLElement;
 	readonly titleToolbar?: MenuWorkbenchToolBar;
 	readonly header?: HTMLElement;
@@ -535,7 +534,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				this.hoverService.hideHover();
 			}
 		}));
+		const connectionObserver = document.createElement('connection-observer') as dom.ConnectionObserverElement;
+		dom.append(container, connectionObserver);
 		const template: IChatListItemTemplate = { header, avatarContainer, requestHover, username, detail, value, rowContainer, elementDisposables, templateDisposables, contextKeyService, instantiationService: scopedInstantiationService, agentHover, titleToolbar, footerToolbar, footerDetailsContainer, disabledOverlay, checkpointToolbar, checkpointRestoreToolbar, checkpointContainer, checkpointRestoreContainer };
+
+		connectionObserver.onDidDisconnect = () => {
+			template.renderedPartsMounted = false;
+		};
 
 		templateDisposables.add(this._onDidUpdateViewModel.event(() => {
 			if (!template.currentElement || !this.viewModel?.sessionResource || !isEqual(template.currentElement.sessionResource, this.viewModel.sessionResource)) {
@@ -1332,7 +1337,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		// Don't pin MCP tools
-		const isMcpTool = (part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') && part.source.type === 'mcp';
+		const isMcpTool = (part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') && part.source?.type === 'mcp';
 		if (isMcpTool) {
 			return false;
 		}
@@ -1799,31 +1804,50 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		context: IChatContentPartRenderContext,
 		templateData: IChatListItemTemplate
 	): void {
-		if (toolInvocation.kind !== 'toolInvocation' || !IChatToolInvocation.isStreaming(toolInvocation)) {
+		if (toolInvocation.kind !== 'toolInvocation') {
 			return;
 		}
 
-		let wasStreaming = true;
+		const removeConfirmationWidget = () => {
+			const createdPart = getCreatedPart();
+			// move the created part out of thinking and into the main template
+			if (createdPart?.domNode) {
+				const wrapper = createdPart.domNode.parentElement;
+				if (wrapper?.classList.contains('chat-thinking-tool-wrapper')) {
+					wrapper.remove();
+				}
+				templateData.value.appendChild(createdPart.domNode);
+			} else {
+				thinkingPart.removeLazyItem(toolInvocation.toolId);
+				const { domNode } = createToolPart();
+				templateData.value.appendChild(domNode);
+			}
+			this.finalizeCurrentThinkingPart(context, templateData);
+		};
+
+		const currentState = toolInvocation.state.get();
+		if (currentState.type === IChatToolInvocation.StateKind.WaitingForConfirmation || currentState.type === IChatToolInvocation.StateKind.WaitingForPostApproval) {
+			removeConfirmationWidget();
+			return;
+		}
+
+		const isWorkingState = (type: IChatToolInvocation.StateKind) =>
+			type === IChatToolInvocation.StateKind.Streaming || type === IChatToolInvocation.StateKind.Executing;
+
+		if (!isWorkingState(currentState.type)) {
+			return;
+		}
+
+		let didRemoveConfirmationWidget = false;
 		const disposable = autorun(reader => {
 			const state = toolInvocation.state.read(reader);
-			if (wasStreaming && state.type !== IChatToolInvocation.StateKind.Streaming) {
-				wasStreaming = false;
-				if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation || state.type === IChatToolInvocation.StateKind.WaitingForPostApproval) {
-					const createdPart = getCreatedPart();
-					// move the created part out of thinking and into the main template
-					if (createdPart?.domNode) {
-						const wrapper = createdPart.domNode.parentElement;
-						if (wrapper?.classList.contains('chat-thinking-tool-wrapper')) {
-							wrapper.remove();
-						}
-						templateData.value.appendChild(createdPart.domNode);
-					} else {
-						thinkingPart.removeLazyItem(toolInvocation.toolId);
-						const { domNode } = createToolPart();
-						templateData.value.appendChild(domNode);
-					}
-					this.finalizeCurrentThinkingPart(context, templateData);
+			if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation || state.type === IChatToolInvocation.StateKind.WaitingForPostApproval) {
+				if (didRemoveConfirmationWidget) {
+					return;
 				}
+				didRemoveConfirmationWidget = true;
+				disposable.dispose();
+				removeConfirmationWidget();
 			}
 		});
 
@@ -1860,11 +1884,15 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return this.renderNoContent(other => elicitation.kind === other.kind);
 		}
 
+		this.finalizeCurrentThinkingPart(context, templateData);
+
 		const part = this.instantiationService.createInstance(ChatElicitationContentPart, elicitation, context);
 		return part;
 	}
 
 	private renderQuestionCarousel(context: IChatContentPartRenderContext, carousel: IChatQuestionCarousel, templateData: IChatListItemTemplate): IChatContentPart {
+		this.finalizeCurrentThinkingPart(context, templateData);
+
 		const part = this.instantiationService.createInstance(ChatQuestionCarouselPart, carousel, context, {
 			onSubmit: async (answers) => {
 				// Mark the carousel as used and store the answers
@@ -2097,7 +2125,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	disposeElement(node: ITreeNode<ChatTreeItem, FuzzyScore>, index: number, templateData: IChatListItemTemplate, details?: IListElementRenderDetails): void {
 		this.traceLayout('disposeElement', `Disposing element, index=${index}`);
 		templateData.elementDisposables.clear();
-		templateData.renderedPartsMounted = false;
 
 		if (templateData.currentElement && !this.viewModel?.editing) {
 			this.templateDataByRequestId.delete(templateData.currentElement.id);

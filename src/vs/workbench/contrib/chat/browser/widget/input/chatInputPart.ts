@@ -12,6 +12,7 @@ import { ActionViewItem, BaseActionViewItem, IActionViewItemOptions } from '../.
 import * as aria from '../../../../../../base/browser/ui/aria/aria.js';
 import { ButtonWithIcon } from '../../../../../../base/browser/ui/button/button.js';
 import { createInstantHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { HoverPosition } from '../../../../../../base/browser/ui/hover/hoverWidget.js';
 import { renderLabelWithIcons } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IAction } from '../../../../../../base/common/actions.js';
 import { equals as arraysEqual } from '../../../../../../base/common/arrays.js';
@@ -70,6 +71,8 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../../
 import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
 import { ISharedWebContentExtractorService } from '../../../../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../../../platform/workspace/common/workspace.js';
+import { IWorkbenchLayoutService, Position } from '../../../../../services/layout/browser/layoutService.js';
+import { IViewDescriptorService, ViewContainerLocation } from '../../../../../common/views.js';
 import { ResourceLabels } from '../../../../../browser/labels.js';
 import { IWorkbenchAssignmentService } from '../../../../../services/assignment/common/assignmentService.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
@@ -100,7 +103,7 @@ import { ChatAttachmentModel } from '../../attachments/chatAttachmentModel.js';
 import { DefaultChatAttachmentWidget, ElementChatAttachmentWidget, FileAttachmentWidget, ImageAttachmentWidget, NotebookCellOutputChatAttachmentWidget, PasteAttachmentWidget, PromptFileAttachmentWidget, PromptTextAttachmentWidget, SCMHistoryItemAttachmentWidget, SCMHistoryItemChangeAttachmentWidget, SCMHistoryItemChangeRangeAttachmentWidget, TerminalCommandAttachmentWidget, ToolSetOrToolItemAttachmentWidget } from '../../attachments/chatAttachmentWidgets.js';
 import { ChatImplicitContexts } from '../../attachments/chatImplicitContext.js';
 import { ImplicitContextAttachmentWidget } from '../../attachments/implicitContextAttachment.js';
-import { IChatWidget, ISessionTypePickerDelegate, isIChatResourceViewContext, IWorkspacePickerDelegate } from '../../chat.js';
+import { IChatWidget, ISessionTypePickerDelegate, isIChatResourceViewContext, isIChatViewViewContext, IWorkspacePickerDelegate } from '../../chat.js';
 import { ChatEditingShowChangesAction, ViewAllSessionChangesAction, ViewPreviousEditsAction } from '../../chatEditing/chatEditingActions.js';
 import { resizeImage } from '../../chatImageUtils.js';
 import { ChatSessionPickerActionItem, IChatSessionPickerDelegate } from '../../chatSessions/chatSessionPickerActionItem.js';
@@ -119,6 +122,7 @@ import { IModelPickerDelegate, ModelPickerActionItem } from './modelPickerAction
 import { IModePickerDelegate, ModePickerActionItem } from './modePickerActionItem.js';
 import { SessionTypePickerActionItem } from './sessionTargetPickerActionItem.js';
 import { WorkspacePickerActionItem } from './workspacePickerActionItem.js';
+import { ChatContextUsageWidget } from '../../widgetHosts/viewPane/chatContextUsageWidget.js';
 
 const $ = dom.$;
 
@@ -162,6 +166,18 @@ export interface IChatInputPartOptions {
 
 export interface IWorkingSetEntry {
 	uri: URI;
+}
+
+export const enum ChatWidgetLocation {
+	SidebarLeft = 'sidebarLeft',
+	SidebarRight = 'sidebarRight',
+	Panel = 'panel',
+	Editor = 'editor',
+}
+
+export interface IChatWidgetLocationInfo {
+	readonly location: ChatWidgetLocation;
+	readonly isMaximized: boolean;
 }
 
 const emptyInputState = observableMemento<IChatModelInputState | undefined>({
@@ -269,6 +285,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private chatInputTodoListWidgetContainer!: HTMLElement;
 	private chatInputWidgetsContainer!: HTMLElement;
 	private readonly _widgetController = this._register(new MutableDisposable<ChatInputPartWidgetController>());
+
+	private contextUsageWidget?: ChatContextUsageWidget;
+	private contextUsageWidgetContainer!: HTMLElement;
+	private readonly _contextUsageDisposables = this._register(new MutableDisposable<DisposableStore>());
 
 	readonly height = observableValue<number>(this, 0);
 
@@ -466,6 +486,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		@IChatContextService private readonly chatContextService: IChatContextService,
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
 	) {
 		super();
 
@@ -1655,6 +1677,31 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 	}
 
+	/**
+	 * Updates the context usage widget based on the current model.
+	 */
+	private updateContextUsageWidget(): void {
+		this._contextUsageDisposables.clear();
+
+		const model = this._widget?.viewModel?.model;
+		if (!model || !this.contextUsageWidget) {
+			return;
+		}
+
+		const store = new DisposableStore();
+		this._contextUsageDisposables.value = store;
+
+		// Subscribe to model changes to update when requests complete
+		store.add(model.onDidChange(e => {
+			if (e.kind === 'completedRequest') {
+				this.contextUsageWidget?.update(model.lastRequest);
+			}
+		}));
+
+		// Initial update
+		this.contextUsageWidget.update(model.lastRequest);
+	}
+
 	render(container: HTMLElement, initialValue: string, widget: IChatWidget) {
 		this._widget = widget;
 		this.computeVisibleOptionGroups();
@@ -1674,6 +1721,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this.updateAgentSessionTypeContextKey();
 			this.refreshChatSessionPickers();
 			this.tryUpdateWidgetController();
+			this.updateContextUsageWidget();
 		}));
 
 		let elements;
@@ -1685,6 +1733,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					dom.h('.chat-editing-session@chatEditingSessionWidgetContainer'),
 					dom.h('.interactive-input-and-side-toolbar@inputAndSideToolbar', [
 						dom.h('.chat-input-container@inputContainer', [
+							dom.h('.chat-context-usage-container@contextUsageWidgetContainer'),
 							dom.h('.chat-editor-container@editorContainer'),
 							dom.h('.chat-input-toolbars@inputToolbars'),
 						]),
@@ -1704,6 +1753,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				dom.h('.chat-editing-session@chatEditingSessionWidgetContainer'),
 				dom.h('.interactive-input-and-side-toolbar@inputAndSideToolbar', [
 					dom.h('.chat-input-container@inputContainer', [
+						dom.h('.chat-context-usage-container@contextUsageWidgetContainer'),
 						dom.h('.chat-attachments-container@attachmentsContainer', [
 							dom.h('.chat-attachment-toolbar@attachmentToolbar'),
 							dom.h('.chat-attached-context@attachedContextContainer'),
@@ -1735,6 +1785,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.chatEditingSessionWidgetContainer = elements.chatEditingSessionWidgetContainer;
 		this.chatInputTodoListWidgetContainer = elements.chatInputTodoListWidgetContainer;
 		this.chatInputWidgetsContainer = elements.chatInputWidgetsContainer;
+		this.contextUsageWidgetContainer = elements.contextUsageWidgetContainer;
+
+		// Context usage widget
+		this.contextUsageWidget = this._register(this.instantiationService.createInstance(ChatContextUsageWidget));
+		this.contextUsageWidgetContainer.appendChild(this.contextUsageWidget.domNode);
 
 		if (this.options.enableImplicitContext && !this._implicitContext) {
 			this._implicitContext = this._register(
@@ -1869,7 +1924,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}));
 
 		const hoverDelegate = this._register(createInstantHoverDelegate());
-		const chatSessionPosition = isIChatResourceViewContext(widget.viewContext) ? 'editor' : 'sidebar';
+
+		const { location, isMaximized } = this.getWidgetLocationInfo(widget);
+
 		const pickerOptions: IChatInputPickerOptions = {
 			getOverflowAnchor: () => this.inputActionsToolbar.getElement(),
 			actionContext: { widget },
@@ -1877,6 +1934,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				this._inputEditor.onDidLayoutChange,
 				(l?: EditorLayoutInfo) => (l?.width ?? this._inputEditor.getLayoutInfo().width) < 650 /* This is a magical number based on testing*/
 			).recomputeInitiallyAndOnChange(this._store),
+			hoverPosition: {
+				forcePosition: true,
+				hoverPosition: location === ChatWidgetLocation.SidebarRight && !isMaximized ? HoverPosition.LEFT : HoverPosition.RIGHT
+			},
 		};
 
 		this._register(dom.addStandardDisposableListener(toolbarsContainer, dom.EventType.CLICK, e => this.inputEditor.focus()));
@@ -1942,7 +2003,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					};
 					const isWelcomeViewMode = !!this.options.sessionTypePickerDelegate?.setActiveSessionProvider;
 					const Picker = (action.id === OpenSessionTargetPickerAction.ID || isWelcomeViewMode) ? SessionTypePickerActionItem : DelegationSessionPickerActionItem;
-					return this.sessionTargetWidget = this.instantiationService.createInstance(Picker, action, chatSessionPosition, delegate, pickerOptions);
+					return this.sessionTargetWidget = this.instantiationService.createInstance(Picker, action, location === ChatWidgetLocation.Editor ? 'editor' : 'sidebar', delegate, pickerOptions);
 				} else if (action.id === OpenWorkspacePickerAction.ID && action instanceof MenuItemAction) {
 					if (this.workspaceContextService.getWorkbenchState() === WorkbenchState.EMPTY && this.options.workspacePickerDelegate) {
 						return this.instantiationService.createInstance(WorkspacePickerActionItem, action, this.options.workspacePickerDelegate, pickerOptions);
@@ -2511,6 +2572,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 						sessionResource,
 					} satisfies IChatViewTitleActionContext),
 				},
+				disableWhileRunning: isSessionMenu,
 				buttonConfigProvider: (action) => {
 					if (action.id === ChatEditingShowChangesAction.ID || action.id === ViewPreviousEditsAction.Id || action.id === ViewAllSessionChangesAction.ID) {
 						return { showIcon: true, showLabel: false, isSecondary: true };
@@ -2708,6 +2770,47 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			toolbarsWidth: this.options.renderStyle === 'compact' ? getToolbarsWidthCompact() : 0,
 			sideToolbarWidth: inputSideToolbarWidth > 0 ? inputSideToolbarWidth + 4 /*gap*/ : 0,
 		};
+	}
+
+	/**
+	 * Gets the location of the chat widget and whether that location is maximized.
+	 */
+	private getWidgetLocationInfo(widget: IChatWidget): IChatWidgetLocationInfo {
+		// Editor context (quick chat, inline chat, etc.)
+		if (isIChatResourceViewContext(widget.viewContext)) {
+			return { location: ChatWidgetLocation.Editor, isMaximized: false };
+		}
+
+		// View context - determine actual location from view descriptor service
+		if (isIChatViewViewContext(widget.viewContext)) {
+			const viewLocation = this.viewDescriptorService.getViewLocationById(widget.viewContext.viewId);
+			const sideBarPosition = this.layoutService.getSideBarPosition();
+
+			switch (viewLocation) {
+				case ViewContainerLocation.Panel:
+					return {
+						location: ChatWidgetLocation.Panel,
+						isMaximized: this.layoutService.isPanelMaximized(),
+					};
+				case ViewContainerLocation.AuxiliaryBar:
+					// AuxiliaryBar is on the opposite side of the primary sidebar
+					return {
+						location: sideBarPosition === Position.LEFT ? ChatWidgetLocation.SidebarRight : ChatWidgetLocation.SidebarLeft,
+						isMaximized: this.layoutService.isAuxiliaryBarMaximized(),
+					};
+				case ViewContainerLocation.Sidebar:
+				default:
+					// Primary sidebar follows its configured position
+					// Note: Primary sidebar cannot be maximized, so always false
+					return {
+						location: sideBarPosition === Position.LEFT ? ChatWidgetLocation.SidebarLeft : ChatWidgetLocation.SidebarRight,
+						isMaximized: false,
+					};
+			}
+		}
+
+		// Fallback for unknown contexts
+		return { location: ChatWidgetLocation.Editor, isMaximized: false };
 	}
 }
 

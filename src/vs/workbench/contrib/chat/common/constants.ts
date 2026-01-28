@@ -9,6 +9,7 @@ import { ServicesAccessor } from '../../../../platform/instantiation/common/inst
 import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 
 export enum ChatConfiguration {
+	AIDisabled = 'chat.disableAIFeatures',
 	AgentEnabled = 'chat.agent.enabled',
 	AgentStatusEnabled = 'chat.agentsControl.enabled',
 	EditorAssociations = 'chat.editorAssociations',
@@ -37,6 +38,7 @@ export enum ChatConfiguration {
 	ChatViewSessionsGrouping = 'chat.viewSessions.grouping',
 	ChatViewSessionsOrientation = 'chat.viewSessions.orientation',
 	ChatViewTitleEnabled = 'chat.viewTitle.enabled',
+	ChatViewProgressBadgeEnabled = 'chat.viewProgressBadge.enabled',
 	SubagentToolCustomAgents = 'chat.customAgentInSubagent.enabled',
 	ShowCodeBlockProgressAnimation = 'chat.agent.codeBlockProgress',
 	RestoreLastPanelSession = 'chat.restoreLastPanelSession',
@@ -84,7 +86,7 @@ export enum CollapsedToolsDisplayMode {
 
 export enum AgentsControlClickBehavior {
 	Default = 'default',
-	TriStateToggle = 'triStateToggle',
+	Cycle = 'cycle',
 	Focus = 'focus',
 }
 

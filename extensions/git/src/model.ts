@@ -646,14 +646,15 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 			// Get .git path and real path
 			const [dotGit, repositoryRootRealPath] = await Promise.all([this.git.getRepositoryDotGit(repositoryRoot), this.getRepositoryRootRealPath(repositoryRoot)]);
 
-			// Check that the location of the .git folder is trusted
+			// Check that the folder containing the .git folder is trusted
+			const dotGitPath = dotGit.commonPath ?? dotGit.path;
 			const result = await workspace.requestResourceTrust({
 				message: l10n.t('You are opening a repository from a location that is not trusted. Do you trust the authors of the files in the repository you are opening?'),
-				uri: Uri.file(dotGit.commonPath ?? dotGit.path),
+				uri: Uri.file(path.dirname(dotGitPath)),
 			} satisfies ResourceTrustRequestOptions);
 
 			if (!result) {
-				this.logger.trace(`[Model][openRepository] Repository folder is not trusted: ${repoPath}`);
+				this.logger.trace(`[Model][openRepository] Repository folder is not trusted: ${path.dirname(dotGitPath)}`);
 				return;
 			}
 

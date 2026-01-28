@@ -149,7 +149,7 @@ export abstract class AbstractCommonMcpManagementService extends Disposable impl
 				args.push(serverPackage.version ? `${serverPackage.identifier}@${serverPackage.version}` : serverPackage.identifier);
 				args.push('--yes'); // installation is confirmed by the UI, so --yes is appropriate here
 				if (serverPackage.registryBaseUrl) {
-					args.push('--add-source', serverPackage.registryBaseUrl);
+					args.push('--source', serverPackage.registryBaseUrl);
 				}
 				if (serverPackage.packageArguments?.length) {
 					args.push('--');

@@ -378,23 +378,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			trackActiveEditorSession: () => {
 				return !this._widget || this._widget.isEmpty(); // only track and reveal if chat widget is empty
 			},
-			overrideCompare: (sessionA: IAgentSession, sessionB: IAgentSession): number | undefined => {
-
-				// When stacked where only few sessions show, sort unread sessions to the top
-				if (this.sessionsViewerOrientation === AgentSessionsViewerOrientation.Stacked) {
-					const aIsUnread = !sessionA.isRead();
-					const bIsUnread = !sessionB.isRead();
-
-					if (aIsUnread && !bIsUnread) {
-						return -1; // a (unread) comes before b (read)
-					}
-					if (!aIsUnread && bIsUnread) {
-						return 1; // a (read) comes after b (unread)
-					}
-				}
-
-				return undefined;
-			},
 			overrideSessionOpenOptions: openEvent => {
 				if (this.sessionsViewerOrientation === AgentSessionsViewerOrientation.Stacked && !openEvent.sideBySide) {
 					return { ...openEvent, editorOptions: { ...openEvent.editorOptions, preserveFocus: false /* focus the chat widget when opening from stacked sessions viewer since this closes the stacked viewer */ } };
@@ -634,6 +617,11 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		const updateProgressBadge = () => {
 			progressBadgeDisposables.value = new DisposableStore();
 
+			if (!this.configurationService.getValue<boolean>(ChatConfiguration.ChatViewProgressBadgeEnabled)) {
+				this.activityBadge.clear();
+				return;
+			}
+
 			const model = chatWidget.viewModel?.model;
 			if (model) {
 				progressBadgeDisposables.value.add(autorun(reader => {
@@ -650,6 +638,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			}
 		};
 		this._register(chatWidget.onDidChangeViewModel(() => updateProgressBadge()));
+		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ChatConfiguration.ChatViewProgressBadgeEnabled))(() => updateProgressBadge()));
 		updateProgressBadge();
 	}
 

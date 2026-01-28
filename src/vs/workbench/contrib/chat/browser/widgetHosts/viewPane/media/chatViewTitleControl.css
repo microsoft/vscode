@@ -36,12 +36,8 @@
 			min-width: 0;
 		}
 
-		.chat-view-title-context-usage {
-			margin-left: auto;
-			flex-shrink: 0;
-		}
-
 		.chat-view-title-actions-toolbar {
+			margin-left: auto;
 			padding-left: 4px;
 			flex-shrink: 0;
 		}

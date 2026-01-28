@@ -80,6 +80,7 @@ export class BrowserFindWidget extends SimpleFindWidget {
 	}
 
 	override reveal(initialInput?: string): void {
+		const wasVisible = this.isVisible();
 		super.reveal(initialInput);
 		this._findWidgetVisible.set(true);
 		this.container.classList.toggle('find-visible', true);
@@ -87,8 +88,8 @@ export class BrowserFindWidget extends SimpleFindWidget {
 		// Focus the find input
 		this.focusFindBox();
 
-		// If there's existing input, trigger a search
-		if (this.inputValue) {
+		// If there's existing input and the widget wasn't already visible, trigger a search
+		if (this.inputValue && !wasVisible) {
 			this._onInputChanged();
 		}
 	}

@@ -508,25 +508,41 @@ export function registerChatActions() {
 			const configurationService = accessor.get(IConfigurationService);
 
 			const chatLocation = viewDescriptorService.getViewLocationById(ChatViewId);
-
+			const chatVisible = viewsService.isViewVisible(ChatViewId);
 			const clickBehavior = configurationService.getValue<AgentsControlClickBehavior>(ChatConfiguration.AgentsControlClickBehavior);
-			if (viewsService.isViewVisible(ChatViewId)) {
-				if (clickBehavior === AgentsControlClickBehavior.Focus) {
-					(await widgetService.revealWidget())?.focusInput();
-				} else {
-					if (
-						chatLocation === ViewContainerLocation.AuxiliaryBar &&
-						!layoutService.isAuxiliaryBarMaximized() &&
-						clickBehavior === AgentsControlClickBehavior.TriStateToggle
-					) {
+			switch (clickBehavior) {
+				case AgentsControlClickBehavior.Focus:
+					if (chatLocation === ViewContainerLocation.AuxiliaryBar) {
 						layoutService.setAuxiliaryBarMaximized(true);
 					} else {
-						this.updatePartVisibility(layoutService, chatLocation, false);
+						this.updatePartVisibility(layoutService, chatLocation, true);
 					}
-				}
-			} else {
-				this.updatePartVisibility(layoutService, chatLocation, true);
-				(await widgetService.revealWidget())?.focusInput();
+					(await widgetService.revealWidget())?.focusInput();
+					break;
+				case AgentsControlClickBehavior.Cycle:
+					if (chatVisible) {
+						if (
+							chatLocation === ViewContainerLocation.AuxiliaryBar &&
+							!layoutService.isAuxiliaryBarMaximized()
+						) {
+							layoutService.setAuxiliaryBarMaximized(true);
+							(await widgetService.revealWidget())?.focusInput();
+						} else {
+							this.updatePartVisibility(layoutService, chatLocation, false);
+						}
+					} else {
+						this.updatePartVisibility(layoutService, chatLocation, true);
+						(await widgetService.revealWidget())?.focusInput();
+					}
+					break;
+				default:
+					if (chatVisible) {
+						this.updatePartVisibility(layoutService, chatLocation, false);
+					} else {
+						this.updatePartVisibility(layoutService, chatLocation, true);
+						(await widgetService.revealWidget())?.focusInput();
+					}
+					break;
 			}
 		}
 

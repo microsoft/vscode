@@ -41,15 +41,16 @@ import type { ICommandLinePresenter } from './commandLinePresenter/commandLinePr
 import { NodeCommandLinePresenter } from './commandLinePresenter/nodeCommandLinePresenter.js';
 import { PythonCommandLinePresenter } from './commandLinePresenter/pythonCommandLinePresenter.js';
 import { RubyCommandLinePresenter } from './commandLinePresenter/rubyCommandLinePresenter.js';
+import { SandboxedCommandLinePresenter } from './commandLinePresenter/sandboxedCommandLinePresenter.js';
 import { RunInTerminalToolTelemetry } from '../runInTerminalToolTelemetry.js';
 import { ShellIntegrationQuality, ToolTerminalCreator, type IToolTerminal } from '../toolTerminalCreator.js';
 import { TreeSitterCommandParser, TreeSitterCommandParserLanguage } from '../treeSitterCommandParser.js';
 import { type ICommandLineAnalyzer, type ICommandLineAnalyzerOptions } from './commandLineAnalyzer/commandLineAnalyzer.js';
 import { CommandLineAutoApproveAnalyzer } from './commandLineAnalyzer/commandLineAutoApproveAnalyzer.js';
 import { CommandLineFileWriteAnalyzer } from './commandLineAnalyzer/commandLineFileWriteAnalyzer.js';
+import { CommandLineSandboxAnalyzer } from './commandLineAnalyzer/commandLineSandboxAnalyzer.js';
 import { OutputMonitor } from './monitoring/outputMonitor.js';
 import { IPollingResult, OutputMonitorState } from './monitoring/types.js';
-import { ITerminalSandboxService } from '../../common/terminalSandboxService.js';
 import { chatSessionResourceToId, LocalChatSessionUri } from '../../../../chat/common/model/chatUri.js';
 import { TerminalToolId } from './toolIds.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -57,6 +58,7 @@ import type { ICommandLineRewriter } from './commandLineRewriter/commandLineRewr
 import { CommandLineCdPrefixRewriter } from './commandLineRewriter/commandLineCdPrefixRewriter.js';
 import { CommandLinePreventHistoryRewriter } from './commandLineRewriter/commandLinePreventHistoryRewriter.js';
 import { CommandLinePwshChainOperatorRewriter } from './commandLineRewriter/commandLinePwshChainOperatorRewriter.js';
+import { CommandLineSandboxRewriter } from './commandLineRewriter/commandLineSandboxRewriter.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IHistoryService } from '../../../../../services/history/common/history.js';
 import { TerminalCommandArtifactCollector } from './terminalCommandArtifactCollector.js';
@@ -367,7 +369,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
-		@ITerminalSandboxService private readonly _sandboxService: ITerminalSandboxService,
 	) {
 		super();
 
@@ -383,12 +384,15 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			this._register(this._instantiationService.createInstance(CommandLineCdPrefixRewriter)),
 			this._register(this._instantiationService.createInstance(CommandLinePwshChainOperatorRewriter, this._treeSitterCommandParser)),
 			this._register(this._instantiationService.createInstance(CommandLinePreventHistoryRewriter)),
+			this._register(this._instantiationService.createInstance(CommandLineSandboxRewriter)),
 		];
 		this._commandLineAnalyzers = [
 			this._register(this._instantiationService.createInstance(CommandLineFileWriteAnalyzer, this._treeSitterCommandParser, (message, args) => this._logService.info(`RunInTerminalTool#CommandLineFileWriteAnalyzer: ${message}`, args))),
 			this._register(this._instantiationService.createInstance(CommandLineAutoApproveAnalyzer, this._treeSitterCommandParser, this._telemetry, (message, args) => this._logService.info(`RunInTerminalTool#CommandLineAutoApproveAnalyzer: ${message}`, args))),
+			this._register(this._instantiationService.createInstance(CommandLineSandboxAnalyzer)),
 		];
 		this._commandLinePresenters = [
+			this._instantiationService.createInstance(SandboxedCommandLinePresenter),
 			new NodeCommandLinePresenter(),
 			new PythonCommandLinePresenter(),
 			new RubyCommandLinePresenter(),
@@ -400,15 +404,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				if (this._configurationService.getValue(TerminalChatAgentToolsSettingId.EnableAutoApprove) !== true) {
 					this._storageService.remove(TerminalToolConfirmationStorageKeys.TerminalAutoApproveWarningAccepted, StorageScope.APPLICATION);
 				}
-			}
-			// If terminal sandbox settings changed, update sandbox config.
-			if (
-				e?.affectsConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxEnabled) ||
-				e?.affectsConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxNetwork) ||
-				e?.affectsConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxLinuxFileSystem) ||
-				e?.affectsConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxMacFileSystem)
-			) {
-				this._sandboxService.setNeedsForceUpdateConfigFile();
 			}
 		}));
 
@@ -480,7 +475,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			terminalCommandId,
 			commandLine: {
 				original: args.command,
-				toolEdited: rewrittenCommand === args.command ? undefined : rewrittenCommand
+				toolEdited: rewrittenCommand === args.command ? undefined : rewrittenCommand,
 			},
 			cwd,
 			language,
@@ -498,16 +493,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				toolSpecificData,
 			};
 		}
-
-		// If in sandbox mode, skip confirmation logic. In sandbox mode, commands are run in a restricted environment and explicit
-		// user confirmation is not required.
-		if (this._sandboxService.isEnabled()) {
-			toolSpecificData.autoApproveInfo = new MarkdownString(localize('autoApprove.sandbox', 'In sandbox mode'));
-			return {
-				toolSpecificData
-			};
-		}
-
 		// Determine auto approval, this happens even when auto approve is off to that reasoning
 		// can be reviewed in the terminal channel. It also allows gauging the effective set of
 		// commands that would be auto approved if it were enabled.
@@ -577,7 +562,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			isAutoApproveAllowed &&
 			// Would be auto-approved based on rules
 			wouldBeAutoApproved
-		);
+		) || commandLineAnalyzerResults.some(e => e.forceAutoApproval);
 
 		// Pass auto approve info if the command:
 		// - Was auto approved
@@ -590,7 +575,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		}
 
 		// Extract cd prefix for display - show directory in title, command suffix in editor
-		const commandToDisplay = (toolSpecificData.commandLine.toolEdited ?? toolSpecificData.commandLine.original).trimStart();
+		const commandToDisplay = (toolSpecificData.commandLine.userEdited ?? toolSpecificData.commandLine.toolEdited ?? toolSpecificData.commandLine.original).trimStart();
 		const extractedCd = extractCdPrefix(commandToDisplay, shell, os);
 		let confirmationTitle: string;
 		if (extractedCd && cwd) {
@@ -625,12 +610,13 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		// Check for presentation overrides (e.g., Python -c command extraction)
 		// Use the command after cd prefix extraction if available, since that's what's displayed in the editor
 		const commandForPresenter = extractedCd?.command ?? commandToDisplay;
+		let presenterInput = commandForPresenter;
 		for (const presenter of this._commandLinePresenters) {
-			const presenterResult = presenter.present({ commandLine: commandForPresenter, shell, os });
+			const presenterResult = await presenter.present({ commandLine: { original: args.command, forDisplay: presenterInput }, shell, os });
 			if (presenterResult) {
 				toolSpecificData.presentationOverrides = {
 					commandLine: presenterResult.commandLine,
-					language: presenterResult.language,
+					language: presenterResult.language ?? undefined,
 				};
 				if (extractedCd && toolSpecificData.confirmation?.cwdLabel) {
 					confirmationTitle = args.isBackground
@@ -641,7 +627,10 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 						? localize('runInTerminal.presentationOverride.background', "Run `{0}` command in `{1}` in background?", presenterResult.languageDisplayName, shellType)
 						: localize('runInTerminal.presentationOverride', "Run `{0}` command in `{1}`?", presenterResult.languageDisplayName, shellType);
 				}
-				break;
+				if (!presenterResult.processOtherPresenters) {
+					break;
+				}
+				presenterInput = presenterResult.commandLine;
 			}
 		}
 
@@ -679,7 +668,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 		const chatSessionResource = invocation.context?.sessionResource ?? LocalChatSessionUri.forSession(invocation.context?.sessionId ?? 'no-chat-session');
 		const chatSessionId = chatSessionResourceToId(chatSessionResource);
-		let command = toolSpecificData.commandLine.userEdited ?? toolSpecificData.commandLine.toolEdited ?? toolSpecificData.commandLine.original;
+		const command = toolSpecificData.commandLine.userEdited ?? toolSpecificData.commandLine.toolEdited ?? toolSpecificData.commandLine.original;
 		const didUserEditCommand = (
 			toolSpecificData.commandLine.userEdited !== undefined &&
 			toolSpecificData.commandLine.userEdited !== toolSpecificData.commandLine.original
@@ -689,12 +678,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			toolSpecificData.commandLine.toolEdited !== undefined &&
 			toolSpecificData.commandLine.toolEdited !== toolSpecificData.commandLine.original
 		);
-
-		if (this._sandboxService.isEnabled()) {
-			await this._sandboxService.getSandboxConfigPath();
-			this._logService.info(`RunInTerminalTool: Sandboxing is enabled, wrapping command with srt.`);
-			command = this._sandboxService.wrapCommand(command);
-		}
 
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
@@ -799,6 +782,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			RunInTerminalTool._activeExecutions.set(termId, execution);
 
 			// Set up OutputMonitor when start marker is created
+			const startMarkerPromise = Event.toPromise(execution.strategy.onDidCreateStartMarker);
 			store.add(execution.strategy.onDidCreateStartMarker(startMarker => {
 				if (!outputMonitor) {
 					outputMonitor = store.add(this._instantiationService.createInstance(
@@ -822,6 +806,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			if (args.isBackground) {
 				// Background mode: wait for OutputMonitor to detect idle, then return
 				this._logService.debug(`RunInTerminalTool: Starting background execution \`${command}\``);
+				// Wait for the start marker to be created (which creates the outputMonitor)
+				await startMarkerPromise;
 				if (outputMonitor) {
 					await Event.toPromise(outputMonitor.onDidFinishCommand);
 					pollingResult = outputMonitor.pollingResult;

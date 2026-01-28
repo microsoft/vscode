@@ -6,12 +6,13 @@
 import { URI } from '../../../../../../base/common/uri.js';
 import { isAbsolute } from '../../../../../../base/common/path.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
+import * as nls from '../../../../../../nls.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { getPromptFileLocationsConfigKey, isTildePath, PromptsConfig } from '../config/config.js';
 import { basename, dirname, isEqualOrParent, joinPath } from '../../../../../../base/common/resources.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { COPILOT_CUSTOM_INSTRUCTIONS_FILENAME, AGENTS_SOURCE_FOLDER, getPromptFileExtension, getPromptFileType, LEGACY_MODE_FILE_EXTENSION, getCleanPromptName, AGENT_FILE_EXTENSION, getPromptFileDefaultLocations, SKILL_FILENAME, IPromptSourceFolder, DEFAULT_AGENT_SOURCE_FOLDERS, IResolvedPromptFile, IResolvedPromptSourceFolder } from '../config/promptFileLocations.js';
+import { COPILOT_CUSTOM_INSTRUCTIONS_FILENAME, AGENTS_SOURCE_FOLDER, getPromptFileExtension, getPromptFileType, LEGACY_MODE_FILE_EXTENSION, getCleanPromptName, AGENT_FILE_EXTENSION, getPromptFileDefaultLocations, SKILL_FILENAME, IPromptSourceFolder, DEFAULT_AGENT_SOURCE_FOLDERS, IResolvedPromptFile, IResolvedPromptSourceFolder, PromptFileSource } from '../config/promptFileLocations.js';
 import { PromptsType } from '../promptTypes.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { Schemas } from '../../../../../../base/common/network.js';
@@ -57,17 +58,10 @@ export class PromptFilesLocator {
 	}
 
 	private async listFilesInUserData(type: PromptsType, token: CancellationToken): Promise<readonly URI[]> {
-		const userHome = await this.pathService.userHome();
-		const configuredLocations = PromptsConfig.promptSourceFolders(this.configService, type);
-		const absoluteLocations = this.toAbsoluteLocations(type, configuredLocations, userHome);
-
+		const userStorageFolders = await this.getUserStorageFolders(type);
 		const paths = new ResourceSet();
 
-		// Search in config-based user locations (e.g., tilde paths like ~/.copilot/skills)
-		for (const { uri, storage } of absoluteLocations) {
-			if (storage !== PromptsStorage.user) {
-				continue;
-			}
+		for (const { uri } of userStorageFolders) {
 			const files = await this.resolveFilesAtLocation(uri, type, token);
 			for (const file of files) {
 				if (getPromptFileType(file) === type) {
@@ -79,18 +73,37 @@ export class PromptFilesLocator {
 			}
 		}
 
-		// Also search in the VS Code user data prompts folder (for all types except skills)
+		return [...paths];
+	}
+
+	/**
+	 * Gets all user storage folders for the given prompt type.
+	 * This includes configured tilde paths and the VS Code user data prompts folder.
+	 */
+	private async getUserStorageFolders(type: PromptsType): Promise<readonly IResolvedPromptSourceFolder[]> {
+		const userHome = await this.pathService.userHome();
+		const configuredLocations = PromptsConfig.promptSourceFolders(this.configService, type);
+		const absoluteLocations = this.toAbsoluteLocations(type, configuredLocations, userHome);
+
+		// Filter to only user storage locations
+		const result = absoluteLocations.filter(loc => loc.storage === PromptsStorage.user);
+
+		// Also include the VS Code user data prompts folder (for all types except skills)
 		if (type !== PromptsType.skill) {
 			const userDataPromptsHome = this.userDataService.currentProfile.promptsHome;
-			const files = await this.resolveFilesAtLocation(userDataPromptsHome, type, token);
-			for (const file of files) {
-				if (getPromptFileType(file) === type) {
-					paths.add(file);
+			return [
+				...result,
+				{
+					uri: userDataPromptsHome,
+					source: PromptFileSource.CopilotPersonal,
+					storage: PromptsStorage.user,
+					displayPath: nls.localize('promptsUserDataFolder', "User Data"),
+					isDefault: true
 				}
-			}
+			];
 		}
 
-		return [...paths];
+		return result;
 	}
 
 	/**
@@ -238,6 +251,53 @@ export class PromptFilesLocator {
 	}
 
 	/**
+	 * Gets all resolved source folders for the given prompt type with metadata.
+	 * This method merges configured locations with default locations and resolves them
+	 * to absolute paths, including displayPath and isDefault information.
+	 *
+	 * @param type The type of prompt files.
+	 * @returns List of resolved source folders with metadata.
+	 */
+	public async getResolvedSourceFolders(type: PromptsType): Promise<readonly IResolvedPromptSourceFolder[]> {
+		const localFolders = await this.getLocalStorageFolders(type);
+		const userFolders = await this.getUserStorageFolders(type);
+		return this.dedupeSourceFolders([...localFolders, ...userFolders]);
+	}
+
+	/**
+	 * Gets all local (workspace) storage folders for the given prompt type.
+	 * This merges default folders with configured locations.
+	 */
+	private async getLocalStorageFolders(type: PromptsType): Promise<readonly IResolvedPromptSourceFolder[]> {
+		const userHome = await this.pathService.userHome();
+		const configuredLocations = PromptsConfig.promptSourceFolders(this.configService, type);
+		const defaultFolders = getPromptFileDefaultLocations(type);
+
+		// Merge default folders with configured locations, avoiding duplicates
+		const allFolders = [
+			...defaultFolders,
+			...configuredLocations.filter(loc => !defaultFolders.some(df => df.path === loc.path))
+		];
+
+		return this.toAbsoluteLocations(type, allFolders, userHome, defaultFolders);
+	}
+
+	/**
+	 * Deduplicates source folders by URI.
+	 */
+	private dedupeSourceFolders(folders: readonly IResolvedPromptSourceFolder[]): IResolvedPromptSourceFolder[] {
+		const seen = new ResourceSet();
+		const result: IResolvedPromptSourceFolder[] = [];
+		for (const folder of folders) {
+			if (!seen.has(folder.uri)) {
+				seen.add(folder.uri);
+				result.push(folder);
+			}
+		}
+		return result;
+	}
+
+	/**
 	 * Finds all existent prompt files in the configured local source folders.
 	 *
 	 * @returns List of prompt files found in the local source folders.
@@ -281,10 +341,13 @@ export class PromptFilesLocator {
 	 * If userHome is provided, paths starting with `~` will be expanded. Otherwise these paths are ignored.
 	 * Preserves the type and location properties from the source folder definitions.
 	 */
-	private toAbsoluteLocations(type: PromptsType, configuredLocations: readonly IPromptSourceFolder[], userHome: URI | undefined): readonly IResolvedPromptSourceFolder[] {
+	private toAbsoluteLocations(type: PromptsType, configuredLocations: readonly IPromptSourceFolder[], userHome: URI | undefined, defaultLocations?: readonly IPromptSourceFolder[]): readonly IResolvedPromptSourceFolder[] {
 		const result: IResolvedPromptSourceFolder[] = [];
 		const seen = new ResourceSet();
 		const { folders } = this.workspaceService.getWorkspace();
+
+		// Create a set of default paths for quick lookup
+		const defaultPaths = new Set(defaultLocations?.map(loc => loc.path));
 
 		// Filter and validate skill paths before resolving
 		const validLocations = configuredLocations.filter(sourceFolder => {
@@ -310,6 +373,7 @@ export class PromptFilesLocator {
 
 		for (const sourceFolder of validLocations) {
 			const configuredLocation = sourceFolder.path;
+			const isDefault = defaultPaths?.has(configuredLocation);
 			try {
 				// Handle tilde paths when userHome is provided
 				if (isTildePath(configuredLocation)) {
@@ -318,7 +382,7 @@ export class PromptFilesLocator {
 						const uri = joinPath(userHome, configuredLocation.substring(2));
 						if (!seen.has(uri)) {
 							seen.add(uri);
-							result.push({ uri, source: sourceFolder.source, storage: sourceFolder.storage });
+							result.push({ uri, source: sourceFolder.source, storage: sourceFolder.storage, displayPath: configuredLocation, isDefault });
 						}
 					}
 					continue;
@@ -334,14 +398,14 @@ export class PromptFilesLocator {
 					}
 					if (!seen.has(uri)) {
 						seen.add(uri);
-						result.push({ uri, source: sourceFolder.source, storage: sourceFolder.storage });
+						result.push({ uri, source: sourceFolder.source, storage: sourceFolder.storage, displayPath: configuredLocation, isDefault });
 					}
 				} else {
 					for (const workspaceFolder of folders) {
 						const absolutePath = joinPath(workspaceFolder.uri, configuredLocation);
 						if (!seen.has(absolutePath)) {
 							seen.add(absolutePath);
-							result.push({ uri: absolutePath, source: sourceFolder.source, storage: sourceFolder.storage });
+							result.push({ uri: absolutePath, source: sourceFolder.source, storage: sourceFolder.storage, displayPath: configuredLocation, isDefault });
 						}
 					}
 				}

@@ -31,6 +31,7 @@ import { IExtHostRpcService } from './extHostRpcService.js';
 import * as typeConvert from './extHostTypeConverters.js';
 import { Diagnostic } from './extHostTypeConverters.js';
 import * as extHostTypes from './extHostTypes.js';
+import * as objects from '../../../base/common/objects.js';
 
 type ChatSessionTiming = vscode.ChatSessionItem['timing'];
 
@@ -46,6 +47,7 @@ class ChatSessionItemImpl implements vscode.ChatSessionItem {
 	#tooltip?: string | vscode.MarkdownString;
 	#timing?: ChatSessionTiming;
 	#changes?: readonly vscode.ChatSessionChangedFile[];
+	#metadata?: { readonly [key: string]: unknown };
 	#onChanged: () => void;
 
 	readonly resource: vscode.Uri;
@@ -154,6 +156,17 @@ class ChatSessionItemImpl implements vscode.ChatSessionItem {
 			this.#onChanged();
 		}
 	}
+
+	get metadata(): { readonly [key: string]: unknown } | undefined {
+		return this.#metadata;
+	}
+
+	set metadata(value: { readonly [key: string]: unknown } | undefined) {
+		if (!objects.equals(this.#metadata, value)) {
+			this.#metadata = value;
+			this.#onChanged();
+		}
+	}
 }
 
 class ChatSessionItemCollectionImpl implements vscode.ChatSessionItemCollection {
@@ -220,7 +233,7 @@ class ExtHostChatSession {
 		public readonly commandsConverter: CommandsConverter,
 		public readonly sessionDisposables: DisposableStore
 	) {
-		this._stream = new ChatAgentResponseStream(extension, request, proxy, commandsConverter, sessionDisposables, this._pendingCarouselResolvers);
+		this._stream = new ChatAgentResponseStream(extension, request, proxy, commandsConverter, sessionDisposables, this._pendingCarouselResolvers, CancellationToken.None);
 	}
 
 	get activeResponseStream() {
@@ -228,7 +241,7 @@ class ExtHostChatSession {
 	}
 
 	getActiveRequestStream(request: IChatAgentRequest) {
-		return new ChatAgentResponseStream(this.extension, request, this.proxy, this.commandsConverter, this.sessionDisposables, this._pendingCarouselResolvers);
+		return new ChatAgentResponseStream(this.extension, request, this.proxy, this.commandsConverter, this.sessionDisposables, this._pendingCarouselResolvers, CancellationToken.None);
 	}
 }
 
@@ -479,6 +492,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 				lastRequestEnded,
 			},
 			changes: sessionContent.changes instanceof Array ? sessionContent.changes : undefined,
+			metadata: sessionContent.metadata,
 		};
 	}
 

@@ -25,7 +25,7 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { Lazy } from '../../../../../../base/common/lazy.js';
 import { Emitter } from '../../../../../../base/common/event.js';
-import { IDisposable } from '../../../../../../base/common/lifecycle.js';
+import { DisposableMap, DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../../base/common/observable.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
@@ -148,6 +148,9 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	private workingSpinnerElement: HTMLElement | undefined;
 	private workingSpinnerLabel: HTMLElement | undefined;
 	private availableWorkingMessages: string[] = [...workingMessages];
+	private readonly toolWrappersByCallId = new Map<string, HTMLElement>();
+	private readonly toolDisposables = this._register(new DisposableMap<string, DisposableStore>());
+	private pendingRemovals: { toolCallId: string; toolLabel: string }[] = [];
 
 	private getRandomWorkingMessage(): string {
 		if (this.availableWorkingMessages.length === 0) {
@@ -444,7 +447,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			return;
 		}
 
-		if (this.wrapper.children.length > 1 || this.toolInvocationCount > 0) {
+		if (this.wrapper.children.length > 1 || this.toolInvocationCount > 0 || this.lazyItems.length > 0) {
 			this.setDropdownClickable(true);
 			return;
 		}
@@ -537,6 +540,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 
 	public markAsInactive(): void {
 		this.isActive = false;
+		this.processPendingRemovals();
 		if (this.workingSpinnerElement) {
 			this.workingSpinnerElement.remove();
 			this.workingSpinnerElement = undefined;
@@ -545,6 +549,8 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	}
 
 	public finalizeTitleIfDefault(): void {
+		this.processPendingRemovals();
+
 		// With lazy rendering, wrapper may not be created yet if content hasn't been expanded
 		if (this.wrapper) {
 			this.wrapper.classList.remove('chat-thinking-streaming');
@@ -808,6 +814,8 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		toolInvocationOrMarkdown?: IChatToolInvocation | IChatToolInvocationSerialized | IChatMarkdownContent,
 		originalParent?: HTMLElement
 	): void {
+		this.processPendingRemovals();
+
 		// Track tool invocation metadata immediately (for title generation)
 		this.trackToolMetadata(toolInvocationId, toolInvocationOrMarkdown);
 		this.appendedItemCount++;
@@ -822,7 +830,12 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			const result = factory();
 			this.appendItemToDOM(result.domNode, toolInvocationId, toolInvocationOrMarkdown, originalParent);
 			if (result.disposable) {
-				this._register(result.disposable);
+				const toolCallId = toolInvocationOrMarkdown && (toolInvocationOrMarkdown.kind === 'toolInvocation' || toolInvocationOrMarkdown.kind === 'toolInvocationSerialized') ? toolInvocationOrMarkdown.toolCallId : undefined;
+				if (toolCallId) {
+					this.toolDisposables.get(toolCallId)?.add(result.disposable);
+				} else {
+					this._register(result.disposable);
+				}
 			}
 		} else {
 			// Defer rendering until expanded
@@ -864,6 +877,52 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		return true;
 	}
 
+	private processPendingRemovals(): void {
+		for (const pending of this.pendingRemovals) {
+			this.removeStreamingToolEntry(pending.toolCallId, pending.toolLabel);
+		}
+		this.pendingRemovals = [];
+	}
+
+	// removes the tool entry that was previously streaming and now is not. removes item from dom and internal tracking.
+	private removeStreamingToolEntry(toolCallId: string, toolLabel: string): void {
+		this.toolDisposables.deleteAndDispose(toolCallId);
+
+		const wrapper = this.toolWrappersByCallId.get(toolCallId);
+		if (wrapper) {
+			wrapper.remove();
+			this.toolWrappersByCallId.delete(toolCallId);
+		}
+
+		// make sure to remove any lazy item as well
+		const lazyIndex = this.lazyItems.findIndex(item =>
+			item.kind === 'tool' &&
+			item.toolInvocationOrMarkdown &&
+			(item.toolInvocationOrMarkdown.kind === 'toolInvocation' || item.toolInvocationOrMarkdown.kind === 'toolInvocationSerialized') &&
+			item.toolInvocationOrMarkdown.toolCallId === toolCallId
+		);
+		if (lazyIndex !== -1) {
+			this.lazyItems.splice(lazyIndex, 1);
+		}
+
+		this.appendedItemCount = Math.max(0, this.appendedItemCount - 1);
+		this.toolInvocationCount = Math.max(0, this.toolInvocationCount - 1);
+		const toolInvocationsIndex = this.toolInvocations.findIndex(t =>
+			(t.kind === 'toolInvocation' || t.kind === 'toolInvocationSerialized') && t.toolCallId === toolCallId
+		);
+		if (toolInvocationsIndex !== -1) {
+			this.toolInvocations.splice(toolInvocationsIndex, 1);
+		}
+
+		const titleIndex = this.extractedTitles.indexOf(toolLabel);
+		if (titleIndex !== -1) {
+			this.extractedTitles.splice(titleIndex, 1);
+		}
+
+		this.updateDropdownClickability();
+		this._onDidChangeHeight.fire();
+	}
+
 	private trackToolMetadata(
 		toolInvocationId?: string,
 		toolInvocationOrMarkdown?: IChatToolInvocation | IChatToolInvocationSerialized | IChatMarkdownContent
@@ -886,6 +945,10 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			if (toolInvocationOrMarkdown.kind === 'toolInvocation') {
 				let currentToolLabel = toolCallLabel;
 				let isComplete = false;
+				let isStreaming = IChatToolInvocation.isStreaming(toolInvocationOrMarkdown);
+
+				const toolStore = new DisposableStore();
+				this.toolDisposables.set(toolInvocationOrMarkdown.toolCallId, toolStore);
 
 				const updateTitle = (updatedMessage: string) => {
 					if (updatedMessage && updatedMessage !== currentToolLabel) {
@@ -912,12 +975,22 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 					}
 				};
 
-				this._register(autorun(reader => {
+				const autorunDisposable = autorun(reader => {
 					if (isComplete) {
 						return;
 					}
 
 					const currentState = toolInvocationOrMarkdown.state.read(reader);
+
+					// queue item to be removed if it was streaming and presentation is hidden
+					if (isStreaming && currentState.type !== IChatToolInvocation.StateKind.Streaming) {
+						isStreaming = false;
+						if (toolInvocationOrMarkdown.presentation === 'hidden') {
+							this.pendingRemovals.push({ toolCallId: toolInvocationOrMarkdown.toolCallId, toolLabel: currentToolLabel });
+							isComplete = true;
+							return;
+						}
+					}
 
 					if (currentState.type === IChatToolInvocation.StateKind.Completed ||
 						currentState.type === IChatToolInvocation.StateKind.Cancelled) {
@@ -927,6 +1000,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 
 					// streaming
 					if (currentState.type === IChatToolInvocation.StateKind.Streaming) {
+						isStreaming = true;
 						const streamingMessage = currentState.streamingMessage.read(reader);
 						if (streamingMessage) {
 							const updatedMessage = typeof streamingMessage === 'string' ? streamingMessage : streamingMessage.value;
@@ -957,7 +1031,8 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 						const updatedMessage = typeof invocationMsg === 'string' ? invocationMsg : invocationMsg.value;
 						updateTitle(updatedMessage);
 					}
-				}));
+				});
+				toolStore.add(autorunDisposable);
 			}
 		} else if (toolInvocationOrMarkdown?.kind === 'markdownContent') {
 			const codeblockInfo = extractCodeblockUrisFromText(toolInvocationOrMarkdown.content.value);
@@ -1023,6 +1098,11 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		itemWrapper.appendChild(iconElement);
 		itemWrapper.appendChild(content);
 
+		const isToolInvocation = toolInvocationOrMarkdown && (toolInvocationOrMarkdown.kind === 'toolInvocation' || toolInvocationOrMarkdown.kind === 'toolInvocationSerialized');
+		if (isToolInvocation && toolInvocationOrMarkdown.toolCallId) {
+			this.toolWrappersByCallId.set(toolInvocationOrMarkdown.toolCallId, itemWrapper);
+		}
+
 		this.appendToWrapper(itemWrapper);
 
 		if (this.fixedScrollingMode && this.scrollableElement) {
@@ -1055,7 +1135,12 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		this.appendItemToDOM(result.domNode, item.toolInvocationId, item.toolInvocationOrMarkdown, item.originalParent);
 
 		if (result.disposable) {
-			this._register(result.disposable);
+			const toolCallId = item.toolInvocationOrMarkdown && (item.toolInvocationOrMarkdown.kind === 'toolInvocation' || item.toolInvocationOrMarkdown.kind === 'toolInvocationSerialized') ? item.toolInvocationOrMarkdown.toolCallId : undefined;
+			if (toolCallId) {
+				this.toolDisposables.get(toolCallId)?.add(result.disposable);
+			} else {
+				this._register(result.disposable);
+			}
 		}
 	}
 

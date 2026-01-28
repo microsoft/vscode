@@ -132,7 +132,7 @@ export class HoverService extends Disposable implements IHoverService {
 
 	showDelayedHover(
 		options: IHoverOptions,
-		lifecycleOptions: Pick<IHoverLifecycleOptions, 'groupId'>,
+		lifecycleOptions: Pick<IHoverLifecycleOptions, 'groupId' | 'reducedDelay'>,
 	): IHoverWidget | undefined {
 		// Set `id` to default if it's undefined
 		if (options.id === undefined) {
@@ -177,7 +177,10 @@ export class HoverService extends Disposable implements IHoverService {
 		this._currentDelayedHoverWasShown = false;
 		this._currentDelayedHoverGroupId = lifecycleOptions?.groupId;
 
-		timeout(this._configurationService.getValue<number>('workbench.hover.delay')).then(() => {
+		const delay = lifecycleOptions?.reducedDelay
+			? this._configurationService.getValue<number>('workbench.hover.reducedDelay')
+			: this._configurationService.getValue<number>('workbench.hover.delay');
+		timeout(delay).then(() => {
 			if (hover.hover && !hover.hover.isDisposed) {
 				this._currentDelayedHoverWasShown = true;
 				this._showHover(hover, options);
@@ -225,7 +228,8 @@ export class HoverService extends Disposable implements IHoverService {
 		const store = new DisposableStore();
 		store.add(addDisposableListener(target, EventType.MOUSE_OVER, e => {
 			this.showDelayedHover(resolveHoverOptions(e), {
-				groupId: lifecycleOptions?.groupId
+				groupId: lifecycleOptions?.groupId,
+				reducedDelay: lifecycleOptions?.reducedDelay,
 			});
 		}));
 		if (lifecycleOptions?.setupKeyboardEvents) {

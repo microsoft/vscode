@@ -438,7 +438,7 @@ export interface IChatTerminalToolInvocationData {
 		/** The command line to display in the UI */
 		commandLine: string;
 		/** The language for syntax highlighting */
-		language: string;
+		language?: string;
 	};
 	/** Message for model recommending the use of an alternative tool */
 	alternativeRecommendation?: string;
@@ -788,7 +788,7 @@ export interface IChatToolInvocationSerialized {
 	isComplete: boolean;
 	toolCallId: string;
 	toolId: string;
-	source: ToolDataSource;
+	source: ToolDataSource | undefined; // undefined on pre-1.104 versions
 	readonly subAgentInvocationId?: string;
 	generatedTitle?: string;
 	kind: 'toolInvocationSerialized';

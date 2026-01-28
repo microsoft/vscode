@@ -380,6 +380,7 @@ export class ChatService extends Disposable implements IChatService {
 			.filter(entry => !this._sessionModels.has(LocalChatSessionUri.forSession(entry.sessionId)) && entry.initialLocation === ChatAgentLocation.Chat && !entry.isEmpty)
 			.map((entry): IChatDetail => {
 				const sessionResource = LocalChatSessionUri.forSession(entry.sessionId);
+				const lastResponseState = entry.lastResponseState ?? ResponseModelState.Complete;
 				return ({
 					...entry,
 					sessionResource,
@@ -391,7 +392,8 @@ export class ChatService extends Disposable implements IChatService {
 					},
 					isActive: this._sessionModels.has(sessionResource),
 					// TODO@roblourens- missing for old data- normalize inside the store
-					lastResponseState: entry.lastResponseState ?? ResponseModelState.Complete,
+					// TODO@connor4312: the check here guards old sessions from Insiders pre PR #288161 and it can be safely removed after a transition period.
+					lastResponseState: lastResponseState === ResponseModelState.Pending || lastResponseState === ResponseModelState.NeedsInput ? ResponseModelState.Complete : lastResponseState,
 				});
 			});
 	}

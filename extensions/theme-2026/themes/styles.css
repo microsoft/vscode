@@ -203,6 +203,7 @@
 	border: none;
 	border-radius: var(--radius-xl);
 	backdrop-filter: var(--backdrop-blur-lg); -webkit-backdrop-filter: var(--backdrop-blur-lg);
+	background: color-mix(in srgb, var(--vscode-editor-background) 60%, transparent) !important;
 }
 
 .monaco-workbench.vs-dark .monaco-dialog-box {
@@ -284,6 +285,29 @@
 .monaco-workbench .monaco-button { box-shadow: var(--shadow-xs); }
 .monaco-workbench .monaco-button:hover { box-shadow: var(--shadow-sm);  }
 .monaco-workbench .monaco-button:active { box-shadow: var(--shadow-button-active); }
+
+/* Todo List Widget - remove shadows from buttons */
+.monaco-workbench.vs .chat-todo-list-widget .todo-list-expand .monaco-button,
+.monaco-workbench.vs .chat-todo-list-widget .todo-list-expand .monaco-button:hover,
+.monaco-workbench.vs .chat-todo-list-widget .todo-list-expand .monaco-button:active,
+.monaco-workbench.vs .chat-todo-list-widget .todo-clear-button-container .monaco-button,
+.monaco-workbench.vs .chat-todo-list-widget .todo-clear-button-container .monaco-button:hover,
+.monaco-workbench.vs .chat-todo-list-widget .todo-clear-button-container .monaco-button:active {
+	box-shadow: none;
+}
+
+/* Link buttons and tool call buttons - remove shadows */
+.monaco-workbench .monaco-button.link-button,
+.monaco-workbench .monaco-button.link-button:hover,
+.monaco-workbench .monaco-button.link-button:active,
+.monaco-workbench .chat-confirmation-widget-title.monaco-button,
+.monaco-workbench .chat-confirmation-widget-title.monaco-button:hover,
+.monaco-workbench .chat-confirmation-widget-title.monaco-button:active,
+.monaco-workbench .chat-used-context-label .monaco-button,
+.monaco-workbench .chat-used-context-label .monaco-button:hover,
+.monaco-workbench .chat-used-context-label .monaco-button:active {
+	box-shadow: none;
+}
 
 /* Dropdowns */
 .monaco-workbench .monaco-dropdown .dropdown-menu { box-shadow: var(--shadow-lg); border: none; border-radius: var(--radius-lg); }

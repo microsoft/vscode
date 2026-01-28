@@ -196,6 +196,31 @@ export class ArchiveAllAgentSessionsAction extends Action2 {
 	}
 }
 
+export class MarkAllAgentSessionsReadAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.chat.markAllAgentSessionsRead',
+			title: localize2('markAllRead.label', "Mark All Workspace Agent Sessions as Read"),
+			precondition: ChatContextKeys.enabled,
+			category: CHAT_CATEGORY,
+			f1: true,
+		});
+	}
+	async run(accessor: ServicesAccessor) {
+		const agentSessionsService = accessor.get(IAgentSessionsService);
+
+		const sessionsToMarkRead = agentSessionsService.model.sessions.filter(session => !session.isArchived() && !session.isRead());
+		if (sessionsToMarkRead.length === 0) {
+			return;
+		}
+
+		for (const session of sessionsToMarkRead) {
+			session.setRead(true);
+		}
+	}
+}
+
 const ConfirmArchiveStorageKey = 'chat.sessions.confirmArchive';
 
 export class ArchiveAgentSessionSectionAction extends Action2 {
