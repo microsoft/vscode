@@ -1679,11 +1679,19 @@ export class Repository {
 		}
 	}
 
-	async apply(patch: string, reverse?: boolean): Promise<void> {
+	async apply(patch: string, options?: { reverse?: boolean; threeWay?: boolean; allowEmpty?: boolean }): Promise<void> {
 		const args = ['apply', patch];
 
-		if (reverse) {
-			args.push('-R');
+		if (options?.allowEmpty) {
+			args.push('--allow-empty');
+		}
+
+		if (options?.reverse) {
+			args.push('--reverse');
+		}
+
+		if (options?.threeWay) {
+			args.push('--3way');
 		}
 
 		try {
