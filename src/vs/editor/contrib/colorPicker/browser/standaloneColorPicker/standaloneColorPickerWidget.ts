@@ -24,6 +24,7 @@ import { StandaloneColorPickerHover, StandaloneColorPickerParticipant, Standalon
 import * as dom from '../../../../../base/browser/dom.js';
 import { InsertButton } from '../colorPickerParts/colorPickerInsertButton.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 
 class StandaloneColorPickerResult {
 	// The color picker result consists of: an array of color results and a boolean indicating if the color was found in the editor
@@ -62,7 +63,8 @@ export class StandaloneColorPickerWidget extends Disposable implements IContentW
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
 		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
-		@IHoverService private readonly _hoverService: IHoverService
+		@IHoverService private readonly _hoverService: IHoverService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 		super();
 		this._standaloneColorPickerVisible.set(true);
@@ -162,7 +164,7 @@ export class StandaloneColorPickerWidget extends Disposable implements IContentW
 			range: range,
 			color: { red: 0, green: 0, blue: 0, alpha: 1 }
 		};
-		const colorHoverResult: { colorHover: StandaloneColorPickerHover; foundInEditor: boolean } | null = await this._standaloneColorPickerParticipant.createColorHover(colorInfo, new DefaultDocumentColorProvider(this._editorWorkerService), this._languageFeaturesService.colorProvider);
+		const colorHoverResult: { colorHover: StandaloneColorPickerHover; foundInEditor: boolean } | null = await this._standaloneColorPickerParticipant.createColorHover(colorInfo, new DefaultDocumentColorProvider(this._editorWorkerService, this._configurationService), this._languageFeaturesService.colorProvider);
 		if (!colorHoverResult) {
 			return null;
 		}

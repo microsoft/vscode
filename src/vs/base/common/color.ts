@@ -615,6 +615,10 @@ export namespace Color {
 				return `rgba(${color.rgba.r}, ${color.rgba.g}, ${color.rgba.b}, ${+(color.rgba.a).toFixed(2)})`;
 			}
 
+			export function formatARGB(color: Color): string {
+				return `argb(${+(color.rgba.a).toFixed(2)}, ${color.rgba.r}, ${color.rgba.g}, ${color.rgba.b})`;
+			}
+
 			export function formatHSL(color: Color): string {
 				if (color.hsla.a === 1) {
 					return `hsl(${color.hsla.h}, ${Math.round(color.hsla.s * 100)}%, ${Math.round(color.hsla.l * 100)}%)`;
@@ -652,6 +656,18 @@ export namespace Color {
 			}
 
 			/**
+			 * Formats the color as #AARRGGBB (alpha first)
+			 * If 'compact' is set, colors without transparancy will be printed as #RRGGBB
+			 */
+			export function formatAHex(color: Color, compact = false): string {
+				if (compact && color.rgba.a === 1) {
+					return Color.Format.CSS.formatHex(color);
+				}
+
+				return `#${_toTwoDigitHex(Math.round(color.rgba.a * 255))}${_toTwoDigitHex(color.rgba.r)}${_toTwoDigitHex(color.rgba.g)}${_toTwoDigitHex(color.rgba.b)}`;
+			}
+
+			/**
 			 * The default format will use HEX if opaque and RGBA otherwise.
 			 */
 			export function format(color: Color): string {
@@ -683,6 +699,17 @@ export namespace Color {
 					const g = parseInt(color.groups?.g ?? '0');
 					const b = parseInt(color.groups?.b ?? '0');
 					const a = parseFloat(color.groups?.a ?? '0');
+					return new Color(new RGBA(r, g, b, a));
+				}
+				if (css.startsWith('argb(')) {
+					const color = css.match(/argb\((?<a>(?:\+|-)?\d+(\.\d+)?), *(?<r>(?:\+|-)?\d+), *(?<g>(?:\+|-)?\d+), *(?<b>(?:\+|-)?\d+)\)/);
+					if (!color) {
+						throw new Error('Invalid color format ' + css);
+					}
+					const a = parseFloat(color.groups?.a ?? '0');
+					const r = parseInt(color.groups?.r ?? '0');
+					const g = parseInt(color.groups?.g ?? '0');
+					const b = parseInt(color.groups?.b ?? '0');
 					return new Color(new RGBA(r, g, b, a));
 				}
 				if (css.startsWith('rgb(')) {
@@ -857,9 +884,10 @@ export namespace Color {
 			/**
 			 * Converts an Hex color value to a Color.
 			 * returns r, g, and b are contained in the set [0, 255]
-			 * @param hex string (#RGB, #RGBA, #RRGGBB or #RRGGBBAA).
+			 * @param hex string (#RGB, #RGBA (or #ARGB), #RRGGBB or #RRGGBBAA (or #AARRGGBB)).
+			 * @param format 'rgba' (default) or 'argb' - controls how to interpret 8-char hex colors
 			 */
-			export function parseHex(hex: string): Color | null {
+			export function parseHex(hex: string, format: 'rgba' | 'argb' = 'rgba'): Color | null {
 				const length = hex.length;
 
 				if (length === 0) {
@@ -881,11 +909,19 @@ export namespace Color {
 				}
 
 				if (length === 9) {
-					// #RRGGBBAA format
-					const r = 16 * _parseHexDigit(hex.charCodeAt(1)) + _parseHexDigit(hex.charCodeAt(2));
-					const g = 16 * _parseHexDigit(hex.charCodeAt(3)) + _parseHexDigit(hex.charCodeAt(4));
-					const b = 16 * _parseHexDigit(hex.charCodeAt(5)) + _parseHexDigit(hex.charCodeAt(6));
-					const a = 16 * _parseHexDigit(hex.charCodeAt(7)) + _parseHexDigit(hex.charCodeAt(8));
+					// #RRGGBBAA or #AARRGGBB format
+					let r: number, g: number, b: number, a: number;
+					if (format === 'argb') {
+						a = 16 * _parseHexDigit(hex.charCodeAt(1)) + _parseHexDigit(hex.charCodeAt(2));
+						r = 16 * _parseHexDigit(hex.charCodeAt(3)) + _parseHexDigit(hex.charCodeAt(4));
+						g = 16 * _parseHexDigit(hex.charCodeAt(5)) + _parseHexDigit(hex.charCodeAt(6));
+						b = 16 * _parseHexDigit(hex.charCodeAt(7)) + _parseHexDigit(hex.charCodeAt(8));
+					} else {
+						r = 16 * _parseHexDigit(hex.charCodeAt(1)) + _parseHexDigit(hex.charCodeAt(2));
+						g = 16 * _parseHexDigit(hex.charCodeAt(3)) + _parseHexDigit(hex.charCodeAt(4));
+						b = 16 * _parseHexDigit(hex.charCodeAt(5)) + _parseHexDigit(hex.charCodeAt(6));
+						a = 16 * _parseHexDigit(hex.charCodeAt(7)) + _parseHexDigit(hex.charCodeAt(8));
+					}
 					return new Color(new RGBA(r, g, b, a / 255));
 				}
 
@@ -898,11 +934,19 @@ export namespace Color {
 				}
 
 				if (length === 5) {
-					// #RGBA format
-					const r = _parseHexDigit(hex.charCodeAt(1));
-					const g = _parseHexDigit(hex.charCodeAt(2));
-					const b = _parseHexDigit(hex.charCodeAt(3));
-					const a = _parseHexDigit(hex.charCodeAt(4));
+					// #RGBA or #ARGB format
+					let r: number, g: number, b: number, a: number;
+					if (format === 'argb') {
+						a = _parseHexDigit(hex.charCodeAt(1));
+						r = _parseHexDigit(hex.charCodeAt(2));
+						g = _parseHexDigit(hex.charCodeAt(3));
+						b = _parseHexDigit(hex.charCodeAt(4));
+					} else {
+						r = _parseHexDigit(hex.charCodeAt(1));
+						g = _parseHexDigit(hex.charCodeAt(2));
+						b = _parseHexDigit(hex.charCodeAt(3));
+						a = _parseHexDigit(hex.charCodeAt(4));
+					}
 					return new Color(new RGBA(16 * r + r, 16 * g + g, 16 * b + b, (16 * a + a) / 255));
 				}
 

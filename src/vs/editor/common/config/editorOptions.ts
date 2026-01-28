@@ -415,6 +415,10 @@ export interface IEditorOptions {
 	 */
 	colorDecoratorsLimit?: number;
 	/**
+	 * Controls the color format for parsing colors and for color decorators. RGBA is standard for web (CSS), while ARGB is used by Qt and some other frameworks.
+	 */
+	colorDecoratorFormat?: 'rgba' | 'argb';
+	/**
 	 * Control the behaviour of comments in the editor.
 	 */
 	comments?: IEditorCommentsOptions;
@@ -5751,6 +5755,7 @@ export const enum EditorOption {
 	codeLensFontSize,
 	colorDecorators,
 	colorDecoratorsLimit,
+	colorDecoratorFormat,
 	columnSelection,
 	comments,
 	contextmenu,
@@ -6105,6 +6110,17 @@ export const EditorOptions = {
 		EditorOption.colorDecoratorsLimit, 'colorDecoratorsLimit', 500, 1, 1000000,
 		{
 			markdownDescription: nls.localize('colorDecoratorsLimit', "Controls the max number of color decorators that can be rendered in an editor at once.")
+		}
+	)),
+	colorDecoratorFormat: register(new EditorStringEnumOption(
+		EditorOption.colorDecoratorFormat, 'colorDecoratorFormat', 'rgba' as 'rgba' | 'argb',
+		['rgba', 'argb'] as const,
+		{
+			enumDescriptions: [
+				nls.localize('editor.colorDecoratorFormat.rgba', "Use RGBA format (#RGBA for 4-digit, #RRGGBBAA for 8-digit)"),
+				nls.localize('editor.colorDecoratorFormat.argb', "Use ARGB format (#ARGB for 4-digit, #AARRGGBB for 8-digit)")
+			],
+			markdownDescription: nls.localize('colorDecoratorFormat', "Controls the color format for parsing colors and for color decorators. RGBA is standard for web (CSS), while ARGB is used by Qt and some other frameworks.")
 		}
 	)),
 	columnSelection: register(new EditorBooleanOption(
