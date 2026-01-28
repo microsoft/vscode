@@ -177,8 +177,6 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 			return mode.source.storage === PromptsStorage.local || mode.source.storage === PromptsStorage.user;
 		};
 
-		const isImplementMode = (mode: IChatMode) => isBuiltinImplementMode(mode, this._productService);
-
 		const actionProviderWithCustomAgentTarget: IActionWidgetDropdownActionProvider = {
 			getActions: () => {
 				const modes = chatModeService.getModes();
@@ -208,7 +206,7 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 				const otherBuiltinModes = modes.builtin.filter(mode => mode.id !== ChatMode.Agent.id && !(shouldHideEditMode && mode.id === ChatMode.Edit.id));
 				// Filter out 'implement' mode from the dropdown - it's available for handoffs but not user-selectable
 				const customModes = groupBy(
-					modes.custom.filter(mode => !isImplementMode(mode)),
+					modes.custom,
 					mode => isModeConsideredBuiltIn(mode, this._productService) ? 'builtin' : 'custom');
 
 				const customBuiltinModeActions = customModes.builtin?.map(mode => {

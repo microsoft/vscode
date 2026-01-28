@@ -515,8 +515,13 @@ export class PromptValidator {
 							report(toMarker(localize('promptValidator.handoffShowContinueOnMustBeBoolean', "The 'showContinueOn' property in a handoff must be a boolean."), prop.value.range, MarkerSeverity.Error));
 						}
 						break;
+					case 'model':
+						if (prop.value.type !== 'string') {
+							report(toMarker(localize('promptValidator.handoffModelMustBeString', "The 'model' property in a handoff must be a string."), prop.value.range, MarkerSeverity.Error));
+						}
+						break;
 					default:
-						report(toMarker(localize('promptValidator.unknownHandoffProperty', "Unknown property '{0}' in handoff object. Supported properties are 'label', 'agent', 'prompt' and optional 'send', 'showContinueOn'.", prop.key.value), prop.value.range, MarkerSeverity.Warning));
+						report(toMarker(localize('promptValidator.unknownHandoffProperty', "Unknown property '{0}' in handoff object. Supported properties are 'label', 'agent', 'prompt' and optional 'send', 'showContinueOn', 'model'.", prop.key.value), prop.value.range, MarkerSeverity.Warning));
 				}
 				required.delete(prop.key.value);
 			}
