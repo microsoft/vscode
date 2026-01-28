@@ -3108,6 +3108,10 @@ export interface IEditorStickyScrollOptions {
 	 * Define whether to scroll sticky scroll with editor horizontal scrollbae
 	 */
 	scrollWithEditor?: boolean;
+	/**
+	 * Define whether to show outer scopes or inner scopes when the max line count is reached
+	 */
+	scopePreference?: 'outerScopes' | 'innerScopes';
 }
 
 /**
@@ -3118,7 +3122,7 @@ export type EditorStickyScrollOptions = Readonly<Required<IEditorStickyScrollOpt
 class EditorStickyScroll extends BaseEditorOption<EditorOption.stickyScroll, IEditorStickyScrollOptions, EditorStickyScrollOptions> {
 
 	constructor() {
-		const defaults: EditorStickyScrollOptions = { enabled: true, maxLineCount: 5, defaultModel: 'outlineModel', scrollWithEditor: true };
+		const defaults: EditorStickyScrollOptions = { enabled: true, maxLineCount: 5, defaultModel: 'outlineModel', scrollWithEditor: true, scopePreference: 'outerScopes' };
 		super(
 			EditorOption.stickyScroll, 'stickyScroll', defaults,
 			{
@@ -3145,6 +3149,16 @@ class EditorStickyScroll extends BaseEditorOption<EditorOption.stickyScroll, IEd
 					default: defaults.scrollWithEditor,
 					description: nls.localize('editor.stickyScroll.scrollWithEditor', "Enable scrolling of Sticky Scroll with the editor's horizontal scrollbar.")
 				},
+				'editor.stickyScroll.scopePreference': {
+					type: 'string',
+					enum: ['outerScopes', 'innerScopes'],
+					enumDescriptions: [
+						nls.localize('editor.stickyScroll.scopePreference.outerScopes', "Show outer scopes at the top when source code is nested beyond the maximum number of sticky lines."),
+						nls.localize('editor.stickyScroll.scopePreference.innerScopes', "Show inner scopes at the top when source code is nested beyond the maximum number of sticky lines.")
+					],
+					default: defaults.scopePreference,
+					description: nls.localize('editor.stickyScroll.scopePreference', "Defines whether to show outer or inner scopes at the top of the editor when source code is nested beyond the maximum number of sticky lines.")
+				},
 			}
 		);
 	}
@@ -3158,7 +3172,8 @@ class EditorStickyScroll extends BaseEditorOption<EditorOption.stickyScroll, IEd
 			enabled: boolean(input.enabled, this.defaultValue.enabled),
 			maxLineCount: EditorIntOption.clampedInt(input.maxLineCount, this.defaultValue.maxLineCount, 1, 20),
 			defaultModel: stringSet<'outlineModel' | 'foldingProviderModel' | 'indentationModel'>(input.defaultModel, this.defaultValue.defaultModel, ['outlineModel', 'foldingProviderModel', 'indentationModel']),
-			scrollWithEditor: boolean(input.scrollWithEditor, this.defaultValue.scrollWithEditor)
+			scrollWithEditor: boolean(input.scrollWithEditor, this.defaultValue.scrollWithEditor),
+			scopePreference: stringSet<'outerScopes' | 'innerScopes'>(input.scopePreference, this.defaultValue.scopePreference, ['outerScopes', 'innerScopes'])
 		};
 	}
 }

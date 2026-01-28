@@ -9,7 +9,7 @@ import { IEditorContribution, ScrollType } from '../../../common/editorCommon.js
 import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
 import { EditorOption, RenderLineNumbersType, ConfigurationChangedEvent } from '../../../common/config/editorOptions.js';
 import { StickyScrollWidget, StickyScrollWidgetState } from './stickyScrollWidget.js';
-import { IStickyLineCandidateProvider, StickyLineCandidateProvider } from './stickyScrollProvider.js';
+import { IStickyLineCandidateProvider, StickyLineCandidate, StickyLineCandidateProvider } from './stickyScrollProvider.js';
 import { IModelTokensChangedEvent } from '../../../common/textModelEvents.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
@@ -600,6 +600,34 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		this._stickyScrollWidget.setState(undefined, undefined);
 	}
 
+	/**
+	 * Determines if a candidate sticky line should be appended to the sticky scroll widget.
+	 *
+	 * outer scopes: top of the scope's starting line triggers the sticky line.
+	 * inner scopes before widget is full: same as outer scopes.
+	 * inner scopes when widget is full: bottom of the scope's starting line triggers the sticky line.
+	 */
+	private _shouldAppendStickyLine(
+		candidate: StickyLineCandidate,
+		useInnerScopes: boolean,
+		isAtMaxLines: boolean,
+		scrollTop: number,
+		currentWidgetHeight: number
+	): boolean {
+		const endLineNumber = candidate.endLineNumber + (useInnerScopes ? 1 : 0);
+		const endLineBottom = this._editor.getBottomForLineNumber(endLineNumber) - scrollTop;
+
+		// Don't append if we've scrolled past the end of this range
+		if (endLineBottom < currentWidgetHeight) {
+			return false;
+		}
+
+		const triggerEdge = (useInnerScopes && isAtMaxLines)
+			? this._editor.getBottomForLineNumber(candidate.startLineNumber) - scrollTop
+			: this._editor.getTopForLineNumber(candidate.startLineNumber) - scrollTop;
+		return triggerEdge < currentWidgetHeight;
+	}
+
 	findScrollWidgetState(): StickyScrollWidgetState {
 		const maxNumberStickyLines = Math.min(this._maxStickyLines, this._editor.getOption(EditorOption.stickyScroll).maxLineCount);
 		const scrollTop: number = this._editor.getScrollTop();
@@ -610,22 +638,36 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		if (arrayVisibleRanges.length !== 0) {
 			const fullVisibleRange = new StickyRange(arrayVisibleRanges[0].startLineNumber, arrayVisibleRanges[arrayVisibleRanges.length - 1].endLineNumber);
 			const candidateRanges = this._stickyLineCandidateProvider.getCandidateStickyLinesIntersecting(fullVisibleRange);
+			const innerScopes = this._editor.getOption(EditorOption.stickyScroll).scopePreference === 'innerScopes';
+			let stickyWidgetHeight = 0;
 			for (const range of candidateRanges) {
-				const start = range.startLineNumber;
-				const end = range.endLineNumber;
-				const topOfElement = range.top;
-				const bottomOfElement = topOfElement + range.height;
-				const topOfBeginningLine = this._editor.getTopForLineNumber(start) - scrollTop;
-				const bottomOfEndLine = this._editor.getBottomForLineNumber(end) - scrollTop;
-				if (topOfElement > topOfBeginningLine && topOfElement <= bottomOfEndLine) {
-					startLineNumbers.push(start);
-					endLineNumbers.push(end + 1);
-					if (bottomOfElement > bottomOfEndLine) {
-						lastLineRelativePosition = bottomOfEndLine - bottomOfElement;
+				const bottomOfEndLine = this._editor.getBottomForLineNumber(range.endLineNumber + (innerScopes ? 1 : 0)) - scrollTop;
+				const shouldAppendStickyLine = this._shouldAppendStickyLine(range, innerScopes, startLineNumbers.length === maxNumberStickyLines, scrollTop, stickyWidgetHeight);
+
+				if (shouldAppendStickyLine) {
+					startLineNumbers.push(range.startLineNumber);
+					endLineNumbers.push(range.endLineNumber + (innerScopes ? 1 : 0));
+					stickyWidgetHeight += range.height;
+					if (stickyWidgetHeight > bottomOfEndLine) {
+						lastLineRelativePosition = innerScopes ? 0 : bottomOfEndLine - stickyWidgetHeight;
+					}
+
+					if (innerScopes && startLineNumbers.length > maxNumberStickyLines) {
+						const line = startLineNumbers.shift()!;
+						endLineNumbers.shift();
+						stickyWidgetHeight -= this._editor.getLineHeightForPosition(new Position(line, 1));
 					}
 				}
-				if (startLineNumbers.length === maxNumberStickyLines) {
+				if (startLineNumbers.length === maxNumberStickyLines && !innerScopes) {
 					break;
+				}
+			}
+
+			// Edge case to smoothly scroll out the outermost scopes
+			if (innerScopes && endLineNumbers.length > 0) {
+				const bottomOfEndLine = this._editor.getBottomForLineNumber(endLineNumbers[endLineNumbers.length - 1]) - scrollTop;
+				if (stickyWidgetHeight > bottomOfEndLine) {
+					lastLineRelativePosition = bottomOfEndLine - stickyWidgetHeight;
 				}
 			}
 		}
