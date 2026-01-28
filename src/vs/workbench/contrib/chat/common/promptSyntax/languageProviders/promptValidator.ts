@@ -620,6 +620,69 @@ export function isNonRecommendedAttribute(attributeName: string): boolean {
 	return attributeName === PromptHeaderAttributes.advancedOptions || attributeName === PromptHeaderAttributes.excludeAgent || attributeName === PromptHeaderAttributes.mode;
 }
 
+export function getAttributeDescription(attributeName: string, promptType: PromptsType): string | undefined {
+	switch (promptType) {
+		case PromptsType.instructions:
+			switch (attributeName) {
+				case PromptHeaderAttributes.name:
+					return localize('promptHeader.instructions.name', 'The name of the instruction file as shown in the UI. If not set, the name is derived from the file name.');
+				case PromptHeaderAttributes.description:
+					return localize('promptHeader.instructions.description', 'The description of the instruction file. It can be used to provide additional context or information about the instructions and is passed to the language model as part of the prompt.');
+				case PromptHeaderAttributes.applyTo:
+					return localize('promptHeader.instructions.applyToRange', 'One or more glob pattern (separated by comma) that describe for which files the instructions apply to. Based on these patterns, the file is automatically included in the prompt, when the context contains a file that matches one or more of these patterns. Use `**` when you want this file to always be added.\nExample: `**/*.ts`, `**/*.js`, `client/**`');
+			}
+			break;
+		case PromptsType.skill:
+			switch (attributeName) {
+				case PromptHeaderAttributes.name:
+					return localize('promptHeader.skill.name', 'The name of the skill.');
+				case PromptHeaderAttributes.description:
+					return localize('promptHeader.skill.description', 'The description of the skill. The description is added to every request and will be used by the agent to decide when to load the skill.');
+			}
+			break;
+		case PromptsType.agent:
+			switch (attributeName) {
+				case PromptHeaderAttributes.name:
+					return localize('promptHeader.agent.name', 'The name of the agent as shown in the UI.');
+				case PromptHeaderAttributes.description:
+					return localize('promptHeader.agent.description', 'The description of the custom agent, what it does and when to use it.');
+				case PromptHeaderAttributes.argumentHint:
+					return localize('promptHeader.agent.argumentHint', 'The argument-hint describes what inputs the custom agent expects or supports.');
+				case PromptHeaderAttributes.model:
+					return localize('promptHeader.agent.model', 'Specify the model that runs this custom agent. Can also be a list of models. The first available model will be used.');
+				case PromptHeaderAttributes.tools:
+					return localize('promptHeader.agent.tools', 'The set of tools that the custom agent has access to.');
+				case PromptHeaderAttributes.handOffs:
+					return localize('promptHeader.agent.handoffs', 'Possible handoff actions when the agent has completed its task.');
+				case PromptHeaderAttributes.target:
+					return localize('promptHeader.agent.target', 'The target to which the header attributes like tools apply to. Possible values are `github-copilot` and `vscode`.');
+				case PromptHeaderAttributes.infer:
+					return localize('promptHeader.agent.infer', 'Controls visibility of the agent.');
+				case PromptHeaderAttributes.agents:
+					return localize('promptHeader.agent.agents', 'One or more agents that this agent can use as subagents. Use \'*\' to specify all available agents.');
+			}
+			break;
+		case PromptsType.prompt:
+			switch (attributeName) {
+				case PromptHeaderAttributes.name:
+					return localize('promptHeader.prompt.name', 'The name of the prompt. This is also the name of the slash command that will run this prompt.');
+				case PromptHeaderAttributes.description:
+					return localize('promptHeader.prompt.description', 'The description of the reusable prompt, what it does and when to use it.');
+				case PromptHeaderAttributes.argumentHint:
+					return localize('promptHeader.prompt.argumentHint', 'The argument-hint describes what inputs the prompt expects or supports.');
+				case PromptHeaderAttributes.model:
+					return localize('promptHeader.prompt.model', 'The model to use in this prompt. Can also be a list of models. The first available model will be used.');
+				case PromptHeaderAttributes.tools:
+					return localize('promptHeader.prompt.tools', 'The tools to use in this prompt.');
+				case PromptHeaderAttributes.agent:
+				case PromptHeaderAttributes.mode:
+					return localize('promptHeader.prompt.agent.description', 'The agent to use when running this prompt.');
+			}
+			break;
+	}
+	return undefined;
+}
+
 // The list of tools known to be used by GitHub Copilot custom agents
 export const knownGithubCopilotTools = [
 	SpecedToolAliases.execute, SpecedToolAliases.read, SpecedToolAliases.edit, SpecedToolAliases.search, SpecedToolAliases.agent,
