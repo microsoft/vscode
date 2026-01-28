@@ -16,6 +16,7 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from '../../../../platform/storage/common/storage.js';
 import { defaultKeybindingLabelStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
+import { StartupEditorLoadingContext } from '../../../common/contextkeys.js';
 
 interface WatermarkEntry {
 	readonly id: string;
@@ -70,9 +71,11 @@ export class EditorGroupWatermark extends Disposable {
 	private static readonly CACHED_WHEN = 'editorGroupWatermark.whenConditions';
 	private static readonly SETTINGS_KEY = 'workbench.tips.enabled';
 	private static readonly MINIMUM_ENTRIES = 3;
+	private static readonly SKELETON_ROW_COUNT = 5;
 
 	private readonly cachedWhen: { [when: string]: boolean };
 
+	private readonly watermarkElement: HTMLElement;
 	private readonly shortcuts: HTMLElement;
 	private readonly transientDisposables = this._register(new DisposableStore());
 	private readonly keybindingLabels = this._register(new DisposableStore());
@@ -101,11 +104,23 @@ export class EditorGroupWatermark extends Disposable {
 		]);
 
 		append(container, elements.root);
+		this.watermarkElement = elements.root;
 		this.shortcuts = elements.shortcuts;
+
+		this.watermarkElement.classList.add('loading');
+		this.renderSkeletonRows();
 
 		this.registerListeners();
 
 		this.render();
+	}
+
+	private renderSkeletonRows(): void {
+		for (let i = 0; i < EditorGroupWatermark.SKELETON_ROW_COUNT; i++) {
+			const row = append(this.shortcuts, $('.skeleton-row'));
+			append(row, $('.skeleton-text'));
+			append(row, $('.skeleton-key'));
+		}
 	}
 
 	private registerListeners(): void {
@@ -138,6 +153,21 @@ export class EditorGroupWatermark extends Disposable {
 				this.storageService.store(EditorGroupWatermark.CACHED_WHEN, JSON.stringify(this.cachedWhen), StorageScope.PROFILE, StorageTarget.MACHINE);
 			}
 		}));
+
+		// Listen for startup editor loading state changes
+		this._register(this.contextKeyService.onDidChangeContext(e => {
+			if (e.affectsSome(new Set([StartupEditorLoadingContext.key]))) {
+				this.updateLoadingState();
+			}
+		}));
+
+		// Set initial loading state
+		this.updateLoadingState();
+	}
+
+	private updateLoadingState(): void {
+		const isLoading = StartupEditorLoadingContext.getValue(this.contextKeyService);
+		this.watermarkElement.classList.toggle('loading', !!isLoading);
 	}
 
 	private render(): void {
@@ -145,6 +175,9 @@ export class EditorGroupWatermark extends Disposable {
 
 		clearNode(this.shortcuts);
 		this.transientDisposables.clear();
+
+		// Re-add skeleton rows (they get cleared above)
+		this.renderSkeletonRows();
 
 		if (!this.enabled) {
 			return;

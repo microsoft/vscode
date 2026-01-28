@@ -52,6 +52,79 @@
 	display: none;
 }
 
+/* Loading shimmer animation */
+@keyframes watermark-shimmer {
+	/* Logo SVG has 0.1 opacity built-in, so we use higher values here to match skeleton */
+	0% { opacity: 0.7; }
+	50% { opacity: 1; }
+	100% { opacity: 0.7; }
+}
+
+@keyframes watermark-skeleton-sweep {
+	/* Pulse between 0.07 and 0.1 to match logo's effective opacity (0.1 SVG * 0.7-1.0 CSS) */
+	0% { opacity: 0.07; }
+	50% { opacity: 0.1; }
+	100% { opacity: 0.07; }
+}
+
+/* Hide skeleton rows by default */
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark .shortcuts .skeleton-row {
+	display: none;
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark.loading .letterpress {
+	animation: watermark-shimmer 1s ease-in-out infinite;
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark.loading .shortcuts .watermark-box {
+	display: none;
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark.loading .shortcuts .skeleton-row {
+	display: flex;
+	justify-content: space-between;
+	margin: 4px 0;
+	gap: 24px;
+	height: 22px; /* Match line-height of actual shortcuts */
+	align-items: center;
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark.loading .shortcuts .skeleton-row:first-child {
+	margin-top: 0;
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark.loading .shortcuts .skeleton-row:last-child {
+	margin-bottom: 0;
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark.loading .shortcuts .skeleton-row .skeleton-text,
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark.loading .shortcuts .skeleton-row .skeleton-key {
+	height: 14px;
+	border-radius: 3px;
+	background-color: var(--vscode-descriptionForeground);
+	animation: watermark-skeleton-sweep 1.5s ease-in-out infinite;
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark.loading .shortcuts .skeleton-row .skeleton-text {
+	flex: 1;
+	max-width: 120px;
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark.loading .shortcuts .skeleton-row .skeleton-key {
+	width: 60px;
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark.loading .shortcuts .skeleton-row:nth-child(1) .skeleton-text { max-width: 65px; }
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark.loading .shortcuts .skeleton-row:nth-child(2) .skeleton-text { max-width: 115px; }
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark.loading .shortcuts .skeleton-row:nth-child(3) .skeleton-text { max-width: 100px; }
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark.loading .shortcuts .skeleton-row:nth-child(4) .skeleton-text { max-width: 75px; }
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark.loading .shortcuts .skeleton-row:nth-child(5) .skeleton-text { max-width: 120px; }
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark.loading .shortcuts .skeleton-row:nth-child(1) { animation-delay: 0s; }
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark.loading .shortcuts .skeleton-row:nth-child(2) { animation-delay: 0.1s; }
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark.loading .shortcuts .skeleton-row:nth-child(3) { animation-delay: 0.2s; }
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark.loading .shortcuts .skeleton-row:nth-child(4) { animation-delay: 0.3s; }
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark.loading .shortcuts .skeleton-row:nth-child(5) { animation-delay: 0.4s; }
+
 .monaco-workbench .part.editor > .content:not(.empty) .editor-group-container.empty > .editor-group-watermark,
 .monaco-workbench .part.editor > .content.auxiliary .editor-group-container.empty > .editor-group-watermark {
 	max-width: 200px;

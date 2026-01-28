@@ -11,14 +11,9 @@ import { registerWorkbenchContribution2, WorkbenchPhase, IWorkbenchContribution 
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/editor.js';
 import { EditorExtensions, IEditorFactoryRegistry } from '../../../common/editor.js';
 import { IEditorResolverService, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
-import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
-import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { AuxiliaryBarMaximizedContext } from '../../../common/contextkeys.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
-import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
 import { AgentSessionsWelcomeInput } from './agentSessionsWelcomeInput.js';
 import { AgentSessionsWelcomePage, AgentSessionsWelcomeInputSerializer } from './agentSessionsWelcome.js';
 
@@ -83,53 +78,5 @@ CommandsRegistry.registerCommand(AgentSessionsWelcomePage.COMMAND_ID, (accessor)
 	return editorService.openEditor(input, { pinned: true });
 });
 
-// Runner contribution - handles opening on startup
-class AgentSessionsWelcomeRunnerContribution extends Disposable implements IWorkbenchContribution {
-	static readonly ID = 'workbench.contrib.agentSessionsWelcomeRunner';
-
-	constructor(
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IEditorService private readonly editorService: IEditorService,
-		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IStorageService private readonly storageService: IStorageService
-	) {
-		super();
-		this.run();
-	}
-
-	private async run(): Promise<void> {
-		// Get startup editor configuration
-		const startupEditor = this.configurationService.getValue<string>('workbench.startupEditor');
-
-		// Only proceed if configured to show agent sessions welcome page
-		if (startupEditor !== 'agentSessionsWelcomePage') {
-			return;
-		}
-
-		// Wait for editors to restore
-		await this.editorGroupsService.whenReady;
-
-		// If the auxiliary bar is maximized, we do not show the welcome page
-		if (AuxiliaryBarMaximizedContext.getValue(this.contextKeyService)) {
-			return;
-		}
-
-		// Check if there's prefill data from a workspace transfer - always show welcome page in that case
-		const hasPrefillData = !!this.storageService.get('chat.welcomeViewPrefill', StorageScope.APPLICATION);
-
-		// Don't open if there are already editors open (unless we have prefill data)
-		if (this.editorService.activeEditor && !hasPrefillData) {
-			return;
-		}
-
-		// Open the agent sessions welcome page
-		const input = this.instantiationService.createInstance(AgentSessionsWelcomeInput, {});
-		await this.editorService.openEditor(input, { pinned: false });
-	}
-}
-
 // Register contributions
 registerWorkbenchContribution2(AgentSessionsWelcomeEditorResolverContribution.ID, AgentSessionsWelcomeEditorResolverContribution, WorkbenchPhase.BlockStartup);
-registerWorkbenchContribution2(AgentSessionsWelcomeRunnerContribution.ID, AgentSessionsWelcomeRunnerContribution, WorkbenchPhase.AfterRestored);
