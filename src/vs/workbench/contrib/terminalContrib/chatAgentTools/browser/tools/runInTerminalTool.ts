@@ -456,6 +456,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		const terminalCommandId = `tool-${generateUuid()}`;
 
 		let rewrittenCommand: string | undefined = args.command;
+		let forDisplayCommand: string | undefined = undefined;
 		for (const rewriter of this._commandLineRewriters) {
 			const rewriteResult = await rewriter.rewrite({
 				commandLine: rewrittenCommand,
@@ -465,6 +466,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			});
 			if (rewriteResult) {
 				rewrittenCommand = rewriteResult.rewritten;
+				forDisplayCommand = rewriteResult.forDisplay;
 				this._logService.info(`RunInTerminalTool: Command rewritten by ${rewriter.constructor.name}: ${rewriteResult.reasoning}`);
 			}
 		}
@@ -476,6 +478,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			commandLine: {
 				original: args.command,
 				toolEdited: rewrittenCommand === args.command ? undefined : rewrittenCommand,
+				forDisplay: forDisplayCommand,
 			},
 			cwd,
 			language,
