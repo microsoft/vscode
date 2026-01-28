@@ -45,7 +45,7 @@ SELECTION (Programming by Demonstration):
 - Dragging the BOTTOM half creates "fuzzy" selections (purple = .*)
 - Multiple segments can be chained by starting a new drag at the end of
   the previous selection
-- Pressing Enter generates regex code: re.search(r'pattern', var).group(0)
+- Pressing Enter generates regex code: re.search(r'pattern', var, re.M).group(0)
 
 MODEL STATE:
 - selectionRegex: Regex pattern with / delimiters, e.g., "/(hello)(.*)(world)/"
@@ -70,7 +70,10 @@ from re._constants import (  # type: ignore[import]
     LITERAL, NOT_LITERAL, AT, IN, ANY, BRANCH, SUBPATTERN,
     MAX_REPEAT, MIN_REPEAT, GROUPREF, ASSERT, ASSERT_NOT,
     AT_BEGINNING, AT_BEGINNING_STRING, AT_END, AT_END_STRING,
-    AT_BOUNDARY, AT_NON_BOUNDARY, NEGATE, RANGE, CATEGORY
+    AT_BOUNDARY, AT_NON_BOUNDARY, NEGATE, RANGE, CATEGORY,
+    CATEGORY_DIGIT, CATEGORY_NOT_DIGIT,
+    CATEGORY_SPACE, CATEGORY_NOT_SPACE,
+    CATEGORY_WORD, CATEGORY_NOT_WORD,
 )
 
 from dataclasses import dataclass
@@ -132,6 +135,27 @@ DC2 = chr(0x12)  # ^  - start of line anchor
 DC3 = chr(0x13)  # $  - end of line anchor
 DC4 = chr(0x14)  # \Z - end of string anchor
 
+
+def char_to_regex_literal(char: str) -> str:
+    """Convert a character (possibly sentinel) to its regex representation."""
+    if char == DC1:
+        return r'\A'
+    elif char == DC2:
+        return '^'
+    elif char == DC3:
+        return '$'
+    elif char == DC4:
+        return r'\Z'
+    elif char == '\n':
+        return r'\n'
+    elif char == '\t':
+        return r'\t'
+    elif char == '\r':
+        return r'\r'
+    else:
+        return re.escape(char)
+
+
 def safe_repr(value):
     try:
         return html.escape(repr(value))
@@ -147,16 +171,6 @@ def can_visualize(value):
 def plain_char(char):
     return span(html.escape(char), GRAY)
 
-# def special_char(char):
-#     return span(html.escape(char), GRAY)
-
-# def vis_char(char):
-#     if char == '\n':
-#         return special_char('$') + special_char('\\n') + '\n   ' + special_char('^')
-#     elif char == '\t':
-#         return special_char('\\t')
-#     else:
-#         return plain_char(char)
 
 def char_span(string, index, is_special, selection_type=None):
     """Render a character span with optional selection highlighting.
@@ -204,8 +218,7 @@ def build_augmented_string(string_value: str) -> str:
             result.append(char)
 
     # Add end markers
-    if not string_value or not string_value.endswith('\n'):
-        result.append(DC3)  # $ at end if no trailing newline
+    result.append(DC3)  # $ at end of line
     result.append(DC4)  # \Z at end
 
     return ''.join(result)
@@ -298,9 +311,9 @@ def convert_regex_for_augmented_string(pattern: str) -> str:
                     elif class_op == CATEGORY:
                         # Categories like \d, \w, \s
                         cat_map = {
-                            32: r'\d', 33: r'\D',  # CATEGORY_DIGIT, CATEGORY_NOT_DIGIT
-                            34: r'\s', 35: r'\S',  # CATEGORY_SPACE, CATEGORY_NOT_SPACE
-                            36: r'\w', 37: r'\W',  # CATEGORY_WORD, CATEGORY_NOT_WORD
+                            CATEGORY_DIGIT: r'\d', CATEGORY_NOT_DIGIT: r'\D',
+                            CATEGORY_SPACE: r'\s', CATEGORY_NOT_SPACE: r'\S',
+                            CATEGORY_WORD: r'\w', CATEGORY_NOT_WORD: r'\W',
                         }
                         result.append(cat_map.get(class_av, ''))
                 result.append(']')
@@ -361,9 +374,9 @@ def convert_regex_for_augmented_string(pattern: str) -> str:
 
             elif op == CATEGORY:
                 cat_map = {
-                    32: r'\d', 33: r'\D',
-                    34: r'\s', 35: r'\S',
-                    36: r'\w', 37: r'\W',
+                    CATEGORY_DIGIT: r'\d', CATEGORY_NOT_DIGIT: r'\D',
+                    CATEGORY_SPACE: r'\s', CATEGORY_NOT_SPACE: r'\S',
+                    CATEGORY_WORD: r'\w', CATEGORY_NOT_WORD: r'\W',
                 }
                 result.append(cat_map.get(av, ''))
 
@@ -489,27 +502,44 @@ def append_segment_to_regex(current_regex: str | None, segment_type: str, text: 
 
     # Add the new segment as a capturing group
     if segment_type == 'literal':
-        # Text may contain sentinel characters from the augmented string
-        # We need to handle these specially - they should become regex anchors
-        # First, separate anchors from regular text
-        regex_parts = []
-        for char in text:
-            if char == DC1:
-                regex_parts.append(r'\A')
-            elif char == DC2:
-                regex_parts.append('^')
-            elif char == DC3:
-                regex_parts.append('$')
-            elif char == DC4:
-                regex_parts.append(r'\Z')
-            else:
-                # Regular character - escape it for regex
-                regex_parts.append(re.escape(char))
+        regex_parts = [char_to_regex_literal(char) for char in text]
         new_segment = f"({''.join(regex_parts)})"
     else:  # fuzzy
         new_segment = "(.*)"
 
     return f"/{inner_pattern}{new_segment}/"
+
+
+def prepend_segment_to_regex(current_regex: str | None, segment_type: str, text: str) -> str:
+    """
+    Prepend a new segment to the beginning of the regex pattern.
+
+    Similar to append_segment_to_regex but inserts at the start.
+    Used when extending selections from the left side.
+
+    Args:
+        current_regex: Current regex pattern with / delimiters (e.g., "/(hello)/") or None
+        segment_type: 'literal' or 'fuzzy'
+        text: The text to add (from augmented string, may contain sentinel chars)
+
+    Returns:
+        New regex pattern with the segment prepended, e.g., "/(new)(hello)/"
+    """
+    if current_regex is None:
+        # Start fresh with empty pattern
+        inner_pattern = ""
+    else:
+        # Extract inner pattern (strip / delimiters)
+        inner_pattern = current_regex[1:-1]
+
+    # Add the new segment as a capturing group
+    if segment_type == 'literal':
+        regex_parts = [char_to_regex_literal(char) for char in text]
+        new_segment = f"({''.join(regex_parts)})"
+    else:  # fuzzy
+        new_segment = "(.*)"
+
+    return f"/{new_segment}{inner_pattern}/"
 
 
 def get_regex_inner_pattern(selection_regex: str | None) -> str | None:
@@ -589,9 +619,10 @@ def parse_regex_for_highlighting(selection_regex: str | None, string_value: str)
         return []
 
     # Run the regex against the augmented string
-    # Use DOTALL so .* matches newlines (which are in the augmented string)
+    # re.M makes ^ and $ match at line boundaries (not just string start/end)
+    # Note: .* does NOT match newlines (no DOTALL), so fuzzy stops at line boundaries
     try:
-        match = re.search(converted_pattern, augmented, re.DOTALL)
+        match = re.search(converted_pattern, augmented, re.M)
     except Exception:
         return []
 
@@ -647,6 +678,33 @@ def get_last_segment_end_internal_idx(selection_regex: str | None, string_value:
         return None
     last_start, last_end, _ = highlights[-1]
     return last_end
+
+
+def get_first_segment_start_internal_idx(selection_regex: str | None, string_value: str) -> int | None:
+    """
+    Get the internal index where the first segment starts.
+
+    Used to determine if a new selection is extending from the left side.
+    """
+    highlights = parse_regex_for_highlighting(selection_regex, string_value)
+    if not highlights:
+        return None
+    first_start, first_end, _ = highlights[0]
+    return first_start
+
+
+def find_fuzzy_segment_at_index(selection_regex: str | None, string_value: str, idx: int) -> dict | None:
+    """
+    Find a fuzzy segment that contains the given internal index.
+
+    Returns dict with 'start', 'end', 'segment_index' if found, None otherwise.
+    Used to detect clicks inside realized fuzzy regions.
+    """
+    highlights = parse_regex_for_highlighting(selection_regex, string_value)
+    for i, (start, end, seg_type) in enumerate(highlights):
+        if seg_type == 'fuzzy' and start <= idx < end:
+            return {'start': start, 'end': end, 'segment_index': i}
+    return None
 
 
 # === Source code analysis functions ===
@@ -769,9 +827,9 @@ def generate_regex_code(source_code: str, line_number: int, string_value: str,
     var_to_search = var_name if var_name else f"({expr})"
     if var_name:
         new_var = f"{var_name}_match"
-        regex_expr = f"{new_var} = re.search(r'{regex_pattern}', {var_to_search}).group(0)"
+        regex_expr = f"{new_var} = re.search(r'{regex_pattern}', {var_to_search}, re.M).group(0)"
     else:
-        regex_expr = f"result_match = re.search(r'{regex_pattern}', {var_to_search}).group(0)"
+        regex_expr = f"result_match = re.search(r'{regex_pattern}', {var_to_search}, re.M).group(0)"
 
     # Insert the new line after the current line
     lines = source_code.split('\n')
@@ -856,9 +914,9 @@ def generate_regex_code_from_pattern(source_code: str, line_number: int, selecti
     var_to_search = var_name if var_name else f"({expr})"
     if var_name:
         new_var = f"{var_name}_match"
-        regex_expr = f"{new_var} = re.search(r'{regex_pattern}', {var_to_search}).group(0)"
+        regex_expr = f"{new_var} = re.search(r'{regex_pattern}', {var_to_search}, re.M).group(0)"
     else:
-        regex_expr = f"result_match = re.search(r'{regex_pattern}', {var_to_search}).group(0)"
+        regex_expr = f"result_match = re.search(r'{regex_pattern}', {var_to_search}, re.M).group(0)"
 
     # Insert the new line after the current line
     lines = source_code.split('\n')
@@ -984,12 +1042,9 @@ def visualize(value, model=None):
         char_html, index = vis_char_with_index(char, index, selection_type_by_index)
         char_elements.append(char_html)
 
-    # Add $ marker if string is empty or doesn't end with newline
     # (must match logic in build_augmented_string for 1:1 correspondence)
-    if not value or not value.endswith('\n'):
-        char_elements.append(char_span('$', index, True, selection_type_by_index.get(index)))
-        index += 1
-
+    char_elements.append(char_span('$', index, True, selection_type_by_index.get(index)))
+    index += 1
     char_elements.append(char_span('\\Z', index, True, selection_type_by_index.get(index)))
     index += 1
 
@@ -1004,6 +1059,7 @@ def init_model():
         "anchorType": None,       # "literal" or "fuzzy" - determined when drag starts
         "cursorIdx": None,
         "dragging": False,
+        "extendDirection": None,  # "left", "right", or None - which side we're extending from
         "stringValue": None,
         "undoHistory": [],        # Stack of previous selectionRegex states
         "redoHistory": [],        # Stack for redo
@@ -1016,6 +1072,57 @@ def is_top_half(event_json):
     offset_y = event_json.get('offsetY', 0)
     height = event_json.get('elementHeight', 1)
     return offset_y <= height / 2
+
+
+def finalize_segment(model: dict) -> dict:
+    """
+    Finalize the in-progress segment and add it to selectionRegex.
+
+    Commits the current anchor/cursor selection to the regex pattern,
+    saves to undo history, and clears the in-progress state.
+    """
+    a = model.get('anchorIdx')
+    c = model.get('cursorIdx')
+    string_value = model.get('stringValue')
+    anchor_type = model.get('anchorType', 'literal')
+    extend_direction = model.get('extendDirection')
+
+    if isinstance(a, int) and isinstance(c, int) and string_value is not None:
+        start = min(a, c)
+        # For left-extension, end should NOT include +1 to avoid overlapping
+        # with the first character of the existing segment
+        if extend_direction == 'left':
+            end = max(a, c)  # Stop just before existing first segment
+        else:
+            end = max(a, c) + 1
+
+        # Save to undo history before modifying
+        current_regex = model.get('selectionRegex')
+        model['undoHistory'] = model.get('undoHistory', []) + [current_regex]
+        model['redoHistory'] = []  # Clear redo on new action
+
+        if anchor_type == 'fuzzy':
+            # Fuzzy is always (.*), no text needed
+            if extend_direction == 'left':
+                model['selectionRegex'] = prepend_segment_to_regex(current_regex, 'fuzzy', '')
+            else:
+                model['selectionRegex'] = append_segment_to_regex(current_regex, 'fuzzy', '')
+        else:
+            # Literal: need actual text from the selection
+            augmented = build_augmented_string(string_value)
+            selected_text = augmented[start:end]
+            if extend_direction == 'left':
+                model['selectionRegex'] = prepend_segment_to_regex(current_regex, 'literal', selected_text)
+            else:
+                model['selectionRegex'] = append_segment_to_regex(current_regex, 'literal', selected_text)
+
+        model['anchorIdx'] = None
+        model['cursorIdx'] = None
+        model['extendDirection'] = None
+
+    model['dragging'] = False
+    return model
+
 
 def update(event, source_code:str, source_line:int, model:dict) -> Tuple[dict, List[Any]]:
     """
@@ -1043,17 +1150,37 @@ def update(event, source_code:str, source_line:int, model:dict) -> Tuple[dict, L
             # Determine selection type based on top/bottom half of character
             anchor_type = 'literal' if is_top_half(event_json) else 'fuzzy'
 
-            # Check if we're extending from the end of existing selection
+            # Check extension points if we have an existing selection
             last_end: int | None = None
+            first_start: int | None = None
+            fuzzy_info: dict | None = None
             if selection_regex and isinstance(string_value, str) and isinstance(idx, int):
                 last_end = get_last_segment_end_internal_idx(selection_regex, string_value)
+                first_start = get_first_segment_start_internal_idx(selection_regex, string_value)
+                fuzzy_info = find_fuzzy_segment_at_index(selection_regex, string_value, idx)
 
-            # Determine if we should extend from the last segment
-            if last_end is not None and isinstance(idx, int) and (idx == last_end or idx == last_end - 1):
+            # Check if extending from the right (end of last segment)
+            if last_end is not None and isinstance(idx, int) and idx == last_end:
                 # Keep existing regex, start new segment from end of last
                 model['anchorIdx'] = last_end
                 model['anchorType'] = anchor_type
                 model['cursorIdx'] = idx
+                model['extendDirection'] = 'right'
+            # Check if extending from the left (start of first segment)
+            elif first_start is not None and isinstance(idx, int) and idx == first_start:
+                # Keep existing regex, start new segment from start of first
+                model['anchorIdx'] = first_start
+                model['anchorType'] = anchor_type
+                model['cursorIdx'] = idx
+                model['extendDirection'] = 'left'
+            # Check if clicking inside a fuzzy segment (to split it)
+            elif fuzzy_info is not None and isinstance(idx, int):
+                # Allow starting a new segment inside the fuzzy region
+                # This will constrain/split the fuzzy match
+                model['anchorIdx'] = idx
+                model['anchorType'] = anchor_type
+                model['cursorIdx'] = idx
+                model['extendDirection'] = 'right'  # New segment appends after existing
             else:
                 # Fresh start: reset selection
                 model = init_model()
@@ -1062,65 +1189,28 @@ def update(event, source_code:str, source_line:int, model:dict) -> Tuple[dict, L
                     model['anchorIdx'] = idx
                     model['anchorType'] = anchor_type
                     model['cursorIdx'] = idx
+                model['extendDirection'] = None
 
             model['dragging'] = True
 
         case MouseMove(index=idx):
             if event_json.get('buttons') == 0:  # Mouse released outside widget
-                # Finalize the current segment by appending to regex
-                a = model.get('anchorIdx')
-                c = model.get('cursorIdx')
-                string_value = model.get('stringValue')
-                if isinstance(a, int) and isinstance(c, int) and string_value is not None:
-                    start = min(a, c)
-                    end = max(a, c) + 1
-                    anchor_type = model.get('anchorType', 'literal')
-
-                    # Build augmented string and slice directly using internal indices
-                    # (internal indices = positions in augmented string)
-                    augmented = build_augmented_string(string_value)
-                    selected_text = augmented[start:end]
-
-                    # Save to undo history before modifying
-                    current_regex = model.get('selectionRegex')
-                    model['undoHistory'] = model.get('undoHistory', []) + [current_regex]
-                    model['redoHistory'] = []  # Clear redo on new action
-
-                    # Append segment to regex
-                    model['selectionRegex'] = append_segment_to_regex(current_regex, anchor_type, selected_text)
-                    model['anchorIdx'] = None
-                    model['cursorIdx'] = None
-                model['dragging'] = False
+                model = finalize_segment(model)
             elif model.get('dragging'):
-                model['cursorIdx'] = idx
+                # For fuzzy, don't update cursorIdx during drag (no drag preview)
+                anchor_type = model.get('anchorType', 'literal')
+                if anchor_type == 'literal':
+                    model['cursorIdx'] = idx
 
         case MouseUp(index=idx):
             if model.get('dragging'):
-                model['cursorIdx'] = idx
-                # Finalize the current segment by appending to regex
-                a = model.get('anchorIdx')
-                c = model.get('cursorIdx')
-                string_value = model.get('stringValue')
-                if isinstance(a, int) and isinstance(c, int) and string_value is not None:
-                    start = min(a, c)
-                    end = max(a, c) + 1
-                    anchor_type = model.get('anchorType', 'literal')
+                # For literal selections, update cursor on mouse up
+                # For fuzzy, cursor stays at anchor (no drag)
+                anchor_type = model.get('anchorType', 'literal')
+                if anchor_type == 'literal':
+                    model['cursorIdx'] = idx
 
-                    # Build augmented string and slice directly using internal indices
-                    # (internal indices = positions in augmented string)
-                    augmented = build_augmented_string(string_value)
-                    selected_text = augmented[start:end]
-
-                    # Save to undo history before modifying
-                    current_regex = model.get('selectionRegex')
-                    model['undoHistory'] = model.get('undoHistory', []) + [current_regex]
-                    model['redoHistory'] = []  # Clear redo on new action
-
-                    # Append segment to regex
-                    model['selectionRegex'] = append_segment_to_regex(current_regex, anchor_type, selected_text)
-                    model['anchorIdx'] = None
-                    model['cursorIdx'] = None
-                model['dragging'] = False
+                model = finalize_segment(model)
 
         case KeyDown():
             key = event_json.get('key')
