@@ -146,7 +146,7 @@ export class ChatContextUsageWidget extends Disposable {
 			}
 			return {
 				content: details.domNode,
-				appearance: { showPointer: true },
+				appearance: { showPointer: true, compact: true },
 				persistence: { hideOnHover: false },
 				trapFocus: true
 			};
@@ -169,7 +169,7 @@ export class ChatContextUsageWidget extends Disposable {
 					{
 						content: details.domNode,
 						target: this.domNode,
-						appearance: { showPointer: true },
+						appearance: { showPointer: true, compact: true },
 						persistence: { hideOnHover: false, sticky: true },
 						trapFocus: true,
 					},
