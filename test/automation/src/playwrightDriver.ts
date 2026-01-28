@@ -230,6 +230,133 @@ export class PlaywrightDriver {
 		});
 	}
 
+	/**
+	 * Hover over an element.
+	 */
+	async hoverSelector(selector: string): Promise<void> {
+		await this.page.hover(selector);
+	}
+
+	/**
+	 * Drag from one element to another.
+	 */
+	async dragSelector(sourceSelector: string, targetSelector: string): Promise<void> {
+		await this.page.dragAndDrop(sourceSelector, targetSelector);
+	}
+
+	/**
+	 * Press a key or key combination.
+	 */
+	async pressKey(key: string): Promise<void> {
+		await this.page.keyboard.press(key);
+	}
+
+	/**
+	 * Move mouse to a specific position.
+	 */
+	async mouseMove(x: number, y: number): Promise<void> {
+		await this.page.mouse.move(x, y);
+	}
+
+	/**
+	 * Click at a specific position.
+	 */
+	async mouseClick(x: number, y: number, options?: { button?: 'left' | 'right' | 'middle'; clickCount?: number }): Promise<void> {
+		await this.page.mouse.click(x, y, {
+			button: options?.button ?? 'left',
+			clickCount: options?.clickCount ?? 1
+		});
+	}
+
+	/**
+	 * Drag from one position to another.
+	 */
+	async mouseDrag(startX: number, startY: number, endX: number, endY: number): Promise<void> {
+		await this.page.mouse.move(startX, startY);
+		await this.page.mouse.down();
+		await this.page.mouse.move(endX, endY);
+		await this.page.mouse.up();
+	}
+
+	/**
+	 * Select an option in a dropdown.
+	 */
+	async selectOption(selector: string, value: string | string[]): Promise<string[]> {
+		return await this.page.selectOption(selector, value);
+	}
+
+	/**
+	 * Fill multiple form fields at once.
+	 */
+	async fillForm(fields: { selector: string; value: string }[]): Promise<void> {
+		for (const field of fields) {
+			await this.page.fill(field.selector, field.value);
+		}
+	}
+
+	/**
+	 * Get console messages from the current window.
+	 */
+	async getConsoleMessages(): Promise<{ type: string; text: string }[]> {
+		const messages = await this.page.consoleMessages();
+		return messages.map(m => ({
+			type: m.type(),
+			text: m.text()
+		}));
+	}
+
+	/**
+	 * Wait for text to appear, disappear, or a specified time to pass.
+	 */
+	async waitForText(options: { text?: string; textGone?: string; timeout?: number }): Promise<void> {
+		const { text, textGone, timeout = 30000 } = options;
+
+		if (text) {
+			await this.page.getByText(text).first().waitFor({ state: 'visible', timeout });
+		}
+		if (textGone) {
+			await this.page.getByText(textGone).first().waitFor({ state: 'hidden', timeout });
+		}
+	}
+
+	/**
+	 * Wait for a specified time in milliseconds.
+	 */
+	async waitForTime(ms: number): Promise<void> {
+		await new Promise(resolve => setTimeout(resolve, ms));
+	}
+
+	/**
+	 * Verify an element is visible.
+	 */
+	async verifyElementVisible(selector: string): Promise<boolean> {
+		try {
+			await this.page.locator(selector).first().waitFor({ state: 'visible', timeout: 5000 });
+			return true;
+		} catch {
+			return false;
+		}
+	}
+
+	/**
+	 * Verify text is visible on the page.
+	 */
+	async verifyTextVisible(text: string): Promise<boolean> {
+		try {
+			await this.page.getByText(text).first().waitFor({ state: 'visible', timeout: 5000 });
+			return true;
+		} catch {
+			return false;
+		}
+	}
+
+	/**
+	 * Get the value of an input element.
+	 */
+	async getInputValue(selector: string): Promise<string> {
+		return await this.page.inputValue(selector);
+	}
+
 	async startTracing(name?: string): Promise<void> {
 		if (!this.options.tracing) {
 			return; // tracing disabled

@@ -176,5 +176,212 @@ export function applyWindowTools(server: McpServer, appService: ApplicationServi
 		}
 	));
 
+	tools.push(server.tool(
+		'vscode_automation_window_hover',
+		'Hover over an element in the current window',
+		{
+			selector: z.string().describe('CSS selector for the element to hover over')
+		},
+		async ({ selector }) => {
+			const app = await appService.getOrCreateApplication();
+			const driver = app.code.driver;
+			await driver.hoverSelector(selector);
+			return textResponse(`Hovered over "${selector}"`);
+		}
+	));
+
+	tools.push(server.tool(
+		'vscode_automation_window_drag',
+		'Drag from one element to another in the current window',
+		{
+			sourceSelector: z.string().describe('CSS selector for the source element'),
+			targetSelector: z.string().describe('CSS selector for the target element')
+		},
+		async ({ sourceSelector, targetSelector }) => {
+			const app = await appService.getOrCreateApplication();
+			const driver = app.code.driver;
+			await driver.dragSelector(sourceSelector, targetSelector);
+			return textResponse(`Dragged from "${sourceSelector}" to "${targetSelector}"`);
+		}
+	));
+
+	tools.push(server.tool(
+		'vscode_automation_window_press_key',
+		'Press a key or key combination in the current window',
+		{
+			key: z.string().describe('Key to press (e.g., "Enter", "Tab", "Control+c", "Meta+v")')
+		},
+		async ({ key }) => {
+			const app = await appService.getOrCreateApplication();
+			const driver = app.code.driver;
+			await driver.pressKey(key);
+			return textResponse(`Pressed key "${key}"`);
+		}
+	));
+
+	tools.push(server.tool(
+		'vscode_automation_window_mouse_move',
+		'Move mouse to a specific position in the current window',
+		{
+			x: z.number().describe('X coordinate'),
+			y: z.number().describe('Y coordinate')
+		},
+		async ({ x, y }) => {
+			const app = await appService.getOrCreateApplication();
+			const driver = app.code.driver;
+			await driver.mouseMove(x, y);
+			return textResponse(`Moved mouse to (${x}, ${y})`);
+		}
+	));
+
+	tools.push(server.tool(
+		'vscode_automation_window_mouse_click',
+		'Click at a specific position in the current window',
+		{
+			x: z.number().describe('X coordinate'),
+			y: z.number().describe('Y coordinate'),
+			button: z.enum(['left', 'right', 'middle']).optional().describe('Mouse button to click'),
+			clickCount: z.number().optional().describe('Number of clicks (1 for single, 2 for double)')
+		},
+		async ({ x, y, button, clickCount }) => {
+			const app = await appService.getOrCreateApplication();
+			const driver = app.code.driver;
+			await driver.mouseClick(x, y, { button, clickCount });
+			return textResponse(`Clicked at (${x}, ${y})`);
+		}
+	));
+
+	tools.push(server.tool(
+		'vscode_automation_window_mouse_drag',
+		'Drag from one position to another in the current window',
+		{
+			startX: z.number().describe('Starting X coordinate'),
+			startY: z.number().describe('Starting Y coordinate'),
+			endX: z.number().describe('Ending X coordinate'),
+			endY: z.number().describe('Ending Y coordinate')
+		},
+		async ({ startX, startY, endX, endY }) => {
+			const app = await appService.getOrCreateApplication();
+			const driver = app.code.driver;
+			await driver.mouseDrag(startX, startY, endX, endY);
+			return textResponse(`Dragged from (${startX}, ${startY}) to (${endX}, ${endY})`);
+		}
+	));
+
+	tools.push(server.tool(
+		'vscode_automation_window_select_option',
+		'Select an option in a dropdown in the current window',
+		{
+			selector: z.string().describe('CSS selector for the select element'),
+			value: z.union([z.string(), z.array(z.string())]).describe('Value(s) to select')
+		},
+		async ({ selector, value }) => {
+			const app = await appService.getOrCreateApplication();
+			const driver = app.code.driver;
+			const selected = await driver.selectOption(selector, value);
+			return textResponse(`Selected "${selected.join(', ')}" in "${selector}"`);
+		}
+	));
+
+	tools.push(server.tool(
+		'vscode_automation_window_fill_form',
+		'Fill multiple form fields at once in the current window',
+		{
+			fields: z.array(z.object({
+				selector: z.string().describe('CSS selector for the form field'),
+				value: z.string().describe('Value to fill')
+			})).describe('Array of fields to fill')
+		},
+		async ({ fields }) => {
+			const app = await appService.getOrCreateApplication();
+			const driver = app.code.driver;
+			await driver.fillForm(fields);
+			return textResponse(`Filled ${fields.length} form field(s)`);
+		}
+	));
+
+	tools.push(server.tool(
+		'vscode_automation_window_console_messages',
+		'Get console messages from the current window',
+		async () => {
+			const app = await appService.getOrCreateApplication();
+			const driver = app.code.driver;
+			const messages = await driver.getConsoleMessages();
+			return textResponse(`Console messages (${messages.length}):\n${JSON.stringify(messages, null, 2)}`);
+		}
+	));
+
+	tools.push(server.tool(
+		'vscode_automation_window_wait_for_text',
+		'Wait for text to appear or disappear in the current window',
+		{
+			text: z.string().optional().describe('Text to wait for to appear'),
+			textGone: z.string().optional().describe('Text to wait for to disappear'),
+			timeout: z.number().optional().describe('Timeout in milliseconds (default: 30000)')
+		},
+		async ({ text, textGone, timeout }) => {
+			const app = await appService.getOrCreateApplication();
+			const driver = app.code.driver;
+			await driver.waitForText({ text, textGone, timeout });
+			return textResponse(`Waited for ${text ? `"${text}" to appear` : ''}${textGone ? `"${textGone}" to disappear` : ''}`);
+		}
+	));
+
+	tools.push(server.tool(
+		'vscode_automation_window_wait_for_time',
+		'Wait for a specified time in the current window',
+		{
+			seconds: z.number().describe('Time to wait in seconds')
+		},
+		async ({ seconds }) => {
+			const app = await appService.getOrCreateApplication();
+			const driver = app.code.driver;
+			await driver.waitForTime(seconds * 1000);
+			return textResponse(`Waited for ${seconds} second(s)`);
+		}
+	));
+
+	tools.push(server.tool(
+		'vscode_automation_window_verify_element_visible',
+		'Verify an element is visible in the current window',
+		{
+			selector: z.string().describe('CSS selector for the element to verify')
+		},
+		async ({ selector }) => {
+			const app = await appService.getOrCreateApplication();
+			const driver = app.code.driver;
+			const isVisible = await driver.verifyElementVisible(selector);
+			return textResponse(isVisible ? `✓ Element "${selector}" is visible` : `✗ Element "${selector}" is NOT visible`);
+		}
+	));
+
+	tools.push(server.tool(
+		'vscode_automation_window_verify_text_visible',
+		'Verify text is visible in the current window',
+		{
+			text: z.string().describe('Text to verify is visible')
+		},
+		async ({ text }) => {
+			const app = await appService.getOrCreateApplication();
+			const driver = app.code.driver;
+			const isVisible = await driver.verifyTextVisible(text);
+			return textResponse(isVisible ? `✓ Text "${text}" is visible` : `✗ Text "${text}" is NOT visible`);
+		}
+	));
+
+	tools.push(server.tool(
+		'vscode_automation_window_get_input_value',
+		'Get the value of an input element in the current window',
+		{
+			selector: z.string().describe('CSS selector for the input element')
+		},
+		async ({ selector }) => {
+			const app = await appService.getOrCreateApplication();
+			const driver = app.code.driver;
+			const value = await driver.getInputValue(selector);
+			return textResponse(`Input "${selector}" value: "${value}"`);
+		}
+	));
+
 	return tools;
 }
