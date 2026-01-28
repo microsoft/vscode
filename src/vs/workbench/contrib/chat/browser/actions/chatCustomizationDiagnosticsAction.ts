@@ -427,9 +427,13 @@ export function formatStatusOutput(
 		const statsParts: string[] = [];
 		if (loadedCount > 0) {
 			if (info.type === PromptsType.skill) {
-				statsParts.push(nls.localize('status.skillsLoaded', '{0} skills loaded', loadedCount));
+				statsParts.push(loadedCount === 1
+					? nls.localize('status.skillLoaded', '1 skill loaded')
+					: nls.localize('status.skillsLoaded', '{0} skills loaded', loadedCount));
 			} else {
-				statsParts.push(nls.localize('status.filesLoaded', '{0} files loaded', loadedCount));
+				statsParts.push(loadedCount === 1
+					? nls.localize('status.fileLoaded', '1 file loaded')
+					: nls.localize('status.filesLoaded', '{0} files loaded', loadedCount));
 			}
 		}
 		if (skippedCount > 0) {
