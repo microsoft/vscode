@@ -1520,7 +1520,7 @@ suite('Agent Sessions', () => {
 
 		test('should consider sessions before initial date as read by default', async () => {
 			return runWithFakedTimers({}, async () => {
-				// Session with timing before the READ_STATE_INITIAL_DATE (December 8, 2025)
+				// Session with timing before the READ_STATE_INITIAL_DATE (January 28, 2026)
 				const oldSessionTiming: IChatSessionItem['timing'] = {
 					created: Date.UTC(2025, 10 /* November */, 1),
 					lastRequestStarted: Date.UTC(2025, 10 /* November */, 1),
@@ -1552,11 +1552,11 @@ suite('Agent Sessions', () => {
 
 		test('should consider sessions after initial date as unread by default', async () => {
 			return runWithFakedTimers({}, async () => {
-				// Session with timing after the READ_STATE_INITIAL_DATE (December 8, 2025)
+				// Session with timing after the READ_STATE_INITIAL_DATE (January 28, 2026)
 				const newSessionTiming: IChatSessionItem['timing'] = {
-					created: Date.UTC(2025, 11 /* December */, 10),
-					lastRequestStarted: Date.UTC(2025, 11 /* December */, 10),
-					lastRequestEnded: Date.UTC(2025, 11 /* December */, 11),
+					created: Date.UTC(2026, 1 /* February */, 1),
+					lastRequestStarted: Date.UTC(2026, 1 /* February */, 1),
+					lastRequestEnded: Date.UTC(2026, 1 /* February */, 2),
 				};
 
 				const provider: IChatSessionItemProvider = {
@@ -1588,7 +1588,7 @@ suite('Agent Sessions', () => {
 				const sessionTiming: IChatSessionItem['timing'] = {
 					created: Date.UTC(2025, 10 /* November */, 1),
 					lastRequestStarted: Date.UTC(2025, 10 /* November */, 1),
-					lastRequestEnded: Date.UTC(2025, 11 /* December */, 10),
+					lastRequestEnded: Date.UTC(2026, 1 /* February */, 1),
 				};
 
 				const provider: IChatSessionItemProvider = {
@@ -1648,12 +1648,12 @@ suite('Agent Sessions', () => {
 
 		test('should treat archived sessions as read', async () => {
 			return runWithFakedTimers({}, async () => {
-				// Session with timing after the READ_STATE_INITIAL_DATE (December 8, 2025)
+				// Session with timing after the READ_STATE_INITIAL_DATE (January 28, 2026)
 				// which would normally be unread
 				const newSessionTiming: IChatSessionItem['timing'] = {
-					created: Date.UTC(2025, 11 /* December */, 10),
-					lastRequestStarted: Date.UTC(2025, 11 /* December */, 10),
-					lastRequestEnded: Date.UTC(2025, 11 /* December */, 11),
+					created: Date.UTC(2026, 1 /* February */, 1),
+					lastRequestStarted: Date.UTC(2026, 1 /* February */, 1),
+					lastRequestEnded: Date.UTC(2026, 1 /* February */, 2),
 				};
 
 				const provider: IChatSessionItemProvider = {
@@ -1689,11 +1689,11 @@ suite('Agent Sessions', () => {
 
 		test('should mark session as read when archiving', async () => {
 			return runWithFakedTimers({}, async () => {
-				// Session with timing after the READ_STATE_INITIAL_DATE (December 8, 2025)
+				// Session with timing after the READ_STATE_INITIAL_DATE (January 28, 2026)
 				const newSessionTiming: IChatSessionItem['timing'] = {
-					created: Date.UTC(2025, 11 /* December */, 10),
-					lastRequestStarted: Date.UTC(2025, 11 /* December */, 10),
-					lastRequestEnded: Date.UTC(2025, 11 /* December */, 11),
+					created: Date.UTC(2026, 1 /* February */, 1),
+					lastRequestStarted: Date.UTC(2026, 1 /* February */, 1),
+					lastRequestEnded: Date.UTC(2026, 1 /* February */, 2),
 				};
 
 				const provider: IChatSessionItemProvider = {
@@ -1737,9 +1737,9 @@ suite('Agent Sessions', () => {
 			return runWithFakedTimers({}, async () => {
 				// Session with timing after the READ_STATE_INITIAL_DATE
 				const newSessionTiming: IChatSessionItem['timing'] = {
-					created: Date.UTC(2025, 11 /* December */, 10),
-					lastRequestStarted: Date.UTC(2025, 11 /* December */, 10),
-					lastRequestEnded: Date.UTC(2025, 11 /* December */, 11),
+					created: Date.UTC(2026, 1 /* February */, 1),
+					lastRequestStarted: Date.UTC(2026, 1 /* February */, 1),
+					lastRequestEnded: Date.UTC(2026, 1 /* February */, 2),
 				};
 
 				const provider: IChatSessionItemProvider = {
