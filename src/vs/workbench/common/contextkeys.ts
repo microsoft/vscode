@@ -37,7 +37,7 @@ export const IsAgentSessionsWorkspaceContext = new RawContextKey<boolean>('isAge
 
 export const WorkbenchModeContext = new RawContextKey<string>('workbenchMode', '', localize('workbenchMode', "The current workbench mode."));
 
-export const StartupEditorLoadingContext = new RawContextKey<boolean>('startupEditorLoading', false, localize('startupEditorLoading', "Whether the startup editor setting is being resolved (e.g., from an experiment service)."));
+export const StartupEditorLoadingContext = new RawContextKey<boolean>('startupEditorLoading', true, localize('startupEditorLoading', "Whether the startup editor setting is being resolved (e.g., from an experiment service)."));
 
 export const HasWebFileSystemAccess = new RawContextKey<boolean>('hasWebFileSystemAccess', false, true); // Support for FileSystemAccess web APIs (https://wicg.github.io/file-system-access)
 

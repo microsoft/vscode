@@ -71,7 +71,6 @@ export class EditorGroupWatermark extends Disposable {
 	private static readonly CACHED_WHEN = 'editorGroupWatermark.whenConditions';
 	private static readonly SETTINGS_KEY = 'workbench.tips.enabled';
 	private static readonly MINIMUM_ENTRIES = 3;
-	private static readonly SKELETON_ROW_COUNT = 5;
 
 	private readonly cachedWhen: { [when: string]: boolean };
 
@@ -116,11 +115,26 @@ export class EditorGroupWatermark extends Disposable {
 	}
 
 	private renderSkeletonRows(): void {
-		for (let i = 0; i < EditorGroupWatermark.SKELETON_ROW_COUNT; i++) {
+		const count = this.getExpectedEntryCount();
+		for (let i = 0; i < count; i++) {
 			const row = append(this.shortcuts, $('.skeleton-row'));
 			append(row, $('.skeleton-text'));
 			append(row, $('.skeleton-key'));
 		}
+	}
+
+	private getExpectedEntryCount(): number {
+		if (!this.configurationService.getValue<boolean>(EditorGroupWatermark.SETTINGS_KEY)) {
+			return 0;
+		}
+
+		const entries = this.filterEntries(this.workbenchState !== WorkbenchState.EMPTY ? workspaceEntries : emptyWindowEntries);
+		if (entries.length >= EditorGroupWatermark.MINIMUM_ENTRIES) {
+			return entries.length;
+		}
+
+		const additionalEntries = this.filterEntries(otherEntries);
+		return Math.min(entries.length + additionalEntries.length, EditorGroupWatermark.MINIMUM_ENTRIES);
 	}
 
 	private registerListeners(): void {
@@ -160,9 +174,6 @@ export class EditorGroupWatermark extends Disposable {
 				this.updateLoadingState();
 			}
 		}));
-
-		// Set initial loading state
-		this.updateLoadingState();
 	}
 
 	private updateLoadingState(): void {

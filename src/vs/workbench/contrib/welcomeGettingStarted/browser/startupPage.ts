@@ -100,9 +100,10 @@ export class StartupPageRunnerContribution extends Disposable implements IWorkbe
 	) {
 		super();
 
-		// Bind the loading context key - watermark defaults to loading state,
-		// and we'll set this to false once the startup editor value is resolved
+		// Bind the loading context key and set to true - watermark will show loading state
+		// until the startup editor value is resolved
 		this.startupEditorLoadingContextKey = StartupEditorLoadingContext.bindTo(this.contextKeyService);
+		this.startupEditorLoadingContextKey.set(true);
 
 		this.run().then(undefined, onUnexpectedError);
 		this._register(this.editorService.onDidCloseEditor((e) => {
