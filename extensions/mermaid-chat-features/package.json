@@ -73,12 +73,9 @@
       "properties": {
         "mermaid-chat.enabled": {
           "type": "boolean",
-          "default": false,
+          "default": true,
           "description": "%config.enabled.description%",
-          "scope": "application",
-          "tags": [
-            "experimental"
-          ]
+          "scope": "application"
         }
       }
     },
