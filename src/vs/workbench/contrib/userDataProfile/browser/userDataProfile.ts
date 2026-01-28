@@ -35,7 +35,6 @@ import { IBrowserWorkbenchEnvironmentService } from '../../../services/environme
 import { Extensions as DndExtensions, IDragAndDropContributionRegistry, IResourceDropHandler } from '../../../../platform/dnd/browser/dnd.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { ITextEditorService } from '../../../services/textfile/common/textEditorService.js';
-import { ChatEntitlementContextKeys } from '../../../services/chat/common/chatEntitlementService.js';
 
 export const OpenProfileMenu = new MenuId('OpenProfile');
 const ProfilesMenu = new MenuId('Profiles');
@@ -285,10 +284,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		const disposables = new DisposableStore();
 
 		const id = `workbench.action.openProfile.${profile.name.replace('/\s+/', '_')}`;
-		let precondition: ContextKeyExpression | undefined = HAS_PROFILES_CONTEXT;
-		if (profile.id === 'agent-sessions') {
-			precondition = ContextKeyExpr.and(precondition, ChatEntitlementContextKeys.Setup.hidden.negate());
-		}
+		const precondition: ContextKeyExpression | undefined = HAS_PROFILES_CONTEXT;
 
 		disposables.add(registerAction2(class NewWindowAction extends Action2 {
 
