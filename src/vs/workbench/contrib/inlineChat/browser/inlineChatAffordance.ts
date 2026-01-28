@@ -5,7 +5,7 @@
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { autorun, debouncedObservable, derived, observableValue, runOnChange, waitForState } from '../../../../base/common/observable.js';
-import { ICodeEditor, isIOverlayWidgetPositionCoordinates } from '../../../../editor/browser/editorBrowser.js';
+import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { observableCodeEditor } from '../../../../editor/browser/observableCodeEditor.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { InlineChatConfigKeys } from '../common/inlineChat.js';
@@ -34,7 +34,6 @@ export class InlineChatAffordance extends Disposable {
 
 		const editorObs = observableCodeEditor(this._editor);
 		const affordance = observableConfigValue<'off' | 'gutter' | 'editor'>(InlineChatConfigKeys.Affordance, 'off', configurationService);
-		const suppressAffordance = observableValue<boolean>(this, false);
 		const debouncedSelection = debouncedObservable(editorObs.cursorSelection, 500);
 
 		const selectionData = observableValue<Selection | undefined>(this, undefined);
@@ -61,16 +60,12 @@ export class InlineChatAffordance extends Disposable {
 			if (chatEntiteldService.sentimentObs.read(r).hidden) {
 				selectionData.set(undefined, undefined);
 			}
-			if (suppressAffordance.read(r)) {
-				selectionData.set(undefined, undefined);
-			}
 		}));
 
 		this._store.add(this._instantiationService.createInstance(
 			InlineChatGutterAffordance,
 			editorObs,
 			derived(r => affordance.read(r) === 'gutter' ? selectionData.read(r) : undefined),
-			suppressAffordance,
 			this._menuData
 		));
 
@@ -78,14 +73,8 @@ export class InlineChatAffordance extends Disposable {
 			InlineChatEditorAffordance,
 			this._editor,
 			derived(r => affordance.read(r) === 'editor' ? selectionData.read(r) : undefined),
-			suppressAffordance,
 			this._menuData
 		));
-
-		this._store.add(autorun(reader => {
-			editorObs.cursorSelection.read(reader);
-			suppressAffordance.set(false, undefined);
-		}));
 
 		this._store.add(autorun(r => {
 			const data = this._menuData.read(r);
@@ -104,12 +93,8 @@ export class InlineChatAffordance extends Disposable {
 		this._store.add(autorun(r => {
 			const pos = this._inputWidget.position.read(r);
 			if (pos === null) {
-				suppressAffordance.set(true, undefined);
 				this._menuData.set(undefined, undefined);
 				this._editor.focus();
-
-			} else if (isIOverlayWidgetPositionCoordinates(pos.preference) && pos.preference.left >= _editor.getLayoutInfo().contentLeft) {
-				suppressAffordance.set(true, undefined);
 			}
 		}));
 	}
