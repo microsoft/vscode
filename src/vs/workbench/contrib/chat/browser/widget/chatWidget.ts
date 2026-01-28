@@ -2201,7 +2201,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.inlineInputPart?.layout(width);
 		}
 
-		this.inputPart.layout(width);
+		this.inputPart.layout(width, height);
 
 		const inputHeight = this.inputPart.height.get();
 		const chatSuggestNextWidgetHeight = this.chatSuggestNextWidget.height;
