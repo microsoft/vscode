@@ -18,7 +18,7 @@ if [ -z "$CONTAINER" ]; then
 fi
 
 echo "Installing QEMU system emulation and tools"
-sudo apt-get update && sudo apt-get install -y qemu-system-arm binutils
+sudo tdnf install -y qemu-system-aarch64 binutils
 
 echo "Exporting container filesystem"
 CONTAINER_ID=$(docker create --platform linux/arm64 "$CONTAINER")

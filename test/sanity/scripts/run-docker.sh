@@ -56,7 +56,7 @@ else
 		--rm \
 		--platform "linux/$ARCH" \
 		--volume "$ROOT_DIR:/root" \
-		--entrypoint /root/containers/entrypoint.sh \
+		--entrypoint sh \
 		"$CONTAINER" \
-		$ARGS
+		/root/containers/entrypoint.sh $ARGS
 fi
