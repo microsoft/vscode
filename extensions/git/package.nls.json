@@ -143,6 +143,7 @@
 	"command.graphCheckoutDetached": "Checkout (Detached)",
 	"command.graphCherryPick": "Cherry Pick",
 	"command.graphDeleteBranch": "Delete Branch",
+	"command.graphRebase": "Rebase onto Branch",
 	"command.graphDeleteTag": "Delete Tag",
 	"command.graphCompareRef": "Compare with...",
 	"command.graphCompareWithMergeBase": "Compare with Merge Base",

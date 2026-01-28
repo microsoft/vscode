@@ -1521,16 +1521,16 @@ class SCMInputWidgetToolbar extends WorkbenchToolBar {
 	) {
 		super(container, options, menuService, contextKeyService, contextMenuService, keybindingService, commandService, telemetryService);
 
-		this._dropdownAction = new Action(
+		this._dropdownAction = this._register(new Action(
 			'scmInputMoreActions',
 			localize('scmInputMoreActions', "More Actions..."),
-			'codicon-chevron-down');
+			'codicon-chevron-down'));
 
-		this._cancelAction = new MenuItemAction({
+		this._cancelAction = this._register(new MenuItemAction({
 			id: SCMInputWidgetCommandId.CancelAction,
 			title: localize('scmInputCancelAction', "Cancel"),
 			icon: Codicon.stopCircle,
-		}, undefined, undefined, undefined, undefined, contextKeyService, commandService);
+		}, undefined, undefined, undefined, undefined, contextKeyService, commandService));
 	}
 
 	public setInput(input: ISCMInput): void {
