@@ -14,6 +14,7 @@ import { EditTrackingFeature } from './telemetry/editSourceTrackingFeature.js';
 import { VSCodeWorkspace } from './helpers/vscodeObservableWorkspace.js';
 import { AiStatsFeature } from './editStats/aiStatsFeature.js';
 import { EDIT_TELEMETRY_SETTING_ID, AI_STATS_SETTING_ID } from './settingIds.js';
+import { ChatConfiguration } from '../../../contrib/chat/common/constants.js';
 
 export class EditTelemetryContribution extends Disposable {
 	constructor(
@@ -36,9 +37,11 @@ export class EditTelemetryContribution extends Disposable {
 		}));
 
 		const aiStatsEnabled = observableConfigValue(AI_STATS_SETTING_ID, true, this._configurationService);
+		const chatDisabled = observableConfigValue(ChatConfiguration.AIDisabled, false, this._configurationService);
 		this._register(autorun(r => {
 			const enabled = aiStatsEnabled.read(r);
-			if (!enabled) {
+			const aiDisabled = chatDisabled.read(r);
+			if (!enabled || aiDisabled) {
 				return;
 			}
 
