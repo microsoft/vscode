@@ -129,7 +129,6 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 
 		const request = model.getRequests().at(-1)!;
 
-		// Subscribe to tool invocations to clear markdown parts when a tool is invoked
 		const store = new DisposableStore();
 
 		try {
