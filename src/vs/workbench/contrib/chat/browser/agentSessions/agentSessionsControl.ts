@@ -133,8 +133,8 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 
 		const collapseByDefault = (element: unknown) => {
 			if (isAgentSessionSection(element)) {
-				if (element.section === AgentSessionSection.More) {
-					return true; // More section is always collapsed
+				if (element.section === AgentSessionSection.More && !this.options.filter.getExcludes().read) {
+					return true; // More section is always collapsed unless only showing unread
 				}
 				if (element.section === AgentSessionSection.Archived && this.options.filter.getExcludes().archived) {
 					return true; // Archived section is collapsed when archived are excluded
@@ -325,7 +325,9 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 					break;
 				}
 				case AgentSessionSection.More: {
-					const shouldCollapseMore = !this.sessionsListFindIsOpen; // always expand when find is open
+					const shouldCollapseMore =
+						!this.sessionsListFindIsOpen &&				// always expand when find is open
+						!this.options.filter.getExcludes().read;	// always expand when only showing unread
 
 					if (shouldCollapseMore && !child.collapsed) {
 						this.sessionsList.collapse(child.element);
