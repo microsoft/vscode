@@ -17,6 +17,7 @@ import { URI, UriComponents } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService, LogLevel } from '../../../../../platform/log/common/log.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
@@ -392,6 +393,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IStorageService private readonly storageService: IStorageService,
+		@IProductService private readonly productService: IProductService
 	) {
 		super();
 
@@ -650,10 +652,17 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 
 		this.logger.logIfTrace(`Running mark-all-read migration from version ${storedVersion} to ${AgentSessionsModel.MARK_ALL_READ_MIGRATION_VERSION}`);
 
-		// Mark all currently unread sessions as read
+		const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
 		for (const session of this._sessions.values()) {
 			if (!this.isRead(session)) {
-				this.setRead(session, true, true /* skipEvent */);
+				let markRead = true;
+				if (this.productService.quality === 'stable' && this.sessionTimeForReadStateTracking(session) >= sevenDaysAgo) {
+					markRead = false; // for stable, preserve state for up to 1 week ago
+				}
+
+				if (markRead) {
+					this.setRead(session, true, true /* skipEvent */);
+				}
 			}
 		}
 
