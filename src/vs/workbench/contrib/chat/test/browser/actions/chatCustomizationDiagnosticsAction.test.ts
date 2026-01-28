@@ -428,4 +428,58 @@ suite('formatStatusOutput', () => {
 			''
 		));
 	});
+
+	test('paths with spaces are URL encoded in markdown links', () => {
+		const statusInfos: ITypeStatusInfo[] = [{
+			type: PromptsType.agent,
+			paths: [{
+				uri: URI.file('/workspace/my folder/agents'),
+				exists: true,
+				storage: PromptsStorage.local,
+				scanOrder: 1,
+				displayPath: 'my folder/agents',
+				isDefault: false
+			}],
+			files: [{
+				uri: URI.file('/workspace/my folder/agents/my agent.agent.md'),
+				status: 'loaded',
+				name: 'my agent.agent.md',
+				storage: PromptsStorage.local
+			}],
+			enabled: true
+		}];
+
+		const output = formatStatusOutput(statusInfos, emptySpecialFiles, []);
+
+		// Verify that spaces in paths are URL encoded (%20)
+		assert.ok(output.includes('my%20folder/agents/my%20agent.agent.md'), 'Path should have URL-encoded spaces');
+		assert.ok(output.includes('[`my agent.agent.md`]'), 'Display name should not be encoded');
+	});
+
+	test('paths with special characters are URL encoded in markdown links', () => {
+		const statusInfos: ITypeStatusInfo[] = [{
+			type: PromptsType.prompt,
+			paths: [{
+				uri: URI.file('/workspace/docs & notes/prompts'),
+				exists: true,
+				storage: PromptsStorage.local,
+				scanOrder: 1,
+				displayPath: 'docs & notes/prompts',
+				isDefault: false
+			}],
+			files: [{
+				uri: URI.file('/workspace/docs & notes/prompts/test[1].prompt.md'),
+				status: 'loaded',
+				name: 'test[1].prompt.md',
+				storage: PromptsStorage.local
+			}],
+			enabled: true
+		}];
+
+		const output = formatStatusOutput(statusInfos, emptySpecialFiles, []);
+
+		// Verify that special characters in paths are URL encoded
+		assert.ok(output.includes('docs%20%26%20notes'), 'Ampersand should be URL-encoded');
+		assert.ok(output.includes('test%5B1%5D.prompt.md'), 'Brackets should be URL-encoded');
+	});
 });

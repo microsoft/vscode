@@ -25,18 +25,28 @@ import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
 
 /**
+ * URL encodes path segments for use in markdown links.
+ * Encodes each segment individually to preserve path separators.
+ */
+function encodePathForMarkdown(path: string): string {
+	return path.split('/').map(segment => encodeURIComponent(segment)).join('/');
+}
+
+/**
  * Converts a URI to a relative path string for markdown links.
  * Tries to make the path relative to a workspace folder if possible.
+ * The returned path is URL encoded for use in markdown link targets.
  */
 function getRelativePath(uri: URI, workspaceFolders: readonly IWorkspaceFolder[]): string {
 	for (const folder of workspaceFolders) {
 		const relative = relativePath(folder.uri, uri);
 		if (relative) {
-			return relative;
+			return encodePathForMarkdown(relative);
 		}
 	}
 	// Fall back to fsPath if not under any workspace folder
-	return uri.fsPath;
+	// Use forward slashes for consistency in markdown links
+	return encodePathForMarkdown(uri.fsPath.replace(/\\/g, '/'));
 }
 
 // Tree prefixes
