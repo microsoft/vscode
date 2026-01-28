@@ -11,7 +11,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { IWorkspaceContextService, UNKNOWN_EMPTY_WINDOW_WORKSPACE, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IConfigurationService, isConfigured } from '../../../../platform/configuration/common/configuration.js';
 import { ILifecycleService, LifecyclePhase, StartupKind } from '../../../services/lifecycle/common/lifecycle.js';
 import { Disposable, } from '../../../../base/common/lifecycle.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
@@ -27,7 +27,7 @@ import { INotificationService } from '../../../../platform/notification/common/n
 import { localize } from '../../../../nls.js';
 import { IEditorResolverService, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
 import { TerminalCommandId } from '../../terminal/common/terminal.js';
-import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { AuxiliaryBarMaximizedContext, StartupEditorLoadingContext } from '../../../common/contextkeys.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { getActiveElement } from '../../../../base/browser/dom.js';
@@ -80,7 +80,7 @@ export class StartupPageEditorResolverContribution extends Disposable implements
 export class StartupPageRunnerContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.startupPageRunner';
-	private readonly startupEditorLoadingContextKey;
+	private readonly startupEditorLoadingContextKey: IContextKey<boolean>;
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -105,7 +105,13 @@ export class StartupPageRunnerContribution extends Disposable implements IWorkbe
 		this.startupEditorLoadingContextKey = StartupEditorLoadingContext.bindTo(this.contextKeyService);
 		this.startupEditorLoadingContextKey.set(true);
 
-		this.run().then(undefined, onUnexpectedError);
+		this.run()
+			.finally(() => {
+				if (this.startupEditorLoadingContextKey.get()) {
+					this.startupEditorLoadingContextKey.set(false);
+				}
+			})
+			.then(undefined, onUnexpectedError);
 		this._register(this.editorService.onDidCloseEditor((e) => {
 			if (e.editor instanceof GettingStartedInput) {
 				e.editor.selectedCategory = undefined;
@@ -154,8 +160,6 @@ export class StartupPageRunnerContribution extends Disposable implements IWorkbe
 						await this.openGettingStarted(true);
 					} else if (startupEditorValue === 'terminal') {
 						this.commandService.executeCommand(TerminalCommandId.CreateTerminalEditor);
-					} else if (startupEditorValue === 'agentSessionsWelcomePage') {
-						await this.openAgentSessionsWelcome();
 					}
 				}
 			}
@@ -166,7 +170,7 @@ export class StartupPageRunnerContribution extends Disposable implements IWorkbe
 		const startupEditorConfig = this.configurationService.inspect<string>(configurationKey);
 
 		// If user has explicitly set a value, use it
-		if (startupEditorConfig.userValue || startupEditorConfig.workspaceValue) {
+		if (isConfigured(startupEditorConfig)) {
 			this.startupEditorLoadingContextKey.set(false);
 			return startupEditorConfig.value;
 		}
@@ -273,7 +277,7 @@ export class StartupPageRunnerContribution extends Disposable implements IWorkbe
 	}
 
 	private async openAgentSessionsWelcome() {
-		this.commandService.executeCommand(AgentSessionsWelcomePage.COMMAND_ID);
+		return this.commandService.executeCommand(AgentSessionsWelcomePage.COMMAND_ID);
 	}
 
 	private shouldPreserveFocus(): boolean {
