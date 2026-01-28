@@ -50,7 +50,7 @@ export async function fetchUrl(url: string, options: IFetchOptions, retries = 10
 			startTime = new Date().getTime();
 		}
 		const controller = new AbortController();
-		const timeout = setTimeout(() => controller.abort(), 30 * 1000);
+		let timeout = setTimeout(() => controller.abort(), 30 * 1000);
 		try {
 			const response = await fetch(url, {
 				...options.nodeFetchOptions,
@@ -60,6 +60,9 @@ export async function fetchUrl(url: string, options: IFetchOptions, retries = 10
 				log(`Fetch completed: Status ${response.status}. Took ${ansiColors.magenta(`${new Date().getTime() - startTime} ms`)}`);
 			}
 			if (response.ok && (response.status >= 200 && response.status < 300)) {
+				// Reset timeout for body download - large files need more time
+				clearTimeout(timeout);
+				timeout = setTimeout(() => controller.abort(), 5 * 60 * 1000);
 				const contents = Buffer.from(await response.arrayBuffer());
 				if (options.checksumSha256) {
 					const actualSHA256Checksum = crypto.createHash('sha256').update(contents).digest('hex');
