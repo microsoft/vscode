@@ -658,7 +658,7 @@ export class ResetMcpTrustCommand extends Action2 {
 			title: localize2('mcp.resetTrust', "Reset Trust"),
 			category,
 			f1: true,
-			precondition: ContextKeyExpr.and(McpContextKeys.toolsCount.greater(0), ChatContextKeys.Setup.hidden.negate()),
+			precondition: ContextKeyExpr.and(McpContextKeys.toolsCount.greater(0), ChatContextKeys.Setup.hidden.negate(), McpContextKeys.mcpDisabledByPolicy.negate()),
 		});
 	}
 
@@ -676,7 +676,7 @@ export class ResetMcpCachedTools extends Action2 {
 			title: localize2('mcp.resetCachedTools', "Reset Cached Tools"),
 			category,
 			f1: true,
-			precondition: ContextKeyExpr.and(McpContextKeys.toolsCount.greater(0), ChatContextKeys.Setup.hidden.negate()),
+			precondition: ContextKeyExpr.and(McpContextKeys.toolsCount.greater(0), ChatContextKeys.Setup.hidden.negate(), McpContextKeys.mcpDisabledByPolicy.negate()),
 		});
 	}
 
@@ -696,13 +696,14 @@ export class AddConfigurationAction extends Action2 {
 			},
 			category,
 			f1: true,
-			precondition: ChatContextKeys.Setup.hidden.negate(),
+			precondition: ContextKeyExpr.and(ChatContextKeys.Setup.hidden.negate(), McpContextKeys.mcpDisabledByPolicy.negate()),
 			menu: {
 				id: MenuId.EditorContent,
 				when: ContextKeyExpr.and(
 					ContextKeyExpr.regex(ResourceContextKey.Path.key, /\.vscode[/\\]mcp\.json$/),
 					ActiveEditorContext.isEqualTo(TEXT_FILE_EDITOR_ID),
 					ChatContextKeys.Setup.hidden.negate(),
+					McpContextKeys.mcpDisabledByPolicy.negate(),
 				)
 			}
 		});

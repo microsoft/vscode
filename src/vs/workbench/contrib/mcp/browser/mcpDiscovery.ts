@@ -27,7 +27,10 @@ export class McpDiscovery extends Disposable implements IWorkbenchContribution {
 		this._register(autorun(reader => {
 			store.clear();
 			const value = mcpAccessValue.read(reader);
-			if (value === McpAccessValue.None) {
+			// Start discoveries when MCP is disabled by policy (to show built-in servers)
+			// but don't start them when the user explicitly sets it to None
+			const mcpDisabledByPolicy = configurationService.inspect<string>(mcpAccessConfig).policyValue === McpAccessValue.None;
+			if (value === McpAccessValue.None && !mcpDisabledByPolicy) {
 				return;
 			}
 			for (const descriptor of mcpDiscoveryRegistry.getAll()) {

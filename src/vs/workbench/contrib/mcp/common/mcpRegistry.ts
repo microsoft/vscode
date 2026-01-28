@@ -43,8 +43,12 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 	private readonly _collections = observableValue<readonly McpCollectionDefinition[]>('collections', []);
 	private readonly _delegates = observableValue<readonly IMcpHostDelegate[]>('delegates', []);
 	private readonly _mcpAccessValue: IObservable<string>;
+	private readonly _mcpDisabledByPolicy: IObservable<boolean>;
 	public readonly collections: IObservable<readonly McpCollectionDefinition[]> = derived(reader => {
-		if (this._mcpAccessValue.read(reader) === McpAccessValue.None) {
+		const accessValue = this._mcpAccessValue.read(reader);
+		// Show collections when MCP is disabled by policy (to show them in read-only mode)
+		// but hide them when the user explicitly sets it to None
+		if (accessValue === McpAccessValue.None && !this._mcpDisabledByPolicy.read(reader)) {
 			return [];
 		}
 		return this._collections.read(reader);
@@ -56,7 +60,9 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 	private readonly _ongoingLazyActivations = observableValue(this, 0);
 
 	public readonly lazyCollectionState = derived(reader => {
-		if (this._mcpAccessValue.read(reader) === McpAccessValue.None) {
+		const accessValue = this._mcpAccessValue.read(reader);
+		// Show lazy collection state when MCP is disabled by policy
+		if (accessValue === McpAccessValue.None && !this._mcpDisabledByPolicy.read(reader)) {
 			return { state: LazyCollectionState.AllKnown, collections: [] };
 		}
 
@@ -88,6 +94,13 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 	) {
 		super();
 		this._mcpAccessValue = observableConfigValue(mcpAccessConfig, McpAccessValue.All, configurationService);
+		
+		// Create a cached observable for policy value to avoid repeated config service calls
+		this._mcpDisabledByPolicy = derived(this, reader => {
+			// Re-evaluate when access value changes (which includes policy changes)
+			this._mcpAccessValue.read(reader);
+			return configurationService.inspect<string>(mcpAccessConfig).policyValue === McpAccessValue.None;
+		});
 	}
 
 	public registerDelegate(delegate: IMcpHostDelegate): IDisposable {
