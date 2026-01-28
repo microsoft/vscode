@@ -240,7 +240,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 				variables: { variables: variableSet.asArray() },
 				location: ChatAgentLocation.Chat,
 				subAgentInvocationId: invocation.callId,
-				subAgentName: args.agentName,
+				subAgentName: args.agentName ?? 'subagent',
 				userSelectedModelId: modeModelId,
 				userSelectedTools: modeTools,
 				modeInstructions,
@@ -267,7 +267,18 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 				invocation.toolSpecificData.result = resultText;
 			}
 
-			return createToolSimpleTextResult(resultText);
+			// Return result with toolMetadata containing subAgentInvocationId for trajectory tracking
+			return {
+				content: [{
+					kind: 'text',
+					value: resultText
+				}],
+				toolMetadata: {
+					subAgentInvocationId,
+					description: args.description,
+					agentName: agentRequest.subAgentName,
+				}
+			};
 
 		} catch (error) {
 			const errorMessage = `Error invoking subagent: ${error instanceof Error ? error.message : 'Unknown error'}`;
