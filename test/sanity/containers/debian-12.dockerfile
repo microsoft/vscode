@@ -1,5 +1,5 @@
 ARG BASE_IMAGE=node:22-bookworm
-FROM ${BASE_IMAGE}
+FROM mcr.microsoft.com/mirror/docker/library/${BASE_IMAGE}
 
 # Utilities
 RUN apt-get update

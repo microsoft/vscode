@@ -1,5 +1,5 @@
 ARG BASE_IMAGE=node:22.21.1-alpine3.23
-FROM ${BASE_IMAGE}
+FROM mcr.microsoft.com/mirror/docker/library/${BASE_IMAGE}
 
 # Chromium
 RUN apk add --no-cache chromium
