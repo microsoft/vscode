@@ -176,7 +176,7 @@ export class EditTelemetryReportEditArcForChatOrInlineChatSender extends Disposa
 			const uniqueEditId = this._randomService.generateUuid();
 
 			const docWithJustReason = createDocWithJustReason(docWithAnnotatedEdits, this._store);
-			const reporter = this._store.add(this._instantiationService.createInstance(ArcTelemetryReporter, [0, 60, 300].map(s => s * 1000), _prev, docWithJustReason, scmRepoBridge, edit, res => {
+			const reporter = this._store.add(this._instantiationService.createInstance(ArcTelemetryReporter, [0, 60, 1200].map(s => s * 1000), _prev, docWithJustReason, scmRepoBridge, edit, res => {
 				res.telemetryService.publicLog2<{
 					sourceKeyCleaned: string;
 					extensionId: string | undefined;
