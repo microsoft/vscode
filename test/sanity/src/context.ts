@@ -953,7 +953,6 @@ export class TestContext {
 						'--disable-gpu',
 						'--disable-gpu-compositing',
 						'--disable-software-rasterizer',
-						'--single-process',
 						'--no-zygote',
 					]
 				});
