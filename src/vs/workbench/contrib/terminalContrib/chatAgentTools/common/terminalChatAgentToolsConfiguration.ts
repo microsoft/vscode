@@ -543,7 +543,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		restricted: true,
 	},
 	[TerminalChatAgentToolsSettingId.TerminalSandboxLinuxFileSystem]: {
-		markdownDescription: localize('terminalSandbox.linuxFileSystemSetting', "Note: this setting is applicable only when {0} is enabled.\nControls file system access in the terminal sandbox on Linux.Paths does not support glob patterns, only literal paths (ex: ./src/, ~/.ssh, .env).**bubblewrap**, **socat** and **ripgrep** should be installed for this setting to work.", `\`#${TerminalChatAgentToolsSettingId.TerminalSandboxEnabled}#\``),
+		markdownDescription: localize('terminalSandbox.linuxFileSystemSetting', "Note: this setting is applicable only when {0} is enabled. Controls file system access in the terminal sandbox on Linux.Paths does not support glob patterns, only literal paths (ex: ./src/, ~/.ssh, .env).**bubblewrap**, **socat** and **ripgrep** should be installed for this setting to work.", `\`#${TerminalChatAgentToolsSettingId.TerminalSandboxEnabled}#\``),
 		type: 'object',
 		properties: {
 			denyRead: {
