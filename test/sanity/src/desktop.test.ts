@@ -37,9 +37,9 @@ export function setup(context: TestContext) {
 	});
 
 	context.test('desktop-darwin-x64-dmg', ['darwin', 'x64', 'desktop'], async () => {
-		const dir = await context.downloadTarget('darwin-x64-dmg');
+		const packagePath = await context.downloadTarget('darwin-x64-dmg');
 		if (!context.options.downloadOnly) {
-			const mountPoint = context.mountDmg(dir);
+			const mountPoint = context.mountDmg(packagePath);
 			context.validateAllCodesignSignatures(mountPoint);
 			const entryPoint = context.getDesktopEntryPoint(mountPoint);
 			await testDesktopApp(entryPoint);
@@ -48,9 +48,9 @@ export function setup(context: TestContext) {
 	});
 
 	context.test('desktop-darwin-arm64-dmg', ['darwin', 'arm64', 'desktop'], async () => {
-		const dir = await context.downloadTarget('darwin-arm64-dmg');
+		const packagePath = await context.downloadTarget('darwin-arm64-dmg');
 		if (!context.options.downloadOnly) {
-			const mountPoint = context.mountDmg(dir);
+			const mountPoint = context.mountDmg(packagePath);
 			context.validateAllCodesignSignatures(mountPoint);
 			const entryPoint = context.getDesktopEntryPoint(mountPoint);
 			await testDesktopApp(entryPoint);
@@ -59,9 +59,9 @@ export function setup(context: TestContext) {
 	});
 
 	context.test('desktop-darwin-universal-dmg', ['darwin', 'desktop'], async () => {
-		const dir = await context.downloadTarget('darwin-universal-dmg');
+		const packagePath = await context.downloadTarget('darwin-universal-dmg');
 		if (!context.options.downloadOnly) {
-			const mountPoint = context.mountDmg(dir);
+			const mountPoint = context.mountDmg(packagePath);
 			context.validateAllCodesignSignatures(mountPoint);
 			const entryPoint = context.getDesktopEntryPoint(mountPoint);
 			await testDesktopApp(entryPoint);
