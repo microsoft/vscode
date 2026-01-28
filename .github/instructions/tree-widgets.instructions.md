@@ -154,4 +154,9 @@ const options = {
 - Consider **virtualization settings** for large datasets
 - Use **identity providers** for efficient updates and state preservation
 
+## Learnings
+* Always use `IInstantiationService.createInstance()` to create workbench tree widgets to ensure proper dependency injection and service integration (1)
+* All workbench trees require an `accessibilityProvider` to support screen readers and accessibility features (1)
+* Always call `layout()` when the container initializes and when its size changes to ensure proper rendering (1)
+
 ---
