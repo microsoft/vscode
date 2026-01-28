@@ -137,10 +137,7 @@ export function setup(context: TestContext) {
 		let testError: Error | undefined;
 
 		server.stderr.on('data', (data) => {
-			const text = data.toString().trim();
-			if (!/ECONNRESET/.test(text)) {
-				context.error(`[WSL Server Error] ${text}`);
-			}
+			context.error(`[WSL Server Error] ${data.toString().trim()}`);
 		});
 
 		server.stdout.on('data', (data) => {
