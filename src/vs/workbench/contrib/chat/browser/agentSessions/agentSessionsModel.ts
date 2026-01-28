@@ -547,11 +547,10 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 
 	//#region States
 
-	// In order to reduce the amount of unread sessions a user will
-	// see after updating to 1.107, we specify a fixed date that a
-	// session needs to be created after to be considered unread unless
-	// the user has explicitly marked it as read.
-	private static readonly READ_STATE_INITIAL_DATE = Date.UTC(2025, 11 /* December */, 8);
+	// In order to reduce the amount of sessions showing as unread, we maintain
+	// a certain cut off date that we consider good, given the issues we fixed
+	// around unread tracking. This is ~1 week before we ship 1.109 stable.
+	private static readonly READ_STATE_INITIAL_DATE = Date.UTC(2026, 0 /* January */, 28);
 
 	private readonly sessionStates: ResourceMap<IAgentSessionState>;
 
