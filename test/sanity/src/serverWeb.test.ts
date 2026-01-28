@@ -89,7 +89,10 @@ export function setup(context: TestContext) {
 		let testError: Error | undefined;
 
 		server.stderr.on('data', (data) => {
-			context.error(`[Server Error] ${data.toString().trim()}`);
+			const text = data.toString().trim();
+			if (!/ECONNRESET/.test(text)) {
+				context.error(`[Server Error] ${text}`);
+			}
 		});
 
 		server.stdout.on('data', (data) => {
