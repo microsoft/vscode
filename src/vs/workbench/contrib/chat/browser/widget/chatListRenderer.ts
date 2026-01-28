@@ -1838,9 +1838,15 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return;
 		}
 
+		let didRemoveConfirmationWidget = false;
 		const disposable = autorun(reader => {
 			const state = toolInvocation.state.read(reader);
 			if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation || state.type === IChatToolInvocation.StateKind.WaitingForPostApproval) {
+				if (didRemoveConfirmationWidget) {
+					return;
+				}
+				didRemoveConfirmationWidget = true;
+				disposable.dispose();
 				removeConfirmationWidget();
 			}
 		});
