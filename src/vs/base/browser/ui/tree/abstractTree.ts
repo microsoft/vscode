@@ -917,7 +917,9 @@ class FindWidget<T, TFilterData> extends Disposable {
 		const closeAction = this._register(new Action('close', localize('close', "Close"), 'codicon codicon-close', true, () => this.dispose()));
 		this.actionbar.push(closeAction, { icon: true, label: false });
 
-		this.onDidChangeValue = this.findInput.onDidChange;
+		// Use onInput instead of onDidChange to respect IME composition
+		// onInput only fires after compositionend, preventing premature filtering during IME composition
+		this.onDidChangeValue = Event.map(this.findInput.onInput, () => this.findInput.inputBox.value);
 	}
 
 	setToggleState(id: string, checked: boolean): void {
