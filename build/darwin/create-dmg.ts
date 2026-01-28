@@ -106,7 +106,7 @@ async function main(buildDir?: string, outDir?: string): Promise<void> {
 		'text-size': 12,
 		window: {
 			position: { x: 100, y: 400 },
-			size: { width: 480, height: 320 }
+			size: { width: 480, height: 352 }
 		},
 		contents: [
 			{
