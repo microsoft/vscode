@@ -199,4 +199,86 @@ suite('FileDialogService', function () {
 		await dialogService.defaultFolderPath();
 		assert.deepStrictEqual(getLastActiveWorkspaceRoot.args[1], [Schemas.vscodeRemote, 'testRemote']);
 	});
+
+	test('forceNative flag bypasses simple dialog for showOpenDialog', async function () {
+		let simpleDialogCalled = false;
+		let nativeDialogCalled = false;
+
+		class TestSimpleFileDialog implements ISimpleFileDialog {
+			async showOpenDialog(): Promise<URI | undefined> {
+				simpleDialogCalled = true;
+				return testFile;
+			}
+			async showSaveDialog(): Promise<URI | undefined> {
+				simpleDialogCalled = true;
+				return testFile;
+			}
+			dispose(): void { }
+		}
+
+		const nativeHostService = instantiationService.get(INativeHostService);
+		const showOpenDialogStub = sinon.stub(nativeHostService, 'showOpenDialog').callsFake(async (_options) => {
+			nativeDialogCalled = true;
+			return { canceled: false, filePaths: [testFile.fsPath] };
+		});
+
+		const dialogService = instantiationService.createInstance(TestFileDialogService, new TestSimpleFileDialog());
+
+		// Test without forceNative - should use simple dialog
+		simpleDialogCalled = false;
+		nativeDialogCalled = false;
+		await dialogService.showOpenDialog({ canSelectFiles: true });
+		assert.strictEqual(simpleDialogCalled, true, 'Simple dialog should be called without forceNative');
+		assert.strictEqual(nativeDialogCalled, false, 'Native dialog should not be called without forceNative');
+
+		// Test with forceNative - should use native dialog
+		simpleDialogCalled = false;
+		nativeDialogCalled = false;
+		await dialogService.showOpenDialog({ canSelectFiles: true, forceNative: true });
+		assert.strictEqual(simpleDialogCalled, false, 'Simple dialog should not be called with forceNative');
+		assert.strictEqual(nativeDialogCalled, true, 'Native dialog should be called with forceNative');
+
+		showOpenDialogStub.restore();
+	});
+
+	test('forceNative flag bypasses simple dialog for showSaveDialog', async function () {
+		let simpleDialogCalled = false;
+		let nativeDialogCalled = false;
+
+		class TestSimpleFileDialog implements ISimpleFileDialog {
+			async showOpenDialog(): Promise<URI | undefined> {
+				simpleDialogCalled = true;
+				return testFile;
+			}
+			async showSaveDialog(): Promise<URI | undefined> {
+				simpleDialogCalled = true;
+				return testFile;
+			}
+			dispose(): void { }
+		}
+
+		const nativeHostService = instantiationService.get(INativeHostService);
+		const showSaveDialogStub = sinon.stub(nativeHostService, 'showSaveDialog').callsFake(async (_options) => {
+			nativeDialogCalled = true;
+			return { canceled: false, filePath: testFile.fsPath };
+		});
+
+		const dialogService = instantiationService.createInstance(TestFileDialogService, new TestSimpleFileDialog());
+
+		// Test without forceNative - should use simple dialog
+		simpleDialogCalled = false;
+		nativeDialogCalled = false;
+		await dialogService.showSaveDialog({ defaultUri: testFile });
+		assert.strictEqual(simpleDialogCalled, true, 'Simple dialog should be called without forceNative');
+		assert.strictEqual(nativeDialogCalled, false, 'Native dialog should not be called without forceNative');
+
+		// Test with forceNative - should use native dialog
+		simpleDialogCalled = false;
+		nativeDialogCalled = false;
+		await dialogService.showSaveDialog({ defaultUri: testFile, forceNative: true });
+		assert.strictEqual(simpleDialogCalled, false, 'Simple dialog should not be called with forceNative');
+		assert.strictEqual(nativeDialogCalled, true, 'Native dialog should be called with forceNative');
+
+		showSaveDialogStub.restore();
+	});
 });

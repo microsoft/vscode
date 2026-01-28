@@ -160,7 +160,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 
 	async showSaveDialog(options: ISaveDialogOptions): Promise<URI | undefined> {
 		const schema = this.getFileSystemSchema(options);
-		if (this.shouldUseSimplified(schema).useSimplified) {
+		if (!options.forceNative && this.shouldUseSimplified(schema).useSimplified) {
 			return this.showSaveDialogSimplified(schema, options);
 		}
 
@@ -174,7 +174,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 
 	async showOpenDialog(options: IOpenDialogOptions): Promise<URI[] | undefined> {
 		const schema = this.getFileSystemSchema(options);
-		if (this.shouldUseSimplified(schema).useSimplified) {
+		if (!options.forceNative && this.shouldUseSimplified(schema).useSimplified) {
 			return this.showOpenDialogSimplified(schema, options);
 		}
 
