@@ -1,20 +1,30 @@
 #!/bin/sh
 set -e
 
-echo "Mounting essential filesystems"
+# Mount kernel filesystems (proc for process info, sysfs for device info)
+echo "Mounting kernel filesystems"
 mount -t proc proc /proc
 mount -t sysfs sys /sys
+
+# Mount pseudo-terminal and shared memory filesystems
+echo "Mounting PTY and shared memory"
 mkdir -p /dev/pts
 mount -t devpts devpts /dev/pts
 mkdir -p /dev/shm
 mount -t tmpfs tmpfs /dev/shm
+
+# Mount temporary directories with proper permissions
+echo "Mounting temporary directories"
 mount -t tmpfs tmpfs /tmp
 chmod 1777 /tmp
+mount -t tmpfs tmpfs /var/tmp
+
+# Mount runtime directory for services (D-Bus, XDG)
+echo "Mounting runtime directories"
 mount -t tmpfs tmpfs /run
 mkdir -p /run/dbus
 mkdir -p /run/user/0
 chmod 700 /run/user/0
-mount -t tmpfs tmpfs /var/tmp
 
 echo "Setting up machine-id for D-Bus"
 cat /proc/sys/kernel/random/uuid | tr -d '-' > /etc/machine-id
