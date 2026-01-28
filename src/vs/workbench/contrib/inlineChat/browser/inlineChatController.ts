@@ -46,7 +46,7 @@ import { IChatService } from '../../chat/common/chatService/chatService.js';
 import { IChatRequestVariableEntry, IDiagnosticVariableEntryFilterData } from '../../chat/common/attachments/chatVariableEntries.js';
 import { isResponseVM } from '../../chat/common/model/chatViewModel.js';
 import { ChatAgentLocation } from '../../chat/common/constants.js';
-import { ILanguageModelChatSelector, ILanguageModelsService, isILanguageModelChatSelector } from '../../chat/common/languageModels.js';
+import { ILanguageModelChatMetadata, ILanguageModelChatSelector, ILanguageModelsService, isILanguageModelChatSelector } from '../../chat/common/languageModels.js';
 import { isNotebookContainingCellEditor as isNotebookWithCellEditor } from '../../notebook/browser/notebookEditor.js';
 import { INotebookEditorService } from '../../notebook/browser/services/notebookEditorService.js';
 import { CellUri, ICellEditOperation } from '../../notebook/common/notebookCommon.js';
@@ -593,7 +593,6 @@ export class InlineChatController implements IEditorContribution {
 	 * Prioritization: user session choice > inlineChat.defaultModel setting > vendor default
 	 */
 	private async _applyModelDefaults(session: IInlineChatSession2, sessionStore: DisposableStore): Promise<void> {
-		// Prioritization: user session choice > inlineChat.defaultModel setting > vendor default
 		const userSelectedModel = InlineChatController._userSelectedModel;
 		const defaultModelSetting = this._configurationService.getValue<string>(InlineChatConfigKeys.DefaultModel);
 
@@ -635,7 +634,7 @@ export class InlineChatController implements IEditorContribution {
 			}
 			if (initialModelId !== newModel.identifier) {
 				// User explicitly changed model, store their choice as qualified name
-				InlineChatController._userSelectedModel = `${newModel.metadata.name} (${newModel.metadata.vendor})`;
+				InlineChatController._userSelectedModel = ILanguageModelChatMetadata.asQualifiedName(newModel.metadata);
 				initialModelId = newModel.identifier;
 			}
 		}));
