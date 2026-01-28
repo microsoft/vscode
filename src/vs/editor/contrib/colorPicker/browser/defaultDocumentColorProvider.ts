@@ -34,7 +34,7 @@ export class DefaultDocumentColorProvider implements DocumentColorProvider {
 
 		const rgb = alpha ? (colorFormat === 'argb' ? Color.Format.CSS.formatARGB(color) : Color.Format.CSS.formatRGBA(color)) : Color.Format.CSS.formatRGB(color);
 		const hsl = alpha ? Color.Format.CSS.formatHSLA(color) : Color.Format.CSS.formatHSL(color);
-		const hex = alpha ? Color.Format.CSS.formatHexA(color) : Color.Format.CSS.formatHex(color);
+		const hex = alpha ? (colorFormat === 'argb' ? Color.Format.CSS.formatAHex(color) : Color.Format.CSS.formatHexA(color)) : Color.Format.CSS.formatHex(color);
 
 		const colorPresentations: IColorPresentation[] = [];
 		colorPresentations.push({ label: rgb, textEdit: { range: range, text: rgb } });

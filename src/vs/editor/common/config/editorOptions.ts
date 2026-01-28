@@ -6117,8 +6117,8 @@ export const EditorOptions = {
 		['rgba', 'argb'] as const,
 		{
 			enumDescriptions: [
-				nls.localize('editor.colorDecoratorFormat.rgba', "Use RGBA format (#RRGGBBAA and rgba(r, g, b, a))"),
-				nls.localize('editor.colorDecoratorFormat.argb', "Use ARGB format (#AARRGGBB and argb(a, r, g, b))")
+				nls.localize('editor.colorDecoratorFormat.rgba', "Use RGBA format (#RGBA for 4-digit, #RRGGBBAA for 8-digit)"),
+				nls.localize('editor.colorDecoratorFormat.argb', "Use ARGB format (#ARGB for 4-digit, #AARRGGBB for 8-digit)")
 			],
 			markdownDescription: nls.localize('colorDecoratorFormat', "Controls the color format for parsing colors and for color decorators. RGBA is standard for web (CSS), while ARGB is used by Qt and some other frameworks.")
 		}

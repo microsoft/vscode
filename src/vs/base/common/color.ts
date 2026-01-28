@@ -656,6 +656,18 @@ export namespace Color {
 			}
 
 			/**
+			 * Formats the color as #AARRGGBB (alpha first)
+			 * If 'compact' is set, colors without transparancy will be printed as #RRGGBB
+			 */
+			export function formatAHex(color: Color, compact = false): string {
+				if (compact && color.rgba.a === 1) {
+					return Color.Format.CSS.formatHex(color);
+				}
+
+				return `#${_toTwoDigitHex(Math.round(color.rgba.a * 255))}${_toTwoDigitHex(color.rgba.r)}${_toTwoDigitHex(color.rgba.g)}${_toTwoDigitHex(color.rgba.b)}`;
+			}
+
+			/**
 			 * The default format will use HEX if opaque and RGBA otherwise.
 			 */
 			export function format(color: Color): string {
