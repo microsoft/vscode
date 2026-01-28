@@ -128,6 +128,92 @@
 	margin-top: 4px;
 }
 
+/* List-style selection UI (similar to QuickPick) */
+.chat-question-list {
+	display: flex;
+	flex-direction: column;
+	gap: 0;
+	border-radius: 3px;
+	outline: none;
+}
+
+.chat-question-list:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.chat-question-list-item {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 4px 6px;
+	cursor: pointer;
+	border-radius: 3px;
+	user-select: none;
+}
+
+.chat-question-list-item:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+.chat-question-list-item:focus {
+	outline: none;
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+.chat-question-list-item.selected,
+.chat-question-list-item.checked {
+	background-color: var(--vscode-list-activeSelectionBackground);
+	color: var(--vscode-list-activeSelectionForeground);
+}
+
+.chat-question-list-item.selected:hover,
+.chat-question-list-item.checked:hover {
+	background-color: var(--vscode-list-activeSelectionBackground);
+}
+
+/* Selection indicator (checkmark) for single select */
+.chat-question-list-indicator {
+	width: 16px;
+	height: 16px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+}
+
+.chat-question-list-indicator.codicon-check {
+	color: var(--vscode-list-activeSelectionForeground, var(--vscode-foreground));
+}
+
+.chat-question-list-item.selected .chat-question-list-indicator.codicon-check {
+	color: var(--vscode-list-activeSelectionForeground);
+}
+
+/* Checkbox for multi-select */
+.chat-question-list-checkbox {
+	flex-shrink: 0;
+}
+
+.chat-question-list-checkbox.monaco-custom-toggle {
+	margin-right: 0;
+}
+
+/* Label in list item */
+.chat-question-list-label {
+	font-size: var(--vscode-chat-font-size-body-s);
+	color: var(--vscode-foreground);
+	flex: 1;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.chat-question-list-item.selected .chat-question-list-label {
+	color: var(--vscode-list-activeSelectionForeground);
+}
+
+/* Legacy styles for backwards compatibility (to be removed) */
 .chat-question-options {
 	display: flex;
 	flex-direction: column;
