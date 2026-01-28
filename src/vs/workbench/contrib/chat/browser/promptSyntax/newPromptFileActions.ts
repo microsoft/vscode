@@ -24,9 +24,8 @@ import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { askForPromptFileName } from './pickers/askForPromptName.js';
 import { askForPromptSourceFolder } from './pickers/askForPromptSourceFolder.js';
-import { IChatModeService } from '../../common/chatModes.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
-import { SKILL_FILENAME } from '../../common/promptSyntax/config/promptFileLocations.js';
+import { getCleanPromptName, SKILL_FILENAME } from '../../common/promptSyntax/config/promptFileLocations.js';
 
 
 class AbstractNewPromptFileAction extends Action2 {
@@ -57,7 +56,6 @@ class AbstractNewPromptFileAction extends Action2 {
 		const editorService = accessor.get(IEditorService);
 		const fileService = accessor.get(IFileService);
 		const instaService = accessor.get(IInstantiationService);
-		const chatModeService = accessor.get(IChatModeService);
 
 		const selectedFolder = await instaService.invokeFunction(askForPromptSourceFolder, this.type);
 		if (!selectedFolder) {
@@ -68,7 +66,6 @@ class AbstractNewPromptFileAction extends Action2 {
 		if (!fileName) {
 			return;
 		}
-
 		// create the prompt file
 
 		await fileService.createFolder(selectedFolder.uri);
@@ -78,11 +75,13 @@ class AbstractNewPromptFileAction extends Action2 {
 
 		await openerService.open(promptUri);
 
+		const cleanName = getCleanPromptName(promptUri);
+
 		const editor = getCodeEditor(editorService.activeTextEditorControl);
 		if (editor && editor.hasModel() && isEqual(editor.getModel().uri, promptUri)) {
 			SnippetController2.get(editor)?.apply([{
 				range: editor.getModel().getFullModelRange(),
-				template: getDefaultContentSnippet(this.type, chatModeService),
+				template: getDefaultContentSnippet(this.type, cleanName),
 			}]);
 		}
 
@@ -140,51 +139,47 @@ class AbstractNewPromptFileAction extends Action2 {
 	}
 }
 
-function getDefaultContentSnippet(promptType: PromptsType, chatModeService: IChatModeService): string {
-	const agents = chatModeService.getModes();
-	const agentNames = agents.builtin.map(agent => agent.name.get()).join(',') + (agents.custom.length ? (',' + agents.custom.map(agent => agent.name.get()).join(',')) : '');
+function getDefaultContentSnippet(promptType: PromptsType, name: string | undefined): string {
 	switch (promptType) {
 		case PromptsType.prompt:
 			return [
 				`---`,
-				`agent: \${1|${agentNames}|}`,
+				`name: ${name ?? '${1:prompt-name}'}`,
+				`description: \${2:Describe when to use this prompt}`,
 				`---`,
-				`\${2:Define the task to achieve, including specific requirements, constraints, and success criteria.}`,
+				`\${3:Define the prompt content here. You can include instructions, examples, and any other relevant information to guide the AI's responses.}`,
 			].join('\n');
 		case PromptsType.instructions:
 			return [
 				`---`,
-				`applyTo: '\${1|**,**/*.ts|}'`,
+				`description: \${1:Describe when these instructions should be loaded}`,
+				`# applyTo: '\${1|**,**/*.ts|}' # when provided, instructions will automatically be added to the request context when the pattern matches an attached file`,
 				`---`,
 				`\${2:Provide project context and coding guidelines that AI should follow when generating code, answering questions, or reviewing changes.}`,
 			].join('\n');
 		case PromptsType.agent:
 			return [
 				`---`,
-				`description: '\${1:Describe what this custom agent does and when to use it.}'`,
-				`tools: []`,
+				`name: ${name ?? '${1:agent-name}'}`,
+				`description: \${2:Describe what this custom agent does and when to use it.}`,
+				`argument-hint: \${3:The inputs this agent expects, e.g., "a task to implement" or "a question to answer".}`,
+				`# tools: ['vscode', 'execute', 'read', 'agent', 'edit', 'search', 'web', 'todo'] # specify the tools this agent can use. if not set, all enabled tools are allowed`,
 				`---`,
-				`\${2:Define what this custom agent accomplishes for the user, when to use it, and the edges it won't cross. Specify its ideal inputs/outputs, the tools it may call, and how it reports progress or asks for help.}`,
+				`\${4:Define what this custom agent does, including its behavior, capabilities, and any specific instructions for its operation.}`,
+			].join('\n');
+		case PromptsType.skill:
+			return [
+				`---`,
+				`name: ${name ?? '${1:skill-name}'}`,
+				`description: \${2:Describe what this skill does and when to use it. Include keywords that help agents identify relevant tasks.}`,
+				`---`,
+				`\${3:Define the functionality provided by this skill, including detailed instructions and examples}`,
 			].join('\n');
 		default:
 			throw new Error(`Unsupported prompt type: ${promptType}`);
 	}
 }
 
-/**
- * Generates the content snippet for a skill file with the name pre-populated.
- * Per agentskills.io/specification, the name field must match the parent directory name.
- */
-function getSkillContentSnippet(skillName: string): string {
-	return [
-		`---`,
-		`name: ${skillName}`,
-		`description: '\${1:Describe what this skill does and when to use it. Include keywords that help agents identify relevant tasks.}'`,
-		`---`,
-		``,
-		`\${2:Provide detailed instructions for the agent. Include step-by-step guidance, examples, and edge cases.}`,
-	].join('\n');
-}
 
 
 export const NEW_PROMPT_COMMAND_ID = 'workbench.command.new.prompt';
@@ -287,7 +282,7 @@ class NewSkillFileAction extends Action2 {
 		if (editor && editor.hasModel() && isEqual(editor.getModel().uri, skillFileUri)) {
 			SnippetController2.get(editor)?.apply([{
 				range: editor.getModel().getFullModelRange(),
-				template: getSkillContentSnippet(trimmedName),
+				template: getDefaultContentSnippet(PromptsType.skill, trimmedName),
 			}]);
 		}
 	}
@@ -309,7 +304,6 @@ class NewUntitledPromptFileAction extends Action2 {
 
 	public override async run(accessor: ServicesAccessor) {
 		const editorService = accessor.get(IEditorService);
-		const chatModeService = accessor.get(IChatModeService);
 
 		const languageId = getLanguageIdForPromptsType(PromptsType.prompt);
 
@@ -326,7 +320,7 @@ class NewUntitledPromptFileAction extends Action2 {
 		if (editor && editor.hasModel()) {
 			SnippetController2.get(editor)?.apply([{
 				range: editor.getModel().getFullModelRange(),
-				template: getDefaultContentSnippet(type, chatModeService),
+				template: getDefaultContentSnippet(type, undefined),
 			}]);
 		}
 
