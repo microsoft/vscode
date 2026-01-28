@@ -603,8 +603,11 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 			AgentSessionsModel.READ_STATE_INITIAL_DATE				// hardcoded date we pick as start
 		);
 
-		// Compare using sec precision to rule out minor differences
-		return Math.floor(readDate / 1000) >= Math.floor(this.sessionTimeForReadStateTracking(session) / 1000);
+		// Install a heuristic to reduce false positives: a user might observe
+		// the output of a session and quickly click on another session before
+		// it is finished. Strictly speaking the session is unread, but we
+		// allow a certain threshold of time to count as read to accommodate.
+		return readDate >= this.sessionTimeForReadStateTracking(session) - 2000;
 	}
 
 	private sessionTimeForReadStateTracking(session: IInternalAgentSessionData): number {
