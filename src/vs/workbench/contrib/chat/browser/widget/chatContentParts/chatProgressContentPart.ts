@@ -6,24 +6,26 @@
 import { $, append } from '../../../../../../base/browser/dom.js';
 import { alert } from '../../../../../../base/browser/ui/aria/aria.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
-import { createMarkdownCommandLink, MarkdownString, type IMarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { MarkdownString, type IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IRenderedMarkdown } from '../../../../../../base/browser/markdownRenderer.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { localize } from '../../../../../../nls.js';
-import { IChatProgressMessage, IChatTask, IChatTaskSerialized, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
+import { IChatProgressMessage, IChatTask, IChatTaskSerialized, IChatToolInvocation, IChatToolInvocationSerialized } from '../../../common/chatService/chatService.js';
 import { IChatRendererContent, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { ChatTreeItem } from '../../chat.js';
 import { renderFileWidgets } from './chatInlineAnchorWidget.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
+import { getToolApprovalMessage } from './toolInvocationParts/chatToolPartUtilities.js';
 import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { AccessibilityWorkbenchSettingId } from '../../../../accessibility/browser/accessibilityConfiguration.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { HoverStyle } from '../../../../../../base/browser/ui/hover/hover.js';
 import { ILanguageModelToolsService } from '../../../common/tools/languageModelToolsService.js';
+import { isEqual } from '../../../../../../base/common/resources.js';
 
 export class ChatProgressContentPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
@@ -31,9 +33,10 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 	private readonly showSpinner: boolean;
 	private readonly isHidden: boolean;
 	private readonly renderedMessage = this._register(new MutableDisposable<IRenderedMarkdown>());
+	private currentContent: IMarkdownString;
 
 	constructor(
-		progress: IChatProgressMessage | IChatTask | IChatTaskSerialized,
+		progress: IChatProgressMessage | IChatTask | IChatTaskSerialized | { content: IMarkdownString },
 		private readonly chatContentMarkdownRenderer: IMarkdownRenderer,
 		context: IChatContentPartRenderContext,
 		forceShowSpinner: boolean | undefined,
@@ -45,6 +48,7 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
+		this.currentContent = progress.content;
 
 		const followingContent = context.content.slice(context.contentIndex + 1);
 		this.showSpinner = forceShowSpinner ?? shouldShowSpinner(followingContent, context.element);
@@ -100,44 +104,17 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 
 		// Needs rerender when spinner state changes
 		const showSpinner = shouldShowSpinner(followingContent, element);
+
+		// Needs rerender when content changes
+		if (other.kind === 'progressMessage' && other.content.value !== this.currentContent.value) {
+			return false;
+		}
+
 		return other.kind === 'progressMessage' && this.showSpinner === showSpinner;
 	}
 
 	private createApprovalMessage(): IMarkdownString | undefined {
-		if (!this.toolInvocation) {
-			return undefined;
-		}
-
-		const reason = IChatToolInvocation.executionConfirmedOrDenied(this.toolInvocation);
-		if (!reason || typeof reason === 'boolean') {
-			return undefined;
-		}
-
-		let md: string;
-		switch (reason.type) {
-			case ToolConfirmKind.Setting:
-				md = localize('chat.autoapprove.setting', 'Auto approved by {0}', createMarkdownCommandLink({ title: '`' + reason.id + '`', id: 'workbench.action.openSettings', arguments: [reason.id] }, false));
-				break;
-			case ToolConfirmKind.LmServicePerTool:
-				md = reason.scope === 'session'
-					? localize('chat.autoapprove.lmServicePerTool.session', 'Auto approved for this session')
-					: reason.scope === 'workspace'
-						? localize('chat.autoapprove.lmServicePerTool.workspace', 'Auto approved for this workspace')
-						: localize('chat.autoapprove.lmServicePerTool.profile', 'Auto approved for this profile');
-				md += ' (' + createMarkdownCommandLink({ title: localize('edit', 'Edit'), id: 'workbench.action.chat.editToolApproval', arguments: [reason.scope] }) + ')';
-				break;
-			case ToolConfirmKind.UserAction:
-			case ToolConfirmKind.Denied:
-			case ToolConfirmKind.ConfirmationNotNeeded:
-			default:
-				return;
-		}
-
-		if (!md) {
-			return undefined;
-		}
-
-		return new MarkdownString(md, { isTrusted: true });
+		return this.toolInvocation && getToolApprovalMessage(this.toolInvocation);
 	}
 }
 
@@ -188,8 +165,9 @@ export class ChatWorkingProgressContentPart extends ChatProgressContentPart impl
 			content: new MarkdownString().appendText(localize('workingMessage', "Working..."))
 		};
 		super(progressMessage, chatContentMarkdownRenderer, context, undefined, undefined, undefined, undefined, instantiationService, chatMarkdownAnchorService, configurationService);
+		this.domNode.classList.add('working-progress');
 		this._register(languageModelToolsService.onDidPrepareToolCallBecomeUnresponsive(e => {
-			if (context.element.sessionId === e.sessionId) {
+			if (isEqual(context.element.sessionResource, e.sessionResource)) {
 				this.updateMessage(new MarkdownString(localize('toolCallUnresponsive', "Waiting for tool '{0}' to respond...", e.toolData.displayName)));
 			}
 		}));

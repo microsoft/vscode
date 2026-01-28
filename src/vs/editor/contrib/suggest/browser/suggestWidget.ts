@@ -270,7 +270,7 @@ export class SuggestWidget implements IDisposable {
 			listInactiveFocusOutline: activeContrastBorder
 		}));
 
-		this._status = instantiationService.createInstance(SuggestWidgetStatus, this.element.domNode, suggestWidgetStatusbarMenu, { allowIcons: true });
+		this._status = instantiationService.createInstance(SuggestWidgetStatus, this.element.domNode, suggestWidgetStatusbarMenu, undefined);
 		const applyStatusBarStyle = () => this.element.domNode.classList.toggle('with-status-bar', this.editor.getOption(EditorOption.suggest).showStatusBar);
 		applyStatusBarStyle();
 

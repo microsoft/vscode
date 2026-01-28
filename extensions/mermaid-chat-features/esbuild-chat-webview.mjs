@@ -10,9 +10,16 @@ const srcDir = path.join(import.meta.dirname, 'chat-webview-src');
 const outDir = path.join(import.meta.dirname, 'chat-webview-out');
 
 run({
-	entryPoints: [
-		path.join(srcDir, 'index.ts'),
-	],
+	entryPoints: {
+		'index': path.join(srcDir, 'index.ts'),
+		'index-editor': path.join(srcDir, 'index-editor.ts'),
+		'codicon': path.join(import.meta.dirname, 'node_modules', '@vscode', 'codicons', 'dist', 'codicon.css'),
+	},
 	srcDir,
 	outdir: outDir,
+	additionalOptions: {
+		loader: {
+			'.ttf': 'dataurl',
+		}
+	}
 }, process.argv);

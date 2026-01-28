@@ -31,6 +31,11 @@ jobs:
           versionSource: fromFile
           versionFilePath: .nvmrc
 
+      - template: ./distro/download-distro.yml@self
+
+      - script: node build/azure-pipelines/distro/mixin-quality.ts
+        displayName: Mixin distro quality
+
       - task: AzureKeyVault@2
         displayName: "Azure Key Vault: Get Secrets"
         inputs:

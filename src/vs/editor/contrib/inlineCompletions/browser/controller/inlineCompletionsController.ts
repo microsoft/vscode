@@ -32,6 +32,7 @@ import { CursorChangeReason } from '../../../../common/cursorEvents.js';
 import { ILanguageFeatureDebounceService } from '../../../../common/services/languageFeatureDebounce.js';
 import { ILanguageFeaturesService } from '../../../../common/services/languageFeatures.js';
 import { FIND_IDS } from '../../../find/browser/findModel.js';
+import { NextMarkerAction, NextMarkerInFilesAction, PrevMarkerAction, PrevMarkerInFilesAction } from '../../../gotoError/browser/gotoError.js';
 import { InsertLineAfterAction, InsertLineBeforeAction } from '../../../linesOperations/browser/linesOperations.js';
 import { InlineSuggestionHintsContentWidget } from '../hintsWidget/inlineCompletionsHintsWidget.js';
 import { TextModelChangeRecorder } from '../model/changeRecorder.js';
@@ -224,6 +225,10 @@ export class InlineCompletionsController extends Disposable {
 			InsertLineAfterAction.ID,
 			InsertLineBeforeAction.ID,
 			FIND_IDS.NextMatchFindAction,
+			NextMarkerAction.ID,
+			PrevMarkerAction.ID,
+			NextMarkerInFilesAction.ID,
+			PrevMarkerInFilesAction.ID,
 			...TriggerInlineEditCommandsRegistry.getRegisteredCommands(),
 		]);
 		this._register(this._commandService.onDidExecuteCommand((e) => {

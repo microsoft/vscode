@@ -50,7 +50,6 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 			if (!requestInProgress) {
 				return;
 			}
-			alert(localize('chat.backgroundRequest', "Chat session will continue in the background."));
 			this.disposeRequest(e);
 		}));
 	}
@@ -63,8 +62,10 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 		super.dispose();
 	}
 
-	acceptRequest(uri: URI): void {
-		this._accessibilitySignalService.playSignal(AccessibilitySignal.chatRequestSent, { allowManyInParallel: true });
+	acceptRequest(uri: URI, skipRequestSignal?: boolean): void {
+		if (!skipRequestSignal) {
+			this._accessibilitySignalService.playSignal(AccessibilitySignal.chatRequestSent, { allowManyInParallel: true });
+		}
 		this._pendingSignalMap.set(uri, this._instantiationService.createInstance(AccessibilityProgressSignalScheduler, CHAT_RESPONSE_PENDING_ALLOWANCE_MS, undefined));
 	}
 

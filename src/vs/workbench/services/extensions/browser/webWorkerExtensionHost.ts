@@ -313,6 +313,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 				appUriScheme: this._productService.urlProtocol,
 				appLanguage: platform.language,
 				isExtensionTelemetryLoggingOnly: isLoggingOnly(this._productService, this._environmentService),
+				isPortable: false,
 				extensionDevelopmentLocationURI: this._environmentService.extensionDevelopmentLocationURI,
 				extensionTestsLocationURI: this._environmentService.extensionTestsLocationURI,
 				globalStorageHome: this._userDataProfilesService.defaultProfile.globalStorageHome,
@@ -323,7 +324,8 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 				configuration: workspace.configuration || undefined,
 				id: workspace.id,
 				name: this._labelService.getWorkspaceLabel(workspace),
-				transient: workspace.transient
+				transient: workspace.transient,
+				isAgentSessionsWorkspace: workspace.isAgentSessionsWorkspace
 			},
 			consoleForward: {
 				includeStack: false,
@@ -339,6 +341,8 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 				firstSessionDate: this._telemetryService.firstSessionDate,
 				msftInternal: this._telemetryService.msftInternal
 			},
+			remoteExtensionTips: this._productService.remoteExtensionTips,
+			virtualWorkspaceExtensionTips: this._productService.virtualWorkspaceExtensionTips,
 			logLevel: this._logService.getLevel(),
 			loggers: [...this._loggerService.getRegisteredLoggers()],
 			logsLocation: this._extensionHostLogsLocation,
@@ -356,5 +360,5 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 const extensionHostWorkerMainDescriptor = new WebWorkerDescriptor({
 	label: 'extensionHostWorkerMain',
 	esmModuleLocation: () => FileAccess.asBrowserUri('vs/workbench/api/worker/extensionHostWorkerMain.js'),
-	esmModuleLocationBundler: () => new URL('../../../api/worker/extensionHostWorkerMain.ts?workerModule', import.meta.url),
+	esmModuleLocationBundler: () => new URL('../../../api/worker/extensionHostWorkerMain.ts?esm', import.meta.url),
 });

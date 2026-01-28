@@ -963,11 +963,9 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 	}
 
 	protected renderSettingToolbar(container: HTMLElement): ToolBar {
-		const toggleMenuKeybinding = this._keybindingService.lookupKeybinding(SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU);
-		let toggleMenuTitle = localize('settingsContextMenuTitle', "More Actions... ");
-		if (toggleMenuKeybinding) {
-			toggleMenuTitle += ` (${toggleMenuKeybinding && toggleMenuKeybinding.getLabel()})`;
-		}
+		const toggleMenuTitle = this._keybindingService.appendKeybinding(
+			localize('settingsContextMenuTitle', "More Actions... "),
+			SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU);
 
 		const toolbar = new ToolBar(container, this._contextMenuService, {
 			toggleMenuTitle,
@@ -1519,7 +1517,7 @@ class SettingObjectRenderer extends AbstractSettingObjectRenderer implements ITr
 
 	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingObjectItemTemplate, onChange: (value: Record<string, unknown> | undefined) => void): void {
 		const items = getObjectDisplayValue(dataElement);
-		const { key, objectProperties, objectPatternProperties, objectAdditionalProperties } = dataElement.setting;
+		const { key, objectProperties, objectPatternProperties, objectAdditionalProperties, propertyNames } = dataElement.setting;
 
 		template.objectDropdownWidget!.setValue(items, {
 			settingKey: key,
@@ -1530,7 +1528,8 @@ class SettingObjectRenderer extends AbstractSettingObjectRenderer implements ITr
 				)
 				: true,
 			keySuggester: createObjectKeySuggester(dataElement),
-			valueSuggester: createObjectValueSuggester(dataElement)
+			valueSuggester: createObjectValueSuggester(dataElement),
+			propertyNames
 		});
 
 		template.context = dataElement;

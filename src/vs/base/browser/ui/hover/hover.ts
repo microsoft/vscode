@@ -235,6 +235,12 @@ export interface IHoverOptions {
 	 * Options that define how the hover looks.
 	 */
 	appearance?: IHoverAppearanceOptions;
+
+	/**
+	 * An optional callback that is called when the hover is shown. This is called
+	 * later for delayed hovers.
+	 */
+	onDidShow?(): void;
 }
 
 // `target` is ignored for delayed hover methods as it's included in the method and added
@@ -266,6 +272,12 @@ export interface IHoverLifecycleOptions {
 	 * ```
 	 */
 	groupId?: string;
+
+	/**
+	 * Whether to use a reduced delay before showing the hover. If true, the
+	 * `workbench.hover.reducedDelay` setting is used instead of `workbench.hover.delay`.
+	 */
+	reducedDelay?: boolean;
 
 	/**
 	 * Whether to set up space and enter keyboard events for the hover, when these are pressed when

@@ -7,7 +7,7 @@ import { IDragAndDropData } from '../../dnd.js';
 import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListDragAndDrop, IListDragOverReaction, IListMouseEvent, IListTouchEvent, IListVirtualDelegate } from '../list/list.js';
 import { ElementsDragAndDropData, ListViewTargetSector } from '../list/listView.js';
 import { IListStyles } from '../list/listWidget.js';
-import { ComposedTreeDelegate, TreeFindMode as TreeFindMode, IAbstractTreeOptions, IAbstractTreeOptionsUpdate, TreeFindMatchType, AbstractTreePart, LabelFuzzyScore, FindFilter, FindController, ITreeFindToggleChangeEvent, IFindControllerOptions, IStickyScrollDelegate, AbstractTree } from './abstractTree.js';
+import { ComposedTreeDelegate, TreeFindMode, IAbstractTreeOptions, IAbstractTreeOptionsUpdate, TreeFindMatchType, AbstractTreePart, LabelFuzzyScore, FindFilter, FindController, ITreeFindToggleChangeEvent, IFindControllerOptions, IStickyScrollDelegate, AbstractTree } from './abstractTree.js';
 import { ICompressedTreeElement, ICompressedTreeNode } from './compressedObjectTreeModel.js';
 import { getVisibleState, isFilterResult } from './indexTreeModel.js';
 import { CompressibleObjectTree, ICompressibleKeyboardNavigationLabelProvider, ICompressibleObjectTreeOptions, ICompressibleTreeRenderer, IObjectTreeOptions, IObjectTreeSetChildrenOptions, ObjectTree } from './objectTree.js';
@@ -424,7 +424,10 @@ function asObjectTreeOptions<TInput, T, TFilterData>(options?: IAsyncDataTreeOpt
 		identityProvider: options.identityProvider && {
 			getId(el) {
 				return options.identityProvider!.getId(el.element as T);
-			}
+			},
+			getGroupId: options.identityProvider!.getGroupId ? (el) => {
+				return options.identityProvider!.getGroupId!(el.element as T);
+			} : undefined
 		},
 		dnd: options.dnd && new AsyncDataTreeNodeListDragAndDrop(options.dnd),
 		multipleSelectionController: options.multipleSelectionController && {

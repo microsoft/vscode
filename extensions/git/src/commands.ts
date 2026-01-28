@@ -1155,7 +1155,7 @@ export class CommandCenter {
 			path = result[0].fsPath;
 		}
 
-		await this.model.openRepository(path, true);
+		await this.model.openRepository(path, true, true);
 	}
 
 	@command('git.reopenClosedRepositories', { repository: false })
@@ -1191,7 +1191,7 @@ export class CommandCenter {
 		}
 
 		for (const repository of closedRepositories) {
-			await this.model.openRepository(repository, true);
+			await this.model.openRepository(repository, true, true);
 		}
 	}
 
@@ -1403,6 +1403,41 @@ export class CommandCenter {
 		// Close active editor and open the renamed file
 		await commands.executeCommand('workbench.action.closeActiveEditor');
 		await commands.executeCommand('vscode.open', Uri.file(path.join(repository.root, to)), { viewColumn: ViewColumn.Active });
+	}
+
+	@command('git.delete')
+	async delete(uri: Uri | undefined): Promise<void> {
+		const activeDocument = window.activeTextEditor?.document;
+		uri = uri ?? activeDocument?.uri;
+		if (!uri) {
+			return;
+		}
+
+		const repository = this.model.getRepository(uri);
+		if (!repository) {
+			return;
+		}
+
+		const allChangedResources = [
+			...repository.workingTreeGroup.resourceStates,
+			...repository.indexGroup.resourceStates,
+			...repository.mergeGroup.resourceStates,
+			...repository.untrackedGroup.resourceStates
+		];
+
+		// Check if file has uncommitted changes
+		const uriString = uri.toString();
+		if (allChangedResources.some(o => pathEquals(o.resourceUri.toString(), uriString))) {
+			window.showInformationMessage(l10n.t('Git: Delete can only be performed on committed files without uncommitted changes.'));
+			return;
+		}
+
+		await repository.rm([uri]);
+
+		// Close the active editor if it's not dirty
+		if (activeDocument && !activeDocument.isDirty && pathEquals(activeDocument.uri.toString(), uriString)) {
+			await commands.executeCommand('workbench.action.closeActiveEditor');
+		}
 	}
 
 	@command('git.stage')
@@ -3600,7 +3635,9 @@ export class CommandCenter {
 		const defaultWorktreeRoot = this.globalState.get<string>(`${Repository.WORKTREE_ROOT_STORAGE_KEY}:${repository.root}`);
 		const defaultWorktreePath = defaultWorktreeRoot
 			? path.join(defaultWorktreeRoot, worktreeName)
-			: path.join(path.dirname(repository.root), `${path.basename(repository.root)}.worktrees`, worktreeName);
+			: repository.kind === 'worktree'
+				? path.join(path.dirname(repository.root), worktreeName)
+				: path.join(path.dirname(repository.root), `${path.basename(repository.root)}.worktrees`, worktreeName);
 
 		const disposables: Disposable[] = [];
 		const inputBox = window.createInputBox();
@@ -3664,7 +3701,7 @@ export class CommandCenter {
 	}
 
 	private async handleWorktreeConflict(path: string, message: string): Promise<void> {
-		await this.model.openRepository(path, true);
+		await this.model.openRepository(path, true, true);
 
 		const worktreeRepository = this.model.getRepository(path);
 

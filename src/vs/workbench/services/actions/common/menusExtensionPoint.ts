@@ -501,6 +501,19 @@ const apiMenus: IAPIMenu[] = [
 		supportsSubmenus: false,
 		proposed: 'chatSessionsProvider',
 	},
+	{
+		key: 'chat/editor/inlineGutter',
+		id: MenuId.ChatEditorInlineGutter,
+		description: localize('menus.chatEditorInlineGutter', "The inline gutter menu in the chat editor."),
+		supportsSubmenus: false,
+		proposed: 'contribChatEditorInlineGutterMenu',
+	},
+	{
+		key: 'chat/contextUsage/actions',
+		id: MenuId.ChatContextUsageActions,
+		description: localize('menus.chatContextUsageActions', "Actions in the chat context usage details popup."),
+		proposed: 'chatParticipantAdditions'
+	},
 ];
 
 namespace schema {

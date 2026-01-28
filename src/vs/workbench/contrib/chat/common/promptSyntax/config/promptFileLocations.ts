@@ -6,6 +6,7 @@
 import { URI } from '../../../../../../base/common/uri.js';
 import { basename, dirname } from '../../../../../../base/common/path.js';
 import { PromptsType } from '../promptTypes.js';
+import { PromptsStorage } from '../service/promptsService.js';
 
 /**
  * File extension for the reusable prompt files.
@@ -26,6 +27,11 @@ export const LEGACY_MODE_FILE_EXTENSION = '.chatmode.md';
  * File extension for the agent files.
  */
 export const AGENT_FILE_EXTENSION = '.agent.md';
+
+/**
+ * Skill file name (case insensitive).
+ */
+export const SKILL_FILENAME = 'SKILL.md';
 
 /**
  * Copilot custom instructions file name.
@@ -54,20 +60,85 @@ export const LEGACY_MODE_DEFAULT_SOURCE_FOLDER = '.github/chatmodes';
 export const AGENTS_SOURCE_FOLDER = '.github/agents';
 
 /**
- * Default agent skills workspace source folders.
+ * Tracks where prompt files originate from.
  */
-export const DEFAULT_AGENT_SKILLS_WORKSPACE_FOLDERS = [
-	{ path: '.github/skills', type: 'github-workspace' },
-	{ path: '.claude/skills', type: 'claude-workspace' }
-] as const;
+export enum PromptFileSource {
+	GitHubWorkspace = 'github-workspace',
+	CopilotPersonal = 'copilot-personal',
+	ClaudePersonal = 'claude-personal',
+	ClaudeWorkspace = 'claude-workspace',
+	ConfigWorkspace = 'config-workspace',
+	ConfigPersonal = 'config-personal',
+	ExtensionContribution = 'extension-contribution',
+	ExtensionAPI = 'extension-api',
+}
 
 /**
- * Default agent skills user home source folders.
+ * Prompt source folder path with source and storage type.
  */
-export const DEFAULT_AGENT_SKILLS_USER_HOME_FOLDERS = [
-	{ path: '.copilot/skills', type: 'copilot-personal' },
-	{ path: '.claude/skills', type: 'claude-personal' }
-] as const;
+export interface IPromptSourceFolder {
+	readonly path: string;
+	readonly source: PromptFileSource;
+	readonly storage: PromptsStorage;
+}
+
+/**
+ * Resolved prompt folder with source and storage type.
+ */
+export interface IResolvedPromptSourceFolder {
+	readonly uri: URI;
+	readonly source: PromptFileSource;
+	readonly storage: PromptsStorage;
+	/**
+	 * The original path string before resolution (e.g., '~/.copilot/agents' or '.github/agents').
+	 * Used for display purposes.
+	 */
+	readonly displayPath?: string;
+	/**
+	 * Whether this is a default location (vs user-configured).
+	 */
+	readonly isDefault?: boolean;
+}
+
+/**
+ * Resolved prompt markdown file with source and storage type.
+ */
+export interface IResolvedPromptFile {
+	readonly fileUri: URI;
+	readonly source: PromptFileSource;
+	readonly storage: PromptsStorage;
+}
+
+/**
+ * All default skill source folders (both workspace and user home).
+ */
+export const DEFAULT_SKILL_SOURCE_FOLDERS: readonly IPromptSourceFolder[] = [
+	{ path: '.github/skills', source: PromptFileSource.GitHubWorkspace, storage: PromptsStorage.local },
+	{ path: '.claude/skills', source: PromptFileSource.ClaudeWorkspace, storage: PromptsStorage.local },
+	{ path: '~/.copilot/skills', source: PromptFileSource.CopilotPersonal, storage: PromptsStorage.user },
+	{ path: '~/.claude/skills', source: PromptFileSource.ClaudePersonal, storage: PromptsStorage.user },
+];
+
+/**
+ * Default instructions source folders.
+ */
+export const DEFAULT_INSTRUCTIONS_SOURCE_FOLDERS: readonly IPromptSourceFolder[] = [
+	{ path: INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, source: PromptFileSource.GitHubWorkspace, storage: PromptsStorage.local },
+];
+
+/**
+ * Default prompt source folders.
+ */
+export const DEFAULT_PROMPT_SOURCE_FOLDERS: readonly IPromptSourceFolder[] = [
+	{ path: PROMPT_DEFAULT_SOURCE_FOLDER, source: PromptFileSource.GitHubWorkspace, storage: PromptsStorage.local },
+];
+
+/**
+ * Default agent source folders.
+ */
+export const DEFAULT_AGENT_SOURCE_FOLDERS: readonly IPromptSourceFolder[] = [
+	{ path: AGENTS_SOURCE_FOLDER, source: PromptFileSource.GitHubWorkspace, storage: PromptsStorage.local },
+];
 
 /**
  * Helper function to check if a file is directly in the .github/agents/ folder (not in subfolders).
@@ -95,8 +166,13 @@ export function getPromptFileType(fileUri: URI): PromptsType | undefined {
 		return PromptsType.agent;
 	}
 
+	if (filename.toLowerCase() === SKILL_FILENAME.toLowerCase()) {
+		return PromptsType.skill;
+	}
+
 	// Check if it's a .md file in the .github/agents/ folder
-	if (filename.endsWith('.md') && isInAgentsFolder(fileUri)) {
+	// Exclude README.md to allow documentation files
+	if (filename.endsWith('.md') && filename !== 'README.md' && isInAgentsFolder(fileUri)) {
 		return PromptsType.agent;
 	}
 
@@ -118,19 +194,23 @@ export function getPromptFileExtension(type: PromptsType): string {
 			return PROMPT_FILE_EXTENSION;
 		case PromptsType.agent:
 			return AGENT_FILE_EXTENSION;
+		case PromptsType.skill:
+			return SKILL_FILENAME;
 		default:
 			throw new Error('Unknown prompt type');
 	}
 }
 
-export function getPromptFileDefaultLocation(type: PromptsType): string {
+export function getPromptFileDefaultLocations(type: PromptsType): readonly IPromptSourceFolder[] {
 	switch (type) {
 		case PromptsType.instructions:
-			return INSTRUCTIONS_DEFAULT_SOURCE_FOLDER;
+			return DEFAULT_INSTRUCTIONS_SOURCE_FOLDERS;
 		case PromptsType.prompt:
-			return PROMPT_DEFAULT_SOURCE_FOLDER;
+			return DEFAULT_PROMPT_SOURCE_FOLDERS;
 		case PromptsType.agent:
-			return AGENTS_SOURCE_FOLDER;
+			return DEFAULT_AGENT_SOURCE_FOLDERS;
+		case PromptsType.skill:
+			return DEFAULT_SKILL_SOURCE_FOLDERS;
 		default:
 			throw new Error('Unknown prompt type');
 	}
@@ -160,8 +240,14 @@ export function getCleanPromptName(fileUri: URI): string {
 		return basename(fileUri.path, '.md');
 	}
 
+	// For SKILL.md files (case insensitive), return 'SKILL'
+	if (fileName.toLowerCase() === SKILL_FILENAME.toLowerCase()) {
+		return basename(fileUri.path, '.md');
+	}
+
 	// For .md files in .github/agents/ folder, treat them as agent files
-	if (fileName.endsWith('.md') && isInAgentsFolder(fileUri)) {
+	// Exclude README.md to allow documentation files
+	if (fileName.endsWith('.md') && fileName !== 'README.md' && isInAgentsFolder(fileUri)) {
 		return basename(fileUri.path, '.md');
 	}
 

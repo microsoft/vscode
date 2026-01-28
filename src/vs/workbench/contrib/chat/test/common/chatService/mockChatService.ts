@@ -21,6 +21,7 @@ export class MockChatService implements IChatService {
 	editingSessions = [];
 	transferredSessionResource: URI | undefined;
 	readonly onDidSubmitRequest: Event<{ readonly chatSessionResource: URI }> = Event.None;
+	readonly onDidCreateModel: Event<IChatModel> = Event.None;
 
 	private sessions = new ResourceMap<IChatModel>();
 
@@ -100,6 +101,10 @@ export class MockChatService implements IChatService {
 
 	readonly onDidPerformUserAction: Event<IChatUserActionEvent> = undefined!;
 	notifyUserAction(event: IChatUserActionEvent): void {
+		throw new Error('Method not implemented.');
+	}
+	readonly onDidReceiveQuestionCarouselAnswer: Event<{ requestId: string; resolveId: string; answers: Record<string, unknown> | undefined }> = undefined!;
+	notifyQuestionCarouselAnswer(requestId: string, resolveId: string, answers: Record<string, unknown> | undefined): void {
 		throw new Error('Method not implemented.');
 	}
 	readonly onDidDisposeSession: Event<{ sessionResource: URI[]; reason: 'cleared' }> = undefined!;

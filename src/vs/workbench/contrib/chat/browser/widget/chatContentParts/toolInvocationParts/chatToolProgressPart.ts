@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../../../base/browser/dom.js';
+import { renderAsPlaintext } from '../../../../../../../base/browser/markdownRenderer.js';
 import { status } from '../../../../../../../base/browser/ui/aria/aria.js';
 import { IMarkdownString, MarkdownString } from '../../../../../../../base/common/htmlContent.js';
+import { stripIcons } from '../../../../../../../base/common/iconLabels.js';
 import { autorun } from '../../../../../../../base/common/observable.js';
 import { IMarkdownRenderer } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
@@ -36,9 +38,15 @@ export class ChatToolProgressSubPart extends BaseChatToolInvocationSubPart {
 	}
 
 	private createProgressPart(): HTMLElement {
-		if (IChatToolInvocation.isComplete(this.toolInvocation) && this.toolIsConfirmed && this.toolInvocation.pastTenseMessage) {
+		const isComplete = IChatToolInvocation.isComplete(this.toolInvocation);
+
+		if (isComplete && this.toolIsConfirmed && this.toolInvocation.pastTenseMessage) {
 			const key = this.getAnnouncementKey('complete');
 			const completionContent = this.toolInvocation.pastTenseMessage ?? this.toolInvocation.invocationMessage;
+			// Don't render anything if there's no meaningful content
+			if (!this.hasMeaningfulContent(completionContent)) {
+				return document.createElement('div');
+			}
 			const shouldAnnounce = this.toolInvocation.kind === 'toolInvocation' && this.hasMeaningfulContent(completionContent) ? this.computeShouldAnnounce(key) : false;
 			const part = this.renderProgressContent(completionContent, shouldAnnounce);
 			this._register(part);
@@ -50,6 +58,11 @@ export class ChatToolProgressSubPart extends BaseChatToolInvocationSubPart {
 				const progress = progressObservable?.read(reader);
 				const key = this.getAnnouncementKey('progress');
 				const progressContent = progress?.message ?? this.toolInvocation.invocationMessage;
+				// Don't render anything if there's no meaningful content
+				if (!this.hasMeaningfulContent(progressContent)) {
+					dom.clearNode(container);
+					return;
+				}
 				const shouldAnnounce = this.toolInvocation.kind === 'toolInvocation' && this.hasMeaningfulContent(progressContent) ? this.computeShouldAnnounce(key) : false;
 				const part = reader.store.add(this.renderProgressContent(progressContent, shouldAnnounce));
 				dom.reset(container, part.domNode);
@@ -99,7 +112,7 @@ export class ChatToolProgressSubPart extends BaseChatToolInvocationSubPart {
 	}
 
 	private provideScreenReaderStatus(content: IMarkdownString | string): void {
-		const message = typeof content === 'string' ? content : content.value;
+		const message = typeof content === 'string' ? content : stripIcons(renderAsPlaintext(content, { useLinkFormatter: true }));
 		status(message);
 	}
 

@@ -31,6 +31,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { TerminalCommand } from '../../../../../../platform/terminal/common/capabilities/commandDetection/terminalCommand.js';
 import type { IMarker } from '@xterm/headless';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
+import { TestXtermLogger } from '../../../../../../platform/terminal/test/common/terminalTestHelpers.js';
 
 interface ITerminalLinkActivationResult {
 	source: 'editor' | 'search';
@@ -116,7 +117,7 @@ suite('Workbench - TerminalLinkOpeners', () => {
 			}
 		} as Partial<IEditorService>);
 		const TerminalCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
-		xterm = store.add(new TerminalCtor({ allowProposedApi: true }));
+		xterm = store.add(new TerminalCtor({ allowProposedApi: true, logger: TestXtermLogger }));
 	});
 
 	suite('TerminalSearchLinkOpener', () => {

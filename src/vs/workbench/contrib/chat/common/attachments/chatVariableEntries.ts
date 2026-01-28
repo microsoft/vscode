@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { basename } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -15,7 +16,9 @@ import { MarkerSeverity, IMarker } from '../../../../../platform/markers/common/
 import { ISCMHistoryItem } from '../../../scm/common/history.js';
 import { IChatContentReference } from '../chatService/chatService.js';
 import { IChatRequestVariableValue } from './chatVariables.js';
-import { IToolData, ToolSet } from '../tools/languageModelToolsService.js';
+import { IToolData, IToolSet } from '../tools/languageModelToolsService.js';
+import { decodeBase64, encodeBase64, VSBuffer } from '../../../../../base/common/buffer.js';
+import { Mutable } from '../../../../../base/common/types.js';
 
 
 interface IBaseChatRequestVariableEntry {
@@ -38,6 +41,7 @@ interface IBaseChatRequestVariableEntry {
 
 export interface IGenericChatRequestVariableEntry extends IBaseChatRequestVariableEntry {
 	kind: 'generic';
+	tooltip?: IMarkdownString;
 }
 
 export interface IChatRequestDirectoryEntry extends IBaseChatRequestVariableEntry {
@@ -71,6 +75,12 @@ export interface StringChatContextValue {
 	modelDescription?: string;
 	icon: ThemeIcon;
 	uri: URI;
+	tooltip?: IMarkdownString;
+	/**
+	 * Command ID to execute when this context item is clicked.
+	 */
+	readonly commandId?: string;
+	readonly handle: number;
 }
 
 export interface IChatRequestImplicitVariableEntry extends IBaseChatRequestVariableEntry {
@@ -88,6 +98,12 @@ export interface IChatRequestStringVariableEntry extends IBaseChatRequestVariabl
 	readonly modelDescription?: string;
 	readonly icon: ThemeIcon;
 	readonly uri: URI;
+	readonly tooltip?: IMarkdownString;
+	/**
+	 * Command ID to execute when this context item is clicked.
+	 */
+	readonly commandId?: string;
+	readonly handle: number;
 }
 
 export interface IChatRequestWorkspaceVariableEntry extends IBaseChatRequestVariableEntry {
@@ -288,8 +304,44 @@ export namespace IChatRequestVariableEntry {
 				? entry.value.uri
 				: undefined;
 	}
-}
 
+	export function toExport(v: IChatRequestVariableEntry): IChatRequestVariableEntry {
+		if (v.value instanceof Uint8Array) {
+			// 'dup' here is needed otherwise TS complains about the narrowed `value` in a spread operation
+			const dup: Mutable<IChatRequestVariableEntry> = { ...v };
+			dup.value = { $base64: encodeBase64(VSBuffer.wrap(v.value)) };
+			return dup;
+		}
+
+		return v;
+	}
+
+	export function fromExport(v: IChatRequestVariableEntry): IChatRequestVariableEntry {
+		// Old variables format
+		// eslint-disable-next-line local/code-no-in-operator
+		if (v && 'values' in v && Array.isArray(v.values)) {
+			return {
+				kind: 'generic',
+				id: v.id ?? '',
+				name: v.name,
+				value: v.values[0]?.value,
+				range: v.range,
+				modelDescription: v.modelDescription,
+				references: v.references
+			};
+		} else {
+			// eslint-disable-next-line local/code-no-in-operator
+			if (v.value && typeof v.value === 'object' && '$base64' in v.value && typeof v.value.$base64 === 'string') {
+				// 'dup' here is needed otherwise TS complains about the narrowed `value` in a spread operation
+				const dup: Mutable<IChatRequestVariableEntry> = { ...v };
+				dup.value = decodeBase64(v.value.$base64).buffer;
+				return dup;
+			}
+
+			return v;
+		}
+	}
+}
 
 export function isImplicitVariableEntry(obj: IChatRequestVariableEntry): obj is IChatRequestImplicitVariableEntry {
 	return obj.kind === 'implicit';
@@ -439,7 +491,7 @@ export function toToolVariableEntry(entry: IToolData, range?: IOffsetRange): ICh
 	};
 }
 
-export function toToolSetVariableEntry(entry: ToolSet, range?: IOffsetRange): IChatRequestToolSetEntry {
+export function toToolSetVariableEntry(entry: IToolSet, range?: IOffsetRange): IChatRequestToolSetEntry {
 	return {
 		kind: 'toolset',
 		id: entry.id,

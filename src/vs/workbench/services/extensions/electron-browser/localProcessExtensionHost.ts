@@ -482,6 +482,7 @@ export class NativeLocalProcessExtensionHost extends Disposable implements IExte
 				appHost: this._productService.embedderIdentifier || 'desktop',
 				appUriScheme: this._productService.urlProtocol,
 				isExtensionTelemetryLoggingOnly: isLoggingOnly(this._productService, this._environmentService),
+				isPortable: this._environmentService.isPortable,
 				appLanguage: platform.language,
 				extensionDevelopmentLocationURI: this._environmentService.extensionDevelopmentLocationURI,
 				extensionTestsLocationURI: this._environmentService.extensionTestsLocationURI,
@@ -494,7 +495,8 @@ export class NativeLocalProcessExtensionHost extends Disposable implements IExte
 				id: workspace.id,
 				name: this._labelService.getWorkspaceLabel(workspace),
 				isUntitled: workspace.configuration ? isUntitledWorkspace(workspace.configuration, this._environmentService) : false,
-				transient: workspace.transient
+				transient: workspace.transient,
+				isAgentSessionsWorkspace: workspace.isAgentSessionsWorkspace
 			},
 			remote: {
 				authority: this._environmentService.remoteAuthority,
@@ -514,6 +516,8 @@ export class NativeLocalProcessExtensionHost extends Disposable implements IExte
 				firstSessionDate: this._telemetryService.firstSessionDate,
 				msftInternal: this._telemetryService.msftInternal
 			},
+			remoteExtensionTips: this._productService.remoteExtensionTips,
+			virtualWorkspaceExtensionTips: this._productService.virtualWorkspaceExtensionTips,
 			logLevel: this._logService.getLevel(),
 			loggers: [...this._loggerService.getRegisteredLoggers()],
 			logsLocation: this._environmentService.extHostLogsPath,

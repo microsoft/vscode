@@ -44,7 +44,7 @@ export interface ICommandLineAnalyzerOptions {
 	os: OperatingSystem;
 	treeSitterLanguage: TreeSitterCommandParserLanguage;
 	terminalToolSessionId: string;
-	chatSessionId: string | undefined;
+	chatSessionResource: URI | undefined;
 }
 
 export interface ICommandLineAnalyzerResult {
@@ -60,7 +60,9 @@ export interface ICommandLineAnalyzerResult {
 	 * - `undefined`: This analyzer does not make an approval/denial decision
 	 */
 	readonly isAutoApproved?: boolean;
-	readonly disclaimers?: readonly string[];
+	readonly disclaimers?: readonly (string | IMarkdownString)[];
 	readonly autoApproveInfo?: IMarkdownString;
 	readonly customActions?: ToolConfirmationAction[];
+	// Indicates that auto approval should be forced (e.g. sandboxed commands).
+	readonly forceAutoApproval?: boolean;
 }

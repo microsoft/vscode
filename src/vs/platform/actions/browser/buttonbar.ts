@@ -29,6 +29,8 @@ export type IButtonConfigProvider = (action: IAction, index: number) => {
 export interface IWorkbenchButtonBarOptions {
 	telemetrySource?: string;
 	buttonConfigProvider?: IButtonConfigProvider;
+	small?: boolean;
+	disableWhileRunning?: boolean;
 }
 
 export class WorkbenchButtonBar extends ButtonBar {
@@ -85,12 +87,9 @@ export class WorkbenchButtonBar extends ButtonBar {
 			const actionOrSubmenu = actions[i];
 			let action: IAction;
 			let btn: IButton;
-			let tooltip: string = '';
-			const kb = actionOrSubmenu instanceof SubmenuAction ? '' : this._keybindingService.lookupKeybinding(actionOrSubmenu.id);
-			if (kb) {
-				tooltip = localize('labelWithKeybinding', "{0} ({1})", actionOrSubmenu.tooltip || actionOrSubmenu.label, kb.getLabel());
-			} else {
-				tooltip = actionOrSubmenu.tooltip || actionOrSubmenu.label;
+			let tooltip = actionOrSubmenu.tooltip || actionOrSubmenu.label;
+			if (!(actionOrSubmenu instanceof SubmenuAction)) {
+				tooltip = this._keybindingService.appendKeybinding(tooltip, actionOrSubmenu.id);
 			}
 			if (actionOrSubmenu instanceof SubmenuAction && actionOrSubmenu.actions.length > 0) {
 				const [first, ...rest] = actionOrSubmenu.actions;
@@ -102,6 +101,7 @@ export class WorkbenchButtonBar extends ButtonBar {
 					contextMenuProvider: this._contextMenuService,
 					ariaLabel: tooltip,
 					supportIcons: true,
+					small: this._options?.small,
 				});
 			} else {
 				action = actionOrSubmenu;
@@ -109,6 +109,7 @@ export class WorkbenchButtonBar extends ButtonBar {
 					secondary: conifgProvider(action, i)?.isSecondary ?? secondary,
 					ariaLabel: tooltip,
 					supportIcons: true,
+					small: this._options?.small,
 				});
 			}
 
@@ -137,7 +138,16 @@ export class WorkbenchButtonBar extends ButtonBar {
 
 			this._updateStore.add(this._hoverService.setupManagedHover(hoverDelegate, btn.element, tooltip));
 			this._updateStore.add(btn.onDidClick(async () => {
-				this._actionRunner.run(action);
+				if (this._options?.disableWhileRunning) {
+					btn.enabled = false;
+					try {
+						await this._actionRunner.run(action);
+					} finally {
+						btn.enabled = action.enabled;
+					}
+				} else {
+					this._actionRunner.run(action);
+				}
 			}));
 		}
 
@@ -145,7 +155,8 @@ export class WorkbenchButtonBar extends ButtonBar {
 
 			const btn = this.addButton({
 				secondary: true,
-				ariaLabel: localize('moreActions', "More Actions")
+				ariaLabel: localize('moreActions', "More Actions"),
+				small: this._options?.small,
 			});
 
 			btn.icon = Codicon.dropDownButton;

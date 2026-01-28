@@ -37,6 +37,7 @@ export interface IToolTerminal {
 	instance: ITerminalInstance;
 	shellIntegrationQuality: ShellIntegrationQuality;
 	receivedUserInput?: boolean;
+	isBackground?: boolean;
 }
 
 export class ToolTerminalCreator {
