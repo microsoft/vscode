@@ -35,7 +35,7 @@ TEST_DIR=$(cd "$(dirname "$0")/.." && pwd)
 sudo cp -r "$TEST_DIR"/* "$ROOTFS_DIR/root/"
 
 echo "Downloading Ubuntu 24.04 generic-64k kernel for ARM64"
-KERNEL_URL="http://azure.ports.ubuntu.com/ubuntu-ports/pool/main/l/linux/linux-image-unsigned-6.8.0-90-generic-64k_6.8.0-90.91_arm64.deb"
+KERNEL_URL="https://ports.ubuntu.com/ubuntu-ports/pool/main/l/linux/linux-image-unsigned-6.8.0-90-generic-64k_6.8.0-90.91_arm64.deb"
 KERNEL_DIR=$(mktemp -d)
 curl -fL "$KERNEL_URL" -o "$KERNEL_DIR/kernel.deb"
 
