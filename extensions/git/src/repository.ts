@@ -2387,7 +2387,7 @@ export class Repository implements Disposable {
 		return this.run(Operation.Show, () => this.repository.detectObjectType(object));
 	}
 
-	async apply(patch: string, options?: { reverse?: boolean; threeWay?: boolean; allowEmpty?: boolean }): Promise<void> {
+	async apply(patch: string, options?: { allowEmpty?: boolean; reverse?: boolean; threeWay?: boolean }): Promise<void> {
 		return await this.run(Operation.Apply, () => this.repository.apply(patch, options));
 	}
 
