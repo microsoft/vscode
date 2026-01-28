@@ -191,6 +191,7 @@ export class ChatContextUsageWidget extends Disposable {
 		store.add(addDisposableListener(this.domNode, EventType.KEY_DOWN, e => {
 			const evt = new StandardKeyboardEvent(e);
 			if (evt.equals(KeyCode.Space) || evt.equals(KeyCode.Enter)) {
+				e.preventDefault();
 				showStickyHover();
 			}
 		}));
