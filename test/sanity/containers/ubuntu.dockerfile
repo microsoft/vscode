@@ -2,6 +2,14 @@ ARG MIRROR
 ARG BASE_IMAGE=ubuntu:22.04
 FROM ${MIRROR}${BASE_IMAGE}
 
+# Use Azure package mirrors
+ARG TARGETARCH
+RUN if [ "$TARGETARCH" = "amd64" ]; then \
+		sed -i 's|http://archive.ubuntu.com|http://azure.archive.ubuntu.com|g' /etc/apt/sources.list; \
+	else \
+		sed -i 's|http://ports.ubuntu.com|http://azure.ports.ubuntu.com|g' /etc/apt/sources.list; \
+	fi
+
 # Utilities
 RUN apt-get update && \
 apt-get install -y curl iproute2
