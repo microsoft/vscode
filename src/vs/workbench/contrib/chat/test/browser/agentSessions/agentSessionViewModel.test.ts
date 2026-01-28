@@ -24,7 +24,7 @@ import { TestInstantiationService } from '../../../../../../platform/instantiati
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { AgentSessionProviders, getAgentSessionProviderIcon, getAgentSessionProviderName } from '../../../browser/agentSessions/agentSessions.js';
 
-suite('Agent Sessions', () => {
+suite('AgentSessions', () => {
 
 	suite('AgentSessionsViewModel', () => {
 
@@ -1400,6 +1400,9 @@ suite('Agent Sessions', () => {
 			instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
 			instantiationService.stub(IChatSessionsService, mockChatSessionsService);
 			instantiationService.stub(ILifecycleService, disposables.add(new TestLifecycleService()));
+			// Set migration key to indicate migration has already happened
+			const storageService = instantiationService.get(IStorageService);
+			storageService.store('agentSessions.markAllReadMigration', 1, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		});
 
 		teardown(() => {
@@ -1410,11 +1413,22 @@ suite('Agent Sessions', () => {
 
 		test('should mark session as read and unread', async () => {
 			return runWithFakedTimers({}, async () => {
+				// Create session with timing after READ_STATE_INITIAL_DATE so it can be marked unread
+				const futureSessionTiming: IChatSessionItem['timing'] = {
+					created: Date.UTC(2026, 1 /* February */, 1),
+					lastRequestStarted: Date.UTC(2026, 1 /* February */, 1),
+					lastRequestEnded: Date.UTC(2026, 1 /* February */, 2),
+				};
+
 				const provider: IChatSessionItemProvider = {
 					chatSessionType: 'test-type',
 					onDidChangeChatSessionItems: Event.None,
 					provideChatSessionItems: async () => [
-						makeSimpleSessionItem('session-1'),
+						{
+							resource: URI.parse('test://session-1'),
+							label: 'Session 1',
+							timing: futureSessionTiming,
+						},
 					]
 				};
 
@@ -1520,7 +1534,7 @@ suite('Agent Sessions', () => {
 
 		test('should consider sessions before initial date as read by default', async () => {
 			return runWithFakedTimers({}, async () => {
-				// Session with timing before the READ_STATE_INITIAL_DATE (January 28, 2026)
+				// Without migration, all sessions are unread by default
 				const oldSessionTiming: IChatSessionItem['timing'] = {
 					created: Date.UTC(2025, 10 /* November */, 1),
 					lastRequestStarted: Date.UTC(2025, 10 /* November */, 1),
@@ -1545,8 +1559,8 @@ suite('Agent Sessions', () => {
 				await viewModel.resolve(undefined);
 
 				const session = viewModel.sessions[0];
-				// Sessions before the initial date should be considered read
-				assert.strictEqual(session.isRead(), true);
+				// Sessions are unread by default (migration already happened in setup)
+				assert.strictEqual(session.isRead(), false);
 			});
 		});
 
@@ -1616,7 +1630,7 @@ suite('Agent Sessions', () => {
 
 		test('should use startTime for read state comparison when endTime is not available', async () => {
 			return runWithFakedTimers({}, async () => {
-				// Session with only startTime before initial date
+				// Session with only startTime
 				const sessionTiming: IChatSessionItem['timing'] = {
 					created: Date.UTC(2025, 10 /* November */, 1),
 					lastRequestStarted: Date.UTC(2025, 10 /* November */, 1),
@@ -1641,8 +1655,8 @@ suite('Agent Sessions', () => {
 				await viewModel.resolve(undefined);
 
 				const session = viewModel.sessions[0];
-				// Should use startTime (November 1) which is before the initial date
-				assert.strictEqual(session.isRead(), true);
+				// Sessions are unread by default
+				assert.strictEqual(session.isRead(), false);
 			});
 		});
 
@@ -1777,7 +1791,7 @@ suite('Agent Sessions', () => {
 
 		test('should not fire onDidChangeSessions when archiving an already read session', async () => {
 			return runWithFakedTimers({}, async () => {
-				// Session with timing before the READ_STATE_INITIAL_DATE (already read)
+				// Session with timing
 				const oldSessionTiming: IChatSessionItem['timing'] = {
 					created: Date.UTC(2025, 10 /* November */, 1),
 					lastRequestStarted: Date.UTC(2025, 10 /* November */, 1),
@@ -1802,7 +1816,8 @@ suite('Agent Sessions', () => {
 				await viewModel.resolve(undefined);
 
 				const session = viewModel.sessions[0];
-				// Session before the initial date should be read
+				// Mark session as read first
+				session.setRead(true);
 				assert.strictEqual(session.isRead(), true);
 
 				let changeEventCount = 0;
@@ -1813,7 +1828,7 @@ suite('Agent Sessions', () => {
 				// Archive the session
 				session.setArchived(true);
 
-				// Should fire once (for archived state change only, not for read since already read)
+				// Should fire only once for archived state change since session is already read
 				assert.strictEqual(changeEventCount, 1);
 			});
 		});
