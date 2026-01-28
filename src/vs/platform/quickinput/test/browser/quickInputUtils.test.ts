@@ -8,6 +8,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { IQuickInputButton } from '../../common/quickInput.js';
 import { quickInputButtonToAction, quickInputButtonsToActionArrays } from '../../browser/quickInputUtils.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { Action } from '../../../../base/common/actions.js';
 
 suite('QuickInputUtils', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -122,6 +123,38 @@ suite('QuickInputUtils', () => {
 
 			assert.strictEqual(action.checked, false);
 			assert.strictEqual(toggle.checked, false);
+		});
+
+		test('should create Action instance for toggle buttons', () => {
+			const toggle = { checked: false };
+			const button: IQuickInputButton = {
+				iconClass: 'toggle-icon',
+				tooltip: 'Toggle Test',
+				toggle
+			};
+
+			const action = quickInputButtonToAction(button, 'toggle-id', () => { });
+
+			// Toggle buttons should be instances of Action class
+			assert.ok(action instanceof Action, 'Toggle button action should be an instance of Action');
+			
+			// Action instances should have onDidChange event
+			assert.ok('onDidChange' in action, 'Action should have onDidChange event');
+			
+			// Verify that changing checked state fires the event
+			let changeEventFired = false;
+			const disposable = (action as Action).onDidChange(event => {
+				if (event.checked !== undefined) {
+					changeEventFired = true;
+				}
+			});
+
+			// Change the checked state
+			action.checked = true;
+
+			assert.strictEqual(changeEventFired, true, 'onDidChange event should fire when checked changes');
+			
+			disposable.dispose();
 		});
 
 		test('should use empty string for tooltip when not provided', () => {
