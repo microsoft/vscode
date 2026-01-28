@@ -4,20 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { detectsInputRequiredPattern, OutputMonitor } from '../../browser/tools/monitoring/outputMonitor.js';
+import { detectsGenericPressAnyKeyPattern, detectsInputRequiredPattern, detectsNonInteractiveHelpPattern, detectsVSCodeTaskFinishMessage, OutputMonitor } from '../../browser/tools/monitoring/outputMonitor.js';
 import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { IPollingResult, OutputMonitorState } from '../../browser/tools/monitoring/types.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILanguageModelsService } from '../../../../chat/common/languageModels.js';
-import { IChatService } from '../../../../chat/common/chatService.js';
+import { IChatService } from '../../../../chat/common/chatService/chatService.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { ChatModel } from '../../../../chat/common/chatModel.js';
-import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
+import { ChatModel } from '../../../../chat/common/model/chatModel.js';
+import { NullLogService } from '../../../../../../platform/log/common/log.js';
+import { ITerminalLogService } from '../../../../../../platform/terminal/common/terminal.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
-import { IToolInvocationContext } from '../../../../chat/common/languageModelToolsService.js';
-import { LocalChatSessionUri } from '../../../../chat/common/chatUri.js';
+import { IToolInvocationContext } from '../../../../chat/common/tools/languageModelToolsService.js';
+import { LocalChatSessionUri } from '../../../../chat/common/model/chatUri.js';
 import { isNumber } from '../../../../../../base/common/types.js';
 
 suite('OutputMonitor', () => {
@@ -72,7 +73,7 @@ suite('OutputMonitor', () => {
 				} as any)
 			}
 		);
-		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(ITerminalLogService, new NullLogService());
 		cts = new CancellationTokenSource();
 	});
 
@@ -129,6 +130,23 @@ suite('OutputMonitor', () => {
 			await Event.toPromise(monitor.onDidFinishCommand);
 			const pollingResult = monitor.pollingResult;
 			assert.strictEqual(pollingResult?.state, OutputMonitorState.Idle);
+		});
+	});
+
+	test('non-interactive help completes without prompting', async () => {
+		return runWithFakedTimers({}, async () => {
+			execution.getOutput = () => 'press h + enter to show help';
+			instantiationService.stub(
+				ILanguageModelsService,
+				{
+					selectLanguageModels: async () => { throw new Error('language model should not be consulted'); }
+				}
+			);
+			monitor = store.add(instantiationService.createInstance(OutputMonitor, execution, undefined, createTestContext('1'), cts.token, 'test command'));
+			await Event.toPromise(monitor.onDidFinishCommand);
+			const pollingResult = monitor.pollingResult;
+			assert.strictEqual(pollingResult?.state, OutputMonitorState.Idle);
+			assert.strictEqual(pollingResult?.output, 'press h + enter to show help');
 		});
 	});
 
@@ -246,10 +264,82 @@ suite('OutputMonitor', () => {
 			assert.strictEqual(detectsInputRequiredPattern('Press any key to continue...'), true);
 			assert.strictEqual(detectsInputRequiredPattern('Press a key'), true);
 		});
+
+		test('detects non-interactive help prompts without treating them as input', () => {
+			assert.strictEqual(detectsInputRequiredPattern('press h + enter to show help'), false);
+			assert.strictEqual(detectsInputRequiredPattern('press h to show help'), false);
+			assert.strictEqual(detectsNonInteractiveHelpPattern('press h + enter to show help'), true);
+			assert.strictEqual(detectsNonInteractiveHelpPattern('press h to show help'), true);
+			assert.strictEqual(detectsNonInteractiveHelpPattern('press h to show commands'), true);
+			assert.strictEqual(detectsNonInteractiveHelpPattern('press ? to see commands'), true);
+			assert.strictEqual(detectsNonInteractiveHelpPattern('press ? + enter for options'), true);
+			assert.strictEqual(detectsNonInteractiveHelpPattern('type h + enter to show help'), true);
+			assert.strictEqual(detectsNonInteractiveHelpPattern('hit ? for help'), true);
+			assert.strictEqual(detectsNonInteractiveHelpPattern('type h to see options'), true);
+			assert.strictEqual(detectsInputRequiredPattern('press o to open the app'), false);
+			assert.strictEqual(detectsNonInteractiveHelpPattern('press o to open the app'), true);
+			assert.strictEqual(detectsInputRequiredPattern('press r to restart the server'), false);
+			assert.strictEqual(detectsNonInteractiveHelpPattern('press r to restart the server'), true);
+			assert.strictEqual(detectsInputRequiredPattern('press q to quit'), false);
+			assert.strictEqual(detectsNonInteractiveHelpPattern('press q to quit'), true);
+			assert.strictEqual(detectsInputRequiredPattern('press u to show server url'), false);
+			assert.strictEqual(detectsNonInteractiveHelpPattern('press u to show server url'), true);
+		});
+	});
+
+	suite('detectsVSCodeTaskFinishMessage', () => {
+		test('detects VS Code task completion messages', () => {
+			assert.strictEqual(detectsVSCodeTaskFinishMessage('Press any key to close the terminal.'), true);
+			assert.strictEqual(detectsVSCodeTaskFinishMessage('Terminal will be reused by tasks, press any key to close it.'), true);
+			// Case insensitive
+			assert.strictEqual(detectsVSCodeTaskFinishMessage('press any key to close the terminal.'), true);
+			assert.strictEqual(detectsVSCodeTaskFinishMessage('PRESS ANY KEY TO CLOSE THE TERMINAL.'), true);
+			// With " * " prefix (VS Code adds this to task messages)
+			assert.strictEqual(detectsVSCodeTaskFinishMessage(' *  Terminal will be reused by tasks, press any key to close it.'), true);
+			assert.strictEqual(detectsVSCodeTaskFinishMessage(' *  Press any key to close the terminal.'), true);
+		});
+
+		test('does not match generic press any key messages', () => {
+			// Regular script messages should NOT be matched
+			assert.strictEqual(detectsVSCodeTaskFinishMessage('Press any key to continue...'), false);
+			assert.strictEqual(detectsVSCodeTaskFinishMessage('Press any key to exit'), false);
+			assert.strictEqual(detectsVSCodeTaskFinishMessage('Press any key'), false);
+		});
+
+		test('does not match other prompts', () => {
+			assert.strictEqual(detectsVSCodeTaskFinishMessage('Continue? (y/n)'), false);
+			assert.strictEqual(detectsVSCodeTaskFinishMessage('Password:'), false);
+			assert.strictEqual(detectsVSCodeTaskFinishMessage('press h to show help'), false);
+		});
+	});
+
+	suite('detectsGenericPressAnyKeyPattern', () => {
+		test('detects generic press any key prompts from scripts', () => {
+			assert.strictEqual(detectsGenericPressAnyKeyPattern('Press any key to continue...'), true);
+			assert.strictEqual(detectsGenericPressAnyKeyPattern('Press any key to exit'), true);
+			assert.strictEqual(detectsGenericPressAnyKeyPattern('Press any key'), true);
+			assert.strictEqual(detectsGenericPressAnyKeyPattern('press a key to continue'), true);
+			// Case insensitive
+			assert.strictEqual(detectsGenericPressAnyKeyPattern('PRESS ANY KEY TO CONTINUE'), true);
+		});
+
+		test('does not match VS Code task finish messages', () => {
+			// These should be handled by detectsVSCodeTaskFinishMessage, not this function
+			assert.strictEqual(detectsGenericPressAnyKeyPattern('Press any key to close the terminal.'), false);
+			assert.strictEqual(detectsGenericPressAnyKeyPattern('Terminal will be reused by tasks, press any key to close it.'), false);
+			// With " * " prefix
+			assert.strictEqual(detectsGenericPressAnyKeyPattern(' *  Terminal will be reused by tasks, press any key to close it.'), false);
+			assert.strictEqual(detectsGenericPressAnyKeyPattern(' *  Press any key to close the terminal.'), false);
+		});
+
+		test('does not match other prompts', () => {
+			assert.strictEqual(detectsGenericPressAnyKeyPattern('Continue? (y/n)'), false);
+			assert.strictEqual(detectsGenericPressAnyKeyPattern('Password:'), false);
+			assert.strictEqual(detectsGenericPressAnyKeyPattern('press h to show help'), false);
+		});
 	});
 
 });
 function createTestContext(id: string): IToolInvocationContext {
 	return { sessionId: id, sessionResource: LocalChatSessionUri.forSession(id) };
 }
-

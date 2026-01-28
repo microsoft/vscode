@@ -1,0 +1,388 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Command Center Integration */
+.unified-agents-bar .command-center .action-item.command-center-center {
+	display: none !important;
+}
+
+.agent-status-enabled .command-center,
+.unified-agents-bar .command-center {
+	overflow: visible !important;
+}
+
+/* Container layouts */
+.unified-agents-bar .command-center .action-item.agent-status-container {
+	width: 38vw;
+	max-width: 600px;
+	display: flex;
+	flex-direction: row;
+	flex-wrap: nowrap;
+	align-items: center;
+	justify-content: flex-start;
+}
+
+/* Badge-only mode - compact layout next to command center */
+.agent-status-enabled:not(.unified-agents-bar) .command-center .action-item.agent-status-container {
+	display: flex;
+	flex-direction: row;
+	flex-wrap: nowrap;
+	align-items: center;
+	overflow: visible;
+}
+
+.agent-status-container {
+	display: flex;
+	flex-direction: row;
+	flex-wrap: nowrap;
+	align-items: center;
+	justify-content: flex-start;
+	gap: 4px;
+	-webkit-app-region: no-drag;
+	overflow: visible;
+	color: var(--vscode-commandCenter-foreground);
+}
+
+/* Pill - shared styles */
+.agent-status-pill {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 0 10px;
+	height: 22px;
+	border-radius: 6px;
+	flex: 1;
+	min-width: 0;
+	-webkit-app-region: no-drag;
+	background-color: var(--vscode-commandCenter-background);
+	border: 1px solid var(--vscode-commandCenter-border, transparent);
+}
+
+.agent-status-pill:hover {
+	background-color: var(--vscode-commandCenter-activeBackground);
+	border-color: var(--vscode-commandCenter-activeBorder, transparent);
+}
+
+.agent-status-pill.chat-input-mode {
+	cursor: pointer;
+}
+
+.agent-status-pill.chat-input-mode:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.agent-status-pill.session-mode,
+.agent-status-pill.session-ready-mode {
+	padding: 0 12px;
+	cursor: pointer;
+}
+
+.agent-status-pill.session-mode {
+	background-color: var(--vscode-commandCenter-activeBackground);
+	border-color: var(--vscode-commandCenter-activeBorder, transparent);
+}
+
+.agent-status-pill.session-mode:hover {
+	filter: brightness(1.1);
+}
+
+/* Active/needs-attention states - use active foreground */
+.agent-status-pill.chat-input-mode.has-active .agent-status-label,
+.agent-status-pill.chat-input-mode.needs-attention .agent-status-label {
+	color: var(--vscode-commandCenter-activeForeground);
+}
+
+/* Label */
+.agent-status-label {
+	flex: 1;
+	text-align: center;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.agent-status-label.has-progress {
+	animation: agentStatusFadeIn 0.3s ease-out;
+}
+
+@keyframes agentStatusFadeIn {
+	from { opacity: 0; transform: translateY(2px); }
+	to { opacity: 1; transform: translateY(0); }
+}
+
+/* Icons and indicators */
+.agent-status-indicator,
+.agent-status-send,
+.agent-status-left-icon,
+.agent-status-search,
+.agent-status-icon {
+	display: flex;
+	align-items: center;
+}
+
+.agent-status-indicator,
+.agent-status-send,
+.agent-status-left-icon,
+.agent-status-search {
+	opacity: 0.7;
+	flex-shrink: 0;
+}
+
+.agent-status-indicator { gap: 4px; }
+.agent-status-left-icon { gap: 3px; justify-content: center; }
+.agent-status-search { justify-content: center; -webkit-app-region: no-drag; }
+
+.agent-status-pill.has-active .agent-status-indicator,
+.agent-status-pill.has-active .agent-status-send,
+.agent-status-left-icon.has-attention {
+	opacity: 1;
+}
+
+.agent-status-send.hidden { display: none; }
+.agent-status-search:hover { opacity: 1; }
+.agent-status-search:focus { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
+
+/* Text elements */
+.agent-status-text,
+.agent-status-attention-count {
+	font-size: 11px;
+	font-weight: 500;
+}
+
+.agent-status-keybinding {
+	font-size: 11px;
+	opacity: 0.7;
+}
+
+/* Session title */
+.agent-status-title {
+	flex: 1;
+	font-weight: 500;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* Keybinding buttons (Esc/Enter) */
+.agent-status-esc-button,
+.agent-status-enter-button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	box-sizing: border-box;
+	border: 1px solid color-mix(in srgb, var(--vscode-descriptionForeground) 50%, transparent);
+	border-radius: 3px;
+	height: 16px;
+	line-height: 14px;
+	font-size: 10px;
+	padding: 0 6px;
+	margin: 0 2px 0 6px;
+	background-color: transparent;
+	color: var(--vscode-descriptionForeground);
+	cursor: pointer;
+	-webkit-app-region: no-drag;
+}
+
+.agent-status-esc-button:hover,
+.agent-status-enter-button:hover {
+	color: var(--vscode-commandCenter-foreground);
+	border-color: color-mix(in srgb, var(--vscode-commandCenter-foreground) 60%, transparent);
+}
+
+.agent-status-esc-button:focus,
+.agent-status-enter-button:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 1px;
+}
+
+/* Command center toolbar */
+.agent-status-command-center-toolbar {
+	display: flex;
+	align-items: center;
+	-webkit-app-region: no-drag;
+}
+
+.agent-status-separator {
+	padding: 0 8px;
+	opacity: 0.5;
+	display: flex;
+	align-items: center;
+}
+
+/* Status Badge */
+.agent-status-badge {
+	display: flex;
+	align-items: center;
+	height: 22px;
+	border-radius: 6px;
+	background-color: var(--vscode-commandCenter-background);
+	border: 1px solid var(--vscode-commandCenter-border, transparent);
+	flex-shrink: 0;
+	-webkit-app-region: no-drag;
+	margin-left: auto;
+	color: var(--vscode-commandCenter-foreground);
+}
+
+/* Badge sections */
+.agent-status-badge-section {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	padding: 0 8px;
+	height: 100%;
+	position: relative;
+	cursor: pointer;
+}
+
+.agent-status-badge-section:first-child { border-radius: 5px 0 0 5px; }
+.agent-status-badge-section:last-child { border-radius: 0 5px 5px 0; }
+.agent-status-badge-section:only-child { border-radius: 5px; }
+.agent-status-badge-section:hover { background-color: var(--vscode-commandCenter-activeBackground); }
+.agent-status-badge-section:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.agent-status-badge-section.filtered {
+	background-color: var(--vscode-inputOption-activeBackground);
+}
+
+.agent-status-badge-section.filtered:hover {
+	filter: brightness(1.1);
+}
+
+/* High contrast: use dotted border for hover, solid for filtered/active */
+.hc-light .agent-status-badge-section:hover,
+.hc-black .agent-status-badge-section:hover {
+	background-color: transparent;
+	outline: 1px dashed var(--vscode-contrastActiveBorder);
+	outline-offset: -1px;
+}
+
+.hc-light .agent-status-badge-section.filtered,
+.hc-black .agent-status-badge-section.filtered {
+	background-color: transparent;
+	outline: 1px solid var(--vscode-contrastActiveBorder);
+	outline-offset: -1px;
+}
+
+.hc-light .agent-status-badge-section.filtered:hover,
+.hc-black .agent-status-badge-section.filtered:hover {
+	filter: none;
+	outline-style: solid;
+}
+
+/* Separator between sections */
+.agent-status-badge-section + .agent-status-badge-section::before {
+	content: '';
+	position: absolute;
+	left: 0;
+	top: 4px;
+	bottom: 4px;
+	width: 1px;
+	background-color: var(--vscode-commandCenter-border, rgba(128, 128, 128, 0.35));
+}
+
+/* Sparkle section */
+.agent-status-badge-section.sparkle {
+	gap: 0;
+	padding: 0;
+}
+
+.agent-status-badge-section.sparkle:hover {
+	background-color: transparent;
+}
+
+.agent-status-badge-section.sparkle .monaco-dropdown-with-primary {
+	display: flex;
+	align-items: center;
+	height: 100%;
+}
+
+.agent-status-badge-section.sparkle .action-container,
+.agent-status-badge-section.sparkle .dropdown-action-container {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	height: 100%;
+	overflow: hidden;
+}
+
+.agent-status-badge-section.sparkle .action-container {
+	padding: 0 4px;
+	border-radius: 5px 0 0 5px;
+}
+
+.agent-status-badge-section.sparkle .dropdown-action-container {
+	width: 18px;
+	padding: 0;
+	border-radius: 0;
+}
+
+/* When sparkle is the only section, dropdown needs rounded right corners */
+.agent-status-badge-section.sparkle:last-child .dropdown-action-container {
+	border-radius: 0 5px 5px 0;
+}
+
+.agent-status-badge-section.sparkle .action-container:hover,
+.agent-status-badge-section.sparkle .dropdown-action-container:hover {
+	background-color: var(--vscode-commandCenter-activeBackground);
+}
+
+.agent-status-badge-section.sparkle .action-container:focus-within,
+.agent-status-badge-section.sparkle .dropdown-action-container:focus-within {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.agent-status-badge-section.sparkle .action-label {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: none !important;
+}
+
+.agent-status-badge-section.sparkle .action-container .action-label {
+	width: 16px;
+	height: 16px;
+}
+
+.agent-status-badge-section.sparkle .dropdown-action-container .action-label {
+	width: 18px;
+	height: 18px;
+	font-size: 18px;
+}
+
+.agent-status-badge-section.sparkle .dropdown-action-container .codicon {
+	transform: translateY(1px);
+}
+
+/* Disable toolbar hover effects in sparkle, but preserve focus */
+.agent-status-badge-section.sparkle .action-label:hover,
+.agent-status-badge-section.sparkle .action-label:active,
+.agent-status-badge-section.sparkle .action-item.active .action-label,
+.agent-status-badge-section.sparkle .monaco-dropdown.active .action-label {
+	background-color: transparent !important;
+}
+
+.agent-status-badge-section.sparkle .action-label:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+/* Unread section - smaller dot with adjusted padding for visual balance */
+.agent-status-badge-section.unread {
+	padding: 0 8px 0 6px;
+}
+
+.agent-status-badge-section.unread .agent-status-icon {
+	font-size: 8px;
+}
+
+/* Active section in needs-input state - uses report icon with warning color */
+.agent-status-badge-section.active.needs-input .agent-status-icon {
+	color: var(--vscode-notificationsWarningIcon-foreground);
+}

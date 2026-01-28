@@ -64,8 +64,8 @@ const editorConfiguration: IConfigurationNode = {
 			description: nls.localize('largeFileOptimizations', "Special handling for large files to disable certain memory intensive features.")
 		},
 		'editor.wordBasedSuggestions': {
-			enum: ['off', 'currentDocument', 'matchingDocuments', 'allDocuments', 'offWithInlineSuggestions'],
-			default: 'matchingDocuments',
+			enum: ['off', 'offWithInlineSuggestions', 'currentDocument', 'matchingDocuments', 'allDocuments'],
+			default: 'offWithInlineSuggestions',
 			enumDescriptions: [
 				nls.localize('wordBasedSuggestions.off', 'Turn off Word Based Suggestions.'),
 				nls.localize('wordBasedSuggestions.offWithInlineSuggestions', 'Turn off Word Based Suggestions when Inline Suggestions are present.'),

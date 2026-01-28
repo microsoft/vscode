@@ -138,7 +138,7 @@ export class TerminalTabbedView extends Disposable {
 			this._updateChatTerminalsEntry();
 		}));
 
-		this._register(Event.any(this._terminalChatService.onDidRegisterTerminalInstanceWithToolSession, this._terminalService.onDidChangeInstances)(() => {
+		this._register(Event.any(this._terminalChatService.onDidRegisterTerminalInstanceWithToolSession, this._terminalService.onDidChangeInstances, this._terminalService.onDidDisposeInstance)(() => {
 			this._refreshShowTabs();
 			this._updateChatTerminalsEntry();
 		}));
@@ -592,13 +592,12 @@ export class TerminalTabbedView extends Disposable {
 		// be focused. So wait for connection to finish, then focus.
 		const previousActiveElement = this._tabListElement.ownerDocument.activeElement;
 		if (previousActiveElement) {
-			// TODO: Improve lifecycle management this event should be disposed after first fire
-			this._register(this._terminalService.onDidChangeConnectionState(() => {
+			const listener = this._register(Event.once(this._terminalService.onDidChangeConnectionState)(() => {
 				// Only focus the terminal if the activeElement has not changed since focus() was called
-				// TODO: Hack
 				if (dom.isActiveElement(previousActiveElement)) {
 					this._focus();
 				}
+				this._store.delete(listener);
 			}));
 		}
 	}

@@ -21,6 +21,7 @@ import { IViewLineTokens } from './tokens/lineTokens.js';
 import { ViewEventHandler } from './viewEventHandler.js';
 import { VerticalRevealType } from './viewEvents.js';
 import { InlineDecoration, SingleLineInlineDecoration } from './viewModel/inlineDecorations.js';
+import { EditorOption, FindComputedEditorOptionValueById } from './config/editorOptions.js';
 
 export interface IViewModel extends ICursorSimpleModel, ISimpleModel {
 
@@ -36,6 +37,8 @@ export interface IViewModel extends ICursorSimpleModel, ISimpleModel {
 
 	addViewEventHandler(eventHandler: ViewEventHandler): void;
 	removeViewEventHandler(eventHandler: ViewEventHandler): void;
+
+	getEditorOption<T extends EditorOption>(id: T): FindComputedEditorOptionValueById<T>;
 
 	/**
 	 * Gives a hint that a lot of requests are about to come in for these line numbers.
@@ -57,6 +60,7 @@ export interface IViewModel extends ICursorSimpleModel, ISimpleModel {
 	getMinimapLinesRenderingData(startLineNumber: number, endLineNumber: number, needed: boolean[]): MinimapLinesRenderingData;
 	getCompletelyVisibleViewRange(): Range;
 	getCompletelyVisibleViewRangeAtScrollTop(scrollTop: number): Range;
+	getViewRangeWithCursorPadding(viewRange: Range): Range;
 
 	getHiddenAreas(): Range[];
 
@@ -78,7 +82,7 @@ export interface IViewModel extends ICursorSimpleModel, ISimpleModel {
 	getInjectedTextAt(viewPosition: Position): InjectedText | null;
 
 	deduceModelPositionRelativeToViewPosition(viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position;
-	getPlainTextToCopy(modelRanges: Range[], emptySelectionClipboard: boolean, forceCRLF: boolean): string | string[];
+	getPlainTextToCopy(modelRanges: Range[], emptySelectionClipboard: boolean, forceCRLF: boolean): { sourceRanges: Range[]; sourceText: string | string[] };
 	getRichTextToCopy(modelRanges: Range[], emptySelectionClipboard: boolean): { html: string; mode: string } | null;
 
 	createLineBreaksComputer(): ILineBreaksComputer;

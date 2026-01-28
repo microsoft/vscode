@@ -16,11 +16,11 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { TestInstantiationService } from '../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../platform/log/common/log.js';
-import { ChatSessionsService } from '../../../contrib/chat/browser/chatSessions.contribution.js';
-import { IChatAgentRequest } from '../../../contrib/chat/common/chatAgents.js';
-import { IChatProgress, IChatProgressMessage, IChatService } from '../../../contrib/chat/common/chatService.js';
-import { IChatSessionItem, IChatSessionsService } from '../../../contrib/chat/common/chatSessionsService.js';
-import { LocalChatSessionUri } from '../../../contrib/chat/common/chatUri.js';
+import { ChatSessionsService } from '../../../contrib/chat/browser/chatSessions/chatSessions.contribution.js';
+import { IChatAgentRequest } from '../../../contrib/chat/common/participants/chatAgents.js';
+import { IChatProgress, IChatProgressMessage, IChatService } from '../../../contrib/chat/common/chatService/chatService.js';
+import { IChatSessionProviderOptionGroup, IChatSessionsService } from '../../../contrib/chat/common/chatSessionsService.js';
+import { LocalChatSessionUri } from '../../../contrib/chat/common/model/chatUri.js';
 import { ChatAgentLocation } from '../../../contrib/chat/common/constants.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IExtHostContext } from '../../../services/extensions/common/extHostCustomers.js';
@@ -31,7 +31,10 @@ import { mock, TestExtensionService } from '../../../test/common/workbenchTestSe
 import { MainThreadChatSessions, ObservableChatSession } from '../../browser/mainThreadChatSessions.js';
 import { ExtHostChatSessionsShape, IChatProgressDto, IChatSessionProviderOptions } from '../../common/extHost.protocol.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
-import { MockChatService } from '../../../contrib/chat/test/common/mockChatService.js';
+import { MockChatService } from '../../../contrib/chat/test/common/chatService/mockChatService.js';
+import { IAgentSessionsService } from '../../../contrib/chat/browser/agentSessions/agentSessionsService.js';
+import { IAgentSessionsModel } from '../../../contrib/chat/browser/agentSessions/agentSessionsModel.js';
+import { Event } from '../../../../base/common/event.js';
 
 suite('ObservableChatSession', function () {
 	let disposables: DisposableStore;
@@ -53,11 +56,12 @@ suite('ObservableChatSession', function () {
 			$provideChatSessionContent: sinon.stub(),
 			$provideChatSessionProviderOptions: sinon.stub<[providerHandle: number, token: CancellationToken], Promise<IChatSessionProviderOptions | undefined>>().resolves(undefined),
 			$provideHandleOptionsChange: sinon.stub(),
+			$invokeOptionGroupSearch: sinon.stub().resolves([]),
 			$interruptChatSessionActiveResponse: sinon.stub(),
 			$invokeChatSessionRequestHandler: sinon.stub(),
 			$disposeChatSessionContent: sinon.stub(),
 			$provideChatSessionItems: sinon.stub(),
-			$provideNewChatSessionItem: sinon.stub().resolves({ label: 'New Session' } as IChatSessionItem)
+			$onDidChangeChatSessionItemState: sinon.stub(),
 		};
 	});
 
@@ -341,8 +345,6 @@ suite('MainThreadChatSessions', function () {
 	let chatSessionsService: IChatSessionsService;
 	let disposables: DisposableStore;
 
-	const exampleSessionResource = LocalChatSessionUri.forSession('new-session-id');
-
 	setup(function () {
 		disposables = new DisposableStore();
 		instantiationService = new TestInstantiationService();
@@ -351,11 +353,12 @@ suite('MainThreadChatSessions', function () {
 			$provideChatSessionContent: sinon.stub(),
 			$provideChatSessionProviderOptions: sinon.stub<[providerHandle: number, token: CancellationToken], Promise<IChatSessionProviderOptions | undefined>>().resolves(undefined),
 			$provideHandleOptionsChange: sinon.stub(),
+			$invokeOptionGroupSearch: sinon.stub().resolves([]),
 			$interruptChatSessionActiveResponse: sinon.stub(),
 			$invokeChatSessionRequestHandler: sinon.stub(),
 			$disposeChatSessionContent: sinon.stub(),
 			$provideChatSessionItems: sinon.stub(),
-			$provideNewChatSessionItem: sinon.stub().resolves({ resource: exampleSessionResource, label: 'New Session' } as IChatSessionItem)
+			$onDidChangeChatSessionItemState: sinon.stub(),
 		};
 
 		const extHostContext = new class implements IExtHostContext {
@@ -389,6 +392,14 @@ suite('MainThreadChatSessions', function () {
 			}
 		});
 		instantiationService.stub(IChatService, new MockChatService());
+		instantiationService.stub(IAgentSessionsService, new class extends mock<IAgentSessionsService>() {
+			override get model(): IAgentSessionsModel {
+				return new class extends mock<IAgentSessionsModel>() {
+					override onDidChangeSessionArchivedState = Event.None;
+				};
+			}
+
+		});
 
 		chatSessionsService = disposables.add(instantiationService.createInstance(ChatSessionsService));
 		instantiationService.stub(IChatSessionsService, chatSessionsService);
@@ -514,6 +525,224 @@ suite('MainThreadChatSessions', function () {
 
 		// Session should be complete since it has no active capabilities
 		assert.strictEqual(session.isCompleteObs.get(), true);
+
+		mainThread.$unregisterChatSessionContentProvider(1);
+	});
+
+	test('$onDidChangeChatSessionProviderOptions refreshes option groups', async function () {
+		const sessionScheme = 'test-session-type';
+		const handle = 1;
+
+		const optionGroups1: IChatSessionProviderOptionGroup[] = [{
+			id: 'models',
+			name: 'Models',
+			items: [{ id: 'modelA', name: 'Model A' }]
+		}];
+		const optionGroups2: IChatSessionProviderOptionGroup[] = [{
+			id: 'models',
+			name: 'Models',
+			items: [{ id: 'modelB', name: 'Model B' }]
+		}];
+
+		const provideOptionsStub = proxy.$provideChatSessionProviderOptions as sinon.SinonStub;
+		provideOptionsStub.onFirstCall().resolves({ optionGroups: optionGroups1 } as IChatSessionProviderOptions);
+		provideOptionsStub.onSecondCall().resolves({ optionGroups: optionGroups2 } as IChatSessionProviderOptions);
+
+		mainThread.$registerChatSessionContentProvider(handle, sessionScheme);
+
+		// Wait for initial options fetch triggered on registration
+		await new Promise(resolve => setTimeout(resolve, 0));
+
+		let storedGroups = chatSessionsService.getOptionGroupsForSessionType(sessionScheme);
+		assert.ok(storedGroups);
+		assert.strictEqual(storedGroups![0].items[0].id, 'modelA');
+
+		// Simulate extension signaling that provider options have changed
+		mainThread.$onDidChangeChatSessionProviderOptions(handle);
+		await new Promise(resolve => setTimeout(resolve, 0));
+
+		storedGroups = chatSessionsService.getOptionGroupsForSessionType(sessionScheme);
+		assert.ok(storedGroups);
+		assert.strictEqual(storedGroups![0].items[0].id, 'modelB');
+
+		mainThread.$unregisterChatSessionContentProvider(handle);
+	});
+
+	test('getSessionOption returns undefined for unset options', async function () {
+		const sessionScheme = 'test-session-type';
+		mainThread.$registerChatSessionContentProvider(1, sessionScheme);
+
+		const sessionContent = {
+			id: 'test-session',
+			history: [],
+			hasActiveResponseCallback: false,
+			hasRequestHandler: false,
+			// No options provided
+		};
+
+		(proxy.$provideChatSessionContent as sinon.SinonStub).resolves(sessionContent);
+
+		const resource = URI.parse(`${sessionScheme}:/test-session`);
+		await chatSessionsService.getOrCreateChatSession(resource, CancellationToken.None);
+
+		// getSessionOption should return undefined for unset options
+		assert.strictEqual(chatSessionsService.getSessionOption(resource, 'models'), undefined);
+		assert.strictEqual(chatSessionsService.getSessionOption(resource, 'anyOption'), undefined);
+
+		mainThread.$unregisterChatSessionContentProvider(1);
+	});
+
+	test('getSessionOption returns value for explicitly set options', async function () {
+		const sessionScheme = 'test-session-type';
+		mainThread.$registerChatSessionContentProvider(1, sessionScheme);
+
+		const sessionContent = {
+			id: 'test-session',
+			history: [],
+			hasActiveResponseCallback: false,
+			hasRequestHandler: false,
+			options: {
+				'models': 'gpt-4',
+				'region': { id: 'us-east', name: 'US East' }
+			}
+		};
+
+		(proxy.$provideChatSessionContent as sinon.SinonStub).resolves(sessionContent);
+
+		const resource = URI.parse(`${sessionScheme}:/test-session`);
+		await chatSessionsService.getOrCreateChatSession(resource, CancellationToken.None);
+
+		// getSessionOption should return the configured values
+		assert.strictEqual(chatSessionsService.getSessionOption(resource, 'models'), 'gpt-4');
+		assert.deepStrictEqual(chatSessionsService.getSessionOption(resource, 'region'), { id: 'us-east', name: 'US East' });
+
+		// getSessionOption should return undefined for options not in the session
+		assert.strictEqual(chatSessionsService.getSessionOption(resource, 'notConfigured'), undefined);
+
+		mainThread.$unregisterChatSessionContentProvider(1);
+	});
+
+	test('option change notifications are sent to the extension', async function () {
+		const sessionScheme = 'test-session-type';
+		const handle = 1;
+
+		mainThread.$registerChatSessionContentProvider(handle, sessionScheme);
+
+		const sessionContent = {
+			id: 'test-session',
+			history: [],
+			hasActiveResponseCallback: false,
+			hasRequestHandler: false,
+			options: {
+				'models': 'gpt-4'
+			}
+		};
+
+		(proxy.$provideChatSessionContent as sinon.SinonStub).resolves(sessionContent);
+
+		const resource = URI.parse(`${sessionScheme}:/test-session`);
+		await chatSessionsService.getOrCreateChatSession(resource, CancellationToken.None);
+
+		// Clear the stub call history
+		(proxy.$provideHandleOptionsChange as sinon.SinonStub).resetHistory();
+
+		// Simulate an option change
+		await chatSessionsService.notifySessionOptionsChange(resource, [
+			{ optionId: 'models', value: 'gpt-4-turbo' }
+		]);
+
+		// Verify the extension was notified
+		assert.ok((proxy.$provideHandleOptionsChange as sinon.SinonStub).calledOnce);
+		const call = (proxy.$provideHandleOptionsChange as sinon.SinonStub).firstCall;
+		assert.strictEqual(call.args[0], handle);
+		assert.deepStrictEqual(call.args[1], resource);
+		assert.deepStrictEqual(call.args[2], [{ optionId: 'models', value: 'gpt-4-turbo' }]);
+
+		mainThread.$unregisterChatSessionContentProvider(handle);
+	});
+
+	test('option change notifications fail silently when provider not registered', async function () {
+		const sessionScheme = 'unregistered-session-type';
+
+		// Do NOT register a content provider for this scheme
+
+		const resource = URI.parse(`${sessionScheme}:/test-session`);
+
+		// Clear any previous calls
+		(proxy.$provideHandleOptionsChange as sinon.SinonStub).resetHistory();
+
+		// Attempt to notify option change for an unregistered scheme
+		// This should not throw, but also should not call the proxy
+		await chatSessionsService.notifySessionOptionsChange(resource, [
+			{ optionId: 'models', value: 'gpt-4-turbo' }
+		]);
+
+		// Verify the extension was NOT notified (no provider registered)
+		assert.strictEqual((proxy.$provideHandleOptionsChange as sinon.SinonStub).callCount, 0);
+	});
+
+	test('setSessionOption updates option and getSessionOption reflects change', async function () {
+		const sessionScheme = 'test-session-type';
+		mainThread.$registerChatSessionContentProvider(1, sessionScheme);
+
+		const sessionContent = {
+			id: 'test-session',
+			history: [],
+			hasActiveResponseCallback: false,
+			hasRequestHandler: false,
+			// Start with no options
+		};
+
+		(proxy.$provideChatSessionContent as sinon.SinonStub).resolves(sessionContent);
+
+		const resource = URI.parse(`${sessionScheme}:/test-session`);
+		await chatSessionsService.getOrCreateChatSession(resource, CancellationToken.None);
+
+		// Initially no options set
+		assert.strictEqual(chatSessionsService.getSessionOption(resource, 'models'), undefined);
+
+		// Set an option
+		chatSessionsService.setSessionOption(resource, 'models', 'gpt-4');
+
+		// Now getSessionOption should return the value
+		assert.strictEqual(chatSessionsService.getSessionOption(resource, 'models'), 'gpt-4');
+
+		mainThread.$unregisterChatSessionContentProvider(1);
+	});
+
+	test('hasAnySessionOptions returns correct values', async function () {
+		const sessionScheme = 'test-session-type';
+		mainThread.$registerChatSessionContentProvider(1, sessionScheme);
+
+		// Session with options
+		const sessionContentWithOptions = {
+			id: 'session-with-options',
+			history: [],
+			hasActiveResponseCallback: false,
+			hasRequestHandler: false,
+			options: { 'models': 'gpt-4' }
+		};
+
+		// Session without options
+		const sessionContentWithoutOptions = {
+			id: 'session-without-options',
+			history: [],
+			hasActiveResponseCallback: false,
+			hasRequestHandler: false,
+		};
+
+		(proxy.$provideChatSessionContent as sinon.SinonStub)
+			.onFirstCall().resolves(sessionContentWithOptions)
+			.onSecondCall().resolves(sessionContentWithoutOptions);
+
+		const resourceWithOptions = URI.parse(`${sessionScheme}:/session-with-options`);
+		const resourceWithoutOptions = URI.parse(`${sessionScheme}:/session-without-options`);
+
+		await chatSessionsService.getOrCreateChatSession(resourceWithOptions, CancellationToken.None);
+		await chatSessionsService.getOrCreateChatSession(resourceWithoutOptions, CancellationToken.None);
+
+		assert.strictEqual(chatSessionsService.hasAnySessionOptions(resourceWithOptions), true);
+		assert.strictEqual(chatSessionsService.hasAnySessionOptions(resourceWithoutOptions), false);
 
 		mainThread.$unregisterChatSessionContentProvider(1);
 	});

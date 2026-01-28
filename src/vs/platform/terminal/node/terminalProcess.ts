@@ -15,7 +15,7 @@ import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { ILogService, LogLevel } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
-import { FlowControlConstants, IShellLaunchConfig, ITerminalChildProcess, ITerminalLaunchError, IProcessProperty, IProcessPropertyMap as IProcessPropertyMap, ProcessPropertyType, TerminalShellType, IProcessReadyEvent, ITerminalProcessOptions, PosixShellType, IProcessReadyWindowsPty, GeneralShellType, ITerminalLaunchResult } from '../common/terminal.js';
+import { FlowControlConstants, IShellLaunchConfig, ITerminalChildProcess, ITerminalLaunchError, IProcessProperty, IProcessPropertyMap, ProcessPropertyType, TerminalShellType, IProcessReadyEvent, ITerminalProcessOptions, PosixShellType, IProcessReadyWindowsPty, GeneralShellType, ITerminalLaunchResult } from '../common/terminal.js';
 import { ChildProcessMonitor } from './childProcessMonitor.js';
 import { getShellIntegrationInjection, getWindowsBuildNumber, IShellIntegrationConfigInjection } from './terminalEnvironment.js';
 import { WindowsShellHelper } from './windowsShellHelper.js';
@@ -74,7 +74,7 @@ const generalShellTypeMap = new Map<string, GeneralShellType>([
 	['julia', GeneralShellType.Julia],
 	['nu', GeneralShellType.NuShell],
 	['node', GeneralShellType.Node],
-
+	['xonsh', GeneralShellType.Xonsh],
 ]);
 export class TerminalProcess extends Disposable implements ITerminalChildProcess {
 	readonly id = 0;
@@ -150,7 +150,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		this._initialCwd = cwd;
 		this._properties[ProcessPropertyType.InitialCwd] = this._initialCwd;
 		this._properties[ProcessPropertyType.Cwd] = this._initialCwd;
-		const useConpty = this._options.windowsEnableConpty && process.platform === 'win32' && getWindowsBuildNumber() >= 18309;
+		const useConpty = process.platform === 'win32' && getWindowsBuildNumber() >= 18309;
 		const useConptyDll = useConpty && this._options.windowsUseConptyDll;
 		this._ptyOptions = {
 			name,
@@ -167,7 +167,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		// Delay resizes to avoid conpty not respecting very early resize calls
 		if (isWindows) {
 			if (useConpty && cols === 0 && rows === 0 && this.shellLaunchConfig.executable?.endsWith('Git\\bin\\bash.exe')) {
-				this._delayedResizer = new DelayedResizer();
+				this._delayedResizer = this._register(new DelayedResizer());
 				this._register(this._delayedResizer.onTrigger(dimensions => {
 					this._delayedResizer?.dispose();
 					this._delayedResizer = undefined;
@@ -177,11 +177,11 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 				}));
 			}
 			// WindowsShellHelper is used to fetch the process title and shell type
-			this.onProcessReady(e => {
+			this._register(this.onProcessReady(e => {
 				this._windowsShellHelper = this._register(new WindowsShellHelper(e.pid));
 				this._register(this._windowsShellHelper.onShellTypeChanged(e => this._onDidChangeProperty.fire({ type: ProcessPropertyType.ShellType, value: e })));
 				this._register(this._windowsShellHelper.onShellNameChanged(e => this._onDidChangeProperty.fire({ type: ProcessPropertyType.Title, value: e })));
-			});
+			}));
 		}
 		this._register(toDisposable(() => {
 			if (this._titleInterval) {
@@ -517,8 +517,8 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		if (!isNumber(cols) || !isNumber(rows)) {
 			return;
 		}
-		// Ensure that cols and rows are always >= 1, this prevents a native
-		// exception in winpty.
+		// Ensure that cols and rows are always >= 1, this prevents a native exception in winpty.
+		// TODO: Handle this directly on node-pty instead: https://github.com/microsoft/node-pty/issues/877
 		if (this._ptyProcess) {
 			cols = Math.max(cols, 1);
 			rows = Math.max(rows, 1);
@@ -616,7 +616,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 
 	getWindowsPty(): IProcessReadyWindowsPty | undefined {
 		return isWindows ? {
-			backend: hasConptyOption(this._ptyOptions) && this._ptyOptions.useConpty ? 'conpty' : 'winpty',
+			backend: 'conpty',
 			buildNumber: getWindowsBuildNumber()
 		} : undefined;
 	}

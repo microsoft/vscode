@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { IStringDictionary } from '../../../../../base/common/collections.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
-import { IChatMessage, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelChatProvider, ILanguageModelChatResponse, ILanguageModelChatSelector, ILanguageModelsService, IUserFriendlyLanguageModel } from '../../common/languageModels.js';
+import { IChatMessage, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelChatProvider, ILanguageModelChatResponse, ILanguageModelChatSelector, ILanguageModelProviderDescriptor, ILanguageModelsGroup, ILanguageModelsService, IUserFriendlyLanguageModel } from '../../common/languageModels.js';
+import { ILanguageModelsProviderGroup } from '../../common/languageModelsConfiguration.js';
 
 export class NullLanguageModelsService implements ILanguageModelsService {
 	_serviceBrand: undefined;
@@ -16,13 +18,17 @@ export class NullLanguageModelsService implements ILanguageModelsService {
 		return Disposable.None;
 	}
 
+	deltaLanguageModelChatProviderDescriptors(added: IUserFriendlyLanguageModel[], removed: IUserFriendlyLanguageModel[]): void {
+	}
+
 	onDidChangeLanguageModels = Event.None;
+	onDidChangeLanguageModelVendors = Event.None;
 
 	updateModelPickerPreference(modelIdentifier: string, showInModelPicker: boolean): void {
 		return;
 	}
 
-	getVendors(): IUserFriendlyLanguageModel[] {
+	getVendors(): ILanguageModelProviderDescriptor[] {
 		return [];
 	}
 
@@ -31,6 +37,10 @@ export class NullLanguageModelsService implements ILanguageModelsService {
 	}
 
 	lookupLanguageModel(identifier: string): ILanguageModelChatMetadata | undefined {
+		return undefined;
+	}
+
+	lookupLanguageModelByQualifiedName(qualifiedName: string) {
 		return undefined;
 	}
 
@@ -46,6 +56,10 @@ export class NullLanguageModelsService implements ILanguageModelsService {
 		return;
 	}
 
+	getLanguageModelGroups(vendor: string): ILanguageModelsGroup[] {
+		return [];
+	}
+
 	async selectLanguageModels(selector: ILanguageModelChatSelector): Promise<string[]> {
 		return [];
 	}
@@ -58,4 +72,17 @@ export class NullLanguageModelsService implements ILanguageModelsService {
 	computeTokenLength(identifier: string, message: string | IChatMessage, token: CancellationToken): Promise<number> {
 		throw new Error('Method not implemented.');
 	}
+
+	async configureLanguageModelsProviderGroup(vendorId: string, name?: string): Promise<void> {
+
+	}
+
+	async addLanguageModelsProviderGroup(name: string, vendorId: string, configuration: IStringDictionary<unknown> | undefined): Promise<void> {
+
+	}
+
+	async removeLanguageModelsProviderGroup(vendorId: string, providerGroupName: string): Promise<void> {
+	}
+
+	async migrateLanguageModelsProviderGroup(languageModelsProviderGroup: ILanguageModelsProviderGroup): Promise<void> { }
 }

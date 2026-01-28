@@ -1,0 +1,24 @@
+{
+	"compilerOptions": {
+		"module": "ES2022",
+		"moduleResolution": "bundler",
+		"noImplicitAny": true,
+		"removeComments": false,
+		"preserveConstEnums": true,
+		"target": "es2024",
+		"strict": true,
+		"noUnusedParameters": true,
+		"noUnusedLocals": true,
+		"outDir": "out",
+		"sourceMap": true,
+		"skipLibCheck": true,
+		"esModuleInterop": true,
+		"lib": [
+			"esnext",
+			"dom"
+		]
+	},
+	"exclude": [
+		"node_modules"
+	]
+}

@@ -5,17 +5,16 @@
 
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
-import { ThemeIcon } from '../../../base/common/themables.js';
-import { IChatContextItem, IChatContextSupport } from '../../contrib/chat/common/chatContext.js';
+import { IChatContextItem } from '../../contrib/chat/common/contextContrib/chatContext.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 import { ExtHostChatContextShape, ExtHostContext, IDocumentFilterDto, MainContext, MainThreadChatContextShape } from '../common/extHost.protocol.js';
-import { IChatContextService } from '../../contrib/chat/browser/chatContextService.js';
+import { IChatContextService } from '../../contrib/chat/browser/contextContrib/chatContextService.js';
 import { URI } from '../../../base/common/uri.js';
 
 @extHostNamedCustomer(MainContext.MainThreadChatContext)
 export class MainThreadChatContext extends Disposable implements MainThreadChatContextShape {
 	private readonly _proxy: ExtHostChatContextShape;
-	private readonly _providers = new Map<number, { id: string; selector: IDocumentFilterDto[] | undefined; support: IChatContextSupport }>();
+	private readonly _providers = new Map<number, { id: string; selector?: IDocumentFilterDto[] }>();
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -23,20 +22,39 @@ export class MainThreadChatContext extends Disposable implements MainThreadChatC
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostChatContext);
+		this._chatContextService.setExecuteCommandCallback((itemHandle) => this._proxy.$executeChatContextItemCommand(itemHandle));
 	}
 
-	$registerChatContextProvider(handle: number, id: string, selector: IDocumentFilterDto[] | undefined, _options: { icon: ThemeIcon }, support: IChatContextSupport): void {
-		this._providers.set(handle, { selector, support, id });
-		this._chatContextService.registerChatContextProvider(id, selector, {
+	$registerChatWorkspaceContextProvider(handle: number, id: string): void {
+		this._providers.set(handle, { id });
+		this._chatContextService.registerChatWorkspaceContextProvider(id, {
+			provideWorkspaceChatContext: (token: CancellationToken) => {
+				return this._proxy.$provideWorkspaceChatContext(handle, token);
+			}
+		});
+	}
+
+	$registerChatExplicitContextProvider(handle: number, id: string): void {
+		this._providers.set(handle, { id });
+		this._chatContextService.registerChatExplicitContextProvider(id, {
 			provideChatContext: (token: CancellationToken) => {
-				return this._proxy.$provideChatContext(handle, token);
+				return this._proxy.$provideExplicitChatContext(handle, token);
 			},
-			resolveChatContext: support.supportsResolve ? (context: IChatContextItem, token: CancellationToken) => {
-				return this._proxy.$resolveChatContext(handle, context, token);
-			} : undefined,
-			provideChatContextForResource: support.supportsResource ? (resource: URI, withValue: boolean, token: CancellationToken) => {
-				return this._proxy.$provideChatContextForResource(handle, { resource, withValue }, token);
-			} : undefined
+			resolveChatContext: (context: IChatContextItem, token: CancellationToken) => {
+				return this._proxy.$resolveExplicitChatContext(handle, context, token);
+			}
+		});
+	}
+
+	$registerChatResourceContextProvider(handle: number, id: string, selector: IDocumentFilterDto[]): void {
+		this._providers.set(handle, { id, selector });
+		this._chatContextService.registerChatResourceContextProvider(id, selector, {
+			provideChatContext: (resource: URI, withValue: boolean, token: CancellationToken) => {
+				return this._proxy.$provideResourceChatContext(handle, { resource, withValue }, token);
+			},
+			resolveChatContext: (context: IChatContextItem, token: CancellationToken) => {
+				return this._proxy.$resolveResourceChatContext(handle, context, token);
+			}
 		});
 	}
 
@@ -55,5 +73,9 @@ export class MainThreadChatContext extends Disposable implements MainThreadChatC
 			return;
 		}
 		this._chatContextService.updateWorkspaceContextItems(provider.id, items);
+	}
+
+	$executeChatContextItemCommand(itemHandle: number): Promise<void> {
+		return this._proxy.$executeChatContextItemCommand(itemHandle);
 	}
 }

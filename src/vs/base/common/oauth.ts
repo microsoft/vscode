@@ -1112,7 +1112,7 @@ export async function fetchResourceMetadata(
 	targetResource: string,
 	resourceMetadataUrl: string | undefined,
 	options: IFetchResourceMetadataOptions = {}
-): Promise<{ metadata: IAuthorizationProtectedResourceMetadata; errors: Error[] }> {
+): Promise<{ metadata: IAuthorizationProtectedResourceMetadata; discoveryUrl: string; errors: Error[] }> {
 	const {
 		sameOriginHeaders = {},
 		fetch: fetchImpl = fetch
@@ -1164,7 +1164,7 @@ export async function fetchResourceMetadata(
 	if (resourceMetadataUrl) {
 		try {
 			const metadata = await fetchPrm(resourceMetadataUrl, targetResource);
-			return { metadata, errors };
+			return { metadata, discoveryUrl: resourceMetadataUrl, errors };
 		} catch (e) {
 			errors.push(e instanceof Error ? e : new Error(String(e)));
 		}
@@ -1178,7 +1178,7 @@ export async function fetchResourceMetadata(
 		const pathAppendedUrl = `${rootUrl}${targetResourceUrlObj.pathname}`;
 		try {
 			const metadata = await fetchPrm(pathAppendedUrl, targetResource);
-			return { metadata, errors };
+			return { metadata, discoveryUrl: pathAppendedUrl, errors };
 		} catch (e) {
 			errors.push(e instanceof Error ? e : new Error(String(e)));
 		}
@@ -1187,7 +1187,7 @@ export async function fetchResourceMetadata(
 	// Finally, try root discovery
 	try {
 		const metadata = await fetchPrm(rootUrl, targetResourceUrlObj.origin);
-		return { metadata, errors };
+		return { metadata, discoveryUrl: rootUrl, errors };
 	} catch (e) {
 		errors.push(e instanceof Error ? e : new Error(String(e)));
 	}
@@ -1261,7 +1261,7 @@ async function getErrText(res: CommonResponse): Promise<string> {
 export async function fetchAuthorizationServerMetadata(
 	authorizationServer: string,
 	options: IFetchAuthorizationServerMetadataOptions = {}
-): Promise<IAuthorizationServerMetadata> {
+): Promise<{ metadata: IAuthorizationServerMetadata; discoveryUrl: string; errors: Error[] }> {
 	const {
 		additionalHeaders = {},
 		fetch: fetchImpl = fetch
@@ -1301,7 +1301,7 @@ export async function fetchAuthorizationServerMetadata(
 	const pathToFetch = new URL(AUTH_SERVER_METADATA_DISCOVERY_PATH, authorizationServer).toString() + extraPath;
 	let metadata = await doFetch(pathToFetch);
 	if (metadata) {
-		return metadata;
+		return { metadata, discoveryUrl: pathToFetch, errors };
 	}
 
 	// Try fetching the OpenID Connect Discovery with path insertion.
@@ -1310,7 +1310,7 @@ export async function fetchAuthorizationServerMetadata(
 	const openidPathInsertionUrl = new URL(OPENID_CONNECT_DISCOVERY_PATH, authorizationServer).toString() + extraPath;
 	metadata = await doFetch(openidPathInsertionUrl);
 	if (metadata) {
-		return metadata;
+		return { metadata, discoveryUrl: openidPathInsertionUrl, errors };
 	}
 
 	// Try fetching the other discovery URL. For the openid metadata discovery
@@ -1321,7 +1321,7 @@ export async function fetchAuthorizationServerMetadata(
 		: authorizationServer + OPENID_CONNECT_DISCOVERY_PATH;
 	metadata = await doFetch(openidPathAdditionUrl);
 	if (metadata) {
-		return metadata;
+		return { metadata, discoveryUrl: openidPathAdditionUrl, errors };
 	}
 
 	// If we've tried all URLs and none worked, throw the error(s)

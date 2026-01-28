@@ -27,14 +27,13 @@ export class DefaultDocumentColorProvider implements DocumentColorProvider {
 	provideColorPresentations(model: ITextModel, colorInfo: IColorInformation, _token: CancellationToken): IColorPresentation[] {
 		const range = colorInfo.range;
 		const colorFromInfo: IColor = colorInfo.color;
-		const alpha = colorFromInfo.alpha;
-		const color = new Color(new RGBA(Math.round(255 * colorFromInfo.red), Math.round(255 * colorFromInfo.green), Math.round(255 * colorFromInfo.blue), alpha));
+		const color = new Color(new RGBA(Math.round(255 * colorFromInfo.red), Math.round(255 * colorFromInfo.green), Math.round(255 * colorFromInfo.blue), colorFromInfo.alpha));
 
 		const colorFormat = this._configurationService.getValue<'rgba' | 'argb'>('editor.colorDecoratorFormat', { resource: model.uri }) ?? 'rgba';
 
-		const rgb = alpha ? (colorFormat === 'argb' ? Color.Format.CSS.formatARGB(color) : Color.Format.CSS.formatRGBA(color)) : Color.Format.CSS.formatRGB(color);
-		const hsl = alpha ? Color.Format.CSS.formatHSLA(color) : Color.Format.CSS.formatHSL(color);
-		const hex = alpha ? (colorFormat === 'argb' ? Color.Format.CSS.formatAHex(color) : Color.Format.CSS.formatHexA(color)) : Color.Format.CSS.formatHex(color);
+		const rgb = colorFormat === 'argb' ? Color.Format.CSS.formatARGB(color) : Color.Format.CSS.formatRGB(color);
+		const hsl = Color.Format.CSS.formatHSL(color);
+		const hex = colorFormat === 'argb' ? Color.Format.CSS.formatAHex(color, true) : Color.Format.CSS.formatHexA(color, true);
 
 		const colorPresentations: IColorPresentation[] = [];
 		colorPresentations.push({ label: rgb, textEdit: { range: range, text: rgb } });

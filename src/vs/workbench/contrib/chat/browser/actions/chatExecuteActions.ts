@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { hash } from '../../../../../base/common/hash.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { basename } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -20,18 +21,21 @@ import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.j
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { ChatContextKeys } from '../../common/chatContextKeys.js';
+import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatMode, IChatModeService } from '../../common/chatModes.js';
-import { chatVariableLeader } from '../../common/chatParserTypes.js';
-import { IChatService } from '../../common/chatService.js';
+import { chatVariableLeader } from '../../common/requestParser/chatParserTypes.js';
+import { IChatService } from '../../common/chatService/chatService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, } from '../../common/constants.js';
 import { ILanguageModelChatMetadata } from '../../common/languageModels.js';
-import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
+import { ILanguageModelToolsService } from '../../common/tools/languageModelToolsService.js';
+import { PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
+import { IChatSessionsService } from '../../common/chatSessionsService.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
+import { getAgentSessionProvider, AgentSessionProviders } from '../agentSessions/agentSessions.js';
 import { getEditingSessionContext } from '../chatEditing/chatEditingActions.js';
-import { ctxHasEditorModification } from '../chatEditing/chatEditingEditorContextKeys.js';
+import { ctxHasEditorModification, ctxHasRequestInProgress, ctxIsGlobalEditingSession } from '../chatEditing/chatEditingEditorContextKeys.js';
 import { ACTION_ID_NEW_CHAT, CHAT_CATEGORY, handleCurrentEditingSession, handleModeSwitch } from './chatActions.js';
-import { ContinueChatInSessionAction } from './chatContinueInAction.js';
+import { CreateRemoteAgentJobAction } from './chatContinueInAction.js';
 
 export interface IVoiceChatExecuteActionContext {
 	readonly disableTimeout?: boolean;
@@ -49,6 +53,13 @@ abstract class SubmitAction extends Action2 {
 		const telemetryService = accessor.get(ITelemetryService);
 		const widgetService = accessor.get(IChatWidgetService);
 		const widget = context?.widget ?? widgetService.lastFocusedWidget;
+
+		// Check if there's a pending delegation target
+		const pendingDelegationTarget = widget?.input.pendingDelegationTarget;
+		if (pendingDelegationTarget && pendingDelegationTarget !== AgentSessionProviders.Local) {
+			return await this.handleDelegation(accessor, widget, pendingDelegationTarget);
+		}
+
 		if (widget?.viewModel?.editing) {
 			const configurationService = accessor.get(IConfigurationService);
 			const dialogService = accessor.get(IDialogService);
@@ -144,6 +155,27 @@ abstract class SubmitAction extends Action2 {
 		}
 		widget?.acceptInput(context?.inputValue);
 	}
+
+	private async handleDelegation(accessor: ServicesAccessor, widget: IChatWidget, delegationTarget: Exclude<AgentSessionProviders, AgentSessionProviders.Local>): Promise<void> {
+		const chatSessionsService = accessor.get(IChatSessionsService);
+
+		// Find the contribution for the delegation target
+		const contributions = chatSessionsService.getAllChatSessionContributions();
+		const targetContribution = contributions.find(contrib => {
+			const providerType = getAgentSessionProvider(contrib.type);
+			return providerType === delegationTarget;
+		});
+
+		if (!targetContribution) {
+			throw new Error(`No contribution found for delegation target: ${delegationTarget}`);
+		}
+
+		if (targetContribution.canDelegate === false) {
+			throw new Error(`The contribution for delegation target: ${delegationTarget} does not support delegation.`);
+		}
+
+		return new CreateRemoteAgentJobAction().run(accessor, targetContribution, widget);
+	}
 }
 
 const whenNotInProgress = ChatContextKeys.requestInProgress.negate();
@@ -156,6 +188,7 @@ export class ChatSubmitAction extends SubmitAction {
 		const precondition = ContextKeyExpr.and(
 			ChatContextKeys.inputHasText,
 			whenNotInProgress,
+			ChatContextKeys.chatSessionOptionsValid,
 		);
 
 		super({
@@ -208,67 +241,6 @@ export class ChatSubmitAction extends SubmitAction {
 	}
 }
 
-export class ChatDelegateToEditSessionAction extends Action2 {
-	static readonly ID = 'workbench.action.chat.delegateToEditSession';
-
-	constructor() {
-		super({
-			id: ChatDelegateToEditSessionAction.ID,
-			title: localize2('interactive.submit.panel.label', "Send to Edit Session"),
-			f1: false,
-			category: CHAT_CATEGORY,
-			icon: Codicon.commentDiscussion,
-			keybinding: {
-				when: ContextKeyExpr.and(
-					ChatContextKeys.inChatInput,
-					ChatContextKeys.withinEditSessionDiff,
-				),
-				primary: KeyCode.Enter,
-				weight: KeybindingWeight.EditorContrib
-			},
-			menu: [
-				{
-					id: MenuId.ChatExecute,
-					order: 4,
-					when: ContextKeyExpr.and(
-						whenNotInProgress,
-						ChatContextKeys.withinEditSessionDiff,
-					),
-					group: 'navigation',
-				}
-			]
-		});
-	}
-
-	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
-		const context = args[0] as IChatExecuteActionContext | undefined;
-		const widgetService = accessor.get(IChatWidgetService);
-		const inlineWidget = context?.widget ?? widgetService.lastFocusedWidget;
-		const locationData = inlineWidget?.locationData;
-
-		if (inlineWidget && locationData?.type === ChatAgentLocation.EditorInline && locationData.delegateSessionResource) {
-			const sessionWidget = widgetService.getWidgetBySessionResource(locationData.delegateSessionResource);
-
-			if (sessionWidget) {
-				await widgetService.reveal(sessionWidget);
-				sessionWidget.attachmentModel.addContext({
-					id: 'vscode.delegate.inline',
-					kind: 'file',
-					modelDescription: `User's chat context`,
-					name: 'delegate-inline',
-					value: { range: locationData.wholeRange, uri: locationData.document },
-				});
-				sessionWidget.acceptInput(inlineWidget.getInput(), {
-					noCommandDetection: true,
-					enableImplicitContext: false,
-				});
-
-				inlineWidget.setInput('');
-				locationData.close();
-			}
-		}
-	}
-}
 
 export const ToggleAgentModeActionId = 'workbench.action.chat.toggleAgentMode';
 
@@ -337,7 +309,7 @@ class ToggleChatModeAction extends Action2 {
 
 		const chatSession = widget.viewModel?.model;
 		const requestCount = chatSession?.getRequests().length ?? 0;
-		const switchToMode = (arg && modeService.findModeById(arg.modeId)) ?? this.getNextMode(widget, requestCount, configurationService, modeService);
+		const switchToMode = (arg && (modeService.findModeById(arg.modeId) || modeService.findModeByName(arg.modeId))) ?? this.getNextMode(widget, requestCount, configurationService, modeService);
 
 		const currentMode = widget.input.currentModeObs.get();
 		if (switchToMode.id === currentMode.id) {
@@ -355,9 +327,18 @@ class ToggleChatModeAction extends Action2 {
 		const toolsCount = switchToMode.customTools?.get()?.length ?? 0;
 		const handoffsCount = switchToMode.handOffs?.get()?.length ?? 0;
 
+		// Hash names for user/workspace modes to only instrument non-user agent names
+		const getModeNameForTelemetry = (mode: IChatMode): string => {
+			const modeStorage = mode.source?.storage;
+			if (modeStorage === PromptsStorage.local || modeStorage === PromptsStorage.user) {
+				return String(hash(mode.name.get()));
+			}
+			return mode.name.get();
+		};
+
 		telemetryService.publicLog2<ChatModeChangeEvent, ChatModeChangeClassification>('chat.modeChange', {
-			fromMode: currentMode.name.get(),
-			mode: switchToMode.name.get(),
+			fromMode: getModeNameForTelemetry(currentMode),
+			mode: getModeNameForTelemetry(switchToMode),
 			requestCount: requestCount,
 			storage,
 			extensionId,
@@ -407,9 +388,8 @@ class SwitchToNextModelAction extends Action2 {
 	}
 }
 
-export const ChatOpenModelPickerActionId = 'workbench.action.chat.openModelPicker';
-class OpenModelPickerAction extends Action2 {
-	static readonly ID = ChatOpenModelPickerActionId;
+export class OpenModelPickerAction extends Action2 {
+	static readonly ID = 'workbench.action.chat.openModelPicker';
 
 	constructor() {
 		super({
@@ -434,7 +414,11 @@ class OpenModelPickerAction extends Action2 {
 							ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Chat),
 							ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.EditorInline),
 							ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Notebook),
-							ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Terminal))
+							ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Terminal)),
+						// Hide in welcome view when session type is not local
+						ContextKeyExpr.or(
+							ChatContextKeys.inAgentSessionsWelcome.negate(),
+							ChatContextKeys.agentSessionType.isEqualTo(AgentSessionProviders.Local))
 					)
 			}
 		});
@@ -475,7 +459,13 @@ export class OpenModePickerAction extends Action2 {
 						ChatContextKeys.enabled,
 						ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
 						ChatContextKeys.inQuickChat.negate(),
-						ChatContextKeys.lockedToCodingAgent.negate()),
+						ContextKeyExpr.or(
+							ChatContextKeys.lockedToCodingAgent.negate(),
+							ChatContextKeys.chatSessionHasCustomAgentTarget),
+						// Hide in welcome view when session type is not local
+						ContextKeyExpr.or(
+							ChatContextKeys.inAgentSessionsWelcome.negate(),
+							ChatContextKeys.agentSessionType.isEqualTo(AgentSessionProviders.Local))),
 					group: 'navigation',
 				},
 			]
@@ -488,6 +478,108 @@ export class OpenModePickerAction extends Action2 {
 		if (widget) {
 			widget.input.openModePicker();
 		}
+	}
+}
+
+export class OpenSessionTargetPickerAction extends Action2 {
+	static readonly ID = 'workbench.action.chat.openSessionTargetPicker';
+
+	constructor() {
+		super({
+			id: OpenSessionTargetPickerAction.ID,
+			title: localize2('interactive.openSessionTargetPicker.label', "Open Session Target Picker"),
+			tooltip: localize('setSessionTarget', "Set Session Target"),
+			category: CHAT_CATEGORY,
+			f1: false,
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.hasCanDelegateProviders, ContextKeyExpr.or(ChatContextKeys.chatSessionIsEmpty, ChatContextKeys.inAgentSessionsWelcome)),
+			menu: [
+				{
+					id: MenuId.ChatInput,
+					order: 0,
+					when: ContextKeyExpr.and(
+						ChatContextKeys.enabled,
+						ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
+						ChatContextKeys.inQuickChat.negate(),
+						ChatContextKeys.hasCanDelegateProviders,
+						ContextKeyExpr.or(ChatContextKeys.chatSessionIsEmpty, ChatContextKeys.hasCanDelegateProviders.negate())),
+					group: 'navigation',
+				},
+			]
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
+		const widgetService = accessor.get(IChatWidgetService);
+		const widget = widgetService.lastFocusedWidget;
+		if (widget) {
+			widget.input.openSessionTargetPicker();
+		}
+	}
+}
+
+export class OpenDelegationPickerAction extends Action2 {
+	static readonly ID = 'workbench.action.chat.openDelegationPicker';
+
+	constructor() {
+		super({
+			id: OpenDelegationPickerAction.ID,
+			title: localize2('interactive.openDelegationPicker.label', "Open Delegation Picker"),
+			tooltip: localize('delegateSession', "Delegate Session"),
+			category: CHAT_CATEGORY,
+			f1: false,
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.hasCanDelegateProviders, ChatContextKeys.chatSessionIsEmpty.negate()),
+			menu: [
+				{
+					id: MenuId.ChatInput,
+					order: 0.5,
+					when: ContextKeyExpr.and(
+						ChatContextKeys.enabled,
+						ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
+						ChatContextKeys.inQuickChat.negate(),
+						ChatContextKeys.hasCanDelegateProviders,
+						ContextKeyExpr.and(ChatContextKeys.chatSessionIsEmpty.negate(), ChatContextKeys.hasCanDelegateProviders)),
+					group: 'navigation',
+				},
+			]
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
+		const widgetService = accessor.get(IChatWidgetService);
+		const widget = widgetService.lastFocusedWidget;
+		if (widget) {
+			widget.input.openDelegationPicker();
+		}
+	}
+}
+
+export class OpenWorkspacePickerAction extends Action2 {
+	static readonly ID = 'workbench.action.chat.openWorkspacePicker';
+
+	constructor() {
+		super({
+			id: OpenWorkspacePickerAction.ID,
+			title: localize2('interactive.openWorkspacePicker.label', "Open Workspace Picker"),
+			tooltip: localize('selectWorkspace', "Select Target Workspace"),
+			category: CHAT_CATEGORY,
+			f1: false,
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.inAgentSessionsWelcome),
+			menu: [
+				{
+					id: MenuId.ChatInput,
+					order: 0.6,
+					when: ContextKeyExpr.and(
+						ChatContextKeys.inAgentSessionsWelcome,
+						ChatContextKeys.chatSessionType.isEqualTo('local')
+					),
+					group: 'navigation',
+				},
+			]
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
+		// The picker is opened via the action view item
 	}
 }
 
@@ -506,8 +598,14 @@ export class ChatSessionPrimaryPickerAction extends Action2 {
 				group: 'navigation',
 				when:
 					ContextKeyExpr.and(
-						ChatContextKeys.lockedToCodingAgent,
-						ChatContextKeys.chatSessionHasModels
+						ChatContextKeys.chatSessionHasModels,
+						ContextKeyExpr.or(
+							ChatContextKeys.lockedToCodingAgent,
+							ContextKeyExpr.and(
+								ChatContextKeys.inAgentSessionsWelcome,
+								ChatContextKeys.chatSessionType.notEqualsTo('local')
+							)
+						)
 					)
 			}
 		});
@@ -555,7 +653,8 @@ export class ChatEditingSessionSubmitAction extends SubmitAction {
 		const menuCondition = ChatContextKeys.chatModeKind.notEqualsTo(ChatModeKind.Ask);
 		const precondition = ContextKeyExpr.and(
 			ChatContextKeys.inputHasText,
-			whenNotInProgress
+			whenNotInProgress,
+			ChatContextKeys.chatSessionOptionsValid
 		);
 
 		super({
@@ -732,16 +831,20 @@ export class CancelAction extends Action2 {
 			}, {
 				id: MenuId.ChatEditorInlineExecute,
 				when: ContextKeyExpr.and(
-					ChatContextKeys.requestInProgress,
-					ChatContextKeys.remoteJobCreating.negate()
+					ctxIsGlobalEditingSession.negate(),
+					ctxHasRequestInProgress,
 				),
 				order: 4,
 				group: 'navigation',
-			},
+			}
 			],
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyMod.CtrlCmd | KeyCode.Escape,
+				when: ContextKeyExpr.and(
+					ChatContextKeys.requestInProgress,
+					ChatContextKeys.remoteJobCreating.negate()
+				),
 				win: { primary: KeyMod.Alt | KeyCode.Backspace },
 			}
 		});
@@ -807,17 +910,18 @@ export class CancelEdit extends Action2 {
 
 export function registerChatExecuteActions() {
 	registerAction2(ChatSubmitAction);
-	registerAction2(ChatDelegateToEditSessionAction);
 	registerAction2(ChatEditingSessionSubmitAction);
 	registerAction2(SubmitWithoutDispatchingAction);
 	registerAction2(CancelAction);
 	registerAction2(SendToNewChatAction);
 	registerAction2(ChatSubmitWithCodebaseAction);
-	registerAction2(ContinueChatInSessionAction);
 	registerAction2(ToggleChatModeAction);
 	registerAction2(SwitchToNextModelAction);
 	registerAction2(OpenModelPickerAction);
 	registerAction2(OpenModePickerAction);
+	registerAction2(OpenSessionTargetPickerAction);
+	registerAction2(OpenDelegationPickerAction);
+	registerAction2(OpenWorkspacePickerAction);
 	registerAction2(ChatSessionPrimaryPickerAction);
 	registerAction2(ChangeChatModelAction);
 	registerAction2(CancelEdit);
