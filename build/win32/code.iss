@@ -1564,7 +1564,7 @@ begin
 #if "user" == InstallTarget
     ShellExec('', 'powershell.exe', '-NoLogo -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -Command ' + AddQuotes('Add-AppxPackage -Path ''' + ExpandConstant('{app}\{#VersionedResourcesFolder}\appx\{#AppxPackage}') + ''' -ExternalLocation ''' + ExpandConstant('{app}\{#VersionedResourcesFolder}\appx') + ''''), '', SW_HIDE, ewWaitUntilTerminated, AddAppxPackageResultCode);
 #else
-    ShellExec('', 'powershell.exe', '-NoLogo -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -Command ' + AddQuotes('Add-AppxPackage -Stage ''' + ExpandConstant('{app}\{#VersionedResourcesFolder}\appx\{#AppxPackage}') + ''' -ExternalLocation ''' + ExpandConstant('{app}\{#VersionedResourcesFolder}\appx') + '''; Add-AppxProvisionedPackage -Online -SkipLicense -PackagePath ''' + ExpandConstant('{app}\appx\{#AppxPackage}') + ''''), '', SW_HIDE, ewWaitUntilTerminated, AddAppxPackageResultCode);
+    ShellExec('', 'powershell.exe', '-NoLogo -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -Command ' + AddQuotes('Add-AppxPackage -Stage ''' + ExpandConstant('{app}\{#VersionedResourcesFolder}\appx\{#AppxPackage}') + ''' -ExternalLocation ''' + ExpandConstant('{app}\{#VersionedResourcesFolder}\appx') + '''; Add-AppxProvisionedPackage -Online -SkipLicense -PackagePath ''' + ExpandConstant('{app}\{#VersionedResourcesFolder}\appx\{#AppxPackage}') + ''''), '', SW_HIDE, ewWaitUntilTerminated, AddAppxPackageResultCode);
 #endif
     Log('Add-AppxPackage complete.');
   end;
