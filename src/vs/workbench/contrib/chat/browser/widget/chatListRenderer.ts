@@ -1831,18 +1831,23 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return;
 		}
 
-		if (currentState.type !== IChatToolInvocation.StateKind.Streaming) {
+		const isWorkingState = (type: IChatToolInvocation.StateKind) =>
+			type === IChatToolInvocation.StateKind.Streaming || type === IChatToolInvocation.StateKind.Executing;
+
+		if (!isWorkingState(currentState.type)) {
 			return;
 		}
 
-		let wasStreaming = true;
+		let didRemoveConfirmationWidget = false;
 		const disposable = autorun(reader => {
 			const state = toolInvocation.state.read(reader);
-			if (wasStreaming && state.type !== IChatToolInvocation.StateKind.Streaming) {
-				wasStreaming = false;
-				if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation || state.type === IChatToolInvocation.StateKind.WaitingForPostApproval) {
-					removeConfirmationWidget();
+			if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation || state.type === IChatToolInvocation.StateKind.WaitingForPostApproval) {
+				if (didRemoveConfirmationWidget) {
+					return;
 				}
+				didRemoveConfirmationWidget = true;
+				disposable.dispose();
+				removeConfirmationWidget();
 			}
 		});
 
