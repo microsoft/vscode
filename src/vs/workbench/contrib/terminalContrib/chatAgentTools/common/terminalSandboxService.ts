@@ -30,6 +30,7 @@ export interface ITerminalSandboxService {
 	getSandboxConfigPath(forceRefresh?: boolean): Promise<string | undefined>;
 	getTempDir(): URI | undefined;
 	setNeedsForceUpdateConfigFile(): void;
+	checkIfDomainsAreSandboxed(urls: string[]): boolean;
 }
 
 export class TerminalSandboxService extends Disposable implements ITerminalSandboxService {
@@ -41,6 +42,7 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 	private _tempDir: URI | undefined;
 	private _sandboxSettingsId: string | undefined;
 	private _os: Promise<OperatingSystem>;
+	private _sandboxDomains: Set<string> = new Set<string>();
 
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -58,6 +60,7 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		this._execPath = nativeEnv.execPath;
 		this._sandboxSettingsId = generateUuid();
 		this._os = this._remoteAgentService.getEnvironment().then(remoteEnv => remoteEnv?.os ?? OS);
+		this._setSandboxedDomains();
 
 		this._register(Event.runAndSubscribe(this._configurationService.onDidChangeConfiguration, (e: IConfigurationChangeEvent | undefined) => {
 			// If terminal sandbox settings changed, update sandbox config.
@@ -68,6 +71,7 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 				e?.affectsConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxMacFileSystem)
 			) {
 				this.setNeedsForceUpdateConfigFile();
+				this._setSandboxedDomains();
 			}
 		}));
 	}
@@ -91,6 +95,7 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		// TMPDIR must be set as environment variable before the command
 		// Use -c to pass the command string directly (like sh -c), avoiding argument parsing issues
 		const wrappedCommand = `"${this._execPath}" "${this._srtPath}" TMPDIR=${this._tempDir.fsPath} --settings "${this._sandboxConfigPath}" -c "${command}"`;
+		// return `SRT_DEBUG=1 ELECTRON_RUN_AS_NODE=1 ${wrappedCommand}`;
 		return `ELECTRON_RUN_AS_NODE=1 ${wrappedCommand}`;
 	}
 
@@ -108,6 +113,22 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 			this._needsForceUpdateConfigFile = false;
 		}
 		return this._sandboxConfigPath;
+	}
+
+	public checkIfDomainsAreSandboxed(domains: string[]): boolean {
+		for (const domain of domains) {
+			const lowerCaseDomain = domain.toLowerCase();
+			if (this._sandboxDomains.has(lowerCaseDomain)) {
+				return true;
+			}
+
+			for (const sandboxedDomain of this._sandboxDomains) {
+				if (sandboxedDomain.startsWith('*') && lowerCaseDomain.endsWith(`${sandboxedDomain.slice(1)}`)) {
+					return true;
+				}
+			}
+		}
+		return false;
 	}
 
 	private async _createSandboxConfig(): Promise<string | undefined> {
@@ -150,6 +171,18 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 			this._tempDir = environmentService.tmpDir;
 			if (!this._tempDir) {
 				this._logService.warn('TerminalSandboxService: Cannot create sandbox settings file because no tmpDir is available in this environment');
+			}
+		}
+	}
+
+	private _setSandboxedDomains(): void {
+		const networkSettings = this._configurationService.getValue<ITerminalSandboxSettings['network']>(TerminalChatAgentToolsSettingId.TerminalSandboxNetwork) ?? {};
+		const allowedDomains = networkSettings.allowedDomains ?? [];
+		const deniedDomains = networkSettings.deniedDomains ?? [];
+		this._sandboxDomains.clear();
+		for (const domain of [...allowedDomains, ...deniedDomains]) {
+			if (domain) {
+				this._sandboxDomains.add(domain.toLowerCase());
 			}
 		}
 	}

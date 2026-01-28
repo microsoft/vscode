@@ -59,8 +59,6 @@ import { CommandLineCdPrefixRewriter } from './commandLineRewriter/commandLineCd
 import { CommandLinePreventHistoryRewriter } from './commandLineRewriter/commandLinePreventHistoryRewriter.js';
 import { CommandLinePwshChainOperatorRewriter } from './commandLineRewriter/commandLinePwshChainOperatorRewriter.js';
 import { CommandLineSandboxRewriter } from './commandLineRewriter/commandLineSandboxRewriter.js';
-import type { IOutputAnalyzer } from './outputAnalyzer/outputAnalyzer.js';
-import { SandboxOutputAnalyzer } from './outputAnalyzer/sandboxOutputAnalyzer.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IHistoryService } from '../../../../../services/history/common/history.js';
 import { TerminalCommandArtifactCollector } from './terminalCommandArtifactCollector.js';
@@ -68,6 +66,8 @@ import { isNumber, isString } from '../../../../../../base/common/types.js';
 import { ChatConfiguration } from '../../../../chat/common/constants.js';
 import { IChatWidgetService } from '../../../../chat/browser/chat.js';
 import { TerminalChatCommandId } from '../../../chat/browser/terminalChat.js';
+import { IOutputAnalyzer } from './outputAnalyzer.js';
+import { SandboxOutputAnalyzer } from './sandboxOutputAnalyzer.js';
 
 // #region Tool data
 
@@ -992,8 +992,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		if (didMoveToBackground && !args.isBackground) {
 			resultText.push(`Note: This terminal execution was moved to the background using the ID ${termId}\n`);
 		}
-		const outputAnalyzerMessages = this._outputAnalyzers
-			.map(analyzer => analyzer.analyze({ exitCode }))
+		const outputAnalyzerMessages = (await Promise.all(this._outputAnalyzers
+			.map(analyzer => analyzer.analyze({ exitCode, exitResult: terminalResult }))))
 			.filter((message): message is string => !!message);
 		if (outputAnalyzerMessages.length > 0) {
 			resultText.unshift(`${outputAnalyzerMessages.join('\n')}\n`);
