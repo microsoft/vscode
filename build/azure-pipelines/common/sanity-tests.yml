@@ -23,14 +23,10 @@ parameters:
   - name: args
     type: string
     default: ""
-  - name: dependsOn
-    type: object
-    default: []
 
 jobs:
   - job: ${{ parameters.name }}
     displayName: ${{ parameters.displayName }}
-    dependsOn: ${{ parameters.dependsOn }}
     pool:
       name: ${{ parameters.poolName }}
       os: ${{ parameters.os }}

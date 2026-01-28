@@ -169,7 +169,6 @@ extends:
               poolName: 1es-azure-linux-3-arm64
               container: debian-12
               arch: arm
-              # dependsOn: debian_10_arm32
 
           - template: build/azure-pipelines/common/sanity-tests.yml@self
             parameters:
@@ -277,7 +276,6 @@ extends:
               container: ubuntu
               baseImage: ubuntu:22.04
               arch: arm
-              # dependsOn: debian_12_arm32
 
           - template: build/azure-pipelines/common/sanity-tests.yml@self
             parameters:
@@ -305,7 +303,6 @@ extends:
               poolName: 1es-azure-linux-3-arm64
               container: ubuntu
               baseImage: ubuntu:24.04
-              # dependsOn: ubuntu_22_04_arm32
               arch: arm
 
           - template: build/azure-pipelines/common/sanity-tests.yml@self
@@ -327,4 +324,3 @@ extends:
               arch: arm64
               pageSize: 64k
               args: --grep "desktop-linux-arm64"
-              # dependsOn: ubuntu_24_04_arm32

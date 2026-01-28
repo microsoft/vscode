@@ -5,18 +5,20 @@ FROM ${MIRROR}${BASE_IMAGE}
 # Use Azure package mirrors
 ARG TARGETARCH
 RUN if [ "$TARGETARCH" = "amd64" ]; then \
-		sed -i 's|http://archive.ubuntu.com|http://azure.archive.ubuntu.com|g' /etc/apt/sources.list; \
+		sed -i 's|http://archive.ubuntu.com|http://azure.archive.ubuntu.com|g' /etc/apt/sources.list 2>/dev/null || \
+		sed -i 's|http://archive.ubuntu.com|http://azure.archive.ubuntu.com|g' /etc/apt/sources.list.d/ubuntu.sources; \
 	else \
-		sed -i 's|http://ports.ubuntu.com|http://azure.ports.ubuntu.com|g' /etc/apt/sources.list; \
+		sed -i 's|http://ports.ubuntu.com|http://azure.ports.ubuntu.com|g' /etc/apt/sources.list 2>/dev/null || \
+		sed -i 's|http://ports.ubuntu.com|http://azure.ports.ubuntu.com|g' /etc/apt/sources.list.d/ubuntu.sources; \
 	fi
 
 # Utilities
 RUN apt-get update && \
-apt-get install -y curl iproute2
+	apt-get install -y curl iproute2
 
 # Node.js 22
 RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && \
-apt-get install -y nodejs
+	apt-get install -y nodejs
 
 # No UI on arm32 on Ubuntu 24.04
 ARG BASE_IMAGE
