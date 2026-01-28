@@ -109,6 +109,7 @@ export class ChatContextUsageWidget extends Disposable {
 
 	private readonly _lastRequestDisposable = this._register(new MutableDisposable());
 	private readonly _hoverDisposable = this._register(new MutableDisposable<DisposableStore>());
+	private readonly _contextUsageDetails = this._register(new MutableDisposable<ChatContextUsageDetails>());
 
 	private currentData: IChatContextUsageData | undefined;
 
@@ -139,11 +140,18 @@ export class ChatContextUsageWidget extends Disposable {
 		const store = new DisposableStore();
 		this._hoverDisposable.value = store;
 
-		const resolveHoverOptions = (): IDelayedHoverOptions => {
-			const details = this.instantiationService.createInstance(ChatContextUsageDetails);
-			if (this.currentData) {
-				details.update(this.currentData);
+		const getOrCreateDetails = (): ChatContextUsageDetails => {
+			if (!this._contextUsageDetails.value) {
+				this._contextUsageDetails.value = this.instantiationService.createInstance(ChatContextUsageDetails);
 			}
+			if (this.currentData) {
+				this._contextUsageDetails.value.update(this.currentData);
+			}
+			return this._contextUsageDetails.value;
+		};
+
+		const resolveHoverOptions = (): IDelayedHoverOptions => {
+			const details = getOrCreateDetails();
 			return {
 				content: details.domNode,
 				appearance: { showPointer: true, compact: true },
@@ -163,9 +171,8 @@ export class ChatContextUsageWidget extends Disposable {
 				// Force hide any existing hover to ensure we can show our sticky one
 				this.hoverService.hideHover(true);
 
-				const details = this.instantiationService.createInstance(ChatContextUsageDetails);
-				details.update(this.currentData);
-				const hover = this.hoverService.showInstantHover(
+				const details = getOrCreateDetails();
+				this.hoverService.showInstantHover(
 					{
 						content: details.domNode,
 						target: this.domNode,
@@ -175,9 +182,6 @@ export class ChatContextUsageWidget extends Disposable {
 					},
 					true
 				);
-				if (!hover) {
-					details.dispose();
-				}
 			}
 		};
 
