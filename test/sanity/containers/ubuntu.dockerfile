@@ -5,11 +5,17 @@ FROM ${MIRROR}${BASE_IMAGE}
 # Use Azure package mirrors
 ARG TARGETARCH
 RUN if [ "$TARGETARCH" = "amd64" ]; then \
-		sed -i 's|http://archive.ubuntu.com|http://azure.archive.ubuntu.com|g' /etc/apt/sources.list 2>/dev/null || \
-		sed -i 's|http://archive.ubuntu.com|http://azure.archive.ubuntu.com|g' /etc/apt/sources.list.d/ubuntu.sources; \
+		if [ -f /etc/apt/sources.list.d/ubuntu.sources ]; then \
+			sed -i 's|http://archive.ubuntu.com|http://azure.archive.ubuntu.com|g' /etc/apt/sources.list.d/ubuntu.sources; \
+		else \
+			sed -i 's|http://archive.ubuntu.com|http://azure.archive.ubuntu.com|g' /etc/apt/sources.list; \
+		fi; \
 	else \
-		sed -i 's|http://ports.ubuntu.com|http://azure.ports.ubuntu.com|g' /etc/apt/sources.list 2>/dev/null || \
-		sed -i 's|http://ports.ubuntu.com|http://azure.ports.ubuntu.com|g' /etc/apt/sources.list.d/ubuntu.sources; \
+		if [ -f /etc/apt/sources.list.d/ubuntu.sources ]; then \
+			sed -i 's|http://ports.ubuntu.com|http://azure.ports.ubuntu.com|g' /etc/apt/sources.list.d/ubuntu.sources; \
+		else \
+			sed -i 's|http://ports.ubuntu.com|http://azure.ports.ubuntu.com|g' /etc/apt/sources.list; \
+		fi; \
 	fi
 
 # Utilities
