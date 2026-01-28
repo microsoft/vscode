@@ -646,7 +646,6 @@ export class ExtensionEditor extends EditorPane {
 
 	private onNavbarChange(extension: IExtension, { id, focus }: { id: string | null; focus: boolean }, template: IExtensionEditorTemplate): void {
 		this.contentDisposables.clear();
-		this.transientDisposables.clear();
 		template.content.innerText = '';
 		this.activeElement = null;
 		if (id) {
