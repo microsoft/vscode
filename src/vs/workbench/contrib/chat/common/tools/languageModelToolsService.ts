@@ -470,6 +470,13 @@ export interface IBeginToolCallOptions {
 	subagentInvocationId?: string;
 }
 
+export interface IToolInvokedEvent {
+	readonly toolId: string;
+	readonly sessionResource: URI | undefined;
+	readonly requestId: string | undefined;
+	readonly subagentInvocationId: string | undefined;
+}
+
 export const ILanguageModelToolsService = createDecorator<ILanguageModelToolsService>('ILanguageModelToolsService');
 
 export type CountTokensCallback = (input: string, token: CancellationToken) => Promise<number>;
@@ -482,6 +489,7 @@ export interface ILanguageModelToolsService {
 	readonly agentToolSet: ToolSet;
 	readonly onDidChangeTools: Event<void>;
 	readonly onDidPrepareToolCallBecomeUnresponsive: Event<{ readonly sessionResource: URI; readonly toolData: IToolData }>;
+	readonly onDidInvokeTool: Event<IToolInvokedEvent>;
 	registerToolData(toolData: IToolData): IDisposable;
 	registerToolImplementation(id: string, tool: IToolImpl): IDisposable;
 	registerTool(toolData: IToolData, tool: IToolImpl): IDisposable;
