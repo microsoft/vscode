@@ -386,7 +386,8 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 
 		const isComplete = IChatToolInvocation.isComplete(toolInvocation);
 		const autoExpandFailures = this._configurationService.getValue<boolean>(ChatConfiguration.AutoExpandToolFailures);
-		const hasError = autoExpandFailures && this._terminalData.terminalCommandState?.exitCode !== undefined && this._terminalData.terminalCommandState.exitCode !== 0;
+		const hasSnapshotOutput = !!this._terminalData.terminalCommandOutput?.text?.trim();
+		const hasError = autoExpandFailures && this._terminalData.terminalCommandState?.exitCode !== undefined && this._terminalData.terminalCommandState.exitCode !== 0 && hasSnapshotOutput;
 		const initialExpanded = !isComplete || hasError;
 
 		const wrapper = this._register(this._instantiationService.createInstance(
@@ -640,9 +641,9 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 				if (resolvedCommand?.exitCode === 0 && this._outputView.isExpanded && !this._userToggledOutput) {
 					this._toggleOutput(false);
 				}
-				// keep outer wrapper expanded on error
+				// keep outer wrapper expanded on error, but only if there's actual output
 				const autoExpandFailures = this._configurationService.getValue<boolean>(ChatConfiguration.AutoExpandToolFailures);
-				if (autoExpandFailures && resolvedCommand?.exitCode !== undefined && resolvedCommand.exitCode !== 0 && this._thinkingCollapsibleWrapper) {
+				if (autoExpandFailures && resolvedCommand?.exitCode !== undefined && resolvedCommand.exitCode !== 0 && this._thinkingCollapsibleWrapper && hasRealOutput()) {
 					this.expandCollapsibleWrapper();
 				}
 				if (resolvedCommand?.endMarker) {
@@ -658,9 +659,9 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 				if (resolvedImmediately.exitCode === 0 && this._outputView.isExpanded && !this._userToggledOutput) {
 					this._toggleOutput(false);
 				}
-				// keep outer wrapper expanded on error
+				// keep outer wrapper expanded on error, but only if there's actual output
 				const autoExpandFailures = this._configurationService.getValue<boolean>(ChatConfiguration.AutoExpandToolFailures);
-				if (autoExpandFailures && resolvedImmediately.exitCode !== undefined && resolvedImmediately.exitCode !== 0 && this._thinkingCollapsibleWrapper) {
+				if (autoExpandFailures && resolvedImmediately.exitCode !== undefined && resolvedImmediately.exitCode !== 0 && this._thinkingCollapsibleWrapper && hasRealOutput()) {
 					this.expandCollapsibleWrapper();
 				}
 				return;
