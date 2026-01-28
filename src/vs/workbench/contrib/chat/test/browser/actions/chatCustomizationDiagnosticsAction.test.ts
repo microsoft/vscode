@@ -45,9 +45,10 @@ suite('formatStatusOutput', () => {
 
 	/**
 	 * Returns the fsPath of a file URI for use in test expectations.
+	 * Normalizes to forward slashes for cross-platform consistency in markdown links.
 	 */
 	function filePath(relativePath: string): string {
-		return URI.file(`/workspace/${relativePath}`).fsPath;
+		return URI.file(`/workspace/${relativePath}`).fsPath.replace(/\\/g, '/');
 	}
 
 	/**
