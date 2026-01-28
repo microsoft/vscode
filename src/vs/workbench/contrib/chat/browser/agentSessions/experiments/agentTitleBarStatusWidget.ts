@@ -333,10 +333,11 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 			: sessions;
 
 		// Active sessions include both InProgress and NeedsInput
-		const activeSessions = filteredSessions.filter(s => isSessionInProgressStatus(s.status) && !s.isArchived() && !this.chatWidgetService.getWidgetBySessionResource(s.resource));
-		const unreadSessions = filteredSessions.filter(s => !s.isRead() && !this.chatWidgetService.getWidgetBySessionResource(s.resource));
+		const activeSessions = filteredSessions.filter(s => isSessionInProgressStatus(s.status) && !s.isArchived());
+		// Workaround for https://github.com/microsoft/vscode/issues/289831: exclude active sessions to avoid double counting
+		const unreadSessions = filteredSessions.filter(s => !s.isRead() && !isSessionInProgressStatus(s.status));
 		// Sessions that need user input/attention (subset of active)
-		const attentionNeededSessions = filteredSessions.filter(s => s.status === AgentSessionStatus.NeedsInput && !this.chatWidgetService.getWidgetBySessionResource(s.resource));
+		const attentionNeededSessions = filteredSessions.filter(s => s.status === AgentSessionStatus.NeedsInput);
 
 		return {
 			activeSessions,
