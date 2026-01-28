@@ -592,6 +592,11 @@ export interface IAgentSessionsFilter {
 	 * Get the current filter excludes for display in the UI.
 	 */
 	getExcludes(): IAgentSessionsFilterExcludes;
+
+	/**
+	 * Whether the filter is using default settings (no filtering applied).
+	 */
+	isDefault(): boolean;
 }
 
 export class AgentSessionsDataSource implements IAsyncDataSource<IAgentSessionsModel, AgentSessionListItem> {

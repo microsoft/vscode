@@ -517,6 +517,7 @@ export class AgentSessionsWelcomePage extends EditorPane {
 				archived: true,
 				read: false,
 			}),
+			isDefault: () => true,
 		};
 
 		const options: IAgentSessionsControlOptions = {
