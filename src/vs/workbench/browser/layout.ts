@@ -2981,11 +2981,9 @@ class LayoutStateModel extends Disposable {
 	private applyOverrides(configuration: ILayoutStateLoadConfiguration): void {
 
 		// Auxiliary bar: Maximized settings
-		const auxiliaryBarForceMaximized = this.configurationService.getValue(WorkbenchLayoutSettings.AUXILIARYBAR_FORCE_MAXIMIZED);
-		if (this.isNew[StorageScope.WORKSPACE] || auxiliaryBarForceMaximized) {
+		if (this.isNew[StorageScope.WORKSPACE]) {
 			const defaultAuxiliaryBarVisibility = this.configurationService.getValue(WorkbenchLayoutSettings.AUXILIARYBAR_DEFAULT_VISIBILITY);
 			if (
-				auxiliaryBarForceMaximized ||
 				defaultAuxiliaryBarVisibility === 'maximized' ||
 				(defaultAuxiliaryBarVisibility === 'maximizedInWorkspace' && this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY)
 			) {
