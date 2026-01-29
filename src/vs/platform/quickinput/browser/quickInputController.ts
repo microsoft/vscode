@@ -265,6 +265,9 @@ export class QuickInputController extends Disposable {
 				if (this.controller instanceof QuickPick && this.controller.canSelectMany) {
 					list.clearFocus();
 				}
+				// Clear aria-activedescendant when leaving the list to ensure screen readers
+				// properly announce the focus change back to the input box
+				inputBox.removeAttribute('aria-activedescendant');
 			}, 0);
 		}));
 
