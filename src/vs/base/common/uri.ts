@@ -162,9 +162,10 @@ export class URI implements UriComponents {
 			this.path = schemeOrData.path || _empty;
 			this.query = schemeOrData.query || _empty;
 			this.fragment = schemeOrData.fragment || _empty;
-			// no validation because it's this URI
-			// that creates uri components.
-			// _validateUri(this);
+			// Validate when constructing from components. While internal code that creates
+			// uri components should be correct, components may come from untrusted sources
+			// (e.g., IPC) and need validation to prevent errors.
+			_validateUri(this);
 		} else {
 			this.scheme = _schemeFix(schemeOrData, _strict);
 			this.authority = authority || _empty;
