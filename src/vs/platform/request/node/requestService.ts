@@ -6,7 +6,7 @@
 import type * as http from 'http';
 import type * as https from 'https';
 import { parse as parseUrl } from 'url';
-import { Promises } from '../../../base/common/async.js';
+import { Promises, timeout } from '../../../base/common/async.js';
 import { streamToBufferReadableStream } from '../../../base/common/buffer.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { CancellationError, getErrorMessage } from '../../../base/common/errors.js';
@@ -20,6 +20,26 @@ import { ILogService } from '../../log/common/log.js';
 import { AbstractRequestService, AuthInfo, Credentials, IRequestService, systemCertificatesNodeDefault } from '../common/request.js';
 import { Agent, getProxyAgent } from './proxy.js';
 import { createGunzip } from 'zlib';
+
+const TRANSIENT_ERROR_CODES = new Set([
+	'EAI_AGAIN',     // DNS lookup timed out
+	'ECONNREFUSED',  // Connection refused by server
+	'EHOSTDOWN',     // Host is down
+	'EHOSTUNREACH',  // No route to host
+	'ENETDOWN',      // Network is down
+	'ENETUNREACH',   // Network is unreachable
+	'EPROTO'         // Protocol error (TLS/SSL handshake failure)
+]);
+
+const IDEMPOTENT_HTTP_METHODS_REGEX = /^(GET|HEAD|OPTIONS)$/i;
+
+function isTransientError(error: unknown): boolean {
+	if (error instanceof Error) {
+		const code = (error as NodeJS.ErrnoException).code;
+		return !!code && TRANSIENT_ERROR_CODES.has(code);
+	}
+	return false;
+}
 
 export interface IRawRequestFunction {
 	(options: http.RequestOptions, callback?: (res: http.IncomingMessage) => void): http.ClientRequest;
@@ -153,6 +173,31 @@ async function getNodeRequest(options: IRequestOptions): Promise<IRawRequestFunc
 }
 
 export async function nodeRequest(options: NodeRequestOptions, token: CancellationToken): Promise<IRequestContext> {
+	const maxRetries = 3;
+	let lastError: Error | undefined;
+	const isIdempotent = IDEMPOTENT_HTTP_METHODS_REGEX.test(options.type || 'GET');
+
+	for (let attempt = 1; attempt <= maxRetries; attempt++) {
+		try {
+			return await nodeRequestAttempt(options, token);
+		} catch (error) {
+			lastError = error as Error;
+			if (error instanceof CancellationError) {
+				throw error;
+			}
+
+			if (!isIdempotent || !isTransientError(error) || attempt === maxRetries) {
+				throw error;
+			}
+
+			await timeout(100 * attempt, token);
+		}
+	}
+
+	throw lastError;
+}
+
+async function nodeRequestAttempt(options: NodeRequestOptions, token: CancellationToken): Promise<IRequestContext> {
 	return Promises.withAsyncBody<IRequestContext>(async (resolve, reject) => {
 		const endpoint = parseUrl(options.url!);
 		const rawRequest = options.getRawRequest
@@ -238,10 +283,14 @@ export async function nodeRequest(options: NodeRequestOptions, token: Cancellati
 
 		req.end();
 
-		token.onCancellationRequested(() => {
+		const cancellationListener = token.onCancellationRequested(() => {
+			cancellationListener.dispose();
 			req.abort();
 
 			reject(new CancellationError());
 		});
+
+		req.on('response', () => cancellationListener.dispose());
+		req.on('error', () => cancellationListener.dispose());
 	});
 }
