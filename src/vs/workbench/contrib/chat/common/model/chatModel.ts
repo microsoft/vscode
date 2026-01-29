@@ -1244,6 +1244,7 @@ export interface IChatModel extends IDisposable {
 	readonly initialLocation: ChatAgentLocation;
 	readonly title: string;
 	readonly hasCustomTitle: boolean;
+	setCustomTitle(title: string): void;
 	readonly responderUsername: string;
 	/** True whenever a request is currently running */
 	readonly requestInProgress: IObservable<boolean>;
