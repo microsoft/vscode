@@ -66,6 +66,8 @@ import { isNumber, isString } from '../../../../../../base/common/types.js';
 import { ChatConfiguration } from '../../../../chat/common/constants.js';
 import { IChatWidgetService } from '../../../../chat/browser/chat.js';
 import { TerminalChatCommandId } from '../../../chat/browser/terminalChat.js';
+import { IOutputAnalyzer } from './outputAnalyzer.js';
+import { SandboxOutputAnalyzer } from './sandboxOutputAnalyzer.js';
 
 // #region Tool data
 
@@ -318,6 +320,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	private readonly _commandLineRewriters: ICommandLineRewriter[];
 	private readonly _commandLineAnalyzers: ICommandLineAnalyzer[];
 	private readonly _commandLinePresenters: ICommandLinePresenter[];
+	private readonly _outputAnalyzers: IOutputAnalyzer[];
 
 	protected readonly _sessionTerminalAssociations = new ResourceMap<IToolTerminal>();
 
@@ -396,6 +399,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			new NodeCommandLinePresenter(),
 			new PythonCommandLinePresenter(),
 			new RubyCommandLinePresenter(),
+		];
+		this._outputAnalyzers = [
+			this._register(this._instantiationService.createInstance(SandboxOutputAnalyzer)),
 		];
 
 		// Clear out warning accepted state if the setting is disabled
@@ -988,6 +994,17 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		}
 		if (didMoveToBackground && !args.isBackground) {
 			resultText.push(`Note: This terminal execution was moved to the background using the ID ${termId}\n`);
+		}
+		const outputAnalyzerMessages: string[] = [];
+		for (const analyzer of this._outputAnalyzers) {
+			const message = await analyzer.analyze({ exitCode, exitResult: terminalResult, commandLine: command });
+			if (message !== undefined) {
+				outputAnalyzerMessages.push(message);
+				break;
+			}
+		}
+		if (outputAnalyzerMessages.length > 0) {
+			resultText.push(`${outputAnalyzerMessages.join('\n')}\n`);
 		}
 		resultText.push(terminalResult);
 
