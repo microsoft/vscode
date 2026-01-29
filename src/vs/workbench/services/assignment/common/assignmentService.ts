@@ -25,6 +25,9 @@ import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.j
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { experimentsEnabled } from '../../telemetry/common/workbenchTelemetryUtils.js';
 
+// Treatment names
+export const AGENT_SESSIONS_WELCOME_TREATMENT = 'agentSessionsWelcome';
+
 export interface IAssignmentFilter {
 	exclude(assignment: string): boolean;
 	onDidChange: Event<void>;
@@ -35,6 +38,12 @@ export const IWorkbenchAssignmentService = createDecorator<IWorkbenchAssignmentS
 export interface IWorkbenchAssignmentService extends IAssignmentService {
 	getCurrentExperiments(): Promise<string[] | undefined>;
 	addTelemetryAssignmentFilter(filter: IAssignmentFilter): void;
+	/**
+	 * Get a cached treatment value synchronously without waiting for network.
+	 * Returns undefined if the cache is not available or the treatment is not cached.
+	 * Use this when you need to check treatment values early without delaying startup.
+	 */
+	getCachedTreatment<T extends string | number | boolean>(name: string): T | undefined;
 }
 
 class MementoKeyValueStorage implements IKeyValueStorage {
@@ -147,6 +156,7 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 	declare readonly _serviceBrand: undefined;
 
 	private readonly tasClient: Promise<TASClient> | undefined;
+	private resolvedTasClient: TASClient | undefined;
 	private readonly tasSetupDisposables = new DisposableStore();
 
 	private networkInitialized = false;
@@ -276,6 +286,7 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 		});
 
 		await tasClient.initializePromise;
+		this.resolvedTasClient = tasClient;
 		tasClient.initialFetch.then(() => {
 			this.networkInitialized = true;
 		});
@@ -308,6 +319,32 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 		await this.tasClient;
 
 		return this.telemetry.assignmentContext;
+	}
+
+	getCachedTreatment<T extends string | number | boolean>(name: string): T | undefined {
+		// Check for override first
+		const override = this.configurationService.getValue<T>(`experiments.override.${name}`);
+		if (override !== undefined) {
+			return override;
+		}
+
+		if (!this.tasClient) {
+			return undefined;
+		}
+
+		if (!this.experimentsEnabled) {
+			return undefined;
+		}
+
+		// Only return cached values if the TAS client is initialized
+		// This avoids blocking on network calls during startup
+		if (!this.resolvedTasClient) {
+			return undefined;
+		}
+
+		// Get the synchronous cached value from the TAS client
+		const result = this.resolvedTasClient.getTreatmentVariable<T>('vscode', name);
+		return result;
 	}
 
 	addTelemetryAssignmentFilter(filter: IAssignmentFilter): void {
