@@ -15,7 +15,7 @@ import electron from '@vscode/gulp-electron';
 import jsonEditor from 'gulp-json-editor';
 import * as util from './lib/util.ts';
 import { getVersion } from './lib/getVersion.ts';
-import { readISODate } from './lib/date.ts';
+import { readISODate, writeISODate } from './lib/date.ts';
 import * as task from './lib/task.ts';
 import buildfile from './buildfile.ts';
 import * as optimize from './lib/optimize.ts';
@@ -544,6 +544,62 @@ BUILD_TARGETS.forEach(buildTarget => {
 		gulp.task(task.define('vscode-min', task.series(vscodeMin)));
 	}
 });
+
+// Transpile-only tasks for fast builds without minification
+BUILD_TARGETS.forEach(buildTarget => {
+	const dashed = (str: string) => (str ? `-${str}` : ``);
+	const platform = buildTarget.platform;
+	const arch = buildTarget.arch;
+	const opts = buildTarget.opts;
+
+	// Create custom resources list that uses 'out' instead of 'out-build'
+	const vscodeResourcesTranspiled = vscodeResourceIncludes.map(resource => resource.replace(/^out-build/, 'out')).concat([
+		'!out/vs/code/browser/**',
+		'!out/vs/editor/standalone/**',
+		'!out/vs/code/**/*-dev.html',
+		'!out/vs/workbench/contrib/issue/**/*-dev.html',
+		'!**/test/**'
+	]);
+
+	// Create a custom bundle task that uses transpiled output (out) instead of compiled output (out-build)
+	const bundleTranspiledVSCodeTask = task.define(`bundle-transpiled-vscode${dashed(platform)}${dashed(arch)}`, task.series(
+		util.rimraf('out-vscode'),
+		optimize.bundleTask(
+			{
+				out: 'out-vscode',
+				esm: {
+					src: 'out', // Use transpiled output instead of compiled
+					entryPoints: [
+						...vscodeEntryPoints,
+						...bootstrapEntryPoints
+					],
+					resources: vscodeResourcesTranspiled,
+					skipTSBoilerplateRemoval: entryPoint => entryPoint === 'vs/code/electron-browser/workbench/workbench'
+				}
+			}
+		)
+	));
+
+	const sourceFolderName = 'out-vscode'; // Use bundled output
+	const destinationFolderName = `VSCode${dashed(platform)}${dashed(arch)}`;
+
+	const tasks = [
+		writeISODate('out-build'), // Create date file for packaging
+		compileNativeExtensionsBuildTask,
+		compileExtensionMediaBuildTask,
+		bundleTranspiledVSCodeTask,
+		util.rimraf(path.join(buildRoot, destinationFolderName)),
+		packageTask(platform, arch, sourceFolderName, destinationFolderName, opts)
+	];
+
+	if (platform === 'win32') {
+		tasks.push(patchWin32DependenciesTask(destinationFolderName));
+	}
+
+	const vscodeTranspileTask = task.define(`vscode-transpile${dashed(platform)}${dashed(arch)}`, task.series(...tasks));
+	gulp.task(vscodeTranspileTask);
+});
+
 
 // #region nls
 
