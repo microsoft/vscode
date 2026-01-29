@@ -613,7 +613,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 				}
 			}));
 
-			// uncheck radio when there is text
+			// uncheck checkboxes when there is text
 			this._inputBoxes.add(dom.addDisposableListener(freeformTextarea, dom.EventType.INPUT, () => {
 				if (freeformTextarea.value.trim()) {
 					for (const checkbox of checkboxInputs) {
