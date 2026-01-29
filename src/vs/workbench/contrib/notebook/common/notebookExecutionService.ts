@@ -14,6 +14,7 @@ export enum CellExecutionUpdateType {
 	Output = 1,
 	OutputItems = 2,
 	ExecutionState = 3,
+	ExecutionProgress = 4,
 }
 
 export interface ICellExecuteOutputEdit {
@@ -28,6 +29,13 @@ export interface ICellExecuteOutputItemEdit {
 	append?: boolean;
 	outputId: string;
 	items: IOutputItemDto[];
+}
+
+export interface ICellExecuteProgress {
+	editType: CellExecutionUpdateType.ExecutionProgress;
+	total?: number;
+	increment?: number;
+	progress?: number;
 }
 
 export const INotebookExecutionService = createDecorator<INotebookExecutionService>('INotebookExecutionService');

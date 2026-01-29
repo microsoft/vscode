@@ -8,10 +8,10 @@ import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { IRange } from '../../../../editor/common/core/range.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { NotebookCellExecutionState, NotebookExecutionState } from './notebookCommon.js';
-import { CellExecutionUpdateType, ICellExecuteOutputEdit, ICellExecuteOutputItemEdit } from './notebookExecutionService.js';
+import { NotebookCellExecutionState, NotebookCellExecutionProgress, NotebookExecutionState } from './notebookCommon.js';
+import { CellExecutionUpdateType, ICellExecuteOutputEdit, ICellExecuteOutputItemEdit, ICellExecuteProgress } from './notebookExecutionService.js';
 
-export type ICellExecuteUpdate = ICellExecuteOutputEdit | ICellExecuteOutputItemEdit | ICellExecutionStateUpdate;
+export type ICellExecuteUpdate = ICellExecuteOutputEdit | ICellExecuteOutputItemEdit | ICellExecutionStateUpdate | ICellExecuteProgress;
 
 export interface ICellExecutionStateUpdate {
 	editType: CellExecutionUpdateType.ExecutionState;
@@ -103,6 +103,7 @@ export interface INotebookCellExecution {
 	readonly state: NotebookCellExecutionState;
 	readonly didPause: boolean;
 	readonly isPaused: boolean;
+	readonly progress?: NotebookCellExecutionProgress;
 
 	confirm(): void;
 	update(updates: ICellExecuteUpdate[]): void;
