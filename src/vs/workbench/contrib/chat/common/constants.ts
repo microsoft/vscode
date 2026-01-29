@@ -151,7 +151,6 @@ export function isSupportedChatFileScheme(accessor: ServicesAccessor, scheme: st
 }
 
 export const MANAGE_CHAT_COMMAND_ID = 'workbench.action.chat.manage';
-export const ChatEditorTitleMaxLength = 30;
 
 export const CHAT_TERMINAL_OUTPUT_MAX_PREVIEW_LINES = 1000;
 export const CONTEXT_MODELS_EDITOR = new RawContextKey<boolean>('inModelsEditor', false);
