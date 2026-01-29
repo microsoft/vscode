@@ -9,7 +9,7 @@ import { KeyMod, KeyCode } from '../../../../base/common/keyCodes.js';
 import { MenuId, MenuRegistry, registerAction2, Action2, IAction2Options } from '../../../../platform/actions/common/actions.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
 import { isHorizontal, IWorkbenchLayoutService, PanelAlignment, Parts, Position, positionToString } from '../../../services/layout/browser/layoutService.js';
-import { IsAuxiliaryWindowContext, PanelAlignmentContext, PanelMaximizedContext, PanelPositionContext, PanelVisibleContext } from '../../../common/contextkeys.js';
+import { InEditorZenModeContext, IsAuxiliaryWindowContext, PanelAlignmentContext, PanelMaximizedContext, PanelPositionContext, PanelVisibleContext } from '../../../common/contextkeys.js';
 import { ContextKeyExpr, ContextKeyExpression } from '../../../../platform/contextkey/common/contextkey.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
@@ -54,7 +54,8 @@ export class TogglePanelAction extends Action2 {
 				{
 					id: MenuId.MenubarAppearanceMenu,
 					group: '2_workbench_layout',
-					order: 5
+					order: 5,
+					when: InEditorZenModeContext.negate()
 				}, {
 					id: MenuId.LayoutControlMenuSubmenu,
 					group: '0_workbench_layout',
