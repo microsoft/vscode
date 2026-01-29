@@ -406,4 +406,11 @@ export interface IPromptsService extends IDisposable {
 	 * Used for diagnostics and config-info displays.
 	 */
 	getPromptDiscoveryInfo(type: PromptsType, token: CancellationToken): Promise<IPromptDiscoveryInfo>;
+
+	/**
+	 * Checks if the given URI is a known prompt resource (skill, prompt file, instruction, or agent).
+	 * This is used to allow these resources to be rendered as links in markdown
+	 * regardless of their URI scheme.
+	 */
+	isKnownResourceUri(uri: URI): boolean;
 }
