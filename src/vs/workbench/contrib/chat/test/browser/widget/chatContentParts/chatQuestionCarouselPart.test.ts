@@ -100,7 +100,7 @@ suite('ChatQuestionCarouselPart', () => {
 			assert.ok(inputBox, 'Should have an input box for text questions');
 		});
 
-		test('renders radio buttons for singleSelect type questions', () => {
+		test('renders list items for singleSelect type questions', () => {
 			const carousel = createMockCarousel([
 				{
 					id: 'q1',
@@ -114,11 +114,11 @@ suite('ChatQuestionCarouselPart', () => {
 			]);
 			createWidget(carousel);
 
-			const radioInputs = widget.domNode.querySelectorAll('input[type="radio"]');
-			assert.strictEqual(radioInputs.length, 2, 'Should have 2 radio buttons');
+			const listItems = widget.domNode.querySelectorAll('.chat-question-list-item');
+			assert.strictEqual(listItems.length, 2, 'Should have 2 list items');
 		});
 
-		test('renders checkboxes for multiSelect type questions', () => {
+		test('renders list items with checkboxes for multiSelect type questions', () => {
 			const carousel = createMockCarousel([
 				{
 					id: 'q1',
@@ -133,8 +133,10 @@ suite('ChatQuestionCarouselPart', () => {
 			]);
 			createWidget(carousel);
 
-			const checkboxInputs = widget.domNode.querySelectorAll('input[type="checkbox"]');
-			assert.strictEqual(checkboxInputs.length, 3, 'Should have 3 checkboxes');
+			const listItems = widget.domNode.querySelectorAll('.chat-question-list-item.multi-select');
+			assert.strictEqual(listItems.length, 3, 'Should have 3 list items for multiSelect');
+			const checkboxes = widget.domNode.querySelectorAll('.chat-question-list-checkbox');
+			assert.strictEqual(checkboxes.length, 3, 'Should have 3 checkboxes');
 		});
 
 		test('default options are pre-selected for singleSelect', () => {
@@ -152,9 +154,9 @@ suite('ChatQuestionCarouselPart', () => {
 			]);
 			createWidget(carousel);
 
-			const radioInputs = widget.domNode.querySelectorAll('input[type="radio"]') as NodeListOf<HTMLInputElement>;
-			assert.strictEqual(radioInputs[0].checked, false);
-			assert.strictEqual(radioInputs[1].checked, true, 'Default option should be checked');
+			const listItems = widget.domNode.querySelectorAll('.chat-question-list-item') as NodeListOf<HTMLElement>;
+			assert.strictEqual(listItems[0].classList.contains('selected'), false);
+			assert.strictEqual(listItems[1].classList.contains('selected'), true, 'Default option should be selected');
 		});
 
 		test('default options are pre-selected for multiSelect', () => {
@@ -173,10 +175,10 @@ suite('ChatQuestionCarouselPart', () => {
 			]);
 			createWidget(carousel);
 
-			const checkboxInputs = widget.domNode.querySelectorAll('input[type="checkbox"]') as NodeListOf<HTMLInputElement>;
-			assert.strictEqual(checkboxInputs[0].checked, true, 'First default option should be checked');
-			assert.strictEqual(checkboxInputs[1].checked, false);
-			assert.strictEqual(checkboxInputs[2].checked, true, 'Third default option should be checked');
+			const listItems = widget.domNode.querySelectorAll('.chat-question-list-item') as NodeListOf<HTMLElement>;
+			assert.strictEqual(listItems[0].classList.contains('checked'), true, 'First default option should be checked');
+			assert.strictEqual(listItems[1].classList.contains('checked'), false);
+			assert.strictEqual(listItems[2].classList.contains('checked'), true, 'Third default option should be checked');
 		});
 	});
 
@@ -307,7 +309,7 @@ suite('ChatQuestionCarouselPart', () => {
 			assert.ok(nav?.getAttribute('aria-label'), 'Navigation should have aria-label');
 		});
 
-		test('radio buttons have proper name grouping', () => {
+		test('single select list has proper role and aria-label', () => {
 			const carousel = createMockCarousel([
 				{
 					id: 'q1',
@@ -321,12 +323,12 @@ suite('ChatQuestionCarouselPart', () => {
 			]);
 			createWidget(carousel);
 
-			const radioInputs = widget.domNode.querySelectorAll('input[type="radio"]') as NodeListOf<HTMLInputElement>;
-			assert.strictEqual(radioInputs[0].name, radioInputs[1].name, 'Radio buttons should have the same name for grouping');
-			assert.ok(radioInputs[0].name.includes('q1'), 'Radio button name should include question id');
+			const list = widget.domNode.querySelector('.chat-question-list');
+			assert.strictEqual(list?.getAttribute('role'), 'listbox');
+			assert.strictEqual(list?.getAttribute('aria-label'), 'Choose one');
 		});
 
-		test('labels are properly associated with inputs', () => {
+		test('list items have proper role and aria-selected', () => {
 			const carousel = createMockCarousel([
 				{
 					id: 'q1',
@@ -339,10 +341,10 @@ suite('ChatQuestionCarouselPart', () => {
 			]);
 			createWidget(carousel);
 
-			const radioInput = widget.domNode.querySelector('input[type="radio"]') as HTMLInputElement;
-			const label = widget.domNode.querySelector('label.chat-question-option-label') as HTMLLabelElement;
-			assert.ok(radioInput.id, 'Input should have an id');
-			assert.strictEqual(label.htmlFor, radioInput.id, 'Label should be associated with input');
+			const listItem = widget.domNode.querySelector('.chat-question-list-item') as HTMLElement;
+			assert.ok(listItem, 'List item should exist');
+			assert.strictEqual(listItem.getAttribute('role'), 'option');
+			assert.ok(listItem.id, 'List item should have an id');
 		});
 	});
 
