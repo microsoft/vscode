@@ -2576,7 +2576,7 @@ export interface ExtHostQuickOpenShape {
 	$onDidAccept(sessionId: number): void;
 	$onDidChangeValue(sessionId: number, value: string): void;
 	$onDidTriggerButton(sessionId: number, handle: number, checked?: boolean): void;
-	$onDidTriggerItemButton(sessionId: number, itemHandle: number, buttonHandle: number): void;
+	$onDidTriggerItemButton(sessionId: number, itemHandle: number, buttonHandle: number, checked?: boolean): void;
 	$onDidHide(sessionId: number): void;
 }
 
