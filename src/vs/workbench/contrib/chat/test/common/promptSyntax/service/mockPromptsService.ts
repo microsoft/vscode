@@ -66,5 +66,6 @@ export class MockPromptsService implements IPromptsService {
 	findAgentSkills(token: CancellationToken): Promise<IAgentSkill[] | undefined> { throw new Error('Method not implemented.'); }
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	getPromptDiscoveryInfo(_type: any, _token: CancellationToken): Promise<any> { throw new Error('Method not implemented.'); }
+	isKnownResourceUri(_uri: URI): boolean { return false; }
 	dispose(): void { }
 }
