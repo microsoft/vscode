@@ -1381,7 +1381,7 @@ class CollapseAllAction extends ViewAction<SCMViewPane> {
 				id: MenuId.SCMResourceGroupContext,
 				group: 'inline',
 				when: ContextKeys.SCMViewMode.isEqualTo(ViewMode.Tree),
-				order: 10,
+				order: -10,
 			}
 		});
 	}
