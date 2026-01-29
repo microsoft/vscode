@@ -100,6 +100,11 @@ function createPowerShellModelDescription(shell: string): string {
 		'- Returns a terminal ID for checking status and runtime later',
 		'- Use Start-Job for background PowerShell jobs',
 		'',
+		'Timeout Handling:',
+		'- NEVER use the timeout command in your command line (e.g., timeout 30 command)',
+		'- Instead, use the timeout parameter of this tool to enforce time limits',
+		'- Example: set timeout=30000 for a 30 second timeout (value is in milliseconds)',
+		'',
 		'Output Management:',
 		'- Output is automatically truncated if longer than 60KB to prevent context overflow',
 		'- Use Select-Object, Where-Object, Format-Table to filter output',
@@ -138,6 +143,11 @@ Program Execution:
 Background Processes:
 - For long-running tasks (e.g., servers), set isBackground=true
 - Returns a terminal ID for checking status and runtime later
+
+Timeout Handling:
+- NEVER use the timeout command in your command line (e.g., timeout 30 command)
+- Instead, use the timeout parameter of this tool to enforce time limits
+- Example: set timeout=30000 for a 30 second timeout (value is in milliseconds)
 
 Output Management:
 - Output is automatically truncated if longer than 60KB to prevent context overflow
