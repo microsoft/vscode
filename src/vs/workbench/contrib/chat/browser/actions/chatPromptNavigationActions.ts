@@ -7,6 +7,7 @@ import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { localize2 } from '../../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 import { IChatWidgetService } from '../chat.js';
@@ -22,7 +23,7 @@ export function registerChatPromptNavigationActions() {
 				keybinding: {
 					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.DownArrow,
 					weight: KeybindingWeight.WorkbenchContrib,
-					when: ChatContextKeys.inChatSession,
+					when: ContextKeyExpr.and(ChatContextKeys.inChatSession, ChatContextKeys.inChatInput.negate()),
 				},
 				precondition: ChatContextKeys.enabled,
 				f1: true,
@@ -43,7 +44,7 @@ export function registerChatPromptNavigationActions() {
 				keybinding: {
 					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.UpArrow,
 					weight: KeybindingWeight.WorkbenchContrib,
-					when: ChatContextKeys.inChatSession,
+					when: ContextKeyExpr.and(ChatContextKeys.inChatSession, ChatContextKeys.inChatInput.negate()),
 				},
 				precondition: ChatContextKeys.enabled,
 				f1: true,
