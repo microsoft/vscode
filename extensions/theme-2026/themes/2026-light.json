@@ -252,6 +252,8 @@
 		"quickInputTitle.background": "#F5F7FAE6",
 		"chat.requestBubbleBackground": "#EEF4FB",
 		"chat.requestBubbleHoverBackground": "#E6EDFA",
+		"editorCommentsWidget.rangeBackground": "#EEF4FB",
+		"editorCommentsWidget.rangeActiveBackground": "#E6EDFA",
 		"charts.foreground": "#202020",
 		"charts.lines": "#20202066",
 		"charts.blue": "#1A5CFF",
@@ -291,6 +293,15 @@
 			],
 			"settings": {
 				"foreground": "#B86855"
+			}
+		},
+		{
+			"name": "Language constants",
+			"scope": [
+				"constant.language"
+			],
+			"settings": {
+				"foreground": "#5460C1"
 			}
 		},
 		{

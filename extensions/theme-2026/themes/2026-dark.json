@@ -246,6 +246,8 @@
 		"gauge.errorBackground": "#F287724D",
 		"chat.requestBubbleBackground": "#488FAE26",
 		"chat.requestBubbleHoverBackground": "#488FAE46",
+		"editorCommentsWidget.rangeBackground": "#488FAE26",
+		"editorCommentsWidget.rangeActiveBackground": "#488FAE46",
 		"charts.foreground": "#CCCCCC",
 		"charts.lines": "#C8CACC80",
 		"charts.blue": "#57A3F8",
@@ -285,6 +287,15 @@
 			],
 			"settings": {
 				"foreground": "#C48081"
+			}
+		},
+		{
+			"name": "Language constants",
+			"scope": [
+				"constant.language"
+			],
+			"settings": {
+				"foreground": "#4F8FDD"
 			}
 		},
 		{
