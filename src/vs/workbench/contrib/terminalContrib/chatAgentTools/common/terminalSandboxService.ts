@@ -30,7 +30,13 @@ export interface ITerminalSandboxService {
 	getSandboxConfigPath(forceRefresh?: boolean): Promise<string | undefined>;
 	getTempDir(): URI | undefined;
 	setNeedsForceUpdateConfigFile(): void;
-	checkIfDomainsAreSandboxed(urls: string[]): boolean;
+	checkIfDomainsAreSandboxed(domains: string[]): SandboxedDomainCheckResult[];
+}
+
+export interface SandboxedDomainCheckResult {
+	domain: string;
+	isInAllowedList: boolean | undefined;
+	isInDeniedList: boolean | undefined;
 }
 
 export class TerminalSandboxService extends Disposable implements ITerminalSandboxService {
@@ -43,6 +49,8 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 	private _sandboxSettingsId: string | undefined;
 	private _os: Promise<OperatingSystem>;
 	private _sandboxDomains: Set<string> = new Set<string>();
+	private _allowedDomains: Set<string> = new Set<string>();
+	private _deniedDomains: Set<string> = new Set<string>();
 
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -115,20 +123,17 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		return this._sandboxConfigPath;
 	}
 
-	public checkIfDomainsAreSandboxed(domains: string[]): boolean {
-		for (const domain of domains) {
+	public checkIfDomainsAreSandboxed(domains: string[]): SandboxedDomainCheckResult[] {
+		return domains.map(domain => {
 			const lowerCaseDomain = domain.toLowerCase();
-			if (this._sandboxDomains.has(lowerCaseDomain)) {
-				return true;
-			}
-
-			for (const sandboxedDomain of this._sandboxDomains) {
-				if (sandboxedDomain.startsWith('*') && lowerCaseDomain.endsWith(`${sandboxedDomain.slice(1)}`)) {
-					return true;
-				}
-			}
-		}
-		return false;
+			const isInAllowedList = this._matchesDomain(lowerCaseDomain, this._allowedDomains);
+			const isInDeniedList = this._matchesDomain(lowerCaseDomain, this._deniedDomains);
+			return {
+				domain,
+				isInAllowedList,
+				isInDeniedList
+			};
+		});
 	}
 
 	private async _createSandboxConfig(): Promise<string | undefined> {
@@ -180,10 +185,34 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		const allowedDomains = networkSettings.allowedDomains ?? [];
 		const deniedDomains = networkSettings.deniedDomains ?? [];
 		this._sandboxDomains.clear();
+		this._allowedDomains.clear();
+		this._deniedDomains.clear();
 		for (const domain of [...allowedDomains, ...deniedDomains]) {
 			if (domain) {
 				this._sandboxDomains.add(domain.toLowerCase());
 			}
 		}
+		for (const domain of allowedDomains) {
+			if (domain) {
+				this._allowedDomains.add(domain.toLowerCase());
+			}
+		}
+		for (const domain of deniedDomains) {
+			if (domain) {
+				this._deniedDomains.add(domain.toLowerCase());
+			}
+		}
+	}
+
+	private _matchesDomain(domain: string, domains: Set<string>): boolean {
+		if (domains.has(domain)) {
+			return true;
+		}
+		for (const sandboxedDomain of domains) {
+			if (sandboxedDomain.startsWith('*') && domain.endsWith(`${sandboxedDomain.slice(1)}`)) {
+				return true;
+			}
+		}
+		return false;
 	}
 }

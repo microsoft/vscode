@@ -993,7 +993,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			resultText.push(`Note: This terminal execution was moved to the background using the ID ${termId}\n`);
 		}
 		const outputAnalyzerMessages = (await Promise.all(this._outputAnalyzers
-			.map(analyzer => analyzer.analyze({ exitCode, exitResult: terminalResult }))))
+			.map(analyzer => analyzer.analyze({ exitCode, exitResult: terminalResult, commandLine: command }))))
 			.filter((message): message is string => !!message);
 		if (outputAnalyzerMessages.length > 0) {
 			resultText.unshift(`${outputAnalyzerMessages.join('\n')}\n`);
