@@ -20,6 +20,10 @@
 	box-shadow: 0 2px 8px var(--vscode-widget-shadow);
 }
 
+.monaco-hover.workbench-hover.with-pointer {
+	border-radius: 3px;
+}
+
 .monaco-hover.workbench-hover .monaco-action-bar .action-item .codicon {
 	/* Given our font-size, adjust action icons accordingly */
 	width: 13px;
