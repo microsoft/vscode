@@ -1348,6 +1348,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return false;
 		}
 
+		// don't pin ask questions tool invocations
+		const isAskQuestionsTool = (part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') && part.toolId === 'copilot_askQuestions';
+		if (isAskQuestionsTool) {
+			return false;
+		}
+
 		// Don't pin subagent tools to thinking parts - they have their own grouping
 		const isSubagentTool = (part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') && (part.subAgentInvocationId || part.toolId === RunSubagentTool.Id);
 		if (isSubagentTool) {
