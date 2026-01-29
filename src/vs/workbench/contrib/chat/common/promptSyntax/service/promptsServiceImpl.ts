@@ -118,8 +118,6 @@ export class PromptsService extends Disposable implements IPromptsService {
 
 	/**
 	 * Known URIs from extension providers, keyed by prompt type.
-	 * For skills, stores the SKILL.md URI (allows any file under its parent folder).
-	 * For other types, stores the exact resource URI.
 	 */
 	private knownProviderUris: { [key in PromptsType]?: ResourceSet } = {};
 
