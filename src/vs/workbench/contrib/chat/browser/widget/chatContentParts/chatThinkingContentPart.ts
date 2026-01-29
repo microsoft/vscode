@@ -189,8 +189,9 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		}
 		this.currentThinkingValue = initialText;
 
-		// initial thinking block
-		this.appendedItemCount++;
+		if (initialText.trim()) {
+			this.appendedItemCount++;
+		}
 
 		// Alert screen reader users that thinking has started
 		alert(localize('chat.thinking.started', 'Thinking'));
@@ -622,7 +623,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 
 	private async generateTitleViaLLM(): Promise<void> {
 		const cts = new CancellationTokenSource();
-		const timeout = setTimeout(() => cts.cancel(), 5000);
+		const timeout = setTimeout(() => cts.cancel(), 1);
 
 		try {
 			let models = await this.languageModelsService.selectLanguageModels({ vendor: 'copilot', id: 'copilot-fast' });
