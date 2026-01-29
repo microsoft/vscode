@@ -226,17 +226,17 @@ class ModelsSearchFilterDropdownMenuActionViewItem extends DropdownMenuActionVie
 	private getActions(): IAction[] {
 		const actions: IAction[] = [];
 
-		// Visibility filters
-		actions.push(this.createVisibleAction(true, localize('filter.visible', 'Visible')));
-		actions.push(this.createVisibleAction(false, localize('filter.hidden', 'Hidden')));
-
 		// Capability filters
-		actions.push(new Separator());
 		actions.push(
-			this.createCapabilityAction('tools', localize('capability.tools', 'Tools')),
-			this.createCapabilityAction('vision', localize('capability.vision', 'Vision')),
-			this.createCapabilityAction('agent', localize('capability.agent', 'Agent Mode'))
+			this.createCapabilityAction('tools', localize('capability.tools', "Tools")),
+			this.createCapabilityAction('vision', localize('capability.vision', "Vision")),
+			this.createCapabilityAction('agent', localize('capability.agent', "Agent Mode"))
 		);
+
+		// Visibility filters
+		actions.push(new Separator());
+		actions.push(this.createVisibleAction(true, localize('filter.visible', "Visible in Chat Model Picker")));
+		actions.push(this.createVisibleAction(false, localize('filter.hidden', "Hidden in Chat Model Picker")));
 
 		// Provider filters - only show providers with configured models
 		const configuredVendors = this.viewModel.getConfiguredVendors();
@@ -248,8 +248,8 @@ class ModelsSearchFilterDropdownMenuActionViewItem extends DropdownMenuActionVie
 		// Group By
 		actions.push(new Separator());
 		const groupByActions: IAction[] = [];
-		groupByActions.push(this.createGroupByAction(ChatModelGroup.Vendor, localize('groupBy.provider', 'Provider')));
-		groupByActions.push(this.createGroupByAction(ChatModelGroup.Visibility, localize('groupBy.visibility', 'Visibility')));
+		groupByActions.push(this.createGroupByAction(ChatModelGroup.Vendor, localize('groupBy.provider', "Provider")));
+		groupByActions.push(this.createGroupByAction(ChatModelGroup.Visibility, localize('groupBy.visibility', "Visibility (Chat Model Picker)")));
 		actions.push(new SubmenuAction('groupBy', localize('groupBy', "Group By"), groupByActions));
 
 		return actions;
