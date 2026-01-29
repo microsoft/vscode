@@ -105,6 +105,12 @@ jobs:
         timeoutInMinutes: 400
         condition: and(succeeded(), eq(variables['SHOULD_VALIDATE'], 'true'))
 
+      - script: |
+          set -e
+          find . -name 'package-lock.json' -exec sed -i "s|$NPM_REGISTRY|https://registry.npmjs.org/|g" {} \;
+        displayName: Restore registry URLs in package-lock.json
+        condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'), eq(variables['SHOULD_VALIDATE'], 'true'))
+
       - script: .github/workflows/check-clean-git-state.sh
         displayName: Check clean git state
         condition: and(succeeded(), eq(variables['SHOULD_VALIDATE'], 'true'))
