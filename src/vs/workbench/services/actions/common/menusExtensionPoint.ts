@@ -724,6 +724,7 @@ namespace schema {
 		title: string | ILocalizedString;
 		shortTitle?: string | ILocalizedString;
 		enablement?: string;
+		toggled?: string;
 		category?: string | ILocalizedString;
 		icon?: IUserFriendlyIcon;
 	}
@@ -810,6 +811,10 @@ namespace schema {
 				description: localize('vscode.extension.contributes.commandType.precondition', '(Optional) Condition which must be true to enable the command in the UI (menu and keybindings). Does not prevent executing the command by other means, like the `executeCommand`-api.'),
 				type: 'string'
 			},
+			toggled: {
+				description: localize('vscode.extension.contributes.commandType.toggled', '(Optional) Condition which must be true to show a check-mark in the UI (menu).'),
+				type: 'string'
+			},
 			icon: {
 				description: localize({ key: 'vscode.extension.contributes.commandType.icon', comment: ['do not translate or change "\\$(zap)", \\ in front of $ is important.'] }, '(Optional) Icon which is used to represent the command in the UI. Either a file path, an object with file paths for dark and light themes, or a theme icon references, like "\\$(zap)"'),
 				anyOf: [{
@@ -866,7 +871,7 @@ commandsExtensionPoint.setHandler(extensions => {
 			return;
 		}
 
-		const { icon, enablement, category, title, shortTitle, command } = userFriendlyCommand;
+		const { icon, enablement, category, title, shortTitle, command, toggled } = userFriendlyCommand;
 
 		let absoluteIcon: { dark: URI; light?: URI } | ThemeIcon | undefined;
 		if (icon) {
@@ -897,6 +902,7 @@ commandsExtensionPoint.setHandler(extensions => {
 			tooltip: title,
 			category,
 			precondition: ContextKeyExpr.deserialize(enablement),
+			toggled: ContextKeyExpr.deserialize(toggled),
 			icon: absoluteIcon
 		}));
 	}
