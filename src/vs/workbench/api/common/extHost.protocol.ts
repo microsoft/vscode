@@ -1282,6 +1282,7 @@ export interface MainThreadNotebookKernelsShape extends IDisposable {
 	$updateKernel(handle: number, data: Partial<INotebookKernelDto2>): void;
 	$removeKernel(handle: number): void;
 	$updateNotebookPriority(handle: number, uri: UriComponents, value: number | undefined): void;
+	$updateReplPriority(handle: number, selector: { language?: string; notebookType?: string; scheme?: string; pattern?: string | { baseUri: UriComponents; pattern: string } }, value: number | undefined): void;
 
 	$createExecution(handle: number, controllerId: string, uri: UriComponents, cellHandle: number): void;
 	$updateExecution(handle: number, data: SerializableObjectWithBuffers<ICellExecuteUpdateDto[]>): void;

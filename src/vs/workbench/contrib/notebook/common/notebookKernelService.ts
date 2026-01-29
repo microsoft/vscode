@@ -13,6 +13,7 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { INotebookKernelSourceAction } from './notebookCommon.js';
+import type * as vscode from 'vscode';
 
 export interface ISelectedNotebooksChangeEvent {
 	notebook: URI;
@@ -142,6 +143,13 @@ export interface INotebookKernelService {
 	 * Set a perference of a kernel for a certain notebook. Higher values win, `undefined` removes the preference
 	 */
 	updateKernelNotebookAffinity(kernel: INotebookKernel, notebook: URI, preference: number | undefined): void;
+
+	/**
+	 * Set a preference of a kernel for REPL editors based on document filter.
+	 * This only applies to REPL editors and does not affect notebook kernel selection.
+	 * Higher values win, `undefined` removes the preference.
+	 */
+	updateKernelReplAffinity(kernel: INotebookKernel, selector: { language?: string; notebookType?: string; scheme?: string; pattern?: string | vscode.RelativePattern }, preference: number | undefined): void;
 
 	//#region Kernel detection tasks
 	readonly onDidChangeKernelDetectionTasks: Event<string>;

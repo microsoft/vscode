@@ -16132,6 +16132,16 @@ declare module 'vscode' {
 		updateNotebookAffinity(notebook: NotebookDocument, affinity: NotebookControllerAffinity): void;
 
 		/**
+		 * A controller can set affinities for REPL editors based on document properties.
+		 * This only applies to REPL editors and does not affect notebook kernel selection.
+		 * This allows a controller to be presented more prominent for REPLs with specific characteristics.
+		 *
+		 * @param selector Document filter to match REPL editors by language, notebookType, scheme, or pattern
+		 * @param affinity A controller affinity
+		 */
+		updateReplAffinity(selector: DocumentFilter, affinity: NotebookControllerAffinity): void;
+
+		/**
 		 * Dispose and free associated resources.
 		 */
 		dispose(): void;
