@@ -57,6 +57,7 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 	private _firstUpdate = true;
 	private _currentVersion?: PreviewDocumentVersion;
 	private _isScrolling = false;
+	private _scrollingTimer?: NodeJS.Timeout;
 
 	private _imageInfo: readonly ImageInfo[] = [];
 	private readonly _fileWatchersBySrc = new Map</* src: */ string, vscode.FileSystemWatcher>();
@@ -219,7 +220,6 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 		}
 
 		if (this._isScrolling) {
-			this._isScrolling = false;
 			return;
 		}
 
@@ -299,6 +299,12 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 			}
 
 			this._isScrolling = true;
+			if (this._scrollingTimer) {
+				clearTimeout(this._scrollingTimer);
+			}
+			this._scrollingTimer = setTimeout(() => {
+				this._isScrolling = false;
+			}, 200);
 			scrollEditorToLine(line, editor);
 		}
 	}
