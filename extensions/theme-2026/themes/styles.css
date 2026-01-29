@@ -38,10 +38,12 @@
 .monaco-workbench .part.auxiliarybar { box-shadow: var(--shadow-md); z-index: 40; position: relative; }
 
 /* Ensure iframe containers in pane-body render above sidebar z-index */
+/* Commented out - may cause content to be hidden by z-index issues
 .monaco-workbench > div[data-keybinding-context],
 .monaco-workbench > div[data-keybinding-context] {
 	z-index: 50 !important;
 }
+*/
 
 /* Ensure webview containers render above sidebar z-index */
 .monaco-workbench .part.sidebar .webview,
