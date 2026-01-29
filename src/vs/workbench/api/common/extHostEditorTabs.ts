@@ -36,6 +36,11 @@ class ExtHostEditorTab {
 		this.acceptDtoUpdate(dto);
 	}
 
+	dispose(): void {
+		this._apiObject = undefined;
+		this._input = undefined;
+	}
+
 	get apiObject(): vscode.Tab {
 		if (!this._apiObject) {
 			// Don't want to lose reference to parent `this` in the getters
@@ -128,6 +133,14 @@ class ExtHostEditorTabGroup {
 		}
 	}
 
+	dispose(): void {
+		this._apiObject = undefined;
+		for (const tab of this._tabs) {
+			tab.dispose();
+		}
+		this._tabs = [];
+	}
+
 	get apiObject(): vscode.TabGroup {
 		if (!this._apiObject) {
 			// Don't want to lose reference to parent `this` in the getters
@@ -161,6 +174,29 @@ class ExtHostEditorTabGroup {
 	}
 
 	acceptGroupDtoUpdate(dto: IEditorTabGroupDto) {
+		const newTabIds = new Set(dto.tabs.map(tab => tab.id));
+
+		// Dispose of tabs that are no longer present
+		for (const tab of this._tabs) {
+			if (!newTabIds.has(tab.tabId)) {
+				tab.dispose();
+			}
+		}
+
+		// Create map of existing tabs for reuse
+		const existingTabsMap = new Map(this._tabs.filter(tab => newTabIds.has(tab.tabId)).map(tab => [tab.tabId, tab]));
+
+		// Rebuild tabs array, reusing existing tabs and creating new ones when needed
+		this._tabs = dto.tabs.map(tabDto => {
+			const existingTab = existingTabsMap.get(tabDto.id);
+			if (existingTab) {
+				existingTab.acceptDtoUpdate(tabDto);
+				return existingTab;
+			} else {
+				return new ExtHostEditorTab(tabDto, this, () => this.activeTabId());
+			}
+		});
+
 		this._dto = dto;
 	}
 
@@ -288,15 +324,31 @@ export class ExtHostEditorTabs implements IExtHostEditorTabs {
 		const opened: vscode.TabGroup[] = [];
 		const changed: vscode.TabGroup[] = [];
 
+		// Store old groups to reuse and dispose
+		const oldGroupsMap = new Map(this._extHostTabGroups.map(g => [g.groupId, g]));
+
+		// Dispose of old groups that are being removed
+		for (const group of this._extHostTabGroups) {
+			if (diff.removed.includes(group.groupId)) {
+				group.dispose();
+			}
+		}
 
 		this._extHostTabGroups = tabGroups.map(tabGroup => {
-			const group = new ExtHostEditorTabGroup(tabGroup, () => this._activeGroupId);
-			if (diff.added.includes(group.groupId)) {
-				opened.push(group.apiObject);
+			const existingGroup = oldGroupsMap.get(tabGroup.groupId);
+			if (existingGroup) {
+				existingGroup.acceptGroupDtoUpdate(tabGroup);
+				if (!diff.added.includes(existingGroup.groupId)) {
+					changed.push(existingGroup.apiObject);
+				}
+				return existingGroup;
 			} else {
-				changed.push(group.apiObject);
+				const group = new ExtHostEditorTabGroup(tabGroup, () => this._activeGroupId);
+				if (diff.added.includes(group.groupId)) {
+					opened.push(group.apiObject);
+				}
+				return group;
 			}
-			return group;
 		});
 
 		// Set the active tab group id
