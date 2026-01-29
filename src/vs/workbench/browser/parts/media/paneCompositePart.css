@@ -54,6 +54,7 @@
 	justify-content: center;
 	margin-left: 0px;
 	margin-right: 0px;
+	padding: 3px; /* match base action-bar styling for 22x22px size */
 	color: inherit !important;
 }
 
