@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from '../../../base/common/event.js';
-import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { IProcessEnvironment, OS, OperatingSystem, isWindows } from '../../../base/common/platform.js';
 import { ProxyChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
@@ -37,10 +37,6 @@ export class PtyHostService extends Disposable implements IPtyHostService {
 	// ProxyChannel is not used here because events get lost when forwarding across multiple proxies
 	private __proxy?: IPtyService;
 
-	private get _connection(): IPtyHostConnection {
-		this._ensurePtyHost();
-		return this.__connection!;
-	}
 	private get _proxy(): IPtyService {
 		this._ensurePtyHost();
 		return this.__proxy!;
@@ -55,7 +51,8 @@ export class PtyHostService extends Disposable implements IPtyHostService {
 
 	private _ensurePtyHost() {
 		if (!this.__connection) {
-			this._startPtyHost();
+			const [_, _2, store] = this._startPtyHost();
+			this.ptyHostStore.value = store;
 		}
 	}
 
@@ -91,6 +88,8 @@ export class PtyHostService extends Disposable implements IPtyHostService {
 	readonly onDidChangeProperty = this._onDidChangeProperty.event;
 	private readonly _onProcessExit = this._register(new Emitter<{ id: number; event: number | undefined }>());
 	readonly onProcessExit = this._onProcessExit.event;
+
+	private readonly ptyHostStore = this._register(new MutableDisposable());
 
 	constructor(
 		private readonly _ptyHostStarter: IPtyHostStarter,
@@ -142,9 +141,11 @@ export class PtyHostService extends Disposable implements IPtyHostService {
 		}
 	}
 
-	private _startPtyHost(): [IPtyHostConnection, IPtyService] {
+	private _startPtyHost(): [IPtyHostConnection, IPtyService, DisposableStore] {
 		const connection = this._ptyHostStarter.start();
 		const client = connection.client;
+		const store = new DisposableStore();
+		store.add(connection.store);
 
 		// Log a full stack trace which will tell the exact reason the pty host is starting up
 		if (this._logService.getLevel() === LogLevel.Trace) {
@@ -157,7 +158,7 @@ export class PtyHostService extends Disposable implements IPtyHostService {
 		this._handleHeartbeat(true);
 
 		// Handle exit
-		this._register(connection.onDidProcessExit(e => {
+		store.add(connection.onDidProcessExit(e => {
 			this._onPtyHostExit.fire(e.code);
 			if (!this._wasQuitRequested && !this._store.isDisposed) {
 				if (this._restartCount <= Constants.MaxRestarts) {
@@ -172,29 +173,29 @@ export class PtyHostService extends Disposable implements IPtyHostService {
 
 		// Create proxy and forward events
 		const proxy = ProxyChannel.toService<IPtyService>(client.getChannel(TerminalIpcChannels.PtyHost));
-		this._register(proxy.onProcessData(e => this._onProcessData.fire(e)));
-		this._register(proxy.onProcessReady(e => this._onProcessReady.fire(e)));
-		this._register(proxy.onProcessExit(e => this._onProcessExit.fire(e)));
-		this._register(proxy.onDidChangeProperty(e => this._onDidChangeProperty.fire(e)));
-		this._register(proxy.onProcessReplay(e => this._onProcessReplay.fire(e)));
-		this._register(proxy.onProcessOrphanQuestion(e => this._onProcessOrphanQuestion.fire(e)));
-		this._register(proxy.onDidRequestDetach(e => this._onDidRequestDetach.fire(e)));
+		store.add(proxy.onProcessData(e => this._onProcessData.fire(e)));
+		store.add(proxy.onProcessReady(e => this._onProcessReady.fire(e)));
+		store.add(proxy.onProcessExit(e => this._onProcessExit.fire(e)));
+		store.add(proxy.onDidChangeProperty(e => this._onDidChangeProperty.fire(e)));
+		store.add(proxy.onProcessReplay(e => this._onProcessReplay.fire(e)));
+		store.add(proxy.onProcessOrphanQuestion(e => this._onProcessOrphanQuestion.fire(e)));
+		store.add(proxy.onDidRequestDetach(e => this._onDidRequestDetach.fire(e)));
 
-		this._register(new RemoteLoggerChannelClient(this._loggerService, client.getChannel(TerminalIpcChannels.Logger)));
+		store.add(new RemoteLoggerChannelClient(this._loggerService, client.getChannel(TerminalIpcChannels.Logger)));
 
 		this.__connection = connection;
 		this.__proxy = proxy;
 
 		this._onPtyHostStart.fire();
 
-		this._register(this._configurationService.onDidChangeConfiguration(async e => {
+		store.add(this._configurationService.onDidChangeConfiguration(async e => {
 			if (e.affectsConfiguration(TerminalSettingId.IgnoreProcessNames)) {
 				await this._refreshIgnoreProcessNames();
 			}
 		}));
 		this._refreshIgnoreProcessNames();
 
-		return [connection, proxy];
+		return [connection, proxy, store];
 	}
 
 	async createProcess(
@@ -365,12 +366,13 @@ export class PtyHostService extends Disposable implements IPtyHostService {
 	async restartPtyHost(): Promise<void> {
 		this._disposePtyHost();
 		this._isResponsive = true;
-		this._startPtyHost();
+		const [_, _2, store] = this._startPtyHost();
+		this.ptyHostStore.value = store;
 	}
 
 	private _disposePtyHost(): void {
 		this._proxy.shutdownAll();
-		this._connection.store.dispose();
+		this.ptyHostStore.value = undefined;
 	}
 
 	private _handleHeartbeat(isConnecting?: boolean) {
