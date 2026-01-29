@@ -438,6 +438,12 @@
 	border-top-width: 0;
 }
 
+/* Quick Input List - use descriptionForeground color for descriptions */
+.monaco-workbench .quick-input-list .monaco-icon-label .label-description {
+	opacity: 1;
+	color: var(--vscode-descriptionForeground);
+}
+
 /* Remove Borders */
 .monaco-workbench.vs .part.sidebar { border-right: none !important; border-left: none !important; }
 .monaco-workbench.vs .part.auxiliarybar { border-right: none !important; border-left: none !important; }

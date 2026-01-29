@@ -6,7 +6,7 @@
 		"foreground": "#202020",
 		"disabledForeground": "#BBBBBB",
 		"errorForeground": "#ad0707",
-		"descriptionForeground": "#666666",
+		"descriptionForeground": "#555555",
 		"icon.foreground": "#666666",
 		"focusBorder": "#0069CCFF",
 		"textBlockQuote.background": "#EDEDED",
