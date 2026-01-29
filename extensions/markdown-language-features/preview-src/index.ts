@@ -239,6 +239,8 @@ window.addEventListener('message', async event => {
 				const newBody = newContent.querySelector('.markdown-body')!;
 				root.replaceWith(newBody);
 				domEval(newBody);
+				// Scroll to top when navigating to a different document
+				window.scrollTo(0, 0);
 			} else {
 				const newRoot = newContent.querySelector('.markdown-body')!;
 
