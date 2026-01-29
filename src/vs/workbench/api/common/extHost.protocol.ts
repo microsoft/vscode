@@ -1555,7 +1555,8 @@ export type IChatProgressDto =
 	| IChatExternalEditsDto
 	| IChatResponseClearToPreviousToolInvocationDto
 	| IChatBeginToolInvocationDto
-	| IChatUpdateToolInvocationDto;
+	| IChatUpdateToolInvocationDto
+	| IChatExternalToolInvocationUpdateDto;
 
 export interface ExtHostUrlsShape {
 	$handleExternalUri(handle: number, uri: UriComponents): Promise<void>;
@@ -2362,6 +2363,22 @@ export interface IChatUpdateToolInvocationDto {
 	streamData: {
 		partialInput?: unknown;
 	};
+}
+
+/**
+ * DTO for external tool invocation updates from extensions.
+ * When isComplete is false, creates a new live tool invocation.
+ * When isComplete is true, completes an existing tool invocation.
+ */
+export interface IChatExternalToolInvocationUpdateDto {
+	kind: 'externalToolInvocationUpdate';
+	toolCallId: string;
+	toolName: string;
+	isComplete: boolean;
+	isError?: boolean;
+	invocationMessage?: string | IMarkdownString;
+	pastTenseMessage?: string | IMarkdownString;
+	toolSpecificData?: unknown;
 }
 
 export type ICellEditOperationDto =
