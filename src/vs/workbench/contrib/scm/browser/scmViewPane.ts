@@ -934,7 +934,7 @@ export class SCMAccessibilityProvider implements IListAccessibilityProvider<Tree
 			return element.button?.command.title ?? '';
 		} else if (isSCMResourceGroup(element)) {
 			return element.label;
-		} else {
+		} else if (isSCMResource(element)) {
 			const result: string[] = [];
 
 			result.push(basename(element.sourceUri));
@@ -950,6 +950,22 @@ export class SCMAccessibilityProvider implements IListAccessibilityProvider<Tree
 			}
 
 			return result.join(', ');
+		} else if (isSCMResourceNode(element)) {
+			const result: string[] = [];
+
+			result.push(basename(element.uri));
+
+			const path = this.labelService.getUriLabel(dirname(element.uri), { relative: true, noPrefix: true });
+
+			if (path) {
+				result.push(path);
+			}
+
+			return result.join(', ');
+		} else {
+			// Fallback for unknown element types - this should not happen in normal operation
+			// but provides a safe fallback to prevent runtime errors
+			return '';
 		}
 	}
 }
