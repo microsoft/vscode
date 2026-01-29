@@ -195,7 +195,7 @@ suite('Editor ViewLayout - LineHeightsManager', () => {
 		manager.insertOrChangeCustomLineHeight('dec1', 5, 7, 20);
 		manager.commit();
 
-		manager.onLinesInserted(3, 4); // Insert 2 lines at line 3
+		manager.onLinesInserted(3, 4, []); // Insert 2 lines at line 3
 
 		assert.strictEqual(manager.heightForLineNumber(5), 10);
 		assert.strictEqual(manager.heightForLineNumber(6), 10);
@@ -209,7 +209,7 @@ suite('Editor ViewLayout - LineHeightsManager', () => {
 		manager.insertOrChangeCustomLineHeight('dec1', 5, 7, 20);
 		manager.commit();
 
-		manager.onLinesInserted(6, 7); // Insert 2 lines at line 6
+		manager.onLinesInserted(6, 7, []); // Insert 2 lines at line 6
 
 		assert.strictEqual(manager.heightForLineNumber(5), 20);
 		assert.strictEqual(manager.heightForLineNumber(6), 20);
