@@ -12,7 +12,7 @@ import { IEditorConfiguration } from '../config/editorConfiguration.js';
 import { LinesLayout } from './linesLayout.js';
 import { IEditorWhitespace, IPartialViewLinesViewportData, ILineHeightChangeAccessor, IViewLayout, IViewWhitespaceViewportData, IWhitespaceChangeAccessor, Viewport } from '../viewModel.js';
 import { ContentSizeChangedEvent } from '../viewModelEventDispatcher.js';
-import { ICustomLineHeightData } from './lineHeights.js';
+import { CustomLineHeightData } from './lineHeights.js';
 
 const SMOOTH_SCROLLING_TIME = 125;
 
@@ -164,7 +164,7 @@ export class ViewLayout extends Disposable implements IViewLayout {
 	public readonly onDidScroll: Event<ScrollEvent>;
 	public readonly onDidContentSizeChange: Event<ContentSizeChangedEvent>;
 
-	constructor(configuration: IEditorConfiguration, lineCount: number, customLineHeightData: ICustomLineHeightData[], scheduleAtNextAnimationFrame: (callback: () => void) => IDisposable) {
+	constructor(configuration: IEditorConfiguration, lineCount: number, customLineHeightData: CustomLineHeightData[], scheduleAtNextAnimationFrame: (callback: () => void) => IDisposable) {
 		super();
 
 		this._configuration = configuration;
@@ -237,14 +237,14 @@ export class ViewLayout extends Disposable implements IViewLayout {
 			this._configureSmoothScrollDuration();
 		}
 	}
-	public onFlushed(lineCount: number, customLineHeightData: ICustomLineHeightData[]): void {
+	public onFlushed(lineCount: number, customLineHeightData: CustomLineHeightData[]): void {
 		this._linesLayout.onFlushed(lineCount, customLineHeightData);
 	}
-	public onLinesDeleted(fromLineNumber: number, toLineNumber: number): void {
-		this._linesLayout.onLinesDeleted(fromLineNumber, toLineNumber);
+	public onLinesDeleted(fromLineNumber: number, toLineNumber: number, lineHeightsRemoved: CustomLineHeightData[]): void {
+		this._linesLayout.onLinesDeleted(fromLineNumber, toLineNumber, lineHeightsRemoved);
 	}
-	public onLinesInserted(fromLineNumber: number, toLineNumber: number): void {
-		this._linesLayout.onLinesInserted(fromLineNumber, toLineNumber);
+	public onLinesInserted(fromLineNumber: number, toLineNumber: number, lineHeightsAdded: CustomLineHeightData[]): void {
+		this._linesLayout.onLinesInserted(fromLineNumber, toLineNumber, lineHeightsAdded);
 	}
 
 	// ---- end view event handlers
