@@ -68,6 +68,10 @@ const posixShellTypeMap = new Map<string, PosixShellType>([
 ]);
 
 const generalShellTypeMap = new Map<string, GeneralShellType>([
+	['claude', GeneralShellType.Claude],
+	['codex', GeneralShellType.Codex],
+	['copilot', GeneralShellType.Copilot],
+	['gemini', GeneralShellType.Gemini],
 	['pwsh', GeneralShellType.PowerShell],
 	['powershell', GeneralShellType.PowerShell],
 	['python', GeneralShellType.Python],
