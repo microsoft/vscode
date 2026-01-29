@@ -105,7 +105,8 @@ suite('CommandLineFileWriteAnalyzer', () => {
 			test('relative path - grandparent directory - block', () => t('echo hello > ../../file.txt', 'outsideWorkspace', false, 1));
 
 			// Absolute paths (parsed as-is)
-			test('absolute path - /tmp - block', () => t('echo hello > /tmp/file.txt', 'outsideWorkspace', false, 1));
+			test('absolute path - /tmp - allow', () => t('echo hello > /tmp/file.txt', 'outsideWorkspace', true, 1));
+			test('absolute path - /tmp subdir - allow', () => t('echo hello > /tmp/subdir/file.txt', 'outsideWorkspace', true, 1));
 			test('absolute path - /etc - block', () => t('echo hello > /etc/config.txt', 'outsideWorkspace', false, 1));
 			test('absolute path - /home - block', () => t('echo hello > /home/user/file.txt', 'outsideWorkspace', false, 1));
 			test('absolute path - root - block', () => t('echo hello > /file.txt', 'outsideWorkspace', false, 1));
@@ -114,6 +115,7 @@ suite('CommandLineFileWriteAnalyzer', () => {
 			// Special cases
 			test('no workspace folders - block', () => t('echo hello > file.txt', 'outsideWorkspace', false, 1, []));
 			test('no workspace folders - /dev/null allowed', () => t('echo hello > /dev/null', 'outsideWorkspace', true, 1, []));
+			test('no workspace folders - /tmp allowed', () => t('echo hello > /tmp/file.txt', 'outsideWorkspace', true, 1, []));
 			test('no redirections - allow', () => t('echo hello', 'outsideWorkspace', true, 0));
 			test('variable in filename - block', () => t('echo hello > $HOME/file.txt', 'outsideWorkspace', false, 1));
 			test('command substitution - block', () => t('echo hello > $(pwd)/file.txt', 'outsideWorkspace', false, 1));
@@ -129,9 +131,13 @@ suite('CommandLineFileWriteAnalyzer', () => {
 
 		suite('complex scenarios', () => {
 			test('pipeline with redirection inside workspace', () => t('cat file.txt | grep "test" > output.txt', 'outsideWorkspace', true, 1));
-			test('multiple redirections mixed inside/outside', () => t('echo hello > file.txt && echo world > /tmp/file.txt', 'outsideWorkspace', false, 1));
+			test('multiple redirections mixed inside/outside with /tmp', () => t('echo hello > file.txt && echo world > /tmp/file.txt', 'outsideWorkspace', true, 1));
+			test('multiple redirections mixed inside/outside non-tmp', () => t('echo hello > file.txt && echo world > /etc/file.txt', 'outsideWorkspace', false, 1));
 			test('here-document', () => t('cat > file.txt << EOF\nhello\nEOF', 'outsideWorkspace', true, 1));
 			test('error output to /dev/null - allow', () => t('cat missing.txt 2> /dev/null', 'outsideWorkspace', true, 1));
+			test('tee command with /tmp output - allow', () => t('npm run test 2>&1 | tee /tmp/test_output.log', 'outsideWorkspace', true, 1));
+			test('tee command with workspace output - allow', () => t('npm run test 2>&1 | tee test_output.log', 'outsideWorkspace', true, 1));
+			test('tee command with non-tmp non-workspace output - block', () => t('npm run test 2>&1 | tee /etc/test_output.log', 'outsideWorkspace', false, 1));
 		});
 
 		suite('sed in-place editing', () => {
