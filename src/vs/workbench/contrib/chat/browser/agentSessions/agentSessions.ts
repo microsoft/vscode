@@ -64,8 +64,9 @@ export function getAgentSessionProviderIcon(provider: AgentSessionProviders): Th
 		case AgentSessionProviders.Cloud:
 			return Codicon.cloud;
 		case AgentSessionProviders.Codex:
+			return Codicon.openai;
 		case AgentSessionProviders.Claude:
-			return Codicon.code;
+			return Codicon.claude;
 	}
 }
 
