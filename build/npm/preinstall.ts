@@ -36,6 +36,21 @@ if (!process.env['VSCODE_SKIP_NODE_VERSION_CHECK']) {
 	}
 }
 
+const userAgent = process.env.npm_config_user_agent;
+if (userAgent) {
+	const match = userAgent.match(/npm\/(\d+)\.(\d+)\.(\d+)/);
+	if (match) {
+		const npmMajor = parseInt(match[1], 10);
+
+		if (npmMajor < 9) {
+			console.error(
+				'\x1b[1;31m*** Please use npm v9 or later (bundled with the supported Node.js version).\x1b[0;0m'
+			);
+			throw new Error();
+		}
+	}
+}
+
 if (process.env.npm_execpath?.includes('yarn')) {
 	console.error('\x1b[1;31m*** Seems like you are using `yarn` which is not supported in this repo any more, please use `npm i` instead. ***\x1b[0;0m');
 	throw new Error();
