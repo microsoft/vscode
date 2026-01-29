@@ -358,6 +358,8 @@ function getGitErrorCode(stderr: string): string | undefined {
 		return GitErrorCodes.WorktreeAlreadyExists;
 	} else if (/is already used by worktree at/.test(stderr)) {
 		return GitErrorCodes.WorktreeBranchAlreadyUsed;
+	} else if (/husky|pre-commit|commit-msg|hook.*failed|\.husky/i.test(stderr)) {
+		return GitErrorCodes.CommitHookFailed;
 	}
 	return undefined;
 }

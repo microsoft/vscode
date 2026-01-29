@@ -5524,6 +5524,10 @@ export class CommandCenter {
 						choices.set(l10n.t('Show Changes'), () => commands.executeCommand('workbench.view.scm'));
 						options.modal = false;
 						break;
+					case GitErrorCodes.CommitHookFailed:
+						message = l10n.t('Commit was rejected by a commit hook.');
+						choices.set(l10n.t('Commit (No Verify)'), () => commands.executeCommand('git.commitNoVerify'));
+						break;
 					default: {
 						const hint = (err.stderr || err.message || String(err))
 							.replace(/^error: /mi, '')
