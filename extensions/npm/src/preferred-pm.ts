@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import findWorkspaceRoot = require('../node_modules/find-yarn-workspace-root');
 import findUp from 'find-up';
 import * as path from 'path';
 import whichPM from 'which-pm';
@@ -53,12 +52,6 @@ async function isYarnPreferred(pkgPath: string): Promise<PreferredProperties> {
 	if (await pathExists(path.join(pkgPath, 'yarn.lock'))) {
 		return { isPreferred: true, hasLockfile: true };
 	}
-
-	try {
-		if (typeof findWorkspaceRoot(pkgPath) === 'string') {
-			return { isPreferred: true, hasLockfile: false };
-		}
-	} catch (err) { }
 
 	return { isPreferred: false, hasLockfile: false };
 }
