@@ -74,7 +74,7 @@ class AudioPreview extends MediaPreview {
 
 	<link rel="stylesheet" href="${escapeAttribute(this.extensionResource('media', 'audioPreview.css'))}" type="text/css" media="screen" nonce="${nonce}">
 
-	<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data: ${cspSource}; media-src ${cspSource}; script-src 'nonce-${nonce}'; style-src ${cspSource} 'nonce-${nonce}';">
+	<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data: ${cspSource}; media-src data: ${cspSource}; script-src 'nonce-${nonce}'; style-src ${cspSource} 'nonce-${nonce}';">
 	<meta id="settings" data-settings="${escapeAttribute(JSON.stringify(settings))}">
 </head>
 <body class="container loading" data-vscode-context='{ "preventDefaultContextMenuItems": true }'>
@@ -97,11 +97,38 @@ class AudioPreview extends MediaPreview {
 			}
 		}
 
+		// Handle untitled scheme (e.g., files opened via Safari's File API)
+		// by reading contents and creating a data URL
+		if (resource.scheme === 'untitled') {
+			try {
+				const contents = await vscode.workspace.fs.readFile(resource);
+				const base64 = Buffer.from(contents).toString('base64');
+				const mimeType = this.getMimeType(resource.path);
+				return `data:${mimeType};base64,${base64}`;
+			} catch {
+				return null;
+			}
+		}
+
 		// Avoid adding cache busting if there is already a query string
 		if (resource.query) {
 			return webviewEditor.webview.asWebviewUri(resource).toString();
 		}
 		return webviewEditor.webview.asWebviewUri(resource).with({ query: `version=${version}` }).toString();
+	}
+
+	private getMimeType(path: string): string {
+		const ext = path.split('.').pop()?.toLowerCase();
+		switch (ext) {
+			case 'mp3': return 'audio/mpeg';
+			case 'wav': return 'audio/wav';
+			case 'ogg': return 'audio/ogg';
+			case 'flac': return 'audio/flac';
+			case 'aac': return 'audio/aac';
+			case 'm4a': return 'audio/mp4';
+			case 'webm': return 'audio/webm';
+			default: return 'audio/mpeg';
+		}
 	}
 
 	private extensionResource(...parts: string[]) {
