@@ -18,6 +18,7 @@ import { ILanguageFeaturesService } from '../../../../../editor/common/services/
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, IAction2Options, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -639,6 +640,54 @@ registerAction2(class RestoreLastCheckpoint extends Action2 {
 				widget?.focusInput();
 				widget?.input.setValue(request.message.text, false);
 			}
+		}
+	}
+});
+
+registerAction2(class CopyChatResponse extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.chat.copyChatResponse',
+			title: localize2('chat.copyChatResponse.label', "Copy Response"),
+			f1: false,
+			category: CHAT_CATEGORY,
+			icon: Codicon.copy,
+			menu: [
+				{
+					id: MenuId.ChatMessageFooter,
+					group: 'navigation',
+					order: 4,
+					when: ChatContextKeys.isResponse,
+				}
+			]
+		});
+	}
+
+	async run(accessor: ServicesAccessor, ...args: unknown[]) {
+		let item = args[0] as ChatTreeItem | undefined;
+		const chatWidgetService = accessor.get(IChatWidgetService);
+		const clipboardService = accessor.get(IClipboardService);
+		const chatService = accessor.get(IChatService);
+		const widget = (isChatTreeItem(item) && chatWidgetService.getWidgetBySessionResource(item.sessionResource)) || chatWidgetService.lastFocusedWidget;
+
+		if (!isResponseVM(item) && !isRequestVM(item)) {
+			item = widget?.getFocus();
+		}
+
+		if (!item) {
+			return;
+		}
+
+		const chatModel = chatService.getSession(item.sessionResource);
+
+		if (!chatModel) {
+			return;
+		}
+
+		const responseContent = chatModel.getRequests().find(request => request.response?.id === item.id)?.response?.entireResponse.toString();
+
+		if (responseContent) {
+			await clipboardService.writeText(responseContent);
 		}
 	}
 });
