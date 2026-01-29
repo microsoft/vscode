@@ -325,13 +325,11 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 					break;
 				}
 				case AgentSessionSection.More: {
-					const shouldCollapseMore =
-						!this.sessionsListFindIsOpen &&				// always expand when find is open
-						!this.options.filter.getExcludes().read;	// always expand when only showing unread
+					const shouldExpandMore =
+						this.sessionsListFindIsOpen ||				// always expand when find is open
+						this.options.filter.getExcludes().read;		// always expand when only showing unread
 
-					if (shouldCollapseMore && !child.collapsed) {
-						this.sessionsList.collapse(child.element);
-					} else if (!shouldCollapseMore && child.collapsed) {
+					if (shouldExpandMore && child.collapsed) {
 						this.sessionsList.expand(child.element);
 					}
 					break;
