@@ -3553,9 +3553,16 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			return;
 		}
 
-		// Restart all active tasks
-		const restartPromises = activeTasks.map(task => this._restart(task));
-		await Promise.allSettled(restartPromises);
+		// Restart all active tasks sequentially to preserve terminal order
+		// Sequential restart ensures terminals are recreated in the same order as they appear in tabs
+		for (const task of activeTasks) {
+			try {
+				await this._restart(task);
+			} catch (error) {
+				// Continue with other tasks even if one fails
+				this._logService.error('Failed to restart task', task.configurationProperties.name, error);
+			}
+		}
 	}
 
 	private _getTaskIdentifier(filter?: string | ITaskIdentifier): string | KeyedTaskIdentifier | undefined {
