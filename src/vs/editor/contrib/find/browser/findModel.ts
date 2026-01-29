@@ -220,10 +220,19 @@ export class FindModelBoundToEditorModel {
 			currentMatchesPosition = matchAfterSelection > 0 ? matchAfterSelection - 1 + 1 /** match position is one based */ : currentMatchesPosition;
 		}
 
+		// Highlight the current match if there are matches
+		let currentMatch: Range | undefined;
+		if (findMatches.length > 0 && currentMatchesPosition > 0) {
+			currentMatch = this._decorations.getDecorationRangeAt(currentMatchesPosition - 1) ?? undefined;
+			if (currentMatch) {
+				this._decorations.setCurrentFindMatch(currentMatch);
+			}
+		}
+
 		this._state.changeMatchInfo(
 			currentMatchesPosition,
 			this._decorations.getCount(),
-			undefined
+			currentMatch
 		);
 
 		if (moveCursor && this._editor.getOption(EditorOption.find).cursorMoveOnType) {
