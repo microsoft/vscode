@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { Schemas } from '../../../../../base/common/network.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
@@ -38,15 +39,20 @@ function encodePathForMarkdown(path: string): string {
  * The returned path is URL encoded for use in markdown link targets.
  */
 function getRelativePath(uri: URI, workspaceFolders: readonly IWorkspaceFolder[]): string {
+	// On desktop, vscode-userdata scheme maps 1:1 to file scheme paths via FileUserDataProvider.
+	// Convert to file scheme so relativePath() can compute paths correctly.
+	// On web, vscode-userdata uses IndexedDB so this conversion has no effect (different schemes won't match workspace folders).
+	const normalizedUri = uri.scheme === Schemas.vscodeUserData ? uri.with({ scheme: Schemas.file }) : uri;
+
 	for (const folder of workspaceFolders) {
-		const relative = relativePath(folder.uri, uri);
+		const relative = relativePath(folder.uri, normalizedUri);
 		if (relative) {
 			return encodePathForMarkdown(relative);
 		}
 	}
 	// Fall back to fsPath if not under any workspace folder
 	// Use forward slashes for consistency in markdown links
-	return encodePathForMarkdown(uri.fsPath.replace(/\\/g, '/'));
+	return encodePathForMarkdown(normalizedUri.fsPath.replace(/\\/g, '/'));
 }
 
 // Tree prefixes
@@ -117,8 +123,13 @@ export function registerChatCustomizationDiagnosticsAction() {
 				}, {
 					id: CHAT_CONFIG_MENU_ID,
 					when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('view', ChatViewId)),
-					order: 20,
+					order: 14,
 					group: '3_configure'
+				}, {
+					id: MenuId.ChatWelcomeContext,
+					group: '2_settings',
+					order: 0,
+					when: ChatContextKeys.inChatEditor.negate()
 				}]
 			});
 		}
@@ -423,12 +434,14 @@ export function formatStatusOutput(
 		// Count loaded and skipped files (overwritten counts as skipped)
 		let loadedCount = info.files.filter(f => f.status === 'loaded').length;
 		const skippedCount = info.files.filter(f => f.status === 'skipped' || f.status === 'overwritten').length;
-		// Include special files in the loaded count
-		if (info.type === PromptsType.agent && specialFiles.agentsMd.enabled) {
-			loadedCount += specialFiles.agentsMd.files.length;
-		}
-		if (info.type === PromptsType.instructions && specialFiles.copilotInstructions.enabled) {
-			loadedCount += specialFiles.copilotInstructions.files.length;
+		// Include special files in the loaded count for instructions
+		if (info.type === PromptsType.instructions) {
+			if (specialFiles.agentsMd.enabled) {
+				loadedCount += specialFiles.agentsMd.files.length;
+			}
+			if (specialFiles.copilotInstructions.enabled) {
+				loadedCount += specialFiles.copilotInstructions.files.length;
+			}
 		}
 
 		lines.push(`**${typeName}**${enabledStatus}<br>`);
@@ -558,8 +571,9 @@ export function formatStatusOutput(
 			hasContent = true;
 		}
 
-		// Add special files for agents (AGENTS.md)
-		if (info.type === PromptsType.agent) {
+		// Add special files for instructions (AGENTS.md and copilot-instructions.md)
+		if (info.type === PromptsType.instructions) {
+			// AGENTS.md
 			if (specialFiles.agentsMd.enabled && specialFiles.agentsMd.files.length > 0) {
 				lines.push(`AGENTS.md<br>`);
 				for (let i = 0; i < specialFiles.agentsMd.files.length; i++) {
@@ -575,10 +589,8 @@ export function formatStatusOutput(
 				lines.push(`AGENTS.md -<br>`);
 				hasContent = true;
 			}
-		}
 
-		// Add special files for instructions (copilot-instructions.md)
-		if (info.type === PromptsType.instructions) {
+			// copilot-instructions.md
 			if (specialFiles.copilotInstructions.enabled && specialFiles.copilotInstructions.files.length > 0) {
 				lines.push(`${COPILOT_CUSTOM_INSTRUCTIONS_FILENAME}<br>`);
 				for (let i = 0; i < specialFiles.copilotInstructions.files.length; i++) {
