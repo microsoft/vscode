@@ -1038,6 +1038,50 @@ export class CommandCenter {
 		await this.cloneManager.clone(url, { parentPath, recursive: true });
 	}
 
+	@command('git.cloneWithScalar')
+	async cloneWithScalar(url?: string, parentPath?: string, options?: { ref?: string }): Promise<void> {
+		// Check if scalar is available
+		const scalarAvailable = await this.git.isScalarAvailable();
+		if (!scalarAvailable) {
+			const message = l10n.t('Scalar is not available. Scalar is bundled with Git for Windows 2.38+ and can be installed separately for other systems.');
+			const learnMore = l10n.t('Learn More');
+			const result = await window.showWarningMessage(message, learnMore);
+			if (result === learnMore) {
+				await commands.executeCommand('vscode.open', Uri.parse('https://github.com/microsoft/scalar'));
+			}
+			return;
+		}
+
+		// Prompt user to choose scalar clone options (can select multiple)
+		const items: (QuickPickItem & { option?: 'full-clone' | 'no-src' })[] = [
+			{
+				label: l10n.t('$(file-binary) Full Clone'),
+				description: l10n.t('--full-clone'),
+				detail: l10n.t('Clone all objects (no partial clone)'),
+				option: 'full-clone'
+			},
+			{
+				label: l10n.t('$(file-code) No Source'),
+				description: l10n.t('--no-src'),
+				detail: l10n.t('Initialize without creating src folder'),
+				option: 'no-src'
+			}
+		];
+
+		const picks = await window.showQuickPick(items, {
+			placeHolder: l10n.t('Select Scalar clone options (leave empty for default partial clone)'),
+			canPickMany: true,
+			ignoreFocusOut: true
+		});
+
+		if (picks === undefined) {
+			return;
+		}
+
+		const scalarOptions = picks.map(p => p.option).filter((opt): opt is 'full-clone' | 'no-src' => !!opt);
+		await this.cloneManager.clone(url, { parentPath, useScalar: true, scalarOptions, ...options });
+	}
+
 	@command('git.init')
 	async init(skipFolderPrompt = false): Promise<void> {
 		let repositoryPath: string | undefined = undefined;
@@ -1219,6 +1263,186 @@ export class CommandCenter {
 			}
 			this.model.close(r);
 		}
+	}
+
+	@command('git.sparseCheckout', { repository: true })
+	async sparseCheckout(repository: Repository): Promise<void> {
+		const action = await window.showQuickPick([
+			{ label: l10n.t('$(list-tree) List Sparse-Checkout Paths'), action: 'list' },
+			{ label: l10n.t('$(add) Set Sparse-Checkout Paths'), action: 'set' },
+			{ label: l10n.t('$(add) Add Sparse-Checkout Paths'), action: 'add' },
+			{ label: l10n.t('$(sync) Initialize Sparse-Checkout'), action: 'init' },
+			{ label: l10n.t('$(refresh) Reapply Sparse-Checkout'), action: 'reapply' },
+			{ label: l10n.t('$(close) Disable Sparse-Checkout'), action: 'disable' }
+		], {
+			placeHolder: l10n.t('Select sparse-checkout action')
+		});
+
+		if (!action) {
+			return;
+		}
+
+		try {
+			switch (action.action) {
+				case 'list':
+					await this.sparseCheckoutList(repository);
+					break;
+				case 'set':
+					await this.sparseCheckoutSet(repository);
+					break;
+				case 'add':
+					await this.sparseCheckoutAdd(repository);
+					break;
+				case 'init':
+					await this.sparseCheckoutInit(repository);
+					break;
+				case 'reapply':
+					await this.sparseCheckoutReapply(repository);
+					break;
+				case 'disable':
+					await this.sparseCheckoutDisable(repository);
+					break;
+			}
+		} catch (err) {
+			window.showErrorMessage(l10n.t('Sparse-checkout operation failed: {0}', err.message));
+		}
+	}
+
+	private async sparseCheckoutList(repository: Repository): Promise<void> {
+		const paths = await repository.sparseCheckoutList();
+		if (paths.length === 0) {
+			window.showInformationMessage(l10n.t('Sparse-checkout is not enabled or no paths are configured.'));
+		} else {
+			const message = l10n.t('Sparse-checkout paths:\n{0}', paths.join('\n'));
+			window.showInformationMessage(message);
+		}
+	}
+
+	private async sparseCheckoutSet(repository: Repository): Promise<void> {
+		interface DirectoryPickItem extends QuickPickItem {
+			directory?: string;
+			isManualEntry?: boolean;
+		}
+
+		// Add manual entry option at the beginning
+		const items: DirectoryPickItem[] = [
+			{
+				label: '$(edit) Enter paths manually',
+				description: l10n.t('Specify custom paths'),
+				isManualEntry: true
+			}
+		];
+
+		try {
+			// Fetch top-level directories
+			const directories = await repository.getTopLevelDirectories();
+
+			// Add directory items
+			items.push(...directories.map(dir => ({
+				label: `$(folder) ${dir}`,
+				directory: dir
+			})));
+		} catch (err) {
+			// If we can't get directories, fall back to manual entry only
+			console.error('Failed to get top-level directories:', err);
+		}
+
+		const selected = await window.showQuickPick(items, {
+			placeHolder: l10n.t('Select directories for sparse-checkout or choose manual entry'),
+			canPickMany: true,
+			ignoreFocusOut: false
+		});
+
+		if (!selected || selected.length === 0) {
+			return;
+		}
+
+		let paths: string[];
+
+		// Check if manual entry was selected
+		const manualEntrySelected = selected.some(item => item.isManualEntry);
+
+		if (manualEntrySelected) {
+			// Show input box for manual entry
+			const input = await window.showInputBox({
+				prompt: l10n.t('Enter paths to set (space-separated)'),
+				placeHolder: l10n.t('e.g., src docs tests')
+			});
+
+			if (!input) {
+				return;
+			}
+
+			paths = input.trim().split(/\s+/);
+		} else {
+			// Use selected directories
+			paths = selected
+				.filter(item => item.directory)
+				.map(item => item.directory!);
+		}
+
+		if (paths.length === 0) {
+			return;
+		}
+
+		await repository.sparseCheckoutSet(paths);
+		await repository.status();
+		window.showInformationMessage(l10n.t('Sparse-checkout paths set successfully'));
+	}
+
+	private async sparseCheckoutAdd(repository: Repository): Promise<void> {
+		const input = await window.showInputBox({
+			prompt: l10n.t('Enter paths to add (space-separated)'),
+			placeHolder: l10n.t('e.g., src docs tests')
+		});
+
+		if (!input) {
+			return;
+		}
+
+		const paths = input.trim().split(/\s+/);
+		await repository.sparseCheckoutAdd(paths);
+		await repository.status();
+		window.showInformationMessage(l10n.t('Paths added to sparse-checkout successfully'));
+	}
+
+	private async sparseCheckoutInit(repository: Repository): Promise<void> {
+		const useConeMode = await window.showQuickPick([
+			{ label: l10n.t('Cone mode (recommended)'), value: true },
+			{ label: l10n.t('Non-cone mode'), value: false }
+		], {
+			placeHolder: l10n.t('Select sparse-checkout mode')
+		});
+
+		if (useConeMode === undefined) {
+			return;
+		}
+
+		await repository.sparseCheckoutInit(useConeMode.value);
+		await repository.status();
+		window.showInformationMessage(l10n.t('Sparse-checkout initialized'));
+	}
+
+	private async sparseCheckoutReapply(repository: Repository): Promise<void> {
+		await repository.sparseCheckoutReapply();
+		await repository.status();
+		window.showInformationMessage(l10n.t('Sparse-checkout reapplied'));
+	}
+
+	private async sparseCheckoutDisable(repository: Repository): Promise<void> {
+		const confirmation = await window.showWarningMessage(
+			l10n.t('Are you sure you want to disable sparse-checkout? This will check out all files.'),
+			{ modal: true },
+			l10n.t('Disable')
+		);
+
+		if (confirmation !== l10n.t('Disable')) {
+			return;
+		}
+
+		await repository.sparseCheckoutDisable();
+		await repository.status();
+		window.showInformationMessage(l10n.t('Sparse-checkout disabled'));
 	}
 
 	@command('git.openFile')

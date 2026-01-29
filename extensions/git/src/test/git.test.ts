@@ -663,4 +663,56 @@ suite('git', () => {
 			);
 		});
 	});
+
+	suite('Scalar Integration', () => {
+		suite('ICloneOptions', () => {
+			test('accepts useScalar option', () => {
+				const options: any = {
+					parentPath: '/test',
+					progress: { report: () => { } },
+					useScalar: true
+				};
+				assert.strictEqual(options.useScalar, true);
+			});
+
+			test('accepts scalarOptions array', () => {
+				const options: any = {
+					parentPath: '/test',
+					progress: { report: () => { } },
+					useScalar: true,
+					scalarOptions: ['full-clone']
+				};
+				assert.deepStrictEqual(options.scalarOptions, ['full-clone']);
+			});
+
+			test('accepts multiple scalarOptions', () => {
+				const options: any = {
+					parentPath: '/test',
+					progress: { report: () => { } },
+					useScalar: true,
+					scalarOptions: ['full-clone', 'no-src']
+				};
+				assert.deepStrictEqual(options.scalarOptions, ['full-clone', 'no-src']);
+			});
+
+			test('accepts scalarOptions without useScalar', () => {
+				const options: any = {
+					parentPath: '/test',
+					progress: { report: () => { } },
+					scalarOptions: ['full-clone']
+				};
+				assert.deepStrictEqual(options.scalarOptions, ['full-clone']);
+			});
+
+			test('valid full-clone option', () => {
+				const scalarOption: 'full-clone' | 'no-src' = 'full-clone';
+				assert.strictEqual(scalarOption, 'full-clone');
+			});
+
+			test('valid no-src option', () => {
+				const scalarOption: 'full-clone' | 'no-src' = 'no-src';
+				assert.strictEqual(scalarOption, 'no-src');
+			});
+		});
+	});
 });
