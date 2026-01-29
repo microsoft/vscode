@@ -27,7 +27,7 @@ import { Lazy } from '../../../../../../base/common/lazy.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { DisposableMap, DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../../base/common/observable.js';
-import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
 import { ChatMessageRole, ILanguageModelsService } from '../../../common/languageModels.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
@@ -188,6 +188,9 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			this.lastExtractedTitle = extractedTitle;
 		}
 		this.currentThinkingValue = initialText;
+
+		// initial thinking block
+		this.appendedItemCount++;
 
 		// Alert screen reader users that thinking has started
 		alert(localize('chat.thinking.started', 'Thinking'));
@@ -618,12 +621,20 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	}
 
 	private async generateTitleViaLLM(): Promise<void> {
+		const cts = new CancellationTokenSource();
+		const timeout = setTimeout(() => cts.cancel(), 5000);
+
 		try {
 			let models = await this.languageModelsService.selectLanguageModels({ vendor: 'copilot', id: 'copilot-fast' });
 			if (!models.length) {
 				models = await this.languageModelsService.selectLanguageModels({ vendor: 'copilot', family: 'gpt-4o-mini' });
 			}
 			if (!models.length) {
+				this.setFallbackTitle();
+				return;
+			}
+
+			if (cts.token.isCancellationRequested) {
 				this.setFallbackTitle();
 				return;
 			}
@@ -720,11 +731,14 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 				new ExtensionIdentifier('core'),
 				[{ role: ChatMessageRole.User, content: [{ type: 'text', value: prompt }] }],
 				{},
-				CancellationToken.None
+				cts.token
 			);
 
 			let generatedTitle = '';
 			for await (const part of response.stream) {
+				if (cts.token.isCancellationRequested) {
+					break;
+				}
 				if (Array.isArray(part)) {
 					for (const p of part) {
 						if (p.type === 'text') {
@@ -734,6 +748,11 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 				} else if (part.type === 'text') {
 					generatedTitle += part.value;
 				}
+			}
+
+			if (cts.token.isCancellationRequested) {
+				this.setFallbackTitle();
+				return;
 			}
 
 			await response.result;
@@ -755,6 +774,9 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			}
 		} catch (error) {
 			// fall through to default title
+		} finally {
+			clearTimeout(timeout);
+			cts.dispose();
 		}
 
 		this.setFallbackTitle();
@@ -784,8 +806,8 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	}
 
 	private setFallbackTitle(): void {
-		const finalLabel = this.toolInvocationCount > 0
-			? localize('chat.thinking.finished.withTools', 'Finished working and invoked {0} tool{1}', this.toolInvocationCount, this.toolInvocationCount === 1 ? '' : 's')
+		const finalLabel = this.appendedItemCount > 0
+			? localize('chat.thinking.finished.withSteps', 'Finished with {0} step{1}', this.appendedItemCount, this.appendedItemCount === 1 ? '' : 's')
 			: localize('chat.thinking.finished', 'Finished Working');
 
 		this.currentTitle = finalLabel;
@@ -1150,6 +1172,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		if (this._store.isDisposed) {
 			return;
 		}
+		this.appendedItemCount++;
 		this.textContainer = $('.chat-thinking-item.markdown-content');
 		if (content.value) {
 			// Use lazy rendering when collapsed to preserve order with tool items
