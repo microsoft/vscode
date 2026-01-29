@@ -474,6 +474,16 @@ export const ACTIVITY_BAR_TOP_DRAG_AND_DROP_BORDER = registerColor('activityBarT
 
 export const ACTIVITY_BAR_TOP_BACKGROUND = registerColor('activityBarTop.background', null, localize('activityBarTopBackground', "Background color of the activity bar when set to top / bottom."));
 
+// Activity Bar Hover Colors
+export const ACTIVITY_BAR_HOVER_FOREGROUND = registerColor('activityBar.hoverForeground', ACTIVITY_BAR_FOREGROUND, localize('activityBarHoverForeground', "Activity bar item foreground color when hovering. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
+
+export const ACTIVITY_BAR_HOVER_BACKGROUND = registerColor('activityBar.hoverBackground', null, localize('activityBarHoverBackground', "Activity bar item background color when hovering. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
+
+export const ACTIVITY_BAR_TOP_HOVER_FOREGROUND = registerColor('activityBarTop.hoverForeground', ACTIVITY_BAR_TOP_FOREGROUND, localize('activityBarTopHoverForeground', "Activity bar item foreground color when hovering and the activity bar is on top / bottom. The activity allows to switch between views of the side bar."));
+
+export const ACTIVITY_BAR_TOP_HOVER_BACKGROUND = registerColor('activityBarTop.hoverBackground', null, localize('activityBarTopHoverBackground', "Activity bar item background color when hovering and the activity bar is on top / bottom. The activity allows to switch between views of the side bar."));
+
+
 
 // < --- Panels --- >
 
