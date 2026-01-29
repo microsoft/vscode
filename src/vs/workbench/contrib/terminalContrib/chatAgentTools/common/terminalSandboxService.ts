@@ -48,7 +48,6 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 	private _tempDir: URI | undefined;
 	private _sandboxSettingsId: string | undefined;
 	private _os: Promise<OperatingSystem>;
-	private _sandboxDomains: Set<string> = new Set<string>();
 	private _allowedDomains: Set<string> = new Set<string>();
 	private _deniedDomains: Set<string> = new Set<string>();
 
@@ -103,7 +102,6 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		// TMPDIR must be set as environment variable before the command
 		// Use -c to pass the command string directly (like sh -c), avoiding argument parsing issues
 		const wrappedCommand = `"${this._execPath}" "${this._srtPath}" TMPDIR=${this._tempDir.fsPath} --settings "${this._sandboxConfigPath}" -c "${command}"`;
-		// return `SRT_DEBUG=1 ELECTRON_RUN_AS_NODE=1 ${wrappedCommand}`;
 		return `ELECTRON_RUN_AS_NODE=1 ${wrappedCommand}`;
 	}
 
@@ -184,14 +182,8 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		const networkSettings = this._configurationService.getValue<ITerminalSandboxSettings['network']>(TerminalChatAgentToolsSettingId.TerminalSandboxNetwork) ?? {};
 		const allowedDomains = networkSettings.allowedDomains ?? [];
 		const deniedDomains = networkSettings.deniedDomains ?? [];
-		this._sandboxDomains.clear();
 		this._allowedDomains.clear();
 		this._deniedDomains.clear();
-		for (const domain of [...allowedDomains, ...deniedDomains]) {
-			if (domain) {
-				this._sandboxDomains.add(domain.toLowerCase());
-			}
-		}
 		for (const domain of allowedDomains) {
 			if (domain) {
 				this._allowedDomains.add(domain.toLowerCase());
