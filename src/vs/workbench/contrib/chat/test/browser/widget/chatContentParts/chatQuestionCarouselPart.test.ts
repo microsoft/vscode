@@ -56,34 +56,36 @@ suite('ChatQuestionCarouselPart', () => {
 			createWidget(carousel);
 
 			assert.ok(widget.domNode.classList.contains('chat-question-carousel-container'));
-			assert.ok(widget.domNode.querySelector('.chat-question-carousel-header'));
+			assert.ok(widget.domNode.querySelector('.chat-question-header-row'));
 			assert.ok(widget.domNode.querySelector('.chat-question-carousel-content'));
 			assert.ok(widget.domNode.querySelector('.chat-question-carousel-nav'));
 		});
 
 		test('renders question title', () => {
 			const carousel = createMockCarousel([
-				{ id: 'q1', type: 'text', title: 'What is your name?' }
+				{ id: 'q1', type: 'text', title: 'What is your name?', message: 'What is your name?' }
 			]);
 			createWidget(carousel);
 
 			const title = widget.domNode.querySelector('.chat-question-title');
 			assert.ok(title);
-			assert.strictEqual(title?.textContent, 'What is your name?');
+			// Title includes progress prefix like "(1/1) What is your name?"
+			assert.ok(title?.textContent?.includes('What is your name?'));
 		});
 
 		test('renders progress indicator correctly', () => {
 			const carousel = createMockCarousel([
-				{ id: 'q1', type: 'text', title: 'Question 1' },
-				{ id: 'q2', type: 'text', title: 'Question 2' },
-				{ id: 'q3', type: 'text', title: 'Question 3' }
+				{ id: 'q1', type: 'text', title: 'Question 1', message: 'Question 1' },
+				{ id: 'q2', type: 'text', title: 'Question 2', message: 'Question 2' },
+				{ id: 'q3', type: 'text', title: 'Question 3', message: 'Question 3' }
 			]);
 			createWidget(carousel);
 
-			const progress = widget.domNode.querySelector('.chat-question-carousel-progress');
-			assert.ok(progress);
-			assert.ok(progress?.textContent?.includes('1'));
-			assert.ok(progress?.textContent?.includes('3'));
+			// Progress is embedded in the title as "(1/3) Question 1"
+			const title = widget.domNode.querySelector('.chat-question-title');
+			assert.ok(title);
+			assert.ok(title?.textContent?.includes('1'));
+			assert.ok(title?.textContent?.includes('3'));
 		});
 	});
 
