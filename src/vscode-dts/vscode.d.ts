@@ -6478,6 +6478,22 @@ declare module 'vscode' {
 	export type CharacterPair = [string, string];
 
 	/**
+	 * Describes the configuration for a line comment.
+	 */
+
+	export interface LineCommentConfig {
+		/**
+		 * The line comment token, like `// this is a comment`
+		 */
+		comment: string;
+
+		/**
+		 * If true, the line comment token will not be indented.
+		 */
+		noIndent?: boolean;
+	}
+
+	/**
 	 * Describes how comments for a language work.
 	 */
 	export interface CommentRule {
@@ -6485,7 +6501,7 @@ declare module 'vscode' {
 		/**
 		 * The line comment token, like `// this is a comment`
 		 */
-		lineComment?: string;
+		lineComment?: string | LineCommentConfig | null;
 
 		/**
 		 * The block comment character pair, like `/* block comment *&#47;`
