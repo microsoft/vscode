@@ -24,7 +24,7 @@ abstract class ExternalTerminalService {
 		return {
 			windows: WindowsExternalTerminalService.getDefaultTerminalWindows(),
 			linux: await LinuxExternalTerminalService.getDefaultTerminalLinuxReady(),
-			osx: 'xterm'
+			osx: DEFAULT_TERMINAL_OSX
 		};
 	}
 }
@@ -189,26 +189,21 @@ export class MacExternalTerminalService extends ExternalTerminalService implemen
 					}
 				}
 
-				let stderr = '';
 				const osa = cp.spawn(MacExternalTerminalService.OSASCRIPT, osaArgs);
-				osa.on('error', err => {
-					reject(improveError(err));
-				});
-				osa.stderr.on('data', (data) => {
-					stderr += data.toString();
-				});
-				osa.on('exit', (code: number) => {
-					if (code === 0) {	// OK
-						resolve(undefined);
-					} else {
-						if (stderr) {
-							const lines = stderr.split('\n', 1);
-							reject(new Error(lines[0]));
-						} else {
-							reject(new Error(nls.localize('mac.terminal.script.failed', "Script '{0}' failed with exit code {1}", script, code)));
-						}
-					}
-				});
+				setupSpawnErrorHandling(osa, resolve, reject, terminalApp);
+			} else if (terminalApp === 'Ghostty.app') {
+				// Ghostty uses CLI flags directly instead of AppleScript like Mac Terminal and iTerm
+				// Note: -na is required (not just -a) because we need to spawn a new instance that
+				// receives our --args. With just -a, if Ghostty is already running, open will
+				// activate the existing instance and ignore --args entirely.
+				const env = Object.assign({}, getSanitizedEnvironment(process), envVars);
+				const openArgs = ['-na', 'Ghostty.app', '--args'];
+				openArgs.push('--working-directory=' + dir);
+				openArgs.push('--wait-after-command=true');
+				openArgs.push('-e', ...args);
+
+				const cmd = cp.spawn('/usr/bin/open', openArgs, { env });
+				setupSpawnErrorHandling(cmd, resolve, reject, terminalApp);
 			} else {
 				reject(new Error(nls.localize('mac.terminal.type.not.supported', "'{0}' not supported", terminalApp)));
 			}
@@ -352,6 +347,37 @@ function improveError(err: Error & { errno?: string; path?: string }): Error {
 		return new Error(nls.localize('ext.term.app.not.found', "can't find terminal application '{0}'", err.path));
 	}
 	return err;
+}
+
+/**
+ * Attaches error handling to a spawned child process for terminal launching.
+ */
+function setupSpawnErrorHandling(
+	cmd: cp.ChildProcess,
+	resolve: (value: number | PromiseLike<number | undefined> | undefined) => void,
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	reject: (reason?: any) => void,
+	terminalApp: string
+): void {
+	let stderr = '';
+	cmd.on('error', err => {
+		reject(improveError(err));
+	});
+	cmd.stderr?.on('data', (data) => {
+		stderr += data.toString();
+	});
+	cmd.on('exit', (code: number) => {
+		if (code === 0) {
+			resolve(undefined);
+		} else {
+			if (stderr) {
+				const lines = stderr.split('\n', 1);
+				reject(new Error(lines[0]));
+			} else {
+				reject(new Error(nls.localize('mac.terminal.launch.failed', "Launching '{0}' failed with exit code {1}", terminalApp, code)));
+			}
+		}
+	});
 }
 
 /**

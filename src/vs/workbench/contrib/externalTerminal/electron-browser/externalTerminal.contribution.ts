@@ -5,7 +5,7 @@
 
 import * as nls from '../../../../nls.js';
 import * as paths from '../../../../base/common/path.js';
-import { DEFAULT_TERMINAL_OSX, IExternalTerminalSettings } from '../../../../platform/externalTerminal/common/externalTerminal.js';
+import { IExternalTerminalSettings } from '../../../../platform/externalTerminal/common/externalTerminal.js';
 import { MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { KeyMod, KeyCode } from '../../../../base/common/keyCodes.js';
 import { IHistoryService } from '../../../services/history/common/history.js';
@@ -128,7 +128,7 @@ export class ExternalTerminalContribution implements IWorkbenchContribution {
 				'terminal.external.osxExec': {
 					type: 'string',
 					description: nls.localize('terminal.external.osxExec', "Customizes which terminal application to run on macOS."),
-					default: DEFAULT_TERMINAL_OSX,
+					default: terminals.osx,
 					scope: ConfigurationScope.APPLICATION
 				},
 				'terminal.external.linuxExec': {
