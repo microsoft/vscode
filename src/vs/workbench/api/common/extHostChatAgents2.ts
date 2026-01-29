@@ -27,6 +27,7 @@ import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
 import { checkProposedApiEnabled, isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 import { Dto } from '../../services/extensions/common/proxyIdentifier.js';
 import { ExtHostChatAgentsShape2, IChatAgentCompletionItem, IChatAgentHistoryEntryDto, IChatAgentProgressShape, IChatProgressDto, IChatSessionContextDto, IExtensionChatAgentMetadata, IMainContext, MainContext, MainThreadChatAgentsShape2 } from './extHost.protocol.js';
+import { onUnexpectedError } from '../../../base/common/errors.js';
 import { CommandsConverter, ExtHostCommands } from './extHostCommands.js';
 import { ExtHostDiagnostics } from './extHostDiagnostics.js';
 import { ExtHostDocuments } from './extHostDocuments.js';
@@ -852,18 +853,24 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		const convertedHistory = await this.prepareHistoryTurns(agent.extension, agent.id, context);
 
 		const ehResult = typeConvert.ChatAgentResult.to(result);
-		return (await agent.provideFollowups(ehResult, { history: convertedHistory }, token))
-			.filter(f => {
-				// The followup must refer to a participant that exists from the same extension
-				const isValid = !f.participant || Iterable.some(
-					this._agents.values(),
-					a => a.id === f.participant && ExtensionIdentifier.equals(a.extension.identifier, agent.extension.identifier));
-				if (!isValid) {
-					this._logService.warn(`[@${agent.id}] ChatFollowup refers to an unknown participant: ${f.participant}`);
-				}
-				return isValid;
-			})
-			.map(f => typeConvert.ChatFollowup.from(f, request));
+		try {
+			const followups = await agent.provideFollowups(ehResult, { history: convertedHistory }, token);
+			return (followups ?? [])
+				.filter(f => {
+					// The followup must refer to a participant that exists from the same extension
+					const isValid = !f.participant || Iterable.some(
+						this._agents.values(),
+						a => a.id === f.participant && ExtensionIdentifier.equals(a.extension.identifier, agent.extension.identifier));
+					if (!isValid) {
+						this._logService.warn(`[@${agent.id}] ChatFollowup refers to an unknown participant: ${f.participant}`);
+					}
+					return isValid;
+				})
+				.map(f => typeConvert.ChatFollowup.from(f, request));
+		} catch (err) {
+			onUnexpectedError(err);
+			return [];
+		}
 	}
 
 	$acceptFeedback(handle: number, result: IChatAgentResult, voteAction: IChatVoteAction): void {
@@ -952,7 +959,12 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		}
 
 		const history = await this.prepareHistoryTurns(agent.extension, agent.id, { history: context });
-		return await agent.provideTitle({ history }, token);
+		try {
+			return await agent.provideTitle({ history }, token) ?? undefined;
+		} catch (err) {
+			onUnexpectedError(err);
+			return undefined;
+		}
 	}
 
 	async $provideChatSummary(handle: number, context: IChatAgentHistoryEntryDto[], token: CancellationToken): Promise<string | undefined> {
@@ -962,7 +974,12 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		}
 
 		const history = await this.prepareHistoryTurns(agent.extension, agent.id, { history: context });
-		return await agent.provideSummary({ history }, token);
+		try {
+			return await agent.provideSummary({ history }, token) ?? undefined;
+		} catch (err) {
+			onUnexpectedError(err);
+			return undefined;
+		}
 	}
 }
 
@@ -1021,15 +1038,20 @@ class ExtHostChatAgent {
 			return [];
 		}
 
-		const followups = await this._followupProvider.provideFollowups(result, context, token);
-		if (!followups) {
+		try {
+			const followups = await this._followupProvider.provideFollowups(result, context, token);
+			if (!followups) {
+				return [];
+			}
+			return followups
+				// Filter out "command followups" from older providers
+				.filter(f => !(f && 'commandId' in f))
+				// Filter out followups from older providers before 'message' changed to 'prompt'
+				.filter(f => !(f && 'message' in f));
+		} catch (err) {
+			onUnexpectedError(err);
 			return [];
 		}
-		return followups
-			// Filter out "command followups" from older providers
-			.filter(f => !(f && 'commandId' in f))
-			// Filter out followups from older providers before 'message' changed to 'prompt'
-			.filter(f => !(f && 'message' in f));
 	}
 
 	async provideTitle(context: vscode.ChatContext, token: CancellationToken): Promise<string | undefined> {
@@ -1037,7 +1059,12 @@ class ExtHostChatAgent {
 			return;
 		}
 
-		return await this._titleProvider.provideChatTitle(context, token) ?? undefined;
+		try {
+			return await this._titleProvider.provideChatTitle(context, token) ?? undefined;
+		} catch (err) {
+			onUnexpectedError(err);
+			return undefined;
+		}
 	}
 
 	async provideSummary(context: vscode.ChatContext, token: CancellationToken): Promise<string | undefined> {
@@ -1045,7 +1072,12 @@ class ExtHostChatAgent {
 			return;
 		}
 
-		return await this._summarizer.provideChatSummary(context, token) ?? undefined;
+		try {
+			return await this._summarizer.provideChatSummary(context, token) ?? undefined;
+		} catch (err) {
+			onUnexpectedError(err);
+			return undefined;
+		}
 	}
 
 	get apiAgent(): vscode.ChatParticipant {

@@ -217,6 +217,23 @@ suite('chat', () => {
 		assert.strictEqual(calls, 1);
 	});
 
+	test('title provider exceptions are handled gracefully', async () => {
+		const participant = chat.createChatParticipant('api-test.participant', (_request, _context, _progress, _token) => {
+			return { metadata: { key: 'value' } };
+		});
+		participant.titleProvider = {
+			provideChatTitle(_context, _token) {
+				throw new Error('boom');
+			}
+		};
+		disposables.push(participant);
+
+		await commands.executeCommand('workbench.action.chat.newChat');
+		// Should not throw or crash when provider throws
+		commands.executeCommand('workbench.action.chat.open', { query: '@participant /hello friend' });
+		await delay(500);
+	});
+
 	test('can access node-pty module', async function () {
 		// Required for copilot cli in chat extension.
 		if (env.uiKind === UIKind.Web) {
