@@ -37,7 +37,7 @@ import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../chat/c
 import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
 import { ChatWidget } from '../../chat/browser/widget/chatWidget.js';
 import { IAgentSessionsService } from '../../chat/browser/agentSessions/agentSessionsService.js';
-import { AgentSessionProviders } from '../../chat/browser/agentSessions/agentSessions.js';
+import { AgentSessionProviders, getAgentSessionProvider } from '../../chat/browser/agentSessions/agentSessions.js';
 import { IAgentSession } from '../../chat/browser/agentSessions/agentSessionsModel.js';
 import { AgentSessionsWelcomeEditorOptions, AgentSessionsWelcomeInput } from './agentSessionsWelcomeInput.js';
 import { IChatService } from '../../chat/common/chatService/chatService.js';
@@ -61,6 +61,7 @@ import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 
 const configurationKey = 'workbench.startupEditor';
+const SELECTED_SESSION_PROVIDER_KEY = 'agentSessionsWelcome.selectedSessionProvider';
 const MAX_SESSIONS = 6;
 const MAX_REPO_PICKS = 10;
 const MAX_WALKTHROUGHS = 10;
@@ -96,7 +97,7 @@ export class AgentSessionsWelcomePage extends EditorPane {
 	private readonly contentDisposables = this._register(new DisposableStore());
 	private contextService: IContextKeyService;
 	private walkthroughs: IResolvedWalkthrough[] = [];
-	private _selectedSessionProvider: AgentSessionProviders = AgentSessionProviders.Local;
+	private _selectedSessionProvider: AgentSessionProviders;
 	private _selectedWorkspace: IWorkspacePickerItem | undefined;
 	private _recentWorkspaces: Array<IRecentWorkspace | IRecentFolder> = [];
 	private _isEmptyWorkspace: boolean = false;
@@ -127,6 +128,11 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		@ILogService private readonly logService: ILogService,
 	) {
 		super(AgentSessionsWelcomePage.ID, group, telemetryService, themeService, storageService);
+
+		// Restore persisted session provider or default to Local
+		const persistedProvider = this.storageService.get(SELECTED_SESSION_PROVIDER_KEY, StorageScope.APPLICATION);
+		const validatedProvider = persistedProvider ? getAgentSessionProvider(persistedProvider) : undefined;
+		this._selectedSessionProvider = validatedProvider ?? AgentSessionProviders.Local;
 
 		this.container = $('.agentSessionsWelcome', {
 			role: 'document',
@@ -269,6 +275,7 @@ export class AgentSessionsWelcomePage extends EditorPane {
 			getActiveSessionProvider: () => this._selectedSessionProvider,
 			setActiveSessionProvider: (provider: AgentSessionProviders) => {
 				this._selectedSessionProvider = provider;
+				this.storageService.store(SELECTED_SESSION_PROVIDER_KEY, provider, StorageScope.APPLICATION, StorageTarget.USER);
 				onDidChangeActiveSessionProvider.fire(provider);
 				try {
 					recreateSessionForProvider(provider);
