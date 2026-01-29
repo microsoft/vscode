@@ -58,6 +58,7 @@ import { TabFocus } from '../../../../editor/browser/config/tabFocus.js';
 import { IEditorGroupsService, IEditorPart } from '../../../services/editor/common/editorGroupsService.js';
 import { InputMode } from '../../../../editor/common/inputMode.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { StatusBarAlignment } from '../../../services/statusbar/common/types.js';
 
 class SideBySideEditorEncodingSupport implements IEncodingSupport {
 	constructor(private primary: IEncodingSupport, private secondary: IEncodingSupport) { }
@@ -607,7 +608,7 @@ class EditorStatus extends Disposable {
 		this.updateElement(this.metadataElement, props, 'status.editor.info', StatusbarAlignment.RIGHT, 100);
 	}
 
-	private updateElement(element: MutableDisposable<IStatusbarEntryAccessor>, props: IStatusbarEntry, id: string, alignment: StatusbarAlignment, priority: number) {
+	private updateElement(element: MutableDisposable<IStatusbarEntryAccessor>, props: IStatusbarEntry, id: string, alignment: StatusBarAlignment, priority: number) {
 		if (!element.value) {
 			element.value = this.statusbarService.addEntry(props, id, alignment, priority);
 		} else {

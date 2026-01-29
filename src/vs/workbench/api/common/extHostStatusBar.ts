@@ -5,7 +5,7 @@
 
 /* eslint-disable local/code-no-native-private */
 
-import { StatusBarAlignment as ExtHostStatusBarAlignment, Disposable, ThemeColor, asStatusBarItemIdentifier } from './extHostTypes.js';
+import { Disposable, ThemeColor } from './extHostTypes.js';
 import type * as vscode from 'vscode';
 import { MainContext, MainThreadStatusBarShape, IMainContext, ICommandDto, ExtHostStatusBarShape, StatusBarItemDto } from './extHost.protocol.js';
 import { localize } from '../../../nls.js';
@@ -16,7 +16,7 @@ import { MarkdownString } from './extHostTypeConverters.js';
 import { isNumber } from '../../../base/common/types.js';
 import * as htmlContent from '../../../base/common/htmlContent.js';
 import { checkProposedApiEnabled } from '../../services/extensions/common/extensions.js';
-
+import { IStatusBarEntryLocation, StatusBarAlignment as ExtHostStatusBarAlignment, asStatusBarItemIdentifier, isStatusBarEntryLocation } from '../../services/statusbar/common/types.js';
 
 export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
 
@@ -38,7 +38,7 @@ export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
 
 	private _id?: string;
 	private _alignment: number;
-	private _priority?: number;
+	private _priority?: number | IStatusBarEntryLocation;
 
 	private _disposed: boolean = false;
 	private _visible?: boolean;
@@ -60,9 +60,9 @@ export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
 	private _timeoutHandle: Timeout | undefined;
 	private _accessibilityInformation?: vscode.AccessibilityInformation;
 
-	constructor(proxy: MainThreadStatusBarShape, commands: CommandsConverter, staticItems: ReadonlyMap<string, StatusBarItemDto>, extension: IExtensionDescription, id?: string, alignment?: ExtHostStatusBarAlignment, priority?: number, _onDispose?: () => void);
-	constructor(proxy: MainThreadStatusBarShape, commands: CommandsConverter, staticItems: ReadonlyMap<string, StatusBarItemDto>, extension: IExtensionDescription | undefined, id: string, alignment?: ExtHostStatusBarAlignment, priority?: number, _onDispose?: () => void);
-	constructor(proxy: MainThreadStatusBarShape, commands: CommandsConverter, staticItems: ReadonlyMap<string, StatusBarItemDto>, extension?: IExtensionDescription, id?: string, alignment: ExtHostStatusBarAlignment = ExtHostStatusBarAlignment.Left, priority?: number, private _onDispose?: () => void) {
+	constructor(proxy: MainThreadStatusBarShape, commands: CommandsConverter, staticItems: ReadonlyMap<string, StatusBarItemDto>, extension: IExtensionDescription, id?: string, alignment?: ExtHostStatusBarAlignment, priority?: number | vscode.StatusBarEntryLocation, _onDispose?: () => void);
+	constructor(proxy: MainThreadStatusBarShape, commands: CommandsConverter, staticItems: ReadonlyMap<string, StatusBarItemDto>, extension: IExtensionDescription | undefined, id: string, alignment?: ExtHostStatusBarAlignment, priority?: number | vscode.StatusBarEntryLocation, _onDispose?: () => void);
+	constructor(proxy: MainThreadStatusBarShape, commands: CommandsConverter, staticItems: ReadonlyMap<string, StatusBarItemDto>, extension?: IExtensionDescription, id?: string, alignment: ExtHostStatusBarAlignment = ExtHostStatusBarAlignment.Left, priority?: number | vscode.StatusBarEntryLocation, private _onDispose?: () => void) {
 		this.#proxy = proxy;
 		this.#commands = commands;
 
@@ -91,8 +91,14 @@ export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
 		this._priority = this.validatePriority(priority);
 	}
 
-	private validatePriority(priority?: number): number | undefined {
-		if (!isNumber(priority)) {
+	private validatePriority(priority?: number | vscode.StatusBarEntryLocation): number | undefined | IStatusBarEntryLocation {
+		if (isStatusBarEntryLocation(priority)) {
+			return {
+				location: priority.location,
+				alignment: priority.alignment,
+				compact: priority.compact,
+			};
+		} else if (!isNumber(priority)) {
 			return undefined; // using this method to catch `NaN` too!
 		}
 
@@ -125,7 +131,11 @@ export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
 	}
 
 	public get priority(): number | undefined {
-		return this._priority;
+		if (isStatusBarEntryLocation(this._priority)) {
+			return this._priority.location.priority;
+		} else {
+			return this._priority;
+		}
 	}
 
 	public get text(): string {
@@ -378,9 +388,9 @@ export class ExtHostStatusBar implements ExtHostStatusBarShape {
 		return !cancellation.isCancellationRequested ? MarkdownString.fromStrict(tooltip) : undefined;
 	}
 
-	createStatusBarEntry(extension: IExtensionDescription | undefined, id: string, alignment?: ExtHostStatusBarAlignment, priority?: number): vscode.StatusBarItem;
-	createStatusBarEntry(extension: IExtensionDescription, id?: string, alignment?: ExtHostStatusBarAlignment, priority?: number): vscode.StatusBarItem;
-	createStatusBarEntry(extension: IExtensionDescription, id: string, alignment?: ExtHostStatusBarAlignment, priority?: number): vscode.StatusBarItem {
+	createStatusBarEntry(extension: IExtensionDescription | undefined, id: string, alignment?: ExtHostStatusBarAlignment, priority?: number | vscode.StatusBarEntryLocation): vscode.StatusBarItem;
+	createStatusBarEntry(extension: IExtensionDescription, id?: string, alignment?: ExtHostStatusBarAlignment, priority?: number | vscode.StatusBarEntryLocation): vscode.StatusBarItem;
+	createStatusBarEntry(extension: IExtensionDescription, id: string, alignment?: ExtHostStatusBarAlignment, priority?: number | vscode.StatusBarEntryLocation): vscode.StatusBarItem {
 		const entry = new ExtHostStatusBarEntry(this._proxy, this._commands, this._existingItems, extension, id, alignment, priority, () => this._entries.delete(entry.entryId));
 		this._entries.set(entry.entryId, entry);
 

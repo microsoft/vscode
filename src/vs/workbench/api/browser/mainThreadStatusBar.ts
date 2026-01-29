@@ -14,6 +14,7 @@ import { IExtensionStatusBarItemService, StatusBarUpdateKind } from './statusBar
 import { IStatusbarEntry, StatusbarAlignment } from '../../services/statusbar/browser/statusbar.js';
 import { IManagedHoverTooltipMarkdownString } from '../../../base/browser/ui/hover/hover.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
+import { IStatusBarEntryLocation, StatusBarAlignment } from '../../services/statusbar/common/types.js';
 
 @extHostNamedCustomer(MainContext.MainThreadStatusBar)
 export class MainThreadStatusBar extends Disposable implements MainThreadStatusBarShape {
@@ -42,7 +43,7 @@ export class MainThreadStatusBar extends Disposable implements MainThreadStatusB
 			}
 		}));
 
-		function asDto(entryId: string, item: { entry: IStatusbarEntry; alignment: StatusbarAlignment; priority: number }): StatusBarItemDto {
+		function asDto(entryId: string, item: { entry: IStatusbarEntry; alignment: StatusBarAlignment; priority: number }): StatusBarItemDto {
 			return {
 				entryId,
 				name: item.entry.name,
@@ -56,7 +57,7 @@ export class MainThreadStatusBar extends Disposable implements MainThreadStatusB
 		}
 	}
 
-	$setEntry(entryId: string, id: string, extensionId: string | undefined, name: string, text: string, tooltip: IMarkdownString | string | undefined, hasTooltipProvider: boolean, command: Command | undefined, color: string | ThemeColor | undefined, backgroundColor: ThemeColor | undefined, alignLeft: boolean, priority: number | undefined, accessibilityInformation: IAccessibilityInformation | undefined): void {
+	$setEntry(entryId: string, id: string, extensionId: string | undefined, name: string, text: string, tooltip: IMarkdownString | string | undefined, hasTooltipProvider: boolean, command: Command | undefined, color: string | ThemeColor | undefined, backgroundColor: ThemeColor | undefined, alignLeft: boolean, priority: number | undefined | IStatusBarEntryLocation, accessibilityInformation: IAccessibilityInformation | undefined): void {
 		const tooltipOrTooltipProvider = hasTooltipProvider
 			? {
 				markdown: (cancellation: CancellationToken) => {

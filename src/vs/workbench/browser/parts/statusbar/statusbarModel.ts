@@ -4,17 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { isStatusbarEntryLocation, IStatusbarEntryPriority, StatusbarAlignment } from '../../../services/statusbar/browser/statusbar.js';
+import { IStatusbarEntryPriority, StatusbarAlignment } from '../../../services/statusbar/browser/statusbar.js';
 import { hide, show, isAncestorOfActiveElement } from '../../../../base/browser/dom.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { Emitter } from '../../../../base/common/event.js';
+import { isStatusBarEntryLocation, StatusBarAlignment } from '../../../services/statusbar/common/types.js';
 
 export interface IStatusbarViewModelEntry {
 	readonly id: string;
 	readonly extensionId: string | undefined;
 	readonly name: string;
 	readonly hasCommand: boolean;
-	readonly alignment: StatusbarAlignment;
+	readonly alignment: StatusBarAlignment;
 	readonly priority: IStatusbarEntryPriority;
 	readonly container: HTMLElement;
 	readonly labelContainer: HTMLElement;
@@ -120,7 +121,7 @@ export class StatusbarViewModel extends Disposable {
 
 			// Re-sort entries if this one was used
 			// as reference from other entries
-			if (this._entries.some(otherEntry => isStatusbarEntryLocation(otherEntry.priority.primary) && otherEntry.priority.primary.location.id === entry.id)) {
+			if (this._entries.some(otherEntry => isStatusBarEntryLocation(otherEntry.priority.primary) && otherEntry.priority.primary.location.id === entry.id)) {
 				this.sort();
 			}
 
@@ -155,7 +156,7 @@ export class StatusbarViewModel extends Disposable {
 		return this._entries.find(entry => entry.container === container);
 	}
 
-	getEntries(alignment: StatusbarAlignment): IStatusbarViewModelEntry[] {
+	getEntries(alignment: StatusBarAlignment): IStatusbarViewModelEntry[] {
 		return this._entries.filter(entry => entry.alignment === alignment);
 	}
 
@@ -334,7 +335,7 @@ export class StatusbarViewModel extends Disposable {
 				// Fill relative entries to LEFT
 				if (relativeEntries) {
 					sortedEntries.push(...relativeEntries
-						.filter(entry => isStatusbarEntryLocation(entry.priority.primary) && entry.priority.primary.alignment === StatusbarAlignment.LEFT)
+						.filter(entry => isStatusBarEntryLocation(entry.priority.primary) && entry.priority.primary.alignment === StatusbarAlignment.LEFT)
 						.sort((entryA, entryB) => entryB.priority.secondary - entryA.priority.secondary));
 				}
 
@@ -344,7 +345,7 @@ export class StatusbarViewModel extends Disposable {
 				// Fill relative entries to RIGHT
 				if (relativeEntries) {
 					sortedEntries.push(...relativeEntries
-						.filter(entry => isStatusbarEntryLocation(entry.priority.primary) && entry.priority.primary.alignment === StatusbarAlignment.RIGHT)
+						.filter(entry => isStatusBarEntryLocation(entry.priority.primary) && entry.priority.primary.alignment === StatusbarAlignment.RIGHT)
 						.sort((entryA, entryB) => entryB.priority.secondary - entryA.priority.secondary));
 				}
 
