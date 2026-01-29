@@ -60,7 +60,6 @@ interface IAgentSessionItemTemplate {
 
 	// Column 2 Row 2
 	readonly diffContainer: HTMLElement;
-	readonly diffFilesSpan: HTMLSpanElement;
 	readonly diffAddedSpan: HTMLSpanElement;
 	readonly diffRemovedSpan: HTMLSpanElement;
 
@@ -79,10 +78,6 @@ interface IAgentSessionItemTemplate {
 export interface IAgentSessionRendererOptions {
 	getHoverPosition(): HoverPosition;
 }
-
-// TODO@bpasero figure out these defaults going forward
-const SESSION_BADGE_ENABLED = false;
-const SESSION_DIFF_FILES_INDICATOR = false;
 
 export class AgentSessionRenderer extends Disposable implements ICompressibleTreeRenderer<IAgentSession, FuzzyScore, IAgentSessionItemTemplate> {
 
@@ -121,7 +116,6 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 					h('div.agent-session-details-row', [
 						h('div.agent-session-diff-container@diffContainer',
 							[
-								h('span.agent-session-diff-files@filesSpan'),
 								h('span.agent-session-diff-added@addedSpan'),
 								h('span.agent-session-diff-removed@removedSpan')
 							]),
@@ -150,7 +144,6 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 			title: disposables.add(new IconLabel(elements.title, { supportHighlights: true, supportIcons: true })),
 			titleToolbar,
 			diffContainer: elements.diffContainer,
-			diffFilesSpan: elements.filesSpan,
 			diffAddedSpan: elements.addedSpan,
 			diffRemovedSpan: elements.removedSpan,
 			badge: elements.badge,
@@ -168,7 +161,6 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 
 		// Clear old state
 		template.elementDisposable.clear();
-		template.diffFilesSpan.textContent = '';
 		template.diffAddedSpan.textContent = '';
 		template.diffRemovedSpan.textContent = '';
 		template.badge.textContent = '';
@@ -199,7 +191,6 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 			}
 		}
 		template.diffContainer.classList.toggle('has-diff', hasDiff);
-		template.diffFilesSpan.classList.toggle('has-diff-file-indicator', hasDiff && SESSION_DIFF_FILES_INDICATOR);
 
 		let hasAgentSessionChanges = false;
 		if (
@@ -236,10 +227,6 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 	}
 
 	private renderBadge(session: ITreeNode<IAgentSession, FuzzyScore>, template: IAgentSessionItemTemplate): boolean {
-		if (!SESSION_BADGE_ENABLED) {
-			return false;
-		}
-
 		const badge = session.element.badge;
 		if (badge) {
 			this.renderMarkdownOrText(badge, template.badge, template.elementDisposable);
@@ -268,10 +255,6 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 		const diff = getAgentChangesSummary(session.element.changes);
 		if (!diff) {
 			return false;
-		}
-
-		if (diff.files > 0 && SESSION_DIFF_FILES_INDICATOR) {
-			template.diffFilesSpan.textContent = diff.files === 1 ? localize('diffFile', "1 file") : localize('diffFiles', "{0} files", diff.files);
 		}
 
 		if (diff.insertions >= 0 /* render even `0` for more homogeneity */) {
