@@ -1464,7 +1464,7 @@ export class SettingsEditor2 extends EditorPane {
 		this.settingsOrderByTocIndex = this.createSettingsOrderByTocIndex(resolvedSettingsRoot);
 	}
 
-	private async onConfigUpdate(keys?: ReadonlySet<string>, forceRefresh = false, triggerSearch = false): Promise<void> {
+	private async onConfigUpdate(keys?: ReadonlySet<string>, forceRefresh = false, triggerSearch = false, skipInitialSearch = false): Promise<void> {
 		if (keys && this.settingsTreeModel) {
 			return this.updateElementsByKey(keys);
 		}
@@ -1632,6 +1632,14 @@ export class SettingsEditor2 extends EditorPane {
 			if (triggerSearch && this.searchResultModel) {
 				// If an extension's settings were just loaded and a search is active, retrigger the search so it shows up
 				return await this.onSearchInputChanged(false);
+			}
+
+			// If there's a query present (e.g., opening with a filter like @tag:accessibility),
+			// trigger the search before rendering to avoid showing all settings first
+			if (!skipInitialSearch && this.searchWidget.getValue() && !this.searchResultModel) {
+				await this.onSearchInputChanged(true);
+				// onSearchInputChanged already handles refreshing TOC and rendering the tree
+				return;
 			}
 
 			this.refreshTOCTree();
@@ -1863,7 +1871,7 @@ export class SettingsEditor2 extends EditorPane {
 		}
 
 		if (showAdvanced !== this.viewState.tagFilters?.has(ADVANCED_SETTING_TAG)) {
-			await this.onConfigUpdate();
+			await this.onConfigUpdate(undefined, false, false, true);
 		}
 
 		this.settingsTargetsWidget.updateLanguageFilterIndicators(this.viewState.languageFilter);
