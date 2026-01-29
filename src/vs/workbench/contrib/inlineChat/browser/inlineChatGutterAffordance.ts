@@ -6,6 +6,7 @@
 import { Codicon } from '../../../../base/common/codicons.js';
 import { autorun, constObservable, derived, IObservable, ISettableObservable, observableValue } from '../../../../base/common/observable.js';
 import { ObservableCodeEditor } from '../../../../editor/browser/observableCodeEditor.js';
+import { ScrollType } from '../../../../editor/common/editorCommon.js';
 import { LineRange } from '../../../../editor/common/core/ranges/lineRange.js';
 import { Selection, SelectionDirection } from '../../../../editor/common/core/selection.js';
 import { InlineEditsGutterIndicator, InlineEditsGutterIndicatorData, InlineSuggestionGutterMenuData, SimpleInlineSuggestModel } from '../../../../editor/contrib/inlineCompletions/browser/view/inlineEdits/components/gutterIndicatorView.js';
@@ -98,6 +99,10 @@ export class InlineChatGutterAffordance extends InlineEditsGutterIndicator {
 		const selection = this._myEditorObs.cursorSelection.get();
 		const direction = selection?.getDirection() ?? SelectionDirection.LTR;
 		const lineNumber = selection?.getPosition().lineNumber ?? 1;
+
+		// Reveal the selection line in case it's outside the viewport (e.g., when clicked from sticky scroll)
+		this._myEditorObs.editor.revealLineInCenterIfOutsideViewport(lineNumber, ScrollType.Immediate);
+
 		this._hover.set({ rect: iconElement.getBoundingClientRect(), above: direction === SelectionDirection.RTL, lineNumber }, undefined);
 	}
 
