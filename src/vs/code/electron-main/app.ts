@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, powerMonitor, protocol, session, Session, systemPreferences, WebFrameMain } from 'electron';
+import { app, Details, GPUFeatureStatus, powerMonitor, protocol, session, Session, systemPreferences, WebFrameMain } from 'electron';
 import { addUNCHostToAllowlist, disableUNCAccessRestrictions } from '../../base/node/unc.js';
 import { validatedIpcMain } from '../../base/parts/ipc/electron-main/ipcMain.js';
 import { hostname, release } from 'os';
@@ -30,7 +30,7 @@ import { IBackupMainService } from '../../platform/backup/electron-main/backup.j
 import { BackupMainService } from '../../platform/backup/electron-main/backupMainService.js';
 import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
 import { ElectronExtensionHostDebugBroadcastChannel } from '../../platform/debug/electron-main/extensionHostDebugIpc.js';
-import { IDiagnosticsService } from '../../platform/diagnostics/common/diagnostics.js';
+import { IDiagnosticsService, IGPULogMessage } from '../../platform/diagnostics/common/diagnostics.js';
 import { DiagnosticsMainService, IDiagnosticsMainService } from '../../platform/diagnostics/electron-main/diagnosticsMainService.js';
 import { DialogMainService, IDialogMainService } from '../../platform/dialogs/electron-main/dialogMainService.js';
 import { IEncryptionMainService } from '../../platform/encryption/common/encryptionService.js';
@@ -1435,6 +1435,54 @@ export class CodeApplication extends Disposable {
 				telemetryService.publicLog2<PowerEvent, PowerEventClassification>('power.resume', getPowerEventData());
 			}));
 		});
+
+		// GPU crash telemetry for skia graphite out of order recording failures
+		// Refs https://github.com/microsoft/vscode/issues/284162
+		if (isMacintosh) {
+			instantiationService.invokeFunction(accessor => {
+				const telemetryService = accessor.get(ITelemetryService);
+				type GPUFeatureStatusWithSkiaGraphite = GPUFeatureStatus & {
+					skia_graphite: string;
+				};
+				const initialGpuFeatureStatus = app.getGPUFeatureStatus() as GPUFeatureStatusWithSkiaGraphite;
+				const skiaGraphiteEnabled: string = initialGpuFeatureStatus['skia_graphite'];
+				if (skiaGraphiteEnabled === 'enabled') {
+					this._register(Event.fromNodeEventEmitter<{ details: Details }>(app, 'child-process-gone', (event, details) => ({ event, details }))(({ details }) => {
+						if (details.type === 'GPU' && details.reason === 'crashed') {
+							const currentGpuFeatureStatus = app.getGPUFeatureStatus();
+							const currentRasterizationStatus: string = currentGpuFeatureStatus['rasterization'];
+							if (currentRasterizationStatus !== 'enabled') {
+								// Get last 10 GPU log messages (only the message field)
+								let gpuLogMessages: string[] = [];
+								type AppWithGPULogMethod = typeof app & {
+									getGPULogMessages(): IGPULogMessage[];
+								};
+								const customApp = app as AppWithGPULogMethod;
+								if (typeof customApp.getGPULogMessages === 'function') {
+									gpuLogMessages = customApp.getGPULogMessages().slice(-10).map(log => log.message);
+								}
+
+								type GpuCrashEvent = {
+									readonly gpuFeatureStatus: string;
+									readonly gpuLogMessages: string;
+								};
+								type GpuCrashClassification = {
+									gpuFeatureStatus: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Current GPU feature status.' };
+									gpuLogMessages: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Last 10 GPU log messages before crash.' };
+									owner: 'deepak1556';
+									comment: 'Tracks GPU process crashes that would result in fallback mode.';
+								};
+
+								telemetryService.publicLog2<GpuCrashEvent, GpuCrashClassification>('gpu.crash.fallback', {
+									gpuFeatureStatus: JSON.stringify(currentGpuFeatureStatus),
+									gpuLogMessages: JSON.stringify(gpuLogMessages)
+								});
+							}
+						}
+					}));
+				}
+			});
+		}
 	}
 
 	private async installMutex(): Promise<void> {
