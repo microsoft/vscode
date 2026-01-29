@@ -24,7 +24,7 @@ export class SandboxOutputAnalyzer extends Disposable implements IOutputAnalyzer
 		if (!(await this._sandboxService.isEnabled())) {
 			return undefined;
 		}
-		// if exit code 56, check for sandbox network restriction issues
+		// sandbox_networking:if exit code 56, check for sandbox network restriction issues
 		if (options.exitCode === 56) {
 			const domains = this._extractDomains(options.commandLine);
 			if (domains.length === 0) {

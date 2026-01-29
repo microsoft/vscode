@@ -994,7 +994,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		}
 		const outputAnalyzerMessages = (await Promise.all(this._outputAnalyzers
 			.map(analyzer => analyzer.analyze({ exitCode, exitResult: terminalResult, commandLine: command }))))
-			.filter((message): message is string => !!message);
+			.filter(message => message !== undefined) as string[];
 		if (outputAnalyzerMessages.length > 0) {
 			resultText.unshift(`${outputAnalyzerMessages.join('\n')}\n`);
 		}
