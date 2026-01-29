@@ -88,7 +88,10 @@ export class ChatContentMarkdownRenderer implements IMarkdownRenderer {
 					// regardless of their URI scheme
 					try {
 						const uri = URI.parse(href);
-						return this.promptsService.isKnownResourceUri(uri);
+						// Normalize URI by dropping query and fragment parameters
+						const normalizedUri = uri.with({ query: null, fragment: null });
+						const result = this.promptsService.isKnownResourceUri(normalizedUri);
+						return result;
 					} catch {
 						return false;
 					}
