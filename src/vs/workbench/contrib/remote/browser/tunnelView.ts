@@ -18,7 +18,7 @@ import { IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../
 import { ICommandService, ICommandHandler, CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { Event } from '../../../../base/common/event.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
-import { Disposable, IDisposable, toDisposable, dispose, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Disposable, toDisposable, dispose, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { IconLabel } from '../../../../base/browser/ui/iconLabel/iconLabel.js';
 import { ActionRunner, IAction } from '../../../../base/common/actions.js';
@@ -320,7 +320,8 @@ class PrivacyColumn implements ITableColumn<ITunnelItem, ActionBarCell> {
 }
 
 interface IActionBarTemplateData {
-	elementDisposable: IDisposable;
+	elementDisposables: DisposableStore;
+	templateDisposables: DisposableStore;
 	container: HTMLElement;
 	label: IconLabel;
 	button?: Button;
@@ -338,7 +339,7 @@ interface ActionBarCell {
 	editId: TunnelEditId;
 }
 
-class ActionBarRenderer extends Disposable implements ITableRenderer<ActionBarCell, IActionBarTemplateData> {
+class ActionBarRenderer implements ITableRenderer<ActionBarCell, IActionBarTemplateData> {
 	readonly templateId = 'actionbar';
 	private inputDone?: (success: boolean, finishEditing: boolean) => void;
 	private _actionRunner: ActionRunner | undefined;
@@ -353,8 +354,6 @@ class ActionBarRenderer extends Disposable implements ITableRenderer<ActionBarCe
 		@ICommandService private readonly commandService: ICommandService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
-		super();
-
 		this._hoverDelegate = getDefaultHoverDelegate('mouse');
 	}
 
@@ -365,21 +364,25 @@ class ActionBarRenderer extends Disposable implements ITableRenderer<ActionBarCe
 	renderTemplate(container: HTMLElement): IActionBarTemplateData {
 		const cell = dom.append(container, dom.$('.ports-view-actionbar-cell'));
 		const icon = dom.append(cell, dom.$('.ports-view-actionbar-cell-icon'));
-		const label = new IconLabel(cell,
+		const templateDisposables = new DisposableStore()
+		const elementDisposables = new DisposableStore();
+		templateDisposables.add(elementDisposables)
+		const label = templateDisposables.add(new IconLabel(cell,
 			{
 				supportHighlights: true,
 				hoverDelegate: this._hoverDelegate
-			});
+			}));
 		const actionsContainer = dom.append(cell, dom.$('.actions'));
-		const actionBar = new ActionBar(actionsContainer, {
+		const actionBar = templateDisposables.add(new ActionBar(actionsContainer, {
 			actionViewItemProvider: createActionViewItem.bind(undefined, this.instantiationService),
 			hoverDelegate: this._hoverDelegate
-		});
-		return { label, icon, actionBar, container: cell, elementDisposable: Disposable.None };
+		}));
+		return { label, icon, actionBar, container: cell, templateDisposables, elementDisposables };
 	}
 
 	renderElement(element: ActionBarCell, index: number, templateData: IActionBarTemplateData): void {
 		// reset
+		templateData.elementDisposables.clear();
 		templateData.actionBar.clear();
 		templateData.icon.className = 'ports-view-actionbar-cell-icon';
 		templateData.icon.style.display = 'none';
@@ -388,18 +391,16 @@ class ActionBarRenderer extends Disposable implements ITableRenderer<ActionBarCe
 		templateData.container.style.height = '22px';
 		if (templateData.button) {
 			templateData.button.element.style.display = 'none';
-			templateData.button.dispose();
 		}
 		templateData.container.style.paddingLeft = '0px';
-		templateData.elementDisposable.dispose();
 
 		let editableData: IEditableData | undefined;
 		if (element.editId === TunnelEditId.New && (editableData = this.remoteExplorerService.getEditableData(undefined))) {
-			this.renderInputBox(templateData.container, editableData);
+			this.renderInputBox(templateData, editableData)
 		} else {
 			editableData = this.remoteExplorerService.getEditableData(element.tunnel, element.editId);
 			if (editableData) {
-				this.renderInputBox(templateData.container, editableData);
+				this.renderInputBox(templateData, editableData)
 			} else if ((element.tunnel.tunnelType === TunnelType.Add) && (element.menuId === MenuId.TunnelPortInline)) {
 				this.renderButton(element, templateData);
 			} else {
@@ -411,10 +412,10 @@ class ActionBarRenderer extends Disposable implements ITableRenderer<ActionBarCe
 	renderButton(element: ActionBarCell, templateData: IActionBarTemplateData): void {
 		templateData.container.style.paddingLeft = '7px';
 		templateData.container.style.height = '28px';
-		templateData.button = this._register(new Button(templateData.container, defaultButtonStyles));
+		templateData.button = templateData.elementDisposables.add(new Button(templateData.container, defaultButtonStyles));
 		templateData.button.label = element.label;
 		templateData.button.element.title = element.tooltip;
-		this._register(templateData.button.onDidClick(() => {
+		templateData.elementDisposables.add(templateData.button.onDidClick(() => {
 			this.commandService.executeCommand(ForwardPortAction.INLINE_ID);
 		}));
 	}
@@ -464,10 +465,8 @@ class ActionBarRenderer extends Disposable implements ITableRenderer<ActionBarCe
 				[TunnelProtocolContextKey.key, element.tunnel.protocol]
 			];
 		const contextKeyService = this.contextKeyService.createOverlay(context);
-		const disposableStore = new DisposableStore();
-		templateData.elementDisposable = disposableStore;
 		if (element.menuId) {
-			const menu = disposableStore.add(this.menuService.createMenu(element.menuId, contextKeyService));
+			const menu = templateData.elementDisposables.add(this.menuService.createMenu(element.menuId, contextKeyService));
 			let actions = getFlatActionBarActions(menu.getActions({ shouldForwardArgs: true }));
 			if (actions) {
 				const labelActions = actions.filter(action => action.id.toLowerCase().indexOf('label') >= 0);
@@ -489,12 +488,13 @@ class ActionBarRenderer extends Disposable implements ITableRenderer<ActionBarCe
 		}
 	}
 
-	private renderInputBox(container: HTMLElement, editableData: IEditableData): IDisposable {
+	private renderInputBox(templateData: IActionBarTemplateData, editableData: IEditableData): void {
 		// Required for FireFox. The blur event doesn't fire on FireFox when you just mash the "+" button to forward a port.
 		if (this.inputDone) {
 			this.inputDone(false, false);
 			this.inputDone = undefined;
 		}
+		const { container } = templateData
 		container.style.paddingLeft = '5px';
 		const value = editableData.startingValue || '';
 		const inputBox = new InputBox(container, this.contextViewService, {
@@ -554,20 +554,17 @@ class ActionBarRenderer extends Disposable implements ITableRenderer<ActionBarCe
 			})
 		];
 
-		return toDisposable(() => {
+		templateData.elementDisposables.add(toDisposable(() => {
 			done(false, false);
-		});
+		}));
 	}
 
 	disposeElement(element: ActionBarCell, index: number, templateData: IActionBarTemplateData) {
-		templateData.elementDisposable.dispose();
+		templateData.elementDisposables.clear();
 	}
 
 	disposeTemplate(templateData: IActionBarTemplateData): void {
-		templateData.label.dispose();
-		templateData.actionBar.dispose();
-		templateData.elementDisposable.dispose();
-		templateData.button?.dispose();
+		templateData.templateDisposables.dispose();
 	}
 }
 
@@ -1817,4 +1814,3 @@ MenuRegistry.appendMenuItem(MenuId.TunnelLocalAddressInline, ({
 }));
 
 registerColor('ports.iconRunningProcessForeground', STATUS_BAR_REMOTE_ITEM_BACKGROUND, nls.localize('portWithRunningProcess.foreground', "The color of the icon for a port that has an associated running process."));
-
