@@ -17,6 +17,7 @@ import { CharacterMapping, ForeignElementType, RenderLineInput, RenderLineOutput
 import { ViewLineRenderingData } from '../../../../../common/viewModel.js';
 import { InlineDecoration } from '../../../../../common/viewModel/inlineDecorations.js';
 import { getColumnOfNodeOffset } from '../../../../viewParts/viewLines/viewLine.js';
+import { mainWindow } from '../../../../../../base/browser/window.js';
 
 const ttPolicy = createTrustedTypesPolicy('diffEditorWidget', { createHTML: value => value });
 
@@ -274,12 +275,28 @@ function renderOriginalLine(
 		// No char changes
 		sb.appendString(' char-delete');
 	}
-	sb.appendString('" style="top:');
+	if (mainWindow.cspNonce) {
+		const className = 'view-line-' + viewLineIdx.toString() + Math.random().toString(36).substring(2);
+		sb.appendString(' ');
+		sb.appendString(className);
+		sb.appendString('"><style nonce="');
+		sb.appendString(mainWindow.cspNonce);
+		sb.appendString('">.');
+		sb.appendString(className);
+		sb.appendString('{ top:');
+	} else {
+		sb.appendString('" style="top:');
+	}
 	sb.appendString(String(viewLineIdx * options.lineHeight));
 	if (options.setWidth) {
-		sb.appendString('px;width:1000000px;">');
+		sb.appendString('px;width:1000000px;');
 	} else {
-		sb.appendString('px;">');
+		sb.appendString('px;');
+	}
+	if (mainWindow.cspNonce) {
+		sb.appendString('}</style>');
+	} else {
+		sb.appendString('">');
 	}
 
 	const lineContent = lineTokens.getLineContent();

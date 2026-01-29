@@ -45,6 +45,7 @@ import { ICustomLineHeightData } from '../viewLayout/lineHeights.js';
 import { TextModelEditSource } from '../textModelEditSource.js';
 import { InlineDecoration } from './inlineDecorations.js';
 import { ICoordinatesConverter } from '../coordinatesConverter.js';
+import { mainWindow } from '../../../base/common/window.js';
 
 const USE_IDENTITY_LINES_COLLECTION = true;
 
@@ -1074,10 +1075,21 @@ export class ViewModel extends Disposable implements IViewModel {
 			fontFamily = `${fontFamily}, ${EDITOR_FONT_DEFAULTS.fontFamily}`;
 		}
 
+		const className = 'view-copy-container-' + Math.random().toString(36).substring(2);
 		return {
 			mode: languageId,
 			html: (
-				`<div style="`
+				`<div `
+				+ (mainWindow.cspNonce ?
+					'class="'
+					+ className
+					+ '"><style nonce="'
+					+ mainWindow.cspNonce
+					+ '>.'
+					+ className
+					+ '{' :
+					`style="`
+				)
 				+ `color: ${colorMap[ColorId.DefaultForeground]};`
 				+ `background-color: ${colorMap[ColorId.DefaultBackground]};`
 				+ `font-family: ${fontFamily};`
@@ -1085,7 +1097,10 @@ export class ViewModel extends Disposable implements IViewModel {
 				+ `font-size: ${fontInfo.fontSize}px;`
 				+ `line-height: ${fontInfo.lineHeight}px;`
 				+ `white-space: pre;`
-				+ `">`
+				+ (mainWindow.cspNonce ?
+					`}</style>` :
+					`">`
+				)
 				+ this._getHTMLToCopy(range, colorMap)
 				+ '</div>'
 			)

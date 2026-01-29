@@ -13,6 +13,7 @@ import { LinePart, LinePartMetadata } from './linePart.js';
 import { OffsetRange } from '../core/ranges/offsetRange.js';
 import { InlineDecorationType } from '../viewModel/inlineDecorations.js';
 import { TextDirection } from '../model.js';
+import { mainWindow } from '../../../base/common/window.js';
 
 export const enum RenderWhitespace {
 	None = 0,
@@ -1015,13 +1016,18 @@ function _renderLine(input: ResolvedRenderLineInput, sb: StringBuilder): RenderL
 		const partRendersWhitespaceWithWidth = partRendersWhitespace && !fontIsMonospace && (partType === 'mtkw'/*only whitespace*/ || !containsForeignElements);
 		const partIsEmptyAndHasPseudoAfter = (charIndex === partEndIndex && part.isPseudoAfter());
 		charOffsetInPart = 0;
+		const className = 'view-line' + Math.random().toString(36).substring(2);
 
 		sb.appendString('<span ');
-		if (partContainsRTL) {
+		if (partContainsRTL && !mainWindow.cspNonce) {
 			sb.appendString('style="unicode-bidi:isolate" ');
 		}
 		sb.appendString('class="');
 		sb.appendString(partRendersWhitespaceWithWidth ? 'mtkz' : partType);
+		if (mainWindow.cspNonce) {
+			sb.appendString(' ');
+			sb.appendString(className);
+		}
 		sb.appendASCIICharCode(CharCode.DoubleQuote);
 
 		if (partRendersWhitespace) {
@@ -1041,12 +1047,26 @@ function _renderLine(input: ResolvedRenderLineInput, sb: StringBuilder): RenderL
 				}
 			}
 
-			if (partRendersWhitespaceWithWidth) {
+			if (partRendersWhitespaceWithWidth && !mainWindow.cspNonce) {
 				sb.appendString(' style="width:');
 				sb.appendString(String(spaceWidth * partWidth));
 				sb.appendString('px"');
 			}
 			sb.appendASCIICharCode(CharCode.GreaterThan);
+
+			if (mainWindow.cspNonce) {
+				sb.appendString('<style nonce="');
+				sb.appendString(mainWindow.cspNonce);
+				sb.appendString('">.');
+				sb.appendString(className);
+				sb.appendString('{');
+				if (partContainsRTL) {
+					sb.appendString('unicode-bidi:isolate;');
+				}
+				sb.appendString('width:');
+				sb.appendString(String(spaceWidth * partWidth));
+				sb.appendString('px;}</style>');
+			}
 
 			for (; charIndex < partEndIndex; charIndex++) {
 				characterMapping.setColumnInfo(charIndex + 1, partIndex - partDisplacement, charOffsetInPart, charHorizontalOffset);
@@ -1087,6 +1107,17 @@ function _renderLine(input: ResolvedRenderLineInput, sb: StringBuilder): RenderL
 		} else {
 
 			sb.appendASCIICharCode(CharCode.GreaterThan);
+			if (mainWindow.cspNonce) {
+				sb.appendString('<style nonce="');
+				sb.appendString(mainWindow.cspNonce);
+				sb.appendString('">.');
+				sb.appendString(className);
+				sb.appendString('{');
+				if (partContainsRTL) {
+					sb.appendString('unicode-bidi:isolate;');
+				}
+				sb.appendString('}</style>');
+			}
 
 			for (; charIndex < partEndIndex; charIndex++) {
 				characterMapping.setColumnInfo(charIndex + 1, partIndex - partDisplacement, charOffsetInPart, charHorizontalOffset);
