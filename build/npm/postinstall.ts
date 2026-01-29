@@ -182,5 +182,7 @@ for (const dir of dirs) {
 	npmInstall(dir, opts);
 }
 
-child_process.execSync('git config pull.rebase merges');
-child_process.execSync('git config blame.ignoreRevsFile .git-blame-ignore-revs');
+if (fs.existsSync(path.join(root, '.git'))) {
+	child_process.execSync('git config pull.rebase merges');
+	child_process.execSync('git config blame.ignoreRevsFile .git-blame-ignore-revs');
+}
