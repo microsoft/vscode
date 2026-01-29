@@ -181,5 +181,52 @@ suite('PromptBodyAutocompletion', () => {
 				]);
 			}
 		});
+
+		test('tool suggestions in skill files', async () => {
+			const content = [
+				'---',
+				'description: "Test skill"',
+				'---',
+				'',
+				'Use #tool: to reference a tool.',
+			].join('\n');
+			{
+				const actual = (await getCompletions(content, 5, 11, PromptsType.skill));
+				assert.deepEqual(actual, [
+					{
+						label: 'vscode',
+						result: 'Use #tool:vscode to reference a tool.'
+					},
+					{
+						label: 'execute',
+						result: 'Use #tool:execute to reference a tool.'
+					},
+					{
+						label: 'read',
+						result: 'Use #tool:read to reference a tool.'
+					},
+					{
+						label: 'agent',
+						result: 'Use #tool:agent to reference a tool.'
+					},
+					{
+						label: 'tool1',
+						result: 'Use #tool:tool1 to reference a tool.'
+					},
+					{
+						label: 'tool2',
+						result: 'Use #tool:tool2 to reference a tool.'
+					},
+					{
+						label: 'my.extension/tool3',
+						result: 'Use #tool:my.extension/tool3 to reference a tool.'
+					},
+					{
+						label: 'github.vscode-pull-request-github/suggest-fix',
+						result: 'Use #tool:github.vscode-pull-request-github/suggest-fix to reference a tool.'
+					}
+				]);
+			}
+		});
 	});
 });
