@@ -107,7 +107,7 @@
 	display: flex;
 	gap: 4px;
 	margin-left: auto;
-	align-self: flex-start;
+	align-self: center;
 }
 
 .chat-terminal-content-part .chat-terminal-content-message {
