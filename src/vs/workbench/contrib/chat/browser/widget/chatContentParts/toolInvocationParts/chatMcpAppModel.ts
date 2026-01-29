@@ -723,7 +723,7 @@ export class ChatMcpAppModel extends Disposable {
 			jsonrpc: '2.0',
 			id,
 			error: { code, message },
-		} satisfies MCP.JSONRPCError);
+		} satisfies MCP.JSONRPCErrorResponse);
 	}
 
 	private async _sendNotification(message: McpApps.HostNotification): Promise<void> {
