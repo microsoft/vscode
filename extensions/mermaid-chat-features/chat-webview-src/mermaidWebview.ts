@@ -35,7 +35,7 @@ export class PanZoomHandler {
 		this.content = content;
 		this.content.style.transformOrigin = '0 0';
 		this.container.style.overflow = 'hidden';
-		this.container.style.cursor = 'grab';
+		this.container.style.cursor = 'default';
 		this.setupEventListeners();
 	}
 
@@ -77,11 +77,11 @@ export class PanZoomHandler {
 		if ((e.key === 'Alt' || e.key === 'Shift') && !this.isPanning) {
 			e.preventDefault();
 			if (e.altKey && !e.shiftKey) {
-				this.container.style.cursor = 'zoom-in';
+				this.container.style.cursor = 'grab';
 			} else if (e.altKey && e.shiftKey) {
 				this.container.style.cursor = 'zoom-out';
 			} else {
-				this.container.style.cursor = 'grab';
+				this.container.style.cursor = 'default';
 			}
 		}
 	}
@@ -91,11 +91,11 @@ export class PanZoomHandler {
 			return;
 		}
 		if (e.altKey && !e.shiftKey) {
-			this.container.style.cursor = 'zoom-in';
+			this.container.style.cursor = 'grab';
 		} else if (e.altKey && e.shiftKey) {
 			this.container.style.cursor = 'zoom-out';
 		} else {
-			this.container.style.cursor = 'grab';
+			this.container.style.cursor = 'default';
 		}
 	}
 
@@ -118,8 +118,14 @@ export class PanZoomHandler {
 	}
 
 	private handleWheel(e: WheelEvent): void {
+		// Only zoom when Alt is held (or ctrlKey for pinch-to-zoom gestures)
 		// ctrlKey is set by browsers for pinch-to-zoom gestures
 		const isPinchZoom = e.ctrlKey;
+
+		if (!e.altKey && !isPinchZoom) {
+			// Allow normal scrolling when Alt is not held
+			return;
+		}
 
 		if (isPinchZoom || e.altKey) {
 			// Pinch gesture or Alt + two-finger drag = zoom
@@ -131,7 +137,9 @@ export class PanZoomHandler {
 			const mouseY = e.clientY - rect.top;
 
 			// Calculate zoom (scroll up = zoom in, scroll down = zoom out)
-			const delta = -e.deltaY * this.zoomFactor;
+			// Pinch gestures have smaller deltaY values, so use a higher factor
+			const effectiveZoomFactor = isPinchZoom ? this.zoomFactor * 5 : this.zoomFactor;
+			const delta = -e.deltaY * effectiveZoomFactor;
 			const newScale = Math.min(this.maxScale, Math.max(this.minScale, this.scale * (1 + delta)));
 
 			// Zoom toward mouse position
@@ -146,7 +154,7 @@ export class PanZoomHandler {
 	}
 
 	private handleMouseDown(e: MouseEvent): void {
-		if (e.button !== 0) {
+		if (e.button !== 0 || !e.altKey) {
 			return;
 		}
 		e.preventDefault();
@@ -182,7 +190,7 @@ export class PanZoomHandler {
 	private handleMouseUp(): void {
 		if (this.isPanning) {
 			this.isPanning = false;
-			this.container.style.cursor = 'grab';
+			this.container.style.cursor = 'default';
 			this.saveState();
 		}
 	}

@@ -167,7 +167,6 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 				overrideStyles: this.options.overrideStyles,
 				twistieAdditionalCssClass: () => 'force-no-twistie',
 				collapseByDefault: (element: unknown) => collapseByDefault(element),
-				expandOnlyOnTwistieClick: element => !collapseByDefault(element),
 				renderIndentGuides: RenderIndentGuides.None,
 			}
 		)) as WorkbenchCompressibleAsyncDataTree<IAgentSessionsModel, AgentSessionListItem, FuzzyScore>;
@@ -325,14 +324,17 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 					break;
 				}
 				case AgentSessionSection.More: {
-					const shouldCollapseMore =
-						!this.sessionsListFindIsOpen &&				// always expand when find is open
-						!this.options.filter.getExcludes().read;	// always expand when only showing unread
+					if (child.collapsed) {
+						let autoExpandMore = false;
+						if (this.sessionsListFindIsOpen) {
+							autoExpandMore = true; // always expand when find is open
+						} else if (this.options.filter.getExcludes().read && child.element.sessions.some(session => !session.isRead())) {
+							autoExpandMore = true; // expand when showing only unread and this section includes unread
+						}
 
-					if (shouldCollapseMore && !child.collapsed) {
-						this.sessionsList.collapse(child.element);
-					} else if (!shouldCollapseMore && child.collapsed) {
-						this.sessionsList.expand(child.element);
+						if (autoExpandMore) {
+							this.sessionsList.expand(child.element);
+						}
 					}
 					break;
 				}

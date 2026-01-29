@@ -320,7 +320,7 @@ configurationRegistry.registerConfiguration({
 				name: 'ChatToolsAutoApprove',
 				category: PolicyCategory.InteractiveSession,
 				minimumVersion: '1.99',
-				value: (account) => account.policyData?.chat_preview_features_enabled === false ? false : undefined,
+				value: (policyData) => policyData.chat_preview_features_enabled === false ? false : undefined,
 				localization: {
 					description: {
 						key: 'autoApprove2.description',
@@ -435,11 +435,6 @@ configurationRegistry.registerConfiguration({
 			default: 'sideBySide',
 			description: nls.localize('chat.viewSessions.orientation', "Controls the orientation of the chat agent sessions view when it is shown alongside the chat."),
 		},
-		[ChatConfiguration.ChatViewTitleEnabled]: {
-			type: 'boolean',
-			default: true,
-			description: nls.localize('chat.viewTitle.enabled', "Show the title of the chat above the chat in the chat view."),
-		},
 		[ChatConfiguration.ChatViewProgressBadgeEnabled]: {
 			type: 'boolean',
 			default: false,
@@ -478,11 +473,11 @@ configurationRegistry.registerConfiguration({
 				name: 'ChatMCP',
 				category: PolicyCategory.InteractiveSession,
 				minimumVersion: '1.99',
-				value: (account) => {
-					if (account.policyData?.mcp === false) {
+				value: (policyData) => {
+					if (policyData.mcp === false) {
 						return McpAccessValue.None;
 					}
-					if (account.policyData?.mcpAccess === 'registry_only') {
+					if (policyData.mcpAccess === 'registry_only') {
 						return McpAccessValue.Registry;
 					}
 					return undefined;
@@ -593,7 +588,7 @@ configurationRegistry.registerConfiguration({
 				name: 'ChatAgentMode',
 				category: PolicyCategory.InteractiveSession,
 				minimumVersion: '1.99',
-				value: (account) => account.policyData?.chat_agent_enabled === false ? false : undefined,
+				value: (policyData) => policyData.chat_agent_enabled === false ? false : undefined,
 				localization: {
 					description: {
 						key: 'chat.agent.enabled.description',
@@ -614,7 +609,7 @@ configurationRegistry.registerConfiguration({
 		[ChatConfiguration.AlternativeToolAction]: {
 			type: 'boolean',
 			description: nls.localize('chat.alternativeToolAction', "When enabled, shows the Configure Tools action in the mode picker dropdown on hover instead of in the chat input."),
-			default: true,
+			default: false,
 			tags: ['experimental'],
 			experiment: {
 				mode: 'auto'
@@ -670,7 +665,7 @@ configurationRegistry.registerConfiguration({
 				name: 'McpGalleryServiceUrl',
 				category: PolicyCategory.InteractiveSession,
 				minimumVersion: '1.101',
-				value: (account) => account.policyData?.mcpRegistryUrl,
+				value: (policyData) => policyData.mcpRegistryUrl,
 				localization: {
 					description: {
 						key: 'mcp.gallery.serviceUrl',

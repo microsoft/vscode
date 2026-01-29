@@ -25,8 +25,9 @@ import { getPromptFileExtension } from '../../../../common/promptSyntax/config/p
 import { PromptValidator } from '../../../../common/promptSyntax/languageProviders/promptValidator.js';
 import { PromptsType } from '../../../../common/promptSyntax/promptTypes.js';
 import { PromptFileParser } from '../../../../common/promptSyntax/promptFileParser.js';
-import { PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
+import { ICustomAgent, IPromptsService, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
 import { MockChatModeService } from '../../../common/mockChatModeService.js';
+import { MockPromptsService } from '../../../common/promptSyntax/service/mockPromptsService.js';
 
 suite('PromptValidator', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -144,6 +145,17 @@ suite('PromptValidator', () => {
 				return Promise.resolve(existingFiles.has(uri));
 			}
 		});
+		const promptsService = new MockPromptsService();
+		const customMode: ICustomAgent = {
+			uri: URI.parse('file:///test/custom-mode.md'),
+			name: 'Plan',
+			description: 'A test custom mode',
+			tools: ['tool1', 'tool2'],
+			agentInstructions: { content: 'Custom mode body', toolReferences: [] },
+			source: { storage: PromptsStorage.local }
+		};
+		promptsService.setCustomModes([customMode]);
+		instaService.stub(IPromptsService, promptsService);
 	});
 
 	async function validate(code: string, promptType: PromptsType, uri?: URI): Promise<IMarkerData[]> {
@@ -976,7 +988,7 @@ suite('PromptValidator', () => {
 			const content = [
 				'---',
 				'description: "Test"',
-				`agents: ['valid', 123]`,
+				`agents: ['agent', 123]`,
 				`tools: ['agent']`,
 				'---',
 			].join('\n');
@@ -984,11 +996,25 @@ suite('PromptValidator', () => {
 			assert.deepStrictEqual(markers.map(m => m.message), [`Each agent name in the 'agents' attribute must be a string.`]);
 		});
 
+		test('unknown agent in agents attribute shows warning', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				`agents: ['UnknownAgent']`,
+				`tools: ['agent']`,
+				'---',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			assert.strictEqual(markers.length, 1);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
+			assert.strictEqual(markers[0].message, `Unknown agent 'UnknownAgent'. Available agents: Plan, agent.`);
+		});
+
 		test('agents attribute with non-empty value requires agent tool 1', async () => {
 			const content = [
 				'---',
 				'description: "Test"',
-				`agents: ['Planning', 'Research']`,
+				`agents: ['agent', 'Plan']`,
 				'---',
 			].join('\n');
 			const markers = await validate(content, PromptsType.agent);
@@ -999,7 +1025,7 @@ suite('PromptValidator', () => {
 			const content = [
 				'---',
 				'description: "Test"',
-				`agents: ['Planning', 'Research']`,
+				`agents: ['agent', 'Plan']`,
 				`tools: ['shell']`,
 				'---',
 			].join('\n');
@@ -1011,7 +1037,7 @@ suite('PromptValidator', () => {
 			const content = [
 				'---',
 				'description: "Test"',
-				`agents: ['Planning', 'Research']`,
+				`agents: ['agent', 'Plan']`,
 				`tools: ['agent']`,
 				'---',
 			].join('\n');
@@ -1392,6 +1418,101 @@ suite('PromptValidator', () => {
 			].join('\n');
 			const markers = await validate(content, PromptsType.skill, URI.parse('file:///.github/skills/my-skill/SKILL.md'));
 			assert.deepStrictEqual(markers, [], 'Expected no validation issues when name is missing');
+		});
+
+		test('skill with empty name does not validate folder match', async () => {
+			const content = [
+				'---',
+				'name: ""',
+				'description: Test Skill',
+				'---',
+				'This is a skill.'
+			].join('\n');
+			const markers = await validate(content, PromptsType.skill, URI.parse('file:///.github/skills/my-skill/SKILL.md'));
+			// Should get error for empty name, but no folder mismatch warning since name is empty
+			assert.ok(markers.some(m => m.message.includes('must not be empty')), 'Expected error for empty name');
+			assert.ok(!markers.some(m => m.message.includes('should match the folder name')), 'Should not warn about folder mismatch for empty name');
+		});
+
+		test('skill name with whitespace trimmed matches folder name', async () => {
+			const content = [
+				'---',
+				'name: "  my-skill  "',
+				'description: Test Skill',
+				'---',
+				'This is a skill.'
+			].join('\n');
+			const markers = await validate(content, PromptsType.skill, URI.parse('file:///.github/skills/my-skill/SKILL.md'));
+			assert.deepStrictEqual(markers, [], 'Expected no validation issues when trimmed name matches folder');
+		});
+
+		test('skill name validation with different folder depths', async () => {
+			// Test with deeper path structure
+			{
+				const content = [
+					'---',
+					'name: advanced-skill',
+					'description: Test Skill',
+					'---',
+					'This is a skill.'
+				].join('\n');
+				const markers = await validate(content, PromptsType.skill, URI.parse('file:///home/user/.github/skills/advanced-skill/SKILL.md'));
+				assert.deepStrictEqual(markers, [], 'Expected no issues for deeper path when name matches');
+			}
+
+			// Test with mismatch in deeper path
+			{
+				const content = [
+					'---',
+					'name: wrong-name',
+					'description: Test Skill',
+					'---',
+					'This is a skill.'
+				].join('\n');
+				const markers = await validate(content, PromptsType.skill, URI.parse('file:///home/user/.github/skills/correct-folder/SKILL.md'));
+				assert.strictEqual(markers.length, 1);
+				assert.strictEqual(markers[0].message, `The skill name 'wrong-name' should match the folder name 'correct-folder'.`);
+			}
+		});
+
+		test('skill name validation with special characters in folder', async () => {
+			const content = [
+				'---',
+				'name: my_special-skill.v2',
+				'description: Test Skill',
+				'---',
+				'This is a skill.'
+			].join('\n');
+			const markers = await validate(content, PromptsType.skill, URI.parse('file:///.github/skills/my_special-skill.v2/SKILL.md'));
+			assert.deepStrictEqual(markers, [], 'Expected no issues when name with special chars matches folder');
+		});
+
+		test('skill with non-string name type does not validate folder match', async () => {
+			const content = [
+				'---',
+				'name: 123',
+				'description: Test Skill',
+				'---',
+				'This is a skill.'
+			].join('\n');
+			const markers = await validate(content, PromptsType.skill, URI.parse('file:///.github/skills/my-skill/SKILL.md'));
+			// Should get error for non-string name type, but no folder mismatch warning
+			assert.ok(markers.some(m => m.message.includes('must be a string')), 'Expected error for non-string name');
+			assert.ok(!markers.some(m => m.message.includes('should match the folder name')), 'Should not warn about folder mismatch for non-string name');
+		});
+
+		test('skill folder name validation only for skill type', async () => {
+			// Verify that folder name validation doesn't run for non-skill prompt types
+			const content = [
+				'---',
+				'name: different-name',
+				'description: Test Agent',
+				'---',
+				'This is an agent.'
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent, URI.parse('file:///.github/agents/my-agent/AGENT.md'));
+			// Should not get folder name mismatch warning for agents
+			assert.ok(!markers.some(m => m.message.includes('should match the folder name')), 'Should not validate folder names for agents');
 		});
 
 		test('skill with unknown attributes shows warning', async () => {

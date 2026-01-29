@@ -154,6 +154,62 @@ suite('Edit', () => {
 			// This should return undefined because both are inserts at the same position
 			assert.strictEqual(rebasedEdit, undefined);
 		});
+
+		test('tryRebase should return undefined when rebasing would produce non-disjoint edits (negative offset case)', () => {
+			// ourEdit1: [100, 110) -> "A"
+			// ourEdit2: [120, 120) -> "B"
+			// baseEdit: [110, 125) -> "" (delete 15 chars, offset = -15)
+			// After transformation, ourEdit2 at [105, 105) < ourEdit1 end (110)
+
+			const ourEdit = StringEdit.create([
+				new StringReplacement(new OffsetRange(100, 110), 'A'),
+				new StringReplacement(OffsetRange.emptyAt(120), 'B'),
+			]);
+
+			const baseEdit = StringEdit.create([
+				new StringReplacement(new OffsetRange(110, 125), ''),
+			]);
+
+			const result = ourEdit.tryRebase(baseEdit);
+			assert.strictEqual(result, undefined);
+		});
+
+		test('tryRebase should succeed when edits remain disjoint after rebasing', () => {
+			// ourEdit1: [100, 110) -> "A"
+			// ourEdit2: [200, 210) -> "B"
+			// baseEdit: [50, 60) -> "" (delete 10 chars, offset = -10)
+			// After: ourEdit1 at [90, 100), ourEdit2 at [190, 200) - still disjoint
+
+			const ourEdit = StringEdit.create([
+				new StringReplacement(new OffsetRange(100, 110), 'A'),
+				new StringReplacement(new OffsetRange(200, 210), 'B'),
+			]);
+
+			const baseEdit = StringEdit.create([
+				new StringReplacement(new OffsetRange(50, 60), ''),
+			]);
+
+			const result = ourEdit.tryRebase(baseEdit);
+			assert.ok(result);
+			assert.strictEqual(result?.replacements[0].replaceRange.start, 90);
+			assert.strictEqual(result?.replacements[1].replaceRange.start, 190);
+		});
+
+		test('rebaseSkipConflicting should skip edits that would produce non-disjoint results', () => {
+			const ourEdit = StringEdit.create([
+				new StringReplacement(new OffsetRange(100, 110), 'A'),
+				new StringReplacement(OffsetRange.emptyAt(120), 'B'),
+			]);
+
+			const baseEdit = StringEdit.create([
+				new StringReplacement(new OffsetRange(110, 125), ''),
+			]);
+
+			// Should not throw, and should skip the conflicting edit
+			const result = ourEdit.rebaseSkipConflicting(baseEdit);
+			assert.strictEqual(result.replacements.length, 1);
+			assert.strictEqual(result.replacements[0].replaceRange.start, 100);
+		});
 	});
 
 	suite('ArrayEdit', () => {

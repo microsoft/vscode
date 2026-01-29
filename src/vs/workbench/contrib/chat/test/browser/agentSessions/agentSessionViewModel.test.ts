@@ -230,17 +230,12 @@ suite('AgentSessions', () => {
 					chatSessionType: 'type-2',
 					onDidChangeChatSessionItems: Event.None,
 					provideChatSessionItems: async () => [
-						{
-							id: 'session-2',
-							resource: URI.parse('test://session-2'),
-							label: 'Session 2',
-							timing: makeNewSessionTiming()
-						}
+						makeSimpleSessionItem('session-2'),
 					]
 				};
 
-				mockChatSessionsService.registerChatSessionItemProvider(provider1);
-				mockChatSessionsService.registerChatSessionItemProvider(provider2);
+				disposables.add(mockChatSessionsService.registerChatSessionItemProvider(provider1));
+				disposables.add(mockChatSessionsService.registerChatSessionItemProvider(provider2));
 
 				viewModel = createViewModel();
 
@@ -250,8 +245,8 @@ suite('AgentSessions', () => {
 
 				// Now resolve only type-1
 				await viewModel.resolve('type-1');
-				// Should still have both sessions, but only type-1 was re-resolved
-				assert.strictEqual(viewModel.sessions.length, 2);
+				// Only type-1 sessions remain since non-resolved providers are cleared
+				assert.strictEqual(viewModel.sessions.length, 1);
 			});
 		});
 
@@ -550,7 +545,7 @@ suite('AgentSessions', () => {
 			});
 		});
 
-		test('should preserve sessions from non-resolved providers', async () => {
+		test('should not preserve sessions from non-resolved providers', async () => {
 			return runWithFakedTimers({}, async () => {
 				let provider1CallCount = 0;
 				let provider2CallCount = 0;
@@ -595,19 +590,16 @@ suite('AgentSessions', () => {
 				assert.strictEqual(viewModel.sessions.length, 2);
 				assert.strictEqual(provider1CallCount, 1);
 				assert.strictEqual(provider2CallCount, 1);
-				const originalSession1Label = viewModel.sessions[0].label;
 
 				// Now resolve only type-2
 				await viewModel.resolve('type-2');
 
-				// Should still have both sessions
-				assert.strictEqual(viewModel.sessions.length, 2);
+				// Should still have only one session
+				assert.strictEqual(viewModel.sessions.length, 1);
 				// Provider 1 should not be called again
 				assert.strictEqual(provider1CallCount, 1);
 				// Provider 2 should be called again
 				assert.strictEqual(provider2CallCount, 2);
-				// Session 1 should be preserved with original label
-				assert.strictEqual(viewModel.sessions.find(s => s.resource.toString() === 'test://session-1')?.label, originalSession1Label);
 			});
 		});
 
@@ -1400,9 +1392,8 @@ suite('AgentSessions', () => {
 			instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
 			instantiationService.stub(IChatSessionsService, mockChatSessionsService);
 			instantiationService.stub(ILifecycleService, disposables.add(new TestLifecycleService()));
-			// Set migration key to indicate migration has already happened
 			const storageService = instantiationService.get(IStorageService);
-			storageService.store('agentSessions.markAllReadMigration', 1, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+			storageService.store('agentSessions.readDateBaseline', 1, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		});
 
 		teardown(() => {
@@ -1413,7 +1404,6 @@ suite('AgentSessions', () => {
 
 		test('should mark session as read and unread', async () => {
 			return runWithFakedTimers({}, async () => {
-				// Create session with timing after READ_STATE_INITIAL_DATE so it can be marked unread
 				const futureSessionTiming: IChatSessionItem['timing'] = {
 					created: Date.UTC(2026, 1 /* February */, 1),
 					lastRequestStarted: Date.UTC(2026, 1 /* February */, 1),
@@ -1566,7 +1556,6 @@ suite('AgentSessions', () => {
 
 		test('should consider sessions after initial date as unread by default', async () => {
 			return runWithFakedTimers({}, async () => {
-				// Session with timing after the READ_STATE_INITIAL_DATE (January 28, 2026)
 				const newSessionTiming: IChatSessionItem['timing'] = {
 					created: Date.UTC(2026, 1 /* February */, 1),
 					lastRequestStarted: Date.UTC(2026, 1 /* February */, 1),
@@ -1662,8 +1651,6 @@ suite('AgentSessions', () => {
 
 		test('should treat archived sessions as read', async () => {
 			return runWithFakedTimers({}, async () => {
-				// Session with timing after the READ_STATE_INITIAL_DATE (January 28, 2026)
-				// which would normally be unread
 				const newSessionTiming: IChatSessionItem['timing'] = {
 					created: Date.UTC(2026, 1 /* February */, 1),
 					lastRequestStarted: Date.UTC(2026, 1 /* February */, 1),
@@ -1703,7 +1690,6 @@ suite('AgentSessions', () => {
 
 		test('should mark session as read when archiving', async () => {
 			return runWithFakedTimers({}, async () => {
-				// Session with timing after the READ_STATE_INITIAL_DATE (January 28, 2026)
 				const newSessionTiming: IChatSessionItem['timing'] = {
 					created: Date.UTC(2026, 1 /* February */, 1),
 					lastRequestStarted: Date.UTC(2026, 1 /* February */, 1),
@@ -1749,7 +1735,6 @@ suite('AgentSessions', () => {
 
 		test('should fire onDidChangeSessions when archiving an unread session', async () => {
 			return runWithFakedTimers({}, async () => {
-				// Session with timing after the READ_STATE_INITIAL_DATE
 				const newSessionTiming: IChatSessionItem['timing'] = {
 					created: Date.UTC(2026, 1 /* February */, 1),
 					lastRequestStarted: Date.UTC(2026, 1 /* February */, 1),

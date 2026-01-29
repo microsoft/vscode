@@ -290,6 +290,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 		this._unsafeRepositoriesManager = new UnsafeRepositoriesManager();
 
 		workspace.onDidChangeWorkspaceFolders(this.onDidChangeWorkspaceFolders, this, this.disposables);
+		workspace.onDidChangeWorkspaceTrustedFolders(this.onDidChangeWorkspaceTrustedFolders, this, this.disposables);
 		window.onDidChangeVisibleTextEditors(this.onDidChangeVisibleTextEditors, this, this.disposables);
 		window.onDidChangeActiveTextEditor(this.onDidChangeActiveTextEditor, this, this.disposables);
 		workspace.onDidChangeConfiguration(this.onDidChangeConfiguration, this, this.disposables);
@@ -485,6 +486,27 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 		}
 		catch (err) {
 			this.logger.warn(`[Model][onDidChangeWorkspaceFolders] Error: ${err}`);
+		}
+	}
+
+	private async onDidChangeWorkspaceTrustedFolders(): Promise<void> {
+		try {
+			const openRepositoriesToDispose: OpenRepository[] = [];
+
+			for (const openRepository of this.openRepositories) {
+				const dotGitPath = openRepository.repository.dotGit.commonPath ?? openRepository.repository.dotGit.path;
+				const isTrusted = await workspace.isResourceTrusted(Uri.file(path.dirname(dotGitPath)));
+
+				if (!isTrusted) {
+					openRepositoriesToDispose.push(openRepository);
+					this.logger.trace(`[Model][onDidChangeWorkspaceTrustedFolders] Repository is no longer trusted: ${openRepository.repository.root}`);
+				}
+			}
+
+			openRepositoriesToDispose.forEach(r => r.dispose());
+		}
+		catch (err) {
+			this.logger.warn(`[Model][onDidChangeWorkspaceTrustedFolders] Error: ${err}`);
 		}
 	}
 

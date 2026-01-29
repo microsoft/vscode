@@ -25,7 +25,7 @@ import { ILifecycleService } from '../../../../services/lifecycle/common/lifecyc
 import { Extensions, IOutputChannelRegistry, IOutputService } from '../../../../services/output/common/output.js';
 import { ChatSessionStatus as AgentSessionStatus, IChatSessionFileChange, IChatSessionFileChange2, IChatSessionItem, IChatSessionsExtensionPoint, IChatSessionsService } from '../../common/chatSessionsService.js';
 import { IChatWidgetService } from '../chat.js';
-import { AgentSessionProviders, getAgentSessionProvider, getAgentSessionProviderIcon, getAgentSessionProviderName } from './agentSessions.js';
+import { AgentSessionProviders, getAgentSessionProvider, getAgentSessionProviderIcon, getAgentSessionProviderName, isBuiltInAgentSessionProvider } from './agentSessions.js';
 
 //#region Interfaces, Types
 
@@ -144,8 +144,8 @@ export function isAgentSessionsModel(obj: unknown): obj is IAgentSessionsModel {
 }
 
 interface IAgentSessionState {
-	readonly archived: boolean;
-	readonly read: number /* last date turned read */;
+	readonly archived?: boolean;
+	readonly read?: number /* last date turned read */;
 }
 
 export const enum AgentSessionSection {
@@ -417,7 +417,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 		));
 		this.logger.logAllStatsIfTrace('Loaded cached sessions');
 
-		this.runMarkAllReadMigrationOnce(); // TODO@bpasero remove this in the future
+		this.readDateBaseline = this.resolveReadDateBaseline(); // we use this to account for bugfixes in the read/unread tracking
 
 		this.registerListeners();
 	}
@@ -486,8 +486,6 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 			}
 
 			for (const session of providerSessions) {
-
-				// Icon + Label
 				let icon: ThemeIcon;
 				let providerLabel: string;
 				const agentSessionProvider = getAgentSessionProvider(chatSessionType);
@@ -504,27 +502,6 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 					? { files: changes.files, insertions: changes.insertions, deletions: changes.deletions }
 					: changes;
 
-				// Times: it is important to always provide timing information to track
-				// unread/read state for example.
-				// If somehow the provider does not provide any, fallback to last known
-				let { created, lastRequestStarted, lastRequestEnded } = session.timing;
-				if (!created || !lastRequestEnded) {
-					const existing = this._sessions.get(session.resource);
-					if (!created && existing?.timing.created) {
-						created = existing.timing.created;
-					}
-
-					if (!lastRequestEnded && existing?.timing.lastRequestEnded) {
-						lastRequestEnded = existing.timing.lastRequestEnded;
-					}
-
-					if (!lastRequestStarted && existing?.timing.lastRequestStarted) {
-						lastRequestStarted = existing.timing.lastRequestStarted;
-					}
-				}
-
-				this.logger.logIfTrace(`Resolved session ${session.resource.toString()} with timings: created=${created}, lastRequestStarted=${lastRequestStarted}, lastRequestEnded=${lastRequestEnded}`);
-
 				sessions.set(session.resource, this.toAgentSession({
 					providerType: chatSessionType,
 					providerLabel,
@@ -536,15 +513,15 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 					tooltip: session.tooltip,
 					status: session.status ?? AgentSessionStatus.Completed,
 					archived: session.archived,
-					timing: { created, lastRequestStarted, lastRequestEnded, },
+					timing: session.timing,
 					changes: normalizedChanges,
 				}));
 			}
 		}
 
 		for (const [, session] of this._sessions) {
-			if (!resolvedProviders.has(session.providerType)) {
-				sessions.set(session.resource, session); // fill in existing sessions for providers that did not resolve
+			if (!resolvedProviders.has(session.providerType) && (isBuiltInAgentSessionProvider(session.providerType) || mapSessionContributionToType.has(session.providerType))) {
+				sessions.set(session.resource, session); // fill in existing sessions for providers that did not resolve if they are known or built-in
 			}
 		}
 
@@ -568,6 +545,8 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 
 	//#region States
 
+	private static readonly UNREAD_MARKER = -1;
+
 	private readonly sessionStates: ResourceMap<IAgentSessionState>;
 
 	private isArchived(session: IInternalAgentSessionData): boolean {
@@ -583,7 +562,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 			return; // no change
 		}
 
-		const state = this.sessionStates.get(session.resource) ?? { archived: false, read: 0 };
+		const state = this.sessionStates.get(session.resource) ?? {};
 		this.sessionStates.set(session.resource, { ...state, archived });
 
 		const agentSession = this._sessions.get(session.resource);
@@ -599,7 +578,12 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 			return true; // archived sessions are always read
 		}
 
-		const readDate = this.sessionStates.get(session.resource)?.read ?? 0;
+		const storedReadDate = this.sessionStates.get(session.resource)?.read;
+		if (storedReadDate === AgentSessionsModel.UNREAD_MARKER) {
+			return false;
+		}
+
+		const readDate = Math.max(storedReadDate ?? 0, this.readDateBaseline /* Use read date baseline when no read date is stored */);
 
 		// Install a heuristic to reduce false positives: a user might observe
 		// the output of a session and quickly click on another session before
@@ -614,22 +598,22 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 	}
 
 	private sessionTimeForReadStateTracking(session: IInternalAgentSessionData): number {
-		return session.timing.lastRequestEnded ?? session.timing.lastRequestStarted ?? session.timing.created;
+		return session.timing.lastRequestEnded ?? session.timing.created;
 	}
 
 	private setRead(session: IInternalAgentSessionData, read: boolean, skipEvent?: boolean): void {
-		const state = this.sessionStates.get(session.resource) ?? { archived: false, read: 0 };
+		const state = this.sessionStates.get(session.resource) ?? {};
 
 		let newRead: number;
 		if (read) {
 			newRead = Math.max(Date.now(), this.sessionTimeForReadStateTracking(session));
 
-			if (state.read >= newRead) {
+			if (typeof state.read === 'number' && state.read >= newRead) {
 				return; // already read with a sufficient timestamp
 			}
 		} else {
-			newRead = 0;
-			if (state.read === 0) {
+			newRead = AgentSessionsModel.UNREAD_MARKER;
+			if (state.read === AgentSessionsModel.UNREAD_MARKER) {
 				return; // already unread
 			}
 		}
@@ -641,42 +625,25 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 		}
 	}
 
-	private static readonly MARK_ALL_READ_MIGRATION_KEY = 'agentSessions.markAllReadMigration';
-	private static readonly MARK_ALL_READ_MIGRATION_VERSION = 1;
+	private static readonly READ_DATE_BASELINE_KEY = 'agentSessions.readDateBaseline2';
 
-	private migrationCompleted = false;
+	private readonly readDateBaseline: number;
 
-	private runMarkAllReadMigrationOnce(): void {
-		if (this.migrationCompleted) {
-			return;
+	private resolveReadDateBaseline(): number {
+		let readDateBaseline = this.storageService.getNumber(AgentSessionsModel.READ_DATE_BASELINE_KEY, StorageScope.WORKSPACE, 0);
+		if (readDateBaseline > 0) {
+			return readDateBaseline; // already resolved
 		}
 
-		const storedVersion = this.storageService.getNumber(AgentSessionsModel.MARK_ALL_READ_MIGRATION_KEY, StorageScope.WORKSPACE, 0);
-		if (storedVersion >= AgentSessionsModel.MARK_ALL_READ_MIGRATION_VERSION) {
-			this.migrationCompleted = true;
-			return; // migration already completed for this version
-		}
+		// For stable, preserve unread state for sessions from the last 7 days
+		// For other qualities, mark all sessions as read
+		readDateBaseline = this.productService.quality === 'stable'
+			? Date.now() - (7 * 24 * 60 * 60 * 1000)
+			: Date.now();
 
-		this.logger.logIfTrace(`Running mark-all-read migration from version ${storedVersion} to ${AgentSessionsModel.MARK_ALL_READ_MIGRATION_VERSION}`);
+		this.storageService.store(AgentSessionsModel.READ_DATE_BASELINE_KEY, readDateBaseline, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 
-		const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
-		for (const session of this._sessions.values()) {
-			if (!this.isRead(session)) {
-				let markRead = true;
-				if (this.productService.quality === 'stable' && this.sessionTimeForReadStateTracking(session) >= sevenDaysAgo) {
-					markRead = false; // for stable, preserve state for up to 1 week ago
-				}
-
-				if (markRead) {
-					this.setRead(session, true, true /* skipEvent */);
-				}
-			}
-		}
-
-		// Store the migration version
-		this.storageService.store(AgentSessionsModel.MARK_ALL_READ_MIGRATION_KEY, AgentSessionsModel.MARK_ALL_READ_MIGRATION_VERSION, StorageScope.WORKSPACE, StorageTarget.MACHINE);
-
-		this.migrationCompleted = true;
+		return readDateBaseline;
 	}
 
 	//#endregion

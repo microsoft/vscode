@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Schemas } from '../../../../../../base/common/network.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { formatStatusOutput, IFileStatusInfo, IPathInfo, ITypeStatusInfo } from '../../../browser/actions/chatCustomizationDiagnosticsAction.js';
@@ -91,7 +92,6 @@ suite('formatStatusOutput', () => {
 			'.github/agents<br>',
 			`${TREE_BRANCH} [\`code-reviewer.agent.md\`](${filePath('.github/agents/code-reviewer.agent.md')})<br>`,
 			`${TREE_END} [\`test-helper.agent.md\`](${filePath('.github/agents/test-helper.agent.md')})<br>`,
-			'AGENTS.md -<br>',
 			''
 		));
 	});
@@ -119,7 +119,6 @@ suite('formatStatusOutput', () => {
 			'.github/agents<br>',
 			`${TREE_BRANCH} [\`good-agent.agent.md\`](${filePath('.github/agents/good-agent.agent.md')})<br>`,
 			`${TREE_END} ${ICON_ERROR} [\`broken-agent.agent.md\`](${filePath('.github/agents/broken-agent.agent.md')}) - *Missing name attribute*<br>`,
-			'AGENTS.md -<br>',
 			''
 		));
 	});
@@ -151,7 +150,6 @@ suite('formatStatusOutput', () => {
 			`${TREE_END} [\`my-agent.agent.md\`](${filePath('.github/agents/my-agent.agent.md')})<br>`,
 			'~/.copilot/agents<br>',
 			`${TREE_END} ${ICON_WARN} [\`my-agent.agent.md\`](${filePath('home/.copilot/agents/my-agent.agent.md')}) - *Overwritten by higher priority file*<br>`,
-			'AGENTS.md -<br>',
 			''
 		));
 	});
@@ -229,16 +227,17 @@ suite('formatStatusOutput', () => {
 			'',
 			'.github/instructions<br>',
 			`${TREE_END} [\`testing.instructions.md\`](${filePath('.github/instructions/testing.instructions.md')})<br>`,
+			'AGENTS.md -<br>',
 			'copilot-instructions.md<br>',
 			`${TREE_END} [\`copilot-instructions.md\`](${filePath('.github/copilot-instructions.md')})<br>`,
 			''
 		));
 	});
 
-	test('agents with AGENTS.md enabled', () => {
+	test('instructions with AGENTS.md enabled', () => {
 		const statusInfos: ITypeStatusInfo[] = [{
-			type: PromptsType.agent,
-			paths: [createPath('.github/agents', true)],
+			type: PromptsType.instructions,
+			paths: [createPath('.github/instructions', true)],
 			files: [],
 			enabled: true
 		}];
@@ -254,13 +253,14 @@ suite('formatStatusOutput', () => {
 			'## Chat Customization Diagnostics',
 			'*WARNING: This file may contain sensitive information.*',
 			'',
-			'**Custom Agents**<br>',
+			'**Instructions**<br>',
 			'*2 files loaded*',
 			'',
-			'.github/agents<br>',
+			'.github/instructions<br>',
 			'AGENTS.md<br>',
 			`${TREE_BRANCH} [\`AGENTS.md\`](${filePath('AGENTS.md')})<br>`,
 			`${TREE_END} [\`AGENTS.md\`](${filePath('docs/AGENTS.md')})<br>`,
+			'copilot-instructions.md -<br>',
 			''
 		));
 	});
@@ -286,7 +286,6 @@ suite('formatStatusOutput', () => {
 			'',
 			'.github/agents<br>',
 			`${ICON_ERROR} custom/agents - *Folder does not exist*<br>`,
-			'AGENTS.md -<br>',
 			''
 		));
 	});
@@ -310,7 +309,6 @@ suite('formatStatusOutput', () => {
 			'**Custom Agents**<br>',
 			'',
 			'.github/agents<br>',
-			'AGENTS.md -<br>',
 			''
 		));
 	});
@@ -341,7 +339,6 @@ suite('formatStatusOutput', () => {
 			`${TREE_END} [\`local-agent.agent.md\`](${filePath('.github/agents/local-agent.agent.md')})<br>`,
 			'Extension: my-publisher.my-extension<br>',
 			`${TREE_END} [\`ext-agent.agent.md\`](${filePath('extensions/my-publisher.my-extension/agents/ext-agent.agent.md')})<br>`,
-			'AGENTS.md -<br>',
 			''
 		));
 	});
@@ -406,13 +403,13 @@ suite('formatStatusOutput', () => {
 			'',
 			'.github/agents<br>',
 			`${TREE_END} [\`helper.agent.md\`](${filePath('.github/agents/helper.agent.md')})<br>`,
-			'AGENTS.md -<br>',
 			'',
 			'**Instructions**<br>',
 			'*1 file loaded*',
 			'',
 			'.github/instructions<br>',
 			`${TREE_END} [\`code-style.instructions.md\`](${filePath('.github/instructions/code-style.instructions.md')})<br>`,
+			'AGENTS.md -<br>',
 			'copilot-instructions.md -<br>',
 			'',
 			'**Prompt Files**<br>',
@@ -482,5 +479,46 @@ suite('formatStatusOutput', () => {
 		// Verify that special characters in paths are URL encoded
 		assert.ok(output.includes('docs%20%26%20notes'), 'Ampersand should be URL-encoded');
 		assert.ok(output.includes('test%5B1%5D.prompt.md'), 'Brackets should be URL-encoded');
+	});
+
+	test('vscode-userdata scheme URIs are converted to file scheme for relative paths', () => {
+		// Create a workspace folder
+		const workspaceFolderUri = URI.file('/Users/test/workspace');
+		const workspaceFolder = {
+			uri: workspaceFolderUri,
+			name: 'workspace',
+			index: 0,
+			toResource: (relativePath: string) => URI.joinPath(workspaceFolderUri, relativePath)
+		};
+
+		// Create a vscode-userdata URI that maps to a path under the workspace
+		const userDataUri = URI.file('/Users/test/workspace/.github/agents/my-agent.agent.md').with({ scheme: Schemas.vscodeUserData });
+
+		const statusInfos: ITypeStatusInfo[] = [{
+			type: PromptsType.agent,
+			paths: [{
+				uri: URI.file('/Users/test/workspace/.github/agents'),
+				exists: true,
+				storage: PromptsStorage.local,
+				scanOrder: 1,
+				displayPath: '.github/agents',
+				isDefault: true
+			}],
+			files: [{
+				uri: userDataUri,
+				status: 'loaded',
+				name: 'my-agent.agent.md',
+				storage: PromptsStorage.local
+			}],
+			enabled: true
+		}];
+
+		const output = formatStatusOutput(statusInfos, emptySpecialFiles, [workspaceFolder]);
+
+		// The vscode-userdata URI should be converted to file scheme internally,
+		// allowing relative path computation against workspace folders
+		assert.ok(output.includes('.github/agents/my-agent.agent.md'), 'Should use relative path from workspace folder');
+		// Should not contain the full absolute path
+		assert.ok(!output.includes('/Users/test/workspace/.github'), 'Should not contain absolute path when relative path is available');
 	});
 });

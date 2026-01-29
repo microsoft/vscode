@@ -2804,3 +2804,33 @@ function setOrRemoveAttribute(element: HTMLOrSVGElement, key: string, value: unk
 type ElementAttributeKeys<T> = Partial<{
 	[K in keyof T]: T[K] extends Function ? never : T[K] extends object ? ElementAttributeKeys<T[K]> : Value<number | T[K] | undefined | null>;
 }>;
+
+/**
+ * A custom element that fires callbacks when connected to or disconnected from the DOM.
+ * Useful for tracking whether a template or component is currently mounted, especially
+ * with iframes/webviews that are sensitive to movement.
+ *
+ * @example
+ * ```ts
+ * const observer = document.createElement('connection-observer') as ConnectionObserverElement;
+ * observer.onDidConnect = () => console.log('mounted');
+ * observer.onDidDisconnect = () => console.log('unmounted');
+ * container.appendChild(observer);
+ * ```
+ */
+export class ConnectionObserverElement extends HTMLElement {
+	public onDidConnect?: () => void;
+	public onDidDisconnect?: () => void;
+
+	disconnectedCallback() {
+		this.onDidDisconnect?.();
+	}
+
+	connectedCallback() {
+		this.onDidConnect?.();
+	}
+}
+
+if (!customElements.get('connection-observer')) {
+	customElements.define('connection-observer', ConnectionObserverElement);
+}

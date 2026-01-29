@@ -318,13 +318,17 @@ export class ComputeAutomaticInstructions {
 				entries.push('<skills>');
 				if (useSkillAdherencePrompt) {
 					// Stronger skill adherence prompt for experimental feature
-					entries.push('Skills are curated collections of best practices and detailed guidance for producing high-quality outputs across various domains. Each skill folder contains refined instructions developed through extensive testing to help achieve professional results. Examples include presentation skills for creating polished slides, document skills for well-formatted reports, and many others. Multiple skills can be combined when a task spans different domains.');
-					entries.push(`IMPORTANT: Reading skill documentation BEFORE taking action significantly improves output quality. When you receive a task, first review the available skills listed below to identify which ones apply. Use the ${readTool.variable} tool to load the relevant SKILL.md file(s) and follow their guidance.`);
-					entries.push('Examples of proper skill usage:');
-					entries.push(`- Task: "Create a presentation about our product roadmap" -> First load the presentation skill via ${readTool.variable}`);
-					entries.push(`- Task: "Clean up the formatting in this document" -> First load the document editing skill via ${readTool.variable}`);
-					entries.push(`- Task: "Add a flowchart to the README" -> Load both the documentation skill and any diagram-related skill`);
-					entries.push('Taking time to read the skill instructions first leads to substantially better results.');
+					entries.push('Skills provide specialized capabilities, domain knowledge, and refined workflows for producing high-quality outputs. Each skill folder contains tested instructions for specific domains like testing strategies, API design, or performance optimization. Multiple skills can be combined when a task spans different domains.');
+					entries.push(`BLOCKING REQUIREMENT: When a skill applies to the user's request, you MUST load and read the SKILL.md file IMMEDIATELY as your first action, BEFORE generating any other response or taking action on the task. Use ${readTool.variable} to load the relevant skill(s).`);
+					entries.push('NEVER just mention or reference a skill in your response without actually reading it first. If a skill is relevant, load it before proceeding.');
+					entries.push('How to determine if a skill applies:');
+					entries.push('1. Review the available skills below and match their descriptions against the user\'s request');
+					entries.push('2. If any skill\'s domain overlaps with the task, load that skill immediately');
+					entries.push('3. When multiple skills apply (e.g., a flowchart in documentation), load all relevant skills');
+					entries.push('Examples:');
+					entries.push(`- "Help me write unit tests for this module" -> Load the testing skill via ${readTool.variable} FIRST, then proceed`);
+					entries.push(`- "Optimize this slow function" -> Load the performance-profiling skill via ${readTool.variable} FIRST, then proceed`);
+					entries.push(`- "Add a discount code field to checkout" -> Load both the checkout-flow and form-validation skills FIRST`);
 					entries.push('Available skills:');
 				} else {
 					entries.push('Here is a list of skills that contain domain specific knowledge on a variety of topics.');

@@ -267,6 +267,8 @@ export async function withAsyncTestCodeEditorAndInlineCompletionsModel<T>(
 				options.serviceCollection.set(IDefaultAccountService, {
 					_serviceBrand: undefined,
 					onDidChangeDefaultAccount: Event.None,
+					onDidChangePolicyData: Event.None,
+					policyData: null,
 					getDefaultAccount: async () => null,
 					setDefaultAccountProvider: () => { },
 					getDefaultAccountAuthenticationProvider: () => { return { id: 'mockProvider', name: 'Mock Provider', enterprise: false }; },

@@ -104,6 +104,14 @@ export class ChatSuggestNextWidget extends Disposable {
 	private createPromptButton(handoff: IHandOff): HTMLElement {
 		const disposables = new DisposableStore();
 
+		// Capture the label to look up the current handoff at click time
+		// This ensures we get the latest handoff data (e.g., updated model from settings)
+		const handoffLabel = handoff.label;
+		const getCurrentHandoff = (): IHandOff | undefined => {
+			const currentHandoffs = this._currentMode?.handOffs?.get();
+			return currentHandoffs?.find(h => h.label === handoffLabel) ?? handoff;
+		};
+
 		const button = dom.$('.chat-welcome-view-suggested-prompt');
 		button.setAttribute('tabindex', '0');
 		button.setAttribute('role', 'button');
@@ -155,7 +163,10 @@ export class ChatSuggestNextWidget extends Disposable {
 						ThemeIcon.isThemeIcon(icon) ? ThemeIcon.asClassName(icon) : undefined,
 						true,
 						() => {
-							this._onDidSelectPrompt.fire({ handoff, agentId: contrib.name });
+							const currentHandoff = getCurrentHandoff();
+							if (currentHandoff) {
+								this._onDidSelectPrompt.fire({ handoff: currentHandoff, agentId: contrib.name });
+							}
 						}
 					);
 				});
@@ -180,18 +191,27 @@ export class ChatSuggestNextWidget extends Disposable {
 				if (dom.isHTMLElement(e.target) && e.target.closest('.chat-suggest-next-dropdown')) {
 					return;
 				}
-				this._onDidSelectPrompt.fire({ handoff });
+				const currentHandoff = getCurrentHandoff();
+				if (currentHandoff) {
+					this._onDidSelectPrompt.fire({ handoff: currentHandoff });
+				}
 			}));
 		} else {
 			disposables.add(dom.addDisposableListener(button, 'click', () => {
-				this._onDidSelectPrompt.fire({ handoff });
+				const currentHandoff = getCurrentHandoff();
+				if (currentHandoff) {
+					this._onDidSelectPrompt.fire({ handoff: currentHandoff });
+				}
 			}));
 		}
 
 		disposables.add(dom.addDisposableListener(button, 'keydown', (e) => {
 			if (e.key === 'Enter' || e.key === ' ') {
 				e.preventDefault();
-				this._onDidSelectPrompt.fire({ handoff });
+				const currentHandoff = getCurrentHandoff();
+				if (currentHandoff) {
+					this._onDidSelectPrompt.fire({ handoff: currentHandoff });
+				}
 			}
 		}));
 

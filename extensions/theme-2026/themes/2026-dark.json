@@ -6,7 +6,7 @@
 		"foreground": "#bfbfbf",
 		"disabledForeground": "#444444",
 		"errorForeground": "#f48771",
-		"descriptionForeground": "#888888",
+		"descriptionForeground": "#999999",
 		"icon.foreground": "#888888",
 		"focusBorder": "#3994BCB3",
 		"textBlockQuote.background": "#242526",
@@ -20,9 +20,6 @@
 		"button.foreground": "#FFFFFF",
 		"button.hoverBackground": "#3E9BC4",
 		"button.border": "#2A2B2CFF",
-		"button.secondaryBackground": "#242526",
-		"button.secondaryForeground": "#bfbfbf",
-		"button.secondaryHoverBackground": "#313233",
 		"checkbox.background": "#242526",
 		"checkbox.border": "#333536",
 		"checkbox.foreground": "#bfbfbf",
@@ -53,9 +50,9 @@
 		"badge.background": "#3994BC",
 		"badge.foreground": "#FFFFFF",
 		"progressBar.background": "#878889",
-		"list.activeSelectionBackground": "#3994BC26",
+		"list.activeSelectionBackground": "#3994BC55",
 		"list.activeSelectionForeground": "#bfbfbf",
-		"list.inactiveSelectionBackground": "#242526",
+		"list.inactiveSelectionBackground": "#2C2D2E",
 		"list.inactiveSelectionForeground": "#bfbfbf",
 		"list.hoverBackground": "#262728",
 		"list.hoverForeground": "#bfbfbf",
@@ -71,10 +68,11 @@
 		"activityBar.foreground": "#bfbfbf",
 		"activityBar.inactiveForeground": "#888888",
 		"activityBar.border": "#2A2B2CFF",
-		"activityBar.activeBorder": "#2A2B2CFF",
+		"activityBar.activeBorder": "#bfbfbf",
 		"activityBar.activeFocusBorder": "#3994BCB3",
 		"activityBarBadge.background": "#3994BC",
 		"activityBarBadge.foreground": "#FFFFFF",
+		"activityBarTop.activeBorder": "#bfbfbf",
 		"sideBar.background": "#191A1B",
 		"sideBar.foreground": "#bfbfbf",
 		"sideBar.border": "#2A2B2CFF",
@@ -184,6 +182,7 @@
 		"tab.border": "#2A2B2CFF",
 		"tab.lastPinnedBorder": "#2A2B2CFF",
 		"tab.activeBorder": "#121314",
+		"tab.activeBorderTop": "#3994BC",
 		"tab.hoverBackground": "#262728",
 		"tab.hoverForeground": "#bfbfbf",
 		"tab.unfocusedActiveBackground": "#121314",
@@ -224,6 +223,9 @@
 		"quickInputList.focusIconForeground": "#bfbfbf",
 		"quickInputList.hoverBackground": "#515253",
 		"terminal.selectionBackground": "#3994BC33",
+		"terminal.background": "#121314",
+		"terminal.border": "#2A2B2CFF",
+		"terminal.tab.activeBorder": "#3994BC00",
 		"terminalCursor.foreground": "#bfbfbf",
 		"terminalCursor.background": "#191A1B",
 		"gitDecoration.addedResourceForeground": "#73c991",
@@ -246,6 +248,8 @@
 		"gauge.errorBackground": "#F287724D",
 		"chat.requestBubbleBackground": "#488FAE26",
 		"chat.requestBubbleHoverBackground": "#488FAE46",
+		"editorCommentsWidget.rangeBackground": "#488FAE26",
+		"editorCommentsWidget.rangeActiveBackground": "#488FAE46",
 		"charts.foreground": "#CCCCCC",
 		"charts.lines": "#C8CACC80",
 		"charts.blue": "#57A3F8",
@@ -285,6 +289,15 @@
 			],
 			"settings": {
 				"foreground": "#C48081"
+			}
+		},
+		{
+			"name": "Language constants",
+			"scope": [
+				"constant.language"
+			],
+			"settings": {
+				"foreground": "#4F8FDD"
 			}
 		},
 		{

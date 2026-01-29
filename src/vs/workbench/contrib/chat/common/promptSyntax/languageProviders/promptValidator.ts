@@ -11,7 +11,7 @@ import { IModelService } from '../../../../../../editor/common/services/model.js
 import { localize } from '../../../../../../nls.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IMarkerData, IMarkerService, MarkerSeverity } from '../../../../../../platform/markers/common/markers.js';
-import { IChatMode, IChatModeService } from '../../chatModes.js';
+import { ChatMode, IChatMode, IChatModeService } from '../../chatModes.js';
 import { ChatModeKind } from '../../constants.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../languageModels.js';
 import { ILanguageModelToolsService, SpecedToolAliases } from '../../tools/languageModelToolsService.js';
@@ -25,6 +25,7 @@ import { IPromptsService } from '../service/promptsService.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { AGENTS_SOURCE_FOLDER, LEGACY_MODE_FILE_EXTENSION } from '../config/promptFileLocations.js';
 import { Lazy } from '../../../../../../base/common/lazy.js';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 
 export const MARKERS_OWNER_ID = 'prompts-diagnostics-provider';
 
@@ -40,7 +41,7 @@ export class PromptValidator {
 
 	public async validate(promptAST: ParsedPromptFile, promptType: PromptsType, report: (markers: IMarkerData) => void): Promise<void> {
 		promptAST.header?.errors.forEach(error => report(toMarker(error.message, error.range, MarkerSeverity.Error)));
-		this.validateHeader(promptAST, promptType, report);
+		await this.validateHeader(promptAST, promptType, report);
 		await this.validateBody(promptAST, promptType, report);
 		await this.validateFileName(promptAST, promptType, report);
 		await this.validateSkillFolderName(promptAST, promptType, report);
@@ -155,7 +156,7 @@ export class PromptValidator {
 		await Promise.all(fileReferenceChecks);
 	}
 
-	private validateHeader(promptAST: ParsedPromptFile, promptType: PromptsType, report: (markers: IMarkerData) => void): void {
+	private async validateHeader(promptAST: ParsedPromptFile, promptType: PromptsType, report: (markers: IMarkerData) => void): Promise<void> {
 		const header = promptAST.header;
 		if (!header) {
 			return;
@@ -186,7 +187,7 @@ export class PromptValidator {
 				if (!isGitHubTarget) {
 					this.validateModel(attributes, ChatModeKind.Agent, report);
 					this.validateHandoffs(attributes, report);
-					this.validateAgentsAttribute(attributes, header, report);
+					await this.validateAgentsAttribute(attributes, header, report);
 				}
 				break;
 			}
@@ -514,8 +515,13 @@ export class PromptValidator {
 							report(toMarker(localize('promptValidator.handoffShowContinueOnMustBeBoolean', "The 'showContinueOn' property in a handoff must be a boolean."), prop.value.range, MarkerSeverity.Error));
 						}
 						break;
+					case 'model':
+						if (prop.value.type !== 'string') {
+							report(toMarker(localize('promptValidator.handoffModelMustBeString', "The 'model' property in a handoff must be a string."), prop.value.range, MarkerSeverity.Error));
+						}
+						break;
 					default:
-						report(toMarker(localize('promptValidator.unknownHandoffProperty', "Unknown property '{0}' in handoff object. Supported properties are 'label', 'agent', 'prompt' and optional 'send', 'showContinueOn'.", prop.key.value), prop.value.range, MarkerSeverity.Warning));
+						report(toMarker(localize('promptValidator.unknownHandoffProperty', "Unknown property '{0}' in handoff object. Supported properties are 'label', 'agent', 'prompt' and optional 'send', 'showContinueOn', 'model'.", prop.key.value), prop.value.range, MarkerSeverity.Warning));
 				}
 				required.delete(prop.key.value);
 			}
@@ -565,7 +571,7 @@ export class PromptValidator {
 		}
 	}
 
-	private validateAgentsAttribute(attributes: IHeaderAttribute[], header: PromptHeader, report: (markers: IMarkerData) => void): undefined {
+	private async validateAgentsAttribute(attributes: IHeaderAttribute[], header: PromptHeader, report: (markers: IMarkerData) => void): Promise<undefined> {
 		const attribute = attributes.find(attr => attr.key === PromptHeaderAttributes.agents);
 		if (!attribute) {
 			return;
@@ -575,13 +581,21 @@ export class PromptValidator {
 			return;
 		}
 
-		// Check each item is a string
+		// Collect available agent names
+		const agents = await this.promptsService.getCustomAgents(CancellationToken.None);
+		const availableAgentNames = new Set<string>(agents.map(agent => agent.name));
+		availableAgentNames.add(ChatMode.Agent.name.get()); // include default agent
+
+		// Check each item is a string and agent exists
 		const agentNames: string[] = [];
 		for (const item of attribute.value.items) {
 			if (item.type !== 'string') {
 				report(toMarker(localize('promptValidator.eachAgentMustBeString', "Each agent name in the 'agents' attribute must be a string."), item.range, MarkerSeverity.Error));
 			} else if (item.value) {
 				agentNames.push(item.value);
+				if (item.value !== '*' && !availableAgentNames.has(item.value)) {
+					report(toMarker(localize('promptValidator.agentInAgentsNotFound', "Unknown agent '{0}'. Available agents: {1}.", item.value, Array.from(availableAgentNames).join(', ')), item.range, MarkerSeverity.Warning));
+				}
 			}
 		}
 

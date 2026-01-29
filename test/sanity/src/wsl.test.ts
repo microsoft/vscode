@@ -204,7 +204,7 @@ export function setup(context: TestContext) {
 		const app = await _electron.launch({ executablePath: entryPoint, args });
 		const window = await context.getPage(app.firstWindow());
 
-		context.log('Installing WPS extension');
+		context.log('Installing WSL extension');
 		await window.getByRole('button', { name: 'Install and Reload' }).click();
 
 		context.log('Waiting for WSL connection');
@@ -234,13 +234,13 @@ class WslUITest extends UITest {
 
 	protected override verifyTextFileCreated() {
 		this.context.log('Verifying file contents in WSL');
-		const result = this.context.run('wsl', 'cat', `${this.wslWorkspaceDir}/helloWorld.txt`);
+		const result = this.context.runNoErrors('wsl', 'cat', `${this.wslWorkspaceDir}/helloWorld.txt`);
 		assert.strictEqual(result.stdout.trim(), 'Hello, World!', 'File contents in WSL do not match expected value');
 	}
 
 	protected override verifyExtensionInstalled() {
 		this.context.log(`Verifying extension is installed in WSL at ${this.wslExtensionsDir}`);
-		const result = this.context.run('wsl', 'ls', this.wslExtensionsDir);
+		const result = this.context.runNoErrors('wsl', 'ls', this.wslExtensionsDir);
 		const hasExtension = result.stdout.split('\n').some(ext => ext.startsWith('github.vscode-pull-request-github'));
 		assert.strictEqual(hasExtension, true, 'GitHub Pull Requests extension is not installed in WSL');
 	}

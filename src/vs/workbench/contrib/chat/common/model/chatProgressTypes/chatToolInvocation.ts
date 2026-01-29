@@ -190,7 +190,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 		// Transition to the appropriate state
 		if (autoConfirmed) {
 			confirm(autoConfirmed);
-		} if (!this.confirmationMessages?.title) {
+		} else if (!this.confirmationMessages?.title) {
 			this._state.set({
 				type: IChatToolInvocation.StateKind.Executing,
 				confirmed: { type: ToolConfirmKind.ConfirmationNotNeeded, reason: this.confirmationMessages?.confirmationNotNeededReason },

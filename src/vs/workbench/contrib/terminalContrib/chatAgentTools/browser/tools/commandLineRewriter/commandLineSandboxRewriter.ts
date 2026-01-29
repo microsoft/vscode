@@ -29,7 +29,8 @@ export class CommandLineSandboxRewriter extends Disposable implements ICommandLi
 		const wrappedCommand = this._sandboxService.wrapCommand(options.commandLine);
 		return {
 			rewritten: wrappedCommand,
-			reasoning: 'Wrapped command for sandbox execution'
+			reasoning: 'Wrapped command for sandbox execution',
+			forDisplay: options.commandLine, // show the command that is passed as input. In this case, the output from CommandLinePreventHistoryRewriter
 		};
 	}
 }

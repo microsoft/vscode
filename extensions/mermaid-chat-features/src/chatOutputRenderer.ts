@@ -105,6 +105,7 @@ class MermaidChatOutputRenderer implements vscode.ChatOutputRenderer {
 						opacity: 1;
 					}
 					.open-in-editor-btn:hover {
+						opacity: 1;
 						background: var(--vscode-toolbar-hoverBackground);
 					}
 				</style>

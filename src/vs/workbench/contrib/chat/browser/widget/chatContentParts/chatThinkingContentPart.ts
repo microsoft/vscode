@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, clearNode, hide } from '../../../../../../base/browser/dom.js';
+import { $, clearNode, getWindow, hide, scheduleAtNextAnimationFrame } from '../../../../../../base/browser/dom.js';
 import { alert } from '../../../../../../base/browser/ui/aria/aria.js';
 import { DomScrollableElement } from '../../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { ScrollbarVisibility } from '../../../../../../base/common/scrollable.js';
@@ -27,7 +27,7 @@ import { Lazy } from '../../../../../../base/common/lazy.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { DisposableMap, DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../../base/common/observable.js';
-import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
 import { ChatMessageRole, ILanguageModelsService } from '../../../common/languageModels.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
@@ -151,6 +151,9 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	private readonly toolWrappersByCallId = new Map<string, HTMLElement>();
 	private readonly toolDisposables = this._register(new DisposableMap<string, DisposableStore>());
 	private pendingRemovals: { toolCallId: string; toolLabel: string }[] = [];
+	private pendingScrollDisposable: IDisposable | undefined;
+	private mutationObserverDisposable: IDisposable | undefined;
+	private isUpdatingDimensions: boolean = false;
 
 	private getRandomWorkingMessage(): string {
 		if (this.availableWorkingMessages.length === 0) {
@@ -188,6 +191,10 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			this.lastExtractedTitle = extractedTitle;
 		}
 		this.currentThinkingValue = initialText;
+
+		if (initialText.trim()) {
+			this.appendedItemCount++;
+		}
 
 		// Alert screen reader users that thinking has started
 		alert(localize('chat.thinking.started', 'Thinking'));
@@ -306,11 +313,25 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			}));
 			this._register(this.scrollableElement.onScroll(e => this.handleScroll(e.scrollTop)));
 
+			// check for content changes to update scroll dimensions
+			const mutationObserver = new MutationObserver(() => {
+				if (!this.streamingCompleted) {
+					this.syncDimensionsAndScheduleScroll();
+				}
+			});
+			mutationObserver.observe(this.wrapper, {
+				childList: true,
+				subtree: true,
+				characterData: true
+			});
+			this.mutationObserverDisposable = { dispose: () => mutationObserver.disconnect() };
+			this._register(this.mutationObserverDisposable);
+
 			this._register(this._onDidChangeHeight.event(() => {
-				setTimeout(() => this.scrollToBottomIfEnabled(), 0);
+				this.syncDimensionsAndScheduleScroll();
 			}));
 
-			setTimeout(() => this.scrollToBottomIfEnabled(), 0);
+			this.syncDimensionsAndScheduleScroll();
 
 			this.updateDropdownClickability();
 			return this.scrollableElement.getDomNode();
@@ -321,7 +342,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	}
 
 	private handleScroll(scrollTop: number): void {
-		if (!this.scrollableElement) {
+		if (!this.scrollableElement || this.isUpdatingDimensions) {
 			return;
 		}
 
@@ -336,8 +357,39 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		}
 	}
 
-	private scrollToBottomIfEnabled(): void {
-		if (!this.scrollableElement || !this.autoScrollEnabled) {
+	// try to schedule scroll
+	private syncDimensionsAndScheduleScroll(): void {
+		if (this.autoScrollEnabled && this.scrollableElement) {
+			this.isUpdatingDimensions = true;
+			try {
+				this.updateScrollDimensions();
+				this.scrollToBottom();
+			} finally {
+				this.isUpdatingDimensions = false;
+			}
+			return;
+		}
+
+		// debounce animation
+		if (this.pendingScrollDisposable) {
+			return;
+		}
+		this.pendingScrollDisposable = scheduleAtNextAnimationFrame(getWindow(this.domNode), () => {
+			this.pendingScrollDisposable = undefined;
+			if (this._store.isDisposed) {
+				return;
+			}
+			this.isUpdatingDimensions = true;
+			try {
+				this.updateScrollDimensions();
+			} finally {
+				this.isUpdatingDimensions = false;
+			}
+		});
+	}
+
+	private updateScrollDimensions(): void {
+		if (!this.scrollableElement) {
 			return;
 		}
 
@@ -355,6 +407,15 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			height: viewportHeight,
 			scrollHeight: contentHeight
 		});
+	}
+
+	private scrollToBottom(): void {
+		if (!this.scrollableElement) {
+			return;
+		}
+
+		const contentHeight = this.wrapper.scrollHeight;
+		const viewportHeight = Math.min(contentHeight, THINKING_SCROLL_MAX_HEIGHT);
 
 		if (contentHeight > viewportHeight) {
 			this.scrollableElement.setScrollPosition({ scrollTop: contentHeight - viewportHeight });
@@ -511,7 +572,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		this.renderMarkdown(next, reuseExisting);
 
 		if (this.fixedScrollingMode && this.scrollableElement) {
-			setTimeout(() => this.scrollToBottomIfEnabled(), 0);
+			this.syncDimensionsAndScheduleScroll();
 		}
 
 		const extractedTitle = extractTitleFromThinkingContent(raw);
@@ -556,6 +617,11 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			this.wrapper.classList.remove('chat-thinking-streaming');
 		}
 		this.streamingCompleted = true;
+
+		if (this.mutationObserverDisposable) {
+			this.mutationObserverDisposable.dispose();
+			this.mutationObserverDisposable = undefined;
+		}
 
 		if (this.workingSpinnerElement) {
 			this.workingSpinnerElement.remove();
@@ -618,12 +684,20 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	}
 
 	private async generateTitleViaLLM(): Promise<void> {
+		const cts = new CancellationTokenSource();
+		const timeout = setTimeout(() => cts.cancel(), 5000);
+
 		try {
 			let models = await this.languageModelsService.selectLanguageModels({ vendor: 'copilot', id: 'copilot-fast' });
 			if (!models.length) {
 				models = await this.languageModelsService.selectLanguageModels({ vendor: 'copilot', family: 'gpt-4o-mini' });
 			}
 			if (!models.length) {
+				this.setFallbackTitle();
+				return;
+			}
+
+			if (cts.token.isCancellationRequested) {
 				this.setFallbackTitle();
 				return;
 			}
@@ -720,11 +794,14 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 				new ExtensionIdentifier('core'),
 				[{ role: ChatMessageRole.User, content: [{ type: 'text', value: prompt }] }],
 				{},
-				CancellationToken.None
+				cts.token
 			);
 
 			let generatedTitle = '';
 			for await (const part of response.stream) {
+				if (cts.token.isCancellationRequested) {
+					break;
+				}
 				if (Array.isArray(part)) {
 					for (const p of part) {
 						if (p.type === 'text') {
@@ -734,6 +811,11 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 				} else if (part.type === 'text') {
 					generatedTitle += part.value;
 				}
+			}
+
+			if (cts.token.isCancellationRequested) {
+				this.setFallbackTitle();
+				return;
 			}
 
 			await response.result;
@@ -755,6 +837,9 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			}
 		} catch (error) {
 			// fall through to default title
+		} finally {
+			clearTimeout(timeout);
+			cts.dispose();
 		}
 
 		this.setFallbackTitle();
@@ -784,8 +869,8 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	}
 
 	private setFallbackTitle(): void {
-		const finalLabel = this.toolInvocationCount > 0
-			? localize('chat.thinking.finished.withTools', 'Finished working and invoked {0} tool{1}', this.toolInvocationCount, this.toolInvocationCount === 1 ? '' : 's')
+		const finalLabel = this.appendedItemCount > 0
+			? localize('chat.thinking.finished.withSteps', 'Finished with {0} step{1}', this.appendedItemCount, this.appendedItemCount === 1 ? '' : 's')
 			: localize('chat.thinking.finished', 'Finished Working');
 
 		this.currentTitle = finalLabel;
@@ -1106,7 +1191,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		this.appendToWrapper(itemWrapper);
 
 		if (this.fixedScrollingMode && this.scrollableElement) {
-			setTimeout(() => this.scrollToBottomIfEnabled(), 0);
+			this.syncDimensionsAndScheduleScroll();
 		}
 	}
 
@@ -1150,6 +1235,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		if (this._store.isDisposed) {
 			return;
 		}
+		this.appendedItemCount++;
 		this.textContainer = $('.chat-thinking-item.markdown-content');
 		if (content.value) {
 			// Use lazy rendering when collapsed to preserve order with tool items
@@ -1217,6 +1303,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			this.workingSpinnerElement = undefined;
 			this.workingSpinnerLabel = undefined;
 		}
+		this.pendingScrollDisposable?.dispose();
 		super.dispose();
 	}
 }

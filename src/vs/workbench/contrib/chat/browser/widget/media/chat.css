@@ -776,6 +776,15 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	padding: 0 6px 6px 6px;
 	/* top padding is inside the editor widget */
 	width: 100%;
+	position: relative;
+}
+
+/* Context usage widget container - positioned at top right of chat input */
+.interactive-session .chat-input-container .chat-context-usage-container {
+	position: absolute;
+	top: 4px;
+	right: 6px;
+	z-index: 1;
 }
 
 .interactive-input-part:has(.chat-editing-session > .chat-editing-session-container) .chat-input-container,

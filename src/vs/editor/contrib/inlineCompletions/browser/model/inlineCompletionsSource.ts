@@ -28,6 +28,7 @@ import { Command, InlineCompletionEndOfLifeReasonKind, InlineCompletionTriggerKi
 import { ILanguageConfigurationService } from '../../../../common/languages/languageConfigurationRegistry.js';
 import { ITextModel } from '../../../../common/model.js';
 import { offsetEditFromContentChanges } from '../../../../common/model/textModelStringEdit.js';
+import { isCompletionsEnabledFromObject } from '../../../../common/services/completionsEnablement.js';
 import { IFeatureDebounceInformation } from '../../../../common/services/languageFeatureDebounce.js';
 import { IModelContentChangedEvent } from '../../../../common/textModelEvents.js';
 import { formatRecordableLogEntry, IRecordableEditorLogEntry, IRecordableLogEntry, StructuredLogger } from '../structuredLogger.js';
@@ -445,7 +446,7 @@ export class InlineCompletionsSource extends Disposable {
 		}
 
 
-		if (!isCompletionsEnabled(this._completionsEnabled, this._textModel.getLanguageId())) {
+		if (!isCompletionsEnabledFromObject(this._completionsEnabled, this._textModel.getLanguageId())) {
 			return;
 		}
 
@@ -569,18 +570,6 @@ class RequestResponseData {
 
 function isSubset<T>(set1: Set<T>, set2: Set<T>): boolean {
 	return [...set1].every(item => set2.has(item));
-}
-
-function isCompletionsEnabled(completionsEnablementObject: Record<string, boolean> | undefined, modeId: string = '*'): boolean {
-	if (completionsEnablementObject === undefined) {
-		return false; // default to disabled if setting is not available
-	}
-
-	if (typeof completionsEnablementObject[modeId] !== 'undefined') {
-		return Boolean(completionsEnablementObject[modeId]); // go with setting if explicitly defined
-	}
-
-	return Boolean(completionsEnablementObject['*']); // fallback to global setting otherwise
 }
 
 class UpdateOperation implements IDisposable {

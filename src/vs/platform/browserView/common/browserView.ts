@@ -27,6 +27,7 @@ export interface IBrowserViewState {
 	canGoForward: boolean;
 	loading: boolean;
 	focused: boolean;
+	visible: boolean;
 	isDevToolsOpen: boolean;
 	lastScreenshot: VSBuffer | undefined;
 	lastFavicon: string | undefined;
@@ -53,6 +54,10 @@ export interface IBrowserViewLoadError {
 
 export interface IBrowserViewFocusEvent {
 	focused: boolean;
+}
+
+export interface IBrowserViewVisibilityEvent {
+	visible: boolean;
 }
 
 export interface IBrowserViewDevToolsStateEvent {
@@ -112,6 +117,7 @@ export interface IBrowserViewService {
 	onDynamicDidNavigate(id: string): Event<IBrowserViewNavigationEvent>;
 	onDynamicDidChangeLoadingState(id: string): Event<IBrowserViewLoadingEvent>;
 	onDynamicDidChangeFocus(id: string): Event<IBrowserViewFocusEvent>;
+	onDynamicDidChangeVisibility(id: string): Event<IBrowserViewVisibilityEvent>;
 	onDynamicDidChangeDevToolsState(id: string): Event<IBrowserViewDevToolsStateEvent>;
 	onDynamicDidKeyCommand(id: string): Event<IBrowserViewKeyDownEvent>;
 	onDynamicDidChangeTitle(id: string): Event<IBrowserViewTitleChangeEvent>;

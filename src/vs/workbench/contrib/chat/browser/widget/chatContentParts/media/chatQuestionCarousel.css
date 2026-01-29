@@ -79,6 +79,7 @@
 	padding: 0;
 	border: none;
 	background: transparent !important;
+	color: var(--vscode-foreground) !important;
 }
 
 .chat-question-carousel-nav .monaco-button.chat-question-nav-arrow:hover:not(.disabled) {
@@ -221,25 +222,30 @@
 	color: var(--vscode-descriptionForeground);
 }
 
-.chat-question-freeform-textarea {
+.chat-question-freeform-textarea,
+.chat-question-text-textarea {
 	width: 100%;
+	min-height: 32px;
 	max-height: 200px;
 	padding: 6px 8px;
 	border: 1px solid var(--vscode-input-border, var(--vscode-chat-requestBorder));
 	background-color: var(--vscode-input-background);
 	color: var(--vscode-input-foreground);
 	border-radius: 4px;
-	resize: vertical;
+	resize: none;
 	font-family: var(--vscode-chat-font-family, inherit);
 	font-size: var(--vscode-chat-font-size-body-s);
 	box-sizing: border-box;
+	overflow-y: hidden;
 }
 
-.chat-question-freeform-textarea:focus {
+.chat-question-freeform-textarea:focus,
+.chat-question-text-textarea:focus {
 	outline: 1px solid var(--vscode-focusBorder);
 	border-color: var(--vscode-focusBorder);
 }
 
-.chat-question-freeform-textarea::placeholder {
+.chat-question-freeform-textarea::placeholder,
+.chat-question-text-textarea::placeholder {
 	color: var(--vscode-input-placeholderForeground);
 }

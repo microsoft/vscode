@@ -163,7 +163,7 @@ function getDefaultContentSnippet(promptType: PromptsType, name: string | undefi
 				`name: ${name ?? '${1:agent-name}'}`,
 				`description: \${2:Describe what this custom agent does and when to use it.}`,
 				`argument-hint: \${3:The inputs this agent expects, e.g., "a task to implement" or "a question to answer".}`,
-				`# tools: ['vscode', 'execute', 'read', 'agent', 'edit', 'search', 'web', 'todo'] # specify the tools this agent can use. if not set, all enabled tools are allowed`,
+				`# tools: ['vscode', 'execute', 'read', 'agent', 'edit', 'search', 'web', 'todo'] # specify the tools this agent can use. If not set, all enabled tools are allowed.`,
 				`---`,
 				`\${4:Define what this custom agent does, including its behavior, capabilities, and any specific instructions for its operation.}`,
 			].join('\n');

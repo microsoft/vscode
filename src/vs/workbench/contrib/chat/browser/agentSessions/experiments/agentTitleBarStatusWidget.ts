@@ -1244,20 +1244,16 @@ export class AgentTitleBarStatusRendering extends Disposable implements IWorkben
 		// Add/remove CSS classes on workbench based on settings
 		// Force enable command center and disable chat controls when agent status or unified agents bar is enabled
 		const updateClass = () => {
-			const enabled = configurationService.getValue<boolean>(ChatConfiguration.AgentStatusEnabled) === true;
-			const enhanced = configurationService.getValue<boolean>(ChatConfiguration.UnifiedAgentsBar) === true;
+			const commandCenterEnabled = configurationService.getValue<boolean>(LayoutSettings.COMMAND_CENTER) === true;
+			const enabled = configurationService.getValue<boolean>(ChatConfiguration.AgentStatusEnabled) === true && commandCenterEnabled;
+			const enhanced = configurationService.getValue<boolean>(ChatConfiguration.UnifiedAgentsBar) === true && commandCenterEnabled;
 
 			mainWindow.document.body.classList.toggle('agent-status-enabled', enabled);
 			mainWindow.document.body.classList.toggle('unified-agents-bar', enhanced);
-
-			// Force enable command center when agent status or unified agents bar is enabled
-			if ((enabled || enhanced) && configurationService.getValue<boolean>(LayoutSettings.COMMAND_CENTER) !== true) {
-				configurationService.updateValue(LayoutSettings.COMMAND_CENTER, true);
-			}
 		};
 		updateClass();
 		this._register(configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(ChatConfiguration.AgentStatusEnabled) || e.affectsConfiguration(ChatConfiguration.UnifiedAgentsBar)) {
+			if (e.affectsConfiguration(ChatConfiguration.AgentStatusEnabled) || e.affectsConfiguration(ChatConfiguration.UnifiedAgentsBar) || e.affectsConfiguration(LayoutSettings.COMMAND_CENTER)) {
 				updateClass();
 			}
 		}));

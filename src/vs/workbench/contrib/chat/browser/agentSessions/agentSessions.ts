@@ -19,6 +19,13 @@ export enum AgentSessionProviders {
 	Codex = 'openai-codex',
 }
 
+export function isBuiltInAgentSessionProvider(provider: string): boolean {
+	return provider === AgentSessionProviders.Local ||
+		provider === AgentSessionProviders.Background ||
+		provider === AgentSessionProviders.Cloud ||
+		provider === AgentSessionProviders.Claude;
+}
+
 export function getAgentSessionProvider(sessionResource: URI | string): AgentSessionProviders | undefined {
 	const type = URI.isUri(sessionResource) ? getChatSessionType(sessionResource) : sessionResource;
 	switch (type) {
@@ -57,8 +64,9 @@ export function getAgentSessionProviderIcon(provider: AgentSessionProviders): Th
 		case AgentSessionProviders.Cloud:
 			return Codicon.cloud;
 		case AgentSessionProviders.Codex:
+			return Codicon.openai;
 		case AgentSessionProviders.Claude:
-			return Codicon.code;
+			return Codicon.claude;
 	}
 }
 

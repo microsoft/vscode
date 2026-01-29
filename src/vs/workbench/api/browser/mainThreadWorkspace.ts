@@ -70,6 +70,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		this._contextService.onDidChangeWorkspaceFolders(this._onDidChangeWorkspace, this, this._toDispose);
 		this._contextService.onDidChangeWorkbenchState(this._onDidChangeWorkspace, this, this._toDispose);
 		this._workspaceTrustManagementService.onDidChangeTrust(this._onDidGrantWorkspaceTrust, this, this._toDispose);
+		this._workspaceTrustManagementService.onDidChangeTrustedFolders(this._onDidChangeWorkspaceTrustedFolders, this, this._toDispose);
 	}
 
 	dispose(): void {
@@ -251,12 +252,22 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		return this._workspaceTrustRequestService.requestWorkspaceTrust(options);
 	}
 
+	async $isResourceTrusted(resource: UriComponents): Promise<boolean> {
+		const uri = URI.revive(resource);
+		const trustInfo = await this._workspaceTrustManagementService.getUriTrustInfo(uri);
+		return trustInfo.trusted;
+	}
+
 	private isWorkspaceTrusted(): boolean {
 		return this._workspaceTrustManagementService.isWorkspaceTrusted();
 	}
 
 	private _onDidGrantWorkspaceTrust(): void {
 		this._proxy.$onDidGrantWorkspaceTrust();
+	}
+
+	private _onDidChangeWorkspaceTrustedFolders(): void {
+		this._proxy.$onDidChangeWorkspaceTrustedFolders();
 	}
 
 	// --- edit sessions ---
