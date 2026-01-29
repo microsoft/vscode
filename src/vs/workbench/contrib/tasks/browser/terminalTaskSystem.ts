@@ -1597,6 +1597,8 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 					return false;
 				}
 			}
+			
+			// Check if the value contains characters that require quoting
 			let quote: string | undefined;
 			for (let i = 0; i < value.length; i++) {
 				// We found the end quote.
@@ -1620,9 +1622,21 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 
 		function quote(value: string, kind: ShellQuoting): [string, boolean] {
 			if (kind === ShellQuoting.Strong && shellQuoteOptions.strong) {
-				return [shellQuoteOptions.strong + value + shellQuoteOptions.strong, true];
+				// For strong quoting, escape any existing strong quote characters within the value
+				let escapedValue = value;
+				if (shellQuoteOptions.escape && value.includes(shellQuoteOptions.strong)) {
+					const escapeChar = typeof shellQuoteOptions.escape === 'string' ? shellQuoteOptions.escape : shellQuoteOptions.escape.escapeChar;
+					escapedValue = value.replace(new RegExp(`\\${shellQuoteOptions.strong}`, 'g'), escapeChar + shellQuoteOptions.strong);
+				}
+				return [shellQuoteOptions.strong + escapedValue + shellQuoteOptions.strong, true];
 			} else if (kind === ShellQuoting.Weak && shellQuoteOptions.weak) {
-				return [shellQuoteOptions.weak + value + shellQuoteOptions.weak, true];
+				// For weak quoting, escape any existing weak quote characters within the value
+				let escapedValue = value;
+				if (shellQuoteOptions.escape && value.includes(shellQuoteOptions.weak)) {
+					const escapeChar = typeof shellQuoteOptions.escape === 'string' ? shellQuoteOptions.escape : shellQuoteOptions.escape.escapeChar;
+					escapedValue = value.replace(new RegExp(`\\${shellQuoteOptions.weak}`, 'g'), escapeChar + shellQuoteOptions.weak);
+				}
+				return [shellQuoteOptions.weak + escapedValue + shellQuoteOptions.weak, true];
 			} else if (kind === ShellQuoting.Escape && shellQuoteOptions.escape) {
 				if (Types.isString(shellQuoteOptions.escape)) {
 					return [value.replace(/ /g, shellQuoteOptions.escape + ' '), true];
@@ -1676,7 +1690,18 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		// There are special rules quoted command line in cmd.exe
 		if (platform === Platform.Platform.Windows) {
 			if (basename === 'cmd' && commandQuoted && argQuoted) {
-				commandLine = '"' + commandLine + '"';
+				// Only wrap the entire command line in quotes for cmd.exe if there are complex scenarios
+				// that require it. For most cases, individual quoting of command and args is sufficient.
+				// This avoids the double-quoting issue where "command" becomes ""command""
+				// We only wrap if the command line contains unescaped characters that cmd.exe can't handle
+				// Additionally, check if the command is already a single quoted string - if so, don't wrap
+				const isAlreadySingleQuotedCommand = (!args || args.length === 0) && Types.isString(command) && 
+					command.length >= 2 && command[0] === '"' && command[command.length - 1] === '"';
+				const needsWrapping = !isAlreadySingleQuotedCommand && 
+					(commandLine.includes('&') || commandLine.includes('|') || commandLine.includes('^'));
+				if (needsWrapping) {
+					commandLine = '"' + commandLine + '"';
+				}
 			} else if ((basename === 'powershell' || basename === 'pwsh') && commandQuoted) {
 				commandLine = '& ' + commandLine;
 			}
