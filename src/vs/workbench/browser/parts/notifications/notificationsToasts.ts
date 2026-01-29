@@ -16,8 +16,9 @@ import { NOTIFICATIONS_TOAST_BORDER, NOTIFICATIONS_BACKGROUND } from '../../../c
 import { IThemeService, Themable } from '../../../../platform/theme/common/themeService.js';
 import { widgetShadow } from '../../../../platform/theme/common/colorRegistry.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
-import { INotificationsToastController } from './notificationsCommands.js';
+import { INotificationsToastController, NotificationPosition, NOTIFICATIONS_POSITION_SETTING } from './notificationsCommands.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { Severity, NotificationsFilter, NotificationPriority, withSeverityPrefix } from '../../../../platform/notification/common/notification.js';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { ILifecycleService, LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
@@ -84,7 +85,8 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
-		@IHostService private readonly hostService: IHostService
+		@IHostService private readonly hostService: IHostService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super(themeService);
 
@@ -97,6 +99,15 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 
 		// Layout
 		this._register(this.layoutService.onDidLayoutMainContainer(dimension => this.layout(Dimension.lift(dimension))));
+
+		// Configuration changes
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(NOTIFICATIONS_POSITION_SETTING)) {
+				if (this.notificationsToastsContainer) {
+					this.applyPositionClass(this.notificationsToastsContainer);
+				}
+			}
+		}));
 
 		// Delay some tasks until after we have restored
 		// to reduce UI pressure from the startup phase
@@ -175,6 +186,7 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 		let notificationsToastsContainer = this.notificationsToastsContainer;
 		if (!notificationsToastsContainer) {
 			notificationsToastsContainer = this.notificationsToastsContainer = $('.notifications-toasts');
+			this.applyPositionClass(notificationsToastsContainer);
 
 			this.container.appendChild(notificationsToastsContainer);
 		}
@@ -621,5 +633,18 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 
 	private isToastInDOM(toast: INotificationToast): boolean {
 		return !!toast.container.parentElement;
+	}
+
+	private applyPositionClass(container: HTMLElement): void {
+		const position = this.configurationService.getValue<NotificationPosition>(NOTIFICATIONS_POSITION_SETTING) || NotificationPosition.BOTTOM_RIGHT;
+
+		// Remove any existing position classes
+		container.classList.remove(
+			'notification-position-bottomRight',
+			'notification-position-bottomLeft'
+		);
+
+		// Add the current position class
+		container.classList.add(`notification-position-${position}`);
 	}
 }
