@@ -107,7 +107,7 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 							openerService.open(modeResource.get());
 						}
 					});
-				} else {
+				} else if (!customAgentTarget) {
 					const label = localize('configureToolsFor', "Configure tools for {0} agent", mode.label.get());
 					toolbarActions.push({
 						id: `configureTools:${mode.id}`,
