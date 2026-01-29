@@ -91,6 +91,7 @@ import { ShowCurrentReleaseNotesActionId } from '../../update/common/update.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { fromNow } from '../../../../base/common/date.js';
+import { raceCancellation } from '../../../../base/common/async.js';
 
 class NavBar extends Disposable {
 
@@ -688,9 +689,14 @@ export class ExtensionEditor extends EditorPane {
 
 	private async openMarkdown(extension: IExtension, cacheResult: CacheResult<string>, noContentCopy: string, container: HTMLElement, webviewIndex: WebviewIndex, title: string, token: CancellationToken): Promise<IActiveElement | null> {
 		try {
-			const body = await this.renderMarkdown(extension, cacheResult, container, token);
-			if (token.isCancellationRequested) {
-				return Promise.resolve(null);
+			const body = await raceCancellation(
+				this.renderMarkdown(extension, cacheResult, container, token),
+				token,
+				undefined
+			);
+
+			if (!body) {
+				return null;
 			}
 
 			const webview = this.contentDisposables.add(this.webviewService.createWebviewOverlay({
@@ -729,9 +735,13 @@ export class ExtensionEditor extends EditorPane {
 
 			this.contentDisposables.add(this.themeService.onDidColorThemeChange(async () => {
 				// Render again since syntax highlighting of code blocks may have changed
-				const body = await this.renderMarkdown(extension, cacheResult, container);
-				if (!isDisposed) { // Make sure we weren't disposed of in the meantime
-					webview.setHtml(body);
+				const updatedBody = await raceCancellation(
+					this.renderMarkdown(extension, cacheResult, container, token),
+					token,
+					undefined
+				);
+				if (!isDisposed && updatedBody) {
+					webview.setHtml(updatedBody);
 				}
 			}));
 
@@ -753,6 +763,9 @@ export class ExtensionEditor extends EditorPane {
 
 			return webview;
 		} catch (e) {
+			if (isCancellationError(e)) {
+				return null;
+			}
 			const p = append(container, $('p.nocontent'));
 			p.textContent = noContentCopy;
 			return p;
