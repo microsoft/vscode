@@ -7,6 +7,7 @@ import './media/agentsessionsviewer.css';
 import { h } from '../../../../../base/browser/dom.js';
 import { localize } from '../../../../../nls.js';
 import { IIdentityProvider, IListVirtualDelegate, NotSelectableGroupId, NotSelectableGroupIdType } from '../../../../../base/browser/ui/list/list.js';
+import { AriaRole } from '../../../../../base/browser/ui/aria/aria.js';
 import { IListAccessibilityProvider } from '../../../../../base/browser/ui/list/listWidget.js';
 import { ITreeCompressionDelegate } from '../../../../../base/browser/ui/tree/asyncDataTree.js';
 import { ICompressedTreeNode } from '../../../../../base/browser/ui/tree/compressedObjectTreeModel.js';
@@ -536,6 +537,14 @@ export class AgentSessionsListDelegate implements IListVirtualDelegate<AgentSess
 }
 
 export class AgentSessionsAccessibilityProvider implements IListAccessibilityProvider<AgentSessionListItem> {
+
+	getWidgetRole(): AriaRole {
+		return 'list';
+	}
+
+	getRole(element: AgentSessionListItem): AriaRole | undefined {
+		return 'listitem';
+	}
 
 	getWidgetAriaLabel(): string {
 		return localize('agentSessions', "Agent Sessions");
