@@ -512,6 +512,24 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 				freeformTextarea.value = previousFreeform;
 			}
 
+			this._inputBoxes.add(dom.addDisposableListener(freeformTextarea, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+				const event = new StandardKeyboardEvent(e);
+				if (event.keyCode === KeyCode.Enter && !event.shiftKey && freeformTextarea.value.trim()) {
+					e.preventDefault();
+					e.stopPropagation();
+					this.handleNext();
+				}
+			}));
+
+			// uncheck radio when there is text
+			this._inputBoxes.add(dom.addDisposableListener(freeformTextarea, dom.EventType.INPUT, () => {
+				if (freeformTextarea.value.trim()) {
+					for (const radio of radioInputs) {
+						radio.checked = false;
+					}
+				}
+			}));
+
 			freeformContainer.appendChild(freeformTextarea);
 			container.appendChild(freeformContainer);
 			this._freeformTextareas.set(question.id, freeformTextarea);
@@ -586,6 +604,24 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 				freeformTextarea.value = previousFreeform;
 			}
 
+			this._inputBoxes.add(dom.addDisposableListener(freeformTextarea, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+				const event = new StandardKeyboardEvent(e);
+				if (event.keyCode === KeyCode.Enter && !event.shiftKey && freeformTextarea.value.trim()) {
+					e.preventDefault();
+					e.stopPropagation();
+					this.handleNext();
+				}
+			}));
+
+			// uncheck radio when there is text
+			this._inputBoxes.add(dom.addDisposableListener(freeformTextarea, dom.EventType.INPUT, () => {
+				if (freeformTextarea.value.trim()) {
+					for (const checkbox of checkboxInputs) {
+						checkbox.checked = false;
+					}
+				}
+			}));
+
 			freeformContainer.appendChild(freeformTextarea);
 			container.appendChild(freeformContainer);
 			this._freeformTextareas.set(question.id, freeformTextarea);
@@ -627,7 +663,8 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 					const freeformTextarea = this._freeformTextareas.get(question.id);
 					const freeformValue = freeformTextarea?.value !== '' ? freeformTextarea?.value : undefined;
 					if (freeformValue || selectedValue !== undefined) {
-						return { selectedValue, freeformValue };
+						// if there is text in freeform, don't include selected
+						return { selectedValue: freeformValue ? undefined : selectedValue, freeformValue };
 					}
 					return undefined;
 				}
@@ -666,7 +703,8 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 					const freeformTextarea = this._freeformTextareas.get(question.id);
 					const freeformValue = freeformTextarea?.value !== '' ? freeformTextarea?.value : undefined;
 					if (freeformValue || finalSelectedValues.length > 0) {
-						return { selectedValues: finalSelectedValues, freeformValue };
+						// if there is text in freeform, don't include selected
+						return { selectedValues: freeformValue ? [] : finalSelectedValues, freeformValue };
 					}
 					return undefined;
 				}
