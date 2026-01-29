@@ -161,11 +161,6 @@ export namespace Schemas {
 	 * Used for rendering multidiffs in copilot agent sessions
 	 */
 	export const copilotPr = 'copilot-pr';
-
-	/**
-	 * Scheme used for skill links in chat
-	 */
-	export const copilotSkill = 'copilot-skill';
 }
 
 export function matchesScheme(target: URI | string, scheme: string): boolean {

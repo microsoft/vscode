@@ -8,12 +8,14 @@ import { IRenderedMarkdown, MarkdownRenderOptions } from '../../../../../base/br
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { IMarkdownRenderer, IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import product from '../../../../../platform/product/common/product.js';
+import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
 
 export const allowedChatMarkdownHtmlTags = Object.freeze([
 	'b',
@@ -67,6 +69,7 @@ export class ChatContentMarkdownRenderer implements IMarkdownRenderer {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
+		@IPromptsService private readonly promptsService: IPromptsService,
 	) { }
 
 	render(markdown: IMarkdownString, options?: MarkdownRenderOptions, outElement?: HTMLElement): IRenderedMarkdown {
@@ -80,6 +83,16 @@ export class ChatContentMarkdownRenderer implements IMarkdownRenderer {
 				...options?.sanitizerConfig,
 				allowedLinkSchemes: { augment: [product.urlProtocol] },
 				remoteImageIsAllowed: (_uri) => false,
+				isLinkAllowed: (href) => {
+					// Allow links to known prompt resources (skills, prompts, instructions, agents)
+					// regardless of their URI scheme
+					try {
+						const uri = URI.parse(href);
+						return this.promptsService.isKnownResourceUri(uri);
+					} catch {
+						return false;
+					}
+				},
 			}
 		};
 

@@ -1071,6 +1071,16 @@ export class PromptsService extends Disposable implements IPromptsService {
 
 		return { type: PromptsType.instructions, files };
 	}
+
+	public isKnownResourceUri(uri: URI): boolean {
+		// Check if the URI is registered as a contributed file in any prompt type
+		for (const type of [PromptsType.prompt, PromptsType.instructions, PromptsType.agent, PromptsType.skill]) {
+			if (this.contributedFiles[type].has(uri)) {
+				return true;
+			}
+		}
+		return false;
+	}
 }
 
 // helpers

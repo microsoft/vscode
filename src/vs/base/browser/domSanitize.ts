@@ -138,13 +138,17 @@ function validateLink(value: string, allowedProtocols: AllowedLinksConfig): bool
  * Hooks dompurify using `afterSanitizeAttributes` to check that all `href` and `src`
  * attributes are valid.
  */
-function hookDomPurifyHrefAndSrcSanitizer(allowedLinkProtocols: AllowedLinksConfig, allowedMediaProtocols: AllowedLinksConfig) {
+function hookDomPurifyHrefAndSrcSanitizer(allowedLinkProtocols: AllowedLinksConfig, allowedMediaProtocols: AllowedLinksConfig, isLinkAllowed?: (href: string) => boolean) {
 	dompurify.addHook('afterSanitizeAttributes', (node) => {
 		// check all href/src attributes for validity
 		for (const attr of ['href', 'src']) {
 			if (node.hasAttribute(attr)) {
 				const attrValue = node.getAttribute(attr) as string;
 				if (attr === 'href') {
+					// Check custom isLinkAllowed callback first
+					if (isLinkAllowed?.(attrValue)) {
+						continue;
+					}
 					if (!attrValue.startsWith('#') && !validateLink(attrValue, allowedLinkProtocols)) {
 						node.removeAttribute(attr);
 					}
@@ -172,6 +176,13 @@ export interface SanitizeAttributeRule {
 
 
 export interface DomSanitizerConfig {
+	/**
+	 * Optional callback to allow specific links regardless of their protocol.
+	 * If this returns true, the link is allowed without checking the protocol.
+	 * This is useful for allowing links to known resources (e.g., registered skill URIs).
+	 */
+	readonly isLinkAllowed?: (href: string) => boolean;
+
 	/**
 	 * Configured the allowed html tags.
 	 */
@@ -298,7 +309,8 @@ function doSanitizeHtml(untrusted: string, config: DomSanitizerConfig | undefine
 			{
 				override: config?.allowedMediaProtocols?.override ?? [Schemas.http, Schemas.https],
 				allowRelativePaths: config?.allowRelativeMediaPaths ?? false
-			});
+			},
+			config?.isLinkAllowed);
 
 		if (config?.replaceWithPlaintext) {
 			dompurify.addHook('uponSanitizeElement', replaceWithPlainTextHook);
