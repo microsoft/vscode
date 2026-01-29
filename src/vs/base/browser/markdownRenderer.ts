@@ -602,6 +602,8 @@ function getDomSanitizerConfig(mdStrConfig: MdStrConfig, options: MarkdownSaniti
 		Schemas.vscodeNotebookCell,
 		// For links that are handled entirely by the action handler
 		Schemas.internal,
+		// For skill links in chat
+		Schemas.copilotSkill,
 	];
 
 	if (isTrusted) {

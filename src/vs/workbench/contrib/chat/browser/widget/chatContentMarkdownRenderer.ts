@@ -14,7 +14,6 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import product from '../../../../../platform/product/common/product.js';
-import { Schemas } from '../../../../../base/common/network.js';
 
 export const allowedChatMarkdownHtmlTags = Object.freeze([
 	'b',
@@ -79,7 +78,7 @@ export class ChatContentMarkdownRenderer implements IMarkdownRenderer {
 					override: allowedChatMarkdownHtmlTags,
 				},
 				...options?.sanitizerConfig,
-				allowedLinkSchemes: { augment: [product.urlProtocol, Schemas.copilotSkill] },
+				allowedLinkSchemes: { augment: [product.urlProtocol] },
 				remoteImageIsAllowed: (_uri) => false,
 			}
 		};
