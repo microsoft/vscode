@@ -39,13 +39,14 @@ export function maxContentWidthInRange(editor: ObservableCodeEditor, range: Line
 	let maxContentWidth = 0;
 
 	for (let i = range.startLineNumber; i < range.endLineNumberExclusive; i++) {
-		const lineContentWidth = editor.getWidthOfLine(i, reader);
+		let lineContentWidth = editor.getWidthOfLine(i, reader);
+		if (lineContentWidth === -1) {
+			// Editor is not rendered yet, use approximation
+			const column = model.getLineMaxColumn(i);
+			const typicalHalfwidthCharacterWidth = editor.editor.getOption(EditorOption.fontInfo).typicalHalfwidthCharacterWidth;
+			lineContentWidth = column * typicalHalfwidthCharacterWidth;
+		}
 		maxContentWidth = Math.max(maxContentWidth, lineContentWidth);
-	}
-	const lines = range.mapToLineArray(l => model.getLineContent(l));
-
-	if (maxContentWidth < 5 && lines.some(l => l.length > 0) && model.uri.scheme !== 'file') {
-		console.error('unexpected width');
 	}
 	return maxContentWidth;
 }
