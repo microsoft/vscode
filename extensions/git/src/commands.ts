@@ -779,6 +779,8 @@ async function evaluateDiagnosticsCommitHook(repository: Repository, options: Co
 
 export class CommandCenter {
 
+	private static readonly STASH_HASH_REGEX = /^[0-9a-f]{40}$/i;
+
 	private disposables: Disposable[];
 	private commandErrors = new CommandErrorOutputTextDocumentContentProvider();
 
@@ -4698,21 +4700,14 @@ export class CommandCenter {
 			return undefined;
 		}
 
-		// Stash
-		const regex = /^stash@{(\d+)}$/;
-		const match = regex.exec(stashUri.ref);
-		if (!match) {
+		// Stash - URI ref contains the stash commit hash for stable identification
+		if (!CommandCenter.STASH_HASH_REGEX.test(stashUri.ref)) {
 			return undefined;
 		}
 
-		const [, index] = match;
 		const stashes = await repository.getStashes();
-		const stash = stashes.find(stash => stash.index === parseInt(index));
-		if (!stash) {
-			return undefined;
-		}
-
-		return { repository, stash };
+		const stash = stashes.find(s => s.hash === stashUri.ref);
+		return stash ? { repository, stash } : undefined;
 	}
 
 	private async _viewStash(repository: Repository, stash: Stash): Promise<void> {
@@ -4735,7 +4730,7 @@ export class CommandCenter {
 		}
 
 		const title = `Git Stash #${stash.index}: ${stash.description}`;
-		const multiDiffSourceUri = toGitUri(Uri.file(repository.root), `stash@{${stash.index}}`, { scheme: 'git-stash' });
+		const multiDiffSourceUri = toGitUri(Uri.file(repository.root), stash.hash, { scheme: 'git-stash' });
 
 		const resources: { originalUri: Uri | undefined; modifiedUri: Uri | undefined }[] = [];
 		for (const change of stashChanges) {
@@ -5294,21 +5289,26 @@ export class CommandCenter {
 		await repository.deleteTag(artifact.name);
 	}
 
+	/**
+	 * Find a stash by its commit hash (artifact ID).
+	 * Artifact IDs use the stash's commit hash for stable identification.
+	 */
+	private async _findStashByArtifactId(repository: Repository, artifactId: string): Promise<Stash | undefined> {
+		if (!CommandCenter.STASH_HASH_REGEX.test(artifactId)) {
+			return undefined;
+		}
+
+		const stashes = await repository.getStashes();
+		return stashes.find(s => s.hash === artifactId);
+	}
+
 	@command('git.repositories.stashView', { repository: true })
 	async artifactStashView(repository: Repository, artifact: SourceControlArtifact): Promise<void> {
 		if (!repository || !artifact) {
 			return;
 		}
 
-		// Extract stash index from artifact id
-		const regex = /^stash@\{(\d+)\}$/;
-		const match = regex.exec(artifact.id);
-		if (!match) {
-			return;
-		}
-
-		const stashes = await repository.getStashes();
-		const stash = stashes.find(s => s.index === parseInt(match[1]));
+		const stash = await this._findStashByArtifactId(repository, artifact.id);
 		if (!stash) {
 			return;
 		}
@@ -5322,15 +5322,12 @@ export class CommandCenter {
 			return;
 		}
 
-		// Extract stash index from artifact id (format: "stash@{index}")
-		const regex = /^stash@\{(\d+)\}$/;
-		const match = regex.exec(artifact.id);
-		if (!match) {
+		const stash = await this._findStashByArtifactId(repository, artifact.id);
+		if (!stash) {
 			return;
 		}
 
-		const stashIndex = parseInt(match[1]);
-		await repository.applyStash(stashIndex);
+		await repository.applyStash(stash.index);
 	}
 
 	@command('git.repositories.stashPop', { repository: true })
@@ -5339,15 +5336,12 @@ export class CommandCenter {
 			return;
 		}
 
-		// Extract stash index from artifact id (format: "stash@{index}")
-		const regex = /^stash@\{(\d+)\}$/;
-		const match = regex.exec(artifact.id);
-		if (!match) {
+		const stash = await this._findStashByArtifactId(repository, artifact.id);
+		if (!stash) {
 			return;
 		}
 
-		const stashIndex = parseInt(match[1]);
-		await repository.popStash(stashIndex);
+		await repository.popStash(stash.index);
 	}
 
 	@command('git.repositories.stashDrop', { repository: true })
@@ -5356,14 +5350,12 @@ export class CommandCenter {
 			return;
 		}
 
-		// Extract stash index from artifact id
-		const regex = /^stash@\{(\d+)\}$/;
-		const match = regex.exec(artifact.id);
-		if (!match) {
+		const stash = await this._findStashByArtifactId(repository, artifact.id);
+		if (!stash) {
 			return;
 		}
 
-		await this._stashDrop(repository, parseInt(match[1]), artifact.name);
+		await this._stashDrop(repository, stash.index, artifact.name);
 	}
 
 	@command('git.repositories.openWorktree', { repository: true })
