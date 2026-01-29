@@ -16,7 +16,7 @@ import { IChatModeService, isBuiltinChatMode } from '../../chatModes.js';
 import { getPromptsTypeForLanguageId, PromptsType } from '../promptTypes.js';
 import { IPromptsService } from '../service/promptsService.js';
 import { IHeaderAttribute, PromptBody, PromptHeader, PromptHeaderAttributes } from '../promptFileParser.js';
-import { isGithubTarget } from './promptValidator.js';
+import { getAttributeDescription, isGithubTarget } from './promptValidator.js';
 
 export class PromptHoverProvider implements HoverProvider {
 	/**
@@ -68,80 +68,27 @@ export class PromptHoverProvider implements HoverProvider {
 	}
 
 	private async provideHeaderHover(position: Position, promptType: PromptsType, header: PromptHeader): Promise<Hover | undefined> {
-		switch (promptType) {
-			case PromptsType.instructions:
-				for (const attribute of header.attributes) {
-					if (attribute.range.containsPosition(position)) {
-						switch (attribute.key) {
-							case PromptHeaderAttributes.name:
-								return this.createHover(localize('promptHeader.instructions.name', 'The name of the instruction file as shown in the UI. If not set, the name is derived from the file name.'), attribute.range);
-							case PromptHeaderAttributes.description:
-								return this.createHover(localize('promptHeader.instructions.description', 'The description of the instruction file. It can be used to provide additional context or information about the instructions and is passed to the language model as part of the prompt.'), attribute.range);
-							case PromptHeaderAttributes.applyTo:
-								return this.createHover(localize('promptHeader.instructions.applyToRange', 'One or more glob pattern (separated by comma) that describe for which files the instructions apply to. Based on these patterns, the file is automatically included in the prompt, when the context contains a file that matches one or more of these patterns. Use `**` when you want this file to always be added.\nExample: `**/*.ts`, `**/*.js`, `client/**`'), attribute.range);
-						}
+		for (const attribute of header.attributes) {
+			if (attribute.range.containsPosition(position)) {
+				const description = getAttributeDescription(attribute.key, promptType);
+				if (description) {
+					switch (attribute.key) {
+						case PromptHeaderAttributes.model:
+							return this.getModelHover(attribute, position, description, promptType === PromptsType.agent && isGithubTarget(promptType, header.target));
+						case PromptHeaderAttributes.tools:
+							return this.getToolHover(attribute, position, description);
+						case PromptHeaderAttributes.agent:
+						case PromptHeaderAttributes.mode:
+							return this.getAgentHover(attribute, position, description);
+						case PromptHeaderAttributes.handOffs:
+							return this.getHandsOffHover(attribute, position, promptType === PromptsType.agent && isGithubTarget(promptType, header.target));
+						case PromptHeaderAttributes.infer:
+							return this.createHover(description + '\n\n' + localize('promptHeader.attribute.infer.hover', '- `all`, `true`: Available in the agent picker and can be used as a subagent.\n- `user`, `false`: Only available in the agent picker.\n- `agent`: Only available as a subagent (not shown in picker).\n- `hidden`: Not available in the picker nor as a subagent.'), attribute.range);
+						default:
+							return this.createHover(description, attribute.range);
 					}
 				}
-				break;
-			case PromptsType.skill:
-				for (const attribute of header.attributes) {
-					if (attribute.range.containsPosition(position)) {
-						switch (attribute.key) {
-							case PromptHeaderAttributes.name:
-								return this.createHover(localize('promptHeader.skill.name', 'The name of the skill.'), attribute.range);
-							case PromptHeaderAttributes.description:
-								return this.createHover(localize('promptHeader.skill.description', 'The description of the skill. The description is added to every request and will be used by the agent to decide when to load the skill.'), attribute.range);
-						}
-					}
-				}
-				break;
-			case PromptsType.agent:
-				for (const attribute of header.attributes) {
-					if (attribute.range.containsPosition(position)) {
-						switch (attribute.key) {
-							case PromptHeaderAttributes.name:
-								return this.createHover(localize('promptHeader.agent.name', 'The name of the agent as shown in the UI.'), attribute.range);
-							case PromptHeaderAttributes.description:
-								return this.createHover(localize('promptHeader.agent.description', 'The description of the custom agent, what it does and when to use it.'), attribute.range);
-							case PromptHeaderAttributes.argumentHint:
-								return this.createHover(localize('promptHeader.agent.argumentHint', 'The argument-hint describes what inputs the custom agent expects or supports.'), attribute.range);
-							case PromptHeaderAttributes.model:
-								return this.getModelHover(attribute, position, localize('promptHeader.agent.model', 'Specify the model that runs this custom agent. Can also be a list of models. The first available model will be used.'), isGithubTarget(promptType, header.target));
-							case PromptHeaderAttributes.tools:
-								return this.getToolHover(attribute, position, localize('promptHeader.agent.tools', 'The set of tools that the custom agent has access to.'));
-							case PromptHeaderAttributes.handOffs:
-								return this.getHandsOffHover(attribute, position, isGithubTarget(promptType, header.target));
-							case PromptHeaderAttributes.target:
-								return this.createHover(localize('promptHeader.agent.target', 'The target to which the header attributes like tools apply to. Possible values are `github-copilot` and `vscode`.'), attribute.range);
-							case PromptHeaderAttributes.infer:
-								return this.createHover(localize('promptHeader.agent.infer', 'Controls visibility of the agent.\n\n- `all`, `true`: Available in the agent picker and can be used as a subagent.\n- `user`, `false`: Only available in the agent picker.\n- `agent`: Only available as a subagent (not shown in picker).\n- `hidden`: Not available in the picker nor as a subagent.'), attribute.range);
-							case PromptHeaderAttributes.agents:
-								return this.createHover(localize('promptHeader.agent.agents', 'One or more agents that this agent can use as subagents. Use \'*\' to specify all available agents.'), attribute.range);
-						}
-					}
-				}
-				break;
-			case PromptsType.prompt:
-				for (const attribute of header.attributes) {
-					if (attribute.range.containsPosition(position)) {
-						switch (attribute.key) {
-							case PromptHeaderAttributes.name:
-								return this.createHover(localize('promptHeader.prompt.name', 'The name of the prompt. This is also the name of the slash command that will run this prompt.'), attribute.range);
-							case PromptHeaderAttributes.description:
-								return this.createHover(localize('promptHeader.prompt.description', 'The description of the reusable prompt, what it does and when to use it.'), attribute.range);
-							case PromptHeaderAttributes.argumentHint:
-								return this.createHover(localize('promptHeader.prompt.argumentHint', 'The argument-hint describes what inputs the prompt expects or supports.'), attribute.range);
-							case PromptHeaderAttributes.model:
-								return this.getModelHover(attribute, position, localize('promptHeader.prompt.model', 'The model to use in this prompt. Can also be a list of models. The first available model will be used.'), false);
-							case PromptHeaderAttributes.tools:
-								return this.getToolHover(attribute, position, localize('promptHeader.prompt.tools', 'The tools to use in this prompt.'));
-							case PromptHeaderAttributes.agent:
-							case PromptHeaderAttributes.mode:
-								return this.getAgentHover(attribute, position);
-						}
-					}
-				}
-				break;
+			}
 		}
 		return undefined;
 	}
@@ -221,7 +168,7 @@ export class PromptHoverProvider implements HoverProvider {
 		return this.createHover(baseMessage, node.range);
 	}
 
-	private getAgentHover(agentAttribute: IHeaderAttribute, position: Position): Hover | undefined {
+	private getAgentHover(agentAttribute: IHeaderAttribute, position: Position, baseMessage: string): Hover | undefined {
 		const lines: string[] = [];
 		const value = agentAttribute.value;
 		if (value.type === 'string' && value.range.containsPosition(position)) {
@@ -232,7 +179,7 @@ export class PromptHoverProvider implements HoverProvider {
 			}
 		} else {
 			const agents = this.chatModeService.getModes();
-			lines.push(localize('promptHeader.prompt.agent.description', 'The agent to use when running this prompt.'));
+			lines.push(baseMessage);
 			lines.push('');
 
 			// Built-in agents
@@ -255,7 +202,7 @@ export class PromptHoverProvider implements HoverProvider {
 	}
 
 	private getHandsOffHover(attribute: IHeaderAttribute, position: Position, isGitHubTarget: boolean): Hover | undefined {
-		const handoffsBaseMessage = localize('promptHeader.agent.handoffs', 'Possible handoff actions when the agent has completed its task.');
+		const handoffsBaseMessage = getAttributeDescription(PromptHeaderAttributes.handOffs, PromptsType.agent)!;
 		if (isGitHubTarget) {
 			return this.createHover(handoffsBaseMessage + '\n\n' + localize('promptHeader.agent.handoffs.githubCopilot', 'Note: This attribute is not used when target is github-copilot.'), attribute.range);
 		}

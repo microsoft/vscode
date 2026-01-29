@@ -60,10 +60,6 @@
       "webview/context": [
         {
           "command": "_mermaid-chat.resetPanZoom",
-          "when": "webviewId == 'vscode.chat-mermaid-features.chatOutputItem' || webviewId == 'vscode.chat-mermaid-features.preview'"
-        },
-        {
-          "command": "_mermaid-chat.openInEditor",
           "when": "webviewId == 'vscode.chat-mermaid-features.chatOutputItem'"
         },
         {
@@ -77,12 +73,9 @@
       "properties": {
         "mermaid-chat.enabled": {
           "type": "boolean",
-          "default": false,
+          "default": true,
           "description": "%config.enabled.description%",
-          "scope": "application",
-          "tags": [
-            "experimental"
-          ]
+          "scope": "application"
         }
       }
     },
@@ -125,7 +118,8 @@
     "watch-web": "npx webpack-cli --config extension-browser.webpack.config --mode none --watch --info-verbosity verbose"
   },
   "devDependencies": {
-    "@types/node": "^22.18.10"
+    "@types/node": "^22.18.10",
+    "@vscode/codicons": "^0.0.36"
   },
   "dependencies": {
     "dompurify": "^3.2.7",

@@ -89,6 +89,15 @@ export interface IResolvedPromptSourceFolder {
 	readonly uri: URI;
 	readonly source: PromptFileSource;
 	readonly storage: PromptsStorage;
+	/**
+	 * The original path string before resolution (e.g., '~/.copilot/agents' or '.github/agents').
+	 * Used for display purposes.
+	 */
+	readonly displayPath?: string;
+	/**
+	 * Whether this is a default location (vs user-configured).
+	 */
+	readonly isDefault?: boolean;
 }
 
 /**

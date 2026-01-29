@@ -282,4 +282,4 @@ jobs:
           $ErrorActionPreference = "Stop"
           exec { node build/azure-pipelines/common/listNodeModules.ts .build/node_modules_list.txt }
           exec { mkdir -Force .build/node_modules_cache }
-          exec { 7z.exe a .build/node_modules_cache/cache.7z -mx3 `@.build/node_modules_list.txt }
+          exec { & "C:\Program Files\Git\usr\bin\tar.exe" --posix -cf .build/node_modules_cache/cache.tzst --exclude cache.tzst -C . --files-from .build/node_modules_list.txt --force-local --use-compress-program "zstd -T0" }

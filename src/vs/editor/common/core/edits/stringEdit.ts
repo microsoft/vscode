@@ -97,6 +97,7 @@ export abstract class BaseStringEdit<T extends BaseStringReplacement<T> = BaseSt
 		let baseIdx = 0;
 		let ourIdx = 0;
 		let offset = 0;
+		let lastEndEx = -1; // Track end of last added edit to ensure sorted/disjoint invariant
 
 		while (ourIdx < this.replacements.length || baseIdx < base.replacements.length) {
 			// take the edit that starts first
@@ -108,10 +109,17 @@ export abstract class BaseStringEdit<T extends BaseStringReplacement<T> = BaseSt
 				break;
 			} else if (!baseEdit) {
 				// no more edits from base
-				newEdits.push(new StringReplacement(
-					ourEdit.replaceRange.delta(offset),
-					ourEdit.newText
-				));
+				const transformedRange = ourEdit.replaceRange.delta(offset);
+				// Check if the transformed edit would violate the sorted/disjoint invariant
+				if (transformedRange.start < lastEndEx) {
+					if (noOverlap) {
+						return undefined;
+					}
+					ourIdx++; // Skip this edit as it conflicts with a previously added edit
+					continue;
+				}
+				newEdits.push(new StringReplacement(transformedRange, ourEdit.newText));
+				lastEndEx = transformedRange.endExclusive;
 				ourIdx++;
 			} else if (ourEdit.replaceRange.intersects(baseEdit.replaceRange) || areConcurrentInserts(ourEdit.replaceRange, baseEdit.replaceRange)) {
 				ourIdx++; // Don't take our edit, as it is conflicting -> skip
@@ -120,10 +128,17 @@ export abstract class BaseStringEdit<T extends BaseStringReplacement<T> = BaseSt
 				}
 			} else if (ourEdit.replaceRange.start < baseEdit.replaceRange.start) {
 				// Our edit starts first
-				newEdits.push(new StringReplacement(
-					ourEdit.replaceRange.delta(offset),
-					ourEdit.newText
-				));
+				const transformedRange = ourEdit.replaceRange.delta(offset);
+				// Check if the transformed edit would violate the sorted/disjoint invariant
+				if (transformedRange.start < lastEndEx) {
+					if (noOverlap) {
+						return undefined;
+					}
+					ourIdx++; // Skip this edit as it conflicts with a previously added edit
+					continue;
+				}
+				newEdits.push(new StringReplacement(transformedRange, ourEdit.newText));
+				lastEndEx = transformedRange.endExclusive;
 				ourIdx++;
 			} else {
 				baseIdx++;

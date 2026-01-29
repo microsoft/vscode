@@ -1030,6 +1030,9 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 						const title = state.confirmationMessages?.title;
 						return title ? (isMarkdownString(title) ? title.value : title) : undefined;
 					}
+					if (state.type === IChatToolInvocation.StateKind.WaitingForPostApproval) {
+						return localize('waitingForPostApproval', "Approve tool result?");
+					}
 				}
 				if (part.kind === 'confirmation' && !part.isUsed) {
 					return part.title;

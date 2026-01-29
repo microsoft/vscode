@@ -17,14 +17,14 @@
 	"contributes": {
 		"themes": [
 			{
-				"id": "2026-light-experimental",
-				"label": "2026 Light",
+				"id": "Experimental Light",
+				"label": "VS Code Light",
 				"uiTheme": "vs",
 				"path": "./themes/2026-light.json"
 			},
 			{
-				"id": "2026-dark-experimental",
-				"label": "2026 Dark",
+				"id": "Experimental Dark",
+				"label": "VS Code Dark",
 				"uiTheme": "vs-dark",
 				"path": "./themes/2026-dark.json"
 			}

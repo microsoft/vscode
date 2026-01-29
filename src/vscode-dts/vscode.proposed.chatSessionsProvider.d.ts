@@ -232,6 +232,13 @@ declare module 'vscode' {
 		 * Statistics about the chat session.
 		 */
 		changes?: readonly ChatSessionChangedFile[] | readonly ChatSessionChangedFile2[];
+
+		/**
+		 * Arbitrary metadata for the chat session. Can be anything, but must be JSON-stringifyable.
+		 *
+		 * To update the metadata you must re-set this property.
+		 */
+		metadata?: { readonly [key: string]: any };
 	}
 
 	export class ChatSessionChangedFile {

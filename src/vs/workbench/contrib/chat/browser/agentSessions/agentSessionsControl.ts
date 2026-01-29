@@ -133,8 +133,8 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 
 		const collapseByDefault = (element: unknown) => {
 			if (isAgentSessionSection(element)) {
-				if (element.section === AgentSessionSection.More) {
-					return true; // More section is always collapsed
+				if (element.section === AgentSessionSection.More && !this.options.filter.getExcludes().read) {
+					return true; // More section is always collapsed unless only showing unread
 				}
 				if (element.section === AgentSessionSection.Archived && this.options.filter.getExcludes().archived) {
 					return true; // Archived section is collapsed when archived are excluded
@@ -167,7 +167,6 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 				overrideStyles: this.options.overrideStyles,
 				twistieAdditionalCssClass: () => 'force-no-twistie',
 				collapseByDefault: (element: unknown) => collapseByDefault(element),
-				expandOnlyOnTwistieClick: element => !collapseByDefault(element),
 				renderIndentGuides: RenderIndentGuides.None,
 			}
 		)) as WorkbenchCompressibleAsyncDataTree<IAgentSessionsModel, AgentSessionListItem, FuzzyScore>;
@@ -325,12 +324,17 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 					break;
 				}
 				case AgentSessionSection.More: {
-					const shouldCollapseMore = !this.sessionsListFindIsOpen; // always expand when find is open
+					if (child.collapsed) {
+						let autoExpandMore = false;
+						if (this.sessionsListFindIsOpen) {
+							autoExpandMore = true; // always expand when find is open
+						} else if (this.options.filter.getExcludes().read && child.element.sessions.some(session => !session.isRead())) {
+							autoExpandMore = true; // expand when showing only unread and this section includes unread
+						}
 
-					if (shouldCollapseMore && !child.collapsed) {
-						this.sessionsList.collapse(child.element);
-					} else if (!shouldCollapseMore && child.collapsed) {
-						this.sessionsList.expand(child.element);
+						if (autoExpandMore) {
+							this.sessionsList.expand(child.element);
+						}
 					}
 					break;
 				}

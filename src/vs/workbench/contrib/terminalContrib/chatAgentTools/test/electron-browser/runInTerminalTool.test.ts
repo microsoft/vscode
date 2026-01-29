@@ -76,6 +76,7 @@ suite('RunInTerminalTool', () => {
 		store.add(fileService.registerProvider(Schemas.file, fileSystemProvider));
 
 		setConfig(TerminalChatAgentToolsSettingId.EnableAutoApprove, true);
+		setConfig(TerminalChatAgentToolsSettingId.BlockDetectedFileWrites, 'outsideWorkspace');
 		terminalServiceDisposeEmitter = new Emitter<ITerminalInstance>();
 		chatServiceDisposeEmitter = new Emitter<{ sessionResource: URI[]; reason: 'cleared' }>();
 
@@ -263,6 +264,7 @@ suite('RunInTerminalTool', () => {
 			'sed "s/foo/bar/g"',
 			'sed -n "1,10p" file.txt',
 			'sed -n \'45,80p\' /foo/bar/Example.java',
+			'sed -n \'45,80p\' extensions/markdown-language-features/src/test/copyFile.test.ts',
 			'sort file.txt',
 			'tree directory',
 

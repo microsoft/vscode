@@ -169,7 +169,7 @@ export class TestContext {
 	 */
 	public deleteWslDir(dir: string): void {
 		this.log(`Deleting WSL directory: ${dir}`);
-		this.run('wsl', 'rm', '-rf', dir);
+		this.runNoErrors('wsl', 'rm', '-rf', dir);
 	}
 
 	/**
@@ -468,6 +468,38 @@ export class TestContext {
 		this.log(`Unpacked ${archivePath} to ${dir}`);
 
 		return dir;
+	}
+
+	/**
+	 * Mounts a macOS DMG file and returns the mount point.
+	 * @param dmgPath The path to the DMG file.
+	 * @returns The path to the mounted volume.
+	 */
+	public mountDmg(dmgPath: string): string {
+		this.log(`Mounting DMG ${dmgPath}`);
+		const result = this.runNoErrors('hdiutil', 'attach', dmgPath, '-nobrowse', '-readonly');
+
+		// Parse the output to find the mount point (last column of the last line)
+		const lines = result.stdout.trim().split('\n');
+		const lastLine = lines[lines.length - 1];
+		const mountPoint = lastLine.split('\t').pop()?.trim();
+
+		if (!mountPoint || !fs.existsSync(mountPoint)) {
+			this.error(`Failed to find mount point for DMG ${dmgPath}`);
+		}
+
+		this.log(`Mounted DMG at ${mountPoint}`);
+		return mountPoint;
+	}
+
+	/**
+	 * Unmounts a macOS DMG volume.
+	 * @param mountPoint The path to the mounted volume.
+	 */
+	public unmountDmg(mountPoint: string): void {
+		this.log(`Unmounting DMG ${mountPoint}`);
+		this.runNoErrors('hdiutil', 'detach', mountPoint);
+		this.log(`Unmounted DMG ${mountPoint}`);
 	}
 
 	/**
@@ -914,7 +946,16 @@ export class TestContext {
 			default: {
 				const executablePath = process.env['PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH'] ?? '/usr/bin/chromium-browser';
 				this.log(`Using Chromium executable at: ${executablePath}`);
-				return await chromium.launch({ headless, executablePath });
+				return await chromium.launch({
+					headless,
+					executablePath,
+					args: [
+						'--disable-gpu',
+						'--disable-gpu-compositing',
+						'--disable-software-rasterizer',
+						'--no-zygote',
+					]
+				});
 			}
 		}
 	}

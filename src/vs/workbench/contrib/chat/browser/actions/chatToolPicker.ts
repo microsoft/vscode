@@ -558,44 +558,206 @@ export async function showToolsPicker(
 	}
 
 	// Capture initial state for telemetry comparison
-	const initialStateString = serializeToolsState(collectResults());
+	const initialState = collectResults();
 
 	treePicker.show();
 
 	await Promise.race([Event.toPromise(Event.any(treePicker.onDidHide, didAcceptFinalItem.event), store)]);
 
-	// Send telemetry whether the tool selection changed
-	sendDidChangeEvent(source, telemetryService, initialStateString !== serializeToolsState(collectResults()));
+	// Send telemetry about tool selection changes
+	sendDidChangeEvent(source, telemetryService, initialState, collectResults(), mcpRegistry);
 
 	store.dispose();
 
 	return didAccept ? collectResults() : undefined;
 }
 
-function serializeToolsState(state: ReadonlyMap<IToolData | IToolSet, boolean>): string {
-	const entries: [string, boolean][] = [];
-	state.forEach((value, key) => {
-		entries.push([key.id, value]);
-	});
-	entries.sort((a, b) => a[0].localeCompare(b[0]));
-	return JSON.stringify(entries);
+/**
+ * Categorizes a tool or toolset source for privacy-safe telemetry.
+ * Returns identifying info only for built-in/extension tools where names are public.
+ * For user-defined and user MCP tools, only the category is returned.
+ *
+ * @param item - The tool or toolset to categorize
+ * @param mcpRegistry - The MCP registry to look up collection sources for MCP tools
+ */
+function categorizeTool(item: IToolData | IToolSet, mcpRegistry: IMcpRegistry): { category: 'builtin' | 'extension' | 'extension-mcp' | 'user-mcp' | 'user-toolset'; name?: string; extensionId?: string } {
+	const source = item.source;
+	switch (source.type) {
+		case 'internal':
+			// Built-in tools are safe to identify by name
+			return { category: 'builtin', name: item.id };
+		case 'extension':
+			// Extension tools are public, safe to include name and extension ID
+			return { category: 'extension', name: item.id, extensionId: source.extensionId.value };
+		case 'mcp': {
+			// MCP tools: check if the collection comes from an extension
+			// Never include tool names for privacy, but include extension ID if from an extension
+			const collection = mcpRegistry.collections.get().find(c => c.id === source.collectionId);
+			if (collection?.source instanceof ExtensionIdentifier) {
+				return { category: 'extension-mcp', extensionId: collection.source.value };
+			}
+			// User-configured MCP server - don't include any identifying info
+			return { category: 'user-mcp' };
+		}
+		case 'user':
+			// User-defined tool sets: don't include names for privacy
+			return { category: 'user-toolset' };
+		case 'external':
+			// External tools shouldn't appear in the picker, treat as user-defined for safety
+			return { category: 'user-toolset' };
+		default:
+			assertNever(source);
+	}
 }
 
-function sendDidChangeEvent(source: string, telemetryService: ITelemetryService, changed: boolean): void {
+interface IToolToggleSummary {
+	/** Number of built-in tools enabled */
+	builtinEnabled: number;
+	/** Number of built-in tools disabled */
+	builtinDisabled: number;
+	/** Number of extension tools enabled */
+	extensionEnabled: number;
+	/** Number of extension tools disabled */
+	extensionDisabled: number;
+	/** Number of extension MCP tools enabled */
+	extensionMcpEnabled: number;
+	/** Number of extension MCP tools disabled */
+	extensionMcpDisabled: number;
+	/** Number of user MCP tools enabled */
+	userMcpEnabled: number;
+	/** Number of user MCP tools disabled */
+	userMcpDisabled: number;
+	/** Number of user tool sets enabled */
+	userToolsetEnabled: number;
+	/** Number of user tool sets disabled */
+	userToolsetDisabled: number;
+	/** Detailed list of toggled items (only safe-to-log items include names) */
+	details: string;
+}
+
+function computeToolToggleSummary(
+	initialState: ReadonlyMap<IToolData | IToolSet, boolean>,
+	finalState: ReadonlyMap<IToolData | IToolSet, boolean>,
+	mcpRegistry: IMcpRegistry
+): IToolToggleSummary {
+	const summary: IToolToggleSummary = {
+		builtinEnabled: 0,
+		builtinDisabled: 0,
+		extensionEnabled: 0,
+		extensionDisabled: 0,
+		extensionMcpEnabled: 0,
+		extensionMcpDisabled: 0,
+		userMcpEnabled: 0,
+		userMcpDisabled: 0,
+		userToolsetEnabled: 0,
+		userToolsetDisabled: 0,
+		details: ''
+	};
+
+	const detailItems: { category: string; name?: string; extensionId?: string; enabled: boolean }[] = [];
+
+	// Compare states and record changes
+	for (const [item, finalEnabled] of finalState) {
+		const initialEnabled = initialState.get(item) ?? false;
+		if (initialEnabled === finalEnabled) {
+			continue; // No change
+		}
+
+		const categorized = categorizeTool(item, mcpRegistry);
+		const enabled = finalEnabled;
+
+		switch (categorized.category) {
+			case 'builtin':
+				if (enabled) { summary.builtinEnabled++; } else { summary.builtinDisabled++; }
+				detailItems.push({ category: 'builtin', name: categorized.name, enabled });
+				break;
+			case 'extension':
+				if (enabled) { summary.extensionEnabled++; } else { summary.extensionDisabled++; }
+				detailItems.push({ category: 'extension', name: categorized.name, extensionId: categorized.extensionId, enabled });
+				break;
+			case 'extension-mcp':
+				if (enabled) { summary.extensionMcpEnabled++; } else { summary.extensionMcpDisabled++; }
+				detailItems.push({ category: 'extension-mcp', extensionId: categorized.extensionId, enabled });
+				break;
+			case 'user-mcp':
+				if (enabled) { summary.userMcpEnabled++; } else { summary.userMcpDisabled++; }
+				// Don't include name for privacy
+				detailItems.push({ category: 'user-mcp', enabled });
+				break;
+			case 'user-toolset':
+				if (enabled) { summary.userToolsetEnabled++; } else { summary.userToolsetDisabled++; }
+				// Don't include name for privacy
+				detailItems.push({ category: 'user-toolset', enabled });
+				break;
+		}
+	}
+
+	// Serialize details as JSON
+	summary.details = JSON.stringify(detailItems);
+	return summary;
+}
+
+function sendDidChangeEvent(
+	source: string,
+	telemetryService: ITelemetryService,
+	initialState: ReadonlyMap<IToolData | IToolSet, boolean>,
+	finalState: ReadonlyMap<IToolData | IToolSet, boolean>,
+	mcpRegistry: IMcpRegistry
+): void {
+	const summary = computeToolToggleSummary(initialState, finalState, mcpRegistry);
+	const changed = summary.builtinEnabled > 0 || summary.builtinDisabled > 0 ||
+		summary.extensionEnabled > 0 || summary.extensionDisabled > 0 ||
+		summary.extensionMcpEnabled > 0 || summary.extensionMcpDisabled > 0 ||
+		summary.userMcpEnabled > 0 || summary.userMcpDisabled > 0 ||
+		summary.userToolsetEnabled > 0 || summary.userToolsetDisabled > 0;
+
 	type ToolPickerClosedEvent = {
 		changed: boolean;
 		source: string;
+		builtinEnabled: number;
+		builtinDisabled: number;
+		extensionEnabled: number;
+		extensionDisabled: number;
+		extensionMcpEnabled: number;
+		extensionMcpDisabled: number;
+		userMcpEnabled: number;
+		userMcpDisabled: number;
+		userToolsetEnabled: number;
+		userToolsetDisabled: number;
+		details: string;
 	};
 
 	type ToolPickerClosedClassification = {
 		changed: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the user changed the tool selection from the initial state.' };
 		source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The source of the tool picker event.' };
+		builtinEnabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of built-in tools that were enabled.' };
+		builtinDisabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of built-in tools that were disabled.' };
+		extensionEnabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of extension tools that were enabled.' };
+		extensionDisabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of extension tools that were disabled.' };
+		extensionMcpEnabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of extension MCP tools that were enabled.' };
+		extensionMcpDisabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of extension MCP tools that were disabled.' };
+		userMcpEnabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of user MCP tools that were enabled.' };
+		userMcpDisabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of user MCP tools that were disabled.' };
+		userToolsetEnabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of user tool sets that were enabled.' };
+		userToolsetDisabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of user tool sets that were disabled.' };
+		details: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'JSON array of toggled items. Built-in and extension tools include names; user-defined items only include category.' };
 		owner: 'benibenj';
-		comment: 'Tracks whether users modify tool selection in the tool picker.';
+		comment: 'Tracks which tools users toggle in the tool picker, with privacy-safe categorization.';
 	};
 
 	telemetryService.publicLog2<ToolPickerClosedEvent, ToolPickerClosedClassification>('chatToolPickerClosed', {
 		source,
 		changed,
+		builtinEnabled: summary.builtinEnabled,
+		builtinDisabled: summary.builtinDisabled,
+		extensionEnabled: summary.extensionEnabled,
+		extensionDisabled: summary.extensionDisabled,
+		extensionMcpEnabled: summary.extensionMcpEnabled,
+		extensionMcpDisabled: summary.extensionMcpDisabled,
+		userMcpEnabled: summary.userMcpEnabled,
+		userMcpDisabled: summary.userMcpDisabled,
+		userToolsetEnabled: summary.userToolsetEnabled,
+		userToolsetDisabled: summary.userToolsetDisabled,
+		details: summary.details,
 	});
 }

@@ -549,6 +549,21 @@
 			font-size: var(--vscode-chat-font-size-body-m);
 		}
 
+		.webview-output {
+			position: relative;
+		}
+
+		.progress-container {
+			position: absolute;
+			top: 0;
+			right: 0;
+			bottom: 0;
+			left: 0;
+			margin: auto;
+			width: fit-content;
+			height: fit-content;
+		}
+
 		.output-error {
 			margin: 6px 4px;
 			color: var(--vscode-errorForeground);
@@ -761,6 +776,15 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	padding: 0 6px 6px 6px;
 	/* top padding is inside the editor widget */
 	width: 100%;
+	position: relative;
+}
+
+/* Context usage widget container - positioned at top right of chat input */
+.interactive-session .chat-input-container .chat-context-usage-container {
+	position: absolute;
+	top: 4px;
+	right: 6px;
+	z-index: 1;
 }
 
 .interactive-input-part:has(.chat-editing-session > .chat-editing-session-container) .chat-input-container,

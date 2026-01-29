@@ -402,7 +402,7 @@ export class ChatEditingEditorOverlay implements IWorkbenchContribution {
 			() => editorGroupsService.groups
 		);
 
-		const overlayWidgets = new DisposableMap<IEditorGroup>();
+		const overlayWidgets = this._store.add(new DisposableMap<IEditorGroup>());
 
 		this._store.add(autorun(r => {
 

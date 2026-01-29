@@ -1208,6 +1208,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		} else if (handoff.agent) {
 			// Regular handoff to specified agent
 			this._switchToAgentByName(handoff.agent);
+			// Switch to the specified model if provided
+			if (handoff.model) {
+				this.input.switchModelByQualifiedName([handoff.model]);
+			}
 			// Insert the handoff prompt into the input
 			this.input.setValue(promptToUse, false);
 			this.input.focus();
