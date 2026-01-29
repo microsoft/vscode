@@ -17,6 +17,20 @@
 		margin: 0px;
 	}
 
+	> .chat-used-context-label .monaco-button.monaco-icon-button {
+		line-height: 1.5em;
+		font-size: var(--vscode-chat-font-size-body-m);
+		margin-top: 1px;
+
+		.codicon {
+			font-size: 13px;
+		}
+
+		.codicon::before {
+			font-size: var(--vscode-chat-font-size-body-s);
+		}
+	}
+
 	/* shimmer animation stuffs */
 	.chat-thinking-spinner-item .chat-thinking-spinner-label {
 		background: linear-gradient(90deg,
