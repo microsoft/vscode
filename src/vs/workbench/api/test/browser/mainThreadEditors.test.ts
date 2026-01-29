@@ -252,7 +252,7 @@ suite('MainThreadEditors', () => {
 		// Act as if the user edited the model
 		model.applyEdits([EditOperation.insert(new Position(0, 0), 'something')]);
 
-		return bulkEdits.$tryApplyWorkspaceEdit(new SerializableObjectWithBuffers({ edits: [workspaceResourceEdit] })).then((result) => {
+		return bulkEdits.$tryApplyWorkspaceEdit(new SerializableObjectWithBuffers({ edits: [workspaceResourceEdit] }), 'vscode.extension').then((result) => {
 			assert.strictEqual(result, false);
 		});
 	});
@@ -278,11 +278,11 @@ suite('MainThreadEditors', () => {
 			}
 		};
 
-		const p1 = bulkEdits.$tryApplyWorkspaceEdit(new SerializableObjectWithBuffers({ edits: [workspaceResourceEdit1] })).then((result) => {
+		const p1 = bulkEdits.$tryApplyWorkspaceEdit(new SerializableObjectWithBuffers({ edits: [workspaceResourceEdit1] }), 'vscode.extension').then((result) => {
 			// first edit request succeeds
 			assert.strictEqual(result, true);
 		});
-		const p2 = bulkEdits.$tryApplyWorkspaceEdit(new SerializableObjectWithBuffers({ edits: [workspaceResourceEdit2] })).then((result) => {
+		const p2 = bulkEdits.$tryApplyWorkspaceEdit(new SerializableObjectWithBuffers({ edits: [workspaceResourceEdit2] }), 'vscode.extension').then((result) => {
 			// second edit request fails
 			assert.strictEqual(result, false);
 		});
@@ -304,7 +304,7 @@ suite('MainThreadEditors', () => {
 			}
 		};
 
-		const insertResult = await bulkEdits.$tryApplyWorkspaceEdit(new SerializableObjectWithBuffers({ edits: [insertEdit] }));
+		const insertResult = await bulkEdits.$tryApplyWorkspaceEdit(new SerializableObjectWithBuffers({ edits: [insertEdit] }), 'vscode.extension');
 		assert.strictEqual(insertResult, true);
 		assert.strictEqual(model.getValue(), 'hello2\nworld');
 		assert.notStrictEqual(model.getAlternativeVersionId(), initialAlternativeVersionId);
@@ -319,7 +319,7 @@ suite('MainThreadEditors', () => {
 			}
 		};
 
-		const eolResult = await bulkEdits.$tryApplyWorkspaceEdit(new SerializableObjectWithBuffers({ edits: [eolEdit] }));
+		const eolResult = await bulkEdits.$tryApplyWorkspaceEdit(new SerializableObjectWithBuffers({ edits: [eolEdit] }), 'vscode.extension');
 		assert.strictEqual(eolResult, true);
 		assert.strictEqual(model.getValue(), 'hello2\nworld');
 
@@ -338,7 +338,7 @@ suite('MainThreadEditors', () => {
 				{ oldResource: undefined, newResource: resource, options: undefined },
 				{ oldResource: resource, newResource: undefined, options: undefined }
 			]
-		})).then((result) => {
+		}), 'vscode.extension').then((result) => {
 			assert.strictEqual(result, true);
 			assert.strictEqual(movedResources.get(resource), resource);
 			assert.strictEqual(createdResources.has(resource), true);
