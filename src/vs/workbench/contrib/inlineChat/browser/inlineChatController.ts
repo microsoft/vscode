@@ -330,7 +330,9 @@ export class InlineChatController implements IEditorContribution {
 			const lastRequest = session.chatModel.lastRequestObs.read(r);
 			const isInProgress = lastRequest?.response?.isInProgress.read(r);
 			const entry = session.editingSession.readEntry(session.uri, r);
-			const isNotSettled = !entry || entry.state.read(r) === ModifiedFileEntryState.Modified;
+			// When there's no entry (no changes made) and the response is complete, the widget should be hidden.
+			// When there's an entry in Modified state, it needs to be settled (accepted/rejected).
+			const isNotSettled = entry ? entry.state.read(r) === ModifiedFileEntryState.Modified : false;
 			if (isInProgress || isNotSettled) {
 				sessionOverlayWidget.show(session);
 			} else {
