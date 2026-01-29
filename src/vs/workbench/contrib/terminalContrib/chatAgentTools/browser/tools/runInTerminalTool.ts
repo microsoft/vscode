@@ -697,7 +697,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 		// Unified terminal initialization
 		this._logService.debug(`RunInTerminalTool: Creating ${args.isBackground ? 'background' : 'foreground'} terminal. termId=${termId}, chatSessionId=${chatSessionId}`);
-		const toolTerminal = await this._initTerminal(chatSessionResource, termId, terminalToolSessionId, args.isBackground, token);
+		const toolTerminal = await this._initTerminal(chatSessionResource, termId, terminalToolSessionId, args.isBackground, token, URI.revive(toolSpecificData.cwd));
 
 		this._handleTerminalVisibility(toolTerminal, chatSessionResource);
 
@@ -1027,7 +1027,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	 * terminal from the session. For background mode, always creates a new terminal to allow
 	 * parallel execution.
 	 */
-	private async _initTerminal(chatSessionResource: URI, termId: string, terminalToolSessionId: string | undefined, isBackground: boolean, token: CancellationToken): Promise<IToolTerminal> {
+	private async _initTerminal(chatSessionResource: URI, termId: string, terminalToolSessionId: string | undefined, isBackground: boolean, token: CancellationToken, cwd?: URI): Promise<IToolTerminal> {
 		// For foreground mode, try to reuse cached terminal (but not if it was a background terminal)
 		if (!isBackground) {
 			const cachedTerminal = this._sessionTerminalAssociations.get(chatSessionResource);
@@ -1042,7 +1042,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		this._logService.debug(`RunInTerminalTool: Creating ${isBackground ? 'background' : 'foreground'} terminal with ID=${termId}`);
 		const profile = await this._profileFetcher.getCopilotProfile();
 		const os = await this._osBackend;
-		const toolTerminal = await this._terminalToolCreator.createTerminal(profile, os, token);
+		const toolTerminal = await this._terminalToolCreator.createTerminal(profile, os, token, cwd);
 		toolTerminal.isBackground = isBackground;
 		this._terminalChatService.registerTerminalInstanceWithToolSession(terminalToolSessionId, toolTerminal.instance);
 		this._terminalChatService.registerTerminalInstanceWithChatSession(chatSessionResource, toolTerminal.instance);

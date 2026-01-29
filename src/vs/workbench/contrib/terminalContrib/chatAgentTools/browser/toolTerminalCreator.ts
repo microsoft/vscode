@@ -12,6 +12,7 @@ import { DisposableStore, MutableDisposable } from '../../../../../base/common/l
 import { OperatingSystem } from '../../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { hasKey, isNumber, isObject, isString } from '../../../../../base/common/types.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { PromptInputState } from '../../../../../platform/terminal/common/capabilities/commandDetection/promptInputModel.js';
@@ -54,8 +55,8 @@ export class ToolTerminalCreator {
 	) {
 	}
 
-	async createTerminal(shellOrProfile: string | ITerminalProfile, os: OperatingSystem, token: CancellationToken): Promise<IToolTerminal> {
-		const instance = await this._createCopilotTerminal(shellOrProfile, os);
+	async createTerminal(shellOrProfile: string | ITerminalProfile, os: OperatingSystem, token: CancellationToken, cwd?: URI): Promise<IToolTerminal> {
+		const instance = await this._createCopilotTerminal(shellOrProfile, os, cwd);
 		const toolTerminal: IToolTerminal = {
 			instance,
 			shellIntegrationQuality: ShellIntegrationQuality.None,
@@ -112,14 +113,20 @@ export class ToolTerminalCreator {
 			if (shellIntegrationQuality !== ShellIntegrationQuality.None) {
 				ToolTerminalCreator._lastSuccessfulShell = ShellLaunchType.Default;
 				toolTerminal.shellIntegrationQuality = shellIntegrationQuality;
+				// Execute shellCommand if provided (after shell integration is ready)
+				await this._executeShellCommand(shellOrProfile, instance);
 				return toolTerminal;
 			}
 		} else {
 			this._logService.info(`ToolTerminalCreator#createTerminal: Skipping wait for shell integration - last successful launch type ${ToolTerminalCreator._lastSuccessfulShell}`);
+			// Execute shellCommand even when skipping shell integration wait
+			await this._executeShellCommand(shellOrProfile, instance);
 		}
 
 		// Fallback case: No shell integration in default profile
 		ToolTerminalCreator._lastSuccessfulShell = ShellLaunchType.Fallback;
+		// Execute shellCommand in fallback case as well
+		await this._executeShellCommand(shellOrProfile, instance);
 		return toolTerminal;
 	}
 
@@ -142,7 +149,74 @@ export class ToolTerminalCreator {
 		}
 	}
 
-	private _createCopilotTerminal(shellOrProfile: string | ITerminalProfile, os: OperatingSystem) {
+	/**
+	 * Executes the shellCommand from the profile if provided.
+	 * This runs after the shell is ready to prepare the environment (e.g., conda activate).
+	 */
+	private async _executeShellCommand(
+		shellOrProfile: string | ITerminalProfile,
+		instance: ITerminalInstance
+	): Promise<void> {
+		// Only execute if we have a profile object with a shellCommand
+		if (isString(shellOrProfile)) {
+			return;
+		}
+
+		const shellCommand = (shellOrProfile as ITerminalProfile & { shellCommand?: string }).shellCommand;
+
+		// Skip if no command or empty string
+		if (!shellCommand || shellCommand.trim().length === 0) {
+			return;
+		}
+
+		this._logService.info(`ToolTerminalCreator#_executeShellCommand: Executing shell command: ${shellCommand}`);
+
+		// Send the command to the terminal
+		instance.sendText(shellCommand, true);
+
+		// Wait for the command to complete
+		await this._waitForCommandCompletion(instance);
+	}
+
+	/**
+	 * Waits for the shell command to complete by monitoring for idle state.
+	 * Resolves when the terminal has been idle for 500ms or after a 5s timeout.
+	 */
+	private _waitForCommandCompletion(instance: ITerminalInstance): Promise<void> {
+		return new Promise(resolve => {
+			const store = new DisposableStore();
+			const maxTimeout = 5000;
+			const idleThreshold = 500;
+			const checkInterval = 100;
+			let lastDataTime = Date.now();
+
+			const cleanup = () => {
+				store.dispose();
+				resolve();
+			};
+
+			// Track when we receive data
+			store.add(instance.onData(() => {
+				lastDataTime = Date.now();
+			}));
+
+			// Absolute timeout
+			store.add(disposableTimeout(cleanup, maxTimeout));
+
+			// Idle check loop using setInterval pattern
+			const checkIdle = () => {
+				if (Date.now() - lastDataTime > idleThreshold) {
+					cleanup();
+				} else {
+					store.add(disposableTimeout(checkIdle, checkInterval));
+				}
+			};
+			// Start checking after initial idle threshold
+			store.add(disposableTimeout(checkIdle, idleThreshold));
+		});
+	}
+
+	private _createCopilotTerminal(shellOrProfile: string | ITerminalProfile, os: OperatingSystem, cwd?: URI) {
 		const shellPath = isString(shellOrProfile) ? shellOrProfile : shellOrProfile.path;
 
 		const env: Record<string, string> = {
@@ -183,7 +257,9 @@ export class ToolTerminalCreator {
 			};
 		}
 
-		return this._terminalService.createTerminal({ config });
+		// Pass cwd to ensure AI terminals start in the workspace directory and inherit
+		// workspace-level environment configuration (e.g., conda activation, Python env)
+		return this._terminalService.createTerminal({ config, cwd });
 	}
 
 	private _waitForShellIntegration(
