@@ -992,11 +992,16 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		if (didMoveToBackground && !args.isBackground) {
 			resultText.push(`Note: This terminal execution was moved to the background using the ID ${termId}\n`);
 		}
-		const outputAnalyzerMessages = (await Promise.all(this._outputAnalyzers
-			.map(analyzer => analyzer.analyze({ exitCode, exitResult: terminalResult, commandLine: command }))))
-			.filter(message => message !== undefined) as string[];
+		const outputAnalyzerMessages: string[] = [];
+		for (const analyzer of this._outputAnalyzers) {
+			const message = await analyzer.analyze({ exitCode, exitResult: terminalResult, commandLine: command });
+			if (message !== undefined) {
+				outputAnalyzerMessages.push(message);
+				break;
+			}
+		}
 		if (outputAnalyzerMessages.length > 0) {
-			resultText.unshift(`${outputAnalyzerMessages.join('\n')}\n`);
+			resultText.push(`${outputAnalyzerMessages.join('\n')}\n`);
 		}
 		resultText.push(terminalResult);
 
