@@ -1685,7 +1685,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 			if (items.some((source) => {
 				if (source.isRoot) {
-					return false; // Root folders are handled seperately
+					return false; // Root folders are handled separately
 				}
 
 				if (this.uriIdentityService.extUri.isEqual(source.resource, target.resource)) {
