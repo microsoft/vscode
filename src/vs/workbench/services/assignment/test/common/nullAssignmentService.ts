@@ -19,5 +19,9 @@ export class NullWorkbenchAssignmentService implements IWorkbenchAssignmentServi
 		return undefined;
 	}
 
+	getCachedTreatment<T extends string | number | boolean>(name: string): T | undefined {
+		return undefined;
+	}
+
 	addTelemetryAssignmentFilter(filter: IAssignmentFilter): void { }
 }
