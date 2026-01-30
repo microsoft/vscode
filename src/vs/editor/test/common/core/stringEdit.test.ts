@@ -276,4 +276,69 @@ suite('Edit', () => {
 			str.substring(textStart, textStart + textLen)
 		);
 	}
+
+	suite('tryRebase invariants', () => {
+		for (let i = 0; i < 1000; i++) {
+			test('case' + i, () => {
+				runTest(i);
+			});
+		}
+
+		function runTest(seed: number) {
+			const rng = Random.create(seed);
+			const s0 = 'abcde\nfghij\nklmno\npqrst\n';
+
+			const e1 = getRandomEdit(s0, rng.nextIntRange(1, 4), rng);
+			const e2 = getRandomEdit(s0, rng.nextIntRange(1, 4), rng);
+
+			const e1RebasedOnE2 = e1.tryRebase(e2);
+			const e2RebasedOnE1 = e2.tryRebase(e1);
+
+			// Invariant 1: e1.rebase(e2) != undefined <=> e2.rebase(e1) != undefined
+			assert.strictEqual(
+				e1RebasedOnE2 !== undefined,
+				e2RebasedOnE1 !== undefined,
+				`Symmetry violated: e1.rebase(e2)=${e1RebasedOnE2 !== undefined}, e2.rebase(e1)=${e2RebasedOnE1 !== undefined}`
+			);
+
+			// Invariant 2: e1.rebase(e2) != undefined => e1.compose(e2.rebase(e1)) = e2.compose(e1.rebase(e2))
+			if (e1RebasedOnE2 !== undefined && e2RebasedOnE1 !== undefined) {
+				const path1 = e1.compose(e2RebasedOnE1);
+				const path2 = e2.compose(e1RebasedOnE2);
+
+				// Both paths should produce the same result when applied to s0
+				const result1 = path1.apply(s0);
+				const result2 = path2.apply(s0);
+				assert.strictEqual(result1, result2, `Diamond property violated`);
+			}
+
+			// Invariant 3: empty.rebase(e) = empty
+			const emptyRebasedOnE1 = StringEdit.empty.tryRebase(e1);
+			assert.ok(emptyRebasedOnE1 !== undefined);
+			assert.ok(emptyRebasedOnE1.isEmpty);
+
+			// Invariant 4: e.rebase(empty) = e
+			const e1RebasedOnEmpty = e1.tryRebase(StringEdit.empty);
+			assert.ok(e1RebasedOnEmpty !== undefined);
+			assert.ok(e1.equals(e1RebasedOnEmpty), `e.rebase(empty) should equal e`);
+
+			// Invariant 5 (TP2): T(T(e3, e1), T(e2, e1)) = T(T(e3, e2), T(e1, e2))
+			// For 3+ concurrent operations, transformation order shouldn't matter
+			const e3 = getRandomEdit(s0, rng.nextIntRange(1, 4), rng);
+
+			const e2OnE1 = e2.tryRebase(e1);
+			const e1OnE2 = e1.tryRebase(e2);
+			const e3OnE1 = e3.tryRebase(e1);
+			const e3OnE2 = e3.tryRebase(e2);
+
+			if (e2OnE1 && e1OnE2 && e3OnE1 && e3OnE2) {
+				const path1 = e3OnE1.tryRebase(e2OnE1); // T(T(e3, e1), T(e2, e1))
+				const path2 = e3OnE2.tryRebase(e1OnE2); // T(T(e3, e2), T(e1, e2))
+
+				if (path1 && path2) {
+					assert.ok(path1.equals(path2), `TP2 violated: transformation order matters`);
+				}
+			}
+		}
+	});
 });
