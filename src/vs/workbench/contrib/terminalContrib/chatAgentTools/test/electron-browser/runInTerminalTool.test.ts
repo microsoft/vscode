@@ -273,6 +273,7 @@ suite('RunInTerminalTool', () => {
 			'od -A x somefile',
 
 			// xxd
+			'xxd',
 			'xxd somefile',
 			'xxd -l100 somefile',
 			'xxd -r somefile',

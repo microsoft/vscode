@@ -402,7 +402,7 @@ export class CodeBlockPart extends Disposable {
 		if (this.currentCodeBlockData?.range) {
 			const lineCount = this.currentCodeBlockData.range.endLineNumber - this.currentCodeBlockData.range.startLineNumber + 1;
 			const lineHeight = this.editor.getOption(EditorOption.lineHeight);
-			return lineCount * lineHeight;
+			return lineCount * lineHeight + 2 * this.verticalPadding;
 		}
 		return this.editor.getContentHeight();
 	}

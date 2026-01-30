@@ -554,7 +554,7 @@ export class TestContext {
 	private getWindowsInstallDir(type: 'user' | 'system'): string {
 		let parentDir: string;
 		if (type === 'system') {
-			parentDir = process.env['PROGRAMFILES'] || '';
+			parentDir = process.env['ProgramW6432'] || process.env['PROGRAMFILES'] || '';
 		} else {
 			parentDir = path.join(process.env['LOCALAPPDATA'] || '', 'Programs');
 		}

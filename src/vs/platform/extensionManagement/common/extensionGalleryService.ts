@@ -447,6 +447,24 @@ export function sortExtensionVersions(versions: IRawGalleryExtensionVersion[], p
 	return versions;
 }
 
+/**
+ * Filters extension versions to return only the relevant versions for a given target platform.
+ *
+ * This function processes a list of extension versions (expected to be sorted by version descending)
+ * and returns a filtered list containing:
+ * 1. All versions that are NOT compatible with the target platform (for other platforms)
+ * 2. At most one compatible release version (the first/latest one encountered)
+ * 3. At most one compatible pre-release version (the first/latest one encountered)
+ *
+ * When a platform-specific version (exactly matching targetPlatform) is encountered with the same
+ * version number as a previously stored universal/undefined version, it replaces that version.
+ * This ensures platform-specific builds are preferred over universal builds for the same version.
+ *
+ * @param versions - Array of extension versions, expected to be sorted by version number descending
+ * @param targetPlatform - The target platform to filter for (e.g., LINUX_X64, WIN32_X64)
+ * @param allTargetPlatforms - All target platforms the extension supports
+ * @returns Filtered array of versions relevant for the target platform
+ */
 export function filterLatestExtensionVersionsForTargetPlatform(versions: IRawGalleryExtensionVersion[], targetPlatform: TargetPlatform, allTargetPlatforms: TargetPlatform[]): IRawGalleryExtensionVersion[] {
 	const latestVersions: IRawGalleryExtensionVersion[] = [];
 
@@ -463,19 +481,19 @@ export function filterLatestExtensionVersionsForTargetPlatform(versions: IRawGal
 		}
 
 		// For compatible versions, only include the first (latest) of each type
-		// Prefer specific target platform matches over undefined/universal platforms
+		// Prefer specific target platform matches over undefined/universal platforms only when version numbers are the same
 		if (isPreReleaseVersion(version)) {
 			if (preReleaseVersionIndex === -1) {
 				preReleaseVersionIndex = latestVersions.length;
 				latestVersions.push(version);
-			} else if (versionTargetPlatform === targetPlatform) {
+			} else if (versionTargetPlatform === targetPlatform && latestVersions[preReleaseVersionIndex].version === version.version) {
 				latestVersions[preReleaseVersionIndex] = version;
 			}
 		} else {
 			if (releaseVersionIndex === -1) {
 				releaseVersionIndex = latestVersions.length;
 				latestVersions.push(version);
-			} else if (versionTargetPlatform === targetPlatform) {
+			} else if (versionTargetPlatform === targetPlatform && latestVersions[releaseVersionIndex].version === version.version) {
 				latestVersions[releaseVersionIndex] = version;
 			}
 		}

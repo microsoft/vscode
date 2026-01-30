@@ -65,7 +65,7 @@ steps:
       cacheHitVar: NODE_MODULES_RESTORED
     displayName: Restore node_modules cache
 
-  - powershell: '& "C:\Program Files\Git\usr\bin\tar.exe" -xf .build/node_modules_cache/cache.tzst -C . --force-local --use-compress-program "zstd -d"'
+  - powershell: 7z.exe x .build/node_modules_cache/cache.7z -aoa
     condition: and(succeeded(), eq(variables.NODE_MODULES_RESTORED, 'true'))
     displayName: Extract node_modules cache
 
@@ -110,7 +110,7 @@ steps:
       $ErrorActionPreference = "Stop"
       exec { node build/azure-pipelines/common/listNodeModules.ts .build/node_modules_list.txt }
       exec { mkdir -Force .build/node_modules_cache }
-      exec { & "C:\Program Files\Git\usr\bin\tar.exe" --posix -cf .build/node_modules_cache/cache.tzst --exclude cache.tzst -C . --files-from .build/node_modules_list.txt --force-local --use-compress-program "zstd -T0" }
+      exec { 7z.exe a .build/node_modules_cache/cache.7z -mx3 `@.build/node_modules_list.txt }
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
     displayName: Create node_modules archive
 

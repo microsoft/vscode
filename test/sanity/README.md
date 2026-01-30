@@ -117,6 +117,7 @@ The pipeline tests across multiple platforms and architectures:
 
 - macOS arm64
 - Windows x64
+- Windows arm64
 - Ubuntu 22.04 x64 (native, with Snap support)
 
 **Partial Support:**
@@ -124,7 +125,6 @@ The pipeline tests across multiple platforms and architectures:
 For the following platforms only downloads are validated (and not install/runtime):
 
 - macOS x64
-- Windows arm64
 
 **Linux Containers (amd64 and arm64):**
 

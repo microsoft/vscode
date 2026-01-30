@@ -49,14 +49,13 @@ jobs:
           versionFilePath: .nvmrc
         displayName: Install Node.js
 
-      - bash: |
-          npm config set registry "$(NPM_REGISTRY)"
-          echo "##vso[task.setvariable variable=NPMRC_PATH]$(npm config get userconfig)"
+      - script: npm config set registry "$(NPM_REGISTRY)" --location=project
+        workingDirectory: $(TEST_DIR)
         displayName: Configure NPM Registry
 
       - task: npmAuthenticate@0
         inputs:
-          workingFile: $(NPMRC_PATH)
+          workingFile: $(TEST_DIR)/.npmrc
         displayName: Authenticate with NPM Registry
 
       - script: npm ci

@@ -396,7 +396,8 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			truncatedCommand,
 			contentElement,
 			context,
-			initialExpanded
+			initialExpanded,
+			isComplete
 		));
 		this._thinkingCollapsibleWrapper = wrapper;
 
@@ -405,6 +406,10 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 
 	public expandCollapsibleWrapper(): void {
 		this._thinkingCollapsibleWrapper?.expand();
+	}
+
+	public markCollapsibleWrapperComplete(): void {
+		this._thinkingCollapsibleWrapper?.markComplete();
 	}
 
 	private async _initializeTerminalActions(): Promise<void> {
@@ -638,6 +643,9 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 				this._addActions(terminalInstance, this._terminalData.terminalToolSessionId);
 				const resolvedCommand = this._getResolvedCommand(terminalInstance);
 
+				// update title
+				this.markCollapsibleWrapperComplete();
+
 				// Auto-collapse on success
 				if (resolvedCommand?.exitCode === 0 && this._outputView.isExpanded && !this._userToggledOutput) {
 					this._toggleOutput(false);
@@ -656,6 +664,8 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			const resolvedImmediately = await tryResolveCommand();
 			if (resolvedImmediately?.endMarker) {
 				commandDetectionListener.clear();
+				// update title
+				this.markCollapsibleWrapperComplete();
 				// Auto-collapse on success
 				if (resolvedImmediately.exitCode === 0 && this._outputView.isExpanded && !this._userToggledOutput) {
 					this._toggleOutput(false);
@@ -1515,19 +1525,22 @@ export class ContinueInBackgroundAction extends Action implements IAction {
 class ChatTerminalThinkingCollapsibleWrapper extends ChatCollapsibleContentPart {
 	private readonly _terminalContentElement: HTMLElement;
 	private readonly _commandText: string;
+	private _isComplete: boolean;
 
 	constructor(
 		commandText: string,
 		contentElement: HTMLElement,
 		context: IChatContentPartRenderContext,
 		initialExpanded: boolean,
+		isComplete: boolean,
 		@IHoverService hoverService: IHoverService,
 	) {
-		const title = `Ran \`${commandText}\``;
+		const title = isComplete ? `Ran \`${commandText}\`` : `Running \`${commandText}\``;
 		super(title, context, undefined, hoverService);
 
 		this._terminalContentElement = contentElement;
 		this._commandText = commandText;
+		this._isComplete = isComplete;
 
 		this.domNode.classList.add('chat-terminal-thinking-collapsible');
 
@@ -1543,12 +1556,23 @@ class ChatTerminalThinkingCollapsibleWrapper extends ChatCollapsibleContentPart 
 		const labelElement = this._collapseButton.labelElement;
 		labelElement.textContent = '';
 
-		const ranText = document.createTextNode(localize('chat.terminal.ran.prefix', "Ran "));
+		const prefixText = this._isComplete
+			? localize('chat.terminal.ran.prefix', "Ran ")
+			: localize('chat.terminal.running.prefix', "Running ");
+		const ranText = document.createTextNode(prefixText);
 		const codeElement = document.createElement('code');
 		codeElement.textContent = this._commandText;
 
 		labelElement.appendChild(ranText);
 		labelElement.appendChild(codeElement);
+	}
+
+	public markComplete(): void {
+		if (this._isComplete) {
+			return;
+		}
+		this._isComplete = true;
+		this._setCodeFormattedTitle();
 	}
 
 	protected override initContent(): HTMLElement {
