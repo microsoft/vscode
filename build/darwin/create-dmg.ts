@@ -10,41 +10,63 @@ import { spawn } from '@malept/cross-spawn-promise';
 const root = path.dirname(path.dirname(import.meta.dirname));
 const product = JSON.parse(fs.readFileSync(path.join(root, 'product.json'), 'utf8'));
 
-interface DmgBuildSettings {
-	title: string;
-	icon?: string | null;
-	'badge-icon'?: string | null;
-	background?: string;
-	'background-color'?: string;
-	'icon-size'?: number;
-	'text-size'?: number;
-	format?: string;
-	window?: {
-		position?: { x: number; y: number };
-		size?: { width: number; height: number };
-	};
-	contents: Array<{
-		path: string;
-		x: number;
-		y: number;
-		type: 'file' | 'link';
-		name?: string;
-	}>;
+const DMGBUILD_REPO = 'https://github.com/dmgbuild/dmgbuild.git';
+const DMGBUILD_COMMIT = '75c8a6c7835c5b73dfd4510d92a8f357f93a5fbf';
+
+function getDmgBuildPath(): string {
+	return path.join(import.meta.dirname, '.dmgbuild');
 }
 
-function getDmgBuilderPath(): string {
-	return path.join(import.meta.dirname, '..', 'node_modules', 'dmg-builder');
+function getVenvPath(): string {
+	return path.join(getDmgBuildPath(), 'venv');
 }
 
-function getDmgBuilderVendorPath(): string {
-	return path.join(getDmgBuilderPath(), 'vendor');
+function getPythonPath(): string {
+	return path.join(getVenvPath(), 'bin', 'python3');
+}
+
+async function ensureDmgBuild(): Promise<void> {
+	const dmgBuildPath = getDmgBuildPath();
+	const venvPath = getVenvPath();
+	const markerFile = path.join(dmgBuildPath, '.installed');
+	if (fs.existsSync(markerFile)) {
+		console.log('dmgbuild already installed, skipping setup');
+		return;
+	}
+
+	console.log('Setting up dmgbuild from GitHub...');
+	if (fs.existsSync(dmgBuildPath)) {
+		fs.rmSync(dmgBuildPath, { recursive: true });
+	}
+
+	console.log(`Cloning dmgbuild from ${DMGBUILD_REPO} at ${DMGBUILD_COMMIT}...`);
+	await spawn('git', ['clone', DMGBUILD_REPO, dmgBuildPath], {
+		stdio: 'inherit'
+	});
+	await spawn('git', ['-C', dmgBuildPath, 'checkout', DMGBUILD_COMMIT], {
+		stdio: 'inherit'
+	});
+
+	console.log('Creating Python virtual environment...');
+	await spawn('python3', ['-m', 'venv', venvPath], {
+		stdio: 'inherit'
+	});
+
+	console.log('Installing dmgbuild dependencies...');
+	const pipPath = path.join(venvPath, 'bin', 'pip');
+	await spawn(pipPath, ['install', dmgBuildPath], {
+		stdio: 'inherit'
+	});
+
+	fs.writeFileSync(markerFile, `Installed at ${new Date().toISOString()}\nCommit: ${DMGBUILD_COMMIT}\n`);
+	console.log('dmgbuild setup complete');
 }
 
 async function runDmgBuild(settingsFile: string, volumeName: string, artifactPath: string): Promise<void> {
-	const vendorDir = getDmgBuilderVendorPath();
-	const scriptPath = path.join(vendorDir, 'run_dmgbuild.py');
-	await spawn('python3', [scriptPath, '-s', settingsFile, volumeName, artifactPath], {
-		cwd: vendorDir,
+	await ensureDmgBuild();
+
+	const pythonPath = getPythonPath();
+	await spawn(pythonPath, ['-m', 'dmgbuild', '-s', settingsFile, volumeName, artifactPath], {
 		stdio: 'inherit'
 	});
 }
@@ -98,34 +120,17 @@ async function main(buildDir?: string, outDir?: string): Promise<void> {
 		fs.unlinkSync(artifactPath);
 	}
 
-	const settings: DmgBuildSettings = {
-		title,
-		'badge-icon': diskIconPath,
-		background: backgroundPath,
-		format: 'ULMO',
-		'text-size': 12,
-		window: {
-			position: { x: 100, y: 400 },
-			size: { width: 480, height: 352 }
-		},
-		contents: [
-			{
-				path: appPath,
-				x: 120,
-				y: 160,
-				type: 'file'
-			},
-			{
-				path: '/Applications',
-				x: 360,
-				y: 160,
-				type: 'link'
-			}
-		]
-	};
-
-	const settingsFile = path.join(outDir, '.dmg-settings.json');
-	fs.writeFileSync(settingsFile, JSON.stringify(settings, null, 2));
+	// Copy and process the settings template for dmgbuild
+	const settingsTemplatePath = path.join(import.meta.dirname, 'dmg-settings.py.template');
+	const settingsFile = path.join(outDir, '.dmg-settings.py');
+	let settingsContent = fs.readFileSync(settingsTemplatePath, 'utf8');
+	settingsContent = settingsContent
+		.replace('{{VOLUME_NAME}}', JSON.stringify(title))
+		.replace('{{BADGE_ICON}}', JSON.stringify(diskIconPath))
+		.replace('{{BACKGROUND}}', JSON.stringify(backgroundPath))
+		.replace('{{APP_PATH}}', JSON.stringify(appPath))
+		.replace('{{APP_NAME}}', JSON.stringify(product.nameLong + '.app'));
+	fs.writeFileSync(settingsFile, settingsContent);
 
 	try {
 		await runDmgBuild(settingsFile, dmgName, artifactPath);
