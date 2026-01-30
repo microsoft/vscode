@@ -83,7 +83,7 @@ export class PromptHoverProvider implements HoverProvider {
 						case PromptHeaderAttributes.handOffs:
 							return this.getHandsOffHover(attribute, position, promptType === PromptsType.agent && isGithubTarget(promptType, header.target));
 						case PromptHeaderAttributes.infer:
-							return this.createHover(description + '\n\n' + localize('promptHeader.attribute.infer.hover', '- `all`, `true`: Available in the agent picker and can be used as a subagent.\n- `user`, `false`: Only available in the agent picker.\n- `agent`: Only available as a subagent (not shown in picker).\n- `hidden`: Not available in the picker nor as a subagent.'), attribute.range);
+							return this.createHover(description + '\n\n' + localize('promptHeader.attribute.infer.hover', 'Deprecated: Use `user-invokable` and `disable-model-invocation` instead.'), attribute.range);
 						default:
 							return this.createHover(description, attribute.range);
 					}

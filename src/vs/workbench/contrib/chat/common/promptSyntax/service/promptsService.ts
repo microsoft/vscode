@@ -123,23 +123,17 @@ export type IAgentSource = {
  * - 'agent': only usable as subagent by the subagent tool
  * - 'hidden': neither in picker nor usable as subagent
  */
-export type InferValue = 'all' | 'user' | 'agent' | 'hidden';
+export type ICustomAgentVisibility = {
+	readonly userInvokable: boolean;
+	readonly agentInvokable: boolean;
+};
 
-/**
- * Parses an infer value from the raw header value.
- * Boolean true maps to 'all', false maps to 'user'.
- */
-export function parseInferValue(value: boolean | string | undefined): InferValue | undefined {
-	if (value === undefined) {
-		return undefined;
+export function isCustomAgentVisibility(obj: unknown): obj is ICustomAgentVisibility {
+	if (typeof obj !== 'object' || obj === null) {
+		return false;
 	}
-	if (typeof value === 'boolean') {
-		return value ? 'all' : 'user';
-	}
-	if (value === 'all' || value === 'user' || value === 'agent' || value === 'hidden') {
-		return value;
-	}
-	return undefined;
+	const v = obj as { userInvokable?: unknown; agentInvokable?: unknown };
+	return typeof v.userInvokable === 'boolean' && typeof v.agentInvokable === 'boolean';
 }
 
 export interface ICustomAgent {
@@ -179,13 +173,9 @@ export interface ICustomAgent {
 	readonly target?: string;
 
 	/**
-	 * Infer metadata controlling agent visibility.
-	 * - 'all': available as custom agent in picker AND can be used as subagent
-	 * - 'user': only available in the custom agent picker
-	 * - 'agent': only usable as subagent by the subagent tool
-	 * - 'hidden': neither in picker nor usable as subagent
+	 * What visibility the agent has (user invokable, subagent invokable).
 	 */
-	readonly infer?: InferValue;
+	readonly visibility: ICustomAgentVisibility;
 
 	/**
 	 * Contents of the custom agent file body and other agent instructions.

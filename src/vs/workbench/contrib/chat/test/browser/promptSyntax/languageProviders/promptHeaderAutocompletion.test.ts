@@ -74,7 +74,8 @@ suite('PromptHeaderAutocompletion', () => {
 				metadata: undefined
 			},
 			uri: URI.parse('myFs://.github/agents/agent1.agent.md'),
-			source: { storage: PromptsStorage.local }
+			source: { storage: PromptsStorage.local },
+			visibility: { userInvokable: true, agentInvokable: true }
 		};
 
 		const parser = new PromptFileParser();
@@ -137,12 +138,13 @@ suite('PromptHeaderAutocompletion', () => {
 			assert.deepStrictEqual(actual.sort(sortByLabel), [
 				{ label: 'agents', result: 'agents: ${0:["*"]}' },
 				{ label: 'argument-hint', result: 'argument-hint: $0' },
+				{ label: 'disable-model-invocation', result: 'disable-model-invocation: ${0:true}' },
 				{ label: 'handoffs', result: 'handoffs: $0' },
-				{ label: 'infer', result: 'infer: ${0:all}' },
 				{ label: 'model', result: 'model: ${0:MAE 4 (olama)}' },
 				{ label: 'name', result: 'name: $0' },
 				{ label: 'target', result: 'target: ${0:vscode}' },
 				{ label: 'tools', result: 'tools: ${0:[]}' },
+				{ label: 'user-invokable', result: 'user-invokable: ${0:true}' },
 			].sort(sortByLabel));
 		});
 
@@ -291,12 +293,38 @@ suite('PromptHeaderAutocompletion', () => {
 
 			const actual = await getCompletions(content, PromptsType.agent);
 			assert.deepStrictEqual(actual.sort(sortByLabel), [
-				{ label: 'agent', result: 'infer: agent' },
-				{ label: 'all', result: 'infer: all' },
 				{ label: 'false', result: 'infer: false' },
-				{ label: 'hidden', result: 'infer: hidden' },
 				{ label: 'true', result: 'infer: true' },
-				{ label: 'user', result: 'infer: user' },
+			].sort(sortByLabel));
+		});
+
+		test('complete user-invokable attribute value', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'user-invokable: |',
+				'---',
+			].join('\n');
+
+			const actual = await getCompletions(content, PromptsType.agent);
+			assert.deepStrictEqual(actual.sort(sortByLabel), [
+				{ label: 'false', result: 'user-invokable: false' },
+				{ label: 'true', result: 'user-invokable: true' },
+			].sort(sortByLabel));
+		});
+
+		test('complete disable-model-invocation attribute value', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'disable-model-invocation: |',
+				'---',
+			].join('\n');
+
+			const actual = await getCompletions(content, PromptsType.agent);
+			assert.deepStrictEqual(actual.sort(sortByLabel), [
+				{ label: 'false', result: 'disable-model-invocation: false' },
+				{ label: 'true', result: 'disable-model-invocation: true' },
 			].sort(sortByLabel));
 		});
 	});
