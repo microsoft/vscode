@@ -299,6 +299,19 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 				continue;
 			}
 
+			if (progress.kind === 'usage') {
+				const response = chatSession?.getRequests().at(-1)?.response;
+				if (response) {
+					response.setUsage({
+						kind: 'usage',
+						promptTokens: progress.promptTokens,
+						completionTokens: progress.completionTokens,
+						promptTokenDetails: progress.promptTokenDetails
+					});
+				}
+				continue;
+			}
+
 			const revivedProgress = progress.kind === 'notebookEdit'
 				? ChatNotebookEdit.fromChatEdit(progress)
 				: revive(progress) as IChatProgress;
