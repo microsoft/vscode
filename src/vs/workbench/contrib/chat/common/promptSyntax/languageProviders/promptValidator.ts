@@ -467,8 +467,8 @@ export class PromptValidator {
 		if (!attribute) {
 			return;
 		}
-		if (attribute.value.type !== 'array') {
-			report(toMarker(localize('promptValidator.excludeAgentMustBeArray', "The 'excludeAgent' attribute must be an array."), attribute.value.range, MarkerSeverity.Error));
+		if (attribute.value.type !== 'array' && attribute.value.type !== 'string') {
+			report(toMarker(localize('promptValidator.excludeAgentMustBeArray', "The 'excludeAgent' attribute must be an string or array."), attribute.value.range, MarkerSeverity.Error));
 			return;
 		}
 	}
