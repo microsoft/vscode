@@ -1042,7 +1042,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		templateData.rowContainer.classList.toggle('chat-response-loading', true);
-		this.traceLayout('doNextProgressiveRender', `START progressive render, index=${index}, renderData=${JSON.stringify(element.renderData)}`);
+		this.traceLayout('doNextProgressiveRender', `START progressive render, index=${index}`);
 		const contentForThisTurn = this.getNextProgressiveRenderContent(element, templateData);
 		const partsToRender = this.diff(templateData.renderedParts ?? [], contentForThisTurn.content, element);
 
