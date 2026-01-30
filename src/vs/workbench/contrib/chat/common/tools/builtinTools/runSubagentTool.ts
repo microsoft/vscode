@@ -225,6 +225,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 			if (modeTools) {
 				modeTools[RunSubagentTool.Id] = false;
 				modeTools[ManageTodoListToolToolId] = false;
+				modeTools['copilot_askQuestions'] = false;
 			}
 
 			const variableSet = new ChatRequestVariableSet();
