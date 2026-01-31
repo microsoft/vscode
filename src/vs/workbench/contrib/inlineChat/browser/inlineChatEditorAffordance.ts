@@ -10,7 +10,7 @@ import { Disposable, DisposableStore, MutableDisposable } from '../../../../base
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from '../../../../editor/browser/editorBrowser.js';
 import { EditorOption } from '../../../../editor/common/config/editorOptions.js';
 import { Selection, SelectionDirection } from '../../../../editor/common/core/selection.js';
-import { autorun, IObservable, ISettableObservable } from '../../../../base/common/observable.js';
+import { autorun, IObservable } from '../../../../base/common/observable.js';
 import { MenuId, MenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -99,8 +99,6 @@ export class InlineChatEditorAffordance extends Disposable implements IContentWi
 	constructor(
 		private readonly _editor: ICodeEditor,
 		selection: IObservable<Selection | undefined>,
-		suppressAffordance: ISettableObservable<boolean>,
-		_hover: ISettableObservable<{ rect: DOMRect; above: boolean; lineNumber: number } | undefined>,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
@@ -124,8 +122,7 @@ export class InlineChatEditorAffordance extends Disposable implements IContentWi
 
 		this._store.add(autorun(r => {
 			const sel = selection.read(r);
-			const suppressed = suppressAffordance.read(r);
-			if (sel && !suppressed) {
+			if (sel) {
 				this._show(sel);
 			} else {
 				this._hide();

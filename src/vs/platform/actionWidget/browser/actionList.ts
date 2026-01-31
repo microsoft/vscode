@@ -24,7 +24,7 @@ import { ILayoutService } from '../../layout/browser/layoutService.js';
 import { IHoverService } from '../../hover/browser/hover.js';
 import { MarkdownString } from '../../../base/common/htmlContent.js';
 import { HoverPosition } from '../../../base/browser/ui/hover/hoverWidget.js';
-import { IHoverWidget } from '../../../base/browser/ui/hover/hover.js';
+import { IHoverPositionOptions, IHoverWidget } from '../../../base/browser/ui/hover/hover.js';
 
 export const acceptSelectedActionCommand = 'acceptSelectedCodeAction';
 export const previewSelectedActionCommand = 'previewSelectedCodeAction';
@@ -44,6 +44,8 @@ export interface IActionListItemHover {
 	 * Content to display in the hover.
 	 */
 	readonly content?: string;
+
+	readonly position?: IHoverPositionOptions;
 }
 
 export interface IActionListItem<T> {
@@ -479,6 +481,7 @@ export class ActionList<T> extends Disposable {
 					position: {
 						hoverPosition: HoverPosition.LEFT,
 						forcePosition: false,
+						...element.hover.position,
 					},
 					appearance: {
 						showPointer: true,

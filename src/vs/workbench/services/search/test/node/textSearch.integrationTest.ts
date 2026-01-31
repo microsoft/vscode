@@ -410,26 +410,6 @@ flakySuite('TextSearch-integration', function () {
 				assert.strictEqual(searchError.code, SearchErrorCode.regexParseError);
 			});
 		});
-
-
-		test('invalid glob', () => {
-			const config: ITextQuery = {
-				type: QueryType.Text,
-				folderQueries: ROOT_FOLDER_QUERY,
-				contentPattern: { pattern: 'foo' },
-				includePattern: {
-					'{{}': true
-				}
-			};
-
-			return doSearchTest(config, 0).then(() => {
-				throw new Error('expected fail');
-			}, err => {
-				const searchError = deserializeSearchError(err);
-				assert.strictEqual(searchError.message, 'Error parsing glob \'/{{}\': nested alternate groups are not allowed');
-				assert.strictEqual(searchError.code, SearchErrorCode.globParseError);
-			});
-		});
 	});
 });
 

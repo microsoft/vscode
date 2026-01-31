@@ -5,29 +5,39 @@
 
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
-import { Event } from '../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { constObservable, IObservable, IReader } from '../../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { IProgressStep } from '../../../../../../platform/progress/common/progress.js';
 import { ChatRequestToolReferenceEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { IVariableReference } from '../../../common/chatModes.js';
 import { IChatToolInvocation } from '../../../common/chatService/chatService.js';
-import { CountTokensCallback, IBeginToolCallOptions, ILanguageModelToolsService, IToolAndToolSetEnablementMap, IToolData, IToolImpl, IToolInvocation, IToolResult, IToolSet, ToolDataSource, ToolSet } from '../../../common/tools/languageModelToolsService.js';
-import { URI } from '../../../../../../base/common/uri.js';
 import { ILanguageModelChatMetadata } from '../../../common/languageModels.js';
+import { CountTokensCallback, IBeginToolCallOptions, ILanguageModelToolsService, IToolAndToolSetEnablementMap, IToolData, IToolImpl, IToolInvocation, IToolInvokedEvent, IToolResult, IToolSet, ToolDataSource, ToolSet } from '../../../common/tools/languageModelToolsService.js';
 
-export class MockLanguageModelToolsService implements ILanguageModelToolsService {
+export class MockLanguageModelToolsService extends Disposable implements ILanguageModelToolsService {
 	_serviceBrand: undefined;
-	vscodeToolSet: ToolSet = new ToolSet('vscode', 'vscode', ThemeIcon.fromId(Codicon.code.id), ToolDataSource.Internal);
-	executeToolSet: ToolSet = new ToolSet('execute', 'execute', ThemeIcon.fromId(Codicon.terminal.id), ToolDataSource.Internal);
-	readToolSet: ToolSet = new ToolSet('read', 'read', ThemeIcon.fromId(Codicon.book.id), ToolDataSource.Internal);
-	agentToolSet: ToolSet = new ToolSet('agent', 'agent', ThemeIcon.fromId(Codicon.agent.id), ToolDataSource.Internal);
+	vscodeToolSet: ToolSet = new ToolSet('vscode', 'vscode', ThemeIcon.fromId(Codicon.code.id), ToolDataSource.Internal, undefined, undefined, new MockContextKeyService());
+	executeToolSet: ToolSet = new ToolSet('execute', 'execute', ThemeIcon.fromId(Codicon.terminal.id), ToolDataSource.Internal, undefined, undefined, new MockContextKeyService());
+	readToolSet: ToolSet = new ToolSet('read', 'read', ThemeIcon.fromId(Codicon.book.id), ToolDataSource.Internal, undefined, undefined, new MockContextKeyService());
+	agentToolSet: ToolSet = new ToolSet('agent', 'agent', ThemeIcon.fromId(Codicon.agent.id), ToolDataSource.Internal, undefined, undefined, new MockContextKeyService());
 
-	constructor() { }
+	private readonly _onDidInvokeTool = this._register(new Emitter<IToolInvokedEvent>());
+
+	constructor() {
+		super();
+	}
 
 	readonly onDidChangeTools: Event<void> = Event.None;
 	readonly onDidPrepareToolCallBecomeUnresponsive: Event<{ sessionResource: URI; toolData: IToolData }> = Event.None;
+	readonly onDidInvokeTool = this._onDidInvokeTool.event;
+
+	fireOnDidInvokeTool(event: IToolInvokedEvent): void {
+		this._onDidInvokeTool.fire(event);
+	}
 
 	registerToolData(toolData: IToolData): IDisposable {
 		return Disposable.None;

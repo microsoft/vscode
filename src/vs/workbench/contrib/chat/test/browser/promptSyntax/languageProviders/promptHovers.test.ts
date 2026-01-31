@@ -73,7 +73,8 @@ suite('PromptHoverProvider', () => {
 			uri: URI.parse('myFs://test/test/chatmode.md'),
 			name: 'BeastMode',
 			agentInstructions: { content: 'Beast mode instructions', toolReferences: [] },
-			source: { storage: PromptsStorage.local }
+			source: { storage: PromptsStorage.local },
+			visibility: { userInvokable: true, agentInvokable: true }
 		});
 		instaService.stub(IChatModeService, new MockChatModeService({ builtin: [ChatMode.Agent, ChatMode.Ask, ChatMode.Edit], custom: [customChatMode] }));
 
@@ -315,7 +316,7 @@ suite('PromptHoverProvider', () => {
 				'---',
 			].join('\n');
 			const hover = await getHover(content, 4, 1, PromptsType.agent);
-			assert.strictEqual(hover, 'Controls visibility of the agent.\n\n- `all`, `true`: Available in the agent picker and can be used as a subagent.\n- `user`, `false`: Only available in the agent picker.\n- `agent`: Only available as a subagent (not shown in picker).\n- `hidden`: Not available in the picker nor as a subagent.');
+			assert.strictEqual(hover, 'Controls visibility of the agent.\n\nDeprecated: Use `user-invokable` and `disable-model-invocation` instead.');
 		});
 
 		test('hover on agents attribute shows description', async () => {
@@ -328,6 +329,30 @@ suite('PromptHoverProvider', () => {
 			].join('\n');
 			const hover = await getHover(content, 4, 1, PromptsType.agent);
 			assert.strictEqual(hover, 'One or more agents that this agent can use as subagents. Use \'*\' to specify all available agents.');
+		});
+
+		test('hover on user-invokable attribute shows description', async () => {
+			const content = [
+				'---',
+				'name: "Test Agent"',
+				'description: "Test agent"',
+				'user-invokable: true',
+				'---',
+			].join('\n');
+			const hover = await getHover(content, 4, 1, PromptsType.agent);
+			assert.strictEqual(hover, 'Whether the agent can be selected and invoked by users in the UI.');
+		});
+
+		test('hover on disable-model-invocation attribute shows description', async () => {
+			const content = [
+				'---',
+				'name: "Test Agent"',
+				'description: "Test agent"',
+				'disable-model-invocation: true',
+				'---',
+			].join('\n');
+			const hover = await getHover(content, 4, 1, PromptsType.agent);
+			assert.strictEqual(hover, 'If true, prevents the agent from being invoked as a subagent.');
 		});
 	});
 

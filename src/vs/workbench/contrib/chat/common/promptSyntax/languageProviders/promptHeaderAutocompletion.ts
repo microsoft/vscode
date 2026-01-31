@@ -16,7 +16,7 @@ import { getPromptsTypeForLanguageId, PromptsType } from '../promptTypes.js';
 import { IPromptsService } from '../service/promptsService.js';
 import { Iterable } from '../../../../../../base/common/iterator.js';
 import { IHeaderAttribute, PromptHeader, PromptHeaderAttributes } from '../promptFileParser.js';
-import { getValidAttributeNames, isGithubTarget, knownGithubCopilotTools } from './promptValidator.js';
+import { getAttributeDescription, getValidAttributeNames, isGithubTarget, knownGithubCopilotTools } from './promptValidator.js';
 import { localize } from '../../../../../../nls.js';
 
 export class PromptHeaderAutocompletion implements CompletionItemProvider {
@@ -127,6 +127,7 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 		for (const attribute of attributesToPropose) {
 			const item: CompletionItem = {
 				label: attribute,
+				documentation: getAttributeDescription(attribute, promptType),
 				kind: CompletionItemKind.Property,
 				insertText: getInsertText(attribute),
 				insertTextRules: CompletionItemInsertTextRule.InsertAsSnippet,
@@ -247,12 +248,22 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 				break;
 			case PromptHeaderAttributes.infer:
 				if (promptType === PromptsType.agent) {
-					return ['all', 'user', 'agent', 'hidden', 'true', 'false'];
+					return ['true', 'false'];
 				}
 				break;
 			case PromptHeaderAttributes.agents:
 				if (promptType === PromptsType.agent) {
 					return ['["*"]'];
+				}
+				break;
+			case PromptHeaderAttributes.userInvokable:
+				if (promptType === PromptsType.agent) {
+					return ['true', 'false'];
+				}
+				break;
+			case PromptHeaderAttributes.disableModelInvocation:
+				if (promptType === PromptsType.agent) {
+					return ['true', 'false'];
 				}
 				break;
 		}

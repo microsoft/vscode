@@ -9,7 +9,6 @@ import { splitLinesIncludeSeparators } from '../../../../../base/common/strings.
 import { URI } from '../../../../../base/common/uri.js';
 import { parse, YamlNode, YamlParseError, Position as YamlPosition } from '../../../../../base/common/yaml.js';
 import { Range } from '../../../../../editor/common/core/range.js';
-import { InferValue, parseInferValue } from './service/promptsService.js';
 
 export class PromptFileParser {
 	constructor() {
@@ -80,6 +79,8 @@ export namespace PromptHeaderAttributes {
 	export const compatibility = 'compatibility';
 	export const metadata = 'metadata';
 	export const agents = 'agents';
+	export const userInvokable = 'user-invokable';
+	export const disableModelInvocation = 'disable-model-invocation';
 }
 
 export namespace GithubPromptHeaderAttributes {
@@ -193,13 +194,10 @@ export class PromptHeader {
 		return this.getStringAttribute(PromptHeaderAttributes.target);
 	}
 
-	public get infer(): InferValue | undefined {
+	public get infer(): boolean | undefined {
 		const attribute = this._parsedHeader.attributes.find(attr => attr.key === PromptHeaderAttributes.infer);
 		if (attribute?.value.type === 'boolean') {
-			return attribute.value.value ? 'all' : 'user';
-		}
-		if (attribute?.value.type === 'string' && attribute.value.value) {
-			return parseInferValue(attribute.value.value);
+			return attribute.value.value;
 		}
 		return undefined;
 	}
@@ -238,7 +236,7 @@ export class PromptHeader {
 			return undefined;
 		}
 		if (handoffsAttribute.value.type === 'array') {
-			// Array format: list of objects: { agent, label, prompt, send?, showContinueOn? }
+			// Array format: list of objects: { agent, label, prompt, send?, showContinueOn?, model? }
 			const handoffs: IHandOff[] = [];
 			for (const item of handoffsAttribute.value.items) {
 				if (item.type === 'object') {
@@ -247,6 +245,7 @@ export class PromptHeader {
 					let prompt: string | undefined;
 					let send: boolean | undefined;
 					let showContinueOn: boolean | undefined;
+					let model: string | undefined;
 					for (const prop of item.properties) {
 						if (prop.key.value === 'agent' && prop.value.type === 'string') {
 							agent = prop.value.value;
@@ -258,6 +257,8 @@ export class PromptHeader {
 							send = prop.value.value;
 						} else if (prop.key.value === 'showContinueOn' && prop.value.type === 'boolean') {
 							showContinueOn = prop.value.value;
+						} else if (prop.key.value === 'model' && prop.value.type === 'string') {
+							model = prop.value.value;
 						}
 					}
 					if (agent && label && prompt !== undefined) {
@@ -266,7 +267,8 @@ export class PromptHeader {
 							label,
 							prompt,
 							...(send !== undefined ? { send } : {}),
-							...(showContinueOn !== undefined ? { showContinueOn } : {})
+							...(showContinueOn !== undefined ? { showContinueOn } : {}),
+							...(model !== undefined ? { model } : {})
 						};
 						handoffs.push(handoff);
 					}
@@ -317,6 +319,22 @@ export class PromptHeader {
 	public get agents(): string[] | undefined {
 		return this.getStringArrayAttribute(PromptHeaderAttributes.agents);
 	}
+
+	public get userInvokable(): boolean | undefined {
+		return this.getBooleanAttribute(PromptHeaderAttributes.userInvokable);
+	}
+
+	public get disableModelInvocation(): boolean | undefined {
+		return this.getBooleanAttribute(PromptHeaderAttributes.disableModelInvocation);
+	}
+
+	private getBooleanAttribute(key: string): boolean | undefined {
+		const attribute = this._parsedHeader.attributes.find(attr => attr.key === key);
+		if (attribute?.value.type === 'boolean') {
+			return attribute.value.value;
+		}
+		return undefined;
+	}
 }
 
 export interface IHandOff {
@@ -325,6 +343,7 @@ export interface IHandOff {
 	readonly prompt: string;
 	readonly send?: boolean;
 	readonly showContinueOn?: boolean; // treated exactly like send (optional boolean)
+	readonly model?: string; // qualified model name to switch to (e.g., "GPT-5 (copilot)")
 }
 
 export interface IHeaderAttribute {

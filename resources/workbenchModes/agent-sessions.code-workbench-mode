@@ -19,8 +19,10 @@
 		"workbench.sideBar.location": "right",
 		"workbench.statusBar.visible": false,
 		"workbench.secondarySideBar.forceMaximized": true,
+		"workbench.secondarySideBar.defaultVisibility": "maximized",
 		"workbench.startupEditor": "none",
 		"workbench.tips.enabled": false,
 		"workbench.layoutControl.type": "toggles",
+		"workbench.activityBar.autoHide": true
 	}
 }

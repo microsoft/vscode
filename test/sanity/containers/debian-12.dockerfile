@@ -1,8 +1,14 @@
-ARG BASE_IMAGE=node:22-bookworm
-FROM ${BASE_IMAGE}
+ARG MIRROR
+ARG BASE_IMAGE=debian:bookworm
+FROM ${MIRROR}${BASE_IMAGE}
 
 # Utilities
-RUN apt-get update
+RUN apt-get update && \
+	apt-get install -y curl
+
+# Node.js 22
+RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && \
+	apt-get install -y nodejs
 
 # Chromium
 RUN apt-get install -y chromium
@@ -14,7 +20,3 @@ RUN apt-get install -y dbus-x11 && \
 
 # X11 Server
 RUN apt-get install -y xvfb
-
-COPY entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
-ENTRYPOINT [ "/entrypoint.sh" ]

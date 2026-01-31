@@ -6,15 +6,18 @@
 import './media/chatContextUsageWidget.css';
 import * as dom from '../../../../../../base/browser/dom.js';
 import { EventType, addDisposableListener } from '../../../../../../base/browser/dom.js';
+import { IDelayedHoverOptions } from '../../../../../../base/browser/ui/hover/hover.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { Disposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
-import { autorun, IObservable, observableValue } from '../../../../../../base/common/observable.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { IObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { localize } from '../../../../../../nls.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IChatRequestModel, IChatResponseModel } from '../../../common/model/chatModel.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
 import { ChatContextUsageDetails, IChatContextUsageData } from './chatContextUsageDetails.js';
+import { StandardKeyboardEvent } from '../../../../../../base/browser/keyboardEvent.js';
+import { KeyCode } from '../../../../../../base/common/keyCodes.js';
 
 const $ = dom.$;
 
@@ -99,13 +102,14 @@ export class ChatContextUsageWidget extends Disposable {
 
 	readonly domNode: HTMLElement;
 
-	private readonly tokenLabel: HTMLElement;
 	private readonly progressIndicator: CircularProgressIndicator;
 
 	private readonly _isVisible = observableValue<boolean>(this, false);
 	get isVisible(): IObservable<boolean> { return this._isVisible; }
 
 	private readonly _lastRequestDisposable = this._register(new MutableDisposable());
+	private readonly _hoverDisposable = this._register(new MutableDisposable<DisposableStore>());
+	private readonly _contextUsageDetails = this._register(new MutableDisposable<ChatContextUsageDetails>());
 
 	private currentData: IChatContextUsageData | undefined;
 
@@ -116,7 +120,7 @@ export class ChatContextUsageWidget extends Disposable {
 	) {
 		super();
 
-		this.domNode = $('.chat-context-usage-widget.action-label');
+		this.domNode = $('.chat-context-usage-widget');
 		this.domNode.style.display = 'none';
 		this.domNode.setAttribute('tabindex', '0');
 		this.domNode.setAttribute('role', 'button');
@@ -127,55 +131,59 @@ export class ChatContextUsageWidget extends Disposable {
 		this.progressIndicator = new CircularProgressIndicator();
 		iconContainer.appendChild(this.progressIndicator.domNode);
 
-		// Token label (shown on hover/focus)
-		this.tokenLabel = this.domNode.appendChild($('.token-label'));
-
-		// Show details popup on click
-		this._register(addDisposableListener(this.domNode, EventType.CLICK, () => {
-			this.showDetails();
-		}));
-
-		// Show details on Enter/Space for keyboard accessibility
-		this._register(addDisposableListener(this.domNode, EventType.KEY_DOWN, (e: KeyboardEvent) => {
-			if (e.key === 'Enter' || e.key === ' ') {
-				e.preventDefault();
-				this.showDetails();
-			}
-		}));
+		// Set up hover - will be configured when data is available
+		this.setupHover();
 	}
 
-	private showDetails(): void {
-		if (!this.currentData) {
-			return;
-		}
+	private setupHover(): void {
+		this._hoverDisposable.clear();
+		const store = new DisposableStore();
+		this._hoverDisposable.value = store;
 
-		// Add expanded class to keep token label visible while details are shown
-		this.domNode.classList.add('expanded');
+		const createDetails = (): ChatContextUsageDetails | undefined => {
+			if (!this._isVisible.get() || !this.currentData) {
+				return undefined;
+			}
+			this._contextUsageDetails.value = this.instantiationService.createInstance(ChatContextUsageDetails);
+			this._contextUsageDetails.value.update(this.currentData);
+			return this._contextUsageDetails.value;
+		};
 
-		const details = this.instantiationService.createInstance(ChatContextUsageDetails);
-		details.update(this.currentData);
+		const hoverOptions: Omit<IDelayedHoverOptions, 'content'> = {
+			appearance: { showPointer: true, compact: true },
+			persistence: { hideOnHover: false },
+			trapFocus: true
+		};
 
-		const hover = this.hoverService.showInstantHover({
-			content: details.domNode,
-			target: {
-				targetElements: [this.domNode],
-				dispose: () => {
-					this.domNode.classList.remove('expanded');
-					details.dispose();
-				}
-			},
-			persistence: { sticky: true, hideOnHover: false, hideOnKeyDown: false },
-			appearance: { showPointer: true }
-		}, true);
+		store.add(this.hoverService.setupDelayedHover(this.domNode, () => ({
+			...hoverOptions,
+			content: createDetails()?.domNode ?? ''
+		})));
 
-		// Focus the details widget
-		details.focus();
+		const showStickyHover = () => {
+			const details = createDetails();
+			if (details) {
+				this.hoverService.showInstantHover(
+					{ ...hoverOptions, content: details.domNode, target: this.domNode, persistence: { hideOnHover: false, sticky: true } },
+					true
+				);
+			}
+		};
 
-		// Handle case where hover couldn't be shown
-		if (!hover) {
-			this.domNode.classList.remove('expanded');
-			details.dispose();
-		}
+		// Show sticky + focused hover on click
+		store.add(addDisposableListener(this.domNode, EventType.CLICK, e => {
+			e.stopPropagation();
+			showStickyHover();
+		}));
+
+		// Show sticky + focused hover on keyboard activation (Space/Enter)
+		store.add(addDisposableListener(this.domNode, EventType.KEY_DOWN, e => {
+			const evt = new StandardKeyboardEvent(e);
+			if (evt.equals(KeyCode.Space) || evt.equals(KeyCode.Enter)) {
+				e.preventDefault();
+				showStickyHover();
+			}
+		}));
 	}
 
 	/**
@@ -194,17 +202,17 @@ export class ChatContextUsageWidget extends Disposable {
 		const response = lastRequest.response;
 		const modelId = lastRequest.modelId;
 
-		// Subscribe to response changes to update when the response completes.
-		this._lastRequestDisposable.value = autorun(reader => {
-			const isComplete = !response.isInProgress.read(reader);
-			if (isComplete) {
-				this.updateFromResponse(response, modelId);
-			}
+		// Update immediately if usage data is already available
+		this.updateFromResponse(response, modelId);
+
+		// Subscribe to response changes to update whenever usage data changes
+		this._lastRequestDisposable.value = response.onDidChange(() => {
+			this.updateFromResponse(response, modelId);
 		});
 	}
 
 	private updateFromResponse(response: IChatResponseModel, modelId: string): void {
-		const usage = response.result?.usage;
+		const usage = response.usage;
 		const modelMetadata = this.languageModelsService.lookupLanguageModel(modelId);
 		const maxInputTokens = modelMetadata?.maxInputTokens;
 
@@ -235,23 +243,6 @@ export class ChatContextUsageWidget extends Disposable {
 		} else if (percentage >= 75) {
 			this.domNode.classList.add('warning');
 		}
-
-		// Update token label (shown on hover/focus)
-		this.tokenLabel.textContent = localize(
-			'tokenCount',
-			"{0} / {1} T",
-			this.formatTokenCount(promptTokens, 1),
-			this.formatTokenCount(maxTokens, 0)
-		);
-	}
-
-	private formatTokenCount(count: number, decimals: number): string {
-		if (count >= 1000000) {
-			return `${(count / 1000000).toFixed(decimals)}M`;
-		} else if (count >= 1000) {
-			return `${(count / 1000).toFixed(decimals)}K`;
-		}
-		return count.toString();
 	}
 
 	private show(): void {

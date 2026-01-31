@@ -5,7 +5,7 @@
 
 import { timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IReference } from '../../../../../base/common/lifecycle.js';
 import { CoreEditingCommands, CoreNavigationCommands } from '../../../../browser/coreCommands.js';
 import { Position } from '../../../../common/core/position.js';
 import { ITextModel } from '../../../../common/model.js';
@@ -29,6 +29,10 @@ import { IBulkEditService } from '../../../../browser/services/bulkEditService.j
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IRenameSymbolTrackerService, NullRenameSymbolTrackerService } from '../../../../browser/services/renameSymbolTrackerService.js';
+import { ITextModelService, IResolvedTextEditorModel } from '../../../../common/services/resolverService.js';
+import { IModelService } from '../../../../common/services/model.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 
 export class MockInlineCompletionsProvider implements InlineCompletionsProvider {
 	private returnValue: InlineCompletion[] = [];
@@ -264,9 +268,12 @@ export async function withAsyncTestCodeEditorAndInlineCompletionsModel<T>(
 					setPreviewHandler: () => { throw new Error('IBulkEditService.setPreviewHandler not implemented'); },
 					_serviceBrand: undefined,
 				});
+				options.serviceCollection.set(ITextModelService, new SyncDescriptor(MockTextModelService));
 				options.serviceCollection.set(IDefaultAccountService, {
 					_serviceBrand: undefined,
 					onDidChangeDefaultAccount: Event.None,
+					onDidChangePolicyData: Event.None,
+					policyData: null,
 					getDefaultAccount: async () => null,
 					setDefaultAccountProvider: () => { },
 					getDefaultAccountAuthenticationProvider: () => { return { id: 'mockProvider', name: 'Mock Provider', enterprise: false }; },
@@ -361,5 +368,42 @@ export class AnnotatedText extends AnnotatedString {
 
 	getMarkerPosition(markerIdx = 0): Position {
 		return this._transformer.getPosition(this.getMarkerOffset(markerIdx));
+	}
+}
+
+class MockTextModelService implements ITextModelService {
+	readonly _serviceBrand: undefined;
+
+	constructor(
+		@IModelService private readonly _modelService: IModelService,
+	) { }
+
+	async createModelReference(resource: URI): Promise<IReference<IResolvedTextEditorModel>> {
+		const model = this._modelService.getModel(resource);
+		if (!model) {
+			throw new Error(`MockTextModelService: Model not found for ${resource.toString()}`);
+		}
+		return {
+			object: {
+				textEditorModel: model,
+				getLanguageId: () => model.getLanguageId(),
+				isReadonly: () => false,
+				isDisposed: () => model.isDisposed(),
+				isResolved: () => true,
+				onWillDispose: model.onWillDispose,
+				resolve: async () => { },
+				createSnapshot: () => model.createSnapshot(),
+				dispose: () => { },
+			},
+			dispose: () => { },
+		};
+	}
+
+	registerTextModelContentProvider(): never {
+		throw new Error('MockTextModelService.registerTextModelContentProvider not implemented');
+	}
+
+	canHandleResource(): boolean {
+		return false;
 	}
 }
