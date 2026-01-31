@@ -3203,6 +3203,7 @@ export interface IEditorInlayHintsOptions {
 
 	/**
 	 * Maximum number of inlay hints per editor.
+	 * Set to 0 to have an unlimited number of inlay hints.
 	 */
 	maxHintsCount?: number;
 }
