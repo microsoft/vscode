@@ -65,12 +65,17 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 		// ...then for last active file root
 		if (!candidate) {
 			candidate = this.historyService.getLastActiveWorkspaceRoot(schemeFilter, authorityFilter);
+			if (candidate) {
+				this.logService.debug(`[FileDialogService] Default file path using last active workspace root: ${candidate}`);
+			}
 		} else {
+			this.logService.debug(`[FileDialogService] Default file path using parent of last active file: ${candidate}`);
 			candidate = resources.dirname(candidate);
 		}
 
 		if (!candidate) {
 			candidate = await this.preferredHome(schemeFilter);
+			this.logService.debug(`[FileDialogService] Default file path using preferred home: ${candidate}`);
 		}
 
 		return candidate;
@@ -84,10 +89,17 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 		// ...then for last active file
 		if (!candidate) {
 			candidate = this.historyService.getLastActiveFile(schemeFilter, authorityFilter);
+			if (candidate) {
+				this.logService.debug(`[FileDialogService] Default folder path using parent of last active file: ${candidate}`);
+			}
+		} else {
+			this.logService.debug(`[FileDialogService] Default folder path using last active workspace root: ${candidate}`);
 		}
 
 		if (!candidate) {
-			return this.preferredHome(schemeFilter);
+			const preferredHome = await this.preferredHome(schemeFilter);
+			this.logService.debug(`[FileDialogService] Default folder path using preferred home: ${preferredHome}`);
+			return preferredHome;
 		}
 
 		return resources.dirname(candidate);
@@ -97,18 +109,25 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 		const preferLocal = schemeFilter === Schemas.file;
 		const preferredHomeConfig = this.configurationService.inspect<string>('files.dialog.defaultPath');
 		const preferredHomeCandidate = preferLocal ? preferredHomeConfig.userLocalValue : preferredHomeConfig.userRemoteValue;
+		this.logService.debug(`[FileDialogService] Preferred home: preferLocal=${preferLocal}, userLocalValue=${preferredHomeConfig.userLocalValue}, userRemoteValue=${preferredHomeConfig.userRemoteValue}`);
 		if (preferredHomeCandidate) {
 			const isPreferredHomeCandidateAbsolute = preferLocal ? localPathIsAbsolute(preferredHomeCandidate) : (await this.pathService.path).isAbsolute(preferredHomeCandidate);
 			if (isPreferredHomeCandidateAbsolute) {
 				const preferredHomeNormalized = preferLocal ? localPathNormalize(preferredHomeCandidate) : (await this.pathService.path).normalize(preferredHomeCandidate);
 				const preferredHome = resources.toLocalResource(await this.pathService.fileURI(preferredHomeNormalized), this.environmentService.remoteAuthority, this.pathService.defaultUriScheme);
 				if (await this.fileService.exists(preferredHome)) {
+					this.logService.debug(`[FileDialogService] Preferred home using files.dialog.defaultPath setting: ${preferredHome}`);
 					return preferredHome;
 				}
+				this.logService.debug(`[FileDialogService] Preferred home files.dialog.defaultPath path does not exist: ${preferredHome}`);
+			} else {
+				this.logService.debug(`[FileDialogService] Preferred home files.dialog.defaultPath is not absolute: ${preferredHomeCandidate}`);
 			}
 		}
 
-		return this.pathService.userHome({ preferLocal });
+		const userHome = this.pathService.userHome({ preferLocal });
+		this.logService.debug(`[FileDialogService] Preferred home using user home: ${userHome}`);
+		return userHome;
 	}
 
 	async defaultWorkspacePath(schemeFilter = this.getSchemeFilterForWindow()): Promise<URI> {

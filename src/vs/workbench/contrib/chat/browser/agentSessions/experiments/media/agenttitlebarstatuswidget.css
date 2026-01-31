@@ -3,10 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/*
- * Command Center Integration
- * Hide default search box when enhanced agent status replaces it.
- */
+/* Command Center Integration */
 .unified-agents-bar .command-center .action-item.command-center-center {
 	display: none !important;
 }
@@ -16,9 +13,7 @@
 	overflow: visible !important;
 }
 
-/*
- * Enhanced mode layout - full-width pill replacing command center search.
- */
+/* Container layouts */
 .unified-agents-bar .command-center .action-item.agent-status-container {
 	width: 38vw;
 	max-width: 600px;
@@ -29,9 +24,7 @@
 	justify-content: flex-start;
 }
 
-/*
- * Badge-only mode layout - compact badge next to command center.
- */
+/* Badge-only mode - compact layout next to command center */
 .agent-status-enabled:not(.unified-agents-bar) .command-center .action-item.agent-status-container {
 	display: flex;
 	flex-direction: row;
@@ -40,10 +33,6 @@
 	overflow: visible;
 }
 
-/*
- * Container - holds pill and/or badge.
- * Right padding reserves space for badge chevron expansion.
- */
 .agent-status-container {
 	display: flex;
 	flex-direction: row;
@@ -51,15 +40,9 @@
 	align-items: center;
 	justify-content: flex-start;
 	gap: 4px;
-	padding-right: 22px;
 	-webkit-app-region: no-drag;
 	overflow: visible;
-}
-
-/* Container clickable states - when in session or session-ready mode */
-.agent-status-pill.session-mode,
-.agent-status-pill.session-ready-mode {
-	cursor: pointer;
+	color: var(--vscode-commandCenter-foreground);
 }
 
 /* Pill - shared styles */
@@ -70,22 +53,20 @@
 	padding: 0 10px;
 	height: 22px;
 	border-radius: 6px;
-	position: relative;
 	flex: 1;
 	min-width: 0;
 	-webkit-app-region: no-drag;
-}
-
-/* Chat input mode (default state) */
-.agent-status-pill.chat-input-mode {
-	background-color: var(--vscode-commandCenter-background, rgba(0, 0, 0, 0.05));
+	background-color: var(--vscode-commandCenter-background);
 	border: 1px solid var(--vscode-commandCenter-border, transparent);
-	cursor: pointer;
 }
 
-.agent-status-pill.chat-input-mode:hover {
-	background-color: var(--vscode-commandCenter-activeBackground, rgba(0, 0, 0, 0.1));
-	border-color: var(--vscode-commandCenter-activeBorder, rgba(0, 0, 0, 0.2));
+.agent-status-pill:hover {
+	background-color: var(--vscode-commandCenter-activeBackground);
+	border-color: var(--vscode-commandCenter-activeBorder, transparent);
+}
+
+.agent-status-pill.chat-input-mode {
+	cursor: pointer;
 }
 
 .agent-status-pill.chat-input-mode:focus {
@@ -93,105 +74,80 @@
 	outline-offset: -1px;
 }
 
-/* Active state - has running sessions */
-.agent-status-pill.chat-input-mode.has-active {
-	background-color: var(--vscode-quickInput-background);
-	border: 1px solid var(--vscode-commandCenter-border, transparent);
-}
-
-.agent-status-pill.chat-input-mode.has-active:hover {
-	background-color: var(--vscode-chat-requestBubbleBackground);
-	border-color: var(--vscode-commandCenter-border, transparent);
-}
-
-.agent-status-pill.chat-input-mode.has-active .agent-status-label {
-	color: var(--vscode-foreground);
-	opacity: 1;
-}
-
-/* Unread state - has unread sessions (no background change, just indicator) */
-.agent-status-pill.chat-input-mode.has-unread .agent-status-icon {
-	font-size: 8px;
-
-}
-
-/* Needs attention state - session requires user approval/confirmation/input */
-.agent-status-pill.chat-input-mode.needs-attention {
-	background-color: var(--vscode-quickInput-background);
-	border: 1px solid var(--vscode-commandCenter-border, transparent);
-}
-
-.agent-status-pill.chat-input-mode.needs-attention:hover {
-	background-color: var(--vscode-chat-requestBubbleBackground);
-	border-color: var(--vscode-commandCenter-border, transparent);
-}
-
-.agent-status-pill.chat-input-mode.needs-attention .agent-status-label {
-	color: var(--vscode-foreground);
-	opacity: 1;
-}
-
-/* Session mode (viewing a session) - use hover color as default to show we're "inside" projection */
-.agent-status-pill.session-mode {
-	background-color: var(--vscode-chat-requestBubbleBackground);
-	border: 1px solid var(--vscode-commandCenter-border, transparent);
+.agent-status-pill.session-mode,
+.agent-status-pill.session-ready-mode {
 	padding: 0 12px;
 	cursor: pointer;
 }
 
-.agent-status-pill.session-mode:hover {
-	background-color: var(--vscode-chat-requestBubbleBackground);
-	filter: brightness(1.1);
-	border-color: var(--vscode-commandCenter-border, transparent);
+.agent-status-pill.session-mode {
+	background-color: var(--vscode-commandCenter-activeBackground);
+	border-color: var(--vscode-commandCenter-activeBorder, transparent);
 }
 
-/* Label (workspace name, centered) */
+.agent-status-pill.session-mode:hover {
+	filter: brightness(1.1);
+}
+
+/* Active/needs-attention states - use active foreground */
+.agent-status-pill.chat-input-mode.has-active .agent-status-label,
+.agent-status-pill.chat-input-mode.needs-attention .agent-status-label {
+	color: var(--vscode-commandCenter-activeForeground);
+}
+
+/* Label */
 .agent-status-label {
 	flex: 1;
 	text-align: center;
-	color: var(--vscode-foreground);
-	opacity: 0.8;
 	white-space: nowrap;
 	overflow: hidden;
 	text-overflow: ellipsis;
 }
 
-/* Progress label - fade in animation when showing session progress */
 .agent-status-label.has-progress {
 	animation: agentStatusFadeIn 0.3s ease-out;
-	color: var(--vscode-foreground);
-	opacity: 1;
 }
 
 @keyframes agentStatusFadeIn {
-	from {
-		opacity: 0;
-		transform: translateY(2px);
-	}
-	to {
-		opacity: 1;
-		transform: translateY(0);
-	}
+	from { opacity: 0; transform: translateY(2px); }
+	to { opacity: 1; transform: translateY(0); }
 }
 
-/* Left side status indicator */
-.agent-status-indicator {
-	display: flex;
-	align-items: center;
-	gap: 4px;
-	color: var(--vscode-descriptionForeground);
-}
-
-.agent-status-pill.has-active .agent-status-indicator {
-	color: var(--vscode-progressBar-background);
-}
-
+/* Icons and indicators */
+.agent-status-indicator,
+.agent-status-send,
+.agent-status-left-icon,
+.agent-status-search,
 .agent-status-icon {
 	display: flex;
 	align-items: center;
 }
 
-.agent-status-text {
+.agent-status-indicator,
+.agent-status-send,
+.agent-status-left-icon,
+.agent-status-search {
+	opacity: 0.7;
+	flex-shrink: 0;
+}
+
+.agent-status-indicator { gap: 4px; }
+.agent-status-left-icon { gap: 3px; justify-content: center; }
+.agent-status-search { justify-content: center; -webkit-app-region: no-drag; }
+
+.agent-status-pill.has-active .agent-status-indicator,
+.agent-status-pill.has-active .agent-status-send,
+.agent-status-left-icon.has-attention {
+	opacity: 1;
+}
+
+.agent-status-send.hidden { display: none; }
+.agent-status-search:hover { opacity: 1; }
+.agent-status-search:focus { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
+
+/* Text elements */
+.agent-status-text,
+.agent-status-attention-count {
 	font-size: 11px;
 	font-weight: 500;
 }
@@ -201,65 +157,23 @@
 	opacity: 0.7;
 }
 
-/* Send icon (right side) */
-.agent-status-send {
-	display: flex;
-	align-items: center;
-	color: var(--vscode-foreground);
-	opacity: 0.7;
-	flex-shrink: 0;
-}
-
-.agent-status-send.hidden {
-	display: none;
-}
-
-.agent-status-pill.has-active .agent-status-send {
-	color: var(--vscode-textLink-foreground);
-	opacity: 1;
-}
-
-/* Left icon (sparkle default, report+count when attention needed, search on hover) */
-.agent-status-left-icon {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	gap: 3px;
-	color: var(--vscode-foreground);
-	opacity: 0.7;
-	flex-shrink: 0;
-}
-
-/* Left icon with attention - show report icon + count */
-.agent-status-left-icon.has-attention {
-	color: var(--vscode-foreground);
-	opacity: 1;
-}
-
-.agent-status-left-icon.has-attention .agent-status-attention-count {
-	font-size: 11px;
-	font-weight: 500;
-}
-
 /* Session title */
 .agent-status-title {
 	flex: 1;
 	font-weight: 500;
-	color: var(--vscode-foreground);
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
 }
 
-/* Escape button (right side in session mode) - serves as keybinding hint and close button */
-.agent-status-esc-button {
+/* Keybinding buttons (Esc/Enter) */
+.agent-status-esc-button,
+.agent-status-enter-button {
 	display: inline-flex;
 	align-items: center;
-	align-self: center;
 	justify-content: center;
 	box-sizing: border-box;
-	border-style: solid;
-	border-width: 1px;
+	border: 1px solid color-mix(in srgb, var(--vscode-descriptionForeground) 50%, transparent);
 	border-radius: 3px;
 	height: 16px;
 	line-height: 14px;
@@ -268,78 +182,51 @@
 	margin: 0 2px 0 6px;
 	background-color: transparent;
 	color: var(--vscode-descriptionForeground);
-	border-color: color-mix(in srgb, var(--vscode-descriptionForeground) 50%, transparent);
 	cursor: pointer;
 	-webkit-app-region: no-drag;
 }
 
-.agent-status-esc-button:hover {
-	color: var(--vscode-foreground);
-	border-color: color-mix(in srgb, var(--vscode-foreground) 60%, transparent);
+.agent-status-esc-button:hover,
+.agent-status-enter-button:hover {
+	color: var(--vscode-commandCenter-foreground);
+	border-color: color-mix(in srgb, var(--vscode-commandCenter-foreground) 60%, transparent);
 }
 
-.agent-status-esc-button:focus {
+.agent-status-esc-button:focus,
+.agent-status-enter-button:focus {
 	outline: 1px solid var(--vscode-focusBorder);
 	outline-offset: 1px;
 }
 
-/* Search button (inside pill on left) */
-.agent-status-search {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	color: var(--vscode-foreground);
-	opacity: 0.7;
-	-webkit-app-region: no-drag;
-	flex-shrink: 0;
-}
-
-.agent-status-search:hover {
-	opacity: 1;
-}
-
-.agent-status-search:focus {
-	outline: 1px solid var(--vscode-focusBorder);
-	outline-offset: -1px;
-}
-
-/* Command center toolbar (debug toolbar, etc.) */
+/* Command center toolbar */
 .agent-status-command-center-toolbar {
 	display: flex;
 	align-items: center;
 	-webkit-app-region: no-drag;
 }
 
-/* Separator dot between command center toolbar and agent status pill */
 .agent-status-separator {
 	padding: 0 8px;
-	height: 100%;
 	opacity: 0.5;
 	display: flex;
 	align-items: center;
 }
 
-/*
- * Status Badge
- * Split UI showing: [Sparkle + Chevron] | [Unread] | [Active]
- * Expands rightward when chevron appears on hover.
- */
+/* Status Badge */
 .agent-status-badge {
 	display: flex;
 	align-items: center;
-	gap: 0;
 	height: 22px;
 	border-radius: 6px;
-	background-color: var(--vscode-quickInput-background);
+	background-color: var(--vscode-commandCenter-background);
 	border: 1px solid var(--vscode-commandCenter-border, transparent);
 	flex-shrink: 0;
 	-webkit-app-region: no-drag;
-	position: relative;
-	overflow: visible;
 	margin-left: auto;
+	color: var(--vscode-commandCenter-foreground);
 }
 
-/* Badge sections - clickable segments with hover states */
+/* Badge sections */
 .agent-status-badge-section {
 	display: flex;
 	align-items: center;
@@ -350,36 +237,45 @@
 	cursor: pointer;
 }
 
-/* Round corners on first and last sections to match parent badge */
-.agent-status-badge-section:first-child {
-	border-top-left-radius: 5px;
-	border-bottom-left-radius: 5px;
-}
-
-.agent-status-badge-section:last-child {
-	border-top-right-radius: 5px;
-	border-bottom-right-radius: 5px;
-}
-
-.agent-status-badge-section:hover {
-	background-color: var(--vscode-chat-requestBubbleBackground);
-}
-
+.agent-status-badge-section:first-child { border-radius: 5px 0 0 5px; }
+.agent-status-badge-section:last-child { border-radius: 0 5px 5px 0; }
+.agent-status-badge-section:only-child { border-radius: 5px; }
+.agent-status-badge-section:hover { background-color: var(--vscode-commandCenter-activeBackground); }
 .agent-status-badge-section:focus {
-	outline: none;
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
 }
 
-/* Active filter state - highlighted when filter is applied */
 .agent-status-badge-section.filtered {
 	background-color: var(--vscode-inputOption-activeBackground);
 }
 
 .agent-status-badge-section.filtered:hover {
-	background-color: var(--vscode-inputOption-activeBackground);
 	filter: brightness(1.1);
 }
 
-/* Vertical separator between badge sections */
+/* High contrast: use dotted border for hover, solid for filtered/active */
+.hc-light .agent-status-badge-section:hover,
+.hc-black .agent-status-badge-section:hover {
+	background-color: transparent;
+	outline: 1px dashed var(--vscode-contrastActiveBorder);
+	outline-offset: -1px;
+}
+
+.hc-light .agent-status-badge-section.filtered,
+.hc-black .agent-status-badge-section.filtered {
+	background-color: transparent;
+	outline: 1px solid var(--vscode-contrastActiveBorder);
+	outline-offset: -1px;
+}
+
+.hc-light .agent-status-badge-section.filtered:hover,
+.hc-black .agent-status-badge-section.filtered:hover {
+	filter: none;
+	outline-style: solid;
+}
+
+/* Separator between sections */
 .agent-status-badge-section + .agent-status-badge-section::before {
 	content: '';
 	position: absolute;
@@ -390,164 +286,103 @@
 	background-color: var(--vscode-commandCenter-border, rgba(128, 128, 128, 0.35));
 }
 
-/* Sparkle section - primary chat action with expandable chevron */
+/* Sparkle section */
 .agent-status-badge-section.sparkle {
-	color: var(--vscode-foreground);
 	gap: 0;
 	padding: 0;
 }
 
-/* Disable hover on sparkle section itself since children handle it */
 .agent-status-badge-section.sparkle:hover {
 	background-color: transparent;
 }
 
-/* Dropdown button inside sparkle section */
 .agent-status-badge-section.sparkle .monaco-dropdown-with-primary {
 	display: flex;
 	align-items: center;
 	height: 100%;
 }
 
-.agent-status-badge-section.sparkle .action-container {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	padding: 0 4px;
-	height: 100%;
-	border-top-left-radius: 5px;
-	border-bottom-left-radius: 5px;
-}
-
-.agent-status-badge-section.sparkle .action-container:hover {
-	background-color: var(--vscode-chat-requestBubbleBackground);
-}
-
-.agent-status-badge-section.sparkle .action-container:focus-within {
-	outline: none;
-}
-
-.agent-status-badge-section.sparkle .action-container .action-label {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	background: none !important;
-	width: 16px;
-	height: 16px;
-}
-
-/*
- * Chevron dropdown - slides out from sparkle section on hover.
- * Badge expands rightward into reserved container padding.
- */
+.agent-status-badge-section.sparkle .action-container,
 .agent-status-badge-section.sparkle .dropdown-action-container {
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	width: 18px;
 	height: 100%;
+	overflow: hidden;
+}
+
+.agent-status-badge-section.sparkle .action-container {
+	padding: 0 4px;
+	border-radius: 5px 0 0 5px;
+}
+
+.agent-status-badge-section.sparkle .dropdown-action-container {
+	width: 18px;
 	padding: 0;
+	border-radius: 0;
 }
 
+/* When sparkle is the only section, dropdown needs rounded right corners */
+.agent-status-badge-section.sparkle:last-child .dropdown-action-container {
+	border-radius: 0 5px 5px 0;
+}
+
+.agent-status-badge-section.sparkle .action-container:hover,
 .agent-status-badge-section.sparkle .dropdown-action-container:hover {
-	background-color: var(--vscode-chat-requestBubbleBackground);
+	background-color: var(--vscode-commandCenter-activeBackground);
 }
 
+.agent-status-badge-section.sparkle .action-container:focus-within,
 .agent-status-badge-section.sparkle .dropdown-action-container:focus-within {
-	outline: none;
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.agent-status-badge-section.sparkle .action-label {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: none !important;
+}
+
+.agent-status-badge-section.sparkle .action-container .action-label {
+	width: 16px;
+	height: 16px;
 }
 
 .agent-status-badge-section.sparkle .dropdown-action-container .action-label {
-	display: flex;
-	align-items: center;
-	justify-content: center;
 	width: 18px;
 	height: 18px;
 	font-size: 18px;
-	background-position: center !important;
-	background-size: 18px !important;
 }
 
-.agent-status-badge-section.sparkle .dropdown-action-container .monaco-dropdown > .dropdown-label .codicon[class*='codicon-'] {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	height: 18px;
-	width: 18px;
-	line-height: 18px;
+.agent-status-badge-section.sparkle .dropdown-action-container .codicon {
 	transform: translateY(1px);
 }
 
-/* Override global toolbar hover/active styles for sparkle section action labels */
-.agent-status-badge-section.sparkle .action-container .action-label:hover,
-.agent-status-badge-section.sparkle .dropdown-action-container .action-label:hover {
-	outline: none !important;
-	background-color: transparent !important;
-}
-
-.agent-status-badge-section.sparkle .action-container .action-label:active,
-.agent-status-badge-section.sparkle .dropdown-action-container .action-label:active,
+/* Disable toolbar hover effects in sparkle, but preserve focus */
+.agent-status-badge-section.sparkle .action-label:hover,
+.agent-status-badge-section.sparkle .action-label:active,
 .agent-status-badge-section.sparkle .action-item.active .action-label,
 .agent-status-badge-section.sparkle .monaco-dropdown.active .action-label {
 	background-color: transparent !important;
 }
 
-/* Unread section - blue dot indicator with count */
+.agent-status-badge-section.sparkle .action-label:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+/* Unread section - smaller dot with adjusted padding for visual balance */
 .agent-status-badge-section.unread {
-	color: var(--vscode-foreground);
+	padding: 0 8px 0 6px;
 }
 
 .agent-status-badge-section.unread .agent-status-icon {
 	font-size: 8px;
-	color: var(--vscode-notificationsInfoIcon-foreground);
 }
 
-/* Active section - in-progress indicator with count */
-.agent-status-badge-section.active {
-	color: var(--vscode-foreground);
-}
-
-/* Session ready mode (ready to enter projection) */
-.agent-status-pill.session-ready-mode {
-	background-color: var(--vscode-quickInput-background);
-	border: 1px solid var(--vscode-commandCenter-border, transparent);
-	padding: 0 12px;
-	cursor: pointer;
-}
-
-.agent-status-pill.session-ready-mode:hover {
-	background-color: var(--vscode-chat-requestBubbleBackground);
-	border-color: var(--vscode-commandCenter-border, transparent);
-}
-
-/* Enter button (right side in session ready mode) - shows keybinding to enter projection */
-.agent-status-enter-button {
-	display: inline-flex;
-	align-items: center;
-	align-self: center;
-	justify-content: center;
-	box-sizing: border-box;
-	border-style: solid;
-	border-width: 1px;
-	border-radius: 3px;
-	height: 16px;
-	line-height: 14px;
-	font-size: 10px;
-	padding: 0 6px;
-	margin: 0 2px 0 6px;
-	background-color: transparent;
-	color: var(--vscode-descriptionForeground);
-	border-color: color-mix(in srgb, var(--vscode-descriptionForeground) 50%, transparent);
-	cursor: pointer;
-	-webkit-app-region: no-drag;
-}
-
-.agent-status-enter-button:hover {
-	color: var(--vscode-foreground);
-	border-color: color-mix(in srgb, var(--vscode-foreground) 60%, transparent);
-}
-
-.agent-status-enter-button:focus {
-	outline: 1px solid var(--vscode-focusBorder);
-	outline-offset: 1px;
+/* Active section in needs-input state - uses report icon with warning color */
+.agent-status-badge-section.active.needs-input .agent-status-icon {
+	color: var(--vscode-notificationsWarningIcon-foreground);
 }

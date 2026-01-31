@@ -29,6 +29,7 @@ import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.j
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import product from '../../../../../platform/product/common/product.js';
@@ -53,11 +54,11 @@ import { IChatService } from '../../common/chatService/chatService.js';
 import { ISCMHistoryItemChangeRangeVariableEntry, ISCMHistoryItemChangeVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM } from '../../common/model/chatViewModel.js';
 import { IChatWidgetHistoryService } from '../../common/widget/chatWidgetHistoryService.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
+import { AgentsControlClickBehavior, ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
 import { ILanguageModelChatSelector, ILanguageModelsService } from '../../common/languageModels.js';
 import { CopilotUsageExtensionFeatureId } from '../../common/languageModelStats.js';
 import { ILanguageModelToolsConfirmationService } from '../../common/tools/languageModelToolsConfirmationService.js';
-import { ILanguageModelToolsService } from '../../common/tools/languageModelToolsService.js';
+import { ILanguageModelToolsService, IToolData, IToolSet, isToolSet } from '../../common/tools/languageModelToolsService.js';
 import { ChatViewId, IChatWidget, IChatWidgetService } from '../chat.js';
 import { IChatEditorOptions } from '../widgetHosts/editor/chatEditor.js';
 import { ChatEditorInput, showClearEditingSessionConfirmation } from '../widgetHosts/editor/chatEditorInput.js';
@@ -149,6 +150,26 @@ export interface IChatViewOpenOptions {
 	 * Wait to resolve the command until the chat response reaches a terminal state (complete, error, or pending user confirmation, etc.).
 	 */
 	blockOnResponse?: boolean;
+
+	/**
+	 * A list of tool identifiers to include. When specified alone, only these tools will be enabled.
+	 * Identifiers can be tool IDs, tool reference names (`toolReferenceName`),
+	 * toolset IDs, or toolset reference names (`referenceName`).
+	 * When a toolset identifier matches, all tools in that toolset are included.
+	 * Can be combined with `toolsExclude` for fine-grained control.
+	 */
+	toolsInclude?: string[];
+
+	/**
+	 * A list of tool identifiers to exclude. When specified alone, all tools except these will be enabled.
+	 * Identifiers can be tool IDs, tool reference names (`toolReferenceName`),
+	 * toolset IDs, or toolset reference names (`referenceName`).
+	 * When a toolset identifier matches, all tools in that toolset are excluded.
+	 * Can be combined with `toolsInclude` - exclusions are applied after inclusions.
+	 * Explicit tool references in `toolsInclude` override toolset exclusions,
+	 * but explicit tool exclusions always win.
+	 */
+	toolsExclude?: string[];
 }
 
 export interface IChatViewOpenRequestEntry {
@@ -188,6 +209,7 @@ abstract class OpenChatGlobalAction extends Action2 {
 		const fileService = accessor.get(IFileService);
 		const languageModelService = accessor.get(ILanguageModelsService);
 		const scmService = accessor.get(ISCMService);
+		const logService = accessor.get(ILogService);
 
 		let chatWidget = widgetService.lastFocusedWidget;
 		// When this was invoked to switch to a mode via keybinding, and some chat widget is focused, use that one.
@@ -218,6 +240,25 @@ abstract class OpenChatGlobalAction extends Action2 {
 			}
 
 			chatWidget.input.setCurrentLanguageModel({ metadata: model, identifier: id });
+		}
+
+		if (opts?.toolsInclude || opts?.toolsExclude) {
+			const model = chatWidget.input.selectedLanguageModel.get()?.metadata;
+			const allTools = Array.from(toolsService.getTools(model));
+			const allToolSets = Array.from(toolsService.getToolSetsForModel(model));
+
+			const result = computeToolEnablementMap({
+				allTools,
+				allToolSets,
+				toolsInclude: opts.toolsInclude,
+				toolsExclude: opts.toolsExclude,
+			});
+
+			for (const identifier of result.unknownIdentifiers) {
+				logService.warn(`Tool filtering: Unknown identifier '${identifier}' - no matching tool or toolset found.`);
+			}
+
+			chatWidget.input.selectedToolsModel.set(result.enablementMap, true);
 		}
 
 		if (opts?.previousRequests?.length && chatWidget.viewModel) {
@@ -467,20 +508,41 @@ export function registerChatActions() {
 			const configurationService = accessor.get(IConfigurationService);
 
 			const chatLocation = viewDescriptorService.getViewLocationById(ChatViewId);
-
-			if (viewsService.isViewVisible(ChatViewId)) {
-				if (
-					chatLocation === ViewContainerLocation.AuxiliaryBar &&
-					configurationService.getValue<boolean>(ChatConfiguration.AgentsControlTriStateToggle) &&
-					!layoutService.isAuxiliaryBarMaximized()
-				) {
-					layoutService.setAuxiliaryBarMaximized(true);
-				} else {
-					this.updatePartVisibility(layoutService, chatLocation, false);
-				}
-			} else {
-				this.updatePartVisibility(layoutService, chatLocation, true);
-				(await widgetService.revealWidget())?.focusInput();
+			const chatVisible = viewsService.isViewVisible(ChatViewId);
+			const clickBehavior = configurationService.getValue<AgentsControlClickBehavior>(ChatConfiguration.AgentsControlClickBehavior);
+			switch (clickBehavior) {
+				case AgentsControlClickBehavior.Focus:
+					if (chatLocation === ViewContainerLocation.AuxiliaryBar) {
+						layoutService.setAuxiliaryBarMaximized(true);
+					} else {
+						this.updatePartVisibility(layoutService, chatLocation, true);
+					}
+					(await widgetService.revealWidget())?.focusInput();
+					break;
+				case AgentsControlClickBehavior.Cycle:
+					if (chatVisible) {
+						if (
+							chatLocation === ViewContainerLocation.AuxiliaryBar &&
+							!layoutService.isAuxiliaryBarMaximized()
+						) {
+							layoutService.setAuxiliaryBarMaximized(true);
+							(await widgetService.revealWidget())?.focusInput();
+						} else {
+							this.updatePartVisibility(layoutService, chatLocation, false);
+						}
+					} else {
+						this.updatePartVisibility(layoutService, chatLocation, true);
+						(await widgetService.revealWidget())?.focusInput();
+					}
+					break;
+				default:
+					if (chatVisible) {
+						this.updatePartVisibility(layoutService, chatLocation, false);
+					} else {
+						this.updatePartVisibility(layoutService, chatLocation, true);
+						(await widgetService.revealWidget())?.focusInput();
+					}
+					break;
 			}
 		}
 
@@ -936,6 +998,167 @@ export function stringifyItem(item: IChatRequestViewModel | IChatResponseViewMod
 	}
 }
 
+export interface IToolFilteringOptions {
+	allTools: IToolData[];
+	allToolSets: IToolSet[];
+	toolsInclude?: string[];
+	toolsExclude?: string[];
+}
+
+export interface IToolFilteringResult {
+	enablementMap: Map<IToolData | IToolSet, boolean>;
+	unknownIdentifiers: string[];
+}
+
+/**
+ * Computes the tool enablement map based on include/exclude filters.
+ *
+ * Resolution algorithm:
+ * 1. If `toolsInclude` is specified, start with only those tools/toolsets enabled
+ * 2. If `toolsExclude` is specified, remove those tools/toolsets
+ * 3. Explicit tool references in `toolsInclude` override toolset exclusions
+ * 4. Explicit tool exclusions always win
+ * 5. Toolset enablement is calculated based on whether all member tools are enabled
+ *
+ * @throws Error if filtering results in zero enabled tools
+ */
+export function computeToolEnablementMap(options: IToolFilteringOptions): IToolFilteringResult {
+	const { allTools, allToolSets, toolsInclude, toolsExclude } = options;
+
+	const enablementMap = new Map<IToolData | IToolSet, boolean>();
+	const matchedIdentifiers = new Set<string>();
+
+	// Helper to check if a tool matches any identifier (by id or toolReferenceName)
+	const toolMatches = (tool: IToolData, identifiers: Set<string>): boolean => {
+		if (identifiers.has(tool.id)) {
+			matchedIdentifiers.add(tool.id);
+			return true;
+		}
+		if (tool.toolReferenceName && identifiers.has(tool.toolReferenceName)) {
+			matchedIdentifiers.add(tool.toolReferenceName);
+			return true;
+		}
+		return false;
+	};
+
+	// Helper to check if a toolset matches any identifier (by id or referenceName)
+	const toolSetMatches = (toolSet: IToolSet, identifiers: Set<string>): boolean => {
+		if (identifiers.has(toolSet.id)) {
+			matchedIdentifiers.add(toolSet.id);
+			return true;
+		}
+		if (identifiers.has(toolSet.referenceName)) {
+			matchedIdentifiers.add(toolSet.referenceName);
+			return true;
+		}
+		return false;
+	};
+
+	// Track which tools are explicitly referenced in toolsInclude
+	const explicitlyIncludedTools = new Set<IToolData>();
+
+	// Step 1: Build initial set based on toolsInclude
+	if (toolsInclude) {
+		const includeSet = new Set(toolsInclude);
+
+		// First, process toolsets - if a toolset matches, enable all its tools
+		for (const toolSet of allToolSets) {
+			if (toolSetMatches(toolSet, includeSet)) {
+				for (const tool of toolSet.getTools()) {
+					enablementMap.set(tool, true);
+				}
+			}
+		}
+
+		// Then process individual tools
+		for (const tool of allTools) {
+			if (toolMatches(tool, includeSet)) {
+				enablementMap.set(tool, true);
+				explicitlyIncludedTools.add(tool);
+			} else if (!enablementMap.has(tool)) {
+				enablementMap.set(tool, false);
+			}
+		}
+		// Also process tools from toolsets that may not be in allTools
+		for (const toolSet of allToolSets) {
+			for (const tool of toolSet.getTools()) {
+				if (toolMatches(tool, includeSet)) {
+					enablementMap.set(tool, true);
+					explicitlyIncludedTools.add(tool);
+				} else if (!enablementMap.has(tool)) {
+					enablementMap.set(tool, false);
+				}
+			}
+		}
+	} else {
+		// No toolsInclude specified - start with all tools enabled
+		for (const tool of allTools) {
+			enablementMap.set(tool, true);
+		}
+		for (const toolSet of allToolSets) {
+			for (const tool of toolSet.getTools()) {
+				enablementMap.set(tool, true);
+			}
+		}
+	}
+
+	// Step 2: Remove tools matching toolsExclude
+	if (toolsExclude) {
+		const excludeSet = new Set(toolsExclude);
+
+		// First, process toolsets - if a toolset matches, disable all its tools
+		// (unless explicitly included as individual tools)
+		for (const toolSet of allToolSets) {
+			if (toolSetMatches(toolSet, excludeSet)) {
+				for (const tool of toolSet.getTools()) {
+					// Explicit tool reference overrides toolset exclusion
+					if (!explicitlyIncludedTools.has(tool)) {
+						enablementMap.set(tool, false);
+					}
+				}
+			}
+		}
+
+		// Then process individual tools - explicit exclusion always wins
+		for (const tool of allTools) {
+			if (toolMatches(tool, excludeSet)) {
+				enablementMap.set(tool, false);
+			}
+		}
+		for (const toolSet of allToolSets) {
+			for (const tool of toolSet.getTools()) {
+				if (toolMatches(tool, excludeSet)) {
+					enablementMap.set(tool, false);
+				}
+			}
+		}
+	}
+
+	// Collect unknown identifiers
+	const allIdentifiers = new Set([...(toolsInclude ?? []), ...(toolsExclude ?? [])]);
+	const unknownIdentifiers: string[] = [];
+	for (const identifier of allIdentifiers) {
+		if (!matchedIdentifiers.has(identifier)) {
+			unknownIdentifiers.push(identifier);
+		}
+	}
+
+	// Validate at least one tool is enabled
+	const enabledToolCount = Array.from(enablementMap.entries()).filter(([item, enabled]) => enabled && !isToolSet(item)).length;
+	if (enabledToolCount === 0) {
+		throw new Error('Tool filtering resulted in zero enabled tools. At least one tool must be enabled.');
+	}
+
+	// Calculate toolset enablement based on whether all member tools are enabled
+	for (const toolSet of allToolSets) {
+		const toolSetTools = Array.from(toolSet.getTools());
+		const allToolsEnabled = toolSetTools.length > 0 && toolSetTools.every(t => enablementMap.get(t) === true);
+		enablementMap.set(toolSet, allToolsEnabled);
+	}
+
+	return { enablementMap, unknownIdentifiers };
+}
+
 
 /**
  * Returns whether we can continue clearing/switching chat sessions, false to cancel.
@@ -1058,28 +1281,5 @@ registerAction2(class EditToolApproval extends Action2 {
 		const confirmationService = accessor.get(ILanguageModelToolsConfirmationService);
 		const toolsService = accessor.get(ILanguageModelToolsService);
 		confirmationService.manageConfirmationPreferences([...toolsService.getAllToolsIncludingDisabled()], scope ? { defaultScope: scope } : undefined);
-	}
-});
-
-registerAction2(class ToggleChatViewTitleAction extends Action2 {
-	constructor() {
-		super({
-			id: 'workbench.action.chat.toggleChatViewTitle',
-			title: localize2('chat.toggleChatViewTitle.label', "Show Chat Title"),
-			toggled: ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewTitleEnabled}`, true),
-			menu: {
-				id: MenuId.ChatWelcomeContext,
-				group: '1_modify',
-				order: 2,
-				when: ChatContextKeys.inChatEditor.negate()
-			}
-		});
-	}
-
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const configurationService = accessor.get(IConfigurationService);
-
-		const chatViewTitleEnabled = configurationService.getValue<boolean>(ChatConfiguration.ChatViewTitleEnabled);
-		await configurationService.updateValue(ChatConfiguration.ChatViewTitleEnabled, !chatViewTitleEnabled);
 	}
 });

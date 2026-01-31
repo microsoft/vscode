@@ -637,7 +637,7 @@ class ProfileWidget extends Disposable {
 		this._profileElement.value = { element: profileElement, dispose: () => disposables.dispose() };
 
 		this.profileTitle.textContent = profileElement.name;
-		this.builtInLabel.classList.toggle('hide', !(profileElement instanceof UserDataProfileElement && profileElement.profile.isSystem));
+		this.builtInLabel.classList.toggle('hide', !(profileElement instanceof UserDataProfileElement && profileElement.profile.isDefault));
 		disposables.add(profileElement.onDidChange(e => {
 			if (e.name) {
 				this.profileTitle.textContent = profileElement.name;
@@ -984,7 +984,7 @@ class ProfileNameRenderer extends ProfilePropertyRenderer {
 		const renderName = (profileElement: ProfileTreeElement) => {
 			nameInput.value = profileElement.root.name;
 			nameInput.validate();
-			const isSystemProfile = profileElement.root instanceof UserDataProfileElement && (profileElement.root.profile.isDefault || profileElement.root.profile.isSystem);
+			const isSystemProfile = profileElement.root instanceof UserDataProfileElement && (profileElement.root.profile.isDefault);
 			if (profileElement.root.disabled || isSystemProfile) {
 				nameInput.disable();
 			} else {

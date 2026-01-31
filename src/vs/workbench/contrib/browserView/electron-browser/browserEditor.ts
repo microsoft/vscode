@@ -5,7 +5,7 @@
 
 import './media/browser.css';
 import { localize } from '../../../../nls.js';
-import { $, addDisposableListener, Dimension, disposableWindowInterval, EventType, IDomPosition, isHTMLElement, registerExternalFocusChecker } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, Dimension, EventType, IDomPosition, registerExternalFocusChecker } from '../../../../base/browser/dom.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { RawContextKey, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -55,6 +55,12 @@ export const CONTEXT_BROWSER_ELEMENT_SELECTION_ACTIVE = new RawContextKey<boolea
 
 // Re-export find widget context keys for use in actions
 export { CONTEXT_BROWSER_FIND_WIDGET_FOCUSED, CONTEXT_BROWSER_FIND_WIDGET_VISIBLE };
+
+/**
+ * Get the original implementation of HTMLElement focus (without window auto-focusing)
+ * before it gets overridden by the workbench.
+ */
+const originalHtmlElementFocus = HTMLElement.prototype.focus;
 
 class BrowserNavigationBar extends Disposable {
 	private readonly _urlInput: HTMLInputElement;
@@ -186,6 +192,7 @@ export class BrowserEditor extends EditorPane {
 	private readonly _inputDisposables = this._register(new DisposableStore());
 	private overlayManager: BrowserOverlayManager | undefined;
 	private _elementSelectionCts: CancellationTokenSource | undefined;
+	private _screenshotTimeout: ReturnType<typeof setTimeout> | undefined;
 
 	constructor(
 		group: IEditorGroup,
@@ -335,8 +342,11 @@ export class BrowserEditor extends EditorPane {
 		this.setBackgroundImage(this._model.screenshot);
 
 		if (context.newInGroup) {
-			this._navigationBar.focusUrlInput();
+			this.focusUrlInput();
 		}
+
+		// Start / stop screenshots when the model visibility changes
+		this._inputDisposables.add(this._model.onDidChangeVisibility(() => this.doScreenshot()));
 
 		// Listen to model events for UI updates
 		this._inputDisposables.add(this._model.onDidKeyCommand(keyEvent => {
@@ -360,9 +370,7 @@ export class BrowserEditor extends EditorPane {
 			// but focus is removed from the workbench.
 			if (focused) {
 				this._onDidFocus?.fire();
-				if (isHTMLElement(this.window.document.activeElement)) {
-					this.window.document.activeElement.blur();
-				}
+				this.ensureBrowserFocus();
 			}
 		}));
 
@@ -394,21 +402,23 @@ export class BrowserEditor extends EditorPane {
 				this.layoutBrowserContainer();
 			}
 		}));
-		// Capture screenshot periodically (once per second) to keep background updated
-		this._inputDisposables.add(disposableWindowInterval(
-			this.window,
-			() => this.capturePlaceholderSnapshot(),
-			1000
-		));
 
 		this.updateErrorDisplay();
 		this.layoutBrowserContainer();
-		await this._model.setVisible(this.shouldShowView);
+		this.updateVisibility();
+		this.doScreenshot();
 	}
 
 	protected override setEditorVisible(visible: boolean): void {
 		this._editorVisible = visible;
 		this.updateVisibility();
+	}
+
+	/**
+	 * Make the browser container the active element without moving focus from the browser view.
+	 */
+	private ensureBrowserFocus(): void {
+		originalHtmlElementFocus.call(this._browserContainer);
 	}
 
 	private updateVisibility(): void {
@@ -430,8 +440,28 @@ export class BrowserEditor extends EditorPane {
 		this._overlayPauseContainer.classList.toggle('visible', isPaused);
 
 		if (this._model) {
-			// Blur the background placeholder screenshot if the view is hidden due to an overlay.
-			void this._model.setVisible(this.shouldShowView);
+			const show = this.shouldShowView;
+			if (show === this._model.visible) {
+				return;
+			}
+
+			if (show) {
+				this._model.setVisible(true);
+				if (
+					this._browserContainer.ownerDocument.hasFocus() &&
+					this._browserContainer.ownerDocument.activeElement === this._browserContainer
+				) {
+					// If the editor is focused, ensure the browser view also gets focus
+					void this._model.focus();
+				}
+			} else {
+				this.doScreenshot();
+
+				// Hide the browser view just before the next render.
+				// This attempts to give the screenshot some time to be captured and displayed.
+				// If we hide immediately it is more likely to flicker while the old screenshot is still visible.
+				this.window.requestAnimationFrame(() => this._model?.setVisible(false));
+			}
 		}
 	}
 
@@ -526,8 +556,13 @@ export class BrowserEditor extends EditorPane {
 				url = 'http://' + url;
 			}
 
+			this.ensureBrowserFocus();
 			await this._model.loadURL(url);
 		}
+	}
+
+	focusUrlInput(): void {
+		this._navigationBar.focusUrlInput();
 	}
 
 	async goBack(): Promise<void> {
@@ -544,6 +579,10 @@ export class BrowserEditor extends EditorPane {
 
 	async toggleDevTools(): Promise<void> {
 		return this._model?.toggleDevTools();
+	}
+
+	async clearStorage(): Promise<void> {
+		return this._model?.clearStorage();
 	}
 
 	/**
@@ -607,6 +646,9 @@ export class BrowserEditor extends EditorPane {
 			if (!resourceUri) {
 				throw new Error('No resource URI found');
 			}
+
+			// Make the browser the focused view
+			this.ensureBrowserFocus();
 
 			// Create a locator - for integrated browser, use the URI scheme to identify
 			// Browser view URIs have a special scheme we can match against
@@ -749,17 +791,35 @@ export class BrowserEditor extends EditorPane {
 		}
 	}
 
-	/**
-	 * Capture a screenshot of the current browser view to use as placeholder background
-	 */
-	private async capturePlaceholderSnapshot(): Promise<void> {
-		if (this._model && !this._overlayVisible) {
-			try {
-				const buffer = await this._model.captureScreenshot({ quality: 80 });
-				this.setBackgroundImage(buffer);
-			} catch (error) {
-				this.logService.error('BrowserEditor.capturePlaceholderSnapshot: Failed to capture screenshot', error);
-			}
+	private async doScreenshot(): Promise<void> {
+		if (!this._model) {
+			return;
+		}
+
+		// Cancel any existing timeout
+		this.cancelScheduledScreenshot();
+
+		// Only take screenshots if the model is visible
+		if (!this._model.visible) {
+			return;
+		}
+
+		try {
+			// Capture screenshot and set as background image
+			const screenshot = await this._model.captureScreenshot({ quality: 80 });
+			this.setBackgroundImage(screenshot);
+		} catch (error) {
+			this.logService.error('Failed to capture browser view screenshot', error);
+		}
+
+		// Schedule next screenshot in 1 second
+		this._screenshotTimeout = setTimeout(() => this.doScreenshot(), 1000);
+	}
+
+	private cancelScheduledScreenshot(): void {
+		if (this._screenshotTimeout) {
+			clearTimeout(this._screenshotTimeout);
+			this._screenshotTimeout = undefined;
 		}
 	}
 
@@ -827,6 +887,9 @@ export class BrowserEditor extends EditorPane {
 			this._elementSelectionCts.dispose(true);
 			this._elementSelectionCts = undefined;
 		}
+
+		// Cancel any scheduled screenshots
+		this.cancelScheduledScreenshot();
 
 		// Clear find widget model
 		this._findWidget.rawValue?.setModel(undefined);

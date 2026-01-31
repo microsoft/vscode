@@ -53,6 +53,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IDefaultAccount } from '../../../../../base/common/defaultAccount.js';
 import { Schemas } from '../../../../../base/common/network.js';
+import { getInlineCompletionsController } from '../controller/common.js';
 
 export class InlineCompletionsModel extends Disposable {
 	private readonly _source;
@@ -361,6 +362,7 @@ export class InlineCompletionsModel extends Disposable {
 				return true;
 			},
 		},
+
 	}, (reader, changeSummary) => {
 		this._source.clearOperationOnTextModelChange.read(reader); // Make sure the clear operation runs before the fetch operation
 		this._noDelaySignal.read(reader);
@@ -645,9 +647,12 @@ export class InlineCompletionsModel extends Disposable {
 			const stringEdit = inlineEditResult.action?.kind === 'edit' ? inlineEditResult.action.stringEdit : undefined;
 			const replacements = stringEdit ? TextEdit.fromStringEdit(stringEdit, new TextModelText(this.textModel)).replacements : [];
 
-			const nextEditUri = (item.inlineEdit?.command?.id === 'vscode.open' || item.inlineEdit?.command?.id === '_workbench.open') &&
+			let nextEditUri = (item.inlineEdit?.command?.id === 'vscode.open' || item.inlineEdit?.command?.id === '_workbench.open') &&
 				// eslint-disable-next-line local/code-no-any-casts
 				item.inlineEdit?.command.arguments?.length ? URI.from(<any>item.inlineEdit?.command.arguments[0]) : undefined;
+			if (!inlineEditResult.originalTextRef.targets(this.textModel)) {
+				nextEditUri = inlineEditResult.originalTextRef.uri;
+			}
 			return { kind: 'inlineEdit', inlineSuggestion: inlineEditResult, edits: replacements, cursorAtInlineEdit, nextEditUri };
 		}
 
@@ -925,7 +930,18 @@ export class InlineCompletionsModel extends Disposable {
 		try {
 			let followUpTrigger = false;
 			editor.pushUndoStop();
-			if (isNextEditUri) {
+
+			if (!completion.originalTextRef.targets(this.textModel)) {
+				// The edit targets a different document, open it and transplant the completion
+				const targetEditor = await this._codeEditorService.openCodeEditor({ resource: completion.originalTextRef.uri }, this._editor);
+				if (targetEditor) {
+					const controller = getInlineCompletionsController(targetEditor);
+					const m = controller?.model.get();
+					targetEditor.focus();
+					m?.transplantCompletion(completion);
+					targetEditor.revealLineInCenter(completion.targetRange.startLineNumber);
+				}
+			} else if (isNextEditUri) {
 				// Do nothing
 			} else if (completion.action?.kind === 'edit') {
 				const action = completion.action;
@@ -1139,6 +1155,13 @@ export class InlineCompletionsModel extends Disposable {
 		if (!s) { return; }
 
 		const suggestion = s.inlineSuggestion;
+
+		if (!suggestion.originalTextRef.targets(this.textModel)) {
+			this.accept(this._editor);
+			return;
+		}
+
+
 		suggestion.addRef();
 		try {
 			transaction(tx => {
@@ -1173,6 +1196,20 @@ export class InlineCompletionsModel extends Disposable {
 
 	public async handleInlineSuggestionShown(inlineCompletion: InlineSuggestionItem, viewKind: InlineCompletionViewKind, viewData: InlineCompletionViewData, timeWhenShown: number): Promise<void> {
 		await inlineCompletion.reportInlineEditShown(this._commandService, viewKind, viewData, this.textModel, timeWhenShown);
+	}
+
+	/**
+	 * Transplants an inline completion from another model to this one.
+	 * Used for cross-file inline edits.
+	 */
+	public transplantCompletion(item: InlineSuggestionItem): void {
+		item.addRef();
+		transaction(tx => {
+			this._source.seedWithCompletion(item, tx);
+			this._isActive.set(true, tx);
+			this._inAcceptFlow.set(true, tx);
+			this.dontRefetchSignal.trigger(tx);
+		});
 	}
 }
 

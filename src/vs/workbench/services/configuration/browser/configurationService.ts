@@ -109,7 +109,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 
 	constructor(
 		{ remoteAuthority, configurationCache }: { remoteAuthority?: string; configurationCache: IConfigurationCache },
-		environmentService: IBrowserWorkbenchEnvironmentService,
+		private readonly environmentService: IBrowserWorkbenchEnvironmentService,
 		private readonly userDataProfileService: IUserDataProfileService,
 		private readonly userDataProfilesService: IUserDataProfilesService,
 		private readonly fileService: IFileService,
@@ -519,7 +519,8 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		const workspaceConfigPath = workspaceIdentifier.configPath;
 		const workspaceFolders = toWorkspaceFolders(this.workspaceConfiguration.getFolders(), workspaceConfigPath, this.uriIdentityService.extUri);
 		const workspaceId = workspaceIdentifier.id;
-		const workspace = new Workspace(workspaceId, workspaceFolders, this.workspaceConfiguration.isTransient(), workspaceConfigPath, uri => this.uriIdentityService.extUri.ignorePathCasing(uri));
+		const isAgentSessionsWorkspace = this.uriIdentityService.extUri.isEqual(workspaceConfigPath, this.environmentService.agentSessionsWorkspace);
+		const workspace = new Workspace(workspaceId, workspaceFolders, this.workspaceConfiguration.isTransient(), workspaceConfigPath, uri => this.uriIdentityService.extUri.ignorePathCasing(uri), isAgentSessionsWorkspace);
 		workspace.initialized = this.workspaceConfiguration.initialized;
 		return workspace;
 	}
@@ -604,7 +605,6 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 	}
 
 	private async initializeConfiguration(trigger: boolean): Promise<void> {
-		await this.updateDefaultOverridesFromProfile(this.userDataProfileService.currentProfile);
 		await this.defaultConfiguration.initialize();
 
 		const initPolicyConfigurationPromise = this.policyConfiguration.initialize();
@@ -730,7 +730,6 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 					promises.push(this.reloadApplicationConfiguration(true));
 				}
 			}
-			await this.updateDefaultOverridesFromProfile(e.profile);
 			let [localUser, application] = await Promise.all(promises);
 			application = application ?? this._configuration.applicationConfiguration;
 			if (this.applicationConfiguration) {
@@ -844,11 +843,6 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 
 			await this.updateWorkspaceConfiguration(newFolders, this.workspaceConfiguration.getConfiguration(), fromCache);
 		}
-	}
-
-	private async updateDefaultOverridesFromProfile(profile: IUserDataProfile): Promise<void> {
-		const template = await this.userDataProfilesService.getStoredProfileTemplate(profile);
-		this.defaultConfiguration.updateProfileDefaults(template?.settings);
 	}
 
 	private updateRestrictedSettings(): void {

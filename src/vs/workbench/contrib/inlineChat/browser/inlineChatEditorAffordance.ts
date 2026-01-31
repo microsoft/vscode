@@ -6,14 +6,79 @@
 import './media/inlineChatEditorAffordance.css';
 import { IDimension } from '../../../../base/browser/dom.js';
 import * as dom from '../../../../base/browser/dom.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from '../../../../editor/browser/editorBrowser.js';
 import { EditorOption } from '../../../../editor/common/config/editorOptions.js';
 import { Selection, SelectionDirection } from '../../../../editor/common/core/selection.js';
-import { autorun, IObservable, ISettableObservable } from '../../../../base/common/observable.js';
-import { MenuId } from '../../../../platform/actions/common/actions.js';
+import { autorun, IObservable } from '../../../../base/common/observable.js';
+import { MenuId, MenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { quickFixCommandId } from '../../../../editor/contrib/codeAction/browser/codeAction.js';
+import { CodeActionController } from '../../../../editor/contrib/codeAction/browser/codeActionController.js';
+import { IAction } from '../../../../base/common/actions.js';
+import { MenuEntryActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+
+class QuickFixActionViewItem extends MenuEntryActionViewItem {
+
+	private readonly _lightBulbStore = this._store.add(new MutableDisposable<DisposableStore>());
+	private _currentTitle: string | undefined;
+
+	constructor(
+		action: MenuItemAction,
+		private readonly _editor: ICodeEditor,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@INotificationService notificationService: INotificationService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IThemeService themeService: IThemeService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IAccessibilityService accessibilityService: IAccessibilityService
+	) {
+		super(action, { draggable: false }, keybindingService, notificationService, contextKeyService, themeService, contextMenuService, accessibilityService);
+	}
+
+	override render(container: HTMLElement): void {
+		super.render(container);
+		this._updateFromLightBulb();
+	}
+
+	protected override getTooltip(): string {
+		return this._currentTitle ?? super.getTooltip();
+	}
+
+	private _updateFromLightBulb(): void {
+		const controller = CodeActionController.get(this._editor);
+		if (!controller) {
+			return;
+		}
+
+		const store = new DisposableStore();
+		this._lightBulbStore.value = store;
+
+		store.add(autorun(reader => {
+			const info = controller.lightBulbState.read(reader);
+			if (this.label) {
+				// Update icon
+				const icon = info?.icon ?? Codicon.lightBulb;
+				const iconClasses = ThemeIcon.asClassNameArray(icon);
+				this.label.className = '';
+				this.label.classList.add('codicon', ...iconClasses);
+			}
+
+			// Update tooltip
+			this._currentTitle = info?.title;
+			this.updateTooltip();
+		}));
+	}
+}
 
 /**
  * Content widget that shows a small sparkle icon at the cursor position.
@@ -34,8 +99,6 @@ export class InlineChatEditorAffordance extends Disposable implements IContentWi
 	constructor(
 		private readonly _editor: ICodeEditor,
 		selection: IObservable<Selection | undefined>,
-		suppressAffordance: ISettableObservable<boolean>,
-		_hover: ISettableObservable<{ rect: DOMRect; above: boolean; lineNumber: number } | undefined>,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
@@ -49,12 +112,17 @@ export class InlineChatEditorAffordance extends Disposable implements IContentWi
 			hiddenItemStrategy: HiddenItemStrategy.Ignore,
 			menuOptions: { renderShortTitle: true },
 			toolbarOptions: { primaryGroup: () => true },
+			actionViewItemProvider: (action: IAction) => {
+				if (action instanceof MenuItemAction && action.id === quickFixCommandId) {
+					return instantiationService.createInstance(QuickFixActionViewItem, action, this._editor);
+				}
+				return undefined;
+			}
 		}));
 
 		this._store.add(autorun(r => {
 			const sel = selection.read(r);
-			const suppressed = suppressAffordance.read(r);
-			if (sel && !suppressed) {
+			if (sel) {
 				this._show(sel);
 			} else {
 				this._hide();

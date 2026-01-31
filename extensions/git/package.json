@@ -39,7 +39,8 @@
     "tabInputMultiDiff",
     "tabInputTextMerge",
     "textEditorDiffInformation",
-    "timeline"
+    "timeline",
+    "workspaceTrust"
   ],
   "categories": [
     "Other"

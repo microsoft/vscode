@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { spawn } from 'child_process';
 import { TestContext } from './context.js';
 
 export function setup(context: TestContext) {
@@ -71,57 +70,30 @@ export function setup(context: TestContext) {
 			return;
 		}
 
-		const args = [
-			'--accept-server-license-terms',
-			'--connection-token', context.getRandomToken(),
-			'--host', '0.0.0.0',
-			'--port', context.getUniquePort(),
-			'--server-data-dir', context.createTempDir(),
-			'--extensions-dir', context.createTempDir(),
-		];
+		await context.runCliApp('Server', entryPoint,
+			[
+				'--accept-server-license-terms',
+				'--connection-token', context.getRandomToken(),
+				'--host', '0.0.0.0',
+				'--port', context.getUniquePort(),
+				'--server-data-dir', context.createTempDir(),
+				'--extensions-dir', context.createTempDir()
+			],
+			async (line) => {
+				const port = /Extension host agent listening on (\d+)/.exec(line)?.[1];
+				if (!port) {
+					return false;
+				}
 
-		context.log(`Starting server ${entryPoint} with args ${args.join(' ')}`);
-		const detached = !context.capabilities.has('windows');
-		const server = spawn(entryPoint, args, { shell: true, detached });
+				const url = new URL('version', context.getWebServerUrl(port)).toString();
 
-		let testError: Error | undefined;
+				context.log(`Fetching version from ${url}`);
+				const response = await context.fetchNoErrors(url);
+				const version = await response.text();
+				assert.strictEqual(version, context.options.commit, `Expected commit ${context.options.commit} but got ${version}`);
 
-		server.stderr.on('data', (data) => {
-			context.error(`[Server Error] ${data.toString().trim()}`);
-		});
-
-		server.stdout.on('data', (data) => {
-			const text = data.toString().trim();
-			text.split('\n').forEach((line: string) => {
-				context.log(`[Server Output] ${line}`);
-			});
-
-			const port = /Extension host agent listening on (\d+)/.exec(text)?.[1];
-			if (port) {
-				const url = context.getWebServerUrl(port);
-				url.pathname = '/version';
-				runWebTest(url.toString())
-					.catch((error) => { testError = error; })
-					.finally(() => context.killProcessTree(server.pid!));
+				return true;
 			}
-		});
-
-		await new Promise<void>((resolve, reject) => {
-			server.on('error', reject);
-			server.on('exit', resolve);
-		});
-
-		if (testError) {
-			throw testError;
-		}
-	}
-
-	async function runWebTest(url: string) {
-		context.log(`Fetching ${url}`);
-		const response = await fetch(url);
-		assert.strictEqual(response.status, 200, `Expected status 200 but got ${response.status}`);
-
-		const text = await response.text();
-		assert.strictEqual(text, context.options.commit, `Expected commit ${context.options.commit} but got ${text}`);
+		);
 	}
 }

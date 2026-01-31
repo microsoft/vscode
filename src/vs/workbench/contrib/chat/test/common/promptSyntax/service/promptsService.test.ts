@@ -768,7 +768,7 @@ suite('PromptsService', () => {
 					argumentHint: undefined,
 					tools: undefined,
 					target: undefined,
-					infer: undefined,
+					visibility: { userInvokable: true, agentInvokable: true },
 					agents: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/agent1.agent.md'),
 					source: { storage: PromptsStorage.local }
@@ -824,7 +824,7 @@ suite('PromptsService', () => {
 					model: undefined,
 					argumentHint: undefined,
 					target: undefined,
-					infer: undefined,
+					visibility: { userInvokable: true, agentInvokable: true },
 					agents: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/agent1.agent.md'),
 					source: { storage: PromptsStorage.local },
@@ -841,6 +841,7 @@ suite('PromptsService', () => {
 					},
 					uri: URI.joinPath(rootFolderUri, '.github/agents/agent2.agent.md'),
 					source: { storage: PromptsStorage.local },
+					visibility: { userInvokable: true, agentInvokable: true }
 				}
 			];
 
@@ -897,7 +898,7 @@ suite('PromptsService', () => {
 					handOffs: undefined,
 					model: undefined,
 					target: undefined,
-					infer: undefined,
+					visibility: { userInvokable: true, agentInvokable: true },
 					agents: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/agent1.agent.md'),
 					source: { storage: PromptsStorage.local }
@@ -915,7 +916,7 @@ suite('PromptsService', () => {
 					model: undefined,
 					tools: undefined,
 					target: undefined,
-					infer: undefined,
+					visibility: { userInvokable: true, agentInvokable: true },
 					agents: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/agent2.agent.md'),
 					source: { storage: PromptsStorage.local }
@@ -985,7 +986,7 @@ suite('PromptsService', () => {
 					handOffs: undefined,
 					model: undefined,
 					argumentHint: undefined,
-					infer: undefined,
+					visibility: { userInvokable: true, agentInvokable: true },
 					agents: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/github-agent.agent.md'),
 					source: { storage: PromptsStorage.local }
@@ -994,7 +995,7 @@ suite('PromptsService', () => {
 					name: 'vscode-agent',
 					description: 'VS Code specialized agent.',
 					target: 'vscode',
-					model: 'gpt-4',
+					model: ['gpt-4'],
 					agentInstructions: {
 						content: 'I am specialized for VS Code editor tasks.',
 						toolReferences: [],
@@ -1003,7 +1004,7 @@ suite('PromptsService', () => {
 					handOffs: undefined,
 					argumentHint: undefined,
 					tools: undefined,
-					infer: undefined,
+					visibility: { userInvokable: true, agentInvokable: true },
 					agents: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/vscode-agent.agent.md'),
 					source: { storage: PromptsStorage.local }
@@ -1021,7 +1022,7 @@ suite('PromptsService', () => {
 					argumentHint: undefined,
 					tools: undefined,
 					target: undefined,
-					infer: undefined,
+					visibility: { userInvokable: true, agentInvokable: true },
 					agents: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/generic-agent.agent.md'),
 					source: { storage: PromptsStorage.local }
@@ -1035,7 +1036,7 @@ suite('PromptsService', () => {
 			);
 		});
 
-		test('agents with .md extension (no .agent.md)', async () => {
+		test('agents with .md extension should be recognized, except README.md', async () => {
 			const rootFolderName = 'custom-agents-md-extension';
 			const rootFolder = `/${rootFolderName}`;
 			const rootFolderUri = URI.file(rootFolder);
@@ -1054,9 +1055,9 @@ suite('PromptsService', () => {
 					]
 				},
 				{
-					path: `${rootFolder}/.github/agents/test.md`,
+					path: `${rootFolder}/.github/agents/README.md`,
 					contents: [
-						'Test agent without header.',
+						'This is a README file.',
 					]
 				}
 			]);
@@ -1076,27 +1077,17 @@ suite('PromptsService', () => {
 					model: undefined,
 					argumentHint: undefined,
 					target: undefined,
-					infer: undefined,
+					visibility: { userInvokable: true, agentInvokable: true },
 					agents: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/demonstrate.md'),
-					source: { storage: PromptsStorage.local },
-				},
-				{
-					name: 'test',
-					agentInstructions: {
-						content: 'Test agent without header.',
-						toolReferences: [],
-						metadata: undefined
-					},
-					uri: URI.joinPath(rootFolderUri, '.github/agents/test.md'),
-					source: { storage: PromptsStorage.local },
+					source: { storage: PromptsStorage.local }
 				}
 			];
 
 			assert.deepEqual(
 				result,
 				expected,
-				'Must get custom agents with .md extension from .github/agents/ folder.',
+				'Must recognize .md files as agents, except README.md',
 			);
 		});
 
@@ -1157,7 +1148,7 @@ suite('PromptsService', () => {
 					model: undefined,
 					argumentHint: undefined,
 					target: undefined,
-					infer: undefined,
+					visibility: { userInvokable: true, agentInvokable: true },
 					uri: URI.joinPath(rootFolderUri, '.github/agents/restricted-agent.agent.md'),
 					source: { storage: PromptsStorage.local }
 				},
@@ -1175,7 +1166,7 @@ suite('PromptsService', () => {
 					argumentHint: undefined,
 					tools: undefined,
 					target: undefined,
-					infer: undefined,
+					visibility: { userInvokable: true, agentInvokable: true },
 					uri: URI.joinPath(rootFolderUri, '.github/agents/no-access-agent.agent.md'),
 					source: { storage: PromptsStorage.local }
 				},
@@ -1193,7 +1184,7 @@ suite('PromptsService', () => {
 					argumentHint: undefined,
 					tools: undefined,
 					target: undefined,
-					infer: undefined,
+					visibility: { userInvokable: true, agentInvokable: true },
 					uri: URI.joinPath(rootFolderUri, '.github/agents/full-access-agent.agent.md'),
 					source: { storage: PromptsStorage.local }
 				},

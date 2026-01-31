@@ -818,14 +818,58 @@ suite('ComputeAutomaticInstructions', () => {
 
 			await mockFiles(fileService, [
 				{
-					path: `${rootFolder}/.github/agents/test-agent.agent.md`,
+					path: `${rootFolder}/.github/agents/test-agent-1.agent.md`,
 					contents: [
 						'---',
-						'description: \'Test agent\'',
+						'description: \'Test agent 1\'',
+						'user-invokable: true',
+						'disable-model-invocation: false',
 						'---',
 						'Test agent content',
 					]
 				},
+				{
+					path: `${rootFolder}/.github/agents/test-agent-2.agent.md`,
+					contents: [
+						'---',
+						'description: \'Test agent 2\'',
+						'user-invokable: true',
+						'disable-model-invocation: true',
+						'---',
+						'Test agent content',
+					]
+				},
+				{
+					path: `${rootFolder}/.github/agents/test-agent-3.agent.md`,
+					contents: [
+						'---',
+						'description: \'Test agent 3\'',
+						'user-invokable: false',
+						'disable-model-invocation: false',
+						'---',
+						'Test agent content',
+					]
+				},
+				{
+					path: `${rootFolder}/.github/agents/test-agent-4.agent.md`,
+					contents: [
+						'---',
+						'description: \'Test agent 4\'',
+						'user-invokable: false',
+						'disable-model-invocation: true',
+						'---',
+						'Test agent content',
+					]
+				},
+				{
+					path: `${rootFolder}/.github/agents/test-agent-5.agent.md`,
+					contents: [
+						'---',
+						'description: \'Test agent 5\'',
+						'---',
+						'Test agent content',
+					]
+				}
 			]);
 
 			const contextComputer = instaService.createInstance(
@@ -845,10 +889,16 @@ suite('ComputeAutomaticInstructions', () => {
 			assert.equal(agentsList.length, 1, 'There should be one agents list');
 
 			const agents = xmlContents(agentsList[0], 'agent');
-			assert.equal(agents.length, 1, 'There should be one agent');
+			assert.equal(agents.length, 3, 'There should be three agents');
 
-			assert.equal(xmlContents(agents[0], 'description')[0], 'Test agent');
-			assert.equal(xmlContents(agents[0], 'name')[0], `test-agent`);
+			assert.equal(xmlContents(agents[0], 'description')[0], 'Test agent 1');
+			assert.equal(xmlContents(agents[0], 'name')[0], `test-agent-1`);
+
+			assert.equal(xmlContents(agents[1], 'description')[0], 'Test agent 3');
+			assert.equal(xmlContents(agents[1], 'name')[0], `test-agent-3`);
+
+			assert.equal(xmlContents(agents[2], 'description')[0], 'Test agent 5');
+			assert.equal(xmlContents(agents[2], 'name')[0], `test-agent-5`);
 		});
 
 		test('should include skills list when readFile tool available', async () => {
@@ -877,6 +927,7 @@ suite('ComputeAutomaticInstructions', () => {
 					contents: [
 						'---',
 						'name: \'typescript\'',
+						'description: \'TypeScript best practices\'',
 						'---',
 						'TypeScript skill content',
 					]
@@ -906,7 +957,7 @@ suite('ComputeAutomaticInstructions', () => {
 			assert.equal(xmlContents(skills[0], 'file')[0], getFilePath(`${rootFolder}/.claude/skills/javascript/SKILL.md`));
 			assert.equal(xmlContents(skills[0], 'name')[0], 'javascript');
 
-			assert.equal(xmlContents(skills[1], 'description')[0], undefined);
+			assert.equal(xmlContents(skills[1], 'description')[0], 'TypeScript best practices');
 			assert.equal(xmlContents(skills[1], 'file')[0], getFilePath(`${rootFolder}/.claude/skills/typescript/SKILL.md`));
 			assert.equal(xmlContents(skills[1], 'name')[0], 'typescript');
 		});

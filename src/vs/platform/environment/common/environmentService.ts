@@ -108,7 +108,7 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 	get untitledWorkspacesHome(): URI { return URI.file(join(this.userDataPath, 'Workspaces')); }
 
 	@memoize
-	get builtinProfilesHome(): URI { return joinPath(URI.file(this.appRoot), 'resources', 'profiles'); }
+	get builtinWorkbenchModesHome(): URI { return joinPath(URI.file(this.appRoot), 'resources', 'workbenchModes'); }
 
 	@memoize
 	get builtinExtensionsPath(): string {

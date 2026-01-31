@@ -79,10 +79,14 @@ export class ChatTreeContentPart extends Disposable implements IChatContentPart 
 	}
 }
 
-export class TreePool extends Disposable {
-	private _pool: ResourcePool<WorkbenchCompressibleAsyncDataTree<IChatResponseProgressFileTreeData, IChatResponseProgressFileTreeData, void>>;
+interface ITreePoolWrapper extends IDisposable {
+	tree: WorkbenchCompressibleAsyncDataTree<IChatResponseProgressFileTreeData, IChatResponseProgressFileTreeData, void>;
+}
 
-	public get inUse(): ReadonlySet<WorkbenchCompressibleAsyncDataTree<IChatResponseProgressFileTreeData, IChatResponseProgressFileTreeData, void>> {
+export class TreePool extends Disposable {
+	private _pool: ResourcePool<ITreePoolWrapper>;
+
+	public get inUse(): ReadonlySet<ITreePoolWrapper> {
 		return this._pool.inUse;
 	}
 
@@ -96,11 +100,12 @@ export class TreePool extends Disposable {
 		this._pool = this._register(new ResourcePool(() => this.treeFactory()));
 	}
 
-	private treeFactory(): WorkbenchCompressibleAsyncDataTree<IChatResponseProgressFileTreeData, IChatResponseProgressFileTreeData, void> {
-		const resourceLabels = this._register(this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this._onDidChangeVisibility }));
+	private treeFactory(): ITreePoolWrapper {
+		const store = new DisposableStore();
+		const resourceLabels = store.add(this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this._onDidChangeVisibility }));
 
 		const container = $('.interactive-response-progress-tree');
-		this._register(createFileIconThemableTreeContainerScope(container, this.themeService));
+		store.add(createFileIconThemableTreeContainerScope(container, this.themeService));
 
 		const tree = this.instantiationService.createInstance(
 			WorkbenchCompressibleAsyncDataTree<IChatResponseProgressFileTreeData, IChatResponseProgressFileTreeData>,
@@ -123,18 +128,21 @@ export class TreePool extends Disposable {
 				alwaysConsumeMouseWheel: false
 			});
 
-		return tree;
+		return {
+			tree,
+			dispose: () => store.dispose()
+		};
 	}
 
 	get(): IDisposableReference<WorkbenchCompressibleAsyncDataTree<IChatResponseProgressFileTreeData, IChatResponseProgressFileTreeData, void>> {
-		const object = this._pool.get();
+		const wrapper = this._pool.get();
 		let stale = false;
 		return {
-			object,
+			object: wrapper.tree,
 			isStale: () => stale,
 			dispose: () => {
 				stale = true;
-				this._pool.release(object);
+				this._pool.release(wrapper);
 			}
 		};
 	}

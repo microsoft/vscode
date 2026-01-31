@@ -314,10 +314,27 @@ export class ComputeAutomaticInstructions {
 
 			const agentSkills = await this._promptsService.findAgentSkills(token);
 			if (agentSkills && agentSkills.length > 0) {
+				const useSkillAdherencePrompt = this._configurationService.getValue(PromptsConfig.USE_SKILL_ADHERENCE_PROMPT);
 				entries.push('<skills>');
-				entries.push('Here is a list of skills that contain domain specific knowledge on a variety of topics.');
-				entries.push('Each skill comes with a description of the topic and a file path that contains the detailed instructions.');
-				entries.push(`When a user asks you to perform a task that falls within the domain of a skill, use the ${readTool.variable} tool to acquire the full instructions from the file URI.`);
+				if (useSkillAdherencePrompt) {
+					// Stronger skill adherence prompt for experimental feature
+					entries.push('Skills provide specialized capabilities, domain knowledge, and refined workflows for producing high-quality outputs. Each skill folder contains tested instructions for specific domains like testing strategies, API design, or performance optimization. Multiple skills can be combined when a task spans different domains.');
+					entries.push(`BLOCKING REQUIREMENT: When a skill applies to the user's request, you MUST load and read the SKILL.md file IMMEDIATELY as your first action, BEFORE generating any other response or taking action on the task. Use ${readTool.variable} to load the relevant skill(s).`);
+					entries.push('NEVER just mention or reference a skill in your response without actually reading it first. If a skill is relevant, load it before proceeding.');
+					entries.push('How to determine if a skill applies:');
+					entries.push('1. Review the available skills below and match their descriptions against the user\'s request');
+					entries.push('2. If any skill\'s domain overlaps with the task, load that skill immediately');
+					entries.push('3. When multiple skills apply (e.g., a flowchart in documentation), load all relevant skills');
+					entries.push('Examples:');
+					entries.push(`- "Help me write unit tests for this module" -> Load the testing skill via ${readTool.variable} FIRST, then proceed`);
+					entries.push(`- "Optimize this slow function" -> Load the performance-profiling skill via ${readTool.variable} FIRST, then proceed`);
+					entries.push(`- "Add a discount code field to checkout" -> Load both the checkout-flow and form-validation skills FIRST`);
+					entries.push('Available skills:');
+				} else {
+					entries.push('Here is a list of skills that contain domain specific knowledge on a variety of topics.');
+					entries.push('Each skill comes with a description of the topic and a file path that contains the detailed instructions.');
+					entries.push(`When a user asks you to perform a task that falls within the domain of a skill, use the ${readTool.variable} tool to acquire the full instructions from the file URI.`);
+				}
 				for (const skill of agentSkills) {
 					entries.push('<skill>');
 					entries.push(`<name>${skill.name}</name>`);
@@ -333,7 +350,7 @@ export class ComputeAutomaticInstructions {
 		if (runSubagentTool && this._configurationService.getValue(ChatConfiguration.SubagentToolCustomAgents)) {
 			const canUseAgent = (() => {
 				if (!this._enabledSubagents || this._enabledSubagents.includes('*')) {
-					return (agent: ICustomAgent) => (agent.infer !== false);
+					return (agent: ICustomAgent) => agent.visibility.agentInvokable;
 				} else {
 					const subagents = this._enabledSubagents;
 					return (agent: ICustomAgent) => subagents.includes(agent.name);

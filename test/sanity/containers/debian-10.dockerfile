@@ -1,6 +1,7 @@
+ARG MIRROR
 ARG BASE_IMAGE=debian:10
 ARG TARGETARCH
-FROM ${BASE_IMAGE}
+FROM ${MIRROR}${BASE_IMAGE}
 
 # Update to archive repos since Debian 10 is EOL
 RUN sed -i 's|http://deb.debian.org|http://archive.debian.org|g' /etc/apt/sources.list && \
@@ -38,7 +39,3 @@ RUN apt-get install -y xvfb
 
 # Install newer libxkbfile1 from Debian 11 since Debian 10 version is too old
 RUN apt-get install -y -t bullseye libxkbfile1
-
-COPY entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
-ENTRYPOINT [ "/entrypoint.sh" ]

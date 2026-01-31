@@ -9,7 +9,7 @@ import { Action2, registerAction2, MenuId } from '../../../../platform/actions/c
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { KeyMod, KeyCode } from '../../../../base/common/keyCodes.js';
-import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { BrowserEditor, CONTEXT_BROWSER_CAN_GO_BACK, CONTEXT_BROWSER_CAN_GO_FORWARD, CONTEXT_BROWSER_DEVTOOLS_OPEN, CONTEXT_BROWSER_FOCUSED, CONTEXT_BROWSER_STORAGE_SCOPE, CONTEXT_BROWSER_ELEMENT_SELECTION_ACTIVE, CONTEXT_BROWSER_FIND_WIDGET_FOCUSED, CONTEXT_BROWSER_FIND_WIDGET_VISIBLE } from './browserEditor.js';
 import { BrowserViewUri } from '../../../../platform/browserView/common/browserViewUri.js';
@@ -25,6 +25,14 @@ import { logBrowserOpen } from './browserViewTelemetry.js';
 const BROWSER_EDITOR_ACTIVE = ContextKeyExpr.equals('activeEditor', BrowserEditor.ID);
 
 const BrowserCategory = localize2('browserCategory', "Browser");
+const ActionGroupTabs = '1_tabs';
+const ActionGroupPage = '2_page';
+const ActionGroupSettings = '3_settings';
+
+interface IOpenBrowserOptions {
+	url?: string;
+	openToSide?: boolean;
+}
 
 class OpenIntegratedBrowserAction extends Action2 {
 	constructor() {
@@ -36,12 +44,48 @@ class OpenIntegratedBrowserAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, url?: string): Promise<void> {
+	async run(accessor: ServicesAccessor, urlOrOptions?: string | IOpenBrowserOptions): Promise<void> {
 		const editorService = accessor.get(IEditorService);
 		const telemetryService = accessor.get(ITelemetryService);
-		const resource = BrowserViewUri.forUrl(url);
 
-		logBrowserOpen(telemetryService, url ? 'commandWithUrl' : 'commandWithoutUrl');
+		// Parse arguments
+		const options = typeof urlOrOptions === 'string' ? { url: urlOrOptions } : (urlOrOptions ?? {});
+		const resource = BrowserViewUri.forUrl(options.url);
+		const group = options.openToSide ? SIDE_GROUP : ACTIVE_GROUP;
+
+		logBrowserOpen(telemetryService, options.url ? 'commandWithUrl' : 'commandWithoutUrl');
+
+		await editorService.openEditor({ resource }, group);
+	}
+}
+
+class NewTabAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.browser.newTab',
+			title: localize2('browser.newTabAction', "New Tab"),
+			category: BrowserCategory,
+			f1: true,
+			menu: {
+				id: MenuId.BrowserActionsToolbar,
+				group: ActionGroupTabs,
+				order: 1,
+			},
+			keybinding: {
+				// When already in a browser, Ctrl/Cmd + T opens a new tab
+				when: BROWSER_EDITOR_ACTIVE,
+				weight: KeybindingWeight.WorkbenchContrib + 50, // Priority over search actions
+				primary: KeyMod.CtrlCmd | KeyCode.KeyT,
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor, _browserEditor = accessor.get(IEditorService).activeEditorPane): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		const telemetryService = accessor.get(ITelemetryService);
+		const resource = BrowserViewUri.forUrl(undefined);
+
+		logBrowserOpen(telemetryService, 'newTabCommand');
 
 		await editorService.openEditor({ resource });
 	}
@@ -65,10 +109,10 @@ class GoBackAction extends Action2 {
 			precondition: CONTEXT_BROWSER_CAN_GO_BACK,
 			keybinding: {
 				when: BROWSER_EDITOR_ACTIVE,
-				weight: KeybindingWeight.WorkbenchContrib,
+				weight: KeybindingWeight.WorkbenchContrib + 50, // Priority over editor navigation
 				primary: KeyMod.Alt | KeyCode.LeftArrow,
 				secondary: [KeyCode.BrowserBack],
-				mac: { primary: KeyMod.CtrlCmd | KeyCode.LeftArrow, secondary: [KeyCode.BrowserBack] }
+				mac: { primary: KeyMod.CtrlCmd | KeyCode.BracketLeft, secondary: [KeyCode.BrowserBack, KeyMod.CtrlCmd | KeyCode.LeftArrow] }
 			}
 		});
 	}
@@ -99,10 +143,10 @@ class GoForwardAction extends Action2 {
 			precondition: CONTEXT_BROWSER_CAN_GO_FORWARD,
 			keybinding: {
 				when: BROWSER_EDITOR_ACTIVE,
-				weight: KeybindingWeight.WorkbenchContrib,
+				weight: KeybindingWeight.WorkbenchContrib + 50, // Priority over editor navigation
 				primary: KeyMod.Alt | KeyCode.RightArrow,
 				secondary: [KeyCode.BrowserForward],
-				mac: { primary: KeyMod.CtrlCmd | KeyCode.RightArrow, secondary: [KeyCode.BrowserForward] }
+				mac: { primary: KeyMod.CtrlCmd | KeyCode.BracketRight, secondary: [KeyCode.BrowserForward, KeyMod.CtrlCmd | KeyCode.RightArrow] }
 			}
 		});
 	}
@@ -131,10 +175,10 @@ class ReloadAction extends Action2 {
 			},
 			keybinding: {
 				when: CONTEXT_BROWSER_FOCUSED,
-				weight: KeybindingWeight.WorkbenchContrib + 50, // Priority over debug
-				primary: KeyCode.F5,
-				secondary: [KeyMod.CtrlCmd | KeyCode.KeyR],
-				mac: { primary: KeyCode.F5, secondary: [KeyMod.CtrlCmd | KeyCode.KeyR] }
+				weight: KeybindingWeight.WorkbenchContrib + 75, // Priority over debug and reload workbench
+				primary: KeyMod.CtrlCmd | KeyCode.KeyR,
+				secondary: [KeyCode.F5],
+				mac: { primary: KeyMod.CtrlCmd | KeyCode.KeyR, secondary: [] }
 			}
 		});
 	}
@@ -142,6 +186,30 @@ class ReloadAction extends Action2 {
 	async run(accessor: ServicesAccessor, browserEditor = accessor.get(IEditorService).activeEditorPane): Promise<void> {
 		if (browserEditor instanceof BrowserEditor) {
 			await browserEditor.reload();
+		}
+	}
+}
+
+class FocusUrlInputAction extends Action2 {
+	static readonly ID = 'workbench.action.browser.focusUrlInput';
+
+	constructor() {
+		super({
+			id: FocusUrlInputAction.ID,
+			title: localize2('browser.focusUrlInputAction', 'Focus URL Input'),
+			category: BrowserCategory,
+			f1: false,
+			keybinding: {
+				when: BROWSER_EDITOR_ACTIVE,
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.CtrlCmd | KeyCode.KeyL,
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor, browserEditor = accessor.get(IEditorService).activeEditorPane): Promise<void> {
+		if (browserEditor instanceof BrowserEditor) {
+			await browserEditor.focusUrlInput();
 		}
 	}
 }
@@ -196,8 +264,8 @@ class ToggleDevToolsAction extends Action2 {
 			toggled: ContextKeyExpr.equals(CONTEXT_BROWSER_DEVTOOLS_OPEN.key, true),
 			menu: {
 				id: MenuId.BrowserActionsToolbar,
-				group: '1_developer',
-				order: 1,
+				group: ActionGroupPage,
+				order: 5,
 			},
 			keybinding: {
 				when: BROWSER_EDITOR_ACTIVE,
@@ -226,8 +294,8 @@ class OpenInExternalBrowserAction extends Action2 {
 			f1: false,
 			menu: {
 				id: MenuId.BrowserActionsToolbar,
-				group: '2_page',
-				order: 1
+				group: ActionGroupPage,
+				order: 10
 			}
 		});
 	}
@@ -255,7 +323,7 @@ class ClearGlobalBrowserStorageAction extends Action2 {
 			f1: true,
 			menu: {
 				id: MenuId.BrowserActionsToolbar,
-				group: '3_settings',
+				group: ActionGroupSettings,
 				order: 1,
 				when: ContextKeyExpr.equals(CONTEXT_BROWSER_STORAGE_SCOPE.key, BrowserViewStorageScope.Global)
 			}
@@ -280,8 +348,8 @@ class ClearWorkspaceBrowserStorageAction extends Action2 {
 			f1: true,
 			menu: {
 				id: MenuId.BrowserActionsToolbar,
-				group: '3_settings',
-				order: 2,
+				group: ActionGroupSettings,
+				order: 1,
 				when: ContextKeyExpr.equals(CONTEXT_BROWSER_STORAGE_SCOPE.key, BrowserViewStorageScope.Workspace)
 			}
 		});
@@ -290,6 +358,33 @@ class ClearWorkspaceBrowserStorageAction extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const browserViewWorkbenchService = accessor.get(IBrowserViewWorkbenchService);
 		await browserViewWorkbenchService.clearWorkspaceStorage();
+	}
+}
+
+class ClearEphemeralBrowserStorageAction extends Action2 {
+	static readonly ID = 'workbench.action.browser.clearEphemeralStorage';
+
+	constructor() {
+		super({
+			id: ClearEphemeralBrowserStorageAction.ID,
+			title: localize2('browser.clearEphemeralStorageAction', 'Clear Storage (Ephemeral)'),
+			category: BrowserCategory,
+			icon: Codicon.clearAll,
+			f1: true,
+			precondition: BROWSER_EDITOR_ACTIVE,
+			menu: {
+				id: MenuId.BrowserActionsToolbar,
+				group: '3_settings',
+				order: 1,
+				when: ContextKeyExpr.equals(CONTEXT_BROWSER_STORAGE_SCOPE.key, BrowserViewStorageScope.Ephemeral)
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor, browserEditor = accessor.get(IEditorService).activeEditorPane): Promise<void> {
+		if (browserEditor instanceof BrowserEditor) {
+			await browserEditor.clearStorage();
+		}
 	}
 }
 
@@ -305,8 +400,8 @@ class OpenBrowserSettingsAction extends Action2 {
 			f1: false,
 			menu: {
 				id: MenuId.BrowserActionsToolbar,
-				group: '3_settings',
-				order: 3
+				group: ActionGroupSettings,
+				order: 2
 			}
 		});
 	}
@@ -330,8 +425,8 @@ class ShowBrowserFindAction extends Action2 {
 			f1: false,
 			menu: {
 				id: MenuId.BrowserActionsToolbar,
-				group: '2_page',
-				order: 2,
+				group: ActionGroupPage,
+				order: 1,
 			},
 			keybinding: {
 				when: BROWSER_EDITOR_ACTIVE,
@@ -435,14 +530,17 @@ class BrowserFindPreviousAction extends Action2 {
 
 // Register actions
 registerAction2(OpenIntegratedBrowserAction);
+registerAction2(NewTabAction);
 registerAction2(GoBackAction);
 registerAction2(GoForwardAction);
 registerAction2(ReloadAction);
+registerAction2(FocusUrlInputAction);
 registerAction2(AddElementToChatAction);
 registerAction2(ToggleDevToolsAction);
 registerAction2(OpenInExternalBrowserAction);
 registerAction2(ClearGlobalBrowserStorageAction);
 registerAction2(ClearWorkspaceBrowserStorageAction);
+registerAction2(ClearEphemeralBrowserStorageAction);
 registerAction2(OpenBrowserSettingsAction);
 registerAction2(ShowBrowserFindAction);
 registerAction2(HideBrowserFindAction);

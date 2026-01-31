@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { spawnSync, SpawnSyncReturns } from 'child_process';
+import { spawn, spawnSync, SpawnSyncReturns } from 'child_process';
 import { createHash } from 'crypto';
 import fs from 'fs';
 import { test } from 'mocha';
 import fetch, { Response } from 'node-fetch';
 import os from 'os';
 import path from 'path';
-import { Browser, chromium, webkit } from 'playwright';
+import { Browser, chromium, Page, webkit } from 'playwright';
 import { Capability, detectCapabilities } from './detectors.js';
 
 /**
@@ -33,8 +33,10 @@ interface ITargetMetadata {
 export class TestContext {
 	private static readonly authenticodeInclude = /^.+\.(exe|dll|sys|cab|cat|msi|jar|ocx|ps1|psm1|psd1|ps1xml|pssc1)$/i;
 	private static readonly codesignExclude = /node_modules\/(@parcel\/watcher\/build\/Release\/watcher\.node|@vscode\/deviceid\/build\/Release\/windows\.node|@vscode\/ripgrep\/bin\/rg|@vscode\/spdlog\/build\/Release\/spdlog.node|kerberos\/build\/Release\/kerberos.node|@vscode\/native-watchdog\/build\/Release\/watchdog\.node|node-pty\/build\/Release\/(pty\.node|spawn-helper)|vsda\/build\/Release\/vsda\.node|native-watchdog\/build\/Release\/watchdog\.node)$/;
+	private static readonly notarizeExclude = /extensions\/microsoft-authentication\/dist\/libmsalruntime\.dylib$/;
 
 	private readonly tempDirs = new Set<string>();
+	private readonly wslTempDirs = new Set<string>();
 	private nextPort = 3010;
 
 	public constructor(public readonly options: Readonly<{
@@ -152,6 +154,51 @@ export class TestContext {
 	}
 
 	/**
+	 * Creates a new temporary directory in WSL and returns its path.
+	 */
+	public createWslTempDir(): string {
+		const tempDir = `/tmp/vscode-sanity-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+		this.log(`Creating WSL temp directory: ${tempDir}`);
+		this.runNoErrors('wsl', 'mkdir', '-p', tempDir);
+		this.wslTempDirs.add(tempDir);
+		return tempDir;
+	}
+
+	/**
+	 * Deletes a directory in WSL.
+	 * @param dir The WSL directory path to delete.
+	 */
+	public deleteWslDir(dir: string): void {
+		this.log(`Deleting WSL directory: ${dir}`);
+		this.runNoErrors('wsl', 'rm', '-rf', dir);
+	}
+
+	/**
+	 * Converts a Windows path to a WSL path.
+	 * @param windowsPath The Windows path to convert (e.g., 'C:\Users\test').
+	 * @returns The WSL path (e.g., '/mnt/c/Users/test').
+	 */
+	public toWslPath(windowsPath: string): string {
+		return windowsPath
+			.replace(/^([A-Za-z]):/, (_, drive) => `/mnt/${drive.toLowerCase()}`)
+			.replaceAll('\\', '/');
+	}
+
+	/**
+	 * Returns the name of the default WSL distribution.
+	 * @returns The default WSL distribution name (e.g., 'Ubuntu').
+	 */
+	public getDefaultWslDistro(): string {
+		const result = this.runNoErrors('wsl', '--list', '--quiet');
+		const distro = result.stdout.trim().split('\n')[0].replace(/\0/g, '').trim();
+		if (!distro) {
+			this.error('No WSL distribution found');
+		}
+		this.log(`Default WSL distribution: ${distro}`);
+		return distro;
+	}
+
+	/**
 	 * Ensures that the directory for the specified file path exists.
 	 */
 	public ensureDirExists(filePath: string) {
@@ -175,6 +222,15 @@ export class TestContext {
 			}
 		}
 		this.tempDirs.clear();
+
+		for (const dir of this.wslTempDirs) {
+			try {
+				this.deleteWslDir(dir);
+			} catch (error) {
+				this.log(`Failed to delete WSL temp directory: ${dir}: ${error}`);
+			}
+		}
+		this.wslTempDirs.clear();
 	}
 
 	/**
@@ -333,13 +389,26 @@ export class TestContext {
 
 		this.log(`Validating codesign signature for ${filePath}`);
 
-		const result = this.run('codesign', '--verify', '--deep', '--strict', '--verbose', filePath);
+		const result = this.run('codesign', '--verify', '--deep', '--strict', '--verbose=2', filePath);
 		if (result.error !== undefined) {
 			this.error(`Failed to run codesign: ${result.error.message}`);
 		}
 
 		if (result.status !== 0) {
 			this.error(`Codesign signature is not valid for ${filePath}: ${result.stderr}`);
+		}
+
+		if (!TestContext.notarizeExclude.test(filePath)) {
+			this.log(`Validating notarization for ${filePath}`);
+
+			const notaryResult = this.run('spctl', '--assess', '--type', 'open', '--context', 'context:primary-signature', '--verbose=2', filePath);
+			if (notaryResult.error !== undefined) {
+				this.error(`Failed to run spctl: ${notaryResult.error.message}`);
+			}
+
+			if (notaryResult.status !== 0) {
+				this.error(`Notarization is not valid for ${filePath}: ${notaryResult.stderr}`);
+			}
 		}
 	}
 
@@ -416,6 +485,38 @@ export class TestContext {
 	}
 
 	/**
+	 * Mounts a macOS DMG file and returns the mount point.
+	 * @param dmgPath The path to the DMG file.
+	 * @returns The path to the mounted volume.
+	 */
+	public mountDmg(dmgPath: string): string {
+		this.log(`Mounting DMG ${dmgPath}`);
+		const result = this.runNoErrors('hdiutil', 'attach', dmgPath, '-nobrowse', '-readonly');
+
+		// Parse the output to find the mount point (last column of the last line)
+		const lines = result.stdout.trim().split('\n');
+		const lastLine = lines[lines.length - 1];
+		const mountPoint = lastLine.split('\t').pop()?.trim();
+
+		if (!mountPoint || !fs.existsSync(mountPoint)) {
+			this.error(`Failed to find mount point for DMG ${dmgPath}`);
+		}
+
+		this.log(`Mounted DMG at ${mountPoint}`);
+		return mountPoint;
+	}
+
+	/**
+	 * Unmounts a macOS DMG volume.
+	 * @param mountPoint The path to the mounted volume.
+	 */
+	public unmountDmg(mountPoint: string): void {
+		this.log(`Unmounting DMG ${mountPoint}`);
+		this.runNoErrors('hdiutil', 'detach', mountPoint);
+		this.log(`Unmounted DMG ${mountPoint}`);
+	}
+
+	/**
 	 * Runs a command synchronously.
 	 * @param command The command to run.
 	 * @param args Optional arguments for the command.
@@ -467,7 +568,7 @@ export class TestContext {
 	private getWindowsInstallDir(type: 'user' | 'system'): string {
 		let parentDir: string;
 		if (type === 'system') {
-			parentDir = process.env['PROGRAMFILES'] || '';
+			parentDir = process.env['ProgramW6432'] || process.env['PROGRAMFILES'] || '';
 		} else {
 			parentDir = path.join(process.env['LOCALAPPDATA'] || '', 'Programs');
 		}
@@ -773,9 +874,10 @@ export class TestContext {
 	/**
 	 * Returns the entry point executable for the VS Code server in the specified directory.
 	 * @param dir The directory containing unpacked server files.
+	 * @param forWsl If true, returns the Linux entry point (for running in WSL on Windows).
 	 * @returns The path to the server entry point executable.
 	 */
-	public getServerEntryPoint(dir: string): string {
+	public getServerEntryPoint(dir: string, forWsl = false): string {
 		let filename: string;
 		switch (this.options.quality) {
 			case 'stable':
@@ -789,7 +891,7 @@ export class TestContext {
 				break;
 		}
 
-		if (os.platform() === 'win32') {
+		if (os.platform() === 'win32' && !forWsl) {
 			filename += '.cmd';
 		}
 
@@ -828,17 +930,6 @@ export class TestContext {
 	}
 
 	/**
-	 * Returns the tunnel URL for the VS Code server including vscode-version parameter.
-	 * @param baseUrl The base URL for the VS Code server.
-	 * @returns The tunnel URL with vscode-version parameter.
-	 */
-	public getTunnelUrl(baseUrl: string): string {
-		const url = new URL(baseUrl);
-		url.searchParams.set('vscode-version', this.options.commit);
-		return url.toString();
-	}
-
-	/**
 	 * Launches a web browser for UI testing.
 	 * @returns The launched Browser instance.
 	 */
@@ -858,9 +949,29 @@ export class TestContext {
 			default: {
 				const executablePath = process.env['PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH'] ?? '/usr/bin/chromium-browser';
 				this.log(`Using Chromium executable at: ${executablePath}`);
-				return await chromium.launch({ headless, executablePath });
+				return await chromium.launch({
+					headless,
+					executablePath,
+					args: [
+						'--disable-gpu',
+						'--disable-gpu-compositing',
+						'--disable-software-rasterizer',
+						'--no-zygote',
+					]
+				});
 			}
 		}
+	}
+
+	/**
+	 * Awaits a page promise and sets the default timeout.
+	 * @param pagePromise The promise that resolves to a Page.
+	 * @returns The page with the timeout configured.
+	 */
+	public async getPage(pagePromise: Promise<Page>): Promise<Page> {
+		const page = await pagePromise;
+		page.setDefaultTimeout(3 * 60 * 1000);
+		return page;
 	}
 
 	/**
@@ -886,6 +997,25 @@ export class TestContext {
 	}
 
 	/**
+	 * Returns the tunnel URL for the VS Code server.
+	 * @param baseUrl The base URL for *vscode.dev/tunnel connection.
+	 * @param workspaceDir Optional folder path to open
+	 * @returns The tunnel URL with folder in pathname.
+	 */
+	public getTunnelUrl(baseUrl: string, workspaceDir?: string): string {
+		const url = new URL(baseUrl);
+		url.searchParams.set('vscode-version', this.options.commit);
+		if (workspaceDir) {
+			let folder = workspaceDir.replaceAll('\\', '/');
+			if (!folder.startsWith('/')) {
+				folder = `/${folder}`;
+			}
+			url.pathname = url.pathname.replace(/\/+$/, '') + folder;
+		}
+		return url.toString();
+	}
+
+	/**
 	 * Returns a random alphanumeric token of length 10.
 	 */
 	public getRandomToken(): string {
@@ -897,5 +1027,84 @@ export class TestContext {
 	 */
 	public getUniquePort(): string {
 		return String(this.nextPort++);
+	}
+
+	/**
+	 * Returns the default WSL server extensions directory path.
+	 * @returns The path to the extensions directory (e.g., '~/.vscode-server-insiders/extensions').
+	 */
+	public getWslServerExtensionsDir(): string {
+		let serverDir: string;
+		switch (this.options.quality) {
+			case 'stable':
+				serverDir = '.vscode-server';
+				break;
+			case 'insider':
+				serverDir = '.vscode-server-insiders';
+				break;
+			case 'exploration':
+				serverDir = '.vscode-server-exploration';
+				break;
+		}
+		return `~/${serverDir}/extensions`;
+	}
+
+	/**
+	 * Runs a VS Code command-line application (such as server or CLI).
+	 * @param name The name of the app as it will appear in logs.
+	 * @param command Command to run.
+	 * @param args Arguments for the command.
+	 * @param onLine Callback to handle output lines.
+	 */
+	public async runCliApp(name: string, command: string, args: string[], onLine: (text: string) => Promise<boolean | void | undefined>) {
+		this.log(`Starting ${name} with command line: ${command} ${args.join(' ')}`);
+
+		const app = spawn(command, args, {
+			shell: /\.(sh|cmd)$/.test(command),
+			detached: !this.capabilities.has('windows'),
+			stdio: ['ignore', 'pipe', 'pipe']
+		});
+
+		try {
+			await new Promise<void>((resolve, reject) => {
+				app.stderr.on('data', (data) => {
+					const text = `[${name}] ${data.toString().trim()}`;
+					if (/ECONNRESET/.test(text)) {
+						this.log(text);
+					} else {
+						reject(new Error(text));
+					}
+				});
+
+				let terminated = false;
+				app.stdout.on('data', (data) => {
+					const text = data.toString().trim();
+					if (/\berror\b/.test(text)) {
+						reject(new Error(`[${name}] ${text}`));
+					}
+
+					for (const line of text.split('\n')) {
+						this.log(`[${name}] ${line}`);
+						onLine(line).then((result) => {
+							if (terminated = !!result) {
+								this.log(`Terminating ${name} process`);
+								resolve();
+							}
+						}).catch(reject);
+					}
+				});
+
+				app.on('error', reject);
+				app.on('exit', (code) => {
+					if (code === 0) {
+						resolve();
+					} else if (!terminated) {
+						reject(new Error(`[${name}] Exited with code ${code}`));
+					}
+				});
+			});
+		} finally {
+			this.killProcessTree(app.pid!);
+		}
 	}
 }

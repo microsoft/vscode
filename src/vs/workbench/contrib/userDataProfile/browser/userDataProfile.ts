@@ -35,7 +35,6 @@ import { IBrowserWorkbenchEnvironmentService } from '../../../services/environme
 import { Extensions as DndExtensions, IDragAndDropContributionRegistry, IResourceDropHandler } from '../../../../platform/dnd/browser/dnd.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { ITextEditorService } from '../../../services/textfile/common/textEditorService.js';
-import { ChatEntitlementContextKeys } from '../../../services/chat/common/chatEntitlementService.js';
 
 export const OpenProfileMenu = new MenuId('OpenProfile');
 const ProfilesMenu = new MenuId('Profiles');
@@ -60,7 +59,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IURLService private readonly urlService: IURLService,
-		@IBrowserWorkbenchEnvironmentService private readonly environmentService: IBrowserWorkbenchEnvironmentService
+		@IBrowserWorkbenchEnvironmentService environmentService: IBrowserWorkbenchEnvironmentService
 	) {
 		super();
 
@@ -78,25 +77,22 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		this.hasProfilesContext.set(this.userDataProfilesService.profiles.length > 1);
 		this._register(this.userDataProfilesService.onDidChangeProfiles(e => this.hasProfilesContext.set(this.userDataProfilesService.profiles.length > 1)));
 
-		if (!this.environmentService.agentSessionsWindow) {
+		this.registerEditor();
+		this.registerActions();
 
-			this.registerEditor();
-			this.registerActions();
+		this._register(this.urlService.registerHandler(this));
 
-			this._register(this.urlService.registerHandler(this));
-
-			if (isWeb) {
-				lifecycleService.when(LifecyclePhase.Eventually).then(() => userDataProfilesService.cleanUp());
-			}
-
-			this.reportWorkspaceProfileInfo();
-
-			if (environmentService.options?.profileToPreview) {
-				lifecycleService.when(LifecyclePhase.Restored).then(() => this.handleURL(URI.revive(environmentService.options!.profileToPreview!)));
-			}
-
-			this.registerDropHandler();
+		if (isWeb) {
+			lifecycleService.when(LifecyclePhase.Eventually).then(() => userDataProfilesService.cleanUp());
 		}
+
+		this.reportWorkspaceProfileInfo();
+
+		if (environmentService.options?.profileToPreview) {
+			lifecycleService.when(LifecyclePhase.Restored).then(() => this.handleURL(URI.revive(environmentService.options!.profileToPreview!)));
+		}
+
+		this.registerDropHandler();
 	}
 
 	async handleURL(uri: URI): Promise<boolean> {
@@ -288,10 +284,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		const disposables = new DisposableStore();
 
 		const id = `workbench.action.openProfile.${profile.name.replace('/\s+/', '_')}`;
-		let precondition: ContextKeyExpression | undefined = HAS_PROFILES_CONTEXT;
-		if (profile.id === 'agent-sessions') {
-			precondition = ContextKeyExpr.and(precondition, ChatEntitlementContextKeys.Setup.hidden.negate());
-		}
+		const precondition: ContextKeyExpression | undefined = HAS_PROFILES_CONTEXT;
 
 		disposables.add(registerAction2(class NewWindowAction extends Action2 {
 

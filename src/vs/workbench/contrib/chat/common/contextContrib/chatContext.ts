@@ -21,13 +21,16 @@ export interface IChatContextItem {
 	};
 }
 
-export interface IChatContextSupport {
-	supportsResource: boolean;
-	supportsResolve: boolean;
+export interface IChatWorkspaceContextProvider {
+	provideWorkspaceChatContext(token: CancellationToken): Promise<IChatContextItem[]>;
 }
 
-export interface IChatContextProvider {
-	provideChatContext(options: {}, token: CancellationToken): Promise<IChatContextItem[]>;
-	provideChatContextForResource?(resource: URI, withValue: boolean, token: CancellationToken): Promise<IChatContextItem | undefined>;
-	resolveChatContext?(context: IChatContextItem, token: CancellationToken): Promise<IChatContextItem>;
+export interface IChatExplicitContextProvider {
+	provideChatContext(token: CancellationToken): Promise<IChatContextItem[]>;
+	resolveChatContext(context: IChatContextItem, token: CancellationToken): Promise<IChatContextItem>;
+}
+
+export interface IChatResourceContextProvider {
+	provideChatContext(resource: URI, withValue: boolean, token: CancellationToken): Promise<IChatContextItem | undefined>;
+	resolveChatContext(context: IChatContextItem, token: CancellationToken): Promise<IChatContextItem>;
 }

@@ -1,6 +1,10 @@
 #!/bin/sh
 set -e
 
+echo "System: $(uname -s) $(uname -r) $(uname -m), page size: $(getconf PAGESIZE) bytes"
+echo "Memory: $(awk '/MemTotal/ {t=$2} /MemAvailable/ {a=$2} END {printf "%.0f MB total, %.0f MB available", t/1024, a/1024}' /proc/meminfo)"
+echo "Disk: $(df -h / | awk 'NR==2 {print $2 " total, " $3 " used, " $4 " available"}')"
+
 if command -v Xvfb > /dev/null 2>&1; then
 	echo "Starting X11 Server"
 	export DISPLAY=:99

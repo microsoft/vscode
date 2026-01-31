@@ -13,15 +13,17 @@
 
 .agentSessionsWelcome-scrollable {
 	height: 100%;
+	display: flex !important;
+	align-items: center;
+	justify-content: center;
 }
 
 .agentSessionsWelcome-content {
 	display: flex;
 	flex-direction: column;
 	align-items: center;
-	padding: 120px 40px 80px;
+	padding: 40px;
 	max-width: 900px;
-	margin: 0 auto;
 	width: 100%;
 	box-sizing: border-box;
 }
@@ -31,7 +33,6 @@
 	display: flex;
 	flex-direction: column;
 	align-items: flex-start;
-	margin-bottom: 24px;
 	width: 100%;
 	max-width: 800px;
 }
@@ -76,7 +77,7 @@
 .agentSessionsWelcome-chatSection {
 	width: 100%;
 	max-width: 800px;
-	margin-bottom: 24px;
+	margin-top: 24px;
 }
 
 /* Hide the chat tree/list - we only want the input */
@@ -105,11 +106,7 @@
 .agentSessionsWelcome-sessionsSection {
 	width: 100%;
 	max-width: 800px;
-	margin-bottom: 24px;
-}
-
-.agentSessionsWelcome-sessionsSection.no-sessions {
-	margin-bottom: 0;
+	margin-top: 24px;
 }
 
 .agentSessionsWelcome-suggestedPrompts {
@@ -136,7 +133,6 @@
 
 /* Sessions grid */
 .agentSessionsWelcome-sessionsGrid {
-	margin-bottom: 12px;
 	width: 100%;
 	overflow: hidden;
 }
@@ -167,34 +163,34 @@
 
 /*
  * Transform items into 2-column layout:
- * - Items 0,1 form visual row 1 (top: 0)
- * - Items 2,3 form visual row 2 (top: 52)
- * - Items 4,5 form visual row 3 (top: 104)
- * Left column (even): items stay in place or move up
- * Right column (odd): items move right and up
+ * - Odd items (1, 3, 5, ...) stay in left column
+ * - Even items (2, 4, 6, ...) move to right column
+ * Each pair forms a visual row.
+ * Left column items need to move up by floor((index-1)/2) rows
+ * Right column items need to move right and up by (index/2) rows
+ * Row height is 52px.
  */
 
-/* Item 1 (index 1): move to right column of row 1 */
-.agentSessionsWelcome-sessionsGrid .monaco-list-row:nth-child(2) {
-	transform: translateX(100%) translateY(-52px);
-}
-
-/* Item 2 (index 2): move up to row 2 left column */
+/* Left column items (odd positions): move up to form 2-column layout */
+/* Item 3: move up 1 row */
 .agentSessionsWelcome-sessionsGrid .monaco-list-row:nth-child(3) {
 	transform: translateY(-52px);
 }
-
-/* Item 3 (index 3): move to right column of row 2 */
-.agentSessionsWelcome-sessionsGrid .monaco-list-row:nth-child(4) {
-	transform: translateX(100%) translateY(-104px);
-}
-
-/* Item 4 (index 4): move up to row 3 left column */
+/* Item 5: move up 2 rows */
 .agentSessionsWelcome-sessionsGrid .monaco-list-row:nth-child(5) {
 	transform: translateY(-104px);
 }
 
-/* Item 5 (index 5): move to right column of row 3 */
+/* Right column items (even positions): move right and up */
+/* Item 2: move right, up 1 row */
+.agentSessionsWelcome-sessionsGrid .monaco-list-row:nth-child(2) {
+	transform: translateX(100%) translateY(-52px);
+}
+/* Item 4: move right, up 2 rows */
+.agentSessionsWelcome-sessionsGrid .monaco-list-row:nth-child(4) {
+	transform: translateX(100%) translateY(-104px);
+}
+/* Item 6: move right, up 3 rows */
 .agentSessionsWelcome-sessionsGrid .monaco-list-row:nth-child(6) {
 	transform: translateX(100%) translateY(-156px);
 }
@@ -220,6 +216,7 @@
 	gap: 6px;
 	width: 100%;
 	padding: 8px 16px;
+	margin-top: 12px;
 	border: none;
 	border-radius: 4px;
 	background-color: var(--vscode-toolbar-hoverBackground);
@@ -237,7 +234,6 @@
 .agentSessionsWelcome-sessionsSection .agentSessionsWelcome-walkthroughCard {
 	width: 100%;
 	box-sizing: border-box;
-	margin-bottom: 16px;
 }
 
 .agentSessionsWelcome-walkthroughCard {
@@ -318,10 +314,6 @@
 }
 
 /* Footer */
-.agentSessionsWelcome-footer.no-sessions {
-	margin-top: 0px;
-}
-
 .agentSessionsWelcome-footer {
 	display: flex;
 	flex-direction: column;
@@ -329,7 +321,7 @@
 	gap: 8px;
 	width: 100%;
 	max-width: 800px;
-	margin-top: 16px;
+	margin-top: 24px;
 }
 
 .agentSessionsWelcome-footerLink {
@@ -359,7 +351,6 @@
 	gap: 8px;
 	font-size: 12px;
 	color: var(--vscode-descriptionForeground);
-	margin-top: 36px;
 }
 
 .agentSessionsWelcome-showOnStartup label {
@@ -396,7 +387,6 @@
 	width: 100%;
 	max-width: 800px;
 	padding: 15px;
-	margin-bottom: 16px;
 	box-sizing: border-box;
 	cursor: default;
 	border: 1px solid var(--vscode-welcomePage-tileBorder, var(--vscode-contrastBorder, transparent));
@@ -484,7 +474,6 @@
 	grid-template-columns: 1fr 1fr;
 	gap: 0;
 	width: 100%;
-	margin-bottom: 12px;
 }
 
 .agentSessionsWelcome-sessionSkeleton {

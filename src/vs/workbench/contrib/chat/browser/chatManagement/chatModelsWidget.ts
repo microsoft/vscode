@@ -114,19 +114,40 @@ class ModelsFilterAction extends Action {
 	}
 }
 
-function toggleFilter(currentQuery: string, query: string, alternativeQueries: string[] = []): string {
-	const allQueries = [query, ...alternativeQueries];
-	const isChecked = allQueries.some(q => currentQuery.includes(q));
+interface IFilterQuery {
+	/** The primary filter query string */
+	query: string;
+	/** Alternative query strings that are treated as synonyms of the primary query */
+	synonyms?: string[];
+	/** Query strings that should be removed when adding this filter (mutually exclusive filters) */
+	excludes?: string[];
+}
 
-	if (!isChecked) {
-		const trimmedQuery = currentQuery.trim();
-		return trimmedQuery ? `${trimmedQuery} ${query}` : query;
-	} else {
+function toggleFilter(currentQuery: string, filter: IFilterQuery): string {
+	const { query, synonyms = [], excludes = [] } = filter;
+	const allSynonyms = [query, ...synonyms];
+	const isChecked = allSynonyms.some(q => currentQuery.includes(q));
+	const hasExcludedQuery = excludes.some(q => currentQuery.includes(q));
+
+	if (isChecked) {
+		// Query or synonym is already set, remove all of them (toggle off)
 		let queryWithRemovedFilter = currentQuery;
-		for (const q of allQueries) {
+		for (const q of allSynonyms) {
 			queryWithRemovedFilter = queryWithRemovedFilter.replace(q, '');
 		}
 		return queryWithRemovedFilter.replace(/\s+/g, ' ').trim();
+	} else if (hasExcludedQuery) {
+		// An excluded query is set, replace it with the new query
+		let newQuery = currentQuery;
+		for (const q of excludes) {
+			newQuery = newQuery.replace(q, '');
+		}
+		newQuery = newQuery.replace(/\s+/g, ' ').trim();
+		return newQuery ? `${newQuery} ${query}` : query;
+	} else {
+		// No filter is set, add the new query
+		const trimmedQuery = currentQuery.trim();
+		return trimmedQuery ? `${trimmedQuery} ${query}` : query;
 	}
 }
 
@@ -180,7 +201,7 @@ class ModelsSearchFilterDropdownMenuActionViewItem extends DropdownMenuActionVie
 			class: undefined,
 			enabled: true,
 			checked: isChecked,
-			run: () => this.toggleFilterAndSearch(query, [`@provider:${vendor}`])
+			run: () => this.toggleFilterAndSearch({ query, synonyms: [`@provider:${vendor}`] })
 		};
 	}
 
@@ -196,13 +217,12 @@ class ModelsSearchFilterDropdownMenuActionViewItem extends DropdownMenuActionVie
 			class: undefined,
 			enabled: true,
 			checked: isChecked,
-			run: () => this.toggleFilterAndSearch(query)
+			run: () => this.toggleFilterAndSearch({ query })
 		};
 	}
 
 	private createVisibleAction(visible: boolean, label: string): IAction {
 		const query = `@visible:${visible}`;
-		const oppositeQuery = `@visible:${!visible}`;
 		const currentQuery = this.search.getValue();
 		const isChecked = currentQuery.includes(query);
 
@@ -213,30 +233,30 @@ class ModelsSearchFilterDropdownMenuActionViewItem extends DropdownMenuActionVie
 			class: undefined,
 			enabled: true,
 			checked: isChecked,
-			run: () => this.toggleFilterAndSearch(query, [oppositeQuery])
+			run: () => this.toggleFilterAndSearch({ query, excludes: [`@visible:${!visible}`] })
 		};
 	}
 
-	private toggleFilterAndSearch(query: string, alternativeQueries: string[] = []): void {
+	private toggleFilterAndSearch(filter: IFilterQuery): void {
 		const currentQuery = this.search.getValue();
-		const newQuery = toggleFilter(currentQuery, query, alternativeQueries);
+		const newQuery = toggleFilter(currentQuery, filter);
 		this.search.setValue(newQuery);
 	}
 
 	private getActions(): IAction[] {
 		const actions: IAction[] = [];
 
-		// Visibility filters
-		actions.push(this.createVisibleAction(true, localize('filter.visible', 'Visible')));
-		actions.push(this.createVisibleAction(false, localize('filter.hidden', 'Hidden')));
-
 		// Capability filters
-		actions.push(new Separator());
 		actions.push(
-			this.createCapabilityAction('tools', localize('capability.tools', 'Tools')),
-			this.createCapabilityAction('vision', localize('capability.vision', 'Vision')),
-			this.createCapabilityAction('agent', localize('capability.agent', 'Agent Mode'))
+			this.createCapabilityAction('tools', localize('capability.tools', "Tools")),
+			this.createCapabilityAction('vision', localize('capability.vision', "Vision")),
+			this.createCapabilityAction('agent', localize('capability.agent', "Agent Mode"))
 		);
+
+		// Visibility filters
+		actions.push(new Separator());
+		actions.push(this.createVisibleAction(true, localize('filter.visible', "Visible in Chat Model Picker")));
+		actions.push(this.createVisibleAction(false, localize('filter.hidden', "Hidden in Chat Model Picker")));
 
 		// Provider filters - only show providers with configured models
 		const configuredVendors = this.viewModel.getConfiguredVendors();
@@ -248,8 +268,8 @@ class ModelsSearchFilterDropdownMenuActionViewItem extends DropdownMenuActionVie
 		// Group By
 		actions.push(new Separator());
 		const groupByActions: IAction[] = [];
-		groupByActions.push(this.createGroupByAction(ChatModelGroup.Vendor, localize('groupBy.provider', 'Provider')));
-		groupByActions.push(this.createGroupByAction(ChatModelGroup.Visibility, localize('groupBy.visibility', 'Visibility')));
+		groupByActions.push(this.createGroupByAction(ChatModelGroup.Vendor, localize('groupBy.provider', "Provider")));
+		groupByActions.push(this.createGroupByAction(ChatModelGroup.Visibility, localize('groupBy.visibility', "Visibility (Chat Model Picker)")));
 		actions.push(new SubmenuAction('groupBy', localize('groupBy', "Group By"), groupByActions));
 
 		return actions;
@@ -978,7 +998,7 @@ export class ChatModelsWidget extends Disposable {
 		this.addButton = this._register(new Button(this.addButtonContainer, buttonOptions));
 		this.addButton.label = `$(${Codicon.add.id}) ${localize('models.enableModelProvider', 'Add Models...')}`;
 		this.addButton.element.classList.add('models-add-model-button');
-		this.addButton.enabled = false;
+		this.updateAddModelsButton();
 		this._register(this.addButton.onDidClick((e) => {
 			if (this.dropdownActions.length > 0) {
 				this.contextMenuService.showContextMenu({
@@ -1013,7 +1033,7 @@ export class ChatModelsWidget extends Disposable {
 		this.tableDisposables.add(capabilitiesColumnRenderer.onDidClickCapability(capability => {
 			const currentQuery = this.searchWidget.getValue();
 			const query = `@capability:${capability}`;
-			const newQuery = toggleFilter(currentQuery, query);
+			const newQuery = toggleFilter(currentQuery, { query });
 			this.search(newQuery);
 		}));
 
@@ -1272,13 +1292,14 @@ export class ChatModelsWidget extends Disposable {
 		const configurableVendors = this.languageModelsService.getVendors().filter(vendor => vendor.managementCommand || vendor.configuration);
 
 		const entitlement = this.chatEntitlementService.entitlement;
+		const isManagedEntitlement = entitlement === ChatEntitlement.Business || entitlement === ChatEntitlement.Enterprise;
 		const supportsAddingModels = this.chatEntitlementService.isInternal
 			|| (entitlement !== ChatEntitlement.Unknown
 				&& entitlement !== ChatEntitlement.Available
-				&& entitlement !== ChatEntitlement.Business
-				&& entitlement !== ChatEntitlement.Enterprise);
+				&& !isManagedEntitlement);
 
 		this.addButton.enabled = supportsAddingModels && configurableVendors.length > 0;
+		this.addButton.setTitle(!supportsAddingModels && isManagedEntitlement ? localize('models.managedByOrganization', "Adding models is managed by your organization") : '');
 
 		this.dropdownActions = configurableVendors.map(vendor => toAction({
 			id: `enable-${vendor.vendor}`,

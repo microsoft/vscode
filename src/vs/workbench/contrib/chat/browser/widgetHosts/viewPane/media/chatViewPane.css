@@ -18,25 +18,10 @@
 
 		.interactive-session {
 
-			/* needed so that the chat welcome and chat input does not overflow and input grows over welcome */
+			/* needed so that the chat input does not overflow and input grows over content above */
 			width: 100%;
 			min-height: 0;
 			min-width: 0;
-		}
-	}
-
-	&:not(.chat-view-welcome-enabled) {
-
-		.interactive-session {
-
-			/* hide most welcome pieces (except suggested actions) when we show recent sessions to make some space */
-			.chat-welcome-view .chat-welcome-view-icon,
-			.chat-welcome-view .chat-welcome-view-title,
-			.chat-welcome-view .chat-welcome-view-message,
-			.chat-welcome-view .chat-welcome-view-disclaimer,
-			.chat-welcome-view .chat-welcome-view-tips {
-				visibility: hidden;
-			}
 		}
 	}
 }

@@ -138,6 +138,8 @@ function f(x: number, y: string): void { }
 - When adding file watching, prefer correlated file watchers (via fileService.createWatcher) to shared ones.
 - When adding tooltips to UI elements, prefer the use of IHoverService service.
 - Do not duplicate code. Always look for existing utility functions, helpers, or patterns in the codebase before implementing new functionality. Reuse and extend existing code whenever possible.
+- You MUST deal with disposables by registering them immediately after creation for later disposal. Use helpers such as `DisposableStore`, `MutableDisposable` or `DisposableMap`. Do NOT register a disposable to the containing class if the object is created within a method that is called repeadedly to avoid leaks. Instead, return a `IDisposable` from such method and let the caller register it.
+- You MUST NOT use storage keys of another component only to make changes to that component. You MUST come up with proper API to change another component.
 
 ## Learnings
 - Minimize the amount of assertions in tests. Prefer one snapshot-style `assert.deepStrictEqual` over multiple precise assertions, as they are much more difficult to understand and to update.

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, dispose, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { autorun, observableFromEvent } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
@@ -51,8 +51,20 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 	readonly onDidChangeSessions: Event<this> = this._onDidChangeSessions.event;
 
 	constructor(
-		@IChatService private readonly _chatService: IChatService
-	) { }
+		@IChatService private readonly _chatService: IChatService,
+		@IChatAgentService chatAgentService: IChatAgentService,
+	) {
+		// Listen for agent changes and dispose all sessions when there is no agent
+		const agentObs = observableFromEvent(this, chatAgentService.onDidChangeAgents, () => chatAgentService.getDefaultAgent(ChatAgentLocation.EditorInline));
+		this._store.add(autorun(r => {
+			const agent = agentObs.read(r);
+			if (!agent) {
+				// No agent available, dispose all sessions
+				dispose(this._sessions.values());
+				this._sessions.clear();
+			}
+		}));
+	}
 
 	dispose() {
 		this._store.dispose();

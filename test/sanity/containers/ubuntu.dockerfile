@@ -1,13 +1,30 @@
+ARG MIRROR
 ARG BASE_IMAGE=ubuntu:22.04
-FROM ${BASE_IMAGE}
+FROM ${MIRROR}${BASE_IMAGE}
+
+# Use Azure package mirrors
+ARG TARGETARCH
+RUN if [ "$TARGETARCH" = "amd64" ]; then \
+		if [ -f /etc/apt/sources.list.d/ubuntu.sources ]; then \
+			sed -i 's|http://archive.ubuntu.com|http://azure.archive.ubuntu.com|g' /etc/apt/sources.list.d/ubuntu.sources; \
+		else \
+			sed -i 's|http://archive.ubuntu.com|http://azure.archive.ubuntu.com|g' /etc/apt/sources.list; \
+		fi; \
+	else \
+		if [ -f /etc/apt/sources.list.d/ubuntu.sources ]; then \
+			sed -i 's|http://ports.ubuntu.com|http://azure.ports.ubuntu.com|g' /etc/apt/sources.list.d/ubuntu.sources; \
+		else \
+			sed -i 's|http://ports.ubuntu.com|http://azure.ports.ubuntu.com|g' /etc/apt/sources.list; \
+		fi; \
+	fi
 
 # Utilities
 RUN apt-get update && \
-apt-get install -y curl
+	apt-get install -y curl iproute2
 
 # Node.js 22
 RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && \
-apt-get install -y nodejs
+	apt-get install -y nodejs
 
 # No UI on arm32 on Ubuntu 24.04
 ARG BASE_IMAGE
@@ -28,7 +45,3 @@ RUN apt-get install -y libasound2 || apt-get install -y libasound2t64 && \
 		libgbm1 \
 		libnss3 \
 		xdg-utils
-
-COPY entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
-ENTRYPOINT [ "/entrypoint.sh" ]

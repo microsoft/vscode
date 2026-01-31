@@ -67,8 +67,7 @@ export class UserDataSyncClient extends Disposable {
 			userRoamingDataHome,
 			cacheHome: joinPath(userRoamingDataHome, 'cache'),
 			argvResource: joinPath(userRoamingDataHome, 'argv.json'),
-			sync: 'on',
-			builtinProfilesHome: joinPath(userRoamingDataHome, 'builtinProfiles')
+			sync: 'on'
 		});
 
 		this.instantiationService.stub(IProductService, {

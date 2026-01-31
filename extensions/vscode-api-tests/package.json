@@ -54,7 +54,8 @@
     "workspaceTrust",
     "inlineCompletionsAdditions",
     "devDeviceId",
-    "languageModelProxy"
+    "languageModelProxy",
+    "agentSessionsWorkspace"
   ],
   "private": true,
   "activationEvents": [],

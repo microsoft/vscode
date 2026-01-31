@@ -59,5 +59,4 @@ export interface IDefaultAccount {
 	readonly sessionId: string;
 	readonly enterprise: boolean;
 	readonly entitlementsData?: IEntitlementsData | null;
-	readonly policyData?: IPolicyData;
 }

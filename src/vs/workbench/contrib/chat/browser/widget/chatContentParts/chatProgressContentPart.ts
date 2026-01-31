@@ -165,6 +165,7 @@ export class ChatWorkingProgressContentPart extends ChatProgressContentPart impl
 			content: new MarkdownString().appendText(localize('workingMessage', "Working..."))
 		};
 		super(progressMessage, chatContentMarkdownRenderer, context, undefined, undefined, undefined, undefined, instantiationService, chatMarkdownAnchorService, configurationService);
+		this.domNode.classList.add('working-progress');
 		this._register(languageModelToolsService.onDidPrepareToolCallBecomeUnresponsive(e => {
 			if (isEqual(context.element.sessionResource, e.sessionResource)) {
 				this.updateMessage(new MarkdownString(localize('toolCallUnresponsive', "Waiting for tool '{0}' to respond...", e.toolData.displayName)));

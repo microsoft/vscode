@@ -35,7 +35,7 @@ import { registerChatDeveloperActions } from './actions/chatDeveloperActions.js'
 import { registerChatExportZipAction } from './actions/chatExportZip.js';
 import { HoldToVoiceChatInChatViewAction, InlineVoiceChatAction, KeywordActivationContribution, QuickVoiceChatAction, ReadChatResponseAloud, StartVoiceChatAction, StopListeningAction, StopListeningAndSubmitAction, StopReadAloud, StopReadChatItemAloud, VoiceChatInChatViewAction } from './actions/voiceChatActions.js';
 import { NativeBuiltinToolsContribution } from './builtInTools/tools.js';
-import { OpenAgentSessionsWindowAction } from './agentSessions/agentSessionsActions.js';
+import { OpenAgentSessionsWindowAction, SwitchToAgentSessionsModeAction, SwitchToNormalModeAction } from './agentSessions/agentSessionsActions.js';
 
 class ChatCommandLineHandler extends Disposable {
 
@@ -190,6 +190,8 @@ class ChatLifecycleHandler extends Disposable {
 }
 
 registerAction2(OpenAgentSessionsWindowAction);
+registerAction2(SwitchToAgentSessionsModeAction);
+registerAction2(SwitchToNormalModeAction);
 registerAction2(StartVoiceChatAction);
 
 registerAction2(VoiceChatInChatViewAction);

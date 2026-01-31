@@ -90,6 +90,7 @@ export interface IChatRequestViewModel {
 	readonly agentOrSlashCommandDetected: boolean;
 	readonly shouldBeBlocked: IObservable<boolean>;
 	readonly modelId?: string;
+	readonly timestamp: number;
 }
 
 export interface IChatResponseMarkdownRenderData {
@@ -422,6 +423,10 @@ export class ChatRequestViewModel implements IChatRequestViewModel {
 
 	get modelId() {
 		return this._model.modelId;
+	}
+
+	get timestamp() {
+		return this._model.timestamp;
 	}
 
 	constructor(

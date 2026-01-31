@@ -11,9 +11,13 @@ import { IUntypedEditorInput } from '../../../common/editor.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 
 export const agentSessionsWelcomeInputTypeId = 'workbench.editors.agentSessionsWelcomeInput';
+export type AgentSessionsWelcomeInitiator = 'startup' | 'command';
+export type AgentSessionsWelcomeWorkspaceKind = 'empty' | 'folder' | 'workspace';
 
 export interface AgentSessionsWelcomeEditorOptions extends IEditorOptions {
 	showTelemetryNotice?: boolean;
+	initiator?: AgentSessionsWelcomeInitiator;
+	workspaceKind?: AgentSessionsWelcomeWorkspaceKind;
 }
 
 export class AgentSessionsWelcomeInput extends EditorInput {
@@ -22,6 +26,8 @@ export class AgentSessionsWelcomeInput extends EditorInput {
 	static readonly RESOURCE = URI.from({ scheme: Schemas.walkThrough, authority: 'vscode_agent_sessions_welcome' });
 
 	private _showTelemetryNotice: boolean;
+	private _initiator: AgentSessionsWelcomeInitiator;
+	private _workspaceKind?: AgentSessionsWelcomeWorkspaceKind;
 
 	override get typeId(): string {
 		return AgentSessionsWelcomeInput.ID;
@@ -53,9 +59,13 @@ export class AgentSessionsWelcomeInput extends EditorInput {
 		return other instanceof AgentSessionsWelcomeInput;
 	}
 
-	constructor(options: AgentSessionsWelcomeEditorOptions = {}) {
+	constructor(
+		options: AgentSessionsWelcomeEditorOptions = {},
+	) {
 		super();
 		this._showTelemetryNotice = !!options.showTelemetryNotice;
+		this._initiator = options.initiator ?? 'command';
+		this._workspaceKind = options.workspaceKind;
 	}
 
 	override getName() {
@@ -68,5 +78,26 @@ export class AgentSessionsWelcomeInput extends EditorInput {
 
 	set showTelemetryNotice(value: boolean) {
 		this._showTelemetryNotice = value;
+	}
+
+	get initiator(): AgentSessionsWelcomeInitiator {
+		return this._initiator;
+	}
+
+	get workspaceKind(): AgentSessionsWelcomeWorkspaceKind | undefined {
+		return this._workspaceKind;
+	}
+
+	override getTelemetryDescriptor(): { [key: string]: unknown } {
+		const descriptor = super.getTelemetryDescriptor();
+		descriptor['initiator'] = this._initiator;
+		descriptor['workspaceKind'] = this._workspaceKind;
+		/* __GDPR__FRAGMENT__
+			"EditorTelemetryDescriptor" : {
+				"initiator" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "How the welcome page was opened - startup or command." },
+				"workspaceKind" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The type of workspace - empty, folder, or workspace." }
+			}
+		*/
+		return descriptor;
 	}
 }

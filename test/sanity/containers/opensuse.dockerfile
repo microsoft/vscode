@@ -19,7 +19,3 @@ RUN zypper install -y dbus-1-x11 && \
 RUN zypper install -y \
 	liberation-fonts \
 	libgtk-3-0
-
-COPY entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
-ENTRYPOINT [ "/entrypoint.sh" ]

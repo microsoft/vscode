@@ -383,15 +383,7 @@ export class ChatService extends Disposable implements IChatService {
 				return ({
 					...entry,
 					sessionResource,
-					// TODO@roblourens- missing for old data- normalize inside the store
-					timing: entry.timing ?? {
-						created: entry.lastMessageDate,
-						lastRequestStarted: undefined,
-						lastRequestEnded: entry.lastMessageDate,
-					},
 					isActive: this._sessionModels.has(sessionResource),
-					// TODO@roblourens- missing for old data- normalize inside the store
-					lastResponseState: entry.lastResponseState ?? ResponseModelState.Complete,
 				});
 			});
 	}
@@ -403,15 +395,7 @@ export class ChatService extends Disposable implements IChatService {
 			return {
 				...metadata,
 				sessionResource,
-				// TODO@roblourens- missing for old data- normalize inside the store
-				timing: metadata.timing ?? {
-					created: metadata.lastMessageDate,
-					lastRequestStarted: undefined,
-					lastRequestEnded: metadata.lastMessageDate,
-				},
 				isActive: this._sessionModels.has(sessionResource),
-				// TODO@roblourens- missing for old data- normalize inside the store
-				lastResponseState: metadata.lastResponseState ?? ResponseModelState.Complete,
 			};
 		}
 

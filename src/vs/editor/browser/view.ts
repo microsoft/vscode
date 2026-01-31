@@ -540,11 +540,11 @@ export class View extends ViewEventHandler {
 						this._renderAnimationFrame = null;
 					}
 				},
-				renderText: () => {
+				renderText: (viewportData: ViewportData) => {
 					if (this._store.isDisposed) {
 						throw new BugIndicatingError();
 					}
-					return rendering.renderText();
+					return rendering.renderText(viewportData);
 				},
 				prepareRender: (viewParts: ViewPart[], ctx: RenderingContext) => {
 					if (this._store.isDisposed) {
@@ -564,13 +564,17 @@ export class View extends ViewEventHandler {
 
 	private _flushAccumulatedAndRenderNow(): void {
 		const rendering = this._createCoordinatedRendering();
-		safeInvokeNoArg(() => rendering.prepareRenderText());
-		const data = safeInvokeNoArg(() => rendering.renderText());
-		if (data) {
-			const [viewParts, ctx] = data;
-			safeInvokeNoArg(() => rendering.prepareRender(viewParts, ctx));
-			safeInvokeNoArg(() => rendering.render(viewParts, ctx));
+		const viewportData = safeInvokeNoArg(() => rendering.prepareRenderText());
+		if (!viewportData) {
+			return;
 		}
+		const data = safeInvokeNoArg(() => rendering.renderText(viewportData));
+		if (!data) {
+			return;
+		}
+		const [viewParts, ctx] = data;
+		safeInvokeNoArg(() => rendering.prepareRender(viewParts, ctx));
+		safeInvokeNoArg(() => rendering.render(viewParts, ctx));
 	}
 
 	private _getViewPartsToRender(): ViewPart[] {
@@ -593,16 +597,17 @@ export class View extends ViewEventHandler {
 					this._context.configuration.setGlyphMarginDecorationLaneCount(model.requiredLanes);
 				}
 				inputLatency.onRenderStart();
-			},
-			renderText: (): [ViewPart[], RenderingContext] | null => {
+
 				if (!this.domNode.domNode.isConnected) {
 					return null;
 				}
-				let viewPartsToRender = this._getViewPartsToRender();
+
+				const viewPartsToRender = this._getViewPartsToRender();
 				if (!this._viewLines.shouldRender() && viewPartsToRender.length === 0) {
 					// Nothing to render
 					return null;
 				}
+
 				const partialViewportData = this._context.viewLayout.getLinesViewportData();
 				this._context.viewModel.setViewport(partialViewportData.startLineNumber, partialViewportData.endLineNumber, partialViewportData.centeredLineNumber);
 
@@ -613,23 +618,28 @@ export class View extends ViewEventHandler {
 					this._context.viewModel
 				);
 
-				if (this._contentWidgets.shouldRender()) {
-					// Give the content widgets a chance to set their max width before a possible synchronous layout
-					this._contentWidgets.onBeforeRender(viewportData);
+				for (const viewPart of this._viewParts) {
+					if (viewPart.shouldRender()) {
+						viewPart.onBeforeRender(viewportData);
+					}
 				}
+
+				return viewportData;
+			},
+			renderText: (viewportData: ViewportData): [ViewPart[], RenderingContext] => {
 
 				if (this._viewLines.shouldRender()) {
 					this._viewLines.renderText(viewportData);
 					this._viewLines.onDidRender();
-
-					// Rendering of viewLines might cause scroll events to occur, so collect view parts to render again
-					viewPartsToRender = this._getViewPartsToRender();
 				}
 
 				if (this._viewLinesGpu?.shouldRender()) {
 					this._viewLinesGpu.renderText(viewportData);
 					this._viewLinesGpu.onDidRender();
 				}
+
+				// Rendering of viewLines might cause scroll events to occur, so collect view parts to render again
+				const viewPartsToRender = this._getViewPartsToRender();
 
 				return [viewPartsToRender, new RenderingContext(this._context.viewLayout, viewportData, this._viewLines, this._viewLinesGpu)];
 			},
@@ -827,8 +837,8 @@ function safeInvokeNoArg<T>(func: () => T): T | null {
 
 interface ICoordinatedRendering {
 	readonly window: CodeWindow;
-	prepareRenderText(): void;
-	renderText(): [ViewPart[], RenderingContext] | null;
+	prepareRenderText(): ViewportData | null;
+	renderText(viewportData: ViewportData): [ViewPart[], RenderingContext];
 	prepareRender(viewParts: ViewPart[], ctx: RenderingContext): void;
 	render(viewParts: ViewPart[], ctx: RestrictedRenderingContext): void;
 }
@@ -878,14 +888,21 @@ class EditorRenderingCoordinator {
 		const coordinatedRenderings = this._coordinatedRenderings.slice(0);
 		this._coordinatedRenderings = [];
 
-		for (const rendering of coordinatedRenderings) {
-			safeInvokeNoArg(() => rendering.prepareRenderText());
+		const viewportDatas: (ViewportData | null)[] = [];
+		for (let i = 0, len = coordinatedRenderings.length; i < len; i++) {
+			const rendering = coordinatedRenderings[i];
+			viewportDatas[i] = safeInvokeNoArg(() => rendering.prepareRenderText());
 		}
 
 		const datas: ([ViewPart[], RenderingContext] | null)[] = [];
 		for (let i = 0, len = coordinatedRenderings.length; i < len; i++) {
 			const rendering = coordinatedRenderings[i];
-			datas[i] = safeInvokeNoArg(() => rendering.renderText());
+			const viewportData = viewportDatas[i];
+			if (!viewportData) {
+				datas[i] = null;
+				continue;
+			}
+			datas[i] = safeInvokeNoArg(() => rendering.renderText(viewportData));
 		}
 
 		for (let i = 0, len = coordinatedRenderings.length; i < len; i++) {

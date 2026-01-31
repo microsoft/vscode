@@ -106,10 +106,12 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 
 	public registerCollection(collection: McpCollectionDefinition): IDisposable {
 		const currentCollections = this._collections.get();
-		const toReplace = currentCollections.find(c => c.lazy && c.id === collection.id);
+		const toReplace = currentCollections.find(c => c.id === collection.id);
 
 		// Incoming collections replace the "lazy" versions. See `ExtensionMcpDiscovery` for an example.
-		if (toReplace) {
+		if (toReplace && !toReplace.lazy) {
+			return Disposable.None;
+		} else if (toReplace) {
 			this._collections.set(currentCollections.map(c => c === toReplace ? collection : c), undefined);
 		} else {
 			this._collections.set([...currentCollections, collection]

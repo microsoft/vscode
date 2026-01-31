@@ -72,14 +72,18 @@
 		justify-content: center;
 		pointer-events: none;
 		color: var(--vscode-foreground);
-		background-color: color-mix(in srgb, var(--vscode-editor-background) 60%, transparent);
+		background-color: color-mix(in srgb, var(--vscode-editor-background) 15%, transparent);
 		opacity: 0;
 		visibility: hidden;
-		transition: opacity 200ms ease-out;
+		transition: opacity 200ms ease-in;
 
 		&.visible {
 			opacity: 1;
 			visibility: visible;
+		}
+
+		&.show-message {
+			background-color: color-mix(in srgb, var(--vscode-editor-background) 60%, transparent);
 		}
 	}
 
@@ -198,6 +202,10 @@
 			.codicon-whole-word,
 			.codicon-regex {
 				display: none;
+			}
+			/* Adjust input width to account for fewer toggles */
+			.input {
+				width: calc(100% - 16px) !important;
 			}
 		}
 	}
