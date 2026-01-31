@@ -72,6 +72,7 @@ import { ChatEditorOptions } from '../chatOptions.js';
 import { emptyProgressRunner, IEditorProgressService } from '../../../../../../platform/progress/common/progress.js';
 import { SuggestController } from '../../../../../../editor/contrib/suggest/browser/suggestController.js';
 import { SnippetController2 } from '../../../../../../editor/contrib/snippet/browser/snippetController2.js';
+import { EditorContextKeys } from '../../../../../../editor/common/editorContextKeys.js';
 
 const $ = dom.$;
 
@@ -548,6 +549,7 @@ export interface ICodeCompareBlockActionContext {
 	readonly element: IChatResponseViewModel;
 	readonly diffEditor: IDiffEditor;
 	readonly edit: IChatTextEditGroup;
+	toggleDiffViewMode(): void;
 }
 
 export interface ICodeCompareBlockDiffData {
@@ -584,6 +586,8 @@ export class CodeCompareBlockPart extends Disposable {
 	private readonly _lastDiffEditorViewModel = this._store.add(new MutableDisposable());
 	private currentScrollWidth = 0;
 	private currentHorizontalPadding = 0;
+
+	private lastLayoutWidth: number | undefined;
 
 	constructor(
 		private readonly options: ChatEditorOptions,
@@ -755,11 +759,10 @@ export class CodeCompareBlockPart extends Disposable {
 
 	private _configureForScreenReader(): void {
 		const toolbarElt = this.toolbar.getElement();
+		// Always show toolbar, but add aria-label for screen readers
+		toolbarElt.style.display = 'block';
 		if (this.accessibilityService.isScreenReaderOptimized()) {
-			toolbarElt.style.display = 'block';
 			toolbarElt.ariaLabel = localize('chat.codeBlock.toolbar', 'Code block toolbar');
-		} else {
-			toolbarElt.style.display = '';
 		}
 	}
 
@@ -777,7 +780,13 @@ export class CodeCompareBlockPart extends Disposable {
 		};
 	}
 
-	layout(width: number): void {
+	layout(width = this.lastLayoutWidth): void {
+		if (width === undefined) {
+			return; // not yet in DOM
+		}
+
+		this.lastLayoutWidth = width;
+
 		const editorBorder = 2;
 
 		const toolbar = dom.getTotalHeight(this.editorHeader);
@@ -900,6 +909,18 @@ export class CodeCompareBlockPart extends Disposable {
 			edit: data.edit,
 			element: data.element,
 			diffEditor: this.diffEditor,
+			toggleDiffViewMode: () => {
+				const isCurrentlyInline = !!this.diffEditor.getModifiedEditor().contextKeyService.getContextKeyValue(EditorContextKeys.diffEditorInlineMode.key);
+				const renderSideBySide = isCurrentlyInline;
+				this.diffEditor.updateOptions({
+					renderSideBySide,
+					// Make it not-compact in side by side mode, otherwise we may not actually
+					// show it side-by-side if it's a simple diff https://github.com/microsoft/vscode/blob/0632563332c7c08656fb47c97bc4328d62ee1d80/src/vs/editor/browser/widget/diffEditor/diffEditorOptions.ts#L35-L39
+					compactMode: !renderSideBySide,
+					useInlineViewWhenSpaceIsLimited: false,
+				});
+				this.layout();
+			},
 		} satisfies ICodeCompareBlockActionContext;
 	}
 }
