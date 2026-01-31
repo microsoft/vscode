@@ -315,10 +315,8 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 					: undefined;
 				const selectedValue = defaultOption?.value;
 
-				if (question.allowFreeformInput) {
-					return selectedValue !== undefined ? { selectedValue, freeformValue: undefined } : undefined;
-				}
-				return selectedValue;
+				// Always return structured format for single-select (freeform is always shown)
+				return selectedValue !== undefined ? { selectedValue, freeformValue: undefined } : undefined;
 			}
 
 			case 'multiSelect': {
@@ -330,10 +328,8 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 					.map(opt => opt.value)
 					.filter(v => v !== undefined) ?? [];
 
-				if (question.allowFreeformInput) {
-					return selectedValues.length > 0 ? { selectedValues, freeformValue: undefined } : undefined;
-				}
-				return selectedValues;
+				// Always return structured format for multi-select (freeform is always shown)
+				return selectedValues.length > 0 ? { selectedValues, freeformValue: undefined } : undefined;
 			}
 
 			default:
@@ -444,6 +440,20 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 				this.renderMultiSelect(container, question);
 				break;
 		}
+	}
+
+	/**
+	 * Sets up auto-resize behavior for a textarea element.
+	 * @returns A function that triggers the resize manually (useful for initial sizing).
+	 */
+	private setupTextareaAutoResize(textarea: HTMLTextAreaElement): () => void {
+		const autoResize = () => {
+			textarea.style.height = 'auto';
+			textarea.style.height = `${Math.min(textarea.scrollHeight, 200)}px`;
+			this._onDidChangeHeight.fire();
+		};
+		this._inputBoxes.add(dom.addDisposableListener(textarea, dom.EventType.INPUT, autoResize));
+		return autoResize;
 	}
 
 	private renderTextInput(container: HTMLElement, question: IChatQuestion): void {
@@ -599,21 +609,27 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			}
 		}));
 
-		// Add freeform input if allowed
-		if (question.allowFreeformInput) {
-			const freeformContainer = dom.$('.chat-question-freeform');
+		// Always show freeform input for single-select questions
+		const freeformContainer = dom.$('.chat-question-freeform');
 
-			const freeformTextarea = dom.$<HTMLTextAreaElement>('textarea.chat-question-freeform-textarea');
-			freeformTextarea.placeholder = localize('chat.questionCarousel.enterCustomAnswer', 'Enter custom answer');
-			freeformTextarea.rows = 1;
+		const freeformTextarea = dom.$<HTMLTextAreaElement>('textarea.chat-question-freeform-textarea');
+		freeformTextarea.placeholder = localize('chat.questionCarousel.enterCustomAnswer', 'Enter custom answer');
+		freeformTextarea.rows = 1;
 
-			if (previousFreeform !== undefined) {
-				freeformTextarea.value = previousFreeform;
-			}
+		if (previousFreeform !== undefined) {
+			freeformTextarea.value = previousFreeform;
+		}
 
-			freeformContainer.appendChild(freeformTextarea);
-			container.appendChild(freeformContainer);
-			this._freeformTextareas.set(question.id, freeformTextarea);
+		// Setup auto-resize behavior
+		const autoResize = this.setupTextareaAutoResize(freeformTextarea);
+
+		freeformContainer.appendChild(freeformTextarea);
+		container.appendChild(freeformContainer);
+		this._freeformTextareas.set(question.id, freeformTextarea);
+
+		// Resize textarea if it has restored content
+		if (previousFreeform !== undefined) {
+			this._inputBoxes.add(dom.runAtThisOrScheduleAtNextAnimationFrame(dom.getWindow(freeformTextarea), () => autoResize()));
 		}
 	}
 
@@ -736,21 +752,27 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			}
 		}));
 
-		// Add freeform input if allowed
-		if (question.allowFreeformInput) {
-			const freeformContainer = dom.$('.chat-question-freeform');
+		// Always show freeform input for multi-select questions
+		const freeformContainer = dom.$('.chat-question-freeform');
 
-			const freeformTextarea = dom.$<HTMLTextAreaElement>('textarea.chat-question-freeform-textarea');
-			freeformTextarea.placeholder = localize('chat.questionCarousel.enterCustomAnswer', 'Enter custom answer');
-			freeformTextarea.rows = 1;
+		const freeformTextarea = dom.$<HTMLTextAreaElement>('textarea.chat-question-freeform-textarea');
+		freeformTextarea.placeholder = localize('chat.questionCarousel.enterCustomAnswer', 'Enter custom answer');
+		freeformTextarea.rows = 1;
 
-			if (previousFreeform !== undefined) {
-				freeformTextarea.value = previousFreeform;
-			}
+		if (previousFreeform !== undefined) {
+			freeformTextarea.value = previousFreeform;
+		}
 
-			freeformContainer.appendChild(freeformTextarea);
-			container.appendChild(freeformContainer);
-			this._freeformTextareas.set(question.id, freeformTextarea);
+		// Setup auto-resize behavior
+		const autoResize = this.setupTextareaAutoResize(freeformTextarea);
+
+		freeformContainer.appendChild(freeformTextarea);
+		container.appendChild(freeformContainer);
+		this._freeformTextareas.set(question.id, freeformTextarea);
+
+		// Resize textarea if it has restored content
+		if (previousFreeform !== undefined) {
+			this._inputBoxes.add(dom.runAtThisOrScheduleAtNextAnimationFrame(dom.getWindow(freeformTextarea), () => autoResize()));
 		}
 	}
 
@@ -778,17 +800,17 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 					selectedValue = defaultOption?.value;
 				}
 
-				// Include freeform value if allowed
-				if (question.allowFreeformInput) {
-					const freeformTextarea = this._freeformTextareas.get(question.id);
-					const freeformValue = freeformTextarea?.value !== '' ? freeformTextarea?.value : undefined;
-					if (freeformValue || selectedValue !== undefined) {
-						return { selectedValue, freeformValue };
-					}
-					return undefined;
+				// For single-select: if freeform is provided, use ONLY freeform (ignore selection)
+				const freeformTextarea = this._freeformTextareas.get(question.id);
+				const freeformValue = freeformTextarea?.value !== '' ? freeformTextarea?.value : undefined;
+				if (freeformValue) {
+					// Freeform takes priority - ignore selectedValue
+					return { selectedValue: undefined, freeformValue };
 				}
-
-				return selectedValue;
+				if (selectedValue !== undefined) {
+					return { selectedValue, freeformValue: undefined };
+				}
+				return undefined;
 			}
 
 			case 'multiSelect': {
@@ -816,17 +838,13 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 					finalSelectedValues = defaultValues?.filter(v => v !== undefined) || [];
 				}
 
-				// Include freeform value if allowed
-				if (question.allowFreeformInput) {
-					const freeformTextarea = this._freeformTextareas.get(question.id);
-					const freeformValue = freeformTextarea?.value !== '' ? freeformTextarea?.value : undefined;
-					if (freeformValue || finalSelectedValues.length > 0) {
-						return { selectedValues: finalSelectedValues, freeformValue };
-					}
-					return undefined;
+				// Always include freeform value for multi-select questions
+				const freeformTextarea = this._freeformTextareas.get(question.id);
+				const freeformValue = freeformTextarea?.value !== '' ? freeformTextarea?.value : undefined;
+				if (freeformValue || finalSelectedValues.length > 0) {
+					return { selectedValues: finalSelectedValues, freeformValue };
 				}
-
-				return finalSelectedValues;
+				return undefined;
 			}
 
 			default:
@@ -868,7 +886,9 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			// Category label (use same text as shown in question UI: message ?? title)
 			const questionLabel = dom.$('span.chat-question-summary-label');
 			const questionText = question.message ?? question.title;
-			const labelText = typeof questionText === 'string' ? questionText : questionText.value;
+			let labelText = typeof questionText === 'string' ? questionText : questionText.value;
+			// Remove trailing colons and whitespace to avoid double colons (CSS adds ': ')
+			labelText = labelText.replace(/[:\s]+$/, '');
 			questionLabel.textContent = labelText;
 			summaryItem.appendChild(questionLabel);
 
@@ -911,10 +931,9 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 				if (typeof answer === 'object' && answer !== null && hasKey(answer, { selectedValue: true })) {
 					const { selectedValue, freeformValue } = answer as { selectedValue?: unknown; freeformValue?: string };
 					const selectedLabel = question.options?.find(opt => opt.value === selectedValue)?.label;
+					// For singleSelect, freeform takes priority over selection
 					if (freeformValue) {
-						return selectedLabel
-							? localize('chat.questionCarousel.answerWithFreeform', '{0} ({1})', selectedLabel, freeformValue)
-							: freeformValue;
+						return freeformValue;
 					}
 					return selectedLabel ?? String(selectedValue ?? '');
 				}
@@ -926,14 +945,12 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 				if (typeof answer === 'object' && answer !== null && hasKey(answer, { selectedValues: true })) {
 					const { selectedValues, freeformValue } = answer as { selectedValues?: unknown[]; freeformValue?: string };
 					const labels = (selectedValues ?? [])
-						.map(v => question.options?.find(opt => opt.value === v)?.label ?? String(v))
-						.join(localize('chat.questionCarousel.listSeparator', ', '));
+						.map(v => question.options?.find(opt => opt.value === v)?.label ?? String(v));
+					// For multiSelect, combine selections and freeform with comma separator
 					if (freeformValue) {
-						return labels
-							? localize('chat.questionCarousel.answerWithFreeform', '{0} ({1})', labels, freeformValue)
-							: freeformValue;
+						labels.push(freeformValue);
 					}
-					return labels;
+					return labels.join(localize('chat.questionCarousel.listSeparator', ', '));
 				}
 				if (Array.isArray(answer)) {
 					return answer

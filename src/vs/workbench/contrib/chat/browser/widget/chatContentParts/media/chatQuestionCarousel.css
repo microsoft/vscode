@@ -23,17 +23,16 @@
 .chat-question-summary-item {
 	display: flex;
 	flex-direction: row;
+	flex-wrap: wrap;
 	align-items: baseline;
 	gap: 0;
 	font-size: var(--vscode-chat-font-size-body-s);
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
 }
 
 .chat-question-summary-label {
 	color: var(--vscode-descriptionForeground);
-	flex-shrink: 0;
+	word-wrap: break-word;
+	overflow-wrap: break-word;
 }
 
 .chat-question-summary-label::after {
@@ -44,14 +43,14 @@
 .chat-question-summary-answer-title {
 	color: var(--vscode-foreground);
 	font-weight: 600;
-	flex-shrink: 0;
+	word-wrap: break-word;
+	overflow-wrap: break-word;
 }
 
 .chat-question-summary-answer-desc {
 	color: var(--vscode-foreground);
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: pre;
+	word-wrap: break-word;
+	overflow-wrap: break-word;
 }
 
 .chat-question-summary-skipped {
@@ -421,16 +420,18 @@
 
 .chat-question-freeform-textarea {
 	width: 100%;
+	min-height: 32px;
 	max-height: 200px;
 	padding: 6px 8px;
 	border: 1px solid var(--vscode-input-border, var(--vscode-chat-requestBorder));
 	background-color: var(--vscode-input-background);
 	color: var(--vscode-input-foreground);
 	border-radius: 4px;
-	resize: vertical;
+	resize: none;
 	font-family: var(--vscode-chat-font-family, inherit);
 	font-size: var(--vscode-chat-font-size-body-s);
 	box-sizing: border-box;
+	overflow-y: hidden;
 }
 
 .chat-question-freeform-textarea:focus {
