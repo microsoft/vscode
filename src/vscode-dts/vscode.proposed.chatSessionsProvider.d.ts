@@ -42,7 +42,7 @@ declare module 'vscode' {
 		/**
 		 * Creates a new {@link ChatSessionItemController chat session item controller} with the given unique identifier.
 		 */
-		export function createChatSessionItemController(id: string, refreshHandler: () => Thenable<void>): ChatSessionItemController;
+		export function createChatSessionItemController(id: string, refreshHandler: (token: CancellationToken) => Thenable<void>): ChatSessionItemController;
 	}
 
 	/**
@@ -97,14 +97,12 @@ declare module 'vscode' {
 		 *
 		 * This is also called on first load to get the initial set of items.
 		 */
-		refreshHandler: () => Thenable<void>;
+		refreshHandler: (token: CancellationToken) => Thenable<void>;
 
 		/**
-		 * Fired when an item is archived by the editor
-		 *
-		 * TODO: expose archive state on the item too?
+		 * Fired when an item's archived state changes.
 		 */
-		readonly onDidArchiveChatSessionItem: Event<ChatSessionItem>;
+		readonly onDidChangeChatSessionItemState: Event<ChatSessionItem>;
 	}
 
 	/**
@@ -233,22 +231,14 @@ declare module 'vscode' {
 		/**
 		 * Statistics about the chat session.
 		 */
-		changes?: readonly ChatSessionChangedFile[] | {
-			/**
-			 * Number of files edited during the session.
-			 */
-			files: number;
+		changes?: readonly ChatSessionChangedFile[] | readonly ChatSessionChangedFile2[];
 
-			/**
-			 * Number of insertions made during the session.
-			 */
-			insertions: number;
-
-			/**
-			 * Number of deletions made during the session.
-			 */
-			deletions: number;
-		};
+		/**
+		 * Arbitrary metadata for the chat session. Can be anything, but must be JSON-stringifyable.
+		 *
+		 * To update the metadata you must re-set this property.
+		 */
+		metadata?: { readonly [key: string]: any };
 	}
 
 	export class ChatSessionChangedFile {
@@ -273,6 +263,35 @@ declare module 'vscode' {
 		deletions: number;
 
 		constructor(modifiedUri: Uri, insertions: number, deletions: number, originalUri?: Uri);
+	}
+
+	export class ChatSessionChangedFile2 {
+		/**
+		 * URI of the file.
+		 */
+		readonly uri: Uri;
+
+		/**
+		 * URI of the original file. Undefined if the file was created.
+		 */
+		readonly originalUri: Uri | undefined;
+
+		/**
+		 * URI of the modified file. Undefined if the file was deleted.
+		 */
+		readonly modifiedUri: Uri | undefined;
+
+		/**
+		 * Number of insertions made during the session.
+		 */
+		insertions: number;
+
+		/**
+		 * Number of deletions made during the session.
+		 */
+		deletions: number;
+
+		constructor(uri: Uri, originalUri: Uri | undefined, modifiedUri: Uri | undefined, insertions: number, deletions: number);
 	}
 
 	export interface ChatSession {
@@ -513,6 +532,13 @@ declare module 'vscode' {
 		 * @returns Additional items to display in the searchable QuickPick.
 		 */
 		readonly onSearch?: (query: string, token: CancellationToken) => Thenable<ChatSessionProviderOptionItem[]>;
+
+		/**
+		 * Optional commands.
+		 *
+		 * These commands will be displayed at the bottom of the group.
+		 */
+		readonly commands?: Command[];
 	}
 
 	export interface ChatSessionProviderOptions {

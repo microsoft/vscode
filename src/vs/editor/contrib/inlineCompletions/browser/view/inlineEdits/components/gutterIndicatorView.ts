@@ -104,7 +104,7 @@ export class InlineEditsGutterIndicator extends Disposable {
 		private readonly _isHoveringOverInlineEdit: IObservable<boolean>,
 		private readonly _focusIsInMenu: ISettableObservable<boolean>,
 
-		@IHoverService private readonly _hoverService: HoverService,
+		@IHoverService protected readonly _hoverService: HoverService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 		@IThemeService private readonly _themeService: IThemeService

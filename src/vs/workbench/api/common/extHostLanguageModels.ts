@@ -123,7 +123,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 
 	private readonly _languageModelProviders = new Map<string, LanguageModelProviderData>();
 	// TODO @lramos15 - Remove the need for both info and metadata as it's a lot of redundancy. Should just need one
-	private readonly _localModels = new Map<string, { metadata: ILanguageModelChatMetadata; info: vscode.LanguageModelChatInformation }>();
+	private readonly _localModels = new Map<string, { group: string | undefined; metadata: ILanguageModelChatMetadata; info: vscode.LanguageModelChatInformation }>();
 	private readonly _modelAccessList = new ExtensionIdentifierMap<ExtensionIdentifierSet>();
 	private readonly _pendingRequest = new Map<number, { languageModelId: string; res: LanguageModelResponse }>();
 	private readonly _ignoredFileProviders = new Map<number, vscode.LanguageModelIgnoredFileProvider>();
@@ -157,19 +157,23 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 
 		return toDisposable(() => {
 			this._languageModelProviders.delete(vendor);
-			this._clearModelCache(vendor);
+			this._localModels.forEach((value, key) => {
+				if (value.metadata.vendor === vendor) {
+					this._localModels.delete(key);
+				}
+			});
 			providerChangeEventDisposable?.dispose();
 			this._proxy.$unregisterProvider(vendor);
 		});
 	}
 
-	// Helper function to clear the local cache for a specific vendor. There's no lookup, so this involves iterating over all models.
-	private _clearModelCache(vendor: string): void {
-		this._localModels.forEach((value, key) => {
-			if (value.metadata.vendor === vendor) {
-				this._localModels.delete(key);
-			}
-		});
+	private toModelIdentifier(vendor: string, group: string | undefined, modelId: string): string {
+		return group ? `${vendor}/${group}/${modelId}` : `${vendor}/${modelId}`;
+	}
+
+	private getVendorFromModelIdentifier(modelIdentifier: string): string | undefined {
+		const firstSlash = modelIdentifier.indexOf('/');
+		return firstSlash === -1 ? undefined : modelIdentifier.substring(0, firstSlash);
 	}
 
 	async $provideLanguageModelChatInfo(vendor: string, options: ILanguageModelChatInfoOptions, token: CancellationToken): Promise<ILanguageModelChatMetadataAndIdentifier[]> {
@@ -216,6 +220,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 					detail: m.detail,
 					tooltip: m.tooltip,
 					version: m.version,
+					multiplier: m.multiplier,
 					maxInputTokens: m.maxInputTokens,
 					maxOutputTokens: m.maxOutputTokens,
 					auth,
@@ -230,13 +235,19 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 						agentMode: !!m.capabilities.toolCalling
 					} : undefined,
 				},
-				identifier: options.group ? `${vendor}/${options.group}/${m.id}` : `${vendor}/${m.id}`,
+				identifier: this.toModelIdentifier(vendor, options.group, m.id)
 			};
 		});
 
-		this._clearModelCache(vendor);
+		this._localModels.forEach((value, key) => {
+			if (value.metadata.vendor === vendor && value.group === options.group) {
+				this._localModels.delete(key);
+			}
+		});
+
 		for (let i = 0; i < modelMetadataAndIdentifier.length; i++) {
 			this._localModels.set(modelMetadataAndIdentifier[i].identifier, {
+				group: options.group,
 				metadata: modelMetadataAndIdentifier[i].metadata,
 				info: modelInformation[i]
 			});
@@ -367,10 +378,21 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 			return undefined;
 		}
 
-		const model = this._localModels.get(modelId);
+		let model = this._localModels.get(modelId);
 		if (!model) {
 			// model gone? is this an error on us? Try to resolve model again
-			return (await this.selectLanguageModels(extension, { id: modelId }))[0];
+			this._logService.warn(`[LanguageModelProxy](${extension.identifier.value}) Could not find model '${modelId}' in local cache. Trying to resolve model again.`);
+			const vendor = this.getVendorFromModelIdentifier(modelId);
+			if (!vendor) {
+				this._logService.warn(`[LanguageModelProxy](${extension.identifier.value}) Could not extract vendor from model identifier '${modelId}'.`);
+				return undefined;
+			}
+			await this.selectLanguageModels(extension, { vendor });
+			model = this._localModels.get(modelId);
+			if (!model) {
+				this._logService.warn(`[LanguageModelProxy](${extension.identifier.value}) Could not find model '${modelId}' in local cache after re-resolving models.`);
+				return undefined;
+			}
 		}
 
 		// make sure auth information is correct

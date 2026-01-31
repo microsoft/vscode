@@ -32,6 +32,7 @@ export const enum TerminalContribCommandId {
 	FocusMostRecentChatTerminal = TerminalChatCommandId.FocusMostRecentChatTerminal,
 	ToggleChatTerminalOutput = TerminalChatCommandId.ToggleChatTerminalOutput,
 	FocusChatInstanceAction = TerminalChatCommandId.FocusChatInstanceAction,
+	ContinueInBackground = TerminalChatCommandId.ContinueInBackground,
 }
 
 // HACK: Export some settings from `terminalContrib/` that are depended upon elsewhere. These are

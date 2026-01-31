@@ -18,25 +18,10 @@
 
 		.interactive-session {
 
-			/* needed so that the chat welcome and chat input does not overflow and input grows over welcome */
+			/* needed so that the chat input does not overflow and input grows over content above */
 			width: 100%;
 			min-height: 0;
 			min-width: 0;
-		}
-	}
-
-	&:not(.chat-view-welcome-enabled) {
-
-		.interactive-session {
-
-			/* hide most welcome pieces (except suggested actions) when we show recent sessions to make some space */
-			.chat-welcome-view .chat-welcome-view-icon,
-			.chat-welcome-view .chat-welcome-view-title,
-			.chat-welcome-view .chat-welcome-view-message,
-			.chat-welcome-view .chat-welcome-view-disclaimer,
-			.chat-welcome-view .chat-welcome-view-tips {
-				visibility: hidden;
-			}
 		}
 	}
 }
@@ -113,6 +98,15 @@
 
 	.agent-sessions-new-button-container {
 		padding: 8px 12px;
+	}
+}
+
+/* Sessions control: panel location */
+.chat-viewpane.has-sessions-control.chat-view-location-panel {
+
+	.agent-sessions-new-button-container {
+		/* hide new session button in the panel considering less vertical space */
+		display: none !important;
 	}
 }
 

@@ -90,9 +90,6 @@ export class ChatToolStreamingSubPart extends BaseChatToolInvocationSubPart {
 			));
 
 			dom.reset(container, part.domNode);
-
-			// Notify parent that content has changed
-			this._onDidChangeHeight.fire();
 		}));
 
 		return container;

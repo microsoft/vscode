@@ -14,6 +14,8 @@ jobs:
   pool:
     name: AcesShared
     os: macOS
+    demands:
+      - ImageOverride -equals ACES_VM_SharedPool_Sequoia
   variables:
     # todo@connor4312 to diagnose build flakes
     MSRUSTUP_LOG: debug

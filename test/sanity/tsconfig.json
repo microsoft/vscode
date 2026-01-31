@@ -1,19 +1,20 @@
 {
 	"compilerOptions": {
-		"module": "commonjs",
+		"module": "ES2022",
+		"moduleResolution": "bundler",
 		"noImplicitAny": true,
 		"removeComments": false,
 		"preserveConstEnums": true,
 		"target": "es2024",
 		"strict": true,
-		"noUnusedParameters": false,
+		"noUnusedParameters": true,
 		"noUnusedLocals": true,
 		"outDir": "out",
 		"sourceMap": true,
 		"skipLibCheck": true,
 		"esModuleInterop": true,
 		"lib": [
-			"esnext", // for #201187
+			"esnext",
 			"dom"
 		]
 	},

@@ -7,7 +7,7 @@ import { CosmosClient } from '@azure/cosmos';
 import path from 'path';
 import fs from 'fs';
 import { retry } from './retry.ts';
-import { type IExtensionManifest, parseApiProposalsFromSource, checkExtensionCompatibility } from './versionCompatibility.ts';
+import { type IExtensionManifest, parseApiProposalsFromSource, checkExtensionCompatibility, areAllowlistedApiProposalsMatching } from './versionCompatibility.ts';
 
 const root = path.dirname(path.dirname(path.dirname(import.meta.dirname)));
 
@@ -75,6 +75,27 @@ async function checkCopilotChatCompatibility(): Promise<void> {
 
 	console.log(`Loaded ${proposalCount} API proposals from source`);
 
+	// Load product.json to check allowlisted API proposals
+	const productJsonPath = path.join(root, 'product.json');
+	let productJson;
+	try {
+		productJson = JSON.parse(fs.readFileSync(productJsonPath, 'utf8'));
+	} catch (error) {
+		throw new Error(`Failed to load or parse product.json: ${error}`);
+	}
+	const extensionEnabledApiProposals = productJson?.extensionEnabledApiProposals;
+	const extensionIdKey = extensionEnabledApiProposals ? Object.keys(extensionEnabledApiProposals).find(key => key.toLowerCase() === extensionId.toLowerCase()) : undefined;
+	const productAllowlistedProposals = extensionIdKey ? extensionEnabledApiProposals[extensionIdKey] : undefined;
+
+	if (productAllowlistedProposals) {
+		console.log(`Product.json allowlisted proposals for ${extensionId}:`);
+		for (const proposal of productAllowlistedProposals) {
+			console.log(`    ${proposal}`);
+		}
+	} else {
+		console.log(`Product.json allowlisted proposals for ${extensionId}: none`);
+	}
+
 	// Fetch the latest extension manifest
 	const manifest = await retry(() => fetchLatestExtensionManifest(extensionId));
 
@@ -92,6 +113,14 @@ async function checkCopilotChatCompatibility(): Promise<void> {
 	if (manifest.enabledApiProposals?.length) {
 		console.log(`  ✓ API proposals compatible`);
 	}
+
+	// Check that product.json allowlist matches package.json declarations
+	const allowlistResult = areAllowlistedApiProposalsMatching(extensionId, productAllowlistedProposals, manifest.enabledApiProposals);
+	if (!allowlistResult.compatible) {
+		throw new Error(`Allowlist check failed:\n  ${allowlistResult.errors.join('\n  ')}`);
+	}
+
+	console.log(`  ✓ Product.json allowlist matches package.json`);
 	console.log(`✓ ${extensionId} is compatible with this build`);
 }
 

@@ -4,14 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 
-import { DisposableMap } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap } from '../../../../../base/common/lifecycle.js';
 import { joinPath, isEqualOrParent } from '../../../../../base/common/resources.js';
 import { localize } from '../../../../../nls.js';
-import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
+import { ExtensionIdentifier, IExtensionManifest } from '../../../../../platform/extensions/common/extensions.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import * as extensionsRegistry from '../../../../services/extensions/common/extensionsRegistry.js';
-import { IPromptsService } from './service/promptsService.js';
+import { IPromptsService, PromptsStorage } from './service/promptsService.js';
 import { PromptsType } from './promptTypes.js';
+import { UriComponents } from '../../../../../base/common/uri.js';
+import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
+import { Registry } from '../../../../../platform/registry/common/platform.js';
+import { Extensions, IExtensionFeaturesRegistry, IExtensionFeatureTableRenderer, IRenderedData, IRowData, ITableData } from '../../../../services/extensionManagement/common/extensionFeatures.js';
 
 interface IRawChatFileContribution {
 	readonly path: string;
@@ -126,3 +132,113 @@ export class ChatPromptFilesExtensionPointHandler implements IWorkbenchContribut
 		});
 	}
 }
+
+/**
+ * Result type for the extension prompt file provider command.
+ */
+export interface IExtensionPromptFileResult {
+	readonly uri: UriComponents;
+	readonly type: PromptsType;
+}
+
+/**
+ * Register the command to list all extension-contributed prompt files.
+ */
+CommandsRegistry.registerCommand('_listExtensionPromptFiles', async (accessor): Promise<IExtensionPromptFileResult[]> => {
+	const promptsService = accessor.get(IPromptsService);
+
+	// Get extension prompt files for all prompt types in parallel
+	const [agents, instructions, prompts, skills] = await Promise.all([
+		promptsService.listPromptFiles(PromptsType.agent, CancellationToken.None),
+		promptsService.listPromptFiles(PromptsType.instructions, CancellationToken.None),
+		promptsService.listPromptFiles(PromptsType.prompt, CancellationToken.None),
+		promptsService.listPromptFiles(PromptsType.skill, CancellationToken.None),
+	]);
+
+	// Combine all files and collect extension-contributed ones
+	const result: IExtensionPromptFileResult[] = [];
+	for (const file of [...agents, ...instructions, ...prompts, ...skills]) {
+		if (file.storage === PromptsStorage.extension) {
+			result.push({ uri: file.uri.toJSON(), type: file.type });
+		}
+	}
+
+	return result;
+});
+
+class ChatPromptFilesDataRenderer extends Disposable implements IExtensionFeatureTableRenderer {
+	readonly type = 'table';
+
+	constructor(private readonly contributionPoint: ChatContributionPoint) {
+		super();
+	}
+
+	shouldRender(manifest: IExtensionManifest): boolean {
+		return !!manifest.contributes?.[this.contributionPoint];
+	}
+
+	render(manifest: IExtensionManifest): IRenderedData<ITableData> {
+		const contributions = manifest.contributes?.[this.contributionPoint] ?? [];
+		if (!contributions.length) {
+			return { data: { headers: [], rows: [] }, dispose: () => { } };
+		}
+
+		const headers = [
+			localize('chatFilesName', "Name"),
+			localize('chatFilesDescription', "Description"),
+			localize('chatFilesPath', "Path"),
+		];
+
+		const rows: IRowData[][] = contributions.map(d => {
+			return [
+				d.name ?? '-',
+				d.description ?? '-',
+				d.path,
+			];
+		});
+
+		return {
+			data: {
+				headers,
+				rows
+			},
+			dispose: () => { }
+		};
+	}
+}
+
+Registry.as<IExtensionFeaturesRegistry>(Extensions.ExtensionFeaturesRegistry).registerExtensionFeature({
+	id: ChatContributionPoint.chatPromptFiles,
+	label: localize('chatPromptFiles', "Chat Prompt Files"),
+	access: {
+		canToggle: false
+	},
+	renderer: new SyncDescriptor(ChatPromptFilesDataRenderer, [ChatContributionPoint.chatPromptFiles]),
+});
+
+Registry.as<IExtensionFeaturesRegistry>(Extensions.ExtensionFeaturesRegistry).registerExtensionFeature({
+	id: ChatContributionPoint.chatInstructions,
+	label: localize('chatInstructions', "Chat Instructions"),
+	access: {
+		canToggle: false
+	},
+	renderer: new SyncDescriptor(ChatPromptFilesDataRenderer, [ChatContributionPoint.chatInstructions]),
+});
+
+Registry.as<IExtensionFeaturesRegistry>(Extensions.ExtensionFeaturesRegistry).registerExtensionFeature({
+	id: ChatContributionPoint.chatAgents,
+	label: localize('chatAgents', "Chat Agents"),
+	access: {
+		canToggle: false
+	},
+	renderer: new SyncDescriptor(ChatPromptFilesDataRenderer, [ChatContributionPoint.chatAgents]),
+});
+
+Registry.as<IExtensionFeaturesRegistry>(Extensions.ExtensionFeaturesRegistry).registerExtensionFeature({
+	id: ChatContributionPoint.chatSkills,
+	label: localize('chatSkills', "Chat Skills"),
+	access: {
+		canToggle: false
+	},
+	renderer: new SyncDescriptor(ChatPromptFilesDataRenderer, [ChatContributionPoint.chatSkills]),
+});

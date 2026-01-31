@@ -7,8 +7,9 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { IJSONSchema, IJSONSchemaMap } from '../../../../../../base/common/jsonSchema.js';
-import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../nls.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -16,11 +17,11 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IChatAgentRequest, IChatAgentService } from '../../participants/chatAgents.js';
 import { ChatModel, IChatRequestModeInstructions } from '../../model/chatModel.js';
-import { IChatModeService } from '../../chatModes.js';
+import { ChatMode, IChatMode, IChatModeService } from '../../chatModes.js';
 import { IChatProgress, IChatService } from '../../chatService/chatService.js';
 import { ChatRequestVariableSet } from '../../attachments/chatVariableEntries.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../constants.js';
-import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../languageModels.js';
+import { ILanguageModelsService } from '../../languageModels.js';
 import {
 	CountTokensCallback,
 	ILanguageModelToolsService,
@@ -30,9 +31,9 @@ import {
 	IToolInvocation,
 	IToolInvocationPreparationContext,
 	IToolResult,
+	isToolSet,
 	ToolDataSource,
 	ToolProgress,
-	ToolSet,
 	VSCodeToolReference,
 } from '../languageModelToolsService.js';
 import { ComputeAutomaticInstructions } from '../../promptSyntax/computeAutomaticInstructions.js';
@@ -128,6 +129,8 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 
 		const request = model.getRequests().at(-1)!;
 
+		const store = new DisposableStore();
+
 		try {
 			// Get the default agent
 			const defaultAgent = this.chatAgentService.getDefaultAgent(ChatAgentLocation.Chat, ChatModeKind.Agent);
@@ -139,20 +142,23 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 			let modeModelId = invocation.modelId;
 			let modeTools = invocation.userSelectedTools;
 			let modeInstructions: IChatRequestModeInstructions | undefined;
+			let mode: IChatMode | undefined;
 
 			if (args.agentName) {
-				const mode = this.chatModeService.findModeByName(args.agentName);
+				mode = this.chatModeService.findModeByName(args.agentName);
 				if (mode) {
 					// Use mode-specific model if available
-					const modeModelQualifiedName = mode.model?.get();
-					if (modeModelQualifiedName) {
-						// Find the actual model identifier from the qualified name
-						const modelIds = this.languageModelsService.getLanguageModelIds();
-						for (const modelId of modelIds) {
-							const metadata = this.languageModelsService.lookupLanguageModel(modelId);
-							if (metadata && ILanguageModelChatMetadata.matchesQualifiedName(modeModelQualifiedName, metadata)) {
-								modeModelId = modelId;
-								break;
+					const modeModelQualifiedNames = mode.model?.get();
+					if (modeModelQualifiedNames) {
+						// Find the actual model identifier from the qualified name(s)
+						for (const qualifiedName of modeModelQualifiedNames) {
+							const lmByQualifiedName = this.languageModelsService.lookupLanguageModelByQualifiedName(qualifiedName);
+							for (const fullId of this.languageModelsService.getLanguageModelIds()) {
+								const lmById = this.languageModelsService.lookupLanguageModel(fullId);
+								if (lmById && lmById?.id === lmByQualifiedName?.id) {
+									modeModelId = fullId;
+									break;
+								}
 							}
 						}
 					}
@@ -161,11 +167,11 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 					const modeCustomTools = mode.customTools?.get();
 					if (modeCustomTools) {
 						// Convert the mode's custom tools (array of qualified names) to UserSelectedTools format
-						const enablementMap = this.languageModelToolsService.toToolAndToolSetEnablementMap(modeCustomTools, mode.target?.get());
+						const enablementMap = this.languageModelToolsService.toToolAndToolSetEnablementMap(modeCustomTools, mode.target?.get(), undefined);
 						// Convert enablement map to UserSelectedTools (Record<string, boolean>)
 						modeTools = {};
 						for (const [tool, enabled] of enablementMap) {
-							if (!(tool instanceof ToolSet)) {
+							if (!isToolSet(tool)) {
 								modeTools[tool.id] = enabled;
 							}
 						}
@@ -186,20 +192,23 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 			// Track whether we should collect markdown (after the last tool invocation)
 			const markdownParts: string[] = [];
 
+			// Generate a stable subAgentInvocationId for routing edits to this subagent's content part
+			const subAgentInvocationId = invocation.callId ?? `subagent-${generateUuid()}`;
+
 			let inEdit = false;
 			const progressCallback = (parts: IChatProgress[]) => {
 				for (const part of parts) {
 					// Write certain parts immediately to the model
-					if (part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized' || part.kind === 'textEdit' || part.kind === 'notebookEdit' || part.kind === 'codeblockUri') {
+					if (part.kind === 'textEdit' || part.kind === 'notebookEdit' || part.kind === 'codeblockUri') {
 						if (part.kind === 'codeblockUri' && !inEdit) {
 							inEdit = true;
 							model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('```\n') });
 						}
-						model.acceptResponseProgress(request, part);
-
-						// When we see a tool invocation starting, reset markdown collection
-						if (part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') {
-							markdownParts.length = 0; // Clear previously collected markdown
+						// Attach subAgentInvocationId to codeblockUri parts so they can be routed to the subagent content part
+						if (part.kind === 'codeblockUri') {
+							model.acceptResponseProgress(request, { ...part, subAgentInvocationId });
+						} else {
+							model.acceptResponseProgress(request, part);
 						}
 					} else if (part.kind === 'markdownContent') {
 						if (inEdit) {
@@ -216,10 +225,11 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 			if (modeTools) {
 				modeTools[RunSubagentTool.Id] = false;
 				modeTools[ManageTodoListToolToolId] = false;
+				modeTools['copilot_askQuestions'] = false;
 			}
 
 			const variableSet = new ChatRequestVariableSet();
-			const computer = this.instantiationService.createInstance(ComputeAutomaticInstructions, modeTools, undefined); // agents can not call subagents
+			const computer = this.instantiationService.createInstance(ComputeAutomaticInstructions, mode ?? ChatMode.Agent, modeTools, undefined); // agents can not call subagents
 			await computer.collect(variableSet, token);
 
 			// Build the agent request
@@ -231,10 +241,18 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 				variables: { variables: variableSet.asArray() },
 				location: ChatAgentLocation.Chat,
 				subAgentInvocationId: invocation.callId,
+				subAgentName: args.agentName ?? 'subagent',
 				userSelectedModelId: modeModelId,
 				userSelectedTools: modeTools,
 				modeInstructions,
 			};
+
+			// Subscribe to tool invocations to clear markdown parts when a tool is invoked
+			store.add(this.languageModelToolsService.onDidInvokeTool(e => {
+				if (e.subagentInvocationId === subAgentInvocationId) {
+					markdownParts.length = 0;
+				}
+			}));
 
 			// Invoke the agent
 			const result = await this.chatAgentService.invokeAgent(
@@ -250,19 +268,34 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 				return createToolSimpleTextResult(`Agent error: ${result.errorDetails.message}`);
 			}
 
-			const resultText = markdownParts.join('') || 'Agent completed with no output';
+			// This is a hack due to the fact that edits are represented as empty codeblocks with URIs. That needs to be cleaned up,
+			// in the meantime, just strip an empty codeblock left behind.
+			const resultText = markdownParts.join('').replace(/^\n*```\n+```\n*/g, '').trim() || 'Agent completed with no output';
 
 			// Store result in toolSpecificData for serialization
 			if (invocation.toolSpecificData?.kind === 'subagent') {
 				invocation.toolSpecificData.result = resultText;
 			}
 
-			return createToolSimpleTextResult(resultText);
+			// Return result with toolMetadata containing subAgentInvocationId for trajectory tracking
+			return {
+				content: [{
+					kind: 'text',
+					value: resultText
+				}],
+				toolMetadata: {
+					subAgentInvocationId,
+					description: args.description,
+					agentName: agentRequest.subAgentName,
+				}
+			};
 
 		} catch (error) {
 			const errorMessage = `Error invoking subagent: ${error instanceof Error ? error.message : 'Unknown error'}`;
 			this.logService.error(errorMessage, error);
 			return createToolSimpleTextResult(errorMessage);
+		} finally {
+			store.dispose();
 		}
 	}
 

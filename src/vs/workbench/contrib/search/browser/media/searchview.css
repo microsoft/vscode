@@ -27,6 +27,7 @@
 	left: 0;
 	width: 16px;
 	height: 100%;
+	border-radius: var(--vscode-cornerRadius-small);
 	color: inherit;
 	box-sizing: border-box;
 	background-position: center center;

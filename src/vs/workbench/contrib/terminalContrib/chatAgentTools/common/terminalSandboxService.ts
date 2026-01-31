@@ -4,13 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { VSBuffer } from '../../../../../base/common/buffer.js';
+import { Event } from '../../../../../base/common/event.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { FileAccess } from '../../../../../base/common/network.js';
 import { dirname, join } from '../../../../../base/common/path.js';
-import { isNative, OperatingSystem, OS } from '../../../../../base/common/platform.js';
+import { OperatingSystem, OS } from '../../../../../base/common/platform.js';
 import { joinPath } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -23,21 +25,22 @@ export const ITerminalSandboxService = createDecorator<ITerminalSandboxService>(
 
 export interface ITerminalSandboxService {
 	readonly _serviceBrand: undefined;
-	isEnabled(): boolean;
+	isEnabled(): Promise<boolean>;
 	wrapCommand(command: string): string;
 	getSandboxConfigPath(forceRefresh?: boolean): Promise<string | undefined>;
 	getTempDir(): URI | undefined;
 	setNeedsForceUpdateConfigFile(): void;
 }
 
-export class TerminalSandboxService implements ITerminalSandboxService {
+export class TerminalSandboxService extends Disposable implements ITerminalSandboxService {
 	readonly _serviceBrand: undefined;
 	private _srtPath: string;
+	private _execPath?: string;
 	private _sandboxConfigPath: string | undefined;
 	private _needsForceUpdateConfigFile = true;
 	private _tempDir: URI | undefined;
 	private _sandboxSettingsId: string | undefined;
-	private _os: OperatingSystem = OS;
+	private _os: Promise<OperatingSystem>;
 
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -46,15 +49,32 @@ export class TerminalSandboxService implements ITerminalSandboxService {
 		@ILogService private readonly _logService: ILogService,
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
 	) {
+		super();
 		const appRoot = dirname(FileAccess.asFileUri('').fsPath);
-		this._srtPath = join(appRoot, 'node_modules', '.bin', 'srt');
+		// srt path is dist/cli.js inside the sandbox-runtime package.
+		this._srtPath = join(appRoot, 'node_modules', '@anthropic-ai', 'sandbox-runtime', 'dist', 'cli.js');
+		// Get the node executable path from native environment service if available (Electron's execPath with ELECTRON_RUN_AS_NODE)
+		const nativeEnv = this._environmentService as IEnvironmentService & { execPath?: string };
+		this._execPath = nativeEnv.execPath;
 		this._sandboxSettingsId = generateUuid();
-		this._initTempDir();
-		this._remoteAgentService.getEnvironment().then(remoteEnv => this._os = remoteEnv?.os ?? OS);
+		this._os = this._remoteAgentService.getEnvironment().then(remoteEnv => remoteEnv?.os ?? OS);
+
+		this._register(Event.runAndSubscribe(this._configurationService.onDidChangeConfiguration, (e: IConfigurationChangeEvent | undefined) => {
+			// If terminal sandbox settings changed, update sandbox config.
+			if (
+				e?.affectsConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxEnabled) ||
+				e?.affectsConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxNetwork) ||
+				e?.affectsConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxLinuxFileSystem) ||
+				e?.affectsConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxMacFileSystem)
+			) {
+				this.setNeedsForceUpdateConfigFile();
+			}
+		}));
 	}
 
-	public isEnabled(): boolean {
-		if (this._os === OperatingSystem.Windows) {
+	public async isEnabled(): Promise<boolean> {
+		const os = await this._os;
+		if (os === OperatingSystem.Windows) {
 			return false;
 		}
 		return this._configurationService.getValue<boolean>(TerminalChatAgentToolsSettingId.TerminalSandboxEnabled);
@@ -64,7 +84,14 @@ export class TerminalSandboxService implements ITerminalSandboxService {
 		if (!this._sandboxConfigPath || !this._tempDir) {
 			throw new Error('Sandbox config path or temp dir not initialized');
 		}
-		return `"${this._srtPath}" TMPDIR=${this._tempDir.fsPath} --settings "${this._sandboxConfigPath}" "${command}"`;
+		if (!this._execPath) {
+			throw new Error('Executable path not set to run sandbox commands');
+		}
+		// Use ELECTRON_RUN_AS_NODE=1 to make Electron executable behave as Node.js
+		// TMPDIR must be set as environment variable before the command
+		// Use -c to pass the command string directly (like sh -c), avoiding argument parsing issues
+		const wrappedCommand = `"${this._execPath}" "${this._srtPath}" TMPDIR=${this._tempDir.fsPath} --settings "${this._sandboxConfigPath}" -c "${command}"`;
+		return `ELECTRON_RUN_AS_NODE=1 ${wrappedCommand}`;
 	}
 
 	public getTempDir(): URI | undefined {
@@ -85,15 +112,16 @@ export class TerminalSandboxService implements ITerminalSandboxService {
 
 	private async _createSandboxConfig(): Promise<string | undefined> {
 
-		if (this.isEnabled() && !this._tempDir) {
-			this._initTempDir();
+		if (await this.isEnabled() && !this._tempDir) {
+			await this._initTempDir();
 		}
 		if (this._tempDir) {
+			const os = await this._os;
 			const networkSetting = this._configurationService.getValue<ITerminalSandboxSettings['network']>(TerminalChatAgentToolsSettingId.TerminalSandboxNetwork) ?? {};
-			const linuxFileSystemSetting = this._os === OperatingSystem.Linux
+			const linuxFileSystemSetting = os === OperatingSystem.Linux
 				? this._configurationService.getValue<ITerminalSandboxSettings['filesystem']>(TerminalChatAgentToolsSettingId.TerminalSandboxLinuxFileSystem) ?? {}
 				: {};
-			const macFileSystemSetting = this._os === OperatingSystem.Macintosh
+			const macFileSystemSetting = os === OperatingSystem.Macintosh
 				? this._configurationService.getValue<ITerminalSandboxSettings['filesystem']>(TerminalChatAgentToolsSettingId.TerminalSandboxMacFileSystem) ?? {}
 				: {};
 			const configFileUri = joinPath(this._tempDir, `vscode-sandbox-settings-${this._sandboxSettingsId}.json`);
@@ -103,9 +131,9 @@ export class TerminalSandboxService implements ITerminalSandboxService {
 					deniedDomains: networkSetting.deniedDomains ?? []
 				},
 				filesystem: {
-					denyRead: this._os === OperatingSystem.Macintosh ? macFileSystemSetting.denyRead : linuxFileSystemSetting.denyRead,
-					allowWrite: this._os === OperatingSystem.Macintosh ? macFileSystemSetting.allowWrite : linuxFileSystemSetting.allowWrite,
-					denyWrite: this._os === OperatingSystem.Macintosh ? macFileSystemSetting.denyWrite : linuxFileSystemSetting.denyWrite,
+					denyRead: os === OperatingSystem.Macintosh ? macFileSystemSetting.denyRead : linuxFileSystemSetting.denyRead,
+					allowWrite: os === OperatingSystem.Macintosh ? macFileSystemSetting.allowWrite : linuxFileSystemSetting.allowWrite,
+					denyWrite: os === OperatingSystem.Macintosh ? macFileSystemSetting.denyWrite : linuxFileSystemSetting.denyWrite,
 				}
 			};
 			this._sandboxConfigPath = configFileUri.fsPath;
@@ -115,14 +143,13 @@ export class TerminalSandboxService implements ITerminalSandboxService {
 		return undefined;
 	}
 
-	private _initTempDir(): void {
-		if (this.isEnabled() && isNative) {
+	private async _initTempDir(): Promise<void> {
+		if (await this.isEnabled()) {
 			this._needsForceUpdateConfigFile = true;
 			const environmentService = this._environmentService as IEnvironmentService & { tmpDir?: URI };
 			this._tempDir = environmentService.tmpDir;
 			if (!this._tempDir) {
 				this._logService.warn('TerminalSandboxService: Cannot create sandbox settings file because no tmpDir is available in this environment');
-				return;
 			}
 		}
 	}

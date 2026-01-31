@@ -6,8 +6,6 @@
 import * as dom from '../../../../../../../base/browser/dom.js';
 import { Separator } from '../../../../../../../base/common/actions.js';
 import { getExtensionForMimeType } from '../../../../../../../base/common/mime.js';
-import { ILanguageService } from '../../../../../../../editor/common/languages/language.js';
-import { IModelService } from '../../../../../../../editor/common/services/model.js';
 import { localize } from '../../../../../../../nls.js';
 import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
@@ -34,8 +32,6 @@ export class ChatToolPostExecuteConfirmationPart extends AbstractToolConfirmatio
 		context: IChatContentPartRenderContext,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IModelService private readonly modelService: IModelService,
-		@ILanguageService private readonly languageService: ILanguageService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IChatWidgetService chatWidgetService: IChatWidgetService,
 		@ILanguageModelToolsService languageModelToolsService: ILanguageModelToolsService,
@@ -116,66 +112,37 @@ export class ChatToolPostExecuteConfirmationPart extends AbstractToolConfirmatio
 		for (const [i, part] of contentForModel.entries()) {
 			if (part.kind === 'text') {
 				// Display text parts
-				const model = this._register(this.modelService.createModel(
-					part.value,
-					this.languageService.createById('plaintext'),
-					undefined,
-					true
-				));
-
 				parts.push({
 					kind: 'code',
 					title: part.title,
-					textModel: model,
-					languageId: model.getLanguageId(),
+					data: part.value,
+					languageId: 'plaintext',
+					codeBlockIndex: i,
+					ownerMarkdownPartId: this.codeblocksPartId,
 					options: {
 						hideToolbar: true,
 						reserveWidth: 19,
 						maxHeightInLines: 13,
 						verticalPadding: 5,
 						editorOptions: { wordWrap: 'on', readOnly: true }
-					},
-					codeBlockInfo: {
-						codeBlockIndex: i,
-						codemapperUri: undefined,
-						elementId: this.context.element.id,
-						focus: () => { },
-						ownerMarkdownPartId: this.codeblocksPartId,
-						uri: model.uri,
-						chatSessionResource: this.context.element.sessionResource,
-						uriPromise: Promise.resolve(model.uri)
 					}
 				});
 			} else if (part.kind === 'promptTsx') {
 				// Display TSX parts as JSON-stringified
 				const stringified = stringifyPromptTsxPart(part);
-				const model = this._register(this.modelService.createModel(
-					stringified,
-					this.languageService.createById('json'),
-					undefined,
-					true
-				));
 
 				parts.push({
 					kind: 'code',
-					textModel: model,
-					languageId: model.getLanguageId(),
+					data: stringified,
+					languageId: 'json',
+					codeBlockIndex: i,
+					ownerMarkdownPartId: this.codeblocksPartId,
 					options: {
 						hideToolbar: true,
 						reserveWidth: 19,
 						maxHeightInLines: 13,
 						verticalPadding: 5,
 						editorOptions: { wordWrap: 'on', readOnly: true }
-					},
-					codeBlockInfo: {
-						codeBlockIndex: i,
-						codemapperUri: undefined,
-						elementId: this.context.element.id,
-						focus: () => { },
-						ownerMarkdownPartId: this.codeblocksPartId,
-						uri: model.uri,
-						chatSessionResource: this.context.element.sessionResource,
-						uriPromise: Promise.resolve(model.uri)
 					}
 				});
 			} else if (part.kind === 'data') {
@@ -193,65 +160,37 @@ export class ChatToolPostExecuteConfirmationPart extends AbstractToolConfirmatio
 					const decoder = new TextDecoder('utf-8', { fatal: true });
 					try {
 						const text = decoder.decode(data.buffer);
-						const model = this._register(this.modelService.createModel(
-							text,
-							this.languageService.createById('plaintext'),
-							undefined,
-							true
-						));
 
 						parts.push({
 							kind: 'code',
-							textModel: model,
-							languageId: model.getLanguageId(),
+							data: text,
+							languageId: 'plaintext',
+							codeBlockIndex: i,
+							ownerMarkdownPartId: this.codeblocksPartId,
 							options: {
 								hideToolbar: true,
 								reserveWidth: 19,
 								maxHeightInLines: 13,
 								verticalPadding: 5,
 								editorOptions: { wordWrap: 'on', readOnly: true }
-							},
-							codeBlockInfo: {
-								codeBlockIndex: i,
-								codemapperUri: undefined,
-								elementId: this.context.element.id,
-								focus: () => { },
-								ownerMarkdownPartId: this.codeblocksPartId,
-								uri: model.uri,
-								chatSessionResource: this.context.element.sessionResource,
-								uriPromise: Promise.resolve(model.uri)
 							}
 						});
 					} catch {
 						// Not valid UTF-8, show base64
 						const base64 = data.toString();
-						const model = this._register(this.modelService.createModel(
-							base64,
-							this.languageService.createById('plaintext'),
-							undefined,
-							true
-						));
 
 						parts.push({
 							kind: 'code',
-							textModel: model,
-							languageId: model.getLanguageId(),
+							data: base64,
+							languageId: 'plaintext',
+							codeBlockIndex: i,
+							ownerMarkdownPartId: this.codeblocksPartId,
 							options: {
 								hideToolbar: true,
 								reserveWidth: 19,
 								maxHeightInLines: 13,
 								verticalPadding: 5,
 								editorOptions: { wordWrap: 'on', readOnly: true }
-							},
-							codeBlockInfo: {
-								codeBlockIndex: i,
-								codemapperUri: undefined,
-								elementId: this.context.element.id,
-								focus: () => { },
-								ownerMarkdownPartId: this.codeblocksPartId,
-								uri: model.uri,
-								chatSessionResource: this.context.element.sessionResource,
-								uriPromise: Promise.resolve(model.uri)
 							}
 						});
 					}
@@ -267,7 +206,6 @@ export class ChatToolPostExecuteConfirmationPart extends AbstractToolConfirmatio
 			));
 
 			this._codeblocks.push(...outputSubPart.codeblocks);
-			this._register(outputSubPart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 			outputSubPart.domNode.classList.add('tool-postconfirm-display');
 			return outputSubPart.domNode;
 		}

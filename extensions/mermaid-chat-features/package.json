@@ -24,25 +24,64 @@
   },
   "main": "./out/extension",
   "browser": "./dist/browser/extension",
-  "activationEvents": [],
+  "activationEvents": [
+    "onWebviewPanel:vscode.chat-mermaid-features.preview"
+  ],
   "contributes": {
+    "commands": [
+      {
+        "command": "_mermaid-chat.resetPanZoom",
+        "title": "Reset Pan and Zoom"
+      },
+      {
+        "command": "_mermaid-chat.openInEditor",
+        "title": "Open Diagram in Editor"
+      },
+      {
+        "command": "_mermaid-chat.copySource",
+        "title": "Copy Diagram Source"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "_mermaid-chat.resetPanZoom",
+          "when": "false"
+        },
+        {
+          "command": "_mermaid-chat.openInEditor",
+          "when": "false"
+        },
+        {
+          "command": "_mermaid-chat.copySource",
+          "when": "false"
+        }
+      ],
+      "webview/context": [
+        {
+          "command": "_mermaid-chat.resetPanZoom",
+          "when": "webviewId == 'vscode.chat-mermaid-features.chatOutputItem'"
+        },
+        {
+          "command": "_mermaid-chat.copySource",
+          "when": "webviewId == 'vscode.chat-mermaid-features.chatOutputItem' || webviewId == 'vscode.chat-mermaid-features.preview'"
+        }
+      ]
+    },
     "configuration": {
       "title": "Mermaid Chat Features",
       "properties": {
         "mermaid-chat.enabled": {
           "type": "boolean",
-          "default": false,
+          "default": true,
           "description": "%config.enabled.description%",
-          "scope": "application",
-          "tags": [
-            "experimental"
-          ]
+          "scope": "application"
         }
       }
     },
     "chatOutputRenderers": [
       {
-        "viewType": "vscode.chatMermaidDiagram",
+        "viewType": "vscode.chat-mermaid-features.chatOutputItem",
         "mimeTypes": [
           "text/vnd.mermaid"
         ]
@@ -63,6 +102,10 @@
             "markup": {
               "type": "string",
               "description": "The mermaid diagram markup to render as a Mermaid diagram. This should only be the markup of the diagram. Do not include a wrapping code block."
+            },
+            "title": {
+              "type": "string",
+              "description": "A short title that describes the diagram."
             }
           }
         }
@@ -79,7 +122,8 @@
     "watch-web": "npx webpack-cli --config extension-browser.webpack.config --mode none --watch --info-verbosity verbose"
   },
   "devDependencies": {
-    "@types/node": "^22.18.10"
+    "@types/node": "^22.18.10",
+    "@vscode/codicons": "^0.0.36"
   },
   "dependencies": {
     "dompurify": "^3.2.7",

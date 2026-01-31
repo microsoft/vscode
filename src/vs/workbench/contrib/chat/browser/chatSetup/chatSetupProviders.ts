@@ -48,10 +48,8 @@ import { ChatSetupController } from './chatSetupController.js';
 import { ChatSetupAnonymous, ChatSetupStep, IChatSetupResult } from './chatSetup.js';
 import { ChatSetup } from './chatSetupRunner.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
-import { IOutputService } from '../../../../services/output/common/output.js';
-import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
-import { IWorkbenchIssueService } from '../../../issue/common/issue.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { IHostService } from '../../../../services/host/browser/host.js';
 
 const defaultChat = {
 	extensionId: product.defaultChatAgent?.extensionId ?? '',
@@ -67,22 +65,28 @@ const ToolsAgentContextKey = ContextKeyExpr.and(
 
 export class SetupAgent extends Disposable implements IChatAgentImplementation {
 
-	static registerDefaultAgents(instantiationService: IInstantiationService, location: ChatAgentLocation, mode: ChatModeKind | undefined, context: ChatEntitlementContext, controller: Lazy<ChatSetupController>): { agent: SetupAgent; disposable: IDisposable } {
+	static registerDefaultAgents(instantiationService: IInstantiationService, location: ChatAgentLocation, mode: ChatModeKind, context: ChatEntitlementContext, controller: Lazy<ChatSetupController>): { agent: SetupAgent; disposable: IDisposable } {
 		return instantiationService.invokeFunction(accessor => {
 			const chatAgentService = accessor.get(IChatAgentService);
 
+			let description;
+			if (mode === ChatModeKind.Ask) {
+				description = ChatMode.Ask.description.get();
+			} else if (mode === ChatModeKind.Edit) {
+				description = ChatMode.Edit.description.get();
+			} else {
+				description = ChatMode.Agent.description.get();
+			}
+
 			let id: string;
-			let description = ChatMode.Ask.description.get();
 			switch (location) {
 				case ChatAgentLocation.Chat:
 					if (mode === ChatModeKind.Ask) {
 						id = 'setup.chat';
 					} else if (mode === ChatModeKind.Edit) {
 						id = 'setup.edits';
-						description = ChatMode.Edit.description.get();
 					} else {
 						id = 'setup.agent';
-						description = ChatMode.Agent.description.get();
 					}
 					break;
 				case ChatAgentLocation.Terminal:
@@ -107,15 +111,15 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 			const disposables = new DisposableStore();
 
 			// Register VSCode agent
-			const { disposable: vscodeDisposable } = SetupAgent.doRegisterAgent(instantiationService, chatAgentService, 'setup.vscode', 'vscode', false, localize2('vscodeAgentDescription', "Ask questions about VS Code").value, ChatAgentLocation.Chat, undefined, context, controller);
+			const { disposable: vscodeDisposable } = SetupAgent.doRegisterAgent(instantiationService, chatAgentService, 'setup.vscode', 'vscode', false, localize2('vscodeAgentDescription', "Ask questions about VS Code").value, ChatAgentLocation.Chat, ChatModeKind.Agent, context, controller);
 			disposables.add(vscodeDisposable);
 
 			// Register workspace agent
-			const { disposable: workspaceDisposable } = SetupAgent.doRegisterAgent(instantiationService, chatAgentService, 'setup.workspace', 'workspace', false, localize2('workspaceAgentDescription', "Ask about your workspace").value, ChatAgentLocation.Chat, undefined, context, controller);
+			const { disposable: workspaceDisposable } = SetupAgent.doRegisterAgent(instantiationService, chatAgentService, 'setup.workspace', 'workspace', false, localize2('workspaceAgentDescription', "Ask about your workspace").value, ChatAgentLocation.Chat, ChatModeKind.Agent, context, controller);
 			disposables.add(workspaceDisposable);
 
 			// Register terminal agent
-			const { disposable: terminalDisposable } = SetupAgent.doRegisterAgent(instantiationService, chatAgentService, 'setup.terminal.agent', 'terminal', false, localize2('terminalAgentDescription', "Ask how to do something in the terminal").value, ChatAgentLocation.Chat, undefined, context, controller);
+			const { disposable: terminalDisposable } = SetupAgent.doRegisterAgent(instantiationService, chatAgentService, 'setup.terminal.agent', 'terminal', false, localize2('terminalAgentDescription', "Ask how to do something in the terminal").value, ChatAgentLocation.Chat, ChatModeKind.Agent, context, controller);
 			disposables.add(terminalDisposable);
 
 			// Register tools
@@ -135,14 +139,14 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 		});
 	}
 
-	private static doRegisterAgent(instantiationService: IInstantiationService, chatAgentService: IChatAgentService, id: string, name: string, isDefault: boolean, description: string, location: ChatAgentLocation, mode: ChatModeKind | undefined, context: ChatEntitlementContext, controller: Lazy<ChatSetupController>): { agent: SetupAgent; disposable: IDisposable } {
+	private static doRegisterAgent(instantiationService: IInstantiationService, chatAgentService: IChatAgentService, id: string, name: string, isDefault: boolean, description: string, location: ChatAgentLocation, mode: ChatModeKind, context: ChatEntitlementContext, controller: Lazy<ChatSetupController>): { agent: SetupAgent; disposable: IDisposable } {
 		const disposables = new DisposableStore();
 		disposables.add(chatAgentService.registerAgent(id, {
 			id,
 			name,
 			isDefault,
 			isCore: true,
-			modes: mode ? [mode] : [ChatModeKind.Ask],
+			modes: [mode],
 			when: mode === ChatModeKind.Agent ? ToolsAgentContextKey?.serialize() : undefined,
 			slashCommands: [],
 			disambiguation: [],
@@ -168,7 +172,6 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 	private static readonly TRUST_NEEDED_MESSAGE = new MarkdownString(localize('trustNeeded', "You need to trust this workspace to use Chat."));
 
 	private static readonly CHAT_RETRY_COMMAND_ID = 'workbench.action.chat.retrySetup';
-	private static readonly CHAT_REPORT_ISSUE_WITH_OUTPUT_COMMAND_ID = 'workbench.action.chat.reportIssueWithOutput';
 
 	private readonly _onUnresolvableError = this._register(new Emitter<void>());
 	readonly onUnresolvableError = this._onUnresolvableError.event;
@@ -193,64 +196,15 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 
 	private registerCommands(): void {
 
-		// Report issue with output command
-		this._register(CommandsRegistry.registerCommand(SetupAgent.CHAT_REPORT_ISSUE_WITH_OUTPUT_COMMAND_ID, async accessor => {
-			const outputService = accessor.get(IOutputService);
-			const textModelService = accessor.get(ITextModelService);
-			const issueService = accessor.get(IWorkbenchIssueService);
-			const logService = accessor.get(ILogService);
-
-			let outputData = '';
-			let channelName = '';
-
-			let channel = outputService.getChannel(defaultChat.outputChannelId);
-			if (channel) {
-				channelName = defaultChat.outputChannelId;
-			} else {
-				logService.warn(`[chat setup] Output channel '${defaultChat.outputChannelId}' not found, falling back to Window output channel`);
-				channel = outputService.getChannel('rendererLog');
-				channelName = 'Window';
-			}
-
-			if (channel) {
-				try {
-					const model = await textModelService.createModelReference(channel.uri);
-					try {
-						const rawOutput = model.object.textEditorModel.getValue();
-						outputData = `<details>\n<summary>GitHub Copilot Chat Output (${channelName})</summary>\n\n\`\`\`\n${rawOutput}\n\`\`\`\n</details>`;
-						logService.info(`[chat setup] Retrieved ${rawOutput.length} characters from ${channelName} output channel`);
-					} finally {
-						model.dispose();
-					}
-				} catch (error) {
-					logService.error(`[chat setup] Failed to retrieve output channel content: ${error}`);
-				}
-			} else {
-				logService.warn(`[chat setup] No output channel available`);
-			}
-
-			await issueService.openReporter({
-				extensionId: defaultChat.chatExtensionId,
-				issueTitle: 'Chat took too long to get ready',
-				issueBody: 'Chat took too long to get ready',
-				data: outputData || localize('chatOutputChannelUnavailable', "GitHub Copilot Chat output channel not available. Please ensure the GitHub Copilot Chat extension is active and try again. If the issue persists, you can manually include relevant information from the Output panel (View > Output > GitHub Copilot Chat).")
-			});
-		}));
-
 		// Retry chat command
 		this._register(CommandsRegistry.registerCommand(SetupAgent.CHAT_RETRY_COMMAND_ID, async (accessor, sessionResource: URI) => {
-			const chatService = accessor.get(IChatService);
+			const hostService = accessor.get(IHostService);
 			const chatWidgetService = accessor.get(IChatWidgetService);
 
 			const widget = chatWidgetService.getWidgetBySessionResource(sessionResource);
-			const lastRequest = widget?.viewModel?.model.getRequests().at(-1);
-			if (lastRequest) {
-				await chatService.resendRequest(lastRequest, {
-					...widget?.getModeRequestOptions(),
-					modeInfo: widget?.input.currentModeInfo,
-					userSelectedModelId: widget?.input.currentLanguageModel
-				});
-			}
+			await widget?.clear();
+
+			hostService.reload();
 		}));
 	}
 
@@ -344,8 +298,17 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 
 		const whenAgentActivated = this.whenAgentActivated(chatService).then(() => agentActivated = true);
 		const whenAgentReady = this.whenAgentReady(chatAgentService, modeInfo?.kind)?.then(() => agentReady = true);
+		if (!whenAgentReady) {
+			agentReady = true;
+		}
 		const whenLanguageModelReady = this.whenLanguageModelReady(languageModelsService, requestModel.modelId)?.then(() => languageModelReady = true);
+		if (!whenLanguageModelReady) {
+			languageModelReady = true;
+		}
 		const whenToolsModelReady = this.whenToolsModelReady(languageModelToolsService, requestModel)?.then(() => toolsModelReady = true);
+		if (!whenToolsModelReady) {
+			toolsModelReady = true;
+		}
 
 		if (whenLanguageModelReady instanceof Promise || whenAgentReady instanceof Promise || whenToolsModelReady instanceof Promise) {
 			const timeoutHandle = setTimeout(() => {
@@ -369,9 +332,9 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 				if (ready === 'timedout') {
 					let warningMessage: string;
 					if (this.chatEntitlementService.anonymous) {
-						warningMessage = localize('chatTookLongWarningAnonymous', "Chat took too long to get ready. Please ensure that the extension `{0}` is installed and enabled.", defaultChat.chatExtensionId);
+						warningMessage = localize('chatTookLongWarningAnonymous', "Chat took too long to get ready. Please ensure that the extension `{0}` is installed and enabled. Click restart to try again if this issue persists.", defaultChat.chatExtensionId);
 					} else {
-						warningMessage = localize('chatTookLongWarning', "Chat took too long to get ready. Please ensure you are signed in to {0} and that the extension `{1}` is installed and enabled.", defaultChat.provider.default.name, defaultChat.chatExtensionId);
+						warningMessage = localize('chatTookLongWarning', "Chat took too long to get ready. Please ensure you are signed in to {0} and that the extension `{1}` is installed and enabled. Click restart to try again if this issue persists.", defaultChat.provider.default.name, defaultChat.chatExtensionId);
 					}
 
 					this.logService.warn(warningMessage, {
@@ -417,13 +380,9 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 						kind: 'command',
 						command: {
 							id: SetupAgent.CHAT_RETRY_COMMAND_ID,
-							title: localize('retryChat', "Retry"),
+							title: localize('retryChat', "Restart"),
 							arguments: [requestModel.session.sessionResource]
-						},
-						additionalCommands: [{
-							id: SetupAgent.CHAT_REPORT_ISSUE_WITH_OUTPUT_COMMAND_ID,
-							title: localize('reportChatIssue', "Report Issue"),
-						}]
+						}
 					});
 
 					// This means Chat is unhealthy and we cannot retry the
@@ -473,14 +432,14 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 		}
 
 		// check that tools other than setup. and internal tools are registered.
-		for (const tool of languageModelToolsService.getTools()) {
+		for (const tool of languageModelToolsService.getAllToolsIncludingDisabled()) {
 			if (tool.id.startsWith('copilot_')) {
 				return; // we have tools!
 			}
 		}
 
 		return Event.toPromise(Event.filter(languageModelToolsService.onDidChangeTools, () => {
-			for (const tool of languageModelToolsService.getTools()) {
+			for (const tool of languageModelToolsService.getAllToolsIncludingDisabled()) {
 				if (tool.id.startsWith('copilot_')) {
 					return true; // we have tools!
 				}

@@ -944,7 +944,7 @@ chrono 0.4.38 - MIT OR Apache-2.0
 https://github.com/chronotope/chrono
 
 Rust-chrono is dual-licensed under The MIT License [1] and
-Apache 2.0 License [2]. Copyright (c) 2014--2025, Kang Seonghoon and
+Apache 2.0 License [2]. Copyright (c) 2014--2026, Kang Seonghoon and
 contributors.
 
 Nota Bene: This is same as the Rust Project's own license.
@@ -2239,7 +2239,7 @@ DEALINGS IN THE SOFTWARE.
 flate2 1.0.30 - MIT OR Apache-2.0
 https://github.com/rust-lang/flate2-rs
 
-Copyright (c) 2014-2025 Alex Crichton
+Copyright (c) 2014-2026 Alex Crichton
 
 Permission is hereby granted, free of charge, to any
 person obtaining a copy of this software and associated
@@ -2952,7 +2952,7 @@ getrandom 0.1.16 - MIT OR Apache-2.0
 getrandom 0.2.15 - MIT OR Apache-2.0
 https://github.com/rust-random/getrandom
 
-Copyright (c) 2018-2025 The rust-random Project Developers
+Copyright (c) 2018-2026 The rust-random Project Developers
 Copyright (c) 2014 The Rust Project Developers
 
 Permission is hereby granted, free of charge, to any
@@ -3332,7 +3332,7 @@ DEALINGS IN THE SOFTWARE.
 httparse 1.8.0 - MIT/Apache-2.0
 https://github.com/seanmonstar/httparse
 
-Copyright (c) 2015-2025 Sean McArthur
+Copyright (c) 2015-2026 Sean McArthur
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -3386,7 +3386,7 @@ https://github.com/hyperium/hyper
 
 The MIT License (MIT)
 
-Copyright (c) 2014-2025 Sean McArthur
+Copyright (c) 2014-2026 Sean McArthur
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -5259,7 +5259,7 @@ DEALINGS IN THE SOFTWARE.
 num_cpus 1.16.0 - MIT OR Apache-2.0
 https://github.com/seanmonstar/num_cpus
 
-Copyright (c) 2015-2025 Sean McArthur
+Copyright (c) 2015-2026 Sean McArthur
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -5451,7 +5451,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ---------------------------------------------------------
 
 openssl-probe 0.1.5 - MIT/Apache-2.0
-https://github.com/alexcrichton/openssl-probe
+https://github.com/rustls/openssl-probe
 
 Copyright (c) 2014 Alex Crichton
 
@@ -7229,7 +7229,7 @@ rand_core 0.5.1 - MIT OR Apache-2.0
 rand_core 0.6.4 - MIT OR Apache-2.0
 https://github.com/rust-random/rand_core
 
-Copyright (c) 2018-2025 The Rand Project Developers
+Copyright (c) 2018-2026 The Rand Project Developers
 
 Permission is hereby granted, free of charge, to any
 person obtaining a copy of this software and associated
@@ -7448,7 +7448,7 @@ DEALINGS IN THE SOFTWARE.
 reqwest 0.11.27 - MIT OR Apache-2.0
 https://github.com/seanmonstar/reqwest
 
-Copyright (c) 2016-2025 Sean McArthur
+Copyright (c) 2016-2026 Sean McArthur
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -8590,7 +8590,7 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 
 [//]: # (crates)
 
-[`ascon‑hash`]: ./ascon-hash256
+[`ascon‑hash256`]: ./ascon-hash256
 [`bash‑hash`]: ./bash-hash
 [`belt‑hash`]: ./belt-hash
 [`blake2`]: ./blake2
@@ -8686,7 +8686,7 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 
 [//]: # (crates)
 
-[`ascon‑hash`]: ./ascon-hash256
+[`ascon‑hash256`]: ./ascon-hash256
 [`bash‑hash`]: ./bash-hash
 [`belt‑hash`]: ./belt-hash
 [`blake2`]: ./blake2
@@ -9962,7 +9962,7 @@ https://github.com/seanmonstar/try-lock
 
 The MIT License (MIT)
 
-Copyright (c) 2018-2025 Sean McArthur
+Copyright (c) 2018-2026 Sean McArthur
 Copyright (c) 2016 Alex Crichton
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -11529,7 +11529,7 @@ LICENSE-MIT
 ---------------------------------------------------------
 
 zbus_names 2.6.1 - MIT
-https://github.com/dbus2/zbus/
+https://github.com/z-galaxy/zbus/
 
 LICENSE-MIT
 ---------------------------------------------------------
@@ -11825,7 +11825,7 @@ licences; see files named LICENSE.*.txt for details.
 ---------------------------------------------------------
 
 zvariant 3.15.2 - MIT
-https://github.com/dbus2/zbus/
+https://github.com/z-galaxy/zbus/
 
 LICENSE-MIT
 ---------------------------------------------------------
@@ -11833,7 +11833,7 @@ LICENSE-MIT
 ---------------------------------------------------------
 
 zvariant_derive 3.15.2 - MIT
-https://github.com/dbus2/zbus/
+https://github.com/z-galaxy/zbus/
 
 LICENSE-MIT
 ---------------------------------------------------------
@@ -11841,7 +11841,7 @@ LICENSE-MIT
 ---------------------------------------------------------
 
 zvariant_utils 1.0.1 - MIT
-https://github.com/dbus2/zbus/
+https://github.com/z-galaxy/zbus/
 
 LICENSE-MIT
 ---------------------------------------------------------

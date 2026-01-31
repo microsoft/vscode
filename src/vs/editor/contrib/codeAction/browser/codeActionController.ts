@@ -13,6 +13,7 @@ import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { HierarchicalKind } from '../../../../base/common/hierarchicalKind.js';
 import { Lazy } from '../../../../base/common/lazy.js';
 import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { derived, IObservable } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
 import { IActionListDelegate } from '../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
@@ -38,7 +39,7 @@ import { ApplyCodeActionReason, applyCodeAction } from './codeAction.js';
 import { CodeActionKeybindingResolver } from './codeActionKeybindingResolver.js';
 import { toMenuItems } from './codeActionMenu.js';
 import { CodeActionModel, CodeActionsState } from './codeActionModel.js';
-import { LightBulbWidget } from './lightBulbWidget.js';
+import { LightBulbInfo, LightBulbWidget } from './lightBulbWidget.js';
 
 interface IActionShowOptions {
 	readonly includeDisabledActions?: boolean;
@@ -66,6 +67,14 @@ export class CodeActionController extends Disposable implements IEditorContribut
 	private readonly _resolver: CodeActionKeybindingResolver;
 
 	private _disposed = false;
+
+	public readonly lightBulbState: IObservable<LightBulbInfo | undefined> = derived(this, reader => {
+		const widget = this._lightBulbWidget.rawValue;
+		if (!widget) {
+			return undefined;
+		}
+		return widget.lightBulbInfo.read(reader);
+	});
 
 	constructor(
 		editor: ICodeEditor,

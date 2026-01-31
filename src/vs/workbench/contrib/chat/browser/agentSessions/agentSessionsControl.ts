@@ -29,7 +29,7 @@ import { IStyleOverride } from '../../../../../platform/theme/browser/defaultSty
 import { IAgentSessionsControl } from './agentSessions.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { openSession } from './agentSessionsOpener.js';
+import { ISessionOpenOptions, openSession } from './agentSessionsOpener.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ChatEditorInput } from '../widgetHosts/editor/chatEditorInput.js';
 import { IMouseEvent } from '../../../../../base/browser/mouseEvent.js';
@@ -43,6 +43,7 @@ export interface IAgentSessionsControlOptions extends IAgentSessionsSorterOption
 	getHoverPosition(): HoverPosition;
 	trackActiveEditorSession(): boolean;
 
+	overrideSessionOpenOptions?(openEvent: IOpenEvent<AgentSessionListItem | undefined>): ISessionOpenOptions;
 	notifySessionOpened?(resource: URI, widget: IChatWidget): void;
 }
 
@@ -130,6 +131,19 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 	private createList(container: HTMLElement): void {
 		this.sessionsContainer = append(container, $('.agent-sessions-viewer'));
 
+		const collapseByDefault = (element: unknown) => {
+			if (isAgentSessionSection(element)) {
+				if (element.section === AgentSessionSection.More && !this.options.filter.getExcludes().read) {
+					return true; // More section is always collapsed unless only showing unread
+				}
+				if (element.section === AgentSessionSection.Archived && this.options.filter.getExcludes().archived) {
+					return true; // Archived section is collapsed when archived are excluded
+				}
+			}
+
+			return false;
+		};
+
 		const sorter = new AgentSessionsSorter(this.options);
 		const list = this.sessionsList = this._register(this.instantiationService.createInstance(WorkbenchCompressibleAsyncDataTree,
 			'AgentSessionsView',
@@ -151,9 +165,8 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 				defaultFindMode: TreeFindMode.Filter,
 				keyboardNavigationLabelProvider: new AgentSessionsKeyboardNavigationLabelProvider(),
 				overrideStyles: this.options.overrideStyles,
-				expandOnlyOnTwistieClick: (element: unknown) => !(isAgentSessionSection(element) && element.section === AgentSessionSection.Archived && this.options.filter.getExcludes().archived),
 				twistieAdditionalCssClass: () => 'force-no-twistie',
-				collapseByDefault: (element: unknown) => isAgentSessionSection(element) && element.section === AgentSessionSection.Archived && this.options.filter.getExcludes().archived,
+				collapseByDefault: (element: unknown) => collapseByDefault(element),
 				renderIndentGuides: RenderIndentGuides.None,
 			}
 		)) as WorkbenchCompressibleAsyncDataTree<IAgentSessionsModel, AgentSessionListItem, FuzzyScore>;
@@ -164,7 +177,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 
 		this._register(this.options.filter.onDidChange(async () => {
 			if (this.visible) {
-				this.updateArchivedSectionCollapseState();
+				this.updateSectionCollapseStates();
 				list.updateChildren();
 			}
 		}));
@@ -205,7 +218,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		this._register(list.onDidChangeFindOpenState(open => {
 			this.sessionsListFindIsOpen = open;
 
-			this.updateArchivedSectionCollapseState();
+			this.updateSectionCollapseStates();
 		}));
 	}
 
@@ -220,7 +233,8 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 			source: this.options.source
 		});
 
-		const widget = await this.instantiationService.invokeFunction(openSession, element, e);
+		const options = this.options.overrideSessionOpenOptions?.(e) ?? e;
+		const widget = await this.instantiationService.invokeFunction(openSession, element, options);
 		if (widget) {
 			this.options.notifySessionOpened?.(element.resource, widget);
 		}
@@ -285,27 +299,46 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		this.sessionsList?.openFind();
 	}
 
-	private updateArchivedSectionCollapseState(): void {
+	private updateSectionCollapseStates(): void {
 		if (!this.sessionsList) {
 			return;
 		}
 
 		const model = this.agentSessionsService.model;
 		for (const child of this.sessionsList.getNode(model).children) {
-			if (!isAgentSessionSection(child.element) || child.element.section !== AgentSessionSection.Archived) {
+			if (!isAgentSessionSection(child.element)) {
 				continue;
 			}
 
-			const shouldCollapseArchived =
-				!this.sessionsListFindIsOpen &&				// always expand when find is open
-				this.options.filter.getExcludes().archived;	// only collapse when archived are excluded from filter
+			switch (child.element.section) {
+				case AgentSessionSection.Archived: {
+					const shouldCollapseArchived =
+						!this.sessionsListFindIsOpen &&				// always expand when find is open
+						this.options.filter.getExcludes().archived;	// only collapse when archived are excluded from filter
 
-			if (shouldCollapseArchived && !child.collapsed) {
-				this.sessionsList.collapse(child.element);
-			} else if (!shouldCollapseArchived && child.collapsed) {
-				this.sessionsList.expand(child.element);
+					if (shouldCollapseArchived && !child.collapsed) {
+						this.sessionsList.collapse(child.element);
+					} else if (!shouldCollapseArchived && child.collapsed) {
+						this.sessionsList.expand(child.element);
+					}
+					break;
+				}
+				case AgentSessionSection.More: {
+					if (child.collapsed) {
+						let autoExpandMore = false;
+						if (this.sessionsListFindIsOpen) {
+							autoExpandMore = true; // always expand when find is open
+						} else if (this.options.filter.getExcludes().read && child.element.sessions.some(session => !session.isRead())) {
+							autoExpandMore = true; // expand when showing only unread and this section includes unread
+						}
+
+						if (autoExpandMore) {
+							this.sessionsList.expand(child.element);
+						}
+					}
+					break;
+				}
 			}
-			break;
 		}
 	}
 
@@ -342,6 +375,10 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		this.sessionsList?.setSelection([]);
 	}
 
+	hasFocusOrSelection(): boolean {
+		return (this.sessionsList?.getFocus().length ?? 0) > 0 || (this.sessionsList?.getSelection().length ?? 0) > 0;
+	}
+
 	scrollToTop(): void {
 		if (this.sessionsList) {
 			this.sessionsList.scrollTop = 0;
@@ -354,14 +391,14 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		return focused.filter(e => isAgentSession(e));
 	}
 
-	reveal(sessionResource: URI): void {
+	reveal(sessionResource: URI): boolean {
 		if (!this.sessionsList) {
-			return;
+			return false;
 		}
 
 		const session = this.agentSessionsService.model.getSession(sessionResource);
 		if (!session || !this.sessionsList.hasNode(session)) {
-			return;
+			return false;
 		}
 
 		if (this.sessionsList.getRelativeTop(session) === null) {
@@ -370,5 +407,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 
 		this.sessionsList.setFocus([session]);
 		this.sessionsList.setSelection([session]);
+
+		return true;
 	}
 }

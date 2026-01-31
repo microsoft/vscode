@@ -22,6 +22,7 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { ResourceContextKey } from '../../../../common/contextkeys.js';
@@ -98,12 +99,14 @@ export class ChatContinueInSessionActionItem extends ActionWidgetDropdownActionV
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IChatSessionsService chatSessionsService: IChatSessionsService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IOpenerService openerService: IOpenerService
+		@IOpenerService openerService: IOpenerService,
+		@ITelemetryService telemetryService: ITelemetryService
 	) {
 		super(action, {
 			actionProvider: ChatContinueInSessionActionItem.actionProvider(chatSessionsService, instantiationService, location),
-			actionBarActions: ChatContinueInSessionActionItem.getActionBarActions(openerService)
-		}, actionWidgetService, keybindingService, contextKeyService);
+			actionBarActions: ChatContinueInSessionActionItem.getActionBarActions(openerService),
+			reporter: { name: 'ChatContinueInSession', includeOptions: true },
+		}, actionWidgetService, keybindingService, contextKeyService, telemetryService);
 	}
 
 	protected static getActionBarActions(openerService: IOpenerService) {

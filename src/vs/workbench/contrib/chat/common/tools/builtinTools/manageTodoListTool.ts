@@ -23,7 +23,6 @@ import { IChatTodo, IChatTodoListService } from '../chatTodoListService.js';
 import { localize } from '../../../../../../nls.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { chatSessionResourceToId, LocalChatSessionUri } from '../../model/chatUri.js';
 
 export const ManageTodoListToolToolId = 'manage_todo_list';
 
@@ -81,7 +80,8 @@ interface IManageTodoListToolInputParams {
 		title: string;
 		status: 'not-started' | 'in-progress' | 'completed';
 	}>;
-	chatSessionId?: string;
+	// used for todo read only
+	chatSessionResource?: string;
 }
 
 export class ManageTodoListTool extends Disposable implements IToolImpl {
@@ -97,17 +97,30 @@ export class ManageTodoListTool extends Disposable implements IToolImpl {
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	async invoke(invocation: IToolInvocation, _countTokens: any, _progress: any, _token: CancellationToken): Promise<IToolResult> {
 		const args = invocation.parameters as IManageTodoListToolInputParams;
-		// For: #263001 Use default sessionId
-		const DEFAULT_TODO_SESSION_ID = 'default';
-		const chatSessionId = invocation.context?.sessionId ?? args.chatSessionId ?? DEFAULT_TODO_SESSION_ID;
+		let chatSessionResource = invocation.context?.sessionResource;
+		if (!chatSessionResource && args.operation === 'read' && args.chatSessionResource) {
+			try {
+				chatSessionResource = URI.parse(args.chatSessionResource);
+			} catch (error) {
+				this.logService.error('ManageTodoListTool: Invalid chatSessionResource URI', error);
+			}
+		}
+		if (!chatSessionResource) {
+			return {
+				content: [{
+					kind: 'text',
+					value: 'Error: No session resource available'
+				}]
+			};
+		}
 
 		this.logService.debug(`ManageTodoListTool: Invoking with options ${JSON.stringify(args)}`);
 
 		try {
 			if (args.operation === 'read') {
-				return this.handleReadOperation(LocalChatSessionUri.forSession(chatSessionId));
+				return this.handleReadOperation(chatSessionResource);
 			} else {
-				return this.handleWriteOperation(args, LocalChatSessionUri.forSession(chatSessionId));
+				return this.handleWriteOperation(args, chatSessionResource);
 			}
 
 		} catch (error) {
@@ -123,11 +136,12 @@ export class ManageTodoListTool extends Disposable implements IToolImpl {
 
 	async prepareToolInvocation(context: IToolInvocationPreparationContext, _token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
 		const args = context.parameters as IManageTodoListToolInputParams;
-		// For: #263001 Use default sessionId
-		const DEFAULT_TODO_SESSION_ID = 'default';
-		const chatSessionId = context.chatSessionId ?? args.chatSessionId ?? DEFAULT_TODO_SESSION_ID;
+		const chatSessionResource = context.chatSessionResource;
+		if (!chatSessionResource) {
+			return undefined;
+		}
 
-		const currentTodoItems = this.chatTodoListService.getTodos(LocalChatSessionUri.forSession(chatSessionId));
+		const currentTodoItems = this.chatTodoListService.getTodos(chatSessionResource);
 		let message: string | undefined;
 
 		if (args.operation === 'read') {
@@ -147,7 +161,6 @@ export class ManageTodoListTool extends Disposable implements IToolImpl {
 			pastTenseMessage: new MarkdownString(message ?? localize('todo.updatedList', "Updated todo list")),
 			toolSpecificData: {
 				kind: 'todoList',
-				sessionId: chatSessionId,
 				todoList: todoList
 			}
 		};
@@ -222,8 +235,7 @@ export class ManageTodoListTool extends Disposable implements IToolImpl {
 				operation: 'read',
 				notStartedCount: statusCounts.notStartedCount,
 				inProgressCount: statusCounts.inProgressCount,
-				completedCount: statusCounts.completedCount,
-				chatSessionId: chatSessionResourceToId(chatSessionResource)
+				completedCount: statusCounts.completedCount
 			}
 		);
 
@@ -276,8 +288,7 @@ export class ManageTodoListTool extends Disposable implements IToolImpl {
 				operation: 'write',
 				notStartedCount: statusCounts.notStartedCount,
 				inProgressCount: statusCounts.inProgressCount,
-				completedCount: statusCounts.completedCount,
-				chatSessionId: chatSessionResourceToId(chatSessionResource)
+				completedCount: statusCounts.completedCount
 			}
 		);
 
@@ -349,7 +360,6 @@ type TodoListToolInvokedEvent = {
 	notStartedCount: number;
 	inProgressCount: number;
 	completedCount: number;
-	chatSessionId: string | undefined;
 };
 
 type TodoListToolInvokedClassification = {
@@ -357,7 +367,6 @@ type TodoListToolInvokedClassification = {
 	notStartedCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of tasks with not-started status.' };
 	inProgressCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of tasks with in-progress status.' };
 	completedCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of tasks with completed status.' };
-	chatSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the chat session that the tool was used within, if applicable.' };
 	owner: 'bhavyaus';
 	comment: 'Provides insight into the usage of the todo list tool including detailed task status distribution.';
 };

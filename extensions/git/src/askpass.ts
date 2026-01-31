@@ -5,10 +5,10 @@
 
 import { window, InputBoxOptions, Uri, Disposable, workspace, QuickPickOptions, l10n, LogOutputChannel } from 'vscode';
 import { IDisposable, EmptyDisposable, toDisposable, extractFilePathFromArgs } from './util';
-import * as path from 'path';
 import { IIPCHandler, IIPCServer } from './ipc/ipcServer';
 import { CredentialsProvider, Credentials } from './api/git';
 import { ITerminalEnvironmentProvider } from './terminal';
+import { AskpassPaths } from './askpassManager';
 
 export class Askpass implements IIPCHandler, ITerminalEnvironmentProvider {
 
@@ -20,23 +20,30 @@ export class Askpass implements IIPCHandler, ITerminalEnvironmentProvider {
 
 	readonly featureDescription = 'git auth provider';
 
-	constructor(private ipc: IIPCServer | undefined, private readonly logger: LogOutputChannel) {
+	constructor(
+		private ipc: IIPCServer | undefined,
+		private readonly logger: LogOutputChannel,
+		askpassPaths: AskpassPaths
+	) {
 		if (ipc) {
 			this.disposable = ipc.registerHandler('askpass', this);
 		}
 
+		const askpassScript = this.ipc ? askpassPaths.askpass : askpassPaths.askpassEmpty;
+		const sshAskpassScript = this.ipc ? askpassPaths.sshAskpass : askpassPaths.sshAskpassEmpty;
+
 		this.env = {
 			// GIT_ASKPASS
-			GIT_ASKPASS: path.join(__dirname, this.ipc ? 'askpass.sh' : 'askpass-empty.sh'),
+			GIT_ASKPASS: askpassScript,
 			// VSCODE_GIT_ASKPASS
 			VSCODE_GIT_ASKPASS_NODE: process.execPath,
 			VSCODE_GIT_ASKPASS_EXTRA_ARGS: '',
-			VSCODE_GIT_ASKPASS_MAIN: path.join(__dirname, 'askpass-main.js')
+			VSCODE_GIT_ASKPASS_MAIN: askpassPaths.askpassMain
 		};
 
 		this.sshEnv = {
 			// SSH_ASKPASS
-			SSH_ASKPASS: path.join(__dirname, this.ipc ? 'ssh-askpass.sh' : 'ssh-askpass-empty.sh'),
+			SSH_ASKPASS: sshAskpassScript,
 			SSH_ASKPASS_REQUIRE: 'force'
 		};
 	}

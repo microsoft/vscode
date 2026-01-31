@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from '../../../../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../../nls.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -16,9 +15,6 @@ import { IChatContentPart, IChatContentPartRenderContext } from './chatContentPa
 
 export class ChatConfirmationContentPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
-
-	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
-	public readonly onDidChangeHeight = this._onDidChangeHeight.event;
 
 	constructor(
 		confirmation: IChatConfirmation,
@@ -43,8 +39,6 @@ export class ChatConfirmationContentPart extends Disposable implements IChatCont
 		const confirmationWidget = this._register(this.instantiationService.createInstance(SimpleChatConfirmationWidget, context, { title: confirmation.title, buttons, message: confirmation.message }));
 		confirmationWidget.setShowButtons(!confirmation.isUsed);
 
-		this._register(confirmationWidget.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
-
 		this._register(confirmationWidget.onDidClick(async e => {
 			if (isResponseVM(element)) {
 				const prompt = `${e.label}: "${confirmation.title}"`;
@@ -63,7 +57,6 @@ export class ChatConfirmationContentPart extends Disposable implements IChatCont
 				if (await this.chatService.sendRequest(element.sessionResource, prompt, options)) {
 					confirmation.isUsed = true;
 					confirmationWidget.setShowButtons(false);
-					this._onDidChangeHeight.fire();
 				}
 			}
 		}));

@@ -21,7 +21,7 @@ import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { Extensions, IExtensionFeaturesRegistry, IExtensionFeatureTableRenderer, IRenderedData, IRowData, ITableData } from '../../../../services/extensionManagement/common/extensionFeatures.js';
 import { isProposedApiEnabled } from '../../../../services/extensions/common/extensions.js';
 import * as extensionsRegistry from '../../../../services/extensions/common/extensionsRegistry.js';
-import { ILanguageModelToolsService, IToolData, ToolDataSource, ToolSet } from './languageModelToolsService.js';
+import { ILanguageModelToolsService, IToolData, IToolSet, ToolDataSource, ToolSet } from './languageModelToolsService.js';
 import { toolsParametersSchemaSchemaId } from './languageModelToolsParametersSchema.js';
 
 export interface IRawToolContribution {
@@ -196,7 +196,7 @@ function toToolKey(extensionIdentifier: ExtensionIdentifier, toolName: string) {
 	return `${extensionIdentifier.value}/${toolName}`;
 }
 
-function toToolSetKey(extensionIdentifier: ExtensionIdentifier, toolName: string) {
+export function toToolSetKey(extensionIdentifier: ExtensionIdentifier, toolName: string) {
 	return `toolset:${extensionIdentifier.value}/${toolName}`;
 }
 
@@ -326,10 +326,10 @@ export class LanguageModelToolsExtensionPointHandler implements IWorkbenchContri
 					}
 
 					const tools: IToolData[] = [];
-					const toolSets: ToolSet[] = [];
+					const toolSets: IToolSet[] = [];
 
 					for (const toolName of toolSet.tools) {
-						const toolObj = languageModelToolsService.getToolByName(toolName, true);
+						const toolObj = languageModelToolsService.getToolByName(toolName);
 						if (toolObj) {
 							tools.push(toolObj);
 							continue;

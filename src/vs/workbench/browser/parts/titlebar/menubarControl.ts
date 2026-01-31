@@ -478,6 +478,7 @@ export class CustomMenubarControl extends MenubarControl {
 				});
 
 			case StateType.Downloading:
+			case StateType.Overwriting:
 				return toAction({ id: 'update.downloading', label: localize('DownloadingUpdate', "Downloading Update..."), enabled: false, run: () => { } });
 
 			case StateType.Downloaded:

@@ -508,6 +508,12 @@ const apiMenus: IAPIMenu[] = [
 		supportsSubmenus: false,
 		proposed: 'contribChatEditorInlineGutterMenu',
 	},
+	{
+		key: 'chat/contextUsage/actions',
+		id: MenuId.ChatContextUsageActions,
+		description: localize('menus.chatContextUsageActions', "Actions in the chat context usage details popup."),
+		proposed: 'chatParticipantAdditions'
+	},
 ];
 
 namespace schema {

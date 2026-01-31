@@ -331,7 +331,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 		}
 
 		if (!isUserDataProfileTemplate(profileTemplate)) {
-			throw new Error(localize('invalid profile content', "This profile is not valid."));
+			return null;
 		}
 
 		if (options?.name) {

@@ -5,7 +5,6 @@
 
 import * as dom from '../../../../../../base/browser/dom.js';
 import { Button, IButtonOptions } from '../../../../../../base/browser/ui/button/button.js';
-import { Emitter } from '../../../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
@@ -21,9 +20,6 @@ const $ = dom.$;
 
 export class ChatErrorConfirmationContentPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
-
-	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
-	public readonly onDidChangeHeight = this._onDidChangeHeight.event;
 
 	constructor(
 		kind: ChatErrorLevel,
@@ -62,9 +58,7 @@ export class ChatErrorConfirmationContentPart extends Disposable implements ICha
 				const widget = chatWidgetService.getWidgetBySessionResource(element.sessionResource);
 				options.userSelectedModelId = widget?.input.currentLanguageModel;
 				Object.assign(options, widget?.getModeRequestOptions());
-				if (await chatService.sendRequest(element.sessionResource, prompt, options)) {
-					this._onDidChangeHeight.fire();
-				}
+				await chatService.sendRequest(element.sessionResource, prompt, options);
 			}));
 		});
 	}

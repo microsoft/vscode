@@ -2120,4 +2120,21 @@ export default tseslint.config(
 			'@typescript-eslint/consistent-generic-constructors': ['warn', 'constructor'],
 		}
 	},
+	// Allow querySelector/querySelectorAll in test files - it's acceptable for test assertions
+	{
+		files: [
+			'src/**/test/**/*.ts',
+			'extensions/**/test/**/*.ts',
+		],
+		rules: {
+			'no-restricted-syntax': [
+				'warn',
+				// Keep the Intl helper restriction even in tests
+				{
+					'selector': `NewExpression[callee.object.name='Intl']`,
+					'message': 'Use safeIntl helper instead for safe and lazy use of potentially expensive Intl methods.'
+				},
+			],
+		}
+	},
 );

@@ -19,11 +19,13 @@ import { ConfigurationTarget, IConfigurationService } from '../../../../platform
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { IMcpRemoteServerConfiguration, IMcpServerConfiguration, IMcpServerVariable, IMcpStdioServerConfiguration, McpServerType } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
+import { IGalleryMcpServerConfiguration, RegistryType } from '../../../../platform/mcp/common/mcpManagement.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../platform/quickinput/common/quickInput.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { isWorkspaceFolder, IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
+import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IWorkbenchMcpManagementService } from '../../../services/mcp/common/mcpWorkbenchManagementService.js';
@@ -31,6 +33,7 @@ import { McpCommandIds } from '../common/mcpCommandIds.js';
 import { allDiscoverySources, DiscoverySource, mcpDiscoverySection, mcpStdioServerSchema } from '../common/mcpConfiguration.js';
 import { IMcpRegistry } from '../common/mcpRegistryTypes.js';
 import { IMcpService, McpConnectionState } from '../common/mcpTypes.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 
 export const enum AddConfigurationType {
 	Stdio,
@@ -592,6 +595,101 @@ export class McpAddConfigurationCommand {
 				return 'sse';
 			default:
 				return undefined;
+		}
+	}
+}
+
+export class McpInstallFromManifestCommand {
+	constructor(
+		@IFileDialogService private readonly _fileDialogService: IFileDialogService,
+		@IFileService private readonly _fileService: IFileService,
+		@IQuickInputService private readonly _quickInputService: IQuickInputService,
+		@INotificationService private readonly _notificationService: INotificationService,
+		@IWorkbenchMcpManagementService private readonly _mcpManagementService: IWorkbenchMcpManagementService,
+		@ILogService private readonly _logService: ILogService,
+	) { }
+
+	async run(): Promise<void> {
+		// Step 1: Open file dialog to select the manifest file
+		const result = await this._fileDialogService.showOpenDialog({
+			title: localize('mcp.installFromManifest.title', "Select MCP Server Manifest"),
+			filters: [{ name: localize('mcp.installFromManifest.filter', "MCP Manifest"), extensions: ['json'] }],
+			canSelectFiles: true,
+			canSelectMany: false,
+			openLabel: localize({ key: 'mcp.installFromManifest.openLabel', comment: ['&& denotes a mnemonic'] }, "&&Install")
+		});
+
+		if (!result?.[0]) {
+			return;
+		}
+
+		const manifestUri = result[0];
+
+		// Step 2: Read and parse the manifest file
+		let manifest: unknown;
+		try {
+			const contents = await this._fileService.readFile(manifestUri);
+			manifest = parseJsonc(contents.value.toString());
+		} catch (e) {
+			this._notificationService.error(localize('mcp.installFromManifest.readError', "Failed to read manifest file: {0}", e.message));
+			return;
+		}
+
+		if (!manifest || typeof manifest !== 'object') {
+			this._notificationService.error(localize('mcp.installFromManifest.invalidJson', "Invalid manifest file: expected a JSON object"));
+			return;
+		}
+
+		// Step 3: Validate and extract configuration from gallery manifest
+		const galleryManifest = manifest as IGalleryMcpServerConfiguration & { name?: string };
+
+		// Determine package type from manifest
+		let packageType: RegistryType;
+		if (Array.isArray(galleryManifest.packages) && galleryManifest.packages.length > 0) {
+			packageType = galleryManifest.packages[0].registryType;
+		} else if (Array.isArray(galleryManifest.remotes) && galleryManifest.remotes.length > 0) {
+			packageType = RegistryType.REMOTE;
+		} else {
+			this._notificationService.error(localize('mcp.installFromManifest.invalidManifest', "Invalid manifest: expected 'packages' or 'remotes' with at least one entry"));
+			return;
+		}
+
+		let config: IMcpServerConfiguration;
+		let inputs: IMcpServerVariable[] | undefined;
+		try {
+			const { mcpServerConfiguration, notices } = this._mcpManagementService.getMcpServerConfigurationFromManifest(galleryManifest, packageType);
+			config = mcpServerConfiguration.config;
+			inputs = mcpServerConfiguration.inputs;
+
+			if (notices.length > 0) {
+				this._logService.warn(`MCP Management Service: Warnings while installing the MCP server from ${manifestUri.path}`, notices);
+			}
+		} catch (e) {
+			this._notificationService.error(localize('mcp.installFromManifest.parseError', "Failed to parse manifest: {0}", e.message));
+			return;
+		}
+
+		// Step 4: Get server name from manifest or prompt user
+		let name = galleryManifest.name;
+		if (!name) {
+			name = await this._quickInputService.input({
+				title: localize('mcp.installFromManifest.serverId.title', "Enter Server ID"),
+				placeHolder: localize('mcp.installFromManifest.serverId.placeholder', "Unique identifier for this server"),
+				value: basename(manifestUri).replace(/\.json$/i, ''),
+				ignoreFocusLost: true,
+			});
+
+			if (!name) {
+				return;
+			}
+		}
+
+		// Step 5: Install to user settings
+		try {
+			await this._mcpManagementService.install({ name, config, inputs });
+			this._notificationService.info(localize('mcp.installFromManifest.success', "MCP server '{0}' installed successfully", name));
+		} catch (e) {
+			this._notificationService.error(localize('mcp.installFromManifest.installError', "Failed to install MCP server: {0}", e.message));
 		}
 	}
 }

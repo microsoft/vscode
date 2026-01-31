@@ -153,6 +153,10 @@ export interface IChatAgentRequest {
 	 * Unique ID for the subagent invocation, used to group tool calls from the same subagent run together.
 	 */
 	subAgentInvocationId?: string;
+	/**
+	 * Display name of the subagent that is invoking this request.
+	 */
+	subAgentName?: string;
 
 }
 
@@ -165,6 +169,18 @@ export interface IChatQuestion {
 export interface IChatAgentResultTimings {
 	firstProgress?: number;
 	totalElapsed: number;
+}
+
+export interface IChatAgentPromptTokenDetail {
+	category: string;
+	label: string;
+	percentageOfPrompt: number;
+}
+
+export interface IChatAgentResultUsage {
+	promptTokens: number;
+	completionTokens: number;
+	promptTokenDetails?: readonly IChatAgentPromptTokenDetail[];
 }
 
 export interface IChatAgentResult {

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { detectsInputRequiredPattern, detectsNonInteractiveHelpPattern, OutputMonitor } from '../../browser/tools/monitoring/outputMonitor.js';
+import { detectsGenericPressAnyKeyPattern, detectsInputRequiredPattern, detectsNonInteractiveHelpPattern, detectsVSCodeTaskFinishMessage, OutputMonitor } from '../../browser/tools/monitoring/outputMonitor.js';
 import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
@@ -284,6 +284,58 @@ suite('OutputMonitor', () => {
 			assert.strictEqual(detectsNonInteractiveHelpPattern('press q to quit'), true);
 			assert.strictEqual(detectsInputRequiredPattern('press u to show server url'), false);
 			assert.strictEqual(detectsNonInteractiveHelpPattern('press u to show server url'), true);
+		});
+	});
+
+	suite('detectsVSCodeTaskFinishMessage', () => {
+		test('detects VS Code task completion messages', () => {
+			assert.strictEqual(detectsVSCodeTaskFinishMessage('Press any key to close the terminal.'), true);
+			assert.strictEqual(detectsVSCodeTaskFinishMessage('Terminal will be reused by tasks, press any key to close it.'), true);
+			// Case insensitive
+			assert.strictEqual(detectsVSCodeTaskFinishMessage('press any key to close the terminal.'), true);
+			assert.strictEqual(detectsVSCodeTaskFinishMessage('PRESS ANY KEY TO CLOSE THE TERMINAL.'), true);
+			// With " * " prefix (VS Code adds this to task messages)
+			assert.strictEqual(detectsVSCodeTaskFinishMessage(' *  Terminal will be reused by tasks, press any key to close it.'), true);
+			assert.strictEqual(detectsVSCodeTaskFinishMessage(' *  Press any key to close the terminal.'), true);
+		});
+
+		test('does not match generic press any key messages', () => {
+			// Regular script messages should NOT be matched
+			assert.strictEqual(detectsVSCodeTaskFinishMessage('Press any key to continue...'), false);
+			assert.strictEqual(detectsVSCodeTaskFinishMessage('Press any key to exit'), false);
+			assert.strictEqual(detectsVSCodeTaskFinishMessage('Press any key'), false);
+		});
+
+		test('does not match other prompts', () => {
+			assert.strictEqual(detectsVSCodeTaskFinishMessage('Continue? (y/n)'), false);
+			assert.strictEqual(detectsVSCodeTaskFinishMessage('Password:'), false);
+			assert.strictEqual(detectsVSCodeTaskFinishMessage('press h to show help'), false);
+		});
+	});
+
+	suite('detectsGenericPressAnyKeyPattern', () => {
+		test('detects generic press any key prompts from scripts', () => {
+			assert.strictEqual(detectsGenericPressAnyKeyPattern('Press any key to continue...'), true);
+			assert.strictEqual(detectsGenericPressAnyKeyPattern('Press any key to exit'), true);
+			assert.strictEqual(detectsGenericPressAnyKeyPattern('Press any key'), true);
+			assert.strictEqual(detectsGenericPressAnyKeyPattern('press a key to continue'), true);
+			// Case insensitive
+			assert.strictEqual(detectsGenericPressAnyKeyPattern('PRESS ANY KEY TO CONTINUE'), true);
+		});
+
+		test('does not match VS Code task finish messages', () => {
+			// These should be handled by detectsVSCodeTaskFinishMessage, not this function
+			assert.strictEqual(detectsGenericPressAnyKeyPattern('Press any key to close the terminal.'), false);
+			assert.strictEqual(detectsGenericPressAnyKeyPattern('Terminal will be reused by tasks, press any key to close it.'), false);
+			// With " * " prefix
+			assert.strictEqual(detectsGenericPressAnyKeyPattern(' *  Terminal will be reused by tasks, press any key to close it.'), false);
+			assert.strictEqual(detectsGenericPressAnyKeyPattern(' *  Press any key to close the terminal.'), false);
+		});
+
+		test('does not match other prompts', () => {
+			assert.strictEqual(detectsGenericPressAnyKeyPattern('Continue? (y/n)'), false);
+			assert.strictEqual(detectsGenericPressAnyKeyPattern('Password:'), false);
+			assert.strictEqual(detectsGenericPressAnyKeyPattern('press h to show help'), false);
 		});
 	});
 

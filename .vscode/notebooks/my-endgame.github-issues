@@ -7,12 +7,12 @@
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "$MILESTONE=milestone:\"December 2025\"\n\n$MINE=assignee:@me"
+    "value": "$MILESTONE=milestone:\"January 2026\"\n\n$MINE=assignee:@me"
   },
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "$NOT_TEAM_MEMBERS=-author:aeschli -author:alexdima -author:alexr00 -author:AmandaSilver -author:bamurtaugh -author:bpasero -author:chrmarti -author:Chuxel -author:claudiaregio -author:connor4312 -author:dbaeumer -author:deepak1556 -author:devinvalenciano -author:digitarald -author:DonJayamanne -author:egamma -author:fiveisprime -author:ntrogh -author:hediet -author:isidorn -author:joaomoreno -author:jrieken -author:kieferrm -author:lramos15 -author:lszomoru -author:meganrogge -author:misolori -author:mjbvz -author:rebornix -author:roblourens -author:rzhao271 -author:sandy081 -author:sbatten -author:stevencl -author:TylerLeonhardt -author:Tyriar -author:weinand -author:amunger -author:karthiknadig -author:eleanorjboyd -author:Yoyokrazy -author:ulugbekna -author:aiday-mar -author:bhavyaus -author:justschen -author:benibenj -author:luabud -author:anthonykim1 -author:joshspicer -author:osortega -author:hawkticehurst -author:pierceboggan -author:benvillalobos -author:dileepyavan -author:dineshc-msft -author:dmitrivMS -author:eli-w-king -author:jo-oikawa -author:jruales -author:jytjyt05 -author:kycutler -author:mrleemurray -author:pwang347 -author:vijayupadya -author:bryanchen-d -author:cwebster-99"
+    "value": "$NOT_TEAM_MEMBERS=-author:aeschli -author:alexdima -author:alexr00 -author:AmandaSilver -author:bamurtaugh -author:bpasero -author:chrmarti -author:Chuxel -author:claudiaregio -author:connor4312 -author:dbaeumer -author:deepak1556 -author:devinvalenciano -author:digitarald -author:DonJayamanne -author:egamma -author:fiveisprime -author:ntrogh -author:hediet -author:isidorn -author:joaomoreno -author:jrieken -author:kieferrm -author:lramos15 -author:lszomoru -author:meganrogge -author:misolori -author:mjbvz -author:rebornix -author:roblourens -author:rzhao271 -author:sandy081 -author:sbatten -author:stevencl -author:TylerLeonhardt -author:Tyriar -author:weinand -author:amunger -author:karthiknadig -author:eleanorjboyd -author:Yoyokrazy -author:ulugbekna -author:aiday-mar -author:bhavyaus -author:justschen -author:benibenj -author:luabud -author:anthonykim1 -author:joshspicer -author:osortega -author:hawkticehurst -author:pierceboggan -author:benvillalobos -author:dileepyavan -author:dineshc-msft -author:dmitrivMS -author:eli-w-king -author:jo-oikawa -author:jruales -author:jytjyt05 -author:kycutler -author:mrleemurray -author:pwang347 -author:vijayupadya -author:bryanchen-d -author:cwebster-99 -author:rwoll -author:lostintangent -author:jukasper -author:zhichli"
   },
   {
     "kind": 1,

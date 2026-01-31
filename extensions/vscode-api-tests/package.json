@@ -17,6 +17,7 @@
     "documentFiltersExclusive",
     "editorInsets",
     "embeddings",
+    "envIsAppPortable",
     "extensionRuntime",
     "extensionsAny",
     "externalUriOpener",
@@ -26,6 +27,7 @@
     "fsChunks",
     "interactive",
     "languageStatusText",
+    "mcpServerDefinitions",
     "nativeWindowHandle",
     "notebookDeprecated",
     "notebookLiveShare",
@@ -52,7 +54,8 @@
     "workspaceTrust",
     "inlineCompletionsAdditions",
     "devDeviceId",
-    "languageModelProxy"
+    "languageModelProxy",
+    "agentSessionsWorkspace"
   ],
   "private": true,
   "activationEvents": [],

@@ -9,6 +9,7 @@ import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
@@ -28,21 +29,25 @@ import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IResourceLabel, ResourceLabels } from '../../../../browser/labels.js';
 import { ResourceContextKey } from '../../../../common/contextkeys.js';
-import { IChatRequestImplicitVariableEntry, IChatRequestStringVariableEntry, isStringImplicitContextValue } from '../../common/attachments/chatVariableEntries.js';
+import { IChatRequestStringVariableEntry, isStringImplicitContextValue } from '../../common/attachments/chatVariableEntries.js';
 import { IChatWidget } from '../chat.js';
 import { ChatAttachmentModel } from './chatAttachmentModel.js';
 import { IChatContextService } from '../contextContrib/chatContextService.js';
+import { ChatImplicitContext, ChatImplicitContexts } from './chatImplicitContext.js';
+import { IRange } from '../../../../../editor/common/core/range.js';
 
 export class ImplicitContextAttachmentWidget extends Disposable {
-	public readonly domNode: HTMLElement;
 
 	private readonly renderDisposables = this._register(new DisposableStore());
+	private renderedCount = 0;
 
 	constructor(
 		private readonly widgetRef: () => IChatWidget | undefined,
-		private readonly attachment: IChatRequestImplicitVariableEntry,
+		private readonly isAttachmentAlreadyAttached: (targetUri: URI | undefined, targetRange: IRange | undefined, targetHandle: number | undefined) => boolean,
+		private readonly attachment: ChatImplicitContexts,
 		private readonly resourceLabels: ResourceLabels,
 		private readonly attachmentModel: ChatAttachmentModel,
+		private readonly domNode: HTMLElement,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@ILabelService private readonly labelService: ILabelService,
@@ -56,37 +61,56 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 	) {
 		super();
 
-		this.domNode = dom.$('.chat-attached-context-attachment.show-file-icons.implicit');
 		this.render();
 	}
 
 	private render() {
-		dom.clearNode(this.domNode);
 		this.renderDisposables.clear();
+		this.renderedCount = 0;
 
-		this.domNode.classList.toggle('disabled', !this.attachment.enabled);
-		const file: URI | undefined = this.attachment.uri;
+		for (const context of this.attachment.values) {
+			const targetUri: URI | undefined = context.uri;
+			const targetRange = isLocation(context.value) ? context.value.range : undefined;
+			const targetHandle = isStringImplicitContextValue(context.value) ? context.value.handle : undefined;
+			const currentlyAttached = this.isAttachmentAlreadyAttached(targetUri, targetRange, targetHandle);
+			if (!currentlyAttached) {
+				this.renderMainContext(context, context.isSelection);
+				this.renderedCount++;
+			}
+		}
+	}
+
+	get hasRenderedContexts(): boolean {
+		return this.renderedCount > 0;
+	}
+
+	private renderMainContext(context: ChatImplicitContext, isSelection?: boolean) {
+		const contextNode = dom.$('.chat-attached-context-attachment.show-file-icons.implicit');
+		this.domNode.appendChild(contextNode);
+
+		contextNode.classList.toggle('disabled', !context.enabled);
+		const file: URI | undefined = context.uri;
 		const attachmentTypeName = file?.scheme === Schemas.vscodeNotebookCell ? localize('cell.lowercase', "cell") : localize('file.lowercase', "file");
 
 		const isSuggestedEnabled = this.configService.getValue('chat.implicitContext.suggestedContext');
 
 		// Create toggle button BEFORE the label so it appears on the left
 		if (isSuggestedEnabled) {
-			if (!this.attachment.isSelection) {
-				const buttonMsg = this.attachment.enabled ? localize('disable', "Disable current {0} context", attachmentTypeName) : '';
-				const toggleButton = this.renderDisposables.add(new Button(this.domNode, { supportIcons: true, title: buttonMsg }));
-				toggleButton.icon = this.attachment.enabled ? Codicon.x : Codicon.plus;
+			if (!isSelection) {
+				const buttonMsg = context.enabled ? localize('disable', "Disable current {0} context", attachmentTypeName) : '';
+				const toggleButton = this.renderDisposables.add(new Button(contextNode, { supportIcons: true, title: buttonMsg }));
+				toggleButton.icon = context.enabled ? Codicon.x : Codicon.plus;
 				this.renderDisposables.add(toggleButton.onDidClick(async (e) => {
 					e.stopPropagation();
 					e.preventDefault();
-					if (!this.attachment.enabled) {
-						await this.convertToRegularAttachment();
+					if (!context.enabled) {
+						await this.convertToRegularAttachment(context);
 					}
-					this.attachment.enabled = false;
+					context.enabled = false;
 				}));
 			} else {
 				const pinButtonMsg = localize('pinSelection', "Pin selection");
-				const pinButton = this.renderDisposables.add(new Button(this.domNode, { supportIcons: true, title: pinButtonMsg }));
+				const pinButton = this.renderDisposables.add(new Button(contextNode, { supportIcons: true, title: pinButtonMsg }));
 				pinButton.icon = Codicon.pinned;
 				this.renderDisposables.add(pinButton.onDidClick(async (e) => {
 					e.stopPropagation();
@@ -95,61 +119,61 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 				}));
 			}
 
-			if (!this.attachment.enabled && this.attachment.isSelection) {
-				this.domNode.classList.remove('disabled');
+			if (!context.enabled && isSelection) {
+				contextNode.classList.remove('disabled');
 			}
 
-			this.renderDisposables.add(dom.addDisposableListener(this.domNode, dom.EventType.CLICK, async (e) => {
-				if (!this.attachment.enabled && !this.attachment.isSelection) {
-					await this.convertToRegularAttachment();
+			this.renderDisposables.add(dom.addDisposableListener(contextNode, dom.EventType.CLICK, async (e) => {
+				if (!context.enabled && !isSelection) {
+					await this.convertToRegularAttachment(context);
 				}
 			}));
 
-			this.renderDisposables.add(dom.addDisposableListener(this.domNode, dom.EventType.KEY_DOWN, async (e) => {
+			this.renderDisposables.add(dom.addDisposableListener(contextNode, dom.EventType.KEY_DOWN, async (e) => {
 				const event = new StandardKeyboardEvent(e);
 				if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
-					if (!this.attachment.enabled && !this.attachment.isSelection) {
+					if (!context.enabled && !isSelection) {
 						e.preventDefault();
 						e.stopPropagation();
-						await this.convertToRegularAttachment();
+						await this.convertToRegularAttachment(context);
 					}
 				}
 			}));
 		} else {
-			const buttonMsg = this.attachment.enabled ? localize('disable', "Disable current {0} context", attachmentTypeName) : localize('enable', "Enable current {0} context", attachmentTypeName);
-			const toggleButton = this.renderDisposables.add(new Button(this.domNode, { supportIcons: true, title: buttonMsg }));
-			toggleButton.icon = this.attachment.enabled ? Codicon.eye : Codicon.eyeClosed;
+			const buttonMsg = context.enabled ? localize('disable', "Disable current {0} context", attachmentTypeName) : localize('enable', "Enable current {0} context", attachmentTypeName);
+			const toggleButton = this.renderDisposables.add(new Button(contextNode, { supportIcons: true, title: buttonMsg }));
+			toggleButton.icon = context.enabled ? Codicon.eye : Codicon.eyeClosed;
 			this.renderDisposables.add(toggleButton.onDidClick((e) => {
 				e.stopPropagation(); // prevent it from triggering the click handler on the parent immediately after rerendering
-				this.attachment.enabled = !this.attachment.enabled;
+				context.enabled = !context.enabled;
 			}));
 		}
 
-		const label = this.resourceLabels.create(this.domNode, { supportIcons: true });
+		const label = this.resourceLabels.create(contextNode, { supportIcons: true });
 
 		let title: string | undefined;
 		let markdownTooltip: IMarkdownString | undefined;
-		if (isStringImplicitContextValue(this.attachment.value)) {
-			markdownTooltip = this.attachment.value.tooltip;
-			title = this.renderString(label, markdownTooltip);
+		if (isStringImplicitContextValue(context.value)) {
+			markdownTooltip = context.value.tooltip;
+			title = this.renderString(label, context.name, context.icon, markdownTooltip, localize('openFile', "Current file context"));
 		} else {
-			title = this.renderResource(this.attachment.value, label);
+			title = this.renderResource(context.value, context.isSelection, context.enabled, label);
 		}
 
 		if (markdownTooltip || title) {
-			this.renderDisposables.add(this.hoverService.setupDelayedHover(this.domNode, {
+			this.renderDisposables.add(this.hoverService.setupDelayedHover(contextNode, {
 				content: markdownTooltip! ?? title!,
 				appearance: { showPointer: true },
 			}));
 		}
 
 		// Context menu
-		const scopedContextKeyService = this.renderDisposables.add(this.contextKeyService.createScoped(this.domNode));
+		const scopedContextKeyService = this.renderDisposables.add(this.contextKeyService.createScoped(contextNode));
 
 		const resourceContextKey = this.renderDisposables.add(new ResourceContextKey(scopedContextKeyService, this.fileService, this.languageService, this.modelService));
 		resourceContextKey.set(file);
 
-		this.renderDisposables.add(dom.addDisposableListener(this.domNode, dom.EventType.CONTEXT_MENU, async domEvent => {
+		this.renderDisposables.add(dom.addDisposableListener(contextNode, dom.EventType.CONTEXT_MENU, async domEvent => {
 			const event = new StandardMouseEvent(dom.getWindow(domEvent), domEvent);
 			dom.EventHelper.stop(domEvent, true);
 
@@ -164,18 +188,16 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 		}));
 	}
 
-	private renderString(resourceLabel: IResourceLabel, markdownTooltip: IMarkdownString | undefined): string | undefined {
-		const label = this.attachment.name;
-		const icon = this.attachment.icon;
+	private renderString(resourceLabel: IResourceLabel, name: string, icon: ThemeIcon | undefined, markdownTooltip: IMarkdownString | undefined, defaultTitle: string): string | undefined {
 		// Don't set title if we have a markdown tooltip - the hover service will handle it
-		const title = markdownTooltip ? undefined : localize('openFile', "Current file context");
-		resourceLabel.setLabel(label, undefined, { iconPath: icon, title });
+		const title = markdownTooltip ? undefined : defaultTitle;
+		resourceLabel.setLabel(name, undefined, { iconPath: icon, title });
 		return title;
 	}
 
-	private renderResource(attachmentValue: Location | URI | undefined, label: IResourceLabel): string {
+	private renderResource(attachmentValue: Location | URI | undefined, isSelection: boolean, enabled: boolean, label: IResourceLabel): string {
 		const file = URI.isUri(attachmentValue) ? attachmentValue : attachmentValue!.uri;
-		const range = URI.isUri(attachmentValue) || !this.attachment.isSelection ? undefined : attachmentValue!.range;
+		const range = URI.isUri(attachmentValue) || !isSelection ? undefined : attachmentValue!.range;
 
 		const attachmentTypeName = file.scheme === Schemas.vscodeNotebookCell ? localize('cell.lowercase', "cell") : localize('file.lowercase', "file");
 
@@ -187,7 +209,7 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 		const uriLabel = this.labelService.getUriLabel(file, { relative: true });
 		const currentFile = localize('openEditor', "Current {0} context", attachmentTypeName);
 		const inactive = localize('enableHint', "Enable current {0} context", attachmentTypeName);
-		const currentFileHint = this.attachment.enabled || this.attachment.isSelection ? currentFile : inactive;
+		const currentFileHint = enabled || isSelection ? currentFile : inactive;
 		const title = `${currentFileHint}\n${uriLabel}`;
 
 		label.setFile(file, {
@@ -202,45 +224,48 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 		return title;
 	}
 
-	private async convertToRegularAttachment(): Promise<void> {
-		if (!this.attachment.value) {
+	private async convertToRegularAttachment(attachment: ChatImplicitContext): Promise<void> {
+		if (!attachment.value) {
 			return;
 		}
-		if (isStringImplicitContextValue(this.attachment.value)) {
-			if (this.attachment.value.value === undefined) {
-				await this.chatContextService.resolveChatContext(this.attachment.value);
+		if (isStringImplicitContextValue(attachment.value)) {
+			if (attachment.value.value === undefined) {
+				await this.chatContextService.resolveChatContext(attachment.value);
 			}
 			const context: IChatRequestStringVariableEntry = {
 				kind: 'string',
-				value: this.attachment.value.value,
-				id: this.attachment.id,
-				name: this.attachment.name,
-				icon: this.attachment.value.icon,
-				modelDescription: this.attachment.value.modelDescription,
-				uri: this.attachment.value.uri,
-				tooltip: this.attachment.value.tooltip,
-				commandId: this.attachment.value.commandId,
-				handle: this.attachment.value.handle
+				value: attachment.value.value,
+				id: attachment.id,
+				name: attachment.name,
+				icon: attachment.value.icon,
+				modelDescription: attachment.modelDescription,
+				uri: attachment.value.uri,
+				tooltip: attachment.value.tooltip,
+				commandId: attachment.value.commandId,
+				handle: attachment.value.handle
 			};
 			this.attachmentModel.addContext(context);
 		} else {
-			const file = URI.isUri(this.attachment.value) ? this.attachment.value : this.attachment.value.uri;
-			if (file.scheme === Schemas.vscodeNotebookCell && isLocation(this.attachment.value)) {
-				this.attachmentModel.addFile(file, this.attachment.value.range);
+			const file = URI.isUri(attachment.value) ? attachment.value : attachment.value.uri;
+			if (file.scheme === Schemas.vscodeNotebookCell && isLocation(attachment.value)) {
+				this.attachmentModel.addFile(file, attachment.value.range);
 			} else {
 				this.attachmentModel.addFile(file);
 			}
 		}
 		this.widgetRef()?.focusInput();
 	}
-	private async pinSelection(): Promise<void> {
-		if (!this.attachment.value || !this.attachment.isSelection) {
-			return;
-		}
 
-		if (!URI.isUri(this.attachment.value) && !isStringImplicitContextValue(this.attachment.value)) {
-			const location = this.attachment.value;
-			this.attachmentModel.addFile(location.uri, location.range);
+	private async pinSelection(): Promise<void> {
+		for (const attachment of this.attachment.values) {
+			if (!attachment.value || !attachment.isSelection) {
+				continue;
+			}
+
+			if (!URI.isUri(attachment.value) && !isStringImplicitContextValue(attachment.value)) {
+				const location = attachment.value;
+				this.attachmentModel.addFile(location.uri, location.range);
+			}
 		}
 		this.widgetRef()?.focusInput();
 	}

@@ -24,7 +24,7 @@ import { IUserDataProfileService } from '../../../../../../services/userDataProf
 import { IPathService } from '../../../../../../services/path/common/pathService.js';
 import { PromptsConfig } from '../../../../common/promptSyntax/config/config.js';
 import { PromptsType } from '../../../../common/promptSyntax/promptTypes.js';
-import { isValidGlob, isValidSkillPath, PromptFilesLocator } from '../../../../common/promptSyntax/utils/promptFilesLocator.js';
+import { hasGlobPattern, isValidGlob, isValidPromptFolderPath, PromptFilesLocator } from '../../../../common/promptSyntax/utils/promptFilesLocator.js';
 import { IMockFileEntry, IMockFolder, MockFilesystem } from '../testUtils/mockFilesystem.js';
 import { mockService } from './mock.js';
 import { TestUserDataProfileService } from '../../../../../../test/common/workbenchTestServices.js';
@@ -2921,7 +2921,7 @@ suite('PromptFilesLocator', () => {
 
 			for (const path of validPaths) {
 				assert.strictEqual(
-					isValidSkillPath(path),
+					isValidPromptFolderPath(path),
 					true,
 					`'${path}' must be accepted as a valid skill path (relative path).`,
 				);
@@ -2938,7 +2938,7 @@ suite('PromptFilesLocator', () => {
 
 			for (const path of validPaths) {
 				assert.strictEqual(
-					isValidSkillPath(path),
+					isValidPromptFolderPath(path),
 					true,
 					`'${path}' must be accepted as a valid skill path (user home path).`,
 				);
@@ -2955,7 +2955,7 @@ suite('PromptFilesLocator', () => {
 
 			for (const path of validPaths) {
 				assert.strictEqual(
-					isValidSkillPath(path),
+					isValidPromptFolderPath(path),
 					true,
 					`'${path}' must be accepted as a valid skill path (parent relative path).`,
 				);
@@ -2976,7 +2976,7 @@ suite('PromptFilesLocator', () => {
 
 			for (const path of invalidPaths) {
 				assert.strictEqual(
-					isValidSkillPath(path),
+					isValidPromptFolderPath(path),
 					false,
 					`'${path}' must be rejected (absolute paths not supported for portability).`,
 				);
@@ -2988,13 +2988,33 @@ suite('PromptFilesLocator', () => {
 				'~abc',
 				'~skills',
 				'~.config',
+				// Windows-style backslash paths are not supported for cross-platform sharing
+				'~\\folder',
+				'~\\.copilot\\skills',
 			];
 
 			for (const path of invalidPaths) {
 				assert.strictEqual(
-					isValidSkillPath(path),
+					isValidPromptFolderPath(path),
 					false,
-					`'${path}' must be rejected (tilde must be followed by / or \\).`,
+					`'${path}' must be rejected (tilde must be followed by / only, not \\).`,
+				);
+			}
+		});
+
+		testT('rejects paths with backslashes', async () => {
+			const invalidPaths = [
+				'folder\\subfolder',
+				'.\\skills',
+				'..\\parent\\folder',
+				'my\\skills\\folder',
+			];
+
+			for (const path of invalidPaths) {
+				assert.strictEqual(
+					isValidPromptFolderPath(path),
+					false,
+					`'${path}' must be rejected (backslash paths not supported for cross-platform sharing).`,
 				);
 			}
 		});
@@ -3015,7 +3035,7 @@ suite('PromptFilesLocator', () => {
 
 			for (const path of invalidPaths) {
 				assert.strictEqual(
-					isValidSkillPath(path),
+					isValidPromptFolderPath(path),
 					false,
 					`'${path}' must be rejected (glob patterns not supported for performance).`,
 				);
@@ -3032,7 +3052,7 @@ suite('PromptFilesLocator', () => {
 
 			for (const path of invalidPaths) {
 				assert.strictEqual(
-					isValidSkillPath(path),
+					isValidPromptFolderPath(path),
 					false,
 					`'${path}' must be rejected (empty or whitespace only).`,
 				);
@@ -3049,9 +3069,63 @@ suite('PromptFilesLocator', () => {
 
 			for (const path of validPaths) {
 				assert.strictEqual(
-					isValidSkillPath(path),
+					isValidPromptFolderPath(path),
 					true,
 					`'${path}' must be accepted (paths with spaces are valid).`,
+				);
+			}
+		});
+	});
+
+	suite('hasGlobPattern', () => {
+		testT('detects single wildcard', async () => {
+			const pathsWithGlob = [
+				'skills/*',
+				'my-skills/*',
+				'*.md',
+				'*/folder',
+			];
+
+			for (const path of pathsWithGlob) {
+				assert.strictEqual(
+					hasGlobPattern(path),
+					true,
+					`'${path}' must be detected as having a glob pattern.`,
+				);
+			}
+		});
+
+		testT('detects double wildcard', async () => {
+			const pathsWithGlob = [
+				'skills/**',
+				'**/skills',
+				'**/*.md',
+				'a/**/b',
+			];
+
+			for (const path of pathsWithGlob) {
+				assert.strictEqual(
+					hasGlobPattern(path),
+					true,
+					`'${path}' must be detected as having a glob pattern.`,
+				);
+			}
+		});
+
+		testT('returns false for paths without wildcards', async () => {
+			const pathsWithoutGlob = [
+				'skills',
+				'./skills/folder',
+				'~/skills',
+				'../parent/folder',
+				'.github/prompts',
+			];
+
+			for (const path of pathsWithoutGlob) {
+				assert.strictEqual(
+					hasGlobPattern(path),
+					false,
+					`'${path}' must not be detected as having a glob pattern.`,
 				);
 			}
 		});
