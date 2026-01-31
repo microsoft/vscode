@@ -192,9 +192,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	}
 
 	private updateViewPaneClasses(fromEvent: boolean): void {
-		const welcomeEnabled = !this.chatEntitlementService.sentiment.installed; // only show initially until Chat is setup
-		this.viewPaneContainer?.classList.toggle('chat-view-welcome-enabled', welcomeEnabled);
-
 		const activityBarLocationDefault = this.configurationService.getValue<string>(LayoutSettings.ACTIVITY_BAR_LOCATION) === 'default';
 		this.viewPaneContainer?.classList.toggle('activity-bar-location-default', activityBarLocationDefault);
 		this.viewPaneContainer?.classList.toggle('activity-bar-location-other', !activityBarLocationDefault);
@@ -232,11 +229,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => {
 			return e.affectsConfiguration(LayoutSettings.ACTIVITY_BAR_LOCATION);
 		})(() => this.updateViewPaneClasses(true)));
-
-		// Entitlement changes
-		this._register(this.chatEntitlementService.onDidChangeSentiment(() => {
-			this.updateViewPaneClasses(true);
-		}));
 	}
 
 	private onDidChangeAgents(): void {
@@ -377,23 +369,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			getHoverPosition: () => this.getSessionHoverPosition(),
 			trackActiveEditorSession: () => {
 				return !this._widget || this._widget.isEmpty(); // only track and reveal if chat widget is empty
-			},
-			overrideCompare: (sessionA: IAgentSession, sessionB: IAgentSession): number | undefined => {
-
-				// When stacked where only few sessions show, sort unread sessions to the top
-				if (this.sessionsViewerOrientation === AgentSessionsViewerOrientation.Stacked) {
-					const aIsUnread = !sessionA.isRead();
-					const bIsUnread = !sessionB.isRead();
-
-					if (aIsUnread && !bIsUnread) {
-						return -1; // a (unread) comes before b (read)
-					}
-					if (!aIsUnread && bIsUnread) {
-						return 1; // a (read) comes after b (unread)
-					}
-				}
-
-				return undefined;
 			},
 			overrideSessionOpenOptions: openEvent => {
 				if (this.sessionsViewerOrientation === AgentSessionsViewerOrientation.Stacked && !openEvent.sideBySide) {
@@ -623,7 +598,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		// When showing sessions stacked, adjust the height of the sessions list to make room for chat input
 		this._register(autorun(reader => {
-			chatWidget.input.height.read(reader);
+			chatWidget.inputPart.height.read(reader);
 			if (this.sessionsViewerVisible && this.sessionsViewerOrientation === AgentSessionsViewerOrientation.Stacked) {
 				this.relayout();
 			}
@@ -633,6 +608,11 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		const progressBadgeDisposables = this._register(new MutableDisposable<DisposableStore>());
 		const updateProgressBadge = () => {
 			progressBadgeDisposables.value = new DisposableStore();
+
+			if (!this.configurationService.getValue<boolean>(ChatConfiguration.ChatViewProgressBadgeEnabled)) {
+				this.activityBadge.clear();
+				return;
+			}
 
 			const model = chatWidget.viewModel?.model;
 			if (model) {
@@ -650,6 +630,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			}
 		};
 		this._register(chatWidget.onDidChangeViewModel(() => updateProgressBadge()));
+		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ChatConfiguration.ChatViewProgressBadgeEnabled))(() => updateProgressBadge()));
 		updateProgressBadge();
 	}
 

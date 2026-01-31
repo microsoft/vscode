@@ -110,6 +110,10 @@ export class ChatMcpAppSubPart extends BaseChatToolInvocationSubPart {
 			this._updateContainerHeight();
 		}));
 
+		this._register(onDidRemount(() => {
+			this._model.remount();
+		}));
+
 		this._register(context.onDidChangeVisibility(visible => {
 			if (visible) {
 				this._model.remount();

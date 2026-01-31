@@ -705,6 +705,7 @@ export class DefaultAccountUpdateContribution extends Disposable implements IWor
 
 			if (shouldDisable) {
 				await this.updateService.disableProgressiveReleases();
+				this.dispose();
 			}
 		} catch (error) {
 			// Silently ignore errors - if we can't get the account, we don't disable background updates

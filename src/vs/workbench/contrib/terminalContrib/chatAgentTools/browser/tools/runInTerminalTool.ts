@@ -66,6 +66,7 @@ import { isNumber, isString } from '../../../../../../base/common/types.js';
 import { ChatConfiguration } from '../../../../chat/common/constants.js';
 import { IChatWidgetService } from '../../../../chat/browser/chat.js';
 import { TerminalChatCommandId } from '../../../chat/browser/terminalChat.js';
+import { clamp } from '../../../../../../base/common/numbers.js';
 
 // #region Tool data
 
@@ -456,6 +457,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		const terminalCommandId = `tool-${generateUuid()}`;
 
 		let rewrittenCommand: string | undefined = args.command;
+		let forDisplayCommand: string | undefined = undefined;
 		for (const rewriter of this._commandLineRewriters) {
 			const rewriteResult = await rewriter.rewrite({
 				commandLine: rewrittenCommand,
@@ -465,6 +467,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			});
 			if (rewriteResult) {
 				rewrittenCommand = rewriteResult.rewritten;
+				forDisplayCommand = rewriteResult.forDisplay;
 				this._logService.info(`RunInTerminalTool: Command rewritten by ${rewriter.constructor.name}: ${rewriteResult.reasoning}`);
 			}
 		}
@@ -476,6 +479,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			commandLine: {
 				original: args.command,
 				toolEdited: rewrittenCommand === args.command ? undefined : rewrittenCommand,
+				forDisplay: forDisplayCommand,
 			},
 			cwd,
 			language,
@@ -729,10 +733,11 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		const executeCancellation = store.add(new CancellationTokenSource(token));
 
 		// Set up timeout if provided and the setting is enabled (only for foreground)
-		if (!args.isBackground && args.timeout !== undefined && args.timeout > 0) {
+		const timeoutValue = args.timeout !== undefined ? clamp(args.timeout, 0, Number.MAX_SAFE_INTEGER) : undefined;
+		if (!args.isBackground && timeoutValue !== undefined && timeoutValue > 0) {
 			const shouldEnforceTimeout = this._configurationService.getValue(TerminalChatAgentToolsSettingId.EnforceTimeoutFromModel) === true;
 			if (shouldEnforceTimeout) {
-				timeoutPromise = timeout(args.timeout);
+				timeoutPromise = timeout(timeoutValue);
 				timeoutPromise.then(() => {
 					if (!executeCancellation.token.isCancellationRequested) {
 						didTimeout = true;
@@ -782,6 +787,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			RunInTerminalTool._activeExecutions.set(termId, execution);
 
 			// Set up OutputMonitor when start marker is created
+			const startMarkerPromise = Event.toPromise(execution.strategy.onDidCreateStartMarker);
 			store.add(execution.strategy.onDidCreateStartMarker(startMarker => {
 				if (!outputMonitor) {
 					outputMonitor = store.add(this._instantiationService.createInstance(
@@ -805,6 +811,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			if (args.isBackground) {
 				// Background mode: wait for OutputMonitor to detect idle, then return
 				this._logService.debug(`RunInTerminalTool: Starting background execution \`${command}\``);
+				// Wait for the start marker to be created (which creates the outputMonitor)
+				await startMarkerPromise;
 				if (outputMonitor) {
 					await Event.toPromise(outputMonitor.onDidFinishCommand);
 					pollingResult = outputMonitor.pollingResult;

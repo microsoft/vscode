@@ -7,7 +7,7 @@ import { WebContentsView, webContents } from 'electron';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
-import { IBrowserViewBounds, IBrowserViewDevToolsStateEvent, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewLoadError, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent, IBrowserViewNewPageRequest, BrowserViewStorageScope, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, IBrowserViewFindInPageResult } from '../common/browserView.js';
+import { IBrowserViewBounds, IBrowserViewDevToolsStateEvent, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewLoadError, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent, IBrowserViewNewPageRequest, BrowserViewStorageScope, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, IBrowserViewFindInPageResult, IBrowserViewVisibilityEvent } from '../common/browserView.js';
 import { EVENT_KEY_CODE_MAP, KeyCode, KeyMod, SCAN_CODE_STR_TO_EVENT_KEY_CODE } from '../../../base/common/keyCodes.js';
 import { IWindowsMainService } from '../../windows/electron-main/windows.js';
 import { IBaseWindow, ICodeWindow } from '../../window/electron-main/window.js';
@@ -50,6 +50,9 @@ export class BrowserView extends Disposable {
 
 	private readonly _onDidChangeFocus = this._register(new Emitter<IBrowserViewFocusEvent>());
 	readonly onDidChangeFocus: Event<IBrowserViewFocusEvent> = this._onDidChangeFocus.event;
+
+	private readonly _onDidChangeVisibility = this._register(new Emitter<IBrowserViewVisibilityEvent>());
+	readonly onDidChangeVisibility: Event<IBrowserViewVisibilityEvent> = this._onDidChangeVisibility.event;
 
 	private readonly _onDidChangeDevToolsState = this._register(new Emitter<IBrowserViewDevToolsStateEvent>());
 	readonly onDidChangeDevToolsState: Event<IBrowserViewDevToolsStateEvent> = this._onDidChangeDevToolsState.event;
@@ -281,6 +284,7 @@ export class BrowserView extends Disposable {
 			canGoForward: webContents.navigationHistory.canGoForward(),
 			loading: webContents.isLoading(),
 			focused: webContents.isFocused(),
+			visible: this._view.getVisible(),
 			isDevToolsOpen: webContents.isDevToolsOpened(),
 			lastScreenshot: this._lastScreenshot,
 			lastFavicon: this._lastFavicon,
@@ -322,12 +326,17 @@ export class BrowserView extends Disposable {
 	 * Set the visibility of this view
 	 */
 	setVisible(visible: boolean): void {
+		if (this._view.getVisible() === visible) {
+			return;
+		}
+
 		// If the view is focused, pass focus back to the window when hiding
 		if (!visible && this._view.webContents.isFocused()) {
 			this._window?.win?.webContents.focus();
 		}
 
 		this._view.setVisible(visible);
+		this._onDidChangeVisibility.fire({ visible });
 	}
 
 	/**

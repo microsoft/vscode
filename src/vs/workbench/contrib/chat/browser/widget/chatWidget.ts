@@ -561,11 +561,17 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return this._attachmentCapabilities;
 	}
 
+	/**
+	 * Either the inline input (when editing) or the main input part
+	 */
 	get input(): ChatInputPart {
 		return this.viewModel?.editing && this.configurationService.getValue<string>('chat.editRequests') !== 'input' ? this.inlineInputPart : this.inputPart;
 	}
 
-	private get inputPart(): ChatInputPart {
+	/**
+	 * The main input part at the buttom of the chat widget. Use `input` to get the active input (main or inline editing part).
+	 */
+	get inputPart(): ChatInputPart {
 		return this.inputPartDisposable.value!;
 	}
 
@@ -783,6 +789,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			dom.setVisibility(numItems === 0, this.welcomeMessageContainer);
 			dom.setVisibility(numItems !== 0, this.listContainer);
 		}
+
+		// Only show welcome getting started until extension is installed
+		this.container.classList.toggle('chat-view-getting-started-disabled', this.chatEntitlementService.sentiment.installed);
 
 		this._onDidChangeEmptyState.fire();
 	}
@@ -1208,6 +1217,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		} else if (handoff.agent) {
 			// Regular handoff to specified agent
 			this._switchToAgentByName(handoff.agent);
+			// Switch to the specified model if provided
+			if (handoff.model) {
+				this.input.switchModelByQualifiedName([handoff.model]);
+			}
 			// Insert the handoff prompt into the input
 			this.input.setValue(promptToUse, false);
 			this.input.focus();

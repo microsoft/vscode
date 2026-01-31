@@ -6,13 +6,91 @@
 import assert from 'assert';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { AgentSessionsDataSource, AgentSessionListItem, IAgentSessionsFilter } from '../../../browser/agentSessions/agentSessionsViewer.js';
+import { AgentSessionsDataSource, AgentSessionListItem, IAgentSessionsFilter, sessionDateFromNow } from '../../../browser/agentSessions/agentSessionsViewer.js';
 import { AgentSessionSection, IAgentSession, IAgentSessionSection, IAgentSessionsModel, isAgentSessionSection } from '../../../browser/agentSessions/agentSessionsModel.js';
 import { ChatSessionStatus, isSessionInProgressStatus } from '../../../common/chatSessionsService.js';
 import { ITreeSorter } from '../../../../../../base/browser/ui/tree/tree.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { AgentSessionsGrouping } from '../../../browser/agentSessions/agentSessionsFilter.js';
+import { getAgentSessionTime } from '../../../browser/agentSessions/agentSessions.js';
+import { IChatSessionTiming } from '../../../common/chatService/chatService.js';
+
+suite('getAgentSessionTime', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('returns lastRequestEnded when available', () => {
+		const timing: IChatSessionTiming = {
+			created: 1000,
+			lastRequestStarted: 2000,
+			lastRequestEnded: 3000,
+		};
+		assert.strictEqual(getAgentSessionTime(timing), 3000);
+	});
+
+	test('returns lastRequestStarted when lastRequestEnded is undefined', () => {
+		const timing: IChatSessionTiming = {
+			created: 1000,
+			lastRequestStarted: 2000,
+			lastRequestEnded: undefined,
+		};
+		assert.strictEqual(getAgentSessionTime(timing), 2000);
+	});
+
+	test('returns created when both lastRequestEnded and lastRequestStarted are undefined', () => {
+		const timing: IChatSessionTiming = {
+			created: 1000,
+			lastRequestStarted: undefined,
+			lastRequestEnded: undefined,
+		};
+		assert.strictEqual(getAgentSessionTime(timing), 1000);
+	});
+});
+
+suite('sessionDateFromNow', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const ONE_DAY = 24 * 60 * 60 * 1000;
+
+	test('returns "1 day ago" for yesterday', () => {
+		const now = Date.now();
+		const startOfToday = new Date(now).setHours(0, 0, 0, 0);
+		// Time in the middle of yesterday
+		const yesterday = startOfToday - ONE_DAY / 2;
+		assert.strictEqual(sessionDateFromNow(yesterday), '1 day ago');
+	});
+
+	test('returns "2 days ago" for two days ago', () => {
+		const now = Date.now();
+		const startOfToday = new Date(now).setHours(0, 0, 0, 0);
+		const startOfYesterday = startOfToday - ONE_DAY;
+		// Time in the middle of two days ago
+		const twoDaysAgo = startOfYesterday - ONE_DAY / 2;
+		assert.strictEqual(sessionDateFromNow(twoDaysAgo), '2 days ago');
+	});
+
+	test('returns fromNow result for today', () => {
+		const now = Date.now();
+		// A time from today (5 minutes ago)
+		const fiveMinutesAgo = now - 5 * 60 * 1000;
+		const result = sessionDateFromNow(fiveMinutesAgo);
+		// Should return a time ago string, not "1 day ago" or "2 days ago"
+		assert.ok(result.includes('min') || result.includes('sec') || result === 'now', `Expected minutes/seconds ago or now, got: ${result}`);
+	});
+
+	test('returns fromNow result for three or more days ago', () => {
+		const now = Date.now();
+		const startOfToday = new Date(now).setHours(0, 0, 0, 0);
+		// Time 5 days ago
+		const fiveDaysAgo = startOfToday - 5 * ONE_DAY;
+		const result = sessionDateFromNow(fiveDaysAgo);
+		// Should return "5 days ago" from fromNow, not our special handling
+		assert.ok(result.includes('day'), `Expected days ago, got: ${result}`);
+		assert.ok(!result.includes('1 day') && !result.includes('2 days'), `Should not be 1 or 2 days ago, got: ${result}`);
+	});
+});
 
 suite('AgentSessionsDataSource', () => {
 
@@ -80,8 +158,8 @@ suite('AgentSessionsDataSource', () => {
 		return {
 			compare: (a, b) => {
 				// Sort by end time, most recent first
-				const aTime = a.timing.lastRequestEnded ?? a.timing.lastRequestStarted ?? a.timing.created;
-				const bTime = b.timing.lastRequestEnded ?? b.timing.lastRequestStarted ?? b.timing.created;
+				const aTime = getAgentSessionTime(a.timing);
+				const bTime = getAgentSessionTime(b.timing);
 				return bTime - aTime;
 			}
 		};

@@ -100,8 +100,11 @@ export class ApiRepository implements Repository {
 			filterEvent(this.#repository.onDidRunOperation, e => e.operation.kind === OperationKind.Checkout || e.operation.kind === OperationKind.CheckoutTracking), () => null);
 	}
 
-	apply(patch: string, reverse?: boolean): Promise<void> {
-		return this.#repository.apply(patch, reverse);
+	apply(patch: string, reverse?: boolean): Promise<void>;
+	apply(patch: string, options?: { allowEmpty?: boolean; reverse?: boolean; threeWay?: boolean }): Promise<void>;
+	apply(patch: string, reverseOrOptions?: boolean | { allowEmpty?: boolean; reverse?: boolean; threeWay?: boolean }): Promise<void> {
+		const options = typeof reverseOrOptions === 'boolean' ? { reverse: reverseOrOptions } : reverseOrOptions;
+		return this.#repository.apply(patch, options);
 	}
 
 	getConfigs(): Promise<{ key: string; value: string }[]> {

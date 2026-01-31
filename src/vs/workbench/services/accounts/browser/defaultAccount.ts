@@ -111,11 +111,15 @@ export class DefaultAccountService extends Disposable implements IDefaultAccount
 	declare _serviceBrand: undefined;
 
 	private defaultAccount: IDefaultAccount | null = null;
+	get policyData(): IPolicyData | null { return this.defaultAccountProvider?.policyData ?? null; }
 
 	private readonly initBarrier = new Barrier();
 
 	private readonly _onDidChangeDefaultAccount = this._register(new Emitter<IDefaultAccount | null>());
 	readonly onDidChangeDefaultAccount = this._onDidChangeDefaultAccount.event;
+
+	private readonly _onDidChangePolicyData = this._register(new Emitter<IPolicyData | null>());
+	readonly onDidChangePolicyData = this._onDidChangePolicyData.event;
 
 	private readonly defaultAccountConfig: IDefaultAccountConfig;
 	private defaultAccountProvider: IDefaultAccountProvider | null = null;
@@ -148,11 +152,15 @@ export class DefaultAccountService extends Disposable implements IDefaultAccount
 		}
 
 		this.defaultAccountProvider = provider;
+		if (this.defaultAccountProvider.policyData) {
+			this._onDidChangePolicyData.fire(this.defaultAccountProvider.policyData);
+		}
 		provider.refresh().then(account => {
 			this.defaultAccount = account;
 		}).finally(() => {
 			this.initBarrier.open();
 			this._register(provider.onDidChangeDefaultAccount(account => this.setDefaultAccount(account)));
+			this._register(provider.onDidChangePolicyData(policyData => this._onDidChangePolicyData.fire(policyData)));
 		});
 	}
 
@@ -178,6 +186,16 @@ export class DefaultAccountService extends Disposable implements IDefaultAccount
 	}
 }
 
+interface IAccountPolicyData {
+	readonly accountId: string;
+	readonly policyData: IPolicyData;
+}
+
+interface IDefaultAccountData {
+	defaultAccount: IDefaultAccount;
+	policyData: IAccountPolicyData | null;
+}
+
 type DefaultAccountStatusTelemetry = {
 	status: string;
 	initial: boolean;
@@ -192,11 +210,17 @@ type DefaultAccountStatusTelemetryClassification = {
 
 class DefaultAccountProvider extends Disposable implements IDefaultAccountProvider {
 
-	private _defaultAccount: IDefaultAccount | null = null;
-	get defaultAccount(): IDefaultAccount | null { return this._defaultAccount ?? null; }
+	private _defaultAccount: IDefaultAccountData | null = null;
+	get defaultAccount(): IDefaultAccount | null { return this._defaultAccount?.defaultAccount ?? null; }
+
+	private _policyData: IAccountPolicyData | null = null;
+	get policyData(): IPolicyData | null { return this._policyData?.policyData ?? null; }
 
 	private readonly _onDidChangeDefaultAccount = this._register(new Emitter<IDefaultAccount | null>());
 	readonly onDidChangeDefaultAccount = this._onDidChangeDefaultAccount.event;
+
+	private readonly _onDidChangePolicyData = this._register(new Emitter<IPolicyData | null>());
+	readonly onDidChangePolicyData = this._onDidChangePolicyData.event;
 
 	private readonly accountStatusContext: IContextKey<string>;
 	private initialized = false;
@@ -220,11 +244,28 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 	) {
 		super();
 		this.accountStatusContext = CONTEXT_DEFAULT_ACCOUNT_STATE.bindTo(contextKeyService);
+		this._policyData = this.getCachedPolicyData();
 		this.initPromise = this.init()
 			.finally(() => {
 				this.telemetryService.publicLog2<DefaultAccountStatusTelemetry, DefaultAccountStatusTelemetryClassification>('defaultaccount:status', { status: this.defaultAccount ? 'available' : 'unavailable', initial: true });
 				this.initialized = true;
 			});
+	}
+
+	private getCachedPolicyData(): IAccountPolicyData | null {
+		const cached = this.storageService.get(CACHED_POLICY_DATA_KEY, StorageScope.APPLICATION);
+		if (cached) {
+			try {
+				const { accountId, policyData } = JSON.parse(cached);
+				if (accountId && policyData) {
+					this.logService.debug('[DefaultAccount] Initializing with cached policy data');
+					return { accountId, policyData };
+				}
+			} catch (error) {
+				this.logService.error('[DefaultAccount] Failed to parse cached policy data', getErrorMessage(error));
+			}
+		}
+		return null;
 	}
 
 	private async init(): Promise<void> {
@@ -323,7 +364,7 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 		}
 	}
 
-	private async fetchDefaultAccount(): Promise<IDefaultAccount | null> {
+	private async fetchDefaultAccount(): Promise<IDefaultAccountData | null> {
 		const defaultAccountProvider = this.getDefaultAccountAuthenticationProvider();
 		this.logService.debug('[DefaultAccount] Default account provider ID:', defaultAccountProvider.id);
 
@@ -336,21 +377,44 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 		return await this.getDefaultAccountForAuthenticationProvider(defaultAccountProvider);
 	}
 
-	private setDefaultAccount(account: IDefaultAccount | null): void {
+	private setDefaultAccount(account: IDefaultAccountData | null): void {
 		if (equals(this._defaultAccount, account)) {
 			return;
 		}
 
 		this.logService.trace('[DefaultAccount] Updating default account:', account);
-		this._defaultAccount = account;
-		this._onDidChangeDefaultAccount.fire(this._defaultAccount);
-		if (this._defaultAccount) {
+		if (account) {
+			this._defaultAccount = account;
+			this.setPolicyData(account.policyData);
+			this._onDidChangeDefaultAccount.fire(this._defaultAccount.defaultAccount);
 			this.accountStatusContext.set(DefaultAccountStatus.Available);
 			this.logService.debug('[DefaultAccount] Account status set to Available');
 		} else {
+			this._defaultAccount = null;
+			this.setPolicyData(null);
+			this._onDidChangeDefaultAccount.fire(null);
 			this.accountDataPollScheduler.cancel();
 			this.accountStatusContext.set(DefaultAccountStatus.Unavailable);
 			this.logService.debug('[DefaultAccount] Account status set to Unavailable');
+		}
+	}
+
+	private setPolicyData(accountPolicyData: IAccountPolicyData | null): void {
+		if (equals(this._policyData, accountPolicyData)) {
+			return;
+		}
+		this._policyData = accountPolicyData;
+		this.cachePolicyData(accountPolicyData);
+		this._onDidChangePolicyData.fire(this._policyData?.policyData ?? null);
+	}
+
+	private cachePolicyData(accountPolicyData: IAccountPolicyData | null): void {
+		if (accountPolicyData) {
+			this.logService.debug('[DefaultAccount] Caching policy data for account:', accountPolicyData.accountId);
+			this.storageService.store(CACHED_POLICY_DATA_KEY, JSON.stringify(accountPolicyData), StorageScope.APPLICATION, StorageTarget.MACHINE);
+		} else {
+			this.logService.debug('[DefaultAccount] Removing cached policy data');
+			this.storageService.remove(CACHED_POLICY_DATA_KEY, StorageScope.APPLICATION);
 		}
 	}
 
@@ -373,7 +437,7 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 		return result;
 	}
 
-	private async getDefaultAccountForAuthenticationProvider(authenticationProvider: IDefaultAccountAuthenticationProvider): Promise<IDefaultAccount | null> {
+	private async getDefaultAccountForAuthenticationProvider(authenticationProvider: IDefaultAccountAuthenticationProvider): Promise<IDefaultAccountData | null> {
 		try {
 			this.logService.debug('[DefaultAccount] Getting Default Account from authenticated sessions for provider:', authenticationProvider.id);
 			const sessions = await this.findMatchingProviderSession(authenticationProvider.id, this.defaultAccountConfig.authenticationProvider.scopes);
@@ -390,7 +454,7 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 		}
 	}
 
-	private async getDefaultAccountFromAuthenticatedSessions(authenticationProvider: IDefaultAccountAuthenticationProvider, sessions: AuthenticationSession[]): Promise<IDefaultAccount | null> {
+	private async getDefaultAccountFromAuthenticatedSessions(authenticationProvider: IDefaultAccountAuthenticationProvider, sessions: AuthenticationSession[]): Promise<IDefaultAccountData | null> {
 		try {
 			const accountId = sessions[0].account.id;
 			const [entitlementsData, tokenEntitlementsData] = await Promise.all([
@@ -398,7 +462,7 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 				this.getTokenEntitlements(sessions),
 			]);
 
-			let policyData = this.getCachedPolicyData(accountId);
+			let policyData: Mutable<IPolicyData> | undefined = this._policyData?.accountId === accountId ? { ...this._policyData.policyData } : undefined;
 			if (tokenEntitlementsData) {
 				policyData = policyData ?? {};
 				policyData.chat_agent_enabled = tokenEntitlementsData.chat_agent_enabled;
@@ -411,18 +475,16 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 						policyData.mcpAccess = mcpRegistryProvider.registry_access;
 					}
 				}
-				this.cachePolicyData(accountId, policyData);
 			}
 
-			const account: IDefaultAccount = {
+			const defaultAccount: IDefaultAccount = {
 				authenticationProvider,
 				sessionId: sessions[0].id,
 				enterprise: authenticationProvider.enterprise || sessions[0].account.label.includes('_'),
 				entitlementsData,
-				policyData,
 			};
 			this.logService.debug('[DefaultAccount] Successfully created default account for provider:', authenticationProvider.id);
-			return account;
+			return { defaultAccount, policyData: policyData ? { accountId, policyData } : null };
 		} catch (error) {
 			this.logService.error('[DefaultAccount] Failed to create default account for provider:', authenticationProvider.id, getErrorMessage(error));
 			return null;
@@ -512,28 +574,6 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 			this.logService.error('Failed to fetch token entitlements', getErrorMessage(error));
 		}
 
-		return undefined;
-	}
-
-	private cachePolicyData(accountId: string, policyData: IPolicyData): void {
-		this.logService.debug('[DefaultAccount] Caching policy data for account:', accountId);
-		this.storageService.store(CACHED_POLICY_DATA_KEY, JSON.stringify({ accountId, policyData }), StorageScope.APPLICATION, StorageTarget.MACHINE);
-	}
-
-	private getCachedPolicyData(accountId: string): Mutable<IPolicyData> | undefined {
-		const cached = this.storageService.get(CACHED_POLICY_DATA_KEY, StorageScope.APPLICATION);
-		if (cached) {
-			try {
-				const { accountId: cachedAccountId, policyData } = JSON.parse(cached);
-				if (cachedAccountId === accountId) {
-					this.logService.debug('[DefaultAccount] Using cached policy data for account:', accountId);
-					return policyData;
-				}
-				this.logService.debug('[DefaultAccount] Cached policy data is for different account, ignoring');
-			} catch (error) {
-				this.logService.error('[DefaultAccount] Failed to parse cached policy data', getErrorMessage(error));
-			}
-		}
 		return undefined;
 	}
 
@@ -744,7 +784,6 @@ class DefaultAccountProviderContribution extends Disposable implements IWorkbenc
 		@IProductService productService: IProductService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IDefaultAccountService defaultAccountService: IDefaultAccountService,
-		@ILogService logService: ILogService,
 	) {
 		super();
 		const defaultAccountProvider = this._register(instantiationService.createInstance(DefaultAccountProvider, toDefaultAccountConfig(productService.defaultChatAgent)));
@@ -752,4 +791,4 @@ class DefaultAccountProviderContribution extends Disposable implements IWorkbenc
 	}
 }
 
-registerWorkbenchContribution2(DefaultAccountProviderContribution.ID, DefaultAccountProviderContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(DefaultAccountProviderContribution.ID, DefaultAccountProviderContribution, WorkbenchPhase.BlockStartup);

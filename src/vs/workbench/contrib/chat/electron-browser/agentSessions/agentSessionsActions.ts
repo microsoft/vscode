@@ -14,6 +14,7 @@ import { ChatEntitlementContextKeys } from '../../../../services/chat/common/cha
 import { IWorkbenchModeService } from '../../../../services/layout/common/workbenchModeService.js';
 import { IsAgentSessionsWorkspaceContext, WorkbenchModeContext } from '../../../../common/contextkeys.js';
 import { CHAT_CATEGORY } from '../../browser/actions/chatActions.js';
+import { ProductQualityContext } from '../../../../../platform/contextkey/common/contextkeys.js';
 
 export class OpenAgentSessionsWindowAction extends Action2 {
 	constructor() {
@@ -21,7 +22,7 @@ export class OpenAgentSessionsWindowAction extends Action2 {
 			id: 'workbench.action.openAgentSessionsWindow',
 			title: localize2('openAgentSessionsWindow', "Open Agent Sessions Window"),
 			category: CHAT_CATEGORY,
-			precondition: ChatEntitlementContextKeys.Setup.hidden.negate(),
+			precondition: ContextKeyExpr.and(ProductQualityContext.notEqualsTo('stable'), ChatEntitlementContextKeys.Setup.hidden.negate()),
 			f1: true,
 		});
 	}
@@ -54,6 +55,7 @@ export class SwitchToAgentSessionsModeAction extends Action2 {
 			title: localize2('switchToAgentSessionsMode', "Switch to Agent Sessions Mode"),
 			category: CHAT_CATEGORY,
 			precondition: ContextKeyExpr.and(
+				ProductQualityContext.notEqualsTo('stable'),
 				ChatEntitlementContextKeys.Setup.hidden.negate(),
 				IsAgentSessionsWorkspaceContext.toNegated(),
 				WorkbenchModeContext.notEqualsTo('agent-sessions')
@@ -75,6 +77,7 @@ export class SwitchToNormalModeAction extends Action2 {
 			title: localize2('switchToNormalMode', "Switch to Default Mode"),
 			category: CHAT_CATEGORY,
 			precondition: ContextKeyExpr.and(
+				ProductQualityContext.notEqualsTo('stable'),
 				ChatEntitlementContextKeys.Setup.hidden.negate(),
 				IsAgentSessionsWorkspaceContext.toNegated(),
 				WorkbenchModeContext.notEqualsTo('')

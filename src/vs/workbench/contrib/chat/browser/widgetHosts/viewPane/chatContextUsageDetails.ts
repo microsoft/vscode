@@ -37,6 +37,7 @@ export class ChatContextUsageDetails extends Disposable {
 
 	private readonly quotaItem: HTMLElement;
 	private readonly percentageLabel: HTMLElement;
+	private readonly tokenCountLabel: HTMLElement;
 	private readonly progressFill: HTMLElement;
 	private readonly tokenDetailsContainer: HTMLElement;
 	private readonly warningMessage: HTMLElement;
@@ -55,11 +56,15 @@ export class ChatContextUsageDetails extends Disposable {
 		// Using same structure as ChatUsageWidget quota items
 		this.quotaItem = this.domNode.appendChild($('.quota-item'));
 
-		// Header row with label and percentage
+		// Header row with label
 		const quotaItemHeader = this.quotaItem.appendChild($('.quota-item-header'));
 		const quotaItemLabel = quotaItemHeader.appendChild($('.quota-item-label'));
 		quotaItemLabel.textContent = localize('contextWindow', "Context Window");
-		this.percentageLabel = quotaItemHeader.appendChild($('.quota-item-value'));
+
+		// Token count and percentage row (on same line)
+		const tokenRow = this.quotaItem.appendChild($('.token-row'));
+		this.tokenCountLabel = tokenRow.appendChild($('.token-count-label'));
+		this.percentageLabel = tokenRow.appendChild($('.quota-item-value'));
 
 		// Progress bar - using same structure as chat usage widget
 		const progressBar = this.quotaItem.appendChild($('.quota-bar'));
@@ -98,10 +103,16 @@ export class ChatContextUsageDetails extends Disposable {
 	}
 
 	update(data: IChatContextUsageData): void {
-		const { percentage, promptTokenDetails } = data;
+		const { percentage, promptTokens, maxInputTokens, promptTokenDetails } = data;
 
-		// Update percentage label
-		this.percentageLabel.textContent = `${percentage.toFixed(0)}%`;
+		// Update token count and percentage on same line
+		this.tokenCountLabel.textContent = localize(
+			'tokenCount',
+			"{0} / {1} tokens",
+			this.formatTokenCount(promptTokens, 1),
+			this.formatTokenCount(maxInputTokens, 0)
+		);
+		this.percentageLabel.textContent = `• ${percentage.toFixed(0)}%`;
 
 		// Update progress bar
 		this.progressFill.style.width = `${Math.min(100, percentage)}%`;
@@ -119,6 +130,15 @@ export class ChatContextUsageDetails extends Disposable {
 
 		// Show/hide warning message
 		this.warningMessage.style.display = percentage >= 75 ? '' : 'none';
+	}
+
+	private formatTokenCount(count: number, decimals: number): string {
+		if (count >= 1000000) {
+			return `${(count / 1000000).toFixed(decimals)}M`;
+		} else if (count >= 1000) {
+			return `${(count / 1000).toFixed(decimals)}K`;
+		}
+		return count.toString();
 	}
 
 	private renderTokenDetails(details: readonly IChatContextUsagePromptTokenDetail[] | undefined, contextWindowPercentage: number): void {

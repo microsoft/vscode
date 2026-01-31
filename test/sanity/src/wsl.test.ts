@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { spawn } from 'child_process';
 import { _electron } from 'playwright';
 import { TestContext } from './context.js';
 import { UITest } from './uiTest.js';
@@ -59,55 +58,32 @@ export function setup(context: TestContext) {
 			return;
 		}
 
-		const wslPath = context.toWslPath(entryPoint);
-		const args = [
-			'--accept-server-license-terms',
-			'--connection-token', context.getRandomToken(),
-			'--host', '0.0.0.0',
-			'--port', context.getUniquePort(),
-			'--server-data-dir', context.createWslTempDir(),
-			'--extensions-dir', context.createWslTempDir(),
-		];
+		await context.runCliApp('WSL Server', 'wsl',
+			[
+				context.toWslPath(entryPoint),
+				'--accept-server-license-terms',
+				'--connection-token', context.getRandomToken(),
+				'--host', '0.0.0.0',
+				'--port', context.getUniquePort(),
+				'--server-data-dir', context.createWslTempDir(),
+				'--extensions-dir', context.createWslTempDir(),
+			],
+			async (line) => {
+				const port = /Extension host agent listening on (\d+)/.exec(line)?.[1];
+				if (!port) {
+					return;
+				}
 
-		context.log(`Starting server in WSL: ${wslPath} with args ${args.join(' ')}`);
-		const server = spawn('wsl', [wslPath, ...args], { shell: true });
+				const url = new URL('version', context.getWebServerUrl(port)).toString();
 
-		let testError: Error | undefined;
+				context.log(`Fetching version from ${url}`);
+				const response = await context.fetchNoErrors(url);
+				const version = await response.text();
+				assert.strictEqual(version, context.options.commit, `Expected commit ${context.options.commit} but got ${version}`);
 
-		server.stderr.on('data', (data) => {
-			context.error(`[WSL Server Error] ${data.toString().trim()}`);
-		});
-
-		server.stdout.on('data', (data) => {
-			const text = data.toString().trim();
-			text.split('\n').forEach((line: string) => {
-				context.log(`[WSL Server Output] ${line}`);
-			});
-
-			const port = /Extension host agent listening on (\d+)/.exec(text)?.[1];
-			if (port) {
-				const url = context.getWebServerUrl(port);
-				url.pathname = '/version';
-				runWebTest(url.toString())
-					.catch((error) => { testError = error; })
-					.finally(() => context.killProcessTree(server.pid!));
+				return true;
 			}
-		});
-
-		await new Promise<void>((resolve, reject) => {
-			server.on('error', reject);
-			server.on('exit', resolve);
-		});
-
-		if (testError) {
-			throw testError;
-		}
-	}
-
-	async function runWebTest(url: string) {
-		const response = await context.fetchNoErrors(url);
-		const text = await response.text();
-		assert.strictEqual(text, context.options.commit, `Expected commit ${context.options.commit} but got ${text}`);
+		);
 	}
 
 	async function testServerWeb(entryPoint: string) {
@@ -115,75 +91,47 @@ export function setup(context: TestContext) {
 			return;
 		}
 
-		const wslPath = context.toWslPath(entryPoint);
 		const wslWorkspaceDir = context.createWslTempDir();
 		const wslExtensionsDir = context.createWslTempDir();
 		const token = context.getRandomToken();
 		const test = new WslUITest(context, undefined, wslWorkspaceDir, wslExtensionsDir);
 
-		const args = [
-			'--accept-server-license-terms',
-			'--connection-token', token,
-			'--host', '0.0.0.0',
-			'--port', context.getUniquePort(),
-			'--server-data-dir', context.createWslTempDir(),
-			'--extensions-dir', wslExtensionsDir,
-			'--user-data-dir', context.createWslTempDir(),
-		];
+		await context.runCliApp('WSL Server', 'wsl',
+			[
+				context.toWslPath(entryPoint),
+				'--accept-server-license-terms',
+				'--connection-token', token,
+				'--host', '0.0.0.0',
+				'--port', context.getUniquePort(),
+				'--server-data-dir', context.createWslTempDir(),
+				'--extensions-dir', wslExtensionsDir,
+				'--user-data-dir', context.createWslTempDir(),
+			],
+			async (line) => {
+				const port = /Extension host agent listening on (\d+)/.exec(line)?.[1];
+				if (!port) {
+					return false;
+				}
 
-		context.log(`Starting web server in WSL: ${wslPath} with args ${args.join(' ')}`);
-		const server = spawn('wsl', [wslPath, ...args], { shell: true });
-
-		let testError: Error | undefined;
-
-		server.stderr.on('data', (data) => {
-			const text = data.toString().trim();
-			if (!/ECONNRESET/.test(text)) {
-				context.error(`[WSL Server Error] ${text}`);
-			}
-		});
-
-		server.stdout.on('data', (data) => {
-			const text = data.toString().trim();
-			text.split('\n').forEach((line: string) => {
-				context.log(`[WSL Server Output] ${line}`);
-			});
-
-			const port = /Extension host agent listening on (\d+)/.exec(text)?.[1];
-			if (port) {
 				const url = context.getWebServerUrl(port, token, wslWorkspaceDir).toString();
-				runUITest(url, test)
-					.catch((error) => { testError = error; })
-					.finally(() => context.killProcessTree(server.pid!));
+				const browser = await context.launchBrowser();
+				const page = await context.getPage(browser.newPage());
+
+				context.log(`Navigating to ${url}`);
+				await page.goto(url, { waitUntil: 'networkidle' });
+
+				context.log('Waiting for the workbench to load');
+				await page.waitForSelector('.monaco-workbench');
+
+				await test.run(page);
+
+				context.log('Closing browser');
+				await browser.close();
+
+				test.validate();
+				return true;
 			}
-		});
-
-		await new Promise<void>((resolve, reject) => {
-			server.on('error', reject);
-			server.on('exit', resolve);
-		});
-
-		if (testError) {
-			throw testError;
-		}
-	}
-
-	async function runUITest(url: string, test: WslUITest) {
-		const browser = await context.launchBrowser();
-		const page = await context.getPage(browser.newPage());
-
-		context.log(`Navigating to ${url}`);
-		await page.goto(url, { waitUntil: 'networkidle' });
-
-		context.log('Waiting for the workbench to load');
-		await page.waitForSelector('.monaco-workbench');
-
-		await test.run(page);
-
-		context.log('Closing browser');
-		await browser.close();
-
-		test.validate();
+		);
 	}
 
 	async function testDesktopApp(entryPoint: string, dataDir: string) {
@@ -204,7 +152,7 @@ export function setup(context: TestContext) {
 		const app = await _electron.launch({ executablePath: entryPoint, args });
 		const window = await context.getPage(app.firstWindow());
 
-		context.log('Installing WPS extension');
+		context.log('Installing WSL extension');
 		await window.getByRole('button', { name: 'Install and Reload' }).click();
 
 		context.log('Waiting for WSL connection');
@@ -234,13 +182,13 @@ class WslUITest extends UITest {
 
 	protected override verifyTextFileCreated() {
 		this.context.log('Verifying file contents in WSL');
-		const result = this.context.run('wsl', 'cat', `${this.wslWorkspaceDir}/helloWorld.txt`);
+		const result = this.context.runNoErrors('wsl', 'cat', `${this.wslWorkspaceDir}/helloWorld.txt`);
 		assert.strictEqual(result.stdout.trim(), 'Hello, World!', 'File contents in WSL do not match expected value');
 	}
 
 	protected override verifyExtensionInstalled() {
 		this.context.log(`Verifying extension is installed in WSL at ${this.wslExtensionsDir}`);
-		const result = this.context.run('wsl', 'ls', this.wslExtensionsDir);
+		const result = this.context.runNoErrors('wsl', 'ls', this.wslExtensionsDir);
 		const hasExtension = result.stdout.split('\n').some(ext => ext.startsWith('github.vscode-pull-request-github'));
 		assert.strictEqual(hasExtension, true, 'GitHub Pull Requests extension is not installed in WSL');
 	}

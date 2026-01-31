@@ -14,15 +14,12 @@ import { MarshalledId } from '../../../../../../base/common/marshallingIds.js';
 import { localize } from '../../../../../../nls.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../../../platform/actions/browser/toolbar.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IChatViewTitleActionContext } from '../../../common/actions/chatActions.js';
 import { IChatModel } from '../../../common/model/chatModel.js';
-import { ChatConfiguration } from '../../../common/constants.js';
 import { ActionViewItem, IActionViewItemOptions } from '../../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IAction } from '../../../../../../base/common/actions.js';
 import { AgentSessionsPicker } from '../../agentSessions/agentSessionsPicker.js';
-import { ChatContextUsageWidget } from './chatContextUsageWidget.js';
 
 export interface IChatViewTitleDelegate {
 	focusChat(): void;
@@ -46,32 +43,19 @@ export class ChatViewTitleControl extends Disposable {
 
 	private navigationToolbar?: MenuWorkbenchToolBar;
 	private actionsToolbar?: MenuWorkbenchToolBar;
-	private contextUsageWidget?: ChatContextUsageWidget;
 
 	private lastKnownHeight = 0;
 
 	constructor(
 		private readonly container: HTMLElement,
 		private readonly delegate: IChatViewTitleDelegate,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
 
 		this.render(this.container);
 
-		this.registerListeners();
 		this.registerActions();
-	}
-
-	private registerListeners(): void {
-
-		// Update on configuration changes
-		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(ChatConfiguration.ChatViewTitleEnabled)) {
-				this.doUpdate();
-			}
-		}));
 	}
 
 	private registerActions(): void {
@@ -101,7 +85,6 @@ export class ChatViewTitleControl extends Disposable {
 	private render(parent: HTMLElement): void {
 		const elements = h('div.chat-view-title-container', [
 			h('div.chat-view-title-navigation-toolbar@navigationToolbar'),
-			h('div.chat-view-title-context-usage@contextUsage'),
 			h('div.chat-view-title-actions-toolbar@actionsToolbar'),
 		]);
 
@@ -119,13 +102,6 @@ export class ChatViewTitleControl extends Disposable {
 			},
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 			menuOptions: { shouldForwardArgs: true }
-		}));
-
-		// Context usage widget
-		this.contextUsageWidget = this._register(this.instantiationService.createInstance(ChatContextUsageWidget));
-		elements.contextUsage.appendChild(this.contextUsageWidget.domNode);
-		this._register(this.contextUsageWidget.onDidChangeVisibility(() => {
-			this.checkHeight();
 		}));
 
 		// Actions toolbar on the right
@@ -153,17 +129,9 @@ export class ChatViewTitleControl extends Disposable {
 			if (e.kind === 'setCustomTitle' || e.kind === 'addRequest') {
 				this.doUpdate();
 			}
-			if (e.kind === 'completedRequest') {
-				this.updateContextUsage();
-			}
 		});
 
 		this.doUpdate();
-		this.updateContextUsage();
-	}
-
-	private updateContextUsage(): void {
-		this.contextUsageWidget?.update(this.model?.lastRequest);
 	}
 
 	private doUpdate(): void {
@@ -186,14 +154,6 @@ export class ChatViewTitleControl extends Disposable {
 		}
 	}
 
-	private checkHeight(): void {
-		const currentHeight = this.getHeight();
-		if (currentHeight !== this.lastKnownHeight) {
-			this.lastKnownHeight = currentHeight;
-			this._onDidChangeHeight.fire();
-		}
-	}
-
 	private updateTitle(title: string): void {
 		if (!this.titleContainer) {
 			return;
@@ -211,15 +171,7 @@ export class ChatViewTitleControl extends Disposable {
 	}
 
 	private shouldRender(): boolean {
-		if (!this.isEnabled()) {
-			return false; // title hidden via setting
-		}
-
 		return !!this.model?.title; // we need a chat showing and not being empty
-	}
-
-	private isEnabled(): boolean {
-		return this.configurationService.getValue<boolean>(ChatConfiguration.ChatViewTitleEnabled) === true;
 	}
 
 	getHeight(): number {

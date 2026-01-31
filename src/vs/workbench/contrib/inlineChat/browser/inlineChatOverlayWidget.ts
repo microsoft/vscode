@@ -51,15 +51,15 @@ export class InlineChatInputWidget extends Disposable {
 	private readonly _input: IActiveCodeEditor;
 	private readonly _position = observableValue<IOverlayWidgetPosition | null>(this, null);
 	readonly position: IObservable<IOverlayWidgetPosition | null> = this._position;
-	readonly minContentWidthInPx = constObservable(0);
+
 
 	private readonly _showStore = this._store.add(new DisposableStore());
+	private readonly _stickyScrollHeight: IObservable<number>;
 	private _inlineStartAction: IAction | undefined;
 	private _anchorLineNumber: number = 0;
 	private _anchorLeft: number = 0;
 	private _anchorAbove: boolean = false;
 
-	readonly allowEditorOverflow = true;
 
 	constructor(
 		private readonly _editorObs: ObservableCodeEditor,
@@ -106,18 +106,20 @@ export class InlineChatInputWidget extends Disposable {
 
 		const model = this._store.add(modelService.createModel('', null, URI.parse(`gutter-input:${Date.now()}`), true));
 		this._input.setModel(model);
-		this._input.layout({ width: 200, height: 18 });
+
+		// Initialize sticky scroll height observable
+		const stickyScrollController = StickyScrollController.get(this._editorObs.editor);
+		this._stickyScrollHeight = stickyScrollController ? observableFromEvent(stickyScrollController.onDidChangeStickyScrollHeight, () => stickyScrollController.stickyScrollWidgetHeight) : constObservable(0);
 
 		// Update placeholder based on selection state
 		this._store.add(autorun(r => {
 			const selection = this._editorObs.cursorSelection.read(r);
 			const hasSelection = selection && !selection.isEmpty();
 			const placeholderText = hasSelection
-				? localize('placeholderWithSelection', "Edit selection")
+				? localize('placeholderWithSelection', "Modify selected code")
 				: localize('placeholderNoSelection', "Generate code");
-			this._input.updateOptions({
-				placeholder: this._keybindingService.appendKeybinding(placeholderText, ACTION_START)
-			});
+
+			this._input.updateOptions({ placeholder: this._keybindingService.appendKeybinding(placeholderText, ACTION_START) });
 		}));
 
 		// Listen to content size changes and resize the input editor (max 3 lines)
@@ -198,8 +200,7 @@ export class InlineChatInputWidget extends Disposable {
 
 		// Clear input state
 		this._input.getModel().setValue('');
-		this._inputContainer.style.height = '26px';
-		this._input.layout({ width: 200, height: 18 });
+		this._updateInputHeight(this._input.getContentHeight());
 
 		// Refresh actions from menu
 		this._refreshActions();
@@ -216,8 +217,8 @@ export class InlineChatInputWidget extends Disposable {
 		this._showStore.add(this._editorObs.createOverlayWidget({
 			domNode: this._domNode,
 			position: this._position,
-			minContentWidthInPx: this.minContentWidthInPx,
-			allowEditorOverflow: this.allowEditorOverflow,
+			minContentWidthInPx: constObservable(0),
+			allowEditorOverflow: true,
 		}));
 
 		// If anchoring above, adjust position after render to account for widget height
@@ -225,13 +226,14 @@ export class InlineChatInputWidget extends Disposable {
 			this._updatePosition();
 		}
 
-		// Update position on scroll, hide if anchor line is out of view
+		// Update position on scroll, hide if anchor line is out of view (only when input is empty)
 		this._showStore.add(this._editorObs.editor.onDidScrollChange(() => {
 			const visibleRanges = this._editorObs.editor.getVisibleRanges();
 			const isLineVisible = visibleRanges.some(range =>
 				this._anchorLineNumber >= range.startLineNumber && this._anchorLineNumber <= range.endLineNumber
 			);
-			if (!isLineVisible) {
+			const hasContent = !!this._input.getModel().getValue();
+			if (!isLineVisible && !hasContent) {
 				this._hide();
 			} else {
 				this._updatePosition();
@@ -244,6 +246,7 @@ export class InlineChatInputWidget extends Disposable {
 
 	private _updatePosition(): void {
 		const editor = this._editorObs.editor;
+		const lineHeight = editor.getOption(EditorOption.lineHeight);
 		const top = editor.getTopForLineNumber(this._anchorLineNumber) - editor.getScrollTop();
 		let adjustedTop = top;
 
@@ -251,12 +254,22 @@ export class InlineChatInputWidget extends Disposable {
 			const widgetHeight = this._domNode.offsetHeight;
 			adjustedTop = top - widgetHeight;
 		} else {
-			const lineHeight = editor.getOption(EditorOption.lineHeight);
 			adjustedTop = top + lineHeight;
 		}
 
+		// Clamp to viewport bounds when anchor line is out of view
+		const stickyScrollHeight = this._stickyScrollHeight.get();
+		const layoutInfo = editor.getLayoutInfo();
+		const widgetHeight = this._domNode.offsetHeight;
+		const minTop = stickyScrollHeight;
+		const maxTop = layoutInfo.height - widgetHeight;
+
+		const clampedTop = Math.max(minTop, Math.min(adjustedTop, maxTop));
+		const isClamped = clampedTop !== adjustedTop;
+		this._domNode.classList.toggle('clamped', isClamped);
+
 		this._position.set({
-			preference: { top: adjustedTop, left: this._anchorLeft },
+			preference: { top: clampedTop, left: this._anchorLeft },
 			stackOrdinal: 10000,
 		}, undefined);
 	}
@@ -265,6 +278,11 @@ export class InlineChatInputWidget extends Disposable {
 	 * Hide the widget (removes from editor but does not dispose).
 	 */
 	private _hide(): void {
+		// Focus editor if focus is still within the editor's DOM
+		const editorDomNode = this._editorObs.editor.getDomNode();
+		if (editorDomNode && dom.isAncestorOfActiveElement(editorDomNode)) {
+			this._editorObs.editor.focus();
+		}
 		this._position.set(null, undefined);
 		this._showStore.clear();
 	}

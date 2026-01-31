@@ -8,6 +8,7 @@ export interface MermaidWebviewInfo {
 	readonly id: string;
 	readonly webview: vscode.Webview;
 	readonly mermaidSource: string;
+	readonly title: string | undefined;
 	readonly type: 'chat' | 'editor';
 }
 
@@ -27,7 +28,7 @@ export class MermaidWebviewManager {
 		return this._activeWebviewId ? this._webviews.get(this._activeWebviewId) : undefined;
 	}
 
-	public registerWebview(id: string, webview: vscode.Webview, mermaidSource: string, type: 'chat' | 'editor'): vscode.Disposable {
+	public registerWebview(id: string, webview: vscode.Webview, mermaidSource: string, title: string | undefined, type: 'chat' | 'editor'): vscode.Disposable {
 		if (this._webviews.has(id)) {
 			throw new Error(`Webview with id ${id} is already registered.`);
 		}
@@ -36,6 +37,7 @@ export class MermaidWebviewManager {
 			id,
 			webview,
 			mermaidSource,
+			title,
 			type
 		};
 		this._webviews.set(id, info);

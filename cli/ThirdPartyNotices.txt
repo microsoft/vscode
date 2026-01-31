@@ -2952,7 +2952,7 @@ getrandom 0.1.16 - MIT OR Apache-2.0
 getrandom 0.2.15 - MIT OR Apache-2.0
 https://github.com/rust-random/getrandom
 
-Copyright (c) 2018-2025 The rust-random Project Developers
+Copyright (c) 2018-2026 The rust-random Project Developers
 Copyright (c) 2014 The Rust Project Developers
 
 Permission is hereby granted, free of charge, to any
@@ -7229,7 +7229,7 @@ rand_core 0.5.1 - MIT OR Apache-2.0
 rand_core 0.6.4 - MIT OR Apache-2.0
 https://github.com/rust-random/rand_core
 
-Copyright (c) 2018-2025 The Rand Project Developers
+Copyright (c) 2018-2026 The Rand Project Developers
 
 Permission is hereby granted, free of charge, to any
 person obtaining a copy of this software and associated

@@ -5,7 +5,6 @@
 
 import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { fromNow } from '../../../../../base/common/date.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
@@ -15,8 +14,8 @@ import { IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSepara
 import { openSession } from './agentSessionsOpener.js';
 import { IAgentSession, isLocalAgentSessionItem } from './agentSessionsModel.js';
 import { IAgentSessionsService } from './agentSessionsService.js';
-import { AgentSessionsSorter, groupAgentSessionsByDate } from './agentSessionsViewer.js';
-import { AGENT_SESSION_DELETE_ACTION_ID, AGENT_SESSION_RENAME_ACTION_ID } from './agentSessions.js';
+import { AgentSessionsSorter, groupAgentSessionsByDate, sessionDateFromNow } from './agentSessionsViewer.js';
+import { AGENT_SESSION_DELETE_ACTION_ID, AGENT_SESSION_RENAME_ACTION_ID, getAgentSessionTime } from './agentSessions.js';
 
 interface ISessionPickItem extends IQuickPickItem {
 	readonly session: IAgentSession;
@@ -44,7 +43,7 @@ export const deleteButton: IQuickInputButton = {
 
 export function getSessionDescription(session: IAgentSession): string {
 	const descriptionText = typeof session.description === 'string' ? session.description : session.description ? renderAsPlaintext(session.description) : undefined;
-	const timeAgo = fromNow(session.timing.lastRequestEnded ?? session.timing.lastRequestStarted ?? session.timing.created);
+	const timeAgo = sessionDateFromNow(getAgentSessionTime(session.timing));
 	const descriptionParts = [descriptionText, session.providerLabel, timeAgo].filter(part => !!part);
 
 	return descriptionParts.join(' • ');

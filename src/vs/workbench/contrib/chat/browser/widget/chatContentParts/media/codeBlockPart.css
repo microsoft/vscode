@@ -156,16 +156,50 @@
 	color: var(--vscode-textLink-foreground);
 }
 
-.interactive-result-code-block.compare .interactive-result-header {
-	display: flex;
-	justify-content: space-between;
-	align-items: center;
-	padding: 0 3px;
-	box-sizing: border-box;
-	border-bottom: solid 1px var(--vscode-chat-requestBorder);
-}
+.interactive-result-code-block.compare {
+	& .interactive-result-header {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		padding: 0 3px;
+		box-sizing: border-box;
+		border-bottom: solid 1px var(--vscode-chat-requestBorder);
 
-.interactive-result-code-block.compare.no-diff .interactive-result-header,
-.interactive-result-code-block.compare.no-diff .interactive-result-editor {
-	display: none;
+		& .monaco-icon-label {
+			flex: 1;
+			min-width: 0;
+
+			& > .monaco-icon-label-container {
+				display: flex;
+				align-items: baseline;
+
+				& > .monaco-icon-name-container {
+					flex-shrink: 0;
+
+					& > .label-name {
+						white-space: nowrap;
+					}
+				}
+
+				& > .monaco-icon-description-container {
+					min-width: 0;
+					flex: 1;
+
+					& > .label-description {
+						white-space: nowrap;
+						overflow: hidden;
+						text-overflow: ellipsis;
+						display: block;
+					}
+				}
+			}
+		}
+	}
+
+	&.no-diff {
+		& .interactive-result-header,
+		& .interactive-result-editor {
+			display: none;
+		}
+	}
 }

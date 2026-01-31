@@ -354,6 +354,7 @@ export interface MainThreadTreeViewsShape extends IDisposable {
 	$setBadge(treeViewId: string, badge: IViewBadge | undefined): void;
 	$resolveDropFileData(destinationViewId: string, requestId: number, dataItemId: string): Promise<VSBuffer>;
 	$disposeTree(treeViewId: string): Promise<void>;
+	$logResolveTreeNodeRetry(extensionId: string, retryCount: number, exhausted: boolean): void;
 }
 
 export interface MainThreadDownloadServiceShape extends IDisposable {
@@ -1555,7 +1556,8 @@ export type IChatProgressDto =
 	| IChatExternalEditsDto
 	| IChatResponseClearToPreviousToolInvocationDto
 	| IChatBeginToolInvocationDto
-	| IChatUpdateToolInvocationDto;
+	| IChatUpdateToolInvocationDto
+	| IChatUsageDto;
 
 export interface ExtHostUrlsShape {
 	$handleExternalUri(handle: number, uri: UriComponents): Promise<void>;
@@ -1613,6 +1615,7 @@ export interface MainThreadWorkspaceShape extends IDisposable {
 	$loadCertificates(): Promise<string[]>;
 	$requestResourceTrust(options: ResourceTrustRequestOptionsDto): Promise<boolean | undefined>;
 	$requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Promise<boolean | undefined>;
+	$isResourceTrusted(resource: UriComponents): Promise<boolean>;
 	$registerEditSessionIdentityProvider(handle: number, scheme: string): void;
 	$unregisterEditSessionIdentityProvider(handle: number): void;
 	$registerCanonicalUriProvider(handle: number, scheme: string): void;
@@ -2096,6 +2099,7 @@ export interface ExtHostWorkspaceShape {
 	$acceptWorkspaceData(workspace: IWorkspaceData | null): void;
 	$handleTextSearchResult(result: search.IRawFileMatch2, requestId: number): void;
 	$onDidGrantWorkspaceTrust(): void;
+	$onDidChangeWorkspaceTrustedFolders(): void;
 	$getEditSessionIdentifier(folder: UriComponents, token: CancellationToken): Promise<string | undefined>;
 	$provideEditSessionIdentityMatch(folder: UriComponents, identity1: string, identity2: string, token: CancellationToken): Promise<EditSessionIdentityMatch | undefined>;
 	$onWillCreateEditSessionIdentity(folder: UriComponents, token: CancellationToken, timeout: number): Promise<void>;
@@ -2364,6 +2368,13 @@ export interface IChatUpdateToolInvocationDto {
 	};
 }
 
+export interface IChatUsageDto {
+	kind: 'usage';
+	promptTokens: number;
+	completionTokens: number;
+	promptTokenDetails?: readonly { category: string; label: string; percentageOfPrompt: number }[];
+}
+
 export type ICellEditOperationDto =
 	notebookCommon.ICellMetadataEdit
 	| notebookCommon.IDocumentMetadataEdit
@@ -2576,7 +2587,7 @@ export interface ExtHostQuickOpenShape {
 	$onDidAccept(sessionId: number): void;
 	$onDidChangeValue(sessionId: number, value: string): void;
 	$onDidTriggerButton(sessionId: number, handle: number, checked?: boolean): void;
-	$onDidTriggerItemButton(sessionId: number, itemHandle: number, buttonHandle: number): void;
+	$onDidTriggerItemButton(sessionId: number, itemHandle: number, buttonHandle: number, checked?: boolean): void;
 	$onDidHide(sessionId: number): void;
 }
 

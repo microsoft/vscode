@@ -205,6 +205,7 @@ export interface IProductConfiguration {
 		readonly hasPrereleaseVersion?: boolean;
 		readonly excludeVersionRange?: string;
 	}>;
+	readonly extensionsForceVersionByQuality?: readonly string[];
 
 	readonly msftInternalDomains?: string[];
 	readonly linkProtectionTrustedDomains?: readonly string[];

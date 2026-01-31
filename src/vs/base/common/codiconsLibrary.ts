@@ -652,4 +652,6 @@ export const codiconsLibrary = {
 	worktree: register('worktree', 0xec7e),
 	screenCut: register('screen-cut', 0xec7f),
 	ask: register('ask', 0xec80),
+	openai: register('openai', 0xec81),
+	claude: register('claude', 0xec82),
 } as const;

@@ -235,6 +235,7 @@ export interface IExtensionContributions {
 	readonly chatPromptFiles?: ReadonlyArray<IChatFileContribution>;
 	readonly chatInstructions?: ReadonlyArray<IChatFileContribution>;
 	readonly chatAgents?: ReadonlyArray<IChatFileContribution>;
+	readonly chatSkills?: ReadonlyArray<IChatFileContribution>;
 	readonly languageModelTools?: ReadonlyArray<IToolContribution>;
 	readonly languageModelToolSets?: ReadonlyArray<IToolSetContribution>;
 	readonly mcpServerDefinitionProviders?: ReadonlyArray<IMcpCollectionContribution>;

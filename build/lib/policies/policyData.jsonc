@@ -74,7 +74,7 @@
             "localization": {
                 "description": {
                     "key": "extensions.allowed.policy",
-                    "value": "Specify a list of extensions that are allowed to use. This helps maintain a secure and consistent development environment by restricting the use of unauthorized extensions. More information: https://code.visualstudio.com/docs/setup/enterprise#_configure-allowed-extensions"
+                    "value": "Specify a list of extensions that are allowed to use. This helps maintain a secure and consistent development environment by restricting the use of unauthorized extensions. More information: https://aka.ms/vscode/enterprise/extensions/allowed"
                 }
             },
             "type": "object",

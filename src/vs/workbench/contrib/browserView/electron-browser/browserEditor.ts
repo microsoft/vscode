@@ -5,7 +5,7 @@
 
 import './media/browser.css';
 import { localize } from '../../../../nls.js';
-import { $, addDisposableListener, Dimension, disposableWindowInterval, EventType, IDomPosition, registerExternalFocusChecker } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, Dimension, EventType, IDomPosition, registerExternalFocusChecker } from '../../../../base/browser/dom.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { RawContextKey, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -192,6 +192,7 @@ export class BrowserEditor extends EditorPane {
 	private readonly _inputDisposables = this._register(new DisposableStore());
 	private overlayManager: BrowserOverlayManager | undefined;
 	private _elementSelectionCts: CancellationTokenSource | undefined;
+	private _screenshotTimeout: ReturnType<typeof setTimeout> | undefined;
 
 	constructor(
 		group: IEditorGroup,
@@ -344,6 +345,9 @@ export class BrowserEditor extends EditorPane {
 			this.focusUrlInput();
 		}
 
+		// Start / stop screenshots when the model visibility changes
+		this._inputDisposables.add(this._model.onDidChangeVisibility(() => this.doScreenshot()));
+
 		// Listen to model events for UI updates
 		this._inputDisposables.add(this._model.onDidKeyCommand(keyEvent => {
 			// Handle like webview does - convert to webview KeyEvent format
@@ -398,16 +402,11 @@ export class BrowserEditor extends EditorPane {
 				this.layoutBrowserContainer();
 			}
 		}));
-		// Capture screenshot periodically (once per second) to keep background updated
-		this._inputDisposables.add(disposableWindowInterval(
-			this.window,
-			() => this.capturePlaceholderSnapshot(),
-			1000
-		));
 
 		this.updateErrorDisplay();
 		this.layoutBrowserContainer();
-		await this._model.setVisible(this.shouldShowView);
+		this.updateVisibility();
+		this.doScreenshot();
 	}
 
 	protected override setEditorVisible(visible: boolean): void {
@@ -442,14 +441,26 @@ export class BrowserEditor extends EditorPane {
 
 		if (this._model) {
 			const show = this.shouldShowView;
-			void this._model.setVisible(show);
-			if (
-				show &&
-				this._browserContainer.ownerDocument.hasFocus() &&
-				this._browserContainer.ownerDocument.activeElement === this._browserContainer
-			) {
-				// If the editor is focused, ensure the browser view also gets focus
-				void this._model.focus();
+			if (show === this._model.visible) {
+				return;
+			}
+
+			if (show) {
+				this._model.setVisible(true);
+				if (
+					this._browserContainer.ownerDocument.hasFocus() &&
+					this._browserContainer.ownerDocument.activeElement === this._browserContainer
+				) {
+					// If the editor is focused, ensure the browser view also gets focus
+					void this._model.focus();
+				}
+			} else {
+				this.doScreenshot();
+
+				// Hide the browser view just before the next render.
+				// This attempts to give the screenshot some time to be captured and displayed.
+				// If we hide immediately it is more likely to flicker while the old screenshot is still visible.
+				this.window.requestAnimationFrame(() => this._model?.setVisible(false));
 			}
 		}
 	}
@@ -780,17 +791,35 @@ export class BrowserEditor extends EditorPane {
 		}
 	}
 
-	/**
-	 * Capture a screenshot of the current browser view to use as placeholder background
-	 */
-	private async capturePlaceholderSnapshot(): Promise<void> {
-		if (this._model && !this._overlayVisible) {
-			try {
-				const buffer = await this._model.captureScreenshot({ quality: 80 });
-				this.setBackgroundImage(buffer);
-			} catch (error) {
-				this.logService.error('BrowserEditor.capturePlaceholderSnapshot: Failed to capture screenshot', error);
-			}
+	private async doScreenshot(): Promise<void> {
+		if (!this._model) {
+			return;
+		}
+
+		// Cancel any existing timeout
+		this.cancelScheduledScreenshot();
+
+		// Only take screenshots if the model is visible
+		if (!this._model.visible) {
+			return;
+		}
+
+		try {
+			// Capture screenshot and set as background image
+			const screenshot = await this._model.captureScreenshot({ quality: 80 });
+			this.setBackgroundImage(screenshot);
+		} catch (error) {
+			this.logService.error('Failed to capture browser view screenshot', error);
+		}
+
+		// Schedule next screenshot in 1 second
+		this._screenshotTimeout = setTimeout(() => this.doScreenshot(), 1000);
+	}
+
+	private cancelScheduledScreenshot(): void {
+		if (this._screenshotTimeout) {
+			clearTimeout(this._screenshotTimeout);
+			this._screenshotTimeout = undefined;
 		}
 	}
 
@@ -858,6 +887,9 @@ export class BrowserEditor extends EditorPane {
 			this._elementSelectionCts.dispose(true);
 			this._elementSelectionCts = undefined;
 		}
+
+		// Cancel any scheduled screenshots
+		this.cancelScheduledScreenshot();
 
 		// Clear find widget model
 		this._findWidget.rawValue?.setModel(undefined);

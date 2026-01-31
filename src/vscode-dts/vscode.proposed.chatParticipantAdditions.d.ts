@@ -553,6 +553,13 @@ declare module 'vscode' {
 		push(part: ExtendedChatResponsePart): void;
 
 		clearToPreviousToolInvocation(reason: ChatResponseClearToPreviousToolInvocationReason): void;
+
+		/**
+		 * Report token usage information for this request.
+		 * This is typically called when the underlying language model provides usage statistics.
+		 * @param usage Token usage information including prompt and completion tokens
+		 */
+		usage(usage: ChatResultUsage): void;
 	}
 
 	export enum ChatResponseReferencePartStatusKind {
@@ -744,12 +751,6 @@ declare module 'vscode' {
 		 * An optional detail string that will be rendered at the end of the response in certain UI contexts.
 		 */
 		details?: string;
-
-		/**
-		 * Token usage information for this request, if available.
-		 * This is typically provided by the underlying language model.
-		 */
-		readonly usage?: ChatResultUsage;
 	}
 
 	export namespace chat {
