@@ -153,6 +153,40 @@ suite('ChatQuestionCarouselPart', () => {
 			assert.strictEqual(checkboxes.length, 3, 'Should have 3 checkboxes');
 		});
 
+		test('freeform textarea is always rendered for singleSelect', () => {
+			const carousel = createMockCarousel([
+				{
+					id: 'q1',
+					type: 'singleSelect',
+					title: 'Choose one',
+					options: [
+						{ id: 'a', label: 'Option A', value: 'a' }
+					]
+				}
+			]);
+			createWidget(carousel);
+
+			const freeformTextarea = widget.domNode.querySelector('.chat-question-freeform-textarea');
+			assert.ok(freeformTextarea, 'Freeform textarea should always be rendered for singleSelect');
+		});
+
+		test('freeform textarea is always rendered for multiSelect', () => {
+			const carousel = createMockCarousel([
+				{
+					id: 'q1',
+					type: 'multiSelect',
+					title: 'Choose multiple',
+					options: [
+						{ id: 'a', label: 'Option A', value: 'a' }
+					]
+				}
+			]);
+			createWidget(carousel);
+
+			const freeformTextarea = widget.domNode.querySelector('.chat-question-freeform-textarea');
+			assert.ok(freeformTextarea, 'Freeform textarea should always be rendered for multiSelect');
+		});
+
 		test('default options are pre-selected for singleSelect', () => {
 			const carousel = createMockCarousel([
 				{
