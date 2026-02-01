@@ -3,11 +3,85 @@
 
 This guide walks you through every step: from setup through final merge. Copy-paste each command exactly as shown.
 
+---
+
+## 🚀 QUICK START: Automated PR Workflow (Recommended)
+
+**PowerShell scripts are available to automate the entire PR process!**
+
+Located in `scripts/pr-automation/`, these scripts handle:
+- Prerequisites validation with auto-fix
+- Branch content verification and cross-checking
+- PR creation with labels, reviewers, and milestones
+- Real-time PR monitoring dashboard
+- Safe merging with readiness checks
+
+### Quick Commands
+
+```powershell
+# Navigate to automation scripts
+cd c:\vscode\scripts\pr-automation
+
+# 1. Check prerequisites (run first!)
+.\Check-Prerequisites.ps1 -Fix
+
+# 2. Verify branches before creating PRs
+.\Verify-Branches.ps1 -Phase 1
+
+# 3. Create PRs for a phase
+.\Create-PRs.ps1 -Phase 1
+
+# 4. Monitor PR status (live dashboard)
+.\Monitor-PRs.ps1 -Watch
+
+# 5. Merge approved PRs
+.\Merge-PRs.ps1 -Phase 1
+
+# Or run the complete workflow:
+.\Run-PRWorkflow.ps1 -Phase 1
+```
+
+### Available Scripts
+
+| Script | Purpose |
+|--------|---------|
+| `Check-Prerequisites.ps1` | Validates git, gh CLI, authentication, and branches |
+| `Verify-Branches.ps1` | Cross-checks branch content against expectations |
+| `Create-PRs.ps1` | Creates PRs with proper metadata |
+| `Monitor-PRs.ps1` | Live dashboard showing PR status |
+| `Merge-PRs.ps1` | Safely merges approved PRs |
+| `Run-PRWorkflow.ps1` | Orchestrates the complete workflow |
+| `PR-Config.ps1` | Configuration (reviewers, labels, expected files) |
+
+### Configuration
+
+Edit `PR-Config.ps1` to customize:
+- **Reviewers**: Update GitHub usernames for each PR
+- **Labels**: Modify or add labels
+- **Expected files**: Adjust file expectations per branch
+- **Milestones**: Change project milestone name
+
+### Dry Run Mode
+
+Preview any action without making changes:
+
+```powershell
+.\Create-PRs.ps1 -Phase 1 -DryRun
+.\Merge-PRs.ps1 -AutoMerge -DryRun
+```
+
+---
+
+> **Note**: The manual instructions below are preserved for reference and learning.
+> The automated scripts perform all these steps with additional validation.
+
+---
+
 ### About This Guide
 - **Target**: VS Code contributors submitting accessibility help feature work
 - **Scope**: 14 coordinated PRs across 4 phases
-- **Primary Tool**: GitHub CLI (gh) + git
-- **Engineer Assignment**: Covered in each section
+- **Primary Tool**: GitHub CLI (gh) + git + PowerShell automation
+- **Engineer Assignment**: Configure in `PR-Config.ps1`
 - **Learning**: Each section explains WHY the step matters
 
 ### Key VS Code Concepts You'll Encounter
@@ -44,7 +118,7 @@ For VS Code, different areas have specific maintainers. Fill this in with your r
   - Assigned to: _________________ (editor maintainer)
   - GitHub username(s): _________________
 
-## Phase 2: Editor 
+## Phase 2: Editor
 - **PR3**: feature/editor-find-accessibility-help
   - Assigned to: _________________ (find feature owner)
   - GitHub username(s): _________________
@@ -94,6 +168,24 @@ For VS Code, different areas have specific maintainers. Fill this in with your r
 
 ## PART 1: INITIAL SETUP
 
+### Step 1.0: Contributor Licensing Agreement (first-time contributors)
+
+If this is your first contribution to microsoft/vscode (or another Microsoft repo), you must sign the contributor licensing agreement before a PR can be accepted. This helps Microsoft and downstream users accept and redistribute your contribution.
+
+Quick checks and steps:
+
+- **What to sign**: An Individual Contributor License Agreement (ICLA) or a company-level CLA (CCLA) as required by Microsoft open-source contribution processes.
+- **How to sign**: Visit the Microsoft open source CLA site and follow the instructions: https://opensource.microsoft.com/cla/.
+- **From a PR**: If you open a PR before signing, the PR checks will usually indicate a "CLA" or "license" check. That check contains a link you can follow to sign with your GitHub account.
+- **If your employer needs to sign**: They may need to complete a corporate CLA (CCLA). Follow the guidance on the CLA site or ask your legal/open-source contact to complete the steps.
+
+Troubleshooting and support:
+
+- If the CLA check does not update after signing, ensure you signed with the same GitHub account you used to create the PR and allow a few minutes for the bot to re-run checks.
+- If you cannot find the CLA link or need help, contact the repo maintainers or the Microsoft open source support team via the contact details on the CLA site.
+
+Add this step before continuing with tool installation below.
+
 ### Step 1.1: Verify Git and GitHub CLI are Installed
 
 ```bash
@@ -101,7 +193,7 @@ git --version
 gh --version
 ```
 
-**Expected Output**: 
+**Expected Output**:
 - `git version 2.x.x`
 - `gh version 2.x.x`
 
@@ -165,7 +257,7 @@ git pull origin main
 git status
 ```
 
-**Expected**: 
+**Expected**:
 ```
 On branch main
 Your branch is up to date with 'origin/main'.
@@ -291,7 +383,7 @@ VS Code uses TypeScript strict mode. Verify your branch compiles:
 npm run compile
 ```
 
-**Expected output**: 
+**Expected output**:
 ```
 [hh:mm:ss] Compilation complete. X files compiled
 ```
@@ -493,7 +585,7 @@ src/vs/workbench/contrib/codeEditor/browser/editorFindAccessibilityHelp.ts
 
 **Verify it's an extension, not a replacement**:
 ```bash
-git diff main...feature/editor-replace-accessibility-help | grep -c "^+" 
+git diff main...feature/editor-replace-accessibility-help | grep -c "^+"
 ```
 
 (Should show roughly 30-50 additions)
@@ -622,7 +714,7 @@ Code Quality:
   [ ] No `any` types (no cheating on TypeScript)
   [ ] Proper JSDoc comments on public methods
   [ ] Microsoft copyright header present (if new file)
-  
+
 Standards:
   [ ] Follows VS Code naming conventions
   [ ] Uses 1 tab indent (not spaces)
@@ -632,12 +724,12 @@ Standards:
 Builds:
   [ ] Runs "npm run compile" with no errors
   [ ] TypeScript strict mode passes
-  
+
 Git:
   [ ] Commit message is clear and professional
   [ ] No "WIP" or "temp" commits
   [ ] Branch is up to date with main
-  
+
 Ready to PR:
   [ ] All above checked
   [ ] Ready to submit
@@ -729,12 +821,12 @@ Coordinated effort to implement comprehensive accessibility help for all find an
 ## Status
 - [x] Planning and design phase
 - [x] Branch organization
-- [x] Code implementation  
+- [x] Code implementation
 - [ ] PR submission phase
 - [ ] Review and merge phase
 
 ## Phase 1: Foundation (Starting)
-- [ ] feature/accessible-alert-configuration 
+- [ ] feature/accessible-alert-configuration
 - [ ] feature/keybinding-resolution-infrastructure
 
 ## Phase 2: Editor Find/Replace (Next)
@@ -906,7 +998,7 @@ gh pr edit 12346 --add-reviewer "isidorn"
 gh pr edit 12346 --add-label "accessibility,feature,editor,phase-1-foundation"
 ```
 
-**Why labels matter**: 
+**Why labels matter**:
 - Your reviewers filter on "phase-1-foundation" to find your work
 - VS Code's CI uses labels to determine which tests to run
 - Project tracking uses them to generate reports
@@ -2382,6 +2474,35 @@ As you create PRs, fill in this table:
 ---
 
 ## FINAL CHECKLIST
+
+### Using Automated Scripts (Recommended)
+
+```powershell
+# Complete workflow with cross-checks
+cd c:\vscode\scripts\pr-automation
+
+# Phase 1
+.\Run-PRWorkflow.ps1 -Phase 1
+# Wait for review and approval...
+.\Merge-PRs.ps1 -Phase 1
+
+# Phase 2
+.\Run-PRWorkflow.ps1 -Phase 2
+.\Merge-PRs.ps1 -Phase 2
+
+# Phase 3 (parallel)
+.\Run-PRWorkflow.ps1 -Phase 3
+.\Merge-PRs.ps1 -Phase 3
+
+# Phase 4
+.\Run-PRWorkflow.ps1 -Phase 4
+.\Merge-PRs.ps1 -Phase 4
+
+# Final status check
+.\Monitor-PRs.ps1
+```
+
+### Manual Checklist
 
 Before you start: ✅
 - [ ] gh CLI installed and authenticated
