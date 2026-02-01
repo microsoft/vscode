@@ -208,7 +208,467 @@ If any are missing, go back to your branch creation step. **Do not proceed until
 
 ---
 
-## PART 2: CREATE GITHUB LABELS
+## PART 1.7: FILE VERIFICATION CHECKLIST (Use Before Each PR)
+
+### Why Verify Files First?
+
+Before you submit a PR to Microsoft, **verify the branch has exactly the right files**:
+- ✅ No unintended files modified
+- ✅ All necessary files present
+- ✅ No debug code or comments left behind
+- ✅ Code style follows VS Code conventions
+- ✅ TypeScript compilation works
+
+**5 minutes of verification saves hours of review feedback.**
+
+---
+
+### Understanding Branch vs Main Differences
+
+A branch should contain **only the changes needed for that feature**. Nothing more, nothing less.
+
+**Example**: `feature/accessible-alert-configuration` should:
+- ✅ Modify: `src/vs/editor/common/standaloneStrings.ts` (add string)
+- ❌ NOT modify: Any other files
+- ❌ NOT include: Debug console.log() statements
+- ❌ NOT include: Temporary test files
+
+---
+
+### Universal Verification Steps (Use for Any Branch)
+
+#### Step 1: List What Files Changed
+
+```bash
+git checkout [BRANCH_NAME]
+git diff main...[BRANCH_NAME] --name-only
+```
+
+**Example**:
+```bash
+git checkout feature/accessible-alert-configuration
+git diff main...feature/accessible-alert-configuration --name-only
+```
+
+**Expected output**: Should show ONLY the files that need to change for this feature.
+
+**If unexpected files appear**: Stop. Run:
+```bash
+git status
+```
+
+Make sure you didn't accidentally modify files. If you did:
+```bash
+git checkout main -- [UNINTENDED_FILE]
+git add [UNINTENDED_FILE]
+git commit -m "Remove accidental change to [file]"
+```
+
+---
+
+#### Step 2: Review the Actual Changes
+
+```bash
+git diff main...[BRANCH_NAME]
+```
+
+This shows every line that changed. Review it line-by-line for:
+- ✅ Code quality
+- ✅ No debug statements (console.log, debugger)
+- ✅ Proper TypeScript types (no `any`)
+- ✅ Comment clarity
+- ✅ No trailing whitespace
+
+**Expected**: Clean, professional code. Nothing left behind from development.
+
+---
+
+#### Step 3: Verify Compilation
+
+VS Code uses TypeScript strict mode. Verify your branch compiles:
+
+```bash
+npm run compile
+```
+
+**Expected output**: 
+```
+[hh:mm:ss] Compilation complete. X files compiled
+```
+
+**If you see errors**: Read them carefully. Fix the errors in your branch files, then:
+```bash
+git add [FIXED_FILES]
+git commit -m "Fix TypeScript compilation errors"
+```
+
+---
+
+#### Step 4: Check Localization (Strings)
+
+If your branch modifies any user-facing strings, they must use `nls.localize()`:
+
+```bash
+git diff main...[BRANCH_NAME] | grep -i "nls.localize"
+```
+
+**Expected**: See `nls.localize()` calls for any user-facing text.
+
+**If you see hardcoded strings that show to users**: That's wrong. Fix it:
+```typescript
+// ❌ WRONG
+return 'User sees this text';
+
+// ✅ RIGHT
+return localize('myStringId', 'User sees this text');
+```
+
+---
+
+#### Step 5: Verify Commit Message Quality
+
+```bash
+git log main...[BRANCH_NAME] --oneline
+```
+
+**Expected output**: Shows your commit(s) with clear messages.
+
+Example good commit:
+```
+a1b2c3d Add findNavigation localized string
+```
+
+Example bad commits:
+```
+❌ WIP
+❌ temp
+❌ fix
+❌ asdf
+```
+
+**If you have bad commit messages**: Amend the last commit:
+
+```bash
+git commit --amend -m "Clear, descriptive commit message"
+git push origin [BRANCH_NAME] --force
+```
+
+---
+
+### Phase-Specific File Verification
+
+#### PHASE 1 - PR 1: `feature/accessible-alert-configuration`
+
+**Expected files changed**:
+```
+src/vs/editor/common/standaloneStrings.ts
+```
+
+**Verification command**:
+```bash
+git checkout feature/accessible-alert-configuration
+git diff main...feature/accessible-alert-configuration --name-only
+```
+
+**Expected output**:
+```
+src/vs/editor/common/standaloneStrings.ts
+```
+
+**Should have exactly 1 file. Not more, not fewer.**
+
+**What changed**: One new string definition added. (~5 lines)
+
+**Verify**:
+```bash
+git diff main...feature/accessible-alert-configuration
+```
+
+Should show:
+- ✅ One new `export const findNavigation = ...` line
+- ✅ Proper localization pattern
+- ❌ No other changes
+- ❌ No deleted lines
+
+---
+
+#### PHASE 1 - PR 2: `feature/keybinding-resolution-infrastructure`
+
+**Expected files changed**:
+```
+src/vs/workbench/contrib/accessibility/browser/editorAccessibilityHelp.ts
+```
+
+**Verification command**:
+```bash
+git checkout feature/keybinding-resolution-infrastructure
+git diff main...feature/keybinding-resolution-infrastructure --name-only
+```
+
+**Expected output**:
+```
+src/vs/workbench/contrib/accessibility/browser/editorAccessibilityHelp.ts
+```
+
+**Should have exactly 1 file.**
+
+**What changed**: Added `_editorContextKeyService` overlay and `_getEditorContextKeybinding()` method. (~20-30 lines added)
+
+**Verify**:
+```bash
+git diff main...feature/keybinding-resolution-infrastructure
+```
+
+Should show:
+- ✅ New private field `_editorContextKeyService`
+- ✅ New method `_getEditorContextKeybinding()`
+- ✅ Context overlay setup code
+- ❌ No modifications to existing method logic
+- ❌ No debug code
+
+---
+
+#### PHASE 2 - PR 3: `feature/editor-find-accessibility-help`
+
+**Expected files changed**:
+```
+src/vs/workbench/contrib/codeEditor/browser/editorFindAccessibilityHelp.ts
+```
+
+**Verification command**:
+```bash
+git checkout feature/editor-find-accessibility-help
+git diff main...feature/editor-find-accessibility-help --name-only
+```
+
+**Expected output** (exactly 1 new file):
+```
+src/vs/workbench/contrib/codeEditor/browser/editorFindAccessibilityHelp.ts
+```
+
+**What changed**: Entire new file (~315 lines)
+
+**Verify the file exists**:
+```bash
+git show feature/editor-find-accessibility-help:src/vs/workbench/contrib/codeEditor/browser/editorFindAccessibilityHelp.ts | wc -l
+```
+
+**Expected**: Output around 315 (total lines in file)
+
+**Verify quality**:
+```bash
+git diff main...feature/editor-find-accessibility-help | head -100
+```
+
+Should show:
+- ✅ Proper class definition
+- ✅ IAccessibleViewImplementation interface implementation
+- ✅ Proper imports at top
+- ✅ Microsoft copyright header
+- ✅ JSDoc comments for methods
+- ❌ No console.log or debugger statements
+- ❌ No `any` types
+
+---
+
+#### PHASE 2 - PR 4: `feature/editor-replace-accessibility-help`
+
+**Expected files changed**:
+```
+src/vs/workbench/contrib/codeEditor/browser/editorFindAccessibilityHelp.ts
+```
+
+**Verification command**:
+```bash
+git checkout feature/editor-replace-accessibility-help
+git diff main...feature/editor-replace-accessibility-help --name-only
+```
+
+**Expected output** (exactly 1 file, modified):
+```
+src/vs/workbench/contrib/codeEditor/browser/editorFindAccessibilityHelp.ts
+```
+
+**What changed**: Extension of existing file from Phase 2 (~30-50 new lines)
+
+**Verify it's an extension, not a replacement**:
+```bash
+git diff main...feature/editor-replace-accessibility-help | grep -c "^+" 
+```
+
+(Should show roughly 30-50 additions)
+
+---
+
+#### PHASE 3 - Each PR: `feature/[context]-accessibility-help`
+
+**6 PRs total - verify each one:**
+
+| PR | Branch | Expected New File |
+|----|--------|------------------|
+| 5 | feature/terminal-find-accessibility-help | src/vs/workbench/contrib/terminalContrib/find/browser/terminalFindAccessibilityHelp.ts |
+| 6 | feature/webview-find-accessibility-help | src/vs/workbench/contrib/webview/browser/webviewFindAccessibilityHelp.ts |
+| 7 | feature/output-filter-accessibility-help | src/vs/workbench/contrib/output/browser/outputAccessibilityHelp.ts |
+| 8 | feature/problems-filter-accessibility-help | src/vs/workbench/contrib/markers/browser/markersAccessibilityHelp.ts |
+| 9 | feature/debug-console-accessibility-help | src/vs/workbench/contrib/debug/browser/replAccessibilityHelp.ts |
+| 10 | feature/search-accessibility-help | src/vs/workbench/contrib/search/browser/searchAccessibilityHelp.ts |
+
+**For each Phase 3 PR, verify**:
+
+```bash
+git checkout feature/[context]-accessibility-help
+git diff main...feature/[context]-accessibility-help --name-only
+```
+
+**Expected**: Each should have exactly 1 new file.
+
+**Example**:
+```bash
+git checkout feature/terminal-find-accessibility-help
+git diff main...feature/terminal-find-accessibility-help --name-only
+# Should output: src/vs/workbench/contrib/terminalContrib/find/browser/terminalFindAccessibilityHelp.ts
+```
+
+---
+
+#### PHASE 4 - PR 11: `bugfix/aria-alerts-find-dialog`
+
+**Expected files changed**:
+```
+src/vs/editor/contrib/find/browser/findWidget.ts
+```
+
+**Verification command**:
+```bash
+git checkout bugfix/aria-alerts-find-dialog
+git diff main...bugfix/aria-alerts-find-dialog --name-only
+```
+
+**Expected output** (exactly 1 file):
+```
+src/vs/editor/contrib/find/browser/findWidget.ts
+```
+
+**What changed**: ~4-line fix to ARIA announcement logic
+
+**Verify the change is minimal**:
+```bash
+git diff main...bugfix/aria-alerts-find-dialog | wc -l
+```
+
+**Expected**: Around 10-15 lines total (with context)
+
+**Verify the fix logic**:
+```bash
+git diff main...bugfix/aria-alerts-find-dialog
+```
+
+Should show:
+- ✅ Wrapped ARIA alert in `if (this._state.searchString)` check
+- ✅ No other changes to the method
+- ✅ Clearly targets the empty search bug
+
+---
+
+#### PHASE 4 - PR 12: `bugfix/notfound-message-empty-field`
+
+**Expected files changed**:
+```
+src/vs/editor/contrib/find/browser/findWidget.ts
+```
+
+**Verification command**:
+```bash
+git checkout bugfix/notfound-message-empty-field
+git diff main...bugfix/notfound-message-empty-field --name-only
+```
+
+**Expected output** (exactly 1 file):
+```
+src/vs/editor/contrib/find/browser/findWidget.ts
+```
+
+**What changed**: ~11-line fix for aria-label timing and visibility
+
+**Verify the changes**:
+```bash
+git diff main...bugfix/notfound-message-empty-field
+```
+
+Should show:
+- ✅ Move aria-label update before visibility change
+- ✅ Add visibility check before updating
+- ✅ Clear comments explaining the fix
+- ✅ Minimal, surgical changes
+
+---
+
+### Verification Checklist Template
+
+**Use this before EVERY PR creation:**
+
+```
+Before Creating PR #___ for [BRANCH_NAME]:
+
+File Check:
+  [ ] Correct files modified/created (see Phase-Specific above)
+  [ ] No unintended files changed
+  [ ] No temporary or debug files included
+  [ ] File count matches expectation
+
+Code Quality:
+  [ ] No console.log() or debugger statements
+  [ ] No TODO comments left behind
+  [ ] No `any` types (no cheating on TypeScript)
+  [ ] Proper JSDoc comments on public methods
+  [ ] Microsoft copyright header present (if new file)
+  
+Standards:
+  [ ] Follows VS Code naming conventions
+  [ ] Uses 1 tab indent (not spaces)
+  [ ] Localized strings use nls.localize()
+  [ ] No trailing whitespace
+
+Builds:
+  [ ] Runs "npm run compile" with no errors
+  [ ] TypeScript strict mode passes
+  
+Git:
+  [ ] Commit message is clear and professional
+  [ ] No "WIP" or "temp" commits
+  [ ] Branch is up to date with main
+  
+Ready to PR:
+  [ ] All above checked
+  [ ] Ready to submit
+```
+
+---
+
+### Quick Reference: Verification One-Liner Per Branch
+
+Copy-paste these to quickly verify each branch before PR:
+
+**Phase 1 - PR 1**:
+```bash
+git checkout feature/accessible-alert-configuration && git diff main...feature/accessible-alert-configuration --name-only && echo "Files OK" && git diff main...feature/accessible-alert-configuration | head -20
+```
+
+**Phase 1 - PR 2**:
+```bash
+git checkout feature/keybinding-resolution-infrastructure && git diff main...feature/keybinding-resolution-infrastructure --name-only && npm run compile
+```
+
+**Phase 2 - PR 3**:
+```bash
+git checkout feature/editor-find-accessibility-help && git diff main...feature/editor-find-accessibility-help --name-only && git diff main...feature/editor-find-accessibility-help | wc -l && npm run compile
+```
+
+(And so on for each PR...)
+
+---
+
+
 
 ### Understanding VS Code Labels
 
@@ -319,20 +779,56 @@ Without Phase 1 merged, other PRs will have conflicts. This is why it goes first
 
 ### Step 3.1: Create PR for `feature/accessible-alert-configuration`
 
-#### 3.1a: Prepare Branch (Verify it has commits)
+#### 3.1a: Pre-PR File Verification for `feature/accessible-alert-configuration`
+
+**BEFORE creating the PR, verify the branch is correct.**
+
+Check files changed:
 
 ```bash
-git log feature/accessible-alert-configuration -1 --oneline
+git checkout feature/accessible-alert-configuration
+git diff main...feature/accessible-alert-configuration --name-only
 ```
 
-**Expected**: Shows latest commit like:
+**Expected output** (exactly 1 file):
 ```
-a1b2c3d Add findNavigation localized string
+src/vs/editor/common/standaloneStrings.ts
 ```
 
-If you see nothing or an error, your branch wasn't created properly. Go back to branch creation.
+**If you see different files**: Stop here. Don't create the PR. Fix the branch first.
+
+Review the changes:
+
+```bash
+git diff main...feature/accessible-alert-configuration
+```
+
+**Expected to see**:
+- ✅ One new string definition: `export const findNavigation = ...`
+- ✅ Proper localization format with `localize()`
+- ❌ No other changes
+- ❌ No console.log statements
+
+Verify compilation:
+
+```bash
+npm run compile
+```
+
+**Expected**: Completes without errors.
+
+**Checklist before proceeding**:
+- [ ] Only 1 file in the diff
+- [ ] That file is `src/vs/editor/common/standaloneStrings.ts`
+- [ ] The change adds `findNavigation` string
+- [ ] `npm run compile` passes
+- [ ] No debug code
+
+**If all checks pass**: You're ready to create the PR. Continue to 3.1b.
 
 #### 3.1b: Create the PR
+
+Now that files are verified, create the PR:
 
 ```bash
 gh pr create --base main --head feature/accessible-alert-configuration --title "[Accessibility] Accessible Alert Configuration and Foundation Strings" --body "## Description
@@ -447,7 +943,55 @@ If anything is missing, use `gh pr edit 12346 --add-label "..."` etc to fix it.
 
 ### Step 3.2: Create PR for `feature/keybinding-resolution-infrastructure`
 
-#### 3.2a: Create the PR
+#### 3.2a: Pre-PR File Verification for `feature/keybinding-resolution-infrastructure`
+
+**Before creating the PR, verify the branch is correct.**
+
+Check files changed:
+
+```bash
+git checkout feature/keybinding-resolution-infrastructure
+git diff main...feature/keybinding-resolution-infrastructure --name-only
+```
+
+**Expected output** (exactly 1 file):
+```
+src/vs/workbench/contrib/accessibility/browser/editorAccessibilityHelp.ts
+```
+
+**If you see different files or more than 1**: Stop here. Fix the branch first.
+
+Review the changes (should be ~20-30 lines):
+
+```bash
+git diff main...feature/keybinding-resolution-infrastructure
+```
+
+**Expected to see**:
+- ✅ New private field: `_editorContextKeyService`
+- ✅ New method: `_getEditorContextKeybinding()`
+- ✅ Context overlay setup code
+- ❌ No changes to existing methods
+- ❌ No debug code
+
+Verify compilation:
+
+```bash
+npm run compile
+```
+
+**Expected**: Completes without errors.
+
+**Checklist before proceeding**:
+- [ ] Only 1 file in the diff
+- [ ] That file is `src/vs/workbench/contrib/accessibility/browser/editorAccessibilityHelp.ts`
+- [ ] New method `_getEditorContextKeybinding()` added
+- [ ] `npm run compile` passes
+- [ ] No unintended changes to other methods
+
+**If all checks pass**: You're ready to create the PR. Continue to 3.2b.
+
+#### 3.2b: Create the PR
 
 ```bash
 gh pr create --base main --head feature/keybinding-resolution-infrastructure --title "[Accessibility] Infrastructure: Context-Aware Keybinding Resolution" --body "## Description
@@ -628,6 +1172,82 @@ This is the high-value PR. Most testing happens here. Most questions will come f
 
 ### Step 5.1: Create PR for `feature/editor-find-accessibility-help`
 
+#### 5.1 Pre-PR File Verification
+
+**Before creating the PR, verify the branch is correct. This is a 315-line feature - pay special attention.**
+
+Check files changed (should be exactly 1 new file):
+
+```bash
+git checkout feature/editor-find-accessibility-help
+git diff main...feature/editor-find-accessibility-help --name-only
+```
+
+**Expected output**:
+```
+src/vs/workbench/contrib/codeEditor/browser/editorFindAccessibilityHelp.ts
+```
+
+**If you see more than 1 file**: Stop. This PR should only add one new file.
+
+Verify file size (should be around 315 lines):
+
+```bash
+git show feature/editor-find-accessibility-help:src/vs/workbench/contrib/codeEditor/browser/editorFindAccessibilityHelp.ts | wc -l
+```
+
+**Expected**: Around 300-350 lines.
+
+Review code quality (first 50 lines - check header, imports, class definition):
+
+```bash
+git diff main...feature/editor-find-accessibility-help | head -70
+```
+
+**Expected to see**:
+- ✅ Microsoft copyright header at top
+- ✅ TypeScript `import` statements
+- ✅ `export class EditorFindAccessibilityHelp implements IAccessibleViewImplementation`
+- ✅ JSDoc comments on key methods
+- ❌ No `any` types
+- ❌ No console.log or debugger
+
+Check for implementation quality (look for key methods):
+
+```bash
+git show feature/editor-find-accessibility-help:src/vs/workbench/contrib/codeEditor/browser/editorFindAccessibilityHelp.ts | grep -E "provideContent|priority|type|id"
+```
+
+**Expected**: Shows key required methods.
+
+Check for debug code:
+
+```bash
+git diff main...feature/editor-find-accessibility-help | grep -iE "console\.|debugger|TODO|FIXME|HACK"
+```
+
+**Expected**: No output (no debug code).
+
+Verify compilation:
+
+```bash
+npm run compile
+```
+
+**Expected**: Completes without errors. May show warnings about unused imports, but NO errors.
+
+**Checklist before proceeding**:
+- [ ] Only 1 file: `editorFindAccessibilityHelp.ts`
+- [ ] File is ~315 lines
+- [ ] Starts with Microsoft copyright header
+- [ ] Has proper class definition
+- [ ] Has key methods: `provideContent()`, `priority`, `type`, `id`
+- [ ] No `any` types
+- [ ] No console.log or debugger statements
+- [ ] `npm run compile` has no errors
+
+**If all checks pass**: You're ready to create the PR.
+
 ```bash
 gh pr create --base main --head feature/editor-find-accessibility-help --title "[Accessibility] Editor Find Dialog Help (Alt+F1)" --body "## Description
 
@@ -715,6 +1335,74 @@ gh pr edit 12348 --milestone "Accessibility Help System"
 ---
 
 ### Step 5.2: Create PR for `feature/editor-replace-accessibility-help`
+
+#### 5.2 Pre-PR File Verification
+
+**This PR modifies the existing file from PR 5.1 - verify it's an extension, not a regression.**
+
+Check files changed:
+
+```bash
+git checkout feature/editor-replace-accessibility-help
+git diff main...feature/editor-replace-accessibility-help --name-only
+```
+
+**Expected output** (same file from PR 5.1, but modified):
+```
+src/vs/workbench/contrib/codeEditor/browser/editorFindAccessibilityHelp.ts
+```
+
+**If there are additional files**: Stop. This should only modify the one file.
+
+**If it shows PR 5.1's files are missing**: Stop. This depends on PR 5.1. Don't proceed until PR 5.1 merges.
+
+Count lines added (should be ~30-50 new):
+
+```bash
+git diff main...feature/editor-replace-accessibility-help | grep "^+" | wc -l
+```
+
+**Expected**: Around 30-60 (for new replace-specific code).
+
+Verify it's truly an extension (review the diff):
+
+```bash
+git diff main...feature/editor-replace-accessibility-help
+```
+
+**Expected to see**:
+- ✅ New replace-specific help text
+- ✅ New method branches for replace mode
+- ✅ New keybinding documentation for replace
+- ❌ NO changes to existing find documentation
+- ❌ NO changes to existing methods (only additions)
+
+Check for debug code:
+
+```bash
+git diff main...feature/editor-replace-accessibility-help | grep -iE "console\.|debugger|TODO"
+```
+
+**Expected**: No output.
+
+Verify compilation:
+
+```bash
+npm run compile
+```
+
+**Expected**: No errors.
+
+**Checklist before proceeding**:
+- [ ] Only 1 file modified
+- [ ] File is `editorFindAccessibilityHelp.ts`
+- [ ] 30-50 new lines added (replacement documentation)
+- [ ] All new code is for replace mode
+- [ ] No existing code modified
+- [ ] No debug statements
+- [ ] `npm run compile` passes
+
+**If all checks pass**: You're ready to create the PR.
 
 ```bash
 gh pr create --base main --head feature/editor-replace-accessibility-help --title "[Accessibility] Editor Replace Dialog Help Extension" --body "## Description
@@ -849,7 +1537,80 @@ Phase 3 is unique: each PR might go to a different owner. Example:
 
 **Before you start Phase 3**: Make sure your `REVIEWER_ASSIGNMENTS.md` has **different reviewers** for each Phase 3 PR.
 
+---
+
+### Pre-Verification for All Phase 3 PRs
+
+**Every Phase 3 PR follows the same pattern:**
+1. Each adds exactly one new file
+2. Each implements `IAccessibleViewImplementation`
+3. Each has similar structure (~100-150 lines typically)
+
+**Use this verification template for each Phase 3 PR:**
+
+```bash
+git checkout [BRANCH_NAME]
+git diff main...[BRANCH_NAME] --name-only
+# Should show exactly 1 file
+
+git diff main...[BRANCH_NAME] | wc -l
+# Should show roughly 100-150 total lines
+
+npm run compile
+# Should pass with no errors
+```
+
+---
+
 ### Step 7.1: Create PR for `feature/terminal-find-accessibility-help`
+
+#### 7.1 Pre-PR File Verification
+
+Check files:
+
+```bash
+git checkout feature/terminal-find-accessibility-help
+git diff main...feature/terminal-find-accessibility-help --name-only
+```
+
+**Expected output** (exactly 1 new file):
+```
+src/vs/workbench/contrib/terminalContrib/find/browser/terminalFindAccessibilityHelp.ts
+```
+
+Verify the file (should be ~100-150 lines):
+
+```bash
+git show feature/terminal-find-accessibility-help:src/vs/workbench/contrib/terminalContrib/find/browser/terminalFindAccessibilityHelp.ts | wc -l
+```
+
+Check code quality:
+
+```bash
+git diff main...feature/terminal-find-accessibility-help | head -30
+```
+
+**Expected**:
+- ✅ Microsoft copyright header
+- ✅ Class implements `IAccessibleViewImplementation`
+- ✅ Terminal-specific help content
+- ❌ No `any` types
+- ❌ No debug code
+
+Compile:
+
+```bash
+npm run compile
+```
+
+**Checklist**:
+- [ ] 1 file: `terminalFindAccessibilityHelp.ts`
+- [ ] ~100-150 lines
+- [ ] Proper class structure
+- [ ] No debug code
+- [ ] Compiles successfully
+
+**If all pass**: Continue to create the PR.
 
 ```bash
 gh pr create --base main --head feature/terminal-find-accessibility-help --title "[Accessibility] Terminal Find Accessibility Help" --body "## Description
@@ -1121,6 +1882,70 @@ Phase 4 fixes **two critical bugs** in the find widget that were discovered duri
 
 ### Step 8.1: Create PR for `bugfix/aria-alerts-find-dialog`
 
+#### 8.1 Pre-PR File Verification
+
+**Bug fixes must be surgical and minimal. Verify this change is exactly what's needed.**
+
+Check files:
+
+```bash
+git checkout bugfix/aria-alerts-find-dialog
+git diff main...bugfix/aria-alerts-find-dialog --name-only
+```
+
+**Expected output** (exactly 1 file):
+```
+src/vs/editor/contrib/find/browser/findWidget.ts
+```
+
+**If more than 1 file**: Stop. Bug fixes should touch only the file being fixed.
+
+Verify the change is minimal (~4-6 lines total):
+
+```bash
+git diff main...bugfix/aria-alerts-find-dialog | wc -l
+```
+
+**Expected**: Around 10-15 lines total (with context).
+
+Review the actual fix:
+
+```bash
+git diff main...bugfix/aria-alerts-find-dialog
+```
+
+**Expected to see**:
+- ✅ ARIA alert wrapped in `if (this._state.searchString)` check
+- ✅ Clear comment explaining the fix
+- ✅ No other modifications to the method
+- ✅ Surgical change addressing exactly the bug
+- ❌ No refactoring
+- ❌ No unrelated changes
+
+Verify the logic makes sense:
+
+```bash
+git diff main...bugfix/aria-alerts-find-dialog | grep -A2 -B2 "searchString"
+```
+
+**Expected**: Shows the if statement wrapping the alert call.
+
+Compile:
+
+```bash
+npm run compile
+```
+
+**Checklist**:
+- [ ] Only 1 file: `findWidget.ts`
+- [ ] Changes are ~4-6 lines (minimal)
+- [ ] Fix directly addresses the bug
+- [ ] No refactoring or cleanup
+- [ ] No debug code
+- [ ] Compiles successfully
+
+**If all pass**: Continue to create the PR.
+
 ```bash
 gh pr create --base main --head bugfix/aria-alerts-find-dialog --title "[Accessibility] Bug: Only Announce Search Results When Search String Is Present" --body "## Description
 
@@ -1195,6 +2020,79 @@ gh pr edit 12356 --milestone "Accessibility Help System"
 ---
 
 ### Step 8.2: Create PR for `bugfix/notfound-message-empty-field`
+
+#### 8.2 Pre-PR File Verification
+
+**This is a slightly larger bug fix (~11 lines). Verify it's still surgical and addresses both timing and visibility issues.**
+
+Check files:
+
+```bash
+git checkout bugfix/notfound-message-empty-field
+git diff main...bugfix/notfound-message-empty-field --name-only
+```
+
+**Expected output**:
+```
+src/vs/editor/contrib/find/browser/findWidget.ts
+```
+
+**If more than 1 file**: Stop. This bug fix should only touch this one file.
+
+Verify the change is focused (~11 lines):
+
+```bash
+git diff main...bugfix/notfound-message-empty-field | wc -l
+```
+
+**Expected**: Around 20-30 lines total (with context).
+
+Review the fix (should show two distinct changes):
+
+```bash
+git diff main...bugfix/notfound-message-empty-field
+```
+
+**Expected to see**:
+- ✅ aria-label update moved BEFORE visibility change
+- ✅ Visibility check added before updating aria-label
+- ✅ Clear comments explaining both fixes
+- ✅ No other modifications
+- ❌ No refactoring
+- ❌ No unrelated changes
+
+Verify the timing fix:
+
+```bash
+git diff main...bugfix/notfound-message-empty-field | grep -B3 "visibility"
+```
+
+**Expected**: Shows aria-label update before visibility change.
+
+Check for visibility guard:
+
+```bash
+git diff main...bugfix/notfound-message-empty-field | grep -A2 "isVisible"
+```
+
+**Expected**: Shows the visibility check wrapping the update.
+
+Compile:
+
+```bash
+npm run compile
+```
+
+**Checklist**:
+- [ ] Only 1 file: `findWidget.ts`
+- [ ] Changes are ~11 lines (focused fix)
+- [ ] Includes aria-label timing fix
+- [ ] Includes visibility check fix
+- [ ] Has clear comments for both fixes
+- [ ] No unrelated refactoring
+- [ ] Compiles successfully
+
+**If all pass**: Continue to create the PR.
 
 ```bash
 gh pr create --base main --head bugfix/notfound-message-empty-field --title "[Accessibility] Bug: Proper aria-label Timing and Visibility Check" --body "## Description
