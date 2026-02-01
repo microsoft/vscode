@@ -5,10 +5,37 @@ Establish foundational infrastructure for the Accessibility Help System.
 
 # [Accessibility] Foundation: Infrastructure and Wiring for Accessibility Help System
 
-> This PR establishes the foundational infrastructure that enables the Accessibility
-> Help System across VS Code's find and filter experiences. It wires the help system
-> into editor, terminal, webview, output, markers, and search components and
-> includes configuration, localized strings, and the product requirements document.
+> Executive summary: This PR delivers the foundational platform and wiring required
+> to provide contextual accessibility help across VS Code's find and filter
+> experiences. It focuses on infrastructure and integration points rather than
+> user-facing content; content is added in subsequent PRs. Reviewers should be
+> able to evaluate architectural intent and the configuration surface without
+> sifting through content changes.
+
+> Announcement / Context: This change is part of the Accessibility Help System
+> initiative (Alt+F1) to make find/filter experiences discoverable to screen
+> reader users and improve keyboard-first discoverability. Full announcement
+> copy and the product requirements document are included below and linked in
+> the `Related` section.
+
+## Configuration (new setting)
+
+We introduce a new accessibility verbosity setting to control how much contextual
+help is announced to assistive technologies. The recommended setting key and
+values are below; update the setting name if your implementation uses a
+different configuration key.
+
+- **Setting key (recommended):** `workbench.accessibility.helpVerbosity`
+- **Type:** `string` (enum)
+- **Allowed values:** `off`, `normal`, `verbose`
+- **Default:** `normal`
+
+Behavior:
+- `off` — accessibility help is disabled; no automatic help announcements.
+- `normal` — only essential contextual hints are announced (recommended default).
+- `verbose` — provide expanded guidance and keyboard shortcut hints on focus.
+
+Testing checklist for the setting is included in the Testing section below.
 
 ## Checklist
 
