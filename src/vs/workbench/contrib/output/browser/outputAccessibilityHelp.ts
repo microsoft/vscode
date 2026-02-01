@@ -36,35 +36,62 @@ class OutputAccessibilityHelpProvider extends Disposable implements IAccessibleV
 
 	provideContent(): string {
 		const lines: string[] = [];
-		lines.push(nls.localize('output.filter.helpTitle', 'Accessibility Help: Output Panel Filter'));
+
+		// Header
+		lines.push(nls.localize('output.header', 'Accessibility Help: Output Panel Filter'));
+		lines.push(nls.localize('output.context', 'You are in the Output panel filter input. This is NOT a navigating search. Instead, it instantly hides lines that do not match your filter, showing only the lines you want to see.'));
 		lines.push('');
-		lines.push(nls.localize('output.filter.overview', 'You are in the Output panel filter input. This is NOT a search with match navigation like the Editor Find. Instead, it is a live filter: as you type, the Output panel shows only lines matching your filter text.'));
+
+		// Current Filter Status
+		lines.push(nls.localize('output.statusHeader', 'Current Filter Status:'));
+		lines.push(nls.localize('output.statusDesc', 'You are filtering the output.'));
 		lines.push('');
-		lines.push(nls.localize('output.filter.behavior', 'How Filtering Works:'));
-		lines.push(nls.localize('output.filter.typing', 'As you type filter text, the Output panel instantly updates to show only matching lines. Your screen reader announces the number of lines visible after filtering.'));
-		lines.push(nls.localize('output.filter.noNavigation', 'Unlike Find, there is no Enter key to navigate to matches. The filter reduces what you see in real time.'));
-		lines.push(nls.localize('output.filter.liveUpdate', 'New output from your running program is appended to the panel even while filtering is active. Matching new lines appear instantly.'));
+
+		// Inside the Filter Input
+		lines.push(nls.localize('output.inputHeader', 'Inside the Filter Input (What It Does):'));
+		lines.push(nls.localize('output.inputDesc', 'While you are in the filter input, your focus stays in the field. You can type, edit, or adjust your filter without leaving the input. As you type, the Output panel instantly updates to show only lines matching your filter.'));
 		lines.push('');
-		lines.push(nls.localize('output.filter.filterPatterns', 'Filter Syntax:'));
-		lines.push(nls.localize('output.filter.include', '- Type text to match: Shows only lines containing that text (case-insensitive by default).'));
-		lines.push(nls.localize('output.filter.exclude', '- !text: Exclude mode - Hides lines containing \'text\', showing only non-matching lines.'));
-		lines.push(nls.localize('output.filter.escape', '- \\\\!: Escape the exclamation mark - Use \\\\ to search for literal "!" characters.'));
-		lines.push(nls.localize('output.filter.multiple', '- text1, text2: Match multiple patterns - Separate with commas to show lines matching ANY pattern.'));
-		lines.push(nls.localize('output.filter.example', 'Example: "ERROR, WARN" shows lines containing either ERROR or WARN. "!DEBUG" hides DEBUG lines.'));
+
+		// What Happens When You Filter
+		lines.push(nls.localize('output.filterHeader', 'What Happens When You Filter:'));
+		lines.push(nls.localize('output.filterDesc1', 'Each time you change the filter text, the panel instantly regenerates to show only matching lines. Your screen reader announces how many lines are now visible. This is live feedback: as you type or delete characters, the displayed lines update immediately.'));
+		lines.push(nls.localize('output.filterDesc2', 'New output from your running program is appended to the panel and automatically filtered, so matching new output appears instantly.'));
 		lines.push('');
-		lines.push(nls.localize('output.filter.logLevels', 'Log Level Filtering (For Log Outputs):'));
-		lines.push(nls.localize('output.filter.logLevelDesc', 'If you are viewing a log channel, use additional filtering buttons to show/hide levels like Trace, Debug, Info, Warning, and Error. Combine text filtering with log level buttons for powerful filtering.'));
+
+		// Focus Behavior
+		lines.push(nls.localize('output.focusHeader', 'Focus Behavior (Important):'));
+		lines.push(nls.localize('output.focusDesc1', 'Your focus stays in the filter input while the panel updates in the background. This is intentional, so you can keep typing without losing your place.'));
+		lines.push(nls.localize('output.focusDesc2', 'If you want to review the filtered output, press Down Arrow to move focus from the filter into the output content below.'));
+		lines.push(nls.localize('output.focusDesc3', 'If you want to clear the filter and see all output, press Escape or delete all filter text.'));
 		lines.push('');
-		lines.push(nls.localize('output.filter.navigation', 'Keyboard Navigation:'));
-		lines.push(nls.localize('output.filter.down', '- Press Down Arrow ({0}) to move focus from the filter input into the output content below.', this._describeCommand('list.focusDown') || 'Down'));
-		lines.push(nls.localize('output.filter.tab', '- Press Tab to move focus to output filtering buttons or other controls.'));
-		lines.push(nls.localize('output.filter.clear', '- Press {0} to clear the filter text (this returns the command for your system)', this._describeCommand('workbench.actions.workbench.panel.output.clearFilterText') || 'Escape'));
+
+		// Filter Syntax
+		lines.push(nls.localize('output.syntaxHeader', 'Filter Syntax and Patterns:'));
+		lines.push(nls.localize('output.syntaxText', '- Type text: Shows only lines containing that text (case-insensitive by default).'));
+		lines.push(nls.localize('output.syntaxExclude', '- !text (exclude): Hides lines containing \'text\', showing all other lines.'));
+		lines.push(nls.localize('output.syntaxEscape', '- \\\\! (escape): Use backslash to search for a literal "!" character.'));
+		lines.push(nls.localize('output.syntaxMultiple', '- text1, text2 (multiple patterns): Separate patterns with commas to show lines matching ANY pattern.'));
+		lines.push(nls.localize('output.syntaxExample', 'Example: typing "error, warning" shows lines containing either "error" or "warning".'));
 		lines.push('');
-		lines.push(nls.localize('output.filter.focus', 'Staying in Focus:'));
-		lines.push(nls.localize('output.filter.editFilter', 'Focus stays in the filter input as you type. To review filtered output, press Down Arrow. Current filter text is preserved when you navigate.'));
+
+		// Keyboard Navigation Summary
+		lines.push(nls.localize('output.keyboardHeader', 'Keyboard Navigation Summary:'));
+		lines.push(nls.localize('output.keyDown', '- Down Arrow: Move focus from filter into the output content.'));
+		lines.push(nls.localize('output.keyTab', '- Tab: Move to log level filter buttons if available.'));
+		lines.push(nls.localize('output.keyEscape', '- Escape: Clear the filter and return to showing all output.'));
 		lines.push('');
-		lines.push(nls.localize('output.filter.settings', 'Output Settings:'));
-		lines.push(nls.localize('output.filter.smartScroll', 'See "Settings > Output" for options like Auto Scroll and Log Level defaults. Search "output.smartScroll" to keep the view scrolled to the latest output.'));
+
+		// Settings
+		lines.push(nls.localize('output.settingsHeader', 'Settings You Can Adjust ({0} opens Settings):', this._describeCommand('workbench.action.openSettings') || 'Ctrl+,'));
+		lines.push(nls.localize('output.settingsIntro', 'These settings affect how the Output panel works.'));
+		lines.push(nls.localize('output.settingVerbosity', '- `accessibility.verbosity.find`: Controls whether the filter input announces the Accessibility Help hint.'));
+		lines.push(nls.localize('output.settingSmartScroll', '- `output.smartScroll.enabled`: Automatically scroll to the latest output when messages arrive.'));
+		lines.push('');
+
+		// Closing
+		lines.push(nls.localize('output.closingHeader', 'Closing:'));
+		lines.push(nls.localize('output.closingDesc', 'Press Escape to clear the filter and see all output, or close the Output panel. Your filter text is preserved if you reopen the panel.'));
+
 		return lines.join('\n');
 	}
 
