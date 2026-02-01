@@ -74,28 +74,15 @@ $script:PRConfig = @{
         @{
             Phase = 2
             Branch = "feature/editor-find-accessibility-help"
-            Title = "[Accessibility] Editor Find Dialog Help (Alt+F1)"
+            Title = "[Accessibility] Editor Find and Replace Dialog Help (Alt+F1)"
             ExpectedFiles = @("src/vs/workbench/contrib/codeEditor/browser/editorFindAccessibilityHelp.ts")
             ExpectedFileCount = 1
             IsNewFile = $true
-            Labels = @("accessibility", "feature", "editor", "find", "screen-reader", "phase-2-editor")
+            Labels = @("accessibility", "feature", "editor", "find", "replace", "screen-reader", "phase-2-editor")
             Reviewers = @("isidorn", "jrieken")  # Update with actual reviewers
             DescriptionFile = "pr-descriptions\pr3-editor-find.md"
-            EstimatedLines = @{ Min = 280; Max = 350 }
+            EstimatedLines = @{ Min = 310; Max = 400 }
             DependsOn = @("feature/keybinding-resolution-infrastructure")
-        }
-        @{
-            Phase = 2
-            Branch = "feature/editor-replace-accessibility-help"
-            Title = "[Accessibility] Editor Replace Dialog Help Extension"
-            ExpectedFiles = @("src/vs/workbench/contrib/codeEditor/browser/editorFindAccessibilityHelp.ts")
-            ExpectedFileCount = 1
-            IsNewFile = $false
-            Labels = @("accessibility", "feature", "editor", "replace", "screen-reader", "phase-2-editor")
-            Reviewers = @("isidorn")  # Update with actual reviewers
-            DescriptionFile = "pr-descriptions\pr4-editor-replace.md"
-            EstimatedLines = @{ Min = 30; Max = 60 }
-            DependsOn = @("feature/editor-find-accessibility-help")
         }
 
         # Phase 3: Other Implementations (can be parallel)
