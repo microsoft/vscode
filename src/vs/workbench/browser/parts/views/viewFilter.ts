@@ -26,6 +26,8 @@ import { Widget } from '../../../../base/browser/ui/widget.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { defaultInputBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 
 const viewFilterMenu = new MenuId('menu.view.filter');
 export const viewFilterSubmenu = new MenuId('submenu.view.filter');
@@ -84,6 +86,7 @@ export class FilterWidget extends Widget {
 	private moreFiltersActionViewItem: MoreFiltersActionViewItem | undefined;
 	private isMoreFiltersChecked: boolean = false;
 	private lastWidth?: number;
+	private _accessibilityHelpHintAnnounced: boolean = false;
 
 	private readonly focusTracker: DOM.IFocusTracker;
 	get onDidFocus() { return this.focusTracker.onDidFocus; }
@@ -94,7 +97,9 @@ export class FilterWidget extends Widget {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IKeybindingService private readonly keybindingService: IKeybindingService
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService
 	) {
 		super();
 		this.delayedFilterUpdate = new Delayer<void>(300);
@@ -121,7 +126,28 @@ export class FilterWidget extends Widget {
 	}
 
 	focus(): void {
+		this._updateFilterInputAriaLabel();
 		this.filterInputBox.focus();
+	}
+
+	private _updateFilterInputAriaLabel(): void {
+		let ariaLabel = this.options.ariaLabel || localize('viewFilter', "Filter");
+		if (!this._accessibilityHelpHintAnnounced && this.configurationService.getValue<boolean>('accessibility.verbosity.find') && this.accessibilityService.isScreenReaderOptimized()) {
+			const keybinding = this.keybindingService.lookupKeybinding('editor.action.accessibilityHelp')?.getAriaLabel();
+			if (keybinding) {
+				ariaLabel += ', ' + localize('accessibilityHelpHintInLabel', "Press {0} for accessibility help", keybinding);
+				this._accessibilityHelpHintAnnounced = true;
+				// Reset the aria label after a short delay to avoid repeated announcement on focus changes
+				setTimeout(() => {
+					this.filterInputBox.setAriaLabel(this.options.ariaLabel || localize('viewFilter', "Filter"));
+				}, 1000);
+			}
+		}
+		this.filterInputBox.setAriaLabel(ariaLabel);
+	}
+
+	resetAccessibilityHelpHint(): void {
+		this._accessibilityHelpHintAnnounced = false;
 	}
 
 	blur(): void {

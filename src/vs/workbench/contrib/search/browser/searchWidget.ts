@@ -45,6 +45,7 @@ import { SearchFindInput } from './searchFindInput.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { NotebookFindScopeType } from '../../notebook/common/notebookCommon.js';
+import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
 
 /** Specified in searchview.css */
 const SingleLineInputHeight = 26;
@@ -137,6 +138,7 @@ export class SearchWidget extends Widget {
 	private _replaceHistoryDelayer: Delayer<void>;
 	private ignoreGlobalFindBufferOnNextFocus = false;
 	private previousGlobalFindBufferValue: string | null = null;
+	private _accessibilityHelpHintAnnounced = false;
 
 	private _onSearchSubmit = this._register(new Emitter<{ triggeredOnType: boolean; delay: number }>());
 	readonly onSearchSubmit: Event<{ triggeredOnType: boolean; delay: number }> = this._onSearchSubmit.event;
@@ -251,6 +253,7 @@ export class SearchWidget extends Widget {
 
 		if (focusReplace && this.isReplaceShown()) {
 			if (this.replaceInput) {
+				this._updateSearchInputAriaLabel(false);
 				this.replaceInput.focus();
 				if (select) {
 					this.replaceInput.select();
@@ -258,12 +261,38 @@ export class SearchWidget extends Widget {
 			}
 		} else {
 			if (this.searchInput) {
+				this._updateSearchInputAriaLabel(true);
 				this.searchInput.focus();
 				if (select) {
 					this.searchInput.select();
 				}
 			}
 		}
+	}
+
+	private _updateSearchInputAriaLabel(includeHint: boolean): void {
+		if (!this.searchInput) {
+			return;
+		}
+		let searchLabel = nls.localize('label.Search', 'Search: Type Search Term and press Enter to search');
+		if (includeHint && !this._accessibilityHelpHintAnnounced && this.configurationService.getValue(AccessibilityVerbositySettingId.Find) && this.accessibilityService.isScreenReaderOptimized()) {
+			const keybinding = this.keybindingService.lookupKeybinding('editor.action.accessibilityHelp')?.getAriaLabel();
+			if (keybinding) {
+				searchLabel += ', ' + nls.localize('accessibilityHelpHintInLabel', "Press {0} for accessibility help", keybinding);
+				this._accessibilityHelpHintAnnounced = true;
+				// Reset the aria label after a short delay to avoid repeated announcement on focus changes
+				setTimeout(() => {
+					if (this.searchInput) {
+						this.searchInput.inputBox.setAriaLabel(nls.localize('label.Search', 'Search: Type Search Term and press Enter to search'));
+					}
+				}, 1000);
+			}
+		}
+		this.searchInput.inputBox.setAriaLabel(searchLabel);
+	}
+
+	resetAccessibilityHelpHint(): void {
+		this._accessibilityHelpHintAnnounced = false;
 	}
 
 	setWidth(width: number) {

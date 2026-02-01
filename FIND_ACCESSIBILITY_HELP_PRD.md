@@ -7,24 +7,43 @@
 | Context | Help Provider | ARIA Hint Announced | Double-Speak Prevention |
 | --- | --- | --- | --- |
 | Editor Find/Replace | ✅ Complete | ✅ Complete | ✅ Complete |
-| Terminal Find | ✅ Complete | ❌ Needs work | N/A |
-| Webview Find | ✅ Complete | ❌ Needs work | N/A |
-| Output Filter | ✅ Complete | ❌ Needs work | N/A |
-| Problems Filter | ✅ Complete | ❌ Needs work | N/A |
-| Debug Console | ✅ Complete | ❌ Needs work | N/A |
-| Search Across Files | ✅ Complete | ❌ Needs work | N/A |
+| Terminal Find | ✅ Complete | ✅ Complete | ✅ Complete |
+| Webview Find | ✅ Complete | ✅ Complete | ✅ Complete |
+| Browser Find | ✅ Complete | ✅ Complete | ✅ Complete |
+| Output Filter | ✅ Complete | ✅ Complete | ✅ Complete |
+| Problems Filter | ✅ Complete | ✅ Complete | ✅ Complete |
+| Debug Console | ✅ Complete | ✅ Complete | ✅ Complete |
+| Comments Filter | ✅ Complete | ✅ Complete | ✅ Complete |
+| Search Across Files | ✅ Complete | ✅ Complete | ✅ Complete |
 
 ### Key Implementation Details
 
-**Help Providers**: All 6 new accessibility help providers are implemented and registered:
-- `editorFindAccessibilityHelp.ts` - Editor Find/Replace
-- `terminalFindAccessibilityHelp.ts` - Terminal Find
-- `webviewFindAccessibilityHelp.ts` - Webview Find
-- `outputAccessibilityHelp.ts` - Output Filter
-- `markersAccessibilityHelp.ts` - Problems Filter
-- `searchAccessibilityHelp.ts` - Search Across Files
+**Help Providers**: All accessibility help providers are implemented and registered.
 
-**ARIA Hint Implementation (Editor Find Only)**:
+**ARIA Hint Implementation (All Contexts)**:
+All find/filter widgets now announce "Press Alt+F1 for accessibility help" with double-speak prevention:
+
+1. **Editor Find/Replace** (`findWidget.ts`):
+   - `_accessibilityHelpHintAnnounced` flag tracks if hint was spoken
+   - Hint added to ARIA label on reveal, reset after 1 second
+   - Flag reset in `_hide()` method
+
+2. **SimpleFindWidget** (`simpleFindWidget.ts`) - Used by Terminal, Webview, Browser:
+   - `_updateFindInputAriaLabel()` method adds hint on first reveal
+   - Requires IConfigurationService and IAccessibilityService
+   - `_accessibilityHelpHintAnnounced` flag with 1-second reset
+
+3. **Search Widget** (`searchWidget.ts`):
+   - `_updateSearchInputAriaLabel()` method adds hint on focus
+   - `resetAccessibilityHelpHint()` method for external reset
+   - Same double-speak prevention pattern
+
+4. **FilterWidget** (`viewFilter.ts`) - Used by Output, Problems, Debug Console, Comments:
+   - `_updateFilterInputAriaLabel()` method adds hint on focus
+   - `resetAccessibilityHelpHint()` method available
+   - Same double-speak prevention pattern
+
+**Pattern Used in All Implementations**:
 The editor find widget now announces "Press Alt+F1 for accessibility help" with double-speak prevention:
 
 ```typescript
@@ -34,10 +53,10 @@ private _accessibilityHelpHintAnnounced: boolean = false;
 private _updateFindInputAriaLabel(): void {
   let findLabel = NLS_FIND_INPUT_LABEL;
   let replaceLabel = NLS_REPLACE_INPUT_LABEL;
-  
+
   // Only add hint if not yet announced this session
-  if (!this._accessibilityHelpHintAnnounced && 
-      this._configurationService.getValue('accessibility.verbosity.find') && 
+  if (!this._accessibilityHelpHintAnnounced &&
+      this._configurationService.getValue('accessibility.verbosity.find') &&
       this._accessibilityService.isScreenReaderOptimized()) {
     const accessibilityHelpKeybinding = this._keybindingService.lookupKeybinding('editor.action.accessibilityHelp')?.getAriaLabel();
     if (accessibilityHelpKeybinding) {
@@ -46,14 +65,14 @@ private _updateFindInputAriaLabel(): void {
       replaceLabel = nls.localize('replaceInputAriaLabelWithHint', "{0}, {1}", replaceLabel, hint);
     }
     this._accessibilityHelpHintAnnounced = true;
-    
+
     // Reset to plain labels after 1 second to prevent re-announcement on tab
     setTimeout(() => {
       this._findInput.inputBox.setAriaLabel(NLS_FIND_INPUT_LABEL);
       this._replaceInput.inputBox.setAriaLabel(NLS_REPLACE_INPUT_LABEL);
     }, 1000);
   }
-  
+
   this._findInput.inputBox.setAriaLabel(findLabel);
   this._replaceInput.inputBox.setAriaLabel(replaceLabel);
 }
@@ -78,20 +97,10 @@ private _hide(focusTheEditor: boolean): void {
 
 ### Remaining Work
 
-**Phase 2: Add ARIA hints to other 6 contexts** (not yet implemented):
-- Terminal Find (SimpleFindWidget-based)
-- Search Widget 
-- Webview Find (SimpleFindWidget-based)
-- Output Filter
-- Problems Filter  
-- Debug Console Filter
-
-Each needs:
-1. Inject IConfigurationService and IAccessibilityService
-2. Add `_accessibilityHelpHintAnnounced` flag
-3. Update ARIA label on reveal with hint
-4. Reset to plain label after 1 second
-5. Reset flag on hide
+**Potential Future Enhancements**:
+- Test with all screen readers (NVDA, JAWS, VoiceOver, Narrator)
+- Consider adding user feedback mechanism for help content
+- Monitor for any double-speak issues reported by users
 
 ### Key Discovery: Most Features Already Exist
 
