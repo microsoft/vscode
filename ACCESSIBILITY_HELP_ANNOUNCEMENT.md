@@ -49,46 +49,46 @@ When the find input or replace input is focused in an editor, press **Alt+F1** t
 ```
 Accessibility Help: Editor Find
 
-You are in the Find dialog for the active editor. This dialog is where you type 
-what you want to locate. The editor is a separate surface that shows each match 
+You are in the Find dialog for the active editor. This dialog is where you type
+what you want to locate. The editor is a separate surface that shows each match
 and its surrounding context.
 
 CURRENT SEARCH STATUS:
 No search text entered yet. Start typing to find matches in the editor.
 
 INSIDE THE FIND DIALOG (WHAT IT DOES):
-While you are in the Find dialog, your focus stays in the input. You can keep 
-typing, edit your search text, or move through matches without leaving the 
-dialog. When you navigate to a match from here, the editor updates in the 
+While you are in the Find dialog, your focus stays in the input. You can keep
+typing, edit your search text, or move through matches without leaving the
+dialog. When you navigate to a match from here, the editor updates in the
 background, but your focus remains in the Find dialog.
 
 WHAT YOU HEAR EACH TIME YOU MOVE TO A MATCH:
-Each navigation step gives you a complete spoken update so you always know where 
+Each navigation step gives you a complete spoken update so you always know where
 you are. The order is consistent:
 
 1) The full line that contains the match is read first, so you get immediate context.
-2) Your position among the matches is announced, so you know how far you are through 
+2) Your position among the matches is announced, so you know how far you are through
    the results.
-3) The exact line and column are announced, so you know precisely where the match 
+3) The exact line and column are announced, so you know precisely where the match
    is in the file.
 
 This sequence happens every time you move forward or backward.
 
 OUTSIDE THE FIND DIALOG (INSIDE THE EDITOR):
-When you are focused in the editor instead of the Find dialog, you can still 
+When you are focused in the editor instead of the Find dialog, you can still
 navigate matches.
 - Press F3 to move to the next match.
 - Press Shift+F3 to move to the previous match.
-You hear the same three-step sequence: full line, match position, then line and 
+You hear the same three-step sequence: full line, match position, then line and
 column.
 
 FOCUS BEHAVIOR (IMPORTANT):
-When you navigate from inside the Find dialog, the editor updates while your 
-focus stays in the input. This is intentional, so you can keep adjusting your 
+When you navigate from inside the Find dialog, the editor updates while your
+focus stays in the input. This is intentional, so you can keep adjusting your
 search without losing your place.
 
-If you want to move focus into the editor to edit text or inspect surrounding 
-code, press Escape to close Find. Focus returns to the editor at the most recent 
+If you want to move focus into the editor to edit text or inspect surrounding
+code, press Escape to close Find. Focus returns to the editor at the most recent
 match.
 
 KEYBOARD NAVIGATION SUMMARY:
@@ -103,7 +103,7 @@ While focused IN the editor (not the Find input):
 - F3: Move to the next match.
 - Shift+F3: Move to the previous match.
 
-Note: Don't press Enter or Shift+Enter when focused in the editor - these will 
+Note: Don't press Enter or Shift+Enter when focused in the editor - these will
 insert line breaks instead of navigating.
 
 FIND OPTIONS IN THE DIALOG:
@@ -114,30 +114,30 @@ FIND OPTIONS IN THE DIALOG:
 
 SETTINGS YOU CAN ADJUST (Ctrl+, opens Settings):
 These settings affect how Find behaves or how matches are highlighted.
-- `accessibility.verbosity.find`: Controls whether the Find input announces the 
+- `accessibility.verbosity.find`: Controls whether the Find input announces the
   Accessibility Help hint.
 - `editor.find.findOnType`: Runs Find as you type.
 - `editor.find.cursorMoveOnType`: Moves the cursor to the best match while you type.
-- `editor.find.seedSearchStringFromSelection`: Controls when selection text is used 
+- `editor.find.seedSearchStringFromSelection`: Controls when selection text is used
   to seed Find.
-- `editor.find.autoFindInSelection`: Automatically enables Find in Selection based on 
+- `editor.find.autoFindInSelection`: Automatically enables Find in Selection based on
   selection type.
 - `editor.find.loop`: Wraps search at the beginning or end of the file.
-- `editor.find.addExtraSpaceOnTop`: Adds extra scroll space so matches are not hidden 
+- `editor.find.addExtraSpaceOnTop`: Adds extra scroll space so matches are not hidden
   behind the Find dialog.
 - `editor.find.history`: Controls whether Find search history is stored.
 - `editor.occurrencesHighlight`: Highlights other occurrences of the current symbol.
 - `editor.occurrencesHighlightDelay`: Controls how soon occurrences are highlighted.
 - `editor.selectionHighlight`: Highlights other matches of the current selection.
 - `editor.selectionHighlightMaxLength`: Limits selection highlight length.
-- `editor.selectionHighlightMultiline`: Controls whether multi-line selections are 
+- `editor.selectionHighlightMultiline`: Controls whether multi-line selections are
   highlighted.
 
 Platform-Specific Setting (macOS only):
 - `editor.find.globalFindClipboard`: Uses the shared macOS Find clipboard when available.
 
 CLOSING:
-Press Escape to close Find. Focus returns to the editor at the most recent match, 
+Press Escape to close Find. Focus returns to the editor at the most recent match,
 and your search history is preserved.
 ```
 
@@ -173,14 +173,14 @@ When the find input in the terminal is focused, press **Alt+F1** to open the acc
 ```
 Accessibility Help: Terminal Find
 
-You are in the Find dialog for the active terminal. This dialog lets you search 
+You are in the Find dialog for the active terminal. This dialog lets you search
 through terminal output.
 
 CURRENT SEARCH STATUS:
 No search text entered yet. Start typing to search through terminal output.
 
 INSIDE THE FIND DIALOG (WHAT IT DOES):
-While in the Find dialog, your focus stays in the input. Type to search output, 
+While in the Find dialog, your focus stays in the input. Type to search output,
 and navigation updates the highlighted match in the terminal.
 
 KEYBOARD NAVIGATION:
@@ -209,7 +209,7 @@ When searching within a webview, press **Alt+F1** for accessibility help.
 ```
 Accessibility Help: Webview Find
 
-You are in the Find dialog for webview content. This dialog lets you search 
+You are in the Find dialog for webview content. This dialog lets you search
 within embedded web content.
 
 [Information about finding text within webview containers]
@@ -233,7 +233,7 @@ When the filter input in the Output panel is focused, press **Alt+F1** for acces
 ```
 Accessibility Help: Output Panel Filter
 
-You are in the Filter input for the Output panel. This lets you filter output 
+You are in the Filter input for the Output panel. This lets you filter output
 messages by search term.
 
 FILTER FUNCTIONALITY DOCUMENTATION:
@@ -261,7 +261,7 @@ When the Problems panel filter is focused, press **Alt+F1** for accessibility he
 ```
 Accessibility Help: Problems Panel Filter
 
-You are in the Filter input for the Problems panel. This lets you filter diagnostic 
+You are in the Filter input for the Problems panel. This lets you filter diagnostic
 errors, warnings, and information messages.
 
 FILTER FUNCTIONALITY:
@@ -274,7 +274,7 @@ KEYBOARD NAVIGATION:
 
 AVAILABLE FILTERS:
 - Errors only
-- Warnings only  
+- Warnings only
 - Information only
 - By source or file name
 
@@ -295,7 +295,7 @@ When the Debug Console filter/input is focused, press **Alt+F1** for accessibili
 ```
 Accessibility Help: Debug Console
 
-You are in the Debug Console filter or input area. This lets you search through 
+You are in the Debug Console filter or input area. This lets you search through
 console output and execute debug commands.
 
 [Debug console specific help about filtering output]
@@ -319,14 +319,14 @@ When the Search input is focused, press **Alt+F1** for accessibility help.
 ```
 Accessibility Help: Search Across Files
 
-You are in the Search dialog for finding text across all files in your workspace. 
+You are in the Search dialog for finding text across all files in your workspace.
 This is more powerful than single-file Find.
 
 CURRENT SEARCH STATUS:
 No search text entered yet. Start typing to search across your workspace.
 
 INSIDE THE SEARCH DIALOG:
-While you are in the Search input, your focus stays in the input. You can type, 
+While you are in the Search input, your focus stays in the input. You can type,
 edit, or navigate through results in the workspace-wide results panel.
 
 WHAT YOU HEAR:
@@ -337,7 +337,7 @@ Each result navigation gives you:
 4) Your position in the total results
 
 FOCUS BEHAVIOR:
-When you navigate from the Search input, the editor shows the match while focus 
+When you navigate from the Search input, the editor shows the match while focus
 stays in the search input. This lets you keep refining your search.
 
 KEYBOARD NAVIGATION:
@@ -439,7 +439,7 @@ Controls whether find/filter inputs announce the hint "Press Alt+F1 for accessib
 The accessibility help system uses a registration pattern through `AccessibleViewRegistry`. Each find/filter experience registers an `IAccessibleViewImplementation` that provides:
 
 - **Priority**: Determines which provider activates when multiple are available
-- **Name**: Unique identifier for the help provider  
+- **Name**: Unique identifier for the help provider
 - **When**: Context key expression controlling activation
 - **Provider**: Returns an `IAccessibleViewContentProvider` with the help content
 
