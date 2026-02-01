@@ -54,6 +54,7 @@ class SearchAccessibilityHelpProvider extends Disposable implements IAccessibleV
 		const isReplaceMode = this._searchModel.replaceActive;
 
 		content.push(localize('msg.searchHeader', "Accessibility Help: Search Across Files"));
+		content.push('');
 		content.push(localize('msg.searchContext', "Welcome to the Search Across Files widget. This powerful tool finds text, code patterns, and references across your entire workspace."));
 		content.push('');
 		content.push(localize('msg.searchIntro', "Current Search Status:"));
@@ -75,18 +76,19 @@ class SearchAccessibilityHelpProvider extends Disposable implements IAccessibleV
 		content.push(localize('msg.navIntro', "In the Search input, as you type, VS Code searches in the background. You can also press Enter to trigger the search manually."));
 		content.push('');
 
-		content.push(localize('msg.navEnter', "- Press Enter in the search input to run or refresh the search."));
-		content.push(localize('msg.navTab', "- Press Tab to move to the results tree. Your screen reader announces the first result file."));
-		content.push(localize('msg.navF4', "- Press F4 to jump to the next result and open the file with the match highlighted in yellow."));
-		content.push(localize('msg.navShiftF4', "- Press Shift+F4 to go to the previous result."));
-		content.push(localize('msg.navArrows', "- Press Down/Up Arrow to navigate through the results tree. When a result is focused, press Enter to go to that match in the editor."));
-		content.push(localize('msg.focusEditor', "- When you press F4 or Enter on a result, focus moves to the editor and the match is highlighted. To quickly return to search, press{0}.", '<keybinding:workbench.action.findInFiles>'));
+		content.push(localize('msg.navEnter', "- Press Enter in the search input to run or refresh the search. Focus stays in the search input."));
+		content.push(localize('msg.navTab', "- Press Tab to move focus to the results tree. Your screen reader announces the first result file."));
+		content.push(localize('msg.navF4', "- Press F4 to jump to the next result and open the file with the match highlighted. Focus moves to the editor."));
+		content.push(localize('msg.navShiftF4', "- Press Shift+F4 to go to the previous result. Focus moves to the editor."));
+		content.push(localize('msg.navArrows', "- Press Down/Up Arrow in the results tree to navigate through results. Focus stays in the results tree."));
+		content.push(localize('msg.navEnterResult', "- Press Enter on a result in the tree to open that match in the editor. Focus moves to the editor."));
+		content.push(localize('msg.focusEditor', "- When focus is in the editor, press{0}to return to the search input.", '<keybinding:workbench.action.findInFiles>'));
 
 		content.push('');
-		content.push(localize('msg.focusBehavior', "Focus Behavior:"));
-		content.push(localize('msg.focusDetail1', "When you press F4 to navigate to a result, VS Code opens the file and your screen reader announces the line containing the match."));
-		content.push(localize('msg.focusDetail2', "To quickly return to search, press{0}. This puts focus back in the search input with your search term selected.", '<keybinding:workbench.action.findInFiles>'));
-		content.push(localize('msg.focusDetail3', "Browse results without leaving the panel using Arrow keys. Press Enter to navigate to a highlighted result."));
+		content.push(localize('msg.focusBehavior', "Focus Behavior Summary:"));
+		content.push(localize('msg.focusDetail1', "Enter in search input: runs search, focus stays in search input."));
+		content.push(localize('msg.focusDetail2', "F4 or Enter on a result: opens file, focus moves to editor at the match location."));
+		content.push(localize('msg.focusDetail3', "Arrow keys in results tree: navigate results, focus stays in tree."));
 
 		content.push('');
 		content.push(localize('msg.searchOptionsHeader', "Search Options:"));

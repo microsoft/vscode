@@ -65,9 +65,11 @@ class EditorFindAccessibilityHelpProvider extends Disposable implements IAccessi
 		// Header
 		if (isReplaceVisible) {
 			content.push(localize('msg.findReplaceHeader', "Accessibility Help: Editor Find and Replace"));
+			content.push('');
 			content.push(localize('msg.findReplaceContext', "You are in the Find and Replace widget for the active code editor."));
 		} else {
 			content.push(localize('msg.findHeader', "Accessibility Help: Editor Find"));
+			content.push('');
 			content.push(localize('msg.findContext', "Welcome to the Find input for your code editor. This widget helps you locate and navigate to code."));
 		}
 
@@ -108,27 +110,27 @@ class EditorFindAccessibilityHelpProvider extends Disposable implements IAccessi
 
 		if (isReplaceVisible) {
 			content.push(localize('msg.replaceNav1', "While in the Find input:"));
-			content.push(localize('msg.replaceNav2', "- Press Enter to highlight the current match in yellow and keep focus in the Find input."));
-			content.push(localize('msg.replaceNav3', "- Press Shift+Enter to go to the previous match instead."));
-			content.push(localize('msg.replaceNav4', "- Press Tab to move to the Replace input field."));
+			content.push(localize('msg.replaceNav2', "- Press Enter to highlight the current match. Focus stays in the Find input."));
+			content.push(localize('msg.replaceNav3', "- Press Shift+Enter to highlight the previous match instead."));
+			content.push(localize('msg.replaceNav4', "- Press Tab to move focus to the Replace input field."));
 			content.push('');
 			content.push(localize('msg.replaceNav5', "While in the Replace input:"));
-			content.push(localize('msg.replaceNav6', "- Press Enter to replace the highlighted match and automatically move to the next match."));
-			content.push(localize('msg.replaceNav7', "- Press Shift+Tab to return to the Find input."));
-			content.push(localize('msg.replaceNav8', "- Press{0}to replace only the current match.", '<keybinding:editor.action.replaceOne>'));
+			content.push(localize('msg.replaceNav6', "- Press Enter to replace the current match and move to the next match. Focus stays in the Replace input."));
+			content.push(localize('msg.replaceNav7', "- Press Shift+Tab to move focus back to the Find input."));
+			content.push(localize('msg.replaceNav8', "- Press{0}to replace only the current match without moving to the next.", '<keybinding:editor.action.replaceOne>'));
 			content.push(localize('msg.replaceNav9', "- Press{0}to replace all matches at once.", '<keybinding:editor.action.replaceAll>'));
 		} else {
-			content.push(localize('msg.navEnter', "- Press Enter while in Find to jump to the next match in the editor and scroll the view to show it."));
-			content.push(localize('msg.navShiftEnter', "- Press Shift+Enter to jump to the previous match instead."));
-			content.push(localize('msg.navF3', "- Press{0}to jump to the next match even if focus is in the editor.", '<keybinding:editor.action.nextMatchFindAction>'));
-			content.push(localize('msg.navShiftF3', "- Press{0}to jump to the previous match from anywhere.", '<keybinding:editor.action.previousMatchFindAction>'));
+			content.push(localize('msg.navEnter', "- Press Enter while in the Find input to navigate to the next match. The view scrolls and the match is highlighted, but focus stays in the Find input."));
+			content.push(localize('msg.navShiftEnter', "- Press Shift+Enter to navigate to the previous match instead. Focus also remains in the Find input."));
+			content.push(localize('msg.navF3', "- Press{0}to navigate to the next match. This works from anywhere - the Find input or the editor. Focus does not change.", '<keybinding:editor.action.nextMatchFindAction>'));
+			content.push(localize('msg.navShiftF3', "- Press{0}to navigate to the previous match. Focus also does not change.", '<keybinding:editor.action.previousMatchFindAction>'));
 		}
 
 		content.push('');
 		content.push(localize('msg.focusBehavior', "Focus Behavior:"));
-		content.push(localize('msg.focusDetail1', "When you press Enter or F3, VS Code highlights the match in the editor with a yellow background. Your screen reader reads the line containing the match, and focus often moves into the editor to that match location."));
-		content.push(localize('msg.focusDetail2', "To quickly return to the Find input, press{0}again. This immediately puts you back in the Find field, and your previous search term is selected.", '<keybinding:actions.find>'));
-		content.push(localize('msg.focusDetail3', "If you want to adjust your search without leaving the Find input, use Shift+Enter or Shift+F3 to navigate backward through matches instead."));
+		content.push(localize('msg.focusDetail1', "When you press Enter while in the Find input, the next match is highlighted with a yellow background and the editor scrolls to show it. Focus remains in the Find input so you can continue navigating or refine your search."));
+		content.push(localize('msg.focusDetail2', "When you press F3 from anywhere, VS Code navigates to the next match. If you were in the Find input, focus stays there. If you were in the editor, focus stays in the editor."));
+		content.push(localize('msg.focusDetail3', "To move focus from the Find input into the editor, press{0}. To return to the Find input from the editor, press{1}.", '<keybinding:editor.action.focusNextPart>', '<keybinding:actions.find>'));
 
 		content.push('');
 		content.push(localize('msg.optionsHeader', "Search Options:"));
@@ -142,7 +144,7 @@ class EditorFindAccessibilityHelpProvider extends Disposable implements IAccessi
 
 		content.push('');
 		content.push(localize('msg.closing', "Closing the Find Widget:"));
-		content.push(localize('msg.closingDetail', "Press Escape to close the Find widget. Focus returns to your editor at the last location where you were searching. Your search history is preserved, so you can open Find again and your previous searches are available."));
+		content.push(localize('msg.closingDetail', "Press Escape to close the Find widget. When you close it, focus moves to the editor at the position of the last highlighted match. Your search history is preserved, so when you reopen Find, your previous searches are available."));
 
 		return content.join('\n');
 	}

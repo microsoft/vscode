@@ -44,6 +44,7 @@ class TerminalFindAccessibilityHelpProvider extends Disposable implements IAcces
 
 		// Header
 		content.push(localize('msg.terminalFindHeader', "Accessibility Help: Terminal Find"));
+		content.push('');
 		content.push(localize('msg.terminalFindContext', "You are in the Terminal Find input. This searches everything visible in the terminal: current output and scrollback history."));
 		content.push('');
 		content.push(localize('msg.terminalBuffer', "What Terminal Find Searches:"));
@@ -53,13 +54,14 @@ class TerminalFindAccessibilityHelpProvider extends Disposable implements IAcces
 		content.push(localize('msg.terminalNavHeader', "Keyboard Navigation:"));
 		content.push(localize('msg.terminalTyping', "As you type search text, matches are found in real time. Your screen reader announces the match count."));
 		content.push('');
-		content.push(localize('msg.terminalNavEnter', "- Press Enter while in the Find input to jump to the next match. The match is highlighted in yellow in the terminal."));
-		content.push(localize('msg.terminalNavShiftEnter', "- Press Shift+Enter to jump to the previous match."));
-		content.push(localize('msg.terminalNavEscape', "- Press Escape to close the find widget and return focus to the terminal.\\'s command line."));
+		content.push(localize('msg.terminalNavEnter', "- Press Enter while in the Find input to jump to the previous match (scrolling UP toward older output). The match is highlighted in yellow."));
+		content.push(localize('msg.terminalNavShiftEnter', "- Press Shift+Enter to jump to the next match (scrolling DOWN toward newer output)."));
+		content.push(localize('msg.terminalNavNote', "Note: This is opposite from editor find because terminal scrollback shows oldest content at the top and newest at the bottom."));
+		content.push(localize('msg.terminalNavEscape', "- Press Escape to close the find widget. Focus moves to the terminal command line."));
 
 		content.push('');
 		content.push(localize('msg.terminalFocusBehavior', "Focus Behavior:"));
-		content.push(localize('msg.terminalFocusDetail', "When you press Enter to navigate to a match, the terminal automatically scrolls to show that match. Your screen reader announces the line containing the match. If you want to keep adjusting the search without leaving the Find input, use Shift+Enter to navigate backward instead."));
+		content.push(localize('msg.terminalFocusDetail', "When you press Enter or Shift+Enter to navigate to a match, the terminal scrolls to show that match but focus remains in the Find input. You can continue navigating through matches or refine your search without leaving the Find input."));
 
 		content.push('');
 		content.push(localize('msg.terminalOptionsHeader', "Search Options:"));
