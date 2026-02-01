@@ -96,12 +96,18 @@ class SearchAccessibilityHelpProvider extends Disposable implements IAccessibleV
 
 		// Keyboard Navigation Summary
 		content.push(localize('search.keyboardHeader', "Keyboard Navigation Summary:"));
-		content.push(localize('search.keyEnter', "- Enter (in Search input): Run or refresh the search."));
-		content.push(localize('search.keyTab', "- Tab: Move focus from Search input to the results tree."));
-		content.push(localize('search.keyArrow', "- Down Arrow: Navigate through results."));
+		content.push('');
+		content.push(localize('search.keyNavSearchHeader', "While focused IN the Search input:"));
+		content.push(localize('search.keyEnter', "- Enter: Run or refresh the search."));
+		content.push(localize('search.keyTab', "- Tab: Move focus to the results tree below."));
+		content.push('');
+		content.push(localize('search.keyNavResultsHeader', "Navigating search results:"));
+		content.push(localize('search.keyArrow', "- Down Arrow: Navigate through results in the tree."));
+		content.push(localize('search.keyResultEnter', "- Enter (when a result is focused): Navigate to that result in the editor."));
+		content.push('');
+		content.push(localize('search.keyNavGlobalHeader', "From anywhere (Search input or editor):"));
 		content.push(localize('search.keyF4', "- {0}: Jump to the next result and focus the editor.", '<keybinding:search.action.focusNextSearchResult>'));
 		content.push(localize('search.keyShiftF4', "- {0}: Jump to the previous result and focus the editor.", '<keybinding:search.action.focusPreviousSearchResult>'));
-		content.push(localize('search.keyResultEnter', "- Enter (on a result): Navigate to that result in the editor."));
 		content.push('');
 
 		// Search Options

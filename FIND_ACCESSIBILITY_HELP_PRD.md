@@ -297,8 +297,446 @@ All texts below are the content returned by the Accessibility Help provider when
 - **Actionable**: Focuses on "how to do things" rather than just describing features
 - **Screen reader friendly**: Organized into short sections that are easy to traverse with arrow keys
 - **Inclusive**: Explains behavior differences explicitly so no one is guessing
+- **Professional and focused for screen reader users**: Highly descriptive about focus behavior and current context
 
-### 1. Editor Find (Enhanced with magic hand-holding)
+### 1. Editor Find
+
+**Header:**
+Accessibility Help: Editor Find
+You are in the Find dialog for the active editor. This dialog is where you type what you want to locate. The editor is a separate surface that shows each match and its surrounding context.
+
+**Current Search Status:**
+You are searching for: "{searchTerm}".
+Match {position} of {total}.
+If there are no matches: No matches found in the current file. Try adjusting your search text or the options below.
+
+**Inside the Find Dialog (What It Does):**
+While you are in the Find dialog, your focus stays in the input. You can keep typing, edit your search text, or move through matches without leaving the dialog.
+When you navigate to a match from here, the editor updates in the background, but your focus remains in the Find dialog.
+
+**What You Hear Each Time You Move to a Match:**
+Each navigation step gives you a complete spoken update so you always know where you are. The order is consistent:
+1) The full line that contains the match is read first, so you get immediate context.
+2) Your position among the matches is announced, so you know how far you are through the results.
+3) The exact line and column are announced, so you know precisely where the match is in the file.
+
+This sequence happens every time you move forward or backward.
+
+**Outside the Find Dialog (Inside the Editor):**
+When you are focused in the editor instead of the Find dialog, you can still navigate matches.
+- Press <keybinding:editor.action.nextMatchFindAction> to move to the next match.
+- Press <keybinding:editor.action.previousMatchFindAction> to move to the previous match.
+You hear the same three-step sequence: full line, match position, then line and column.
+
+**Focus Behavior (Important):**
+When you navigate from inside the Find dialog, the editor updates while your focus stays in the input. This is intentional, so you can keep adjusting your search without losing your place.
+If you want to move focus into the editor to edit text or inspect surrounding code, press Escape to close Find. Focus returns to the editor at the most recent match.
+
+**Keyboard Navigation Summary:**
+- Enter: Move to the next match while staying in the Find dialog.
+- Shift+Enter: Move to the previous match while staying in the Find dialog.
+- <keybinding:editor.action.nextMatchFindAction>: Move to the next match from inside the editor.
+- <keybinding:editor.action.previousMatchFindAction>: Move to the previous match from inside the editor.
+
+**Find Options in the Dialog:**
+- Match Case: Only exact case matches are included.
+- Whole Word: Only full words are matched.
+- Regular Expression: Use pattern matching for advanced searches.
+- Find in Selection: Limit matches to the current selection.
+
+**Settings You Can Adjust (Ctrl+, opens Settings):**
+These settings affect how Find behaves or how matches are highlighted.
+- `accessibility.verbosity.find`: Controls whether the Find input announces the Accessibility Help hint.
+- `editor.find.findOnType`: Runs Find as you type.
+- `editor.find.cursorMoveOnType`: Moves the cursor to the best match while you type.
+- `editor.find.seedSearchStringFromSelection`: Controls when selection text is used to seed Find.
+- `editor.find.autoFindInSelection`: Automatically enables Find in Selection based on selection type.
+- `editor.find.loop`: Wraps search at the beginning or end of the file.
+- `editor.find.addExtraSpaceOnTop`: Adds extra scroll space so matches are not hidden behind the Find dialog.
+- `editor.find.history`: Controls whether Find search history is stored.
+- `editor.occurrencesHighlight`: Highlights other occurrences of the current symbol.
+- `editor.occurrencesHighlightDelay`: Controls how soon occurrences are highlighted.
+- `editor.selectionHighlight`: Highlights other matches of the current selection.
+- `editor.selectionHighlightMaxLength`: Limits selection highlight length.
+- `editor.selectionHighlightMultiline`: Controls whether multi-line selections are highlighted.
+
+**Platform-Specific Setting (macOS only):**
+- `editor.find.globalFindClipboard`: Uses the shared macOS Find clipboard when available.
+
+**Closing:**
+Press Escape to close Find. Focus returns to the editor at the most recent match, and your search history is preserved.
+
+### 2. Editor Replace
+
+**Header:**
+Accessibility Help: Editor Find and Replace
+You are in the Find and Replace dialog for the active editor. This dialog lets you locate text and replace it. The editor is a separate surface that shows each match and the surrounding context.
+
+**Current Search Status:**
+You are searching for: "{searchTerm}".
+Match {position} of {total}.
+Replacement text: "{replaceText}".
+If no replacement text is entered: No replacement text entered yet. Press Tab to move to the Replace input and type your replacement.
+
+**Inside the Find and Replace Dialog (What It Does):**
+While you are in either input, your focus stays in that input. You can type, edit, or navigate matches without leaving.
+When you navigate to a match from the Find input, the editor updates in the background, but your focus remains in the dialog.
+Tab moves you from Find to Replace and back.
+
+**What You Hear Each Time You Move to a Match:**
+Each navigation step gives you a complete spoken update:
+1) The full line that contains the match is read first, so you get immediate context.
+2) Your position among the matches is announced, so you know how far you are through the results.
+3) The exact line and column are announced, so you know precisely where the match is in the file.
+
+**Focus Behavior (Important):**
+When you navigate from inside the Find dialog, the editor updates while your focus stays in the input. This is intentional, so you can keep adjusting your search without losing your place.
+When you replace from the Replace input, the match is replaced and focus moves to the next match. If you have replaced all matches, the dialog remains open.
+If you want to move focus into the editor to edit text, press Escape to close the dialog. Focus returns to the editor at the last replacement location.
+
+**Keyboard Navigation Summary:**
+- Enter (in Find input): Move to the next match while staying in Find.
+- Shift+Enter (in Find input): Move to the previous match while staying in Find.
+- Tab: Move between Find and Replace inputs.
+- Enter (in Replace input): Replace the current match and move to the next.
+- Ctrl+Shift+1: Replace only the current match.
+- Ctrl+Alt+Enter: Replace all matches at once.
+- <keybinding:editor.action.nextMatchFindAction>: Move to the next match from inside the editor.
+- <keybinding:editor.action.previousMatchFindAction>: Move to the previous match from inside the editor.
+
+**Find and Replace Options in the Dialog:**
+- Match Case: Only exact case matches are included.
+- Whole Word: Only full words are matched.
+- Regular Expression: Use pattern matching for advanced searches.
+- Find in Selection: Limit matches to the current selection.
+- Preserve Case: When replacing, maintains the case of the original match.
+
+**Settings You Can Adjust (Ctrl+, opens Settings):**
+These settings affect how Find and Replace behave or how matches are highlighted.
+- `accessibility.verbosity.find`: Controls whether the Find and Replace inputs announce the Accessibility Help hint.
+- `editor.find.findOnType`: Runs Find as you type.
+- `editor.find.cursorMoveOnType`: Moves the cursor to the best match while you type.
+- `editor.find.seedSearchStringFromSelection`: Controls when selection text is used to seed Find.
+- `editor.find.autoFindInSelection`: Automatically enables Find in Selection based on selection type.
+- `editor.find.loop`: Wraps search at the beginning or end of the file.
+- `editor.find.addExtraSpaceOnTop`: Adds extra scroll space so matches are not hidden behind the Find and Replace dialog.
+- `editor.find.history`: Controls whether Find search history is stored.
+- `editor.find.replaceHistory`: Controls whether Replace history is stored.
+- `editor.occurrencesHighlight`: Highlights other occurrences of the current symbol.
+- `editor.occurrencesHighlightDelay`: Controls how soon occurrences are highlighted.
+- `editor.selectionHighlight`: Highlights other matches of the current selection.
+- `editor.selectionHighlightMaxLength`: Limits selection highlight length.
+- `editor.selectionHighlightMultiline`: Controls whether multi-line selections are highlighted.
+
+**Platform-Specific Setting (macOS only):**
+- `editor.find.globalFindClipboard`: Uses the shared macOS Find clipboard when available.
+
+**Closing:**
+Press Escape to close Find and Replace. Focus returns to the editor at the last replacement location, and your search and replace history is preserved.
+
+### 3. Search Across Files
+
+**Header:**
+Accessibility Help: Search Across Files
+You are in the Search view. This workspace-wide tool lets you find text or patterns across all files in your workspace.
+
+**Current Search Status:**
+You are searching across your workspace.
+{resultCount} results found across {fileCount} files.
+If no search has been run: Type a search term to find results.
+If no results: No results found. Check your search term or adjust options below.
+
+**Inside the Search Input (What It Does):**
+While you are in the Search input, your focus stays in the field. You can type your search term and navigate the search results list without leaving the input.
+When you navigate to a result, the editor updates in the background to show the match.
+
+**What You Hear Each Time You Move to a Result:**
+Each navigation step gives you a complete spoken update:
+1) The file name where the result is located is read first, so you know which file contains the match.
+2) The full line that contains the match is read, so you get immediate context.
+3) Your position among the results is announced, so you know how far you are through the results.
+4) The exact line and column are announced, so you know precisely where the match is in the file.
+
+**Focus Behavior (Important):**
+When you navigate from the Search input, the editor updates while your focus stays in the search field. This is intentional, so you can keep refining your search without losing your place.
+If you press Tab, focus moves to the results tree below the input, and you can navigate results and open them. When you press Enter on a result, the match is shown in the editor.
+If you want to focus the editor to edit text at a search result, use F4 to navigate to the result and automatically focus the editor there.
+
+**Keyboard Navigation Summary:**
+- Enter (in Search input): Run or refresh the search.
+- Tab: Move focus from Search input to the results tree.
+- Down Arrow: Navigate through results.
+- F4: Jump to the next result and focus the editor.
+- Shift+F4: Jump to the previous result and focus the editor.
+- Enter (on a result): Navigate to that result in the editor.
+
+**Search Options in the Dialog:**
+- Match Case: Only exact case matches are included.
+- Whole Word: Only full words are matched.
+- Regular Expression: Use pattern matching for advanced searches.
+
+**Settings You Can Adjust (Ctrl+, opens Settings):**
+These settings affect how Search across files behaves.
+- `accessibility.verbosity.find`: Controls whether the Search input announces the Accessibility Help hint.
+- `search.smartCase`: Use case-insensitive search if your search term is all lowercase.
+- `search.searchOnType`: Search all files as you type.
+- `search.searchOnTypeDebouncePeriod`: Wait time in milliseconds before searching as you type.
+- `search.maxResults`: Maximum number of search results to show.
+- `search.collapseResults`: Expand or collapse results.
+- `search.showLineNumbers`: Show line numbers for results.
+- `search.sortOrder`: Sort results by file name, type, modified time, or match count.
+- `search.searchEditor.defaultNumberOfContextLines`: Number of context lines shown around matches.
+- `search.defaultViewMode`: Show results as list or tree.
+- `search.actionsPosition`: Position of action buttons.
+- `search.useReplacePreview`: Open preview when replacing matches.
+
+**Platform-Specific Setting (macOS only):**
+- `search.globalFindClipboard`: Uses the shared macOS Find clipboard when available.
+
+**Closing:**
+Press Escape to close Search. Focus returns to the editor, and your search history is preserved.
+
+### 4. Integrated Terminal Find
+
+**Header:**
+Accessibility Help: Terminal Find
+You are in the Terminal Find input. This searches the entire terminal buffer: both the current output and the scrollback history.
+
+**Current Search Status:**
+You are searching the terminal buffer.
+{matchCount} matches found.
+If no matches: No matches found. Try a different search term or check your options below.
+
+**Inside the Terminal Find Input (What It Does):**
+While you are in the Terminal Find input, your focus stays in the field. You can type, edit your search term, or navigate matches without leaving the input.
+When you navigate to a match, the terminal scrolls to show it, but your focus remains in the Find input.
+
+**What You Hear Each Time You Move to a Match:**
+Each navigation step gives you a complete spoken update:
+1) The full line that contains the match is read first, so you get immediate context.
+2) Your position among the matches is announced, so you know how far you are through the results.
+3) The exact line and column are announced, so you know precisely where the match is in the buffer.
+
+**Focus Behavior (Important):**
+When you navigate from the Terminal Find input, the terminal buffer updates in the background while your focus stays in the input. This is intentional, so you can keep refining your search without losing your place.
+The terminal automatically scrolls to show the match you navigate to.
+If you want to close Find and return focus to the terminal command line, press Escape. Focus moves to the command input at the bottom of the terminal.
+
+**Keyboard Navigation Summary:**
+- Enter: Move to the next match while staying in the Find input.
+- Shift+Enter: Move to the previous match while staying in the Find input.
+
+**Find Options:**
+- Match Case: Only exact case matches are included.
+- Whole Word: Only full words are matched.
+- Regular Expression: Use pattern matching for advanced searches.
+
+**Settings You Can Adjust (Ctrl+, opens Settings):**
+Terminal Find has limited configuration options. Most behavior is controlled by the terminal itself.
+- `accessibility.verbosity.find`: Controls whether the Terminal Find input announces the Accessibility Help hint.
+
+**Closing:**
+Press Escape to close Terminal Find. Focus moves to the terminal command line, and your search history is available on next Find.
+
+### 5. Webview Find
+
+**Header:**
+Accessibility Help: Webview Find
+You are in the Find input for embedded web content. This could be a Markdown preview, a documentation viewer, or a web-based extension interface.
+
+**Current Search Status:**
+You are searching the web content.
+{matchCount} matches found.
+If no matches: No matches found. Try a different search term or check your options below.
+
+**Inside the Webview Find Input (What It Does):**
+While you are in the Find input, your focus stays in the field. You can type, edit your search term, or navigate matches without leaving the input.
+When you navigate to a match, the webview updates to show it, but your focus remains in the Find input.
+
+**What You Hear Each Time You Move to a Match:**
+Each navigation step gives you a complete spoken update:
+1) The content containing the match is read first, so you get immediate context.
+2) Your position among the matches is announced, so you know how far you are through the results.
+3) The exact location information is announced so you know where the match is.
+
+**Focus Behavior (Important):**
+When you navigate from the Webview Find input, the content updates in the background while your focus stays in the input. This is intentional, so you can keep refining your search without losing your place.
+The webview may scroll to show the match, depending on how it is designed.
+If you want to close Find and return focus to the webview content, press Escape. Focus moves back into the webview.
+
+**Keyboard Navigation Summary:**
+- Enter: Move to the next match while staying in the Find input.
+- Shift+Enter: Move to the previous match while staying in the Find input.
+
+**Find Options:**
+- Match Case: Only exact case matches are included.
+- Whole Word: Only full words are matched.
+- Regular Expression: Use pattern matching for advanced searches.
+
+**Important About Webviews:**
+Some webviews intercept keyboard input before VS Code's Find can use it. If Enter or Shift+Enter do not navigate matches, the webview may be handling those keys. Try clicking or tabbing into the webview content first to ensure the webview has focus, then reopen Find and try navigation again.
+
+**Settings You Can Adjust (Ctrl+, opens Settings):**
+Webview Find has minimal configuration. Most behavior depends on the webview itself.
+- `accessibility.verbosity.find`: Controls whether the Webview Find input announces the Accessibility Help hint.
+
+**Closing:**
+Press Escape to close Webview Find. Focus moves back into the webview content, and your search history is available on next Find.
+
+### 6. Output Panel Filter
+
+**Header:**
+Accessibility Help: Output Panel Filter
+You are in the Output panel filter input. This is NOT a navigating search. Instead, it instantly hides lines that do not match your filter, showing only the lines you want to see.
+
+**Current Filter Status:**
+You are filtering the output.
+{visibleLines} lines currently visible (of {totalLines} total).
+If no filter is set: No filter entered. The panel shows all output lines.
+
+**Inside the Filter Input (What It Does):**
+While you are in the filter input, your focus stays in the field. You can type, edit, or adjust your filter without leaving the input.
+As you type, the Output panel instantly updates to show only lines matching your filter.
+
+**What Happens When You Filter:**
+Each time you change the filter text, the panel instantly regenerates to show only matching lines. Your screen reader announces how many lines are now visible. This is live feedback: as you type or delete characters, the displayed lines update immediately.
+New output from your running program is appended to the panel and automatically filtered, so matching new output appears instantly.
+
+**Focus Behavior (Important):**
+Your focus stays in the filter input while the panel updates in the background. This is intentional, so you can keep typing without losing your place.
+If you want to review the filtered output, press Down Arrow to move focus from the filter into the output content below.
+If you want to clear the filter and see all output, press Escape or delete all filter text.
+
+**Filter Syntax and Patterns:**
+- Type text: Shows only lines containing that text (case-insensitive by default).
+- !text (exclude): Hides lines containing 'text', showing all other lines.
+- \\! (escape): Use backslash to search for a literal "!" character.
+- text1, text2 (multiple patterns): Separate patterns with commas to show lines matching ANY pattern.
+Example: typing "error, warning" shows lines containing either "error" or "warning".
+
+**Keyboard Navigation Summary:**
+- Down Arrow: Move focus from filter into the output content.
+- Tab: Move to log level filter buttons if available.
+- Escape: Clear the filter and return to showing all output.
+
+**Settings You Can Adjust (Ctrl+, opens Settings):**
+These settings affect how the Output panel works.
+- `accessibility.verbosity.find`: Controls whether the filter input announces the Accessibility Help hint.
+- `output.smartScroll.enabled`: Automatically scroll to the latest output when messages arrive.
+
+**Closing:**
+Press Escape to clear the filter and see all output, or close the Output panel. Your filter text is preserved if you reopen the panel.
+
+### 7. Problems Panel Filter
+
+**Header:**
+Accessibility Help: Problems Panel Filter
+You are in the Problems panel filter input. This is a filter, not a navigating search. It instantly hides problems that do not match your filter, showing only the problems you want to see.
+
+**Current Filter Status:**
+You are filtering the problems.
+{visibleProblems} problems currently visible (of {totalProblems} total).
+If no filter is set: No filter entered. The panel shows all problems.
+
+**Inside the Filter Input (What It Does):**
+While you are in the filter input, your focus stays in the field. You can type, edit, or adjust your filter without leaving the input.
+As you type, the Problems panel instantly updates to show only problems matching your filter.
+
+**What Happens When You Filter:**
+Each time you change the filter text, the panel instantly regenerates to show only matching problems. Your screen reader announces how many problems are now visible. This is live feedback: as you type or delete characters, the displayed problems update immediately.
+The panel searches problem messages, file names, and error codes, so you can filter by any of these details.
+
+**Focus Behavior (Important):**
+Your focus stays in the filter input while the panel updates in the background. This is intentional, so you can keep typing without losing your place.
+If you want to navigate the filtered problems, press Down Arrow to move focus from the filter into the problems list below.
+When a problem is focused, press Enter to navigate to that problem in the editor.
+If you want to clear the filter and see all problems, press Escape or delete all filter text.
+
+**Filter Syntax and Patterns:**
+- Type text: Shows problems whose message, file path, or code contains that text.
+- !text (exclude): Hides problems containing the text, showing all others.
+Example: typing "node_modules" hides all problems in node_modules.
+
+**Severity and Scope Filtering:**
+Above the filter input are toggle buttons for severity levels and scope:
+- Errors button: Toggle to show or hide error problems.
+- Warnings button: Toggle to show or hide warning problems.
+- Info button: Toggle to show or hide informational problems.
+- Active File Only button: When enabled, shows only problems in the currently open file.
+These buttons work together with your text filter.
+
+**Keyboard Navigation Summary:**
+- Down Arrow: Move focus from filter into the problems list.
+- Tab: Move to severity and scope toggle buttons.
+- Enter (on a problem): Navigate to that problem in the editor.
+- F8: Move to the next problem globally from anywhere in the editor.
+- Shift+F8: Move to the previous problem globally from anywhere in the editor.
+- Escape: Clear the filter and return to showing all problems.
+
+**Settings You Can Adjust (Ctrl+, opens Settings):**
+These settings affect the Problems panel.
+- `accessibility.verbosity.find`: Controls whether the filter input announces the Accessibility Help hint.
+- `problems.autoReveal`: Automatically reveal problems in the editor when you select them.
+- `problems.defaultViewMode`: Show problems as a table or tree.
+- `problems.sortOrder`: Sort problems by severity or position.
+- `problems.showCurrentInStatus`: Show the current problem in the status bar.
+
+**Closing:**
+Press Escape to clear the filter and see all problems. Your filter text is preserved if you reopen the panel. Problems are shown from your entire workspace; use Active File Only to focus on a single file.
+
+### 8. Debug Console Filter
+
+**Header:**
+Accessibility Help: Debug Console Filter
+You are in the Debug Console filter input. This is a filter that instantly hides console messages that do not match your filter, showing only the messages you want to see.
+
+**Current Filter Status:**
+You are filtering the console output.
+{visibleMessages} messages currently visible (of {totalMessages} total).
+If no filter is set: No filter entered. The console shows all messages.
+
+**Inside the Filter Input (What It Does):**
+While you are in the filter input, your focus stays in the field. You can type, edit, or adjust your filter without leaving the input.
+As you type, the console instantly updates to show only messages matching your filter.
+
+**What Happens When You Filter:**
+Each time you change the filter text, the console instantly regenerates to show only matching messages. Your screen reader announces how many messages are now visible. This is live feedback: text searches console output, variable values, and log messages.
+
+**Focus Behavior (Important):**
+Your focus stays in the filter input while the console updates in the background. This is intentional, so you can keep typing without losing your place.
+If you want to review the filtered console output, press Down Arrow to move focus from the filter into the console messages above.
+Important: The console input area is at the bottom of the console, separate from the filter. To evaluate expressions, navigate to the console input (after the filtered messages) and type your expression.
+
+**Distinguishing Filter from Console Input:**
+The filter input is where you are now. It hides or shows messages without running code.
+The console input is at the bottom of the console, after all displayed messages. That is where you type and press Enter to evaluate expressions during debugging.
+To switch to the console input and evaluate an expression, press Ctrl+` to focus the console, then navigate to the input area.
+
+**Filter Syntax and Patterns:**
+- Type text: Shows only messages containing that text.
+- !text (exclude): Hides messages containing the text, showing all others.
+
+**Keyboard Navigation Summary:**
+- Down Arrow: Move focus from filter into the console output.
+- Tab: Move to other console controls if available.
+- Escape: Clear the filter or close the filter.
+- Ctrl+`: Focus the console input to evaluate expressions.
+
+**Settings You Can Adjust (Ctrl+, opens Settings):**
+These settings affect the Debug Console.
+- `accessibility.verbosity.find`: Controls whether the filter input announces the Accessibility Help hint.
+- `debug.console.closeOnEnd`: Automatically close the Debug Console when the debugging session ends.
+- `debug.console.fontSize`: Font size in the console.
+- `debug.console.fontFamily`: Font family in the console.
+- `debug.console.wordWrap`: Wrap lines in the console.
+- `debug.console.historySuggestions`: Suggest previously typed input.
+- `debug.console.collapseIdenticalLines`: Collapse repeated messages with a count.
+- `debug.console.maximumLines`: Maximum number of messages to keep in the console.
+
+**Closing:**
+Press Escape to clear the filter, or close the Debug Console. Your filter text is preserved if you reopen the console.
+
+## Context Keys and Provider Registration
 
 **Header:**
 Accessibility Help: Editor Find
@@ -312,13 +750,18 @@ Match {position} of {total} total. You can navigate through these results.
 **Keyboard Navigation:**
 As you type in the Find input, VS Code announces the match count. Your screen reader will say something like "3 of 12 matches".
 
-- Press Enter while in Find to jump to the next match in the editor and scroll the view to show it. VS Code highlights the match with a yellow background.
+**While focused IN the Find input:**
+- Press Enter to jump to the next match in the editor and scroll the view to show it. VS Code highlights the match with a yellow background.
 - Press Shift+Enter to jump to the previous match instead.
-- Press F3 (or Cmd+G on Mac) to jump to the next match even if focus is in the editor.
-- Press Shift+F3 (or Cmd+Shift+G on Mac) to jump to the previous match from anywhere.
+
+**While focused IN the editor (not the Find input):**
+- Press <keybinding:editor.action.nextMatchFindAction> to jump to the next match.
+- Press <keybinding:editor.action.previousMatchFindAction> to jump to the previous match.
+
+Note: Don't press Enter or Shift+Enter when focused in the editor - these will insert line breaks instead of navigating.
 
 **Focus Behavior:**
-When you press Enter or F3, VS Code highlights the match in the editor with a yellow background. Your screen reader reads the line containing the match. To immediately return to the Find input, press Ctrl+F again (Cmd+F on Mac). Your search term remains selected and ready to edit.
+When you press Enter or <keybinding:editor.action.nextMatchFindAction>, VS Code highlights the match in the editor with a yellow background. Your screen reader reads the line containing the match. To immediately return to the Find input, press Ctrl+F again (Cmd+F on Mac). Your search term remains selected and ready to edit.
 
 **Search Options:**
 - Alt+C: Match Case — Only find exact case matches. Useful when searching for "const" vs "Const".
@@ -341,10 +784,14 @@ You are in Replace mode.
 Replacement text: "{replaceText}".
 (If no replacement text: No replacement text entered. Press Tab to move to the Replace input field and type your replacement.)
 
-**Keyboard Navigation - While in Find Input:**
+**Keyboard Navigation - While focused IN the Find Input:**
 - Press Enter to highlight the current match in yellow and keep focus in the Find input.
 - Press Shift+Enter to go to the previous match instead.
 - Press Tab to move to the Replace input field.
+
+**Keyboard Navigation - While focused IN the editor (not the Find input):**
+- Press <keybinding:editor.action.nextMatchFindAction> to jump to the next match.
+- Press <keybinding:editor.action.previousMatchFindAction> to jump to the previous match.
 
 **Keyboard Navigation - While in Replace Input:**
 - Press Enter to replace the highlighted match and automatically move to the next match.
@@ -409,9 +856,12 @@ Terminal Find searches through the entire terminal buffer, not just what's visib
 **Keyboard Navigation:**
 As you type search text, matches are found in real time. Your screen reader announces the match count.
 
-- Press Enter while in the Find input to jump to the next match. The match is highlighted in yellow in the terminal.
+**While focused IN the Find input:**
+- Press Enter to jump to the next match. The match is highlighted in yellow in the terminal.
 - Press Shift+Enter to jump to the previous match.
 - Press Escape to close the find widget and return focus to the terminal's command line.
+
+Note: Terminal Find keeps focus in the Find input. If you need to return to the terminal command line, press Escape to close Find.
 
 **Focus Behavior:**
 When you press Enter to navigate to a match, the terminal automatically scrolls to show that match. Your screen reader announces the line containing the match. If you want to keep adjusting the search without leaving the Find input, use Shift+Enter to navigate backward instead.
@@ -431,6 +881,8 @@ You are in the Webview Find input. This searches embedded web content such as Ma
 As you type, VS Code searches the webview content and announces the match count like "3 of 7 matches". Screen readers will inform you as matches are found or if no matches exist.
 
 **Keyboard Navigation:**
+
+**While focused IN the Find input:**
 - Press Enter to jump to the next match. Your screen reader announces the content where the match appears, and the text is highlighted in yellow.
 - Press Shift+Enter to jump to the previous match in the same way.
 - Focus may move into the webview to highlight the match. The match location is announced by your screen reader.
@@ -483,7 +935,7 @@ Accessibility Help: Problems Panel Filter
 You are in the Problems panel filter input. This is a FILTER, not a search with match navigation. As you type, the Problems list shows only diagnostics matching your filter: errors, warnings, and information messages from your code.
 
 **How Filtering Works:**
-As you type filter text, the Problems list updates instantly to show only matching items. Your screen reader announces the count of filtered problems. This is NOT a Find operation—there are no match highlighting or F3 navigation.
+As you type filter text, the Problems list updates instantly to show only matching items. Your screen reader announces the count of filtered problems. This is NOT a Find operation—there are no match highlighting or <keybinding:editor.action.nextMatchFindAction> navigation.
 
 Text matching checks problem messages, file names, error codes, and sources. For example, filtering "null" shows all messages containing that word.
 
@@ -653,9 +1105,10 @@ This section provides testing guidance for **both technical/developer audiences 
 
 | Test | Steps | Expected Result | Audience |
 |------|-------|-----------------|----------|
-| **Enter Navigation (Find)** | 1. Editor Find with 5+ matches 2. Press Enter in find input, repeat 3 times | Each Enter moves to next match; screen reader announces "2 of 5" → "3 of 5" → "4 of 5" | QA |
-| **Shift+Enter Navigation** | 1. Same as above, but use Shift+Enter | Each Shift+Enter moves to previous match | QA |
-| **F3/F4 Global Navigation** | 1. Search view with results 2. Click into editor 3. Press F4 | F4 navigates to next result; focus moves to editor, not search view | QA |
+| **Enter Navigation (Find Dialog)** | 1. Editor Find with 5+ matches 2. Press Enter while IN the find input, repeat 3 times | Each Enter moves to next match; screen reader announces "2 of 5" → "3 of 5" → "4 of 5" | QA |
+| **Shift+Enter Navigation (Find Dialog)** | 1. Same as above, but use Shift+Enter while IN the find input | Each Shift+Enter moves to previous match | QA |
+| **F3/F4 Navigation from Editor** | 1. Editor Find with matches 2. Close find (Escape), focus is now IN editor 3. Press <keybinding:editor.action.nextMatchFindAction> | Key navigates to next match from editor; works even when find dialog is closed | QA |
+| **F4 Search Navigation** | 1. Search view with results 2. Click into editor 3. Press <keybinding:search.action.focusNextSearchResult> | <keybinding:search.action.focusNextSearchResult> navigates to next result; focus moves to editor, not search view | QA |
 | **Tab Navigation** | 1. Search Replace mode 2. Press Tab in find input | Focus moves to replace input; options remain accessible via keyboard | QA |
 | **Escape Closes Help** | 1. Any help modal open 2. Press Escape | Help closes; focus returns to original find input; typed text preserved | QA, User |
 | **Filter Tab Navigation** | 1. Problems panel with filtering buttons 2. Press Tab in filter input | Tab moves to severity/scope buttons; usable without mouse | QA |
@@ -849,7 +1302,7 @@ describe('Find Accessibility Help Providers', () => {
 5. **Expected**: Help dialog opens with:
    - Title: "Accessibility Help: Editor Find"
    - Current search context (search term, match count, match position)
-   - Navigation guidance (Enter, Shift+Enter, F3, Shift+F3)
+   - Navigation guidance (Enter/Shift+Enter when in Find input, <keybinding:editor.action.nextMatchFindAction>/<keybinding:editor.action.previousMatchFindAction> when in editor)
    - Options guidance (Alt+C, Alt+W, Alt+R)
    - Closing instructions
 6. Press `Escape` to close help and verify focus returns to find input
@@ -1010,7 +1463,7 @@ When implementing Accessibility Help content:
 
 2. **Check Content Clarity**: Does the help content make sense without visual context? Can a screen reader user understand the current state and how to proceed?
 
-3. **Verify Navigation**: Test F3, Shift+F3, Enter, Shift+Enter, Tab, and Escape in every context. Ensure focus moves as documented.
+3. **Verify Navigation**: Test <keybinding:editor.action.nextMatchFindAction>, <keybinding:editor.action.previousMatchFindAction>, Enter, Shift+Enter, Tab, and Escape in every context. Ensure focus moves as documented. Important: Test Enter/Shift+Enter ONLY when focused in the find input, and F3/Shift+F3 when focused in the editor.
 
 4. **Test Search Patterns**: Include regex patterns, special characters, and multi-line content to catch edge cases.
 
@@ -1276,7 +1729,7 @@ Always provide both Windows and Mac bindings:
 ```typescript
 function getKeybindingText(action: string): string {
   if (action === 'nextMatch') {
-    return 'Press Enter (or F3, or Cmd+G on Mac)';
+    return 'Press Enter (or <keybinding:editor.action.nextMatchFindAction>)';
   }
   // ... more actions
 }
@@ -1407,10 +1860,10 @@ const strings = {
   searching: nls.localize('editorFind.help.searching', 'You are searching for: "{0}".'),
   matchInfo: nls.localize('editorFind.help.matchInfo', 'Match {0} of {1} total.'),
   noMatches: nls.localize('editorFind.help.noMatches', 'No matches found. Try a different search term.'),
-  enterNav: nls.localize('editorFind.help.enterNav', 'Press Enter to jump to the next match.'),
-  shiftEnter: nls.localize('editorFind.help.shiftEnter', 'Press Shift+Enter to jump to the previous match.'),
-  f3Nav: nls.localize('editorFind.help.f3Nav', 'Press F3 (Cmd+G on Mac) to jump to next match from anywhere.'),
-  shiftF3Nav: nls.localize('editorFind.help.shiftF3Nav', 'Press Shift+F3 (Cmd+Shift+G on Mac) to jump to previous match.'),
+  enterNav: nls.localize('editorFind.help.enterNav', 'Press Enter while in the Find input to jump to the next match.'),
+  shiftEnter: nls.localize('editorFind.help.shiftEnter', 'Press Shift+Enter while in the Find input to jump to the previous match.'),
+  nextMatchNav: nls.localize('editorFind.help.nextMatchNav', 'Press {0} to jump to next match from the editor.', '<keybinding:editor.action.nextMatchFindAction>'),
+  previousMatchNav: nls.localize('editorFind.help.previousMatchNav', 'Press {0} to jump to previous match from the editor.', '<keybinding:editor.action.previousMatchFindAction>'),
   caseOption: nls.localize('editorFind.help.caseOption', 'Alt+C: Match Case — Find exact case matches only.'),
   wholeWordOption: nls.localize('editorFind.help.wholeWordOption', 'Alt+W: Whole Word — Find complete words only.'),
   regexOption: nls.localize('editorFind.help.regexOption', 'Alt+R: Regular Expression — Use regex patterns.'),
@@ -1437,11 +1890,14 @@ export class EditorFindAccessibilityHelp implements AccessibilityHelpProvider {
 
     content += `\n`;
 
-    // Navigation
+    // Navigation - separated by context
+    content += `Navigation while in the Find input:\n`;
     content += `${strings.enterNav}\n`;
     content += `${strings.shiftEnter}\n`;
-    content += `${strings.f3Nav}\n`;
-    content += `${strings.shiftF3Nav}\n`;
+    content += `\n`;
+    content += `Navigation from the editor:\n`;
+    content += `${strings.nextMatchNav}\n`;
+    content += `${strings.previousMatchNav}\n`;
     content += `\n`;
 
     // Options

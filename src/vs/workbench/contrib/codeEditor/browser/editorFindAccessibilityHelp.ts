@@ -114,14 +114,22 @@ class EditorFindAccessibilityHelpProvider extends Disposable implements IAccessi
 
 			// Keyboard Navigation Summary
 			content.push(localize('replace.keyboardHeader', "Keyboard Navigation Summary:"));
-			content.push(localize('replace.keyEnter', "- Enter (in Find input): Move to the next match while staying in Find."));
-			content.push(localize('replace.keyShiftEnter', "- Shift+Enter (in Find input): Move to the previous match while staying in Find."));
+			content.push('');
+			content.push(localize('replace.keyNavFindHeader', "While focused IN the Find input:"));
+			content.push(localize('replace.keyEnter', "- Enter: Move to the next match while staying in Find."));
+			content.push(localize('replace.keyShiftEnter', "- Shift+Enter: Move to the previous match while staying in Find."));
 			content.push(localize('replace.keyTab', "- Tab: Move between Find and Replace inputs."));
-			content.push(localize('replace.keyReplaceEnter', "- Enter (in Replace input): Replace the current match and move to the next."));
+			content.push('');
+			content.push(localize('replace.keyNavReplaceHeader', "While focused IN the Replace input:"));
+			content.push(localize('replace.keyReplaceEnter', "- Enter: Replace the current match and move to the next."));
 			content.push(localize('replace.keyReplaceOne', "- {0}: Replace only the current match.", '<keybinding:editor.action.replaceOne>'));
 			content.push(localize('replace.keyReplaceAll', "- {0}: Replace all matches at once.", '<keybinding:editor.action.replaceAll>'));
-			content.push(localize('replace.keyF3', "- {0}: Move to the next match from inside the editor.", '<keybinding:editor.action.nextMatchFindAction>'));
-			content.push(localize('replace.keyShiftF3', "- {0}: Move to the previous match from inside the editor.", '<keybinding:editor.action.previousMatchFindAction>'));
+			content.push('');
+			content.push(localize('replace.keyNavEditorHeader', "While focused IN the editor (not the Find input):"));
+			content.push(localize('replace.keyF3', "- {0}: Move to the next match.", '<keybinding:editor.action.nextMatchFindAction>'));
+			content.push(localize('replace.keyShiftF3', "- {0}: Move to the previous match.", '<keybinding:editor.action.previousMatchFindAction>'));
+			content.push('');
+			content.push(localize('replace.keyNavNote', "Note: Don't press Enter or Shift+Enter when focused in the editor - these will insert line breaks instead of navigating."));
 			content.push('');
 
 			// Find and Replace Options
@@ -213,10 +221,16 @@ class EditorFindAccessibilityHelpProvider extends Disposable implements IAccessi
 
 			// Keyboard Navigation Summary
 			content.push(localize('find.keyboardHeader', "Keyboard Navigation Summary:"));
+			content.push('');
+			content.push(localize('find.keyNavFindHeader', "While focused IN the Find input:"));
 			content.push(localize('find.keyEnter', "- Enter: Move to the next match while staying in the Find dialog."));
 			content.push(localize('find.keyShiftEnter', "- Shift+Enter: Move to the previous match while staying in the Find dialog."));
-			content.push(localize('find.keyF3', "- {0}: Move to the next match from inside the editor.", '<keybinding:editor.action.nextMatchFindAction>'));
-			content.push(localize('find.keyShiftF3', "- {0}: Move to the previous match from inside the editor.", '<keybinding:editor.action.previousMatchFindAction>'));
+			content.push('');
+			content.push(localize('find.keyNavEditorHeader', "While focused IN the editor (not the Find input):"));
+			content.push(localize('find.keyF3', "- {0}: Move to the next match.", '<keybinding:editor.action.nextMatchFindAction>'));
+			content.push(localize('find.keyShiftF3', "- {0}: Move to the previous match.", '<keybinding:editor.action.previousMatchFindAction>'));
+			content.push('');
+			content.push(localize('find.keyNavNote', "Note: Don't press Enter or Shift+Enter when focused in the editor - these will insert line breaks instead of navigating."));
 			content.push('');
 
 			// Find Options

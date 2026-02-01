@@ -66,6 +66,8 @@ class WebviewFindAccessibilityHelpProvider extends Disposable implements IAccess
 
 		// Keyboard Navigation Summary
 		content.push(localize('webview.keyboardHeader', "Keyboard Navigation Summary:"));
+		content.push('');
+		content.push(localize('webview.keyNavHeader', "While focused IN the Find input:"));
 		content.push(localize('webview.keyEnter', "- Enter: Move to the next match while staying in the Find input."));
 		content.push(localize('webview.keyShiftEnter', "- Shift+Enter: Move to the previous match while staying in the Find input."));
 		content.push('');

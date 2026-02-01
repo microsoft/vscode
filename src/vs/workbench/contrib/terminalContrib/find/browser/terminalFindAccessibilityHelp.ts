@@ -74,8 +74,12 @@ class TerminalFindAccessibilityHelpProvider extends Disposable implements IAcces
 
 		// Keyboard Navigation Summary
 		content.push(localize('terminal.keyboardHeader', "Keyboard Navigation Summary:"));
+		content.push('');
+		content.push(localize('terminal.keyNavHeader', "While focused IN the Find input:"));
 		content.push(localize('terminal.keyEnter', "- Enter: Move to the next match while staying in the Find input."));
 		content.push(localize('terminal.keyShiftEnter', "- Shift+Enter: Move to the previous match while staying in the Find input."));
+		content.push('');
+		content.push(localize('terminal.keyNavNote', "Note: Terminal Find keeps focus in the Find input. If you need to return to the terminal command line, press Escape to close Find."));
 		content.push('');
 
 		// Find Options
