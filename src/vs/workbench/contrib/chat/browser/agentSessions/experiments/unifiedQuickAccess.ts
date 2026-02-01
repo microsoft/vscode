@@ -160,13 +160,16 @@ export class UnifiedQuickAccess extends Disposable {
 				return;
 			}
 
-			// Check if user deleted the shortcut character - switch back to Files
-			if (this._arrivedViaShortcut && value === '') {
-				const filesTab = this._tabs.find(t => t.id === 'files');
-				if (filesTab && filesTab !== this._currentTab) {
-					this._arrivedViaShortcut = undefined;
-					this._switchTab(filesTab, picker, false);
-					return;
+			// Check if user removed the shortcut character (including when input is emptied) - switch back to Files
+			if (this._arrivedViaShortcut) {
+				const shortcut = this._arrivedViaShortcut;
+				if (!value.startsWith(shortcut)) {
+					const filesTab = this._tabs.find(t => t.id === 'files');
+					if (filesTab && filesTab !== this._currentTab) {
+						this._arrivedViaShortcut = undefined;
+						this._switchTab(filesTab, picker, false);
+						return;
+					}
 				}
 			}
 
