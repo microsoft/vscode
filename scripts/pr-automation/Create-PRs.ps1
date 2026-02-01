@@ -84,46 +84,34 @@ function Write-Warning {
 function Get-PRDescription {
     param([hashtable]$PRConfig)
 
-    # Check if there's a custom description file
+    # REQUIRE description file to exist - no auto-generation
+    # This ensures PR descriptions are complete, reviewed, and professional
     $descFile = Join-Path $scriptDir $PRConfig.DescriptionFile
-    if (Test-Path $descFile) {
-        return Get-Content $descFile -Raw
+
+    if (-not $PRConfig.DescriptionFile) {
+        Write-Error "PR configuration for '$($PRConfig.Branch)' is missing DescriptionFile property"
+        throw "Missing DescriptionFile in PR configuration"
     }
 
-    # Generate default description based on phase and type
-    $branch = $PRConfig.Branch
-    $isBugFix = $PRConfig.IsBugFix -eq $true
-    $isNewFile = $PRConfig.IsNewFile -eq $true
+    if (-not (Test-Path $descFile)) {
+        Write-Error @"
+PR description file not found: $descFile
 
-    $description = @"
-## Description
+Each PR requires a complete description file in pr-descriptions/ folder.
+Create the file with:
+- Executive summary
+- Checklist
+- Detailed changes
+- Testing steps
+- Release note
 
-$(if ($isBugFix) { "Fixes a bug in" } else { "Adds" }) $($PRConfig.Title -replace '^\[Accessibility\]\s*', '')
-
-## Changes
-
-### Files $(if ($isNewFile) { "Added" } else { "Modified" })
-$(($PRConfig.ExpectedFiles | ForEach-Object { "- ``$_``" }) -join "`n")
-
-## Testing Completed
-
-- [ ] TypeScript compilation passes
-- [ ] Screen reader testing completed
-- [ ] Keyboard navigation verified
-- [ ] No regressions in existing functionality
-
-## Checklist
-
-- [x] Code follows VS Code contribution guidelines
-- [x] Localized strings use nls.localize()
-- [x] No debug code left behind
-- [x] Microsoft copyright header present
-
-## Labels
-$($PRConfig.Labels -join ", ")
+See existing files in pr-descriptions/ for examples.
 "@
+        throw "Missing required PR description file: $($PRConfig.DescriptionFile)"
+    }
 
-    return $description
+    Write-Host "    Using description file: $($PRConfig.DescriptionFile)" -ForegroundColor DarkGray
+    return Get-Content $descFile -Raw
 }
 
 # ============================================================================

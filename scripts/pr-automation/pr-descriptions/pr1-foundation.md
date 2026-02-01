@@ -1,97 +1,211 @@
 <!--
-One-line summary (will be used as PR summary):
-Establish foundational infrastructure for the Accessibility Help System.
+PR 1 of 3: Foundation & Infrastructure for Accessibility Help System
+Branch: feature/accessibility-help-foundation
 -->
 
 # [Accessibility] Foundation: Infrastructure and Wiring for Accessibility Help System
 
-> Executive summary: This PR delivers the foundational platform and wiring required
-> to provide contextual accessibility help across VS Code's find and filter
-> experiences. It focuses on infrastructure and integration points rather than
-> user-facing content; content is added in subsequent PRs. Reviewers should be
-> able to evaluate architectural intent and the configuration surface without
-> sifting through content changes.
+## Executive Summary
 
-> Announcement / Context: This change is part of the Accessibility Help System
-> initiative (Alt+F1) to make find/filter experiences discoverable to screen
-> reader users and improve keyboard-first discoverability. Full announcement
-> copy and the product requirements document are included below and linked in
-> the `Related` section.
+This PR establishes the foundational infrastructure that enables contextual accessibility help (Alt+F1) across all of VS Code's find and filter experiences. Screen reader users currently have no discoverable way to learn keyboard shortcuts and navigation patterns for find dialogs. This change introduces the platform wiring, configuration surface, and contribution registrations that subsequent PRs will build upon to deliver comprehensive accessibility help content.
 
-## Configuration (new setting)
+**Target users:** Screen reader users (NVDA, JAWS, VoiceOver) and keyboard-first users who need discoverable help for find/filter functionality.
 
-We introduce a new accessibility verbosity setting to control how much contextual
-help is announced to assistive technologies. The recommended setting key and
-values are below; update the setting name if your implementation uses a
-different configuration key.
+**Key insight from implementation:** In all find widgets (except when pressing Escape to close), focus remains in the find input when navigating between matches. This allows users to continue navigating or refine their search without having to return to the input. This behavior is now documented in the accessibility help content.
 
-- **Setting key (recommended):** `workbench.accessibility.helpVerbosity`
-- **Type:** `string` (enum)
-- **Allowed values:** `off`, `normal`, `verbose`
-- **Default:** `normal`
-
-Behavior:
-- `off` — accessibility help is disabled; no automatic help announcements.
-- `normal` — only essential contextual hints are announced (recommended default).
-- `verbose` — provide expanded guidance and keyboard shortcut hints on focus.
-
-Testing checklist for the setting is included in the Testing section below.
+---
 
 ## Checklist
 
-- [ ] This change follows repository PR guidelines (one-line summary + description)
-- [ ] All changes are localized where required (nls.localize() used for user-visible strings)
-- [ ] CI (build and tests) pass
-- [ ] Accessibility testing performed with NVDA and JAWS (or equivalent)
+- [ ] Code follows VS Code contribution guidelines
+- [ ] All user-visible strings use `nls.localize()` for localization
+- [ ] TypeScript compilation passes (`npm run compile`)
+- [ ] Existing tests pass (`npm run test`)
+- [ ] Screen reader testing completed (NVDA/JAWS on Windows, VoiceOver on macOS)
 - [ ] Reviewer(s) assigned: @isidorn, @jrieken
 
-## What this PR includes
+---
 
-### Core Infrastructure
-- `src/vs/editor/contrib/find/browser/findController.ts`: Accessibility help trigger integration
-- `src/vs/platform/accessibility/browser/accessibleView.ts`: Extended for find/filter context support
-- `src/vs/workbench/contrib/accessibility/browser/accessibilityConfiguration.ts`: New configuration options for accessibility alerts
+## What This PR Includes
 
-### Contribution Registrations (wiring)
-- `src/vs/workbench/contrib/codeEditor/browser/codeEditor.contribution.ts`
-- `src/vs/workbench/contrib/terminalContrib/find/browser/terminal.find.contribution.ts`
-- `src/vs/workbench/contrib/webview/browser/webview.contribution.ts`
-- `src/vs/workbench/contrib/output/browser/output.contribution.ts`
-- `src/vs/workbench/contrib/markers/browser/markers.contribution.ts`
-- `src/vs/workbench/contrib/search/browser/search.contribution.ts`
+### 1. Product Requirements Document (PRD)
 
-### Supporting Files
-- `src/vs/editor/common/standaloneStrings.ts`: Localized accessibility strings
-- `src/vs/workbench/contrib/accessibility/browser/editorAccessibilityHelp.ts`: Keybinding & context-aware help wiring
-- `FIND_ACCESSIBILITY_HELP_PRD.md`: Product requirements document
+**File:** `FIND_ACCESSIBILITY_HELP_PRD.md` (+2,272 lines)
+
+Comprehensive product requirements document covering:
+- Problem statement and user research findings
+- Design principles for accessibility help content
+- Implementation specifications for all 9 find/filter contexts
+- Focus behavior documentation (critical corrections identified during implementation)
+- Testing requirements and acceptance criteria
+- Double-speak prevention pattern specification
+
+### 2. New Configuration Setting
+
+**File:** `src/vs/workbench/contrib/accessibility/browser/accessibilityConfiguration.ts`
+
+Added new verbosity setting for find experiences:
+
+```typescript
+export const enum AccessibilityVerbositySettingId {
+    // ... existing settings ...
+    Find = 'accessibility.verbosity.find'
+}
+```
+
+| Setting Key | Type | Default | Description |
+|-------------|------|---------|-------------|
+| `accessibility.verbosity.find` | `boolean` | `true` | Provide information about how to access the find accessibility help menu when the find input is focused. |
+
+When enabled and a screen reader is detected, find widgets will announce "Press Alt+F1 for accessibility help" on first focus.
+
+### 3. Core Infrastructure Updates
+
+**File:** `src/vs/editor/contrib/find/browser/findController.ts` (+6 lines)
+
+- Imports `IAccessibilityService` for screen reader detection
+- Passes accessibility service to `FindWidget` constructor
+- Enables the find widget to provide context-aware accessibility hints
+
+**File:** `src/vs/platform/accessibility/browser/accessibleView.ts` (+8 lines)
+
+- Extended accessible view registry for find/filter context support
+- Added `AccessibleViewProviderId.EditorFindHelp` identifier
+- Infrastructure for help provider registration
+
+### 4. Contribution Registrations (Wiring)
+
+These changes register the forthcoming accessibility help providers with VS Code's contribution system. Each adds a single import/registration line that wires the help system into the component.
+
+| File | Change | Purpose |
+|------|--------|---------|
+| `codeEditor.contribution.ts` | +1 line | Editor find/replace help registration |
+| `terminal.find.contribution.ts` | +9 lines | Terminal find help registration |
+| `webview.contribution.ts` | +5 lines | Webview find help registration |
+| `output.contribution.ts` | +5 lines | Output panel filter help registration |
+| `markers.contribution.ts` | +5 lines | Problems panel filter help registration |
+| `search.contribution.ts` | +4 lines | Search across files help registration |
+
+---
+
+## Technical Implementation Details
+
+### Accessible View Registry Pattern
+
+The accessibility help system uses VS Code's established `AccessibleViewRegistry` pattern:
+
+```typescript
+// Registration pattern used in contribution files
+AccessibleViewRegistry.register(new EditorFindAccessibilityHelp());
+```
+
+Each help provider implements `IAccessibleViewImplementation`:
+- `priority`: Determines which provider activates when multiple match
+- `name`: Unique identifier for the provider
+- `when`: Context key expression defining activation conditions
+- `type`: `AccessibleViewType.Help` for help content
+- `getProvider()`: Factory returning the content provider
+
+### Context Key Expressions
+
+Help providers activate based on context keys:
+- `CONTEXT_FIND_INPUT_FOCUSED` - Editor find input has focus
+- `CONTEXT_REPLACE_INPUT_FOCUSED` - Editor replace input has focus
+- Terminal, webview, and filter contexts have similar keys
+
+### Verbosity Setting Integration
+
+The verbosity setting follows the existing pattern for other VS Code accessibility verbosity settings:
+
+```typescript
+const baseVerbosityProperty: IConfigurationPropertySchema = {
+    type: 'boolean',
+    default: true,
+    tags: ['accessibility']
+};
+```
+
+---
 
 ## Testing & Validation
 
-1. Run existing accessibility and unit test suites:
+### Automated Testing
 
 ```powershell
-# from repo root
+# Run full test suite
 npm run test
+
+# Run accessibility-specific tests
+npm run test -- --grep "accessibility"
 ```
 
-2. Manually validate:
-- Open editor find/replace and press `Alt+F1` — ensure help dialog appears
-- Open terminal find and press `Alt+F1` — ensure terminal-specific help appears
-- Verify help dialogs announce correctly in NVDA/JAWS
+### Manual Validation Steps
 
-## Rollout / Follow-ups
+1. **Verify setting registration:**
+   - Open Settings (Ctrl+,)
+   - Search for "accessibility.verbosity.find"
+   - Confirm setting appears with correct description
+   - Toggle setting and verify it persists
 
-- PR 2 (Content) depends on this PR and will add the concrete AccessibilityHelp provider files.
-- PR 3 (Polish) will add ARIA hints and widget bug fixes after PR 2 is merged.
+2. **Verify contribution wiring:**
+   - Open each component (Editor, Terminal, Output, Problems, Search)
+   - Open the find/filter dialog
+   - Press Alt+F1
+   - Verify the Accessible View opens (content will be minimal until PR 2)
 
-## Release Note (Required)
+3. **Verify PRD accessibility:**
+   - Open `FIND_ACCESSIBILITY_HELP_PRD.md` in VS Code
+   - Verify document renders correctly in preview
+   - Check all tables and code blocks are properly formatted
 
-Provide a short release-note line for the changelog (one line):
+---
+
+## Dependencies & Related PRs
+
+| PR | Branch | Relationship |
+|----|--------|--------------|
+| **This PR** | `feature/accessibility-help-foundation` | Foundation (no dependencies) |
+| PR 2 | `feature/accessibility-help-content` | Depends on this PR |
+| PR 3 | `feature/accessibility-aria-polish` | Depends on PR 2 |
+
+---
+
+## Rollout Considerations
+
+- **Feature flag:** Uses existing `accessibility.verbosity.*` pattern; no new feature flag needed
+- **Telemetry:** No new telemetry in this PR
+- **Performance:** Minimal impact; lazy-loaded help providers
+- **Breaking changes:** None; additive changes only
+
+---
+
+## Release Note
 
 ```
-Accessibility: Add foundational infrastructure for find/filter accessibility help (Alt+F1)
+Accessibility: Add foundational infrastructure for find/filter accessibility help (Alt+F1) - enables screen reader users to discover keyboard shortcuts and navigation patterns in find dialogs.
 ```
 
-## Related
-- See `PR-Config.ps1` for expected files and reviewers
-- Related PRs: PR 2 — `feature/accessibility-help-content`, PR 3 — `feature/accessibility-aria-polish`
+---
+
+## Reviewers
+
+- **Primary:** @isidorn (Accessibility), @jrieken (Editor)
+- **Areas:** Editor, Terminal, Webview, Output, Problems, Search contribution files
+
+---
+
+## Files Changed Summary
+
+| File | Lines | Type |
+|------|-------|------|
+| `FIND_ACCESSIBILITY_HELP_PRD.md` | +2,272 | New file |
+| `accessibilityConfiguration.ts` | +7 | Modified |
+| `findController.ts` | +6 | Modified |
+| `accessibleView.ts` | +8 | Modified |
+| `codeEditor.contribution.ts` | +1 | Modified |
+| `terminal.find.contribution.ts` | +9 | Modified |
+| `webview.contribution.ts` | +5 | Modified |
+| `output.contribution.ts` | +5 | Modified |
+| `markers.contribution.ts` | +5 | Modified |
+| `search.contribution.ts` | +4 | Modified |
+| **Total** | **+2,319 / -3** | **10 files** |
