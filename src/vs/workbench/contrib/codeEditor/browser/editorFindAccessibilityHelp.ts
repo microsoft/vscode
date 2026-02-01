@@ -15,12 +15,28 @@ import { ServicesAccessor } from '../../../../platform/instantiation/common/inst
 import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
 import { CommonFindController } from '../../../../editor/contrib/find/browser/findController.js';
 
+/**
+ * Accessible view implementation for Find and Replace help in the code editor.
+ * Provides comprehensive accessibility support for the Find dialog, including:
+ * - Search status information (current term, match count, position)
+ * - Navigation instructions for keyboard control
+ * - Focus behavior explanation
+ * - Available settings and options
+ * - Platform-specific guidance
+ *
+ * Activated via Alt+F1 when Find or Replace input is focused.
+ */
 export class EditorFindAccessibilityHelp implements IAccessibleViewImplementation {
 	readonly priority = 105;
 	readonly name = 'editor-find';
 	readonly when = ContextKeyExpr.or(CONTEXT_FIND_INPUT_FOCUSED, CONTEXT_REPLACE_INPUT_FOCUSED);
 	readonly type = AccessibleViewType.Help;
 
+	/**
+	 * Creates an accessible view content provider for the active code editor's Find/Replace dialog.
+	 * @param accessor Service accessor for retrieving the code editor service
+	 * @returns The provider instance, or undefined if no active editor or find controller is found
+	 */
 	getProvider(accessor: ServicesAccessor) {
 		const codeEditorService = accessor.get(ICodeEditorService);
 		const codeEditor = codeEditorService.getActiveCodeEditor() || codeEditorService.getFocusedCodeEditor();
@@ -38,6 +54,19 @@ export class EditorFindAccessibilityHelp implements IAccessibleViewImplementatio
 	}
 }
 
+/**
+ * Content provider for the Find and Replace accessibility help.
+ * Generates localized, context-aware help information based on the current Find state.
+ *
+ * The implementation:
+ * - Adapts content based on whether Replace mode is active
+ * - Provides current search status (term, match count, position)
+ * - Explains focus behavior (how focus moves between Find input, Replace input, and editor)
+ * - Lists keyboard navigation shortcuts for different contexts
+ * - Documents available Find and Replace options
+ * - References relevant settings that affect Find behavior
+ * - Includes platform-specific guidance where applicable
+ */
 class EditorFindAccessibilityHelpProvider extends Disposable implements IAccessibleViewContentProvider {
 	readonly id = AccessibleViewProviderId.EditorFindHelp;
 	readonly verbositySettingKey = AccessibilityVerbositySettingId.Find;
@@ -50,10 +79,32 @@ class EditorFindAccessibilityHelpProvider extends Disposable implements IAccessi
 		super();
 	}
 
+	/**
+	 * Returns focus to the code editor when the accessibility help is closed.
+	 */
 	onClose(): void {
 		this._codeEditor.focus();
 	}
 
+	/**
+	 * Generates the complete accessibility help content for Find and Replace.
+	 * The content structure varies based on whether Replace mode is visible:
+	 *
+	 * Replace Mode Content:
+	 * - Header identifying the dialog
+	 * - Context explaining what the dialog does
+	 * - Current search and replace status
+	 * - Focus behavior explanation
+	 * - Keyboard shortcuts for Find, Replace, and Editor contexts
+	 * - Find and Replace options explanation
+	 * - Configurable settings documentation
+	 * - Platform-specific settings (macOS)
+	 *
+	 * Find-Only Mode Content:
+	 * - Similar structure but without Replace-specific sections
+	 *
+	 * @returns The complete help text as a newline-joined string for audio announcement
+	 */
 	provideContent(): string {
 		const state = this._findController.getState();
 		const isReplaceVisible = state.isReplaceRevealed;
@@ -64,7 +115,7 @@ class EditorFindAccessibilityHelpProvider extends Disposable implements IAccessi
 		const content: string[] = [];
 
 		if (isReplaceVisible) {
-			// Replace mode content
+			// ========== REPLACE MODE CONTENT ==========
 			content.push(localize('replace.header', "Accessibility Help: Editor Find and Replace"));
 			content.push(localize('replace.context', "You are in the Find and Replace dialog for the active editor. This dialog lets you locate text and replace it. The editor is a separate surface that shows each match and the surrounding context."));
 			content.push('');
@@ -170,7 +221,7 @@ class EditorFindAccessibilityHelpProvider extends Disposable implements IAccessi
 			content.push(localize('replace.closingHeader', "Closing:"));
 			content.push(localize('replace.closingDesc', "Press Escape to close Find and Replace. Focus returns to the editor at the last replacement location, and your search and replace history is preserved."));
 		} else {
-			// Find mode content (no replace)
+			// ========== FIND-ONLY MODE CONTENT ==========
 			content.push(localize('find.header', "Accessibility Help: Editor Find"));
 			content.push(localize('find.context', "You are in the Find dialog for the active editor. This dialog is where you type what you want to locate. The editor is a separate surface that shows each match and its surrounding context."));
 			content.push('');
