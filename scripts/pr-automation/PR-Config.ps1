@@ -9,6 +9,30 @@
     Defines all PR branches, expected files, reviewers, labels, and milestones
     for the Accessibility Help System feature.
 
+    CONSOLIDATED 3-PR STRATEGY (Principal Engineer Approved)
+    =========================================================
+    This configuration implements a logical, coherent PR structure optimized
+    for Microsoft review. Rather than 11+ fragmented PRs, we consolidate into
+    3 well-organized PRs that tell a complete story:
+
+    PR 1: Foundation & Infrastructure
+          - Core wiring that enables accessibility help across VS Code
+          - Contribution registrations, configuration, PRD documentation
+
+    PR 2: Accessibility Help Content
+          - All 7 new AccessibilityHelp provider files
+          - Self-contained, testable accessibility content
+
+    PR 3: ARIA Hints & Bug Fixes
+          - Widget-level ARIA improvements
+          - Bug fixes for find dialog screen reader behavior
+
+    This approach:
+    - Groups related changes for easier review
+    - Maintains clear dependency ordering
+    - Allows reviewers to understand architectural intent
+    - Reduces context-switching overhead for maintainers
+
     Update this file to customize for different feature work.
 #>
 
@@ -26,10 +50,9 @@ $script:PRConfig = @{
         @{ Name = "screen-reader"; Color = "0e7c1f"; Description = "Screen reader compatibility and testing" }
         @{ Name = "infrastructure"; Color = "7057ff"; Description = "Internal architecture and infrastructure changes" }
         @{ Name = "keybindings"; Color = "1d1959"; Description = "Keyboard shortcuts and keybinding changes" }
-        @{ Name = "phase-1-foundation"; Color = "ededed"; Description = "Phase 1: Foundation work" }
-        @{ Name = "phase-2-editor"; Color = "ededed"; Description = "Phase 2: Editor implementation" }
-        @{ Name = "phase-3-other"; Color = "ededed"; Description = "Phase 3: Other implementations" }
-        @{ Name = "phase-4-bugfixes"; Color = "ededed"; Description = "Phase 4: Bug fixes" }
+        @{ Name = "pr-1-foundation"; Color = "c5def5"; Description = "PR 1: Foundation and Infrastructure" }
+        @{ Name = "pr-2-content"; Color = "bfdadc"; Description = "PR 2: Accessibility Help Content" }
+        @{ Name = "pr-3-polish"; Color = "d4c5f9"; Description = "PR 3: ARIA Hints and Bug Fixes" }
     )
 
     # ------------------------------------------------------------------------
@@ -43,148 +66,237 @@ $script:PRConfig = @{
         "Confirm no merge conflicts with main"
     )
 
-    # All PRs in order
+    # ========================================================================
+    # CONSOLIDATED 3-PR STRUCTURE
+    # ========================================================================
+    # All PRs in dependency order (PR 2 depends on PR 1, PR 3 depends on PR 2)
     PRs = @(
-        # Phase 1: Foundation
+        # --------------------------------------------------------------------
+        # PR 1: FOUNDATION & INFRASTRUCTURE
+        # --------------------------------------------------------------------
+        # This PR establishes the core wiring that enables accessibility help
+        # across all VS Code components. It includes:
+        # - Core infrastructure files (findController, accessibleView, config)
+        # - All contribution.ts registrations that wire up the system
+        # - PRD documentation explaining the feature design
+        # - Foundation strings and keybinding infrastructure
+        # --------------------------------------------------------------------
         @{
             Phase = 1
-            Branch = "feature/accessible-alert-configuration"
-            Title = "[Accessibility] Accessible Alert Configuration and Foundation Strings"
-            ExpectedFiles = @("src/vs/editor/common/standaloneStrings.ts")
-            ExpectedFileCount = 1
-            Labels = @("accessibility", "feature", "editor", "phase-1-foundation")
-            Reviewers = @("isidorn")  # Update with actual reviewers
-            DescriptionFile = "pr-descriptions\pr1-alert-config.md"
-            EstimatedLines = @{ Min = 5; Max = 20 }
-        }
-        @{
-            Phase = 1
-            Branch = "feature/keybinding-resolution-infrastructure"
-            Title = "[Accessibility] Infrastructure: Context-Aware Keybinding Resolution"
-            ExpectedFiles = @("src/vs/workbench/contrib/accessibility/browser/editorAccessibilityHelp.ts")
-            ExpectedFileCount = 1
-            Labels = @("accessibility", "infrastructure", "keybindings", "phase-1-foundation")
-            Reviewers = @("jrieken")  # Update with actual reviewers
-            DescriptionFile = "pr-descriptions\pr2-keybinding-infra.md"
-            EstimatedLines = @{ Min = 20; Max = 50 }
-            DependsOn = @("feature/accessible-alert-configuration")
+            Branch = "feature/accessibility-help-foundation"
+            Title = "[Accessibility] Foundation: Infrastructure and Wiring for Accessibility Help System"
+            Description = @"
+This PR establishes the foundational infrastructure for the Accessibility Help System
+across VS Code's find and filter experiences.
+
+## What's Included
+
+### Core Infrastructure
+- **findController.ts**: Added accessibility help trigger integration
+- **accessibleView.ts**: Extended for find/filter context support
+- **accessibilityConfiguration.ts**: New configuration options for accessibility alerts
+
+### Contribution Registrations
+Wires the accessibility help system into VS Code's component architecture:
+- codeEditor.contribution.ts - Editor find/replace
+- terminal.find.contribution.ts - Terminal find
+- webview.contribution.ts - Webview find
+- output.contribution.ts - Output panel filter
+- markers.contribution.ts - Problems panel filter
+- search.contribution.ts - Search across files
+
+### Supporting Files
+- **standaloneStrings.ts**: Localized accessibility strings
+- **editorAccessibilityHelp.ts**: Context-aware keybinding resolution infrastructure
+- **FIND_ACCESSIBILITY_HELP_PRD.md**: Product requirements document
+
+## Testing
+- Run existing accessibility test suites
+- Verify Alt+F1 triggers help in find dialogs
+- Test with NVDA/JAWS screen readers
+
+## Related PRs
+- PR 2: Accessibility Help Content (depends on this)
+- PR 3: ARIA Hints and Bug Fixes (depends on PR 2)
+"@
+            ExpectedFiles = @(
+                "FIND_ACCESSIBILITY_HELP_PRD.md",
+                "src/vs/editor/common/standaloneStrings.ts",
+                "src/vs/editor/contrib/find/browser/findController.ts",
+                "src/vs/platform/accessibility/browser/accessibleView.ts",
+                "src/vs/workbench/contrib/accessibility/browser/accessibilityConfiguration.ts",
+                "src/vs/workbench/contrib/accessibility/browser/editorAccessibilityHelp.ts",
+                "src/vs/workbench/contrib/codeEditor/browser/codeEditor.contribution.ts",
+                "src/vs/workbench/contrib/markers/browser/markers.contribution.ts",
+                "src/vs/workbench/contrib/output/browser/output.contribution.ts",
+                "src/vs/workbench/contrib/search/browser/search.contribution.ts",
+                "src/vs/workbench/contrib/terminalContrib/find/browser/terminal.find.contribution.ts",
+                "src/vs/workbench/contrib/webview/browser/webview.contribution.ts"
+            )
+            ExpectedFileCount = 12
+            IsNewFile = $false
+            Labels = @("accessibility", "infrastructure", "keybindings", "pr-1-foundation")
+            Reviewers = @("isidorn", "jrieken")
+            DescriptionFile = "pr-descriptions\pr1-foundation.md"
+            EstimatedLines = @{ Min = 200; Max = 500 }
         }
 
-        # Phase 2: Editor Find/Replace
+        # --------------------------------------------------------------------
+        # PR 2: ACCESSIBILITY HELP CONTENT
+        # --------------------------------------------------------------------
+        # This PR adds all 7 new AccessibilityHelp provider files. Each file
+        # provides comprehensive accessibility help content for a specific
+        # VS Code component's find/filter experience.
+        #
+        # These are new files that implement the IAccessibleViewContent
+        # interface to provide rich help dialogs when users press Alt+F1.
+        # --------------------------------------------------------------------
         @{
             Phase = 2
-            Branch = "feature/editor-find-accessibility-help"
-            Title = "[Accessibility] Editor Find and Replace Dialog Help (Alt+F1)"
-            ExpectedFiles = @("src/vs/workbench/contrib/codeEditor/browser/editorFindAccessibilityHelp.ts")
-            ExpectedFileCount = 1
+            Branch = "feature/accessibility-help-content"
+            Title = "[Accessibility] Content: Accessibility Help Providers for Find and Filter Experiences"
+            Description = @"
+This PR adds comprehensive accessibility help content for all find and filter
+experiences in VS Code. Each new file provides a rich help dialog accessible
+via Alt+F1 (or platform equivalent).
+
+## New Files (7 AccessibilityHelp Providers)
+
+### Editor
+- **editorFindAccessibilityHelp.ts**: Help for editor find/replace dialog
+  - Keyboard shortcuts for find, replace, navigation
+  - Regex, case-sensitive, whole word options
+  - Selection and multi-cursor search
+
+### Terminal
+- **terminalFindAccessibilityHelp.ts**: Help for terminal find
+  - Terminal-specific search behavior
+  - Buffer navigation and selection
+
+### Webview
+- **webviewFindAccessibilityHelp.ts**: Help for webview find
+  - Extension webview search capabilities
+  - Markdown preview find
+
+### Output Panel
+- **outputAccessibilityHelp.ts**: Help for output filter
+  - Filter syntax and channel selection
+  - Log level filtering
+
+### Problems Panel
+- **markersAccessibilityHelp.ts**: Help for problems filter
+  - Filter by type, source, severity
+  - Quick fix navigation
+
+### Debug Console
+- **replAccessibilityHelp.ts**: Help for debug console filter
+  - Expression evaluation filtering
+  - Variable inspection
+
+### Search
+- **searchAccessibilityHelp.ts**: Help for search across files
+  - Include/exclude patterns
+  - Results navigation
+
+## Testing
+- Open each component and press Alt+F1
+- Verify help content is accurate and complete
+- Test with screen readers for proper announcements
+
+## Dependencies
+- Requires PR 1 (Foundation) to be merged first
+"@
+            ExpectedFiles = @(
+                "src/vs/workbench/contrib/codeEditor/browser/editorFindAccessibilityHelp.ts",
+                "src/vs/workbench/contrib/terminalContrib/find/browser/terminalFindAccessibilityHelp.ts",
+                "src/vs/workbench/contrib/webview/browser/webviewFindAccessibilityHelp.ts",
+                "src/vs/workbench/contrib/output/browser/outputAccessibilityHelp.ts",
+                "src/vs/workbench/contrib/markers/browser/markersAccessibilityHelp.ts",
+                "src/vs/workbench/contrib/debug/browser/replAccessibilityHelp.ts",
+                "src/vs/workbench/contrib/search/browser/searchAccessibilityHelp.ts"
+            )
+            ExpectedFileCount = 7
             IsNewFile = $true
-            Labels = @("accessibility", "feature", "editor", "find", "replace", "screen-reader", "phase-2-editor")
-            Reviewers = @("isidorn", "jrieken")  # Update with actual reviewers
-            DescriptionFile = "pr-descriptions\pr3-editor-find.md"
-            EstimatedLines = @{ Min = 310; Max = 400 }
-            DependsOn = @("feature/keybinding-resolution-infrastructure")
+            Labels = @("accessibility", "feature", "screen-reader", "pr-2-content")
+            Reviewers = @("isidorn")
+            DescriptionFile = "pr-descriptions\pr2-content.md"
+            EstimatedLines = @{ Min = 800; Max = 1500 }
+            DependsOn = @("feature/accessibility-help-foundation")
         }
 
-        # Phase 3: Other Implementations (can be parallel)
+        # --------------------------------------------------------------------
+        # PR 3: ARIA HINTS & BUG FIXES
+        # --------------------------------------------------------------------
+        # This PR improves the UX polish of find widgets with:
+        # - ARIA hint attributes for better screen reader feedback
+        # - Bug fixes for spurious announcements
+        # - Proper timing/visibility checks for aria-label updates
+        #
+        # These changes touch existing widget files to add aria-description
+        # attributes that announce keyboard shortcut hints.
+        # --------------------------------------------------------------------
         @{
             Phase = 3
-            Branch = "feature/terminal-find-accessibility-help"
-            Title = "[Accessibility] Terminal Find Accessibility Help"
-            ExpectedFiles = @("src/vs/workbench/contrib/terminalContrib/find/browser/terminalFindAccessibilityHelp.ts")
-            ExpectedFileCount = 1
-            IsNewFile = $true
-            Labels = @("accessibility", "feature", "terminal", "find", "screen-reader", "phase-3-other")
-            Reviewers = @()  # Update with terminal maintainer
-            DescriptionFile = "pr-descriptions\pr5-terminal-find.md"
-            EstimatedLines = @{ Min = 80; Max = 180 }
-        }
-        @{
-            Phase = 3
-            Branch = "feature/webview-find-accessibility-help"
-            Title = "[Accessibility] Webview Find Accessibility Help"
-            ExpectedFiles = @("src/vs/workbench/contrib/webview/browser/webviewFindAccessibilityHelp.ts")
-            ExpectedFileCount = 1
-            IsNewFile = $true
-            Labels = @("accessibility", "feature", "webview", "find", "phase-3-other")
-            Reviewers = @()  # Update with webview maintainer
-            DescriptionFile = "pr-descriptions\pr6-webview-find.md"
-            EstimatedLines = @{ Min = 80; Max = 180 }
-        }
-        @{
-            Phase = 3
-            Branch = "feature/output-filter-accessibility-help"
-            Title = "[Accessibility] Output Panel Filter Accessibility Help"
-            ExpectedFiles = @("src/vs/workbench/contrib/output/browser/outputAccessibilityHelp.ts")
-            ExpectedFileCount = 1
-            IsNewFile = $true
-            Labels = @("accessibility", "feature", "output", "filter", "phase-3-other")
-            Reviewers = @()  # Update with output panel owner
-            DescriptionFile = "pr-descriptions\pr7-output-filter.md"
-            EstimatedLines = @{ Min = 80; Max = 180 }
-        }
-        @{
-            Phase = 3
-            Branch = "feature/problems-filter-accessibility-help"
-            Title = "[Accessibility] Problems Panel Filter Accessibility Help"
-            ExpectedFiles = @("src/vs/workbench/contrib/markers/browser/markersAccessibilityHelp.ts")
-            ExpectedFileCount = 1
-            IsNewFile = $true
-            Labels = @("accessibility", "feature", "problems", "filter", "phase-3-other")
-            Reviewers = @()  # Update with problems panel owner
-            DescriptionFile = "pr-descriptions\pr8-problems-filter.md"
-            EstimatedLines = @{ Min = 80; Max = 180 }
-        }
-        @{
-            Phase = 3
-            Branch = "feature/debug-console-accessibility-help"
-            Title = "[Accessibility] Debug Console Accessibility Help"
-            ExpectedFiles = @("src/vs/workbench/contrib/debug/browser/replAccessibilityHelp.ts")
-            ExpectedFileCount = 1
-            IsNewFile = $true
-            Labels = @("accessibility", "feature", "debug", "console", "phase-3-other")
-            Reviewers = @()  # Update with debug maintainer
-            DescriptionFile = "pr-descriptions\pr9-debug-console.md"
-            EstimatedLines = @{ Min = 80; Max = 180 }
-        }
-        @{
-            Phase = 3
-            Branch = "feature/search-accessibility-help"
-            Title = "[Accessibility] Search Across Files Accessibility Help"
-            ExpectedFiles = @("src/vs/workbench/contrib/search/browser/searchAccessibilityHelp.ts")
-            ExpectedFileCount = 1
-            IsNewFile = $true
-            Labels = @("accessibility", "feature", "search", "files", "phase-3-other")
-            Reviewers = @()  # Update with search owner
-            DescriptionFile = "pr-descriptions\pr10-search.md"
-            EstimatedLines = @{ Min = 80; Max = 180 }
-        }
+            Branch = "feature/accessibility-aria-polish"
+            Title = "[Accessibility] Polish: ARIA Hints and Bug Fixes for Find Widgets"
+            Description = @"
+This PR completes the accessibility help system with UX polish:
+ARIA hint improvements and bug fixes for find widget behavior.
 
-        # Phase 4: Bug Fixes
-        @{
-            Phase = 4
-            Branch = "bugfix/aria-alerts-find-dialog"
-            Title = "[Accessibility] Bug: Only Announce Search Results When Search String Is Present"
-            ExpectedFiles = @("src/vs/editor/contrib/find/browser/findWidget.ts")
-            ExpectedFileCount = 1
+## ARIA Hint Improvements
+Added aria-description attributes to announce "Press Alt+F1 for accessibility help"
+on focus for these find input widgets:
+
+### Core Widgets
+- **simpleFindWidget.ts**: Base widget ARIA improvements
+- **browserFindWidget.ts**: Editor find widget hints
+
+### Component-Specific Widgets
+- **searchWidget.ts**: Search across files widget
+- **terminalFindWidget.ts**: Terminal find widget
+- **webviewFindWidget.ts**: Webview find widget
+
+### Tree Filter
+- **viewFilter.ts**: Tree view filter input (Problems, Output, etc.)
+
+## Bug Fixes
+
+### findWidget.ts
+Two critical screen reader fixes:
+
+1. **Only Announce Results When Search String Present**
+   - Previously: Announced "No results" even with empty search field
+   - Now: Only announces search results when user has entered search text
+
+2. **Proper aria-label Timing**
+   - Previously: Updated aria-label when widget was hidden
+   - Now: Checks visibility before updating to prevent stale announcements
+
+## Testing
+- Tab through find widgets and verify hint announcements
+- Empty search field should not trigger "no results" announcement
+- Close find dialog and verify no spurious announcements
+
+## Dependencies
+- Requires PR 2 (Content) to be merged first
+"@
+            ExpectedFiles = @(
+                "src/vs/base/browser/ui/findinput/findInputToggles.ts",
+                "src/vs/editor/contrib/find/browser/findWidget.ts",
+                "src/vs/editor/contrib/find/browser/simpleFindWidget.ts",
+                "src/vs/workbench/browser/parts/views/viewFilter.ts",
+                "src/vs/workbench/contrib/search/browser/searchWidget.ts",
+                "src/vs/workbench/contrib/terminal/browser/terminalFindWidget.ts",
+                "src/vs/workbench/contrib/webviewPanel/browser/webviewFindWidget.ts"
+            )
+            ExpectedFileCount = 7
             IsNewFile = $false
             IsBugFix = $true
-            Labels = @("accessibility", "bug", "editor", "find", "screen-reader", "critical", "phase-4-bugfixes")
-            Reviewers = @("jrieken")  # Update with editor maintainer
-            DescriptionFile = "pr-descriptions\pr11-aria-alerts.md"
-            EstimatedLines = @{ Min = 3; Max = 10 }
-        }
-        @{
-            Phase = 4
-            Branch = "bugfix/notfound-message-empty-field"
-            Title = "[Accessibility] Bug: Proper aria-label Timing and Visibility Check"
-            ExpectedFiles = @("src/vs/editor/contrib/find/browser/findWidget.ts")
-            ExpectedFileCount = 1
-            IsNewFile = $false
-            IsBugFix = $true
-            Labels = @("accessibility", "bug", "editor", "find", "screen-reader", "critical", "phase-4-bugfixes")
-            Reviewers = @("jrieken")  # Update with editor maintainer
-            DescriptionFile = "pr-descriptions\pr12-notfound-timing.md"
-            EstimatedLines = @{ Min = 8; Max = 20 }
+            Labels = @("accessibility", "bug", "screen-reader", "pr-3-polish")
+            Reviewers = @("isidorn", "jrieken")
+            DescriptionFile = "pr-descriptions\pr3-polish.md"
+            EstimatedLines = @{ Min = 50; Max = 150 }
+            DependsOn = @("feature/accessibility-help-content")
         }
     )
 }
@@ -211,5 +323,21 @@ function Get-PRConfig {
     return $script:PRConfig
 }
 
+function Get-TotalFileCount {
+    $total = 0
+    foreach ($pr in $script:PRConfig.PRs) {
+        $total += $pr.ExpectedFileCount
+    }
+    return $total
+}
+
+function Get-AllExpectedFiles {
+    $files = @()
+    foreach ($pr in $script:PRConfig.PRs) {
+        $files += $pr.ExpectedFiles
+    }
+    return $files | Sort-Object -Unique
+}
+
 # Export functions
-Export-ModuleMember -Function Get-PRByBranch, Get-PRsByPhase, Get-AllBranches, Get-PRConfig -Variable PRConfig
+Export-ModuleMember -Function Get-PRByBranch, Get-PRsByPhase, Get-AllBranches, Get-PRConfig, Get-TotalFileCount, Get-AllExpectedFiles -Variable PRConfig
