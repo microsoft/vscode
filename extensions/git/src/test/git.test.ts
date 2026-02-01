@@ -674,14 +674,14 @@ suite('git', () => {
 				if (result !== null) {
 					return result;
 				}
-				throw new Error('Not in index');
+				throw new Error();
 			} catch {
 				try {
 					const result = await headBuffer();
 					if (result !== null) {
 						return result;
 					}
-					throw new Error('Not in HEAD');
+					throw new Error();
 				} catch {
 					return new Uint8Array(0);
 				}
