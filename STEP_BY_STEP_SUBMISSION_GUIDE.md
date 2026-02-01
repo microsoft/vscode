@@ -79,7 +79,7 @@ Preview any action without making changes:
 
 ### About This Guide
 - **Target**: VS Code contributors submitting accessibility help feature work
-- **Scope**: 14 coordinated PRs across 4 phases
+- **Scope**: 11 coordinated PRs across 4 phases
 - **Primary Tool**: GitHub CLI (gh) + git + PowerShell automation
 - **Engineer Assignment**: Configure in `PR-Config.ps1`
 - **Learning**: Each section explains WHY the step matters
@@ -120,44 +120,41 @@ For VS Code, different areas have specific maintainers. Fill this in with your r
 
 ## Phase 2: Editor
 - **PR3**: feature/editor-find-accessibility-help
-  - Assigned to: _________________ (find feature owner)
+  - Assigned to: _________________ (find and replace feature owner)
   - GitHub username(s): _________________
-
-- **PR4**: feature/editor-replace-accessibility-help
-  - Assigned to: _________________ (find feature owner)
-  - GitHub username(s): _________________
+  - Note: This PR includes BOTH find and replace accessibility help
 
 ## Phase 3: Other (can assign different people per area)
-- **PR5**: feature/terminal-find-accessibility-help
+- **PR4**: feature/terminal-find-accessibility-help
   - Assigned to: _________________ (terminal maintainer)
   - GitHub username(s): _________________
 
-- **PR6**: feature/webview-find-accessibility-help
+- **PR5**: feature/webview-find-accessibility-help
   - Assigned to: _________________ (webview maintainer)
   - GitHub username(s): _________________
 
-- **PR7**: feature/output-filter-accessibility-help
+- **PR6**: feature/output-filter-accessibility-help
   - Assigned to: _________________ (output panel owner)
   - GitHub username(s): _________________
 
-- **PR8**: feature/problems-filter-accessibility-help
+- **PR7**: feature/problems-filter-accessibility-help
   - Assigned to: _________________ (problems panel owner)
   - GitHub username(s): _________________
 
-- **PR9**: feature/debug-console-accessibility-help
+- **PR8**: feature/debug-console-accessibility-help
   - Assigned to: _________________ (debug maintainer)
   - GitHub username(s): _________________
 
-- **PR10**: feature/search-accessibility-help
+- **PR9**: feature/search-accessibility-help
   - Assigned to: _________________ (search owner)
   - GitHub username(s): _________________
 
 ## Phase 4: Bug Fixes (Critical - send to editor owner)
-- **PR11**: bugfix/aria-alerts-find-dialog
+- **PR10**: bugfix/aria-alerts-find-dialog
   - Assigned to: _________________ (editor maintainer)
   - GitHub username(s): _________________
 
-- **PR12**: bugfix/notfound-message-empty-field
+- **PR11**: bugfix/notfound-message-empty-field
   - Assigned to: _________________ (editor maintainer)
   - GitHub username(s): _________________
 ```
@@ -280,12 +277,11 @@ This matters because VS Code's `npm run` commands (which you'll use for testing)
 git branch -a | grep -E "(feature|bugfix)/.*accessibility|find|filter"
 ```
 
-**Expected output** (all 14 should be present):
+**Expected output** (all 11 should be present):
 ```
 feature/accessible-alert-configuration
 feature/keybinding-resolution-infrastructure
 feature/editor-find-accessibility-help
-feature/editor-replace-accessibility-help
 feature/terminal-find-accessibility-help
 feature/webview-find-accessibility-help
 feature/output-filter-accessibility-help
@@ -296,7 +292,7 @@ bugfix/aria-alerts-find-dialog
 bugfix/notfound-message-empty-field
 ```
 
-If any are missing, go back to your branch creation step. **Do not proceed until all 14 exist.**
+If any are missing, go back to your branch creation step. **Do not proceed until all 11 exist.**
 
 ---
 
@@ -563,47 +559,18 @@ Should show:
 
 ---
 
-#### PHASE 2 - PR 4: `feature/editor-replace-accessibility-help`
-
-**Expected files changed**:
-```
-src/vs/workbench/contrib/codeEditor/browser/editorFindAccessibilityHelp.ts
-```
-
-**Verification command**:
-```bash
-git checkout feature/editor-replace-accessibility-help
-git diff main...feature/editor-replace-accessibility-help --name-only
-```
-
-**Expected output** (exactly 1 file, modified):
-```
-src/vs/workbench/contrib/codeEditor/browser/editorFindAccessibilityHelp.ts
-```
-
-**What changed**: Extension of existing file from Phase 2 (~30-50 new lines)
-
-**Verify it's an extension, not a replacement**:
-```bash
-git diff main...feature/editor-replace-accessibility-help | grep -c "^+"
-```
-
-(Should show roughly 30-50 additions)
-
----
-
 #### PHASE 3 - Each PR: `feature/[context]-accessibility-help`
 
 **6 PRs total - verify each one:**
 
 | PR | Branch | Expected New File |
 |----|--------|------------------|
-| 5 | feature/terminal-find-accessibility-help | src/vs/workbench/contrib/terminalContrib/find/browser/terminalFindAccessibilityHelp.ts |
-| 6 | feature/webview-find-accessibility-help | src/vs/workbench/contrib/webview/browser/webviewFindAccessibilityHelp.ts |
-| 7 | feature/output-filter-accessibility-help | src/vs/workbench/contrib/output/browser/outputAccessibilityHelp.ts |
-| 8 | feature/problems-filter-accessibility-help | src/vs/workbench/contrib/markers/browser/markersAccessibilityHelp.ts |
-| 9 | feature/debug-console-accessibility-help | src/vs/workbench/contrib/debug/browser/replAccessibilityHelp.ts |
-| 10 | feature/search-accessibility-help | src/vs/workbench/contrib/search/browser/searchAccessibilityHelp.ts |
+| 4 | feature/terminal-find-accessibility-help | src/vs/workbench/contrib/terminalContrib/find/browser/terminalFindAccessibilityHelp.ts |
+| 5 | feature/webview-find-accessibility-help | src/vs/workbench/contrib/webview/browser/webviewFindAccessibilityHelp.ts |
+| 6 | feature/output-filter-accessibility-help | src/vs/workbench/contrib/output/browser/outputAccessibilityHelp.ts |
+| 7 | feature/problems-filter-accessibility-help | src/vs/workbench/contrib/markers/browser/markersAccessibilityHelp.ts |
+| 8 | feature/debug-console-accessibility-help | src/vs/workbench/contrib/debug/browser/replAccessibilityHelp.ts |
+| 9 | feature/search-accessibility-help | src/vs/workbench/contrib/search/browser/searchAccessibilityHelp.ts |
 
 **For each Phase 3 PR, verify**:
 
@@ -831,7 +798,6 @@ Coordinated effort to implement comprehensive accessibility help for all find an
 
 ## Phase 2: Editor Find/Replace (Next)
 - [ ] feature/editor-find-accessibility-help
-- [ ] feature/editor-replace-accessibility-help
 
 ## Phase 3: Other Scenarios (Parallel)
 - [ ] feature/terminal-find-accessibility-help
@@ -1383,7 +1349,8 @@ Adds comprehensive, context-aware accessibility help for the editor find dialog.
 
 ## Dependencies
 - Depends on: feature/keybinding-resolution-infrastructure (must merge first)
-- Required by: feature/editor-replace-accessibility-help
+
+**Note**: This PR provides accessibility help for BOTH Find and Replace modes in a single comprehensive implementation.
 
 ## Labels
 - accessibility
@@ -1426,159 +1393,15 @@ gh pr edit 12348 --milestone "Accessibility Help System"
 
 ---
 
-### Step 5.2: Create PR for `feature/editor-replace-accessibility-help`
-
-#### 5.2 Pre-PR File Verification
-
-**This PR modifies the existing file from PR 5.1 - verify it's an extension, not a regression.**
-
-Check files changed:
-
-```bash
-git checkout feature/editor-replace-accessibility-help
-git diff main...feature/editor-replace-accessibility-help --name-only
-```
-
-**Expected output** (same file from PR 5.1, but modified):
-```
-src/vs/workbench/contrib/codeEditor/browser/editorFindAccessibilityHelp.ts
-```
-
-**If there are additional files**: Stop. This should only modify the one file.
-
-**If it shows PR 5.1's files are missing**: Stop. This depends on PR 5.1. Don't proceed until PR 5.1 merges.
-
-Count lines added (should be ~30-50 new):
-
-```bash
-git diff main...feature/editor-replace-accessibility-help | grep "^+" | wc -l
-```
-
-**Expected**: Around 30-60 (for new replace-specific code).
-
-Verify it's truly an extension (review the diff):
-
-```bash
-git diff main...feature/editor-replace-accessibility-help
-```
-
-**Expected to see**:
-- ✅ New replace-specific help text
-- ✅ New method branches for replace mode
-- ✅ New keybinding documentation for replace
-- ❌ NO changes to existing find documentation
-- ❌ NO changes to existing methods (only additions)
-
-Check for debug code:
-
-```bash
-git diff main...feature/editor-replace-accessibility-help | grep -iE "console\.|debugger|TODO"
-```
-
-**Expected**: No output.
-
-Verify compilation:
-
-```bash
-npm run compile
-```
-
-**Expected**: No errors.
-
-**Checklist before proceeding**:
-- [ ] Only 1 file modified
-- [ ] File is `editorFindAccessibilityHelp.ts`
-- [ ] 30-50 new lines added (replacement documentation)
-- [ ] All new code is for replace mode
-- [ ] No existing code modified
-- [ ] No debug statements
-- [ ] `npm run compile` passes
-
-**If all checks pass**: You're ready to create the PR.
-
-```bash
-gh pr create --base main --head feature/editor-replace-accessibility-help --title "[Accessibility] Editor Replace Dialog Help Extension" --body "## Description
-
-Extends the accessibility help system to include comprehensive documentation for find+replace functionality. When the replace input is focused or visible, Alt+F1 now shows additional help specific to replace operations.
-
-## Changes
-
-### Modified File
-- **\`src/vs/workbench/contrib/codeEditor/browser/editorFindAccessibilityHelp.ts\`**
-  - Extended \`provideContent()\` method with replace-specific documentation
-  - Added replace mode detection: \`const isReplaceVisible = state.isReplaceRevealed\`
-  - Added replace-specific keybinding documentation
-  - Added replace options (Preserve Case, etc.)
-  - Added replace-specific settings
-
-### Help Includes
-- Replace Status: Current replacement text
-- Replace Navigation: Enter replaces and moves to next match
-- Tab Navigation: Tab key moves between find and replace inputs
-- Replace Keybindings: Platform-specific documentation
-- Replace Options: All available options
-- Replace-Specific Settings
-
-## Testing Completed
-
-### Screen Reader Testing
-- ✅ NVDA: Replace mode help fully functional
-- ✅ VoiceOver: Replace keybindings announced correctly
-- ✅ All keybindings match documentation
-
-### Replace Actions
-- ✅ Enter replaces and moves to next
-- ✅ Ctrl+Shift+1 (or equivalent) replaces this match
-- ✅ Replace all works as documented
-- ✅ Tab navigation between inputs works
-
-## Dependencies
-- Depends on: feature/editor-find-accessibility-help (must merge first)
-- No other dependencies
-
-## Labels
-- accessibility
-- feature
-- editor
-- replace
-- screen-reader
-- phase-2-editor"
-```
-
-**Save the PR number** (e.g., 12349).
-
-#### 5.2a: Assign PM-Specific Reviewer
-
-Check `REVIEWER_ASSIGNMENTS.md` for "Phase 2 - PR4":
-
-```bash
-gh pr edit 12349 --add-reviewer "isidorn"
-```
-
-#### 5.2b: Add Labels
-
-```bash
-gh pr edit 12349 --add-label "accessibility,feature,editor,replace,screen-reader,phase-2-editor"
-```
-
-#### 5.2c: Add Milestone
-
-```bash
-gh pr edit 12349 --milestone "Accessibility Help System"
-```
-
----
-
 ## PART 6: MONITOR AND MERGE PHASE 2
 
-### Step 6.1: Check Both Phase 2 PRs
+### Step 6.1: Check Phase 2 PR
 
 ```bash
 gh pr view 12348
-gh pr view 12349
 ```
 
-### Step 6.2: When Phase 2 PR #1 Ready, Merge It
+### Step 6.2: When Phase 2 PR Ready, Merge It
 
 ```bash
 gh pr merge 12348 --squash --delete-branch
@@ -1589,22 +1412,6 @@ gh pr merge 12348 --squash --delete-branch
 ```bash
 git checkout main
 git pull origin main
-```
-
-### Step 6.4: Advance PR #2 (it may need rebase if conflicts)
-
-If there are conflicts:
-
-```bash
-git checkout feature/editor-replace-accessibility-help
-git rebase main
-git push origin feature/editor-replace-accessibility-help --force
-```
-
-### Step 6.5: When Phase 2 PR #2 Ready, Merge It
-
-```bash
-gh pr merge 12349 --squash --delete-branch
 ```
 
 ---
@@ -2332,7 +2139,6 @@ d4e5f6g Add debug console accessibility help
 git branch -d feature/accessible-alert-configuration
 git branch -d feature/keybinding-resolution-infrastructure
 git branch -d feature/editor-find-accessibility-help
-git branch -d feature/editor-replace-accessibility-help
 git branch -d feature/terminal-find-accessibility-help
 git branch -d feature/webview-find-accessibility-help
 git branch -d feature/output-filter-accessibility-help
@@ -2461,7 +2267,6 @@ As you create PRs, fill in this table:
 | 1 | feature/accessible-alert-configuration | #____ | Pending |
 | 1 | feature/keybinding-resolution-infrastructure | #____ | Pending |
 | 2 | feature/editor-find-accessibility-help | #____ | Pending |
-| 2 | feature/editor-replace-accessibility-help | #____ | Pending |
 | 3 | feature/terminal-find-accessibility-help | #____ | Pending |
 | 3 | feature/webview-find-accessibility-help | #____ | Pending |
 | 3 | feature/output-filter-accessibility-help | #____ | Pending |
@@ -2517,8 +2322,7 @@ Phase 1: ✅
 
 Phase 2: ✅
 - [ ] feature/editor-find-accessibility-help PR created, labeled, reviewers added
-- [ ] feature/editor-replace-accessibility-help PR created, labeled, reviewers added
-- [ ] Both Phase 2 PRs merged
+- [ ] Phase 2 PR merged
 
 Phase 3: ✅
 - [ ] All 6 Phase 3 PRs created with labels and reviewers
