@@ -219,19 +219,14 @@ export class GitFileSystemProvider implements FileSystemProvider {
 
 		this.cache.set(uri.toString(), cacheValue);
 
-		// For '~' ref (diff original), we need to try index first, then HEAD.
-		// We can't rely on repository.indexGroup.resourceStates because it might be stale
-		// (e.g., after unstaging, the state might not have been updated yet).
+		// For '~' ref (diff original), try index first, then HEAD, otherwise return empty.
 		if (ref === '~') {
-			// Try index first
 			try {
 				return await repository.buffer('', path);
 			} catch {
-				// File not in index, try HEAD
 				try {
 					return await repository.buffer('HEAD', path);
 				} catch {
-					// File not in HEAD either (new file), return empty
 					this.logger.warn(`[GitFileSystemProvider][readFile] File not found for diff original, returning empty - ${uri.toString()}`);
 					return new Uint8Array(0);
 				}
