@@ -51,7 +51,9 @@ class ReplAccessibilityHelpProvider extends Disposable implements IAccessibleVie
 			localize('repl.output', "The debug console output can be navigated to from the input field with the Focus Previous Widget command{0}.", '<keybinding:widgetNavigation.focusPrevious>'),
 			localize('repl.input', "The debug console input can be navigated to from the output with the Focus Next Widget command{0}.", '<keybinding:widgetNavigation.focusNext>'),
 			localize('repl.history', "The debug console output history can be navigated with the up and down arrow keys."),
+			localize('repl.filter', "The debug console has a filter input at the top that allows you to filter output. To focus the filter, use{0}. Type text to filter console output, prefix with ! to exclude lines, or use commas to combine multiple filters.", '<keybinding:repl.action.filter>'),
 			localize('repl.accessibleView', "The Open Accessible View command{0} will allow character by character navigation of the console output.", '<keybinding:editor.action.accessibleView>'),
+
 			localize('repl.showRunAndDebug', "The Show Run and Debug view command{0} will open the Run and Debug view and provides more information about debugging.", '<keybinding:workbench.view.debug>'),
 			localize('repl.clear', "The Debug: Clear Console command{0} will clear the console output.", '<keybinding:workbench.debug.panel.action.clearReplAction>'),
 			localize('repl.lazyVariables', "The setting `debug.expandLazyVariables` controls whether variables are evaluated automatically. This is enabled by default when using a screen reader."),
