@@ -15,7 +15,7 @@
 
 .EXAMPLE
     .\Create-PRs.ps1 -Phase 1
-    Creates PRs for all Phase 1 branches
+    Creates PR 1 (Foundation & Infrastructure)
 
 .EXAMPLE
     .\Create-PRs.ps1 -Branch "feature/editor-find-accessibility-help"
@@ -385,9 +385,9 @@ if ($Branch) {
     Write-Host @"
 
   Usage:
-    .\Create-PRs.ps1 -Phase <number>    Create PRs for a specific phase
+    .\Create-PRs.ps1 -Phase <number>    Create PR for a specific phase (1=Foundation, 2=Content, 3=Polish)
     .\Create-PRs.ps1 -Branch <name>     Create PR for a specific branch
-    .\Create-PRs.ps1 -All               Create PRs for all branches
+    .\Create-PRs.ps1 -All               Create all 3 PRs
 
   Options:
     -DryRun              Show what would be created without creating

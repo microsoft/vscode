@@ -20,7 +20,7 @@
 
 .EXAMPLE
     .\Merge-PRs.ps1 -Phase 1
-    Merge all ready Phase 1 PRs
+    Merge PR 1 (Foundation) when approved
 
 .EXAMPLE
     .\Merge-PRs.ps1 -AutoMerge

@@ -2,6 +2,22 @@
 
 PowerShell scripts to automate the PR submission, monitoring, and merging process for VS Code contributions.
 
+## Consolidated 3-PR Strategy
+
+This automation supports a **consolidated 3-PR approach** optimized for Microsoft review:
+
+| PR | Phase | Branch | Description | Files |
+|----|-------|--------|-------------|-------|
+| 1 | Foundation | `feature/accessibility-help-foundation` | Infrastructure & wiring | 12 |
+| 2 | Content | `feature/accessibility-help-content` | Accessibility help providers | 7 |
+| 3 | Polish | `feature/accessibility-aria-polish` | ARIA hints & bug fixes | 6 |
+
+### Why 3 PRs?
+- **Logical grouping** - Related changes reviewed together
+- **Clear dependencies** - PR 2 depends on PR 1, PR 3 depends on PR 2
+- **Easier review** - Each PR tells a complete story
+- **Reduced context-switching** - Reviewers understand architectural intent
+
 ## Quick Start
 
 ```powershell
@@ -10,7 +26,7 @@ cd c:\vscode\scripts\pr-automation
 # 1. Check prerequisites
 .\Check-Prerequisites.ps1 -Fix
 
-# 2. Run complete workflow for a phase
+# 2. Run complete workflow for PR 1
 .\Run-PRWorkflow.ps1 -Phase 1
 ```
 
@@ -21,7 +37,7 @@ Validates all requirements before PR work:
 - Git and GitHub CLI installation
 - GitHub authentication status
 - Repository state (clean working tree, up-to-date main)
-- Required branches existence
+- Required branches existence (all 3 consolidated branches)
 - Build system readiness
 
 ```powershell
@@ -41,8 +57,8 @@ Cross-checks branch content against expectations:
 - Commit message quality
 
 ```powershell
-.\Verify-Branches.ps1                              # All branches
-.\Verify-Branches.ps1 -Phase 1                     # Phase 1 only
+.\Verify-Branches.ps1                              # All 3 branches
+.\Verify-Branches.ps1 -Phase 1                     # PR 1 (Foundation) only
 .\Verify-Branches.ps1 -Branch "feature/xyz"        # Specific branch
 .\Verify-Branches.ps1 -SkipCompile                 # Skip TypeScript compilation
 .\Verify-Branches.ps1 -StopOnError                 # Stop at first failure
@@ -56,9 +72,11 @@ Creates pull requests with full metadata:
 - Tracks PR numbers in `PR-Tracking.json`
 
 ```powershell
-.\Create-PRs.ps1 -Phase 1                          # Create Phase 1 PRs
+.\Create-PRs.ps1 -Phase 1                          # Create PR 1 (Foundation)
+.\Create-PRs.ps1 -Phase 2                          # Create PR 2 (Content)
+.\Create-PRs.ps1 -Phase 3                          # Create PR 3 (Polish)
 .\Create-PRs.ps1 -Branch "feature/xyz"             # Create specific PR
-.\Create-PRs.ps1 -All                              # Create all PRs
+.\Create-PRs.ps1 -All                              # Create all 3 PRs
 .\Create-PRs.ps1 -Phase 1 -DryRun                  # Preview without creating
 .\Create-PRs.ps1 -Phase 1 -SkipVerification        # Skip pre-creation checks
 .\Create-PRs.ps1 -Phase 1 -Force                   # Create even if PR exists
@@ -74,7 +92,7 @@ Live dashboard showing PR status:
 
 ```powershell
 .\Monitor-PRs.ps1                                  # Show all tracked PRs
-.\Monitor-PRs.ps1 -Phase 1                         # Phase 1 PRs only
+.\Monitor-PRs.ps1 -Phase 1                         # PR 1 (Foundation) only
 .\Monitor-PRs.ps1 -Branch "feature/xyz"            # Detailed view
 .\Monitor-PRs.ps1 -Watch                           # Auto-refresh every 60s
 .\Monitor-PRs.ps1 -Watch -WatchInterval 30         # Custom refresh interval
@@ -90,16 +108,16 @@ Safely merges approved PRs:
 
 ```powershell
 .\Merge-PRs.ps1 -PRNumber 12345                    # Merge specific PR
-.\Merge-PRs.ps1 -Phase 1                           # Merge ready Phase 1 PRs
+.\Merge-PRs.ps1 -Phase 1                           # Merge PR 1 when approved
 .\Merge-PRs.ps1 -AutoMerge                         # Merge all ready PRs
 .\Merge-PRs.ps1 -AutoMerge -DryRun                 # Preview merges
 .\Merge-PRs.ps1 -PRNumber 12345 -Force             # Merge despite warnings
+```
 
 Note about CLA confirmation:
-
-- The `Merge-PRs.ps1` script requires an explicit interactive confirmation before performing a merge. When running the script (without `-Force`), you will be prompted to type `yes` to confirm that you have verified the contributor has signed the CLA for the PR.
-- If you need to bypass the interactive prompt (for automation or an emergency), pass the `-Force` flag. Use `-DryRun` to preview merge actions without changing state.
-```
+- The `Merge-PRs.ps1` script requires explicit interactive confirmation before merging
+- You will be prompted to verify the contributor has signed the CLA
+- Use `-Force` to bypass (for automation/emergency), `-DryRun` to preview
 
 ### `Run-PRWorkflow.ps1`
 Orchestrates the complete workflow:
@@ -109,7 +127,9 @@ Orchestrates the complete workflow:
 4. Status display
 
 ```powershell
-.\Run-PRWorkflow.ps1 -Phase 1                      # Full workflow for Phase 1
+.\Run-PRWorkflow.ps1 -Phase 1                      # Full workflow for PR 1
+.\Run-PRWorkflow.ps1 -Phase 2                      # Full workflow for PR 2
+.\Run-PRWorkflow.ps1 -Phase 3                      # Full workflow for PR 3
 .\Run-PRWorkflow.ps1 -Phase 1 -DryRun              # Preview mode
 .\Run-PRWorkflow.ps1 -Status                       # Show dashboard only
 .\Run-PRWorkflow.ps1 -CheckOnly                    # Prerequisites only
@@ -128,13 +148,13 @@ $script:PRConfig = @{
     PRs = @(
         @{
             Phase = 1
-            Branch = "feature/accessible-alert-configuration"
-            Title = "[Accessibility] Accessible Alert Configuration"
-            ExpectedFiles = @("src/vs/editor/common/standaloneStrings.ts")
-            Labels = @("accessibility", "feature", "editor")
-            Reviewers = @("isidorn")  # <-- Update with actual reviewers!
+            Branch = "feature/accessibility-help-foundation"
+            Title = "[Accessibility] Foundation: Infrastructure and Wiring"
+            ExpectedFiles = @(...)
+            Labels = @("accessibility", "infrastructure", "pr-1-foundation")
+            Reviewers = @("isidorn", "jrieken")
         }
-        # ... more PRs
+        # PR 2 and PR 3...
     )
 }
 ```
@@ -157,18 +177,18 @@ The scripts maintain `PR-Tracking.json` to track:
 
 This file is automatically updated and can be used to resume work or check status.
 
-## Typical Workflow
+## Complete Workflow
 
-### Phase 1: Foundation
+### PR 1: Foundation & Infrastructure
 
 ```powershell
 # 1. Verify prerequisites
 .\Check-Prerequisites.ps1 -Fix
 
-# 2. Verify Phase 1 branches
+# 2. Verify PR 1 branch
 .\Verify-Branches.ps1 -Phase 1
 
-# 3. Create Phase 1 PRs
+# 3. Create PR 1
 .\Create-PRs.ps1 -Phase 1
 
 # 4. Monitor until approved
@@ -178,20 +198,20 @@ This file is automatically updated and can be used to resume work or check statu
 .\Merge-PRs.ps1 -Phase 1
 ```
 
-### Subsequent Phases
+### PR 2: Accessibility Help Content
 
 ```powershell
-# After Phase 1 merges, proceed to Phase 2
+# After PR 1 merges, proceed to PR 2
 .\Run-PRWorkflow.ps1 -Phase 2
 .\Merge-PRs.ps1 -Phase 2
+```
 
-# Phase 3 PRs can be parallel
+### PR 3: ARIA Hints & Bug Fixes
+
+```powershell
+# After PR 2 merges, proceed to PR 3
 .\Run-PRWorkflow.ps1 -Phase 3
 .\Merge-PRs.ps1 -Phase 3
-
-# Phase 4: Bug fixes
-.\Run-PRWorkflow.ps1 -Phase 4
-.\Merge-PRs.ps1 -Phase 4
 ```
 
 ## Troubleshooting
@@ -210,7 +230,7 @@ gh auth login
 ### "Branch not found"
 Ensure branches are created and pushed:
 ```powershell
-git branch -a | Select-String "feature/"
+git branch -a | Select-String "accessibility"
 ```
 
 ### "PR already exists"
@@ -222,9 +242,9 @@ Use `-Force` to update tracking:
 ### "Merge conflicts"
 Rebase the branch:
 ```powershell
-git checkout feature/branch-name
+git checkout feature/accessibility-help-foundation
 git rebase main
-git push origin feature/branch-name --force
+git push origin feature/accessibility-help-foundation --force
 ```
 
 ## Requirements

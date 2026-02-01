@@ -19,7 +19,7 @@
 
 .EXAMPLE
     .\Monitor-PRs.ps1 -Phase 1
-    Shows status of Phase 1 PRs only
+    Shows status of PR 1 (Foundation)
 
 .EXAMPLE
     .\Monitor-PRs.ps1 -Watch

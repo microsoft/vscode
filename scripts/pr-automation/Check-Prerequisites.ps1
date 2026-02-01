@@ -329,7 +329,7 @@ if ($allPassed -and $branchesOK) {
 
     Next steps:
       1. Run .\Verify-Branches.ps1 to validate branch content
-      2. Run .\Create-PRs.ps1 -Phase 1 to create Phase 1 PRs
+      2. Run .\Create-PRs.ps1 -Phase 1 to create PR 1 (Foundation)
 
 "@ -ForegroundColor Green
 } else {

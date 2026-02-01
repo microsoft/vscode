@@ -24,7 +24,7 @@
 
 .EXAMPLE
     .\Verify-Branches.ps1 -Phase 1
-    Verifies all Phase 1 branches
+    Verifies PR 1 (Foundation) branch
 
 .EXAMPLE
     .\Verify-Branches.ps1 -SkipCompile

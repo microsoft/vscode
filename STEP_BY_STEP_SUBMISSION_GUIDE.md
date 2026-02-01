@@ -5,6 +5,59 @@ This guide walks you through every step: from setup through final merge. Copy-pa
 
 ---
 
+## CONSOLIDATED 3-PR STRATEGY (RECOMMENDED)
+
+> **IMPORTANT**: This guide has been updated to use a **consolidated 3-PR approach** instead of the original 11-PR/4-phase structure. The 3-PR approach is optimized for Microsoft review and reduces context-switching for maintainers.
+
+### The 3 PRs
+
+| PR | Branch | Description | Files |
+|----|--------|-------------|-------|
+| **PR 1** | `feature/accessibility-help-foundation` | Foundation & Infrastructure | 12 files |
+| **PR 2** | `feature/accessibility-help-content` | Accessibility Help Providers | 7 files |
+| **PR 3** | `feature/accessibility-aria-polish` | ARIA Hints & Bug Fixes | 6 files |
+
+### Why 3 PRs Instead of 11?
+
+- **Logical grouping** - Related changes reviewed together
+- **Clear dependencies** - PR 2 depends on PR 1, PR 3 depends on PR 2
+- **Easier review** - Each PR tells a complete architectural story
+- **Reduced context-switching** - Reviewers understand intent without jumping between 11 separate PRs
+
+### PR 1: Foundation & Infrastructure (12 files)
+Core wiring that enables accessibility help across VS Code:
+- `FIND_ACCESSIBILITY_HELP_PRD.md` - Product requirements document
+- `src/vs/editor/contrib/find/browser/findController.ts` - Accessibility help trigger
+- `src/vs/platform/accessibility/browser/accessibleView.ts` - Find/filter context support
+- `src/vs/workbench/contrib/accessibility/browser/accessibilityConfiguration.ts` - Config options
+- `src/vs/workbench/contrib/codeEditor/browser/codeEditor.contribution.ts` - Editor wiring
+- `src/vs/workbench/contrib/markers/browser/markers.contribution.ts` - Problems wiring
+- `src/vs/workbench/contrib/output/browser/output.contribution.ts` - Output wiring
+- `src/vs/workbench/contrib/search/browser/search.contribution.ts` - Search wiring
+- `src/vs/workbench/contrib/terminalContrib/find/browser/terminal.find.contribution.ts` - Terminal wiring
+- `src/vs/workbench/contrib/webview/browser/webview.contribution.ts` - Webview wiring
+
+### PR 2: Accessibility Help Content (7 files)
+All 7 new AccessibilityHelp provider files:
+- `src/vs/workbench/contrib/codeEditor/browser/editorFindAccessibilityHelp.ts` - Editor find/replace
+- `src/vs/workbench/contrib/terminalContrib/find/browser/terminalFindAccessibilityHelp.ts` - Terminal
+- `src/vs/workbench/contrib/webview/browser/webviewFindAccessibilityHelp.ts` - Webview
+- `src/vs/workbench/contrib/output/browser/outputAccessibilityHelp.ts` - Output panel
+- `src/vs/workbench/contrib/markers/browser/markersAccessibilityHelp.ts` - Problems panel
+- `src/vs/workbench/contrib/debug/browser/replAccessibilityHelp.ts` - Debug console
+- `src/vs/workbench/contrib/search/browser/searchAccessibilityHelp.ts` - Search
+
+### PR 3: ARIA Hints & Bug Fixes (6 files)
+Widget-level ARIA improvements and critical bug fixes:
+- `src/vs/editor/contrib/find/browser/findWidget.ts` - Bug fixes for search announcements
+- `src/vs/workbench/browser/parts/views/viewFilter.ts` - Tree filter ARIA hints
+- `src/vs/workbench/contrib/codeEditor/browser/find/simpleFindWidget.ts` - Base widget hints
+- `src/vs/workbench/contrib/search/browser/searchWidget.ts` - Search widget hints
+- `src/vs/workbench/contrib/terminalContrib/find/browser/terminalFindWidget.ts` - Terminal hints
+- `src/vs/workbench/contrib/webview/browser/webviewFindWidget.ts` - Webview hints
+
+---
+
 ## 🚀 QUICK START: Automated PR Workflow (Recommended)
 
 **PowerShell scripts are available to automate the entire PR process!**
@@ -28,17 +81,36 @@ cd c:\vscode\scripts\pr-automation
 # 2. Verify branches before creating PRs
 .\Verify-Branches.ps1 -Phase 1
 
-# 3. Create PRs for a phase
+# 3. Create PR 1 (Foundation)
 .\Create-PRs.ps1 -Phase 1
 
 # 4. Monitor PR status (live dashboard)
 .\Monitor-PRs.ps1 -Watch
 
-# 5. Merge approved PRs
+# 5. Merge when approved
 .\Merge-PRs.ps1 -Phase 1
 
 # Or run the complete workflow:
 .\Run-PRWorkflow.ps1 -Phase 1
+```
+
+### Complete 3-PR Workflow
+
+```powershell
+# PR 1: Foundation & Infrastructure
+.\Run-PRWorkflow.ps1 -Phase 1
+# Wait for approval and merge...
+.\Merge-PRs.ps1 -Phase 1
+
+# PR 2: Accessibility Help Content
+.\Run-PRWorkflow.ps1 -Phase 2
+# Wait for approval and merge...
+.\Merge-PRs.ps1 -Phase 2
+
+# PR 3: ARIA Hints & Bug Fixes
+.\Run-PRWorkflow.ps1 -Phase 3
+# Wait for approval and merge...
+.\Merge-PRs.ps1 -Phase 3
 ```
 
 ### Available Scripts
@@ -79,7 +151,7 @@ Preview any action without making changes:
 
 ### About This Guide
 - **Target**: VS Code contributors submitting accessibility help feature work
-- **Scope**: 11 coordinated PRs across 4 phases
+- **Scope**: 3 coordinated PRs (consolidated from original 11-PR design)
 - **Primary Tool**: GitHub CLI (gh) + git + PowerShell automation
 - **Engineer Assignment**: Configure in `PR-Config.ps1`
 - **Learning**: Each section explains WHY the step matters
@@ -91,10 +163,10 @@ Preview any action without making changes:
 - **Localization**: `nls.localize()` for non-English support
 - **These PRs Implement**: Alt+F1 help for find/filter experiences
 
-### Who Should Review Each Phase
-- **Phase 1-2**: isidorn (accessibility owner), jrieken (editor owner)
-- **Phase 3**: Specific subsystem owners (search, debug, terminal maintainers)
-- **Phase 4**: Editor owner (critical bug fixes)
+### Who Should Review Each PR
+- **PR 1 (Foundation)**: isidorn (accessibility owner), jrieken (editor owner)
+- **PR 2 (Content)**: isidorn (accessibility owner)
+- **PR 3 (Polish)**: isidorn (accessibility owner), jrieken (editor owner)
 
 ---
 
@@ -107,56 +179,25 @@ For VS Code, different areas have specific maintainers. Fill this in with your r
 **Create a file** `c:\vscode\REVIEWER_ASSIGNMENTS.md`:
 
 ```markdown
-# PR Reviewer Assignments
+# PR Reviewer Assignments (Consolidated 3-PR Approach)
 
-## Phase 1: Foundation
-- **PR1**: feature/accessible-alert-configuration
-  - Assigned to: _________________ (accessibility lead)
-  - GitHub username(s): _________________
+## PR 1: Foundation & Infrastructure
+- **Branch**: feature/accessibility-help-foundation
+- **Files**: 12 (infrastructure wiring, contribution registrations, PRD)
+- **Assigned to**: _________________ (accessibility lead + editor owner)
+- **GitHub username(s)**: isidorn, jrieken
 
-- **PR2**: feature/keybinding-resolution-infrastructure
-  - Assigned to: _________________ (editor maintainer)
-  - GitHub username(s): _________________
+## PR 2: Accessibility Help Content
+- **Branch**: feature/accessibility-help-content
+- **Files**: 7 new AccessibilityHelp provider files
+- **Assigned to**: _________________ (accessibility lead)
+- **GitHub username(s)**: isidorn
 
-## Phase 2: Editor
-- **PR3**: feature/editor-find-accessibility-help
-  - Assigned to: _________________ (find and replace feature owner)
-  - GitHub username(s): _________________
-  - Note: This PR includes BOTH find and replace accessibility help
-
-## Phase 3: Other (can assign different people per area)
-- **PR4**: feature/terminal-find-accessibility-help
-  - Assigned to: _________________ (terminal maintainer)
-  - GitHub username(s): _________________
-
-- **PR5**: feature/webview-find-accessibility-help
-  - Assigned to: _________________ (webview maintainer)
-  - GitHub username(s): _________________
-
-- **PR6**: feature/output-filter-accessibility-help
-  - Assigned to: _________________ (output panel owner)
-  - GitHub username(s): _________________
-
-- **PR7**: feature/problems-filter-accessibility-help
-  - Assigned to: _________________ (problems panel owner)
-  - GitHub username(s): _________________
-
-- **PR8**: feature/debug-console-accessibility-help
-  - Assigned to: _________________ (debug maintainer)
-  - GitHub username(s): _________________
-
-- **PR9**: feature/search-accessibility-help
-  - Assigned to: _________________ (search owner)
-  - GitHub username(s): _________________
-
-## Phase 4: Bug Fixes (Critical - send to editor owner)
-- **PR10**: bugfix/aria-alerts-find-dialog
-  - Assigned to: _________________ (editor maintainer)
-  - GitHub username(s): _________________
-
-- **PR11**: bugfix/notfound-message-empty-field
-  - Assigned to: _________________ (editor maintainer)
-  - GitHub username(s): _________________
+## PR 3: ARIA Hints & Bug Fixes
+- **Branch**: feature/accessibility-aria-polish
+- **Files**: 6 (widget ARIA hints + findWidget bug fixes)
+- **Assigned to**: _________________ (accessibility lead + editor owner)
+- **GitHub username(s)**: isidorn, jrieken
 ```
 
 **Why?** You'll use these exact usernames in the `gh pr edit` commands. Having them here prevents copy-paste errors.
@@ -274,25 +315,17 @@ This matters because VS Code's `npm run` commands (which you'll use for testing)
 ### Step 1.6: List Your Branches (Verify They Exist)
 
 ```bash
-git branch -a | grep -E "(feature|bugfix)/.*accessibility|find|filter"
+git branch -a | grep -E "feature/accessibility"
 ```
 
-**Expected output** (all 11 should be present):
+**Expected output** (all 3 should be present):
 ```
-feature/accessible-alert-configuration
-feature/keybinding-resolution-infrastructure
-feature/editor-find-accessibility-help
-feature/terminal-find-accessibility-help
-feature/webview-find-accessibility-help
-feature/output-filter-accessibility-help
-feature/problems-filter-accessibility-help
-feature/debug-console-accessibility-help
-feature/search-accessibility-help
-bugfix/aria-alerts-find-dialog
-bugfix/notfound-message-empty-field
+feature/accessibility-help-foundation
+feature/accessibility-help-content
+feature/accessibility-aria-polish
 ```
 
-If any are missing, go back to your branch creation step. **Do not proceed until all 11 exist.**
+If any are missing, create them from the appropriate base. **Do not proceed until all 3 exist.**
 
 ---
 

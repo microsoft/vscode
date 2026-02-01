@@ -72,40 +72,37 @@ QUICK START:
   2. Verify branches before creating PRs:
      .\Verify-Branches.ps1 -Phase 1
 
-  3. Create Phase 1 PRs:
+  3. Create PR 1 (Foundation):
      .\Create-PRs.ps1 -Phase 1
 
   4. Monitor PR status:
      .\Monitor-PRs.ps1
 
-  5. Merge when ready:
+  5. Merge when approved:
      .\Merge-PRs.ps1 -Phase 1
 
-WORKFLOW BY PHASE:
+CONSOLIDATED 3-PR STRUCTURE:
 
-  Phase 1: Foundation (2 PRs)
-    - feature/accessible-alert-configuration
-    - feature/keybinding-resolution-infrastructure
+  PR 1 (Phase 1): Foundation & Infrastructure
+    - feature/accessibility-help-foundation
+    - Core wiring, contribution registrations, config, PRD
 
-  Phase 2: Editor Find/Replace (2 PRs)
-    - feature/editor-find-accessibility-help
-    - feature/editor-replace-accessibility-help
+  PR 2 (Phase 2): Accessibility Help Content
+    - feature/accessibility-help-content
+    - All 7 new *AccessibilityHelp.ts provider files
 
-  Phase 3: Other Implementations (6 PRs - can be parallel)
-    - terminal, webview, output, problems, debug, search
+  PR 3 (Phase 3): ARIA Hints & Bug Fixes
+    - feature/accessibility-aria-polish
+    - Widget ARIA hints, findWidget.ts bug fixes
 
-  Phase 4: Bug Fixes (2 PRs)
-    - bugfix/aria-alerts-find-dialog
-    - bugfix/notfound-message-empty-field
-
-  -Phase <n>      Target a specific phase (1-4)
+  -Phase <n>      Target a specific PR (1-3)
   -DryRun         Preview actions without making changes
   -Force          Proceed despite warnings
   -Help           Show this help message
 
 EXAMPLES:
 
-  # Full workflow for Phase 1
+  # Full workflow for PR 1 (Foundation)
   .\Run-PRWorkflow.ps1 -Phase 1
 
   # Just check status

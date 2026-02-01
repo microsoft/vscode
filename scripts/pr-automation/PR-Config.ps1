@@ -281,15 +281,14 @@ Two critical screen reader fixes:
 - Requires PR 2 (Content) to be merged first
 "@
             ExpectedFiles = @(
-                "src/vs/base/browser/ui/findinput/findInputToggles.ts",
                 "src/vs/editor/contrib/find/browser/findWidget.ts",
-                "src/vs/editor/contrib/find/browser/simpleFindWidget.ts",
                 "src/vs/workbench/browser/parts/views/viewFilter.ts",
+                "src/vs/workbench/contrib/codeEditor/browser/find/simpleFindWidget.ts",
                 "src/vs/workbench/contrib/search/browser/searchWidget.ts",
-                "src/vs/workbench/contrib/terminal/browser/terminalFindWidget.ts",
-                "src/vs/workbench/contrib/webviewPanel/browser/webviewFindWidget.ts"
+                "src/vs/workbench/contrib/terminalContrib/find/browser/terminalFindWidget.ts",
+                "src/vs/workbench/contrib/webview/browser/webviewFindWidget.ts"
             )
-            ExpectedFileCount = 7
+            ExpectedFileCount = 6
             IsNewFile = $false
             IsBugFix = $true
             Labels = @("accessibility", "bug", "screen-reader", "pr-3-polish")
