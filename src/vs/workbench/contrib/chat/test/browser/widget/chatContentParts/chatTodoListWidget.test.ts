@@ -33,7 +33,8 @@ suite('ChatTodoListWidget Accessibility', () => {
 			_serviceBrand: undefined,
 			onDidUpdateTodos: Event.None,
 			getTodos: (sessionResource: URI) => sampleTodos,
-			setTodos: (sessionResource: URI, todos: IChatTodo[]) => { }
+			setTodos: (sessionResource: URI, todos: IChatTodo[]) => { },
+			migrateTodos: (oldSessionResource: URI, newSessionResource: URI) => { }
 		};
 
 		// Mock the configuration service
@@ -155,7 +156,8 @@ suite('ChatTodoListWidget Accessibility', () => {
 			_serviceBrand: undefined,
 			onDidUpdateTodos: Event.None,
 			getTodos: (sessionResource: URI) => [],
-			setTodos: (sessionResource: URI, todos: IChatTodo[]) => { }
+			setTodos: (sessionResource: URI, todos: IChatTodo[]) => { },
+			migrateTodos: (oldSessionResource: URI, newSessionResource: URI) => { }
 		};
 
 		const emptyConfigurationService = new TestConfigurationService();

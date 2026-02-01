@@ -3441,6 +3441,12 @@ export interface ChatTerminalToolInvocationData2 {
 	language: string;
 }
 
+export enum ChatTodoStatus {
+	NotStarted = 1,
+	InProgress = 2,
+	Completed = 3
+}
+
 export class ChatToolInvocationPart {
 	toolName: string;
 	toolCallId: string;

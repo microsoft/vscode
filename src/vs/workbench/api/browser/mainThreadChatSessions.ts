@@ -28,6 +28,7 @@ import { ChatSessionStatus, IChatSession, IChatSessionContentProvider, IChatSess
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
 import { IChatModel } from '../../contrib/chat/common/model/chatModel.js';
 import { IChatAgentRequest } from '../../contrib/chat/common/participants/chatAgents.js';
+import { IChatTodoListService } from '../../contrib/chat/common/tools/chatTodoListService.js';
 import { IEditorGroupsService } from '../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../services/editor/common/editorService.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
@@ -339,6 +340,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		@IChatSessionsService private readonly _chatSessionsService: IChatSessionsService,
 		@IChatService private readonly _chatService: IChatService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
+		@IChatTodoListService private readonly _chatTodoListService: IChatTodoListService,
 		@IDialogService private readonly _dialogService: IDialogService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
@@ -419,6 +421,9 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		const originalEditor = this._editorService.editors.find(editor => editor.resource?.toString() === originalResource.toString());
 		const originalModel = this._chatService.getSession(originalResource);
 		const contribution = this._chatSessionsService.getAllChatSessionContributions().find(c => c.type === chatSessionType);
+
+		// Migrate todos from old session to new session
+		this._chatTodoListService.migrateTodos(originalResource, modifiedResource);
 
 		// Find the group containing the original editor
 		const originalGroup =
