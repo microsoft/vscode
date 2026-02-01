@@ -275,7 +275,7 @@ declare module 'vscode' {
 		isComplete?: boolean;
 		toolSpecificData?: ChatTerminalToolInvocationData | ChatMcpToolInvocationData;
 		subAgentInvocationId?: string;
-		presentation?: 'hidden' | 'hiddenAfterComplete' | undefined;
+		presentation?: 'hidden' | 'hiddenAfterComplete' | 'expanded' | undefined;
 
 		constructor(toolName: string, toolCallId: string, isError?: boolean);
 	}

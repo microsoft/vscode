@@ -540,6 +540,7 @@ export interface IChatToolInvocation {
 	readonly invocationMessage: string | IMarkdownString;
 	readonly pastTenseMessage: string | IMarkdownString | undefined;
 	readonly source: ToolDataSource;
+	readonly displayStyle?: 'expanded' | 'default';
 	readonly toolId: string;
 	readonly toolCallId: string;
 	readonly subAgentInvocationId?: string;
@@ -804,6 +805,7 @@ export interface IChatToolInvocationSerialized {
 	toolCallId: string;
 	toolId: string;
 	source: ToolDataSource | undefined; // undefined on pre-1.104 versions
+	displayStyle?: 'expanded' | 'default';
 	readonly subAgentInvocationId?: string;
 	generatedTitle?: string;
 	kind: 'toolInvocationSerialized';

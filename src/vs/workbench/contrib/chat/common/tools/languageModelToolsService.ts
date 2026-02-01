@@ -68,6 +68,11 @@ export interface IToolData {
 	 * If defined, the tool is only available when the selected model matches one of the selectors.
 	 */
 	readonly models?: readonly ILanguageModelChatSelector[];
+	/**
+	 * Controls how this tool's invocations are displayed. When 'expanded', the tool invocation
+	 * is always shown expanded and never collapsed into the 'thinking' section.
+	 */
+	readonly displayStyle?: 'expanded' | 'default';
 }
 
 /**
@@ -326,7 +331,8 @@ export type ToolConfirmationAction = IToolConfirmationAction | Separator;
 
 export enum ToolInvocationPresentation {
 	Hidden = 'hidden',
-	HiddenAfterComplete = 'hiddenAfterComplete'
+	HiddenAfterComplete = 'hiddenAfterComplete',
+	Expanded = 'expanded'
 }
 
 export interface IToolInvocationStreamContext {
