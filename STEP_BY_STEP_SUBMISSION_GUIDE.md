@@ -1,8 +1,94 @@
 # Step-by-Step PR Submission Guide (gh + git CLI)
-
-## Complete Command-by-Command Walkthrough
+## VS Code Accessibility Help System - Complete Operational Playbook
 
 This guide walks you through every step: from setup through final merge. Copy-paste each command exactly as shown.
+
+### About This Guide
+- **Target**: VS Code contributors submitting accessibility help feature work
+- **Scope**: 14 coordinated PRs across 4 phases
+- **Primary Tool**: GitHub CLI (gh) + git
+- **Engineer Assignment**: Covered in each section
+- **Learning**: Each section explains WHY the step matters
+
+### Key VS Code Concepts You'll Encounter
+- **Accessibility Providers**: `IAccessibleViewImplementation` pattern
+- **Context Keys**: Dynamic UI state that affects keybindings
+- **Registry Pattern**: `AccessibleViewRegistry` for feature registration
+- **Localization**: `nls.localize()` for non-English support
+- **These PRs Implement**: Alt+F1 help for find/filter experiences
+
+### Who Should Review Each Phase
+- **Phase 1-2**: isidorn (accessibility owner), jrieken (editor owner)
+- **Phase 3**: Specific subsystem owners (search, debug, terminal maintainers)
+- **Phase 4**: Editor owner (critical bug fixes)
+
+---
+
+## IMPORTANT: ENGINEER ASSIGNMENT SETUP
+
+### Before You Start: Document Who Reviews What
+
+For VS Code, different areas have specific maintainers. Fill this in with your reviewer information:
+
+**Create a file** `c:\vscode\REVIEWER_ASSIGNMENTS.md`:
+
+```markdown
+# PR Reviewer Assignments
+
+## Phase 1: Foundation
+- **PR1**: feature/accessible-alert-configuration
+  - Assigned to: _________________ (accessibility lead)
+  - GitHub username(s): _________________
+
+- **PR2**: feature/keybinding-resolution-infrastructure
+  - Assigned to: _________________ (editor maintainer)
+  - GitHub username(s): _________________
+
+## Phase 2: Editor 
+- **PR3**: feature/editor-find-accessibility-help
+  - Assigned to: _________________ (find feature owner)
+  - GitHub username(s): _________________
+
+- **PR4**: feature/editor-replace-accessibility-help
+  - Assigned to: _________________ (find feature owner)
+  - GitHub username(s): _________________
+
+## Phase 3: Other (can assign different people per area)
+- **PR5**: feature/terminal-find-accessibility-help
+  - Assigned to: _________________ (terminal maintainer)
+  - GitHub username(s): _________________
+
+- **PR6**: feature/webview-find-accessibility-help
+  - Assigned to: _________________ (webview maintainer)
+  - GitHub username(s): _________________
+
+- **PR7**: feature/output-filter-accessibility-help
+  - Assigned to: _________________ (output panel owner)
+  - GitHub username(s): _________________
+
+- **PR8**: feature/problems-filter-accessibility-help
+  - Assigned to: _________________ (problems panel owner)
+  - GitHub username(s): _________________
+
+- **PR9**: feature/debug-console-accessibility-help
+  - Assigned to: _________________ (debug maintainer)
+  - GitHub username(s): _________________
+
+- **PR10**: feature/search-accessibility-help
+  - Assigned to: _________________ (search owner)
+  - GitHub username(s): _________________
+
+## Phase 4: Bug Fixes (Critical - send to editor owner)
+- **PR11**: bugfix/aria-alerts-find-dialog
+  - Assigned to: _________________ (editor maintainer)
+  - GitHub username(s): _________________
+
+- **PR12**: bugfix/notfound-message-empty-field
+  - Assigned to: _________________ (editor maintainer)
+  - GitHub username(s): _________________
+```
+
+**Why?** You'll use these exact usernames in the `gh pr edit` commands. Having them here prevents copy-paste errors.
 
 ---
 
@@ -86,9 +172,51 @@ Your branch is up to date with 'origin/main'.
 nothing to commit, working tree clean
 ```
 
+### Step 1.5: VS CODE-SPECIFIC CHECK: Verify Build System
+
+```bash
+npm --version
+```
+
+**Expected**: npm 8.x or higher
+
+This matters because VS Code's `npm run` commands (which you'll use for testing) depend on npm being available.
+
+### Step 1.6: List Your Branches (Verify They Exist)
+
+```bash
+git branch -a | grep -E "(feature|bugfix)/.*accessibility|find|filter"
+```
+
+**Expected output** (all 14 should be present):
+```
+feature/accessible-alert-configuration
+feature/keybinding-resolution-infrastructure
+feature/editor-find-accessibility-help
+feature/editor-replace-accessibility-help
+feature/terminal-find-accessibility-help
+feature/webview-find-accessibility-help
+feature/output-filter-accessibility-help
+feature/problems-filter-accessibility-help
+feature/debug-console-accessibility-help
+feature/search-accessibility-help
+bugfix/aria-alerts-find-dialog
+bugfix/notfound-message-empty-field
+```
+
+If any are missing, go back to your branch creation step. **Do not proceed until all 14 exist.**
+
 ---
 
 ## PART 2: CREATE GITHUB LABELS
+
+### Understanding VS Code Labels
+
+In VS Code's issue tracker, labels help maintainers:
+- **Triage** (what area is this?)
+- **Filter** (show me all accessibility issues)
+- **Track** (which phase is this PR in?)
+- **Prioritize** (is this urgent?)
 
 ### Step 2.1: Create Primary Labels
 
@@ -105,12 +233,14 @@ gh label create phase-3-other --color "ededed" --description "Phase 3: Other imp
 gh label create phase-4-bugfixes --color "ededed" --description "Phase 4: Bug fixes" --force
 ```
 
+**Learning Note**: VS Code uses a few dozen standard labels. These are **additions** that help organize your specific work.
+
 **Verify labels created**:
 ```bash
-gh label list
+gh label list | grep -E "accessibility|screen-reader|infrastructure|keybindings|phase"
 ```
 
-**Expected**: All labels appear in the list
+**Expected**: All 8 labels appear in the list
 
 ---
 
@@ -179,6 +309,14 @@ Example: If output shows `#12345`, save that number.
 
 ## PART 3: PHASE 1 - FOUNDATION BRANCHES
 
+### What Phase 1 Does (Learning Context)
+
+Phase 1 creates the **foundation** that all other PRs depend on:
+1. **String resources**: Localized text for help content
+2. **Keybinding resolution pattern**: How to show correct shortcuts for different contexts
+
+Without Phase 1 merged, other PRs will have conflicts. This is why it goes first.
+
 ### Step 3.1: Create PR for `feature/accessible-alert-configuration`
 
 #### 3.1a: Prepare Branch (Verify it has commits)
@@ -187,7 +325,12 @@ Example: If output shows `#12345`, save that number.
 git log feature/accessible-alert-configuration -1 --oneline
 ```
 
-**Expected**: Shows latest commit on that branch
+**Expected**: Shows latest commit like:
+```
+a1b2c3d Add findNavigation localized string
+```
+
+If you see nothing or an error, your branch wasn't created properly. Go back to branch creation.
 
 #### 3.1b: Create the PR
 
@@ -241,29 +384,47 @@ This string documents how to navigate matches in the editor context (F3/Shift+F3
 See PR_TEMPLATES_AND_SUBMISSION_GUIDE.md for detailed template information."
 ```
 
-**If the command returns a PR URL**, save it.
+**What this does**: Creates a PR from your branch to main with the description above.
 
-#### 3.1c: Add Labels to PR
+**Output**: Shows something like `Created pull request #12346 (main:feature/accessible-alert-configuration)`
 
-Get the PR number from previous output (e.g., `#12346`):
+**Save this number**: You'll need it in the next steps.
+
+#### 3.1c: Assign to Specific Engineer
+
+**This is where you assign to a person.** Check your `REVIEWER_ASSIGNMENTS.md` for "Phase 1 - PR1" - get the GitHub username.
+
+Example: If the file says "assign to @isidorn", run:
+
+```bash
+gh pr edit 12346 --add-reviewer "isidorn"
+```
+
+**Replace "isidorn" with your actual engineer's GitHub username.**
+
+**Learning note**: In VS Code, the `--add-reviewer` flag doesn't just list them - it sends them a notification. Use specific usernames, not just their display names.
+
+#### 3.1d: Add Labels to PR
 
 ```bash
 gh pr edit 12346 --add-label "accessibility,feature,editor,phase-1-foundation"
 ```
 
-#### 3.1d: Add Milestone to PR
+**Why labels matter**: 
+- Your reviewers filter on "phase-1-foundation" to find your work
+- VS Code's CI uses labels to determine which tests to run
+- Project tracking uses them to generate reports
+
+#### 3.1e: Add Milestone to PR
 
 ```bash
 gh pr edit 12346 --milestone "Accessibility Help System"
 ```
 
-#### 3.1e: Request Reviewers
-
-```bash
-gh pr edit 12346 --add-reviewer "isidorn,jrieken"
-```
-
-**Note**: These are VS Code maintainers. If you want different reviewers, update the usernames.
+**Why milestones matter**:
+- Groups all related PRs together
+- Helps VS Code maintainers understand "this is a coordinated effort"
+- Provides progress tracking
 
 #### 3.1f: Verify PR Created Correctly
 
@@ -271,7 +432,16 @@ gh pr edit 12346 --add-reviewer "isidorn,jrieken"
 gh pr view 12346
 ```
 
-**Expected**: Shows PR details with labels, milestone, and reviewers
+**Expected output includes**:
+```
+title: [Accessibility] Accessible Alert Configuration and Foundation Strings
+state: OPEN
+reviewers: isidorn (requested)
+labels: accessibility, feature, editor, phase-1-foundation
+milestone: Accessibility Help System
+```
+
+If anything is missing, use `gh pr edit 12346 --add-label "..."` etc to fix it.
 
 ---
 
@@ -331,24 +501,26 @@ Screen reader users need to understand which keybindings apply in their current 
 - phase-1-foundation"
 ```
 
-#### 3.2b: Add Labels
+#### 3.2b: Assign to Specific Engineer
 
-Get PR number from output:
+Check your `REVIEWER_ASSIGNMENTS.md` for "Phase 1 - PR2" and get the GitHub username:
+
+```bash
+gh pr edit 12347 --add-reviewer "jrieken"
+```
+
+**Replace "jrieken" with your actual engineer's GitHub username.**
+
+#### 3.2c: Add Labels
 
 ```bash
 gh pr edit 12347 --add-label "accessibility,infrastructure,keybindings,phase-1-foundation"
 ```
 
-#### 3.2c: Add Milestone
+#### 3.2d: Add Milestone
 
 ```bash
 gh pr edit 12347 --milestone "Accessibility Help System"
-```
-
-#### 3.2d: Request Reviewers
-
-```bash
-gh pr edit 12347 --add-reviewer "isidorn,jrieken"
 ```
 
 #### 3.2e: Verify
@@ -361,44 +533,69 @@ gh pr view 12347
 
 ## PART 4: MONITOR PHASE 1 UNTIL MERGED
 
-### Step 4.1: Check PR Status
+### Step 4.1: Understanding the Review Process
+
+In VS Code, reviewers look for:
+1. **Code quality**: Does it follow VS Code patterns?
+2. **Tests**: Have tests been added/updated?
+3. **Performance**: Any slowdowns?
+4. **Accessibility**: Does it actually help screen reader users?
+5. **Localization**: Are strings properly externalized?
+
+### Step 4.2: Check PR Status
 
 ```bash
 gh pr view 12346
 ```
 
 **Look for**:
-- All checks passing (green checkmarks)
-- Reviewers haven't requested changes
-- No merge conflicts
+- "status: OPEN" and "reviews: PENDING"
+- No merge conflicts (should show none)
+- All checks passing (CI tests, linting, etc.)
 
-### Step 4.2: Monitor Review Comments
+### Step 4.3: Monitor Review Comments
 
 ```bash
 gh pr comments 12346
 ```
 
-Or check directly:
+Or view the full PR in browser:
 
 ```bash
-gh pr checks 12346
+gh pr view 12346 --web
 ```
 
-### Step 4.3: When Ready, Merge Phase 1 PR #1
+This opens the GitHub web UI where you can see the discussion thread.
+
+### Step 4.4: When Ready, Merge Phase 1 PR #1
+
+**Wait until**:
+- Reviewer has "APPROVED" (not just commented)
+- All checks show green checkmarks
+- No merge conflicts
+
+Then merge:
 
 ```bash
 gh pr merge 12346 --squash --delete-branch
 ```
 
-**Verify**:
+**What `--squash` does**: Combines all commits on the branch into one single commit on main. This keeps main's history clean.
+
+**What `--delete-branch` does**: Automatically deletes the feature branch after merging.
+
+**Verify merge**:
 ```bash
 git checkout main
 git pull origin main
+git log --oneline | head -5
 ```
+
+Should show your new commit with "[Accessibility]" in the message.
 
 ---
 
-### Step 4.4: Wait for Phase 1 PR #2 Approval
+### Step 4.5: Wait for Phase 1 PR #2 Approval
 
 Keep monitoring:
 
@@ -406,15 +603,28 @@ Keep monitoring:
 gh pr view 12347
 ```
 
-When approved:
+When approved and checks pass:
 
 ```bash
 gh pr merge 12347 --squash --delete-branch
 ```
 
+**Important**: Don't skip PR #1 merging. PR #2 may have conflicts until PR #1 is merged.
+
+---
+
 ---
 
 ## PART 5: PHASE 2 - EDITOR FIND/REPLACE
+
+### What Phase 2 Does (Learning Context)
+
+Phase 2 is the **main feature implementation**. This is where users actually get help when they press Alt+F1.
+
+- **PR #3**: The comprehensive find help (315 lines of functionality)
+- **PR #4**: Extend with replace-specific help
+
+This is the high-value PR. Most testing happens here. Most questions will come from reviewers here.
 
 ### Step 5.1: Create PR for `feature/editor-find-accessibility-help`
 
@@ -472,24 +682,34 @@ Adds comprehensive, context-aware accessibility help for the editor find dialog.
 - phase-2-editor"
 ```
 
-Save the PR number.
+**Save the PR number** (e.g., 12348).
 
-#### Add Labels
+#### 5.1a: Assign PM-Specific Reviewer
+
+Check your `REVIEWER_ASSIGNMENTS.md` for "Phase 2 - PR3". Get the specific engineer:
+
+```bash
+gh pr edit 12348 --add-reviewer "isidorn"
+```
+
+**Learning note**: This is the main find PR, so it may have multiple reviewers. You could add more:
+
+```bash
+gh pr edit 12348 --add-reviewer "jrieken"
+```
+
+Each `--add-reviewer` adds another person to the request list.
+
+#### 5.1b: Add Labels
 
 ```bash
 gh pr edit 12348 --add-label "accessibility,feature,editor,find,screen-reader,phase-2-editor"
 ```
 
-#### Add Milestone
+#### 5.1c: Add Milestone
 
 ```bash
 gh pr edit 12348 --milestone "Accessibility Help System"
-```
-
-#### Request Reviewers
-
-```bash
-gh pr edit 12348 --add-reviewer "isidorn,jrieken"
 ```
 
 ---
@@ -545,24 +765,26 @@ Extends the accessibility help system to include comprehensive documentation for
 - phase-2-editor"
 ```
 
-Save PR number.
+**Save the PR number** (e.g., 12349).
 
-#### Add Labels
+#### 5.2a: Assign PM-Specific Reviewer
+
+Check `REVIEWER_ASSIGNMENTS.md` for "Phase 2 - PR4":
+
+```bash
+gh pr edit 12349 --add-reviewer "isidorn"
+```
+
+#### 5.2b: Add Labels
 
 ```bash
 gh pr edit 12349 --add-label "accessibility,feature,editor,replace,screen-reader,phase-2-editor"
 ```
 
-#### Add Milestone
+#### 5.2c: Add Milestone
 
 ```bash
 gh pr edit 12349 --milestone "Accessibility Help System"
-```
-
-#### Request Reviewers
-
-```bash
-gh pr edit 12349 --add-reviewer "isidorn,jrieken"
 ```
 
 ---
@@ -609,7 +831,23 @@ gh pr merge 12349 --squash --delete-branch
 
 ## PART 7: PHASE 3 - OTHER IMPLEMENTATIONS (PARALLEL)
 
-You can do all of these in parallel because they don't depend on each other.
+### What Phase 3 Does (Learning Context)
+
+Phase 3 extends the accessibility help to **6 different areas** of VS Code. These can all go in parallel because:
+- They don't depend on each other
+- Each has its own maintainer
+- They're independent features
+
+**Important**: Each one has a specific owner/maintainer. The `REVIEWER_ASSIGNMENTS.md` file should have different people for each.
+
+### Important: Use Your REVIEWER_ASSIGNMENTS.md for Each Phase 3 PR
+
+Phase 3 is unique: each PR might go to a different owner. Example:
+- Terminal find → `terminal` maintainer
+- Search help → `search` feature owner
+- Debug console → `debug` maintainer
+
+**Before you start Phase 3**: Make sure your `REVIEWER_ASSIGNMENTS.md` has **different reviewers** for each Phase 3 PR.
 
 ### Step 7.1: Create PR for `feature/terminal-find-accessibility-help`
 
@@ -641,12 +879,21 @@ Adds accessibility help for finding text within terminal output. Users focused i
 - phase-3-other"
 ```
 
-Get PR number and add details:
+#### 7.1a: Get PR Number and Assign Reviewer
+
+The command above returns a PR number (e.g., 12350). Check your `REVIEWER_ASSIGNMENTS.md` for "Phase 3 - PR5":
 
 ```bash
-gh pr edit [PR_NUMBER] --add-label "accessibility,feature,terminal,find,screen-reader,phase-3-other"
-gh pr edit [PR_NUMBER] --milestone "Accessibility Help System"
-gh pr edit [PR_NUMBER] --add-reviewer "isidorn,jrieken"
+gh pr edit 12350 --add-reviewer "railken"
+```
+
+**Replace "railken" with whoever maintains the terminal in VS Code.**
+
+#### 7.1b: Add Labels and Milestone
+
+```bash
+gh pr edit 12350 --add-label "accessibility,feature,terminal,find,screen-reader,phase-3-other"
+gh pr edit 12350 --milestone "Accessibility Help System"
 ```
 
 ---
@@ -671,12 +918,19 @@ Adds accessibility help for finding text within webview content.
 - phase-3-other"
 ```
 
-Add details:
+#### 7.2a: Assign Reviewer
+
+Check `REVIEWER_ASSIGNMENTS.md` for "Phase 3 - PR6":
 
 ```bash
-gh pr edit [PR_NUMBER] --add-label "accessibility,feature,webview,find,phase-3-other"
-gh pr edit [PR_NUMBER] --milestone "Accessibility Help System"
-gh pr edit [PR_NUMBER] --add-reviewer "isidorn,jrieken"
+gh pr edit 12351 --add-reviewer "username-for-webview-owner"
+```
+
+#### 7.2b: Add Labels and Milestone
+
+```bash
+gh pr edit 12351 --add-label "accessibility,feature,webview,find,phase-3-other"
+gh pr edit 12351 --milestone "Accessibility Help System"
 ```
 
 ---
@@ -701,12 +955,17 @@ Adds accessibility help for output panel filtering.
 - phase-3-other"
 ```
 
-Add details:
+#### 7.3a: Assign Reviewer
 
 ```bash
-gh pr edit [PR_NUMBER] --add-label "accessibility,feature,output,filter,phase-3-other"
-gh pr edit [PR_NUMBER] --milestone "Accessibility Help System"
-gh pr edit [PR_NUMBER] --add-reviewer "isidorn,jrieken"
+gh pr edit 12352 --add-reviewer "username-for-output-owner"
+```
+
+#### 7.3b: Add Labels and Milestone
+
+```bash
+gh pr edit 12352 --add-label "accessibility,feature,output,filter,phase-3-other"
+gh pr edit 12352 --milestone "Accessibility Help System"
 ```
 
 ---
@@ -731,12 +990,17 @@ Adds accessibility help for problems panel filtering.
 - phase-3-other"
 ```
 
-Add details:
+#### 7.4a: Assign Reviewer
 
 ```bash
-gh pr edit [PR_NUMBER] --add-label "accessibility,feature,problems,filter,phase-3-other"
-gh pr edit [PR_NUMBER] --milestone "Accessibility Help System"
-gh pr edit [PR_NUMBER] --add-reviewer "isidorn,jrieken"
+gh pr edit 12353 --add-reviewer "username-for-problems-owner"
+```
+
+#### 7.4b: Add Labels and Milestone
+
+```bash
+gh pr edit 12353 --add-label "accessibility,feature,problems,filter,phase-3-other"
+gh pr edit 12353 --milestone "Accessibility Help System"
 ```
 
 ---
@@ -761,12 +1025,17 @@ Adds accessibility help for debug console filtering and input.
 - phase-3-other"
 ```
 
-Add details:
+#### 7.5a: Assign Reviewer
 
 ```bash
-gh pr edit [PR_NUMBER] --add-label "accessibility,feature,debug,console,phase-3-other"
-gh pr edit [PR_NUMBER] --milestone "Accessibility Help System"
-gh pr edit [PR_NUMBER] --add-reviewer "isidorn,jrieken"
+gh pr edit 12354 --add-reviewer "username-for-debug-owner"
+```
+
+#### 7.5b: Add Labels and Milestone
+
+```bash
+gh pr edit 12354 --add-label "accessibility,feature,debug,console,phase-3-other"
+gh pr edit 12354 --milestone "Accessibility Help System"
 ```
 
 ---
@@ -791,23 +1060,32 @@ Adds accessibility help for searching across files in workspace.
 - phase-3-other"
 ```
 
-Add details:
+#### 7.6a: Assign Reviewer
 
 ```bash
-gh pr edit [PR_NUMBER] --add-label "accessibility,feature,search,files,phase-3-other"
-gh pr edit [PR_NUMBER] --milestone "Accessibility Help System"
-gh pr edit [PR_NUMBER] --add-reviewer "isidorn,jrieken"
+gh pr edit 12355 --add-reviewer "username-for-search-owner"
+```
+
+#### 7.6b: Add Labels and Milestone
+
+```bash
+gh pr edit 12355 --add-label "accessibility,feature,search,files,phase-3-other"
+gh pr edit 12355 --milestone "Accessibility Help System"
 ```
 
 ---
 
 ### Step 7.7: Monitor and Merge Phase 3 PRs
 
+**Learning note**: Phase 3 PRs can be reviewed and merged independently. You don't need to wait for all 6 to finish. As each one is approved, merge it.
+
 List all Phase 3 PRs:
 
 ```bash
 gh pr list --label "phase-3-other"
 ```
+
+**Expected output**: Shows all 6 PRs with their current state
 
 Check each one:
 
@@ -831,6 +1109,15 @@ git pull origin main
 ---
 
 ## PART 8: PHASE 4 - BUG FIXES
+
+### What Phase 4 Does (Learning Context)
+
+Phase 4 fixes **two critical bugs** in the find widget that were discovered during accessibility testing:
+
+- **PR #11**: ARIA alerts announced incorrectly (even on empty search)
+- **PR #12**: aria-label timing issue (screen readers miss the hint)
+
+**Important security note**: These are bug fixes, not new features. They should go to the editor owner (same person as Phase 1-2). Bug fixes typically get fast-tracked in review.
 
 ### Step 8.1: Create PR for `bugfix/aria-alerts-find-dialog`
 
@@ -883,12 +1170,26 @@ if (this._state.searchString) {
 - phase-4-bugfixes"
 ```
 
-Add details:
+#### 8.1a: Assign to Editor Maintainer
+
+Check your `REVIEWER_ASSIGNMENTS.md` for "Phase 4 - PR11":
 
 ```bash
-gh pr edit [PR_NUMBER] --add-label "accessibility,bug,editor,find,screen-reader,critical,phase-4-bugfixes"
-gh pr edit [PR_NUMBER] --milestone "Accessibility Help System"
-gh pr edit [PR_NUMBER] --add-reviewer "isidorn,jrieken"
+gh pr edit 12356 --add-reviewer "jrieken"
+```
+
+**Learning note**: Bug fix PRs are critical. The editor maintainer needs to review this first.
+
+#### 8.1b: Add Labels
+
+```bash
+gh pr edit 12356 --add-label "accessibility,bug,editor,find,screen-reader,critical,phase-4-bugfixes"
+```
+
+#### 8.1c: Add Milestone
+
+```bash
+gh pr edit 12356 --milestone "Accessibility Help System"
 ```
 
 ---
@@ -945,39 +1246,62 @@ Fixes timing and visibility issues with find widget's aria-label updates.
 - phase-4-bugfixes"
 ```
 
-Add details:
+#### 8.2a: Assign to Editor Maintainer
+
+Check your `REVIEWER_ASSIGNMENTS.md` for "Phase 4 - PR12":
 
 ```bash
-gh pr edit [PR_NUMBER] --add-label "accessibility,bug,editor,find,screen-reader,critical,phase-4-bugfixes"
-gh pr edit [PR_NUMBER] --milestone "Accessibility Help System"
-gh pr edit [PR_NUMBER] --add-reviewer "isidorn,jrieken"
+gh pr edit 12357 --add-reviewer "jrieken"
+```
+
+#### 8.2b: Add Labels
+
+```bash
+gh pr edit 12357 --add-label "accessibility,bug,editor,find,screen-reader,critical,phase-4-bugfixes"
+```
+
+#### 8.2c: Add Milestone
+
+```bash
+gh pr edit 12357 --milestone "Accessibility Help System"
 ```
 
 ---
 
 ### Step 8.3: Monitor and Merge Phase 4 PRs
 
+**Learning note**: These bug fixes are critical. If the reviewer requests changes, prioritize them over other work.
+
+List Phase 4 PRs:
+
 ```bash
 gh pr list --label "phase-4-bugfixes"
 ```
 
-Check each:
+Check each one:
 
 ```bash
-gh pr view [PR_NUMBER]
+gh pr view 12356
+gh pr view 12357
 ```
 
-Merge when ready:
+When Phase 4 PR #1 is approved and checks pass:
 
 ```bash
-gh pr merge [PR_NUMBER] --squash --delete-branch
+gh pr merge 12356 --squash --delete-branch
 ```
 
-Update main after each:
+Then update main:
 
 ```bash
 git checkout main
 git pull origin main
+```
+
+When Phase 4 PR #2 is approved:
+
+```bash
+gh pr merge 12357 --squash --delete-branch
 ```
 
 ---
@@ -990,7 +1314,11 @@ git pull origin main
 gh pr list --milestone "Accessibility Help System"
 ```
 
-Should show no open PRs.
+Should show no open PRs:
+
+```
+No pull requests match your search in microsoft/vscode
+```
 
 ### Step 9.2: Check Final Commit History
 
@@ -998,7 +1326,15 @@ Should show no open PRs.
 git log main --oneline | head -20
 ```
 
-Should show all your accessibility help commits.
+**Expected output**: All 14 commits should be visible, something like:
+
+```
+a1b2c3d Fix: Proper aria-label timing and visibility check
+b2c3d4e Fix: Only announce when search string present
+c3d4e5f Add search accessibility help
+d4e5f6g Add debug console accessibility help
+...
+```
 
 ### Step 9.3: Cleanup Local Branches
 
@@ -1017,7 +1353,7 @@ git branch -d bugfix/aria-alerts-find-dialog
 git branch -d bugfix/notfound-message-empty-field
 ```
 
-**If you get errors about branches not deleted remotely**, that's fine - git just cleaned up the local ones.
+**If you get branch not found errors**: That's OK. Means they're already deleted. The gh merge commands delete them automatically.
 
 ### Step 9.4: Final Check
 
@@ -1025,8 +1361,8 @@ git branch -d bugfix/notfound-message-empty-field
 git branch -av
 ```
 
-Should only show:
-- `main` (your current work)
+**Expected**: Only shows:
+- `main` (your current location)
 - `develop` (integration branch)
 - `remotes/origin/main`
 - `remotes/origin/develop`
