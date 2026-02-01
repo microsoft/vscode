@@ -86,6 +86,12 @@ export class FilterWidget extends Widget {
 	private moreFiltersActionViewItem: MoreFiltersActionViewItem | undefined;
 	private isMoreFiltersChecked: boolean = false;
 	private lastWidth?: number;
+
+	/**
+	 * Tracks whether the accessibility help hint has been announced in the ARIA label.
+	 * Reset when the widget loses focus, allowing the hint to be announced again
+	 * on the next focus.
+	 */
 	private _accessibilityHelpHintAnnounced: boolean = false;
 
 	private readonly focusTracker: DOM.IFocusTracker;
@@ -130,22 +136,37 @@ export class FilterWidget extends Widget {
 		this.filterInputBox.focus();
 	}
 
+	/**
+	 * Updates the ARIA label of the filter input box.
+	 * When a screen reader is active and the accessibility verbosity setting is enabled,
+	 * includes a hint about pressing Alt+F1 for accessibility help on first focus.
+	 * The hint is only announced once per focus cycle to prevent double-speak.
+	 */
 	private _updateFilterInputAriaLabel(): void {
 		let ariaLabel = this.options.ariaLabel || localize('viewFilter', "Filter");
+
+		// Include accessibility help hint when screen reader is active and setting is enabled
+		// Note: Using string literal for setting ID to avoid layering violation (viewFilter.ts cannot import from contrib modules)
 		if (!this._accessibilityHelpHintAnnounced && this.configurationService.getValue<boolean>('accessibility.verbosity.find') && this.accessibilityService.isScreenReaderOptimized()) {
 			const keybinding = this.keybindingService.lookupKeybinding('editor.action.accessibilityHelp')?.getAriaLabel();
 			if (keybinding) {
 				ariaLabel += ', ' + localize('accessibilityHelpHintInLabel', "Press {0} for accessibility help", keybinding);
 				this._accessibilityHelpHintAnnounced = true;
-				// Reset the aria label after a short delay to avoid repeated announcement on focus changes
+
+				// Reset to plain label after delay to avoid repeated announcement on focus changes
 				setTimeout(() => {
 					this.filterInputBox.setAriaLabel(this.options.ariaLabel || localize('viewFilter', "Filter"));
 				}, 1000);
 			}
 		}
+
 		this.filterInputBox.setAriaLabel(ariaLabel);
 	}
 
+	/**
+	 * Resets the accessibility help hint flag, allowing the hint to be announced again.
+	 * Should be called when the widget loses focus or is hidden.
+	 */
 	resetAccessibilityHelpHint(): void {
 		this._accessibilityHelpHintAnnounced = false;
 	}
