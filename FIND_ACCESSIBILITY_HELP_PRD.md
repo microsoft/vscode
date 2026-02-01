@@ -2,6 +2,20 @@
 
 ## 🎯 Implementation Status (Updated)
 
+### Critical Focus Behavior Corrections
+
+During implementation review, the following critical focus behavior inaccuracies were identified and corrected:
+
+| Context | Original (Incorrect) | Corrected (Accurate) |
+| --- | --- | --- |
+| Editor Find | "Focus often moves into the editor" | Focus STAYS in Find input when pressing Enter |
+| Terminal Find | "Enter jumps to next match" | Enter jumps to PREVIOUS match (opposite of editor) |
+| Terminal Find | Focus behavior unclear | Focus STAYS in Find input |
+| Webview Find | "Focus may move into webview" | Focus STAYS in Find input |
+| Search | Focus behavior unclear | Enter runs search (focus stays), F4/Enter on result moves focus to editor |
+
+**Key Insight**: In all find widgets (except when pressing Escape to close), focus remains in the find input when navigating between matches. This allows users to continue navigating or refine their search without having to return to the input.
+
 ### Current Implementation State
 
 | Context | Help Provider | ARIA Hint Announced | Double-Speak Prevention |
@@ -312,13 +326,17 @@ Match {position} of {total} total. You can navigate through these results.
 **Keyboard Navigation:**
 As you type in the Find input, VS Code announces the match count. Your screen reader will say something like "3 of 12 matches".
 
-- Press Enter while in Find to jump to the next match in the editor and scroll the view to show it. VS Code highlights the match with a yellow background.
-- Press Shift+Enter to jump to the previous match instead.
-- Press F3 (or Cmd+G on Mac) to jump to the next match even if focus is in the editor.
-- Press Shift+F3 (or Cmd+Shift+G on Mac) to jump to the previous match from anywhere.
+- Press Enter while in the Find input to navigate to the next match. The view scrolls and the match is highlighted, but focus stays in the Find input.
+- Press Shift+Enter to navigate to the previous match instead. Focus also remains in the Find input.
+- Press F3 (or Cmd+G on Mac) to navigate to the next match. This works from anywhere - the Find input or the editor. Focus does not change.
+- Press Shift+F3 (or Cmd+Shift+G on Mac) to navigate to the previous match. Focus also does not change.
 
 **Focus Behavior:**
-When you press Enter or F3, VS Code highlights the match in the editor with a yellow background. Your screen reader reads the line containing the match. To immediately return to the Find input, press Ctrl+F again (Cmd+F on Mac). Your search term remains selected and ready to edit.
+IMPORTANT: When you press Enter while in the Find input, focus STAYS in the Find input. The match is highlighted in the editor and scrolled into view, but you remain in the Find input so you can continue navigating or refine your search.
+
+When you press F3 from anywhere, focus also does not change. If you were in the Find input, focus stays there. If you were in the editor, focus stays in the editor.
+
+To move focus from the Find input into the editor, press Ctrl+Down Arrow. To return to the Find input from the editor, press Ctrl+F (Cmd+F on Mac).
 
 **Search Options:**
 - Alt+C: Match Case — Only find exact case matches. Useful when searching for "const" vs "Const".
@@ -326,7 +344,7 @@ When you press Enter or F3, VS Code highlights the match in the editor with a ye
 - Alt+R: Regular Expression — Use regex patterns for powerful searches like "[a-z]+" or "function\\s*\\(.*\\)".
 
 **Closing:**
-Press Escape to close the Find widget. Focus returns to your editor at the last search location. Your search history is preserved.
+Press Escape to close the Find widget. When you close it, focus moves to the editor at the position of the last highlighted match. Your search history is preserved.
 
 ### 2. Editor Replace (Focused on user control and clarity)
 
@@ -407,14 +425,18 @@ You are in the Terminal Find input. This searches everything visible in the term
 Terminal Find searches through the entire terminal buffer, not just what's visible on screen. This includes scrollback history. As you type, VS Code announces match count like "2 of 8 matches".
 
 **Keyboard Navigation:**
+IMPORTANT: Terminal find has DIFFERENT keybindings than editor find!
+
 As you type search text, matches are found in real time. Your screen reader announces the match count.
 
-- Press Enter while in the Find input to jump to the next match. The match is highlighted in yellow in the terminal.
-- Press Shift+Enter to jump to the previous match.
-- Press Escape to close the find widget and return focus to the terminal's command line.
+- Press Enter while in the Find input to jump to the PREVIOUS match (scrolling UP toward older output). The match is highlighted in yellow.
+- Press Shift+Enter to jump to the NEXT match (scrolling DOWN toward newer output).
+- Press Escape to close the find widget. Focus moves to the terminal command line.
+
+Note: This is opposite from editor find because terminal scrollback shows oldest content at the top and newest at the bottom.
 
 **Focus Behavior:**
-When you press Enter to navigate to a match, the terminal automatically scrolls to show that match. Your screen reader announces the line containing the match. If you want to keep adjusting the search without leaving the Find input, use Shift+Enter to navigate backward instead.
+When you press Enter or Shift+Enter to navigate to a match, the terminal scrolls to show that match but focus remains in the Find input. You can continue navigating through matches or refine your search without leaving the Find input.
 
 **Search Options:**
 - Alt+C: Match Case — Only find exact case matches.
@@ -431,10 +453,11 @@ You are in the Webview Find input. This searches embedded web content such as Ma
 As you type, VS Code searches the webview content and announces the match count like "3 of 7 matches". Screen readers will inform you as matches are found or if no matches exist.
 
 **Keyboard Navigation:**
-- Press Enter to jump to the next match. Your screen reader announces the content where the match appears, and the text is highlighted in yellow.
-- Press Shift+Enter to jump to the previous match in the same way.
-- Focus may move into the webview to highlight the match. The match location is announced by your screen reader.
-- To immediately return to the Find input, press Ctrl+F again. Your search term remains selected and ready to edit.
+- Press Enter to navigate to the next match. Your screen reader announces the content where the match appears.
+- Press Shift+Enter to navigate to the previous match.
+- Focus remains in the Find input when you press Enter or Shift+Enter. You can continue navigating through matches without leaving the Find input.
+- To return to the Find input from the webview, press Ctrl+F (Cmd+F on Mac).
+- Press Escape to close the Find widget. Focus moves to the webview content.
 
 **Search Options:**
 - Alt+C: Match Case — Only find exact case matches.
@@ -442,7 +465,7 @@ As you type, VS Code searches the webview content and announces the match count 
 - Alt+R: Regular Expression — Use regex patterns for advanced searches.
 
 **Important About Webviews:**
-Each webview can define its own keyboard behavior. If VS Code's find navigation (Enter, Shift+Enter) doesn't work as expected, the webview may be intercepting those keys. If find navigation seems unresponsive: First, click or tab into the webview content to ensure it has focus, then try your search again. Some webviews require focus within their content to respond to find commands.
+Each webview can define its own keyboard behavior. If VS Code's find navigation (Enter, Shift+Enter) does not work as expected, the webview may be intercepting those keys. If find navigation seems unresponsive: First, click or tab into the webview content to ensure it has focus, then try your search again. Some webviews require focus within their content to respond to find commands.
 
 ### 6. Output Panel Filter (Live filtering designed for clarity)
 
