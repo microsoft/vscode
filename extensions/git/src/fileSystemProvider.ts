@@ -144,6 +144,23 @@ export class GitFileSystemProvider implements FileSystemProvider {
 			this.logger.warn(`[GitFileSystemProvider][stat] Repository not found - ${uri.toString()}`);
 			throw FileSystemError.FileNotFound();
 		}
+		if (ref === '~') {
+			// Try index first
+			try {
+				const details = await repository.getObjectDetails('', path);
+				return { type: FileType.File, size: details.size, mtime: this.mtime, ctime: 0 };
+			} catch {
+				// File not in index, try HEAD
+				try {
+					const details = await repository.getObjectDetails('HEAD', path);
+					return { type: FileType.File, size: details.size, mtime: this.mtime, ctime: 0 };
+				} catch {
+					// File not in HEAD either (new file), return empty
+					this.logger.warn(`[GitFileSystemProvider][stat] File not found for diff original, returning empty - ${uri.toString()}`);
+					return { type: FileType.File, size: 0, mtime: this.mtime, ctime: 0 };
+				}
+			}
+		}
 
 		try {
 			const details = await repository.getObjectDetails(sanitizeRef(ref, path, submoduleOf, repository), path);
@@ -201,6 +218,25 @@ export class GitFileSystemProvider implements FileSystemProvider {
 		const cacheValue: CacheRow = { uri, timestamp };
 
 		this.cache.set(uri.toString(), cacheValue);
+
+		// For '~' ref (diff original), we need to try index first, then HEAD.
+		// We can't rely on repository.indexGroup.resourceStates because it might be stale
+		// (e.g., after unstaging, the state might not have been updated yet).
+		if (ref === '~') {
+			// Try index first
+			try {
+				return await repository.buffer('', path);
+			} catch {
+				// File not in index, try HEAD
+				try {
+					return await repository.buffer('HEAD', path);
+				} catch {
+					// File not in HEAD either (new file), return empty
+					this.logger.warn(`[GitFileSystemProvider][readFile] File not found for diff original, returning empty - ${uri.toString()}`);
+					return new Uint8Array(0);
+				}
+			}
+		}
 
 		try {
 			return await repository.buffer(sanitizeRef(ref, path, submoduleOf, repository), path);
