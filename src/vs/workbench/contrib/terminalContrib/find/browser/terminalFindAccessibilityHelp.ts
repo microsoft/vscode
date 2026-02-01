@@ -43,31 +43,57 @@ class TerminalFindAccessibilityHelpProvider extends Disposable implements IAcces
 		const content: string[] = [];
 
 		// Header
-		content.push(localize('msg.terminalFindHeader', "Accessibility Help: Terminal Find"));
+		content.push(localize('terminal.header', "Accessibility Help: Terminal Find"));
+		content.push(localize('terminal.context', "You are in the Terminal Find input. This searches the entire terminal buffer: both the current output and the scrollback history."));
 		content.push('');
-		content.push(localize('msg.terminalFindContext', "You are in the Terminal Find input. This searches everything visible in the terminal: current output and scrollback history."));
-		content.push('');
-		content.push(localize('msg.terminalBuffer', "What Terminal Find Searches:"));
-		content.push(localize('msg.terminalBufferDetail', "Terminal Find searches through the entire terminal buffer, not just what\\'s visible on screen. This includes scrollback history. As you type, VS Code announces match count like \\\"2 of 8 matches\\\"."));
 
+		// Current Search Status
+		content.push(localize('terminal.statusHeader', "Current Search Status:"));
+		content.push(localize('terminal.statusDesc', "You are searching the terminal buffer."));
 		content.push('');
-		content.push(localize('msg.terminalNavHeader', "Keyboard Navigation:"));
-		content.push(localize('msg.terminalTyping', "As you type search text, matches are found in real time. Your screen reader announces the match count."));
-		content.push('');
-		content.push(localize('msg.terminalNavEnter', "- Press Enter while in the Find input to jump to the previous match (scrolling UP toward older output). The match is highlighted in yellow."));
-		content.push(localize('msg.terminalNavShiftEnter', "- Press Shift+Enter to jump to the next match (scrolling DOWN toward newer output)."));
-		content.push(localize('msg.terminalNavNote', "Note: This is opposite from editor find because terminal scrollback shows oldest content at the top and newest at the bottom."));
-		content.push(localize('msg.terminalNavEscape', "- Press Escape to close the find widget. Focus moves to the terminal command line."));
 
+		// Inside the Terminal Find Input
+		content.push(localize('terminal.inputHeader', "Inside the Terminal Find Input (What It Does):"));
+		content.push(localize('terminal.inputDesc', "While you are in the Terminal Find input, your focus stays in the field. You can type, edit your search term, or navigate matches without leaving the input. When you navigate to a match, the terminal scrolls to show it, but your focus remains in the Find input."));
 		content.push('');
-		content.push(localize('msg.terminalFocusBehavior', "Focus Behavior:"));
-		content.push(localize('msg.terminalFocusDetail', "When you press Enter or Shift+Enter to navigate to a match, the terminal scrolls to show that match but focus remains in the Find input. You can continue navigating through matches or refine your search without leaving the Find input."));
 
+		// What You Hear
+		content.push(localize('terminal.hearHeader', "What You Hear Each Time You Move to a Match:"));
+		content.push(localize('terminal.hearDesc', "Each navigation step gives you a complete spoken update:"));
+		content.push(localize('terminal.hear1', "1) The full line that contains the match is read first, so you get immediate context."));
+		content.push(localize('terminal.hear2', "2) Your position among the matches is announced, so you know how far you are through the results."));
+		content.push(localize('terminal.hear3', "3) The exact line and column are announced, so you know precisely where the match is in the buffer."));
 		content.push('');
-		content.push(localize('msg.terminalOptionsHeader', "Search Options:"));
-		content.push(localize('msg.terminalOptionCase', "-{0}Match Case - Only find exact case matches.", '<keybinding:workbench.action.terminal.toggleFindCaseSensitive>'));
-		content.push(localize('msg.terminalOptionWord', "-{0}Whole Word - Only find complete words, not partial matches.", '<keybinding:workbench.action.terminal.toggleFindWholeWord>'));
-		content.push(localize('msg.terminalOptionRegex', "-{0}Regular Expression - Use regex patterns like \\\"error|warning\\\" to find multiple patterns.", '<keybinding:workbench.action.terminal.toggleFindRegex>'));
+
+		// Focus Behavior
+		content.push(localize('terminal.focusHeader', "Focus Behavior (Important):"));
+		content.push(localize('terminal.focusDesc1', "When you navigate from the Terminal Find input, the terminal buffer updates in the background while your focus stays in the input. This is intentional, so you can keep refining your search without losing your place."));
+		content.push(localize('terminal.focusDesc2', "The terminal automatically scrolls to show the match you navigate to."));
+		content.push(localize('terminal.focusDesc3', "If you want to close Find and return focus to the terminal command line, press Escape. Focus moves to the command input at the bottom of the terminal."));
+		content.push('');
+
+		// Keyboard Navigation Summary
+		content.push(localize('terminal.keyboardHeader', "Keyboard Navigation Summary:"));
+		content.push(localize('terminal.keyEnter', "- Enter: Move to the next match while staying in the Find input."));
+		content.push(localize('terminal.keyShiftEnter', "- Shift+Enter: Move to the previous match while staying in the Find input."));
+		content.push('');
+
+		// Find Options
+		content.push(localize('terminal.optionsHeader', "Find Options:"));
+		content.push(localize('terminal.optionCase', "- Match Case: Only exact case matches are included."));
+		content.push(localize('terminal.optionWord', "- Whole Word: Only full words are matched."));
+		content.push(localize('terminal.optionRegex', "- Regular Expression: Use pattern matching for advanced searches."));
+		content.push('');
+
+		// Settings
+		content.push(localize('terminal.settingsHeader', "Settings You Can Adjust ({0} opens Settings):", '<keybinding:workbench.action.openSettings>'));
+		content.push(localize('terminal.settingsDesc', "Terminal Find has limited configuration options. Most behavior is controlled by the terminal itself."));
+		content.push(localize('terminal.settingVerbosity', "- `accessibility.verbosity.find`: Controls whether the Terminal Find input announces the Accessibility Help hint."));
+		content.push('');
+
+		// Closing
+		content.push(localize('terminal.closingHeader', "Closing:"));
+		content.push(localize('terminal.closingDesc', "Press Escape to close Terminal Find. Focus moves to the terminal command line, and your search history is available on next Find."));
 
 		return content.join('\n');
 	}

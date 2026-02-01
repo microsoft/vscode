@@ -35,31 +35,62 @@ class WebviewFindAccessibilityHelpProvider extends Disposable implements IAccess
 		const content: string[] = [];
 
 		// Header
-		content.push(localize('msg.webviewFindHeader', "Accessibility Help: Webview Find"));
+		content.push(localize('webview.header', "Accessibility Help: Webview Find"));
+		content.push(localize('webview.context', "You are in the Find input for embedded web content. This could be a Markdown preview, a documentation viewer, or a web-based extension interface."));
 		content.push('');
-		content.push(localize('msg.webviewFindContext', "You are in the Webview Find input. This searches embedded web content such as Markdown previews, documentation viewers, or web-based extension interfaces."));
-		content.push('');
-		content.push(localize('msg.webviewOverview', "What to Expect:"));
-		content.push(localize('msg.webviewTyping', "As you type, VS Code searches the webview content and announces the match count like \\\"3 of 7 matches\\\". Screen readers will inform you as matches are found or if no matches exist."));
 
+		// Current Search Status
+		content.push(localize('webview.statusHeader', "Current Search Status:"));
+		content.push(localize('webview.statusDesc', "You are searching the web content."));
 		content.push('');
-		content.push(localize('msg.webviewNavHeader', "Keyboard Navigation:"));
-		content.push(localize('msg.webviewNavEnter', "- Press Enter to navigate to the next match. Your screen reader announces the content where the match appears."));
-		content.push(localize('msg.webviewNavShiftEnter', "- Press Shift+Enter to navigate to the previous match."));
-		content.push(localize('msg.webviewFocusStays', "- Focus remains in the Find input when you press Enter or Shift+Enter. You can continue navigating through matches without leaving the Find input."));
-		content.push(localize('msg.webviewReturnToFind', "- To return to the Find input from the webview, press{0}.", '<keybinding:actions.find>'));
-		content.push(localize('msg.webviewEscape', "- Press Escape to close the Find widget. Focus moves to the webview content."));
 
+		// Inside the Webview Find Input
+		content.push(localize('webview.inputHeader', "Inside the Webview Find Input (What It Does):"));
+		content.push(localize('webview.inputDesc', "While you are in the Find input, your focus stays in the field. You can type, edit your search term, or navigate matches without leaving the input. When you navigate to a match, the webview updates to show it, but your focus remains in the Find input."));
 		content.push('');
-		content.push(localize('msg.webviewOptions', "Search Options:"));
-		content.push(localize('msg.webviewOptionCase', "-{0}Match Case - Only find exact case matches.", '<keybinding:toggleFindCaseSensitive>'));
-		content.push(localize('msg.webviewOptionWord', "-{0}Whole Word - Only find complete words, not partial matches.", '<keybinding:toggleFindWholeWord>'));
-		content.push(localize('msg.webviewOptionRegex', "-{0}Regular Expression - Use regex patterns for advanced searches.", '<keybinding:toggleFindRegex>'));
 
+		// What You Hear
+		content.push(localize('webview.hearHeader', "What You Hear Each Time You Move to a Match:"));
+		content.push(localize('webview.hearDesc', "Each navigation step gives you a complete spoken update:"));
+		content.push(localize('webview.hear1', "1) The content containing the match is read first, so you get immediate context."));
+		content.push(localize('webview.hear2', "2) Your position among the matches is announced, so you know how far you are through the results."));
+		content.push(localize('webview.hear3', "3) The exact location information is announced so you know where the match is."));
 		content.push('');
-		content.push(localize('msg.webviewNotes', "Important About Webviews:"));
-		content.push(localize('msg.webviewCustomKeyboard', "Each webview can define its own keyboard behavior. If VS Code's find navigation (Enter, Shift+Enter) does not work as expected, the webview may be intercepting those keys."));
-		content.push(localize('msg.webviewIfUnresponsive', "If find navigation seems unresponsive: First, click or tab into the webview content to ensure it has focus, then try your search again. Some webviews require focus within their content to respond to find commands."));
+
+		// Focus Behavior
+		content.push(localize('webview.focusHeader', "Focus Behavior (Important):"));
+		content.push(localize('webview.focusDesc1', "When you navigate from the Webview Find input, the content updates in the background while your focus stays in the input. This is intentional, so you can keep refining your search without losing your place."));
+		content.push(localize('webview.focusDesc2', "The webview may scroll to show the match, depending on how it is designed."));
+		content.push(localize('webview.focusDesc3', "If you want to close Find and return focus to the webview content, press Escape. Focus moves back into the webview."));
+		content.push('');
+
+		// Keyboard Navigation Summary
+		content.push(localize('webview.keyboardHeader', "Keyboard Navigation Summary:"));
+		content.push(localize('webview.keyEnter', "- Enter: Move to the next match while staying in the Find input."));
+		content.push(localize('webview.keyShiftEnter', "- Shift+Enter: Move to the previous match while staying in the Find input."));
+		content.push('');
+
+		// Find Options
+		content.push(localize('webview.optionsHeader', "Find Options:"));
+		content.push(localize('webview.optionCase', "- Match Case: Only exact case matches are included."));
+		content.push(localize('webview.optionWord', "- Whole Word: Only full words are matched."));
+		content.push(localize('webview.optionRegex', "- Regular Expression: Use pattern matching for advanced searches."));
+		content.push('');
+
+		// Important About Webviews
+		content.push(localize('webview.importantHeader', "Important About Webviews:"));
+		content.push(localize('webview.importantDesc', "Some webviews intercept keyboard input before VS Code's Find can use it. If Enter or Shift+Enter do not navigate matches, the webview may be handling those keys. Try clicking or tabbing into the webview content first to ensure the webview has focus, then reopen Find and try navigation again."));
+		content.push('');
+
+		// Settings
+		content.push(localize('webview.settingsHeader', "Settings You Can Adjust ({0} opens Settings):", '<keybinding:workbench.action.openSettings>'));
+		content.push(localize('webview.settingsDesc', "Webview Find has minimal configuration. Most behavior depends on the webview itself."));
+		content.push(localize('webview.settingVerbosity', "- `accessibility.verbosity.find`: Controls whether the Webview Find input announces the Accessibility Help hint."));
+		content.push('');
+
+		// Closing
+		content.push(localize('webview.closingHeader', "Closing:"));
+		content.push(localize('webview.closingDesc', "Press Escape to close Webview Find. Focus moves back into the webview content, and your search history is available on next Find."));
 
 		return content.join('\n');
 	}
