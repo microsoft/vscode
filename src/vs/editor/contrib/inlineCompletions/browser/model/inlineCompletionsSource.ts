@@ -415,7 +415,7 @@ export class InlineCompletionsSource extends Disposable {
 			} finally {
 				store.dispose();
 				decreaseLoadingCount();
-				this.sendInlineCompletionsRequestTelemetry(requestResponseInfo);
+				this._sendInlineCompletionsRequestTelemetry(requestResponseInfo);
 			}
 
 			return true;
@@ -477,7 +477,7 @@ export class InlineCompletionsSource extends Disposable {
 		s.suggestWidgetInlineCompletions.dispose();
 	}
 
-	private sendInlineCompletionsRequestTelemetry(
+	private _sendInlineCompletionsRequestTelemetry(
 		requestResponseInfo: RequestResponseData
 	): void {
 		if (!this._sendRequestData.get() && !this._contextKeyService.getContextKeyValue<boolean>('isRunningUnificationExperiment')) {
@@ -628,7 +628,7 @@ class UpdateOperation implements IDisposable {
 	}
 }
 
-class InlineCompletionsState extends Disposable {
+export class InlineCompletionsState extends Disposable {
 	public static createEmpty(): InlineCompletionsState {
 		return new InlineCompletionsState([], undefined);
 	}

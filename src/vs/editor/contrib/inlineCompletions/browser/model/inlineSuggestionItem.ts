@@ -389,6 +389,23 @@ export class InlineCompletionItem extends InlineSuggestionItemBase {
 }
 
 export class InlineEditItem extends InlineSuggestionItemBase {
+	public static createForTest(
+		textModel: TextModelValueReference,
+		range: Range,
+		newText: string,
+	): InlineEditItem {
+		const action: IInlineSuggestDataAction = {
+			kind: 'edit',
+			snippetInfo: undefined,
+			insertText: newText,
+			range: range,
+			uri: textModel.uri,
+			alternativeAction: undefined,
+		};
+
+		return InlineEditItem.create(InlineSuggestData.createForTest(action, textModel.uri), textModel);
+	}
+
 	public static create(
 		data: InlineSuggestData,
 		textModel: TextModelValueReference,
