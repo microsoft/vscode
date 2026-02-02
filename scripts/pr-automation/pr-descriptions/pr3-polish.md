@@ -24,7 +24,6 @@ This PR completes the Accessibility Help System with critical UX polish: ARIA hi
 - [ ] Existing tests pass
 - [ ] Screen reader testing completed with NVDA/JAWS
 - [ ] No regressions in existing find functionality
-- [ ] Reviewers assigned: @isidorn, @jrieken
 
 ---
 
@@ -307,14 +306,6 @@ Used by Output, Problems, Debug Console, and Comments filters:
 
 ```
 Accessibility: Add ARIA hint announcements ("Press Alt+F1 for accessibility help") to find/filter inputs with double-speak prevention; fix spurious "No results" announcements and stale aria-label updates in find widgets.
-```
-
----
-
-## Reviewers
-
-- **Primary:** @isidorn (Accessibility), @jrieken (Editor)
-- **Areas:** Find widget, SimpleFindWidget, SearchWidget, ViewFilter
 
 ---
 

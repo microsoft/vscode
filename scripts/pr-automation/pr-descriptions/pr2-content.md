@@ -23,7 +23,6 @@ This PR delivers the concrete accessibility help content that screen reader user
 - [ ] Existing tests pass
 - [ ] New provider smoke tests added
 - [ ] Screen reader testing completed with NVDA/JAWS
-- [ ] Reviewer assigned: @isidorn
 
 ---
 
@@ -289,13 +288,6 @@ Verify:
 ```
 Accessibility: Add comprehensive accessibility help content for find and filter experiences (Alt+F1) - provides keyboard shortcuts, navigation patterns, and focus behavior documentation for Editor, Terminal, Webview, Output, Problems, Debug Console, and Search.
 ```
-
----
-
-## Reviewers
-
-- **Primary:** @isidorn (Accessibility lead)
-- **Optional:** Component owners for Terminal, Webview, Search, Debug
 
 ---
 
