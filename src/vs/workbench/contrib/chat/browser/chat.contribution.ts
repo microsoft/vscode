@@ -1045,6 +1045,22 @@ Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration).
 			return { value };
 		}
 	},
+	{
+		key: PromptsConfig.SKILLS_LOCATION_KEY,
+		migrateFn: (value: unknown) => {
+			if (typeof value === 'object' && value !== null) {
+				const obj = value as Record<string, boolean>;
+				const missingFolders = DEFAULT_SKILL_SOURCE_FOLDERS.filter(folder => !Object.hasOwn(obj, folder.path));
+				if (missingFolders.length > 0) {
+					for (const folder of missingFolders) {
+						obj[folder.path] = true;
+					}
+					return { value: obj };
+				}
+			}
+			return { value };
+		}
+	},
 ]);
 
 class ChatResolverContribution extends Disposable {

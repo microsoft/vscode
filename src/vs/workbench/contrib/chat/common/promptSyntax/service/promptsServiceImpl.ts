@@ -792,6 +792,8 @@ export class PromptsService extends Disposable implements IPromptsService {
 			claudeWorkspace: number;
 			copilotPersonal: number;
 			githubWorkspace: number;
+			agentsPersonal: number;
+			agentsWorkspace: number;
 			configPersonal: number;
 			configWorkspace: number;
 			extensionContribution: number;
@@ -809,6 +811,8 @@ export class PromptsService extends Disposable implements IPromptsService {
 			claudeWorkspace: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of Claude workspace skills.' };
 			copilotPersonal: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of Copilot personal skills.' };
 			githubWorkspace: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of GitHub workspace skills.' };
+			agentsPersonal: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of .agents personal skills.' };
+			agentsWorkspace: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of .agents workspace skills.' };
 			configPersonal: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of custom configured personal skills.' };
 			configWorkspace: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of custom configured workspace skills.' };
 			extensionContribution: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of extension contributed skills.' };
@@ -828,6 +832,8 @@ export class PromptsService extends Disposable implements IPromptsService {
 			claudeWorkspace: skillsBySource.get(PromptFileSource.ClaudeWorkspace) ?? 0,
 			copilotPersonal: skillsBySource.get(PromptFileSource.CopilotPersonal) ?? 0,
 			githubWorkspace: skillsBySource.get(PromptFileSource.GitHubWorkspace) ?? 0,
+			agentsPersonal: skillsBySource.get(PromptFileSource.AgentsPersonal) ?? 0,
+			agentsWorkspace: skillsBySource.get(PromptFileSource.AgentsWorkspace) ?? 0,
 			configWorkspace: skillsBySource.get(PromptFileSource.ConfigWorkspace) ?? 0,
 			configPersonal: skillsBySource.get(PromptFileSource.ConfigPersonal) ?? 0,
 			extensionContribution: skillsBySource.get(PromptFileSource.ExtensionContribution) ?? 0,
