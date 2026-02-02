@@ -33,7 +33,9 @@ import { IChatRequestToolEntry } from '../../common/attachments/chatVariableEntr
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
 import { ILanguageModelsService } from '../../common/languageModels.js';
 import { CHAT_OPEN_ACTION_ID, CHAT_SETUP_ACTION_ID } from '../actions/chatActions.js';
-import { IChatWidgetService } from '../chat.js';
+import { ChatViewId, IChatWidgetService } from '../chat.js';
+import { IViewsService } from '../../../../services/views/common/viewsService.js';
+import { ChatViewPane } from '../widgetHosts/viewPane/chatViewPane.js';
 import { ILanguageFeaturesService } from '../../../../../editor/common/services/languageFeatures.js';
 import { CodeAction, CodeActionList, Command, NewSymbolName, NewSymbolNameTriggerKind } from '../../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
@@ -188,6 +190,7 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
+		@IViewsService private readonly viewsService: IViewsService,
 	) {
 		super();
 
@@ -353,6 +356,7 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 						toolsModelReady: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the tools model was ready.' };
 						isRemote: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether this is a remote scenario.' };
 						isAnonymous: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether anonymous access is enabled.' };
+						matchingWelcomeViewWhen: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The when clause of the matching extension welcome view, if any.' };
 					};
 					type ChatSetupTimeoutEvent = {
 						agentActivated: boolean;
@@ -361,14 +365,18 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 						toolsModelReady: boolean;
 						isRemote: boolean;
 						isAnonymous: boolean;
+						matchingWelcomeViewWhen: string;
 					};
+					const chatViewPane = this.viewsService.getActiveViewWithId(ChatViewId) as ChatViewPane | undefined;
+					const matchingWelcomeView = chatViewPane?.getMatchingWelcomeView();
 					this.telemetryService.publicLog2<ChatSetupTimeoutEvent, ChatSetupTimeoutClassification>('chatSetup.timeout', {
 						agentActivated,
 						agentReady,
 						languageModelReady,
 						toolsModelReady,
 						isRemote: !!this.environmentService.remoteAuthority,
-						isAnonymous: this.chatEntitlementService.anonymous
+						isAnonymous: this.chatEntitlementService.anonymous,
+						matchingWelcomeViewWhen: matchingWelcomeView?.when.serialize() ?? (chatViewPane ? 'noWelcomeView' : 'noChatViewPane'),
 					});
 
 					progress({

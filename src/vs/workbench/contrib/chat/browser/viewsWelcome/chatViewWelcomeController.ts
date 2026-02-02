@@ -68,6 +68,12 @@ export class ChatViewWelcomeController extends Disposable {
 		this._register(chatViewsWelcomeRegistry.onDidChange(() => this.update(true)));
 	}
 
+	getMatchingWelcomeView(): IChatViewsWelcomeDescriptor | undefined {
+		const descriptors = chatViewsWelcomeRegistry.get();
+		const matchingDescriptors = descriptors.filter(descriptor => this.contextKeyService.contextMatchesRules(descriptor.when));
+		return matchingDescriptors.at(0);
+	}
+
 	private update(force?: boolean): void {
 		const enabled = this.delegate.shouldShowWelcome();
 		if (this.enabled === enabled && !force) {
