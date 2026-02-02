@@ -13,7 +13,7 @@ import { ReplaceInput } from '../../../../base/browser/ui/findinput/replaceInput
 import { IInputBoxStyles, IMessage, InputBox } from '../../../../base/browser/ui/inputbox/inputBox.js';
 import { Widget } from '../../../../base/browser/ui/widget.js';
 import { Action } from '../../../../base/common/actions.js';
-import { Delayer } from '../../../../base/common/async.js';
+import { Delayer, disposableTimeout } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { CONTEXT_FIND_WIDGET_NOT_VISIBLE } from '../../../../editor/contrib/find/browser/findModel.js';
@@ -45,7 +45,6 @@ import { SearchFindInput } from './searchFindInput.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { NotebookFindScopeType } from '../../notebook/common/notebookCommon.js';
-import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
 
 /** Specified in searchview.css */
 const SingleLineInputHeight = 26;
@@ -145,6 +144,7 @@ export class SearchWidget extends Widget {
 	 * on the next focus.
 	 */
 	private _accessibilityHelpHintAnnounced = false;
+	private _labelResetTimeout: IDisposable | undefined;
 
 	private _onSearchSubmit = this._register(new Emitter<{ triggeredOnType: boolean; delay: number }>());
 	readonly onSearchSubmit: Event<{ triggeredOnType: boolean; delay: number }> = this._onSearchSubmit.event;
@@ -291,14 +291,16 @@ export class SearchWidget extends Widget {
 		let searchLabel = nls.localize('label.Search', 'Search: Type Search Term and press Enter to search');
 
 		// Include accessibility help hint when requested, screen reader is active, and setting is enabled
-		if (includeHint && !this._accessibilityHelpHintAnnounced && this.configurationService.getValue(AccessibilityVerbositySettingId.Find) && this.accessibilityService.isScreenReaderOptimized()) {
+		// Note: Using raw string for setting ID - this setting may not be registered yet
+		if (includeHint && !this._accessibilityHelpHintAnnounced && this.configurationService.getValue('accessibility.verbosity.find') && this.accessibilityService.isScreenReaderOptimized()) {
 			const keybinding = this.keybindingService.lookupKeybinding('editor.action.accessibilityHelp')?.getAriaLabel();
 			if (keybinding) {
 				searchLabel += ', ' + nls.localize('accessibilityHelpHintInLabel', "Press {0} for accessibility help", keybinding);
 				this._accessibilityHelpHintAnnounced = true;
 
 				// Reset to plain label after delay to avoid repeated announcement on focus changes
-				setTimeout(() => {
+				this._labelResetTimeout?.dispose();
+				this._labelResetTimeout = disposableTimeout(() => {
 					if (this.searchInput) {
 						this.searchInput.inputBox.setAriaLabel(nls.localize('label.Search', 'Search: Type Search Term and press Enter to search'));
 					}
@@ -307,14 +309,6 @@ export class SearchWidget extends Widget {
 		}
 
 		this.searchInput.inputBox.setAriaLabel(searchLabel);
-	}
-
-	/**
-	 * Resets the accessibility help hint flag, allowing the hint to be announced again.
-	 * Should be called when the widget loses focus or is hidden.
-	 */
-	resetAccessibilityHelpHint(): void {
-		this._accessibilityHelpHintAnnounced = false;
 	}
 
 	setWidth(width: number) {

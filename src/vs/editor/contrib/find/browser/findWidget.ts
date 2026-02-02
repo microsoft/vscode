@@ -14,11 +14,11 @@ import { ReplaceInput } from '../../../../base/browser/ui/findinput/replaceInput
 import { IMessage as InputBoxMessage } from '../../../../base/browser/ui/inputbox/inputBox.js';
 import { ISashEvent, IVerticalSashLayoutProvider, Orientation, Sash } from '../../../../base/browser/ui/sash/sash.js';
 import { Widget } from '../../../../base/browser/ui/widget.js';
-import { Delayer } from '../../../../base/common/async.js';
+import { Delayer, disposableTimeout } from '../../../../base/common/async.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
-import { toDisposable } from '../../../../base/common/lifecycle.js';
+import { toDisposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import * as platform from '../../../../base/common/platform.js';
 import * as strings from '../../../../base/common/strings.js';
 import './findWidget.css';
@@ -146,6 +146,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 	private _isReplaceVisible: boolean;
 	private _ignoreChangeEvent: boolean;
 	private _accessibilityHelpHintAnnounced: boolean;
+	private _labelResetTimeout: IDisposable | undefined;
 
 	private readonly _findFocusTracker: dom.IFocusTracker;
 	private readonly _findInputFocused: IContextKey<boolean>;
@@ -1290,9 +1291,12 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 			}
 			this._accessibilityHelpHintAnnounced = true;
 			// Schedule reset to plain labels after initial announcement
-			setTimeout(() => {
-				this._findInput.inputBox.setAriaLabel(NLS_FIND_INPUT_LABEL);
-				this._replaceInput.inputBox.setAriaLabel(NLS_REPLACE_INPUT_LABEL);
+			this._labelResetTimeout?.dispose();
+			this._labelResetTimeout = disposableTimeout(() => {
+				if (this._isVisible) {
+					this._findInput.inputBox.setAriaLabel(NLS_FIND_INPUT_LABEL);
+					this._replaceInput.inputBox.setAriaLabel(NLS_REPLACE_INPUT_LABEL);
+				}
 			}, 1000);
 		}
 		this._findInput.inputBox.setAriaLabel(findLabel);

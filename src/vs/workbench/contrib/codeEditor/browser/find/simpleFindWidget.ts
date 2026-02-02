@@ -8,8 +8,9 @@ import * as nls from '../../../../../nls.js';
 import * as dom from '../../../../../base/browser/dom.js';
 import { FindInput } from '../../../../../base/browser/ui/findinput/findInput.js';
 import { Widget } from '../../../../../base/browser/ui/widget.js';
-import { Delayer } from '../../../../../base/common/async.js';
+import { Delayer, disposableTimeout } from '../../../../../base/common/async.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
+import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { FindReplaceState, INewFindReplaceState } from '../../../../../editor/contrib/find/browser/findState.js';
 import { IMessage as InputBoxMessage } from '../../../../../base/browser/ui/inputbox/inputBox.js';
 import { SimpleButton, findPreviousMatchIcon, findNextMatchIcon, NLS_NO_RESULTS, NLS_MATCHES_LOCATION } from '../../../../../editor/contrib/find/browser/findWidget.js';
@@ -29,7 +30,6 @@ import type { IHoverService } from '../../../../../platform/hover/browser/hover.
 import type { IHoverLifecycleOptions } from '../../../../../base/browser/ui/hover/hover.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
-import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 
 const NLS_FIND_INPUT_LABEL = nls.localize('label.find', "Find");
 const NLS_FIND_INPUT_PLACEHOLDER = nls.localize('placeholder.find', "Find");
@@ -78,6 +78,7 @@ export abstract class SimpleFindWidget extends Widget implements IVerticalSashLa
 	 * on the next reveal.
 	 */
 	private _accessibilityHelpHintAnnounced: boolean = false;
+	private _labelResetTimeout: IDisposable | undefined;
 
 	readonly state: FindReplaceState;
 
@@ -461,15 +462,19 @@ export abstract class SimpleFindWidget extends Widget implements IVerticalSashLa
 		let findLabel = NLS_FIND_INPUT_LABEL;
 
 		// Include accessibility help hint on first reveal when screen reader is active
-		if (!this._accessibilityHelpHintAnnounced && this._configurationService.getValue(AccessibilityVerbositySettingId.Find) && this._accessibilityService.isScreenReaderOptimized()) {
+		// Note: Using raw string for setting ID - this setting may not be registered yet
+		if (!this._accessibilityHelpHintAnnounced && this._configurationService.getValue('accessibility.verbosity.find') && this._accessibilityService.isScreenReaderOptimized()) {
 			const keybinding = this._keybindingService.lookupKeybinding('editor.action.accessibilityHelp')?.getAriaLabel();
 			if (keybinding) {
 				findLabel += ', ' + nls.localize('accessibilityHelpHintInLabel', "Press {0} for accessibility help", keybinding);
 				this._accessibilityHelpHintAnnounced = true;
 
 				// Reset to plain label after delay to avoid repeated announcement on focus changes
-				setTimeout(() => {
-					this._findInput.inputBox.setAriaLabel(NLS_FIND_INPUT_LABEL);
+				this._labelResetTimeout?.dispose();
+				this._labelResetTimeout = disposableTimeout(() => {
+					if (this._isVisible) {
+						this._findInput.inputBox.setAriaLabel(NLS_FIND_INPUT_LABEL);
+					}
 				}, 1000);
 			}
 		}

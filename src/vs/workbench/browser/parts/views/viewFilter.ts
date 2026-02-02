@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Delayer } from '../../../../base/common/async.js';
+import { Delayer, disposableTimeout } from '../../../../base/common/async.js';
 import * as DOM from '../../../../base/browser/dom.js';
 import { IAction } from '../../../../base/common/actions.js';
 import { HistoryInputBox } from '../../../../base/browser/ui/inputbox/inputBox.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
-import { toDisposable } from '../../../../base/common/lifecycle.js';
+import { toDisposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { badgeBackground, badgeForeground, contrastBorder, asCssVariable } from '../../../../platform/theme/common/colorRegistry.js';
 import { localize } from '../../../../nls.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -93,6 +93,7 @@ export class FilterWidget extends Widget {
 	 * on the next focus.
 	 */
 	private _accessibilityHelpHintAnnounced: boolean = false;
+	private _labelResetTimeout: IDisposable | undefined;
 
 	private readonly focusTracker: DOM.IFocusTracker;
 	get onDidFocus() { return this.focusTracker.onDidFocus; }
@@ -154,21 +155,14 @@ export class FilterWidget extends Widget {
 				this._accessibilityHelpHintAnnounced = true;
 
 				// Reset to plain label after delay to avoid repeated announcement on focus changes
-				setTimeout(() => {
+				this._labelResetTimeout?.dispose();
+				this._labelResetTimeout = disposableTimeout(() => {
 					this.filterInputBox.setAriaLabel(this.options.ariaLabel || localize('viewFilter', "Filter"));
 				}, 1000);
 			}
 		}
 
 		this.filterInputBox.setAriaLabel(ariaLabel);
-	}
-
-	/**
-	 * Resets the accessibility help hint flag, allowing the hint to be announced again.
-	 * Should be called when the widget loses focus or is hidden.
-	 */
-	resetAccessibilityHelpHint(): void {
-		this._accessibilityHelpHintAnnounced = false;
 	}
 
 	blur(): void {
