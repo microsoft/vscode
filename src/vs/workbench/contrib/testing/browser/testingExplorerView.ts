@@ -625,7 +625,7 @@ class ResultSummaryView extends Disposable {
 
 		count.textContent = `${counts.passed}/${counts.totalWillBeRun}`;
 		this.countHover.update(getTestProgressText(counts));
-		this.renderActivityBadge(counts);
+		this.renderActivityBadge(counts, live.length > 0);
 
 		if (!this.elementsWereAttached) {
 			dom.clearNode(this.container);
@@ -634,8 +634,14 @@ class ResultSummaryView extends Disposable {
 		}
 	}
 
-	private renderActivityBadge(countSummary: CountSummary) {
-		if (countSummary && this.badgeType !== TestingCountBadge.Off && countSummary[this.badgeType] !== 0) {
+	private renderActivityBadge(countSummary: CountSummary, isRunning: boolean) {
+		if (isRunning) {
+			if (this.lastBadge instanceof IconBadge && this.lastBadge.icon === spinningLoading) {
+				return;
+			}
+
+			this.lastBadge = new IconBadge(spinningLoading, () => localize('testingRunningBadge', 'Tests are running'));
+		} else if (countSummary && this.badgeType !== TestingCountBadge.Off && countSummary[this.badgeType] !== 0) {
 			if (this.lastBadge instanceof NumberBadge && this.lastBadge.number === countSummary[this.badgeType]) {
 				return;
 			}
