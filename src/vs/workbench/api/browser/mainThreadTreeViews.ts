@@ -140,23 +140,17 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 		this._dataProviders.deleteAndDispose(treeViewId);
 	}
 
-	$logResolveTreeNodeRetry(extensionId: string, retryCount: number, exhausted: boolean): void {
-		type TreeViewResolveRetryEvent = {
+	$logResolveTreeNodeFailure(extensionId: string): void {
+		type TreeViewResolveFailureEvent = {
 			extensionId: string;
-			retryCount: number;
-			exhausted: boolean;
 		};
-		type TreeViewResolveRetryClassification = {
+		type TreeViewResolveFailureClassification = {
 			extensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The extension identifier.' };
-			retryCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Number of retry attempts made.' };
-			exhausted: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether all retry attempts were exhausted.' };
 			owner: 'alexr00';
-			comment: 'Tracks tree view resolve retries due to concurrent refresh races.';
+			comment: 'Tracks tree view resolve failures due to concurrent refresh races.';
 		};
-		this.telemetryService.publicLog2<TreeViewResolveRetryEvent, TreeViewResolveRetryClassification>('treeView.resolveRetry', {
-			extensionId,
-			retryCount,
-			exhausted
+		this.telemetryService.publicLog2<TreeViewResolveFailureEvent, TreeViewResolveFailureClassification>('treeView.resolveFailure', {
+			extensionId
 		});
 	}
 

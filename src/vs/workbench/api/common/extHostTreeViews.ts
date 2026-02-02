@@ -706,26 +706,16 @@ class ExtHostTreeView<T> extends Disposable {
 		}
 		const extTreeItem = await asPromise(() => this._dataProvider.getTreeItem(element));
 		const handle = this._createHandle(element, extTreeItem, parent, true);
-
-		const maxRetries = 3;
-		for (let attempt = 0; attempt < maxRetries; attempt++) {
-			if (attempt > 0) {
-				this._logService.info(`[TreeView:${this._viewId}] Retrying to resolve tree node for element ${handle}, attempt ${attempt}`);
-			}
-			await this.getChildren(parent ? parent.item.handle : undefined);
-			const cachedElement = this.getExtensionElement(handle);
-			if (cachedElement) {
-				const node = this._nodes.get(cachedElement);
-				if (node) {
-					if (attempt > 0) {
-						this._proxy.$logResolveTreeNodeRetry(this._extension.identifier.value, attempt, false);
-					}
-					return node;
-				}
+		await this.getChildren(parent ? parent.item.handle : undefined);
+		const cachedElement = this.getExtensionElement(handle);
+		if (cachedElement) {
+			const node = this._nodes.get(cachedElement);
+			if (node) {
+				return node;
 			}
 		}
-		this._logService.error(`[TreeView:${this._viewId}] Failed to resolve tree node for element ${handle} after ${maxRetries} attempts`);
-		this._proxy.$logResolveTreeNodeRetry(this._extension.identifier.value, maxRetries - 1, true);
+		this._logService.error(`[TreeView:${this._viewId}] Failed to resolve tree node for element ${handle}`);
+		this._proxy.$logResolveTreeNodeFailure(this._extension.identifier.value);
 		throw new Error(`Cannot resolve tree item for element ${handle} from extension ${this._extension.identifier.value}`);
 	}
 
