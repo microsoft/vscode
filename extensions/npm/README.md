@@ -41,3 +41,80 @@ The extension fetches data from <https://registry.npmjs.org> and <https://regist
 - `npm.scriptExplorerAction` - The default click action: `open` or `run`, the default is `open`.
 - `npm.enableRunFromFolder` - Enable running npm scripts from the context menu of folders in Explorer, the default is `false`.
 - `npm.scriptCodeLens.enable` - Enable/disable the code lenses to run a script, the default is `false`.
+
+## Example Configuration
+
+Here are some common configuration examples for your `settings.json`:
+
+### Use Yarn as Default Package Manager
+
+```json
+{
+  "npm.packageManager": "yarn",
+  "npm.scriptRunner": "yarn"
+}
+```
+
+### Enable Script Explorer and Code Lens
+
+```json
+{
+  "npm.enableScriptExplorer": true,
+  "npm.scriptCodeLens.enable": true,
+  "npm.scriptExplorerAction": "run"
+}
+```
+
+### Run Scripts Silently and Exclude Test Folders
+
+```json
+{
+  "npm.runSilent": true,
+  "npm.exclude": "**/test/**"
+}
+```
+
+### Enable Run from Folder Feature
+
+```json
+{
+  "npm.enableRunFromFolder": true
+}
+```
+
+### Multi-Package Manager Setup
+
+For monorepos or projects with multiple package managers:
+
+```json
+{
+  "npm.packageManager": "auto",
+  "npm.scriptRunner": "auto"
+}
+```
+
+This will automatically detect whether to use npm, yarn, pnpm, or bun based on lock files in your workspace.
+
+## Troubleshooting
+
+### Scripts Not Detected
+
+If your npm scripts are not being detected:
+
+1. Ensure `npm.autoDetect` is set to `on`
+2. Check if your workspace folders are excluded by the `npm.exclude` pattern
+3. Verify your `package.json` is valid JSON
+4. Reload the window: **Developer: Reload Window**
+
+### Wrong Package Manager Used
+
+If VS Code is using the wrong package manager:
+
+1. Set `npm.packageManager` explicitly to `npm`, `yarn`, `pnpm`, or `bun`
+2. Ensure the corresponding lock file exists (`package-lock.json`, `yarn.lock`, `pnpm-lock.yaml`, or `bun.lockb`)
+
+### Script Explorer Not Visible
+
+1. Enable it with `"npm.enableScriptExplorer": true`
+2. Reload the window
+3. Check if you have a valid `package.json` with scripts defined
