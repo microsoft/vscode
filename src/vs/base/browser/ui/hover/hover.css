@@ -7,20 +7,19 @@
 	cursor: default;
 	position: absolute;
 	overflow: hidden;
-	z-index: 50;
 	user-select: text;
 	-webkit-user-select: text;
-	-ms-user-select: text;
-	box-sizing: initial;
+	box-sizing: border-box;
 	animation: fadein 100ms linear;
 	line-height: 1.5em;
+	white-space: var(--vscode-hover-whiteSpace, normal);
 }
 
 .monaco-hover.hidden {
 	display: none;
 }
 
-.monaco-hover a:hover {
+.monaco-hover a:hover:not(.disabled) {
 	cursor: pointer;
 }
 
@@ -29,7 +28,7 @@
 }
 
 .monaco-hover .markdown-hover > .hover-contents:not(.code-hover-contents) {
-	max-width: 500px;
+	max-width: var(--vscode-hover-maxWidth, 500px);
 	word-wrap: break-word;
 }
 
@@ -39,8 +38,23 @@
 
 .monaco-hover p,
 .monaco-hover .code,
-.monaco-hover ul {
+.monaco-hover ul,
+.monaco-hover h1,
+.monaco-hover h2,
+.monaco-hover h3,
+.monaco-hover h4,
+.monaco-hover h5,
+.monaco-hover h6 {
 	margin: 8px 0;
+}
+
+.monaco-hover h1,
+.monaco-hover h2,
+.monaco-hover h3,
+.monaco-hover h4,
+.monaco-hover h5,
+.monaco-hover h6 {
+	line-height: 1.1;
 }
 
 .monaco-hover code {
@@ -92,12 +106,17 @@
 }
 
 .monaco-hover .monaco-tokenized-source {
-	white-space: pre-wrap;
+	white-space: var(--vscode-hover-sourceWhiteSpace, pre-wrap);
 }
 
 .monaco-hover .hover-row.status-bar {
 	font-size: 12px;
 	line-height: 22px;
+}
+
+.monaco-hover .hover-row.status-bar .info {
+	font-style: italic;
+	padding: 0px 8px;
 }
 
 .monaco-hover .hover-row.status-bar .actions {
@@ -138,6 +157,11 @@
 	/** Hack to force underline to show **/
 	border-bottom: 1px solid transparent;
 	text-underline-position: under;
+	color: var(--vscode-textLink-foreground);
+}
+
+.monaco-hover .hover-contents a.code-link > span:hover {
+	color: var(--vscode-textLink-activeForeground);
 }
 
 /** Spans in markdown hovers need a margin-bottom to avoid looking cramped: https://github.com/microsoft/vscode/issues/101496 **/

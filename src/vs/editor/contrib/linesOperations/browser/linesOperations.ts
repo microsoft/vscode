@@ -660,7 +660,7 @@ export class DeleteAllLeftAction extends AbstractDeleteAllToBoundaryAction {
 		});
 	}
 
-	_getEndCursorState(primaryCursor: Range, rangesToDelete: Range[]): Selection[] {
+	protected _getEndCursorState(primaryCursor: Range, rangesToDelete: Range[]): Selection[] {
 		let endPrimaryCursor: Selection | null = null;
 		const endCursorState: Selection[] = [];
 		let deletedLines = 0;
@@ -690,7 +690,7 @@ export class DeleteAllLeftAction extends AbstractDeleteAllToBoundaryAction {
 		return endCursorState;
 	}
 
-	_getRangesToDelete(editor: IActiveCodeEditor): Range[] {
+	protected _getRangesToDelete(editor: IActiveCodeEditor): Range[] {
 		const selections = editor.getSelections();
 		if (selections === null) {
 			return [];
@@ -708,7 +708,7 @@ export class DeleteAllLeftAction extends AbstractDeleteAllToBoundaryAction {
 			if (selection.isEmpty()) {
 				if (selection.startColumn === 1) {
 					const deleteFromLine = Math.max(1, selection.startLineNumber - 1);
-					const deleteFromColumn = selection.startLineNumber === 1 ? 1 : model.getLineContent(deleteFromLine).length + 1;
+					const deleteFromColumn = selection.startLineNumber === 1 ? 1 : model.getLineLength(deleteFromLine) + 1;
 					return new Range(deleteFromLine, deleteFromColumn, selection.startLineNumber, 1);
 				} else {
 					return new Range(selection.startLineNumber, 1, selection.startLineNumber, selection.startColumn);
@@ -738,7 +738,7 @@ export class DeleteAllRightAction extends AbstractDeleteAllToBoundaryAction {
 		});
 	}
 
-	_getEndCursorState(primaryCursor: Range, rangesToDelete: Range[]): Selection[] {
+	protected _getEndCursorState(primaryCursor: Range, rangesToDelete: Range[]): Selection[] {
 		let endPrimaryCursor: Selection | null = null;
 		const endCursorState: Selection[] = [];
 		for (let i = 0, len = rangesToDelete.length, offset = 0; i < len; i++) {
@@ -759,7 +759,7 @@ export class DeleteAllRightAction extends AbstractDeleteAllToBoundaryAction {
 		return endCursorState;
 	}
 
-	_getRangesToDelete(editor: IActiveCodeEditor): Range[] {
+	protected _getRangesToDelete(editor: IActiveCodeEditor): Range[] {
 		const model = editor.getModel();
 		if (model === null) {
 			return [];
@@ -864,7 +864,7 @@ export class JoinLinesAction extends EditorAction {
 			let endLineNumber: number,
 				endColumn: number;
 
-			const selectionEndPositionOffset = model.getLineContent(selection.endLineNumber).length - selection.endColumn;
+			const selectionEndPositionOffset = model.getLineLength(selection.endLineNumber) - selection.endColumn;
 
 			if (selection.isEmpty() || selection.startLineNumber === selection.endLineNumber) {
 				const position = selection.getStartPosition();
@@ -953,8 +953,8 @@ export class TransposeAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.transpose',
-			label: nls.localize('editor.transpose', "Transpose characters around the cursor"),
-			alias: 'Transpose characters around the cursor',
+			label: nls.localize('editor.transpose', "Transpose Characters around the Cursor"),
+			alias: 'Transpose Characters around the Cursor',
 			precondition: EditorContextKeys.writable
 		});
 	}
@@ -1162,6 +1162,31 @@ export class SnakeCaseAction extends AbstractCaseAction {
 	}
 }
 
+export class CamelCaseAction extends AbstractCaseAction {
+	public static wordBoundary = new BackwardsCompatibleRegExp('[_\\s-]', 'gm');
+
+	constructor() {
+		super({
+			id: 'editor.action.transformToCamelcase',
+			label: nls.localize('editor.transformToCamelcase', "Transform to Camel Case"),
+			alias: 'Transform to Camel Case',
+			precondition: EditorContextKeys.writable
+		});
+	}
+
+	protected _modifyText(text: string, wordSeparators: string): string {
+		const wordBoundary = CamelCaseAction.wordBoundary.get();
+		if (!wordBoundary) {
+			// cannot support this
+			return text;
+		}
+		const words = text.split(wordBoundary);
+		const firstWord = words.shift();
+		return firstWord + words.map((word: string) => word.substring(0, 1).toLocaleUpperCase() + word.substring(1))
+			.join('');
+	}
+}
+
 export class KebabCaseAction extends AbstractCaseAction {
 
 	public static isSupported(): boolean {
@@ -1228,6 +1253,9 @@ registerEditorAction(LowerCaseAction);
 
 if (SnakeCaseAction.caseBoundary.isSupported() && SnakeCaseAction.singleLetters.isSupported()) {
 	registerEditorAction(SnakeCaseAction);
+}
+if (CamelCaseAction.wordBoundary.isSupported()) {
+	registerEditorAction(CamelCaseAction);
 }
 if (TitleCaseAction.titleBoundary.isSupported()) {
 	registerEditorAction(TitleCaseAction);

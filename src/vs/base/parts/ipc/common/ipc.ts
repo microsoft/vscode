@@ -8,7 +8,7 @@ import { CancelablePromise, createCancelablePromise, timeout } from 'vs/base/com
 import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { memoize } from 'vs/base/common/decorators';
-import * as errors from 'vs/base/common/errors';
+import { CancellationError, ErrorNoTelemetry } from 'vs/base/common/errors';
 import { Emitter, Event, EventMultiplexer, Relay } from 'vs/base/common/event';
 import { combinedDisposable, DisposableStore, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { revive } from 'vs/base/common/marshalling';
@@ -36,7 +36,7 @@ export interface IServerChannel<TContext = string> {
 	listen<T>(ctx: TContext, event: string, arg?: any): Event<T>;
 }
 
-export const enum RequestType {
+const enum RequestType {
 	Promise = 100,
 	PromiseCancel = 101,
 	EventListen = 102,
@@ -62,7 +62,7 @@ type IRawEventListenRequest = { type: RequestType.EventListen; id: number; chann
 type IRawEventDisposeRequest = { type: RequestType.EventDispose; id: number };
 type IRawRequest = IRawPromiseRequest | IRawPromiseCancelRequest | IRawEventListenRequest | IRawEventDisposeRequest;
 
-export const enum ResponseType {
+const enum ResponseType {
 	Initialize = 200,
 	PromiseSuccess = 201,
 	PromiseError = 202,
@@ -164,7 +164,50 @@ interface IWriter {
 	write(buffer: VSBuffer): void;
 }
 
-class BufferReader implements IReader {
+
+/**
+ * @see https://en.wikipedia.org/wiki/Variable-length_quantity
+ */
+function readIntVQL(reader: IReader) {
+	let value = 0;
+	for (let n = 0; ; n += 7) {
+		const next = reader.read(1);
+		value |= (next.buffer[0] & 0b01111111) << n;
+		if (!(next.buffer[0] & 0b10000000)) {
+			return value;
+		}
+	}
+}
+
+const vqlZero = createOneByteBuffer(0);
+
+/**
+ * @see https://en.wikipedia.org/wiki/Variable-length_quantity
+ */
+function writeInt32VQL(writer: IWriter, value: number) {
+	if (value === 0) {
+		writer.write(vqlZero);
+		return;
+	}
+
+	let len = 0;
+	for (let v2 = value; v2 !== 0; v2 = v2 >>> 7) {
+		len++;
+	}
+
+	const scratch = VSBuffer.alloc(len);
+	for (let i = 0; value !== 0; i++) {
+		scratch.buffer[i] = value & 0b01111111;
+		value = value >>> 7;
+		if (value > 0) {
+			scratch.buffer[i] |= 0b10000000;
+		}
+	}
+
+	writer.write(scratch);
+}
+
+export class BufferReader implements IReader {
 
 	private pos = 0;
 
@@ -177,7 +220,7 @@ class BufferReader implements IReader {
 	}
 }
 
-class BufferWriter implements IWriter {
+export class BufferWriter implements IWriter {
 
 	private buffers: VSBuffer[] = [];
 
@@ -196,17 +239,8 @@ enum DataType {
 	Buffer = 2,
 	VSBuffer = 3,
 	Array = 4,
-	Object = 5
-}
-
-function createSizeBuffer(size: number): VSBuffer {
-	const result = VSBuffer.alloc(4);
-	result.writeUInt32BE(size, 0);
-	return result;
-}
-
-function readSizeBuffer(reader: IReader): number {
-	return reader.read(4).readUInt32BE(0);
+	Object = 5,
+	Int = 6
 }
 
 function createOneByteBuffer(value: number): VSBuffer {
@@ -222,53 +256,58 @@ const BufferPresets = {
 	VSBuffer: createOneByteBuffer(DataType.VSBuffer),
 	Array: createOneByteBuffer(DataType.Array),
 	Object: createOneByteBuffer(DataType.Object),
+	Uint: createOneByteBuffer(DataType.Int),
 };
 
 declare const Buffer: any;
 const hasBuffer = (typeof Buffer !== 'undefined');
 
-function serialize(writer: IWriter, data: any): void {
+export function serialize(writer: IWriter, data: any): void {
 	if (typeof data === 'undefined') {
 		writer.write(BufferPresets.Undefined);
 	} else if (typeof data === 'string') {
 		const buffer = VSBuffer.fromString(data);
 		writer.write(BufferPresets.String);
-		writer.write(createSizeBuffer(buffer.byteLength));
+		writeInt32VQL(writer, buffer.byteLength);
 		writer.write(buffer);
 	} else if (hasBuffer && Buffer.isBuffer(data)) {
 		const buffer = VSBuffer.wrap(data);
 		writer.write(BufferPresets.Buffer);
-		writer.write(createSizeBuffer(buffer.byteLength));
+		writeInt32VQL(writer, buffer.byteLength);
 		writer.write(buffer);
 	} else if (data instanceof VSBuffer) {
 		writer.write(BufferPresets.VSBuffer);
-		writer.write(createSizeBuffer(data.byteLength));
+		writeInt32VQL(writer, data.byteLength);
 		writer.write(data);
 	} else if (Array.isArray(data)) {
 		writer.write(BufferPresets.Array);
-		writer.write(createSizeBuffer(data.length));
+		writeInt32VQL(writer, data.length);
 
 		for (const el of data) {
 			serialize(writer, el);
 		}
+	} else if (typeof data === 'number' && (data | 0) === data) {
+		// write a vql if it's a number that we can do bitwise operations on
+		writer.write(BufferPresets.Uint);
+		writeInt32VQL(writer, data);
 	} else {
 		const buffer = VSBuffer.fromString(JSON.stringify(data));
 		writer.write(BufferPresets.Object);
-		writer.write(createSizeBuffer(buffer.byteLength));
+		writeInt32VQL(writer, buffer.byteLength);
 		writer.write(buffer);
 	}
 }
 
-function deserialize(reader: IReader): any {
+export function deserialize(reader: IReader): any {
 	const type = reader.read(1).readUInt8(0);
 
 	switch (type) {
 		case DataType.Undefined: return undefined;
-		case DataType.String: return reader.read(readSizeBuffer(reader)).toString();
-		case DataType.Buffer: return reader.read(readSizeBuffer(reader)).buffer;
-		case DataType.VSBuffer: return reader.read(readSizeBuffer(reader));
+		case DataType.String: return reader.read(readIntVQL(reader)).toString();
+		case DataType.Buffer: return reader.read(readIntVQL(reader)).buffer;
+		case DataType.VSBuffer: return reader.read(readIntVQL(reader));
 		case DataType.Array: {
-			const length = readSizeBuffer(reader);
+			const length = readIntVQL(reader);
 			const result: any[] = [];
 
 			for (let i = 0; i < length; i++) {
@@ -277,7 +316,8 @@ function deserialize(reader: IReader): any {
 
 			return result;
 		}
-		case DataType.Object: return JSON.parse(reader.read(readSizeBuffer(reader)).toString());
+		case DataType.Object: return JSON.parse(reader.read(readIntVQL(reader)).toString());
+		case DataType.Int: return readIntVQL(reader);
 	}
 }
 
@@ -387,7 +427,6 @@ export class ChannelServer<TContext = string> implements IChannelServer<TContext
 
 		promise.then(data => {
 			this.sendResponse(<IRawResponse>{ id, data, type: ResponseType.PromiseSuccess });
-			this.activeRequests.delete(request.id);
 		}, err => {
 			if (err instanceof Error) {
 				this.sendResponse(<IRawResponse>{
@@ -400,7 +439,8 @@ export class ChannelServer<TContext = string> implements IChannelServer<TContext
 			} else {
 				this.sendResponse(<IRawResponse>{ id, data: err, type: ResponseType.PromiseErrorObj });
 			}
-
+		}).finally(() => {
+			disposable.dispose();
 			this.activeRequests.delete(request.id);
 		});
 
@@ -516,7 +556,7 @@ export class ChannelClient implements IChannelClient, IDisposable {
 		return {
 			call(command: string, arg?: any, cancellationToken?: CancellationToken) {
 				if (that.isDisposed) {
-					return Promise.reject(errors.canceled());
+					return Promise.reject(new CancellationError());
 				}
 				return that.requestPromise(channelName, command, arg, cancellationToken);
 			},
@@ -535,14 +575,14 @@ export class ChannelClient implements IChannelClient, IDisposable {
 		const request: IRawRequest = { id, type, channelName, name, arg };
 
 		if (cancellationToken.isCancellationRequested) {
-			return Promise.reject(errors.canceled());
+			return Promise.reject(new CancellationError());
 		}
 
 		let disposable: IDisposable;
 
 		const result = new Promise((c, e) => {
 			if (cancellationToken.isCancellationRequested) {
-				return e(errors.canceled());
+				return e(new CancellationError());
 			}
 
 			const doRequest = () => {
@@ -556,7 +596,7 @@ export class ChannelClient implements IChannelClient, IDisposable {
 						case ResponseType.PromiseError: {
 							this.handlers.delete(id);
 							const error = new Error(response.data.message);
-							(<any>error).stack = response.data.stack;
+							(<any>error).stack = Array.isArray(response.data.stack) ? response.data.stack.join('\n') : response.data.stack;
 							error.name = response.data.name;
 							e(error);
 							break;
@@ -591,7 +631,7 @@ export class ChannelClient implements IChannelClient, IDisposable {
 					this.sendRequest({ id, type: RequestType.PromiseCancel });
 				}
 
-				e(errors.canceled());
+				e(new CancellationError());
 			};
 
 			const cancellationTokenListener = cancellationToken.onCancellationRequested(cancel);
@@ -599,7 +639,10 @@ export class ChannelClient implements IChannelClient, IDisposable {
 			this.activeRequests.add(disposable);
 		});
 
-		return result.finally(() => { this.activeRequests.delete(disposable); });
+		return result.finally(() => {
+			disposable.dispose();
+			this.activeRequests.delete(disposable);
+		});
 	}
 
 	private requestEvent(channelName: string, name: string, arg?: any): Event<any> {
@@ -610,7 +653,7 @@ export class ChannelClient implements IChannelClient, IDisposable {
 		let uninitializedPromise: CancelablePromise<void> | null = null;
 
 		const emitter = new Emitter<any>({
-			onFirstListenerAdd: () => {
+			onWillAddFirstListener: () => {
 				uninitializedPromise = createCancelablePromise(_ => this.whenInitialized());
 				uninitializedPromise.then(() => {
 					uninitializedPromise = null;
@@ -618,7 +661,7 @@ export class ChannelClient implements IChannelClient, IDisposable {
 					this.sendRequest(request);
 				});
 			},
-			onLastListenerRemove: () => {
+			onDidRemoveLastListener: () => {
 				if (uninitializedPromise) {
 					uninitializedPromise.cancel();
 					uninitializedPromise = null;
@@ -755,6 +798,8 @@ export class IPCServer<TContext = string> implements IChannelServer<TContext>, I
 	private readonly _onDidRemoveConnection = new Emitter<Connection<TContext>>();
 	readonly onDidRemoveConnection: Event<Connection<TContext>> = this._onDidRemoveConnection.event;
 
+	private readonly disposables = new DisposableStore();
+
 	get connections(): Connection<TContext>[] {
 		const result: Connection<TContext>[] = [];
 		this._connections.forEach(ctx => result.push(ctx));
@@ -762,10 +807,10 @@ export class IPCServer<TContext = string> implements IChannelServer<TContext>, I
 	}
 
 	constructor(onDidClientConnect: Event<ClientConnectionEvent>) {
-		onDidClientConnect(({ protocol, onDidClientDisconnect }) => {
+		this.disposables.add(onDidClientConnect(({ protocol, onDidClientDisconnect }) => {
 			const onFirstMessage = Event.once(protocol.onMessage);
 
-			onFirstMessage(msg => {
+			this.disposables.add(onFirstMessage(msg => {
 				const reader = new BufferReader(msg);
 				const ctx = deserialize(reader) as TContext;
 
@@ -778,14 +823,14 @@ export class IPCServer<TContext = string> implements IChannelServer<TContext>, I
 				this._connections.add(connection);
 				this._onDidAddConnection.fire(connection);
 
-				onDidClientDisconnect(() => {
+				this.disposables.add(onDidClientDisconnect(() => {
 					channelServer.dispose();
 					channelClient.dispose();
 					this._connections.delete(connection);
 					this._onDidRemoveConnection.fire(connection);
-				});
-			});
-		});
+				}));
+			}));
+		}));
 	}
 
 	/**
@@ -839,14 +884,14 @@ export class IPCServer<TContext = string> implements IChannelServer<TContext>, I
 
 	private getMulticastEvent<T extends IChannel>(channelName: string, clientFilter: (client: Client<TContext>) => boolean, eventName: string, arg: any): Event<T> {
 		const that = this;
-		let disposables = new DisposableStore();
+		let disposables: DisposableStore | undefined;
 
 		// Create an emitter which hooks up to all clients
 		// as soon as first listener is added. It also
 		// disconnects from all clients as soon as the last listener
 		// is removed.
 		const emitter = new Emitter<T>({
-			onFirstListenerAdd: () => {
+			onWillAddFirstListener: () => {
 				disposables = new DisposableStore();
 
 				// The event multiplexer is useful since the active
@@ -881,8 +926,9 @@ export class IPCServer<TContext = string> implements IChannelServer<TContext>, I
 
 				disposables.add(eventMultiplexer);
 			},
-			onLastListenerRemove: () => {
-				disposables.dispose();
+			onDidRemoveLastListener: () => {
+				disposables?.dispose();
+				disposables = undefined;
 			}
 		});
 
@@ -892,14 +938,21 @@ export class IPCServer<TContext = string> implements IChannelServer<TContext>, I
 	registerChannel(channelName: string, channel: IServerChannel<TContext>): void {
 		this.channels.set(channelName, channel);
 
-		this._connections.forEach(connection => {
+		for (const connection of this._connections) {
 			connection.channelServer.registerChannel(channelName, channel);
-		});
+		}
 	}
 
 	dispose(): void {
-		this.channels.clear();
+		this.disposables.dispose();
+
+		for (const connection of this._connections) {
+			connection.channelClient.dispose();
+			connection.channelServer.dispose();
+		}
+
 		this._connections.clear();
+		this.channels.clear();
 		this._onDidAddConnection.dispose();
 		this._onDidRemoveConnection.dispose();
 	}
@@ -909,7 +962,7 @@ export class IPCServer<TContext = string> implements IChannelServer<TContext>, I
  * An `IPCClient` is both a channel client and a channel server.
  *
  * As the owner of a protocol, you should extend both this
- * and the `IPCClient` classes to get IPC implementations
+ * and the `IPCServer` classes to get IPC implementations
  * for your protocol.
  */
 export class IPCClient<TContext = string> implements IChannelClient, IChannelServer<TContext>, IDisposable {
@@ -1034,7 +1087,7 @@ export namespace ProxyChannel {
 
 	export interface ICreateServiceChannelOptions extends IProxyOptions { }
 
-	export function fromService<TContext>(service: unknown, options?: ICreateServiceChannelOptions): IServerChannel<TContext> {
+	export function fromService<TContext>(service: unknown, disposables: DisposableStore, options?: ICreateServiceChannelOptions): IServerChannel<TContext> {
 		const handler = service as { [key: string]: unknown };
 		const disableMarshalling = options && options.disableMarshalling;
 
@@ -1043,7 +1096,7 @@ export namespace ProxyChannel {
 		const mapEventNameToEvent = new Map<string, Event<unknown>>();
 		for (const key in handler) {
 			if (propertyIsEvent(key)) {
-				mapEventNameToEvent.set(key, Event.buffer(handler[key] as Event<unknown>, true));
+				mapEventNameToEvent.set(key, Event.buffer(handler[key] as Event<unknown>, true, undefined, disposables));
 			}
 		}
 
@@ -1062,7 +1115,7 @@ export namespace ProxyChannel {
 					}
 				}
 
-				throw new Error(`Event not found: ${event}`);
+				throw new ErrorNoTelemetry(`Event not found: ${event}`);
 			}
 
 			call(_: unknown, command: string, args?: any[]): Promise<any> {
@@ -1076,10 +1129,14 @@ export namespace ProxyChannel {
 						}
 					}
 
-					return target.apply(handler, args);
+					let res = target.apply(handler, args);
+					if (!(res instanceof Promise)) {
+						res = Promise.resolve(res);
+					}
+					return res;
 				}
 
-				throw new Error(`Method not found: ${command}`);
+				throw new ErrorNoTelemetry(`Method not found: ${command}`);
 			}
 		};
 	}
@@ -1145,7 +1202,7 @@ export namespace ProxyChannel {
 					};
 				}
 
-				throw new Error(`Property not found: ${String(propKey)}`);
+				throw new ErrorNoTelemetry(`Property not found: ${String(propKey)}`);
 			}
 		}) as T;
 	}
@@ -1186,7 +1243,7 @@ function pretty(data: any): any {
 	return prettyWithoutArrays(data);
 }
 
-export function logWithColors(direction: string, totalLength: number, msgLength: number, req: number, initiator: RequestInitiator, str: string, data: any): void {
+function logWithColors(direction: string, totalLength: number, msgLength: number, req: number, initiator: RequestInitiator, str: string, data: any): void {
 	data = pretty(data);
 
 	const colorTable = colorTables[initiator];

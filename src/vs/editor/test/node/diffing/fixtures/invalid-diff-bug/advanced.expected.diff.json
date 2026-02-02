@@ -1,0 +1,130 @@
+{
+	"original": {
+		"content": "const API = require('../src/api');\n\ndescribe('API', () => {\n  let api;\n  let database;\n\n  beforeAll(() => {\n    database = {\n      getAllBooks: jest.fn(),\n      getBooksByAuthor: jest.fn(),\n      getBooksByTitle: jest.fn(),\n    };\n    api = new API(database);\n  });\n\n  describe('GET /books', () => {\n    it('should return all books', async () => {\n      const mockBooks = [{ title: 'Book 1' }, { title: 'Book 2' }];\n      database.getAllBooks.mockResolvedValue(mockBooks);\n\n      const req = {};\n      const res = {\n        json: jest.fn(),\n      };\n\n      await api.register({\n        get: (path, handler) => {\n          if (path === '/books') {\n            handler(req, res);\n          }\n        },\n      });\n\n      expect(database.getAllBooks).toHaveBeenCalled();\n      expect(res.json).toHaveBeenCalledWith(mockBooks);\n    });\n  });\n\n  describe('GET /books/author/:author', () => {\n    it('should return books by author', async () => {\n      const mockAuthor = 'John Doe';\n      const mockBooks = [{ title: 'Book 1', author: mockAuthor }, { title: 'Book 2', author: mockAuthor }];\n      database.getBooksByAuthor.mockResolvedValue(mockBooks);\n\n      const req = {\n        params: {\n          author: mockAuthor,\n        },\n      };\n      const res = {\n        json: jest.fn(),\n      };\n\n      await api.register({\n        get: (path, handler) => {\n          if (path === `/books/author/${mockAuthor}`) {\n            handler(req, res);\n          }\n        },\n      });\n\n      expect(database.getBooksByAuthor).toHaveBeenCalledWith(mockAuthor);\n      expect(res.json).toHaveBeenCalledWith(mockBooks);\n    });\n  });\n\n  describe('GET /books/title/:title', () => {\n    it('should return books by title', async () => {\n      const mockTitle = 'Book 1';\n      const mockBooks = [{ title: mockTitle, author: 'John Doe' }];\n      database.getBooksByTitle.mockResolvedValue(mockBooks);\n\n      const req = {\n        params: {\n          title: mockTitle,\n        },\n      };\n      const res = {\n        json: jest.fn(),\n      };\n\n      await api.register({\n        get: (path, handler) => {\n          if (path === `/books/title/${mockTitle}`) {\n            handler(req, res);\n          }\n        },\n      });\n\n      expect(database.getBooksByTitle).toHaveBeenCalledWith(mockTitle);\n      expect(res.json).toHaveBeenCalledWith(mockBooks);\n    });\n  });\n});\n",
+		"fileName": "./1.tst"
+	},
+	"modified": {
+		"content": "const request = require('supertest');\nconst API = require('../src/api');\n\ndescribe('API', () => {\n  let api;\n  let database;\n\n  beforeAll(() => {\n    database = {\n      getAllBooks: jest.fn(),\n      getBooksByAuthor: jest.fn(),\n      getBooksByTitle: jest.fn(),\n    };\n    api = new API(database);\n  });\n\n  describe('GET /books', () => {\n    it('should return all books', async () => {\n      const mockBooks = [{ title: 'Book 1' }, { title: 'Book 2' }];\n      database.getAllBooks.mockResolvedValue(mockBooks);\n\n      const response = await request(api.app).get('/books');\n\n      expect(database.getAllBooks).toHaveBeenCalled();\n      expect(response.status).toBe(200);\n      expect(response.body).toEqual(mockBooks);\n    });\n  });\n\n  describe('GET /books/author/:author', () => {\n    it('should return books by author', async () => {\n      const mockAuthor = 'John Doe';\n      const mockBooks = [{ title: 'Book 1', author: mockAuthor }, { title: 'Book 2', author: mockAuthor }];\n      database.getBooksByAuthor.mockResolvedValue(mockBooks);\n\n      const response = await request(api.app).get(`/books/author/${mockAuthor}`);\n\n      expect(database.getBooksByAuthor).toHaveBeenCalledWith(mockAuthor);\n      expect(response.status).toBe(200);\n      expect(response.body).toEqual(mockBooks);\n    });\n  });\n\n  describe('GET /books/title/:title', () => {\n    it('should return books by title', async () => {\n      const mockTitle = 'Book 1';\n      const mockBooks = [{ title: mockTitle, author: 'John Doe' }];\n      database.getBooksByTitle.mockResolvedValue(mockBooks);\n\n      const response = await request(api.app).get(`/books/title/${mockTitle}`);\n\n      expect(database.getBooksByTitle).toHaveBeenCalledWith(mockTitle);\n      expect(response.status).toBe(200);\n      expect(response.body).toEqual(mockBooks);\n    });\n  });\n});\n",
+		"fileName": "./2.tst"
+	},
+	"diffs": [
+		{
+			"originalRange": "[1,1)",
+			"modifiedRange": "[1,2)",
+			"innerChanges": [
+				{
+					"originalRange": "[1,1 -> 1,1]",
+					"modifiedRange": "[1,1 -> 2,1]"
+				}
+			]
+		},
+		{
+			"originalRange": "[21,33)",
+			"modifiedRange": "[22,23)",
+			"innerChanges": [
+				{
+					"originalRange": "[21,1 -> 22,1]",
+					"modifiedRange": "[22,1 -> 22,1]"
+				},
+				{
+					"originalRange": "[22,13 -> 26,6]",
+					"modifiedRange": "[22,13 -> 22,23]"
+				},
+				{
+					"originalRange": "[26,13 -> 26,13]",
+					"modifiedRange": "[22,30 -> 22,38]"
+				},
+				{
+					"originalRange": "[26,17 -> 27,9]",
+					"modifiedRange": "[22,42 -> 22,47]"
+				},
+				{
+					"originalRange": "[27,9 -> 33,1 EOL]",
+					"modifiedRange": "[22,47 -> 23,1 EOL]"
+				}
+			]
+		},
+		{
+			"originalRange": "[35,36)",
+			"modifiedRange": "[25,27)",
+			"innerChanges": [
+				{
+					"originalRange": "[35,14 -> 35,44]",
+					"modifiedRange": "[25,14 -> 26,36]"
+				}
+			]
+		},
+		{
+			"originalRange": "[45,61)",
+			"modifiedRange": "[36,37)",
+			"innerChanges": [
+				{
+					"originalRange": "[45,1 -> 54,6]",
+					"modifiedRange": "[36,1 -> 36,23]"
+				},
+				{
+					"originalRange": "[54,13 -> 54,13]",
+					"modifiedRange": "[36,30 -> 36,38]"
+				},
+				{
+					"originalRange": "[54,17 -> 55,9]",
+					"modifiedRange": "[36,42 -> 36,47]"
+				},
+				{
+					"originalRange": "[55,12 -> 56,24]",
+					"modifiedRange": "[36,50 -> 36,51]"
+				},
+				{
+					"originalRange": "[56,54 -> 60,9]",
+					"modifiedRange": "[36,81 -> 36,81]"
+				}
+			]
+		},
+		{
+			"originalRange": "[63,64)",
+			"modifiedRange": "[39,41)",
+			"innerChanges": [
+				{
+					"originalRange": "[63,14 -> 63,44]",
+					"modifiedRange": "[39,14 -> 40,36]"
+				}
+			]
+		},
+		{
+			"originalRange": "[73,89)",
+			"modifiedRange": "[50,51)",
+			"innerChanges": [
+				{
+					"originalRange": "[73,1 -> 82,6]",
+					"modifiedRange": "[50,1 -> 50,23]"
+				},
+				{
+					"originalRange": "[82,13 -> 82,13]",
+					"modifiedRange": "[50,30 -> 50,38]"
+				},
+				{
+					"originalRange": "[82,17 -> 83,9]",
+					"modifiedRange": "[50,42 -> 50,47]"
+				},
+				{
+					"originalRange": "[83,12 -> 84,24]",
+					"modifiedRange": "[50,50 -> 50,51]"
+				},
+				{
+					"originalRange": "[84,52 -> 88,9]",
+					"modifiedRange": "[50,79 -> 50,79]"
+				}
+			]
+		},
+		{
+			"originalRange": "[91,92)",
+			"modifiedRange": "[53,55)",
+			"innerChanges": [
+				{
+					"originalRange": "[91,14 -> 91,44]",
+					"modifiedRange": "[53,14 -> 54,36]"
+				}
+			]
+		}
+	]
+}

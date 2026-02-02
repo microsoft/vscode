@@ -140,7 +140,7 @@ function getNextAttribute(document: vscode.TextDocument, selectionStart: number,
 		}
 
 		// Fetch the next word in the attr value
-		if (attr.value.toString().indexOf(' ') === -1) {
+		if (!attr.value.toString().includes(' ')) {
 			// attr value does not have space, so no next word to find
 			continue;
 		}

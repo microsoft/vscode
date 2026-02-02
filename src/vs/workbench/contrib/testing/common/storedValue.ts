@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 
 export interface IStoredValueSerialization<T> {
 	deserialize(data: string): T;
@@ -26,25 +27,29 @@ interface IStoredValueOptions<T> {
 /**
  * todo@connor4312: is this worthy to be in common?
  */
-export class StoredValue<T> {
+export class StoredValue<T> extends Disposable {
 	private readonly serialization: IStoredValueSerialization<T>;
 	private readonly key: string;
 	private readonly scope: StorageScope;
 	private readonly target: StorageTarget;
+	private value?: T;
 
 	/**
 	 * Emitted whenever the value is updated or deleted.
 	 */
-	public readonly onDidChange = Event.filter(this.storage.onDidChangeValue, e => e.key === this.key);
+	public readonly onDidChange: Event<IStorageValueChangeEvent>;
 
 	constructor(
 		options: IStoredValueOptions<T>,
 		@IStorageService private readonly storage: IStorageService,
 	) {
+		super();
+
 		this.key = options.key;
 		this.scope = options.scope;
 		this.target = options.target;
 		this.serialization = options.serialization ?? defaultSerialization;
+		this.onDidChange = this.storage.onDidChangeValue(this.scope, this.key, this._register(new DisposableStore()));
 	}
 
 	/**
@@ -58,8 +63,12 @@ export class StoredValue<T> {
 	public get(defaultValue: T): T;
 
 	public get(defaultValue?: T): T | undefined {
-		const value = this.storage.get(this.key, this.scope);
-		return value === undefined ? defaultValue : this.serialization.deserialize(value);
+		if (this.value === undefined) {
+			const value = this.storage.get(this.key, this.scope);
+			this.value = value === undefined ? defaultValue : this.serialization.deserialize(value);
+		}
+
+		return this.value;
 	}
 
 	/**
@@ -67,6 +76,7 @@ export class StoredValue<T> {
 	 * @param value
 	 */
 	public store(value: T) {
+		this.value = value;
 		this.storage.store(this.key, this.serialization.serialize(value), this.scope, this.target);
 	}
 

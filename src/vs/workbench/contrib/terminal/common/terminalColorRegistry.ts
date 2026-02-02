@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 
-import { registerColor, ColorIdentifier, ColorDefaults, editorFindMatch, editorFindMatchHighlight, overviewRulerFindMatchForeground, editorSelectionBackground } from 'vs/platform/theme/common/colorRegistry';
+import { registerColor, ColorIdentifier, ColorDefaults, editorFindMatch, editorFindMatchHighlight, overviewRulerFindMatchForeground, editorSelectionBackground, transparent, editorHoverHighlight } from 'vs/platform/theme/common/colorRegistry';
 import { EDITOR_DRAG_AND_DROP_BACKGROUND, PANEL_BORDER, TAB_ACTIVE_BORDER } from 'vs/workbench/common/theme';
 
 /**
@@ -29,6 +29,12 @@ export const TERMINAL_SELECTION_BACKGROUND_COLOR = registerColor('terminal.selec
 	hcDark: editorSelectionBackground,
 	hcLight: editorSelectionBackground
 }, nls.localize('terminal.selectionBackground', 'The selection background color of the terminal.'));
+export const TERMINAL_INACTIVE_SELECTION_BACKGROUND_COLOR = registerColor('terminal.inactiveSelectionBackground', {
+	light: transparent(TERMINAL_SELECTION_BACKGROUND_COLOR, 0.5),
+	dark: transparent(TERMINAL_SELECTION_BACKGROUND_COLOR, 0.5),
+	hcDark: transparent(TERMINAL_SELECTION_BACKGROUND_COLOR, 0.7),
+	hcLight: transparent(TERMINAL_SELECTION_BACKGROUND_COLOR, 0.5)
+}, nls.localize('terminal.inactiveSelectionBackground', 'The selection background color of the terminal when it does not have focus.'));
 export const TERMINAL_SELECTION_FOREGROUND_COLOR = registerColor('terminal.selectionForeground', {
 	light: null,
 	dark: null,
@@ -72,6 +78,12 @@ export const TERMINAL_FIND_MATCH_BACKGROUND_COLOR = registerColor('terminal.find
 	hcDark: null,
 	hcLight: '#0F4A85'
 }, nls.localize('terminal.findMatchBackground', 'Color of the current search match in the terminal. The color must not be opaque so as not to hide underlying terminal content.'));
+export const TERMINAL_HOVER_HIGHLIGHT_BACKGROUND_COLOR = registerColor('terminal.hoverHighlightBackground', {
+	dark: transparent(editorHoverHighlight, 0.5),
+	light: transparent(editorHoverHighlight, 0.5),
+	hcDark: transparent(editorHoverHighlight, 0.5),
+	hcLight: transparent(editorHoverHighlight, 0.5)
+}, nls.localize('terminal.findMatchHighlightBorder', 'Border color of the other search matches in the terminal.'));
 export const TERMINAL_FIND_MATCH_BORDER_COLOR = registerColor('terminal.findMatchBorder', {
 	dark: null,
 	light: null,
@@ -170,7 +182,7 @@ export const ansiColorMap: { [key: string]: { index: number; defaults: ColorDefa
 			light: '#0598bc',
 			dark: '#11a8cd',
 			hcDark: '#00cdcd',
-			hcLight: '#0598b'
+			hcLight: '#0598bc'
 		}
 	},
 	'terminal.ansiWhite': {

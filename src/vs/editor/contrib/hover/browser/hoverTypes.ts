@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Dimension } from 'vs/base/browser/dom';
 import { AsyncIterableObject } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -26,6 +27,11 @@ export interface IHoverPart {
 	 * even in the case of multiple hover parts.
 	 */
 	readonly forceShowAtRange?: boolean;
+
+	/**
+	 * If true, the hover item should appear before content
+	 */
+	readonly isBeforeContent?: boolean;
 	/**
 	 * Is this hover part still valid for this new anchor?
 	 */
@@ -41,7 +47,9 @@ export class HoverRangeAnchor {
 	public readonly type = HoverAnchorType.Range;
 	constructor(
 		public readonly priority: number,
-		public readonly range: Range
+		public readonly range: Range,
+		public readonly initialMousePosX: number | undefined,
+		public readonly initialMousePosY: number | undefined,
 	) {
 	}
 	public equals(other: HoverAnchor) {
@@ -57,7 +65,10 @@ export class HoverForeignElementAnchor {
 	constructor(
 		public readonly priority: number,
 		public readonly owner: IEditorHoverParticipant,
-		public readonly range: Range
+		public readonly range: Range,
+		public readonly initialMousePosX: number | undefined,
+		public readonly initialMousePosY: number | undefined,
+		public readonly supportsMarkerHover: boolean | undefined
 	) {
 	}
 	public equals(other: HoverAnchor) {
@@ -100,6 +111,10 @@ export interface IEditorHoverRenderContext {
 	 * The contents rendered inside the fragment have been changed, which means that the hover should relayout.
 	 */
 	onContentsChanged(): void;
+	/**
+	 * Set the minimum dimensions of the resizable hover
+	 */
+	setMinimumDimensions?(dimensions: Dimension): void;
 	/**
 	 * Hide the hover.
 	 */

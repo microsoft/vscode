@@ -32,7 +32,6 @@ arguments=(
 	'--inspect-extensions[allow debugging and profiling of extensions]'
 	'--inspect-brk-extensions[allow debugging and profiling of extensions with the extension host being paused after start]'
 	'--disable-gpu[disable GPU hardware acceleration]'
-	'--max-memory=[max memory size for a window (in Mbytes)]:size (Mbytes)'
 	'*:file or directory:_files'
 )
 

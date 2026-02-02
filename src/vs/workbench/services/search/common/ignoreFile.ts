@@ -133,7 +133,13 @@ export class IgnoreFile {
 			line = '**/' + line;
 		} else {
 			if (firstSep === 0) {
-				line = line.slice(1);
+				if (dirPath.slice(-1) === '/') {
+					line = line.slice(1);
+				}
+			} else {
+				if (dirPath.slice(-1) !== '/') {
+					line = '/' + line;
+				}
 			}
 			line = dirPath + line;
 		}

@@ -7,6 +7,7 @@ import * as assert from 'assert';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
 import { Client as MessagePortClient } from 'vs/base/parts/ipc/browser/ipc.mp';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('IPC, MessagePorts', () => {
 
@@ -55,4 +56,6 @@ suite('IPC, MessagePorts', () => {
 		client1.dispose();
 		client2.dispose();
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

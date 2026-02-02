@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { FileSystemProvider, getScheme } from '../requests';
+import { FileSystemProvider } from '../requests';
 import { URI as Uri } from 'vscode-uri';
 
 import * as fs from 'fs';
@@ -11,7 +11,7 @@ import { FileType } from 'vscode-css-languageservice';
 
 export function getNodeFileFS(): FileSystemProvider {
 	function ensureFileUri(location: string) {
-		if (getScheme(location) !== 'file') {
+		if (!location.startsWith('file:')) {
 			throw new Error('fileSystemProvider can only handle file URLs');
 		}
 	}

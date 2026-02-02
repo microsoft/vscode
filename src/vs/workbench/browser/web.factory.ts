@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkbench, IWorkbenchConstructionOptions, Menu } from 'vs/workbench/browser/web.api';
+import { ITunnel, ITunnelOptions, IWorkbench, IWorkbenchConstructionOptions, Menu } from 'vs/workbench/browser/web.api';
 import { BrowserMain } from 'vs/workbench/browser/web.main';
 import { URI } from 'vs/base/common/uri';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -13,9 +13,8 @@ import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { DeferredPromise } from 'vs/base/common/async';
 import { asArray } from 'vs/base/common/arrays';
 import { IProgress, IProgressCompositeOptions, IProgressDialogOptions, IProgressNotificationOptions, IProgressOptions, IProgressStep, IProgressWindowOptions } from 'vs/platform/progress/common/progress';
-import { IObservableValue } from 'vs/base/common/observableValue';
-import { TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { LogLevel } from 'vs/platform/log/common/log';
+import { IEmbedderTerminalOptions } from 'vs/workbench/services/terminal/common/embedderTerminalService';
 
 let created = false;
 const workbenchPromise = new DeferredPromise<IWorkbench>();
@@ -57,8 +56,6 @@ export function create(domElement: HTMLElement, options: IWorkbenchConstructionO
 			}
 		}
 	}
-
-	CommandsRegistry.registerCommand('_workbench.getTarballProxyEndpoints', () => (options._tarballProxyEndpoints ?? {}));
 
 	// Startup workbench and resolve waiters
 	let instantiatedWorkbench: IWorkbench | undefined = undefined;
@@ -133,9 +130,6 @@ export namespace env {
 
 		return workbench.env.openUri(target);
 	}
-
-	export const telemetryLevel: Promise<IObservableValue<TelemetryLevel>> =
-		workbenchPromise.p.then(workbench => workbench.env.telemetryLevel);
 }
 
 export namespace window {
@@ -150,5 +144,22 @@ export namespace window {
 		const workbench = await workbenchPromise.p;
 
 		return workbench.window.withProgress(options, task);
+	}
+
+	export async function createTerminal(options: IEmbedderTerminalOptions): Promise<void> {
+		const workbench = await workbenchPromise.p;
+		workbench.window.createTerminal(options);
+	}
+}
+
+export namespace workspace {
+
+	/**
+	 * {@linkcode IWorkbench.workspace IWorkbench.workspace.openTunnel}
+	 */
+	export async function openTunnel(tunnelOptions: ITunnelOptions): Promise<ITunnel> {
+		const workbench = await workbenchPromise.p;
+
+		return workbench.workspace.openTunnel(tunnelOptions);
 	}
 }

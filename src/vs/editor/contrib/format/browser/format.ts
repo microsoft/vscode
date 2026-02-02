@@ -27,11 +27,12 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { FormattingEdit } from 'vs/editor/contrib/format/browser/formattingEdit';
 import * as nls from 'vs/nls';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifierSet } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IProgress } from 'vs/platform/progress/common/progress';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export function alertFormattingEdits(edits: ISingleEditOperation[]): void {
 
@@ -66,14 +67,14 @@ export function getRealAndSyntheticDocumentFormattersOrdered(
 	model: ITextModel
 ): DocumentFormattingEditProvider[] {
 	const result: DocumentFormattingEditProvider[] = [];
-	const seen = new Set<string>();
+	const seen = new ExtensionIdentifierSet();
 
 	// (1) add all document formatter
 	const docFormatter = documentFormattingEditProvider.ordered(model);
 	for (const formatter of docFormatter) {
 		result.push(formatter);
 		if (formatter.extensionId) {
-			seen.add(ExtensionIdentifier.toKey(formatter.extensionId));
+			seen.add(formatter.extensionId);
 		}
 	}
 
@@ -81,10 +82,10 @@ export function getRealAndSyntheticDocumentFormattersOrdered(
 	const rangeFormatter = documentRangeFormattingEditProvider.ordered(model);
 	for (const formatter of rangeFormatter) {
 		if (formatter.extensionId) {
-			if (seen.has(ExtensionIdentifier.toKey(formatter.extensionId))) {
+			if (seen.has(formatter.extensionId)) {
 				continue;
 			}
-			seen.add(ExtensionIdentifier.toKey(formatter.extensionId));
+			seen.add(formatter.extensionId);
 		}
 		result.push({
 			displayName: formatter.displayName,
@@ -155,6 +156,7 @@ export async function formatDocumentRangesWithProvider(
 	token: CancellationToken
 ): Promise<boolean> {
 	const workerService = accessor.get(IEditorWorkerService);
+	const logService = accessor.get(ILogService);
 
 	let model: ITextModel;
 	let cts: CancellationTokenSource;
@@ -178,12 +180,18 @@ export async function formatDocumentRangesWithProvider(
 	}
 
 	const computeEdits = async (range: Range) => {
-		return (await provider.provideDocumentRangeFormattingEdits(
+		logService.trace(`[format][provideDocumentRangeFormattingEdits] (request)`, provider.extensionId?.value, range);
+
+		const result = (await provider.provideDocumentRangeFormattingEdits(
 			model,
 			range,
 			model.getFormattingOptions(),
 			cts.token
 		)) || [];
+
+		logService.trace(`[format][provideDocumentRangeFormattingEdits] (response)`, provider.extensionId?.value, result);
+
+		return result;
 	};
 
 	const hasIntersectingEdit = (a: TextEdit[], b: TextEdit[]) => {
@@ -209,31 +217,44 @@ export async function formatDocumentRangesWithProvider(
 	const allEdits: TextEdit[] = [];
 	const rawEditsList: TextEdit[][] = [];
 	try {
-		for (const range of ranges) {
-			if (cts.token.isCancellationRequested) {
-				return true;
-			}
-			rawEditsList.push(await computeEdits(range));
-		}
+		if (typeof provider.provideDocumentRangesFormattingEdits === 'function') {
+			logService.trace(`[format][provideDocumentRangeFormattingEdits] (request)`, provider.extensionId?.value, ranges);
+			const result = (await provider.provideDocumentRangesFormattingEdits(
+				model,
+				ranges,
+				model.getFormattingOptions(),
+				cts.token
+			)) || [];
+			logService.trace(`[format][provideDocumentRangeFormattingEdits] (response)`, provider.extensionId?.value, result);
+			rawEditsList.push(result);
+		} else {
 
-		for (let i = 0; i < ranges.length; ++i) {
-			for (let j = i + 1; j < ranges.length; ++j) {
+			for (const range of ranges) {
 				if (cts.token.isCancellationRequested) {
 					return true;
 				}
-				if (hasIntersectingEdit(rawEditsList[i], rawEditsList[j])) {
-					// Merge ranges i and j into a single range, recompute the associated edits
-					const mergedRange = Range.plusRange(ranges[i], ranges[j]);
-					const edits = await computeEdits(mergedRange);
-					ranges.splice(j, 1);
-					ranges.splice(i, 1);
-					ranges.push(mergedRange);
-					rawEditsList.splice(j, 1);
-					rawEditsList.splice(i, 1);
-					rawEditsList.push(edits);
-					// Restart scanning
-					i = 0;
-					j = 0;
+				rawEditsList.push(await computeEdits(range));
+			}
+
+			for (let i = 0; i < ranges.length; ++i) {
+				for (let j = i + 1; j < ranges.length; ++j) {
+					if (cts.token.isCancellationRequested) {
+						return true;
+					}
+					if (hasIntersectingEdit(rawEditsList[i], rawEditsList[j])) {
+						// Merge ranges i and j into a single range, recompute the associated edits
+						const mergedRange = Range.plusRange(ranges[i], ranges[j]);
+						const edits = await computeEdits(mergedRange);
+						ranges.splice(j, 1);
+						ranges.splice(i, 1);
+						ranges.push(mergedRange);
+						rawEditsList.splice(j, 1);
+						rawEditsList.splice(i, 1);
+						rawEditsList.push(edits);
+						// Restart scanning
+						i = 0;
+						j = 0;
+					}
 				}
 			}
 		}

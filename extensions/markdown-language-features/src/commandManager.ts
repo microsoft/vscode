@@ -12,27 +12,27 @@ export interface Command {
 }
 
 export class CommandManager {
-	private readonly commands = new Map<string, vscode.Disposable>();
+	private readonly _commands = new Map<string, vscode.Disposable>();
 
 	public dispose() {
-		for (const registration of this.commands.values()) {
+		for (const registration of this._commands.values()) {
 			registration.dispose();
 		}
-		this.commands.clear();
+		this._commands.clear();
 	}
 
 	public register<T extends Command>(command: T): vscode.Disposable {
-		this.registerCommand(command.id, command.execute, command);
+		this._registerCommand(command.id, command.execute, command);
 		return new vscode.Disposable(() => {
-			this.commands.delete(command.id);
+			this._commands.delete(command.id);
 		});
 	}
 
-	private registerCommand(id: string, impl: (...args: any[]) => void, thisArg?: any) {
-		if (this.commands.has(id)) {
+	private _registerCommand(id: string, impl: (...args: any[]) => void, thisArg?: any) {
+		if (this._commands.has(id)) {
 			return;
 		}
 
-		this.commands.set(id, vscode.commands.registerCommand(id, impl, thisArg));
+		this._commands.set(id, vscode.commands.registerCommand(id, impl, thisArg));
 	}
 }

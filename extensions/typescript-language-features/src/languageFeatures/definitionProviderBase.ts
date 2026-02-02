@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import * as typeConverters from '../typeConverters';
 import { ITypeScriptServiceClient } from '../typescriptService';
-import * as typeConverters from '../utils/typeConverters';
 
 
 export default class TypeScriptDefinitionProviderBase {
@@ -19,7 +19,7 @@ export default class TypeScriptDefinitionProviderBase {
 		position: vscode.Position,
 		token: vscode.CancellationToken
 	): Promise<vscode.Location[] | undefined> {
-		const file = this.client.toOpenedFilePath(document);
+		const file = this.client.toOpenTsFilePath(document);
 		if (!file) {
 			return undefined;
 		}

@@ -95,7 +95,7 @@ if ((<any>self).Worker) {
 	const _Worker = (<any>self).Worker;
 	Worker = <any>function (stringUrl: string | URL, options?: WorkerOptions) {
 		if (/^file:/i.test(stringUrl.toString())) {
-			stringUrl = FileAccess.asBrowserUri(URI.parse(stringUrl.toString())).toString(true);
+			stringUrl = FileAccess.uriToBrowserUri(URI.parse(stringUrl.toString())).toString(true);
 		} else if (/^vscode-remote:/i.test(stringUrl.toString())) {
 			// Supporting transformation of vscode-remote URIs requires an async call to the main thread,
 			// but we cannot do this call from within the embedded Worker, and the only way out would be
@@ -158,12 +158,6 @@ const hostUtil = new class implements IHostUtils {
 	public readonly pid = undefined;
 	exit(_code?: number | undefined): void {
 		nativeClose();
-	}
-	async exists(_path: string): Promise<boolean> {
-		return true;
-	}
-	async realpath(path: string): Promise<string> {
-		return path;
 	}
 };
 

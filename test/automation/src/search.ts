@@ -35,7 +35,7 @@ export class Search extends Viewlet {
 
 	async clearSearchResults(): Promise<void> {
 		await retry(
-			() => this.code.waitAndClick(`.sidebar .codicon-search-clear-results`),
+			() => this.code.waitAndClick(`.sidebar .title-actions .codicon-search-clear-results`),
 			() => this.waitForNoResultText(10));
 	}
 

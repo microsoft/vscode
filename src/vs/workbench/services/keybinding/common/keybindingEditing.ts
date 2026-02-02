@@ -10,7 +10,6 @@ import * as objects from 'vs/base/common/objects';
 import { setProperty } from 'vs/base/common/jsonEdit';
 import { Edit } from 'vs/base/common/jsonFormatter';
 import { Disposable, IReference } from 'vs/base/common/lifecycle';
-import { isArray } from 'vs/base/common/types';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -23,7 +22,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 export const IKeybindingEditingService = createDecorator<IKeybindingEditingService>('keybindingEditingService');
@@ -267,7 +266,7 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 						return Promise.reject<any>(new Error(localize('parseErrors', "Unable to write to the keybindings configuration file. Please open it to correct errors/warnings in the file and try again.")));
 					}
 					if (parsed.result) {
-						if (!isArray(parsed.result)) {
+						if (!Array.isArray(parsed.result)) {
 							reference.dispose();
 							return Promise.reject<any>(new Error(localize('errorInvalidConfiguration', "Unable to write to the keybindings configuration file. It has an object which is not of type Array. Please open the file to clean up and try again.")));
 						}
@@ -294,4 +293,4 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 	}
 }
 
-registerSingleton(IKeybindingEditingService, KeybindingsEditingService, true);
+registerSingleton(IKeybindingEditingService, KeybindingsEditingService, InstantiationType.Delayed);

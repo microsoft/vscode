@@ -23,6 +23,10 @@ import { IProgressService, ProgressLocation, IProgressNotificationOptions, IProg
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { IExpression } from 'vs/base/common/glob';
+import { ResourceGlobMatcher } from 'vs/workbench/common/resources';
+import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 export const UNDO_REDO_SOURCE = new UndoRedoSource();
 
@@ -39,6 +43,7 @@ export class ExplorerService implements IExplorerService {
 	private model: ExplorerModel;
 	private onFileChangesScheduler: RunOnceScheduler;
 	private fileChangeEvents: FileChangesEvent[] = [];
+	private revealExcludeMatcher: ResourceGlobMatcher;
 
 	constructor(
 		@IFileService private fileService: IFileService,
@@ -49,11 +54,13 @@ export class ExplorerService implements IExplorerService {
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IBulkEditService private readonly bulkEditService: IBulkEditService,
 		@IProgressService private readonly progressService: IProgressService,
-		@IHostService hostService: IHostService
+		@IHostService hostService: IHostService,
+		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService
 	) {
 		this.config = this.configurationService.getValue('explorer');
 
-		this.model = new ExplorerModel(this.contextService, this.uriIdentityService, this.fileService, this.configurationService);
+		this.model = new ExplorerModel(this.contextService, this.uriIdentityService, this.fileService, this.configurationService, this.filesConfigurationService);
 		this.disposables.add(this.model);
 		this.disposables.add(this.fileService.onDidRunOperation(e => this.onDidRunOperation(e)));
 
@@ -105,7 +112,7 @@ export class ExplorerService implements IExplorerService {
 				this.onFileChangesScheduler.schedule();
 			}
 		}));
-		this.disposables.add(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(this.configurationService.getValue<IFilesConfiguration>(), e)));
+		this.disposables.add(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(e)));
 		this.disposables.add(Event.any<{ scheme: string }>(this.fileService.onDidChangeFileSystemProviderRegistrations, this.fileService.onDidChangeFileSystemProviderCapabilities)(async e => {
 			let affected = false;
 			this.model.roots.forEach(r => {
@@ -121,9 +128,7 @@ export class ExplorerService implements IExplorerService {
 			}
 		}));
 		this.disposables.add(this.model.onDidChangeRoots(() => {
-			if (this.view) {
-				this.view.setTreeInput();
-			}
+			this.view?.setTreeInput();
 		}));
 
 		// Refresh explorer when window gets focus to compensate for missing file events #126817
@@ -132,6 +137,11 @@ export class ExplorerService implements IExplorerService {
 				this.refresh(false);
 			}
 		}));
+		this.revealExcludeMatcher = new ResourceGlobMatcher(
+			(uri) => getRevealExcludes(configurationService.getValue<IFilesConfiguration>({ resource: uri })),
+			(event) => event.affectsConfiguration('explorer.autoRevealExclude'),
+			contextService, configurationService);
+		this.disposables.add(this.revealExcludeMatcher);
 	}
 
 	get roots(): ExplorerItem[] {
@@ -149,17 +159,23 @@ export class ExplorerService implements IExplorerService {
 		this.view = contextProvider;
 	}
 
-	getContext(respectMultiSelection: boolean): ExplorerItem[] {
+	getContext(respectMultiSelection: boolean, ignoreNestedChildren: boolean = false): ExplorerItem[] {
 		if (!this.view) {
 			return [];
 		}
 
 		const items = new Set<ExplorerItem>(this.view.getContext(respectMultiSelection));
 		items.forEach(item => {
-			if (respectMultiSelection && this.view?.isItemCollapsed(item) && item.nestedChildren) {
-				for (const child of item.nestedChildren) {
-					items.add(child);
+			try {
+				if (respectMultiSelection && !ignoreNestedChildren && this.view?.isItemCollapsed(item) && item.nestedChildren) {
+					for (const child of item.nestedChildren) {
+						items.add(child);
+					}
 				}
+			} catch {
+				// We will error out trying to resolve collapsed nodes that have not yet been resolved.
+				// So we catch and ignore them in the multiSelect context
+				return;
 			}
 		});
 
@@ -214,7 +230,52 @@ export class ExplorerService implements IExplorerService {
 			this.editable = { stat, data };
 		}
 		const isEditing = this.isEditable(stat);
-		await this.view.setEditable(stat, isEditing);
+		try {
+			await this.view.setEditable(stat, isEditing);
+		} catch {
+			const parent = stat.parent;
+			type ExplorerViewEditableErrorData = {
+				parentIsDirectory: boolean | undefined;
+				isDirectory: boolean | undefined;
+				isReadonly: boolean | undefined;
+				parentIsReadonly: boolean | undefined;
+				parentIsExcluded: boolean | undefined;
+				isExcluded: boolean | undefined;
+				parentIsRoot: boolean | undefined;
+				isRoot: boolean | undefined;
+				parentHasNests: boolean | undefined;
+				hasNests: boolean | undefined;
+			};
+			type ExplorerViewEditableErrorClassification = {
+				owner: 'lramos15';
+				comment: 'Helps gain a broard understanding of why users are unable to edit files in the explorer';
+				parentIsDirectory: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the parent of the editable element is a directory' };
+				isDirectory: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the editable element is a directory' };
+				isReadonly: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the editable element is readonly' };
+				parentIsReadonly: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the parent of the editable element is readonly' };
+				parentIsExcluded: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the parent of the editable element is excluded from being shown in the explorer' };
+				isExcluded: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the editable element is excluded from being shown in the explorer' };
+				parentIsRoot: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the parent of the editable element is a root' };
+				isRoot: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the editable element is a root' };
+				parentHasNests: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the parent of the editable element has nested children' };
+				hasNests: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the editable element has nested children' };
+			};
+			const errorData = {
+				parentIsDirectory: parent?.isDirectory,
+				isDirectory: stat.isDirectory,
+				isReadonly: !!stat.isReadonly,
+				parentIsReadonly: !!parent?.isReadonly,
+				parentIsExcluded: parent?.isExcluded,
+				isExcluded: stat.isExcluded,
+				parentIsRoot: parent?.isRoot,
+				isRoot: stat.isRoot,
+				parentHasNests: parent?.hasNests,
+				hasNests: stat.hasNests,
+			};
+			this.telemetryService.publicLogError2<ExplorerViewEditableErrorData, ExplorerViewEditableErrorClassification>('explorerView.setEditableError', errorData);
+			return;
+		}
+
 
 		if (!this.editable && this.fileChangeEvents.length && !this.onFileChangesScheduler.isScheduled()) {
 			this.onFileChangesScheduler.schedule();
@@ -250,8 +311,14 @@ export class ExplorerService implements IExplorerService {
 			return;
 		}
 
+		// If file or parent matches exclude patterns, do not reveal unless reveal argument is 'force'
+		const ignoreRevealExcludes = reveal === 'force';
+
 		const fileStat = this.findClosest(resource);
 		if (fileStat) {
+			if (!this.shouldAutoRevealItem(fileStat, ignoreRevealExcludes)) {
+				return;
+			}
 			await this.view.selectResource(fileStat.resource, reveal);
 			return Promise.resolve(undefined);
 		}
@@ -267,16 +334,19 @@ export class ExplorerService implements IExplorerService {
 			const stat = await this.fileService.resolve(root.resource, options);
 
 			// Convert to model
-			const modelStat = ExplorerItem.create(this.fileService, this.configurationService, stat, undefined, options.resolveTo);
+			const modelStat = ExplorerItem.create(this.fileService, this.configurationService, this.filesConfigurationService, stat, undefined, options.resolveTo);
 			// Update Input with disk Stat
 			ExplorerItem.mergeLocalWithDisk(modelStat, root);
 			const item = root.find(resource);
 			await this.view.refresh(true, root);
 
-			// Select and Reveal
+			// Once item is resolved, check again if folder should be expanded
+			if (item && !this.shouldAutoRevealItem(item, ignoreRevealExcludes)) {
+				return;
+			}
 			await this.view.selectResource(item ? item.resource : undefined, reveal);
 		} catch (error) {
-			root.isError = true;
+			root.error = error;
 			await this.view.refresh(false, root);
 		}
 	}
@@ -318,12 +388,12 @@ export class ExplorerService implements IExplorerService {
 					if (!p.isDirectoryResolved) {
 						const stat = await this.fileService.resolve(p.resource, { resolveMetadata });
 						if (stat) {
-							const modelStat = ExplorerItem.create(this.fileService, this.configurationService, stat, p.parent);
+							const modelStat = ExplorerItem.create(this.fileService, this.configurationService, this.filesConfigurationService, stat, p.parent);
 							ExplorerItem.mergeLocalWithDisk(modelStat, p);
 						}
 					}
 
-					const childElement = ExplorerItem.create(this.fileService, this.configurationService, addedElement, p.parent);
+					const childElement = ExplorerItem.create(this.fileService, this.configurationService, this.filesConfigurationService, addedElement, p.parent);
 					// Make sure to remove any previous version of the file if any
 					p.removeChild(childElement);
 					p.addChild(childElement);
@@ -391,12 +461,40 @@ export class ExplorerService implements IExplorerService {
 		}
 	}
 
-	private async onConfigurationUpdated(configuration: IFilesConfiguration, event?: IConfigurationChangeEvent): Promise<void> {
+	// Check if an item matches a explorer.autoRevealExclude pattern
+	private shouldAutoRevealItem(item: ExplorerItem | undefined, ignore: boolean): boolean {
+		if (item === undefined || ignore) {
+			return true;
+		}
+		if (this.revealExcludeMatcher.matches(item.resource, name => !!(item.parent && item.parent.getChild(name)))) {
+			return false;
+		}
+		const root = item.root;
+		let currentItem = item.parent;
+		while (currentItem !== root) {
+			if (currentItem === undefined) {
+				return true;
+			}
+			if (this.revealExcludeMatcher.matches(currentItem.resource)) {
+				return false;
+			}
+			currentItem = currentItem.parent;
+		}
+		return true;
+	}
+
+	private async onConfigurationUpdated(event: IConfigurationChangeEvent): Promise<void> {
+		if (!event.affectsConfiguration('explorer')) {
+			return;
+		}
+
 		let shouldRefresh = false;
 
-		if (event?.affectedKeys.some(x => x.startsWith('explorer.fileNesting.'))) {
+		if (event.affectsConfiguration('explorer.fileNesting')) {
 			shouldRefresh = true;
 		}
+
+		const configuration = this.configurationService.getValue<IFilesConfiguration>();
 
 		const configSortOrder = configuration?.explorer?.sortOrder || SortOrder.Default;
 		if (this.config.sortOrder !== configSortOrder) {
@@ -435,4 +533,14 @@ function doesFileEventAffect(item: ExplorerItem, view: IExplorerView, events: Fi
 	}
 
 	return false;
+}
+
+function getRevealExcludes(configuration: IFilesConfiguration): IExpression {
+	const revealExcludes = configuration && configuration.explorer && configuration.explorer.autoRevealExclude;
+
+	if (!revealExcludes) {
+		return {};
+	}
+
+	return revealExcludes;
 }

@@ -5,6 +5,9 @@
 
 import { ok } from 'assert';
 import { Emitter, Event } from 'vs/base/common/event';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { ACTIVE_TASK_STATUS, FAILED_TASK_STATUS, SUCCEEDED_TASK_STATUS, TaskTerminalStatus } from 'vs/workbench/contrib/tasks/browser/taskTerminalStatus';
@@ -12,23 +15,41 @@ import { AbstractProblemCollector } from 'vs/workbench/contrib/tasks/common/prob
 import { CommonTask, ITaskEvent, TaskEventKind, TaskRunType } from 'vs/workbench/contrib/tasks/common/tasks';
 import { ITaskService, Task } from 'vs/workbench/contrib/tasks/common/taskService';
 import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { ITerminalStatus, ITerminalStatusList, TerminalStatusList } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
+import { ITerminalStatusList, TerminalStatusList } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
+import { ITerminalStatus } from 'vs/workbench/contrib/terminal/common/terminal';
 
 class TestTaskService implements Partial<ITaskService> {
 	private readonly _onDidStateChange: Emitter<ITaskEvent> = new Emitter();
 	public get onDidStateChange(): Event<ITaskEvent> {
 		return this._onDidStateChange.event;
 	}
-	public triggerStateChange(event: ITaskEvent): void {
-		this._onDidStateChange.fire(event);
+	public triggerStateChange(event: Partial<ITaskEvent>): void {
+		this._onDidStateChange.fire(event as ITaskEvent);
 	}
 }
 
-class TestTerminal implements Partial<ITerminalInstance> {
-	statusList: TerminalStatusList = new TerminalStatusList(new TestConfigurationService());
+class TestAudioCueService implements Partial<IAudioCueService> {
+	async playAudioCue(cue: AudioCue): Promise<void> {
+		return;
+	}
+}
+
+class TestTerminal extends Disposable implements Partial<ITerminalInstance> {
+	statusList: TerminalStatusList = this._register(new TerminalStatusList(new TestConfigurationService()));
+	constructor() {
+		super();
+	}
+	override dispose(): void {
+		super.dispose();
+	}
 }
 
 class TestTask extends CommonTask {
+
+	constructor() {
+		super('test', undefined, undefined, {}, {}, { kind: '', label: '' });
+	}
+
 	protected getFolderId(): string | undefined {
 		throw new Error('Method not implemented.');
 	}
@@ -37,7 +58,7 @@ class TestTask extends CommonTask {
 	}
 }
 
-class TestProblemCollector implements Partial<AbstractProblemCollector> {
+class TestProblemCollector extends Disposable implements Partial<AbstractProblemCollector>  {
 	protected readonly _onDidFindFirstMatch = new Emitter<void>();
 	readonly onDidFindFirstMatch = this._onDidFindFirstMatch.event;
 	protected readonly _onDidFindErrors = new Emitter<void>();
@@ -53,13 +74,16 @@ suite('Task Terminal Status', () => {
 	let testTerminal: ITerminalInstance;
 	let testTask: Task;
 	let problemCollector: AbstractProblemCollector;
+	let audioCueService: TestAudioCueService;
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	setup(() => {
-		instantiationService = new TestInstantiationService();
+		instantiationService = store.add(new TestInstantiationService());
 		taskService = new TestTaskService();
-		taskTerminalStatus = instantiationService.createInstance(TaskTerminalStatus, taskService);
-		testTerminal = instantiationService.createInstance(TestTerminal);
-		testTask = instantiationService.createInstance(TestTask);
-		problemCollector = instantiationService.createInstance(TestProblemCollector);
+		audioCueService = new TestAudioCueService();
+		taskTerminalStatus = store.add(new TaskTerminalStatus(taskService as any, audioCueService as any));
+		testTerminal = store.add(instantiationService.createInstance(TestTerminal) as any);
+		testTask = instantiationService.createInstance(TestTask) as unknown as Task;
+		problemCollector = store.add(instantiationService.createInstance(TestProblemCollector) as any);
 	});
 	test('Should add failed status when there is an exit code on task end', async () => {
 		taskTerminalStatus.addTerminal(testTask, testTerminal, problemCollector);
@@ -67,7 +91,7 @@ suite('Task Terminal Status', () => {
 		assertStatus(testTerminal.statusList, ACTIVE_TASK_STATUS);
 		taskService.triggerStateChange({ kind: TaskEventKind.Inactive });
 		assertStatus(testTerminal.statusList, SUCCEEDED_TASK_STATUS);
-		taskService.triggerStateChange({ kind: TaskEventKind.End, exitCode: 2 });
+		taskService.triggerStateChange({ kind: TaskEventKind.End });
 		await poll<void>(async () => Promise.resolve(), () => testTerminal?.statusList.primary?.id === FAILED_TASK_STATUS.id, 'terminal status should be updated');
 	});
 	test('Should add active status when a non-background task is run for a second time in the same terminal', () => {

@@ -41,15 +41,15 @@ export class MultiLogger implements Logger {
 	}
 }
 
-export async function measureAndLog<T>(promise: Promise<T>, name: string, logger: Logger): Promise<T> {
+export async function measureAndLog<T>(promiseFactory: () => Promise<T>, name: string, logger: Logger): Promise<T> {
 	const now = Date.now();
 
-	logger.log(`Starting operation '${name}...`);
+	logger.log(`Starting operation '${name}'...`);
 
 	let res: T | undefined = undefined;
 	let e: unknown;
 	try {
-		res = await promise;
+		res = await promiseFactory();
 	} catch (error) {
 		e = error;
 	}

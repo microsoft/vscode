@@ -7,7 +7,6 @@ import { localize } from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
 import { Schemas } from 'vs/base/common/network';
-import Severity from 'vs/base/common/severity';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IWorkingCopyHistoryEntry, IWorkingCopyHistoryService } from 'vs/workbench/services/workingCopy/common/workingCopyHistory';
@@ -15,7 +14,7 @@ import { API_OPEN_DIFF_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/edit
 import { LocalHistoryFileSystemProvider } from 'vs/workbench/contrib/localHistory/browser/localHistoryFileSystemProvider';
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/actions';
+import { registerAction2, Action2, MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { basename, basenameOrAuthority, dirname } from 'vs/base/common/resources';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { EditorResourceAccessor, SaveSourceRegistry, SideBySideEditor } from 'vs/workbench/common/editor';
@@ -30,7 +29,7 @@ import { IModelService } from 'vs/editor/common/services/model';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { firstOrDefault } from 'vs/base/common/arrays';
-import { LOCAL_HISTORY_DATE_FORMATTER, LOCAL_HISTORY_ICON_RESTORE, LOCAL_HISTORY_MENU_CONTEXT_KEY } from 'vs/workbench/contrib/localHistory/browser/localHistory';
+import { getLocalHistoryDateFormatter, LOCAL_HISTORY_ICON_RESTORE, LOCAL_HISTORY_MENU_CONTEXT_KEY } from 'vs/workbench/contrib/localHistory/browser/localHistory';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 
 const LOCAL_HISTORY_CATEGORY = { value: localize('localHistory.category', "Local History"), original: 'Local History' };
@@ -255,10 +254,10 @@ async function restore(accessor: ServicesAccessor, item: ITimelineCommandArgumen
 
 		// Ask for confirmation
 		const { confirmed } = await dialogService.confirm({
+			type: 'warning',
 			message: localize('confirmRestoreMessage', "Do you want to restore the contents of '{0}'?", basename(entry.workingCopy.resource)),
 			detail: localize('confirmRestoreDetail', "Restoring will discard any unsaved changes."),
-			primaryButton: localize({ key: 'restoreButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Restore"),
-			type: 'warning'
+			primaryButton: localize({ key: 'restoreButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Restore")
 		});
 
 		if (!confirmed) {
@@ -285,7 +284,7 @@ async function restore(accessor: ServicesAccessor, item: ITimelineCommandArgumen
 			// In that case tell the user and return, it is still possible for
 			// the user to manually copy the changes over from the diff editor.
 
-			await dialogService.show(Severity.Error, localize('unableToRestore', "Unable to restore '{0}'.", basename(entry.workingCopy.resource)), undefined, { detail: toErrorMessage(error) });
+			await dialogService.error(localize('unableToRestore', "Unable to restore '{0}'.", basename(entry.workingCopy.resource)), toErrorMessage(error));
 
 			return;
 		}
@@ -403,6 +402,8 @@ registerAction2(class extends Action2 {
 	}
 });
 
+MenuRegistry.appendMenuItem(MenuId.TimelineTitle, { command: { id: 'workbench.action.localHistory.restoreViaPicker', title: { value: localize('localHistory.restoreViaPickerMenu', "Local History: Find Entry to Restore..."), original: 'Local History: Find Entry to Restore...' } }, group: 'submenu', order: 1 });
+
 //#endregion
 
 //#region Rename
@@ -469,10 +470,10 @@ registerAction2(class extends Action2 {
 
 			// Ask for confirmation
 			const { confirmed } = await dialogService.confirm({
+				type: 'warning',
 				message: localize('confirmDeleteMessage', "Do you want to delete the local history entry of '{0}' from {1}?", entry.workingCopy.name, toLocalHistoryEntryDateLabel(entry.timestamp)),
 				detail: localize('confirmDeleteDetail', "This action is irreversible!"),
 				primaryButton: localize({ key: 'deleteButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Delete"),
-				type: 'warning'
 			});
 
 			if (!confirmed) {
@@ -507,10 +508,10 @@ registerAction2(class extends Action2 {
 
 		// Ask for confirmation
 		const { confirmed } = await dialogService.confirm({
+			type: 'warning',
 			message: localize('confirmDeleteAllMessage', "Do you want to delete all entries of all files in local history?"),
 			detail: localize('confirmDeleteAllDetail', "This action is irreversible!"),
 			primaryButton: localize({ key: 'deleteAllButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Delete All"),
-			type: 'warning'
 		});
 
 		if (!confirmed) {
@@ -646,7 +647,7 @@ export async function findLocalHistoryEntry(workingCopyHistoryService: IWorkingC
 
 const SEP = /\//g;
 function toLocalHistoryEntryDateLabel(timestamp: number): string {
-	return `${LOCAL_HISTORY_DATE_FORMATTER.value.format(timestamp).replace(SEP, '-')}`; // preserving `/` will break editor labels, so replace it with a non-path symbol
+	return `${getLocalHistoryDateFormatter().format(timestamp).replace(SEP, '-')}`; // preserving `/` will break editor labels, so replace it with a non-path symbol
 }
 
 //#endregion

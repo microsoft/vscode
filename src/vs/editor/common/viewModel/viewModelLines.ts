@@ -22,10 +22,10 @@ import { ICoordinatesConverter, ViewLineData } from 'vs/editor/common/viewModel'
 export interface IViewModelLines extends IDisposable {
 	createCoordinatesConverter(): ICoordinatesConverter;
 
-	setWrappingSettings(fontInfo: FontInfo, wrappingStrategy: 'simple' | 'advanced', wrappingColumn: number, wrappingIndent: WrappingIndent): boolean;
+	setWrappingSettings(fontInfo: FontInfo, wrappingStrategy: 'simple' | 'advanced', wrappingColumn: number, wrappingIndent: WrappingIndent, wordBreak: 'normal' | 'keepAll'): boolean;
 	setTabSize(newTabSize: number): boolean;
 	getHiddenAreas(): Range[];
-	setHiddenAreas(_ranges: Range[]): boolean;
+	setHiddenAreas(_ranges: readonly Range[]): boolean;
 
 	createLineBreaksComputer(): ILineBreaksComputer;
 	onModelFlushed(): void;
@@ -45,7 +45,7 @@ export interface IViewModelLines extends IDisposable {
 	getViewLineData(viewLineNumber: number): ViewLineData;
 	getViewLinesData(viewStartLineNumber: number, viewEndLineNumber: number, needed: boolean[]): Array<ViewLineData | null>;
 
-	getDecorationsInRange(range: Range, ownerId: number, filterOutValidation: boolean): IModelDecoration[];
+	getDecorationsInRange(range: Range, ownerId: number, filterOutValidation: boolean, onlyMinimapDecorations: boolean, onlyMarginDecorations: boolean): IModelDecoration[];
 
 	getInjectedTextAt(viewPosition: Position): InjectedText | null;
 
@@ -69,6 +69,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 	private tabSize: number;
 	private wrappingColumn: number;
 	private wrappingIndent: WrappingIndent;
+	private wordBreak: 'normal' | 'keepAll';
 	private wrappingStrategy: 'simple' | 'advanced';
 
 	private modelLineProjections!: IModelLineProjection[];
@@ -90,6 +91,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		wrappingStrategy: 'simple' | 'advanced',
 		wrappingColumn: number,
 		wrappingIndent: WrappingIndent,
+		wordBreak: 'normal' | 'keepAll'
 	) {
 		this._editorId = editorId;
 		this.model = model;
@@ -101,6 +103,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		this.wrappingStrategy = wrappingStrategy;
 		this.wrappingColumn = wrappingColumn;
 		this.wrappingIndent = wrappingIndent;
+		this.wordBreak = wordBreak;
 
 		this._constructLines(/*resetHiddenAreas*/true, null);
 	}
@@ -269,21 +272,23 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		return true;
 	}
 
-	public setWrappingSettings(fontInfo: FontInfo, wrappingStrategy: 'simple' | 'advanced', wrappingColumn: number, wrappingIndent: WrappingIndent): boolean {
+	public setWrappingSettings(fontInfo: FontInfo, wrappingStrategy: 'simple' | 'advanced', wrappingColumn: number, wrappingIndent: WrappingIndent, wordBreak: 'normal' | 'keepAll'): boolean {
 		const equalFontInfo = this.fontInfo.equals(fontInfo);
 		const equalWrappingStrategy = (this.wrappingStrategy === wrappingStrategy);
 		const equalWrappingColumn = (this.wrappingColumn === wrappingColumn);
 		const equalWrappingIndent = (this.wrappingIndent === wrappingIndent);
-		if (equalFontInfo && equalWrappingStrategy && equalWrappingColumn && equalWrappingIndent) {
+		const equalWordBreak = (this.wordBreak === wordBreak);
+		if (equalFontInfo && equalWrappingStrategy && equalWrappingColumn && equalWrappingIndent && equalWordBreak) {
 			return false;
 		}
 
-		const onlyWrappingColumnChanged = (equalFontInfo && equalWrappingStrategy && !equalWrappingColumn && equalWrappingIndent);
+		const onlyWrappingColumnChanged = (equalFontInfo && equalWrappingStrategy && !equalWrappingColumn && equalWrappingIndent && equalWordBreak);
 
 		this.fontInfo = fontInfo;
 		this.wrappingStrategy = wrappingStrategy;
 		this.wrappingColumn = wrappingColumn;
 		this.wrappingIndent = wrappingIndent;
+		this.wordBreak = wordBreak;
 
 		let previousLineBreaks: ((ModelLineProjectionData | null)[]) | null = null;
 		if (onlyWrappingColumnChanged) {
@@ -304,7 +309,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 				? this._domLineBreaksComputerFactory
 				: this._monospaceLineBreaksComputerFactory
 		);
-		return lineBreaksComputerFactory.createLineBreaksComputer(this.fontInfo, this.tabSize, this.wrappingColumn, this.wrappingIndent);
+		return lineBreaksComputerFactory.createLineBreaksComputer(this.fontInfo, this.tabSize, this.wrappingColumn, this.wrappingIndent, this.wordBreak);
 	}
 
 	public onModelFlushed(): void {
@@ -825,27 +830,39 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		return new Range(start.lineNumber, start.column, end.lineNumber, end.column);
 	}
 
-	public convertModelPositionToViewPosition(_modelLineNumber: number, _modelColumn: number, affinity: PositionAffinity = PositionAffinity.None): Position {
+	public convertModelPositionToViewPosition(_modelLineNumber: number, _modelColumn: number, affinity: PositionAffinity = PositionAffinity.None, allowZeroLineNumber: boolean = false, belowHiddenRanges: boolean = false): Position {
 
 		const validPosition = this.model.validatePosition(new Position(_modelLineNumber, _modelColumn));
 		const inputLineNumber = validPosition.lineNumber;
 		const inputColumn = validPosition.column;
 
 		let lineIndex = inputLineNumber - 1, lineIndexChanged = false;
-		while (lineIndex > 0 && !this.modelLineProjections[lineIndex].isVisible()) {
-			lineIndex--;
-			lineIndexChanged = true;
+		if (belowHiddenRanges) {
+			while (lineIndex < this.modelLineProjections.length && !this.modelLineProjections[lineIndex].isVisible()) {
+				lineIndex++;
+				lineIndexChanged = true;
+			}
+		} else {
+			while (lineIndex > 0 && !this.modelLineProjections[lineIndex].isVisible()) {
+				lineIndex--;
+				lineIndexChanged = true;
+			}
 		}
 		if (lineIndex === 0 && !this.modelLineProjections[lineIndex].isVisible()) {
 			// Could not reach a real line
 			// console.log('in -> out ' + inputLineNumber + ',' + inputColumn + ' ===> ' + 1 + ',' + 1);
-			return new Position(1, 1);
+			// TODO@alexdima@hediet this isn't soo pretty
+			return new Position(allowZeroLineNumber ? 0 : 1, 1);
 		}
 		const deltaLineNumber = 1 + this.projectedModelLineLineCounts.getPrefixSum(lineIndex);
 
 		let r: Position;
 		if (lineIndexChanged) {
-			r = this.modelLineProjections[lineIndex].getViewPositionOfModelPosition(deltaLineNumber, this.model.getLineMaxColumn(lineIndex + 1), affinity);
+			if (belowHiddenRanges) {
+				r = this.modelLineProjections[lineIndex].getViewPositionOfModelPosition(deltaLineNumber, 1, affinity);
+			} else {
+				r = this.modelLineProjections[lineIndex].getViewPositionOfModelPosition(deltaLineNumber, this.model.getLineMaxColumn(lineIndex + 1), affinity);
+			}
 		} else {
 			r = this.modelLineProjections[inputLineNumber - 1].getViewPositionOfModelPosition(deltaLineNumber, inputColumn, affinity);
 		}
@@ -888,14 +905,14 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		return this.modelLineProjections[lineIndex].getViewLineNumberOfModelPosition(deltaLineNumber, this.model.getLineMaxColumn(lineIndex + 1));
 	}
 
-	public getDecorationsInRange(range: Range, ownerId: number, filterOutValidation: boolean): IModelDecoration[] {
+	public getDecorationsInRange(range: Range, ownerId: number, filterOutValidation: boolean, onlyMinimapDecorations: boolean, onlyMarginDecorations: boolean): IModelDecoration[] {
 		const modelStart = this.convertViewPositionToModelPosition(range.startLineNumber, range.startColumn);
 		const modelEnd = this.convertViewPositionToModelPosition(range.endLineNumber, range.endColumn);
 
 		if (modelEnd.lineNumber - modelStart.lineNumber <= range.endLineNumber - range.startLineNumber) {
 			// most likely there are no hidden lines => fast path
 			// fetch decorations from column 1 to cover the case of wrapped lines that have whole line decorations at column 1
-			return this.model.getDecorationsInRange(new Range(modelStart.lineNumber, 1, modelEnd.lineNumber, modelEnd.column), ownerId, filterOutValidation);
+			return this.model.getDecorationsInRange(new Range(modelStart.lineNumber, 1, modelEnd.lineNumber, modelEnd.column), ownerId, filterOutValidation, onlyMinimapDecorations, onlyMarginDecorations);
 		}
 
 		let result: IModelDecoration[] = [];
@@ -914,14 +931,14 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 				// hit invisible line => flush request
 				if (reqStart !== null) {
 					const maxLineColumn = this.model.getLineMaxColumn(modelLineIndex);
-					result = result.concat(this.model.getDecorationsInRange(new Range(reqStart.lineNumber, reqStart.column, modelLineIndex, maxLineColumn), ownerId, filterOutValidation));
+					result = result.concat(this.model.getDecorationsInRange(new Range(reqStart.lineNumber, reqStart.column, modelLineIndex, maxLineColumn), ownerId, filterOutValidation, onlyMinimapDecorations));
 					reqStart = null;
 				}
 			}
 		}
 
 		if (reqStart !== null) {
-			result = result.concat(this.model.getDecorationsInRange(new Range(reqStart.lineNumber, reqStart.column, modelEnd.lineNumber, modelEnd.column), ownerId, filterOutValidation));
+			result = result.concat(this.model.getDecorationsInRange(new Range(reqStart.lineNumber, reqStart.column, modelEnd.lineNumber, modelEnd.column), ownerId, filterOutValidation, onlyMinimapDecorations));
 			reqStart = null;
 		}
 
@@ -1065,8 +1082,8 @@ class CoordinatesConverter implements ICoordinatesConverter {
 
 	// Model -> View conversion and related methods
 
-	public convertModelPositionToViewPosition(modelPosition: Position, affinity?: PositionAffinity): Position {
-		return this._lines.convertModelPositionToViewPosition(modelPosition.lineNumber, modelPosition.column, affinity);
+	public convertModelPositionToViewPosition(modelPosition: Position, affinity?: PositionAffinity, allowZero?: boolean, belowHiddenRanges?: boolean): Position {
+		return this._lines.convertModelPositionToViewPosition(modelPosition.lineNumber, modelPosition.column, affinity, allowZero, belowHiddenRanges);
 	}
 
 	public convertModelRangeToViewRange(modelRange: Range, affinity?: PositionAffinity): Range {
@@ -1221,8 +1238,8 @@ export class ViewModelLinesFromModelAsIs implements IViewModelLines {
 		return result;
 	}
 
-	public getDecorationsInRange(range: Range, ownerId: number, filterOutValidation: boolean): IModelDecoration[] {
-		return this.model.getDecorationsInRange(range, ownerId, filterOutValidation);
+	public getDecorationsInRange(range: Range, ownerId: number, filterOutValidation: boolean, onlyMinimapDecorations: boolean, onlyMarginDecorations: boolean): IModelDecoration[] {
+		return this.model.getDecorationsInRange(range, ownerId, filterOutValidation, onlyMinimapDecorations, onlyMarginDecorations);
 	}
 
 	normalizePosition(position: Position, affinity: PositionAffinity): Position {

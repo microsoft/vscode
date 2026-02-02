@@ -7,12 +7,12 @@ import { EditorAction2 } from 'vs/editor/browser/editorExtensions';
 import { localize } from 'vs/nls';
 import { Action2, IAction2Options } from 'vs/platform/actions/common/actions';
 
-const defaultOptions: Partial<IAction2Options> = {
+const defaultOptions = {
 	category: {
 		value: localize('snippets', 'Snippets'),
 		original: 'Snippets'
 	},
-};
+} as const;
 
 export abstract class SnippetsAction extends Action2 {
 

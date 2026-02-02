@@ -321,6 +321,12 @@ suite('Preferences Validation', () => {
 			urls.rejects('hellohel').withMessage('err: must be friendly');
 			urls.accepts('hellohello');
 		}
+		{
+			const unicodePattern = new Tester({ type: 'string', pattern: '^[\\p{L}\\d_. -]*$', minLength: 3 });
+			unicodePattern.accepts('_autoload');
+			unicodePattern.rejects('#hash');
+			unicodePattern.rejects('');
+		}
 	});
 
 	test('custom error messages are shown', () => {
@@ -435,6 +441,13 @@ suite('Preferences Validation', () => {
 
 		arr.accepts(['hello']);
 		arr.rejects(['a']).withMessage(`Value 'a' must match regex`);
+	});
+
+	test('Unicode pattern', () => {
+		const arr = new ArrayTester({ type: 'array', items: { type: 'string', pattern: '^[\\p{L}\\d_. -]*$' } });
+
+		arr.accepts(['hello', 'world']);
+		arr.rejects(['hello', '#world']).withMessage(`Value '#world' must match regex`);
 	});
 
 	test('pattern with error message', () => {

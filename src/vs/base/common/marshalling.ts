@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { VSBuffer } from 'vs/base/common/buffer';
-import { regExpFlags } from 'vs/base/common/strings';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { MarshalledId } from './marshallingIds';
 
@@ -28,7 +27,7 @@ function replacer(key: string, value: any): any {
 		return {
 			$mid: MarshalledId.Regexp,
 			source: value.source,
-			flags: regExpFlags(value),
+			flags: value.flags,
 		};
 	}
 	return value;

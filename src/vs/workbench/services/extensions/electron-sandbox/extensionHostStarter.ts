@@ -6,4 +6,4 @@
 import { registerMainProcessRemoteService } from 'vs/platform/ipc/electron-sandbox/services';
 import { IExtensionHostStarter, ipcExtensionHostStarterChannelName } from 'vs/platform/extensions/common/extensionHostStarter';
 
-registerMainProcessRemoteService(IExtensionHostStarter, ipcExtensionHostStarterChannelName, { supportsDelayedInstantiation: true });
+registerMainProcessRemoteService(IExtensionHostStarter, ipcExtensionHostStarterChannelName);

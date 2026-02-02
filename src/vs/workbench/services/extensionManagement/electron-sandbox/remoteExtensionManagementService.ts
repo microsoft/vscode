@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
-import { Event } from 'vs/base/common/event';
 import { ILocalExtension, IGalleryExtension, IExtensionGalleryService, InstallOperation, InstallOptions, InstallVSIXOptions, ExtensionManagementError, ExtensionManagementErrorCode } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { URI } from 'vs/base/common/uri';
 import { ExtensionType, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
@@ -16,29 +15,33 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { localize } from 'vs/nls';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { generateUuid } from 'vs/base/common/uuid';
-import { joinPath } from 'vs/base/common/resources';
-import { IExtensionManagementServer, IProfileAwareExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
+import { IExtensionManagementServer } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { Promises } from 'vs/base/common/async';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
-import { ExtensionManagementChannelClient } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
+import { IFileService } from 'vs/platform/files/common/files';
+import { RemoteExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/remoteExtensionManagementService';
+import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { IRemoteUserDataProfilesService } from 'vs/workbench/services/userDataProfile/common/remoteUserDataProfiles';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 
-export class NativeRemoteExtensionManagementService extends ExtensionManagementChannelClient implements IProfileAwareExtensionManagementService {
-
-	readonly onDidChangeProfileExtensions = Event.None;
+export class NativeRemoteExtensionManagementService extends RemoteExtensionManagementService {
 
 	constructor(
 		channel: IChannel,
 		private readonly localExtensionManagementServer: IExtensionManagementServer,
+		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
+		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService,
+		@IRemoteUserDataProfilesService remoteUserDataProfilesService: IRemoteUserDataProfilesService,
+		@IUriIdentityService uriIdentityService: IUriIdentityService,
 		@ILogService private readonly logService: ILogService,
 		@IExtensionGalleryService private readonly galleryService: IExtensionGalleryService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IProductService private readonly productService: IProductService,
-		@INativeWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService,
+		@IFileService private readonly fileService: IFileService,
 		@IExtensionManifestPropertiesService private readonly extensionManifestPropertiesService: IExtensionManifestPropertiesService,
 	) {
-		super(channel);
+		super(channel, userDataProfileService, userDataProfilesService, remoteUserDataProfilesService, uriIdentityService);
 	}
 
 	override async install(vsix: URI, options?: InstallVSIXOptions): Promise<ILocalExtension> {
@@ -94,13 +97,20 @@ export class NativeRemoteExtensionManagementService extends ExtensionManagementC
 
 	private async downloadCompatibleAndInstall(extension: IGalleryExtension, installed: ILocalExtension[], installOptions: InstallOptions): Promise<ILocalExtension> {
 		const compatible = await this.checkAndGetCompatible(extension, !!installOptions.installPreReleaseVersion);
-		const location = joinPath(this.environmentService.tmpDir, generateUuid());
 		this.logService.trace('Downloading extension:', compatible.identifier.id);
-		await this.galleryService.download(compatible, location, installed.filter(i => areSameExtensions(i.identifier, compatible.identifier))[0] ? InstallOperation.Update : InstallOperation.Install);
+		const location = await this.localExtensionManagementServer.extensionManagementService.download(compatible, installed.filter(i => areSameExtensions(i.identifier, compatible.identifier))[0] ? InstallOperation.Update : InstallOperation.Install, !!installOptions.donotVerifySignature);
 		this.logService.info('Downloaded extension:', compatible.identifier.id, location.path);
-		const local = await super.install(location, installOptions);
-		this.logService.info(`Successfully installed '${compatible.identifier.id}' extension`);
-		return local;
+		try {
+			const local = await super.install(location, installOptions);
+			this.logService.info(`Successfully installed '${compatible.identifier.id}' extension`);
+			return local;
+		} finally {
+			try {
+				await this.fileService.del(location);
+			} catch (error) {
+				this.logService.error(error);
+			}
+		}
 	}
 
 	private async checkAndGetCompatible(extension: IGalleryExtension, includePreRelease: boolean): Promise<IGalleryExtension> {
@@ -119,11 +129,7 @@ export class NativeRemoteExtensionManagementService extends ExtensionManagementC
 			compatibleExtension = await this.galleryService.getCompatibleExtension(extension, includePreRelease, targetPlatform);
 		}
 
-		if (compatibleExtension) {
-			if (includePreRelease && !compatibleExtension.properties.isPreReleaseVersion && extension.hasPreReleaseVersion) {
-				throw new ExtensionManagementError(localize('notFoundCompatiblePrereleaseDependency', "Can't install pre-release version of '{0}' extension because it is not compatible with the current version of {1} (version {2}).", extension.identifier.id, this.productService.nameLong, this.productService.version), ExtensionManagementErrorCode.IncompatiblePreRelease);
-			}
-		} else {
+		if (!compatibleExtension) {
 			/** If no compatible release version is found, check if the extension has a release version or not and throw relevant error */
 			if (!includePreRelease && extension.properties.isPreReleaseVersion && (await this.galleryService.getExtensions([extension.identifier], CancellationToken.None))[0]) {
 				throw new ExtensionManagementError(localize('notFoundReleaseExtension', "Can't install release version of '{0}' extension because it has no release version.", extension.identifier.id), ExtensionManagementErrorCode.ReleaseVersionNotFound);

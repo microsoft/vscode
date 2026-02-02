@@ -1,0 +1,8 @@
+steps:
+  - template: ../distro/download-distro.yml
+
+  - script: node build/azure-pipelines/distro/mixin-quality
+    displayName: Mixin distro quality
+
+  - script: node .build/distro/cli-patches/index.js
+    displayName: Apply distro patches

@@ -4,14 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { InMemoryStorageService } from 'vs/platform/storage/common/storage';
 import { TestExplorerFilterState, TestFilterTerm } from 'vs/workbench/contrib/testing/common/testExplorerFilterState';
 
-
 suite('TestExplorerFilterState', () => {
 	let t: TestExplorerFilterState;
+	let ds: DisposableStore;
+
+	teardown(() => {
+		ds.dispose();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	setup(() => {
-		t = new TestExplorerFilterState(new InMemoryStorageService());
+		ds = new DisposableStore();
+		t = ds.add(new TestExplorerFilterState(ds.add(new InMemoryStorageService())));
 	});
 
 	const assertFilteringFor = (expected: { [T in TestFilterTerm]?: boolean }) => {

@@ -6,4 +6,5 @@
 .monaco-editor .goto-definition-link {
 	text-decoration: underline;
 	cursor: pointer;
+	color: var(--vscode-editorLink-activeForeground) !important;
 }

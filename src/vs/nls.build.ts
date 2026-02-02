@@ -16,6 +16,10 @@ export function localize(data: ILocalizeInfo | string, message: string, ...args:
 	throw new Error(`Not supported at build time!`);
 }
 
+export function localize2(data: ILocalizeInfo | string, message: string, ...args: (string | number | boolean | undefined | null)[]): never {
+	throw new Error(`Not supported at build time!`);
+}
+
 export function getConfiguredDefaultLocale(): string | undefined {
 	throw new Error(`Not supported at build time!`);
 }
@@ -25,7 +29,7 @@ export function getConfiguredDefaultLocale(): string | undefined {
  */
 export function load(name: string, req: AMDLoader.IRelativeRequire, load: AMDLoader.IPluginLoadCallback, config: AMDLoader.IConfigurationOptions): void {
 	if (!name || name.length === 0) {
-		load({ localize, getConfiguredDefaultLocale });
+		load({ localize, localize2, getConfiguredDefaultLocale });
 	} else {
 		req([name + '.nls', name + '.nls.keys'], function (messages: string[], keys: string[]) {
 			buildMap[name] = messages;

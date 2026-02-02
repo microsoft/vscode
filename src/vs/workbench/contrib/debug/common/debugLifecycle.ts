@@ -44,7 +44,7 @@ export class DebugLifecycle implements IWorkbenchContribution {
 		const res = await this.dialogService.confirm({
 			message,
 			type: 'warning',
-			primaryButton: nls.localize('debug.stop', "Stop Debugging")
+			primaryButton: nls.localize({ key: 'debug.stop', comment: ['&& denotes a mnemonic'] }, "&&Stop Debugging")
 		});
 		return !res.confirmed;
 	}

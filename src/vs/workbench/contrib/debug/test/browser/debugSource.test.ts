@@ -4,12 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { URI as uri } from 'vs/base/common/uri';
-import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
 import { isWindows } from 'vs/base/common/platform';
-import { mockUriIdentityService } from 'vs/workbench/contrib/debug/test/browser/mockDebug';
+import { URI as uri } from 'vs/base/common/uri';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { NullLogService } from 'vs/platform/log/common/log';
+import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
+import { mockUriIdentityService } from 'vs/workbench/contrib/debug/test/browser/mockDebugModel';
 
 suite('Debug - Source', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('from raw source', () => {
 		const source = new Source({
@@ -17,7 +21,7 @@ suite('Debug - Source', () => {
 			path: '/xx/yy/zz',
 			sourceReference: 0,
 			presentationHint: 'emphasize'
-		}, 'aDebugSessionId', mockUriIdentityService);
+		}, 'aDebugSessionId', mockUriIdentityService, new NullLogService());
 
 		assert.strictEqual(source.presentationHint, 'emphasize');
 		assert.strictEqual(source.name, 'zz');
@@ -31,7 +35,7 @@ suite('Debug - Source', () => {
 			name: 'internalModule.js',
 			sourceReference: 11,
 			presentationHint: 'deemphasize'
-		}, 'aDebugSessionId', mockUriIdentityService);
+		}, 'aDebugSessionId', mockUriIdentityService, new NullLogService());
 
 		assert.strictEqual(source.presentationHint, 'deemphasize');
 		assert.strictEqual(source.name, 'internalModule.js');

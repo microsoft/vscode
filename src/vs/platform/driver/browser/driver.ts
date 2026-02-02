@@ -6,10 +6,24 @@
 import { getClientArea, getTopLeftOffset } from 'vs/base/browser/dom';
 import { coalesce } from 'vs/base/common/arrays';
 import { language, locale } from 'vs/base/common/platform';
-import { IElement, ILocaleInfo, ILocalizedStrings, IWindowDriver } from 'vs/platform/driver/common/driver';
+import { IElement, ILocaleInfo, ILocalizedStrings, ILogFile, IWindowDriver } from 'vs/platform/driver/common/driver';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IFileService } from 'vs/platform/files/common/files';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import localizedStrings from 'vs/platform/languagePacks/common/localizedStrings';
+import { getLogs } from 'vs/platform/log/browser/log';
 
 export class BrowserWindowDriver implements IWindowDriver {
+
+	constructor(
+		@IFileService private readonly fileService: IFileService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService
+	) {
+	}
+
+	async getLogs(): Promise<ILogFile[]> {
+		return getLogs(this.fileService, this.environmentService);
+	}
 
 	async setValue(selector: string, text: string): Promise<void> {
 		const element = document.querySelector(selector);
@@ -23,10 +37,6 @@ export class BrowserWindowDriver implements IWindowDriver {
 
 		const event = new Event('input', { bubbles: true, cancelable: true });
 		inputElement.dispatchEvent(event);
-	}
-
-	async getTitle(): Promise<string> {
-		return document.title;
 	}
 
 	async isActiveElement(selector: string): Promise<boolean> {
@@ -198,19 +208,11 @@ export class BrowserWindowDriver implements IWindowDriver {
 		return { x, y };
 	}
 
-	click(selector: string, xoffset?: number, yoffset?: number): Promise<void> {
-
-		// This is actually not used in the playwright drivers
-		// that can implement `click` natively via the driver
-
-		throw new Error('Method not implemented.');
-	}
-
 	async exitApplication(): Promise<void> {
 		// No-op in web
 	}
 }
 
-export function registerWindowDriver(): void {
-	Object.assign(window, { driver: new BrowserWindowDriver() });
+export function registerWindowDriver(instantiationService: IInstantiationService): void {
+	Object.assign(window, { driver: instantiationService.createInstance(BrowserWindowDriver) });
 }

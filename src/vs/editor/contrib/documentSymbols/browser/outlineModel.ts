@@ -17,7 +17,7 @@ import { DocumentSymbol, DocumentSymbolProvider } from 'vs/editor/common/languag
 import { MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { IFeatureDebounceInformation, ILanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IModelService } from 'vs/editor/common/services/model';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
@@ -202,6 +202,7 @@ export class OutlineModel extends TreeElement {
 			const id = TreeElement.findId(`provider_${index}`, result);
 			const group = new OutlineGroup(id, result, provider.displayName ?? 'Unknown Outline Provider', index);
 
+
 			return Promise.resolve(provider.provideDocumentSymbols(textModel, cts.token)).then(result => {
 				for (const info of result || []) {
 					OutlineModel._makeOutlineElement(info, group);
@@ -233,7 +234,9 @@ export class OutlineModel extends TreeElement {
 				return result._compact();
 			}
 		}).finally(() => {
+			cts.dispose();
 			listener.dispose();
+			cts.dispose();
 		});
 	}
 
@@ -484,4 +487,4 @@ export class OutlineModelService implements IOutlineModelService {
 	}
 }
 
-registerSingleton(IOutlineModelService, OutlineModelService, true);
+registerSingleton(IOutlineModelService, OutlineModelService, InstantiationType.Delayed);

@@ -8,6 +8,7 @@ export { ProviderResult } from 'vscode';
 
 export interface API {
 	pickRemoteSource(options: PickRemoteSourceOptions): Promise<string | PickRemoteSourceResult | undefined>;
+	getRemoteSourceActions(url: string): Promise<RemoteSourceAction[]>;
 	registerRemoteSourceProvider(provider: RemoteSourceProvider): Disposable;
 }
 
@@ -31,9 +32,12 @@ export interface GitBaseExtension {
 
 export interface PickRemoteSourceOptions {
 	readonly providerLabel?: (provider: RemoteSourceProvider) => string;
-	readonly urlLabel?: string;
+	readonly urlLabel?: string | ((url: string) => string);
 	readonly providerName?: string;
+	readonly title?: string;
+	readonly placeholder?: string;
 	readonly branch?: boolean; // then result is PickRemoteSourceResult
+	readonly showRecentSources?: boolean;
 }
 
 export interface PickRemoteSourceResult {
@@ -41,10 +45,28 @@ export interface PickRemoteSourceResult {
 	readonly branch?: string;
 }
 
+export interface RemoteSourceAction {
+	readonly label: string;
+	/**
+	 * Codicon name
+	 */
+	readonly icon: string;
+	run(branch: string): void;
+}
+
 export interface RemoteSource {
 	readonly name: string;
 	readonly description?: string;
+	readonly detail?: string;
+	/**
+	 * Codicon name
+	 */
+	readonly icon?: string;
 	readonly url: string | string[];
+}
+
+export interface RecentRemoteSource extends RemoteSource {
+	readonly timestamp: number;
 }
 
 export interface RemoteSourceProvider {
@@ -53,8 +75,12 @@ export interface RemoteSourceProvider {
 	 * Codicon name
 	 */
 	readonly icon?: string;
+	readonly label?: string;
+	readonly placeholder?: string;
 	readonly supportsQuery?: boolean;
 
 	getBranches?(url: string): ProviderResult<string[]>;
+	getRemoteSourceActions?(url: string): ProviderResult<RemoteSourceAction[]>;
+	getRecentRemoteSources?(query?: string): ProviderResult<RecentRemoteSource[]>;
 	getRemoteSources(query?: string): ProviderResult<RemoteSource[]>;
 }

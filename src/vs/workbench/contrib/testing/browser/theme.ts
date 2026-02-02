@@ -5,9 +5,7 @@
 
 import { Color, RGBA } from 'vs/base/common/color';
 import { localize } from 'vs/nls';
-import { contrastBorder, editorErrorForeground, editorForeground, inputActiveOptionBackground, inputActiveOptionBorder, inputActiveOptionForeground, registerColor, transparent } from 'vs/platform/theme/common/colorRegistry';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { ACTIVITY_BAR_BADGE_BACKGROUND } from 'vs/workbench/common/theme';
+import { contrastBorder, editorErrorForeground, editorForeground, registerColor, transparent } from 'vs/platform/theme/common/colorRegistry';
 import { TestMessageType, TestResultState } from 'vs/workbench/contrib/testing/common/testTypes';
 
 export const testingColorIconFailed = registerColor('testing.iconFailed', {
@@ -113,31 +111,3 @@ export const testStatesToIconColors: { [K in TestResultState]?: string } = {
 	[TestResultState.Unset]: testingColorIconUnset,
 	[TestResultState.Skipped]: testingColorIconSkipped,
 };
-
-
-registerThemingParticipant((theme, collector) => {
-	//#region test states
-	for (const [state, { marginBackground }] of Object.entries(testMessageSeverityColors)) {
-		collector.addRule(`.monaco-editor .testing-inline-message-severity-${state} {
-			background: ${theme.getColor(marginBackground)};
-		}`);
-	}
-	//#endregion test states
-
-	//#region active buttons
-	const inputActiveOptionBorderColor = theme.getColor(inputActiveOptionBorder);
-	if (inputActiveOptionBorderColor) {
-		collector.addRule(`.testing-filter-action-item > .monaco-action-bar .testing-filter-button.checked { border-color: ${inputActiveOptionBorderColor}; }`);
-	}
-	const inputActiveOptionForegroundColor = theme.getColor(inputActiveOptionForeground);
-	if (inputActiveOptionForegroundColor) {
-		collector.addRule(`.testing-filter-action-item > .monaco-action-bar .testing-filter-button.checked { color: ${inputActiveOptionForegroundColor}; }`);
-	}
-	const inputActiveOptionBackgroundColor = theme.getColor(inputActiveOptionBackground);
-	if (inputActiveOptionBackgroundColor) {
-		collector.addRule(`.testing-filter-action-item > .monaco-action-bar .testing-filter-button.checked { background-color: ${inputActiveOptionBackgroundColor}; }`);
-	}
-	const badgeColor = theme.getColor(ACTIVITY_BAR_BADGE_BACKGROUND);
-	collector.addRule(`.monaco-workbench .part > .title > .title-actions .action-label.codicon-testing-autorun::after { background-color: ${badgeColor}; }`);
-	//#endregion
-});

@@ -9,6 +9,7 @@ import { ITerminalProfile, ProfileSource } from 'vs/platform/terminal/common/ter
 import { ITerminalConfiguration, ITerminalProfiles } from 'vs/workbench/contrib/terminal/common/terminal';
 import { detectAvailableProfiles, IFsProvider } from 'vs/platform/terminal/node/terminalProfiles';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 /**
  * Assets that two profiles objects are equal, this will treat explicit undefined and unset
@@ -28,6 +29,8 @@ function profilesEqual(actualProfiles: ITerminalProfile[], expectedProfiles: ITe
 }
 
 suite('Workbench - TerminalProfiles', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	suite('detectAvailableProfiles', () => {
 		if (isWindows) {
 			test('should detect Git Bash and provide login args', async () => {
@@ -47,7 +50,7 @@ suite('Workbench - TerminalProfiles', () => {
 				const configurationService = new TestConfigurationService({ terminal: { integrated: config } });
 				const profiles = await detectAvailableProfiles(undefined, undefined, false, configurationService, process.env, fsProvider, undefined, undefined, undefined);
 				const expected = [
-					{ profileName: 'Git Bash', path: 'C:\\Program Files\\Git\\bin\\bash.exe', args: ['--login'], isDefault: true }
+					{ profileName: 'Git Bash', path: 'C:\\Program Files\\Git\\bin\\bash.exe', args: ['--login', '-i'], isDefault: true }
 				];
 				profilesEqual(profiles, expected);
 			});
@@ -92,7 +95,7 @@ suite('Workbench - TerminalProfiles', () => {
 				const expected = [{ profileName: 'Git Bash', path: 'C:\\Program Files\\Git\\bin\\bash.exe', args: [], isAutoDetected: undefined, overrideName: undefined, isDefault: true }];
 				profilesEqual(profiles, expected);
 			});
-			suite('pwsh source detection/fallback', async () => {
+			suite('pwsh source detection/fallback', () => {
 				const pwshSourceConfig = ({
 					profiles: {
 						windows: {

@@ -9,7 +9,7 @@ import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { setupInstantiationService, withTestNotebook as _withTestNotebook } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
 import { Emitter, Event } from 'vs/base/common/event';
 import { INotebookKernel, INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
-import { NotebookKernelService } from 'vs/workbench/contrib/notebook/browser/notebookKernelServiceImpl';
+import { NotebookKernelService } from 'vs/workbench/contrib/notebook/browser/services/notebookKernelServiceImpl';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { mock } from 'vs/base/test/common/mock';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
@@ -17,6 +17,8 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { IMenu, IMenuService } from 'vs/platform/actions/common/actions';
+import { TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('NotebookKernelService', () => {
 
@@ -25,6 +27,11 @@ suite('NotebookKernelService', () => {
 	let disposables: DisposableStore;
 
 	let onDidAddNotebookDocument: Emitter<NotebookTextModel>;
+	teardown(() => {
+		disposables.dispose();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	setup(function () {
 		disposables = new DisposableStore();
@@ -47,12 +54,8 @@ suite('NotebookKernelService', () => {
 				};
 			}
 		});
-		kernelService = instantiationService.createInstance(NotebookKernelService);
+		kernelService = disposables.add(instantiationService.createInstance(NotebookKernelService));
 		instantiationService.set(INotebookKernelService, kernelService);
-	});
-
-	teardown(() => {
-		disposables.dispose();
 	});
 
 	test('notebook priorities', function () {
@@ -63,8 +66,8 @@ suite('NotebookKernelService', () => {
 		const k1 = new TestNotebookKernel({ label: 'z' });
 		const k2 = new TestNotebookKernel({ label: 'a' });
 
-		kernelService.registerKernel(k1);
-		kernelService.registerKernel(k2);
+		disposables.add(kernelService.registerKernel(k1));
+		disposables.add(kernelService.registerKernel(k2));
 
 		// equal priorities -> sort by name
 		let info = kernelService.getMatchingKernel({ uri: u1, viewType: 'foo' });
@@ -96,14 +99,14 @@ suite('NotebookKernelService', () => {
 		const notebook = URI.parse('foo:///one');
 
 		const kernel = new TestNotebookKernel();
-		kernelService.registerKernel(kernel);
+		disposables.add(kernelService.registerKernel(kernel));
 
 		let info = kernelService.getMatchingKernel({ uri: notebook, viewType: 'foo' });
 		assert.strictEqual(info.all.length, 1);
 		assert.ok(info.all[0] === kernel);
 
 		const betterKernel = new TestNotebookKernel();
-		kernelService.registerKernel(betterKernel);
+		disposables.add(kernelService.registerKernel(betterKernel));
 
 		info = kernelService.getMatchingKernel({ uri: notebook, viewType: 'foo' });
 		assert.strictEqual(info.all.length, 2);
@@ -123,8 +126,8 @@ suite('NotebookKernelService', () => {
 
 		const jupyterKernel = new TestNotebookKernel({ viewType: jupyter.viewType });
 		const dotnetKernel = new TestNotebookKernel({ viewType: dotnet.viewType });
-		kernelService.registerKernel(jupyterKernel);
-		kernelService.registerKernel(dotnetKernel);
+		disposables.add(kernelService.registerKernel(jupyterKernel));
+		disposables.add(kernelService.registerKernel(dotnetKernel));
 
 		kernelService.selectKernelForNotebook(jupyterKernel, jupyter);
 		kernelService.selectKernelForNotebook(dotnetKernel, dotnet);
@@ -144,16 +147,23 @@ suite('NotebookKernelService', () => {
 
 		const jupyterKernel = new TestNotebookKernel({ viewType: jupyter.viewType });
 		const dotnetKernel = new TestNotebookKernel({ viewType: dotnet.viewType });
-		kernelService.registerKernel(jupyterKernel);
-		kernelService.registerKernel(dotnetKernel);
+		disposables.add(kernelService.registerKernel(jupyterKernel));
+		disposables.add(kernelService.registerKernel(dotnetKernel));
 
 		kernelService.selectKernelForNotebook(jupyterKernel, jupyter);
 		kernelService.selectKernelForNotebook(dotnetKernel, dotnet);
 
+		const transientOptions: TransientOptions = {
+			transientOutputs: false,
+			transientCellMetadata: {},
+			transientDocumentMetadata: {},
+			cellContentMetadata: {},
+		};
+
 		{
 			// open as jupyter -> bind event
 			const p1 = Event.toPromise(kernelService.onDidChangeSelectedNotebooks);
-			const d1 = instantiationService.createInstance(NotebookTextModel, jupyter.viewType, jupyter.uri, [], {}, {});
+			const d1 = disposables.add(instantiationService.createInstance(NotebookTextModel, jupyter.viewType, jupyter.uri, [], {}, transientOptions));
 			onDidAddNotebookDocument.fire(d1);
 			const event = await p1;
 			assert.strictEqual(event.newKernel, jupyterKernel.id);
@@ -161,7 +171,7 @@ suite('NotebookKernelService', () => {
 		{
 			// RE-open as dotnet -> bind event
 			const p2 = Event.toPromise(kernelService.onDidChangeSelectedNotebooks);
-			const d2 = instantiationService.createInstance(NotebookTextModel, dotnet.viewType, dotnet.uri, [], {}, {});
+			const d2 = disposables.add(instantiationService.createInstance(NotebookTextModel, dotnet.viewType, dotnet.uri, [], {}, transientOptions));
 			onDidAddNotebookDocument.fire(d2);
 			const event2 = await p2;
 			assert.strictEqual(event2.newKernel, dotnetKernel.id);

@@ -6,9 +6,11 @@
 import * as assert from 'assert';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { UTF8_BOM_CHARACTER } from 'vs/base/common/strings';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
+import { EndOfLinePreference } from 'vs/editor/common/model';
 import { TextModel, createTextBuffer } from 'vs/editor/common/model/textModel';
 import { createModelServices, createTextModel } from 'vs/editor/test/common/testTextModel';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -71,6 +73,8 @@ function assertGuess(expectedInsertSpaces: boolean | undefined, expectedTabSize:
 
 suite('TextModelData.fromString', () => {
 
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	interface ITextBufferData {
 		EOL: string;
 		lines: string[];
@@ -79,7 +83,7 @@ suite('TextModelData.fromString', () => {
 	}
 
 	function testTextModelDataFromString(text: string, expected: ITextBufferData): void {
-		const textBuffer = createTextBuffer(text, TextModel.DEFAULT_CREATION_OPTIONS.defaultEOL).textBuffer;
+		const { textBuffer, disposable } = createTextBuffer(text, TextModel.DEFAULT_CREATION_OPTIONS.defaultEOL);
 		const actual: ITextBufferData = {
 			EOL: textBuffer.getEOL(),
 			lines: textBuffer.getLinesContent(),
@@ -87,6 +91,7 @@ suite('TextModelData.fromString', () => {
 			isBasicASCII: !textBuffer.mightContainNonBasicASCII()
 		};
 		assert.deepStrictEqual(actual, expected);
+		disposable.dispose();
 	}
 
 	test('one line text', () => {
@@ -165,6 +170,8 @@ suite('TextModelData.fromString', () => {
 
 suite('Editor Model - TextModel', () => {
 
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('TextModel does not use events internally', () => {
 		// Make sure that all model parts receive text model events explicitly
 		// to avoid that by any chance an outside listener receives events before
@@ -207,6 +214,27 @@ suite('Editor Model - TextModel', () => {
 		assert.strictEqual(m.getValueLengthInRange(new Range(1, 2, 3, 1)), 'y First Line\nMy Second Line\n'.length);
 		assert.strictEqual(m.getValueLengthInRange(new Range(1, 2, 3, 1000)), 'y First Line\nMy Second Line\nMy Third Line'.length);
 		assert.strictEqual(m.getValueLengthInRange(new Range(1, 1, 1000, 1000)), 'My First Line\nMy Second Line\nMy Third Line'.length);
+		m.dispose();
+	});
+
+	test('getValueLengthInRange different EOL', () => {
+
+		let m = createTextModel('My First Line\r\nMy Second Line\r\nMy Third Line');
+		assert.strictEqual(m.getValueLengthInRange(new Range(1, 1, 2, 1), EndOfLinePreference.TextDefined), 'My First Line\r\n'.length);
+		assert.strictEqual(m.getValueLengthInRange(new Range(1, 1, 2, 1), EndOfLinePreference.CRLF), 'My First Line\r\n'.length);
+		assert.strictEqual(m.getValueLengthInRange(new Range(1, 1, 2, 1), EndOfLinePreference.LF), 'My First Line\n'.length);
+		assert.strictEqual(m.getValueLengthInRange(new Range(1, 1, 1000, 1000), EndOfLinePreference.TextDefined), 'My First Line\r\nMy Second Line\r\nMy Third Line'.length);
+		assert.strictEqual(m.getValueLengthInRange(new Range(1, 1, 1000, 1000), EndOfLinePreference.CRLF), 'My First Line\r\nMy Second Line\r\nMy Third Line'.length);
+		assert.strictEqual(m.getValueLengthInRange(new Range(1, 1, 1000, 1000), EndOfLinePreference.LF), 'My First Line\nMy Second Line\nMy Third Line'.length);
+		m.dispose();
+
+		m = createTextModel('My First Line\nMy Second Line\nMy Third Line');
+		assert.strictEqual(m.getValueLengthInRange(new Range(1, 1, 2, 1), EndOfLinePreference.TextDefined), 'My First Line\n'.length);
+		assert.strictEqual(m.getValueLengthInRange(new Range(1, 1, 2, 1), EndOfLinePreference.LF), 'My First Line\n'.length);
+		assert.strictEqual(m.getValueLengthInRange(new Range(1, 1, 2, 1), EndOfLinePreference.CRLF), 'My First Line\r\n'.length);
+		assert.strictEqual(m.getValueLengthInRange(new Range(1, 1, 1000, 1000), EndOfLinePreference.TextDefined), 'My First Line\nMy Second Line\nMy Third Line'.length);
+		assert.strictEqual(m.getValueLengthInRange(new Range(1, 1, 1000, 1000), EndOfLinePreference.LF), 'My First Line\nMy Second Line\nMy Third Line'.length);
+		assert.strictEqual(m.getValueLengthInRange(new Range(1, 1, 1000, 1000), EndOfLinePreference.CRLF), 'My First Line\r\nMy Second Line\r\nMy Third Line'.length);
 		m.dispose();
 	});
 
@@ -1024,9 +1052,28 @@ suite('Editor Model - TextModel', () => {
 		assert.strictEqual(m.getValueInRange(new Range(NaN, NaN, NaN, NaN)), '');
 		m.dispose();
 	});
+
+	test('issue #168836: updating tabSize should also update indentSize when indentSize is set to "tabSize"', () => {
+		const m = createTextModel('some text', null, {
+			tabSize: 2,
+			indentSize: 'tabSize'
+		});
+		assert.strictEqual(m.getOptions().tabSize, 2);
+		assert.strictEqual(m.getOptions().indentSize, 2);
+		assert.strictEqual(m.getOptions().originalIndentSize, 'tabSize');
+		m.updateOptions({
+			tabSize: 4
+		});
+		assert.strictEqual(m.getOptions().tabSize, 4);
+		assert.strictEqual(m.getOptions().indentSize, 4);
+		assert.strictEqual(m.getOptions().originalIndentSize, 'tabSize');
+		m.dispose();
+	});
 });
 
 suite('TextModel.mightContainRTL', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('nope', () => {
 		const model = createTextModel('hello world!');
@@ -1059,6 +1106,8 @@ suite('TextModel.mightContainRTL', () => {
 });
 
 suite('TextModel.createSnapshot', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('empty file', () => {
 		const model = createTextModel('');

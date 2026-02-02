@@ -12,11 +12,6 @@ export const IJSONEditingService = createDecorator<IJSONEditingService>('jsonEdi
 export const enum JSONEditingErrorCode {
 
 	/**
-	 * Error when trying to write and save to the file while it is dirty in the editor.
-	 */
-	ERROR_FILE_DIRTY,
-
-	/**
 	 * Error when trying to write to a file that contains JSON errors.
 	 */
 	ERROR_INVALID_FILE

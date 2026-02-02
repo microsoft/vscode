@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DEFAULT_EDITOR_ASSOCIATION, GroupIdentifier, IRevertOptions, IUntypedEditorInput } from 'vs/workbench/common/editor';
+import { DEFAULT_EDITOR_ASSOCIATION, GroupIdentifier, IRevertOptions, isResourceEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { AbstractResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { URI } from 'vs/base/common/uri';
@@ -17,6 +17,7 @@ import { ITextEditorModel, ITextModelService } from 'vs/editor/common/services/r
 import { TextResourceEditorModel } from 'vs/workbench/common/editor/textResourceEditorModel';
 import { IReference } from 'vs/base/common/lifecycle';
 import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
+import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 
 /**
  * The base class for all editor inputs that open in text editors.
@@ -29,9 +30,10 @@ export abstract class AbstractTextResourceEditorInput extends AbstractResourceEd
 		@IEditorService protected readonly editorService: IEditorService,
 		@ITextFileService protected readonly textFileService: ITextFileService,
 		@ILabelService labelService: ILabelService,
-		@IFileService fileService: IFileService
+		@IFileService fileService: IFileService,
+		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService
 	) {
-		super(resource, preferredResource, labelService, fileService);
+		super(resource, preferredResource, labelService, fileService, filesConfigurationService);
 	}
 
 	override save(group: GroupIdentifier, options?: ITextFileSaveOptions): Promise<IUntypedEditorInput | undefined> {
@@ -101,9 +103,10 @@ export class TextResourceEditorInput extends AbstractTextResourceEditorInput imp
 		@ITextFileService textFileService: ITextFileService,
 		@IEditorService editorService: IEditorService,
 		@IFileService fileService: IFileService,
-		@ILabelService labelService: ILabelService
+		@ILabelService labelService: ILabelService,
+		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService
 	) {
-		super(resource, undefined, editorService, textFileService, labelService, fileService);
+		super(resource, undefined, editorService, textFileService, labelService, fileService, filesConfigurationService);
 	}
 
 	override getName(): string {
@@ -130,10 +133,10 @@ export class TextResourceEditorInput extends AbstractTextResourceEditorInput imp
 		}
 	}
 
-	setLanguageId(languageId: string): void {
+	setLanguageId(languageId: string, source?: string): void {
 		this.setPreferredLanguageId(languageId);
 
-		this.cachedModel?.setLanguageId(languageId);
+		this.cachedModel?.setLanguageId(languageId, source);
 	}
 
 	setPreferredLanguageId(languageId: string): void {
@@ -182,12 +185,16 @@ export class TextResourceEditorInput extends AbstractTextResourceEditorInput imp
 	}
 
 	override matches(otherInput: EditorInput | IUntypedEditorInput): boolean {
-		if (super.matches(otherInput)) {
+		if (this === otherInput) {
 			return true;
 		}
 
 		if (otherInput instanceof TextResourceEditorInput) {
 			return isEqual(otherInput.resource, this.resource);
+		}
+
+		if (isResourceEditorInput(otherInput)) {
+			return super.matches(otherInput);
 		}
 
 		return false;

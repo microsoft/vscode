@@ -6,7 +6,7 @@
 import { spawn as _spawn } from 'child_process';
 import { readdirSync, readFileSync } from 'fs';
 import { join } from 'path';
-import url from 'url'
+import url from 'url';
 
 async function spawn(cmd, args, opts) {
 	return new Promise((c, e) => {
@@ -20,7 +20,7 @@ async function main() {
 
 	for (const extension of readdirSync('extensions')) {
 		try {
-			let packageJSON = JSON.parse(readFileSync(join('extensions', extension, 'package.json')).toString());
+			const packageJSON = JSON.parse(readFileSync(join('extensions', extension, 'package.json')).toString());
 			if (!(packageJSON && packageJSON.scripts && packageJSON.scripts['update-grammar'])) {
 				continue;
 			}

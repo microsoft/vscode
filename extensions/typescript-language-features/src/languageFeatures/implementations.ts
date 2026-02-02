@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { DocumentSelector } from '../configuration/documentSelector';
 import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService';
-import { conditionalRegistration, requireSomeCapability } from '../utils/dependentRegistration';
-import { DocumentSelector } from '../utils/documentSelector';
 import DefinitionProviderBase from './definitionProviderBase';
+import { conditionalRegistration, requireSomeCapability } from './util/dependentRegistration';
 
 class TypeScriptImplementationProvider extends DefinitionProviderBase implements vscode.ImplementationProvider {
 	public provideImplementation(document: vscode.TextDocument, position: vscode.Position, token: vscode.CancellationToken): Promise<vscode.Definition | undefined> {

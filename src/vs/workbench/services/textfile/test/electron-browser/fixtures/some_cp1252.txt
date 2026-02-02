@@ -1,3 +1,0 @@
-ObjectCount = LoadObjects("Öffentlicher Ordner");
-
-Private = "Persönliche Information"

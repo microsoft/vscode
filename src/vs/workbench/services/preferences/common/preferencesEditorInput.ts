@@ -11,12 +11,6 @@ import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { Settings2EditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
 
-export interface IKeybindingsEditorSearchOptions {
-	searchValue: string;
-	recordKeybindings: boolean;
-	sortByPrecedence: boolean;
-}
-
 export class SettingsEditor2Input extends EditorInput {
 
 	static readonly ID: string = 'workbench.input.settings2';

@@ -11,13 +11,13 @@ export class ReloadPlugins implements Command {
 	public readonly id = 'markdown.api.reloadPlugins';
 
 	public constructor(
-		private readonly webviewManager: MarkdownPreviewManager,
-		private readonly engine: MarkdownItEngine,
+		private readonly _webviewManager: MarkdownPreviewManager,
+		private readonly _engine: MarkdownItEngine,
 	) { }
 
 	public execute(): void {
-		this.engine.reloadPlugins();
-		this.engine.cleanCache();
-		this.webviewManager.refresh();
+		this._engine.reloadPlugins();
+		this._engine.cleanCache();
+		this._webviewManager.refresh();
 	}
 }

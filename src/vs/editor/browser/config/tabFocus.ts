@@ -7,7 +7,6 @@ import { Emitter, Event } from 'vs/base/common/event';
 
 class TabFocusImpl {
 	private _tabFocus: boolean = false;
-
 	private readonly _onDidChangeTabFocus = new Emitter<boolean>();
 	public readonly onDidChangeTabFocus: Event<boolean> = this._onDidChangeTabFocus.event;
 
@@ -16,10 +15,6 @@ class TabFocusImpl {
 	}
 
 	public setTabFocusMode(tabFocusMode: boolean): void {
-		if (this._tabFocus === tabFocusMode) {
-			return;
-		}
-
 		this._tabFocus = tabFocusMode;
 		this._onDidChangeTabFocus.fire(this._tabFocus);
 	}

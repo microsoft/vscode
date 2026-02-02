@@ -15,7 +15,8 @@
 	position: relative;
 }
 
-.monaco-pane-view .pane > .pane-header > .actions.show {
+.monaco-pane-view .pane > .pane-header > .actions.show-always,
+.monaco-pane-view .pane.expanded > .pane-header > .actions.show-expanded {
 	display: initial;
 }
 

@@ -6,12 +6,14 @@
 import { createConnection, BrowserMessageReader, BrowserMessageWriter, Disposable } from 'vscode-languageserver/browser';
 import { RuntimeEnvironment, startServer } from '../jsonServer';
 
-declare let self: any;
 
 const messageReader = new BrowserMessageReader(self);
 const messageWriter = new BrowserMessageWriter(self);
 
 const connection = createConnection(messageReader, messageWriter);
+
+console.log = connection.console.log.bind(connection.console);
+console.error = connection.console.error.bind(connection.console);
 
 const runtime: RuntimeEnvironment = {
 	timer: {

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as sinon from 'sinon';
-import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { InstantiationService, Trace } from 'vs/platform/instantiation/common/instantiationService';
@@ -17,18 +17,18 @@ interface IServiceMock<T> {
 
 const isSinonSpyLike = (fn: Function): fn is sinon.SinonSpy => fn && 'callCount' in fn;
 
-export class TestInstantiationService extends InstantiationService {
+export class TestInstantiationService extends InstantiationService implements IDisposable {
 
 	private _servciesMap: Map<ServiceIdentifier<any>, any>;
 
-	constructor(private _serviceCollection: ServiceCollection = new ServiceCollection(), strict: boolean = false) {
-		super(_serviceCollection, strict);
+	constructor(private _serviceCollection: ServiceCollection = new ServiceCollection(), strict: boolean = false, parent?: TestInstantiationService) {
+		super(_serviceCollection, strict, parent);
 
 		this._servciesMap = new Map<ServiceIdentifier<any>, any>();
 	}
 
 	public get<T>(service: ServiceIdentifier<T>): T {
-		return super._getOrCreateServiceInstance(service, Trace.traceCreation(TestInstantiationService));
+		return super._getOrCreateServiceInstance(service, Trace.traceCreation(false, TestInstantiationService));
 	}
 
 	public set<T>(service: ServiceIdentifier<T>, instance: T): T {
@@ -125,6 +125,14 @@ export class TestInstantiationService extends InstantiationService {
 	private isServiceMock(arg1: any): boolean {
 		return typeof arg1 === 'object' && arg1.hasOwnProperty('id');
 	}
+
+	override createChild(services: ServiceCollection): TestInstantiationService {
+		return new TestInstantiationService(services, false, this);
+	}
+
+	dispose() {
+		sinon.restore();
+	}
 }
 
 interface SinonOptions {
@@ -153,7 +161,7 @@ export function createServices(disposables: DisposableStore, services: ServiceId
 		define(id, ctor);
 	}
 
-	const instantiationService = new TestInstantiationService(serviceCollection, true);
+	const instantiationService = disposables.add(new TestInstantiationService(serviceCollection, true));
 	disposables.add(toDisposable(() => {
 		for (const id of serviceIdentifiers) {
 			const instanceOrDescriptor = serviceCollection.get(id);

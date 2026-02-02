@@ -82,7 +82,7 @@ flakySuite('IndexedDBFileSystemProvider', function () {
 
 	test('root is always present', async () => {
 		assert.strictEqual((await userdataFileProvider.stat(userdataURIFromPaths([]))).type, FileType.Directory);
-		await userdataFileProvider.delete(userdataURIFromPaths([]), { recursive: true, useTrash: false });
+		await userdataFileProvider.delete(userdataURIFromPaths([]), { recursive: true, useTrash: false, atomic: false });
 		assert.strictEqual((await userdataFileProvider.stat(userdataURIFromPaths([]))).type, FileType.Directory);
 	});
 
@@ -230,7 +230,7 @@ flakySuite('IndexedDBFileSystemProvider', function () {
 		let creationPromises: Promise<any> | undefined = undefined;
 		return {
 			async create() {
-				return creationPromises = Promise.all(batch.map(entry => userdataFileProvider.writeFile(entry.resource, VSBuffer.fromString(entry.contents).buffer, { create: true, overwrite: true, unlock: false })));
+				return creationPromises = Promise.all(batch.map(entry => userdataFileProvider.writeFile(entry.resource, VSBuffer.fromString(entry.contents).buffer, { create: true, overwrite: true, unlock: false, atomic: false })));
 			},
 			async assertContentsCorrect() {
 				if (!creationPromises) { throw Error('read called before create'); }

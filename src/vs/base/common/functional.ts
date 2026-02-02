@@ -3,7 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export function once<T extends Function>(this: unknown, fn: T): T {
+/**
+ * Given a function, returns a function that is only calling that function once.
+ */
+export function createSingleCallFunction<T extends Function>(this: unknown, fn: T): T {
 	const _this = this;
 	let didCall = false;
 	let result: unknown;

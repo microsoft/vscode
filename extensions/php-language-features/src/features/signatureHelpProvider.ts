@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { SignatureHelpProvider, SignatureHelp, SignatureInformation, CancellationToken, TextDocument, Position, workspace } from 'vscode';
-import phpGlobals = require('./phpGlobals');
-import phpGlobalFunctions = require('./phpGlobalFunctions');
+import * as phpGlobals from './phpGlobals';
+import * as phpGlobalFunctions from './phpGlobalFunctions';
 
 const _NL = '\n'.charCodeAt(0);
 const _TAB = '\t'.charCodeAt(0);

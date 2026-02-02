@@ -8,6 +8,8 @@ import { IIdentityProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list
 import { AsyncDataTree } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { IAsyncDataSource, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
 import { timeout } from 'vs/base/common/async';
+import { Iterable } from 'vs/base/common/iterator';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 interface Element {
 	id: string;
@@ -85,6 +87,8 @@ class Model {
 
 suite('AsyncDataTree', function () {
 
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('Collapse state should be preserved across refresh calls', async () => {
 		const container = document.createElement('div');
 
@@ -95,7 +99,7 @@ suite('AsyncDataTree', function () {
 			}]
 		});
 
-		const tree = new AsyncDataTree<Element, Element>('test', container, new VirtualDelegate(), [new Renderer()], new DataSource(), { identityProvider: new IdentityProvider() });
+		const tree = store.add(new AsyncDataTree<Element, Element>('test', container, new VirtualDelegate(), [new Renderer()], new DataSource(), { identityProvider: new IdentityProvider() }));
 		tree.layout(200);
 		assert.strictEqual(container.querySelectorAll('.monaco-list-row').length, 0);
 
@@ -143,7 +147,7 @@ suite('AsyncDataTree', function () {
 			}]
 		});
 
-		const tree = new AsyncDataTree<Element, Element>('test', container, new VirtualDelegate(), [new Renderer()], dataSource, { identityProvider: new IdentityProvider() });
+		const tree = store.add(new AsyncDataTree<Element, Element>('test', container, new VirtualDelegate(), [new Renderer()], dataSource, { identityProvider: new IdentityProvider() }));
 		tree.layout(200);
 
 		await tree.setInput(model.root);
@@ -203,7 +207,7 @@ suite('AsyncDataTree', function () {
 			}]
 		});
 
-		const tree = new AsyncDataTree<Element, Element>('test', container, new VirtualDelegate(), [new Renderer()], dataSource, { identityProvider: new IdentityProvider() });
+		const tree = store.add(new AsyncDataTree<Element, Element>('test', container, new VirtualDelegate(), [new Renderer()], dataSource, { identityProvider: new IdentityProvider() }));
 		tree.layout(200);
 
 		await tree.setInput(model.root);
@@ -233,7 +237,7 @@ suite('AsyncDataTree', function () {
 			}]
 		});
 
-		const tree = new AsyncDataTree<Element, Element>('test', container, new VirtualDelegate(), [new Renderer()], new DataSource(), { identityProvider: new IdentityProvider() });
+		const tree = store.add(new AsyncDataTree<Element, Element>('test', container, new VirtualDelegate(), [new Renderer()], new DataSource(), { identityProvider: new IdentityProvider() }));
 		tree.layout(200);
 
 		await tree.setInput(model.root);
@@ -275,9 +279,9 @@ suite('AsyncDataTree', function () {
 			}]
 		});
 
-		const tree = new AsyncDataTree<Element, Element>('test', container, new VirtualDelegate(), [new Renderer()], dataSource, {
+		const tree = store.add(new AsyncDataTree<Element, Element>('test', container, new VirtualDelegate(), [new Renderer()], dataSource, {
 			collapseByDefault: el => el.id !== 'a'
-		});
+		}));
 		tree.layout(200);
 
 		await tree.setInput(model.root);
@@ -307,7 +311,7 @@ suite('AsyncDataTree', function () {
 			}]
 		});
 
-		const tree = new AsyncDataTree<Element, Element>('test', container, new VirtualDelegate(), [new Renderer()], dataSource, { identityProvider: new IdentityProvider() });
+		const tree = store.add(new AsyncDataTree<Element, Element>('test', container, new VirtualDelegate(), [new Renderer()], dataSource, { identityProvider: new IdentityProvider() }));
 		tree.layout(200);
 
 		const pSetInput = tree.setInput(model.root);
@@ -350,7 +354,7 @@ suite('AsyncDataTree', function () {
 			}]
 		});
 
-		const tree = new AsyncDataTree<Element, Element>('test', container, new VirtualDelegate(), [new Renderer()], dataSource, { identityProvider: new IdentityProvider() });
+		const tree = store.add(new AsyncDataTree<Element, Element>('test', container, new VirtualDelegate(), [new Renderer()], dataSource, { identityProvider: new IdentityProvider() }));
 		tree.layout(200);
 
 		const pSetInput = tree.setInput(model.root);
@@ -379,7 +383,7 @@ suite('AsyncDataTree', function () {
 			}]
 		});
 
-		const tree = new AsyncDataTree<Element, Element>('test', container, new VirtualDelegate(), [new Renderer()], new DataSource(), { identityProvider: new IdentityProvider() });
+		const tree = store.add(new AsyncDataTree<Element, Element>('test', container, new VirtualDelegate(), [new Renderer()], new DataSource(), { identityProvider: new IdentityProvider() }));
 		tree.layout(200);
 
 		await tree.setInput(model.root);
@@ -417,7 +421,7 @@ suite('AsyncDataTree', function () {
 			}]
 		});
 
-		const tree = new AsyncDataTree<Element, Element>('test', container, new VirtualDelegate(), [new Renderer()], new DataSource(), { identityProvider: new IdentityProvider() });
+		const tree = store.add(new AsyncDataTree<Element, Element>('test', container, new VirtualDelegate(), [new Renderer()], new DataSource(), { identityProvider: new IdentityProvider() }));
 		tree.layout(200);
 
 		await tree.setInput(model.root);
@@ -434,5 +438,61 @@ suite('AsyncDataTree', function () {
 		]);
 
 		assert.deepStrictEqual(Array.from(container.querySelectorAll('.monaco-list-row')).map(e => e.textContent), ['a', 'b2']);
+	});
+
+	test('issue #121567', async () => {
+		const container = document.createElement('div');
+
+		const calls: Element[] = [];
+		const dataSource = new class implements IAsyncDataSource<Element, Element> {
+			hasChildren(element: Element): boolean {
+				return !!element.children && element.children.length > 0;
+			}
+			async getChildren(element: Element) {
+				calls.push(element);
+				return element.children ?? Iterable.empty();
+			}
+		};
+
+		const model = new Model({
+			id: 'root',
+			children: [{
+				id: 'a', children: [{
+					id: 'aa'
+				}]
+			}]
+		});
+		const a = model.get('a');
+
+		const tree = store.add(new AsyncDataTree<Element, Element>('test', container, new VirtualDelegate(), [new Renderer()], dataSource, { identityProvider: new IdentityProvider() }));
+		tree.layout(200);
+
+		await tree.setInput(model.root);
+		assert.strictEqual(calls.length, 1, 'There should be a single getChildren call for the root');
+		assert(tree.isCollapsible(a), 'a is collapsible');
+		assert(tree.isCollapsed(a), 'a is collapsed');
+
+		await tree.updateChildren(a, false);
+		assert.strictEqual(calls.length, 1, 'There should be no changes to the calls list, since a was collapsed');
+		assert(tree.isCollapsible(a), 'a is collapsible');
+		assert(tree.isCollapsed(a), 'a is collapsed');
+
+		const children = a.children;
+		a.children = [];
+		await tree.updateChildren(a, false);
+		assert.strictEqual(calls.length, 1, 'There should still be no changes to the calls list, since a was collapsed');
+		assert(!tree.isCollapsible(a), 'a is no longer collapsible');
+		assert(tree.isCollapsed(a), 'a is collapsed');
+
+		a.children = children;
+		await tree.updateChildren(a, false);
+		assert.strictEqual(calls.length, 1, 'There should still be no changes to the calls list, since a was collapsed');
+		assert(tree.isCollapsible(a), 'a is collapsible again');
+		assert(tree.isCollapsed(a), 'a is collapsed');
+
+		await tree.expand(a);
+		assert.strictEqual(calls.length, 2, 'Finally, there should be a getChildren call for a');
+		assert(tree.isCollapsible(a), 'a is still collapsible');
+		assert(!tree.isCollapsed(a), 'a is expanded');
 	});
 });

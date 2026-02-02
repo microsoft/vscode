@@ -6,9 +6,11 @@
 import { Verbosity, EditorInputWithPreferredResource, EditorInputCapabilities } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { URI } from 'vs/base/common/uri';
-import { IFileService, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
+import { IFileService } from 'vs/platform/files/common/files';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { dirname, isEqual } from 'vs/base/common/resources';
+import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 
 /**
  * The base class for all editor inputs that open resources.
@@ -19,7 +21,7 @@ export abstract class AbstractResourceEditorInput extends EditorInput implements
 		let capabilities = EditorInputCapabilities.CanSplitInGroup;
 
 		if (this.fileService.hasProvider(this.resource)) {
-			if (this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly)) {
+			if (this.filesConfigurationService.isReadonly(this.resource)) {
 				capabilities |= EditorInputCapabilities.Readonly;
 			}
 		} else {
@@ -40,7 +42,8 @@ export abstract class AbstractResourceEditorInput extends EditorInput implements
 		readonly resource: URI,
 		preferredResource: URI | undefined,
 		@ILabelService protected readonly labelService: ILabelService,
-		@IFileService protected readonly fileService: IFileService
+		@IFileService protected readonly fileService: IFileService,
+		@IFilesConfigurationService protected readonly filesConfigurationService: IFilesConfigurationService
 	) {
 		super();
 
@@ -171,5 +174,9 @@ export abstract class AbstractResourceEditorInput extends EditorInput implements
 			case Verbosity.MEDIUM:
 				return this.mediumTitle;
 		}
+	}
+
+	override isReadonly(): boolean | IMarkdownString {
+		return this.filesConfigurationService.isReadonly(this.resource);
 	}
 }

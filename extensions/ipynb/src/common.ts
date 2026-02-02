@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nbformat from '@jupyterlab/nbformat';
+import type * as nbformat from '@jupyterlab/nbformat';
 
 /**
  * Metadata we store in VS Code cell output items.
@@ -44,7 +44,7 @@ export interface CellOutputMetadata {
 
 /**
  * Metadata we store in VS Code cells.
- * This contains the original metadata from the Jupyuter cells.
+ * This contains the original metadata from the Jupyter cells.
  */
 export interface CellMetadata {
 	/**

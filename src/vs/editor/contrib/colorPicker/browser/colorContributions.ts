@@ -5,13 +5,14 @@
 
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ColorDecorationInjectedTextMarker } from 'vs/editor/contrib/colorPicker/browser/colorDetector';
 import { ColorHoverParticipant } from 'vs/editor/contrib/colorPicker/browser/colorHoverParticipant';
 import { ModesHoverController } from 'vs/editor/contrib/hover/browser/hover';
-import { HoverStartMode } from 'vs/editor/contrib/hover/browser/hoverOperation';
+import { HoverStartMode, HoverStartSource } from 'vs/editor/contrib/hover/browser/hoverOperation';
 import { HoverParticipantRegistry } from 'vs/editor/contrib/hover/browser/hoverTypes';
 
 export class ColorContribution extends Disposable implements IEditorContribution {
@@ -31,6 +32,12 @@ export class ColorContribution extends Disposable implements IEditorContribution
 	}
 
 	private onMouseDown(mouseEvent: IEditorMouseEvent) {
+
+		const colorDecoratorsActivatedOn = this._editor.getOption(EditorOption.colorDecoratorsActivatedOn);
+		if (colorDecoratorsActivatedOn !== 'click' && colorDecoratorsActivatedOn !== 'clickAndHover') {
+			return;
+		}
+
 		const target = mouseEvent.target;
 
 		if (target.type !== MouseTargetType.CONTENT_TEXT) {
@@ -53,12 +60,12 @@ export class ColorContribution extends Disposable implements IEditorContribution
 		if (!hoverController) {
 			return;
 		}
-		if (!hoverController.isColorPickerVisible()) {
+		if (!hoverController.isColorPickerVisible) {
 			const range = new Range(target.range.startLineNumber, target.range.startColumn + 1, target.range.endLineNumber, target.range.endColumn + 1);
-			hoverController.showContentHover(range, HoverStartMode.Immediate, false);
+			hoverController.showContentHover(range, HoverStartMode.Immediate, HoverStartSource.Mouse, false, true);
 		}
 	}
 }
 
-registerEditorContribution(ColorContribution.ID, ColorContribution);
+registerEditorContribution(ColorContribution.ID, ColorContribution, EditorContributionInstantiation.BeforeFirstInteraction);
 HoverParticipantRegistry.register(ColorHoverParticipant);

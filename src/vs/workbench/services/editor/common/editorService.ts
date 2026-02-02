@@ -43,6 +43,19 @@ export interface ISaveEditorsOptions extends ISaveOptions {
 	readonly saveAs?: boolean;
 }
 
+export interface ISaveEditorsResult {
+
+	/**
+	 * Whether the save operation was successful.
+	 */
+	readonly success: boolean;
+
+	/**
+	 * Resulting editors after the save operation.
+	 */
+	readonly editors: Array<EditorInput | IUntypedEditorInput>;
+}
+
 export interface IUntypedEditorReplacement {
 
 	/**
@@ -67,7 +80,15 @@ export interface IBaseSaveRevertAllEditorOptions {
 	/**
 	 * Whether to include untitled editors as well.
 	 */
-	readonly includeUntitled?: boolean;
+	readonly includeUntitled?: {
+
+		/**
+		 * Whether to include scratchpad editors.
+		 * Scratchpads are not included if not specified.
+		 */
+		readonly includeScratchpad: boolean;
+
+	} | boolean;
 
 	/**
 	 * Whether to exclude sticky editors.
@@ -205,7 +226,7 @@ export interface IEditorService {
 	 * @param editor the editor to open
 	 * @param options the options to use for the editor
 	 * @param group the target group. If unspecified, the editor will open in the currently
-	 * active group. Use `SIDE_GROUP_TYPE` to open the editor in a new editor group to the side
+	 * active group. Use `SIDE_GROUP` to open the editor in a new editor group to the side
 	 * of the currently active group.
 	 *
 	 * @returns the editor that opened or `undefined` if the operation failed or the editor was not
@@ -226,7 +247,7 @@ export interface IEditorService {
 	 * ```
 	 *
 	 * If you already have an `EditorInput` in hand and must use it for opening, use `group.openEditor`
-	 * instead, via `IEditorGroupService`.
+	 * instead, via `IEditorGroupsService`.
 	 */
 	openEditor(editor: EditorInput, options?: IEditorOptions, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<IEditorPane | undefined>;
 
@@ -235,7 +256,7 @@ export interface IEditorService {
 	 *
 	 * @param editors the editors to open with associated options
 	 * @param group the target group. If unspecified, the editor will open in the currently
-	 * active group. Use `SIDE_GROUP_TYPE` to open the editor in a new editor group to the side
+	 * active group. Use `SIDE_GROUP` to open the editor in a new editor group to the side
 	 * of the currently active group.
 	 *
 	 * @returns the editors that opened. The array can be empty or have less elements for editors
@@ -293,17 +314,13 @@ export interface IEditorService {
 
 	/**
 	 * Save the provided list of editors.
-	 *
-	 * @returns `true` if all editors saved and `false` otherwise.
 	 */
-	save(editors: IEditorIdentifier | IEditorIdentifier[], options?: ISaveEditorsOptions): Promise<boolean>;
+	save(editors: IEditorIdentifier | IEditorIdentifier[], options?: ISaveEditorsOptions): Promise<ISaveEditorsResult>;
 
 	/**
 	 * Save all editors.
-	 *
-	 * @returns `true` if all editors saved and `false` otherwise.
 	 */
-	saveAll(options?: ISaveAllEditorsOptions): Promise<boolean>;
+	saveAll(options?: ISaveAllEditorsOptions): Promise<ISaveEditorsResult>;
 
 	/**
 	 * Reverts the provided list of editors.

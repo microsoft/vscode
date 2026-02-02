@@ -6,9 +6,9 @@
 import * as assert from 'assert';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { Event } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
 import { joinPath } from 'vs/base/common/resources';
 import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
@@ -28,9 +28,7 @@ class TestUserDataAutoSyncService extends UserDataAutoSyncService {
 
 suite('UserDataAutoSyncService', () => {
 
-	const disposableStore = new DisposableStore();
-
-	teardown(() => disposableStore.clear());
+	const disposableStore = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('test auto sync with sync resource change triggers sync', async () => {
 		await runWithFakedTimers({}, async () => {
@@ -166,6 +164,8 @@ suite('UserDataAutoSyncService', () => {
 				{ type: 'POST', url: `${target.url}/v1/resource/globalState`, headers: { 'If-Match': '0' } },
 				// Extensions
 				{ type: 'GET', url: `${target.url}/v1/resource/extensions/latest`, headers: {} },
+				// Profiles
+				{ type: 'GET', url: `${target.url}/v1/resource/profiles/latest`, headers: {} },
 				// Manifest
 				{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} },
 				// Machines

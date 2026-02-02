@@ -59,6 +59,10 @@ suite('MainThreadConfiguration', function () {
 		});
 	});
 
+	teardown(() => {
+		instantiationService.dispose();
+	});
+
 	test('update resource configuration without configuration target defaults to workspace in multi root workspace when no resource is provided', function () {
 		instantiationService.stub(IWorkspaceContextService, <IWorkspaceContextService>{ getWorkbenchState: () => WorkbenchState.WORKSPACE });
 		const testObject: MainThreadConfiguration = instantiationService.createInstance(MainThreadConfiguration, SingleProxyRPCProtocol(proxy));

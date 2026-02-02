@@ -57,7 +57,7 @@ export class PartFingerprints {
 		const result: PartFingerprint[] = [];
 		let resultLen = 0;
 
-		while (child && child !== document.body) {
+		while (child && child !== child.ownerDocument.body) {
 			if (child === stopAt) {
 				break;
 			}

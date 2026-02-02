@@ -10,6 +10,7 @@ import { localize } from 'vs/nls';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { DeferredPromise, timeout } from 'vs/base/common/async';
 import { ILogService } from 'vs/platform/log/common/log';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export class ExtensionActivationProgress implements IWorkbenchContribution {
 
@@ -39,7 +40,7 @@ export class ExtensionActivationProgress implements IWorkbenchContribution {
 
 			count++;
 
-			Promise.race([e.activation, timeout(5000)]).finally(() => {
+			Promise.race([e.activation, timeout(5000, CancellationToken.None)]).finally(() => {
 				if (--count === 0) {
 					deferred!.complete(undefined);
 					deferred = undefined;

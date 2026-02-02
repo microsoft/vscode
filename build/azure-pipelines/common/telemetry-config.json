@@ -50,16 +50,6 @@
 		"applyEndpoints": true
 	},
 	{
-		"eventPrefix": "ms-vscode.node2/",
-		"sourceDirs": [
-			"vscode-chrome-debug-core",
-			"vscode-node-debug2"
-		],
-		"excludedDirs": [],
-		"applyEndpoints": true,
-		"patchDebugEvents": true
-	},
-	{
 		"eventPrefix": "ms-vscode.node/",
 		"sourceDirs": [
 			"vscode-chrome-debug-core",

@@ -71,13 +71,28 @@ export const DataTransfers = {
 	/**
 	 * Typically transfer type for copy/paste transfers.
 	 */
-	TEXT: Mimes.text
+	TEXT: Mimes.text,
+
+	/**
+	 * Internal type used to pass around text/uri-list data.
+	 *
+	 * This is needed to work around https://bugs.chromium.org/p/chromium/issues/detail?id=239745.
+	 */
+	INTERNAL_URI_LIST: 'application/vnd.code.uri-list',
 };
 
-export function applyDragImage(event: DragEvent, label: string | null, clazz: string): void {
+export function applyDragImage(event: DragEvent, label: string | null, clazz: string, backgroundColor?: string | null, foregroundColor?: string | null): void {
 	const dragImage = document.createElement('div');
 	dragImage.className = clazz;
 	dragImage.textContent = label;
+
+	if (foregroundColor) {
+		dragImage.style.color = foregroundColor;
+	}
+
+	if (backgroundColor) {
+		dragImage.style.background = backgroundColor;
+	}
 
 	if (event.dataTransfer) {
 		document.body.appendChild(dragImage);
@@ -92,24 +107,3 @@ export interface IDragAndDropData {
 	update(dataTransfer: DataTransfer): void;
 	getData(): unknown;
 }
-
-export class DragAndDropData<T> implements IDragAndDropData {
-
-	constructor(private data: T) { }
-
-	update(): void {
-		// noop
-	}
-
-	getData(): T {
-		return this.data;
-	}
-}
-
-export interface IStaticDND {
-	CurrentDragAndDropData: IDragAndDropData | undefined;
-}
-
-export const StaticDND: IStaticDND = {
-	CurrentDragAndDropData: undefined
-};

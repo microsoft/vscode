@@ -7,6 +7,7 @@ import * as assert from 'assert';
 import { IIndexTreeModelSpliceOptions, IIndexTreeNode, IList, IndexTreeModel } from 'vs/base/browser/ui/tree/indexTreeModel';
 import { ITreeElement, ITreeFilter, ITreeNode, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
 import { timeout } from 'vs/base/common/async';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 function toList<T>(arr: T[]): IList<T> {
 	return {
@@ -38,6 +39,8 @@ function withSmartSplice(fn: (options: IIndexTreeModelSpliceOptions<number, any>
 }
 
 suite('IndexTreeModel', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('ctor', () => {
 		const list: ITreeNode<number>[] = [];
@@ -358,7 +361,7 @@ suite('IndexTreeModel', () => {
 
 		assert.deepStrictEqual(list.length, 3);
 
-		model.setCollapsed([0], false);
+		model.expandTo([0, 1]);
 		assert.deepStrictEqual(list.length, 6);
 		assert.deepStrictEqual(list[0].element, 0);
 		assert.deepStrictEqual(list[0].collapsed, false);

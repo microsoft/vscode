@@ -72,16 +72,15 @@ export class KeymapExtensions extends Disposable implements IWorkbenchContributi
 	}
 }
 
-export function onExtensionChanged(accessor: ServicesAccessor): Event<IExtensionIdentifier[]> {
+function onExtensionChanged(accessor: ServicesAccessor): Event<IExtensionIdentifier[]> {
 	const extensionService = accessor.get(IExtensionManagementService);
 	const extensionEnablementService = accessor.get(IWorkbenchExtensionEnablementService);
-	const onDidInstallExtensions = Event.chain(extensionService.onDidInstallExtensions)
-		.filter(e => e.some(({ operation }) => operation === InstallOperation.Install))
-		.map(e => e.map(({ identifier }) => identifier))
-		.event;
+	const onDidInstallExtensions = Event.chain(extensionService.onDidInstallExtensions, $ =>
+		$.filter(e => e.some(({ operation }) => operation === InstallOperation.Install))
+			.map(e => e.map(({ identifier }) => identifier))
+	);
 	return Event.debounce<IExtensionIdentifier[], IExtensionIdentifier[]>(Event.any(
-		Event.chain(Event.any(onDidInstallExtensions, Event.map(extensionService.onDidUninstallExtension, e => [e.identifier])))
-			.event,
+		Event.any(onDidInstallExtensions, Event.map(extensionService.onDidUninstallExtension, e => [e.identifier])),
 		Event.map(extensionEnablementService.onEnablementChanged, extensions => extensions.map(e => e.identifier))
 	), (result: IExtensionIdentifier[] | undefined, identifiers: IExtensionIdentifier[]) => {
 		result = result || [];
@@ -107,7 +106,7 @@ export async function getInstalledExtensions(accessor: ServicesAccessor): Promis
 	});
 }
 
-export function isKeymapExtension(tipsService: IExtensionRecommendationsService, extension: IExtensionStatus): boolean {
+function isKeymapExtension(tipsService: IExtensionRecommendationsService, extension: IExtensionStatus): boolean {
 	const cats = extension.local.manifest.categories;
 	return cats && cats.indexOf('Keymaps') !== -1 || tipsService.getKeymapRecommendations().some(extensionId => areSameExtensions({ id: extensionId }, extension.local.identifier));
 }

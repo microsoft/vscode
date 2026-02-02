@@ -18,12 +18,12 @@ import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/se
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { IWordWrapTransientState, readTransientState, writeTransientState } from 'vs/workbench/contrib/codeEditor/browser/toggleWordWrap';
-import { CellEditState, CellFocusMode, CursorAtBoundary, IEditableCellViewModel, INotebookCellDecorationOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditState, CellFocusMode, CursorAtBoundary, CursorAtLineBoundary, IEditableCellViewModel, INotebookCellDecorationOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellViewModelStateChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
 import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/viewContext';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { CellKind, INotebookCellStatusBarItem, INotebookSearchOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { NotebookOptionsChangeEvent } from 'vs/workbench/contrib/notebook/common/notebookOptions';
+import { getEditorTopPadding, NotebookOptionsChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookOptions';
 
 export abstract class BaseCellViewModel extends Disposable {
 
@@ -200,7 +200,6 @@ export abstract class BaseCellViewModel extends Disposable {
 
 
 	abstract updateOptions(e: NotebookOptionsChangeEvent): void;
-	abstract hasDynamicHeight(): boolean;
 	abstract getHeight(lineHeight: number): number;
 	abstract onDeselect(): void;
 	abstract layoutChange(change: any): void;
@@ -219,7 +218,7 @@ export abstract class BaseCellViewModel extends Disposable {
 	// 	}
 	// }
 
-	attachTextEditor(editor: ICodeEditor) {
+	attachTextEditor(editor: ICodeEditor, estimatedHasHorizontalScrolling?: boolean) {
 		if (!editor.hasModel()) {
 			throw new Error('Invalid editor: model is missing');
 		}
@@ -237,13 +236,27 @@ export abstract class BaseCellViewModel extends Disposable {
 
 		if (this._editorViewStates) {
 			this._restoreViewState(this._editorViewStates);
+		} else {
+			// If no real editor view state was persisted, restore a default state.
+			// This forces the editor to measure its content width immediately.
+			if (estimatedHasHorizontalScrolling) {
+				this._restoreViewState({
+					contributionsState: {},
+					cursorState: [],
+					viewState: {
+						scrollLeft: 0,
+						firstPosition: { lineNumber: 1, column: 1 },
+						firstPositionDeltaTop: getEditorTopPadding()
+					}
+				});
+			}
 		}
 
 		if (this._editorTransientState) {
 			writeTransientState(editor.getModel(), this._editorTransientState, this._codeEditorService);
 		}
 
-		this._textEditor.changeDecorations((accessor) => {
+		this._textEditor?.changeDecorations((accessor) => {
 			this._resolvedDecorations.forEach((value, key) => {
 				if (key.startsWith('_lazy_')) {
 					// lazy ones
@@ -359,7 +372,7 @@ export abstract class BaseCellViewModel extends Disposable {
 		this._resolvedDecorations.delete(decorationId);
 	}
 
-	deltaModelDecorations(oldDecorations: string[], newDecorations: model.IModelDeltaDecoration[]): string[] {
+	deltaModelDecorations(oldDecorations: readonly string[], newDecorations: readonly model.IModelDeltaDecoration[]): string[] {
 		oldDecorations.forEach(id => {
 			this.removeModelDecoration(id);
 		});
@@ -373,10 +386,26 @@ export abstract class BaseCellViewModel extends Disposable {
 
 	private _removeCellDecoration(decorationId: string) {
 		const options = this._resolvedCellDecorations.get(decorationId);
+		this._resolvedCellDecorations.delete(decorationId);
 
 		if (options) {
+			for (const existingOptions of this._resolvedCellDecorations.values()) {
+				// don't remove decorations that are applied from other entries
+				if (options.className === existingOptions.className) {
+					options.className = undefined;
+				}
+				if (options.outputClassName === existingOptions.outputClassName) {
+					options.outputClassName = undefined;
+				}
+				if (options.gutterClassName === existingOptions.gutterClassName) {
+					options.gutterClassName = undefined;
+				}
+				if (options.topClassName === existingOptions.topClassName) {
+					options.topClassName = undefined;
+				}
+			}
+
 			this._cellDecorationsChanged.fire({ added: [], removed: [options] });
-			this._resolvedCellDecorations.delete(decorationId);
 		}
 	}
 
@@ -413,7 +442,7 @@ export abstract class BaseCellViewModel extends Disposable {
 		return ret;
 	}
 
-	deltaCellStatusBarItems(oldItems: string[], newItems: INotebookCellStatusBarItem[]): string[] {
+	deltaCellStatusBarItems(oldItems: readonly string[], newItems: readonly INotebookCellStatusBarItem[]): string[] {
 		oldItems.forEach(id => {
 			const item = this._cellStatusBarItems.get(id);
 			if (item) {
@@ -474,13 +503,43 @@ export abstract class BaseCellViewModel extends Disposable {
 		return this._textEditor.getTopForLineNumber(line) + editorPadding.top;
 	}
 
-	getPositionScrollTopOffset(line: number, column: number): number {
+	getPositionScrollTopOffset(range: Selection | Range): number {
 		if (!this._textEditor) {
 			return 0;
 		}
 
+
+		const position = range instanceof Selection ? range.getPosition() : range.getStartPosition();
+
 		const editorPadding = this._viewContext.notebookOptions.computeEditorPadding(this.internalMetadata, this.uri);
-		return this._textEditor.getTopForPosition(line, column) + editorPadding.top;
+		return this._textEditor.getTopForPosition(position.lineNumber, position.column) + editorPadding.top;
+	}
+
+	cursorAtLineBoundary(): CursorAtLineBoundary {
+		if (!this._textEditor || !this.textModel || !this._textEditor.hasTextFocus()) {
+			return CursorAtLineBoundary.None;
+		}
+
+		const selection = this._textEditor.getSelection();
+
+		if (!selection || !selection.isEmpty()) {
+			return CursorAtLineBoundary.None;
+		}
+
+		const currentLineLength = this.textModel.getLineLength(selection.startLineNumber);
+
+		if (currentLineLength === 0) {
+			return CursorAtLineBoundary.Both;
+		}
+
+		switch (selection.startColumn) {
+			case 1:
+				return CursorAtLineBoundary.Start;
+			case currentLineLength + 1:
+				return CursorAtLineBoundary.End;
+			default:
+				return CursorAtLineBoundary.None;
+		}
 	}
 
 	cursorAtBoundary(): CursorAtBoundary {
@@ -608,9 +667,7 @@ export abstract class BaseCellViewModel extends Disposable {
 			this._undoRedoService.removeElements(this.uri);
 		}
 
-		if (this._textModelRef) {
-			this._textModelRef.dispose();
-		}
+		this._textModelRef?.dispose();
 	}
 
 	toJSON(): object {

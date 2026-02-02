@@ -73,6 +73,8 @@ export interface ICodeWindow extends IDisposable {
 	updateTouchBar(items: ISerializableCommandAction[][]): void;
 
 	serializeWindowState(): IWindowState;
+
+	updateWindowControls(options: { height?: number; backgroundColor?: string; foregroundColor?: string }): void;
 }
 
 export const enum LoadReason {
@@ -122,7 +124,7 @@ export interface IWindowState {
 	x?: number;
 	y?: number;
 	mode?: WindowMode;
-	display?: number;
+	readonly display?: number;
 }
 
 export const defaultWindowState = function (mode = WindowMode.Normal): IWindowState {
@@ -141,8 +143,8 @@ export const enum WindowMode {
 }
 
 export interface ILoadEvent {
-	workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined;
-	reason: LoadReason;
+	readonly workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined;
+	readonly reason: LoadReason;
 }
 
 export const enum WindowError {
@@ -153,9 +155,9 @@ export const enum WindowError {
 	UNRESPONSIVE = 1,
 
 	/**
-	 * Maps to the `render-proces-gone` event on a `WebContents`.
+	 * Maps to the `render-process-gone` event on a `WebContents`.
 	 */
-	CRASHED = 2,
+	PROCESS_GONE = 2,
 
 	/**
 	 * Maps to the `did-fail-load` event on a `WebContents`.

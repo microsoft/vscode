@@ -20,6 +20,7 @@ import { ITelemetryEndpoint } from 'vs/platform/telemetry/common/telemetry';
 import { cleanRemoteAuthority } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { filter } from 'vs/base/common/objects';
 
 export class Debugger implements IDebugger, IDebuggerMetadata {
 
@@ -28,6 +29,7 @@ export class Debugger implements IDebugger, IDebuggerMetadata {
 	private mainExtensionDescription: IExtensionDescription | undefined;
 
 	private debuggerWhen: ContextKeyExpression | undefined;
+	private debuggerHiddenWhen: ContextKeyExpression | undefined;
 
 	constructor(
 		private adapterManager: IAdapterManager,
@@ -44,6 +46,7 @@ export class Debugger implements IDebugger, IDebuggerMetadata {
 		this.merge(dbgContribution, extensionDescription);
 
 		this.debuggerWhen = typeof this.debuggerContribution.when === 'string' ? ContextKeyExpr.deserialize(this.debuggerContribution.when) : undefined;
+		this.debuggerHiddenWhen = typeof this.debuggerContribution.hiddenWhen === 'string' ? ContextKeyExpr.deserialize(this.debuggerContribution.hiddenWhen) : undefined;
 	}
 
 	merge(otherDebuggerContribution: IDebuggerContribution, extensionDescription: IExtensionDescription): void {
@@ -99,20 +102,23 @@ export class Debugger implements IDebugger, IDebuggerMetadata {
 		}
 	}
 
-	createDebugAdapter(session: IDebugSession): Promise<IDebugAdapter> {
-		return this.adapterManager.activateDebuggers('onDebugAdapterProtocolTracker', this.type).then(_ => {
-			const da = this.adapterManager.createDebugAdapter(session);
-			if (da) {
-				return Promise.resolve(da);
-			}
-			throw new Error(nls.localize('cannot.find.da', "Cannot find debug adapter for type '{0}'.", this.type));
-		});
+	async startDebugging(configuration: IConfig, parentSessionId: string): Promise<boolean> {
+		const parentSession = this.debugService.getModel().getSession(parentSessionId);
+		return await this.debugService.startDebugging(undefined, configuration, { parentSession }, undefined);
 	}
 
-	substituteVariables(folder: IWorkspaceFolder | undefined, config: IConfig): Promise<IConfig> {
-		return this.adapterManager.substituteVariables(this.type, folder, config).then(config => {
-			return this.configurationResolverService.resolveWithInteractionReplace(folder, config, 'launch', this.variables, config.__configurationTarget);
-		});
+	async createDebugAdapter(session: IDebugSession): Promise<IDebugAdapter> {
+		await this.adapterManager.activateDebuggers('onDebugAdapterProtocolTracker', this.type);
+		const da = this.adapterManager.createDebugAdapter(session);
+		if (da) {
+			return Promise.resolve(da);
+		}
+		throw new Error(nls.localize('cannot.find.da', "Cannot find debug adapter for type '{0}'.", this.type));
+	}
+
+	async substituteVariables(folder: IWorkspaceFolder | undefined, config: IConfig): Promise<IConfig> {
+		const substitutedConfig = await this.adapterManager.substituteVariables(this.type, folder, config);
+		return await this.configurationResolverService.resolveWithInteractionReplace(folder, substitutedConfig, 'launch', this.variables, substitutedConfig.__configurationTarget);
 	}
 
 	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, sessionId: string): Promise<number | undefined> {
@@ -143,12 +149,23 @@ export class Debugger implements IDebugger, IDebuggerMetadata {
 		return this.debuggerWhen;
 	}
 
+	get hiddenWhen(): ContextKeyExpression | undefined {
+		return this.debuggerHiddenWhen;
+	}
+
 	get enabled() {
 		return !this.debuggerWhen || this.contextKeyService.contextMatchesRules(this.debuggerWhen);
 	}
 
-	get uiMessages() {
-		return this.debuggerContribution.uiMessages;
+	get isHiddenFromDropdown() {
+		if (!this.debuggerHiddenWhen) {
+			return false;
+		}
+		return this.contextKeyService.contextMatchesRules(this.debuggerHiddenWhen);
+	}
+
+	get strings() {
+		return this.debuggerContribution.strings ?? (this.debuggerContribution as any).uiMessages;
 	}
 
 	interestedInLanguage(languageId: string): boolean {
@@ -222,6 +239,7 @@ export class Debugger implements IDebugger, IDebuggerMetadata {
 		// fill in the default configuration attributes shared by all adapters.
 		return Object.keys(this.debuggerContribution.configurationAttributes).map(request => {
 			const definitionId = `${this.type}:${request}`;
+			const platformSpecificDefinitionId = `${this.type}:${request}:platform`;
 			const attributes: IJSONSchema = this.debuggerContribution.configurationAttributes[request];
 			const defaultRequired = ['name', 'type', 'request'];
 			attributes.required = attributes.required && attributes.required.length ? defaultRequired.concat(attributes.required) : defaultRequired;
@@ -256,6 +274,11 @@ export class Debugger implements IDebugger, IDebuggerMetadata {
 			});
 
 			definitions[definitionId] = { ...attributes };
+			definitions[platformSpecificDefinitionId] = {
+				type: 'object',
+				additionalProperties: false,
+				properties: filter(properties, key => key !== 'type' && key !== 'request' && key !== 'name')
+			};
 
 			// Don't add the OS props to the real attributes object so they don't show up in 'definitions'
 			const attributesCopy = { ...attributes };
@@ -263,19 +286,16 @@ export class Debugger implements IDebugger, IDebuggerMetadata {
 				...properties,
 				...{
 					windows: {
-						$ref: `#/definitions/${definitionId}`,
+						$ref: `#/definitions/${platformSpecificDefinitionId}`,
 						description: nls.localize('debugWindowsConfiguration', "Windows specific launch configuration attributes."),
-						required: [],
 					},
 					osx: {
-						$ref: `#/definitions/${definitionId}`,
+						$ref: `#/definitions/${platformSpecificDefinitionId}`,
 						description: nls.localize('debugOSXConfiguration', "OS X specific launch configuration attributes."),
-						required: [],
 					},
 					linux: {
-						$ref: `#/definitions/${definitionId}`,
+						$ref: `#/definitions/${platformSpecificDefinitionId}`,
 						description: nls.localize('debugLinuxConfiguration', "Linux specific launch configuration attributes."),
-						required: [],
 					}
 				}
 			};

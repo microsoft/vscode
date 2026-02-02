@@ -10,9 +10,10 @@ import { joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { IFolderQuery, QueryType, IRawFileMatch } from 'vs/workbench/services/search/common/search';
 import { Engine as FileSearchEngine, FileWalker } from 'vs/workbench/services/search/node/fileSearch';
-import { flakySuite, getPathFromAmdModule } from 'vs/base/test/node/testUtils';
+import { flakySuite } from 'vs/base/test/node/testUtils';
+import { FileAccess } from 'vs/base/common/network';
 
-const TEST_FIXTURES = path.normalize(getPathFromAmdModule(require, './fixtures'));
+const TEST_FIXTURES = path.normalize(FileAccess.asFileUri('vs/workbench/services/search/test/node/fixtures').fsPath);
 const EXAMPLES_FIXTURES = URI.file(path.join(TEST_FIXTURES, 'examples'));
 const MORE_FIXTURES = URI.file(path.join(TEST_FIXTURES, 'more'));
 const TEST_ROOT_FOLDER: IFolderQuery = { folder: URI.file(TEST_FIXTURES) };
@@ -21,7 +22,7 @@ const ROOT_FOLDER_QUERY: IFolderQuery[] = [
 ];
 
 const ROOT_FOLDER_QUERY_36438: IFolderQuery[] = [
-	{ folder: URI.file(path.normalize(getPathFromAmdModule(require, './fixtures2/36438'))) }
+	{ folder: URI.file(path.normalize(FileAccess.asFileUri('vs/workbench/services/search/test/node/fixtures2/36438').fsPath)) }
 ];
 
 const MULTIROOT_QUERIES: IFolderQuery[] = [
@@ -620,9 +621,9 @@ flakySuite('FileSearchEngine', () => {
 			type: QueryType.File,
 			folderQueries: [],
 			extraFileResources: [
-				URI.file(path.normalize(path.join(getPathFromAmdModule(require, './fixtures'), 'site.css'))),
-				URI.file(path.normalize(path.join(getPathFromAmdModule(require, './fixtures'), 'examples', 'company.js'))),
-				URI.file(path.normalize(path.join(getPathFromAmdModule(require, './fixtures'), 'index.html')))
+				URI.file(path.normalize(path.join(FileAccess.asFileUri('vs/workbench/services/search/test/node/fixtures').fsPath, 'site.css'))),
+				URI.file(path.normalize(path.join(FileAccess.asFileUri('vs/workbench/services/search/test/node/fixtures').fsPath, 'examples', 'company.js'))),
+				URI.file(path.normalize(path.join(FileAccess.asFileUri('vs/workbench/services/search/test/node/fixtures').fsPath, 'index.html')))
 			],
 			filePattern: '*.js'
 		});
@@ -647,9 +648,9 @@ flakySuite('FileSearchEngine', () => {
 			type: QueryType.File,
 			folderQueries: [],
 			extraFileResources: [
-				URI.file(path.normalize(path.join(getPathFromAmdModule(require, './fixtures'), 'site.css'))),
-				URI.file(path.normalize(path.join(getPathFromAmdModule(require, './fixtures'), 'examples', 'company.js'))),
-				URI.file(path.normalize(path.join(getPathFromAmdModule(require, './fixtures'), 'index.html')))
+				URI.file(path.normalize(path.join(FileAccess.asFileUri('vs/workbench/services/search/test/node/fixtures').fsPath, 'site.css'))),
+				URI.file(path.normalize(path.join(FileAccess.asFileUri('vs/workbench/services/search/test/node/fixtures').fsPath, 'examples', 'company.js'))),
+				URI.file(path.normalize(path.join(FileAccess.asFileUri('vs/workbench/services/search/test/node/fixtures').fsPath, 'index.html')))
 			],
 			filePattern: '*.*',
 			includePattern: { '**/*.css': true }
@@ -675,9 +676,9 @@ flakySuite('FileSearchEngine', () => {
 			type: QueryType.File,
 			folderQueries: [],
 			extraFileResources: [
-				URI.file(path.normalize(path.join(getPathFromAmdModule(require, './fixtures'), 'site.css'))),
-				URI.file(path.normalize(path.join(getPathFromAmdModule(require, './fixtures'), 'examples', 'company.js'))),
-				URI.file(path.normalize(path.join(getPathFromAmdModule(require, './fixtures'), 'index.html')))
+				URI.file(path.normalize(path.join(FileAccess.asFileUri('vs/workbench/services/search/test/node/fixtures').fsPath, 'site.css'))),
+				URI.file(path.normalize(path.join(FileAccess.asFileUri('vs/workbench/services/search/test/node/fixtures').fsPath, 'examples', 'company.js'))),
+				URI.file(path.normalize(path.join(FileAccess.asFileUri('vs/workbench/services/search/test/node/fixtures').fsPath, 'index.html')))
 			],
 			filePattern: '*.*',
 			excludePattern: { '**/*.css': true }

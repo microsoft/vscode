@@ -34,6 +34,15 @@ class SingleLineTestModel implements ISimpleModel {
 		return this._line.substring(range.startColumn - 1, range.endColumn - 1);
 	}
 
+	getValueLengthInRange(range: Range, eol: EndOfLinePreference): number {
+		return this.getValueInRange(range, eol).length;
+	}
+
+	modifyPosition(position: Position, offset: number): Position {
+		const column = Math.min(this.getLineMaxColumn(position.lineNumber), Math.max(1, position.column + offset));
+		return new Position(position.lineNumber, column);
+	}
+
 	getModelLineContent(lineNumber: number): string {
 		return this._line;
 	}
@@ -102,17 +111,22 @@ function doCreateTest(description: string, inputStr: string, expectedStr: string
 				mode: null
 			};
 		},
-		getScreenReaderContent: (currentState: TextAreaState): TextAreaState => {
+		getScreenReaderContent: (): TextAreaState => {
 			const selection = new Range(1, 1 + cursorOffset, 1, 1 + cursorOffset + cursorLength);
 
-			return PagedScreenReaderStrategy.fromEditorSelection(currentState, model, selection, 10, true);
+			return PagedScreenReaderStrategy.fromEditorSelection(model, selection, 10, true);
 		},
 		deduceModelPosition: (viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position => {
 			return null!;
 		}
 	};
 
-	const handler = new TextAreaInput(textAreaInputHost, new TextAreaWrapper(input), platform.OS, browser);
+	const handler = new TextAreaInput(textAreaInputHost, new TextAreaWrapper(input), platform.OS, {
+		isAndroid: browser.isAndroid,
+		isFirefox: browser.isFirefox,
+		isChrome: browser.isChrome,
+		isSafari: browser.isSafari,
+	});
 
 	const output = document.createElement('pre');
 	output.className = 'output';

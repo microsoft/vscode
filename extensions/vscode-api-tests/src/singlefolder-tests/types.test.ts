@@ -20,6 +20,7 @@ suite('vscode API - types', () => {
 		assert.ok(vscode.CodeActionKind.Refactor instanceof vscode.CodeActionKind);
 		assert.ok(vscode.CodeActionKind.RefactorExtract instanceof vscode.CodeActionKind);
 		assert.ok(vscode.CodeActionKind.RefactorInline instanceof vscode.CodeActionKind);
+		assert.ok(vscode.CodeActionKind.RefactorMove instanceof vscode.CodeActionKind);
 		assert.ok(vscode.CodeActionKind.RefactorRewrite instanceof vscode.CodeActionKind);
 		assert.ok(vscode.CodeActionKind.Source instanceof vscode.CodeActionKind);
 		assert.ok(vscode.CodeActionKind.SourceOrganizeImports instanceof vscode.CodeActionKind);

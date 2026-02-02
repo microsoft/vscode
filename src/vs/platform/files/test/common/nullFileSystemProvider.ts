@@ -3,10 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { ReadableStreamEvents } from 'vs/base/common/stream';
 import { URI } from 'vs/base/common/uri';
-import { IFileDeleteOptions, IFileOpenOptions, IFileOverwriteOptions, FileSystemProviderCapabilities, FileType, IFileWriteOptions, IFileChange, IFileSystemProvider, IStat, IWatchOptions } from 'vs/platform/files/common/files';
+import { IFileDeleteOptions, IFileOpenOptions, IFileOverwriteOptions, FileSystemProviderCapabilities, FileType, IFileWriteOptions, IFileChange, IFileSystemProvider, IStat, IWatchOptions, IFileReadStreamOptions } from 'vs/platform/files/common/files';
 
 export class NullFileSystemProvider implements IFileSystemProvider {
 
@@ -36,11 +38,12 @@ export class NullFileSystemProvider implements IFileSystemProvider {
 	async readdir(resource: URI): Promise<[string, FileType][]> { return undefined!; }
 	async delete(resource: URI, opts: IFileDeleteOptions): Promise<void> { return undefined; }
 	async rename(from: URI, to: URI, opts: IFileOverwriteOptions): Promise<void> { return undefined; }
-	async copy?(from: URI, to: URI, opts: IFileOverwriteOptions): Promise<void> { return undefined; }
-	async readFile?(resource: URI): Promise<Uint8Array> { return undefined!; }
-	async writeFile?(resource: URI, content: Uint8Array, opts: IFileWriteOptions): Promise<void> { return undefined; }
-	async open?(resource: URI, opts: IFileOpenOptions): Promise<number> { return undefined!; }
-	async close?(fd: number): Promise<void> { return undefined; }
-	async read?(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> { return undefined!; }
-	async write?(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> { return undefined!; }
+	async copy(from: URI, to: URI, opts: IFileOverwriteOptions): Promise<void> { return undefined; }
+	async readFile(resource: URI): Promise<Uint8Array> { return undefined!; }
+	readFileStream(resource: URI, opts: IFileReadStreamOptions, token: CancellationToken): ReadableStreamEvents<Uint8Array> { return undefined!; }
+	async writeFile(resource: URI, content: Uint8Array, opts: IFileWriteOptions): Promise<void> { return undefined; }
+	async open(resource: URI, opts: IFileOpenOptions): Promise<number> { return undefined!; }
+	async close(fd: number): Promise<void> { return undefined; }
+	async read(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> { return undefined!; }
+	async write(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> { return undefined!; }
 }

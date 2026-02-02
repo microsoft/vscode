@@ -8,6 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import { isMacintosh, isLinux, isWindows } from 'vs/base/common/platform';
 import { OutputLinkComputer } from 'vs/workbench/contrib/output/common/outputLinkComputer';
 import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('OutputLinkProvider', () => {
 
@@ -297,4 +298,6 @@ suite('OutputLinkProvider', () => {
 			assert.ok(res.range.startColumn > 0 && res.range.endColumn > 0);
 		}
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

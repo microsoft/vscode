@@ -89,6 +89,8 @@ registerSimpleEditorSettingMigration('hover', [[true, { enabled: true }], [false
 registerSimpleEditorSettingMigration('parameterHints', [[true, { enabled: true }], [false, { enabled: false }]]);
 registerSimpleEditorSettingMigration('autoIndent', [[false, 'advanced'], [true, 'full']]);
 registerSimpleEditorSettingMigration('matchBrackets', [[true, 'always'], [false, 'never']]);
+registerSimpleEditorSettingMigration('renderFinalNewline', [[true, 'on'], [false, 'off']]);
+registerSimpleEditorSettingMigration('cursorSmoothCaretAnimation', [[true, 'on'], [false, 'off']]);
 
 registerEditorSettingMigration('autoClosingBrackets', (value, read, write) => {
 	if (value === false) {
@@ -168,5 +170,54 @@ registerEditorSettingMigration('quickSuggestions', (input, read, write) => {
 		const value = input ? 'on' : 'off';
 		const newValue = { comments: value, strings: value, other: value };
 		write('quickSuggestions', newValue);
+	}
+});
+
+// Sticky Scroll
+
+registerEditorSettingMigration('experimental.stickyScroll.enabled', (value, read, write) => {
+	if (typeof value === 'boolean') {
+		write('experimental.stickyScroll.enabled', undefined);
+		if (typeof read('stickyScroll.enabled') === 'undefined') {
+			write('stickyScroll.enabled', value);
+		}
+	}
+});
+
+registerEditorSettingMigration('experimental.stickyScroll.maxLineCount', (value, read, write) => {
+	if (typeof value === 'number') {
+		write('experimental.stickyScroll.maxLineCount', undefined);
+		if (typeof read('stickyScroll.maxLineCount') === 'undefined') {
+			write('stickyScroll.maxLineCount', value);
+		}
+	}
+});
+
+// Code Actions on Save
+// registerEditorSettingMigration('codeActionsOnSave', (value, read, write) => {
+// 	if (value && typeof value === 'object') {
+// 		let toBeModified = false;
+// 		const newValue = {} as any;
+// 		for (const entry of Object.entries(value)) {
+// 			if (typeof entry[1] === 'boolean') {
+// 				toBeModified = true;
+// 				newValue[entry[0]] = entry[1] ? 'explicit' : 'never';
+// 			} else {
+// 				newValue[entry[0]] = entry[1];
+// 			}
+// 		}
+// 		if (toBeModified) {
+// 			write(`codeActionsOnSave`, newValue);
+// 		}
+// 	}
+// });
+
+// Migrate Quick Fix Settings
+registerEditorSettingMigration('codeActionWidget.includeNearbyQuickfixes', (value, read, write) => {
+	if (typeof value === 'boolean') {
+		write('codeActionWidget.includeNearbyQuickfixes', undefined);
+		if (typeof read('codeActionWidget.includeNearbyQuickFixes') === 'undefined') {
+			write('codeActionWidget.includeNearbyQuickFixes', value);
+		}
 	}
 });

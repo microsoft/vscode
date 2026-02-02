@@ -27,15 +27,17 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { contrastBorder, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
-import { IThemeService, Themable, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { widgetBorder, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
+import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { FocusSessionActionViewItem } from 'vs/workbench/contrib/debug/browser/debugActionViewItems';
 import { debugToolBarBackground, debugToolBarBorder } from 'vs/workbench/contrib/debug/browser/debugColors';
 import { CONTINUE_ID, CONTINUE_LABEL, DISCONNECT_AND_SUSPEND_ID, DISCONNECT_AND_SUSPEND_LABEL, DISCONNECT_ID, DISCONNECT_LABEL, FOCUS_SESSION_ID, FOCUS_SESSION_LABEL, PAUSE_ID, PAUSE_LABEL, RESTART_LABEL, RESTART_SESSION_ID, REVERSE_CONTINUE_ID, STEP_BACK_ID, STEP_INTO_ID, STEP_INTO_LABEL, STEP_OUT_ID, STEP_OUT_LABEL, STEP_OVER_ID, STEP_OVER_LABEL, STOP_ID, STOP_LABEL } from 'vs/workbench/contrib/debug/browser/debugCommands';
 import * as icons from 'vs/workbench/contrib/debug/browser/debugIcons';
-import { CONTEXT_DEBUG_STATE, CONTEXT_FOCUSED_SESSION_IS_ATTACH, CONTEXT_MULTI_SESSION_DEBUG, CONTEXT_STEP_BACK_SUPPORTED, CONTEXT_SUSPEND_DEBUGGEE_SUPPORTED, CONTEXT_TERMINATE_DEBUGGEE_SUPPORTED, IDebugConfiguration, IDebugService, State, VIEWLET_ID } from 'vs/workbench/contrib/debug/common/debug';
+import { CONTEXT_DEBUG_STATE, CONTEXT_FOCUSED_SESSION_IS_ATTACH, CONTEXT_IN_DEBUG_MODE, CONTEXT_MULTI_SESSION_DEBUG, CONTEXT_STEP_BACK_SUPPORTED, CONTEXT_SUSPEND_DEBUGGEE_SUPPORTED, CONTEXT_TERMINATE_DEBUGGEE_SUPPORTED, IDebugConfiguration, IDebugService, State, VIEWLET_ID } from 'vs/workbench/contrib/debug/common/debug';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
+import { Codicon } from 'vs/base/common/codicons';
 
 const DEBUG_TOOLBAR_POSITION_KEY = 'debug.actionswidgetposition';
 const DEBUG_TOOLBAR_Y_KEY = 'debug.actionswidgety';
@@ -48,7 +50,6 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 	private activeActions: IAction[];
 	private updateScheduler: RunOnceScheduler;
 	private debugToolBarMenu: IMenu;
-	private disposeOnUpdate: IDisposable | undefined;
 	private yCoordinate = 0;
 
 	private isVisible = false;
@@ -100,21 +101,22 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		this.updateScheduler = this._register(new RunOnceScheduler(() => {
 			const state = this.debugService.state;
 			const toolBarLocation = this.configurationService.getValue<IDebugConfiguration>('debug').toolBarLocation;
-			if (state === State.Inactive || toolBarLocation === 'docked' || toolBarLocation === 'hidden' || this.debugService.getViewModel().focusedSession?.isSimpleUI || (state === State.Initializing && this.debugService.initializingOptions?.debugUI?.simple)) {
+			if (
+				state === State.Inactive ||
+				toolBarLocation !== 'floating' ||
+				this.debugService.getModel().getSessions().every(s => s.suppressDebugToolbar) ||
+				(state === State.Initializing && this.debugService.initializingOptions?.suppressDebugToolbar)
+			) {
 				return this.hide();
 			}
 
 			const actions: IAction[] = [];
-			const disposable = createAndFillInActionBarActions(this.debugToolBarMenu, { shouldForwardArgs: true }, actions);
+			createAndFillInActionBarActions(this.debugToolBarMenu, { shouldForwardArgs: true }, actions);
 			if (!arrays.equals(actions, this.activeActions, (first, second) => first.id === second.id && first.enabled === second.enabled)) {
 				this.actionBar.clear();
 				this.actionBar.push(actions, { icon: true, label: false });
 				this.activeActions = actions;
 			}
-			if (this.disposeOnUpdate) {
-				dispose(this.disposeOnUpdate);
-			}
-			this.disposeOnUpdate = disposable;
 
 			this.show();
 		}, 20));
@@ -185,7 +187,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		}
 	}
 
-	protected override updateStyles(): void {
+	override updateStyles(): void {
 		super.updateStyles();
 
 		if (this.$el) {
@@ -194,7 +196,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 			const widgetShadowColor = this.getColor(widgetShadow);
 			this.$el.style.boxShadow = widgetShadowColor ? `0 0 8px 2px ${widgetShadowColor}` : '';
 
-			const contrastBorderColor = this.getColor(contrastBorder);
+			const contrastBorderColor = this.getColor(widgetBorder);
 			const borderColor = this.getColor(debugToolBarBorder);
 
 			if (contrastBorderColor) {
@@ -259,12 +261,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 	override dispose(): void {
 		super.dispose();
 
-		if (this.$el) {
-			this.$el.remove();
-		}
-		if (this.disposeOnUpdate) {
-			dispose(this.disposeOnUpdate);
-		}
+		this.$el?.remove();
 	}
 }
 
@@ -276,7 +273,7 @@ export function createDisconnectMenuItemAction(action: MenuItemAction, disposabl
 
 	const menu = menuService.createMenu(MenuId.DebugToolBarStop, contextKeyService);
 	const secondary: IAction[] = [];
-	disposables.add(createAndFillInActionBarActions(menu, { shouldForwardArgs: true }, secondary));
+	createAndFillInActionBarActions(menu, { shouldForwardArgs: true }, secondary);
 
 	if (!secondary.length) {
 		return undefined;
@@ -338,6 +335,17 @@ MenuRegistry.onDidChangeMenu(e => {
 	}
 });
 
+
+const CONTEXT_TOOLBAR_COMMAND_CENTER = ContextKeyExpr.equals('config.debug.toolBarLocation', 'commandCenter');
+
+MenuRegistry.appendMenuItem(MenuId.CommandCenterCenter, {
+	submenu: MenuId.DebugToolBar,
+	title: 'Debug',
+	icon: Codicon.debug,
+	order: 1,
+	when: ContextKeyExpr.and(CONTEXT_IN_DEBUG_MODE, CONTEXT_TOOLBAR_COMMAND_CENTER)
+});
+
 registerDebugToolBarItem(CONTINUE_ID, CONTINUE_LABEL, 10, icons.debugContinue, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
 registerDebugToolBarItem(PAUSE_ID, PAUSE_LABEL, 10, icons.debugPause, CONTEXT_DEBUG_STATE.notEqualsTo('stopped'), CONTEXT_DEBUG_STATE.isEqualTo('running'));
 registerDebugToolBarItem(STOP_ID, STOP_LABEL, 70, icons.debugStop, CONTEXT_FOCUSED_SESSION_IS_ATTACH.toNegated(), undefined, { id: DISCONNECT_ID, title: DISCONNECT_LABEL, icon: icons.debugDisconnect, precondition: ContextKeyExpr.and(CONTEXT_FOCUSED_SESSION_IS_ATTACH.toNegated(), CONTEXT_TERMINATE_DEBUGGEE_SUPPORTED), });
@@ -348,7 +356,7 @@ registerDebugToolBarItem(STEP_OUT_ID, STEP_OUT_LABEL, 40, icons.debugStepOut, un
 registerDebugToolBarItem(RESTART_SESSION_ID, RESTART_LABEL, 60, icons.debugRestart);
 registerDebugToolBarItem(STEP_BACK_ID, localize('stepBackDebug', "Step Back"), 50, icons.debugStepBack, CONTEXT_STEP_BACK_SUPPORTED, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
 registerDebugToolBarItem(REVERSE_CONTINUE_ID, localize('reverseContinue', "Reverse"), 55, icons.debugReverseContinue, CONTEXT_STEP_BACK_SUPPORTED, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
-registerDebugToolBarItem(FOCUS_SESSION_ID, FOCUS_SESSION_LABEL, 100, undefined, CONTEXT_MULTI_SESSION_DEBUG);
+registerDebugToolBarItem(FOCUS_SESSION_ID, FOCUS_SESSION_LABEL, 100, Codicon.listTree, ContextKeyExpr.and(CONTEXT_MULTI_SESSION_DEBUG, CONTEXT_TOOLBAR_COMMAND_CENTER.negate()));
 
 MenuRegistry.appendMenuItem(MenuId.DebugToolBarStop, {
 	group: 'navigation',

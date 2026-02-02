@@ -37,8 +37,8 @@ export const enum GroupLocation {
 }
 
 export interface IFindGroupScope {
-	direction?: GroupDirection;
-	location?: GroupLocation;
+	readonly direction?: GroupDirection;
+	readonly location?: GroupLocation;
 }
 
 export const enum GroupsArrangement {
@@ -62,17 +62,33 @@ export const enum GroupsArrangement {
 }
 
 export interface GroupLayoutArgument {
-	size?: number;
-	groups?: GroupLayoutArgument[];
+
+	/**
+	 * Only applies when there are multiple groups
+	 * arranged next to each other in a row or column.
+	 * If provided, their sum must be 1 to be applied
+	 * per row or column.
+	 */
+	readonly size?: number;
+
+	/**
+	 * Editor groups  will be laid out orthogonal to the
+	 * parent orientation.
+	 */
+	readonly groups?: GroupLayoutArgument[];
 }
 
 export interface EditorGroupLayout {
-	orientation: GroupOrientation;
-	groups: GroupLayoutArgument[];
-}
 
-export interface IAddGroupOptions {
-	activate?: boolean;
+	/**
+	 * The initial orientation of the editor groups at the root.
+	 */
+	readonly orientation: GroupOrientation;
+
+	/**
+	 * The editor groups at the root of the layout.
+	 */
+	readonly groups: GroupLayoutArgument[];
 }
 
 export const enum MergeGroupMode {
@@ -82,34 +98,34 @@ export const enum MergeGroupMode {
 
 export interface IMergeGroupOptions {
 	mode?: MergeGroupMode;
-	index?: number;
+	readonly index?: number;
 }
 
 export interface ICloseEditorOptions {
-	preserveFocus?: boolean;
+	readonly preserveFocus?: boolean;
 }
 
 export type ICloseEditorsFilter = {
-	except?: EditorInput;
-	direction?: CloseDirection;
-	savedOnly?: boolean;
-	excludeSticky?: boolean;
+	readonly except?: EditorInput;
+	readonly direction?: CloseDirection;
+	readonly savedOnly?: boolean;
+	readonly excludeSticky?: boolean;
 };
 
 export interface ICloseAllEditorsOptions {
-	excludeSticky?: boolean;
+	readonly excludeSticky?: boolean;
 }
 
 export interface IEditorReplacement {
-	editor: EditorInput;
-	replacement: EditorInput;
-	options?: IEditorOptions;
+	readonly editor: EditorInput;
+	readonly replacement: EditorInput;
+	readonly options?: IEditorOptions;
 
 	/**
 	 * Skips asking the user for confirmation and doesn't
 	 * save the document. Only use this if you really need to!
 	 */
-	forceReplaceDirty?: boolean;
+	readonly forceReplaceDirty?: boolean;
 }
 
 export function isEditorReplacement(replacement: unknown): replacement is IEditorReplacement {
@@ -147,9 +163,19 @@ export interface IEditorSideGroup {
 	openEditor(editor: EditorInput, options?: IEditorOptions): Promise<IEditorPane | undefined>;
 }
 
-export interface IEditorGroupsService {
+export interface IEditorDropTargetDelegate {
 
-	readonly _serviceBrand: undefined;
+	/**
+	 * A helper to figure out if the drop target contains the provided group.
+	 */
+	containsGroup?(groupView: IEditorGroup): boolean;
+}
+
+/**
+ * An editor part is a viewer of editor groups. There can be multiple editor
+ * parts opened in multiple windows.
+ */
+export interface IEditorPart {
 
 	/**
 	 * An event for when the active editor group changes. The active editor
@@ -302,6 +328,11 @@ export interface IEditorGroupsService {
 	applyLayout(layout: EditorGroupLayout): void;
 
 	/**
+	 * Returns an editor layout describing the current grid
+	 */
+	getLayout(): EditorGroupLayout;
+
+	/**
 	 * Enable or disable centered editor layout.
 	 */
 	centerLayout(active: boolean): void;
@@ -317,7 +348,7 @@ export interface IEditorGroupsService {
 	setGroupOrientation(orientation: GroupOrientation): void;
 
 	/**
-	 * Find a groupd in a specific scope:
+	 * Find a group in a specific scope:
 	 * * `GroupLocation.FIRST`: the first group
 	 * * `GroupLocation.LAST`: the last group
 	 * * `GroupLocation.NEXT`: the next group from either the active one or `source`
@@ -339,9 +370,8 @@ export interface IEditorGroupsService {
 	 *
 	 * @param location the group from which to split to add a new group
 	 * @param direction the direction of where to split to
-	 * @param options configure the newly group with options
 	 */
-	addGroup(location: IEditorGroup | GroupIdentifier, direction: GroupDirection, options?: IAddGroupOptions): IEditorGroup;
+	addGroup(location: IEditorGroup | GroupIdentifier, direction: GroupDirection): IEditorGroup;
 
 	/**
 	 * Remove a group from the editor area.
@@ -399,6 +429,39 @@ export interface IEditorGroupsService {
 	 * Enforce editor part options temporarily.
 	 */
 	enforcePartOptions(options: IEditorPartOptions): IDisposable;
+
+	/**
+	 * Allows to register a drag and drop target for editors
+	 * on the provided `container`.
+	 */
+	createEditorDropTarget(container: unknown /* HTMLElement */, delegate: IEditorDropTargetDelegate): IDisposable;
+}
+
+export interface IAuxiliaryEditorPart extends IEditorPart {
+
+	/**
+	 * Close this auxiliary editor part and free up associated resources.
+	 */
+	close(): Promise<void>;
+}
+
+/**
+ * The main service to interact with editor groups across all opened editor parts.
+ */
+export interface IEditorGroupsService extends IEditorPart {
+
+	readonly _serviceBrand: undefined;
+
+	/**
+	 * Provides access to the currently active editor part.
+	 */
+	readonly activePart: IEditorPart;
+
+	/**
+	 * Opens a new window with a full editor part instantiated
+	 * in there.
+	 */
+	createAuxiliaryEditorPart(): IAuxiliaryEditorPart;
 }
 
 export const enum OpenEditorContext {

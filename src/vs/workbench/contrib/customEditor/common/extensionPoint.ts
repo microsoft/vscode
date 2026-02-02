@@ -89,5 +89,13 @@ const CustomEditorsContribution: IJSONSchema = {
 export const customEditorsExtensionPoint = ExtensionsRegistry.registerExtensionPoint<ICustomEditorsExtensionPoint[]>({
 	extensionPoint: 'customEditors',
 	deps: [languagesExtPoint],
-	jsonSchema: CustomEditorsContribution
+	jsonSchema: CustomEditorsContribution,
+	activationEventsGenerator: (contribs: ICustomEditorsExtensionPoint[], result: { push(item: string): void }) => {
+		for (const contrib of contribs) {
+			const viewType = contrib[Fields.viewType];
+			if (viewType) {
+				result.push(`onCustomEditor:${viewType}`);
+			}
+		}
+	},
 });

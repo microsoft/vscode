@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { ReplayEntry } from 'vs/platform/terminal/common/terminalProcess';
 import { TerminalRecorder } from 'vs/platform/terminal/common/terminalRecorder';
 
@@ -15,6 +16,8 @@ async function eventsEqual(recorder: TerminalRecorder, expected: ReplayEntry[]) 
 }
 
 suite('TerminalRecorder', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('should record dimensions', async () => {
 		const recorder = new TerminalRecorder(1, 2);
 		await eventsEqual(recorder, [

@@ -3,7 +3,11 @@
 	"name": "Light High Contrast",
 	"tokenColors": [
 		{
-			"scope": ["meta.embedded", "source.groovy.embedded"],
+			"scope": [
+				"meta.embedded",
+				"source.groovy.embedded",
+				"variable.legacy.builtin.python"
+			],
 			"settings": {
 				"foreground": "#292929"
 			}
@@ -438,6 +442,7 @@
 				"source.cpp keyword.operator.new",
 				"source.cpp keyword.operator.delete",
 				"keyword.other.using",
+				"keyword.other.directive.using",
 				"keyword.other.operator",
 				"entity.name.operator"
 			],
@@ -562,5 +567,8 @@
 				"foreground": "#800080"
 			}
 		}
-	]
+	],
+	"colors": {
+		"actionBar.toggledBackground": "#dddddd"
+	}
 }

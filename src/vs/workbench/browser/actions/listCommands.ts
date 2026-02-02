@@ -7,7 +7,7 @@ import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { List } from 'vs/base/browser/ui/list/listWidget';
-import { WorkbenchListFocusContextKey, IListService, WorkbenchListSupportsMultiSelectContextKey, ListWidget, WorkbenchListHasSelectionOrFocus, getSelectionKeyboardEvent, WorkbenchListWidget, WorkbenchListSelectionNavigation, WorkbenchTreeElementCanCollapse, WorkbenchTreeElementHasParent, WorkbenchTreeElementHasChild, WorkbenchTreeElementCanExpand, RawWorkbenchListFocusContextKey, WorkbenchTreeFindOpen } from 'vs/platform/list/browser/listService';
+import { WorkbenchListFocusContextKey, IListService, WorkbenchListSupportsMultiSelectContextKey, ListWidget, WorkbenchListHasSelectionOrFocus, getSelectionKeyboardEvent, WorkbenchListWidget, WorkbenchListSelectionNavigation, WorkbenchTreeElementCanCollapse, WorkbenchTreeElementHasParent, WorkbenchTreeElementHasChild, WorkbenchTreeElementCanExpand, RawWorkbenchListFocusContextKey, WorkbenchTreeFindOpen, WorkbenchListSupportsFind, WorkbenchListScrollAtBottomContextKey, WorkbenchListScrollAtTopContextKey } from 'vs/platform/list/browser/listService';
 import { PagedList } from 'vs/base/browser/ui/list/listPaging';
 import { equals, range } from 'vs/base/common/arrays';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -302,6 +302,27 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 		if (focused && !(focused instanceof List || focused instanceof PagedList || focused instanceof Table)) {
 			focused.collapseAll();
+		}
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'list.collapseAllToFocus',
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: WorkbenchListFocusContextKey,
+	handler: accessor => {
+		const focused = accessor.get(IListService).lastFocusedList;
+		const fakeKeyboardEvent = getSelectionKeyboardEvent('keydown', true);
+		// Trees
+		if (focused instanceof ObjectTree || focused instanceof DataTree || focused instanceof AsyncDataTree) {
+			const tree = focused;
+			const focus = tree.getFocus();
+
+			if (focus.length > 0) {
+				tree.collapse(focus[0], true);
+			}
+			tree.setSelection(focus, fakeKeyboardEvent);
+			tree.setAnchor(focus[0]);
 		}
 	}
 });
@@ -634,7 +655,7 @@ CommandsRegistry.registerCommandAlias('list.toggleFilterOnType', 'list.toggleFin
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'list.find',
 	weight: KeybindingWeight.WorkbenchContrib,
-	when: RawWorkbenchListFocusContextKey,
+	when: ContextKeyExpr.and(RawWorkbenchListFocusContextKey, WorkbenchListSupportsFind),
 	primary: KeyMod.CtrlCmd | KeyCode.KeyF,
 	secondary: [KeyCode.F3],
 	handler: (accessor) => {
@@ -671,7 +692,12 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'list.scrollUp',
 	weight: KeybindingWeight.WorkbenchContrib,
-	when: WorkbenchListFocusContextKey,
+	// Since the default keybindings for list.scrollUp and widgetNavigation.focusPrevious
+	// are both Ctrl+UpArrow, we disable this command when the scrollbar is at
+	// top-most position. This will give chance for widgetNavigation.focusPrevious to execute
+	when: ContextKeyExpr.and(
+		WorkbenchListFocusContextKey,
+		WorkbenchListScrollAtTopContextKey?.negate()),
 	primary: KeyMod.CtrlCmd | KeyCode.UpArrow,
 	handler: accessor => {
 		const focused = accessor.get(IListService).lastFocusedList;
@@ -687,7 +713,10 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'list.scrollDown',
 	weight: KeybindingWeight.WorkbenchContrib,
-	when: WorkbenchListFocusContextKey,
+	// same as above
+	when: ContextKeyExpr.and(
+		WorkbenchListFocusContextKey,
+		WorkbenchListScrollAtBottomContextKey?.negate()),
 	primary: KeyMod.CtrlCmd | KeyCode.DownArrow,
 	handler: accessor => {
 		const focused = accessor.get(IListService).lastFocusedList;

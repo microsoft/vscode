@@ -6,26 +6,25 @@
 import 'vs/css!./media/paneviewlet';
 import * as nls from 'vs/nls';
 import { Event, Emitter } from 'vs/base/common/event';
-import { foreground } from 'vs/platform/theme/common/colorRegistry';
-import { attachButtonStyler, attachProgressBarStyler } from 'vs/platform/theme/common/styler';
+import { asCssVariable, foreground } from 'vs/platform/theme/common/colorRegistry';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
-import { after, append, $, trackFocus, EventType, addDisposableListener, createCSSRule, asCSSUrl } from 'vs/base/browser/dom';
-import { IDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IAction } from 'vs/base/common/actions';
+import { after, append, $, trackFocus, EventType, addDisposableListener, createCSSRule, asCSSUrl, Dimension, reset, asCssValueWithDefault } from 'vs/base/browser/dom';
+import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
+import { Action, IAction, IActionRunner } from 'vs/base/common/actions';
 import { ActionsOrientation, IActionViewItem, prepareActions } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { IPaneOptions, Pane, IPaneStyles } from 'vs/base/browser/ui/splitview/paneview';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Extensions as ViewContainerExtensions, IView, IViewDescriptorService, ViewContainerLocation, IViewsRegistry, IViewContentDescriptor, defaultViewIcon, IViewsService, ViewContainerLocationToString } from 'vs/workbench/common/views';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { assertIsDefined } from 'vs/base/common/types';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { MenuId, Action2, IAction2Options, IMenuService, SubmenuItemAction } from 'vs/platform/actions/common/actions';
+import { MenuId, Action2, IAction2Options, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { parseLinkedText } from 'vs/base/common/linkedText';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -33,7 +32,7 @@ import { Button } from 'vs/base/browser/ui/button/button';
 import { Link } from 'vs/platform/opener/browser/link';
 import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
-import { CompositeProgressIndicator } from 'vs/workbench/services/progress/browser/progressIndicator';
+import { AbstractProgressScope, ScopedProgressIndicator } from 'vs/workbench/services/progress/browser/progressIndicator';
 import { IProgressIndicator } from 'vs/platform/progress/common/progress';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
@@ -42,13 +41,35 @@ import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { Codicon } from 'vs/base/common/codicons';
 import { CompositeMenuActions } from 'vs/workbench/browser/actions';
 import { IDropdownMenuActionViewItemOptions } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
+import { WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
+import { FilterWidget, IFilterWidgetOptions } from 'vs/workbench/browser/parts/views/viewFilter';
+import { BaseActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { defaultButtonStyles, defaultProgressBarStyles } from 'vs/platform/theme/browser/defaultStyles';
+
+export enum ViewPaneShowActions {
+	/** Show the actions when the view is hovered. This is the default behavior. */
+	Default,
+
+	/** Always shows the actions when the view is expanded */
+	WhenExpanded,
+
+	/** Always shows the actions */
+	Always,
+}
 
 export interface IViewPaneOptions extends IPaneOptions {
-	id: string;
-	showActionsAlways?: boolean;
-	titleMenuId?: MenuId;
-	donotForwardArgs?: boolean;
+	readonly id: string;
+	readonly showActions?: ViewPaneShowActions;
+	readonly titleMenuId?: MenuId;
+	readonly donotForwardArgs?: boolean;
 }
+
+export interface IFilterViewPaneOptions extends IViewPaneOptions {
+	filterOptions: IFilterWidgetOptions;
+}
+
+export const VIEWPANE_FILTER_ACTION = new Action('viewpane.action.filter');
 
 type WelcomeActionClassification = {
 	owner: 'joaomoreno';
@@ -67,36 +88,93 @@ interface IItem {
 	visible: boolean;
 }
 
-class ViewWelcomeController {
+interface IViewWelcomeDelegate {
+	readonly id: string;
+	readonly onDidChangeViewWelcomeState: Event<void>;
+	shouldShowWelcome(): boolean;
+}
 
-	private _onDidChange = new Emitter<void>();
-	readonly onDidChange = this._onDidChange.event;
+class ViewWelcomeController {
 
 	private defaultItem: IItem | undefined;
 	private items: IItem[] = [];
-	get contents(): IViewContentDescriptor[] {
-		const visibleItems = this.items.filter(v => v.visible);
 
-		if (visibleItems.length === 0 && this.defaultItem) {
-			return [this.defaultItem.descriptor];
-		}
+	get enabled(): boolean { return this._enabled; }
+	private _enabled: boolean = false;
+	private element: HTMLElement | undefined;
+	private scrollableElement: DomScrollableElement | undefined;
 
-		return visibleItems.map(v => v.descriptor);
-	}
-
-	private disposables = new DisposableStore();
+	private readonly disposables = new DisposableStore();
+	private readonly enabledDisposables = this.disposables.add(new DisposableStore());
+	private readonly renderDisposables = this.disposables.add(new DisposableStore());
 
 	constructor(
-		private id: string,
+		private readonly container: HTMLElement,
+		private readonly delegate: IViewWelcomeDelegate,
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IOpenerService protected openerService: IOpenerService,
+		@ITelemetryService protected telemetryService: ITelemetryService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 	) {
-		contextKeyService.onDidChangeContext(this.onDidChangeContext, this, this.disposables);
-		Event.filter(viewsRegistry.onDidChangeViewWelcomeContent, id => id === this.id)(this.onDidChangeViewWelcomeContent, this, this.disposables);
+		this.delegate.onDidChangeViewWelcomeState(this.onDidChangeViewWelcomeState, this, this.disposables);
+		this.onDidChangeViewWelcomeState();
+	}
+
+	layout(height: number, width: number) {
+		if (!this._enabled) {
+			return;
+		}
+
+		this.element!.style.height = `${height}px`;
+		this.element!.style.width = `${width}px`;
+		this.element!.classList.toggle('wide', width > 640);
+		this.scrollableElement!.scanDomNode();
+	}
+
+	focus() {
+		if (!this._enabled) {
+			return;
+		}
+
+		this.element!.focus();
+	}
+
+	private onDidChangeViewWelcomeState(): void {
+		const enabled = this.delegate.shouldShowWelcome();
+
+		if (this._enabled === enabled) {
+			return;
+		}
+
+		this._enabled = enabled;
+
+		if (!enabled) {
+			this.enabledDisposables.clear();
+			return;
+		}
+
+		this.container.classList.add('welcome');
+		const viewWelcomeContainer = append(this.container, $('.welcome-view'));
+		this.element = $('.welcome-view-content', { tabIndex: 0 });
+		this.scrollableElement = new DomScrollableElement(this.element, { alwaysConsumeMouseWheel: true, horizontal: ScrollbarVisibility.Hidden, vertical: ScrollbarVisibility.Visible, });
+		append(viewWelcomeContainer, this.scrollableElement.getDomNode());
+
+		this.enabledDisposables.add(toDisposable(() => {
+			this.container.classList.remove('welcome');
+			this.scrollableElement!.dispose();
+			viewWelcomeContainer.remove();
+			this.scrollableElement = undefined;
+			this.element = undefined;
+		}));
+
+		this.contextKeyService.onDidChangeContext(this.onDidChangeContext, this, this.enabledDisposables);
+		Event.chain(viewsRegistry.onDidChangeViewWelcomeContent, $ => $.filter(id => id === this.delegate.id))
+			(this.onDidChangeViewWelcomeContent, this, this.enabledDisposables);
 		this.onDidChangeViewWelcomeContent();
 	}
 
 	private onDidChangeViewWelcomeContent(): void {
-		const descriptors = viewsRegistry.getViewWelcomeContent(this.id);
+		const descriptors = viewsRegistry.getViewWelcomeContent(this.delegate.id);
 
 		this.items = [];
 
@@ -109,7 +187,7 @@ class ViewWelcomeController {
 			}
 		}
 
-		this._onDidChange.fire();
+		this.render();
 	}
 
 	private onDidChangeContext(): void {
@@ -131,34 +209,93 @@ class ViewWelcomeController {
 		}
 
 		if (didChange) {
-			this._onDidChange.fire();
+			this.render();
 		}
+	}
+
+	private render(): void {
+		this.renderDisposables.clear();
+		this.element!.innerText = '';
+
+		const contents = this.getContentDescriptors();
+
+		if (contents.length === 0) {
+			this.container.classList.remove('welcome');
+			this.scrollableElement!.scanDomNode();
+			return;
+		}
+
+		for (const { content, precondition } of contents) {
+			const lines = content.split('\n');
+
+			for (let line of lines) {
+				line = line.trim();
+
+				if (!line) {
+					continue;
+				}
+
+				const linkedText = parseLinkedText(line);
+
+				if (linkedText.nodes.length === 1 && typeof linkedText.nodes[0] !== 'string') {
+					const node = linkedText.nodes[0];
+					const buttonContainer = append(this.element!, $('.button-container'));
+					const button = new Button(buttonContainer, { title: node.title, supportIcons: true, ...defaultButtonStyles });
+					button.label = node.label;
+					button.onDidClick(_ => {
+						this.telemetryService.publicLog2<{ viewId: string; uri: string }, WelcomeActionClassification>('views.welcomeAction', { viewId: this.delegate.id, uri: node.href });
+						this.openerService.open(node.href, { allowCommands: true });
+					}, null, this.renderDisposables);
+					this.renderDisposables.add(button);
+
+					if (precondition) {
+						const updateEnablement = () => button.enabled = this.contextKeyService.contextMatchesRules(precondition);
+						updateEnablement();
+
+						const keys = new Set(precondition.keys());
+						const onDidChangeContext = Event.filter(this.contextKeyService.onDidChangeContext, e => e.affectsSome(keys));
+						onDidChangeContext(updateEnablement, null, this.renderDisposables);
+					}
+				} else {
+					const p = append(this.element!, $('p'));
+
+					for (const node of linkedText.nodes) {
+						if (typeof node === 'string') {
+							append(p, document.createTextNode(node));
+						} else {
+							const link = this.renderDisposables.add(this.instantiationService.createInstance(Link, p, node, {}));
+
+							if (precondition && node.href.startsWith('command:')) {
+								const updateEnablement = () => link.enabled = this.contextKeyService.contextMatchesRules(precondition);
+								updateEnablement();
+
+								const keys = new Set(precondition.keys());
+								const onDidChangeContext = Event.filter(this.contextKeyService.onDidChangeContext, e => e.affectsSome(keys));
+								onDidChangeContext(updateEnablement, null, this.renderDisposables);
+							}
+						}
+					}
+				}
+			}
+		}
+
+		this.container.classList.add('welcome');
+		this.scrollableElement!.scanDomNode();
+	}
+
+	private getContentDescriptors(): IViewContentDescriptor[] {
+		const visibleItems = this.items.filter(v => v.visible);
+
+		if (visibleItems.length === 0 && this.defaultItem) {
+			return [this.defaultItem.descriptor];
+		}
+
+		return visibleItems.map(v => v.descriptor);
 	}
 
 	dispose(): void {
 		this.disposables.dispose();
 	}
-}
-
-class ViewMenuActions extends CompositeMenuActions {
-	constructor(
-		element: HTMLElement,
-		viewId: string,
-		menuId: MenuId,
-		contextMenuId: MenuId,
-		donotForwardArgs: boolean,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IMenuService menuService: IMenuService,
-		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
-	) {
-		const scopedContextKeyService = contextKeyService.createScoped(element);
-		scopedContextKeyService.createKey('view', viewId);
-		const viewLocationKey = scopedContextKeyService.createKey('viewLocation', ViewContainerLocationToString(viewDescriptorService.getViewLocationById(viewId)!));
-		super(menuId, contextMenuId, { shouldForwardArgs: !donotForwardArgs }, scopedContextKeyService, menuService);
-		this._register(scopedContextKeyService);
-		this._register(Event.filter(viewDescriptorService.onDidChangeLocation, e => e.views.some(view => view.id === viewId))(() => viewLocationKey.set(ViewContainerLocationToString(viewDescriptorService.getViewLocationById(viewId)!))));
-	}
-
 }
 
 export abstract class ViewPane extends Pane implements IView {
@@ -193,23 +330,21 @@ export abstract class ViewPane extends Pane implements IView {
 		return this._titleDescription;
 	}
 
-	readonly menuActions: ViewMenuActions;
+	readonly menuActions: CompositeMenuActions;
 
 	private progressBar!: ProgressBar;
 	private progressIndicator!: IProgressIndicator;
 
-	private toolbar?: ToolBar;
-	private readonly showActionsAlways: boolean = false;
+	private toolbar?: WorkbenchToolBar;
+	private readonly showActions: ViewPaneShowActions;
 	private headerContainer?: HTMLElement;
 	private titleContainer?: HTMLElement;
 	private titleDescriptionContainer?: HTMLElement;
 	private iconContainer?: HTMLElement;
 	protected twistiesContainer?: HTMLElement;
+	private viewWelcomeController!: ViewWelcomeController;
 
-	private bodyContainer!: HTMLElement;
-	private viewWelcomeContainer!: HTMLElement;
-	private viewWelcomeDisposable: IDisposable = Disposable.None;
-	private viewWelcomeController: ViewWelcomeController;
+	protected readonly scopedContextKeyService: IContextKeyService;
 
 	constructor(
 		options: IViewPaneOptions,
@@ -228,12 +363,15 @@ export abstract class ViewPane extends Pane implements IView {
 		this.id = options.id;
 		this._title = options.title;
 		this._titleDescription = options.titleDescription;
-		this.showActionsAlways = !!options.showActionsAlways;
+		this.showActions = options.showActions ?? ViewPaneShowActions.Default;
 
-		this.menuActions = this._register(this.instantiationService.createInstance(ViewMenuActions, this.element, this.id, options.titleMenuId || MenuId.ViewTitle, MenuId.ViewTitleContext, !!options.donotForwardArgs));
+		this.scopedContextKeyService = this._register(contextKeyService.createScoped(this.element));
+		this.scopedContextKeyService.createKey('view', this.id);
+		const viewLocationKey = this.scopedContextKeyService.createKey('viewLocation', ViewContainerLocationToString(viewDescriptorService.getViewLocationById(this.id)!));
+		this._register(Event.filter(viewDescriptorService.onDidChangeLocation, e => e.views.some(view => view.id === this.id))(() => viewLocationKey.set(ViewContainerLocationToString(viewDescriptorService.getViewLocationById(this.id)!))));
+
+		this.menuActions = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])).createInstance(CompositeMenuActions, options.titleMenuId ?? MenuId.ViewTitle, MenuId.ViewTitleContext, { shouldForwardArgs: !options.donotForwardArgs }));
 		this._register(this.menuActions.onDidChange(() => this.updateActions()));
-
-		this.viewWelcomeController = new ViewWelcomeController(this.id, contextKeyService);
 	}
 
 	override get headerVisible(): boolean {
@@ -292,13 +430,16 @@ export abstract class ViewPane extends Pane implements IView {
 		this.renderHeaderTitle(container, this.title);
 
 		const actions = append(container, $('.actions'));
-		actions.classList.toggle('show', this.showActionsAlways);
-		this.toolbar = new ToolBar(actions, this.contextMenuService, {
+		actions.classList.toggle('show-always', this.showActions === ViewPaneShowActions.Always);
+		actions.classList.toggle('show-expanded', this.showActions === ViewPaneShowActions.WhenExpanded);
+		this.toolbar = this.instantiationService.createInstance(WorkbenchToolBar, actions, {
 			orientation: ActionsOrientation.HORIZONTAL,
 			actionViewItemProvider: action => this.getActionViewItem(action),
 			ariaLabel: nls.localize('viewToolbarAriaLabel', "{0} actions", this.title),
 			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id),
-			renderDropdownAsChildElement: true
+			renderDropdownAsChildElement: true,
+			actionRunner: this.getActionRunner(),
+			resetMenu: this.menuActions.menuId
 		});
 
 		this._register(this.toolbar);
@@ -306,9 +447,12 @@ export abstract class ViewPane extends Pane implements IView {
 
 		this._register(addDisposableListener(actions, EventType.CLICK, e => e.preventDefault()));
 
-		this._register(this.viewDescriptorService.getViewContainerModel(this.viewDescriptorService.getViewContainerByViewId(this.id)!)!.onDidChangeContainerInfo(({ title }) => {
-			this.updateTitle(this.title);
-		}));
+		const viewContainerModel = this.viewDescriptorService.getViewContainerByViewId(this.id);
+		if (viewContainerModel) {
+			this._register(this.viewDescriptorService.getViewContainerModel(viewContainerModel).onDidChangeContainerInfo(({ title }) => this.updateTitle(this.title)));
+		} else {
+			console.error(`View container model not found for view ${this.id}`);
+		}
 
 		const onDidRelevantConfigurationChange = Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ViewPane.AlwaysShowActionsConfig));
 		this._register(onDidRelevantConfigurationChange(this.updateActionsVisibility, this));
@@ -324,14 +468,14 @@ export abstract class ViewPane extends Pane implements IView {
 
 		const icon = this.getIcon();
 		if (this.iconContainer) {
-			const fgColor = styles.headerForeground || this.themeService.getColorTheme().getColor(foreground);
+			const fgColor = asCssValueWithDefault(styles.headerForeground, asCssVariable(foreground));
 			if (URI.isUri(icon)) {
 				// Apply background color to activity bar item provided with iconUrls
-				this.iconContainer.style.backgroundColor = fgColor ? fgColor.toString() : '';
+				this.iconContainer.style.backgroundColor = fgColor;
 				this.iconContainer.style.color = '';
 			} else {
 				// Apply foreground color to activity bar items provided with codicons
-				this.iconContainer.style.color = fgColor ? fgColor.toString() : '';
+				this.iconContainer.style.color = fgColor;
 				this.iconContainer.style.backgroundColor = '';
 			}
 		}
@@ -421,31 +565,12 @@ export abstract class ViewPane extends Pane implements IView {
 		return title;
 	}
 
-	private scrollableElement!: DomScrollableElement;
-
 	protected renderBody(container: HTMLElement): void {
-		this.bodyContainer = container;
-
-		const viewWelcomeContainer = append(container, $('.welcome-view'));
-		this.viewWelcomeContainer = $('.welcome-view-content', { tabIndex: 0 });
-		this.scrollableElement = this._register(new DomScrollableElement(this.viewWelcomeContainer, {
-			alwaysConsumeMouseWheel: true,
-			horizontal: ScrollbarVisibility.Hidden,
-			vertical: ScrollbarVisibility.Visible,
-		}));
-
-		append(viewWelcomeContainer, this.scrollableElement.getDomNode());
-
-		const onViewWelcomeChange = Event.any(this.viewWelcomeController.onDidChange, this.onDidChangeViewWelcomeState);
-		this._register(onViewWelcomeChange(this.updateViewWelcome, this));
-		this.updateViewWelcome();
+		this.viewWelcomeController = this._register(new ViewWelcomeController(container, this, this.instantiationService, this.openerService, this.telemetryService, this.contextKeyService));
 	}
 
 	protected layoutBody(height: number, width: number): void {
-		this.viewWelcomeContainer.style.height = `${height}px`;
-		this.viewWelcomeContainer.style.width = `${width}px`;
-		this.viewWelcomeContainer.classList.toggle('wide', width > 640);
-		this.scrollableElement.scanDomNode();
+		this.viewWelcomeController.layout(height, width);
 	}
 
 	onDidScrollRoot() {
@@ -455,13 +580,18 @@ export abstract class ViewPane extends Pane implements IView {
 	getProgressIndicator() {
 		if (this.progressBar === undefined) {
 			// Progress bar
-			this.progressBar = this._register(new ProgressBar(this.element));
-			this._register(attachProgressBarStyler(this.progressBar, this.themeService));
+			this.progressBar = this._register(new ProgressBar(this.element, defaultProgressBarStyles));
 			this.progressBar.hide();
 		}
 
 		if (this.progressIndicator === undefined) {
-			this.progressIndicator = this.instantiationService.createInstance(CompositeProgressIndicator, assertIsDefined(this.progressBar), this.id, this.isBodyVisible());
+			const that = this;
+			this.progressIndicator = new ScopedProgressIndicator(assertIsDefined(this.progressBar), new class extends AbstractProgressScope {
+				constructor() {
+					super(that.id, that.isBodyVisible());
+					this._register(that.onDidChangeBodyVisibility(isVisible => isVisible ? this.onScopeOpened(that.id) : this.onScopeClosed(that.id)));
+				}
+			}());
 		}
 		return this.progressIndicator;
 	}
@@ -483,8 +613,8 @@ export abstract class ViewPane extends Pane implements IView {
 	}
 
 	focus(): void {
-		if (this.shouldShowWelcome()) {
-			this.viewWelcomeContainer.focus();
+		if (this.viewWelcomeController.enabled) {
+			this.viewWelcomeController.focus();
 		} else if (this.element) {
 			this.element.focus();
 			this._onDidFocus.fire();
@@ -493,7 +623,11 @@ export abstract class ViewPane extends Pane implements IView {
 
 	private setActions(): void {
 		if (this.toolbar) {
-			this.toolbar.setActions(prepareActions(this.menuActions.getPrimaryActions()), prepareActions(this.menuActions.getSecondaryActions()));
+			const primaryActions = [...this.menuActions.getPrimaryActions()];
+			if (this.shouldShowFilterInHeader()) {
+				primaryActions.unshift(VIEWPANE_FILTER_ACTION);
+			}
+			this.toolbar.setActions(prepareActions(primaryActions), prepareActions(this.menuActions.getSecondaryActions()));
 			this.toolbar.context = this.getActionsContext();
 		}
 	}
@@ -512,10 +646,26 @@ export abstract class ViewPane extends Pane implements IView {
 	}
 
 	getActionViewItem(action: IAction, options?: IDropdownMenuActionViewItemOptions): IActionViewItem | undefined {
+		if (action.id === VIEWPANE_FILTER_ACTION.id) {
+			const that = this;
+			return new class extends BaseActionViewItem {
+				constructor() { super(null, action); }
+				override setFocusable(): void { /* noop input elements are focusable by default */ }
+				override get trapsArrowNavigation(): boolean { return true; }
+				override render(container: HTMLElement): void {
+					container.classList.add('viewpane-filter-container');
+					append(container, that.getFilterWidget()!.element);
+				}
+			};
+		}
 		return createActionViewItem(this.instantiationService, action, { ...options, ...{ menuAsChild: action instanceof SubmenuItemAction } });
 	}
 
 	getActionsContext(): unknown {
+		return undefined;
+	}
+
+	getActionRunner(): IActionRunner | undefined {
 		return undefined;
 	}
 
@@ -527,93 +677,78 @@ export abstract class ViewPane extends Pane implements IView {
 		// Subclasses to implement for saving state
 	}
 
-	private updateViewWelcome(): void {
-		this.viewWelcomeDisposable.dispose();
-
-		if (!this.shouldShowWelcome()) {
-			this.bodyContainer.classList.remove('welcome');
-			this.viewWelcomeContainer.innerText = '';
-			this.scrollableElement.scanDomNode();
-			return;
-		}
-
-		const contents = this.viewWelcomeController.contents;
-
-		if (contents.length === 0) {
-			this.bodyContainer.classList.remove('welcome');
-			this.viewWelcomeContainer.innerText = '';
-			this.scrollableElement.scanDomNode();
-			return;
-		}
-
-		const disposables = new DisposableStore();
-		this.bodyContainer.classList.add('welcome');
-		this.viewWelcomeContainer.innerText = '';
-
-		for (const { content, precondition } of contents) {
-			const lines = content.split('\n');
-
-			for (let line of lines) {
-				line = line.trim();
-
-				if (!line) {
-					continue;
-				}
-
-				const linkedText = parseLinkedText(line);
-
-				if (linkedText.nodes.length === 1 && typeof linkedText.nodes[0] !== 'string') {
-					const node = linkedText.nodes[0];
-					const buttonContainer = append(this.viewWelcomeContainer, $('.button-container'));
-					const button = new Button(buttonContainer, { title: node.title, supportIcons: true });
-					button.label = node.label;
-					button.onDidClick(_ => {
-						this.telemetryService.publicLog2<{ viewId: string; uri: string }, WelcomeActionClassification>('views.welcomeAction', { viewId: this.id, uri: node.href });
-						this.openerService.open(node.href, { allowCommands: true });
-					}, null, disposables);
-					disposables.add(button);
-					disposables.add(attachButtonStyler(button, this.themeService));
-
-					if (precondition) {
-						const updateEnablement = () => button.enabled = this.contextKeyService.contextMatchesRules(precondition);
-						updateEnablement();
-
-						const keys = new Set();
-						precondition.keys().forEach(key => keys.add(key));
-						const onDidChangeContext = Event.filter(this.contextKeyService.onDidChangeContext, e => e.affectsSome(keys));
-						onDidChangeContext(updateEnablement, null, disposables);
-					}
-				} else {
-					const p = append(this.viewWelcomeContainer, $('p'));
-
-					for (const node of linkedText.nodes) {
-						if (typeof node === 'string') {
-							append(p, document.createTextNode(node));
-						} else {
-							const link = disposables.add(this.instantiationService.createInstance(Link, p, node, {}));
-
-							if (precondition && node.href.startsWith('command:')) {
-								const updateEnablement = () => link.enabled = this.contextKeyService.contextMatchesRules(precondition);
-								updateEnablement();
-
-								const keys = new Set();
-								precondition.keys().forEach(key => keys.add(key));
-								const onDidChangeContext = Event.filter(this.contextKeyService.onDidChangeContext, e => e.affectsSome(keys));
-								onDidChangeContext(updateEnablement, null, disposables);
-							}
-						}
-					}
-				}
-			}
-		}
-
-		this.scrollableElement.scanDomNode();
-		this.viewWelcomeDisposable = disposables;
-	}
-
 	shouldShowWelcome(): boolean {
 		return false;
 	}
+
+	getFilterWidget(): FilterWidget | undefined {
+		return undefined;
+	}
+
+	shouldShowFilterInHeader(): boolean {
+		return false;
+	}
+}
+
+export abstract class FilterViewPane extends ViewPane {
+
+	readonly filterWidget: FilterWidget;
+	private dimension: Dimension | undefined;
+	private filterContainer: HTMLElement | undefined;
+
+	constructor(
+		options: IFilterViewPaneOptions,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IOpenerService openerService: IOpenerService,
+		@IThemeService themeService: IThemeService,
+		@ITelemetryService telemetryService: ITelemetryService,
+	) {
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
+		this.filterWidget = this._register(instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])).createInstance(FilterWidget, options.filterOptions));
+	}
+
+	override getFilterWidget(): FilterWidget {
+		return this.filterWidget;
+	}
+
+	protected override renderBody(container: HTMLElement): void {
+		super.renderBody(container);
+		this.filterContainer = append(container, $('.viewpane-filter-container'));
+	}
+
+	protected override layoutBody(height: number, width: number): void {
+		super.layoutBody(height, width);
+
+		this.dimension = new Dimension(width, height);
+		const wasFilterShownInHeader = !this.filterContainer?.hasChildNodes();
+		const shouldShowFilterInHeader = this.shouldShowFilterInHeader();
+		if (wasFilterShownInHeader !== shouldShowFilterInHeader) {
+			if (shouldShowFilterInHeader) {
+				reset(this.filterContainer!);
+			}
+			this.updateActions();
+			if (!shouldShowFilterInHeader) {
+				append(this.filterContainer!, this.filterWidget.element);
+			}
+		}
+		if (!shouldShowFilterInHeader) {
+			height = height - 44;
+		}
+		this.filterWidget.layout(width);
+		this.layoutBodyContent(height, width);
+	}
+
+	override shouldShowFilterInHeader(): boolean {
+		return !(this.dimension && this.dimension.width < 600 && this.dimension.height > 100);
+	}
+
+	protected abstract layoutBodyContent(height: number, width: number): void;
+
 }
 
 export abstract class ViewAction<T extends IView> extends Action2 {

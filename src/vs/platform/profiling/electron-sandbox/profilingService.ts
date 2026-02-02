@@ -6,4 +6,4 @@
 import { registerSharedProcessRemoteService } from 'vs/platform/ipc/electron-sandbox/services';
 import { IV8InspectProfilingService } from 'vs/platform/profiling/common/profiling';
 
-registerSharedProcessRemoteService(IV8InspectProfilingService, 'v8InspectProfiling', { supportsDelayedInstantiation: true });
+registerSharedProcessRemoteService(IV8InspectProfilingService, 'v8InspectProfiling');

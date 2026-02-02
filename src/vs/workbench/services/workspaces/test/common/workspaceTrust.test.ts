@@ -21,8 +21,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 import { WorkspaceTrustEnablementService, WorkspaceTrustManagementService, WORKSPACE_TRUST_STORAGE_KEY } from 'vs/workbench/services/workspaces/common/workspaceTrust';
-import { TestWorkspaceTrustEnablementService } from 'vs/workbench/services/workspaces/test/common/testWorkspaceTrustService';
-import { TestContextService, TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
+import { TestContextService, TestStorageService, TestWorkspaceTrustEnablementService } from 'vs/workbench/test/common/workbenchTestServices';
 
 suite('Workspace Trust', () => {
 	let instantiationService: TestInstantiationService;
@@ -40,6 +39,10 @@ suite('Workspace Trust', () => {
 
 		instantiationService.stub(IUriIdentityService, new UriIdentityService(new FileService(new NullLogService())));
 		instantiationService.stub(IRemoteAuthorityResolverService, new class extends mock<IRemoteAuthorityResolverService>() { });
+	});
+
+	teardown(() => {
+		instantiationService.dispose();
 	});
 
 	suite('Enablement', () => {

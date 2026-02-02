@@ -11,3 +11,4 @@ cgmanifest.json
 yarn.lock
 preview-src/**
 webpack.config.js
+esbuild-preview.js

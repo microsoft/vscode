@@ -13,6 +13,7 @@ import { IModelChangedEvent } from 'vs/editor/common/model/mirrorTextModel';
 import { mock } from 'vs/base/test/common/mock';
 import * as perfData from './extHostDocumentData.test.perf-data';
 import { setDefaultGetWordAtTextConfig } from 'vs/editor/common/core/wordHelper';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('ExtHostDocumentData', () => {
 
@@ -38,6 +39,8 @@ suite('ExtHostDocumentData', () => {
 			'and finished with the fourth.', //29
 		], '\n', 1, 'text', false);
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('readonly-ness', () => {
 		assert.throws(() => (data as any).document.uri = null);

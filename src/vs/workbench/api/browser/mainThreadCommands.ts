@@ -3,19 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ICommandService, CommandsRegistry, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { ExtHostContext, MainThreadCommandsShape, ExtHostCommandsShape, MainContext } from '../common/extHost.protocol';
-import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
+import { DisposableMap, IDisposable } from 'vs/base/common/lifecycle';
 import { revive } from 'vs/base/common/marshalling';
+import { CommandsRegistry, ICommandMetadata, ICommandService } from 'vs/platform/commands/common/commands';
+import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { SerializableObjectWithBuffers, Dto } from 'vs/workbench/services/extensions/common/proxyIdentifier';
+import { Dto, SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
+import { ExtHostCommandsShape, ExtHostContext, MainContext, MainThreadCommandsShape } from '../common/extHost.protocol';
+import { isString } from 'vs/base/common/types';
 
 
 @extHostNamedCustomer(MainContext.MainThreadCommands)
 export class MainThreadCommands implements MainThreadCommandsShape {
 
-	private readonly _commandRegistrations = new Map<string, IDisposable>();
+	private readonly _commandRegistrations = new DisposableMap<string>();
 	private readonly _generateCommandsDocumentationRegistration: IDisposable;
 	private readonly _proxy: ExtHostCommandsShape;
 
@@ -30,20 +31,18 @@ export class MainThreadCommands implements MainThreadCommandsShape {
 	}
 
 	dispose() {
-		dispose(this._commandRegistrations.values());
-		this._commandRegistrations.clear();
-
+		this._commandRegistrations.dispose();
 		this._generateCommandsDocumentationRegistration.dispose();
 	}
 
 	private async _generateCommandsDocumentation(): Promise<void> {
-		const result = await this._proxy.$getContributedCommandHandlerDescriptions();
+		const result = await this._proxy.$getContributedCommandMetadata();
 
 		// add local commands
 		const commands = CommandsRegistry.getCommands();
 		for (const [id, command] of commands) {
-			if (command.description) {
-				result[id] = command.description;
+			if (command.metadata) {
+				result[id] = command.metadata;
 			}
 		}
 
@@ -67,11 +66,7 @@ export class MainThreadCommands implements MainThreadCommandsShape {
 	}
 
 	$unregisterCommand(id: string): void {
-		const command = this._commandRegistrations.get(id);
-		if (command) {
-			command.dispose();
-			this._commandRegistrations.delete(id);
-		}
+		this._commandRegistrations.deleteAndDispose(id);
 	}
 
 	$fireCommandActivationEvent(id: string): void {
@@ -104,11 +99,15 @@ export class MainThreadCommands implements MainThreadCommandsShape {
 
 // --- command doc
 
-function _generateMarkdown(description: string | Dto<ICommandHandlerDescription> | ICommandHandlerDescription): string {
+function _generateMarkdown(description: string | Dto<ICommandMetadata> | ICommandMetadata): string {
 	if (typeof description === 'string') {
 		return description;
 	} else {
-		const parts = [description.description];
+		const descriptionString = isString(description.description)
+			? description.description
+			// Our docs website is in English, so keep the original here.
+			: description.description.original;
+		const parts = [descriptionString];
 		parts.push('\n\n');
 		if (description.args) {
 			for (const arg of description.args) {

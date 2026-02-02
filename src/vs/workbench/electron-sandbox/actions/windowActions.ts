@@ -17,13 +17,15 @@ import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { ICommandHandler } from 'vs/platform/commands/common/commands';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { INativeHostService } from 'vs/platform/native/common/native';
 import { Codicon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 import { Action2, IAction2Options, MenuId } from 'vs/platform/actions/common/actions';
-import { CATEGORIES } from 'vs/workbench/common/actions';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { isMacintosh } from 'vs/base/common/platform';
 
 export class CloseWindowAction extends Action2 {
 
@@ -95,7 +97,7 @@ export class ZoomInAction extends BaseZoomAction {
 				mnemonicTitle: localize({ key: 'miZoomIn', comment: ['&& denotes a mnemonic'] }, "&&Zoom In"),
 				original: 'Zoom In'
 			},
-			category: CATEGORIES.View,
+			category: Categories.View,
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -104,7 +106,7 @@ export class ZoomInAction extends BaseZoomAction {
 			},
 			menu: {
 				id: MenuId.MenubarAppearanceMenu,
-				group: '3_zoom',
+				group: '5_zoom',
 				order: 1
 			}
 		});
@@ -125,7 +127,7 @@ export class ZoomOutAction extends BaseZoomAction {
 				mnemonicTitle: localize({ key: 'miZoomOut', comment: ['&& denotes a mnemonic'] }, "&&Zoom Out"),
 				original: 'Zoom Out'
 			},
-			category: CATEGORIES.View,
+			category: Categories.View,
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -138,7 +140,7 @@ export class ZoomOutAction extends BaseZoomAction {
 			},
 			menu: {
 				id: MenuId.MenubarAppearanceMenu,
-				group: '3_zoom',
+				group: '5_zoom',
 				order: 2
 			}
 		});
@@ -159,7 +161,7 @@ export class ZoomResetAction extends BaseZoomAction {
 				mnemonicTitle: localize({ key: 'miZoomReset', comment: ['&& denotes a mnemonic'] }, "&&Reset Zoom"),
 				original: 'Reset Zoom'
 			},
-			category: CATEGORIES.View,
+			category: Categories.View,
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -167,7 +169,7 @@ export class ZoomResetAction extends BaseZoomAction {
 			},
 			menu: {
 				id: MenuId.MenubarAppearanceMenu,
-				group: '3_zoom',
+				group: '5_zoom',
 				order: 3
 			}
 		});
@@ -181,7 +183,7 @@ export class ZoomResetAction extends BaseZoomAction {
 abstract class BaseSwitchWindow extends Action2 {
 
 	private readonly closeWindowAction: IQuickInputButton = {
-		iconClass: Codicon.removeClose.classNames,
+		iconClass: ThemeIcon.asClassName(Codicon.removeClose),
 		tooltip: localize('close', "Close Window")
 	};
 
@@ -275,26 +277,59 @@ export class QuickSwitchWindowAction extends BaseSwitchWindow {
 	}
 }
 
+function canRunNativeTabsHandler(accessor: ServicesAccessor): boolean {
+	if (!isMacintosh) {
+		return false;
+	}
+
+	const configurationService = accessor.get(IConfigurationService);
+	return configurationService.getValue<unknown>('window.nativeTabs') === true;
+}
+
 export const NewWindowTabHandler: ICommandHandler = function (accessor: ServicesAccessor) {
+	if (!canRunNativeTabsHandler(accessor)) {
+		return;
+	}
+
 	return accessor.get(INativeHostService).newWindowTab();
 };
 
 export const ShowPreviousWindowTabHandler: ICommandHandler = function (accessor: ServicesAccessor) {
+	if (!canRunNativeTabsHandler(accessor)) {
+		return;
+	}
+
 	return accessor.get(INativeHostService).showPreviousWindowTab();
 };
 
 export const ShowNextWindowTabHandler: ICommandHandler = function (accessor: ServicesAccessor) {
+	if (!canRunNativeTabsHandler(accessor)) {
+		return;
+	}
+
 	return accessor.get(INativeHostService).showNextWindowTab();
 };
 
 export const MoveWindowTabToNewWindowHandler: ICommandHandler = function (accessor: ServicesAccessor) {
+	if (!canRunNativeTabsHandler(accessor)) {
+		return;
+	}
+
 	return accessor.get(INativeHostService).moveWindowTabToNewWindow();
 };
 
 export const MergeWindowTabsHandlerHandler: ICommandHandler = function (accessor: ServicesAccessor) {
+	if (!canRunNativeTabsHandler(accessor)) {
+		return;
+	}
+
 	return accessor.get(INativeHostService).mergeAllWindowTabs();
 };
 
 export const ToggleWindowTabsBarHandler: ICommandHandler = function (accessor: ServicesAccessor) {
+	if (!canRunNativeTabsHandler(accessor)) {
+		return;
+	}
+
 	return accessor.get(INativeHostService).toggleWindowTabsBar();
 };

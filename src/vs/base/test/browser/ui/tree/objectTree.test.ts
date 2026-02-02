@@ -8,11 +8,20 @@ import { IIdentityProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list
 import { ICompressedTreeNode } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
 import { CompressibleObjectTree, ICompressibleTreeRenderer, ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
 import { ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('ObjectTree', function () {
+
 	suite('TreeNavigator', function () {
 		let tree: ObjectTree<number>;
 		let filter = (_: number) => true;
+
+		teardown(() => {
+			tree.dispose();
+			filter = (_: number) => true;
+		});
+
+		ensureNoDisposablesAreLeakedInTestSuite();
 
 		setup(() => {
 			const container = document.createElement('div');
@@ -37,11 +46,6 @@ suite('ObjectTree', function () {
 
 			tree = new ObjectTree<number>('test', container, delegate, [renderer], { filter: { filter: (el) => filter(el) } });
 			tree.layout(200);
-		});
-
-		teardown(() => {
-			tree.dispose();
-			filter = (_: number) => true;
 		});
 
 		test('should be able to navigate', () => {

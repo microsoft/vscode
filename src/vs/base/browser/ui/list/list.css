@@ -13,7 +13,6 @@
 .monaco-list.mouse-support {
 	user-select: none;
 	-webkit-user-select: none;
-	-ms-user-select: none;
 }
 
 .monaco-list > .monaco-scrollable-element {

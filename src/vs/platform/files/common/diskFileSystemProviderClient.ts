@@ -8,12 +8,12 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { canceled } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { newWriteableStream, ReadableStreamEventPayload, ReadableStreamEvents } from 'vs/base/common/stream';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
-import { createFileSystemProviderError, IFileAtomicReadOptions, FileChangeType, IFileDeleteOptions, IFileOpenOptions, IFileOverwriteOptions, IFileReadStreamOptions, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, IFileWriteOptions, IFileChange, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileCloneCapability, IFileSystemProviderWithFileFolderCopyCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, IStat, IWatchOptions } from 'vs/platform/files/common/files';
+import { createFileSystemProviderError, IFileAtomicReadOptions, FileChangeType, IFileDeleteOptions, IFileOpenOptions, IFileOverwriteOptions, IFileReadStreamOptions, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, IFileWriteOptions, IFileChange, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileCloneCapability, IFileSystemProviderWithFileFolderCopyCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, IStat, IWatchOptions, IFileSystemProviderError } from 'vs/platform/files/common/files';
 
 export const LOCAL_FILE_SYSTEM_CHANNEL_NAME = 'localFilesystem';
 
@@ -53,6 +53,8 @@ export class DiskFileSystemProviderClient extends Disposable implements
 				FileSystemProviderCapabilities.FileFolderCopy |
 				FileSystemProviderCapabilities.FileWriteUnlock |
 				FileSystemProviderCapabilities.FileAtomicRead |
+				FileSystemProviderCapabilities.FileAtomicWrite |
+				FileSystemProviderCapabilities.FileAtomicDelete |
 				FileSystemProviderCapabilities.FileClone;
 
 			if (this.extraCapabilities.pathCaseSensitive) {
@@ -91,9 +93,10 @@ export class DiskFileSystemProviderClient extends Disposable implements
 
 	readFileStream(resource: URI, opts: IFileReadStreamOptions, token: CancellationToken): ReadableStreamEvents<Uint8Array> {
 		const stream = newWriteableStream<Uint8Array>(data => VSBuffer.concat(data.map(data => VSBuffer.wrap(data))).buffer);
+		const disposables = new DisposableStore();
 
 		// Reading as file stream goes through an event to the remote side
-		const listener = this.channel.listen<ReadableStreamEventPayload<VSBuffer>>('readFileStream', [resource, opts])(dataOrErrorOrEnd => {
+		disposables.add(this.channel.listen<ReadableStreamEventPayload<VSBuffer>>('readFileStream', [resource, opts])(dataOrErrorOrEnd => {
 
 			// data
 			if (dataOrErrorOrEnd instanceof VSBuffer) {
@@ -105,14 +108,20 @@ export class DiskFileSystemProviderClient extends Disposable implements
 				if (dataOrErrorOrEnd === 'end') {
 					stream.end();
 				} else {
+					let error: Error;
 
-					// Since we receive data through a IPC channel, it is likely
-					// that the error was not serialized, or only partially. To
-					// ensure our API use is correct, we convert the data to an
-					// error here to forward it properly.
-					let error = dataOrErrorOrEnd;
-					if (!(error instanceof Error)) {
-						error = createFileSystemProviderError(toErrorMessage(error), FileSystemProviderErrorCode.Unknown);
+					// Take Error as is if type matches
+					if (dataOrErrorOrEnd instanceof Error) {
+						error = dataOrErrorOrEnd;
+					}
+
+					// Otherwise, try to deserialize into an error.
+					// Since we communicate via IPC, we cannot be sure
+					// that Error objects are properly serialized.
+					else {
+						const errorCandidate = dataOrErrorOrEnd as IFileSystemProviderError;
+
+						error = createFileSystemProviderError(errorCandidate.message ?? toErrorMessage(errorCandidate), errorCandidate.code ?? FileSystemProviderErrorCode.Unknown);
 					}
 
 					stream.error(error);
@@ -120,12 +129,12 @@ export class DiskFileSystemProviderClient extends Disposable implements
 				}
 
 				// Signal to the remote side that we no longer listen
-				listener.dispose();
+				disposables.dispose();
 			}
-		});
+		}));
 
 		// Support cancellation
-		token.onCancellationRequested(() => {
+		disposables.add(token.onCancellationRequested(() => {
 
 			// Ensure to end the stream properly with an error
 			// to indicate the cancellation.
@@ -135,8 +144,8 @@ export class DiskFileSystemProviderClient extends Disposable implements
 			// Ensure to dispose the listener upon cancellation. This will
 			// bubble through the remote side as event and allows to stop
 			// reading the file.
-			listener.dispose();
-		});
+			disposables.dispose();
+		}));
 
 		return stream;
 	}

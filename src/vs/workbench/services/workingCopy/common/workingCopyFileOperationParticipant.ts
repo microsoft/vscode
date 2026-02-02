@@ -46,5 +46,7 @@ export class WorkingCopyFileOperationParticipant extends Disposable {
 
 	override dispose(): void {
 		this.participants.clear();
+
+		super.dispose();
 	}
 }

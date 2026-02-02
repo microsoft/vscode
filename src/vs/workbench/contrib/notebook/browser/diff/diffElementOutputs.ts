@@ -6,7 +6,6 @@
 import * as DOM from 'vs/base/browser/dom';
 import * as nls from 'vs/nls';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { DiffElementViewModelBase, SideBySideDiffElementViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
 import { DiffSide, INotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditorBrowser';
 import { ICellOutputViewModel, IInsetRenderOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
@@ -14,7 +13,7 @@ import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/no
 import { NotebookCellOutputsSplice } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { DiffNestedCellViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffNestedCellViewModel';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { mimetypeIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -128,16 +127,20 @@ export class OutputElement extends Disposable {
 
 	private _renderSearchForMimetype(viewModel: ICellOutputViewModel, mimeType: string): IInsetRenderOutput {
 		const query = `@tag:notebookRenderer ${mimeType}`;
+
+		const p = DOM.$('p', undefined, `No renderer could be found for mimetype "${mimeType}", but one might be available on the Marketplace.`);
+		const a = DOM.$('a', { href: `command:workbench.extensions.search?%22${query}%22`, class: 'monaco-button monaco-text-button', tabindex: 0, role: 'button', style: 'padding: 8px; text-decoration: none; color: rgb(255, 255, 255); background-color: rgb(14, 99, 156); max-width: 200px;' }, `Search Marketplace`);
+
 		return {
 			type: RenderOutputType.Html,
 			source: viewModel,
-			htmlContent: `<p>No renderer could be found for mimetype "${mimeType}", but one might be available on the Marketplace.</p>
-			<a href="command:workbench.extensions.search?%22${query}%22" class="monaco-button monaco-text-button" tabindex="0" role="button" style="padding: 8px; text-decoration: none; color: rgb(255, 255, 255); background-color: rgb(14, 99, 156); max-width: 200px;">Search Marketplace</a>`
+			htmlContent: p.outerHTML + a.outerHTML,
 		};
 	}
 
 	private _renderMessage(viewModel: ICellOutputViewModel, message: string): IInsetRenderOutput {
-		return { type: RenderOutputType.Html, source: viewModel, htmlContent: `<p>${message}</p>` };
+		const el = DOM.$('p', undefined, message);
+		return { type: RenderOutputType.Html, source: viewModel, htmlContent: el.outerHTML };
 	}
 
 	private async pickActiveMimeTypeRenderer(notebookTextModel: NotebookTextModel, viewModel: ICellOutputViewModel) {
@@ -231,7 +234,6 @@ export class OutputContainer extends Disposable {
 		private _outputContainer: HTMLElement,
 		@INotebookService private _notebookService: INotebookService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
-		@IOpenerService readonly _openerService: IOpenerService
 	) {
 		super();
 		this._register(this._diffElementViewModel.onDidLayoutChange(() => {

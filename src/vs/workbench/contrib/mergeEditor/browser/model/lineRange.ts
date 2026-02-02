@@ -61,8 +61,12 @@ export class LineRange {
 		);
 	}
 
-	public isAfter(modifiedRange: LineRange): boolean {
-		return this.startLineNumber >= modifiedRange.endLineNumberExclusive;
+	public isAfter(range: LineRange): boolean {
+		return this.startLineNumber >= range.endLineNumberExclusive;
+	}
+
+	public isBefore(range: LineRange): boolean {
+		return range.startLineNumber >= this.endLineNumberExclusive;
 	}
 
 	public delta(lineDelta: number): LineRange {
@@ -110,5 +114,17 @@ export class LineRange {
 			return undefined;
 		}
 		return new Range(this.startLineNumber, 1, this.endLineNumberExclusive - 1, Constants.MAX_SAFE_SMALL_INTEGER);
+	}
+
+	public toInclusiveRangeOrEmpty(): Range {
+		if (this.isEmpty) {
+			return new Range(this.startLineNumber, 1, this.startLineNumber, 1);
+		}
+		return new Range(this.startLineNumber, 1, this.endLineNumberExclusive - 1, Constants.MAX_SAFE_SMALL_INTEGER);
+	}
+
+	intersects(lineRange: LineRange) {
+		return this.startLineNumber <= lineRange.endLineNumberExclusive
+			&& lineRange.startLineNumber <= this.endLineNumberExclusive;
 	}
 }

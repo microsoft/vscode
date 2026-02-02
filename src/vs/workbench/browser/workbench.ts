@@ -5,6 +5,7 @@
 
 import 'vs/workbench/browser/style';
 import { localize } from 'vs/nls';
+import { addDisposableListener } from 'vs/base/browser/dom';
 import { Event, Emitter, setGlobalLeakWarningThreshold } from 'vs/base/common/event';
 import { RunOnceScheduler, runWhenIdle, timeout } from 'vs/base/common/async';
 import { isFirefox, isSafari, isChrome, PixelRatio } from 'vs/base/browser/browser';
@@ -17,7 +18,7 @@ import { IEditorFactoryRegistry, EditorExtensions } from 'vs/workbench/common/ed
 import { getSingletonServiceDescriptors } from 'vs/platform/instantiation/common/extensions';
 import { Position, Parts, IWorkbenchLayoutService, positionToString } from 'vs/workbench/services/layout/browser/layoutService';
 import { IStorageService, WillSaveStateReason, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { LifecyclePhase, ILifecycleService, WillShutdownEvent } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -74,14 +75,14 @@ export class Workbench extends Layout {
 	private registerErrorHandler(logService: ILogService): void {
 
 		// Listen on unhandled rejection events
-		window.addEventListener('unhandledrejection', (event: PromiseRejectionEvent) => {
+		this._register(addDisposableListener(window, 'unhandledrejection', event => {
 
 			// See https://developer.mozilla.org/en-US/docs/Web/API/PromiseRejectionEvent
 			onUnexpectedError(event.reason);
 
 			// Prevent the printing of this event to the console
 			event.preventDefault();
-		});
+		}));
 
 		// Install handler for unexpected errors
 		setUnexpectedErrorHandler(error => this.handleUnexpectedError(error, logService));
@@ -100,14 +101,17 @@ export class Workbench extends Layout {
 			phase: 'configuration';
 		}
 		type AnnotatedError = AnnotatedLoadingError | AnnotatedFactoryError | AnnotatedValidationError;
-		(<any>window).require.config({
-			onError: (err: AnnotatedError) => {
-				if (err.phase === 'loading') {
-					onUnexpectedError(new Error(localize('loaderErrorNative', "Failed to load a required file. Please restart the application to try again. Details: {0}", JSON.stringify(err))));
+
+		if (typeof window.require?.config === 'function') {
+			window.require.config({
+				onError: (err: AnnotatedError) => {
+					if (err.phase === 'loading') {
+						onUnexpectedError(new Error(localize('loaderErrorNative', "Failed to load a required file. Please restart the application to try again. Details: {0}", JSON.stringify(err))));
+					}
+					console.error(err);
 				}
-				console.error(err);
-			}
-		});
+			});
+		}
 	}
 
 	private previousUnexpectedError: { message: string | undefined; time: number } = { message: undefined, time: 0 };
@@ -144,6 +148,7 @@ export class Workbench extends Layout {
 				const configurationService = accessor.get(IConfigurationService);
 				const hostService = accessor.get(IHostService);
 				const dialogService = accessor.get(IDialogService);
+				const notificationService = accessor.get(INotificationService) as NotificationService;
 
 				// Layout
 				this.initLayout(accessor);
@@ -159,7 +164,7 @@ export class Workbench extends Layout {
 				this.registerListeners(lifecycleService, storageService, configurationService, hostService, dialogService);
 
 				// Render Workbench
-				this.renderWorkbench(instantiationService, accessor.get(INotificationService) as NotificationService, storageService, configurationService);
+				this.renderWorkbench(instantiationService, notificationService, storageService, configurationService);
 
 				// Workbench Layout
 				this.createWorkbenchLayout();
@@ -221,7 +226,7 @@ export class Workbench extends Layout {
 	private registerListeners(lifecycleService: ILifecycleService, storageService: IStorageService, configurationService: IConfigurationService, hostService: IHostService, dialogService: IDialogService): void {
 
 		// Configuration changes
-		this._register(configurationService.onDidChangeConfiguration(() => this.setFontAliasing(configurationService)));
+		this._register(configurationService.onDidChangeConfiguration(e => this.updateFontAliasing(e, configurationService)));
 
 		// Font Info
 		if (isNative) {
@@ -258,9 +263,13 @@ export class Workbench extends Layout {
 	}
 
 	private fontAliasing: 'default' | 'antialiased' | 'none' | 'auto' | undefined;
-	private setFontAliasing(configurationService: IConfigurationService) {
+	private updateFontAliasing(e: IConfigurationChangeEvent | undefined, configurationService: IConfigurationService) {
 		if (!isMacintosh) {
 			return; // macOS only
+		}
+
+		if (e && !e.affectsConfiguration('workbench.fontAliasing')) {
+			return;
 		}
 
 		const aliasing = configurationService.getValue<'default' | 'antialiased' | 'none' | 'auto'>('workbench.fontAliasing');
@@ -327,14 +336,14 @@ export class Workbench extends Layout {
 		}
 
 		// Apply font aliasing
-		this.setFontAliasing(configurationService);
+		this.updateFontAliasing(undefined, configurationService);
 
 		// Warm up font cache information before building up too many dom elements
 		this.restoreFontInfo(storageService, configurationService);
 
 		// Create Parts
 		for (const { id, role, classes, options } of [
-			{ id: Parts.TITLEBAR_PART, role: 'contentinfo', classes: ['titlebar'] },
+			{ id: Parts.TITLEBAR_PART, role: 'none', classes: ['titlebar'] },
 			{ id: Parts.BANNER_PART, role: 'banner', classes: ['banner'] },
 			{ id: Parts.ACTIVITYBAR_PART, role: 'none', classes: ['activitybar', this.getSideBarPosition() === Position.LEFT ? 'left' : 'right'] }, // Use role 'none' for some parts to make screen readers less chatty #114892
 			{ id: Parts.SIDEBAR_PART, role: 'none', classes: ['sidebar', this.getSideBarPosition() === Position.LEFT ? 'left' : 'right'] },
@@ -345,7 +354,9 @@ export class Workbench extends Layout {
 		]) {
 			const partContainer = this.createPart(id, role, classes);
 
+			mark(`code/willCreatePart/${id}`);
 			this.getPart(id).create(partContainer, options);
+			mark(`code/didCreatePart/${id}`);
 		}
 
 		// Notification Handlers
@@ -419,15 +430,6 @@ export class Workbench extends Layout {
 				timeout(2000)
 			]).finally(() => {
 
-				// Set lifecycle phase to `Restored`
-				lifecycleService.phase = LifecyclePhase.Restored;
-
-				// Set lifecycle phase to `Eventually` after a short delay and when idle (min 2.5sec, max 5sec)
-				const eventuallyPhaseScheduler = this._register(new RunOnceScheduler(() => {
-					this._register(runWhenIdle(() => lifecycleService.phase = LifecyclePhase.Eventually, 2500));
-				}, 2500));
-				eventuallyPhaseScheduler.schedule();
-
 				// Update perf marks only when the layout is fully
 				// restored. We want the time it takes to restore
 				// editors to be included in these numbers
@@ -442,6 +444,15 @@ export class Workbench extends Layout {
 				} else {
 					this.whenRestored.finally(() => markDidStartWorkbench());
 				}
+
+				// Set lifecycle phase to `Restored`
+				lifecycleService.phase = LifecyclePhase.Restored;
+
+				// Set lifecycle phase to `Eventually` after a short delay and when idle (min 2.5sec, max 5sec)
+				const eventuallyPhaseScheduler = this._register(new RunOnceScheduler(() => {
+					this._register(runWhenIdle(() => lifecycleService.phase = LifecyclePhase.Eventually, 2500));
+				}, 2500));
+				eventuallyPhaseScheduler.schedule();
 			})
 		);
 	}

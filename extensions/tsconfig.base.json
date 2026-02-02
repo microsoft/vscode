@@ -20,7 +20,10 @@
 			"ES2020.Promise",
 			"ES2020.String",
 			"ES2020.Symbol.WellKnown",
-			"ES2020.Intl"
+			"ES2020.Intl",
+			"ES2021.Promise",
+			"ES2021.String",
+			"ES2021.WeakRef"
 		],
 		"module": "commonjs",
 		"strict": true,

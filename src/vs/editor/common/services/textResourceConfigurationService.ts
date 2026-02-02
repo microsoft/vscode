@@ -106,6 +106,11 @@ export class TextResourceConfigurationService extends Disposable implements ITex
 		return this.configurationService.getValue<T>(section, { resource, overrideIdentifier: language });
 	}
 
+	inspect<T>(resource: URI | undefined, position: IPosition | null, section: string): IConfigurationValue<Readonly<T>> {
+		const language = resource ? this.getLanguage(resource, position) : undefined;
+		return this.configurationService.inspect<T>(section, { resource, overrideIdentifier: language });
+	}
+
 	private getLanguage(resource: URI, position: IPosition | null): string | null {
 		const model = this.modelService.getModel(resource);
 		if (model) {
@@ -117,8 +122,8 @@ export class TextResourceConfigurationService extends Disposable implements ITex
 	private toResourceConfigurationChangeEvent(configurationChangeEvent: IConfigurationChangeEvent): ITextResourceConfigurationChangeEvent {
 		return {
 			affectedKeys: configurationChangeEvent.affectedKeys,
-			affectsConfiguration: (resource: URI, configuration: string) => {
-				const overrideIdentifier = this.getLanguage(resource, null);
+			affectsConfiguration: (resource: URI | undefined, configuration: string) => {
+				const overrideIdentifier = resource ? this.getLanguage(resource, null) : undefined;
 				return configurationChangeEvent.affectsConfiguration(configuration, { resource, overrideIdentifier });
 			}
 		};
