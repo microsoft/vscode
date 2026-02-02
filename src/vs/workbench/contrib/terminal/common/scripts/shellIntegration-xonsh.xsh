@@ -5,7 +5,7 @@
 import sys
 import os
 
-class _vsCodeXonsh:
+class  _VSCodeXonshShellIntegration:
 	"""vscode shell integration for xonsh shell."""
 
 	def __init__(self):
@@ -89,7 +89,6 @@ class _vsCodeXonsh:
 		self.write_osc(f'633;C')
 		self.write_osc(f'633;E;{escaped_cmd};{self._vscode_nonce}')
 
-
 	def _vsc_command_finished(self, cmd, exit_code=None):
 		"""Send OSC 633 ; D - Command finished with exit code"""
 		if not cmd or cmd.strip() == '' or exit_code is None:
@@ -97,6 +96,9 @@ class _vsCodeXonsh:
 			self.write_osc('633;D')
 		else:
 			self.write_osc(f'633;D;{exit_code}')
+
+	def _vsc_cwd_updated(self, newdir):
+		self.write_osc(f'633;P;Cwd={self._vsc_escape_value(newdir)}')
 
 	def add_vsc_events(self):
 		@events.on_precommand
@@ -113,6 +115,9 @@ class _vsCodeXonsh:
 		def _vsc_on_pre_prompt(**kwargs):
 			self.add_vsc_to_prompt()
 
+		@events.on_chdir
+		def _vsc_on_chdir(olddir, newdir):
+			self._vsc_cwd_updated(newdir)
 
 if 'VSCODE_SHELL_INTEGRATION' not in __xonsh__.env:
-	__xonsh__.vsc = _vsCodeXonsh()
+	__xonsh__.vsc = _VSCodeXonshShellIntegration()
