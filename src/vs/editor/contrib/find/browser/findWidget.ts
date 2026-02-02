@@ -28,7 +28,8 @@ import { Range } from '../../../common/core/range.js';
 import { CONTEXT_FIND_INPUT_FOCUSED, CONTEXT_REPLACE_INPUT_FOCUSED, FIND_IDS, MATCHES_LIMIT } from './findModel.js';
 import { FindReplaceState, FindReplaceStateChangedEvent } from './findState.js';
 import * as nls from '../../../../nls.js';
-import { AccessibilitySupport } from '../../../../platform/accessibility/common/accessibility.js';
+import { AccessibilitySupport, IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextScopedFindInput, ContextScopedReplaceInput } from '../../../../platform/history/browser/contextScopedHistoryWidget.js';
 import { showHistoryKeybindingHint } from '../../../../platform/history/browser/historyWidgetKeybindingHint.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -166,6 +167,8 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		private readonly _hoverService: IHoverService,
 		private readonly _findWidgetSearchHistory: IHistory<string> | undefined,
 		private readonly _replaceWidgetHistory: IHistory<string> | undefined,
+		private readonly _configurationService: IConfigurationService,
+		private readonly _accessibilityService: IAccessibilityService,
 	) {
 		super();
 		this._codeEditor = codeEditor;
