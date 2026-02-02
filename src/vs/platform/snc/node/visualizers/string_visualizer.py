@@ -106,18 +106,8 @@ class KeyDown:
     pass
 
 # attached handlers can be Python code strings that evaluate to functions of type: RawEventJSON -> ModelEvent
-def mouse_move(i) -> Callable[[dict], MouseMove | MouseDown | MouseUp | KeyDown]:
-    return lambda _: MouseMove(i)
-
-def mouse_down(i) -> Callable[[dict], MouseMove | MouseDown | MouseUp | KeyDown]:
-    return lambda _: MouseDown(i)
-
-def mouse_up(i) -> Callable[[dict], MouseMove | MouseDown | MouseUp | KeyDown]:
-    return lambda _: MouseUp(i)
-
-def key_down() -> Callable[[dict], KeyDown]:
-    return lambda _: KeyDown()
-
+# def mouse_move(i) -> Callable[[dict], MouseMove | MouseDown | MouseUp | KeyDown]:
+#     return lambda _: MouseMove(i)
 
 
 # eval(f"{MouseOver(10)}") works
@@ -437,6 +427,59 @@ def build_internal_to_string_mapping(string_value: str) -> List[int]:
     return mapping
 
 
+def build_string_to_internal_mapping(string_value: str) -> List[int]:
+    """
+    Build a mapping from string character indices to internal visualizer indices.
+
+    This is the inverse of build_internal_to_string_mapping.
+
+    For each character position in the original string, returns the internal index
+    where that character is displayed. For newlines, returns the index of the \\n
+    display element (not the $ or ^ anchors).
+
+    Returns a list where mapping[string_idx] = internal_idx.
+    Also appends one extra entry for the end position (len(string)).
+    """
+    mapping = []
+
+    internal_idx = 2  # Start after \A (0) and ^ (1)
+
+    for char in string_value:
+        if char == '\n':
+            # \n expands to: $ (internal_idx), \n (internal_idx+1), ^ (internal_idx+2)
+            # Map the string's \n to the \n display element (middle one)
+            mapping.append(internal_idx + 1)
+            internal_idx += 3
+        else:
+            # Regular character (including \t which displays as single element)
+            mapping.append(internal_idx)
+            internal_idx += 1
+
+    # End position maps to $ anchor at the end
+    mapping.append(internal_idx)
+
+    return mapping
+
+
+def string_index_to_internal_index(string_idx: int, string_value: str) -> int:
+    """
+    Convert a string character index to an internal visualizer index.
+
+    Args:
+        string_idx: Index in the original string (0-based)
+        string_value: The string being visualized
+
+    Returns:
+        The corresponding internal index for highlighting/display.
+    """
+    mapping = build_string_to_internal_mapping(string_value)
+    if string_idx < 0:
+        return 0
+    if string_idx >= len(mapping):
+        return mapping[-1] if mapping else 2
+    return mapping[string_idx]
+
+
 def internal_range_to_string_slice(internal_start: int, internal_end: int, string_value: str) -> Tuple[int, int]:
     """
     Convert internal visualizer index range to actual string slice indices.
@@ -637,12 +680,52 @@ def count_regex_groups(selection_regex: str | None) -> int:
         return 0
 
 
+def _analyze_group_for_anchors(subpattern: list) -> Tuple[List[str], bool]:
+    """
+    Analyze a regex subpattern to find leading/trailing anchors and check if it's fuzzy.
+
+    Returns:
+        (anchor_types, is_fuzzy) where anchor_types is a list of anchor names found
+        ('AT_BEGINNING_STRING', 'AT_BEGINNING', 'AT_END', 'AT_END_STRING')
+    """
+    anchors = []
+    is_fuzzy = False
+
+    for item in subpattern:
+        op = item[0]
+        av = item[1] if len(item) > 1 else None
+        op_name = str(op)
+
+        if op_name == 'AT':
+            if av == AT_BEGINNING_STRING:
+                anchors.append('AT_BEGINNING_STRING')
+            elif av == AT_BEGINNING:
+                anchors.append('AT_BEGINNING')
+            elif av == AT_END:
+                anchors.append('AT_END')
+            elif av == AT_END_STRING:
+                anchors.append('AT_END_STRING')
+
+        elif op_name in ('MAX_REPEAT', 'MIN_REPEAT'):
+            min_count, max_count, repeat_pattern = av
+            if len(repeat_pattern) == 1:
+                rep_op = repeat_pattern[0][0]
+                if str(rep_op) == 'ANY':
+                    is_fuzzy = True
+
+    return anchors, is_fuzzy
+
+
 def parse_regex_for_highlighting(selection_regex: str | None, string_value: str) -> List[Tuple[int, int, str]]:
     """
-    Parse the selection regex and run it against the augmented string to get highlight ranges.
+    Parse the selection regex and run it against the ORIGINAL string to get highlight ranges.
 
-    Uses the augmented string (with sentinel characters for anchors) so that match
-    positions directly correspond to internal visual indices - no translation needed!
+    Two-phase approach:
+    1. Match the regex against the original string (not augmented)
+    2. Translate string positions to internal visual indices
+
+    This ensures regex patterns work correctly (e.g., \\n+ matches consecutive newlines)
+    while still producing the correct internal indices for UI highlighting.
 
     Args:
         selection_regex: Regex with / delimiters, e.g., "/(\\A)(hello)(.*)(world)(\\Z)/"
@@ -659,52 +742,37 @@ def parse_regex_for_highlighting(selection_regex: str | None, string_value: str)
     if not inner_pattern:
         return []
 
-    # Build the augmented string with sentinel characters for anchors
-    augmented = build_augmented_string(string_value)
-
-    # Convert regex anchors to sentinel characters
-    converted_pattern = convert_regex_for_augmented_string(inner_pattern)
-
-    # Parse the converted regex to understand its structure (for literal vs fuzzy)
+    # Parse the regex to understand its structure
     try:
-        parsed = regex_parser.parse(converted_pattern)
+        parsed = regex_parser.parse(inner_pattern)
     except Exception:
         return []
 
-    # Run the regex against the augmented string
-    # re.M makes ^ and $ match at line boundaries (not just string start/end)
-    # Note: .* does NOT match newlines (no DOTALL), so fuzzy stops at line boundaries
+    # Analyze each capturing group for anchors and fuzzy status
+    group_info = []  # List of (anchors, is_fuzzy) per group
+    for item in parsed:
+        op = item[0]
+        av = item[1] if len(item) > 1 else None
+        op_name = str(op)
+        if op_name == 'SUBPATTERN':
+            group_id, add_flags, del_flags, subpattern = av
+            anchors, is_fuzzy = _analyze_group_for_anchors(subpattern)
+            group_info.append((anchors, is_fuzzy))
+
+    # Run the regex against the ORIGINAL string (not augmented!)
+    # re.M makes ^ and $ match at line boundaries
     try:
-        match = re.search(converted_pattern, augmented, re.M)
+        match = re.search(inner_pattern, string_value, re.M)
     except Exception:
         return []
 
     if not match:
         return []
 
-    # Walk through parsed structure to identify segment types
-    # Each SUBPATTERN (capturing group) is a segment
-    segment_types = []
-    for op, av in parsed:
-        op_name = str(op)
-        if op_name == 'SUBPATTERN':
-            # av is (group_id, add_flags, del_flags, subpattern)
-            group_id, add_flags, del_flags, subpattern = av
-            # Check if this subpattern is a fuzzy match (.*)
-            is_fuzzy = False
-            if len(subpattern) == 1:
-                sub_op, sub_av = subpattern[0]
-                sub_op_name = str(sub_op)
-                # MAX_REPEAT is .* (greedy), MIN_REPEAT is .*? (non-greedy)
-                if sub_op_name in ('MAX_REPEAT', 'MIN_REPEAT'):
-                    min_count, max_count, repeat_pattern = sub_av
-                    if len(repeat_pattern) == 1:
-                        rep_op, rep_av = repeat_pattern[0]
-                        if str(rep_op) == 'ANY':
-                            is_fuzzy = True
-            segment_types.append('fuzzy' if is_fuzzy else 'literal')
+    # Build the string-to-internal mapping for position translation
+    str_to_internal = build_string_to_internal_mapping(string_value)
 
-    # Match positions in augmented string directly equal internal visual indices!
+    # Translate match positions to internal indices
     highlights = []
     num_groups = match.lastindex or 0
 
@@ -713,9 +781,85 @@ def parse_regex_for_highlighting(selection_regex: str | None, string_value: str)
         if span == (-1, -1):
             continue  # Group didn't participate in match
 
-        start, end = span
-        seg_type = segment_types[group_num - 1] if group_num - 1 < len(segment_types) else 'literal'
-        highlights.append((start, end, seg_type))
+        str_start, str_end = span
+        anchors, is_fuzzy = group_info[group_num - 1] if group_num - 1 < len(group_info) else ([], False)
+        seg_type = 'fuzzy' if is_fuzzy else 'literal'
+
+        # Translate string positions to internal indices
+        # Handle edge case: empty match (e.g., anchor-only groups or .* matching nothing)
+        if str_start == str_end:
+            # Zero-width match - we're at a gap/boundary position
+            # For fuzzy (.*) matching empty, this is typically at an anchor position like $
+            if str_start < len(str_to_internal):
+                internal_pos = str_to_internal[str_start]
+            else:
+                internal_pos = str_to_internal[-1] if str_to_internal else 2
+
+            # For zero-width matches, we're at the boundary BEFORE the character
+            # This corresponds to anchor positions:
+            # - Before a newline: the $ anchor (internal_pos - 1 for \n)
+            # - At string start: could be \A or ^
+            # - At string end: the $ anchor
+            if str_start < len(string_value) and string_value[str_start] == '\n':
+                # We're at the boundary before a newline - that's the $ position
+                internal_start = internal_pos - 1  # $ is one before \n
+            elif str_start == len(string_value):
+                # We're at the end of string - that's the $ position
+                internal_start = internal_pos
+            elif str_start == 0:
+                # At the very start - position 2 (after \A and ^)
+                internal_start = internal_pos
+            else:
+                # General case: position right after previous char
+                internal_start = internal_pos
+
+            internal_end = internal_start
+
+            # Expand based on which anchors are present
+            if 'AT_BEGINNING_STRING' in anchors:
+                internal_start = 0
+            if 'AT_BEGINNING' in anchors:
+                if str_start == 0:
+                    internal_start = min(internal_start, 1)
+            if 'AT_END' in anchors:
+                internal_end = max(internal_end, internal_start + 1)
+            if 'AT_END_STRING' in anchors:
+                augmented_len = len(build_augmented_string(string_value))
+                internal_end = augmented_len
+
+            if internal_end <= internal_start:
+                internal_end = internal_start + 1
+            highlights.append((internal_start, internal_end, seg_type))
+        else:
+            # Normal match with content
+            internal_start = str_to_internal[str_start] if str_start < len(str_to_internal) else 2
+            # For end, we need the position AFTER the last matched character
+            if str_end > 0 and str_end <= len(str_to_internal):
+                internal_end = str_to_internal[str_end - 1] + 1
+                # Adjust for newlines: if last char is \n, end should be after the ^ marker
+                if str_end > 0 and str_end - 1 < len(string_value) and string_value[str_end - 1] == '\n':
+                    # \n maps to middle of 3 indices ($, \n, ^), so add 1 more to include ^
+                    internal_end += 1
+            else:
+                internal_end = str_to_internal[-1] if str_to_internal else 2
+
+            # Extend for leading anchors
+            if 'AT_BEGINNING_STRING' in anchors:
+                internal_start = 0
+            if 'AT_BEGINNING' in anchors and str_start == 0:
+                internal_start = min(internal_start, 1)
+
+            # Extend for trailing anchors
+            if 'AT_END_STRING' in anchors:
+                augmented_len = len(build_augmented_string(string_value))
+                internal_end = augmented_len
+            if 'AT_END' in anchors:
+                # $ anchor - extend to include the $ marker
+                # For end of string, $ is at augmented_len - 2
+                # For end of line, $ is right before the \n
+                pass  # The current end should already be correct
+
+            highlights.append((internal_start, internal_end, seg_type))
 
     return highlights
 

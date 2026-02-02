@@ -14,15 +14,18 @@ No arguments are required; all tests should pass.
 """
 
 import unittest
+import re
 from string_visualizer import (
     update, init_model, visualize,
     MouseDown, MouseMove, MouseUp, KeyDown,
     NewCode,
     build_augmented_string,
+    convert_regex_for_augmented_string,
     get_last_segment_end_internal_idx,
     get_first_segment_start_internal_idx,
     parse_regex_for_highlighting,
     find_fuzzy_segment_at_index,
+    DC1, DC2, DC3, DC4,  # Sentinel characters
 )
 
 
@@ -598,7 +601,7 @@ class TestClickInsideFuzzy(unittest.TestCase):
         1. Select "hello" = (1) -> /(hello)/
         2. Extend with fuzzy at end -> /(hello)(.*)/
         3. Click inside the fuzzy region on "world" = (2)
-        
+
         Expected: /(hello)(.*)(world)/ = (1)(.*)(2)
         Bug would produce: /(.*)(world)(hello)/ = (.*)(2)(1) - WRONG ORDER!
 
@@ -639,7 +642,7 @@ class TestClickInsideFuzzy(unittest.TestCase):
         # Expected: (1)(.*)(2) = /(hello)(.*)(world)/
         # Bug would produce: (.*)(2)(1) = /(.*)(world)(hello)/ - WRONG!
         self.assertEqual(model['selectionRegex'], '/(hello)(.*)(world)/')
-        
+
         # Verify segment order explicitly
         highlights = parse_regex_for_highlighting(model['selectionRegex'], model['stringValue'])
         # Should be: [(2, 7, 'literal'), (7, 8, 'fuzzy'), (8, 13, 'literal')]
@@ -1018,6 +1021,165 @@ class TestEdgeCases(unittest.TestCase):
         self.assertIsNone(model['selectionRegex'])
         self.assertEqual(model['anchorIdx'], 10)
         self.assertTrue(model['dragging'])
+
+
+# =============================================================================
+# Two-Phase Matching Tests (verify the fix works correctly)
+# =============================================================================
+
+class TestTwoPhaseMatching(unittest.TestCase):
+    """
+    Tests verifying that the two-phase matching approach works correctly.
+
+    The fix matches regex patterns against the ORIGINAL string (not augmented),
+    then translates positions to internal visual indices. This ensures regex
+    patterns behave correctly for patterns involving newlines, quantifiers, etc.
+    """
+
+    def test_newline_plus_matches_consecutive_newlines(self):
+        """
+        A pattern with \\n+ should correctly match consecutive newlines
+        and return proper internal indices for highlighting.
+        """
+        string_value = "a\n\nb"
+        # Pattern matches both newlines
+        # In original: \n\n is at positions 1-3 (string indices)
+        # Internal indices: a=2, $=3, \n=4, ^=5, $=6, \n=7, ^=8, b=9
+        # The two \n chars are at internal 4 and 7
+
+        highlights = parse_regex_for_highlighting(r'/(\n+)/', string_value)
+        self.assertEqual(len(highlights), 1)
+        start, end, seg_type = highlights[0]
+
+        # Should span both newlines
+        # First \n is at string index 1 -> internal 4
+        # Second \n is at string index 2 -> internal 7
+        # End should be after second \n (including ^ marker) -> 9
+        self.assertEqual(seg_type, 'literal')
+        self.assertEqual(start, 4)  # First \n
+        self.assertEqual(end, 9)    # After second \n and its ^ marker
+
+    def test_literal_two_newlines_matches(self):
+        """
+        A pattern with literal \\n\\n should match two consecutive newlines.
+        """
+        string_value = "a\n\nb"
+        highlights = parse_regex_for_highlighting(r'/(\n\n)/', string_value)
+        self.assertEqual(len(highlights), 1)
+        start, end, seg_type = highlights[0]
+        self.assertEqual(seg_type, 'literal')
+
+    def test_newline_quantifier_matches(self):
+        """
+        A pattern with \\n{2,3} should match 2-3 consecutive newlines.
+        """
+        string_value = "a\n\n\nb"  # Three newlines
+        highlights = parse_regex_for_highlighting(r'/(\n{2,3})/', string_value)
+        self.assertEqual(len(highlights), 1)
+        start, end, seg_type = highlights[0]
+        self.assertEqual(seg_type, 'literal')
+
+    def test_dot_plus_correct_span(self):
+        """
+        A pattern with .+ should match characters without being corrupted by sentinels.
+        The internal index span should correspond to 5 characters.
+        """
+        string_value = "hello"
+        # Internal indices: \A=0, ^=1, h=2, e=3, l=4, l=5, o=6, $=7, \Z=8
+        highlights = parse_regex_for_highlighting(r'/(.+)/', string_value)
+        self.assertEqual(len(highlights), 1)
+        start, end, seg_type = highlights[0]
+        self.assertEqual(start, 2)  # 'h' at internal index 2
+        self.assertEqual(end, 7)    # After 'o' at internal index 6, so end is 7
+
+    def test_backreference_matches_correctly(self):
+        """
+        A pattern with backreference (.)\\1 should find repeated chars correctly.
+        """
+        string_value = "xaay"
+        # Internal indices: \A=0, ^=1, x=2, a=3, a=4, y=5, $=6, \Z=7
+        highlights = parse_regex_for_highlighting(r'/((.)\2)/', string_value)
+        self.assertEqual(len(highlights), 1)
+        start, end, seg_type = highlights[0]
+        # "aa" is at string positions 1-3, internal indices 3-5
+        self.assertEqual(start, 3)  # First 'a'
+        self.assertEqual(end, 5)    # After second 'a'
+
+    def test_lookbehind_newline_works(self):
+        """
+        A pattern with (?<=\\n)x should match 'x' after a newline.
+        """
+        string_value = "a\nxb"
+        # Internal indices: \A=0, ^=1, a=2, $=3, \n=4, ^=5, x=6, b=7, $=8, \Z=9
+        highlights = parse_regex_for_highlighting(r'/((?<=\n)x)/', string_value)
+        self.assertEqual(len(highlights), 1)
+        start, end, seg_type = highlights[0]
+        # 'x' is at string index 2, internal index 6
+        self.assertEqual(start, 6)
+        self.assertEqual(end, 7)
+
+    def test_lookahead_before_newline_works(self):
+        """
+        A pattern with x(?=\\n) should match 'x' before a newline.
+        """
+        string_value = "ax\nb"
+        # Internal indices: \A=0, ^=1, a=2, x=3, $=4, \n=5, ^=6, b=7, $=8, \Z=9
+        highlights = parse_regex_for_highlighting(r'/(x(?=\n))/', string_value)
+        self.assertEqual(len(highlights), 1)
+        start, end, seg_type = highlights[0]
+        # 'x' is at string index 1, internal index 3
+        self.assertEqual(start, 3)
+        self.assertEqual(end, 4)
+
+    def test_word_boundary_correct_positions(self):
+        """
+        A pattern with word boundaries should return correct internal positions.
+        """
+        string_value = "hello world"
+        # Internal indices: \A=0, ^=1, h=2, e=3, l=4, l=5, o=6, ' '=7, w=8, o=9, r=10, l=11, d=12, $=13, \Z=14
+        highlights = parse_regex_for_highlighting(r'/(\bworld\b)/', string_value)
+        self.assertEqual(len(highlights), 1)
+        start, end, seg_type = highlights[0]
+        # "world" is at string positions 6-11, internal indices 8-13
+        self.assertEqual(start, 8)   # 'w'
+        self.assertEqual(end, 13)    # After 'd'
+
+    def test_newline_followed_by_text(self):
+        """
+        A pattern with \\n followed by text should match correctly.
+        """
+        string_value = "hello\nworld"
+        # Internal: \A=0, ^=1, h=2, e=3, l=4, l=5, o=6, $=7, \n=8, ^=9, w=10, o=11, r=12, l=13, d=14, $=15, \Z=16
+        highlights = parse_regex_for_highlighting(r'/(\nworld)/', string_value)
+        self.assertEqual(len(highlights), 1)
+        start, end, seg_type = highlights[0]
+        # \n is at string index 5 -> internal 8
+        # "world" ends at string index 10 -> internal 14
+        self.assertEqual(start, 8)   # \n
+        self.assertEqual(end, 15)    # After 'd'
+
+    def test_fuzzy_pattern_identified_correctly(self):
+        """
+        A pattern with (.*) should be identified as fuzzy.
+        """
+        string_value = "hello world"
+        highlights = parse_regex_for_highlighting(r'/(hello)(.*)(world)/', string_value)
+        self.assertEqual(len(highlights), 3)
+        self.assertEqual(highlights[0][2], 'literal')  # hello
+        self.assertEqual(highlights[1][2], 'fuzzy')    # (.*)
+        self.assertEqual(highlights[2][2], 'literal')  # world
+
+    def test_anchor_at_start_of_string(self):
+        """
+        A pattern starting with \\A should include the start anchor in highlights.
+        """
+        string_value = "hello"
+        # Use single backslash for the \A anchor in the regex pattern
+        highlights = parse_regex_for_highlighting(r'/(\Ahello)/', string_value)
+        self.assertEqual(len(highlights), 1)
+        start, end, seg_type = highlights[0]
+        # Should start at internal index 0 (\A position)
+        self.assertEqual(start, 0)
 
 
 # =============================================================================
