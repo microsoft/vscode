@@ -2073,8 +2073,12 @@ export class Repository {
 			args.push('--signoff');
 		}
 
-		if (opts.signCommit) {
-			args.push('-S');
+		if (opts.signCommit !== undefined) {
+			if (opts.signCommit) {
+				args.push('-S');
+			} else {
+				args.push('--no-gpg-sign');
+			}
 		}
 
 		if (opts.empty) {

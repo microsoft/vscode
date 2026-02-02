@@ -2319,6 +2319,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	user-select: none;
 	outline: none;
 	border: none;
+
+	.codicon.codicon-file-media {
+		font-size: 12px;
+	}
 }
 
 .chat-attached-context-attachment .attachment-additional-info {
@@ -2328,10 +2332,11 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .chat-attached-context-attachment .chat-attached-context-pill-image {
-	width: 14px;
-	height: 14px;
+	width: 13px;
+	height: 13px;
 	border-radius: 2px;
 	object-fit: cover;
+	margin-right: 3px;
 }
 
 .chat-attached-context-attachment .chat-attached-context-custom-text {

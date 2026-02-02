@@ -177,6 +177,11 @@ export interface CommitOptions {
 	all?: boolean | 'tracked';
 	amend?: boolean;
 	signoff?: boolean;
+	/**
+	 * true  - sign the commit
+	 * false - do not sign the commit
+	 * undefined - use the repository/global git config
+	 */
 	signCommit?: boolean;
 	empty?: boolean;
 	noVerify?: boolean;

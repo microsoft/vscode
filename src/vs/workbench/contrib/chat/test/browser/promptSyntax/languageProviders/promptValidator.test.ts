@@ -134,7 +134,8 @@ suite('PromptValidator', () => {
 			uri: URI.parse('myFs://test/test/chatmode.md'),
 			name: 'BeastMode',
 			agentInstructions: { content: 'Beast mode instructions', toolReferences: [] },
-			source: { storage: PromptsStorage.local }
+			source: { storage: PromptsStorage.local },
+			visibility: { userInvokable: true, agentInvokable: true }
 		});
 		instaService.stub(IChatModeService, new MockChatModeService({ builtin: [ChatMode.Agent, ChatMode.Ask, ChatMode.Edit], custom: [customChatMode] }));
 
@@ -152,7 +153,8 @@ suite('PromptValidator', () => {
 			description: 'A test custom mode',
 			tools: ['tool1', 'tool2'],
 			agentInstructions: { content: 'Custom mode body', toolReferences: [] },
-			source: { storage: PromptsStorage.local }
+			source: { storage: PromptsStorage.local },
+			visibility: { userInvokable: true, agentInvokable: true }
 		};
 		promptsService.setCustomModes([customMode]);
 		instaService.stub(IPromptsService, promptsService);
@@ -508,7 +510,7 @@ suite('PromptValidator', () => {
 			assert.deepStrictEqual(
 				markers.map(m => ({ severity: m.severity, message: m.message })),
 				[
-					{ severity: MarkerSeverity.Warning, message: `Attribute 'applyTo' is not supported in VS Code agent files. Supported: agents, argument-hint, description, handoffs, infer, model, name, target, tools.` },
+					{ severity: MarkerSeverity.Warning, message: `Attribute 'applyTo' is not supported in VS Code agent files. Supported: agents, argument-hint, description, disable-model-invocation, handoffs, model, name, target, tools, user-invokable.` },
 				]
 			);
 		});
@@ -843,7 +845,9 @@ suite('PromptValidator', () => {
 		});
 
 		test('infer attribute validation', async () => {
-			// Valid infer: true (maps to 'all')
+			const deprecationMessage = `The 'infer' attribute is deprecated in favour of 'user-invokable' and 'disable-model-invocation'.`;
+
+			// Valid infer: true (maps to 'all') - shows deprecation warning
 			{
 				const content = [
 					'---',
@@ -854,10 +858,12 @@ suite('PromptValidator', () => {
 					'Body',
 				].join('\n');
 				const markers = await validate(content, PromptsType.agent);
-				assert.deepStrictEqual(markers, [], 'Valid infer: true should not produce errors');
+				assert.strictEqual(markers.length, 1, 'infer: true should produce deprecation warning');
+				assert.strictEqual(markers[0].message, deprecationMessage);
+				assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
 			}
 
-			// Valid infer: false (maps to 'user')
+			// Valid infer: false (maps to 'user') - shows deprecation warning
 			{
 				const content = [
 					'---',
@@ -868,10 +874,12 @@ suite('PromptValidator', () => {
 					'Body',
 				].join('\n');
 				const markers = await validate(content, PromptsType.agent);
-				assert.deepStrictEqual(markers, [], 'Valid infer: false should not produce errors');
+				assert.strictEqual(markers.length, 1, 'infer: false should produce deprecation warning');
+				assert.strictEqual(markers[0].message, deprecationMessage);
+				assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
 			}
 
-			// Valid infer: 'all'
+			// Valid infer: 'all' - shows deprecation warning
 			{
 				const content = [
 					'---',
@@ -882,10 +890,12 @@ suite('PromptValidator', () => {
 					'Body',
 				].join('\n');
 				const markers = await validate(content, PromptsType.agent);
-				assert.deepStrictEqual(markers, [], 'Valid infer: all should not produce errors');
+				assert.strictEqual(markers.length, 1, 'infer: all should produce deprecation warning');
+				assert.strictEqual(markers[0].message, deprecationMessage);
+				assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
 			}
 
-			// Valid infer: 'user'
+			// Valid infer: 'user' - shows deprecation warning
 			{
 				const content = [
 					'---',
@@ -896,10 +906,12 @@ suite('PromptValidator', () => {
 					'Body',
 				].join('\n');
 				const markers = await validate(content, PromptsType.agent);
-				assert.deepStrictEqual(markers, [], 'Valid infer: user should not produce errors');
+				assert.strictEqual(markers.length, 1, 'infer: user should produce deprecation warning');
+				assert.strictEqual(markers[0].message, deprecationMessage);
+				assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
 			}
 
-			// Valid infer: 'agent'
+			// Valid infer: 'agent' - shows deprecation warning
 			{
 				const content = [
 					'---',
@@ -910,10 +922,12 @@ suite('PromptValidator', () => {
 					'Body',
 				].join('\n');
 				const markers = await validate(content, PromptsType.agent);
-				assert.deepStrictEqual(markers, [], 'Valid infer: agent should not produce errors');
+				assert.strictEqual(markers.length, 1, 'infer: agent should produce deprecation warning');
+				assert.strictEqual(markers[0].message, deprecationMessage);
+				assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
 			}
 
-			// Valid infer: 'hidden'
+			// Valid infer: 'hidden' - shows deprecation warning
 			{
 				const content = [
 					'---',
@@ -924,10 +938,12 @@ suite('PromptValidator', () => {
 					'Body',
 				].join('\n');
 				const markers = await validate(content, PromptsType.agent);
-				assert.deepStrictEqual(markers, [], 'Valid infer: hidden should not produce errors');
+				assert.strictEqual(markers.length, 1, 'infer: hidden should produce deprecation warning');
+				assert.strictEqual(markers[0].message, deprecationMessage);
+				assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
 			}
 
-			// Invalid infer: unknown string value
+			// Invalid infer: unknown string value - shows deprecation warning (validation removed for deprecated attribute)
 			{
 				const content = [
 					'---',
@@ -938,12 +954,12 @@ suite('PromptValidator', () => {
 					'Body',
 				].join('\n');
 				const markers = await validate(content, PromptsType.agent);
-				assert.strictEqual(markers.length, 1);
+				assert.strictEqual(markers.length, 1, 'infer: "yes" should produce deprecation warning');
+				assert.strictEqual(markers[0].message, deprecationMessage);
 				assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
-				assert.strictEqual(markers[0].message, `The 'infer' attribute must be one of: all, user, agent, hidden.`);
 			}
 
-			// Invalid infer: number value
+			// Invalid infer: number value - shows deprecation warning (validation removed for deprecated attribute)
 			{
 				const content = [
 					'---',
@@ -954,9 +970,9 @@ suite('PromptValidator', () => {
 					'Body',
 				].join('\n');
 				const markers = await validate(content, PromptsType.agent);
-				assert.strictEqual(markers.length, 1);
+				assert.strictEqual(markers.length, 1, 'infer: 1 should produce deprecation warning');
+				assert.strictEqual(markers[0].message, deprecationMessage);
 				assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
-				assert.strictEqual(markers[0].message, `The 'infer' attribute must be 'all', 'user', 'agent', 'hidden', or a boolean.`);
 			}
 
 			// Missing infer attribute (should be optional)
@@ -1066,6 +1082,130 @@ suite('PromptValidator', () => {
 			].join('\n');
 			const markers = await validate(content, PromptsType.agent);
 			assert.deepStrictEqual(markers, [], 'Empty array should not require agent tool');
+		});
+
+		test('user-invokable attribute validation', async () => {
+			// Valid user-invokable: true
+			{
+				const content = [
+					'---',
+					'name: "TestAgent"',
+					'description: "Test agent"',
+					'user-invokable: true',
+					'---',
+					'Body',
+				].join('\n');
+				const markers = await validate(content, PromptsType.agent);
+				assert.deepStrictEqual(markers, [], 'Valid user-invokable: true should not produce errors');
+			}
+
+			// Valid user-invokable: false
+			{
+				const content = [
+					'---',
+					'name: "TestAgent"',
+					'description: "Test agent"',
+					'user-invokable: false',
+					'---',
+					'Body',
+				].join('\n');
+				const markers = await validate(content, PromptsType.agent);
+				assert.deepStrictEqual(markers, [], 'Valid user-invokable: false should not produce errors');
+			}
+
+			// Invalid user-invokable: string value
+			{
+				const content = [
+					'---',
+					'name: "TestAgent"',
+					'description: "Test agent"',
+					'user-invokable: "yes"',
+					'---',
+					'Body',
+				].join('\n');
+				const markers = await validate(content, PromptsType.agent);
+				assert.strictEqual(markers.length, 1);
+				assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
+				assert.strictEqual(markers[0].message, `The 'user-invokable' attribute must be a boolean.`);
+			}
+
+			// Invalid user-invokable: number value
+			{
+				const content = [
+					'---',
+					'name: "TestAgent"',
+					'description: "Test agent"',
+					'user-invokable: 1',
+					'---',
+					'Body',
+				].join('\n');
+				const markers = await validate(content, PromptsType.agent);
+				assert.strictEqual(markers.length, 1);
+				assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
+				assert.strictEqual(markers[0].message, `The 'user-invokable' attribute must be a boolean.`);
+			}
+		});
+
+		test('disable-model-invocation attribute validation', async () => {
+			// Valid disable-model-invocation: true
+			{
+				const content = [
+					'---',
+					'name: "TestAgent"',
+					'description: "Test agent"',
+					'disable-model-invocation: true',
+					'---',
+					'Body',
+				].join('\n');
+				const markers = await validate(content, PromptsType.agent);
+				assert.deepStrictEqual(markers, [], 'Valid disable-model-invocation: true should not produce errors');
+			}
+
+			// Valid disable-model-invocation: false
+			{
+				const content = [
+					'---',
+					'name: "TestAgent"',
+					'description: "Test agent"',
+					'disable-model-invocation: false',
+					'---',
+					'Body',
+				].join('\n');
+				const markers = await validate(content, PromptsType.agent);
+				assert.deepStrictEqual(markers, [], 'Valid disable-model-invocation: false should not produce errors');
+			}
+
+			// Invalid disable-model-invocation: string value
+			{
+				const content = [
+					'---',
+					'name: "TestAgent"',
+					'description: "Test agent"',
+					'disable-model-invocation: "yes"',
+					'---',
+					'Body',
+				].join('\n');
+				const markers = await validate(content, PromptsType.agent);
+				assert.strictEqual(markers.length, 1);
+				assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
+				assert.strictEqual(markers[0].message, `The 'disable-model-invocation' attribute must be a boolean.`);
+			}
+
+			// Invalid disable-model-invocation: number value
+			{
+				const content = [
+					'---',
+					'name: "TestAgent"',
+					'description: "Test agent"',
+					'disable-model-invocation: 0',
+					'---',
+					'Body',
+				].join('\n');
+				const markers = await validate(content, PromptsType.agent);
+				assert.strictEqual(markers.length, 1);
+				assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
+				assert.strictEqual(markers[0].message, `The 'disable-model-invocation' attribute must be a boolean.`);
+			}
 		});
 	});
 

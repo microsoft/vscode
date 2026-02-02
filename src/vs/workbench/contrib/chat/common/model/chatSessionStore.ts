@@ -269,7 +269,8 @@ export class ChatSessionStore extends Disposable {
 			}
 
 			// Write succeeded, update index
-			index.entries[session.sessionId] = await getSessionMetadata(session);
+			const newMetadata = await getSessionMetadata(session);
+			index.entries[session.sessionId] = newMetadata;
 		} catch (e) {
 			this.reportError('sessionWrite', 'Error writing chat session', e);
 		}
@@ -432,13 +433,25 @@ export class ChatSessionStore extends Disposable {
 				this.indexCache = { version: 1, entries: {} };
 			}
 
-			return this.indexCache;
 		} catch (e) {
 			// Only if JSON.parse fails
 			this.reportError('invalidIndexJSON', `Index corrupt: ${data}`, e);
 			this.indexCache = { version: 1, entries: {} };
-			return this.indexCache;
 		}
+
+		// Convert from pre-1.109 format which lacks timing
+		for (const entry of Object.values(this.indexCache.entries)) {
+			entry.timing ??= {
+				created: entry.lastMessageDate,
+				lastRequestStarted: undefined,
+				lastRequestEnded: entry.lastMessageDate,
+			};
+
+			// TODO@connor4312: the check for Pending/NeedsInput guards old sessions from Insiders pre PR #288161 and it can be safely removed after a transition period, to only backfill the "complete" state when missing.
+			entry.lastResponseState ??= entry.lastResponseState === ResponseModelState.Pending || entry.lastResponseState === ResponseModelState.NeedsInput ? ResponseModelState.Complete : entry.lastResponseState || ResponseModelState.Complete;
+		}
+
+		return this.indexCache;
 	}
 
 	async getIndex(): Promise<IChatSessionIndex> {
@@ -598,11 +611,11 @@ export interface IChatSessionEntryMetadata {
 	sessionId: string;
 	title: string;
 	lastMessageDate: number;
-	timing?: IChatSessionTiming;
+	timing: IChatSessionTiming;
 	initialLocation?: ChatAgentLocation;
 	hasPendingEdits?: boolean;
 	stats?: IChatSessionStats;
-	lastResponseState?: ResponseModelState;
+	lastResponseState: ResponseModelState;
 
 	/**
 	 * This only exists because the migrated data from the storage service had empty sessions persisted, and it's impossible to know which ones are

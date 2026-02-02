@@ -208,10 +208,7 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 		ChatContextKeys.hasAgentSessionChanges.bindTo(template.contextKeyService).set(hasAgentSessionChanges);
 
 		// Badge
-		let hasBadge = false;
-		if (!isSessionInProgressStatus(session.element.status)) {
-			hasBadge = this.renderBadge(session, template);
-		}
+		const hasBadge = this.renderBadge(session, template);
 		template.badge.classList.toggle('has-badge', hasBadge);
 
 		// Description (unless diff is shown)
@@ -350,8 +347,9 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 			return timeLabel;
 		};
 
-		// Provider icon
-		template.statusProviderIcon.className = `agent-session-status-provider-icon ${ThemeIcon.asClassName(session.element.icon)}`;
+		// Provider icon (only shown for non-local sessions)
+		const isLocal = session.element.providerType === AgentSessionProviders.Local;
+		template.statusProviderIcon.className = isLocal ? '' : `agent-session-status-provider-icon ${ThemeIcon.asClassName(session.element.icon)}`;
 
 		// Time label
 		template.statusTime.textContent = getTimeLabel(session.element);

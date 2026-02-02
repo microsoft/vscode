@@ -45,10 +45,23 @@ suite('RunSubagentTool', () => {
 			const mockToolsService = testDisposables.add(new MockLanguageModelToolsService());
 			const configService = new TestConfigurationService();
 
+			const mockChatModeService = {
+				findModeByName: (name: string) => {
+					if (name === 'CustomAgent') {
+						return {
+							name: {
+								get: () => 'CustomAgent'
+							}
+						};
+					}
+					return undefined;
+				}
+			} as unknown as IChatModeService;
+
 			const tool = testDisposables.add(new RunSubagentTool(
 				{} as IChatAgentService,
 				{} as IChatService,
-				{} as IChatModeService,
+				mockChatModeService,
 				mockToolsService,
 				{} as ILanguageModelsService,
 				new NullLogService(),

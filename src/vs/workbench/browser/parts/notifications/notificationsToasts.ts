@@ -26,6 +26,7 @@ import { IntervalCounter } from '../../../../base/common/async.js';
 import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { NotificationsToastsVisibleContext } from '../../../common/contextkeys.js';
 import { mainWindow } from '../../../../base/browser/window.js';
+import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 
 interface INotificationToast {
 	readonly item: INotificationViewItem;
@@ -84,7 +85,8 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
-		@IHostService private readonly hostService: IHostService
+		@IHostService private readonly hostService: IHostService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
 	) {
 		super(themeService);
 
@@ -135,6 +137,10 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 	private addToast(item: INotificationViewItem): void {
 		if (this.isNotificationsCenterVisible) {
 			return; // do not show toasts while notification center is visible
+		}
+
+		if (this.environmentService.enableSmokeTestDriver) {
+			return; // disable in smoke tests to prevent covering elements
 		}
 
 		if (item.priority === NotificationPriority.SILENT) {

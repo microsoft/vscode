@@ -248,9 +248,6 @@ export class ToolConfirmationSubPart extends AbstractToolConfirmationSubPart {
 					uriPromise: Promise.resolve(model.uri),
 					chatSessionResource: this.context.element.sessionResource
 				});
-				this._register(editor.object.onDidChangeContentHeight(() => {
-					editor.object.layout(this.currentWidthDelegate());
-				}));
 				this._register(model.onDidChangeContent(e => {
 					try {
 						inputData.rawInput = JSON.parse(model.getValue());

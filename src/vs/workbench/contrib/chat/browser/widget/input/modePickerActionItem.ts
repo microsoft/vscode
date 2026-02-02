@@ -235,7 +235,7 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 				getActions: () => this.getModePickerActionBarActions()
 			},
 			showItemKeybindings: true,
-			reporter: { name: 'ChatModePicker', includeOptions: true },
+			reporter: { id: 'ChatModePicker', name: 'ChatModePicker', includeOptions: true },
 		};
 
 		super(action, modePickerActionWidgetOptions, pickerOptions, actionWidgetService, keybindingService, contextKeyService, telemetryService);

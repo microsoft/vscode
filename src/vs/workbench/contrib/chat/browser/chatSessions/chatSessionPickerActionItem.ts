@@ -60,7 +60,7 @@ export class ChatSessionPickerActionItem extends ActionWidgetDropdownActionViewI
 				getActions: () => this.getDropdownActions()
 			},
 			actionBarActionProvider: undefined,
-			reporter: { name: `ChatSession:${group.name}`, includeOptions: false },
+			reporter: { id: group.id, name: `ChatSession:${group.name}`, includeOptions: false },
 		};
 
 		super(actionWithLabel, sessionPickerActionWidgetOptions, actionWidgetService, keybindingService, contextKeyService, telemetryService);

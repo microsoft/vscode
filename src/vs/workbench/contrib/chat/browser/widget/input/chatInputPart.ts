@@ -1691,9 +1691,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const store = new DisposableStore();
 		this._contextUsageDisposables.value = store;
 
-		// Subscribe to model changes to update when requests complete
 		store.add(model.onDidChange(e => {
-			if (e.kind === 'completedRequest') {
+			if (e.kind === 'addRequest' || e.kind === 'completedRequest') {
 				this.contextUsageWidget?.update(model.lastRequest);
 			}
 		}));

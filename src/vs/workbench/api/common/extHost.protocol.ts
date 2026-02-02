@@ -1556,7 +1556,8 @@ export type IChatProgressDto =
 	| IChatExternalEditsDto
 	| IChatResponseClearToPreviousToolInvocationDto
 	| IChatBeginToolInvocationDto
-	| IChatUpdateToolInvocationDto;
+	| IChatUpdateToolInvocationDto
+	| IChatUsageDto;
 
 export interface ExtHostUrlsShape {
 	$handleExternalUri(handle: number, uri: UriComponents): Promise<void>;
@@ -2365,6 +2366,13 @@ export interface IChatUpdateToolInvocationDto {
 	streamData: {
 		partialInput?: unknown;
 	};
+}
+
+export interface IChatUsageDto {
+	kind: 'usage';
+	promptTokens: number;
+	completionTokens: number;
+	promptTokenDetails?: readonly { category: string; label: string; percentageOfPrompt: number }[];
 }
 
 export type ICellEditOperationDto =

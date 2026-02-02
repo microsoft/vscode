@@ -141,6 +141,19 @@ export interface IChatCodeCitation {
 	kind: 'codeCitation';
 }
 
+export interface IChatUsagePromptTokenDetail {
+	category: string;
+	label: string;
+	percentageOfPrompt: number;
+}
+
+export interface IChatUsage {
+	promptTokens: number;
+	completionTokens: number;
+	promptTokenDetails?: readonly IChatUsagePromptTokenDetail[];
+	kind: 'usage';
+}
+
 export interface IChatContentInlineReference {
 	resolveId?: string;
 	inlineReference: URI | Location | IWorkspaceSymbol;

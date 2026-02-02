@@ -1981,6 +1981,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			this.toggleMaximizedPanel();
 		}
 
+		// Leave auxiliary bar maximized state because changing
+		// panel alignment requires the editor part to be visible
+		this.setAuxiliaryBarMaximized(false);
+
 		this.stateModel.setRuntimeValue(LayoutStateKeys.PANEL_ALIGNMENT, alignment);
 
 		this.adjustPartPositions(this.getSideBarPosition(), alignment, this.getPanelPosition());

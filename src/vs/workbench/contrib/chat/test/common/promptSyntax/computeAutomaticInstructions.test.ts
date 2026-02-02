@@ -822,7 +822,8 @@ suite('ComputeAutomaticInstructions', () => {
 					contents: [
 						'---',
 						'description: \'Test agent 1\'',
-						'infer: all',
+						'user-invokable: true',
+						'disable-model-invocation: false',
 						'---',
 						'Test agent content',
 					]
@@ -832,7 +833,8 @@ suite('ComputeAutomaticInstructions', () => {
 					contents: [
 						'---',
 						'description: \'Test agent 2\'',
-						'infer: user',
+						'user-invokable: true',
+						'disable-model-invocation: true',
 						'---',
 						'Test agent content',
 					]
@@ -842,7 +844,8 @@ suite('ComputeAutomaticInstructions', () => {
 					contents: [
 						'---',
 						'description: \'Test agent 3\'',
-						'infer: agent',
+						'user-invokable: false',
+						'disable-model-invocation: false',
 						'---',
 						'Test agent content',
 					]
@@ -852,7 +855,8 @@ suite('ComputeAutomaticInstructions', () => {
 					contents: [
 						'---',
 						'description: \'Test agent 4\'',
-						'infer: hidden',
+						'user-invokable: false',
+						'disable-model-invocation: true',
 						'---',
 						'Test agent content',
 					]
@@ -885,13 +889,16 @@ suite('ComputeAutomaticInstructions', () => {
 			assert.equal(agentsList.length, 1, 'There should be one agents list');
 
 			const agents = xmlContents(agentsList[0], 'agent');
-			assert.equal(agents.length, 2, 'There should be two agent');
+			assert.equal(agents.length, 3, 'There should be three agents');
 
 			assert.equal(xmlContents(agents[0], 'description')[0], 'Test agent 1');
 			assert.equal(xmlContents(agents[0], 'name')[0], `test-agent-1`);
 
 			assert.equal(xmlContents(agents[1], 'description')[0], 'Test agent 3');
 			assert.equal(xmlContents(agents[1], 'name')[0], `test-agent-3`);
+
+			assert.equal(xmlContents(agents[2], 'description')[0], 'Test agent 5');
+			assert.equal(xmlContents(agents[2], 'name')[0], `test-agent-5`);
 		});
 
 		test('should include skills list when readFile tool available', async () => {

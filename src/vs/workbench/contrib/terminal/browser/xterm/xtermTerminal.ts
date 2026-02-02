@@ -721,6 +721,10 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		this._accessibilitySignalService.playSignal(AccessibilitySignal.clear);
 	}
 
+	reset(): void {
+		this.raw.reset();
+	}
+
 	hasSelection(): boolean {
 		return this.raw.hasSelection();
 	}

@@ -203,6 +203,10 @@
 			.codicon-regex {
 				display: none;
 			}
+			/* Adjust input width to account for fewer toggles */
+			.input {
+				width: calc(100% - 16px) !important;
+			}
 		}
 	}
 

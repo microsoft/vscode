@@ -56,34 +56,48 @@ suite('ChatQuestionCarouselPart', () => {
 			createWidget(carousel);
 
 			assert.ok(widget.domNode.classList.contains('chat-question-carousel-container'));
-			assert.ok(widget.domNode.querySelector('.chat-question-carousel-header'));
+			assert.ok(widget.domNode.querySelector('.chat-question-header-row'));
 			assert.ok(widget.domNode.querySelector('.chat-question-carousel-content'));
 			assert.ok(widget.domNode.querySelector('.chat-question-carousel-nav'));
 		});
 
 		test('renders question title', () => {
 			const carousel = createMockCarousel([
-				{ id: 'q1', type: 'text', title: 'What is your name?' }
+				{ id: 'q1', type: 'text', title: 'What is your name?', message: 'What is your name?' }
 			]);
 			createWidget(carousel);
 
 			const title = widget.domNode.querySelector('.chat-question-title');
 			assert.ok(title);
-			assert.strictEqual(title?.textContent, 'What is your name?');
+			// Title includes progress prefix like "(1/1) What is your name?"
+			assert.ok(title?.textContent?.includes('What is your name?'));
+		});
+
+		test('renders question title when message is not provided', () => {
+			const carousel = createMockCarousel([
+				{ id: 'q1', type: 'text', title: 'Fallback title text' }
+			]);
+			createWidget(carousel);
+
+			const title = widget.domNode.querySelector('.chat-question-title');
+			assert.ok(title, 'title element should exist when only title is provided');
+			// Title should fall back to title property when message is not provided
+			assert.ok(title?.textContent?.includes('Fallback title text'));
 		});
 
 		test('renders progress indicator correctly', () => {
 			const carousel = createMockCarousel([
-				{ id: 'q1', type: 'text', title: 'Question 1' },
-				{ id: 'q2', type: 'text', title: 'Question 2' },
-				{ id: 'q3', type: 'text', title: 'Question 3' }
+				{ id: 'q1', type: 'text', title: 'Question 1', message: 'Question 1' },
+				{ id: 'q2', type: 'text', title: 'Question 2', message: 'Question 2' },
+				{ id: 'q3', type: 'text', title: 'Question 3', message: 'Question 3' }
 			]);
 			createWidget(carousel);
 
-			const progress = widget.domNode.querySelector('.chat-question-carousel-progress');
-			assert.ok(progress);
-			assert.ok(progress?.textContent?.includes('1'));
-			assert.ok(progress?.textContent?.includes('3'));
+			// Progress is shown in the step indicator in the footer as "1/3"
+			const stepIndicator = widget.domNode.querySelector('.chat-question-step-indicator');
+			assert.ok(stepIndicator);
+			assert.ok(stepIndicator?.textContent?.includes('1'));
+			assert.ok(stepIndicator?.textContent?.includes('3'));
 		});
 	});
 
@@ -96,11 +110,11 @@ suite('ChatQuestionCarouselPart', () => {
 
 			const inputContainer = widget.domNode.querySelector('.chat-question-input-container');
 			assert.ok(inputContainer);
-			const textarea = inputContainer?.querySelector('textarea.chat-question-text-textarea');
-			assert.ok(textarea, 'Should have a textarea for text questions');
+			const inputBox = inputContainer?.querySelector('.monaco-inputbox input');
+			assert.ok(inputBox, 'Should have an input box for text questions');
 		});
 
-		test('renders radio buttons for singleSelect type questions', () => {
+		test('renders list items for singleSelect type questions', () => {
 			const carousel = createMockCarousel([
 				{
 					id: 'q1',
@@ -114,11 +128,11 @@ suite('ChatQuestionCarouselPart', () => {
 			]);
 			createWidget(carousel);
 
-			const radioInputs = widget.domNode.querySelectorAll('input[type="radio"]');
-			assert.strictEqual(radioInputs.length, 2, 'Should have 2 radio buttons');
+			const listItems = widget.domNode.querySelectorAll('.chat-question-list-item');
+			assert.strictEqual(listItems.length, 2, 'Should have 2 list items');
 		});
 
-		test('renders checkboxes for multiSelect type questions', () => {
+		test('renders list items with checkboxes for multiSelect type questions', () => {
 			const carousel = createMockCarousel([
 				{
 					id: 'q1',
@@ -133,8 +147,44 @@ suite('ChatQuestionCarouselPart', () => {
 			]);
 			createWidget(carousel);
 
-			const checkboxInputs = widget.domNode.querySelectorAll('input[type="checkbox"]');
-			assert.strictEqual(checkboxInputs.length, 3, 'Should have 3 checkboxes');
+			const listItems = widget.domNode.querySelectorAll('.chat-question-list-item.multi-select');
+			assert.strictEqual(listItems.length, 3, 'Should have 3 list items for multiSelect');
+			const checkboxes = widget.domNode.querySelectorAll('.chat-question-list-checkbox');
+			assert.strictEqual(checkboxes.length, 3, 'Should have 3 checkboxes');
+		});
+
+		test('freeform textarea is always rendered for singleSelect', () => {
+			const carousel = createMockCarousel([
+				{
+					id: 'q1',
+					type: 'singleSelect',
+					title: 'Choose one',
+					options: [
+						{ id: 'a', label: 'Option A', value: 'a' }
+					]
+				}
+			]);
+			createWidget(carousel);
+
+			const freeformTextarea = widget.domNode.querySelector('.chat-question-freeform-textarea');
+			assert.ok(freeformTextarea, 'Freeform textarea should always be rendered for singleSelect');
+		});
+
+		test('freeform textarea is always rendered for multiSelect', () => {
+			const carousel = createMockCarousel([
+				{
+					id: 'q1',
+					type: 'multiSelect',
+					title: 'Choose multiple',
+					options: [
+						{ id: 'a', label: 'Option A', value: 'a' }
+					]
+				}
+			]);
+			createWidget(carousel);
+
+			const freeformTextarea = widget.domNode.querySelector('.chat-question-freeform-textarea');
+			assert.ok(freeformTextarea, 'Freeform textarea should always be rendered for multiSelect');
 		});
 
 		test('default options are pre-selected for singleSelect', () => {
@@ -152,9 +202,9 @@ suite('ChatQuestionCarouselPart', () => {
 			]);
 			createWidget(carousel);
 
-			const radioInputs = widget.domNode.querySelectorAll('input[type="radio"]') as NodeListOf<HTMLInputElement>;
-			assert.strictEqual(radioInputs[0].checked, false);
-			assert.strictEqual(radioInputs[1].checked, true, 'Default option should be checked');
+			const listItems = widget.domNode.querySelectorAll('.chat-question-list-item') as NodeListOf<HTMLElement>;
+			assert.strictEqual(listItems[0].classList.contains('selected'), false);
+			assert.strictEqual(listItems[1].classList.contains('selected'), true, 'Default option should be selected');
 		});
 
 		test('default options are pre-selected for multiSelect', () => {
@@ -173,10 +223,10 @@ suite('ChatQuestionCarouselPart', () => {
 			]);
 			createWidget(carousel);
 
-			const checkboxInputs = widget.domNode.querySelectorAll('input[type="checkbox"]') as NodeListOf<HTMLInputElement>;
-			assert.strictEqual(checkboxInputs[0].checked, true, 'First default option should be checked');
-			assert.strictEqual(checkboxInputs[1].checked, false);
-			assert.strictEqual(checkboxInputs[2].checked, true, 'Third default option should be checked');
+			const listItems = widget.domNode.querySelectorAll('.chat-question-list-item') as NodeListOf<HTMLElement>;
+			assert.strictEqual(listItems[0].classList.contains('checked'), true, 'First default option should be checked');
+			assert.strictEqual(listItems[1].classList.contains('checked'), false);
+			assert.strictEqual(listItems[2].classList.contains('checked'), true, 'Third default option should be checked');
 		});
 	});
 
@@ -307,7 +357,7 @@ suite('ChatQuestionCarouselPart', () => {
 			assert.ok(nav?.getAttribute('aria-label'), 'Navigation should have aria-label');
 		});
 
-		test('radio buttons have proper name grouping', () => {
+		test('single select list has proper role and aria-label', () => {
 			const carousel = createMockCarousel([
 				{
 					id: 'q1',
@@ -321,12 +371,12 @@ suite('ChatQuestionCarouselPart', () => {
 			]);
 			createWidget(carousel);
 
-			const radioInputs = widget.domNode.querySelectorAll('input[type="radio"]') as NodeListOf<HTMLInputElement>;
-			assert.strictEqual(radioInputs[0].name, radioInputs[1].name, 'Radio buttons should have the same name for grouping');
-			assert.ok(radioInputs[0].name.includes('q1'), 'Radio button name should include question id');
+			const list = widget.domNode.querySelector('.chat-question-list');
+			assert.strictEqual(list?.getAttribute('role'), 'listbox');
+			assert.strictEqual(list?.getAttribute('aria-label'), 'Choose one');
 		});
 
-		test('labels are properly associated with inputs', () => {
+		test('list items have proper role and aria-selected', () => {
 			const carousel = createMockCarousel([
 				{
 					id: 'q1',
@@ -339,10 +389,11 @@ suite('ChatQuestionCarouselPart', () => {
 			]);
 			createWidget(carousel);
 
-			const radioInput = widget.domNode.querySelector('input[type="radio"]') as HTMLInputElement;
-			const label = widget.domNode.querySelector('label.chat-question-option-label') as HTMLLabelElement;
-			assert.ok(radioInput.id, 'Input should have an id');
-			assert.strictEqual(label.htmlFor, radioInput.id, 'Label should be associated with input');
+			const listItem = widget.domNode.querySelector('.chat-question-list-item') as HTMLElement;
+			assert.ok(listItem, 'List item should exist');
+			assert.strictEqual(listItem.getAttribute('role'), 'option');
+			assert.ok(listItem.id, 'List item should have an id');
+			assert.strictEqual(listItem.getAttribute('aria-selected'), 'false', 'Unselected item should have aria-selected=false');
 		});
 	});
 
@@ -396,6 +447,7 @@ suite('ChatQuestionCarouselPart', () => {
 
 			widget.skip();
 			assert.ok(submittedAnswers instanceof Map);
+			// singleSelect always returns structured format with freeformValue
 			const answer = submittedAnswers?.get('q1') as { selectedValue: unknown; freeformValue: unknown };
 			assert.strictEqual(answer.selectedValue, 'value_b');
 			assert.strictEqual(answer.freeformValue, undefined);
@@ -419,6 +471,7 @@ suite('ChatQuestionCarouselPart', () => {
 
 			widget.skip();
 			assert.ok(submittedAnswers instanceof Map);
+			// multiSelect always returns structured format with freeformValue
 			const answer = submittedAnswers?.get('q1') as { selectedValues: unknown[]; freeformValue: unknown };
 			assert.ok(Array.isArray(answer.selectedValues));
 			assert.strictEqual(answer.selectedValues.length, 2);
@@ -445,6 +498,7 @@ suite('ChatQuestionCarouselPart', () => {
 			widget.skip();
 			assert.ok(submittedAnswers instanceof Map);
 			assert.strictEqual(submittedAnswers?.get('q1'), 'text default');
+			// singleSelect always returns structured format with freeformValue
 			const answer = submittedAnswers?.get('q2') as { selectedValue: unknown; freeformValue: unknown };
 			assert.strictEqual(answer.selectedValue, 'first_value');
 			assert.strictEqual(answer.freeformValue, undefined);
@@ -476,7 +530,7 @@ suite('ChatQuestionCarouselPart', () => {
 			assert.ok(summary, 'Should show summary container after skip');
 			const summaryItem = summary?.querySelector('.chat-question-summary-item');
 			assert.ok(summaryItem, 'Should have summary item for the question');
-			const summaryValue = summaryItem?.querySelector('.chat-question-summary-value');
+			const summaryValue = summaryItem?.querySelector('.chat-question-summary-answer-title');
 			assert.ok(summaryValue?.textContent?.includes('default answer'), 'Summary should show the default answer');
 		});
 
@@ -510,7 +564,7 @@ suite('ChatQuestionCarouselPart', () => {
 			assert.ok(widget.domNode.classList.contains('chat-question-carousel-used'), 'Should have used class');
 			const summary = widget.domNode.querySelector('.chat-question-carousel-summary');
 			assert.ok(summary, 'Should show summary container when isUsed is true');
-			const summaryValue = summary?.querySelector('.chat-question-summary-value');
+			const summaryValue = summary?.querySelector('.chat-question-summary-answer-title');
 			assert.ok(summaryValue?.textContent?.includes('saved answer'), 'Summary should show saved answer from data');
 		});
 

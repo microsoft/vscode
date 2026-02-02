@@ -889,7 +889,20 @@ export class AgentSessionsWelcomePage extends EditorPane {
 	}
 
 	private async closeEditorAndMaximizeAuxiliaryBar(sessionResource?: URI): Promise<void> {
-		await this.commandService.executeCommand('workbench.action.closeActiveEditor');
+		const editorToClose = this.input || this._storedInput;
+
+		if (editorToClose && this.group.contains(editorToClose)) {
+			// Wait until the active editor changed so that the chat doesn't toggle back
+			await new Promise<void>(resolve => {
+				const disposable = this.group.onDidActiveEditorChange(e => {
+					disposable.dispose();
+					resolve();
+				});
+
+				this.group.closeEditor(editorToClose);
+			});
+		}
+		// Now proceed with opening chat and maximizing
 		if (sessionResource) {
 			await this.chatWidgetService.openSession(sessionResource, ChatViewPaneTarget);
 		} else {

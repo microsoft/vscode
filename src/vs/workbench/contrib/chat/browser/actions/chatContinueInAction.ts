@@ -105,7 +105,7 @@ export class ChatContinueInSessionActionItem extends ActionWidgetDropdownActionV
 		super(action, {
 			actionProvider: ChatContinueInSessionActionItem.actionProvider(chatSessionsService, instantiationService, location),
 			actionBarActions: ChatContinueInSessionActionItem.getActionBarActions(openerService),
-			reporter: { name: 'ChatContinueInSession', includeOptions: true },
+			reporter: { id: 'ChatContinueInSession', name: 'ChatContinueInSession', includeOptions: true },
 		}, actionWidgetService, keybindingService, contextKeyService, telemetryService);
 	}
 
