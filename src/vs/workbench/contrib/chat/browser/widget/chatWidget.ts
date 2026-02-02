@@ -1237,42 +1237,49 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return;
 		}
 
+		this.logService.debug(`[Delegation] Will exit after delegation: sourceAgent=${sourceAgent?.id}, targetAgent=${targetAgent?.id}`);
 		try {
 			await this._handleDelegationExit();
 		} catch (e) {
-			this.logService.error('Failed to handle delegation exit', e);
+			this.logService.error('[Delegation] Failed to handle delegation exit', e);
 		}
 	}
 
 	private _shouldExitAfterDelegation(sourceAgent: Pick<IChatAgentData, 'id' | 'name'> | undefined, targetAgent: IChatAgentData | undefined): boolean {
 		if (!targetAgent) {
-			// Undefined behavior
+			this.logService.debug('[Delegation] _shouldExitAfterDelegation: false (no targetAgent)');
 			return false;
 		}
 
 		if (!this.configurationService.getValue<boolean>(ChatConfiguration.ExitAfterDelegation)) {
+			this.logService.debug('[Delegation] _shouldExitAfterDelegation: false (ExitAfterDelegation config disabled)');
 			return false;
 		}
 
 		// Never exit if the source and target are the same (that means that you're providing a follow up, etc.)
 		// NOTE: sourceAgent would be the chatWidget's 'lockedAgent'
 		if (sourceAgent && sourceAgent.id === targetAgent.id) {
+			this.logService.debug('[Delegation] _shouldExitAfterDelegation: false (source and target agents are the same)');
 			return false;
 		}
 
 		if (!isIChatViewViewContext(this.viewContext)) {
+			this.logService.debug('[Delegation] _shouldExitAfterDelegation: false (not in chat view context)');
 			return false;
 		}
 
 		const contribution = this.chatSessionsService.getChatSessionContribution(targetAgent.id);
 		if (!contribution) {
+			this.logService.debug(`[Delegation] _shouldExitAfterDelegation: false (no contribution found for targetAgent.id=${targetAgent.id})`);
 			return false;
 		}
 
 		if (contribution.canDelegate !== true) {
+			this.logService.debug(`[Delegation] _shouldExitAfterDelegation: false (contribution.canDelegate=${contribution.canDelegate}, expected true)`);
 			return false;
 		}
 
+		this.logService.debug('[Delegation] _shouldExitAfterDelegation: true');
 		return true;
 	}
 
@@ -1284,10 +1291,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private async _handleDelegationExit(): Promise<void> {
 		const viewModel = this.viewModel;
 		if (!viewModel) {
+			this.logService.debug('[Delegation] _handleDelegationExit: no viewModel, returning');
 			return;
 		}
 
 		const parentSessionResource = viewModel.sessionResource;
+		this.logService.debug(`[Delegation] _handleDelegationExit: parentSessionResource=${parentSessionResource.toString()}`);
 
 		// Check if response is complete, not pending confirmation, and has no error
 		const checkIfShouldClear = (): boolean => {
@@ -1301,11 +1310,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		};
 
 		if (checkIfShouldClear()) {
+			this.logService.debug('[Delegation] Response complete, archiving session before clearing');
+			// Archive BEFORE clearing to ensure session still exists in agentSessionsService
+			await this.archiveLocalParentSession(parentSessionResource);
 			await this.clear();
-			this.archiveLocalParentSession(parentSessionResource);
 			return;
 		}
 
+		this.logService.debug('[Delegation] Waiting for response to complete...');
 		const shouldClear = await new Promise<boolean>(resolve => {
 			const disposable = viewModel.onDidChange(() => {
 				const result = checkIfShouldClear();
@@ -1315,6 +1327,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				}
 			});
 			const timeout = setTimeout(() => {
+				this.logService.debug('[Delegation] Timeout waiting for response to complete');
 				cleanup();
 				resolve(false);
 			}, 30_000); // 30 second timeout
@@ -1325,21 +1338,32 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		});
 
 		if (shouldClear) {
+			this.logService.debug('[Delegation] Response completed, archiving session before clearing');
+			await this.archiveLocalParentSession(parentSessionResource);
 			await this.clear();
-			this.archiveLocalParentSession(parentSessionResource);
+		} else {
+			this.logService.debug('[Delegation] Not clearing (timeout or error)');
 		}
 	}
 
 	private async archiveLocalParentSession(sessionResource: URI): Promise<void> {
 		if (sessionResource.scheme !== Schemas.vscodeLocalChatSession) {
+			this.logService.debug(`[Delegation] archiveLocalParentSession: skipping, scheme=${sessionResource.scheme} is not vscodeLocalChatSession`);
 			return;
 		}
+
+		this.logService.debug(`[Delegation] archiveLocalParentSession: archiving session ${sessionResource.toString()}`);
 
 		// Implicitly keep parent session's changes as they've now been delegated to the new agent.
 		await this.chatService.getSession(sessionResource)?.editingSession?.accept();
 
 		const session = this.agentSessionsService.getSession(sessionResource);
-		session?.setArchived(true);
+		if (session) {
+			session.setArchived(true);
+			this.logService.debug('[Delegation] archiveLocalParentSession: session archived successfully');
+		} else {
+			this.logService.warn(`[Delegation] archiveLocalParentSession: session not found in agentSessionsService for ${sessionResource.toString()}`);
+		}
 	}
 
 	setVisible(visible: boolean): void {
