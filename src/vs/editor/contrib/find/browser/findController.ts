@@ -228,6 +228,14 @@ export class CommonFindController extends Disposable implements IEditorContribut
 		return false;
 	}
 
+	/**
+	 * Focuses the last focused element in the find widget.
+	 * Implemented by FindController; base implementation does nothing.
+	 */
+	public focusLastElement(): void {
+		// Base implementation - overridden in FindController
+	}
+
 	public getState(): FindReplaceState {
 		return this._state;
 	}
@@ -530,6 +538,15 @@ export class FindController extends CommonFindController implements IFindControl
 	 */
 	public override wasReplaceInputLastFocused(): boolean {
 		return this._widget?.lastFocusedInputWasReplace ?? false;
+	}
+
+	/**
+	 * Focuses the last focused element in the find widget.
+	 * This is more precise than just focusing the Find or Replace input,
+	 * as it can restore focus to checkboxes, buttons, etc.
+	 */
+	public override focusLastElement(): void {
+		this._widget?.focusLastElement();
 	}
 
 	saveViewState(): any {
