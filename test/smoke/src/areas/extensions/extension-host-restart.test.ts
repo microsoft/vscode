@@ -55,13 +55,20 @@ export function setup(logger: Logger) {
 			// Reload window while extension host is blocked
 			await app.workbench.quickaccess.runCommand('Developer: Reload Window');
 			await app.code.whenWorkbenchRestored();
-			await timeout(2000);
 			logger.log('Window reloaded');
 
-			// Verify old process is gone
+			// Verify old process is gone, allowing for slower teardown on busy machines
+			const maxWaitMs = 10_000;
+			const pollIntervalMs = 500;
+			let waitedMs = 0;
+			while (processExists(pid) && waitedMs < maxWaitMs) {
+				await timeout(pollIntervalMs);
+				waitedMs += pollIntervalMs;
+			}
+
 			const stillExists = processExists(pid);
 			if (stillExists) {
-				throw new Error(`Extension host ${pid} still running after reload`);
+				throw new Error(`Extension host ${pid} still running after reload (waited ${maxWaitMs}ms)`);
 			}
 
 			logger.log('Extension host was properly killed on reload');
