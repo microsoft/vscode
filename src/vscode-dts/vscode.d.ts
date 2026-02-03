@@ -6480,7 +6480,7 @@ declare module 'vscode' {
 	/**
 	 * Configuration for line comments.
 	 */
-	export interface LineCommentConfig {
+	export interface LineCommentRule {
 		/**
 		 * The line comment token, like `//`
 		 */
@@ -6500,7 +6500,7 @@ declare module 'vscode' {
 		/**
 		 * The line comment token, like `// this is a comment`
 		 */
-		lineComment?: string | LineCommentConfig | null;
+		lineComment?: string | LineCommentRule | null;
 
 		/**
 		 * The block comment character pair, like `/* block comment *&#47;`
