@@ -445,7 +445,7 @@ class SimpleBrowserOverlayController {
 
 		// Observe chat enabled state and sendElementsToChat configuration
 		const chatEnabledObs = observableContextKey<boolean>(ChatContextKeys.enabled.key, this.contextKeyService);
-		const sendElementsEnabledObs = observableConfigValue<boolean>('chat.sendElementsToChat.enabled', false, this.configurationService);
+		const sendElementsEnabledObs = observableConfigValue<boolean>('chat.sendElementsToChat.enabled', true, this.configurationService);
 
 		this._store.add(autorun(r => {
 
