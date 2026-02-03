@@ -1157,8 +1157,23 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 
 		const runQuery = async (query: Query, token: CancellationToken) => {
 			const { extensions, total } = await this.queryGalleryExtensions(query, { targetPlatform: CURRENT_TARGET_PLATFORM, compatible: false, includePreRelease: !!options.includePreRelease, productVersion: options.productVersion ?? { version: this.productService.version, date: this.productService.date } }, extensionGalleryManifest, token);
-			extensions.forEach((e, index) => setTelemetry(e, ((query.pageNumber - 1) * query.pageSize) + index, options.source));
-			return { extensions, total };
+
+			const result: IGalleryExtension[] = [];
+			let defaultChatAgentExtension: IGalleryExtension | undefined;
+			for (let index = 0; index < extensions.length; index++) {
+				const extension = extensions[index];
+				setTelemetry(extension, ((query.pageNumber - 1) * query.pageSize) + index, options.source);
+				if (areSameExtensions(extension.identifier, { id: this.productService.defaultChatAgent.extensionId, })) {
+					defaultChatAgentExtension = extension;
+				} else {
+					result.push(extension);
+				}
+			}
+			if (defaultChatAgentExtension) {
+				result.push(defaultChatAgentExtension);
+			}
+
+			return { extensions: result, total };
 		};
 		const { extensions, total } = await runQuery(query, token);
 		const getPage = async (pageIndex: number, ct: CancellationToken) => {
