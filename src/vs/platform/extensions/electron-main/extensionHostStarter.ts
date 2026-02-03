@@ -120,6 +120,7 @@ export class ExtensionHostStarter extends Disposable implements IDisposable, IEx
 			execArgv: opts.execArgv,
 			allowLoadingUnsignedLibraries: true,
 			respondToAuthRequestsFromMainProcess: true,
+			windowLifecycleBound: true,
 			correlationId: id
 		});
 		const pid = await Event.toPromise(extHost.onSpawn);
