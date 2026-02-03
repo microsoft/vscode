@@ -26,16 +26,16 @@ fn should_skip_first_segment(file: &fs::File) -> Result<(bool, u64), WrappedErro
 		.map_err(|e| wrap(e, "error opening archive"))?;
 
 	let first_name = {
-		let file = entries
-			.next()
-			.expect("expected not to have an empty archive")
-			.map_err(|e| wrap(e, "error reading entry file"))?;
+		let file = match entries.next() {
+			Some(f) => f.map_err(|e| wrap(e, "error reading entry file"))?,
+			None => return Err(wrap("", "archive is empty")),
+		};
 
-		let path = file.path().expect("expected to have path");
+		let path = file.path().map_err(|e| wrap(e, "error reading entry path"))?;
 
 		path.iter()
 			.next()
-			.expect("expected to have non-empty name")
+			.ok_or_else(|| wrap("", "expected to have non-empty entry name"))?
 			.to_owned()
 	};
 
