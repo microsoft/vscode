@@ -245,6 +245,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 				userSelectedModelId: modeModelId,
 				userSelectedTools: modeTools,
 				modeInstructions,
+				parentRequestId: invocation.chatRequestId,
 			};
 
 			// Subscribe to tool invocations to clear markdown parts when a tool is invoked

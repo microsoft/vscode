@@ -157,6 +157,10 @@ export interface IChatAgentRequest {
 	 * Display name of the subagent that is invoking this request.
 	 */
 	subAgentName?: string;
+	/**
+	 * The request ID of the parent request that invoked this subagent.
+	 */
+	parentRequestId?: string;
 
 }
 
