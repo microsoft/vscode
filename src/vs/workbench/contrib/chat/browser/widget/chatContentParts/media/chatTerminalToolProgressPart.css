@@ -107,7 +107,12 @@
 	display: flex;
 	gap: 4px;
 	margin-left: auto;
-	align-self: flex-start;
+	align-self: center;
+}
+
+/* Reset margin for action bar icons - they should have similar spacing to other action bars */
+.chat-terminal-content-part .chat-terminal-action-bar .monaco-action-bar .codicon {
+	margin: 0;
 }
 
 .chat-terminal-content-part .chat-terminal-content-message {
@@ -184,9 +189,6 @@ div.chat-terminal-content-part.progress-step > div.chat-terminal-output-containe
 }
 .chat-terminal-output-terminal.chat-terminal-output-terminal-no-output {
 	display: none;
-}
-.chat-terminal-output-terminal.chat-terminal-output-terminal-clipped {
-	overflow: hidden;
 }
 .chat-terminal-output {
 	margin: 0;

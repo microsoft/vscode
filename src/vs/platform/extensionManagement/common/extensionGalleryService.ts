@@ -54,7 +54,7 @@ export interface IRawGalleryExtensionVersion {
 	readonly assetUri: string;
 	readonly fallbackAssetUri: string;
 	readonly files: IRawGalleryExtensionFile[];
-	readonly properties?: IRawGalleryExtensionProperty[];
+	properties?: IRawGalleryExtensionProperty[];
 	readonly targetPlatform?: string;
 }
 
@@ -348,6 +348,11 @@ function getEngine(version: IRawGalleryExtensionVersion): string {
 	return (values.length > 0 && values[0].value) || '';
 }
 
+function setEngine(version: IRawGalleryExtensionVersion, engine: string): void {
+	version.properties = version.properties ?? [];
+	version.properties.push({ key: PropertyType.Engine, value: engine });
+}
+
 function isPreReleaseVersion(version: IRawGalleryExtensionVersion): boolean {
 	const values = version.properties ? version.properties.filter(p => p.key === PropertyType.PreRelease) : [];
 	return values.length > 0 && values[0].value === 'true';
@@ -442,6 +447,24 @@ export function sortExtensionVersions(versions: IRawGalleryExtensionVersion[], p
 	return versions;
 }
 
+/**
+ * Filters extension versions to return only the relevant versions for a given target platform.
+ *
+ * This function processes a list of extension versions (expected to be sorted by version descending)
+ * and returns a filtered list containing:
+ * 1. All versions that are NOT compatible with the target platform (for other platforms)
+ * 2. At most one compatible release version (the first/latest one encountered)
+ * 3. At most one compatible pre-release version (the first/latest one encountered)
+ *
+ * When a platform-specific version (exactly matching targetPlatform) is encountered with the same
+ * version number as a previously stored universal/undefined version, it replaces that version.
+ * This ensures platform-specific builds are preferred over universal builds for the same version.
+ *
+ * @param versions - Array of extension versions, expected to be sorted by version number descending
+ * @param targetPlatform - The target platform to filter for (e.g., LINUX_X64, WIN32_X64)
+ * @param allTargetPlatforms - All target platforms the extension supports
+ * @returns Filtered array of versions relevant for the target platform
+ */
 export function filterLatestExtensionVersionsForTargetPlatform(versions: IRawGalleryExtensionVersion[], targetPlatform: TargetPlatform, allTargetPlatforms: TargetPlatform[]): IRawGalleryExtensionVersion[] {
 	const latestVersions: IRawGalleryExtensionVersion[] = [];
 
@@ -458,19 +481,19 @@ export function filterLatestExtensionVersionsForTargetPlatform(versions: IRawGal
 		}
 
 		// For compatible versions, only include the first (latest) of each type
-		// Prefer specific target platform matches over undefined/universal platforms
+		// Prefer specific target platform matches over undefined/universal platforms only when version numbers are the same
 		if (isPreReleaseVersion(version)) {
 			if (preReleaseVersionIndex === -1) {
 				preReleaseVersionIndex = latestVersions.length;
 				latestVersions.push(version);
-			} else if (versionTargetPlatform === targetPlatform) {
+			} else if (versionTargetPlatform === targetPlatform && latestVersions[preReleaseVersionIndex].version === version.version) {
 				latestVersions[preReleaseVersionIndex] = version;
 			}
 		} else {
 			if (releaseVersionIndex === -1) {
 				releaseVersionIndex = latestVersions.length;
 				latestVersions.push(version);
-			} else if (versionTargetPlatform === targetPlatform) {
+			} else if (versionTargetPlatform === targetPlatform && latestVersions[releaseVersionIndex].version === version.version) {
 				latestVersions[releaseVersionIndex] = version;
 			}
 		}
@@ -829,11 +852,24 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 			return 'NOT_FOUND';
 		}
 
-		const targetPlatform = options.targetPlatform ?? CURRENT_TARGET_PLATFORM;
 		const allTargetPlatforms = getAllTargetPlatforms(rawGalleryExtension);
-		const rawGalleryExtensionVersion = await this.getValidRawGalleryExtensionVersion(
+		const rawGalleryExtensionVersion = await this.getValidRawGalleryExtensionVersionFromLatestVersions(rawGalleryExtension, rawGalleryExtension.versions, extensionInfo, options, allTargetPlatforms);
+
+		if (!rawGalleryExtensionVersion) {
+			return 'NOT_COMPATIBLE';
+		}
+
+		return toExtension(rawGalleryExtension, rawGalleryExtensionVersion, allTargetPlatforms, extensionGalleryManifest, this.productService);
+	}
+
+	private async getValidRawGalleryExtensionVersionFromLatestVersions(rawGalleryExtension: IRawGalleryExtension, latestVersions: IRawGalleryExtensionVersion[], extensionInfo: IExtensionInfo, options: IExtensionQueryOptions, allTargetPlatforms: TargetPlatform[]): Promise<IRawGalleryExtensionVersion | null> {
+		const targetPlatform = options.targetPlatform ?? CURRENT_TARGET_PLATFORM;
+		const latestExtensionVersionsForTargetPlatform = filterLatestExtensionVersionsForTargetPlatform(latestVersions, targetPlatform, allTargetPlatforms);
+
+		// First, find a valid version matching the requested type (pre-release or release)
+		const result = await this.getValidRawGalleryExtensionVersion(
 			rawGalleryExtension,
-			filterLatestExtensionVersionsForTargetPlatform(rawGalleryExtension.versions, targetPlatform, allTargetPlatforms),
+			latestExtensionVersionsForTargetPlatform,
 			{
 				targetPlatform,
 				compatible: !!options.compatible,
@@ -841,14 +877,63 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 					version: this.productService.version,
 					date: this.productService.date
 				},
-				version: extensionInfo.preRelease ? VersionKind.Latest : VersionKind.Release
+				version: extensionInfo.preRelease ? VersionKind.Prerelease : VersionKind.Release
 			}, allTargetPlatforms);
 
-		if (rawGalleryExtensionVersion) {
-			return toExtension(rawGalleryExtension, rawGalleryExtensionVersion, allTargetPlatforms, extensionGalleryManifest, this.productService);
+		// For release version requests, simply return the found release version
+		if (!extensionInfo.preRelease) {
+			return result;
 		}
 
-		return 'NOT_COMPATIBLE';
+		// For pre-release version requests, we need to consider both pre-release and release versions
+		const prereleaseVersion = result;
+		const releaseVersion = await this.getValidRawGalleryExtensionVersion(
+			rawGalleryExtension,
+			latestExtensionVersionsForTargetPlatform,
+			{
+				targetPlatform,
+				compatible: !!options.compatible,
+				productVersion: options.productVersion ?? {
+					version: this.productService.version,
+					date: this.productService.date
+				},
+				version: VersionKind.Release
+			}, allTargetPlatforms);
+
+		// When both versions exist, return whichever has the higher version number
+		if (prereleaseVersion && releaseVersion) {
+			return semver.gt(releaseVersion.version, prereleaseVersion.version) ? releaseVersion : prereleaseVersion;
+		}
+
+		// Special handling for compatible version requests
+		if (options.compatible) {
+			// If we have a compatible release version, check if it's better than any pre-release
+			if (releaseVersion) {
+				// Check if there exists any pre-release version (ignoring compatibility)
+				const anyPrereleaseVersion = await this.getValidRawGalleryExtensionVersion(
+					rawGalleryExtension,
+					latestExtensionVersionsForTargetPlatform,
+					{
+						targetPlatform,
+						compatible: false,
+						productVersion: options.productVersion ?? {
+							version: this.productService.version,
+							date: this.productService.date
+						},
+						version: VersionKind.Prerelease
+					}, allTargetPlatforms);
+
+				// If no pre-release exists or the release version is greater, prefer the compatible release
+				// This ensures users get a stable compatible version when pre-releases aren't newer or compatible
+				if (!anyPrereleaseVersion || semver.gt(releaseVersion.version, anyPrereleaseVersion.version)) {
+					return releaseVersion;
+				}
+			}
+			return prereleaseVersion;
+		}
+
+		// Return pre-release if available, otherwise release, otherwise null
+		return prereleaseVersion ?? releaseVersion ?? null;
 	}
 
 	async getCompatibleExtension(extension: IGalleryExtension, includePreRelease: boolean, targetPlatform: TargetPlatform, productVersion: IProductVersion = { version: this.productService.version, date: this.productService.date }): Promise<IGalleryExtension | null> {
@@ -962,38 +1047,52 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 
 	private async isEngineValid(extensionId: string, version: string, engine: string | undefined, manifestAsset: IGalleryExtensionAsset | null, productVersion: IProductVersion): Promise<boolean> {
 		if (!engine) {
-			if (!manifestAsset) {
-				this.logService.error(`Missing engine and manifest asset for the extension ${extensionId} with version ${version}`);
-				return false;
-			}
 			try {
-				type GalleryServiceEngineFallbackClassification = {
-					owner: 'sandy081';
-					comment: 'Fallback request when engine is not found in properties of an extension version';
-					extension: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'extension name' };
-					extensionVersion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'version' };
-				};
-				type GalleryServiceEngineFallbackEvent = {
-					extension: string;
-					extensionVersion: string;
-				};
-				this.telemetryService.publicLog2<GalleryServiceEngineFallbackEvent, GalleryServiceEngineFallbackClassification>('galleryService:engineFallback', { extension: extensionId, extensionVersion: version });
-
-				const headers = { 'Accept-Encoding': 'gzip' };
-				const context = await this.getAsset(extensionId, manifestAsset, AssetType.Manifest, version, { headers });
-				const manifest = await asJson<IExtensionManifest>(context);
-				if (!manifest) {
-					this.logService.error(`Manifest was not found for the extension ${extensionId} with version ${version}`);
-					return false;
-				}
-				engine = manifest.engines.vscode;
+				engine = await this.getEngine(extensionId, version, manifestAsset);
 			} catch (error) {
 				this.logService.error(`Error while getting the engine for the version ${version}.`, getErrorMessage(error));
 				return false;
 			}
 		}
 
+		if (!engine) {
+			this.logService.error(`Missing engine for the extension ${extensionId} with version ${version}`);
+			return false;
+		}
+
 		return isEngineValid(engine, productVersion.version, productVersion.date);
+	}
+
+	private async getEngine(extensionId: string, version: string, manifestAsset: IGalleryExtensionAsset | null): Promise<string | undefined> {
+		if (!manifestAsset) {
+			this.logService.error(`Missing engine and manifest asset for the extension ${extensionId} with version ${version}`);
+			return undefined;
+		}
+		try {
+			type GalleryServiceEngineFallbackClassification = {
+				owner: 'sandy081';
+				comment: 'Fallback request when engine is not found in properties of an extension version';
+				extension: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'extension name' };
+				extensionVersion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'version' };
+			};
+			type GalleryServiceEngineFallbackEvent = {
+				extension: string;
+				extensionVersion: string;
+			};
+			this.telemetryService.publicLog2<GalleryServiceEngineFallbackEvent, GalleryServiceEngineFallbackClassification>('galleryService:engineFallback', { extension: extensionId, extensionVersion: version });
+
+			const headers = { 'Accept-Encoding': 'gzip' };
+			const context = await this.getAsset(extensionId, manifestAsset, AssetType.Manifest, version, { headers });
+			const manifest = await asJson<IExtensionManifest>(context);
+			if (!manifest) {
+				this.logService.error(`Manifest was not found for the extension ${extensionId} with version ${version}`);
+				return undefined;
+			}
+			return manifest.engines.vscode;
+		} catch (error) {
+			this.logService.error(`Error while getting the engine for the version ${version}.`, getErrorMessage(error));
+			return undefined;
+		}
 	}
 
 	async query(options: IQueryOptions, token: CancellationToken): Promise<IPager<IGalleryExtension>> {
@@ -1058,8 +1157,23 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 
 		const runQuery = async (query: Query, token: CancellationToken) => {
 			const { extensions, total } = await this.queryGalleryExtensions(query, { targetPlatform: CURRENT_TARGET_PLATFORM, compatible: false, includePreRelease: !!options.includePreRelease, productVersion: options.productVersion ?? { version: this.productService.version, date: this.productService.date } }, extensionGalleryManifest, token);
-			extensions.forEach((e, index) => setTelemetry(e, ((query.pageNumber - 1) * query.pageSize) + index, options.source));
-			return { extensions, total };
+
+			const result: IGalleryExtension[] = [];
+			let defaultChatAgentExtension: IGalleryExtension | undefined;
+			for (let index = 0; index < extensions.length; index++) {
+				const extension = extensions[index];
+				setTelemetry(extension, ((query.pageNumber - 1) * query.pageSize) + index, options.source);
+				if (areSameExtensions(extension.identifier, { id: this.productService.defaultChatAgent.extensionId, })) {
+					defaultChatAgentExtension = extension;
+				} else {
+					result.push(extension);
+				}
+			}
+			if (defaultChatAgentExtension) {
+				result.push(defaultChatAgentExtension);
+			}
+
+			return { extensions: result, total };
 		};
 		const { extensions, total } = await runQuery(query, token);
 		const getPage = async (pageIndex: number, ct: CancellationToken) => {
@@ -1211,6 +1325,9 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 
 		for (let index = 0; index < rawGalleryExtensionVersions.length; index++) {
 			const rawGalleryExtensionVersion = rawGalleryExtensionVersions[index];
+			if (criteria.compatible) {
+				await this.setEngineIfNotExists(extensionIdentifier.id, rawGalleryExtensionVersion);
+			}
 			if (await this.isValidVersion(
 				{
 					id: extensionIdentifier.id,
@@ -1241,6 +1358,21 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 		 * This can happen when the extension does not have a release version or does not have a version compatible with the given target platform.
 		 */
 		return rawGalleryExtension.versions[0];
+	}
+
+	private async setEngineIfNotExists(extensionId: string, rawGalleryExtensionVersion: IRawGalleryExtensionVersion): Promise<void> {
+		if (getEngine(rawGalleryExtensionVersion)) {
+			return;
+		}
+
+		try {
+			const engine = await this.getEngine(extensionId, rawGalleryExtensionVersion.version, getVersionAsset(rawGalleryExtensionVersion, AssetType.Manifest));
+			if (engine) {
+				setEngine(rawGalleryExtensionVersion, engine);
+			}
+		} catch (error) {
+			this.logService.error(`Error while getting the engine for the version ${rawGalleryExtensionVersion.version}.`, getErrorMessage(error));
+		}
 	}
 
 	private async queryRawGalleryExtensions(query: Query, extensionGalleryManifest: IExtensionGalleryManifest, token: CancellationToken): Promise<IRawGalleryExtensionsResult> {
@@ -1858,6 +1990,16 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 				}
 			}
 		}
+
+		deprecated[this.productService.defaultChatAgent.extensionId.toLowerCase()] = {
+			disallowInstall: true,
+			extension: {
+				id: this.productService.defaultChatAgent.chatExtensionId,
+				displayName: 'GitHub Copilot Chat',
+				autoMigrate: { storage: false, donotDisable: true },
+				preRelease: this.productService.quality !== 'stable'
+			}
+		};
 
 		return { malicious, deprecated, search, autoUpdate };
 	}

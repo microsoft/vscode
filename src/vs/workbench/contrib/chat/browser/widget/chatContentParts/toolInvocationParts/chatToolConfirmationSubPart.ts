@@ -93,7 +93,8 @@ export class ToolConfirmationSubPart extends AbstractToolConfirmationSubPart {
 			const confirmActions = this.confirmationService.getPreConfirmActions({
 				toolId: this.toolInvocation.toolId,
 				source: this.toolInvocation.source,
-				parameters: state.parameters
+				parameters: state.parameters,
+				chatSessionResource: this.context.element.sessionResource
 			});
 
 			for (const action of confirmActions) {
@@ -247,9 +248,6 @@ export class ToolConfirmationSubPart extends AbstractToolConfirmationSubPart {
 					uriPromise: Promise.resolve(model.uri),
 					chatSessionResource: this.context.element.sessionResource
 				});
-				this._register(editor.object.onDidChangeContentHeight(() => {
-					editor.object.layout(this.currentWidthDelegate());
-				}));
 				this._register(model.onDidChangeContent(e => {
 					try {
 						inputData.rawInput = JSON.parse(model.getValue());

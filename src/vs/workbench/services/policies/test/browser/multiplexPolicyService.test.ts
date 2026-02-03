@@ -20,7 +20,7 @@ import { IFileService } from '../../../../../platform/files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { FileService } from '../../../../../platform/files/common/fileService.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
-import { IDefaultAccount, IDefaultAccountAuthenticationProvider } from '../../../../../base/common/defaultAccount.js';
+import { IDefaultAccount, IDefaultAccountAuthenticationProvider, IPolicyData } from '../../../../../base/common/defaultAccount.js';
 import { PolicyCategory } from '../../../../../base/common/policy.js';
 import { TestProductService } from '../../../../test/common/workbenchTestServices.js';
 
@@ -37,9 +37,11 @@ const BASE_DEFAULT_ACCOUNT: IDefaultAccount = {
 class DefaultAccountProvider implements IDefaultAccountProvider {
 
 	readonly onDidChangeDefaultAccount = Event.None;
+	readonly onDidChangePolicyData = Event.None;
 
 	constructor(
 		readonly defaultAccount: IDefaultAccount,
+		readonly policyData: IPolicyData = {},
 	) { }
 
 	getDefaultAccountAuthenticationProvider(): IDefaultAccountAuthenticationProvider {
@@ -90,7 +92,7 @@ suite('MultiplexPolicyService', () => {
 					category: PolicyCategory.Extensions,
 					minimumVersion: '1.0.0',
 					localization: { description: { key: '', value: '' } },
-					value: account => account.policyData?.chat_preview_features_enabled === false ? 'policyValueB' : undefined,
+					value: policyData => policyData.chat_preview_features_enabled === false ? 'policyValueB' : undefined,
 				}
 			},
 			'setting.C': {
@@ -101,7 +103,7 @@ suite('MultiplexPolicyService', () => {
 					category: PolicyCategory.Extensions,
 					minimumVersion: '1.0.0',
 					localization: { description: { key: '', value: '' } },
-					value: account => account.policyData?.chat_preview_features_enabled === false ? JSON.stringify(['policyValueC1', 'policyValueC2']) : undefined,
+					value: policyData => policyData.chat_preview_features_enabled === false ? JSON.stringify(['policyValueC1', 'policyValueC2']) : undefined,
 				}
 			},
 			'setting.D': {
@@ -112,7 +114,7 @@ suite('MultiplexPolicyService', () => {
 					category: PolicyCategory.Extensions,
 					minimumVersion: '1.0.0',
 					localization: { description: { key: '', value: '' } },
-					value: account => account.policyData?.chat_preview_features_enabled === false ? false : undefined,
+					value: policyData => policyData.chat_preview_features_enabled === false ? false : undefined,
 				}
 			},
 			'setting.E': {
@@ -186,8 +188,7 @@ suite('MultiplexPolicyService', () => {
 	test('policy from file only', async () => {
 		await clear();
 
-		const defaultAccount = { ...BASE_DEFAULT_ACCOUNT };
-		defaultAccountService.setDefaultAccountProvider(new DefaultAccountProvider(defaultAccount));
+		defaultAccountService.setDefaultAccountProvider(new DefaultAccountProvider(BASE_DEFAULT_ACCOUNT));
 		await defaultAccountService.refresh();
 
 		await fileService.writeFile(policyFile,
@@ -228,8 +229,8 @@ suite('MultiplexPolicyService', () => {
 	test('policy from default account only', async () => {
 		await clear();
 
-		const defaultAccount = { ...BASE_DEFAULT_ACCOUNT, policyData: { chat_preview_features_enabled: false } };
-		defaultAccountService.setDefaultAccountProvider(new DefaultAccountProvider(defaultAccount));
+		const policyData: IPolicyData = { chat_preview_features_enabled: false };
+		defaultAccountService.setDefaultAccountProvider(new DefaultAccountProvider(BASE_DEFAULT_ACCOUNT, policyData));
 		await defaultAccountService.refresh();
 
 		await fileService.writeFile(policyFile,
@@ -269,8 +270,8 @@ suite('MultiplexPolicyService', () => {
 	test('policy from file and default account', async () => {
 		await clear();
 
-		const defaultAccount = { ...BASE_DEFAULT_ACCOUNT, policyData: { chat_preview_features_enabled: false } };
-		defaultAccountService.setDefaultAccountProvider(new DefaultAccountProvider(defaultAccount));
+		const policyData: IPolicyData = { chat_preview_features_enabled: false };
+		defaultAccountService.setDefaultAccountProvider(new DefaultAccountProvider(BASE_DEFAULT_ACCOUNT, policyData));
 		await defaultAccountService.refresh();
 
 		await fileService.writeFile(policyFile,

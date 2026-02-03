@@ -92,7 +92,7 @@ export class ChatEditingAcceptRejectActionViewItem extends ActionViewItem {
 
 	protected override getTooltip(): string | undefined {
 		const value = super.getTooltip();
-		if (!value) {
+		if (!value || this.options.keybinding) {
 			return value;
 		}
 		return this._keybindingService.appendKeybinding(value, this._action.id);
@@ -402,7 +402,7 @@ export class ChatEditingEditorOverlay implements IWorkbenchContribution {
 			() => editorGroupsService.groups
 		);
 
-		const overlayWidgets = new DisposableMap<IEditorGroup>();
+		const overlayWidgets = this._store.add(new DisposableMap<IEditorGroup>());
 
 		this._store.add(autorun(r => {
 

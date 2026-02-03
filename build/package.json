@@ -47,6 +47,7 @@
     "ansi-colors": "^3.2.3",
     "byline": "^5.0.0",
     "debug": "^4.3.2",
+    "dmg-builder": "^26.5.0",
     "esbuild": "0.27.2",
     "extract-zip": "^2.0.1",
     "gulp-merge-json": "^2.1.1",
@@ -60,7 +61,8 @@
     "tree-sitter": "^0.22.4",
     "vscode-universal-bundler": "^0.1.3",
     "workerpool": "^6.4.0",
-    "yauzl": "^2.10.0"
+    "yauzl": "^2.10.0",
+    "zx": "^8.8.5"
   },
   "type": "module",
   "scripts": {

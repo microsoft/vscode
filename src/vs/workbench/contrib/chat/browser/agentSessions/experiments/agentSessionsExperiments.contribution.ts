@@ -15,10 +15,12 @@ import { localize } from '../../../../../../nls.js';
 import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { ProductQualityContext } from '../../../../../../platform/contextkey/common/contextkeys.js';
 import { ChatAgentLocation, ChatConfiguration } from '../../../common/constants.js';
+import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { IChatWidget, IChatWidgetService } from '../../chat.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IAgentSessionsService } from '../agentSessionsService.js';
+import { AgentSessionProviders } from '../agentSessions.js';
 import { IChatEditingService, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
 import { isSessionInProgressStatus } from '../agentSessionsModel.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -82,6 +84,14 @@ class AgentSessionReadyContribution extends Disposable implements IWorkbenchCont
 				this._checkSession(currentWidget.viewModel?.sessionResource);
 			}
 		}));
+
+		// Watch for agent sessions model changes - sessions are resolved asynchronously
+		this._register(this.agentSessionsService.model.onDidChangeSessions(() => {
+			const currentWidget = this.chatWidgetService.getAllWidgets().find(w => w.location === ChatAgentLocation.Chat);
+			if (currentWidget) {
+				this._checkSession(currentWidget.viewModel?.sessionResource);
+			}
+		}));
 	}
 
 	private _watchWidget(widget: IChatWidget): void {
@@ -102,6 +112,21 @@ class AgentSessionReadyContribution extends Disposable implements IWorkbenchCont
 		if (sessionResource?.toString() !== this._watchedSessionResource?.toString()) {
 			this._suppressSessionReady = false;
 		}
+
+		// If we're in projection mode and switching to a different session,
+		// automatically enter projection for the new session (if eligible)
+		if (this.agentSessionProjectionService.isActive) {
+			const activeSession = this.agentSessionProjectionService.activeSession;
+			if (sessionResource && activeSession && sessionResource.toString() !== activeSession.resource.toString()) {
+				const newSession = this.agentSessionsService.getSession(sessionResource);
+				if (newSession) {
+					// enterProjection handles session switching and will check eligibility
+					this.agentSessionProjectionService.enterProjection(newSession);
+				}
+			}
+			return;
+		}
+
 		// Update state based on current session
 		this._updateSessionReadyState(sessionResource);
 	}
@@ -121,10 +146,9 @@ class AgentSessionReadyContribution extends Disposable implements IWorkbenchCont
 			return;
 		}
 
-		// Check if already in projection mode
+		// If already in projection mode, don't show session-ready (handled by _checkSession)
 		if (this.agentSessionProjectionService.isActive) {
 			this._clearEntriesWatcher();
-			this.agentTitleBarStatusService.exitSessionReadyMode();
 			return;
 		}
 
@@ -156,38 +180,53 @@ class AgentSessionReadyContribution extends Disposable implements IWorkbenchCont
 			return;
 		}
 
-		// Check if session has undecided changes
-		const editingSession = this.chatEditingService.getEditingSession(sessionResource);
-		if (!editingSession) {
-			this._clearEntriesWatcher();
-			this.agentTitleBarStatusService.exitSessionReadyMode();
-			return;
-		}
+		let hasPendingChanges = false;
 
-		const entries = editingSession.entries.get();
-		const hasUndecidedChanges = entries.some(entry => entry.state.get() === ModifiedFileEntryState.Modified);
-
-		if (hasUndecidedChanges && !this._suppressSessionReady) {
-			// Enter session-ready mode
-			this.agentTitleBarStatusService.enterSessionReadyMode(session.resource, session.label);
-
-			// Only set up the watcher if we're not already watching this session
-			if (!this._watchedSessionResource || this._watchedSessionResource.toString() !== sessionResource.toString()) {
+		if (session.providerType === AgentSessionProviders.Local) {
+			// Local sessions track undecided edits via the editing service
+			const editingSession = this.chatEditingService.getEditingSession(sessionResource);
+			if (!editingSession) {
 				this._clearEntriesWatcher();
-				this._watchedSessionResource = sessionResource;
+				this.agentTitleBarStatusService.exitSessionReadyMode();
+				return;
+			}
 
-				// Monitor the entries for changes
-				this._entriesWatcher = autorun(reader => {
-					const currentEntries = editingSession.entries.read(reader);
-					const stillHasChanges = currentEntries.some(entry => entry.state.read(reader) === ModifiedFileEntryState.Modified);
-					if (!stillHasChanges) {
-						this.agentTitleBarStatusService.exitSessionReadyMode();
-					}
-				});
+			const entries = editingSession.entries.get();
+			hasPendingChanges = entries.some(entry => entry.state.get() === ModifiedFileEntryState.Modified);
+
+			if (hasPendingChanges && !this._suppressSessionReady) {
+				this.agentTitleBarStatusService.enterSessionReadyMode(session.resource, session.label);
+
+				if (!this._watchedSessionResource || this._watchedSessionResource.toString() !== sessionResource.toString()) {
+					this._clearEntriesWatcher();
+					this._watchedSessionResource = sessionResource;
+
+					// Monitor the entries for changes
+					this._entriesWatcher = autorun(reader => {
+						const currentEntries = editingSession.entries.read(reader);
+						const stillHasChanges = currentEntries.some(entry => entry.state.read(reader) === ModifiedFileEntryState.Modified);
+						if (!stillHasChanges) {
+							this.agentTitleBarStatusService.exitSessionReadyMode();
+						}
+					});
+				}
+			} else {
+				this._clearEntriesWatcher();
+				this.agentTitleBarStatusService.exitSessionReadyMode();
 			}
 		} else {
+			// Cloud/remote sessions: rely on changes array from the session
 			this._clearEntriesWatcher();
-			this.agentTitleBarStatusService.exitSessionReadyMode();
+			const changeCount = Array.isArray(session.changes)
+				? session.changes.filter(change => !!change.originalUri).length
+				: 0;
+			hasPendingChanges = changeCount > 0;
+
+			if (hasPendingChanges && !this._suppressSessionReady) {
+				this.agentTitleBarStatusService.enterSessionReadyMode(session.resource, session.label);
+			} else {
+				this.agentTitleBarStatusService.exitSessionReadyMode();
+			}
 		}
 	}
 }
@@ -210,11 +249,32 @@ MenuRegistry.appendMenuItem(MenuId.CommandCenter, {
 	submenu: MenuId.AgentsTitleBarControlMenu,
 	title: localize('agentsControl', "Agents"),
 	icon: Codicon.chatSparkle,
-	when: ContextKeyExpr.or(
-		ContextKeyExpr.has(`config.${ChatConfiguration.AgentStatusEnabled}`),
-		ContextKeyExpr.has(`config.${ChatConfiguration.UnifiedAgentsBar}`)
+	when: ContextKeyExpr.and(
+		ChatContextKeys.enabled,
+		ContextKeyExpr.or(
+			ContextKeyExpr.has(`config.${ChatConfiguration.AgentStatusEnabled}`),
+			ContextKeyExpr.has(`config.${ChatConfiguration.UnifiedAgentsBar}`)
+		)
 	),
 	order: 10002 // to the right of the chat button
+});
+
+// Add to the global title bar if command center is disabled
+MenuRegistry.appendMenuItem(MenuId.TitleBar, {
+	submenu: MenuId.ChatTitleBarMenu,
+	title: localize('title4', "Chat"),
+	group: 'navigation',
+	icon: Codicon.chatSparkle,
+	when: ContextKeyExpr.and(
+		ChatContextKeys.supported,
+		ContextKeyExpr.and(
+			ChatContextKeys.Setup.hidden.negate(),
+			ChatContextKeys.Setup.disabled.negate()
+		),
+		ContextKeyExpr.has(`config.${ChatConfiguration.AgentStatusEnabled}`),
+		ContextKeyExpr.has('config.window.commandCenter').negate(),
+	),
+	order: 1
 });
 
 // Register a placeholder action to the submenu so it appears (required for submenus)
@@ -223,9 +283,12 @@ MenuRegistry.appendMenuItem(MenuId.AgentsTitleBarControlMenu, {
 		id: 'workbench.action.chat.toggle',
 		title: localize('openChat', "Open Chat"),
 	},
-	when: ContextKeyExpr.or(
-		ContextKeyExpr.has(`config.${ChatConfiguration.AgentStatusEnabled}`),
-		ContextKeyExpr.has(`config.${ChatConfiguration.UnifiedAgentsBar}`)
+	when: ContextKeyExpr.and(
+		ChatContextKeys.enabled,
+		ContextKeyExpr.or(
+			ContextKeyExpr.has(`config.${ChatConfiguration.AgentStatusEnabled}`),
+			ContextKeyExpr.has(`config.${ChatConfiguration.UnifiedAgentsBar}`)
+		)
 	),
 	group: 'a_open',
 	order: 1
@@ -238,7 +301,10 @@ MenuRegistry.appendMenuItem(MenuId.AgentsTitleBarControlMenu, {
 		title: localize('toggleAgentQuickInput', "Agent Quick Input (Experimental)"),
 		toggled: ContextKeyExpr.has(`config.${ChatConfiguration.UnifiedAgentsBar}`),
 	},
-	when: ProductQualityContext.notEqualsTo('stable'),
+	when: ContextKeyExpr.and(
+		ChatContextKeys.enabled,
+		ProductQualityContext.notEqualsTo('stable')
+	),
 	group: 'z_experimental',
 	order: 10
 });

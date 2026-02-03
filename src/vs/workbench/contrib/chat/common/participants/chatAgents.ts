@@ -157,6 +157,14 @@ export interface IChatAgentRequest {
 	 * Display name of the subagent that is invoking this request.
 	 */
 	subAgentName?: string;
+	/**
+	 * Set to true by the editor to request the language model gracefully stop after its next opportunity.
+	 */
+	yieldRequested?: boolean;
+	/**
+	 * The request ID of the parent request that invoked this subagent.
+	 */
+	parentRequestId?: string;
 
 }
 
@@ -169,6 +177,18 @@ export interface IChatQuestion {
 export interface IChatAgentResultTimings {
 	firstProgress?: number;
 	totalElapsed: number;
+}
+
+export interface IChatAgentPromptTokenDetail {
+	category: string;
+	label: string;
+	percentageOfPrompt: number;
+}
+
+export interface IChatAgentResultUsage {
+	promptTokens: number;
+	completionTokens: number;
+	promptTokenDetails?: readonly IChatAgentPromptTokenDetail[];
 }
 
 export interface IChatAgentResult {

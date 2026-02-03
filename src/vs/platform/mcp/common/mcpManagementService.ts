@@ -73,7 +73,9 @@ export abstract class AbstractCommonMcpManagementService extends Disposable impl
 
 		// remote
 		if (packageType === RegistryType.REMOTE && manifest.remotes?.length) {
-			const { inputs, variables } = this.processKeyValueInputs(manifest.remotes[0].headers ?? []);
+			const url = manifest.remotes[0].url;
+			const headers = manifest.remotes[0].headers ?? [];
+			const { inputs, variables } = this.processKeyValueInputs(url.startsWith('https://api.githubcopilot.com/mcp') ? headers.filter(h => h.name.toLowerCase() !== 'authorization') : headers);
 			return {
 				mcpServerConfiguration: {
 					config: {
@@ -149,7 +151,7 @@ export abstract class AbstractCommonMcpManagementService extends Disposable impl
 				args.push(serverPackage.version ? `${serverPackage.identifier}@${serverPackage.version}` : serverPackage.identifier);
 				args.push('--yes'); // installation is confirmed by the UI, so --yes is appropriate here
 				if (serverPackage.registryBaseUrl) {
-					args.push('--add-source', serverPackage.registryBaseUrl);
+					args.push('--source', serverPackage.registryBaseUrl);
 				}
 				if (serverPackage.packageArguments?.length) {
 					args.push('--');

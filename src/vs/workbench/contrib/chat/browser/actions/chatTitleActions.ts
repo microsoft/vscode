@@ -201,6 +201,10 @@ export function registerChatTitleActions() {
 
 		async run(accessor: ServicesAccessor, ...args: unknown[]) {
 			const chatWidgetService = accessor.get(IChatWidgetService);
+			const chatAccessibilityService = accessor.get(IChatAccessibilityService);
+			const chatService = accessor.get(IChatService);
+			const configurationService = accessor.get(IConfigurationService);
+			const dialogService = accessor.get(IDialogService);
 
 			let item = args[0];
 			if (isChatEditingActionContext(item)) {
@@ -211,7 +215,6 @@ export function registerChatTitleActions() {
 				return;
 			}
 
-			const chatService = accessor.get(IChatService);
 			const chatModel = chatService.getSession(item.sessionResource);
 			const chatRequests = chatModel?.getRequests();
 			if (!chatRequests) {
@@ -221,8 +224,6 @@ export function registerChatTitleActions() {
 			const widget = chatWidgetService.getWidgetBySessionResource(item.sessionResource);
 			const mode = widget?.input.currentModeKind;
 			if (chatModel && (mode === ChatModeKind.Edit || mode === ChatModeKind.Agent)) {
-				const configurationService = accessor.get(IConfigurationService);
-				const dialogService = accessor.get(IDialogService);
 				const currentEditingSession = widget?.viewModel?.model.editingSession;
 				if (!currentEditingSession) {
 					return;
@@ -260,7 +261,6 @@ export function registerChatTitleActions() {
 			const request = chatModel?.getRequests().find(candidate => candidate.id === item.requestId);
 			const languageModelId = widget?.input.currentLanguageModel;
 
-			const chatAccessibilityService = accessor.get(IChatAccessibilityService);
 			chatAccessibilityService.acceptRequest(item.sessionResource);
 			chatService.resendRequest(request!, {
 				userSelectedModelId: languageModelId,

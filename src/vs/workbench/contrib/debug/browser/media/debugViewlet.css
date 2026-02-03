@@ -44,8 +44,10 @@
 .monaco-workbench .part > .title > .title-actions .start-debug-action-item .codicon-debug-start {
 	width: 18px;
 	height: 22px;
-	padding-left: 3px;
-	padding-right: 1px
+	padding-left: 2px;
+	padding-right: 1px;
+	margin-left: 1px;
+	border-radius: var(--vscode-cornerRadius-small) 0 0 var(--vscode-cornerRadius-small);
 }
 
 .monaco-workbench .monaco-action-bar .start-debug-action-item .configuration .monaco-select-box {

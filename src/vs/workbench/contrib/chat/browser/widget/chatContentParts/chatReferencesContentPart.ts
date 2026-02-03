@@ -10,7 +10,7 @@ import { coalesce } from '../../../../../../base/common/arrays.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { matchesSomeScheme, Schemas } from '../../../../../../base/common/network.js';
 import { basename } from '../../../../../../base/common/path.js';
 import { basenameOrAuthority, isEqualAuthority } from '../../../../../../base/common/resources.js';
@@ -180,10 +180,14 @@ export class ChatUsedReferencesListContentPart extends ChatCollapsibleListConten
 	}
 }
 
-export class CollapsibleListPool extends Disposable {
-	private _pool: ResourcePool<WorkbenchList<IChatCollapsibleListItem>>;
+interface ICollapsibleListWrapper extends IDisposable {
+	list: WorkbenchList<IChatCollapsibleListItem>;
+}
 
-	public get inUse(): ReadonlySet<WorkbenchList<IChatCollapsibleListItem>> {
+export class CollapsibleListPool extends Disposable {
+	private _pool: ResourcePool<ICollapsibleListWrapper>;
+
+	public get inUse(): ReadonlySet<ICollapsibleListWrapper> {
 		return this._pool.inUse;
 	}
 
@@ -199,11 +203,12 @@ export class CollapsibleListPool extends Disposable {
 		this._pool = this._register(new ResourcePool(() => this.listFactory()));
 	}
 
-	private listFactory(): WorkbenchList<IChatCollapsibleListItem> {
-		const resourceLabels = this._register(this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this._onDidChangeVisibility }));
+	private listFactory(): ICollapsibleListWrapper {
+		const store = new DisposableStore();
+		const resourceLabels = store.add(this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this._onDidChangeVisibility }));
 
 		const container = $('.chat-used-context-list');
-		this._register(createFileIconThemableTreeContainerScope(container, this.themeService));
+		store.add(createFileIconThemableTreeContainerScope(container, this.themeService));
 
 		const list = this.instantiationService.createInstance(
 			WorkbenchList<IChatCollapsibleListItem>,
@@ -260,18 +265,21 @@ export class CollapsibleListPool extends Disposable {
 				},
 			});
 
-		return list;
+		return {
+			list,
+			dispose: () => store.dispose()
+		};
 	}
 
 	get(): IDisposableReference<WorkbenchList<IChatCollapsibleListItem>> {
-		const object = this._pool.get();
+		const wrapper = this._pool.get();
 		let stale = false;
 		return {
-			object,
+			object: wrapper.list,
 			isStale: () => stale,
 			dispose: () => {
 				stale = true;
-				this._pool.release(object);
+				this._pool.release(wrapper);
 			}
 		};
 	}
@@ -378,7 +386,7 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 				templateData.label.setLabel(label, asVariableName, { title: data.options?.status?.description });
 			} else {
 				// Nothing else is expected to fall into here
-				templateData.label.setLabel('Unknown variable type');
+				templateData.label.setLabel('Unknown variable type: ' + reference.variableName);
 			}
 		} else if (typeof reference === 'string') {
 			templateData.label.setLabel(reference, undefined, { iconPath: URI.isUri(icon) ? icon : undefined, title: data.options?.status?.description ?? data.title });

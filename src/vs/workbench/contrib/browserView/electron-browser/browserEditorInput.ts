@@ -19,6 +19,8 @@ import { IBrowserViewWorkbenchService, IBrowserViewModel } from '../common/brows
 import { hasKey } from '../../../../base/common/types.js';
 import { ILifecycleService, ShutdownReason } from '../../../services/lifecycle/common/lifecycle.js';
 import { BrowserEditor } from './browserEditor.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { logBrowserOpen } from './browserViewTelemetry.js';
 
 const LOADING_SPINNER_SVG = (color: string | undefined) => `
 	<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16">
@@ -58,7 +60,8 @@ export class BrowserEditorInput extends EditorInput {
 		@IThemeService private readonly themeService: IThemeService,
 		@IBrowserViewWorkbenchService private readonly browserViewWorkbenchService: IBrowserViewWorkbenchService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService
 	) {
 		super();
 		this._id = options.id;
@@ -212,6 +215,8 @@ export class BrowserEditorInput extends EditorInput {
 	 * This is used during Copy into New Window.
 	 */
 	override copy(): EditorInput {
+		logBrowserOpen(this.telemetryService, 'copyToNewWindow');
+
 		const currentUrl = this._model?.url ?? this._initialData.url;
 		return this.instantiationService.createInstance(BrowserEditorInput, {
 			id: generateUuid(),

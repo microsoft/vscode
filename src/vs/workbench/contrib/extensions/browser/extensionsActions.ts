@@ -29,7 +29,7 @@ import { CommandsRegistry, ICommandService } from '../../../../platform/commands
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { registerThemingParticipant, IColorTheme, ICssStyleCollector } from '../../../../platform/theme/common/themeService.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { buttonBackground, buttonForeground, buttonHoverBackground, buttonSecondaryBackground, buttonSecondaryForeground, buttonSecondaryHoverBackground, registerColor, editorWarningForeground, editorInfoForeground, editorErrorForeground, buttonSeparator } from '../../../../platform/theme/common/colorRegistry.js';
+import { buttonBackground, buttonForeground, buttonHoverBackground, buttonSecondaryBackground, buttonSecondaryForeground, buttonSecondaryHoverBackground, buttonSecondaryBorder, registerColor, editorWarningForeground, editorInfoForeground, editorErrorForeground, buttonSeparator } from '../../../../platform/theme/common/colorRegistry.js';
 import { IJSONEditingService } from '../../../services/configuration/common/jsonEditing.js';
 import { ITextEditorSelection } from '../../../../platform/editor/common/editor.js';
 import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
@@ -3195,6 +3195,13 @@ registerColor('extensionButton.hoverBackground', {
 	hcDark: null,
 	hcLight: null
 }, localize('extensionButtonHoverBackground', "Button background hover color for extension actions."));
+
+registerColor('extensionButton.border', {
+	dark: buttonSecondaryBorder,
+	light: buttonSecondaryBorder,
+	hcDark: null,
+	hcLight: null
+}, localize('extensionButtonBorder', "Button border color for extension actions."));
 
 registerColor('extensionButton.separator', buttonSeparator, localize('extensionButtonSeparator', "Button separator color for extension actions"));
 

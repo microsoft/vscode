@@ -19,9 +19,9 @@ function makeCompileBuildTask(disableMangle: boolean) {
 }
 
 // Local/PR compile, including nls and inline sources in sourcemaps, minification, no mangling
-export const compileBuildWithoutManglingTask = task.define('compile-build-without-mangling', makeCompileBuildTask(true));
+export const compileBuildWithoutManglingTask = task.define('compile-build-without-mangling', task.series(compilation.copyCodiconsTask, makeCompileBuildTask(true)));
 gulp.task(compileBuildWithoutManglingTask);
 
 // CI compile, including nls and inline sources in sourcemaps, mangling, minification, for build
-export const compileBuildWithManglingTask = task.define('compile-build-with-mangling', makeCompileBuildTask(false));
+export const compileBuildWithManglingTask = task.define('compile-build-with-mangling', task.series(compilation.copyCodiconsTask, makeCompileBuildTask(false)));
 gulp.task(compileBuildWithManglingTask);

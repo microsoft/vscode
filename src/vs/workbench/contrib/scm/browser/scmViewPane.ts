@@ -1379,9 +1379,8 @@ class CollapseAllAction extends ViewAction<SCMViewPane> {
 			icon: Codicon.collapseAll,
 			menu: {
 				id: MenuId.SCMResourceGroupContext,
-				group: 'inline',
+				group: '9_collapse',
 				when: ContextKeys.SCMViewMode.isEqualTo(ViewMode.Tree),
-				order: 10,
 			}
 		});
 	}

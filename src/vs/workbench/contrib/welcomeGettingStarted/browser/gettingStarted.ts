@@ -377,6 +377,7 @@ export class GettingStartedPage extends EditorPane {
 		this.editorInput.showTelemetryNotice = options?.showTelemetryNotice ?? true;
 		this.editorInput.selectedCategory = options?.selectedCategory;
 		this.editorInput.selectedStep = options?.selectedStep;
+		this.editorInput.returnToCommand = options?.returnToCommand;
 
 		this.container.classList.remove('animatable');
 		await this.buildCategoriesSlide(options?.preserveFocus);
@@ -449,6 +450,7 @@ export class GettingStartedPage extends EditorPane {
 				break;
 			}
 			case 'selectCategory': {
+				this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command: 'selectCategory', argument, walkthroughId: this.currentWalkthrough?.id });
 				this.scrollToCategory(argument);
 				this.gettingStartedService.markWalkthroughOpened(argument);
 				break;
@@ -456,6 +458,7 @@ export class GettingStartedPage extends EditorPane {
 			case 'selectStartEntry': {
 				const selected = startEntries.find(e => e.id === argument);
 				if (selected) {
+					this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command: 'selectStartEntry', argument, walkthroughId: this.currentWalkthrough?.id });
 					this.runStepCommand(selected.content.command);
 				} else {
 					throw Error('could not find start entry with id: ' + argument);
@@ -1669,6 +1672,9 @@ export class GettingStartedPage extends EditorPane {
 				this.currentWalkthrough = this.prevWalkthrough;
 				this.prevWalkthrough = undefined;
 				this.makeCategoryVisibleWhenAvailable(this.currentWalkthrough.id);
+			} else if (this.editorInput?.returnToCommand) {
+				// Execute the specified command to return to the origin page
+				this.commandService.executeCommand(this.editorInput.returnToCommand);
 			} else {
 				this.currentWalkthrough = undefined;
 				if (this.editorInput) {
@@ -1722,7 +1728,7 @@ export class GettingStartedPage extends EditorPane {
 			slideManager.classList.remove('showCategories');
 			// eslint-disable-next-line no-restricted-syntax
 			const prevButton = this.container.querySelector<HTMLButtonElement>('.prev-button.button-link');
-			prevButton!.style.display = this.editorInput?.showWelcome || this.prevWalkthrough ? 'block' : 'none';
+			prevButton!.style.display = this.editorInput?.showWelcome || this.editorInput?.returnToCommand || this.prevWalkthrough ? 'block' : 'none';
 			// eslint-disable-next-line no-restricted-syntax
 			const moreTextElement = prevButton!.querySelector('.moreText');
 			moreTextElement!.textContent = firstLaunch ? localize('welcome', "Welcome") : localize('goBack', "Go Back");

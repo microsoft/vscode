@@ -106,13 +106,19 @@
 }
 
 .profiles-editor .contents-container .profile-header .profile-title-container {
+	display: flex;
+	align-items: baseline;
+}
+
+.profiles-editor .contents-container .profile-header .profile-title-container .profile-title  {
 	font-size: 26px;
 	font-weight: 600;
 }
 
-.profiles-editor .contents-container .profile-title-container .monaco-inputbox {
-	margin-right: 10px;
-	flex: 1;
+.profiles-editor .contents-container .profile-header .profile-title-container .profile-built-in-label {
+	font-size: 16px;
+	font-style: italic;
+	margin-left: 10px;
 }
 
 .profiles-editor .contents-container .profile-header .profile-actions-container .actions-container .action-label {

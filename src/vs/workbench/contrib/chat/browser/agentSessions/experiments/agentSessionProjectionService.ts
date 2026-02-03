@@ -15,18 +15,15 @@ import { IEditorGroupsService, IEditorWorkingSet } from '../../../../../services
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IAgentSession, isSessionInProgressStatus } from '../agentSessionsModel.js';
-import { ChatViewPaneTarget, IChatWidgetService } from '../../chat.js';
+import { IChatWidgetService } from '../../chat.js';
 import { AgentSessionProviders } from '../agentSessions.js';
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
-import { IWorkbenchLayoutService } from '../../../../../services/layout/browser/layoutService.js';
+import { IWorkbenchLayoutService, Parts } from '../../../../../services/layout/browser/layoutService.js';
 import { ACTION_ID_NEW_CHAT } from '../../actions/chatActions.js';
 import { IChatEditingService, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
 import { IAgentTitleBarStatusService } from './agentTitleBarStatusService.js';
-import { IWorkbenchContribution } from '../../../../../common/contributions.js';
 import { inAgentSessionProjection } from './agentSessionProjection.js';
 import { ChatConfiguration } from '../../../common/constants.js';
-import { ISessionOpenOptions, sessionOpenerRegistry } from '../agentSessionsOpener.js';
-import { ServicesAccessor } from '../../../../../../editor/browser/editorExtensions.js';
 import { IAgentSessionsService } from '../agentSessionsService.js';
 
 //#region Configuration
@@ -89,6 +86,12 @@ export class AgentSessionProjectionService extends Disposable implements IAgentS
 	private _isActive = false;
 	get isActive(): boolean { return this._isActive; }
 
+	/** Prevents re-entrant exits and enter-on-exit races */
+	private _isExiting = false;
+
+	/** Prevents checkForEmptyEditors from exiting during session swaps */
+	private _isSwappingSessions = false;
+
 	private _activeSession: IAgentSession | undefined;
 	get activeSession(): IAgentSession | undefined { return this._activeSession; }
 
@@ -105,6 +108,9 @@ export class AgentSessionProjectionService extends Disposable implements IAgentS
 
 	/** Working sets per session, keyed by session resource URI string */
 	private readonly _sessionWorkingSets = new Map<string, IEditorWorkingSet>();
+
+	/** Whether the auxiliary bar was maximized when entering projection mode */
+	private _wasAuxiliaryBarMaximized = false;
 
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -138,8 +144,8 @@ export class AgentSessionProjectionService extends Disposable implements IAgentS
 	}
 
 	private _checkForEmptyEditors(): void {
-		// Only check if we're in projection mode
-		if (!this._isActive) {
+		// Only check if we're in projection mode and not swapping sessions
+		if (!this._isActive || this._isExiting || this._isSwappingSessions) {
 			return;
 		}
 
@@ -177,7 +183,7 @@ export class AgentSessionProjectionService extends Disposable implements IAgentS
 	private async _openSessionInChatPanel(session: IAgentSession): Promise<void> {
 		session.setRead(true);
 		await this.chatSessionsService.activateChatSessionItemProvider(session.providerType);
-		await this.chatWidgetService.openSession(session.resource, ChatViewPaneTarget, {
+		await this.chatWidgetService.openSession(session.resource, undefined, {
 			title: { preferred: session.label },
 			revealIfOpened: true
 		});
@@ -188,9 +194,6 @@ export class AgentSessionProjectionService extends Disposable implements IAgentS
 	 * @returns true if any files were opened, false if nothing to display
 	 */
 	private async _openSessionFiles(session: IAgentSession): Promise<boolean> {
-		// Clear editors first
-		await this.editorGroupsService.applyWorkingSet('empty', { preserveFocus: true });
-
 		this.logService.trace(`[AgentSessionProjection] Opening files for session '${session.label}'`, {
 			hasChanges: !!session.changes,
 			isArray: Array.isArray(session.changes),
@@ -210,6 +213,9 @@ export class AgentSessionProjectionService extends Disposable implements IAgentS
 			this.logService.trace(`[AgentSessionProjection] Found ${diffResources.length} files with diffs to display`);
 
 			if (diffResources.length > 0) {
+				// Clear editors only when we know we have content to display
+				await this.editorGroupsService.applyWorkingSet('empty', { preserveFocus: true });
+
 				// Open multi-diff editor showing all changes
 				await this.commandService.executeCommand('_workbench.openMultiDiffEditor', {
 					multiDiffSourceUri: session.resource.with({ scheme: session.resource.scheme + '-agent-session-projection' }),
@@ -247,10 +253,20 @@ export class AgentSessionProjectionService extends Disposable implements IAgentS
 			return;
 		}
 
+		// Detect if auxiliary bar is maximized before any layout changes
+		const isAuxBarMaximized = this.layoutService.isAuxiliaryBarMaximized();
+		this.logService.trace('[AgentSessionProjection] enterProjection auxiliary bar state', {
+			isAuxiliaryBarMaximized: isAuxBarMaximized
+		});
+
 		// Never enter projection mode for sessions that are in progress
 		// The user should only be in projection mode when reviewing completed code
 		if (isSessionInProgressStatus(session.status)) {
 			this.logService.trace('[AgentSessionProjection] Session is in progress, opening chat without projection mode');
+			// If we're already in projection mode and switching to an in-progress session, exit projection
+			if (this._isActive) {
+				await this.exitProjection({ startNewChat: false });
+			}
 			await this._openSessionInChatPanel(session);
 			return;
 		}
@@ -258,64 +274,113 @@ export class AgentSessionProjectionService extends Disposable implements IAgentS
 		// For local sessions, check if there are pending edits to show
 		// If there's nothing to focus, just open the chat without entering projection mode
 		let hasUndecidedChanges = true;
+		let editingSessionExists = true;
 		if (session.providerType === AgentSessionProviders.Local) {
 			const editingSession = this.chatEditingService.getEditingSession(session.resource);
-			hasUndecidedChanges = editingSession?.entries.get().some(e => e.state.get() === ModifiedFileEntryState.Modified) ?? false;
-			if (!hasUndecidedChanges) {
-				this.logService.trace('[AgentSessionProjection] Local session has no undecided changes, opening chat without projection mode');
+			editingSessionExists = !!editingSession;
+			if (editingSession) {
+				hasUndecidedChanges = editingSession.entries.get().some(e => e.state.get() === ModifiedFileEntryState.Modified);
+				if (!hasUndecidedChanges) {
+					this.logService.trace('[AgentSessionProjection] Local session has no undecided changes, opening chat without projection mode');
+				}
+			} else {
+				// Editing session doesn't exist yet - treat as no changes for now
+				hasUndecidedChanges = false;
+				this.logService.trace('[AgentSessionProjection] Local session has no editing session yet');
 			}
+		}
+
+		// If no undecided changes and we're already in projection mode, exit projection
+		// But only if we actually checked the editing session (it exists) - if it's undefined,
+		// it might just not be loaded yet, so don't exit projection in that case
+		if (!hasUndecidedChanges && this._isActive && editingSessionExists) {
+			this.logService.trace('[AgentSessionProjection] Switching to session without changes while in projection mode, exiting projection');
+			await this.exitProjection({ startNewChat: false });
+			await this._openSessionInChatPanel(session);
+			return;
+		}
+
+		// If we're switching to a session without an editing session yet while in projection,
+		// just open the chat panel but stay in projection mode (let the editing session load)
+		if (!hasUndecidedChanges && this._isActive && !editingSessionExists) {
+			this.logService.trace('[AgentSessionProjection] Switching to session without editing session while in projection mode, staying in projection');
+			await this._openSessionInChatPanel(session);
+			return;
 		}
 
 		// Only enter projection mode if there are changes to show
 		if (hasUndecidedChanges) {
-			if (!this._isActive) {
-				// First time entering projection mode - save the current working set as our backup
+			// Capture the user's working set immediately (before any editors are cleared)
+			if (!this._isActive && !this._preProjectionWorkingSet) {
+				const visibleEditorsBefore = this.editorService.visibleEditors.length;
 				this._preProjectionWorkingSet = this.editorGroupsService.saveWorkingSet('agent-session-projection-backup');
-			} else if (this._activeSession) {
+				this.logService.trace('[AgentSessionProjection] saved pre-projection working set', {
+					id: this._preProjectionWorkingSet.id,
+					visibleEditorsBefore
+				});
+			}
+
+			// Set swapping flag to prevent checkForEmptyEditors from exiting during session swap
+			const isSwapping = this._isActive && this._activeSession;
+			if (isSwapping) {
+				this._isSwappingSessions = true;
 				// Already in projection mode, switching sessions - save the current session's working set
-				const previousSessionKey = this._activeSession.resource.toString();
+				const previousSessionKey = this._activeSession!.resource.toString();
 				const previousWorkingSet = this.editorGroupsService.saveWorkingSet(`agent-session-projection-${previousSessionKey}`);
 				this._sessionWorkingSets.set(previousSessionKey, previousWorkingSet);
 			}
 
-			// For local sessions, changes are shown via chatEditing.viewChanges, not _openSessionFiles
-			// For other providers, try to open session files from session.changes
-			let filesOpened = false;
-			if (session.providerType === AgentSessionProviders.Local) {
-				// Local sessions use editing session for changes - we already verified hasUndecidedChanges above
-				// Clear editors to prepare for the changes view
-				await this.editorGroupsService.applyWorkingSet('empty', { preserveFocus: true });
-				filesOpened = true;
-			} else {
-				// Try to open session files - only continue with projection if files were displayed
-				filesOpened = await this._openSessionFiles(session);
-			}
-
-			if (!filesOpened) {
-				this.logService.trace('[AgentSessionProjection] No files to display, opening chat without projection mode');
-				// Restore the working set we just saved if this was our first attempt
-				if (!this._isActive && this._preProjectionWorkingSet) {
-					await this.editorGroupsService.applyWorkingSet(this._preProjectionWorkingSet);
-					this.editorGroupsService.deleteWorkingSet(this._preProjectionWorkingSet);
-					this._preProjectionWorkingSet = undefined;
+			try {
+				// For local sessions, changes are shown via chatEditing.viewChanges, not _openSessionFiles
+				// For other providers, try to open session files from session.changes
+				let filesOpened = false;
+				if (session.providerType === AgentSessionProviders.Local) {
+					// Local sessions use editing session for changes - we already verified hasUndecidedChanges above
+					// Clear editors to prepare for the changes view
+					await this.editorGroupsService.applyWorkingSet('empty', { preserveFocus: true });
+					filesOpened = true;
+				} else {
+					// Try to open session files - only continue with projection if files were displayed
+					filesOpened = await this._openSessionFiles(session);
 				}
-				// Fall through to just open the chat panel
-			} else {
-				// Set active state
-				const wasActive = this._isActive;
-				this._isActive = true;
-				this._activeSession = session;
-				this._inProjectionModeContextKey.set(true);
-				this.layoutService.mainContainer.classList.add('agent-session-projection-active');
 
-				// Update the agent status to show session mode
-				this.agentTitleBarStatusService.enterSessionMode(session.resource, session.label);
+				if (!filesOpened) {
+					this.logService.trace('[AgentSessionProjection] No files to display, opening chat without projection mode');
+					// Restore the working set we just saved if this was our first attempt
+					if (!this._isActive && this._preProjectionWorkingSet) {
+						await this.editorGroupsService.applyWorkingSet(this._preProjectionWorkingSet);
+						this.editorGroupsService.deleteWorkingSet(this._preProjectionWorkingSet);
+						this._preProjectionWorkingSet = undefined;
+					}
+					// Fall through to just open the chat panel
+				} else {
+					// Set active state
+					const wasActive = this._isActive;
+					this._isActive = true;
+					this._activeSession = session;
+					this._inProjectionModeContextKey.set(true);
+					this.layoutService.mainContainer.classList.add('agent-session-projection-active');
 
-				if (!wasActive) {
-					this._onDidChangeProjectionMode.fire(true);
+					// Capture auxiliary bar maximized state when first entering projection
+					if (!wasActive) {
+						this._wasAuxiliaryBarMaximized = isAuxBarMaximized;
+						this.logService.trace('[AgentSessionProjection] captured auxiliary bar maximized state', {
+							wasAuxiliaryBarMaximized: this._wasAuxiliaryBarMaximized
+						});
+					}
+
+					// Update the agent status to show session mode
+					this.agentTitleBarStatusService.enterSessionMode(session.resource, session.label);
+
+					if (!wasActive) {
+						this._onDidChangeProjectionMode.fire(true);
+					}
+					// Always fire session change event (for title updates when switching sessions)
+					this._onDidChangeActiveSession.fire(session);
 				}
-				// Always fire session change event (for title updates when switching sessions)
-				this._onDidChangeActiveSession.fire(session);
+			} finally {
+				// Clear swapping flag
+				this._isSwappingSessions = false;
 			}
 		}
 
@@ -327,14 +392,28 @@ export class AgentSessionProjectionService extends Disposable implements IAgentS
 		if (session.providerType === AgentSessionProviders.Local && hasUndecidedChanges) {
 			await this.commandService.executeCommand('chatEditing.viewChanges');
 		}
+
+		// If auxiliary bar was maximized, hide it during projection to show full editor
+		// This must be done after opening the session to avoid the session opening re-showing the bar
+		if (this._wasAuxiliaryBarMaximized) {
+			this.logService.trace('[AgentSessionProjection] hiding maximized auxiliary bar during projection');
+			this.layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART);
+		}
 	}
 
 	async exitProjection(options?: { startNewChat?: boolean }): Promise<void> {
-		if (!this._isActive) {
+		if (!this._isActive || this._isExiting) {
 			return;
 		}
 
 		const startNewChat = options?.startNewChat ?? true;
+		this._isExiting = true;
+		this.logService.trace('[AgentSessionProjection] exitProjection start', {
+			hasPreProjectionWorkingSet: !!this._preProjectionWorkingSet,
+			activeSession: this._activeSession?.label,
+			startNewChat,
+			wasAuxiliaryBarMaximized: this._wasAuxiliaryBarMaximized
+		});
 
 		// Save the current session's working set before exiting
 		if (this._activeSession) {
@@ -343,22 +422,31 @@ export class AgentSessionProjectionService extends Disposable implements IAgentS
 			this._sessionWorkingSets.set(sessionKey, workingSet);
 		}
 
-		// Restore the pre-projection working set
+		// Close projection editors (multi-diff, etc.) so the restored set is clean
+		for (const group of this.editorGroupsService.groups) {
+			await group.closeAllEditors();
+		}
+		this.logService.trace('[AgentSessionProjection] exitProjection closed editors', { visible: this.editorService.visibleEditors.length });
+
+		// Restore the pre-projection working set (original tabs)
 		if (this._preProjectionWorkingSet) {
-			const existingWorkingSets = this.editorGroupsService.getWorkingSets();
-			const exists = existingWorkingSets.some(ws => ws.id === this._preProjectionWorkingSet!.id);
-			if (exists) {
-				await this.editorGroupsService.applyWorkingSet(this._preProjectionWorkingSet);
-				this.editorGroupsService.deleteWorkingSet(this._preProjectionWorkingSet);
-			} else {
-				await this.editorGroupsService.applyWorkingSet('empty', { preserveFocus: true });
-			}
+			await this.editorGroupsService.applyWorkingSet(this._preProjectionWorkingSet);
+			this.logService.trace('[AgentSessionProjection] exitProjection applied pre-projection working set', {
+				visible: this.editorService.visibleEditors.length,
+				id: this._preProjectionWorkingSet.id
+			});
+			this.editorGroupsService.deleteWorkingSet(this._preProjectionWorkingSet);
 			this._preProjectionWorkingSet = undefined;
+		} else {
+			await this.editorGroupsService.applyWorkingSet('empty', { preserveFocus: true });
+			this.logService.trace('[AgentSessionProjection] exitProjection no pre-working set, applied empty');
 		}
 
 		this._isActive = false;
 		this._activeSession = undefined;
 		this._inProjectionModeContextKey.set(false);
+		const shouldRestoreMaximized = this._wasAuxiliaryBarMaximized;
+		this._wasAuxiliaryBarMaximized = false;
 		this.layoutService.mainContainer.classList.remove('agent-session-projection-active');
 
 		// Update the agent status to exit session mode
@@ -371,38 +459,17 @@ export class AgentSessionProjectionService extends Disposable implements IAgentS
 		if (startNewChat) {
 			await this.commandService.executeCommand(ACTION_ID_NEW_CHAT);
 		}
+
+		// Restore auxiliary bar maximized state if it was maximized before entering projection
+		if (shouldRestoreMaximized) {
+			this.logService.trace('[AgentSessionProjection] restoring auxiliary bar maximized state');
+			// First show the auxiliary bar, then maximize it
+			this.layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
+			await this.commandService.executeCommand('workbench.action.maximizeAuxiliaryBar');
+		}
+
+		this.logService.trace('[AgentSessionProjection] exitProjection complete');
+		this._isExiting = false;
 	}
 }
-
-//#endregion
-
-//#region Agent Session Projection Opener Contribution
-
-export class AgentSessionProjectionOpenerContribution extends Disposable implements IWorkbenchContribution {
-
-	static readonly ID = 'workbench.contrib.agentSessionProjectionOpener';
-
-	constructor(
-		@IAgentSessionProjectionService private readonly agentSessionProjectionService: IAgentSessionProjectionService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-	) {
-		super();
-
-		this._register(sessionOpenerRegistry.registerParticipant({
-			handleOpenSession: async (_accessor: ServicesAccessor, session: IAgentSession, _openOptions?: ISessionOpenOptions): Promise<boolean> => {
-				// Only handle if projection mode is enabled
-				if (this.configurationService.getValue<boolean>(ChatConfiguration.AgentSessionProjectionEnabled) !== true) {
-					return false;
-				}
-
-				// Enter projection mode for the session
-				await this.agentSessionProjectionService.enterProjection(session);
-
-				// Return true to indicate we handled the session (projection mode opens the chat itself)
-				return true;
-			}
-		}));
-	}
-}
-
 //#endregion

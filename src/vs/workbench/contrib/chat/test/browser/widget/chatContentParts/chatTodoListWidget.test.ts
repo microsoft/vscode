@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* eslint-disable no-restricted-syntax */
-
 import assert from 'assert';
 import { Event } from '../../../../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
@@ -35,7 +33,8 @@ suite('ChatTodoListWidget Accessibility', () => {
 			_serviceBrand: undefined,
 			onDidUpdateTodos: Event.None,
 			getTodos: (sessionResource: URI) => sampleTodos,
-			setTodos: (sessionResource: URI, todos: IChatTodo[]) => { }
+			setTodos: (sessionResource: URI, todos: IChatTodo[]) => { },
+			migrateTodos: (oldSessionResource: URI, newSessionResource: URI) => { }
 		};
 
 		// Mock the configuration service
@@ -157,7 +156,8 @@ suite('ChatTodoListWidget Accessibility', () => {
 			_serviceBrand: undefined,
 			onDidUpdateTodos: Event.None,
 			getTodos: (sessionResource: URI) => [],
-			setTodos: (sessionResource: URI, todos: IChatTodo[]) => { }
+			setTodos: (sessionResource: URI, todos: IChatTodo[]) => { },
+			migrateTodos: (oldSessionResource: URI, newSessionResource: URI) => { }
 		};
 
 		const emptyConfigurationService = new TestConfigurationService();
