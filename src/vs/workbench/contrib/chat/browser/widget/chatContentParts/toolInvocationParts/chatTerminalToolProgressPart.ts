@@ -211,6 +211,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 	private readonly _showOutputAction = this._register(new MutableDisposable<ToggleChatTerminalOutputAction>());
 	private _showOutputActionAdded = false;
 	private readonly _focusAction = this._register(new MutableDisposable<FocusChatInstanceAction>());
+	private readonly _continueInBackgroundAction = this._register(new MutableDisposable<ContinueInBackgroundAction>());
 
 	private readonly _terminalData: IChatTerminalToolInvocationData;
 	private _terminalCommandUri: URI | undefined;
@@ -273,7 +274,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		]);
 		this._titleElement = elements.title;
 
-		const command = (terminalData.commandLine.userEdited ?? terminalData.commandLine.toolEdited ?? terminalData.commandLine.original).trimStart();
+		const command = (terminalData.commandLine.forDisplay ?? terminalData.commandLine.userEdited ?? terminalData.commandLine.toolEdited ?? terminalData.commandLine.original).trimStart();
 		this._commandText = command;
 		this._terminalOutputContextKey = ChatContextKeys.inChatTerminalToolOutput.bindTo(this._contextKeyService);
 
@@ -303,7 +304,6 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 
 		this._outputView = this._register(this._instantiationService.createInstance(
 			ChatTerminalToolOutputSection,
-			() => { },
 			() => this._ensureTerminalInstance(),
 			() => this._getResolvedCommand(),
 			() => this._terminalData.terminalCommandOutput,
@@ -371,7 +371,9 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			this.domNode = progressPart.domNode;
 		}
 
-		if (expandedStateByInvocation.get(toolInvocation) || (this._isInThinkingContainer && IChatToolInvocation.isComplete(toolInvocation))) {
+		// Only auto-expand in thinking containers if there's actual output to show
+		const hasStoredOutput = !!terminalData.terminalCommandOutput;
+		if (expandedStateByInvocation.get(toolInvocation) || (this._isInThinkingContainer && IChatToolInvocation.isComplete(toolInvocation) && hasStoredOutput)) {
 			void this._toggleOutput(true);
 		}
 		this._register(this._terminalChatService.registerProgressPart(this));
@@ -385,7 +387,8 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			: commandText;
 
 		const isComplete = IChatToolInvocation.isComplete(toolInvocation);
-		const hasError = this._terminalData.terminalCommandState?.exitCode !== undefined && this._terminalData.terminalCommandState.exitCode !== 0;
+		const autoExpandFailures = this._configurationService.getValue<boolean>(ChatConfiguration.AutoExpandToolFailures);
+		const hasError = autoExpandFailures && this._terminalData.terminalCommandState?.exitCode !== undefined && this._terminalData.terminalCommandState.exitCode !== 0;
 		const initialExpanded = !isComplete || hasError;
 
 		const wrapper = this._register(this._instantiationService.createInstance(
@@ -393,7 +396,8 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			truncatedCommand,
 			contentElement,
 			context,
-			initialExpanded
+			initialExpanded,
+			isComplete
 		));
 		this._thinkingCollapsibleWrapper = wrapper;
 
@@ -402,6 +406,10 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 
 	public expandCollapsibleWrapper(): void {
 		this._thinkingCollapsibleWrapper?.expand();
+	}
+
+	public markCollapsibleWrapperComplete(): void {
+		this._thinkingCollapsibleWrapper?.markComplete();
 	}
 
 	private async _initializeTerminalActions(): Promise<void> {
@@ -458,6 +466,14 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			});
 			this._terminalSessionRegistration = this._store.add(listener);
 		}
+
+		// Listen for continue in background to remove the button
+		this._store.add(this._terminalChatService.onDidContinueInBackground(sessionId => {
+			if (sessionId === terminalToolSessionId) {
+				this._terminalData.didContinueInBackground = true;
+				this._removeContinueInBackgroundAction();
+			}
+		}));
 	}
 
 	private _addActions(terminalInstance?: ITerminalInstance, terminalToolSessionId?: string): void {
@@ -468,11 +484,24 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		this._removeFocusAction();
 		const resolvedCommand = this._getResolvedCommand(terminalInstance);
 
+		this._removeContinueInBackgroundAction();
 		if (terminalInstance) {
 			const isTerminalHidden = terminalInstance && terminalToolSessionId ? this._terminalChatService.isBackgroundTerminal(terminalToolSessionId) : false;
 			const focusAction = this._instantiationService.createInstance(FocusChatInstanceAction, terminalInstance, resolvedCommand, this._terminalCommandUri, this._storedCommandId, isTerminalHidden);
 			this._focusAction.value = focusAction;
 			actionBar.push(focusAction, { icon: true, label: false, index: 0 });
+
+			// Add continue in background action - only for foreground executions with running commands
+			// Note: isBackground refers to whether the tool was invoked with isBackground=true (background execution),
+			// not whether the terminal is hidden from the user
+			if (terminalToolSessionId && !this._terminalData.isBackground && !this._terminalData.didContinueInBackground) {
+				const isStillRunning = resolvedCommand?.exitCode === undefined && this._terminalData.terminalCommandState?.exitCode === undefined;
+				if (isStillRunning) {
+					const continueAction = this._instantiationService.createInstance(ContinueInBackgroundAction, terminalToolSessionId);
+					this._continueInBackgroundAction.value = continueAction;
+					actionBar.push(continueAction, { icon: true, label: false, index: 0 });
+				}
+			}
 		}
 
 		this._ensureShowOutputAction(resolvedCommand);
@@ -504,8 +533,9 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		if (!showOutputAction) {
 			showOutputAction = this._instantiationService.createInstance(ToggleChatTerminalOutputAction, () => this._toggleOutputFromAction());
 			this._showOutputAction.value = showOutputAction;
+			const autoExpandFailures = this._configurationService.getValue<boolean>(ChatConfiguration.AutoExpandToolFailures);
 			const exitCode = resolvedCommand?.exitCode ?? this._terminalData.terminalCommandState?.exitCode;
-			if (exitCode) {
+			if (exitCode !== undefined && exitCode !== 0 && autoExpandFailures) {
 				this._toggleOutput(true);
 			}
 		}
@@ -579,10 +609,11 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 				if (cursorLine > command.executedMarker.line) {
 					return true;
 				}
-				// If we've received multiple data events, treat it as real output even if cursor
+				// If we've received many data events, treat it as real output even if cursor
 				// hasn't moved past the marker (e.g., progress bars updating on same line)
-				// Shell integration sequences typically fire once, so multiple events indicate real data
-				return receivedDataCount > 1;
+				// Shell integration sequences fire a couple times per command (PromptStart, CommandStart,
+				// CommandExecuted), so we need a small threshold to filter those out
+				return receivedDataCount > 2;
 			};
 
 			// Use the extracted auto-expand logic
@@ -612,12 +643,16 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 				this._addActions(terminalInstance, this._terminalData.terminalToolSessionId);
 				const resolvedCommand = this._getResolvedCommand(terminalInstance);
 
+				// update title
+				this.markCollapsibleWrapperComplete();
+
 				// Auto-collapse on success
 				if (resolvedCommand?.exitCode === 0 && this._outputView.isExpanded && !this._userToggledOutput) {
 					this._toggleOutput(false);
 				}
 				// keep outer wrapper expanded on error
-				if (resolvedCommand?.exitCode !== undefined && resolvedCommand.exitCode !== 0 && this._thinkingCollapsibleWrapper) {
+				const autoExpandFailures = this._configurationService.getValue<boolean>(ChatConfiguration.AutoExpandToolFailures);
+				if (autoExpandFailures && resolvedCommand?.exitCode !== undefined && resolvedCommand.exitCode !== 0 && this._thinkingCollapsibleWrapper) {
 					this.expandCollapsibleWrapper();
 				}
 				if (resolvedCommand?.endMarker) {
@@ -629,12 +664,15 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			const resolvedImmediately = await tryResolveCommand();
 			if (resolvedImmediately?.endMarker) {
 				commandDetectionListener.clear();
+				// update title
+				this.markCollapsibleWrapperComplete();
 				// Auto-collapse on success
 				if (resolvedImmediately.exitCode === 0 && this._outputView.isExpanded && !this._userToggledOutput) {
 					this._toggleOutput(false);
 				}
 				// keep outer wrapper expanded on error
-				if (resolvedImmediately.exitCode !== undefined && resolvedImmediately.exitCode !== 0 && this._thinkingCollapsibleWrapper) {
+				const autoExpandFailures = this._configurationService.getValue<boolean>(ChatConfiguration.AutoExpandToolFailures);
+				if (autoExpandFailures && resolvedImmediately.exitCode !== undefined && resolvedImmediately.exitCode !== 0 && this._thinkingCollapsibleWrapper) {
 					this.expandCollapsibleWrapper();
 				}
 				return;
@@ -674,6 +712,21 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			}
 		}
 		this._focusAction.clear();
+	}
+
+	private _removeContinueInBackgroundAction(): void {
+		if (this._store.isDisposed) {
+			return;
+		}
+		const actionBar = this._actionBar;
+		const continueAction = this._continueInBackgroundAction.value;
+		if (actionBar && continueAction) {
+			const existingIndex = actionBar.viewItems.findIndex(item => item.action === continueAction);
+			if (existingIndex >= 0) {
+				actionBar.pull(existingIndex);
+			}
+		}
+		this._continueInBackgroundAction.clear();
 	}
 
 	private async _toggleOutput(expanded: boolean): Promise<boolean> {
@@ -809,7 +862,6 @@ class ChatTerminalToolOutputSection extends Disposable {
 
 	private readonly _outputBody: HTMLElement;
 	private _scrollableContainer: DomScrollableElement | undefined;
-	private _renderedOutputHeight: number | undefined;
 	private _isAtBottom: boolean = true;
 	private _isProgrammaticScroll: boolean = false;
 	private _mirror: DetachedTerminalCommandMirror | undefined;
@@ -818,7 +870,6 @@ class ChatTerminalToolOutputSection extends Disposable {
 	private readonly _terminalContainer: HTMLElement;
 	private readonly _emptyElement: HTMLElement;
 	private _lastRenderedLineCount: number | undefined;
-	private _lastRenderedMaxColumnWidth: number | undefined;
 
 	private readonly _onDidFocusEmitter = this._register(new Emitter<void>());
 	public get onDidFocus() { return this._onDidFocusEmitter.event; }
@@ -826,7 +877,6 @@ class ChatTerminalToolOutputSection extends Disposable {
 	public get onDidBlur() { return this._onDidBlurEmitter.event; }
 
 	constructor(
-		private readonly _onDidChangeHeight: () => void,
 		private readonly _ensureTerminalInstance: () => Promise<ITerminalInstance | undefined>,
 		private readonly _resolveCommand: () => ITerminalCommand | undefined,
 		private readonly _getTerminalCommandOutput: () => IChatTerminalToolInvocationData['terminalCommandOutput'] | undefined,
@@ -879,9 +929,7 @@ class ChatTerminalToolOutputSection extends Disposable {
 
 		if (!expanded) {
 			this._setExpanded(false);
-			this._renderedOutputHeight = undefined;
 			this._isAtBottom = true;
-			this._onDidChangeHeight();
 			return true;
 		}
 
@@ -1033,7 +1081,7 @@ class ChatTerminalToolOutputSection extends Disposable {
 			if (result.lineCount && result.lineCount > 0) {
 				this._hideEmptyMessage();
 			}
-			this._layoutOutput(result.lineCount, result.maxColumnWidth);
+			this._layoutOutput(result.lineCount);
 			if (this._isAtBottom) {
 				this._scrollOutputToBottom();
 			}
@@ -1082,13 +1130,13 @@ class ChatTerminalToolOutputSection extends Disposable {
 		} else {
 			this._hideEmptyMessage();
 		}
-		this._layoutOutput(result?.lineCount ?? 0, result?.maxColumnWidth);
+		this._layoutOutput(result?.lineCount ?? 0);
 		return true;
 	}
 
 	private async _renderSnapshotOutput(snapshot: NonNullable<IChatTerminalToolInvocationData['terminalCommandOutput']>): Promise<void> {
 		if (this._snapshotMirror) {
-			this._layoutOutput(snapshot.lineCount ?? 0, this._lastRenderedMaxColumnWidth);
+			this._layoutOutput(snapshot.lineCount ?? 0);
 			return;
 		}
 		if (this._store.isDisposed) {
@@ -1106,7 +1154,7 @@ class ChatTerminalToolOutputSection extends Disposable {
 			this._showEmptyMessage(localize('chat.terminalOutputEmpty', 'No output was produced by the command.'));
 		}
 		const lineCount = result?.lineCount ?? snapshot.lineCount ?? 0;
-		this._layoutOutput(lineCount, result?.maxColumnWidth);
+		this._layoutOutput(lineCount);
 	}
 
 	private _renderUnavailableMessage(liveTerminalInstance: ITerminalInstance | undefined): void {
@@ -1162,7 +1210,7 @@ class ChatTerminalToolOutputSection extends Disposable {
 		}
 	}
 
-	private _layoutOutput(lineCount?: number, maxColumnWidth?: number): void {
+	private _layoutOutput(lineCount?: number): void {
 		if (!this._scrollableContainer) {
 			return;
 		}
@@ -1173,22 +1221,12 @@ class ChatTerminalToolOutputSection extends Disposable {
 			lineCount = this._lastRenderedLineCount;
 		}
 
-		if (maxColumnWidth !== undefined) {
-			this._lastRenderedMaxColumnWidth = maxColumnWidth;
-		} else {
-			maxColumnWidth = this._lastRenderedMaxColumnWidth;
-		}
-
 		this._scrollableContainer.scanDomNode();
 		if (!this.isExpanded || lineCount === undefined) {
 			return;
 		}
 
 		const scrollableDomNode = this._scrollableContainer.getDomNode();
-
-		// Calculate and apply width based on content
-		this._applyContentWidth(maxColumnWidth);
-
 		const rowHeight = this._computeRowHeightPx();
 		const padding = this._getOutputPadding();
 		const minHeight = rowHeight * MIN_OUTPUT_ROWS + padding;
@@ -1199,10 +1237,6 @@ class ChatTerminalToolOutputSection extends Disposable {
 		const appliedHeight = Math.min(clampedHeight, measuredBodyHeight);
 		scrollableDomNode.style.height = appliedHeight < maxHeight ? `${appliedHeight}px` : '';
 		this._scrollableContainer.scanDomNode();
-		if (this._renderedOutputHeight !== appliedHeight) {
-			this._renderedOutputHeight = appliedHeight;
-			this._onDidChangeHeight();
-		}
 	}
 
 	private _computeIsAtBottom(): boolean {
@@ -1228,7 +1262,8 @@ class ChatTerminalToolOutputSection extends Disposable {
 
 	private _getOutputContentHeight(lineCount: number, rowHeight: number, padding: number): number {
 		const contentRows = Math.max(lineCount, MIN_OUTPUT_ROWS);
-		const adjustedRows = contentRows + (lineCount > MAX_OUTPUT_ROWS ? 1 : 0);
+		// Always add an extra row for buffer space to prevent the last line from being cut off during streaming
+		const adjustedRows = contentRows + 1;
 		return (adjustedRows * rowHeight) + padding;
 	}
 
@@ -1237,50 +1272,6 @@ class ChatTerminalToolOutputSection extends Disposable {
 		const paddingTop = Number.parseFloat(style.paddingTop || '0');
 		const paddingBottom = Number.parseFloat(style.paddingBottom || '0');
 		return paddingTop + paddingBottom;
-	}
-
-	private _applyContentWidth(maxColumnWidth?: number): void {
-		if (!this._scrollableContainer) {
-			return;
-		}
-
-		const window = dom.getActiveWindow();
-		const font = this._terminalConfigurationService.getFont(window);
-		const charWidth = font.charWidth;
-
-		if (!charWidth || !maxColumnWidth || maxColumnWidth <= 0) {
-			// No content width info, leave existing width unchanged
-			return;
-		}
-
-		// Calculate the pixel width needed for the content
-		// Add some padding for scrollbar and visual comfort
-		// Account for container padding
-		const horizontalPadding = 24;
-		const contentWidth = Math.ceil(maxColumnWidth * charWidth) + horizontalPadding;
-
-		// Get the max available width (container's parent width)
-		const parentWidth = this.domNode.parentElement?.clientWidth ?? 0;
-
-		const scrollableDomNode = this._scrollableContainer.getDomNode();
-
-		if (parentWidth > 0 && contentWidth < parentWidth) {
-			// Content is smaller than available space - shrink to fit
-			// Apply width to both the scrollable container and the content body
-			// The xterm element renders at full column width, so we need to clip it
-			scrollableDomNode.style.width = `${contentWidth}px`;
-			this._outputBody.style.width = `${contentWidth}px`;
-			this._terminalContainer.style.width = `${contentWidth}px`;
-			this._terminalContainer.classList.add('chat-terminal-output-terminal-clipped');
-		} else {
-			// Content needs full width or more (scrollbar will show)
-			scrollableDomNode.style.width = '';
-			this._outputBody.style.width = '';
-			this._terminalContainer.style.width = '';
-			this._terminalContainer.classList.remove('chat-terminal-output-terminal-clipped');
-		}
-
-		this._scrollableContainer.scanDomNode();
 	}
 
 	private _computeRowHeightPx(): number {
@@ -1459,22 +1450,43 @@ export class FocusChatInstanceAction extends Action implements IAction {
 	}
 }
 
+export class ContinueInBackgroundAction extends Action implements IAction {
+	constructor(
+		private readonly _terminalToolSessionId: string,
+		@ITerminalChatService private readonly _terminalChatService: ITerminalChatService,
+	) {
+		super(
+			TerminalContribCommandId.ContinueInBackground,
+			localize('continueInBackground', 'Continue in Background'),
+			ThemeIcon.asClassName(Codicon.debugContinue),
+			true,
+		);
+	}
+
+	public override async run(): Promise<void> {
+		this._terminalChatService.continueInBackground(this._terminalToolSessionId);
+	}
+}
+
 class ChatTerminalThinkingCollapsibleWrapper extends ChatCollapsibleContentPart {
-	private readonly _contentElement: HTMLElement;
+	private readonly _terminalContentElement: HTMLElement;
 	private readonly _commandText: string;
+	private _isComplete: boolean;
 
 	constructor(
 		commandText: string,
 		contentElement: HTMLElement,
 		context: IChatContentPartRenderContext,
 		initialExpanded: boolean,
+		isComplete: boolean,
 		@IHoverService hoverService: IHoverService,
 	) {
-		const title = `Ran \`${commandText}\``;
+		const title = isComplete ? `Ran \`${commandText}\`` : `Running \`${commandText}\``;
 		super(title, context, undefined, hoverService);
 
-		this._contentElement = contentElement;
+		this._terminalContentElement = contentElement;
 		this._commandText = commandText;
+		this._isComplete = isComplete;
 
 		this.domNode.classList.add('chat-terminal-thinking-collapsible');
 
@@ -1490,7 +1502,10 @@ class ChatTerminalThinkingCollapsibleWrapper extends ChatCollapsibleContentPart 
 		const labelElement = this._collapseButton.labelElement;
 		labelElement.textContent = '';
 
-		const ranText = document.createTextNode(localize('chat.terminal.ran.prefix', "Ran "));
+		const prefixText = this._isComplete
+			? localize('chat.terminal.ran.prefix', "Ran ")
+			: localize('chat.terminal.running.prefix', "Running ");
+		const ranText = document.createTextNode(prefixText);
 		const codeElement = document.createElement('code');
 		codeElement.textContent = this._commandText;
 
@@ -1498,9 +1513,17 @@ class ChatTerminalThinkingCollapsibleWrapper extends ChatCollapsibleContentPart 
 		labelElement.appendChild(codeElement);
 	}
 
+	public markComplete(): void {
+		if (this._isComplete) {
+			return;
+		}
+		this._isComplete = true;
+		this._setCodeFormattedTitle();
+	}
+
 	protected override initContent(): HTMLElement {
 		const listWrapper = dom.$('.chat-used-context-list.chat-terminal-thinking-content');
-		listWrapper.appendChild(this._contentElement);
+		listWrapper.appendChild(this._terminalContentElement);
 		return listWrapper;
 	}
 
@@ -1508,7 +1531,7 @@ class ChatTerminalThinkingCollapsibleWrapper extends ChatCollapsibleContentPart 
 		this.setExpanded(true);
 	}
 
-	hasSameContent(_other: IChatRendererContent, _followingContent: IChatRendererContent[], _element: ChatTreeItem): boolean {
+	override hasSameContent(_other: IChatRendererContent, _followingContent: IChatRendererContent[], _element: ChatTreeItem): boolean {
 		return false;
 	}
 }

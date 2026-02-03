@@ -297,6 +297,11 @@ export interface ILanguageModelsService {
 
 	lookupLanguageModel(modelId: string): ILanguageModelChatMetadata | undefined;
 
+	/**
+	 * Find a model by its qualified name. The qualified name is what is used in prompt and agent files and is in the format "Model Name (Vendor)".
+	 */
+	lookupLanguageModelByQualifiedName(qualifiedName: string): ILanguageModelChatMetadataAndIdentifier | undefined;
+
 	getLanguageModelGroups(vendor: string): ILanguageModelsGroup[];
 
 	/**
@@ -637,6 +642,15 @@ export class LanguageModelsService implements ILanguageModelsService {
 		return model;
 	}
 
+	lookupLanguageModelByQualifiedName(referenceName: string): ILanguageModelChatMetadataAndIdentifier | undefined {
+		for (const [identifier, model] of this._modelCache.entries()) {
+			if (ILanguageModelChatMetadata.matchesQualifiedName(referenceName, model)) {
+				return { metadata: model, identifier };
+			}
+		}
+		return undefined;
+	}
+
 	private async _resolveAllLanguageModels(vendorId: string, silent: boolean): Promise<void> {
 
 		const vendor = this._vendors.get(vendorId);
@@ -848,8 +862,9 @@ export class LanguageModelsService implements ILanguageModelsService {
 				? await this._languageModelsConfigurationService.updateLanguageModelsProviderGroup(existing, languageModelProviderGroup)
 				: await this._languageModelsConfigurationService.addLanguageModelsProviderGroup(languageModelProviderGroup);
 
-			if (vendor.configuration && this.canConfigure(configuration ?? {}, vendor.configuration)) {
-				await this._languageModelsConfigurationService.configureLanguageModels(saved.range);
+			if (vendor.configuration && this.requireConfiguring(vendor.configuration)) {
+				const snippet = this.getSnippetForFirstUnconfiguredProperty(configuration ?? {}, vendor.configuration);
+				await this._languageModelsConfigurationService.configureLanguageModels({ group: saved, snippet });
 			}
 		} catch (error) {
 			if (isCancellationError(error)) {
@@ -886,7 +901,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 		await this._languageModelsConfigurationService.removeLanguageModelsProviderGroup(existing);
 	}
 
-	private canConfigure(configuration: IStringDictionary<unknown>, schema: IJSONSchema): boolean {
+	private requireConfiguring(schema: IJSONSchema): boolean {
 		if (schema.additionalProperties) {
 			return true;
 		}
@@ -894,11 +909,30 @@ export class LanguageModelsService implements ILanguageModelsService {
 			return false;
 		}
 		for (const property of Object.keys(schema.properties)) {
-			if (configuration[property] === undefined) {
+			if (!this.canPromptForProperty(schema.properties[property])) {
 				return true;
 			}
 		}
 		return false;
+	}
+
+	private getSnippetForFirstUnconfiguredProperty(configuration: IStringDictionary<unknown>, schema: IJSONSchema): string | undefined {
+		if (!schema.properties) {
+			return undefined;
+		}
+		for (const property of Object.keys(schema.properties)) {
+			if (configuration[property] === undefined) {
+				const propertySchema = schema.properties[property];
+				if (propertySchema && typeof propertySchema !== 'boolean' && propertySchema.defaultSnippets?.[0]) {
+					const snippet = propertySchema.defaultSnippets[0];
+					let bodyText = snippet.bodyText ?? JSON.stringify(snippet.body, null, '\t');
+					// Handle ^ prefix for raw values (numbers/booleans) - remove quotes around ^-prefixed values
+					bodyText = bodyText.replace(/"(\^[^"]*)"/g, (_, value) => value.substring(1));
+					return `"${property}": ${bodyText}`;
+				}
+			}
+		}
+		return undefined;
 	}
 
 	private async promptForName(languageModelProviderGroups: readonly ILanguageModelsProviderGroup[], vendor: IUserFriendlyLanguageModel, existing: ILanguageModelsProviderGroup | undefined): Promise<string | undefined> {
@@ -969,7 +1003,11 @@ export class LanguageModelsService implements ILanguageModelsService {
 	}
 
 	private async promptForValue(groupName: string, property: string, propertySchema: IJSONSchema | undefined, required: boolean, existing: IStringDictionary<unknown> | undefined): Promise<unknown | undefined> {
-		if (!propertySchema || typeof propertySchema === 'boolean') {
+		if (!propertySchema) {
+			return undefined;
+		}
+
+		if (!this.canPromptForProperty(propertySchema)) {
 			return undefined;
 		}
 
@@ -981,15 +1019,28 @@ export class LanguageModelsService implements ILanguageModelsService {
 			return selectedItems;
 		}
 
-		if (propertySchema.type !== 'string' && propertySchema.type !== 'number' && propertySchema.type !== 'integer' && propertySchema.type !== 'boolean') {
-			return undefined;
-		}
-
 		const value = await this.promptForInput(groupName, property, propertySchema, required, existing);
 		if (value === undefined) {
 			return undefined;
 		}
+
 		return value;
+	}
+
+	private canPromptForProperty(propertySchema: IJSONSchema | undefined): boolean {
+		if (!propertySchema || typeof propertySchema === 'boolean') {
+			return false;
+		}
+
+		if (propertySchema.type === 'array' && propertySchema.items && !Array.isArray(propertySchema.items) && propertySchema.items.enum) {
+			return true;
+		}
+
+		if (propertySchema.type === 'string' || propertySchema.type === 'number' || propertySchema.type === 'integer' || propertySchema.type === 'boolean') {
+			return true;
+		}
+
+		return false;
 	}
 
 	private async promptForArray(groupName: string, property: string, propertySchema: IJSONSchema): Promise<string[] | undefined> {

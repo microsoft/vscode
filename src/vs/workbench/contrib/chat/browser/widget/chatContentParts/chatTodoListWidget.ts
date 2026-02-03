@@ -199,6 +199,7 @@ export class ChatTodoListWidget extends Disposable {
 	private createClearButton(): void {
 		this.clearButton = new Button(this.clearButtonContainer, {
 			supportIcons: true,
+			ariaLabel: localize('chat.todoList.clearButton', 'Clear all todos'),
 		});
 		this.clearButton.element.tabIndex = 0;
 		this.clearButton.icon = Codicon.clearAll;

@@ -61,6 +61,9 @@ async function launchServer(options: LaunchOptions) {
 	if (options.verbose) {
 		args.push('--log=trace');
 	}
+	if (options.extensionDevelopmentPath) {
+		args.push(`--extensionDevelopmentPath=${options.extensionDevelopmentPath}`);
+	}
 
 	let serverLocation: string | undefined;
 	if (codeServerPath) {

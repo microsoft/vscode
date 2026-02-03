@@ -45,7 +45,7 @@ export class MainThreadChatOutputRenderer extends Disposable implements MainThre
 					serializeBuffersForPostMessage: true,
 				});
 
-				this._proxy.$renderChatOutput(viewType, mime, VSBuffer.wrap(data), webviewHandle, token);
+				return this._proxy.$renderChatOutput(viewType, mime, VSBuffer.wrap(data), webviewHandle, token);
 			},
 		}, {
 			extension: { id: extensionId, location: URI.revive(extensionLocation) }

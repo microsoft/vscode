@@ -513,7 +513,7 @@
 		"action": "updateLabels",
 		"addLabel": "verification-steps-needed",
 		"removeLabel": "~verification-steps-needed",
-		"comment": "Friendly ping! Looks like this issue requires some further steps to be verified. Please provide us with the steps necessary to verify this issue."
+		"comment": "Friendly ping for the VS Code team member who owns this issue- Looks like this issue requires some further steps to be verified. Please provide us with the steps necessary to verify this issue."
 	},
 	{
 		"type": "label",

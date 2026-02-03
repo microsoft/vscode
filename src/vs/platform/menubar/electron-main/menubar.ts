@@ -648,6 +648,7 @@ export class Menubar extends Disposable {
 				})];
 
 			case StateType.Downloading:
+			case StateType.Overwriting:
 				return [new MenuItem({ label: nls.localize('miDownloadingUpdate', "Downloading Update..."), enabled: false })];
 
 			case StateType.Downloaded:
@@ -744,6 +745,11 @@ export class Menubar extends Disposable {
 			if (activeWindow.webContents.isDevToolsFocused() &&
 				activeWindow.webContents.devToolsWebContents) {
 				return contextSpecificHandlers.inDevTools(activeWindow.webContents.devToolsWebContents);
+			}
+
+			// Focus is not in the workbench webContents
+			if (!activeWindow.webContents.isFocused()) {
+				return contextSpecificHandlers.inNoWindow();
 			}
 
 			// Finally execute command in Window

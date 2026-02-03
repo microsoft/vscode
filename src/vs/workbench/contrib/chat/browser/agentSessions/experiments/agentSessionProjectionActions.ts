@@ -101,7 +101,8 @@ export class ToggleAgentStatusAction extends ToggleTitleBarConfigAction {
 			ContextKeyExpr.and(
 				ChatContextKeys.enabled,
 				IsCompactTitleBarContext.negate(),
-				ChatContextKeys.supported
+				ChatContextKeys.supported,
+				ContextKeyExpr.has('config.window.commandCenter')
 			)
 		);
 	}
@@ -109,19 +110,19 @@ export class ToggleAgentStatusAction extends ToggleTitleBarConfigAction {
 
 //#endregion
 
-//#region Toggle Unified Agents Bar
+//#region Toggle Agent Quick Input
 
 export class ToggleUnifiedAgentsBarAction extends ToggleTitleBarConfigAction {
 	constructor() {
 		super(
 			ChatConfiguration.UnifiedAgentsBar,
-			localize('toggle.unifiedAgentsBar', 'Unified Agents Bar'),
-			localize('toggle.unifiedAgentsBarDescription', "Toggle Unified Agents Bar, replacing the classic command center search box."), 7,
+			localize('toggle.agentQuickInput', 'Agent Quick Input'),
+			localize('toggle.agentQuickInputDescription', "Toggle Agent Quick Input, replacing the classic command center search box."), 7,
 			ContextKeyExpr.and(
 				ChatContextKeys.enabled,
 				IsCompactTitleBarContext.negate(),
 				ChatContextKeys.supported,
-				ContextKeyExpr.has(`config.${ChatConfiguration.AgentStatusEnabled}`)
+				ContextKeyExpr.has('config.window.commandCenter'),
 			)
 		);
 	}

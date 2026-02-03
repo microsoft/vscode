@@ -36,6 +36,7 @@ import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { ChatTreeItem, IChatWidget, IChatWidgetService } from '../chat.js';
 import { IAgentSession, isAgentSession } from '../agentSessions/agentSessionsModel.js';
+import { AgentSessionProviders } from '../agentSessions/agentSessions.js';
 
 export abstract class EditingSessionAction extends Action2 {
 
@@ -255,6 +256,37 @@ export class ChatEditingDiscardAllAction extends EditingSessionAction {
 }
 registerAction2(ChatEditingDiscardAllAction);
 
+export class ToggleExplanationWidgetAction extends EditingSessionAction {
+
+	static readonly ID = 'chatEditing.toggleExplanationWidget';
+
+	constructor() {
+		super({
+			id: ToggleExplanationWidgetAction.ID,
+			title: localize('explainButton', 'Explain'),
+			tooltip: localize('toggleExplanationTooltip', 'Toggle Change Explanations'),
+			precondition: hasUndecidedChatEditingResourceContextKey,
+			menu: [
+				{
+					id: MenuId.ChatEditingWidgetToolbar,
+					group: 'navigation',
+					order: 2,
+					when: ContextKeyExpr.and(hasUndecidedChatEditingResourceContextKey, ContextKeyExpr.has(`config.${ChatConfiguration.ExplainChangesEnabled}`))
+				}
+			],
+		});
+	}
+
+	override async runEditingSessionAction(accessor: ServicesAccessor, editingSession: IChatEditingSession, chatWidget: IChatWidget, ...args: unknown[]) {
+		if (editingSession.hasExplanations()) {
+			editingSession.clearExplanations();
+		} else {
+			await editingSession.triggerExplanationGeneration();
+		}
+	}
+}
+registerAction2(ToggleExplanationWidgetAction);
+
 export async function discardAllEditsWithConfirmation(accessor: ServicesAccessor, currentEditingSession: IChatEditingSession): Promise<boolean> {
 
 	const dialogService = accessor.get(IDialogService);
@@ -338,6 +370,7 @@ export class ViewAllSessionChangesAction extends Action2 {
 	override async run(accessor: ServicesAccessor, sessionOrSessionResource?: URI | IAgentSession): Promise<void> {
 		const agentSessionsService = accessor.get(IAgentSessionsService);
 		const commandService = accessor.get(ICommandService);
+		const chatEditingService = accessor.get(IChatEditingService);
 
 		if (!URI.isUri(sessionOrSessionResource) && !isAgentSession(sessionOrSessionResource)) {
 			return;
@@ -349,22 +382,39 @@ export class ViewAllSessionChangesAction extends Action2 {
 
 		const session = agentSessionsService.getSession(sessionResource);
 		const changes = session?.changes;
-		if (!(changes instanceof Array)) {
+
+		if (!session || !changes) {
 			return;
 		}
 
-		const resources = changes.map(d => ({
-			originalUri: d.originalUri,
-			modifiedUri: d.modifiedUri
-		}));
+		if (
+			session.providerType === AgentSessionProviders.Background ||
+			session.providerType === AgentSessionProviders.Cloud
+		) {
+			if (!Array.isArray(changes) || changes.length === 0) {
+				return;
+			}
 
-		if (resources.length > 0) {
+			// Use agent session changes
+			const resources = changes.map(d => ({
+				originalUri: d.originalUri,
+				modifiedUri: d.modifiedUri
+			}));
+
 			await commandService.executeCommand('_workbench.openMultiDiffEditor', {
 				multiDiffSourceUri: sessionResource.with({ scheme: sessionResource.scheme + '-worktree-changes' }),
 				title: localize('chatEditing.allChanges.title', 'All Session Changes'),
 				resources,
 			});
+
+			session?.setRead(true);
+			return;
 		}
+
+		// Use edit session changes
+		const editingSession = chatEditingService.getEditingSession(sessionResource);
+		await editingSession?.show();
+		session?.setRead(true);
 	}
 }
 registerAction2(ViewAllSessionChangesAction);

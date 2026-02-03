@@ -52,6 +52,9 @@ export async function resolveElectronConfiguration(options: LaunchOptions): Prom
 	if (options.verbose) {
 		args.push('--verbose');
 	}
+	if (options.extensionDevelopmentPath) {
+		args.push(`--extensionDevelopmentPath=${options.extensionDevelopmentPath}`);
+	}
 
 	if (remote) {
 		if (!workspacePath) {

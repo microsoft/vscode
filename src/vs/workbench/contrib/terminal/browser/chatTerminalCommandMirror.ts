@@ -68,6 +68,28 @@ export function computeMaxBufferColumnWidth(buffer: { readonly length: number; g
 	return maxWidth;
 }
 
+/**
+ * Checks if two VT strings match around a boundary where we would slice.
+ * This is an efficient O(1) check that verifies a small window of characters
+ * before the slice point to detect if the VT sequences have diverged (common on Windows).
+ *
+ * @param newVT The new VT text to compare.
+ * @param oldVT The old VT text to compare against.
+ * @param slicePoint The point where we would slice. Must be <= both string lengths.
+ * @param windowSize The number of characters before slicePoint to check (default 50).
+ * @returns True if the boundary matches, false if VT sequences have diverged.
+ */
+export function vtBoundaryMatches(newVT: string, oldVT: string, slicePoint: number, windowSize: number = 50): boolean {
+	const start = Math.max(0, slicePoint - windowSize);
+	const end = slicePoint;
+	for (let i = start; i < end; i++) {
+		if (newVT.charCodeAt(i) !== oldVT.charCodeAt(i)) {
+			return false;
+		}
+	}
+	return true;
+}
+
 export interface IDetachedTerminalCommandMirrorRenderResult {
 	lineCount?: number;
 	maxColumnWidth?: number;
@@ -280,7 +302,16 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 		}
 
 		await new Promise<void>(resolve => {
-			if (!this._lastVT) {
+			// Only append if the boundary around the slice point matches; otherwise rewrite.
+			// This is an efficient constant-time check (checking up to 50 characters) instead of comparing the entire prefix.
+			// On Windows, VT sequences can differ even for equivalent content, causing corruption
+			// if we blindly append.
+			const canAppend = !!this._lastVT && vt.text.length >= this._lastVT.length && this._vtBoundaryMatches(vt.text, this._lastVT.length);
+			if (!canAppend) {
+				// Reset the terminal if we had previous content (can't append, need full rewrite)
+				if (this._lastVT) {
+					detached.xterm.reset();
+				}
 				if (vt.text) {
 					detached.xterm.write(vt.text, resolve);
 				} else {
@@ -380,19 +411,22 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 			const colorProvider = {
 				getBackgroundColor: (theme: IColorTheme) => getChatTerminalBackgroundColor(theme, this._contextKeyService)
 			};
+			const processInfo = new DetachedProcessInfo({ initialCwd: '' });
 			const detached = await this._terminalService.createDetachedTerminal({
 				cols: this._xtermTerminal.raw.cols ?? ChatTerminalMirrorMetrics.MirrorColCountFallback,
 				rows: ChatTerminalMirrorMetrics.MirrorRowCount,
 				readonly: false,
-				processInfo: new DetachedProcessInfo({ initialCwd: '' }),
+				processInfo,
 				disableOverviewRuler: true,
 				colorProvider
 			});
 			if (this._store.isDisposed) {
+				processInfo.dispose();
 				detached.dispose();
 				throw new CancellationError();
 			}
 			this._detachedTerminal = detached;
+			this._register(processInfo);
 			this._register(detached);
 
 			// Forward input from the mirror terminal to the source terminal
@@ -502,9 +536,16 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 			return;
 		}
 
-		const canAppend = !!this._lastVT && startLine >= previousCursor;
+		// Only append if: (1) cursor hasn't moved backwards, and (2) boundary around slice point matches.
+		// This is an efficient O(1) check instead of comparing the entire prefix.
+		// On Windows, VT sequences can differ even for equivalent content, so we must verify.
+		const canAppend = !!this._lastVT && startLine >= previousCursor && vt.text.length >= this._lastVT.length && this._vtBoundaryMatches(vt.text, this._lastVT.length);
 		await new Promise<void>(resolve => {
-			if (!this._lastVT || !canAppend) {
+			if (!canAppend) {
+				// Reset the terminal if we had previous content (can't append, need full rewrite)
+				if (this._lastVT) {
+					detachedRaw.reset();
+				}
 				if (vt.text) {
 					detachedRaw.write(vt.text, resolve);
 				} else {
@@ -538,6 +579,13 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 
 	private _getAbsoluteCursorY(raw: RawXtermTerminal): number {
 		return raw.buffer.active.baseY + raw.buffer.active.cursorY;
+	}
+
+	/**
+	 * Checks if the new VT text matches the old VT around the boundary where we would slice.
+	 */
+	private _vtBoundaryMatches(newVT: string, slicePoint: number): boolean {
+		return vtBoundaryMatches(newVT, this._lastVT, slicePoint);
 	}
 }
 

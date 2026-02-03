@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// version: 11
+// version: 12
 
 declare module 'vscode' {
 
@@ -110,6 +110,11 @@ declare module 'vscode' {
 		 * Display name of the subagent that is invoking this request.
 		 */
 		readonly subAgentName?: string;
+
+		/**
+		 * The request ID of the parent request that invoked this subagent.
+		 */
+		readonly parentRequestId?: string;
 	}
 
 	export enum ChatRequestEditedFileEventKind {
@@ -336,6 +341,19 @@ declare module 'vscode' {
 
 	export namespace lm {
 		export function registerLanguageModelProxyProvider(provider: LanguageModelProxyProvider): Disposable;
+	}
+
+	// #endregion
+
+	// #region Steering
+
+	export interface ChatContext {
+		/**
+		 * Set to `true` by the editor to request the language model gracefully
+		 * stop after its next opportunity. When set, it's likely that the editor
+		 * will immediately follow up with a new request in the same conversation.
+		 */
+		readonly yieldRequested: boolean;
 	}
 
 	// #endregion

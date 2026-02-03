@@ -448,7 +448,11 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 				false,
 				true
 			)(async (markerEvent: readonly URI[]) => {
-				if (!markerEvent || !markerEvent.includes(modelEvent.uri) || (this.markerService.read({ resource: modelEvent.uri }).length !== 0)) {
+				if (markerEvent.length === 0) {
+					return;
+				}
+				const modelEventUriStr = modelEvent.uri.toString();
+				if ((!markerEvent.some(uri => uri.toString() === modelEventUriStr)) || (this.markerService.read({ resource: modelEvent.uri }).length !== 0)) {
 					return;
 				}
 				const oldLines = Array.from(this.lines);

@@ -17,6 +17,7 @@
     "documentFiltersExclusive",
     "editorInsets",
     "embeddings",
+    "envIsAppPortable",
     "extensionRuntime",
     "extensionsAny",
     "externalUriOpener",
@@ -53,7 +54,8 @@
     "workspaceTrust",
     "inlineCompletionsAdditions",
     "devDeviceId",
-    "languageModelProxy"
+    "languageModelProxy",
+    "agentSessionsWorkspace"
   ],
   "private": true,
   "activationEvents": [],

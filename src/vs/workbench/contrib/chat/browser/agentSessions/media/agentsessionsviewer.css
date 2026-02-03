@@ -26,7 +26,6 @@
 			background-color: unset;
 			outline: 1px solid var(--vscode-agentSessionSelectedBadge-border);
 
-			.agent-session-diff-files,
 			.agent-session-diff-added,
 			.agent-session-diff-removed {
 				color: unset;
@@ -165,10 +164,6 @@
 
 				&:not(.has-diff) {
 					display: none;
-				}
-
-				.agent-session-diff-files {
-					color: var(--vscode-descriptionForeground);
 				}
 
 				.agent-session-diff-added {

@@ -8,7 +8,7 @@ import { Color } from '../../../../../../base/common/color.js';
 import { BugIndicatingError } from '../../../../../../base/common/errors.js';
 import { IObservable, observableFromEventOpts } from '../../../../../../base/common/observable.js';
 import { localize } from '../../../../../../nls.js';
-import { buttonBackground, buttonForeground, buttonSecondaryBackground, buttonSecondaryForeground, diffInserted, diffInsertedLine, diffRemoved, editorBackground } from '../../../../../../platform/theme/common/colorRegistry.js';
+import { buttonBackground, buttonForeground, diffInserted, diffInsertedLine, diffRemoved, editorBackground, editorHoverBackground, editorHoverBorder, editorHoverForeground } from '../../../../../../platform/theme/common/colorRegistry.js';
 import { asCssVariable, ColorIdentifier, darken, registerColor, transparent } from '../../../../../../platform/theme/common/colorUtils.js';
 import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
 import { InlineCompletionEditorType } from '../../model/provideInlineCompletions.js';
@@ -85,17 +85,17 @@ export const inlineEditIndicatorPrimaryBackground = registerColor(
 
 export const inlineEditIndicatorSecondaryForeground = registerColor(
 	'inlineEdit.gutterIndicator.secondaryForeground',
-	buttonSecondaryForeground,
+	editorHoverForeground,
 	localize('inlineEdit.gutterIndicator.secondaryForeground', 'Foreground color for the secondary inline edit gutter indicator.')
 );
 export const inlineEditIndicatorSecondaryBorder = registerColor(
 	'inlineEdit.gutterIndicator.secondaryBorder',
-	buttonSecondaryBackground,
+	editorHoverBorder,
 	localize('inlineEdit.gutterIndicator.secondaryBorder', 'Border color for the secondary inline edit gutter indicator.')
 );
 export const inlineEditIndicatorSecondaryBackground = registerColor(
 	'inlineEdit.gutterIndicator.secondaryBackground',
-	inlineEditIndicatorSecondaryBorder,
+	editorHoverBackground,
 	localize('inlineEdit.gutterIndicator.secondaryBackground', 'Background color for the secondary inline edit gutter indicator.')
 );
 
