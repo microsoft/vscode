@@ -67,13 +67,7 @@ import html
 import re
 import re._parser as regex_parser  # type: ignore[import]
 from re._constants import (  # type: ignore[import]
-    LITERAL, NOT_LITERAL, AT, IN, ANY, BRANCH, SUBPATTERN,
-    MAX_REPEAT, MIN_REPEAT, GROUPREF, ASSERT, ASSERT_NOT,
     AT_BEGINNING, AT_BEGINNING_STRING, AT_END, AT_END_STRING,
-    AT_BOUNDARY, AT_NON_BOUNDARY, NEGATE, RANGE, CATEGORY,
-    CATEGORY_DIGIT, CATEGORY_NOT_DIGIT,
-    CATEGORY_SPACE, CATEGORY_NOT_SPACE,
-    CATEGORY_WORD, CATEGORY_NOT_WORD,
 )
 
 from dataclasses import dataclass
@@ -181,199 +175,77 @@ def char_span(string, index, is_special, selection_type=None):
 
 # === Index mapping functions ===
 
-def build_augmented_string(string_value: str) -> str:
+def compute_internal_length(string_value: str) -> int:
     """
-    Build a string with sentinel characters for regex anchors.
+    Compute the total internal length for a string's visual representation.
 
-    The augmented string has 1:1 correspondence with internal visual indices:
-    - Position 0: DC1 (\A - start of string)
-    - Position 1: DC2 (^ - start of first line)
-    - Positions 2+: actual characters
-    - For each \n: DC3 ($) + \n + DC2 (^)
-    - End: DC3 ($) if no trailing newline, then DC4 (\Z)
+    Internal indices include:
+    - 2 prefix anchors (\A at 0, ^ at 1)
+    - Each character adds 1
+    - Each \n adds 2 extra ($ before, ^ after)
+    - 2 suffix anchors ($ and \Z)
 
-    Example:
-        Input:  "hello\\nworld"
-        Output: DC1 + DC2 + "hello" + DC3 + "\\n" + DC2 + "world" + DC3 + DC4
-
-    This enables regex matching where match positions directly equal visual indices.
+    Formula: 4 + len(string_value) + 2 * newline_count
     """
-    result = [DC1, DC2]  # \A and ^ at start
+    return 4 + len(string_value) + 2 * string_value.count('\n')
 
+
+def extract_by_internal_indices(string_value: str, start: int, end: int) -> str:
+    """
+    Extract text from string_value by internal visual indices.
+
+    Returns a string where anchors are represented as DC sentinel characters
+    (DC1=\\A, DC2=^, DC3=$, DC4=\\Z) and regular characters are included as-is.
+    This is suitable for passing to char_to_regex_literal or for display
+    after converting sentinels to their text representations.
+
+    Args:
+        string_value: The original string
+        start: Start internal index (inclusive)
+        end: End internal index (exclusive)
+
+    Returns:
+        String for the range [start:end) with DC sentinel chars for anchors
+    """
+    if start >= end:
+        return ''
+
+    # Build a list of (internal_index, char) pairs
+    elements = []
+    idx = 0
+
+    # Prefix anchors
+    elements.append((idx, DC1))  # \A
+    idx += 1
+    elements.append((idx, DC2))  # ^
+    idx += 1
+
+    # Characters
     for char in string_value:
         if char == '\n':
-            # Newline expands to: $ (end of line), \n, ^ (start of next line)
-            result.extend([DC3, '\n', DC2])
+            elements.append((idx, DC3))  # $
+            idx += 1
+            elements.append((idx, '\n'))
+            idx += 1
+            elements.append((idx, DC2))  # ^
+            idx += 1
         else:
+            elements.append((idx, char))
+            idx += 1
+
+    # Suffix anchors
+    elements.append((idx, DC3))  # $
+    idx += 1
+    elements.append((idx, DC4))  # \Z
+    idx += 1
+
+    # Extract the slice
+    result = []
+    for elem_idx, char in elements:
+        if start <= elem_idx < end:
             result.append(char)
 
-    # Add end markers
-    result.append(DC3)  # $ at end of line
-    result.append(DC4)  # \Z at end
-
     return ''.join(result)
-
-
-def convert_regex_for_augmented_string(pattern: str) -> str:
-    """
-    Convert regex anchors to sentinel characters for matching against augmented string.
-
-    Uses re._parser to properly parse the regex AST and replace anchor tokens:
-        AT_BEGINNING_STRING (\\A) -> DC1
-        AT_BEGINNING (^)          -> DC2
-        AT_END ($)                -> DC3
-        AT_END_STRING (\\Z)       -> DC4
-
-    This correctly handles anchors vs literals in all contexts (character classes,
-    escape sequences, etc.) by working at the AST level rather than string manipulation.
-    """
-    # Characters that need escaping when used as literals in regex
-    REGEX_SPECIAL = set(r'\.^$*+?{}[]|()')
-
-    def escape_literal(code: int) -> str:
-        """Convert a character code to its regex-safe representation."""
-        char = chr(code)
-        if char in REGEX_SPECIAL:
-            return '\\' + char
-        elif code < 32 or code > 126:
-            # Non-printable: use hex escape
-            return f'\\x{code:02x}'
-        return char
-
-    def convert_items(items: list) -> str:
-        """Recursively convert parsed regex items to string with sentinel anchors."""
-        result = []
-        for item in items:
-            op = item[0]
-            av = item[1] if len(item) > 1 else None
-
-            if op == LITERAL:
-                result.append(escape_literal(av))
-
-            elif op == NOT_LITERAL:
-                result.append(f'[^{escape_literal(av)}]')
-
-            elif op == AT:
-                # This is the key part - replace anchors with sentinels
-                if av == AT_BEGINNING_STRING:
-                    result.append(DC1)
-                elif av == AT_BEGINNING:
-                    result.append(DC2)
-                elif av == AT_END:
-                    result.append(DC3)
-                elif av == AT_END_STRING:
-                    result.append(DC4)
-                elif av == AT_BOUNDARY:
-                    result.append(r'\b')
-                elif av == AT_NON_BOUNDARY:
-                    result.append(r'\B')
-                else:
-                    # Unknown anchor type - skip or raise?
-                    pass
-
-            elif op == ANY:
-                result.append('.')
-
-            elif op == IN:
-                # Character class - convert items inside
-                result.append('[')
-                for class_item in av:
-                    class_op = class_item[0]
-                    class_av = class_item[1] if len(class_item) > 1 else None
-                    if class_op == NEGATE:
-                        result.append('^')
-                    elif class_op == LITERAL:
-                        # Inside character class, fewer chars need escaping
-                        char = chr(class_av)
-                        if char in r'\]^-':
-                            result.append('\\' + char)
-                        else:
-                            result.append(char)
-                    elif class_op == RANGE:
-                        lo, hi = class_av
-                        lo_char = chr(lo)
-                        hi_char = chr(hi)
-                        if lo_char in r'\]^-':
-                            lo_char = '\\' + lo_char
-                        if hi_char in r'\]^-':
-                            hi_char = '\\' + hi_char
-                        result.append(f'{lo_char}-{hi_char}')
-                    elif class_op == CATEGORY:
-                        # Categories like \d, \w, \s
-                        cat_map = {
-                            CATEGORY_DIGIT: r'\d', CATEGORY_NOT_DIGIT: r'\D',
-                            CATEGORY_SPACE: r'\s', CATEGORY_NOT_SPACE: r'\S',
-                            CATEGORY_WORD: r'\w', CATEGORY_NOT_WORD: r'\W',
-                        }
-                        result.append(cat_map.get(class_av, ''))
-                result.append(']')
-
-            elif op == BRANCH:
-                # Alternation: (None, [branch1_items, branch2_items, ...])
-                branches = [convert_items(branch) for branch in av[1]]
-                result.append('|'.join(branches))
-
-            elif op == SUBPATTERN:
-                # Group: (group_num, add_flags, del_flags, items)
-                group_num, add_flags, del_flags, items = av
-                inner = convert_items(items)
-                if group_num is None:
-                    # Non-capturing group
-                    result.append(f'(?:{inner})')
-                else:
-                    result.append(f'({inner})')
-
-            elif op in (MAX_REPEAT, MIN_REPEAT):
-                # Repetition: (min, max, items)
-                min_count, max_count, items = av
-                inner = convert_items(items)
-                # Wrap in non-capturing group if inner is complex
-                if len(items) > 1:
-                    inner = f'(?:{inner})'
-                if min_count == 0 and max_count == 1:
-                    result.append(f'{inner}?')
-                elif min_count == 0 and max_count >= 65535:  # MAXREPEAT
-                    result.append(f'{inner}*')
-                elif min_count == 1 and max_count >= 65535:
-                    result.append(f'{inner}+')
-                elif min_count == max_count:
-                    result.append(f'{inner}{{{min_count}}}')
-                else:
-                    result.append(f'{inner}{{{min_count},{max_count}}}')
-                # Add ? for non-greedy
-                if op == MIN_REPEAT:
-                    result.append('?')
-
-            elif op == GROUPREF:
-                result.append(f'\\{av}')
-
-            elif op in (ASSERT, ASSERT_NOT):
-                # Lookahead/lookbehind: (direction, items)
-                direction, items = av
-                inner = convert_items(items)
-                if op == ASSERT:
-                    if direction == 1:
-                        result.append(f'(?={inner})')
-                    else:
-                        result.append(f'(?<={inner})')
-                else:
-                    if direction == 1:
-                        result.append(f'(?!{inner})')
-                    else:
-                        result.append(f'(?<!{inner})')
-
-            elif op == CATEGORY:
-                cat_map = {
-                    CATEGORY_DIGIT: r'\d', CATEGORY_NOT_DIGIT: r'\D',
-                    CATEGORY_SPACE: r'\s', CATEGORY_NOT_SPACE: r'\S',
-                    CATEGORY_WORD: r'\w', CATEGORY_NOT_WORD: r'\W',
-                }
-                result.append(cat_map.get(av, ''))
-
-        return ''.join(result)
-
-    parsed = regex_parser.parse(pattern)
-    return convert_items(parsed.data)
 
 
 def convert_sentinels_to_regex_anchors(text: str) -> str:
@@ -824,8 +696,7 @@ def parse_regex_for_highlighting(selection_regex: str | None, string_value: str)
             if 'AT_END' in anchors:
                 internal_end = max(internal_end, internal_start + 1)
             if 'AT_END_STRING' in anchors:
-                augmented_len = len(build_augmented_string(string_value))
-                internal_end = augmented_len
+                internal_end = compute_internal_length(string_value)
 
             if internal_end <= internal_start:
                 internal_end = internal_start + 1
@@ -851,8 +722,7 @@ def parse_regex_for_highlighting(selection_regex: str | None, string_value: str)
 
             # Extend for trailing anchors
             if 'AT_END_STRING' in anchors:
-                augmented_len = len(build_augmented_string(string_value))
-                internal_end = augmented_len
+                internal_end = compute_internal_length(string_value)
             if 'AT_END' in anchors:
                 # $ anchor - extend to include the $ marker
                 # For end of string, $ is at augmented_len - 2
@@ -898,7 +768,7 @@ def find_fuzzy_segment_at_index(selection_regex: str | None, string_value: str, 
     Used to detect clicks inside realized fuzzy regions.
     """
     highlights = parse_regex_for_highlighting(selection_regex, string_value)
-    for i, (start, end, seg_type) in enumerate(highlights):
+    for i, (start, end, seg_type) in enumerate[Tuple[int, int, str]](highlights):
         if seg_type == 'fuzzy' and start <= idx < end:
             return {'start': start, 'end': end, 'segment_index': i}
     return None
@@ -1211,12 +1081,11 @@ def visualize(value, model=None):
 
         # Show segments with highlighting
         segments_html = []
-        augmented = build_augmented_string(value)
         for i, (start, end, seg_type) in enumerate(highlights):
             if seg_type == 'literal':
                 color = "rgba(255,255,0,0.35)"
-                # Get the matched text from augmented string (direct slice by internal indices)
-                segment_text = augmented[start:end]
+                # Get the matched text by internal indices
+                segment_text = extract_by_internal_indices(value, start, end)
                 # Convert sentinel chars to display representation
                 display_text = segment_text.replace(DC1, '\\A').replace(DC2, '^').replace(DC3, '$').replace(DC4, '\\Z')
                 text = repr(display_text)
@@ -1239,7 +1108,7 @@ def visualize(value, model=None):
         char_html, index = vis_char_with_index(char, index, selection_type_by_index)
         char_elements.append(char_html)
 
-    # (must match logic in build_augmented_string for 1:1 correspondence)
+    # (must match internal index scheme for 1:1 correspondence with extract_by_internal_indices)
     char_elements.append(char_span('$', index, True, selection_type_by_index.get(index)))
     index += 1
     char_elements.append(char_span('\\Z', index, True, selection_type_by_index.get(index)))
@@ -1317,8 +1186,7 @@ def finalize_segment(model: dict) -> dict:
                 model['selectionRegex'] = append_segment_to_regex(current_regex, 'fuzzy', '')
         else:
             # Literal: need actual text from the selection
-            augmented = build_augmented_string(string_value)
-            selected_text = augmented[start:end]
+            selected_text = extract_by_internal_indices(string_value, start, end)
             if extend_direction == 'left':
                 model['selectionRegex'] = prepend_segment_to_regex(current_regex, 'literal', selected_text)
             elif insert_after_segment is not None:

@@ -19,8 +19,8 @@ from string_visualizer import (
     update, init_model, visualize,
     MouseDown, MouseMove, MouseUp, KeyDown,
     NewCode,
-    build_augmented_string,
-    convert_regex_for_augmented_string,
+    compute_internal_length,
+    extract_by_internal_indices,
     get_last_segment_end_internal_idx,
     get_first_segment_start_internal_idx,
     parse_regex_for_highlighting,
@@ -1180,6 +1180,87 @@ class TestTwoPhaseMatching(unittest.TestCase):
         start, end, seg_type = highlights[0]
         # Should start at internal index 0 (\A position)
         self.assertEqual(start, 0)
+
+
+# =============================================================================
+# Internal Index Computation Tests
+# =============================================================================
+
+class TestComputeInternalLength(unittest.TestCase):
+    """Tests for compute_internal_length function."""
+
+    def test_empty_string(self):
+        """Empty string has 4 internal positions: \\A, ^, $, \\Z."""
+        self.assertEqual(compute_internal_length(""), 4)
+
+    def test_single_char(self):
+        """Single char: \\A, ^, char, $, \\Z = 5."""
+        self.assertEqual(compute_internal_length("a"), 5)
+
+    def test_simple_string(self):
+        """'hello' = 4 + 5 + 0 = 9."""
+        self.assertEqual(compute_internal_length("hello"), 9)
+
+    def test_string_with_newline(self):
+        """'hi\\nbye' = 4 + 6 + 2*1 = 12."""
+        # Internal: \A(0), ^(1), h(2), i(3), $(4), \n(5), ^(6), b(7), y(8), e(9), $(10), \Z(11)
+        self.assertEqual(compute_internal_length("hi\nbye"), 12)
+
+    def test_string_with_multiple_newlines(self):
+        """'a\\n\\nb' = 4 + 4 + 2*2 = 12."""
+        self.assertEqual(compute_internal_length("a\n\nb"), 12)
+
+    def test_only_newline(self):
+        """'\\n' = 4 + 1 + 2 = 7."""
+        self.assertEqual(compute_internal_length("\n"), 7)
+
+
+class TestExtractByInternalIndices(unittest.TestCase):
+    """Tests for extract_by_internal_indices function."""
+
+    def test_extract_anchor_at_start(self):
+        """Extract \\A anchor at index 0."""
+        result = extract_by_internal_indices("hello", 0, 1)
+        self.assertEqual(result, DC1)  # \A sentinel
+
+    def test_extract_caret_at_start(self):
+        """Extract ^ anchor at index 1."""
+        result = extract_by_internal_indices("hello", 1, 2)
+        self.assertEqual(result, DC2)  # ^ sentinel
+
+    def test_extract_first_char(self):
+        """Extract first character at index 2."""
+        result = extract_by_internal_indices("hello", 2, 3)
+        self.assertEqual(result, "h")
+
+    def test_extract_substring(self):
+        """Extract 'ell' from 'hello'."""
+        # Internal: \A(0), ^(1), h(2), e(3), l(4), l(5), o(6), $(7), \Z(8)
+        result = extract_by_internal_indices("hello", 3, 6)
+        self.assertEqual(result, "ell")
+
+    def test_extract_with_trailing_anchor(self):
+        """Extract including $ anchor."""
+        result = extract_by_internal_indices("hi", 4, 5)
+        self.assertEqual(result, DC3)  # $ sentinel
+
+    def test_extract_across_newline(self):
+        """Extract text spanning a newline."""
+        # Internal: \A(0), ^(1), h(2), i(3), $(4), \n(5), ^(6), b(7), y(8), e(9), $(10), \Z(11)
+        result = extract_by_internal_indices("hi\nbye", 3, 8)
+        # Should get: i, $, \n, ^, b
+        self.assertEqual(result, "i" + DC3 + "\n" + DC2 + "b")
+
+    def test_extract_empty_range(self):
+        """Empty range returns empty string."""
+        result = extract_by_internal_indices("hello", 3, 3)
+        self.assertEqual(result, "")
+
+    def test_extract_full_string_with_anchors(self):
+        """Extract entire augmented representation."""
+        # For "ab": \A(0), ^(1), a(2), b(3), $(4), \Z(5) - length 6
+        result = extract_by_internal_indices("ab", 0, 6)
+        self.assertEqual(result, DC1 + DC2 + "ab" + DC3 + DC4)
 
 
 # =============================================================================
