@@ -263,6 +263,9 @@
 	color: var(--vscode-descriptionForeground);
 	line-height: 16px;
 	margin-left: auto;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
 }
 
 .interactive-item-container .chat-footer-details.hidden {
