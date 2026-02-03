@@ -38,7 +38,9 @@ export function setup(logger: Logger, opts: { web?: boolean }, quality: Quality)
 						// Monaco lists use aria-multiselectable on role="list" and aria-setsize/aria-posinset/aria-selected on role="dialog" rows
 						// These violations appear intermittently when notification lists or other dynamic lists are visible
 						// Note: patterns match against HTML string, not CSS selectors, so no leading dots
-						'aria-allowed-attr': ['monaco-list', 'monaco-list-row']
+						'aria-allowed-attr': ['monaco-list', 'monaco-list-row'],
+						// Monaco lists may temporarily contain dialog children during extension activation errors
+						'aria-required-children': ['monaco-list']
 					}
 				});
 			});
