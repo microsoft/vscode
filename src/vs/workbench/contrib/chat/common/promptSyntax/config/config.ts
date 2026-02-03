@@ -96,6 +96,11 @@ export namespace PromptsConfig {
 	export const USE_AGENT_SKILLS = 'chat.useAgentSkills';
 
 	/**
+	 * Configuration key for enabling stronger skill adherence prompt (experimental).
+	 */
+	export const USE_SKILL_ADHERENCE_PROMPT = 'chat.experimental.useSkillAdherencePrompt';
+
+	/**
 	 * Configuration key for including applying instructions.
 	 */
 	export const INCLUDE_APPLYING_INSTRUCTIONS = 'chat.includeApplyingInstructions';

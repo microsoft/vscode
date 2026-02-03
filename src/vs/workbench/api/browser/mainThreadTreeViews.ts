@@ -20,6 +20,7 @@ import { DataTransferFileCache } from '../common/shared/dataTransferCache.js';
 import * as typeConvert from '../common/extHostTypeConverters.js';
 import { IMarkdownString } from '../../../base/common/htmlContent.js';
 import { IViewsService } from '../../services/views/common/viewsService.js';
+import { ITelemetryService } from '../../../platform/telemetry/common/telemetry.js';
 
 @extHostNamedCustomer(MainContext.MainThreadTreeViews)
 export class MainThreadTreeViews extends Disposable implements MainThreadTreeViewsShape {
@@ -33,7 +34,8 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 		@IViewsService private readonly viewsService: IViewsService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IExtensionService private readonly extensionService: IExtensionService,
-		@ILogService private readonly logService: ILogService
+		@ILogService private readonly logService: ILogService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostTreeViews);
@@ -136,6 +138,20 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 		}
 
 		this._dataProviders.deleteAndDispose(treeViewId);
+	}
+
+	$logResolveTreeNodeFailure(extensionId: string): void {
+		type TreeViewResolveFailureEvent = {
+			extensionId: string;
+		};
+		type TreeViewResolveFailureClassification = {
+			extensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The extension identifier.' };
+			owner: 'alexr00';
+			comment: 'Tracks tree view resolve failures due to concurrent refresh races.';
+		};
+		this.telemetryService.publicLog2<TreeViewResolveFailureEvent, TreeViewResolveFailureClassification>('treeView.resolveFailure', {
+			extensionId
+		});
 	}
 
 	private async reveal(treeView: ITreeView, dataProvider: TreeViewDataProvider, itemIn: ITreeItem, parentChain: ITreeItem[], options: IRevealOptions): Promise<void> {

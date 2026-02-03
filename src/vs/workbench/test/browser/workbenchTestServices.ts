@@ -130,6 +130,9 @@ import { SideBySideEditorInput } from '../../common/editor/sideBySideEditorInput
 import { TextResourceEditorInput } from '../../common/editor/textResourceEditorInput.js';
 import { IPaneComposite } from '../../common/panecomposite.js';
 import { IView, IViewDescriptor, ViewContainer, ViewContainerLocation } from '../../common/views.js';
+import { IChatWidget, IChatWidgetService } from '../../contrib/chat/browser/chat.js';
+import { IChatEditorOptions } from '../../contrib/chat/browser/widgetHosts/editor/chatEditor.js';
+import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
 import { FileEditorInput } from '../../contrib/files/browser/editors/fileEditorInput.js';
 import { TextFileEditor } from '../../contrib/files/browser/editors/textFileEditor.js';
 import { FILE_EDITOR_INPUT_ID } from '../../contrib/files/common/files.js';
@@ -157,7 +160,7 @@ import { BrowserElevatedFileService } from '../../services/files/browser/elevate
 import { IElevatedFileService } from '../../services/files/common/elevatedFileService.js';
 import { FilesConfigurationService, IFilesConfigurationService } from '../../services/filesConfiguration/common/filesConfigurationService.js';
 import { IHistoryService } from '../../services/history/common/history.js';
-import { IHostService } from '../../services/host/browser/host.js';
+import { IHostService, IToastOptions, IToastResult } from '../../services/host/browser/host.js';
 import { LabelService } from '../../services/label/common/labelService.js';
 import { ILanguageDetectionService } from '../../services/languageDetection/common/languageDetectionWorkerService.js';
 import { IPartVisibilityChangeEvent, IWorkbenchLayoutService, PanelAlignment, Position as PartPosition, Parts } from '../../services/layout/browser/layoutService.js';
@@ -374,6 +377,7 @@ export function workbenchInstantiationService(
 	instantiationService.stub(IHoverService, NullHoverService);
 	instantiationService.stub(IChatEntitlementService, new TestChatEntitlementService());
 	instantiationService.stub(IMarkdownRendererService, instantiationService.createInstance(MarkdownRendererService));
+	instantiationService.stub(IChatWidgetService, instantiationService.createInstance(TestChatWidgetService));
 
 	return instantiationService;
 }
@@ -1360,6 +1364,8 @@ export class TestHostService implements IHostService {
 
 	async getNativeWindowHandle(_windowId: number): Promise<VSBuffer | undefined> { return undefined; }
 
+	async showToast(_options: IToastOptions, token: CancellationToken): Promise<IToastResult> { return { supported: false, clicked: false }; }
+
 	readonly colorScheme = ColorScheme.DARK;
 	onDidChangeColorScheme = Event.None;
 }
@@ -2106,4 +2112,25 @@ export class TestContextMenuService implements IContextMenuService {
 	showContextMenu(delegate: IContextMenuDelegate | IContextMenuMenuDelegate): void {
 		throw new Error('Method not implemented.');
 	}
+}
+
+export class TestChatWidgetService implements IChatWidgetService {
+
+	_serviceBrand: undefined;
+
+	lastFocusedWidget: IChatWidget | undefined;
+
+	onDidAddWidget = Event.None;
+	onDidBackgroundSession = Event.None;
+
+	async reveal(widget: IChatWidget, preserveFocus?: boolean): Promise<boolean> { return false; }
+	async revealWidget(preserveFocus?: boolean): Promise<IChatWidget | undefined> { return undefined; }
+	getAllWidgets(): ReadonlyArray<IChatWidget> { return []; }
+	getWidgetByInputUri(uri: URI): IChatWidget | undefined { return undefined; }
+	openSession(sessionResource: URI): Promise<IChatWidget | undefined>;
+	openSession(sessionResource: URI, target?: PreferredGroup, options?: IChatEditorOptions): Promise<IChatWidget | undefined>;
+	async openSession(sessionResource: unknown, target?: unknown, options?: unknown): Promise<IChatWidget | undefined> { return undefined; }
+	getWidgetBySessionResource(sessionResource: URI): IChatWidget | undefined { return undefined; }
+	getWidgetsByLocations(location: ChatAgentLocation): ReadonlyArray<IChatWidget> { return []; }
+	register(newWidget: IChatWidget): IDisposable { return Disposable.None; }
 }

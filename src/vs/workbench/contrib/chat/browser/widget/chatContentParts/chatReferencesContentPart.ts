@@ -386,7 +386,7 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 				templateData.label.setLabel(label, asVariableName, { title: data.options?.status?.description });
 			} else {
 				// Nothing else is expected to fall into here
-				templateData.label.setLabel('Unknown variable type');
+				templateData.label.setLabel('Unknown variable type: ' + reference.variableName);
 			}
 		} else if (typeof reference === 'string') {
 			templateData.label.setLabel(reference, undefined, { iconPath: URI.isUri(icon) ? icon : undefined, title: data.options?.status?.description ?? data.title });

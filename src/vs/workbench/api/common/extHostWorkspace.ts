@@ -189,6 +189,9 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 	private readonly _onDidGrantWorkspaceTrust = new Emitter<void>();
 	readonly onDidGrantWorkspaceTrust: Event<void> = this._onDidGrantWorkspaceTrust.event;
 
+	private readonly _onDidChangeWorkspaceTrustedFolders = new Emitter<void>();
+	readonly onDidChangeWorkspaceTrustedFolders: Event<void> = this._onDidChangeWorkspaceTrustedFolders.event;
+
 	private readonly _logService: ILogService;
 	private readonly _requestIdProvider: Counter;
 	private readonly _barrier: Barrier;
@@ -819,6 +822,14 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 			this._trusted = true;
 			this._onDidGrantWorkspaceTrust.fire();
 		}
+	}
+
+	$onDidChangeWorkspaceTrustedFolders(): void {
+		this._onDidChangeWorkspaceTrustedFolders.fire();
+	}
+
+	isResourceTrusted(resource: vscode.Uri): Promise<boolean> {
+		return this._proxy.$isResourceTrusted(resource);
 	}
 
 	// --- edit sessions ---

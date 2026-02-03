@@ -97,6 +97,10 @@ export class BrowserUpdateService extends Disposable implements IUpdateService {
 	async _applySpecificUpdate(packagePath: string): Promise<void> {
 		// noop
 	}
+
+	async disableProgressiveReleases(): Promise<void> {
+		// noop - not applicable in browser
+	}
 }
 
 registerSingleton(IUpdateService, BrowserUpdateService, InstantiationType.Eager);

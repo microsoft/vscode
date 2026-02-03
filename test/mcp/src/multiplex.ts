@@ -48,11 +48,54 @@ export async function getServer(): Promise<Server> {
 		multiplexServer.addSubServer({
 			subServer: playwrightClient,
 			excludeTools: [
-				// The page will always be opened in the context of the application,
-				// so navigation and tab management is not needed.
+				// Playwright MCP doesn't properly support Electron's multi-window model.
+				// It uses browserContext.pages() which doesn't track Electron windows correctly.
+				// We provide vscode_automation_window_* alternatives that use ElectronApplication.windows().
+
+				// Navigation not needed - VS Code opens its own windows
 				'browser_navigate',
 				'browser_navigate_back',
-				'browser_tabs'
+				'browser_tabs',
+
+				// Page interaction tools - replaced by vscode_automation_window_*
+				'browser_click',          // → vscode_automation_window_click
+				'browser_type',           // → vscode_automation_window_type
+				'browser_hover',          // → vscode_automation_window_hover
+				'browser_drag',           // → vscode_automation_window_drag
+				'browser_select_option',  // → vscode_automation_window_select_option
+				'browser_fill_form',      // → vscode_automation_window_fill_form
+				'browser_press_key',      // → vscode_automation_window_press_key
+
+				// Mouse operations - replaced by vscode_automation_window_mouse_*
+				'browser_mouse_move_xy',  // → vscode_automation_window_mouse_move
+				'browser_mouse_click_xy', // → vscode_automation_window_mouse_click
+				'browser_mouse_drag_xy',  // → vscode_automation_window_mouse_drag
+
+				// Content capture - replaced by vscode_automation_window_*
+				'browser_snapshot',         // → vscode_automation_window_snapshot
+				'browser_take_screenshot',  // → vscode_automation_window_screenshot
+				'browser_evaluate',         // → vscode_automation_window_evaluate
+
+				// Console/debugging - replaced by vscode_automation_window_*
+				'browser_console_messages', // → vscode_automation_window_console_messages
+
+				// Wait/timing - replaced by vscode_automation_window_*
+				'browser_wait_for',         // → vscode_automation_window_wait_for_text / wait_for_time
+
+				// Verification - replaced by vscode_automation_window_*
+				'browser_verify_element_visible', // → vscode_automation_window_verify_element_visible
+				'browser_verify_text_visible',    // → vscode_automation_window_verify_text_visible
+				'browser_verify_list_visible',    // (no direct replacement - use multiple verify_text_visible)
+				'browser_verify_value',           // → vscode_automation_window_get_input_value
+
+				// Other page-dependent tools (not typically needed for VS Code testing)
+				'browser_close',
+				'browser_resize',
+				'browser_network_requests',
+				'browser_file_upload',
+				'browser_handle_dialog',
+				'browser_pdf_save',
+				'browser_generate_locator'
 			]
 		});
 		multiplexServer.sendToolListChanged();

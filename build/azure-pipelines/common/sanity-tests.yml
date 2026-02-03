@@ -17,6 +17,9 @@ parameters:
   - name: baseImage
     type: string
     default: ""
+  - name: pageSize
+    type: string
+    default: ""
   - name: args
     type: string
     default: ""
@@ -46,14 +49,13 @@ jobs:
           versionFilePath: .nvmrc
         displayName: Install Node.js
 
-      - bash: |
-          npm config set registry "$(NPM_REGISTRY)"
-          echo "##vso[task.setvariable variable=NPMRC_PATH]$(npm config get userconfig)"
+      - script: npm config set registry "$(NPM_REGISTRY)" --location=project
+        workingDirectory: $(TEST_DIR)
         displayName: Configure NPM Registry
 
       - task: npmAuthenticate@0
         inputs:
-          workingFile: $(NPMRC_PATH)
+          workingFile: $(TEST_DIR)/.npmrc
         displayName: Authenticate with NPM Registry
 
       - script: npm ci
@@ -86,13 +88,15 @@ jobs:
       - ${{ if ne(parameters.container, '') }}:
         - task: Cache@2
           inputs:
-            key: 'docker-v3 | "${{ parameters.container }}" | "${{ parameters.arch }}" | "$(Agent.OS)" | $(TEST_DIR)/containers/${{ parameters.container }}.dockerfile'
+            key: 'docker-v3 | "${{ parameters.container }}" | "${{ parameters.arch }}" | "${{ parameters.pageSize }}" | "$(Agent.OS)" | $(TEST_DIR)/containers/${{ parameters.container }}.dockerfile'
             path: $(DOCKER_CACHE_DIR)
-            restoreKeys: docker-v3 | "${{ parameters.container }}" | "${{ parameters.arch }}" | "$(Agent.OS)"
+            restoreKeys: docker-v3 | "${{ parameters.container }}" | "${{ parameters.arch }}" | "${{ parameters.pageSize }}" | "$(Agent.OS)"
             cacheHitVar: DOCKER_CACHE_HIT
           displayName: Download Docker Image
 
-        - bash: docker load -i "$(DOCKER_CACHE_FILE)"
+        - bash: |
+            docker load -i "$(DOCKER_CACHE_FILE)"
+            rm -f "$(DOCKER_CACHE_FILE)"
           condition: eq(variables.DOCKER_CACHE_HIT, 'true')
           displayName: Load Docker Image
 
@@ -101,10 +105,12 @@ jobs:
               --container "${{ parameters.container }}" \
               --arch "${{ parameters.arch }}" \
               --base-image "${{ parameters.baseImage }}" \
+              --page-size "${{ parameters.pageSize }}" \
               --quality "$(BUILD_QUALITY)" \
               --commit "$(BUILD_COMMIT)" \
               --test-results "/root/results.xml" \
-              --verbose
+              --verbose \
+              ${{ parameters.args }}
           workingDirectory: $(TEST_DIR)
           displayName: Run Sanity Tests
 

@@ -4,12 +4,29 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { VSBuffer } from '../../../../base/common/buffer.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { FocusMode } from '../../../../platform/native/common/native.js';
 import { IWindowOpenable, IOpenWindowOptions, IOpenEmptyWindowOptions, IPoint, IRectangle, IOpenedMainWindow, IOpenedAuxiliaryWindow } from '../../../../platform/window/common/window.js';
 
 export const IHostService = createDecorator<IHostService>('hostService');
+
+export interface IToastOptions {
+	readonly title: string;
+	readonly body?: string;
+
+	readonly actions?: readonly string[];
+
+	readonly silent?: boolean;
+}
+
+export interface IToastResult {
+	readonly supported: boolean;
+
+	readonly clicked: boolean;
+	readonly actionIndex?: number;
+}
 
 /**
  * A set of methods supported in both web and native environments.
@@ -141,6 +158,15 @@ export interface IHostService {
 	 * Get the native handle of the window.
 	 */
 	getNativeWindowHandle(windowId: number): Promise<VSBuffer | undefined>;
+
+	//#endregion
+
+	//#region Toast Notifications
+
+	/**
+	 * Show an OS-level toast notification.
+	 */
+	showToast(options: IToastOptions, token: CancellationToken): Promise<IToastResult>;
 
 	//#endregion
 }

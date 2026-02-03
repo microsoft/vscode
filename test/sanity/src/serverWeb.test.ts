@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { spawn } from 'child_process';
 import { TestContext } from './context.js';
 import { UITest } from './uiTest.js';
 
@@ -73,69 +72,39 @@ export function setup(context: TestContext) {
 
 		const token = context.getRandomToken();
 		const test = new UITest(context);
-		const args = [
-			'--accept-server-license-terms',
-			'--port', context.getUniquePort(),
-			'--connection-token', token,
-			'--server-data-dir', context.createTempDir(),
-			'--extensions-dir', test.extensionsDir,
-			'--user-data-dir', test.userDataDir
-		];
+		await context.runCliApp('Server', entryPoint,
+			[
+				'--accept-server-license-terms',
+				'--port', context.getUniquePort(),
+				'--connection-token', token,
+				'--server-data-dir', context.createTempDir(),
+				'--extensions-dir', test.extensionsDir,
+				'--user-data-dir', test.userDataDir
+			],
+			async (line) => {
+				const port = /Extension host agent listening on (\d+)/.exec(line)?.[1];
+				if (!port) {
+					return false;
+				}
 
-		context.log(`Starting server ${entryPoint} with args ${args.join(' ')}`);
-		const detached = !context.capabilities.has('windows');
-		const server = spawn(entryPoint, args, { shell: true, detached });
-
-		let testError: Error | undefined;
-
-		server.stderr.on('data', (data) => {
-			const text = data.toString().trim();
-			if (!/ECONNRESET/.test(text)) {
-				context.error(`[Server Error] ${text}`);
-			}
-		});
-
-		server.stdout.on('data', (data) => {
-			const text = data.toString().trim();
-			text.split('\n').forEach((line: string) => {
-				context.log(`[Server Output] ${line}`);
-			});
-
-			const port = /Extension host agent listening on (\d+)/.exec(text)?.[1];
-			if (port) {
 				const url = context.getWebServerUrl(port, token, test.workspaceDir).toString();
-				runUITest(url, test)
-					.catch((error) => { testError = error; })
-					.finally(() => context.killProcessTree(server.pid!));
+				const browser = await context.launchBrowser();
+				const page = await context.getPage(browser.newPage());
+
+				context.log(`Navigating to ${url}`);
+				await page.goto(url, { waitUntil: 'networkidle' });
+
+				context.log('Waiting for the workbench to load');
+				await page.waitForSelector('.monaco-workbench');
+
+				await test.run(page);
+
+				context.log('Closing browser');
+				await browser.close();
+
+				test.validate();
+				return true;
 			}
-		});
-
-		await new Promise<void>((resolve, reject) => {
-			server.on('error', reject);
-			server.on('exit', resolve);
-		});
-
-		if (testError) {
-			throw testError;
-		}
-	}
-
-	async function runUITest(url: string, test: UITest) {
-		const browser = await context.launchBrowser();
-		const page = await browser.newPage();
-		page.setDefaultTimeout(2 * 60 * 1000);
-
-		context.log(`Navigating to ${url}`);
-		await page.goto(url, { waitUntil: 'networkidle' });
-
-		context.log('Waiting for the workbench to load');
-		await page.waitForSelector('.monaco-workbench');
-
-		await test.run(page);
-
-		context.log('Closing browser');
-		await browser.close();
-
-		test.validate();
+		);
 	}
 }

@@ -42,6 +42,7 @@ export const enum ZenModeSettings {
 
 export const enum LayoutSettings {
 	ACTIVITY_BAR_LOCATION = 'workbench.activityBar.location',
+	ACTIVITY_BAR_AUTO_HIDE = 'workbench.activityBar.autoHide',
 	EDITOR_TABS_MODE = 'workbench.editor.showTabs',
 	EDITOR_ACTIONS_LOCATION = 'workbench.editor.editorActionsLocation',
 	COMMAND_CENTER = 'window.commandCenter',

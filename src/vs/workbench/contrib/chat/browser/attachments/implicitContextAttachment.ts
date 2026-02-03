@@ -16,6 +16,7 @@ import { Schemas } from '../../../../../base/common/network.js';
 import { basename, dirname } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { isLocation, Location } from '../../../../../editor/common/languages.js';
+import { getIconClasses } from '../../../../../editor/common/services/getIconClasses.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { localize } from '../../../../../nls.js';
@@ -155,7 +156,7 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 		let markdownTooltip: IMarkdownString | undefined;
 		if (isStringImplicitContextValue(context.value)) {
 			markdownTooltip = context.value.tooltip;
-			title = this.renderString(label, context.name, context.icon, markdownTooltip, localize('openFile', "Current file context"));
+			title = this.renderString(label, context.name, context.icon, context.value.resourceUri, markdownTooltip, localize('openFile', "Current file context"));
 		} else {
 			title = this.renderResource(context.value, context.isSelection, context.enabled, label);
 		}
@@ -188,10 +189,18 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 		}));
 	}
 
-	private renderString(resourceLabel: IResourceLabel, name: string, icon: ThemeIcon | undefined, markdownTooltip: IMarkdownString | undefined, defaultTitle: string): string | undefined {
+	private renderString(resourceLabel: IResourceLabel, name: string, icon: ThemeIcon | undefined, resourceUri: URI | undefined, markdownTooltip: IMarkdownString | undefined, defaultTitle: string): string | undefined {
 		// Don't set title if we have a markdown tooltip - the hover service will handle it
 		const title = markdownTooltip ? undefined : defaultTitle;
-		resourceLabel.setLabel(name, undefined, { iconPath: icon, title });
+
+		// Derive icon classes from resourceUri for file/folder icons
+		if (icon && (ThemeIcon.isFile(icon) || ThemeIcon.isFolder(icon)) && resourceUri) {
+			const fileKind = ThemeIcon.isFolder(icon) ? FileKind.FOLDER : FileKind.FILE;
+			const iconClasses = getIconClasses(this.modelService, this.languageService, resourceUri, fileKind);
+			resourceLabel.setLabel(name, undefined, { extraClasses: iconClasses, title });
+		} else {
+			resourceLabel.setLabel(name, undefined, { iconPath: icon, title });
+		}
 		return title;
 	}
 
@@ -240,6 +249,7 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 				icon: attachment.value.icon,
 				modelDescription: attachment.modelDescription,
 				uri: attachment.value.uri,
+				resourceUri: attachment.value.resourceUri,
 				tooltip: attachment.value.tooltip,
 				commandId: attachment.value.commandId,
 				handle: attachment.value.handle

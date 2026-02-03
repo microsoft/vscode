@@ -16,7 +16,7 @@ Use -g or -f command-line options to filter tests to match the host platform.
 
 ### Command-Line Options
 
-| Option | Alias | Description |
+|Option|Alias|Description|
 |--------|-------|-------------|
 |`--commit <commit>`|`-c`|The commit to test (required)|
 |`--quality <quality>`|`-q`|The quality to test (required, "stable", "insider" or "exploration")|
@@ -43,7 +43,7 @@ npm run sanity-test -- --commit 19228f26df517fecbfda96c20956f7c521e072be --quali
 
 Platform-specific scripts are provided in the `scripts/` directory to set up the environment and run tests:
 
-| Script | Platform | Description |
+|Script|Platform|Description|
 |--------|----------|-------------|
 |`run-win32.cmd`|Windows|Runs tests using Edge as the Playwright browser|
 |`run-macOS.sh`|macOS|Installs Playwright WebKit and runs tests|
@@ -55,7 +55,7 @@ Platform-specific scripts are provided in the `scripts/` directory to set up the
 
 The `run-docker.sh` script accepts the following options:
 
-| Option | Description |
+|Option|Description|
 |--------|-------------|
 |`--container <name>`|Container dockerfile name (required, e.g., "ubuntu", "alpine")|
 |`--arch <arch>`|Target architecture: amd64, arm64, or arm (default: amd64)|
@@ -67,7 +67,7 @@ All other arguments are passed through to the sanity test runner.
 
 Docker container definitions are provided in the `containers/` directory for testing on various Linux distributions:
 
-| Container | Base Image | Description |
+|Container|Base Image|Description|
 |-----------|------------|-------------|
 |`alpine`|Alpine 3.x|Alpine Linux with musl libc|
 |`centos`|CentOS Stream 9|RHEL-compatible distribution|
@@ -103,7 +103,7 @@ Sanity tests run in Azure Pipelines via the `product-sanity-tests.yml` pipeline.
 
 ### Pipeline Parameters
 
-| Parameter | Description |
+|Parameter|Description|
 |-----------|-------------|
 |`buildQuality`|The quality of the build to test: "exploration", "insider", or "stable"|
 |`buildCommit`|The published build commit SHA|
@@ -117,6 +117,7 @@ The pipeline tests across multiple platforms and architectures:
 
 - macOS arm64
 - Windows x64
+- Windows arm64
 - Ubuntu 22.04 x64 (native, with Snap support)
 
 **Partial Support:**
@@ -124,7 +125,6 @@ The pipeline tests across multiple platforms and architectures:
 For the following platforms only downloads are validated (and not install/runtime):
 
 - macOS x64
-- Windows arm64
 
 **Linux Containers (amd64 and arm64):**
 

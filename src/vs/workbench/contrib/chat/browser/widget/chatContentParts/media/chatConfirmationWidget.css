@@ -317,7 +317,7 @@
 		}
 
 		.codicon {
-			font-size: var(--vscode-chat-font-size-body-s);
+			font-size: 12px;
 		}
 
 		&:hover {

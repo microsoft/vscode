@@ -61,12 +61,21 @@ declare module 'vscode' {
 	export interface ChatContextItem {
 		/**
 		 * Icon for the context item.
+		 * - If `icon` is not defined, no icon is shown.
+		 * - If `icon` is defined and is a file or folder icon, the icon is derived from {@link resourceUri} if `resourceUri` is defined.
+		 * - Otherwise, `icon` is used.
 		 */
-		icon: ThemeIcon;
+		icon?: ThemeIcon;
 		/**
 		 * Human readable label for the context item.
+		 * If not set, the label is derived from {@link resourceUri}.
 		 */
-		label: string;
+		label?: string;
+		/**
+		 * A resource URI for the context item.
+		 * Used to derive the {@link label} and {@link icon} if they are not set.
+		 */
+		resourceUri?: Uri;
 		/**
 		 * An optional description of the context item, e.g. to describe the item to the language model.
 		 */

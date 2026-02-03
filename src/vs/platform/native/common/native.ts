@@ -15,6 +15,24 @@ import { AuthInfo, Credentials } from '../../request/common/request.js';
 import { IPartsSplash } from '../../theme/common/themeService.js';
 import { IColorScheme, IOpenedAuxiliaryWindow, IOpenedMainWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IPoint, IRectangle, IWindowOpenable } from '../../window/common/window.js';
 
+export interface IToastOptions {
+	readonly id: string;
+
+	readonly title: string;
+	readonly body?: string;
+
+	readonly actions?: readonly string[];
+
+	readonly silent?: boolean;
+}
+
+export interface IToastResult {
+	readonly supported: boolean;
+
+	readonly clicked: boolean;
+	readonly actionIndex?: number;
+}
+
 export interface ICPUProperties {
 	model: string;
 	speed: number;
@@ -230,6 +248,11 @@ export interface ICommonNativeHostService {
 
 	// Registry (Windows only)
 	windowsGetStringRegKey(hive: 'HKEY_CURRENT_USER' | 'HKEY_LOCAL_MACHINE' | 'HKEY_CLASSES_ROOT' | 'HKEY_USERS' | 'HKEY_CURRENT_CONFIG', path: string, name: string): Promise<string | undefined>;
+
+	// Toast Notifications
+	showToast(options: IToastOptions): Promise<IToastResult>;
+	clearToast(id: string): Promise<void>;
+	clearToasts(): Promise<void>;
 
 	// Zip
 	/**

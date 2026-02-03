@@ -74,7 +74,7 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 						category: this._getSessionCategory(sessionTypeItem),
 						description: this._getSessionDescription(sessionTypeItem),
 						tooltip: '',
-						hover: { content: sessionTypeItem.hoverDescription },
+						hover: { content: sessionTypeItem.hoverDescription, position: this.pickerOptions.hoverPosition },
 						run: async () => {
 							this._run(sessionTypeItem);
 						},
@@ -95,7 +95,7 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 			actionProvider,
 			actionBarActionProvider,
 			showItemKeybindings: true,
-			reporter: { name: `ChatSessionTypePicker`, includeOptions: true },
+			reporter: { id: 'ChatSessionTypePicker', name: `ChatSessionTypePicker`, includeOptions: true },
 		};
 
 		super(action, sessionTargetPickerOptions, pickerOptions, actionWidgetService, keybindingService, contextKeyService, telemetryService);

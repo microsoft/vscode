@@ -133,6 +133,11 @@ export class McpServerRequestHandler extends Disposable {
 									elicitation: opts.elicitationRequestHandler ? { create: {} } : undefined,
 								},
 							},
+							extensions: {
+								'io.modelcontextprotocol/ui': {
+									mimeTypes: ['text/html;profile=mcp-app']
+								}
+							}
 						},
 						clientInfo: {
 							name: productService.nameLong,
@@ -321,22 +326,26 @@ export class McpServerRequestHandler extends Disposable {
 	/**
 	 * Handle successful responses
 	 */
-	private handleResult(response: MCP.JSONRPCResponse): void {
-		const request = this._pendingRequests.get(response.id);
-		if (request) {
-			this._pendingRequests.delete(response.id);
-			request.promise.complete(response.result);
+	private handleResult(response: MCP.JSONRPCResultResponse): void {
+		if (response.id !== undefined) {
+			const request = this._pendingRequests.get(response.id);
+			if (request) {
+				this._pendingRequests.delete(response.id);
+				request.promise.complete(response.result);
+			}
 		}
 	}
 
 	/**
 	 * Handle error responses
 	 */
-	private handleError(response: MCP.JSONRPCError): void {
-		const request = this._pendingRequests.get(response.id);
-		if (request) {
-			this._pendingRequests.delete(response.id);
-			request.promise.error(new MpcResponseError(response.error.message, response.error.code, response.error.data));
+	private handleError(response: MCP.JSONRPCErrorResponse): void {
+		if (response.id !== undefined) {
+			const request = this._pendingRequests.get(response.id);
+			if (request) {
+				this._pendingRequests.delete(response.id);
+				request.promise.error(new MpcResponseError(response.error.message, response.error.code, response.error.data));
+			}
 		}
 	}
 
@@ -394,7 +403,7 @@ export class McpServerRequestHandler extends Disposable {
 				e = McpError.unknown(e);
 			}
 
-			const errorResponse: MCP.JSONRPCError = {
+			const errorResponse: MCP.JSONRPCErrorResponse = {
 				jsonrpc: MCP.JSONRPC_VERSION,
 				id: request.id,
 				error: {

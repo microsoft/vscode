@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { IHostService } from '../browser/host.js';
+import { IHostService, IToastOptions, IToastResult } from '../browser/host.js';
 import { FocusMode, INativeHostService } from '../../../../platform/native/common/native.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ILabelService, Verbosity } from '../../../../platform/label/common/label.js';
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
 import { IWindowOpenable, IOpenWindowOptions, isFolderToOpen, isWorkspaceToOpen, IOpenEmptyWindowOptions, IPoint, IRectangle, IOpenedAuxiliaryWindow, IOpenedMainWindow } from '../../../../platform/window/common/window.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableSet, IDisposable } from '../../../../base/common/lifecycle.js';
 import { NativeHostService } from '../../../../platform/native/common/nativeHostService.js';
 import { INativeWorkbenchEnvironmentService } from '../../environment/electron-browser/environmentService.js';
 import { IMainProcessService } from '../../../../platform/ipc/common/mainProcessService.js';
@@ -18,6 +18,9 @@ import { disposableWindowInterval, getActiveDocument, getWindowId, getWindowsCou
 import { memoize } from '../../../../base/common/decorators.js';
 import { isAuxiliaryWindow } from '../../../../base/browser/window.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { showBrowserToast } from '../browser/toasts.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
 
 class WorkbenchNativeHostService extends NativeHostService {
 
@@ -49,6 +52,18 @@ class WorkbenchHostService extends Disposable implements IHostService {
 		);
 
 		this.onDidChangeFullScreen = Event.filter(this.nativeHostService.onDidChangeWindowFullScreen, e => hasWindow(e.windowId), this._store);
+
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+
+		// Make sure to hide all OS toasts when the window gains focus
+		this._register(this.onDidChangeFocus(focus => {
+			if (focus) {
+				this.clearToasts();
+			}
+		}));
 	}
 
 	//#region Focus
@@ -217,6 +232,35 @@ class WorkbenchHostService extends Disposable implements IHostService {
 			this._nativeWindowHandleCache.set(windowId, this.nativeHostService.getNativeWindowHandle(windowId));
 		}
 		return this._nativeWindowHandleCache.get(windowId)!;
+	}
+
+	//#endregion
+
+	//#region Toast Notifications
+
+	private readonly activeBrowserToasts = this._register(new DisposableSet());
+
+	async showToast(options: IToastOptions, token: CancellationToken): Promise<IToastResult> {
+		const id = generateUuid();
+		token.onCancellationRequested(() => this.nativeHostService.clearToast(id));
+
+		// Try native OS notifications first
+		const nativeToast = await this.nativeHostService.showToast({ ...options, id });
+		if (nativeToast.supported) {
+			return nativeToast;
+		}
+
+		// Then fallback to browser notifications
+		return showBrowserToast({
+			onDidCreateToast: (toast: IDisposable) => this.activeBrowserToasts.add(toast),
+			onDidDisposeToast: (toast: IDisposable) => this.activeBrowserToasts.deleteAndDispose(toast)
+		}, options, token);
+	}
+
+	private async clearToasts(): Promise<void> {
+		await this.nativeHostService.clearToasts();
+
+		this.activeBrowserToasts.clearAndDisposeAll();
 	}
 
 	//#endregion

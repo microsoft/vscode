@@ -17,7 +17,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Location } from '../../../../../editor/common/languages.js';
 import { localize } from '../../../../../nls.js';
-import { ContextKeyExpression } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpression, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { ByteSize } from '../../../../../platform/files/common/files.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -391,8 +391,9 @@ export class ToolSet implements IToolSet {
 		readonly referenceName: string,
 		readonly icon: ThemeIcon,
 		readonly source: ToolDataSource,
-		readonly description?: string,
-		readonly legacyFullNames?: string[],
+		readonly description: string | undefined,
+		readonly legacyFullNames: string[] | undefined,
+		private readonly _contextKeyService: IContextKeyService,
 	) {
 
 		this.isHomogenous = derived(r => {
@@ -420,7 +421,7 @@ export class ToolSet implements IToolSet {
 
 	getTools(r?: IReader): Iterable<IToolData> {
 		return Iterable.concat(
-			this._tools.observable.read(r),
+			Iterable.filter(this._tools.observable.read(r), toolData => this._contextKeyService.contextMatchesRules(toolData.when)),
 			...Iterable.map(this._toolSets.observable.read(r), toolSet => toolSet.getTools(r))
 		);
 	}
@@ -470,6 +471,13 @@ export interface IBeginToolCallOptions {
 	subagentInvocationId?: string;
 }
 
+export interface IToolInvokedEvent {
+	readonly toolId: string;
+	readonly sessionResource: URI | undefined;
+	readonly requestId: string | undefined;
+	readonly subagentInvocationId: string | undefined;
+}
+
 export const ILanguageModelToolsService = createDecorator<ILanguageModelToolsService>('ILanguageModelToolsService');
 
 export type CountTokensCallback = (input: string, token: CancellationToken) => Promise<number>;
@@ -482,6 +490,7 @@ export interface ILanguageModelToolsService {
 	readonly agentToolSet: ToolSet;
 	readonly onDidChangeTools: Event<void>;
 	readonly onDidPrepareToolCallBecomeUnresponsive: Event<{ readonly sessionResource: URI; readonly toolData: IToolData }>;
+	readonly onDidInvokeTool: Event<IToolInvokedEvent>;
 	registerToolData(toolData: IToolData): IDisposable;
 	registerToolImplementation(id: string, tool: IToolImpl): IDisposable;
 	registerTool(toolData: IToolData, tool: IToolImpl): IDisposable;

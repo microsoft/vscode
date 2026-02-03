@@ -47,9 +47,9 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 		if (!this._workspaceTrustManagementService.isWorkspaceTrusted()) {
 			return;
 		}
-		const hasShownPromptForAutomaticTasks = this._storageService.getBoolean(HAS_PROMPTED_FOR_AUTOMATIC_TASKS, StorageScope.WORKSPACE, false);
-		if (this._hasRunTasks ||
-			(this._configurationService.getValue(ALLOW_AUTOMATIC_TASKS) === 'off' && hasShownPromptForAutomaticTasks)) {
+		const { value, userValue } = this._configurationService.inspect<string>(ALLOW_AUTOMATIC_TASKS);
+		// If user explicitly set it to 'off', don't run or prompt
+		if (this._hasRunTasks || (value === 'off' && userValue !== undefined)) {
 			return;
 		}
 		this._hasRunTasks = true;

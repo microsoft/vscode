@@ -14,7 +14,7 @@
 }
 
 .interactive-item-container .chat-tip-widget .codicon-lightbulb {
-	font-size: var(--vscode-chat-font-size-body-s);
+	font-size: 12px;
 	color: var(--vscode-descriptionForeground);
 }
 

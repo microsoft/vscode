@@ -253,15 +253,14 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 		if (!this._profilesObject) {
 			const defaultProfile = this.createDefaultProfile();
 			const profiles: Array<Mutable<IUserDataProfile>> = [defaultProfile];
-			const profilesToRemove: IUserDataProfile[] = [];
 			try {
 				for (const storedProfile of this.getStoredProfiles()) {
-					if (!storedProfile.name || !isString(storedProfile.name) || !storedProfile.location) {
+					if (this.isInvalidProfile(storedProfile)) {
 						this.logService.warn('Skipping the invalid stored profile', storedProfile.location || storedProfile.name);
 						continue;
 					}
 					const id = basename(storedProfile.location);
-					const profile = toUserDataProfile(
+					profiles.push(toUserDataProfile(
 						id,
 						storedProfile.name,
 						storedProfile.location,
@@ -270,13 +269,7 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 							icon: storedProfile.icon,
 							useDefaultFlags: storedProfile.useDefaultFlags,
 						},
-						defaultProfile);
-
-					if (storedProfile.isSystem || this.uriIdentityService.extUri.basename(this.uriIdentityService.extUri.dirname(profile.location)) === 'builtin') {
-						profilesToRemove.push(profile);
-					} else {
-						profiles.push(profile);
-					}
+						defaultProfile));
 				}
 			} catch (error) {
 				this.logService.error(error);
@@ -309,11 +302,27 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 				}
 			}
 			this._profilesObject = { profiles, emptyWindows };
-			if (profilesToRemove.length) {
-				this.updateProfiles([], profilesToRemove, [], true);
-			}
 		}
 		return this._profilesObject;
+	}
+
+	private isInvalidProfile(storedProfile: StoredUserDataProfile): boolean {
+		if (!storedProfile.name) {
+			return true;
+		}
+		if (!isString(storedProfile.name)) {
+			return true;
+		}
+		if (!storedProfile.location) {
+			return true;
+		}
+		if (storedProfile.isSystem) {
+			return true;
+		}
+		if (this.uriIdentityService.extUri.basename(this.uriIdentityService.extUri.dirname(storedProfile.location)) === 'builtin') {
+			return true;
+		}
+		return false;
 	}
 
 	private createDefaultProfile() {
@@ -521,19 +530,40 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 	}
 
 	async cleanUp(): Promise<void> {
-		if (await this.fileService.exists(this.profilesHome)) {
-			const systemProfilesFolder = this.uriIdentityService.extUri.joinPath(this.profilesHome, 'builtin');
-			if (await this.fileService.exists(systemProfilesFolder)) {
-				try {
-					await this.fileService.del(systemProfilesFolder, { recursive: true });
-				} catch (error) {
-					this.logService.error(error);
+		try {
+			if (await this.fileService.exists(this.profilesHome)) {
+				const systemProfilesFolder = this.uriIdentityService.extUri.joinPath(this.profilesHome, 'builtin');
+				if (await this.fileService.exists(systemProfilesFolder)) {
+					try {
+						await this.fileService.del(systemProfilesFolder, { recursive: true });
+					} catch (error) {
+						this.logService.error(error);
+					}
+				}
+				const stat = await this.fileService.resolve(this.profilesHome);
+				await Promise.all((stat.children || [])
+					.filter(child => child.isDirectory && this.profiles.every(p => !this.uriIdentityService.extUri.isEqual(p.location, child.resource)))
+					.map(child => this.fileService.del(child.resource, { recursive: true })));
+			}
+		} catch (error) {
+			this.logService.error('Error deleting redundant profile folders', error);
+		}
+
+		try {
+			const existing = this.getStoredProfiles();
+			const valid: StoredUserDataProfile[] = [];
+			for (const storedProfile of this.getStoredProfiles()) {
+				if (this.isInvalidProfile(storedProfile)) {
+					this.logService.warn(`Invalid user data profile found: ${storedProfile.name}`);
+				} else {
+					valid.push(storedProfile);
 				}
 			}
-			const stat = await this.fileService.resolve(this.profilesHome);
-			await Promise.all((stat.children || [])
-				.filter(child => child.isDirectory && this.profiles.every(p => !this.uriIdentityService.extUri.isEqual(p.location, child.resource)))
-				.map(child => this.fileService.del(child.resource, { recursive: true })));
+			if (existing.length !== valid.length) {
+				this.saveStoredProfiles(valid);
+			}
+		} catch (error) {
+			this.logService.error('Error removing invalid stored profiles', error);
 		}
 	}
 

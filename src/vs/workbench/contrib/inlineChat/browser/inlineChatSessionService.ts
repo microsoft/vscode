@@ -8,7 +8,7 @@ import { IActiveCodeEditor, ICodeEditor } from '../../../../editor/browser/edito
 import { Position } from '../../../../editor/common/core/position.js';
 import { Selection } from '../../../../editor/common/core/selection.js';
 import { createDecorator, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { ChatViewPaneTarget, IChatWidgetService } from '../../chat/browser/chat.js';
+import { IChatWidgetService } from '../../chat/browser/chat.js';
 import { IChatEditingSession } from '../../chat/common/editing/chatEditingService.js';
 import { IChatModel, IChatModelInputState, IChatRequestModel } from '../../chat/common/model/chatModel.js';
 import { IChatService } from '../../chat/common/chatService/chatService.js';
@@ -76,7 +76,7 @@ export async function askInPanelChat(accessor: ServicesAccessor, request: IChatR
 
 	newModel.inputModel.setState({ ...state });
 
-	const widget = await widgetService.openSession(newModelRef.object.sessionResource, ChatViewPaneTarget);
+	const widget = await widgetService.openSession(newModelRef.object.sessionResource);
 
 	newModelRef.dispose(); // can be freed after opening because the widget also holds a reference
 	widget?.acceptInput(request.message.text);

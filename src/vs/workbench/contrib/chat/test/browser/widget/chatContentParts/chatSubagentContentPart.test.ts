@@ -309,15 +309,6 @@ suite('ChatSubagentContentPart', () => {
 
 			assert.ok(part.domNode.classList.contains('chat-used-context-collapsed'), 'Should be collapsed by default');
 		});
-
-		test('should be focusable via tabIndex', () => {
-			const toolInvocation = createMockToolInvocation();
-			const context = createMockRenderContext(false);
-
-			const part = createPart(toolInvocation, context);
-
-			assert.strictEqual(part.domNode.tabIndex, 0, 'Should be focusable');
-		});
 	});
 
 	suite('Title extraction', () => {

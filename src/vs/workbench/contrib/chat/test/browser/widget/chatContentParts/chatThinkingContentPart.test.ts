@@ -1130,24 +1130,6 @@ suite('ChatThinkingContentPart', () => {
 			mockConfigurationService.setUserConfiguration('chat.agent.thinkingStyle', ThinkingDisplayMode.Collapsed);
 		});
 
-		test('should be focusable via tabIndex', () => {
-			const content = createThinkingPart('**Content**');
-			const context = createMockRenderContext(false);
-
-			const part = store.add(instantiationService.createInstance(
-				ChatThinkingContentPart,
-				content,
-				context,
-				mockMarkdownRenderer,
-				false
-			));
-
-			mainWindow.document.body.appendChild(part.domNode);
-			disposables.add(toDisposable(() => part.domNode.remove()));
-
-			assert.strictEqual(part.domNode.tabIndex, 0, 'Should be focusable');
-		});
-
 		test('should have proper aria-expanded attribute', () => {
 			const content = createThinkingPart('**Content**');
 			const context = createMockRenderContext(false);

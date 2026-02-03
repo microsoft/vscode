@@ -22,7 +22,7 @@ import { AgentSessionStatus, IAgentSession, isSessionInProgressStatus } from '..
 import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IAction, Separator, SubmenuAction, toAction } from '../../../../../../base/common/actions.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
-import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, WorkbenchState } from '../../../../../../platform/workspace/common/workspace.js';
 import { IBrowserWorkbenchEnvironmentService } from '../../../../../services/environment/browser/environmentService.js';
 import { IEditorGroupsService } from '../../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
@@ -86,6 +86,10 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 
 	/** First focusable element for keyboard navigation */
 	private _firstFocusableElement: HTMLElement | undefined;
+
+	/** Tracks if this window applied a badge filter (unread/inProgress), so we only auto-clear our own filters */
+	// TODO: This is imperfect. Targetted fix for vscode#290863. We should revisit storing filter state per-window to avoid this
+	private _badgeFilterAppliedByThisWindow: 'unread' | 'inProgress' | null = null;
 
 	/** Reusable menu for CommandCenterCenter items (e.g., debug toolbar) */
 	private readonly _commandCenterMenu;
@@ -161,7 +165,7 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 
 		// Re-render when settings change
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(ChatConfiguration.UnifiedAgentsBar) || e.affectsConfiguration(ChatConfiguration.AgentStatusEnabled)) {
+			if (e.affectsConfiguration(ChatConfiguration.UnifiedAgentsBar) || e.affectsConfiguration(ChatConfiguration.AgentStatusEnabled) || e.affectsConfiguration(ChatConfiguration.ChatViewSessionsEnabled)) {
 				this._lastRenderState = undefined; // Force re-render
 				this._render();
 			}
@@ -259,6 +263,7 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 			// Check which settings are enabled (these are independent settings)
 			const unifiedAgentsBarEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.UnifiedAgentsBar) === true;
 			const agentStatusEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.AgentStatusEnabled) === true;
+			const viewSessionsEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.ChatViewSessionsEnabled) !== false;
 
 			// Build state key for comparison
 			const stateKey = JSON.stringify({
@@ -273,6 +278,7 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 				isFilteredToInProgress,
 				unifiedAgentsBarEnabled,
 				agentStatusEnabled,
+				viewSessionsEnabled,
 			});
 
 			// Skip re-render if state hasn't changed
@@ -332,9 +338,11 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 			? sessions.filter(s => !excludedProviders.includes(s.providerType))
 			: sessions;
 
-		const activeSessions = filteredSessions.filter(s => isSessionInProgressStatus(s.status) && !s.isArchived() && !this.chatWidgetService.getWidgetBySessionResource(s.resource));
-		const unreadSessions = filteredSessions.filter(s => !s.isRead() && !this.chatWidgetService.getWidgetBySessionResource(s.resource));
-		const attentionNeededSessions = filteredSessions.filter(s => s.status === AgentSessionStatus.NeedsInput);
+		// Active sessions include both InProgress and NeedsInput
+		const activeSessions = filteredSessions.filter(s => isSessionInProgressStatus(s.status) && !s.isArchived());
+		const unreadSessions = filteredSessions.filter(s => !s.isRead());
+		// Sessions that need user input/attention (subset of active)
+		const attentionNeededSessions = filteredSessions.filter(s => s.status === AgentSessionStatus.NeedsInput && !this.chatWidgetService.getWidgetBySessionResource(s.resource));
 
 		return {
 			activeSessions,
@@ -457,7 +465,7 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 
 		// Status badge (separate rectangle on right) - only when Agent Status is enabled
 		if (this.configurationService.getValue<boolean>(ChatConfiguration.AgentStatusEnabled) === true) {
-			this._renderStatusBadge(disposables, activeSessions, unreadSessions);
+			this._renderStatusBadge(disposables, activeSessions, unreadSessions, attentionNeededSessions);
 		}
 	}
 
@@ -466,7 +474,7 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 			return;
 		}
 
-		const { activeSessions, unreadSessions } = this._getSessionStats();
+		const { activeSessions, unreadSessions, attentionNeededSessions } = this._getSessionStats();
 
 		// Render command center items (like debug toolbar) FIRST - to the left
 		this._renderCommandCenterToolbar(disposables);
@@ -504,7 +512,7 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 
 		// Status badge (separate rectangle on right) - only when Agent Status is enabled
 		if (this.configurationService.getValue<boolean>(ChatConfiguration.AgentStatusEnabled) === true) {
-			this._renderStatusBadge(disposables, activeSessions, unreadSessions);
+			this._renderStatusBadge(disposables, activeSessions, unreadSessions, attentionNeededSessions);
 		}
 	}
 
@@ -517,7 +525,7 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 			return;
 		}
 
-		const { activeSessions, unreadSessions } = this._getSessionStats();
+		const { activeSessions, unreadSessions, attentionNeededSessions } = this._getSessionStats();
 
 		const pill = $('div.agent-status-pill.session-ready-mode');
 		this._container.appendChild(pill);
@@ -555,7 +563,7 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 
 		// Status badge (separate rectangle on right) - only when Agent Status is enabled
 		if (this.configurationService.getValue<boolean>(ChatConfiguration.AgentStatusEnabled) === true) {
-			this._renderStatusBadge(disposables, activeSessions, unreadSessions);
+			this._renderStatusBadge(disposables, activeSessions, unreadSessions, attentionNeededSessions);
 		}
 	}
 
@@ -568,10 +576,10 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 			return;
 		}
 
-		const { activeSessions, unreadSessions } = this._getSessionStats();
+		const { activeSessions, unreadSessions, attentionNeededSessions } = this._getSessionStats();
 
 		// Status badge only - no pill, no command center toolbar
-		this._renderStatusBadge(disposables, activeSessions, unreadSessions);
+		this._renderStatusBadge(disposables, activeSessions, unreadSessions, attentionNeededSessions);
 	}
 
 	// #endregion
@@ -676,19 +684,20 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 	}
 
 	/**
-	 * Render the status badge showing in-progress and/or unread session counts.
-	 * Shows split UI with sparkle icon on left, then unread and active indicators.
+	 * Render the status badge showing in-progress, needs-input, and/or unread session counts.
+	 * Shows split UI with sparkle icon on left, then unread, needs-input, and active indicators.
 	 * Always renders the sparkle icon section.
 	 */
-	private _renderStatusBadge(disposables: DisposableStore, activeSessions: IAgentSession[], unreadSessions: IAgentSession[]): void {
+	private _renderStatusBadge(disposables: DisposableStore, activeSessions: IAgentSession[], unreadSessions: IAgentSession[], attentionNeededSessions: IAgentSession[]): void {
 		if (!this._container) {
 			return;
 		}
 
 		const hasActiveSessions = activeSessions.length > 0;
 		const hasUnreadSessions = unreadSessions.length > 0;
+		const hasAttentionNeeded = attentionNeededSessions.length > 0;
 
-		// Auto-clear filter if the filtered category becomes empty
+		// Auto-clear filter if the filtered category becomes empty if this window applied it
 		this._clearFilterIfCategoryEmpty(hasUnreadSessions, hasActiveSessions);
 
 		const badge = $('div.agent-status-badge');
@@ -773,8 +782,11 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 		// Hover delegate for status sections
 		const hoverDelegate = getDefaultHoverDelegate('mouse');
 
+		// Only show status indicators if chat.viewSessions.enabled is true
+		const viewSessionsEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.ChatViewSessionsEnabled) !== false;
+
 		// Unread section (blue dot + count)
-		if (hasUnreadSessions) {
+		if (viewSessionsEnabled && hasUnreadSessions && this.workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY) {
 			const { isFilteredToUnread } = this._getCurrentFilterState();
 			const unreadSection = $('span.agent-status-badge-section.unread');
 			if (isFilteredToUnread) {
@@ -811,21 +823,27 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 			disposables.add(this.hoverService.setupManagedHover(hoverDelegate, unreadSection, unreadTooltip));
 		}
 
-		// In-progress section (session-in-progress icon + count)
-		if (hasActiveSessions) {
+		// In-progress/Needs-input section - shows "needs input" state when any session needs attention,
+		// otherwise shows "in progress" state. This is a single section that transforms based on state.
+		if (viewSessionsEnabled && hasActiveSessions) {
 			const { isFilteredToInProgress } = this._getCurrentFilterState();
 			const activeSection = $('span.agent-status-badge-section.active');
+			if (hasAttentionNeeded) {
+				activeSection.classList.add('needs-input');
+			}
 			if (isFilteredToInProgress) {
 				activeSection.classList.add('filtered');
 			}
 			activeSection.setAttribute('role', 'button');
 			activeSection.tabIndex = 0;
-			const runningIcon = $('span.agent-status-icon');
-			reset(runningIcon, renderIcon(Codicon.sessionInProgress));
-			activeSection.appendChild(runningIcon);
-			const runningCount = $('span.agent-status-text');
-			runningCount.textContent = String(activeSessions.length);
-			activeSection.appendChild(runningCount);
+			const statusIcon = $('span.agent-status-icon');
+			// Show report icon when needs input, otherwise session-in-progress icon
+			reset(statusIcon, renderIcon(hasAttentionNeeded ? Codicon.report : Codicon.sessionInProgress));
+			activeSection.appendChild(statusIcon);
+			const statusCount = $('span.agent-status-text');
+			// Show needs-input count when attention needed, otherwise total active count
+			statusCount.textContent = String(hasAttentionNeeded ? attentionNeededSessions.length : activeSessions.length);
+			activeSection.appendChild(statusCount);
 			badge.appendChild(activeSection);
 
 			// Click handler - filter to in-progress sessions
@@ -842,10 +860,14 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 				}
 			}));
 
-			// Hover tooltip for active section
-			const activeTooltip = activeSessions.length === 1
-				? localize('activeSessionsTooltip1', "{0} session in progress", activeSessions.length)
-				: localize('activeSessionsTooltip', "{0} sessions in progress", activeSessions.length);
+			// Hover tooltip - different message based on state
+			const activeTooltip = hasAttentionNeeded
+				? (attentionNeededSessions.length === 1
+					? localize('needsInputSessionsTooltip1', "{0} session needs input", attentionNeededSessions.length)
+					: localize('needsInputSessionsTooltip', "{0} sessions need input", attentionNeededSessions.length))
+				: (activeSessions.length === 1
+					? localize('activeSessionsTooltip1', "{0} session in progress", activeSessions.length)
+					: localize('activeSessionsTooltip', "{0} sessions in progress", activeSessions.length));
 			disposables.add(this.hoverService.setupManagedHover(hoverDelegate, activeSection, activeTooltip));
 		}
 
@@ -854,12 +876,14 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 	/**
 	 * Clear the filter if the currently filtered category becomes empty.
 	 * For example, if filtered to "unread" but no unread sessions exist, restore user's previous filter.
+	 * Only auto-clears if THIS window applied the badge filter to avoid cross-window interference.
 	 */
 	private _clearFilterIfCategoryEmpty(hasUnreadSessions: boolean, hasActiveSessions: boolean): void {
-		const { isFilteredToUnread, isFilteredToInProgress } = this._getCurrentFilterState();
-
-		// Restore user's filter if filtered category is now empty
-		if ((isFilteredToUnread && !hasUnreadSessions) || (isFilteredToInProgress && !hasActiveSessions)) {
+		// Only auto-clear if this window applied the badge filter
+		// This prevents Window B from clearing filters that Window A set
+		if (this._badgeFilterAppliedByThisWindow === 'unread' && !hasUnreadSessions) {
+			this._restoreUserFilter();
+		} else if (this._badgeFilterAppliedByThisWindow === 'inProgress' && !hasActiveSessions) {
 			this._restoreUserFilter();
 		}
 	}
@@ -954,6 +978,8 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 		}
 		// Clear the saved filter after restoring
 		this.storageService.remove(PREVIOUS_FILTER_STORAGE_KEY, StorageScope.PROFILE);
+		// Clear the per-window badge filter tracking
+		this._badgeFilterAppliedByThisWindow = null;
 	}
 
 	/**
@@ -982,6 +1008,8 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 					archived: true,
 					read: true
 				});
+				// Track that this window applied the badge filter
+				this._badgeFilterAppliedByThisWindow = 'unread';
 			}
 		} else {
 			if (isFilteredToInProgress) {
@@ -997,6 +1025,8 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 					archived: true,
 					read: false
 				});
+				// Track that this window applied the badge filter
+				this._badgeFilterAppliedByThisWindow = 'inProgress';
 			}
 		}
 
@@ -1226,20 +1256,16 @@ export class AgentTitleBarStatusRendering extends Disposable implements IWorkben
 		// Add/remove CSS classes on workbench based on settings
 		// Force enable command center and disable chat controls when agent status or unified agents bar is enabled
 		const updateClass = () => {
-			const enabled = configurationService.getValue<boolean>(ChatConfiguration.AgentStatusEnabled) === true;
-			const enhanced = configurationService.getValue<boolean>(ChatConfiguration.UnifiedAgentsBar) === true;
+			const commandCenterEnabled = configurationService.getValue<boolean>(LayoutSettings.COMMAND_CENTER) === true;
+			const enabled = configurationService.getValue<boolean>(ChatConfiguration.AgentStatusEnabled) === true && commandCenterEnabled;
+			const enhanced = configurationService.getValue<boolean>(ChatConfiguration.UnifiedAgentsBar) === true && commandCenterEnabled;
 
 			mainWindow.document.body.classList.toggle('agent-status-enabled', enabled);
 			mainWindow.document.body.classList.toggle('unified-agents-bar', enhanced);
-
-			// Force enable command center when agent status or unified agents bar is enabled
-			if ((enabled || enhanced) && configurationService.getValue<boolean>(LayoutSettings.COMMAND_CENTER) !== true) {
-				configurationService.updateValue(LayoutSettings.COMMAND_CENTER, true);
-			}
 		};
 		updateClass();
 		this._register(configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(ChatConfiguration.AgentStatusEnabled) || e.affectsConfiguration(ChatConfiguration.UnifiedAgentsBar)) {
+			if (e.affectsConfiguration(ChatConfiguration.AgentStatusEnabled) || e.affectsConfiguration(ChatConfiguration.UnifiedAgentsBar) || e.affectsConfiguration(LayoutSettings.COMMAND_CENTER)) {
 				updateClass();
 			}
 		}));

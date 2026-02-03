@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import fs from 'fs';
+import os from 'os';
 import { webkit } from 'playwright';
 
 /**
@@ -14,7 +15,9 @@ export type Capability =
 	| 'x64' | 'arm64' | 'arm32'
 	| 'deb' | 'rpm' | 'snap'
 	| 'desktop'
-	| 'browser';
+	| 'browser'
+	| 'wsl'
+	| 'github-account';
 
 /**
  * Detect the capabilities of the current environment.
@@ -26,6 +29,8 @@ export function detectCapabilities(): ReadonlySet<Capability> {
 	detectPackageManagers(capabilities);
 	detectDesktop(capabilities);
 	detectBrowser(capabilities);
+	detectWSL(capabilities);
+	detectGitHubAccount(capabilities);
 	return capabilities;
 }
 
@@ -33,7 +38,7 @@ export function detectCapabilities(): ReadonlySet<Capability> {
  * Detect the operating system.
  */
 function detectOS(capabilities: Set<Capability>) {
-	switch (process.platform) {
+	switch (os.platform()) {
 		case 'linux':
 			if (fs.existsSync('/etc/alpine-release')) {
 				capabilities.add('alpine');
@@ -48,7 +53,7 @@ function detectOS(capabilities: Set<Capability>) {
 			capabilities.add('windows');
 			break;
 		default:
-			throw new Error(`Unsupported platform: ${process.platform}`);
+			throw new Error(`Unsupported platform: ${os.platform()}`);
 	}
 }
 
@@ -56,7 +61,18 @@ function detectOS(capabilities: Set<Capability>) {
  * Detect the architecture.
  */
 function detectArch(capabilities: Set<Capability>) {
-	switch (process.arch) {
+	let arch = os.arch();
+
+	if (os.platform() === 'win32') {
+		const winArch = process.env.PROCESSOR_ARCHITEW6432 || process.env.PROCESSOR_ARCHITECTURE;
+		if (winArch === 'ARM64') {
+			arch = 'arm64';
+		} else if (winArch === 'AMD64') {
+			arch = 'x64';
+		}
+	}
+
+	switch (arch) {
 		case 'x64':
 			capabilities.add('x64');
 			break;
@@ -67,7 +83,7 @@ function detectArch(capabilities: Set<Capability>) {
 			capabilities.add('arm32');
 			break;
 		default:
-			throw new Error(`Unsupported architecture: ${process.arch}`);
+			throw new Error(`Unsupported architecture: ${arch}`);
 	}
 }
 
@@ -75,7 +91,7 @@ function detectArch(capabilities: Set<Capability>) {
  * Detect the package managers.
  */
 function detectPackageManagers(capabilities: Set<Capability>) {
-	if (process.platform !== 'linux') {
+	if (os.platform() !== 'linux') {
 		return;
 	}
 	if (fs.existsSync('/usr/bin/dpkg')) {
@@ -93,7 +109,7 @@ function detectPackageManagers(capabilities: Set<Capability>) {
  * Detect if a desktop environment is available.
  */
 function detectDesktop(capabilities: Set<Capability>) {
-	if (process.platform !== 'linux' || !!process.env.DISPLAY) {
+	if (os.platform() !== 'linux' || !!process.env.DISPLAY) {
 		capabilities.add('desktop');
 	}
 }
@@ -102,7 +118,7 @@ function detectDesktop(capabilities: Set<Capability>) {
  * Detect if a browser environment is available.
  */
 function detectBrowser(capabilities: Set<Capability>) {
-	switch (process.platform) {
+	switch (os.platform()) {
 		case 'linux': {
 			const path = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH;
 			if (path && fs.existsSync(path)) {
@@ -117,7 +133,10 @@ function detectBrowser(capabilities: Set<Capability>) {
 			break;
 		}
 		case 'win32': {
-			const path = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH ?? 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe';
+			const path =
+				process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH ??
+				`${process.env['ProgramFiles(x86)']}\\Microsoft\\Edge\\Application\\msedge.exe`;
+
 			if (fs.existsSync(path)) {
 				capabilities.add('browser');
 			}
@@ -125,3 +144,25 @@ function detectBrowser(capabilities: Set<Capability>) {
 		}
 	}
 }
+
+/**
+ * Detect if WSL is available on Windows.
+ */
+function detectWSL(capabilities: Set<Capability>) {
+	if (os.platform() === 'win32') {
+		const wslPath = `${process.env.SystemRoot}\\System32\\wsl.exe`;
+		if (fs.existsSync(wslPath)) {
+			capabilities.add('wsl');
+		}
+	}
+}
+
+/**
+ * Detect if GitHub account and password are available in the environment.
+ */
+function detectGitHubAccount(capabilities: Set<Capability>) {
+	if (process.env.GITHUB_ACCOUNT && process.env.GITHUB_PASSWORD) {
+		capabilities.add('github-account');
+	}
+}
+

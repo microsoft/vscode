@@ -93,12 +93,16 @@ export class ExtHostChatContext extends Disposable implements ExtHostChatContext
 		if (!result) {
 			return undefined;
 		}
+		if (result.label === undefined && result.resourceUri === undefined) {
+			throw new Error('ChatContextItem must have either a label or a resourceUri');
+		}
 		const itemHandle = this._addTrackedItem(handle, result);
 
 		const item: IChatContextItem = {
 			handle: itemHandle,
 			icon: result.icon,
 			label: result.label,
+			resourceUri: result.resourceUri,
 			modelDescription: result.modelDescription,
 			tooltip: result.tooltip ? MarkdownString.from(result.tooltip) : undefined,
 			value: options.withValue ? result.value : undefined,
@@ -266,11 +270,15 @@ export class ExtHostChatContext extends Disposable implements ExtHostChatContext
 	private _convertItems(handle: number, items: vscode.ChatContextItem[]): IChatContextItem[] {
 		const result: IChatContextItem[] = [];
 		for (const item of items) {
+			if (item.label === undefined && item.resourceUri === undefined) {
+				throw new Error('ChatContextItem must have either a label or a resourceUri');
+			}
 			const itemHandle = this._addTrackedItem(handle, item);
 			result.push({
 				handle: itemHandle,
 				icon: item.icon,
 				label: item.label,
+				resourceUri: item.resourceUri,
 				modelDescription: item.modelDescription,
 				tooltip: item.tooltip ? MarkdownString.from(item.tooltip) : undefined,
 				value: item.value,
@@ -292,6 +300,7 @@ export class ExtHostChatContext extends Disposable implements ExtHostChatContext
 				handle: context.handle,
 				icon: extResult.icon,
 				label: extResult.label,
+				resourceUri: extResult.resourceUri,
 				modelDescription: extResult.modelDescription,
 				tooltip: extResult.tooltip ? MarkdownString.from(extResult.tooltip) : undefined,
 				value: extResult.value,

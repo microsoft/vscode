@@ -1746,39 +1746,6 @@ export function triggerUpload(): Promise<FileList | undefined> {
 	});
 }
 
-export interface INotification extends IDisposable {
-	readonly onClick: event.Event<void>;
-}
-
-function sanitizeNotificationText(text: string): string {
-	return text.replace(/`/g, '\''); // convert backticks to single quotes
-}
-
-export async function triggerNotification(message: string, options?: { detail?: string; sticky?: boolean }): Promise<INotification | undefined> {
-	const permission = await Notification.requestPermission();
-	if (permission !== 'granted') {
-		return;
-	}
-
-	const disposables = new DisposableStore();
-
-	const notification = new Notification(sanitizeNotificationText(message), {
-		body: options?.detail ? sanitizeNotificationText(options.detail) : undefined,
-		requireInteraction: options?.sticky,
-	});
-
-	const onClick = new event.Emitter<void>();
-	disposables.add(addDisposableListener(notification, 'click', () => onClick.fire()));
-	disposables.add(addDisposableListener(notification, 'close', () => disposables.dispose()));
-
-	disposables.add(toDisposable(() => notification.close()));
-
-	return {
-		onClick: onClick.event,
-		dispose: () => disposables.dispose()
-	};
-}
-
 export enum DetectedFullscreenMode {
 
 	/**
@@ -2804,3 +2771,33 @@ function setOrRemoveAttribute(element: HTMLOrSVGElement, key: string, value: unk
 type ElementAttributeKeys<T> = Partial<{
 	[K in keyof T]: T[K] extends Function ? never : T[K] extends object ? ElementAttributeKeys<T[K]> : Value<number | T[K] | undefined | null>;
 }>;
+
+/**
+ * A custom element that fires callbacks when connected to or disconnected from the DOM.
+ * Useful for tracking whether a template or component is currently mounted, especially
+ * with iframes/webviews that are sensitive to movement.
+ *
+ * @example
+ * ```ts
+ * const observer = document.createElement('connection-observer') as ConnectionObserverElement;
+ * observer.onDidConnect = () => console.log('mounted');
+ * observer.onDidDisconnect = () => console.log('unmounted');
+ * container.appendChild(observer);
+ * ```
+ */
+export class ConnectionObserverElement extends HTMLElement {
+	public onDidConnect?: () => void;
+	public onDidDisconnect?: () => void;
+
+	disconnectedCallback() {
+		this.onDidDisconnect?.();
+	}
+
+	connectedCallback() {
+		this.onDidConnect?.();
+	}
+}
+
+if (!customElements.get('connection-observer')) {
+	customElements.define('connection-observer', ConnectionObserverElement);
+}
