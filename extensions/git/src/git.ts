@@ -13,7 +13,7 @@ import { EventEmitter } from 'events';
 import * as filetype from 'file-type';
 import { assign, groupBy, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent, splitInChunks, Limiter, Versions, isWindows, pathEquals, isMacintosh, isDescendant, relativePathWithNoFallback, Mutable } from './util';
 import { CancellationError, CancellationToken, ConfigurationChangeEvent, LogOutputChannel, Progress, Uri, workspace } from 'vscode';
-import { Commit as ApiCommit, Ref, RefType, Branch, Remote, ForcePushMode, GitErrorCodes, LogOptions, Change, Status, CommitOptions, RefQuery as ApiRefQuery, InitOptions, DiffChange, Worktree as ApiWorktree } from './api/git';
+import { Commit as ApiCommit, Ref, RefType, Branch, Remote, ForcePushMode, GitErrorCodes, LogOptions, Change, Status, CommitOptions, RefQuery as ApiRefQuery, InitOptions, DiffChange, Worktree as ApiWorktree, DiffWithOptions } from './api/git';
 import * as byline from 'byline';
 import { StringDecoder } from 'string_decoder';
 
@@ -1733,12 +1733,12 @@ export class Repository {
 		return this.diffFilesShortStat(undefined, { cached: false, path });
 	}
 
-	diffWith(ref: string): Promise<Change[]>;
-	diffWith(ref: string, path: string): Promise<string>;
-	diffWith(ref: string, path?: string | undefined): Promise<string | Change[]>;
-	async diffWith(ref: string, path?: string): Promise<string | Change[]> {
+	diffWith(ref: string, options: DiffWithOptions): Promise<Change[]>;
+	diffWith(ref: string, options: DiffWithOptions, path: string): Promise<string>;
+	diffWith(ref: string, options: DiffWithOptions, path?: string | undefined): Promise<string | Change[]>;
+	async diffWith(ref: string, options: DiffWithOptions, path?: string): Promise<string | Change[]> {
 		if (!path) {
-			return await this.diffFiles(ref, { cached: false });
+			return await this.diffFiles(ref, { cached: false, noRenames: options.noRenames });
 		}
 
 		const args = ['diff', ref, '--', this.sanitizeRelativePath(path)];
@@ -1828,15 +1828,19 @@ export class Repository {
 		return parseGitChangesRaw(this.repositoryRoot, gitResult.stdout);
 	}
 
-	private async diffFiles(ref: string | undefined, options: { cached: boolean; similarityThreshold?: number }): Promise<Change[]> {
+	private async diffFiles(ref: string | undefined, options: { cached: boolean; similarityThreshold?: number; noRenames?: boolean }): Promise<Change[]> {
 		const args = ['diff', '--name-status', '-z', '--diff-filter=ADMR'];
 
 		if (options.cached) {
 			args.push('--cached');
 		}
 
-		if (options.similarityThreshold) {
-			args.push(`--find-renames=${options.similarityThreshold}%`);
+		if (options.noRenames) {
+			args.push('--no-renames');
+		} else {
+			if (options.similarityThreshold) {
+				args.push(`--find-renames=${options.similarityThreshold}%`);
+			}
 		}
 
 		if (ref) {

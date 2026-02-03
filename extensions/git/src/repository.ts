@@ -11,7 +11,7 @@ import picomatch from 'picomatch';
 import { CancellationError, CancellationToken, CancellationTokenSource, Command, commands, Disposable, Event, EventEmitter, ExcludeSettingOptions, FileDecoration, FileType, l10n, LogLevel, LogOutputChannel, Memento, ProgressLocation, ProgressOptions, QuickDiffProvider, RelativePattern, scm, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, TabInputNotebookDiff, TabInputTextDiff, TabInputTextMultiDiff, ThemeColor, ThemeIcon, Uri, window, workspace, WorkspaceEdit } from 'vscode';
 import { ActionButton } from './actionButton';
 import { ApiRepository } from './api/api1';
-import { Branch, BranchQuery, Change, CommitOptions, DiffChange, FetchOptions, ForcePushMode, GitErrorCodes, LogOptions, Ref, RefType, Remote, RepositoryKind, Status } from './api/git';
+import { Branch, BranchQuery, Change, CommitOptions, DiffChange, DiffWithOptions, FetchOptions, ForcePushMode, GitErrorCodes, LogOptions, Ref, RefType, Remote, RepositoryKind, Status } from './api/git';
 import { AutoFetcher } from './autofetch';
 import { GitBranchProtectionProvider, IBranchProtectionProviderRegistry } from './branchProtection';
 import { debounce, memoize, sequentialize, throttle } from './decorators';
@@ -1230,11 +1230,11 @@ export class Repository implements Disposable {
 		return this.run(Operation.Diff, () => this.repository.diffWithHEADShortStats(path));
 	}
 
-	diffWith(ref: string): Promise<Change[]>;
-	diffWith(ref: string, path: string): Promise<string>;
-	diffWith(ref: string, path?: string | undefined): Promise<string | Change[]>;
-	diffWith(ref: string, path?: string): Promise<string | Change[]> {
-		return this.run(Operation.Diff, () => this.repository.diffWith(ref, path));
+	diffWith(ref: string, options: DiffWithOptions): Promise<Change[]>;
+	diffWith(ref: string, options: DiffWithOptions, path: string): Promise<string>;
+	diffWith(ref: string, options: DiffWithOptions, path?: string | undefined): Promise<string | Change[]>;
+	diffWith(ref: string, options: DiffWithOptions, path?: string): Promise<string | Change[]> {
+		return this.run(Operation.Diff, () => this.repository.diffWith(ref, options, path));
 	}
 
 	diffIndexWithHEAD(): Promise<Change[]>;
