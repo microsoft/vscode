@@ -6,14 +6,14 @@
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
+import { CommonFindController, FindStartFocusAction } from '../../../../editor/contrib/find/browser/findController.js';
 import { CONTEXT_FIND_INPUT_FOCUSED, CONTEXT_REPLACE_INPUT_FOCUSED } from '../../../../editor/contrib/find/browser/findModel.js';
 import { localize } from '../../../../nls.js';
 import { AccessibleViewProviderId, AccessibleViewType, IAccessibleViewContentProvider, IAccessibleViewOptions } from '../../../../platform/accessibility/browser/accessibleView.js';
 import { AccessibleViewRegistry, IAccessibleViewImplementation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
-import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
-import { CommonFindController } from '../../../../editor/contrib/find/browser/findController.js';
 
 /**
  * Accessible view implementation for Find and Replace help in the code editor.
@@ -39,6 +39,7 @@ export class EditorFindAccessibilityHelp implements IAccessibleViewImplementatio
 	 */
 	getProvider(accessor: ServicesAccessor) {
 		const codeEditorService = accessor.get(ICodeEditorService);
+		const contextKeyService = accessor.get(IContextKeyService);
 		const codeEditor = codeEditorService.getActiveCodeEditor() || codeEditorService.getFocusedCodeEditor();
 
 		if (!codeEditor) {
@@ -50,7 +51,10 @@ export class EditorFindAccessibilityHelp implements IAccessibleViewImplementatio
 			return;
 		}
 
-		return new EditorFindAccessibilityHelpProvider(findController, codeEditor);
+		// Track which input was focused when accessible help was opened
+		const wasReplaceInputFocused = !!CONTEXT_REPLACE_INPUT_FOCUSED.getValue(contextKeyService);
+
+		return new EditorFindAccessibilityHelpProvider(findController, wasReplaceInputFocused);
 	}
 }
 
@@ -74,16 +78,26 @@ class EditorFindAccessibilityHelpProvider extends Disposable implements IAccessi
 
 	constructor(
 		private readonly _findController: CommonFindController,
-		private readonly _codeEditor: { focus: () => void }
+		private readonly _wasReplaceInputFocused: boolean
 	) {
 		super();
 	}
 
 	/**
-	 * Returns focus to the code editor when the accessibility help is closed.
+	 * Returns focus to the Find or Replace input when the accessibility help is closed.
+	 * Restores focus to the same input that was focused before accessible help was opened.
 	 */
 	onClose(): void {
-		this._codeEditor.focus();
+		this._findController.start({
+			forceRevealReplace: this._wasReplaceInputFocused,
+			seedSearchStringFromSelection: 'none',
+			seedSearchStringFromNonEmptySelection: false,
+			seedSearchStringFromGlobalClipboard: false,
+			shouldFocus: this._wasReplaceInputFocused ? FindStartFocusAction.FocusReplaceInput : FindStartFocusAction.FocusFindInput,
+			shouldAnimate: false,
+			updateSearchScope: false,
+			loop: true
+		});
 	}
 
 	/**
