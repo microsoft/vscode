@@ -29,6 +29,10 @@ jobs:
           versionSource: fromFile
           versionFilePath: .nvmrc
 
+      - task: UsePythonVersion@0
+        inputs:
+          versionSpec: "3.12"
+
       - template: ../distro/download-distro.yml@self
 
       - task: AzureKeyVault@2
