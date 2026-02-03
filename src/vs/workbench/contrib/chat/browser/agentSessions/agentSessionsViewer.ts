@@ -41,7 +41,7 @@ import { Event } from '../../../../../base/common/event.js';
 import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
 import { MarkdownString, IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { AgentSessionHoverWidget } from './agentSessionHoverWidget.js';
-import { AgentSessionProviders, getAgentSessionTime } from './agentSessions.js';
+import { backgroundAgentSessionProviderType, cloudAgentSessionProviderType, getAgentSessionTime, isLocalSessionProvider } from './agentSessions.js';
 import { AgentSessionsGrouping } from './agentSessionsFilter.js';
 
 export type AgentSessionListItem = IAgentSession | IAgentSessionSection;
@@ -194,8 +194,8 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 
 		let hasAgentSessionChanges = false;
 		if (
-			session.element.providerType === AgentSessionProviders.Background ||
-			session.element.providerType === AgentSessionProviders.Cloud
+			session.element.providerType === backgroundAgentSessionProviderType ||
+			session.element.providerType === cloudAgentSessionProviderType
 		) {
 			// Background and Cloud agents provide the list of changes directly,
 			// so we have to use the list of changes to determine whether to show
@@ -348,7 +348,7 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 		};
 
 		// Provider icon (only shown for non-local sessions)
-		const isLocal = session.element.providerType === AgentSessionProviders.Local;
+		const isLocal = isLocalSessionProvider(session.element.providerType);
 		template.statusProviderIcon.className = isLocal ? '' : `agent-session-status-provider-icon ${ThemeIcon.asClassName(session.element.icon)}`;
 
 		// Time label

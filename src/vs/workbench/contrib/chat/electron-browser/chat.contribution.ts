@@ -25,7 +25,6 @@ import { IWorkbenchLayoutService } from '../../../services/layout/browser/layout
 import { ILifecycleService, ShutdownReason } from '../../../services/lifecycle/common/lifecycle.js';
 import { ACTION_ID_NEW_CHAT, CHAT_OPEN_ACTION_ID, IChatViewOpenOptions } from '../browser/actions/chatActions.js';
 import { IChatWidgetService } from '../browser/chat.js';
-import { AgentSessionProviders } from '../browser/agentSessions/agentSessions.js';
 import { isSessionInProgressStatus } from '../browser/agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../browser/agentSessions/agentSessionsService.js';
 import { ChatContextKeys } from '../common/actions/chatContextKeys.js';
@@ -36,6 +35,7 @@ import { registerChatExportZipAction } from './actions/chatExportZip.js';
 import { HoldToVoiceChatInChatViewAction, InlineVoiceChatAction, KeywordActivationContribution, QuickVoiceChatAction, ReadChatResponseAloud, StartVoiceChatAction, StopListeningAction, StopListeningAndSubmitAction, StopReadAloud, StopReadChatItemAloud, VoiceChatInChatViewAction } from './actions/voiceChatActions.js';
 import { NativeBuiltinToolsContribution } from './builtInTools/tools.js';
 import { OpenAgentSessionsWindowAction, SwitchToAgentSessionsModeAction, SwitchToNormalModeAction } from './agentSessions/agentSessionsActions.js';
+import { cloudAgentSessionProviderType } from '../browser/agentSessions/agentSessions.js';
 
 class ChatCommandLineHandler extends Disposable {
 
@@ -143,7 +143,7 @@ class ChatLifecycleHandler extends Disposable {
 
 	private hasNonCloudSessionInProgress(): boolean {
 		return this.agentSessionsService.model.sessions.some(session =>
-			isSessionInProgressStatus(session.status) && session.providerType !== AgentSessionProviders.Cloud
+			isSessionInProgressStatus(session.status) && session.providerType !== cloudAgentSessionProviderType
 		);
 	}
 

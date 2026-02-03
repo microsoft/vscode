@@ -9,7 +9,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { IActionWidgetDropdownAction } from '../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { ACTION_ID_NEW_CHAT } from '../../actions/chatActions.js';
-import { AgentSessionProviders, getAgentCanContinueIn, getAgentSessionProvider, isFirstPartyAgentSessionProvider } from '../../agentSessions/agentSessions.js';
+import { AgentSessionProviderType, getAgentCanContinueIn, getAgentSessionProvider, isFirstPartyAgentSessionProvider, isLocalSessionProvider } from '../../agentSessions/agentSessions.js';
 import { ISessionTypeItem, SessionTypePickerActionItem } from './sessionTargetPickerActionItem.js';
 
 /**
@@ -26,7 +26,7 @@ export class DelegationSessionPickerActionItem extends SessionTypePickerActionIt
 		}
 	}
 
-	protected override _getSelectedSessionType(): AgentSessionProviders | undefined {
+	protected override _getSelectedSessionType(): AgentSessionProviderType | undefined {
 		const delegationTarget = this.delegate.getPendingDelegationTarget ? this.delegate.getPendingDelegationTarget() : undefined;
 		if (delegationTarget) {
 			return delegationTarget;
@@ -34,31 +34,32 @@ export class DelegationSessionPickerActionItem extends SessionTypePickerActionIt
 		return this.delegate.getActiveSessionProvider();
 	}
 
-	protected override _isSessionTypeEnabled(type: AgentSessionProviders): boolean {
+	protected override _isSessionTypeEnabled(type: AgentSessionProviderType): boolean {
 		const allContributions = this.chatSessionsService.getAllChatSessionContributions();
 		const contribution = allContributions.find(contribution => getAgentSessionProvider(contribution.type) === type);
 
-		if (this.delegate.getActiveSessionProvider() !== AgentSessionProviders.Local) {
+		const activeProvider = this.delegate.getActiveSessionProvider();
+		if (!activeProvider || !isLocalSessionProvider(activeProvider)) {
 			return false; // Can only delegate when active session is local
 		}
 
-		if (contribution && !contribution.canDelegate && this.delegate.getActiveSessionProvider() !== type /* Allow switching back to active type */) {
+		if (contribution && !contribution.canDelegate && activeProvider !== type /* Allow switching back to active type */) {
 			return false;
 		}
 
 		return this._getSelectedSessionType() !== type; // Always allow switching back to active session
 	}
 
-	protected override _isVisible(type: AgentSessionProviders): boolean {
+	protected override _isVisible(type: AgentSessionProviderType): boolean {
 		if (this.delegate.getActiveSessionProvider() === type) {
 			return true; // Always show active session type
 		}
 
-		return getAgentCanContinueIn(type);
+		return getAgentCanContinueIn(type, this.chatSessionsService);
 	}
 
 	protected override _getSessionCategory(sessionTypeItem: ISessionTypeItem) {
-		if (isFirstPartyAgentSessionProvider(sessionTypeItem.type)) {
+		if (isFirstPartyAgentSessionProvider(sessionTypeItem.type, this.chatSessionsService)) {
 			return { label: localize('continueIn', "Continue In"), order: 1, showHeader: true };
 		}
 		return { label: localize('continueInThirdParty', "Continue In (Third Party)"), order: 2, showHeader: false };

@@ -31,7 +31,7 @@ import { ILanguageModelToolsService } from '../../common/tools/languageModelTool
 import { PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
-import { getAgentSessionProvider, AgentSessionProviders } from '../agentSessions/agentSessions.js';
+import { AgentSessionProviderType, getAgentSessionProvider, isLocalSessionProvider, localSessionProvider } from '../agentSessions/agentSessions.js';
 import { getEditingSessionContext } from '../chatEditing/chatEditingActions.js';
 import { ctxHasEditorModification, ctxHasRequestInProgress, ctxIsGlobalEditingSession } from '../chatEditing/chatEditingEditorContextKeys.js';
 import { ACTION_ID_NEW_CHAT, CHAT_CATEGORY, handleCurrentEditingSession, handleModeSwitch } from './chatActions.js';
@@ -56,7 +56,7 @@ abstract class SubmitAction extends Action2 {
 
 		// Check if there's a pending delegation target
 		const pendingDelegationTarget = widget?.input.pendingDelegationTarget;
-		if (pendingDelegationTarget && pendingDelegationTarget !== AgentSessionProviders.Local) {
+		if (pendingDelegationTarget && pendingDelegationTarget !== localSessionProvider.type) {
 			return await this.handleDelegation(accessor, widget, pendingDelegationTarget);
 		}
 
@@ -156,7 +156,11 @@ abstract class SubmitAction extends Action2 {
 		widget?.acceptInput(context?.inputValue);
 	}
 
-	private async handleDelegation(accessor: ServicesAccessor, widget: IChatWidget, delegationTarget: Exclude<AgentSessionProviders, AgentSessionProviders.Local>): Promise<void> {
+	private async handleDelegation(accessor: ServicesAccessor, widget: IChatWidget, delegationTarget: AgentSessionProviderType): Promise<void> {
+		if (isLocalSessionProvider(delegationTarget)) {
+			throw new Error('Delegation target cannot be local session provider');
+		}
+
 		const chatSessionsService = accessor.get(IChatSessionsService);
 
 		// Find the contribution for the delegation target
@@ -418,7 +422,7 @@ export class OpenModelPickerAction extends Action2 {
 						// Hide in welcome view when session type is not local
 						ContextKeyExpr.or(
 							ChatContextKeys.inAgentSessionsWelcome.negate(),
-							ChatContextKeys.agentSessionType.isEqualTo(AgentSessionProviders.Local))
+							ChatContextKeys.agentSessionType.isEqualTo(localSessionProvider.type))
 					)
 			}
 		});
@@ -465,7 +469,7 @@ export class OpenModePickerAction extends Action2 {
 						// Hide in welcome view when session type is not local
 						ContextKeyExpr.or(
 							ChatContextKeys.inAgentSessionsWelcome.negate(),
-							ChatContextKeys.agentSessionType.isEqualTo(AgentSessionProviders.Local))),
+							ChatContextKeys.agentSessionType.isEqualTo(localSessionProvider.type))),
 					group: 'navigation',
 				},
 			]

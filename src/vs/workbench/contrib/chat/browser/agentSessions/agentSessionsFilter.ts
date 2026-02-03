@@ -11,7 +11,7 @@ import { registerAction2, Action2, MenuId } from '../../../../../platform/action
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
-import { AgentSessionProviders, getAgentSessionProviderName } from './agentSessions.js';
+import { getAgentSessionProviderName, getAllSessionProviders } from './agentSessions.js';
 import { AgentSessionStatus, IAgentSession } from './agentSessionsModel.js';
 import { IAgentSessionsFilter, IAgentSessionsFilterExcludes } from './agentSessionsViewer.js';
 
@@ -124,9 +124,10 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 	}
 
 	private registerProviderActions(disposables: DisposableStore): void {
-		const providers: { id: string; label: string }[] = Object.values(AgentSessionProviders).map(provider => ({
+		const sessionProviders = getAllSessionProviders(this.chatSessionsService);
+		const providers: { id: string; label: string }[] = sessionProviders.map(provider => ({
 			id: provider,
-			label: getAgentSessionProviderName(provider)
+			label: getAgentSessionProviderName(provider, this.chatSessionsService)
 		}));
 
 		for (const provider of this.chatSessionsService.getAllChatSessionContributions()) {

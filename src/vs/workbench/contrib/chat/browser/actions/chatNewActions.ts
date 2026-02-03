@@ -29,7 +29,7 @@ import { ChatEditorInput } from '../widgetHosts/editor/chatEditorInput.js';
 import { ChatViewPane } from '../widgetHosts/viewPane/chatViewPane.js';
 import { ACTION_ID_NEW_CHAT, ACTION_ID_NEW_EDIT_SESSION, CHAT_CATEGORY, handleCurrentEditingSession } from './chatActions.js';
 import { clearChatEditor } from './chatClear.js';
-import { AgentSessionProviders, AgentSessionsViewerOrientation } from '../agentSessions/agentSessions.js';
+import { AgentSessionProviderType, AgentSessionsViewerOrientation, localSessionProvider } from '../agentSessions/agentSessions.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 
 export interface INewEditSessionActionContext {
@@ -164,7 +164,7 @@ export function registerNewChatActions() {
 
 			// Context from toolbar or lastFocusedWidget
 			const context = getEditingSessionContext(accessor, args);
-			await runNewChatAction(accessor, context, executeCommandContext, AgentSessionProviders.Local);
+			await runNewChatAction(accessor, context, executeCommandContext, localSessionProvider.type);
 		}
 	});
 
@@ -291,7 +291,7 @@ async function runNewChatAction(
 	accessor: ServicesAccessor,
 	context: EditingSessionActionContext | undefined,
 	executeCommandContext?: INewEditSessionActionContext,
-	sessionType?: AgentSessionProviders
+	sessionType?: AgentSessionProviderType
 ) {
 	const accessibilityService = accessor.get(IAccessibilityService);
 	const viewsService = accessor.get(IViewsService);

@@ -37,7 +37,6 @@ import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../chat/c
 import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
 import { ChatWidget } from '../../chat/browser/widget/chatWidget.js';
 import { IAgentSessionsService } from '../../chat/browser/agentSessions/agentSessionsService.js';
-import { AgentSessionProviders } from '../../chat/browser/agentSessions/agentSessions.js';
 import { IAgentSession } from '../../chat/browser/agentSessions/agentSessionsModel.js';
 import { AgentSessionsWelcomeEditorOptions, AgentSessionsWelcomeInput, AgentSessionsWelcomeWorkspaceKind } from './agentSessionsWelcomeInput.js';
 import { IChatService } from '../../chat/common/chatService/chatService.js';
@@ -59,6 +58,7 @@ import { IWorkspaceTrustManagementService } from '../../../../platform/workspace
 import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { AgentSessionProviderType, localSessionProvider } from '../../chat/browser/agentSessions/agentSessions.js';
 
 const configurationKey = 'workbench.startupEditor';
 const MAX_SESSIONS = 6;
@@ -132,7 +132,7 @@ export class AgentSessionsWelcomePage extends EditorPane {
 	private readonly contentDisposables = this._register(new DisposableStore());
 	private contextService: IContextKeyService;
 	private walkthroughs: IResolvedWalkthrough[] = [];
-	private _selectedSessionProvider: AgentSessionProviders = AgentSessionProviders.Local;
+	private _selectedSessionProvider: AgentSessionProviderType = localSessionProvider.type;
 	private _selectedWorkspace: IWorkspacePickerItem | undefined;
 	private _recentTrustedWorkspaces: Array<IRecentWorkspace | IRecentFolder> = [];
 	private _isEmptyWorkspace: boolean = false;
@@ -295,8 +295,8 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		const scopedInstantiationService = this.contentDisposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService])));
 
 		// Create a delegate for the session target picker with independent local state
-		const onDidChangeActiveSessionProvider = this.contentDisposables.add(new Emitter<AgentSessionProviders>());
-		const recreateSessionForProvider = async (provider: AgentSessionProviders) => {
+		const onDidChangeActiveSessionProvider = this.contentDisposables.add(new Emitter<AgentSessionProviderType>());
+		const recreateSessionForProvider = async (provider: AgentSessionProviderType) => {
 			if (this.chatWidget && this.chatModelRef) {
 				this.chatWidget.setModel(undefined);
 				this.chatModelRef.dispose();
@@ -315,7 +315,7 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		};
 		const sessionTypePickerDelegate: ISessionTypePickerDelegate = {
 			getActiveSessionProvider: () => this._selectedSessionProvider,
-			setActiveSessionProvider: (provider: AgentSessionProviders) => {
+			setActiveSessionProvider: (provider: AgentSessionProviderType) => {
 				this._selectedSessionProvider = provider;
 				onDidChangeActiveSessionProvider.fire(provider);
 				try {

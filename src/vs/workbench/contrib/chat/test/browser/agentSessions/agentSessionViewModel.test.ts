@@ -22,7 +22,7 @@ import { MenuId } from '../../../../../../platform/actions/common/actions.js';
 import { ILifecycleService } from '../../../../../services/lifecycle/common/lifecycle.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
-import { AgentSessionProviders, getAgentSessionProviderIcon, getAgentSessionProviderName } from '../../../browser/agentSessions/agentSessions.js';
+import { getAgentSessionProviderIcon, getAgentSessionProviderName, localSessionProvider } from '../../../browser/agentSessions/agentSessions.js';
 
 suite('AgentSessions', () => {
 
@@ -1901,6 +1901,7 @@ suite('AgentSessions', () => {
 
 	suite('AgentSessionsViewModel - Provider Icons and Names', () => {
 		const disposables = new DisposableStore();
+		const mockChatSessionsService = new MockChatSessionsService();
 
 		teardown(() => {
 			disposables.clear();
@@ -1909,33 +1910,13 @@ suite('AgentSessions', () => {
 		ensureNoDisposablesAreLeakedInTestSuite();
 
 		test('should return correct name for Local provider', () => {
-			const name = getAgentSessionProviderName(AgentSessionProviders.Local);
-			assert.ok(name.length > 0);
-		});
-
-		test('should return correct name for Background provider', () => {
-			const name = getAgentSessionProviderName(AgentSessionProviders.Background);
-			assert.ok(name.length > 0);
-		});
-
-		test('should return correct name for Cloud provider', () => {
-			const name = getAgentSessionProviderName(AgentSessionProviders.Cloud);
+			const name = getAgentSessionProviderName(localSessionProvider.type, mockChatSessionsService);
 			assert.ok(name.length > 0);
 		});
 
 		test('should return correct icon for Local provider', () => {
-			const icon = getAgentSessionProviderIcon(AgentSessionProviders.Local);
+			const icon = getAgentSessionProviderIcon(localSessionProvider.type, mockChatSessionsService);
 			assert.strictEqual(icon.id, Codicon.vm.id);
-		});
-
-		test('should return correct icon for Background provider', () => {
-			const icon = getAgentSessionProviderIcon(AgentSessionProviders.Background);
-			assert.strictEqual(icon.id, Codicon.worktree.id);
-		});
-
-		test('should return correct icon for Cloud provider', () => {
-			const icon = getAgentSessionProviderIcon(AgentSessionProviders.Cloud);
-			assert.strictEqual(icon.id, Codicon.cloud.id);
 		});
 
 		test('should handle Local provider type in model', async () => {
@@ -1946,7 +1927,7 @@ suite('AgentSessions', () => {
 				instantiationService.stub(ILifecycleService, disposables.add(new TestLifecycleService()));
 
 				const provider: IChatSessionItemProvider = {
-					chatSessionType: AgentSessionProviders.Local,
+					chatSessionType: localSessionProvider.type,
 					onDidChangeChatSessionItems: Event.None,
 					provideChatSessionItems: async () => [
 						makeSimpleSessionItem('session-1'),
@@ -1959,9 +1940,9 @@ suite('AgentSessions', () => {
 				await viewModel.resolve(undefined);
 
 				const session = viewModel.sessions[0];
-				assert.strictEqual(session.providerType, AgentSessionProviders.Local);
+				assert.strictEqual(session.providerType, localSessionProvider.type);
 				assert.strictEqual(session.icon.id, Codicon.vm.id);
-				assert.strictEqual(session.providerLabel, getAgentSessionProviderName(AgentSessionProviders.Local));
+				assert.strictEqual(session.providerLabel, getAgentSessionProviderName(localSessionProvider.type, mockChatSessionsService));
 			});
 		});
 
@@ -1969,11 +1950,18 @@ suite('AgentSessions', () => {
 			return runWithFakedTimers({}, async () => {
 				const instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
 				const mockChatSessionsService = new MockChatSessionsService();
+				mockChatSessionsService.setContributions([{
+					type: 'background',
+					name: 'Test Background Provider Name',
+					displayName: 'Test Background Provider Display Name',
+					description: 'Test Background Provider Description',
+					icon: `$(${Codicon.worktree.id})`,
+				}]);
 				instantiationService.stub(IChatSessionsService, mockChatSessionsService);
 				instantiationService.stub(ILifecycleService, disposables.add(new TestLifecycleService()));
 
 				const provider: IChatSessionItemProvider = {
-					chatSessionType: AgentSessionProviders.Background,
+					chatSessionType: 'test-123',
 					onDidChangeChatSessionItems: Event.None,
 					provideChatSessionItems: async () => [
 						makeSimpleSessionItem('session-1'),
@@ -1986,36 +1974,9 @@ suite('AgentSessions', () => {
 				await viewModel.resolve(undefined);
 
 				const session = viewModel.sessions[0];
-				assert.strictEqual(session.providerType, AgentSessionProviders.Background);
+				assert.strictEqual(session.providerType, 'test-123');
 				assert.strictEqual(session.icon.id, Codicon.worktree.id);
-				assert.strictEqual(session.providerLabel, getAgentSessionProviderName(AgentSessionProviders.Background));
-			});
-		});
-
-		test('should handle Cloud provider type in model', async () => {
-			return runWithFakedTimers({}, async () => {
-				const instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
-				const mockChatSessionsService = new MockChatSessionsService();
-				instantiationService.stub(IChatSessionsService, mockChatSessionsService);
-				instantiationService.stub(ILifecycleService, disposables.add(new TestLifecycleService()));
-
-				const provider: IChatSessionItemProvider = {
-					chatSessionType: AgentSessionProviders.Cloud,
-					onDidChangeChatSessionItems: Event.None,
-					provideChatSessionItems: async () => [
-						makeSimpleSessionItem('session-1'),
-					]
-				};
-
-				mockChatSessionsService.registerChatSessionItemProvider(provider);
-				const viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
-
-				await viewModel.resolve(undefined);
-
-				const session = viewModel.sessions[0];
-				assert.strictEqual(session.providerType, AgentSessionProviders.Cloud);
-				assert.strictEqual(session.icon.id, Codicon.cloud.id);
-				assert.strictEqual(session.providerLabel, getAgentSessionProviderName(AgentSessionProviders.Cloud));
+				assert.strictEqual(session.providerLabel, getAgentSessionProviderName('test-123', mockChatSessionsService));
 			});
 		});
 

@@ -132,7 +132,7 @@ export class ChatSuggestNextWidget extends Disposable {
 				return false;
 			}
 			const provider = getAgentSessionProvider(c.type);
-			return provider !== undefined && getAgentCanContinueIn(provider);
+			return provider !== undefined && getAgentCanContinueIn(provider, this.chatSessionsService);
 		});
 
 		if (showContinueOn && availableContributions.length > 0) {
@@ -154,9 +154,8 @@ export class ChatSuggestNextWidget extends Disposable {
 				e.stopPropagation();
 
 				const actions = availableContributions.map(contrib => {
-					const provider = getAgentSessionProvider(contrib.type)!;
-					const icon = getAgentSessionProviderIcon(provider);
-					const name = getAgentSessionProviderName(provider);
+					const icon = getAgentSessionProviderIcon(contrib);
+					const name = getAgentSessionProviderName(contrib);
 					return new Action(
 						contrib.type,
 						localize('continueIn', "Continue in {0}", name),

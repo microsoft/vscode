@@ -36,7 +36,7 @@ import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { ChatTreeItem, IChatWidget, IChatWidgetService } from '../chat.js';
 import { IAgentSession, isAgentSession } from '../agentSessions/agentSessionsModel.js';
-import { AgentSessionProviders } from '../agentSessions/agentSessions.js';
+import { backgroundAgentSessionProviderType, cloudAgentSessionProviderType } from '../agentSessions/agentSessions.js';
 
 export abstract class EditingSessionAction extends Action2 {
 
@@ -388,8 +388,8 @@ export class ViewAllSessionChangesAction extends Action2 {
 		}
 
 		if (
-			session.providerType === AgentSessionProviders.Background ||
-			session.providerType === AgentSessionProviders.Cloud
+			session.providerType === backgroundAgentSessionProviderType ||
+			session.providerType === cloudAgentSessionProviderType
 		) {
 			if (!Array.isArray(changes) || changes.length === 0) {
 				return;

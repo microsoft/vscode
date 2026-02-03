@@ -44,7 +44,7 @@ import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { ChatViewId } from '../chat.js';
 import { ChatViewPane } from '../widgetHosts/viewPane/chatViewPane.js';
-import { AgentSessionProviders, getAgentSessionProviderName } from '../agentSessions/agentSessions.js';
+import { AgentSessionProviderType, getAgentSessionProviderName, isLocalSessionProvider, localSessionProvider } from '../agentSessions/agentSessions.js';
 import { BugIndicatingError } from '../../../../../base/common/errors.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { LocalChatSessionUri } from '../../common/model/chatUri.js';
@@ -324,18 +324,16 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			this._evaluateAvailability();
 		}));
 
-		const builtinSessionProviders = [AgentSessionProviders.Local];
+		const builtinSessionProviders = [localSessionProvider.type];
 		const contributedSessionProviders = observableFromEvent(
 			this.onDidChangeAvailability,
-			() => Array.from(this._contributions.keys()).filter(isAgentSessionProviderType) as AgentSessionProviders[],
+			() => Array.from(this._contributions.keys()) as AgentSessionProviderType[],
 		).recomputeInitiallyAndOnChange(this._store);
 
 		this._register(autorun(reader => {
-			const activatedProviders = [...builtinSessionProviders, ...contributedSessionProviders.read(reader)];
-			for (const provider of Object.values(AgentSessionProviders)) {
-				if (activatedProviders.includes(provider)) {
-					reader.store.add(registerNewSessionInPlaceAction(provider, getAgentSessionProviderName(provider)));
-				}
+			const activatedProviders: AgentSessionProviderType[] = [...builtinSessionProviders, ...contributedSessionProviders.read(reader)];
+			for (const provider of activatedProviders) {
+				reader.store.add(registerNewSessionInPlaceAction(provider, getAgentSessionProviderName(provider, this)));
 			}
 		}));
 
@@ -356,17 +354,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	}
 
 	public reportInProgress(chatSessionType: string, count: number): void {
-		let displayName: string | undefined;
-
-		if (chatSessionType === AgentSessionProviders.Local) {
-			displayName = localize('chat.session.inProgress.local', "Local Agent");
-		} else if (chatSessionType === AgentSessionProviders.Background) {
-			displayName = localize('chat.session.inProgress.background', "Background Agent");
-		} else if (chatSessionType === AgentSessionProviders.Cloud) {
-			displayName = localize('chat.session.inProgress.cloud', "Cloud Agent");
-		} else {
-			displayName = this._contributions.get(chatSessionType)?.contribution.displayName;
-		}
+		const displayName = getAgentSessionProviderName(chatSessionType, this);
 
 		if (displayName) {
 			this.inProgressMap.set(displayName, count);
@@ -543,8 +531,6 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	}
 
 	private _registerCommands(contribution: IChatSessionsExtensionPoint): IDisposable {
-		const isAvailableInSessionTypePicker = isAgentSessionProviderType(contribution.type);
-
 		return combinedDisposable(
 			registerAction2(class OpenChatSessionAction extends Action2 {
 				constructor() {
@@ -598,10 +584,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 						icon: Codicon.plus,
 						f1: false, // Hide from Command Palette
 						precondition: ChatContextKeys.enabled,
-						menu: !isAvailableInSessionTypePicker ? {
-							id: MenuId.ChatNewMenu,
-							group: '3_new_special',
-						} : undefined,
+						menu: undefined,
 					});
 				}
 
@@ -1192,7 +1175,7 @@ async function openChatSession(accessor: ServicesAccessor, openOptions: NewChatS
 		switch (openOptions.position) {
 			case ChatSessionPosition.Sidebar: {
 				const view = await viewsService.openView(ChatViewId) as ChatViewPane;
-				if (openOptions.type === AgentSessionProviders.Local) {
+				if (isLocalSessionProvider(openOptions.type)) {
 					await view.widget.clear();
 				} else {
 					await view.loadSession(resource);
@@ -1242,7 +1225,7 @@ export function getResourceForNewChatSession(options: NewChatSessionOpenOptions)
 		return URI.revive(options.chatResource);
 	}
 
-	const isRemoteSession = options.type !== AgentSessionProviders.Local;
+	const isRemoteSession = !isLocalSessionProvider(options.type);
 	if (isRemoteSession) {
 		return URI.from({
 			scheme: options.type,
@@ -1256,8 +1239,4 @@ export function getResourceForNewChatSession(options: NewChatSessionOpenOptions)
 	}
 
 	return LocalChatSessionUri.forSession(generateUuid());
-}
-
-function isAgentSessionProviderType(type: string): boolean {
-	return Object.values(AgentSessionProviders).includes(type as AgentSessionProviders);
 }
