@@ -18,6 +18,7 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { ACTION_ID_NEW_CHAT } from '../actions/chatActions.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Throttler } from '../../../../../base/common/async.js';
 import { ITreeContextMenuEvent } from '../../../../../base/browser/ui/tree/tree.js';
 import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
 import { Separator } from '../../../../../base/common/actions.js';
@@ -66,6 +67,8 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 
 	private sessionsList: WorkbenchCompressibleAsyncDataTree<IAgentSessionsModel, AgentSessionListItem, FuzzyScore> | undefined;
 	private sessionsListFindIsOpen = false;
+
+	private readonly updateSessionsListThrottler = this._register(new Throttler());
 
 	private visible: boolean = true;
 
@@ -178,13 +181,13 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		this._register(this.options.filter.onDidChange(async () => {
 			if (this.visible) {
 				this.updateSectionCollapseStates();
-				list.updateChildren();
+				this.update();
 			}
 		}));
 
 		this._register(model.onDidChangeSessions(() => {
 			if (this.visible) {
-				list.updateChildren();
+				this.update();
 			}
 		}));
 
@@ -347,7 +350,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 	}
 
 	async update(): Promise<void> {
-		await this.sessionsList?.updateChildren();
+		return this.updateSessionsListThrottler.queue(async () => this.sessionsList?.updateChildren());
 	}
 
 	setVisible(visible: boolean): void {
@@ -358,7 +361,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		this.visible = visible;
 
 		if (this.visible) {
-			this.sessionsList?.updateChildren();
+			this.update();
 		}
 	}
 
