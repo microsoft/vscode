@@ -100,7 +100,7 @@ export class ChatWindowNotifier extends Disposable implements IWorkbenchContribu
 			const result = await this._hostService.showToast({
 				title: this._sanitizeOSToastText(notificationTitle),
 				body: info.detail ? this._sanitizeOSToastText(info.detail) : localize('notificationDetail', "Approval needed to continue."),
-				actions: [localize('allowAction', "Allow"), localize('showChat', "Show")],
+				actions: [localize('allowAction', "Allow")],
 			}, cts.token);
 
 			if (result.clicked || typeof result.actionIndex === 'number') {
