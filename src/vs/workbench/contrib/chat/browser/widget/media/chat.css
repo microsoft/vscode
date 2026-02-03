@@ -787,6 +787,11 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	z-index: 1;
 }
 
+/* Hide context usage widget in compact mode (quick chat) */
+.interactive-session .interactive-input-part.compact .chat-context-usage-container {
+	display: none;
+}
+
 .interactive-input-part:has(.chat-editing-session > .chat-editing-session-container) .chat-input-container,
 .interactive-input-part:has(.chat-todo-list-widget-container > .chat-todo-list-widget.has-todos) .chat-input-container,
 .interactive-input-part:has(.chat-input-widgets-container > .chat-status-widget:not([style*="display: none"])) .chat-input-container {
