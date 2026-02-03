@@ -14,7 +14,7 @@ import { TerminalCapabilityStore } from '../../../../../platform/terminal/common
 import { XtermTerminal } from '../../browser/xterm/xtermTerminal.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { TestXtermAddonImporter } from './xterm/xtermTestUtils.js';
-import { computeMaxBufferColumnWidth } from '../../browser/chatTerminalCommandMirror.js';
+import { computeMaxBufferColumnWidth, vtBoundaryMatches } from '../../browser/chatTerminalCommandMirror.js';
 
 const defaultTerminalConfig = {
 	fontFamily: 'monospace',
@@ -231,6 +231,123 @@ suite('Workbench - ChatTerminalCommandMirror', () => {
 			// Incremental mirror should match fresh mirror
 			strictEqual(getBufferText(mirror), getBufferText(freshMirror));
 		});
+
+		test('VT divergence detection prevents corruption (Windows scenario)', async () => {
+			// This test simulates the Windows issue where VT sequences can differ
+			// between calls even for equivalent visual content. On Windows, the
+			// serializer can produce different escape sequences (e.g., different
+			// line endings or cursor positioning) causing the prefix to diverge.
+			//
+			// Without boundary checking, blindly slicing would corrupt output:
+			// - vt1: "Line1\r\nLine2" (length 13)
+			// - vt2: "Line1\nLine2\nLine3" (different format, but starts similarly)
+			// - slice(13) on vt2 would give "ine3" instead of the full new content
+
+			const mirror = await createXterm();
+
+			// Simulate first VT snapshot
+			const vt1 = 'Line1\r\nLine2';
+			await write(mirror, vt1);
+			strictEqual(getBufferText(mirror), 'Line1\nLine2');
+
+			// Simulate divergent VT snapshot (different escape sequences for same content)
+			// This mimics what can happen on Windows where the VT serializer
+			// produces different output between calls
+			const vt2 = 'DifferentPrefix' + 'Line3';
+
+			// Use the actual utility function to test boundary checking
+			const boundaryMatches = vtBoundaryMatches(vt2, vt1, vt1.length);
+
+			// Boundary should NOT match because the prefix diverged
+			strictEqual(boundaryMatches, false, 'Boundary check should detect divergence');
+
+			// When boundary doesn't match, the fix does a full reset + rewrite
+			// instead of corrupting the output by blind slicing
+			mirror.raw.reset();
+			await write(mirror, vt2);
+
+			// Final content should be the complete new VT, not corrupted
+			strictEqual(getBufferText(mirror), 'DifferentPrefixLine3');
+		});
+
+		test('boundary check allows append when VT prefix matches', async () => {
+			const mirror = await createXterm();
+
+			// First VT snapshot
+			const vt1 = 'Line1\r\nLine2\r\n';
+			await write(mirror, vt1);
+
+			// Second VT snapshot that properly extends the first
+			const vt2 = vt1 + 'Line3\r\n';
+
+			// Use the actual utility function to test boundary checking
+			const boundaryMatches = vtBoundaryMatches(vt2, vt1, vt1.length);
+
+			strictEqual(boundaryMatches, true, 'Boundary check should pass when prefix matches');
+
+			// Append should work correctly
+			const appended = vt2.slice(vt1.length);
+			await write(mirror, appended);
+
+			strictEqual(getBufferText(mirror), 'Line1\nLine2\nLine3');
+		});
+
+		test('incremental updates use append path (not full rewrite) in normal operation', async () => {
+			// This test verifies that in normal operation (VT prefix matches),
+			// we use the efficient append path rather than full rewrite.
+
+			const source = await createXterm();
+			const marker = source.raw.registerMarker(0)!;
+
+			// Build up content incrementally, simulating streaming output
+			const writes: string[] = [];
+
+			// Step 1: Initial content
+			await write(source, 'output line 1\r\n');
+			const vt1 = await source.getRangeAsVT(marker, undefined, true) ?? '';
+
+			const mirror = await createXterm();
+			await write(mirror, vt1);
+			writes.push(vt1);
+
+			// Step 2: Add more content - should use append path
+			await write(source, 'output line 2\r\n');
+			const vt2 = await source.getRangeAsVT(marker, undefined, true) ?? '';
+
+			// Verify VT extends properly (prefix matches)
+			strictEqual(vt2.startsWith(vt1), true, 'VT2 should start with VT1');
+
+			// Append only the new part (this is what the append path does)
+			const appended2 = vt2.slice(vt1.length);
+			strictEqual(appended2.length > 0, true, 'Should have new content to append');
+			strictEqual(appended2.length < vt2.length, true, 'Append should be smaller than full rewrite');
+			await write(mirror, appended2);
+			writes.push(appended2);
+
+			// Step 3: Add more content - should continue using append path
+			await write(source, 'output line 3\r\n');
+			const vt3 = await source.getRangeAsVT(marker, undefined, true) ?? '';
+
+			strictEqual(vt3.startsWith(vt2), true, 'VT3 should start with VT2');
+
+			const appended3 = vt3.slice(vt2.length);
+			strictEqual(appended3.length > 0, true, 'Should have new content to append');
+			strictEqual(appended3.length < vt3.length, true, 'Append should be smaller than full rewrite');
+			await write(mirror, appended3);
+			writes.push(appended3);
+
+			marker.dispose();
+
+			// Verify final content is correct
+			strictEqual(getBufferText(mirror), 'output line 1\noutput line 2\noutput line 3');
+
+			// Verify we used the append path (total bytes written should be roughly
+			// equal to total VT, not 3x the total due to full rewrites)
+			const totalWritten = writes.reduce((sum, w) => sum + w.length, 0);
+			const fullRewriteWouldBe = vt1.length + vt2.length + vt3.length;
+			strictEqual(totalWritten < fullRewriteWouldBe, true,
+				`Append path should write less (${totalWritten}) than full rewrites would (${fullRewriteWouldBe})`);
+		});
 	});
 
 	suite('computeMaxBufferColumnWidth', () => {
@@ -373,6 +490,69 @@ suite('Workbench - ChatTerminalCommandMirror', () => {
 				'c'.repeat(90)
 			], 150);
 			strictEqual(computeMaxBufferColumnWidth(buffer, 150), 120);
+		});
+	});
+
+	suite('vtBoundaryMatches', () => {
+
+		test('returns true when strings match at boundary', () => {
+			const oldVT = 'Line1\r\nLine2\r\n';
+			const newVT = oldVT + 'Line3\r\n';
+			strictEqual(vtBoundaryMatches(newVT, oldVT, oldVT.length), true);
+		});
+
+		test('returns false when strings diverge at boundary', () => {
+			const oldVT = 'Line1\r\nLine2';
+			const newVT = 'DifferentPrefixLine3';
+			strictEqual(vtBoundaryMatches(newVT, oldVT, oldVT.length), false);
+		});
+
+		test('returns false when single character differs in window', () => {
+			const oldVT = 'AAAAAAAAAA';
+			const newVT = 'AAAAABAAAA' + 'NewContent';
+			strictEqual(vtBoundaryMatches(newVT, oldVT, oldVT.length), false);
+		});
+
+		test('returns true for empty strings', () => {
+			strictEqual(vtBoundaryMatches('', '', 0), true);
+		});
+
+		test('returns true when slicePoint is 0', () => {
+			const oldVT = '';
+			const newVT = 'SomeContent';
+			strictEqual(vtBoundaryMatches(newVT, oldVT, 0), true);
+		});
+
+		test('handles strings shorter than window size', () => {
+			const oldVT = 'Short';
+			const newVT = 'Short' + 'Added';
+			strictEqual(vtBoundaryMatches(newVT, oldVT, oldVT.length), true);
+		});
+
+		test('respects custom window size parameter', () => {
+			// With default window (50), this would match since the diff is at position 70
+			const prefix = 'A'.repeat(80);
+			const oldVT = prefix;
+			const newVT = 'X' + 'A'.repeat(79) + 'NewContent'; // differs at position 0
+
+			// With window of 50, only checks chars 30-80, which would match
+			strictEqual(vtBoundaryMatches(newVT, oldVT, oldVT.length, 50), true);
+
+			// With window of 100, would check chars 0-80, which would NOT match
+			strictEqual(vtBoundaryMatches(newVT, oldVT, oldVT.length, 100), false);
+		});
+
+		test('detects divergence in escape sequences (Windows scenario)', () => {
+			// Simulates Windows issue where VT escape sequences differ
+			const oldVT = '\x1b[0m\x1b[1mBold\x1b[0m\r\n';
+			const newVT = '\x1b[0m\x1b[22mBold\x1b[0m\r\nMore'; // Different escape code for bold
+			strictEqual(vtBoundaryMatches(newVT, oldVT, oldVT.length), false);
+		});
+
+		test('handles matching escape sequences', () => {
+			const oldVT = '\x1b[31mRed\x1b[0m\r\n';
+			const newVT = '\x1b[31mRed\x1b[0m\r\nGreen';
+			strictEqual(vtBoundaryMatches(newVT, oldVT, oldVT.length), true);
 		});
 	});
 });

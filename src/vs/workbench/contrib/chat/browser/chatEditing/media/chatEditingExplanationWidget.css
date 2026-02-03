@@ -1,0 +1,276 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Main widget container - speech bubble style */
+.chat-explanation-widget {
+	position: absolute;
+	max-width: 280px;
+	min-width: 180px;
+	background-color: var(--vscode-editorWidget-background);
+	border: 1px solid var(--vscode-editorWidget-border, var(--vscode-contrastBorder));
+	border-radius: 8px;
+	box-shadow: 0 2px 8px var(--vscode-widget-shadow);
+	font-size: 12px;
+	line-height: 1.4;
+	opacity: 0;
+	transition: opacity 0.2s ease-in-out;
+	z-index: 10;
+}
+
+.chat-explanation-widget.visible {
+	opacity: 1;
+}
+
+.chat-explanation-widget.fadeOut {
+	animation: chatExplanationFadeOut 150ms ease-out forwards;
+}
+
+@keyframes chatExplanationFadeOut {
+	from { opacity: 1; }
+	to { opacity: 0; }
+}
+
+/* Arrow pointer pointing left toward the code */
+.chat-explanation-arrow {
+	position: absolute;
+	left: -8px;
+	top: 12px;
+	width: 0;
+	height: 0;
+	border-top: 8px solid transparent;
+	border-bottom: 8px solid transparent;
+	border-right: 8px solid var(--vscode-editorWidget-border, var(--vscode-contrastBorder));
+}
+
+.chat-explanation-arrow::after {
+	content: '';
+	position: absolute;
+	left: 2px;
+	top: -7px;
+	width: 0;
+	height: 0;
+	border-top: 7px solid transparent;
+	border-bottom: 7px solid transparent;
+	border-right: 7px solid var(--vscode-editorWidget-background);
+}
+
+/* Header */
+.chat-explanation-header {
+	display: flex;
+	align-items: center;
+	padding: 8px 10px;
+	border-bottom: 1px solid var(--vscode-editorWidget-border, var(--vscode-widget-border));
+	cursor: pointer;
+	gap: 6px;
+}
+
+.chat-explanation-header:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+/* Read indicator - GitHub notification style */
+.chat-explanation-read-indicator {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 18px;
+	height: 18px;
+	border-radius: 4px;
+	cursor: pointer;
+	color: var(--vscode-foreground);
+	opacity: 0.4;
+	transition: opacity 0.1s;
+}
+
+.chat-explanation-read-indicator:hover {
+	opacity: 0.8;
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.chat-explanation-read-indicator.unread {
+	color: var(--vscode-textLink-foreground);
+	opacity: 1;
+}
+
+.chat-explanation-read-indicator.unread .codicon {
+	color: var(--vscode-textLink-foreground) !important;
+}
+
+.chat-explanation-read-indicator.partial {
+	color: var(--vscode-textLink-foreground);
+	opacity: 0.6;
+}
+
+.chat-explanation-read-indicator.partial .codicon {
+	color: var(--vscode-textLink-foreground) !important;
+}
+
+.chat-explanation-read-indicator.read {
+	color: var(--vscode-foreground);
+	opacity: 0.4;
+}
+
+/* Title */
+.chat-explanation-title {
+	font-weight: 500;
+	color: var(--vscode-foreground);
+	white-space: nowrap;
+}
+
+/* Spacer to push buttons to the right */
+.chat-explanation-spacer {
+	flex: 1;
+}
+
+/* Toggle button */
+.chat-explanation-toggle {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 18px;
+	height: 18px;
+	border-radius: 4px;
+	cursor: pointer;
+	color: var(--vscode-foreground);
+	opacity: 0.7;
+	transition: opacity 0.1s;
+}
+
+.chat-explanation-toggle:hover {
+	opacity: 1;
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+/* Dismiss button */
+.chat-explanation-dismiss {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 18px;
+	height: 18px;
+	border-radius: 4px;
+	cursor: pointer;
+	color: var(--vscode-foreground);
+	opacity: 0.7;
+	transition: opacity 0.1s;
+}
+
+.chat-explanation-dismiss:hover {
+	opacity: 1;
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+/* Body - collapsible */
+.chat-explanation-body {
+	transition: max-height 0.2s ease-in-out, padding 0.2s ease-in-out;
+}
+
+.chat-explanation-body.collapsed {
+	max-height: 0;
+	overflow: hidden;
+	padding: 0;
+}
+
+/* Individual explanation item */
+.chat-explanation-item {
+	display: flex;
+	flex-direction: column;
+	padding: 8px 10px;
+	border-bottom: 1px solid var(--vscode-editorWidget-border, var(--vscode-widget-border));
+	cursor: pointer;
+	position: relative;
+}
+
+.chat-explanation-item:last-child {
+	border-bottom: none;
+}
+
+.chat-explanation-item:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+/* Line info */
+.chat-explanation-line-info {
+	font-size: 10px;
+	font-weight: 600;
+	color: var(--vscode-descriptionForeground);
+	margin-bottom: 4px;
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
+}
+
+/* Explanation text */
+.chat-explanation-text {
+	color: var(--vscode-foreground);
+	word-wrap: break-word;
+	padding-right: 24px; /* Space for read indicator */
+}
+
+/* Item read indicator - GitHub notification style */
+.chat-explanation-item-read {
+	position: absolute;
+	top: 8px;
+	right: 8px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 16px;
+	height: 16px;
+	border-radius: 3px;
+	color: var(--vscode-foreground);
+	opacity: 0.3;
+	font-size: 12px;
+}
+
+.chat-explanation-item:hover .chat-explanation-item-read {
+	opacity: 0.6;
+}
+
+.chat-explanation-item-read.unread {
+	color: var(--vscode-textLink-foreground);
+	opacity: 1;
+}
+
+.chat-explanation-item-read.unread .codicon {
+	color: var(--vscode-textLink-foreground) !important;
+}
+
+.chat-explanation-item-read.read {
+	color: var(--vscode-foreground);
+	opacity: 0.3;
+}
+
+/* Reply button */
+.chat-explanation-reply-button {
+	position: absolute;
+	bottom: 8px;
+	right: 8px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 20px;
+	height: 20px;
+	border-radius: 4px;
+	cursor: pointer;
+	color: var(--vscode-foreground);
+	opacity: 0;
+	transition: opacity 0.1s, background-color 0.1s;
+}
+
+.chat-explanation-item:hover .chat-explanation-reply-button {
+	opacity: 0.6;
+}
+
+.chat-explanation-reply-button:hover {
+	opacity: 1 !important;
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+/* Gutter decoration for range indicator on hover */
+.chat-explanation-range-glyph {
+	margin-left: 8px;
+	z-index: 5;
+	border-left: 2px solid var(--vscode-editorGutter-modifiedBackground);
+}

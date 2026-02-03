@@ -8,16 +8,15 @@ import { Button } from '../../../../../../base/browser/ui/button/button.js';
 import { IconLabel } from '../../../../../../base/browser/ui/iconLabel/iconLabel.js';
 import { IListRenderer, IListVirtualDelegate } from '../../../../../../base/browser/ui/list/list.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
-import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { isEqual } from '../../../../../../base/common/resources.js';
+import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { WorkbenchList } from '../../../../../../platform/list/browser/listService.js';
-import { IChatTodoListService, IChatTodo } from '../../../common/tools/chatTodoListService.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
-import { URI } from '../../../../../../base/common/uri.js';
-import { isEqual } from '../../../../../../base/common/resources.js';
+import { IChatTodo, IChatTodoListService } from '../../../common/tools/chatTodoListService.js';
 
 class TodoListDelegate implements IListVirtualDelegate<IChatTodo> {
 	getHeight(element: IChatTodo): number {
@@ -113,9 +112,6 @@ class TodoListRenderer implements IListRenderer<IChatTodo, ITodoListTemplate> {
 export class ChatTodoListWidget extends Disposable {
 	public readonly domNode: HTMLElement;
 
-	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
-	public readonly onDidChangeHeight: Event<void> = this._onDidChangeHeight.event;
-
 	private _isExpanded: boolean = false;
 	private _userManuallyExpanded: boolean = false;
 	private expandoButton!: Button;
@@ -150,7 +146,6 @@ export class ChatTodoListWidget extends Disposable {
 
 	private hideWidget(): void {
 		this.domNode.style.display = 'none';
-		this._onDidChangeHeight.fire();
 	}
 
 	private createChatTodoWidget(): HTMLElement {
@@ -257,7 +252,6 @@ export class ChatTodoListWidget extends Disposable {
 		this.domNode.classList.add('has-todos');
 		this.renderTodoList(todoList);
 		this.domNode.style.display = 'block';
-		this._onDidChangeHeight.fire();
 	}
 
 	private renderTodoList(todoList: IChatTodo[]): void {
@@ -313,7 +307,6 @@ export class ChatTodoListWidget extends Disposable {
 			this.expandIcon.classList.add('codicon-chevron-right');
 
 			this.updateTitleElement(this.titleElement, todoList);
-			this._onDidChangeHeight.fire();
 		}
 	}
 
@@ -330,8 +323,6 @@ export class ChatTodoListWidget extends Disposable {
 			const todoList = this.chatTodoListService.getTodos(this._currentSessionResource);
 			this.updateTitleElement(this.titleElement, todoList);
 		}
-
-		this._onDidChangeHeight.fire();
 	}
 
 	private clearAllTodos(): void {

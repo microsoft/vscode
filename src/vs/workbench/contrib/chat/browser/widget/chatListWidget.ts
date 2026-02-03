@@ -4,36 +4,36 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
-import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { IMouseWheelEvent } from '../../../../../base/browser/mouseEvent.js';
+import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { ITreeContextMenuEvent, ITreeElement, ITreeFilter } from '../../../../../base/browser/ui/tree/tree.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { FuzzyScore } from '../../../../../base/common/filters.js';
-import { Disposable, MutableDisposable, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ScrollEvent } from '../../../../../base/common/scrollable.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { IContextKeyService, IContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
+import { MenuId } from '../../../../../platform/actions/common/actions.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { WorkbenchObjectTree } from '../../../../../platform/list/browser/listService.js';
-import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
-import { MenuId } from '../../../../../platform/actions/common/actions.js';
-import { asCssVariable, buttonSecondaryBackground, buttonSecondaryForeground, buttonSecondaryHoverBackground } from '../../../../../platform/theme/common/colorRegistry.js';
-import { Codicon } from '../../../../../base/common/codicons.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { ChatAccessibilityProvider } from '../accessibility/chatAccessibilityProvider.js';
-import { ChatTreeItem, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions } from '../chat.js';
+import { asCssVariable, buttonSecondaryBackground, buttonSecondaryForeground, buttonSecondaryHoverBackground } from '../../../../../platform/theme/common/colorRegistry.js';
 import { katexContainerClassName } from '../../../markdown/common/markedKatexExtension.js';
-import { CodeBlockModelCollection } from '../../common/widget/codeBlockModelCollection.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
-import { IChatRequestModeInfo } from '../../common/model/chatModel.js';
 import { IChatFollowup, IChatSendRequestOptions, IChatService } from '../../common/chatService/chatService.js';
-import { ChatEditorOptions } from './chatOptions.js';
-import { ChatListDelegate, ChatListItemRenderer, IChatListItemTemplate, IChatRendererDelegate } from './chatListRenderer.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
+import { IChatRequestModeInfo } from '../../common/model/chatModel.js';
+import { IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
+import { CodeBlockModelCollection } from '../../common/widget/codeBlockModelCollection.js';
+import { ChatAccessibilityProvider } from '../accessibility/chatAccessibilityProvider.js';
+import { ChatTreeItem, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions } from '../chat.js';
 import { CodeBlockPart } from './chatContentParts/codeBlockPart.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ChatListDelegate, ChatListItemRenderer, IChatListItemTemplate, IChatRendererDelegate } from './chatListRenderer.js';
+import { ChatEditorOptions } from './chatOptions.js';
 
 export interface IChatListWidgetStyles {
 	listForeground?: string;
@@ -188,7 +188,6 @@ export class ChatListWidget extends Disposable {
 	private _viewModel: IChatViewModel | undefined;
 	private _visible = true;
 	private _lastItem: ChatTreeItem | undefined;
-	private _previousScrollHeight: number = 0;
 	private _mostRecentlyFocusedItemIndex: number = -1;
 	private _scrollLock: boolean = true;
 	private _settingChangeCounter: number = 0;
@@ -196,7 +195,6 @@ export class ChatListWidget extends Disposable {
 
 	private readonly _container: HTMLElement;
 	private readonly _scrollDownButton: Button;
-	private readonly _scrollAnimationFrameDisposable = this._register(new MutableDisposable<IDisposable>());
 	private readonly _lastItemIdContextKey: IContextKey<string[]>;
 
 	private readonly _location: ChatAgentLocation | undefined;
@@ -259,6 +257,7 @@ export class ChatListWidget extends Disposable {
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@ILogService private readonly logService: ILogService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IChatAccessibilityService private readonly chatAccessibilityService: IChatAccessibilityService,
 	) {
 		super();
 
@@ -323,9 +322,7 @@ export class ChatListWidget extends Disposable {
 		}));
 
 		this._register(this._renderer.onDidChangeItemHeight(e => {
-			if (this._tree.hasElement(e.element) && this._visible) {
-				this._tree.updateElementHeight(e.element, e.height);
-			}
+			this._updateElementHeight(e.element, e.height);
 
 			// If the second-to-last item's height changed, update the last item's min height
 			const secondToLastItem = this._viewModel?.getItems().at(-2);
@@ -347,6 +344,7 @@ export class ChatListWidget extends Disposable {
 					userSelectedModelId: this._getCurrentLanguageModelId?.(),
 					modeInfo: this._getCurrentModeInfo?.(),
 				};
+				this.chatAccessibilityService.acceptRequest(e.sessionResource);
 				this.chatService.resendRequest(request, sendOptions).catch(e => this.logService.error('FAILED to rerun request', e));
 			}
 		}));
@@ -417,7 +415,6 @@ export class ChatListWidget extends Disposable {
 
 		// Handle content height changes (fires high-level event, internal scroll handling)
 		this._register(this._tree.onDidChangeContentHeight(() => {
-			this.handleContentHeightChange();
 			this._onDidChangeContentHeight.fire();
 		}));
 
@@ -458,25 +455,6 @@ export class ChatListWidget extends Disposable {
 	}
 
 	//#region Internal event handlers
-
-	/**
-	 * Handle content height changes - auto-scroll if needed.
-	 */
-	private handleContentHeightChange(): void {
-		if (!this.hasScrollHeightChanged()) {
-			return;
-		}
-		const rendering = this._lastItem && isResponseVM(this._lastItem) && this._lastItem.renderData;
-		if (!rendering || this.scrollLock) {
-			if (this.wasLastElementVisible()) {
-				this._scrollAnimationFrameDisposable.value = dom.scheduleAtNextAnimationFrame(dom.getWindow(this._container), () => {
-					this.scrollToEnd();
-				}, 0);
-			}
-		}
-
-		this.updatePreviousScrollHeight();
-	}
 
 	/**
 	 * Update scroll-down button visibility based on scroll position and scroll lock.
@@ -549,28 +527,30 @@ export class ChatListWidget extends Disposable {
 		const editing = this._viewModel.editing;
 		const checkpoint = this._viewModel.model?.checkpoint;
 
-		this._tree.setChildren(null, treeItems, {
-			diffIdentityProvider: {
-				getId: (element) => {
-					return element.dataId +
-						// If a response is in the process of progressive rendering, we need to ensure that it will
-						// be re-rendered so progressive rendering is restarted, even if the model wasn't updated.
-						`${isResponseVM(element) && element.renderData ? `_${this._visibleChangeCount}` : ''}` +
-						// Re-render once content references are loaded
-						(isResponseVM(element) ? `_${element.contentReferences.length}` : '') +
-						// Re-render if element becomes hidden due to undo/redo
-						`_${element.shouldBeRemovedOnSend ? `${element.shouldBeRemovedOnSend.afterUndoStop || '1'}` : '0'}` +
-						// Re-render if we have an element currently being edited
-						`_${editing ? '1' : '0'}` +
-						// Re-render if we have an element currently being checkpointed
-						`_${checkpoint ? '1' : '0'}` +
-						// Re-render all if invoked by setting change
-						`_setting${this._settingChangeCounter}` +
-						// Rerender request if we got new content references in the response
-						// since this may change how we render the corresponding attachments in the request
-						(isRequestVM(element) && element.contentReferences ? `_${element.contentReferences?.length}` : '');
-				},
-			}
+		this._withPersistedAutoScroll(() => {
+			this._tree.setChildren(null, treeItems, {
+				diffIdentityProvider: {
+					getId: (element) => {
+						return element.dataId +
+							// If a response is in the process of progressive rendering, we need to ensure that it will
+							// be re-rendered so progressive rendering is restarted, even if the model wasn't updated.
+							`${isResponseVM(element) && element.renderData ? `_${this._visibleChangeCount}` : ''}` +
+							// Re-render once content references are loaded
+							(isResponseVM(element) ? `_${element.contentReferences.length}` : '') +
+							// Re-render if element becomes hidden due to undo/redo
+							`_${element.shouldBeRemovedOnSend ? `${element.shouldBeRemovedOnSend.afterUndoStop || '1'}` : '0'}` +
+							// Re-render if we have an element currently being edited
+							`_${editing ? '1' : '0'}` +
+							// Re-render if we have an element currently being checkpointed
+							`_${checkpoint ? '1' : '0'}` +
+							// Re-render all if invoked by setting change
+							`_setting${this._settingChangeCounter}` +
+							// Rerender request if we got new content references in the response
+							// since this may change how we render the corresponding attachments in the request
+							(isRequestVM(element) && element.contentReferences ? `_${element.contentReferences?.length}` : '');
+					},
+				}
+			});
 		});
 	}
 
@@ -652,9 +632,11 @@ export class ChatListWidget extends Disposable {
 	/**
 	 * Update the height of an element.
 	 */
-	updateElementHeight(element: ChatTreeItem, height?: number): void {
+	private _updateElementHeight(element: ChatTreeItem, height?: number): void {
 		if (this._tree.hasElement(element) && this._visible) {
-			this._tree.updateElementHeight(element, height);
+			this._withPersistedAutoScroll(() => {
+				this._tree.updateElementHeight(element, height);
+			});
 		}
 	}
 
@@ -721,18 +703,12 @@ export class ChatListWidget extends Disposable {
 		}
 	}
 
-	private hasScrollHeightChanged(): boolean {
-		return this._tree.scrollHeight !== this._previousScrollHeight;
-	}
-
-	private updatePreviousScrollHeight(): void {
-		this._previousScrollHeight = this._tree.scrollHeight;
-	}
-
-	private wasLastElementVisible(): boolean {
-		// Due to rounding, the scrollTop + renderHeight will not exactly match the scrollHeight.
-		// Consider the tree to be scrolled all the way down if it is within 2px of the bottom.
-		return this._tree.scrollTop + this._tree.renderHeight >= this._previousScrollHeight - 2;
+	private _withPersistedAutoScroll(fn: () => void): void {
+		const wasScrolledToBottom = this.isScrolledToBottom;
+		fn();
+		if (wasScrolledToBottom) {
+			this.scrollToEnd();
+		}
 	}
 
 	/**
@@ -799,13 +775,6 @@ export class ChatListWidget extends Disposable {
 	}
 
 	/**
-	 * Update item height after rendering.
-	 */
-	updateItemHeightOnRender(element: ChatTreeItem, template: IChatListItemTemplate): void {
-		this._renderer.updateItemHeightOnRender(element, template);
-	}
-
-	/**
 	 * Update renderer options.
 	 */
 	updateRendererOptions(options: IChatListItemRendererOptions): void {
@@ -850,7 +819,7 @@ export class ChatListWidget extends Disposable {
 				this._previousLastItemMinHeight = lastItemMinHeight;
 				const lastItem = this._viewModel?.getItems().at(-1);
 				if (lastItem && this._visible && this._tree.hasElement(lastItem)) {
-					this._tree.updateElementHeight(lastItem, undefined);
+					this._updateElementHeight(lastItem, undefined);
 				}
 			}
 		}

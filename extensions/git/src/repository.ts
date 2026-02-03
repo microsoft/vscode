@@ -1114,6 +1114,12 @@ export class Repository implements Disposable {
 			return undefined;
 		}
 
+		// Ignore path that is inside the .git directory (ex: COMMIT_EDITMSG)
+		if (isDescendant(this.dotGit.commonPath ?? this.dotGit.path, uri.fsPath)) {
+			this.logger.trace(`[Repository][provideOriginalResource] Resource is inside .git directory: ${uri.toString()}`);
+			return undefined;
+		}
+
 		// Ignore symbolic links
 		const stat = await workspace.fs.stat(uri);
 		if ((stat.type & FileType.SymbolicLink) !== 0) {
@@ -1127,10 +1133,11 @@ export class Repository implements Disposable {
 			return undefined;
 		}
 
-		// Since we are inspecting the resource groups
-		// we have to ensure that the repository state
-		// is up to date
-		// await this.status();
+		// Ignore path that is inside a hidden repository
+		if (this.isHidden === true) {
+			this.logger.trace(`[Repository][provideOriginalResource] Repository is hidden: ${uri.toString()}`);
+			return undefined;
+		}
 
 		// Ignore path that is inside a merge group
 		if (this.mergeGroup.resourceStates.some(r => pathEquals(r.resourceUri.fsPath, uri.fsPath))) {
@@ -1895,7 +1902,7 @@ export class Repository implements Disposable {
 
 	private async _getWorktreeIncludePaths(): Promise<Set<string>> {
 		const config = workspace.getConfiguration('git', Uri.file(this.root));
-		const worktreeIncludeFiles = config.get<string[]>('worktreeIncludeFiles', ['**/node_modules/**']);
+		const worktreeIncludeFiles = config.get<string[]>('worktreeIncludeFiles', []);
 
 		if (worktreeIncludeFiles.length === 0) {
 			return new Set<string>();
@@ -2380,8 +2387,8 @@ export class Repository implements Disposable {
 		return this.run(Operation.Show, () => this.repository.detectObjectType(object));
 	}
 
-	async apply(patch: string, reverse?: boolean): Promise<void> {
-		return await this.run(Operation.Apply, () => this.repository.apply(patch, reverse));
+	async apply(patch: string, options?: { allowEmpty?: boolean; reverse?: boolean; threeWay?: boolean }): Promise<void> {
+		return await this.run(Operation.Apply, () => this.repository.apply(patch, options));
 	}
 
 	async getStashes(): Promise<Stash[]> {
@@ -3293,17 +3300,18 @@ export class StagedResourceQuickDiffProvider implements QuickDiffProvider {
 			return undefined;
 		}
 
+		// Ignore path that is inside a hidden repository
+		if (this._repository.isHidden === true) {
+			this.logger.trace(`[StagedResourceQuickDiffProvider][provideOriginalResource] Repository is hidden: ${uri.toString()}`);
+			return undefined;
+		}
+
 		// Ignore symbolic links
 		const stat = await workspace.fs.stat(uri);
 		if ((stat.type & FileType.SymbolicLink) !== 0) {
 			this.logger.trace(`[StagedResourceQuickDiffProvider][provideOriginalResource] Resource is a symbolic link: ${uri.toString()}`);
 			return undefined;
 		}
-
-		// Since we are inspecting the resource groups
-		// we have to ensure that the repository state
-		// is up to date
-		// await this._repository.status();
 
 		// Ignore resources that are not in the index group
 		if (!this._repository.indexGroup.resourceStates.some(r => pathEquals(r.resourceUri.fsPath, uri.fsPath))) {

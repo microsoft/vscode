@@ -40,7 +40,7 @@ suite('ChatSelectedTools', () => {
 
 		store.add(instaService);
 		toolsService = instaService.get(ILanguageModelToolsService);
-		selectedTools = store.add(instaService.createInstance(ChatSelectedTools, constObservable(ChatMode.Agent)));
+		selectedTools = store.add(instaService.createInstance(ChatSelectedTools, constObservable(ChatMode.Agent), constObservable(undefined)));
 	});
 
 	teardown(function () {
@@ -95,7 +95,7 @@ suite('ChatSelectedTools', () => {
 			store.add(toolset.addTool(toolData2));
 			store.add(toolset.addTool(toolData3));
 
-			assert.strictEqual(Iterable.length(toolsService.getTools()), 3);
+			assert.strictEqual(Iterable.length(toolsService.getTools(undefined)), 3);
 
 			const size = Iterable.length(toolset.getTools());
 			assert.strictEqual(size, 3);
@@ -159,7 +159,7 @@ suite('ChatSelectedTools', () => {
 			store.add(toolset.addTool(toolData2));
 			store.add(toolset.addTool(toolData3));
 
-			assert.strictEqual(Iterable.length(toolsService.getTools()), 3);
+			assert.strictEqual(Iterable.length(toolsService.getTools(undefined)), 3);
 
 			const size = Iterable.length(toolset.getTools());
 			assert.strictEqual(size, 3);

@@ -15,6 +15,7 @@ import { IChatModel } from '../../common/model/chatModel.js';
 import { convertLegacyChatSessionTiming, IChatDetail, IChatService, ResponseModelState } from '../../common/chatService/chatService.js';
 import { ChatSessionStatus, IChatSessionItem, IChatSessionItemProvider, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
 
 interface IChatSessionItemWithProvider extends IChatSessionItem {
 	readonly provider: IChatSessionItemProvider;
@@ -35,6 +36,7 @@ export class LocalAgentsSessionsProvider extends Disposable implements IChatSess
 	constructor(
 		@IChatService private readonly chatService: IChatService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 
@@ -126,10 +128,12 @@ export class LocalAgentsSessionsProvider extends Disposable implements IChatSess
 
 	private modelToStatus(model: IChatModel): ChatSessionStatus | undefined {
 		if (model.requestInProgress.get()) {
+			this.logService.trace(`[agent sessions] Session ${model.sessionResource.toString()} request is in progress.`);
 			return ChatSessionStatus.InProgress;
 		}
 
 		const lastRequest = model.getRequests().at(-1);
+		this.logService.trace(`[agent sessions] Session ${model.sessionResource.toString()} last request response: state ${lastRequest?.response?.state}, isComplete ${lastRequest?.response?.isComplete}, isCanceled ${lastRequest?.response?.isCanceled}, error: ${lastRequest?.response?.result?.errorDetails?.message}.`);
 		if (lastRequest?.response) {
 			if (lastRequest.response.state === ResponseModelState.NeedsInput) {
 				return ChatSessionStatus.NeedsInput;

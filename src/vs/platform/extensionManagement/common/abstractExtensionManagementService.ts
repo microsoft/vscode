@@ -428,12 +428,6 @@ export abstract class AbstractExtensionManagementService extends CommontExtensio
 						durationSinceUpdate,
 						source: task.options.context?.[EXTENSION_INSTALL_SOURCE_CONTEXT] as string | undefined
 					});
-					// In web, report extension install statistics explicitly. In Desktop, statistics are automatically updated while downloading the VSIX.
-					if (isWeb && task.operation !== InstallOperation.Update) {
-						try {
-							await this.galleryService.reportStatistic(local.manifest.publisher, local.manifest.name, local.manifest.version, StatisticType.Install);
-						} catch (error) { /* ignore */ }
-					}
 				}
 				installExtensionResultsMap.set(key, { local, identifier: task.identifier, operation: task.operation, source: task.source, context: task.options.context, profileLocation: task.options.profileLocation, applicationScoped: local.isApplicationScoped });
 			}));
@@ -854,8 +848,8 @@ export abstract class AbstractExtensionManagementService extends CommontExtensio
 
 					await task.run();
 					await this.joinAllSettled(this.participants.map(participant => participant.postUninstall(task.extension, task.options, CancellationToken.None)));
-					// only report if extension has a mapped gallery extension. UUID identifies the gallery extension.
-					if (task.extension.identifier.uuid) {
+					// only report if extension has a mapped gallery extension and not in web. UUID identifies the gallery extension.
+					if (task.extension.identifier.uuid && !isWeb) {
 						try {
 							await this.galleryService.reportStatistic(task.extension.manifest.publisher, task.extension.manifest.name, task.extension.manifest.version, StatisticType.Uninstall);
 						} catch (error) { /* ignore */ }

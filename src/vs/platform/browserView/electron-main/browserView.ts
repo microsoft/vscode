@@ -7,7 +7,7 @@ import { WebContentsView, webContents } from 'electron';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
-import { IBrowserViewBounds, IBrowserViewDevToolsStateEvent, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewLoadError, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent, IBrowserViewNewPageRequest, BrowserViewStorageScope, IBrowserViewCaptureScreenshotOptions } from '../common/browserView.js';
+import { IBrowserViewBounds, IBrowserViewDevToolsStateEvent, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewLoadError, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent, IBrowserViewNewPageRequest, BrowserViewStorageScope, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, IBrowserViewFindInPageResult, IBrowserViewVisibilityEvent } from '../common/browserView.js';
 import { EVENT_KEY_CODE_MAP, KeyCode, KeyMod, SCAN_CODE_STR_TO_EVENT_KEY_CODE } from '../../../base/common/keyCodes.js';
 import { IWindowsMainService } from '../../windows/electron-main/windows.js';
 import { IBaseWindow, ICodeWindow } from '../../window/electron-main/window.js';
@@ -51,6 +51,9 @@ export class BrowserView extends Disposable {
 	private readonly _onDidChangeFocus = this._register(new Emitter<IBrowserViewFocusEvent>());
 	readonly onDidChangeFocus: Event<IBrowserViewFocusEvent> = this._onDidChangeFocus.event;
 
+	private readonly _onDidChangeVisibility = this._register(new Emitter<IBrowserViewVisibilityEvent>());
+	readonly onDidChangeVisibility: Event<IBrowserViewVisibilityEvent> = this._onDidChangeVisibility.event;
+
 	private readonly _onDidChangeDevToolsState = this._register(new Emitter<IBrowserViewDevToolsStateEvent>());
 	readonly onDidChangeDevToolsState: Event<IBrowserViewDevToolsStateEvent> = this._onDidChangeDevToolsState.event;
 
@@ -66,11 +69,14 @@ export class BrowserView extends Disposable {
 	private readonly _onDidRequestNewPage = this._register(new Emitter<IBrowserViewNewPageRequest>());
 	readonly onDidRequestNewPage: Event<IBrowserViewNewPageRequest> = this._onDidRequestNewPage.event;
 
+	private readonly _onDidFindInPage = this._register(new Emitter<IBrowserViewFindInPageResult>());
+	readonly onDidFindInPage: Event<IBrowserViewFindInPageResult> = this._onDidFindInPage.event;
+
 	private readonly _onDidClose = this._register(new Emitter<void>());
 	readonly onDidClose: Event<void> = this._onDidClose.event;
 
 	constructor(
-		viewSession: Electron.Session,
+		private readonly viewSession: Electron.Session,
 		private readonly storageScope: BrowserViewStorageScope,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
 		@IAuxiliaryWindowsMainService private readonly auxiliaryWindowsMainService: IAuxiliaryWindowsMainService
@@ -190,6 +196,12 @@ export class BrowserView extends Disposable {
 		webContents.on('did-stop-loading', () => fireLoadingEvent(false));
 		webContents.on('did-fail-load', (e, errorCode, errorDescription, validatedURL, isMainFrame) => {
 			if (isMainFrame) {
+				// Ignore ERR_ABORTED (-3) which is the expected error when user stops a page load.
+				if (errorCode === -3) {
+					fireLoadingEvent(false);
+					return;
+				}
+
 				this._lastError = {
 					url: validatedURL,
 					errorCode,
@@ -244,6 +256,16 @@ export class BrowserView extends Disposable {
 		webContents.on('will-prevent-unload', (e) => {
 			e.preventDefault();
 		});
+
+		// Find in page events
+		webContents.on('found-in-page', (_event, result) => {
+			this._onDidFindInPage.fire({
+				activeMatchOrdinal: result.activeMatchOrdinal,
+				matches: result.matches,
+				selectionArea: result.selectionArea,
+				finalUpdate: result.finalUpdate
+			});
+		});
 	}
 
 	get webContents(): Electron.WebContents {
@@ -262,6 +284,7 @@ export class BrowserView extends Disposable {
 			canGoForward: webContents.navigationHistory.canGoForward(),
 			loading: webContents.isLoading(),
 			focused: webContents.isFocused(),
+			visible: this._view.getVisible(),
 			isDevToolsOpen: webContents.isDevToolsOpened(),
 			lastScreenshot: this._lastScreenshot,
 			lastFavicon: this._lastFavicon,
@@ -303,12 +326,17 @@ export class BrowserView extends Disposable {
 	 * Set the visibility of this view
 	 */
 	setVisible(visible: boolean): void {
+		if (this._view.getVisible() === visible) {
+			return;
+		}
+
 		// If the view is focused, pass focus back to the window when hiding
 		if (!visible && this._view.webContents.isFocused()) {
 			this._window?.win?.webContents.focus();
 		}
 
 		this._view.setVisible(visible);
+		this._onDidChangeVisibility.fire({ visible });
 	}
 
 	/**
@@ -423,6 +451,35 @@ export class BrowserView extends Disposable {
 	 */
 	async focus(): Promise<void> {
 		this._view.webContents.focus();
+	}
+
+	/**
+	 * Find text in the page
+	 */
+	async findInPage(text: string, options?: IBrowserViewFindInPageOptions): Promise<void> {
+		this._view.webContents.findInPage(text, {
+			matchCase: options?.matchCase ?? false,
+			forward: options?.forward ?? true,
+
+			// `findNext` is not very clearly named. From Electron docs: `Whether to begin a new text finding session with this request`.
+			// It needs to be set to `true` if we want a new search to be performed, such as when the text changes.
+			// We name it `recompute` in our internal options to better reflect its purpose / behavior.
+			findNext: options?.recompute ?? false
+		});
+	}
+
+	/**
+	 * Stop finding in page
+	 */
+	async stopFindInPage(keepSelection?: boolean): Promise<void> {
+		this._view.webContents.stopFindInPage(keepSelection ? 'keepSelection' : 'clearSelection');
+	}
+
+	/**
+	 * Clear all storage data for this browser view's session
+	 */
+	async clearStorage(): Promise<void> {
+		await this.viewSession.clearData();
 	}
 
 	/**

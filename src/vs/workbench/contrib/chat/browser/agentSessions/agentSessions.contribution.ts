@@ -16,15 +16,15 @@ import { IAgentSessionsService, AgentSessionsService } from './agentSessionsServ
 import { LocalAgentsSessionsProvider } from './localAgentSessionsProvider.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
 import { ISubmenuItem, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
-import { ArchiveAgentSessionAction, ArchiveAgentSessionSectionAction, UnarchiveAgentSessionAction, OpenAgentSessionInEditorGroupAction, OpenAgentSessionInNewEditorGroupAction, OpenAgentSessionInNewWindowAction, ShowAgentSessionsSidebar, HideAgentSessionsSidebar, ToggleAgentSessionsSidebar, RefreshAgentSessionsViewerAction, FindAgentSessionInViewerAction, MarkAgentSessionUnreadAction, MarkAgentSessionReadAction, FocusAgentSessionsAction, SetAgentSessionsOrientationStackedAction, SetAgentSessionsOrientationSideBySideAction, PickAgentSessionAction, ArchiveAllAgentSessionsAction, RenameAgentSessionAction, DeleteAgentSessionAction, DeleteAllLocalSessionsAction, HideAgentSessionsAction, MarkAgentSessionSectionReadAction, ShowAllAgentSessionsAction, ShowRecentAgentSessionsAction, UnarchiveAgentSessionSectionAction } from './agentSessionsActions.js';
+import { ArchiveAgentSessionAction, ArchiveAgentSessionSectionAction, UnarchiveAgentSessionAction, OpenAgentSessionInEditorGroupAction, OpenAgentSessionInNewEditorGroupAction, OpenAgentSessionInNewWindowAction, ShowAgentSessionsSidebar, HideAgentSessionsSidebar, ToggleAgentSessionsSidebar, RefreshAgentSessionsViewerAction, FindAgentSessionInViewerAction, MarkAgentSessionUnreadAction, MarkAgentSessionReadAction, FocusAgentSessionsAction, SetAgentSessionsOrientationStackedAction, SetAgentSessionsOrientationSideBySideAction, PickAgentSessionAction, ArchiveAllAgentSessionsAction, MarkAllAgentSessionsReadAction, RenameAgentSessionAction, DeleteAgentSessionAction, DeleteAllLocalSessionsAction, MarkAgentSessionSectionReadAction, ToggleShowAgentSessionsAction, UnarchiveAgentSessionSectionAction } from './agentSessionsActions.js';
 import { AgentSessionsQuickAccessProvider, AGENT_SESSIONS_QUICK_ACCESS_PREFIX } from './agentSessionsQuickAccess.js';
-import { AuxiliaryBarMaximizedContext } from '../../../../common/contextkeys.js';
 
 //#region Actions and Menus
 
 registerAction2(FocusAgentSessionsAction);
 registerAction2(PickAgentSessionAction);
 registerAction2(ArchiveAllAgentSessionsAction);
+registerAction2(MarkAllAgentSessionsReadAction);
 registerAction2(ArchiveAgentSessionSectionAction);
 registerAction2(UnarchiveAgentSessionSectionAction);
 registerAction2(MarkAgentSessionSectionReadAction);
@@ -43,9 +43,7 @@ registerAction2(FindAgentSessionInViewerAction);
 registerAction2(ShowAgentSessionsSidebar);
 registerAction2(HideAgentSessionsSidebar);
 registerAction2(ToggleAgentSessionsSidebar);
-registerAction2(ShowAllAgentSessionsAction);
-registerAction2(ShowRecentAgentSessionsAction);
-registerAction2(HideAgentSessionsAction);
+registerAction2(ToggleShowAgentSessionsAction);
 registerAction2(SetAgentSessionsOrientationStackedAction);
 registerAction2(SetAgentSessionsOrientationSideBySideAction);
 
@@ -57,7 +55,6 @@ MenuRegistry.appendMenuItem(MenuId.AgentSessionsToolbar, {
 	group: 'navigation',
 	order: 3,
 	icon: Codicon.filter,
-	when: ChatContextKeys.agentSessionsViewerLimited.negate()
 } satisfies ISubmenuItem);
 
 MenuRegistry.appendMenuItem(MenuId.AgentSessionsToolbar, {
@@ -70,8 +67,7 @@ MenuRegistry.appendMenuItem(MenuId.AgentSessionsToolbar, {
 	order: 5,
 	when: ContextKeyExpr.and(
 		ChatContextKeys.agentSessionsViewerOrientation.isEqualTo(AgentSessionsViewerOrientation.Stacked),
-		ChatContextKeys.agentSessionsViewerPosition.isEqualTo(AgentSessionsViewerPosition.Right),
-		AuxiliaryBarMaximizedContext.negate()
+		ChatContextKeys.agentSessionsViewerPosition.isEqualTo(AgentSessionsViewerPosition.Right)
 	)
 });
 
@@ -85,8 +81,7 @@ MenuRegistry.appendMenuItem(MenuId.AgentSessionsToolbar, {
 	order: 5,
 	when: ContextKeyExpr.and(
 		ChatContextKeys.agentSessionsViewerOrientation.isEqualTo(AgentSessionsViewerOrientation.Stacked),
-		ChatContextKeys.agentSessionsViewerPosition.isEqualTo(AgentSessionsViewerPosition.Left),
-		AuxiliaryBarMaximizedContext.negate()
+		ChatContextKeys.agentSessionsViewerPosition.isEqualTo(AgentSessionsViewerPosition.Left)
 	)
 });
 
@@ -100,8 +95,7 @@ MenuRegistry.appendMenuItem(MenuId.AgentSessionsToolbar, {
 	order: 5,
 	when: ContextKeyExpr.and(
 		ChatContextKeys.agentSessionsViewerOrientation.isEqualTo(AgentSessionsViewerOrientation.SideBySide),
-		ChatContextKeys.agentSessionsViewerPosition.isEqualTo(AgentSessionsViewerPosition.Right),
-		AuxiliaryBarMaximizedContext.negate()
+		ChatContextKeys.agentSessionsViewerPosition.isEqualTo(AgentSessionsViewerPosition.Right)
 	)
 });
 
@@ -115,8 +109,7 @@ MenuRegistry.appendMenuItem(MenuId.AgentSessionsToolbar, {
 	order: 5,
 	when: ContextKeyExpr.and(
 		ChatContextKeys.agentSessionsViewerOrientation.isEqualTo(AgentSessionsViewerOrientation.SideBySide),
-		ChatContextKeys.agentSessionsViewerPosition.isEqualTo(AgentSessionsViewerPosition.Left),
-		AuxiliaryBarMaximizedContext.negate()
+		ChatContextKeys.agentSessionsViewerPosition.isEqualTo(AgentSessionsViewerPosition.Left)
 	)
 });
 

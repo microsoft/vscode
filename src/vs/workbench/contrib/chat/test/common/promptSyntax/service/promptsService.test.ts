@@ -47,6 +47,7 @@ import { InMemoryStorageService, IStorageService } from '../../../../../../../pl
 import { IPathService } from '../../../../../../services/path/common/pathService.js';
 import { IFileMatch, IFileQuery, ISearchService } from '../../../../../../services/search/common/search.js';
 import { IExtensionService } from '../../../../../../services/extensions/common/extensions.js';
+import { ChatModeKind } from '../../../../common/constants.js';
 
 suite('PromptsService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -68,6 +69,8 @@ suite('PromptsService', () => {
 		testConfigService.setUserConfiguration(PromptsConfig.USE_COPILOT_INSTRUCTION_FILES, true);
 		testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_MD, true);
 		testConfigService.setUserConfiguration(PromptsConfig.USE_NESTED_AGENT_MD, false);
+		testConfigService.setUserConfiguration(PromptsConfig.INCLUDE_REFERENCED_INSTRUCTIONS, true);
+		testConfigService.setUserConfiguration(PromptsConfig.INCLUDE_APPLYING_INSTRUCTIONS, true);
 		testConfigService.setUserConfiguration(PromptsConfig.INSTRUCTIONS_LOCATION_KEY, { [INSTRUCTIONS_DEFAULT_SOURCE_FOLDER]: true });
 		testConfigService.setUserConfiguration(PromptsConfig.PROMPT_LOCATIONS_KEY, { [PROMPT_DEFAULT_SOURCE_FOLDER]: true });
 		testConfigService.setUserConfiguration(PromptsConfig.MODE_LOCATION_KEY, { [LEGACY_MODE_DEFAULT_SOURCE_FOLDER]: true });
@@ -461,7 +464,7 @@ suite('PromptsService', () => {
 			]);
 
 			const instructionFiles = await service.listPromptFiles(PromptsType.instructions, CancellationToken.None);
-			const contextComputer = instaService.createInstance(ComputeAutomaticInstructions, undefined, undefined);
+			const contextComputer = instaService.createInstance(ComputeAutomaticInstructions, ChatModeKind.Agent, undefined, undefined);
 			const context = {
 				files: new ResourceSet([
 					URI.joinPath(rootFolderUri, 'folder1/main.tsx'),
@@ -632,7 +635,7 @@ suite('PromptsService', () => {
 			]);
 
 			const instructionFiles = await service.listPromptFiles(PromptsType.instructions, CancellationToken.None);
-			const contextComputer = instaService.createInstance(ComputeAutomaticInstructions, undefined, undefined);
+			const contextComputer = instaService.createInstance(ComputeAutomaticInstructions, ChatModeKind.Agent, undefined, undefined);
 			const context = {
 				files: new ResourceSet([
 					URI.joinPath(rootFolderUri, 'folder1/main.tsx'),
@@ -706,7 +709,7 @@ suite('PromptsService', () => {
 			]);
 
 
-			const contextComputer = instaService.createInstance(ComputeAutomaticInstructions, undefined, undefined);
+			const contextComputer = instaService.createInstance(ComputeAutomaticInstructions, ChatModeKind.Agent, undefined, undefined);
 			const context = new ChatRequestVariableSet();
 			context.add(toFileVariableEntry(URI.joinPath(rootFolderUri, 'README.md')));
 
@@ -765,7 +768,7 @@ suite('PromptsService', () => {
 					argumentHint: undefined,
 					tools: undefined,
 					target: undefined,
-					infer: undefined,
+					visibility: { userInvokable: true, agentInvokable: true },
 					agents: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/agent1.agent.md'),
 					source: { storage: PromptsStorage.local }
@@ -821,7 +824,7 @@ suite('PromptsService', () => {
 					model: undefined,
 					argumentHint: undefined,
 					target: undefined,
-					infer: undefined,
+					visibility: { userInvokable: true, agentInvokable: true },
 					agents: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/agent1.agent.md'),
 					source: { storage: PromptsStorage.local },
@@ -838,6 +841,7 @@ suite('PromptsService', () => {
 					},
 					uri: URI.joinPath(rootFolderUri, '.github/agents/agent2.agent.md'),
 					source: { storage: PromptsStorage.local },
+					visibility: { userInvokable: true, agentInvokable: true }
 				}
 			];
 
@@ -894,7 +898,7 @@ suite('PromptsService', () => {
 					handOffs: undefined,
 					model: undefined,
 					target: undefined,
-					infer: undefined,
+					visibility: { userInvokable: true, agentInvokable: true },
 					agents: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/agent1.agent.md'),
 					source: { storage: PromptsStorage.local }
@@ -912,7 +916,7 @@ suite('PromptsService', () => {
 					model: undefined,
 					tools: undefined,
 					target: undefined,
-					infer: undefined,
+					visibility: { userInvokable: true, agentInvokable: true },
 					agents: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/agent2.agent.md'),
 					source: { storage: PromptsStorage.local }
@@ -982,7 +986,7 @@ suite('PromptsService', () => {
 					handOffs: undefined,
 					model: undefined,
 					argumentHint: undefined,
-					infer: undefined,
+					visibility: { userInvokable: true, agentInvokable: true },
 					agents: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/github-agent.agent.md'),
 					source: { storage: PromptsStorage.local }
@@ -991,7 +995,7 @@ suite('PromptsService', () => {
 					name: 'vscode-agent',
 					description: 'VS Code specialized agent.',
 					target: 'vscode',
-					model: 'gpt-4',
+					model: ['gpt-4'],
 					agentInstructions: {
 						content: 'I am specialized for VS Code editor tasks.',
 						toolReferences: [],
@@ -1000,7 +1004,7 @@ suite('PromptsService', () => {
 					handOffs: undefined,
 					argumentHint: undefined,
 					tools: undefined,
-					infer: undefined,
+					visibility: { userInvokable: true, agentInvokable: true },
 					agents: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/vscode-agent.agent.md'),
 					source: { storage: PromptsStorage.local }
@@ -1018,7 +1022,7 @@ suite('PromptsService', () => {
 					argumentHint: undefined,
 					tools: undefined,
 					target: undefined,
-					infer: undefined,
+					visibility: { userInvokable: true, agentInvokable: true },
 					agents: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/generic-agent.agent.md'),
 					source: { storage: PromptsStorage.local }
@@ -1032,7 +1036,7 @@ suite('PromptsService', () => {
 			);
 		});
 
-		test('agents with .md extension (no .agent.md)', async () => {
+		test('agents with .md extension should be recognized, except README.md', async () => {
 			const rootFolderName = 'custom-agents-md-extension';
 			const rootFolder = `/${rootFolderName}`;
 			const rootFolderUri = URI.file(rootFolder);
@@ -1051,9 +1055,9 @@ suite('PromptsService', () => {
 					]
 				},
 				{
-					path: `${rootFolder}/.github/agents/test.md`,
+					path: `${rootFolder}/.github/agents/README.md`,
 					contents: [
-						'Test agent without header.',
+						'This is a README file.',
 					]
 				}
 			]);
@@ -1073,27 +1077,17 @@ suite('PromptsService', () => {
 					model: undefined,
 					argumentHint: undefined,
 					target: undefined,
-					infer: undefined,
+					visibility: { userInvokable: true, agentInvokable: true },
 					agents: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/demonstrate.md'),
-					source: { storage: PromptsStorage.local },
-				},
-				{
-					name: 'test',
-					agentInstructions: {
-						content: 'Test agent without header.',
-						toolReferences: [],
-						metadata: undefined
-					},
-					uri: URI.joinPath(rootFolderUri, '.github/agents/test.md'),
-					source: { storage: PromptsStorage.local },
+					source: { storage: PromptsStorage.local }
 				}
 			];
 
 			assert.deepEqual(
 				result,
 				expected,
-				'Must get custom agents with .md extension from .github/agents/ folder.',
+				'Must recognize .md files as agents, except README.md',
 			);
 		});
 
@@ -1154,7 +1148,7 @@ suite('PromptsService', () => {
 					model: undefined,
 					argumentHint: undefined,
 					target: undefined,
-					infer: undefined,
+					visibility: { userInvokable: true, agentInvokable: true },
 					uri: URI.joinPath(rootFolderUri, '.github/agents/restricted-agent.agent.md'),
 					source: { storage: PromptsStorage.local }
 				},
@@ -1172,7 +1166,7 @@ suite('PromptsService', () => {
 					argumentHint: undefined,
 					tools: undefined,
 					target: undefined,
-					infer: undefined,
+					visibility: { userInvokable: true, agentInvokable: true },
 					uri: URI.joinPath(rootFolderUri, '.github/agents/no-access-agent.agent.md'),
 					source: { storage: PromptsStorage.local }
 				},
@@ -1190,7 +1184,7 @@ suite('PromptsService', () => {
 					argumentHint: undefined,
 					tools: undefined,
 					target: undefined,
-					infer: undefined,
+					visibility: { userInvokable: true, agentInvokable: true },
 					uri: URI.joinPath(rootFolderUri, '.github/agents/full-access-agent.agent.md'),
 					source: { storage: PromptsStorage.local }
 				},
@@ -1742,78 +1736,6 @@ suite('PromptsService', () => {
 			assert.strictEqual(actualAfterDispose.length, 0);
 		});
 
-		test('Custom agent provider with isEditable', async () => {
-			const readonlyAgentUri = URI.parse('file://extensions/my-extension/readonlyAgent.agent.md');
-			const editableAgentUri = URI.parse('file://extensions/my-extension/editableAgent.agent.md');
-			const extension = {
-				identifier: { value: 'test.my-extension' },
-				enabledApiProposals: ['chatParticipantPrivate']
-			} as unknown as IExtensionDescription;
-
-			// Mock the agent file content
-			await mockFiles(fileService, [
-				{
-					path: readonlyAgentUri.path,
-					contents: [
-						'---',
-						'description: \'Readonly agent from provider\'',
-						'---',
-						'I am a readonly agent.',
-					]
-				},
-				{
-					path: editableAgentUri.path,
-					contents: [
-						'---',
-						'description: \'Editable agent from provider\'',
-						'---',
-						'I am an editable agent.',
-					]
-				}
-			]);
-
-			const provider = {
-				providePromptFiles: async (_context: IPromptFileContext, _token: CancellationToken) => {
-					return [
-						{
-							uri: readonlyAgentUri,
-							isEditable: false
-						},
-						{
-							uri: editableAgentUri,
-							isEditable: true
-						}
-					];
-				}
-			};
-
-			const registered = service.registerPromptFileProvider(extension, PromptsType.agent, provider);
-
-			// Spy on updateReadonly to verify it's called correctly
-			const filesConfigService = instaService.get(IFilesConfigurationService);
-			const updateReadonlySpy = sinon.spy(filesConfigService, 'updateReadonly');
-
-			// List prompt files to trigger the readonly check
-			await service.listPromptFiles(PromptsType.agent, CancellationToken.None);
-
-			// Verify updateReadonly was called only for the non-editable agent
-			assert.strictEqual(updateReadonlySpy.callCount, 1, 'updateReadonly should be called once');
-			assert.ok(updateReadonlySpy.calledWith(readonlyAgentUri, true), 'updateReadonly should be called with readonly agent URI and true');
-
-			const actual = await service.getCustomAgents(CancellationToken.None);
-			assert.strictEqual(actual.length, 2);
-
-			const readonlyAgent = actual.find(a => a.name === 'readonlyAgent');
-			const editableAgent = actual.find(a => a.name === 'editableAgent');
-
-			assert.ok(readonlyAgent, 'Readonly agent should be found');
-			assert.ok(editableAgent, 'Editable agent should be found');
-			assert.strictEqual(readonlyAgent!.description, 'Readonly agent from provider');
-			assert.strictEqual(editableAgent!.description, 'Editable agent from provider');
-
-			registered.dispose();
-		});
-
 		test('Contributed agent file that does not exist should not crash', async () => {
 			const nonExistentUri = URI.parse('file://extensions/my-extension/nonexistent.agent.md');
 			const existingUri = URI.parse('file://extensions/my-extension/existing.agent.md');
@@ -1911,68 +1833,6 @@ suite('PromptsService', () => {
 		assert.strictEqual(foundAfterDispose, undefined);
 	});
 
-	test('Instructions provider with isEditable flag', async () => {
-		const readonlyInstructionUri = URI.parse('file://extensions/my-extension/readonly.instructions.md');
-		const editableInstructionUri = URI.parse('file://extensions/my-extension/editable.instructions.md');
-		const extension = {
-			identifier: { value: 'test.my-extension' },
-			enabledApiProposals: ['chatParticipantPrivate']
-		} as unknown as IExtensionDescription;
-
-		// Mock the instruction file content
-		await mockFiles(fileService, [
-			{
-				path: readonlyInstructionUri.path,
-				contents: [
-					'# Readonly instruction content'
-				]
-			},
-			{
-				path: editableInstructionUri.path,
-				contents: [
-					'# Editable instruction content'
-				]
-			}
-		]);
-
-		const provider = {
-			providePromptFiles: async (_context: IPromptFileContext, _token: CancellationToken) => {
-				return [
-					{
-						uri: readonlyInstructionUri,
-						isEditable: false
-					},
-					{
-						uri: editableInstructionUri,
-						isEditable: true
-					}
-				];
-			}
-		};
-
-		const registered = service.registerPromptFileProvider(extension, PromptsType.instructions, provider);
-
-		// Spy on updateReadonly to verify it's called correctly
-		const filesConfigService = instaService.get(IFilesConfigurationService);
-		const updateReadonlySpy = sinon.spy(filesConfigService, 'updateReadonly');
-
-		// List prompt files to trigger the readonly check
-		await service.listPromptFiles(PromptsType.instructions, CancellationToken.None);
-
-		// Verify updateReadonly was called only for the non-editable instruction
-		assert.strictEqual(updateReadonlySpy.callCount, 1, 'updateReadonly should be called once');
-		assert.ok(updateReadonlySpy.calledWith(readonlyInstructionUri, true), 'updateReadonly should be called with readonly instruction URI and true');
-
-		const actual = await service.listPromptFiles(PromptsType.instructions, CancellationToken.None);
-		const readonlyInstruction = actual.find(i => i.uri.toString() === readonlyInstructionUri.toString());
-		const editableInstruction = actual.find(i => i.uri.toString() === editableInstructionUri.toString());
-
-		assert.ok(readonlyInstruction, 'Readonly instruction should be found');
-		assert.ok(editableInstruction, 'Editable instruction should be found');
-
-		registered.dispose();
-	});
-
 	test('Prompt file provider', async () => {
 		const promptUri = URI.parse('file://extensions/my-extension/myPrompt.prompt.md');
 		const extension = {
@@ -2016,68 +1876,6 @@ suite('PromptsService', () => {
 		const actualAfterDispose = await service.listPromptFiles(PromptsType.prompt, CancellationToken.None);
 		const foundAfterDispose = actualAfterDispose.find(i => i.uri.toString() === promptUri.toString());
 		assert.strictEqual(foundAfterDispose, undefined);
-	});
-
-	test('Prompt file provider with isEditable flag', async () => {
-		const readonlyPromptUri = URI.parse('file://extensions/my-extension/readonly.prompt.md');
-		const editablePromptUri = URI.parse('file://extensions/my-extension/editable.prompt.md');
-		const extension = {
-			identifier: { value: 'test.my-extension' },
-			enabledApiProposals: ['chatParticipantPrivate']
-		} as unknown as IExtensionDescription;
-
-		// Mock the prompt file content
-		await mockFiles(fileService, [
-			{
-				path: readonlyPromptUri.path,
-				contents: [
-					'# Readonly prompt content'
-				]
-			},
-			{
-				path: editablePromptUri.path,
-				contents: [
-					'# Editable prompt content'
-				]
-			}
-		]);
-
-		const provider = {
-			providePromptFiles: async (_context: IPromptFileContext, _token: CancellationToken) => {
-				return [
-					{
-						uri: readonlyPromptUri,
-						isEditable: false
-					},
-					{
-						uri: editablePromptUri,
-						isEditable: true
-					}
-				];
-			}
-		};
-
-		const registered = service.registerPromptFileProvider(extension, PromptsType.prompt, provider);
-
-		// Spy on updateReadonly to verify it's called correctly
-		const filesConfigService = instaService.get(IFilesConfigurationService);
-		const updateReadonlySpy = sinon.spy(filesConfigService, 'updateReadonly');
-
-		// List prompt files to trigger the readonly check
-		await service.listPromptFiles(PromptsType.prompt, CancellationToken.None);
-
-		// Verify updateReadonly was called only for the non-editable prompt
-		assert.strictEqual(updateReadonlySpy.callCount, 1, 'updateReadonly should be called once');
-		assert.ok(updateReadonlySpy.calledWith(readonlyPromptUri, true), 'updateReadonly should be called with readonly prompt URI and true');
-
-		const actual = await service.listPromptFiles(PromptsType.prompt, CancellationToken.None);
-		const readonlyPrompt = actual.find(i => i.uri.toString() === readonlyPromptUri.toString());
-		const editablePrompt = actual.find(i => i.uri.toString() === editablePromptUri.toString());
-
-		assert.ok(readonlyPrompt, 'Readonly prompt should be found');
-		assert.ok(editablePrompt, 'Editable prompt should be found');
-
-		registered.dispose();
 	});
 
 	test('Skill file provider', async () => {
@@ -2127,76 +1925,6 @@ suite('PromptsService', () => {
 		const actualAfterDispose = await service.listPromptFiles(PromptsType.skill, CancellationToken.None);
 		const foundAfterDispose = actualAfterDispose.find(i => i.uri.toString() === skillUri.toString());
 		assert.strictEqual(foundAfterDispose, undefined);
-	});
-
-	test('Skill file provider with isEditable flag', async () => {
-		const readonlySkillUri = URI.parse('file://extensions/my-extension/readonlySkill/SKILL.md');
-		const editableSkillUri = URI.parse('file://extensions/my-extension/editableSkill/SKILL.md');
-		const extension = {
-			identifier: { value: 'test.my-extension' },
-			enabledApiProposals: ['chatParticipantPrivate']
-		} as unknown as IExtensionDescription;
-
-		// Mock the skill file content
-		await mockFiles(fileService, [
-			{
-				path: readonlySkillUri.path,
-				contents: [
-					'---',
-					'name: "Readonly Skill"',
-					'description: "A readonly skill"',
-					'---',
-					'Readonly skill content.',
-				]
-			},
-			{
-				path: editableSkillUri.path,
-				contents: [
-					'---',
-					'name: "Editable Skill"',
-					'description: "An editable skill"',
-					'---',
-					'Editable skill content.',
-				]
-			}
-		]);
-
-		const provider = {
-			providePromptFiles: async (_context: IPromptFileContext, _token: CancellationToken) => {
-				return [
-					{
-						uri: readonlySkillUri,
-						isEditable: false
-					},
-					{
-						uri: editableSkillUri,
-						isEditable: true
-					}
-				];
-			}
-		};
-
-		const registered = service.registerPromptFileProvider(extension, PromptsType.skill, provider);
-
-		// Spy on updateReadonly to verify it's called correctly
-		const filesConfigService = instaService.get(IFilesConfigurationService);
-		const updateReadonlySpy = sinon.spy(filesConfigService, 'updateReadonly');
-
-		// List prompt files to trigger the readonly check
-		await service.listPromptFiles(PromptsType.skill, CancellationToken.None);
-
-		// Verify updateReadonly was called only for the non-editable skill
-		assert.strictEqual(updateReadonlySpy.callCount, 1, 'updateReadonly should be called once');
-		assert.ok(updateReadonlySpy.calledWith(readonlySkillUri, true), 'updateReadonly should be called with readonly skill URI and true');
-
-		const actual = await service.listPromptFiles(PromptsType.skill, CancellationToken.None);
-		const readonlySkill = actual.find(i => i.uri.toString() === readonlySkillUri.toString());
-		const editableSkill = actual.find(i => i.uri.toString() === editableSkillUri.toString());
-
-		assert.ok(readonlySkill, 'Readonly skill should be found');
-		assert.ok(editableSkill, 'Editable skill should be found');
-
-		registered.dispose();
 	});
 
 	suite('findAgentSkills', () => {

@@ -34,16 +34,12 @@ import { Size2D } from '../../../../../../common/core/2d/size.js';
  * Warning: might return 0.
 */
 export function maxContentWidthInRange(editor: ObservableCodeEditor, range: LineRange, reader: IReader | undefined): number {
-	editor.layoutInfo.read(reader);
-	editor.value.read(reader);
-
 	const model = editor.model.read(reader);
 	if (!model) { return 0; }
 	let maxContentWidth = 0;
 
-	editor.scrollTop.read(reader);
 	for (let i = range.startLineNumber; i < range.endLineNumberExclusive; i++) {
-		const lineContentWidth = editor.editor.getWidthOfLine(i);
+		const lineContentWidth = editor.getWidthOfLine(i, reader);
 		maxContentWidth = Math.max(maxContentWidth, lineContentWidth);
 	}
 	const lines = range.mapToLineArray(l => model.getLineContent(l));
@@ -55,8 +51,6 @@ export function maxContentWidthInRange(editor: ObservableCodeEditor, range: Line
 }
 
 export function getContentSizeOfLines(editor: ObservableCodeEditor, range: LineRange, reader: IReader | undefined): Size2D[] {
-	editor.layoutInfo.read(reader);
-	editor.value.read(reader);
 	observableSignalFromEvent(editor, editor.editor.onDidChangeLineHeight).read(reader);
 
 	const model = editor.model.read(reader);
@@ -64,9 +58,8 @@ export function getContentSizeOfLines(editor: ObservableCodeEditor, range: LineR
 
 	const sizes: Size2D[] = [];
 
-	editor.scrollTop.read(reader);
 	for (let i = range.startLineNumber; i < range.endLineNumberExclusive; i++) {
-		let lineContentWidth = editor.editor.getWidthOfLine(i);
+		let lineContentWidth = editor.getWidthOfLine(i, reader);
 		if (lineContentWidth === -1) {
 			// approximation
 			const column = model.getLineMaxColumn(i);

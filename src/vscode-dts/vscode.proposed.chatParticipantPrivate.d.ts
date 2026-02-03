@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// version: 11
+// version: 12
 
 declare module 'vscode' {
 
@@ -61,9 +61,16 @@ declare module 'vscode' {
 		readonly attempt: number;
 
 		/**
-		 * The session identifier for this chat request
+		 * The session identifier for this chat request.
+		 *
+		 * @deprecated Use {@link chatSessionResource} instead.
 		 */
 		readonly sessionId: string;
+
+		/**
+		 * The resource URI for the chat session this request belongs to.
+		 */
+		readonly sessionResource: Uri;
 
 		/**
 		 * If automatic command detection is enabled.
@@ -103,6 +110,11 @@ declare module 'vscode' {
 		 * Display name of the subagent that is invoking this request.
 		 */
 		readonly subAgentName?: string;
+
+		/**
+		 * The request ID of the parent request that invoked this subagent.
+		 */
+		readonly parentRequestId?: string;
 	}
 
 	export enum ChatRequestEditedFileEventKind {
@@ -239,7 +251,9 @@ declare module 'vscode' {
 
 	export interface LanguageModelToolInvocationOptions<T> {
 		chatRequestId?: string;
+		/** @deprecated Use {@link chatSessionResource} instead */
 		chatSessionId?: string;
+		chatSessionResource?: Uri;
 		chatInteractionId?: string;
 		terminalCommand?: string;
 		/**
@@ -254,7 +268,9 @@ declare module 'vscode' {
 		 */
 		input: T;
 		chatRequestId?: string;
+		/** @deprecated Use {@link chatSessionResource} instead */
 		chatSessionId?: string;
+		chatSessionResource?: Uri;
 		chatInteractionId?: string;
 	}
 

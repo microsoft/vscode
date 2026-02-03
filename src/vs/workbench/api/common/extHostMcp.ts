@@ -7,6 +7,7 @@ import * as vscode from 'vscode';
 import { DeferredPromise, raceCancellationError, Sequencer, timeout } from '../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { CancellationError } from '../../../base/common/errors.js';
+import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { AUTH_SCOPE_SEPARATOR, fetchAuthorizationServerMetadata, fetchResourceMetadata, getDefaultMetadataForUrl, IAuthorizationProtectedResourceMetadata, IAuthorizationServerMetadata, parseWWWAuthenticateHeader, scopesMatch } from '../../../base/common/oauth.js';
 import { SSEParser } from '../../../base/common/sseParser.js';
@@ -33,6 +34,12 @@ export const IExtHostMpcService = createDecorator<IExtHostMpcService>('IExtHostM
 
 export interface IExtHostMpcService extends ExtHostMcpShape {
 	registerMcpConfigurationProvider(extension: IExtensionDescription, id: string, provider: vscode.McpServerDefinitionProvider): IDisposable;
+
+	/** Event that fires when the set of MCP server definitions changes. */
+	readonly onDidChangeMcpServerDefinitions: Event<void>;
+
+	/** Returns all MCP server definitions known to the editor. */
+	readonly mcpServerDefinitions: readonly vscode.McpServerDefinition[];
 }
 
 const serverDataValidation = vObj({
@@ -65,6 +72,11 @@ export class ExtHostMcpService extends Disposable implements IExtHostMpcService 
 		servers: vscode.McpServerDefinition[];
 	}>();
 
+	// MCP server definitions synced from main thread
+	private readonly _onDidChangeMcpServerDefinitions = this._register(new Emitter<void>());
+	readonly onDidChangeMcpServerDefinitions: Event<void> = this._onDidChangeMcpServerDefinitions.event;
+	private _mcpServerDefinitions: readonly vscode.McpServerDefinition[] = [];
+
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,
 		@ILogService protected readonly _logService: ILogService,
@@ -74,6 +86,17 @@ export class ExtHostMcpService extends Disposable implements IExtHostMpcService 
 	) {
 		super();
 		this._proxy = extHostRpc.getProxy(MainContext.MainThreadMcp);
+	}
+
+	/** Returns all MCP server definitions known to the editor. */
+	get mcpServerDefinitions(): readonly vscode.McpServerDefinition[] {
+		return this._mcpServerDefinitions;
+	}
+
+	/** Called by main thread to notify that MCP server definitions have changed. */
+	$onDidChangeMcpServerDefinitions(servers: McpServerDefinition.Serialized[]): void {
+		this._mcpServerDefinitions = servers.map(dto => Convert.McpServerDefinition.to(dto));
+		this._onDidChangeMcpServerDefinitions.fire();
 	}
 
 	$startMcp(id: number, opts: IStartMcpOptions): void {

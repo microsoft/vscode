@@ -32,7 +32,7 @@ class PromptToolsCodeLensProvider extends Disposable implements CodeLensProvider
 		@IPromptsService private readonly promptsService: IPromptsService,
 		@ILanguageFeaturesService private readonly languageService: ILanguageFeaturesService,
 		@ILanguageModelToolsService private readonly languageModelToolsService: ILanguageModelToolsService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
 
@@ -84,12 +84,12 @@ class PromptToolsCodeLensProvider extends Disposable implements CodeLensProvider
 	}
 
 	private async updateTools(model: ITextModel, range: Range, selectedTools: readonly string[], target: string | undefined): Promise<void> {
-		const selectedToolsNow = () => this.languageModelToolsService.toToolAndToolSetEnablementMap(selectedTools, target);
+		const selectedToolsNow = () => this.languageModelToolsService.toToolAndToolSetEnablementMap(selectedTools, target, undefined);
 		const newSelectedAfter = await this.instantiationService.invokeFunction(showToolsPicker, localize('placeholder', "Select tools"), 'codeLens', undefined, selectedToolsNow);
 		if (!newSelectedAfter) {
 			return;
 		}
-		await this.instantiationService.createInstance(PromptFileRewriter).rewriteTools(model, newSelectedAfter, range);
+		this.instantiationService.createInstance(PromptFileRewriter).rewriteTools(model, newSelectedAfter, range);
 	}
 }
 

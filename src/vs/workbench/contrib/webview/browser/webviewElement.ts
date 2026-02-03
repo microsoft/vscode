@@ -612,6 +612,7 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 		this._messagePort = undefined;
 
 		this.mountTo(this.element!.parentElement!, getWindow(this.element));
+		this.style();
 		this.reload();
 	}
 

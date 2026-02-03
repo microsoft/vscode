@@ -27,7 +27,7 @@ import { IProgress, IProgressStep } from '../../../platform/progress/common/prog
 import { InMemoryStorageService, WillSaveStateReason } from '../../../platform/storage/common/storage.js';
 import { toUserDataProfile } from '../../../platform/userDataProfile/common/userDataProfile.js';
 import { ISingleFolderWorkspaceIdentifier, IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, IWorkspaceFoldersWillChangeEvent, IWorkspaceIdentifier, WorkbenchState, Workspace } from '../../../platform/workspace/common/workspace.js';
-import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, IWorkspaceTrustTransitionParticipant, IWorkspaceTrustUriInfo, WorkspaceTrustRequestOptions, WorkspaceTrustUriResponse } from '../../../platform/workspace/common/workspaceTrust.js';
+import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, IWorkspaceTrustTransitionParticipant, IWorkspaceTrustUriInfo, ResourceTrustRequestOptions, WorkspaceTrustRequestOptions, WorkspaceTrustUriResponse } from '../../../platform/workspace/common/workspaceTrust.js';
 import { TestWorkspace } from '../../../platform/workspace/test/common/testWorkspace.js';
 import { GroupIdentifier, IRevertOptions, ISaveOptions, SaveReason } from '../../common/editor.js';
 import { EditorInput } from '../../common/editor/editorInput.js';
@@ -451,6 +451,9 @@ export class TestWorkspaceTrustRequestService extends Disposable implements IWor
 	private readonly _onDidInitiateOpenFilesTrustRequest = this._register(new Emitter<void>());
 	readonly onDidInitiateOpenFilesTrustRequest = this._onDidInitiateOpenFilesTrustRequest.event;
 
+	private readonly _onDidInitiateResourcesTrustRequest = this._register(new Emitter<ResourceTrustRequestOptions>());
+	readonly onDidInitiateResourcesTrustRequest = this._onDidInitiateResourcesTrustRequest.event;
+
 	private readonly _onDidInitiateWorkspaceTrustRequest = this._register(new Emitter<WorkspaceTrustRequestOptions>());
 	readonly onDidInitiateWorkspaceTrustRequest = this._onDidInitiateWorkspaceTrustRequest.event;
 
@@ -471,6 +474,14 @@ export class TestWorkspaceTrustRequestService extends Disposable implements IWor
 
 	async completeOpenFilesTrustRequest(result: WorkspaceTrustUriResponse, saveResponse: boolean): Promise<void> {
 		throw new Error('Method not implemented.');
+	}
+
+	async completeResourcesTrustRequest(uri: URI, result: WorkspaceTrustUriResponse): Promise<void> {
+		throw new Error('Method not implemented.');
+	}
+
+	async requestResourcesTrust(options: ResourceTrustRequestOptions): Promise<boolean | undefined> {
+		return this._trusted;
 	}
 
 	cancelWorkspaceTrustRequest(): void {

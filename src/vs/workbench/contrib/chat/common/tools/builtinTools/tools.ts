@@ -40,6 +40,7 @@ export class BuiltinToolsContribution extends Disposable implements IWorkbenchCo
 		const registerRunSubagentTool = () => {
 			runSubagentRegistration?.dispose();
 			toolSetRegistration?.dispose();
+			toolsService.flushToolUpdates();
 			const runSubagentToolData = runSubagentTool.getToolData();
 			runSubagentRegistration = toolsService.registerTool(runSubagentToolData, runSubagentTool);
 			toolSetRegistration = toolsService.agentToolSet.addTool(runSubagentToolData);

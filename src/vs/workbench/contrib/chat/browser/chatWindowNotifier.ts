@@ -5,18 +5,20 @@
 
 import * as dom from '../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../base/browser/window.js';
-import { Event } from '../../../../base/common/event.js';
-import { Disposable, DisposableResourceMap, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { Disposable, DisposableResourceMap, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorunDelta, autorunIterableDelta } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { FocusMode } from '../../../../platform/native/common/native.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IChatModel, IChatRequestNeedsInputInfo } from '../common/model/chatModel.js';
 import { IChatService } from '../common/chatService/chatService.js';
 import { IChatWidgetService } from './chat.js';
+import { AcceptToolConfirmationActionId, IToolConfirmationActionContext } from './actions/chatToolActions.js';
 
 /**
  * Observes all live chat models and triggers OS notifications when any model
@@ -33,6 +35,7 @@ export class ChatWindowNotifier extends Disposable implements IWorkbenchContribu
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@IHostService private readonly _hostService: IHostService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@ICommandService private readonly _commandService: ICommandService,
 	) {
 		super();
 
@@ -89,34 +92,34 @@ export class ChatWindowNotifier extends Disposable implements IWorkbenchContribu
 
 		// Create OS notification
 		const notificationTitle = info.title ? localize('chatTitle', "Chat: {0}", info.title) : localize('chat.untitledChat', "Untitled Chat");
-		const notification = await dom.triggerNotification(notificationTitle, {
-			detail: info.detail ?? localize('notificationDetail', "Approval needed to continue.")
-		});
 
-		if (notification) {
-			const disposables = new DisposableStore();
+		const cts = new CancellationTokenSource();
+		this._activeNotifications.set(sessionResource, toDisposable(() => cts.dispose(true)));
 
-			this._activeNotifications.set(sessionResource, disposables);
+		try {
+			const result = await this._hostService.showToast({
+				title: this._sanitizeOSToastText(notificationTitle),
+				body: info.detail ? this._sanitizeOSToastText(info.detail) : localize('notificationDetail', "Approval needed to continue."),
+				actions: [localize('allowAction', "Allow")],
+			}, cts.token);
 
-			disposables.add(notification);
-
-			// Handle notification click - focus window and reveal chat
-			disposables.add(Event.once(notification.onClick)(async () => {
+			if (result.clicked || typeof result.actionIndex === 'number') {
 				await this._hostService.focus(targetWindow, { mode: FocusMode.Force });
 
 				const widget = await this._chatWidgetService.openSession(sessionResource);
 				widget?.focusInput();
 
-				this._clearNotification(sessionResource);
-			}));
-
-			// Clear notification when window gains focus
-			disposables.add(this._hostService.onDidChangeFocus(focus => {
-				if (focus) {
-					this._clearNotification(sessionResource);
+				if (result.actionIndex === 0 /* Allow */) {
+					await this._commandService.executeCommand(AcceptToolConfirmationActionId, { sessionResource } satisfies IToolConfirmationActionContext);
 				}
-			}));
+			}
+		} finally {
+			this._clearNotification(sessionResource);
 		}
+	}
+
+	private _sanitizeOSToastText(text: string): string {
+		return text.replace(/`/g, '\''); // convert backticks to single quotes
 	}
 
 	private _clearNotification(sessionResource: URI): void {

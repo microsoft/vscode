@@ -53,7 +53,7 @@ suite('NewPromptsParser', () => {
 			{ range: new Range(7, 79, 7, 85), name: 'tool-2', offset: 170 }
 		]);
 		assert.deepEqual(result.header.description, 'Agent test');
-		assert.deepEqual(result.header.model, 'GPT 4.1');
+		assert.deepEqual(result.header.model, ['GPT 4.1']);
 		assert.ok(result.header.tools);
 		assert.deepEqual(result.header.tools, ['tool1', 'tool2']);
 	});
@@ -110,7 +110,7 @@ suite('NewPromptsParser', () => {
 			},
 		]);
 		assert.deepEqual(result.header.description, 'Agent test');
-		assert.deepEqual(result.header.model, 'GPT 4.1');
+		assert.deepEqual(result.header.model, ['GPT 4.1']);
 		assert.ok(result.header.handOffs);
 		assert.deepEqual(result.header.handOffs, [
 			{ label: 'Implement', agent: 'Default', prompt: 'Implement the plan', send: false },
@@ -234,7 +234,7 @@ suite('NewPromptsParser', () => {
 		]);
 		assert.deepEqual(result.header.description, 'General purpose coding assistant');
 		assert.deepEqual(result.header.agent, 'agent');
-		assert.deepEqual(result.header.model, 'GPT 4.1');
+		assert.deepEqual(result.header.model, ['GPT 4.1']);
 		assert.ok(result.header.tools);
 		assert.deepEqual(result.header.tools, ['search', 'terminal']);
 	});

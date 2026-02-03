@@ -42,7 +42,7 @@ export class ColorizedBracketPairsDecorationProvider extends Disposable implemen
 
 	//#endregion
 
-	getDecorationsInRange(range: Range, ownerId?: number, filterOutValidation?: boolean, onlyMinimapDecorations?: boolean): IModelDecoration[] {
+	getDecorationsInRange(range: Range, ownerId?: number, filterOutValidation?: boolean, filterFontDecorations?: boolean, onlyMinimapDecorations?: boolean): IModelDecoration[] {
 		if (onlyMinimapDecorations) {
 			// Bracket pair colorization decorations are not rendered in the minimap
 			return [];
@@ -70,7 +70,7 @@ export class ColorizedBracketPairsDecorationProvider extends Disposable implemen
 		return result;
 	}
 
-	getAllDecorations(ownerId?: number, filterOutValidation?: boolean): IModelDecoration[] {
+	getAllDecorations(ownerId?: number, filterOutValidation?: boolean, filterFontDecorations?: boolean): IModelDecoration[] {
 		if (ownerId === undefined) {
 			return [];
 		}
@@ -80,7 +80,8 @@ export class ColorizedBracketPairsDecorationProvider extends Disposable implemen
 		return this.getDecorationsInRange(
 			new Range(1, 1, this.textModel.getLineCount(), 1),
 			ownerId,
-			filterOutValidation
+			filterOutValidation,
+			filterFontDecorations
 		);
 	}
 }

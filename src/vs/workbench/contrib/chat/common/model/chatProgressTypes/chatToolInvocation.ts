@@ -190,7 +190,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 		// Transition to the appropriate state
 		if (autoConfirmed) {
 			confirm(autoConfirmed);
-		} if (!this.confirmationMessages?.title) {
+		} else if (!this.confirmationMessages?.title) {
 			this._state.set({
 				type: IChatToolInvocation.StateKind.Executing,
 				confirmed: { type: ToolConfirmKind.ConfirmationNotNeeded, reason: this.confirmationMessages?.confirmationNotNeededReason },
@@ -230,7 +230,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 		}, undefined);
 	}
 
-	public didExecuteTool(result: IToolResult | undefined, final?: boolean): IChatToolInvocation.State {
+	public async didExecuteTool(result: IToolResult | undefined, final?: boolean, checkIfResultAutoApproved?: () => Promise<ConfirmedReason | undefined>): Promise<IChatToolInvocation.State> {
 		if (result?.toolResultMessage) {
 			this.pastTenseMessage = result.toolResultMessage;
 		} else if (this._progress.get().message) {
@@ -238,15 +238,20 @@ export class ChatToolInvocation implements IChatToolInvocation {
 		}
 
 		if (this.confirmationMessages?.confirmResults && !result?.toolResultError && result?.confirmResults !== false && !final) {
-			this._state.set({
-				type: IChatToolInvocation.StateKind.WaitingForPostApproval,
-				confirmed: IChatToolInvocation.executionConfirmedOrDenied(this) || { type: ToolConfirmKind.ConfirmationNotNeeded },
-				resultDetails: result?.toolResultDetails,
-				contentForModel: result?.content || [],
-				confirm: reason => this._setCompleted(result, reason),
-				parameters: this.parameters,
-				confirmationMessages: this.confirmationMessages,
-			}, undefined);
+			const autoApproved = await checkIfResultAutoApproved?.();
+			if (autoApproved) {
+				this._setCompleted(result, autoApproved);
+			} else {
+				this._state.set({
+					type: IChatToolInvocation.StateKind.WaitingForPostApproval,
+					confirmed: IChatToolInvocation.executionConfirmedOrDenied(this) || { type: ToolConfirmKind.ConfirmationNotNeeded },
+					resultDetails: result?.toolResultDetails,
+					contentForModel: result?.content || [],
+					confirm: reason => this._setCompleted(result, reason),
+					parameters: this.parameters,
+					confirmationMessages: this.confirmationMessages,
+				}, undefined);
+			}
 		} else {
 			this._setCompleted(result);
 		}

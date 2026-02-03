@@ -27,7 +27,7 @@ const terminalCommands: { commands: RegExp[]; tags: string[] }[] = [
 ];
 
 export function getRecommendedToolsOverRunInTerminal(commandLine: string, languageModelToolsService: ILanguageModelToolsService): string | undefined {
-	const tools = languageModelToolsService.getTools();
+	const tools = languageModelToolsService.getTools(undefined);
 	if (!tools || previouslyRecommededInSession) {
 		return;
 	}

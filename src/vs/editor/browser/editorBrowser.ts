@@ -267,6 +267,8 @@ export interface IOverlayWidgetPositionCoordinates {
 	left: number;
 }
 
+
+
 /**
  * A position for rendering overlay widgets.
  */
@@ -1225,6 +1227,12 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	getWidthOfLine(lineNumber: number): number;
 
 	/**
+	 * Reset cached line widths. Call this when the editor becomes visible after being hidden.
+	 * @internal
+	 */
+	resetLineWidthCaches(): void;
+
+	/**
 	 * Force an editor render now.
 	 */
 	render(forceRedraw?: boolean): void;
@@ -1517,4 +1525,14 @@ export function getIEditor(thing: unknown): editorCommon.IEditor | null {
 	}
 
 	return null;
+}
+
+/**
+ *@internal
+ */
+export function isIOverlayWidgetPositionCoordinates(thing: unknown): thing is IOverlayWidgetPositionCoordinates {
+	return !!thing
+		&& typeof thing === 'object'
+		&& typeof (<IOverlayWidgetPositionCoordinates>thing).top === 'number'
+		&& typeof (<IOverlayWidgetPositionCoordinates>thing).left === 'number';
 }

@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ContextKeyExpression, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { BrandedService, IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -16,11 +15,6 @@ export interface IChatInputPartWidget extends IDisposable {
 	 * The DOM node of the widget.
 	 */
 	readonly domNode: HTMLElement;
-
-	/**
-	 * Fired when the height of the widget changes.
-	 */
-	readonly onDidChangeHeight: Event<void>;
 
 	/**
 	 * The current height of the widget in pixels.
@@ -61,9 +55,6 @@ interface IRenderedWidget {
  * Widgets are shown/hidden based on context key conditions.
  */
 export class ChatInputPartWidgetController extends Disposable {
-
-	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
-	readonly onDidChangeHeight: Event<void> = this._onDidChangeHeight.event;
 
 	private readonly renderedWidgets = new Map<string, IRenderedWidget>();
 
@@ -116,14 +107,11 @@ export class ChatInputPartWidgetController extends Disposable {
 				const disposables = new DisposableStore();
 				const widget = this.instantiationService.createInstance(descriptor.ctor);
 				disposables.add(widget);
-				disposables.add(widget.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 
 				this.renderedWidgets.set(descriptor.id, { descriptor, widget, disposables });
 				this.container.appendChild(widget.domNode);
 			}
 		}
-
-		this._onDidChangeHeight.fire();
 	}
 
 	get height(): number {

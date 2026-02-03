@@ -274,6 +274,12 @@ export interface IHoverLifecycleOptions {
 	groupId?: string;
 
 	/**
+	 * Whether to use a reduced delay before showing the hover. If true, the
+	 * `workbench.hover.reducedDelay` setting is used instead of `workbench.hover.delay`.
+	 */
+	reducedDelay?: boolean;
+
+	/**
 	 * Whether to set up space and enter keyboard events for the hover, when these are pressed when
 	 * the hover's target is focused it will show and focus the hover.
 	 *

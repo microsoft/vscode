@@ -31,10 +31,10 @@ const transpileClientTask = task.define('transpile-client', task.series(util.rim
 gulp.task(transpileClientTask);
 
 // Fast compile for development time
-const compileClientTask = task.define('compile-client', task.series(util.rimraf('out'), compileApiProposalNamesTask, compileTask('src', 'out', false)));
+const compileClientTask = task.define('compile-client', task.series(util.rimraf('out'), compilation.copyCodiconsTask, compileApiProposalNamesTask, compileTask('src', 'out', false)));
 gulp.task(compileClientTask);
 
-const watchClientTask = task.define('watch-client', task.series(util.rimraf('out'), task.parallel(watchTask('out', false), watchApiProposalNamesTask)));
+const watchClientTask = task.define('watch-client', task.series(util.rimraf('out'), task.parallel(watchTask('out', false), watchApiProposalNamesTask, compilation.watchCodiconsTask)));
 gulp.task(watchClientTask);
 
 // All

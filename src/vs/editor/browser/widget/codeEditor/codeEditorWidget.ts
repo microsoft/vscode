@@ -1300,7 +1300,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			reason = source;
 			sourceStr = source.metadata.source;
 		} else {
-			reason = EditSources.unknown({ name: sourceStr });
+			reason = EditSources.unknown({ name: source });
 			sourceStr = source;
 		}
 
@@ -1692,6 +1692,13 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			return -1;
 		}
 		return this._modelData.view.getLineWidth(lineNumber);
+	}
+
+	public resetLineWidthCaches(): void {
+		if (!this._modelData || !this._modelData.hasRealView) {
+			return;
+		}
+		this._modelData.view.resetLineWidthCaches();
 	}
 
 	public render(forceRedraw: boolean = false): void {

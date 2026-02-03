@@ -12,7 +12,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IChatRequestVariableEntry } from '../attachments/chatVariableEntries.js';
-import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatCodeCitation, IChatContentReference, IChatFollowup, IChatMcpServersStarting, IChatProgressMessage, IChatResponseErrorDetails, IChatTask, IChatUsedContext } from '../chatService/chatService.js';
+import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatCodeCitation, IChatContentReference, IChatFollowup, IChatMcpServersStarting, IChatProgressMessage, IChatQuestionCarousel, IChatResponseErrorDetails, IChatTask, IChatUsedContext } from '../chatService/chatService.js';
 import { getFullyQualifiedId, IChatAgentCommand, IChatAgentData, IChatAgentNameService, IChatAgentResult } from '../participants/chatAgents.js';
 import { IParsedChatRequest } from '../requestParser/chatParserTypes.js';
 import { CodeBlockModelCollection } from '../widget/codeBlockModelCollection.js';
@@ -38,7 +38,7 @@ export function assertIsResponseVM(item: unknown): asserts item is IChatResponse
 	}
 }
 
-export type IChatViewModelChangeEvent = IChatAddRequestEvent | IChangePlaceholderEvent | IChatSessionInitEvent | IChatSetHiddenEvent | IChatSetCheckpointEvent | null;
+export type IChatViewModelChangeEvent = IChatAddRequestEvent | IChangePlaceholderEvent | IChatSessionInitEvent | IChatSetHiddenEvent | null;
 
 export interface IChatAddRequestEvent {
 	kind: 'addRequest';
@@ -56,10 +56,6 @@ export interface IChatSetHiddenEvent {
 	kind: 'setHidden';
 }
 
-export interface IChatSetCheckpointEvent {
-	kind: 'setCheckpoint';
-}
-
 export interface IChatViewModel {
 	readonly model: IChatModel;
 	readonly sessionResource: URI;
@@ -75,8 +71,6 @@ export interface IChatViewModel {
 
 export interface IChatRequestViewModel {
 	readonly id: string;
-	/** @deprecated */
-	readonly sessionId: string;
 	readonly sessionResource: URI;
 	/** This ID updates every time the underlying data changes */
 	readonly dataId: string;
@@ -96,6 +90,7 @@ export interface IChatRequestViewModel {
 	readonly agentOrSlashCommandDetected: boolean;
 	readonly shouldBeBlocked: IObservable<boolean>;
 	readonly modelId?: string;
+	readonly timestamp: number;
 }
 
 export interface IChatResponseMarkdownRenderData {
@@ -181,14 +176,12 @@ export interface IChatChangesSummaryPart {
 /**
  * Type for content parts rendered by IChatListRenderer (not necessarily in the model)
  */
-export type IChatRendererContent = IChatProgressRenderableResponseContent | IChatReferences | IChatCodeCitations | IChatErrorDetailsPart | IChatChangesSummaryPart | IChatWorkingProgress | IChatMcpServersStarting;
+export type IChatRendererContent = IChatProgressRenderableResponseContent | IChatReferences | IChatCodeCitations | IChatErrorDetailsPart | IChatChangesSummaryPart | IChatWorkingProgress | IChatMcpServersStarting | IChatQuestionCarousel;
 
 export interface IChatResponseViewModel {
 	readonly model: IChatResponseModel;
 	readonly id: string;
 	readonly session: IChatViewModel;
-	/** @deprecated */
-	readonly sessionId: string;
 	readonly sessionResource: URI;
 	/** This ID updates every time the underlying data changes */
 	readonly dataId: string;
@@ -366,11 +359,6 @@ export class ChatRequestViewModel implements IChatRequestViewModel {
 		return `${this.id}_${this._model.version + (this._model.response?.isComplete ? 1 : 0)}`;
 	}
 
-	/** @deprecated */
-	get sessionId() {
-		return this._model.session.sessionId;
-	}
-
 	get sessionResource() {
 		return this._model.session.sessionResource;
 	}
@@ -437,6 +425,10 @@ export class ChatRequestViewModel implements IChatRequestViewModel {
 		return this._model.modelId;
 	}
 
+	get timestamp() {
+		return this._model.timestamp;
+	}
+
 	constructor(
 		private readonly _model: IChatRequestModel,
 	) { }
@@ -460,11 +452,6 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 		return this._model.id +
 			`_${this._modelChangeCount}` +
 			(this.isLast ? '_last' : '');
-	}
-
-	/** @deprecated */
-	get sessionId() {
-		return this._model.session.sessionId;
 	}
 
 	get sessionResource(): URI {
