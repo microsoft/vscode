@@ -2156,6 +2156,311 @@ suite('AgentSessions', () => {
 		});
 	});
 
+	suite('AgentSessionsViewModel - Workspace and Profile State', () => {
+		const disposables = new DisposableStore();
+		let mockChatSessionsService: MockChatSessionsService;
+		let instantiationService: TestInstantiationService;
+		let storageService: IStorageService;
+		let viewModel: AgentSessionsModel;
+
+		const stateStorageKey = 'agentSessions.state.cache';
+
+		setup(() => {
+			mockChatSessionsService = new MockChatSessionsService();
+			instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
+			instantiationService.stub(IChatSessionsService, mockChatSessionsService);
+			instantiationService.stub(ILifecycleService, disposables.add(new TestLifecycleService()));
+
+			storageService = instantiationService.get(IStorageService);
+
+			// Clear storage before each test
+			storageService.remove(stateStorageKey, StorageScope.WORKSPACE);
+			storageService.remove(stateStorageKey, StorageScope.PROFILE);
+			storageService.remove('agentSessions.readDateBaseline2', StorageScope.WORKSPACE);
+
+			// Set baseline to 0 to not interfere with tests
+			storageService.store('agentSessions.readDateBaseline2', 0, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		});
+
+		teardown(() => {
+			disposables.clear();
+		});
+
+		ensureNoDisposablesAreLeakedInTestSuite();
+
+		test('archived=true wins over archived=false regardless of scope', async () => {
+			return runWithFakedTimers({}, async () => {
+				// Pre-populate profile state with archived = true
+				const profileState = [{ resource: 'test://session-1', archived: true }];
+				storageService.store(stateStorageKey, JSON.stringify(profileState), StorageScope.PROFILE, StorageTarget.USER);
+
+				// Pre-populate workspace state with archived = false
+				const workspaceState = [{ resource: 'test://session-1', archived: false }];
+				storageService.store(stateStorageKey, JSON.stringify(workspaceState), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+
+				const provider: IChatSessionItemProvider = {
+					chatSessionType: 'test-type',
+					onDidChangeChatSessionItems: Event.None,
+					provideChatSessionItems: async () => [
+						makeSimpleSessionItem('session-1'),
+					]
+				};
+
+				mockChatSessionsService.registerChatSessionItemProvider(provider);
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+				await viewModel.resolve(undefined);
+
+				const session = viewModel.sessions[0];
+				assert.strictEqual(session.isArchived(), true, 'archived=true should be treated as stronger signal');
+			});
+		});
+
+		test('profile archived state is used when workspace has no state', async () => {
+			return runWithFakedTimers({}, async () => {
+				// Pre-populate profile state with archived = true
+				const profileState = [{ resource: 'test://session-1', archived: true }];
+				storageService.store(stateStorageKey, JSON.stringify(profileState), StorageScope.PROFILE, StorageTarget.USER);
+
+				// No workspace state
+
+				const provider: IChatSessionItemProvider = {
+					chatSessionType: 'test-type',
+					onDidChangeChatSessionItems: Event.None,
+					provideChatSessionItems: async () => [
+						makeSimpleSessionItem('session-1'),
+					]
+				};
+
+				mockChatSessionsService.registerChatSessionItemProvider(provider);
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+				await viewModel.resolve(undefined);
+
+				const session = viewModel.sessions[0];
+				assert.strictEqual(session.isArchived(), true, 'Profile state should be used when workspace has no state');
+			});
+		});
+
+		test('setArchived stores state in both workspace and profile scopes', async () => {
+			return runWithFakedTimers({}, async () => {
+				const provider: IChatSessionItemProvider = {
+					chatSessionType: 'test-type',
+					onDidChangeChatSessionItems: Event.None,
+					provideChatSessionItems: async () => [
+						makeSimpleSessionItem('session-1'),
+					]
+				};
+
+				mockChatSessionsService.registerChatSessionItemProvider(provider);
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+				await viewModel.resolve(undefined);
+
+				const session = viewModel.sessions[0];
+				session.setArchived(true);
+
+				// Trigger save
+				storageService.flush();
+
+				// Verify workspace state
+				const workspaceState = JSON.parse(storageService.get(stateStorageKey, StorageScope.WORKSPACE) ?? '[]');
+				const workspaceEntry = workspaceState.find((e: { resource: string }) => e.resource.includes('session-1'));
+				assert.ok(workspaceEntry, 'Workspace state should have entry');
+				assert.strictEqual(workspaceEntry.archived, true);
+
+				// Verify profile state
+				const profileState = JSON.parse(storageService.get(stateStorageKey, StorageScope.PROFILE) ?? '[]');
+				const profileEntry = profileState.find((e: { resource: string }) => e.resource.includes('session-1'));
+				assert.ok(profileEntry, 'Profile state should have entry');
+				assert.strictEqual(profileEntry.archived, true);
+			});
+		});
+
+		test('workspace UNREAD_MARKER takes priority over profile read timestamp', async () => {
+			return runWithFakedTimers({}, async () => {
+				const now = Date.now();
+				const pastTime = now - 10000;
+
+				// Pre-populate profile state with a read timestamp
+				const profileState = [{ resource: 'test://session-1', read: now }];
+				storageService.store(stateStorageKey, JSON.stringify(profileState), StorageScope.PROFILE, StorageTarget.USER);
+
+				// Pre-populate workspace state with UNREAD_MARKER (-1)
+				const workspaceState = [{ resource: 'test://session-1', read: -1 }];
+				storageService.store(stateStorageKey, JSON.stringify(workspaceState), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+
+				const provider: IChatSessionItemProvider = {
+					chatSessionType: 'test-type',
+					onDidChangeChatSessionItems: Event.None,
+					provideChatSessionItems: async () => [{
+						resource: URI.parse('test://session-1'),
+						label: 'Session 1',
+						timing: { created: pastTime, lastRequestStarted: pastTime, lastRequestEnded: pastTime },
+					}]
+				};
+
+				mockChatSessionsService.registerChatSessionItemProvider(provider);
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+				await viewModel.resolve(undefined);
+
+				const session = viewModel.sessions[0];
+				assert.strictEqual(session.isRead(), false, 'Workspace UNREAD_MARKER should make session unread');
+			});
+		});
+
+		test('session is read when profile read timestamp is sufficient', async () => {
+			return runWithFakedTimers({}, async () => {
+				const now = Date.now();
+				const sessionTime = now - 5000;
+
+				// Profile says read at sessionTime + 1000
+				const profileState = [{ resource: 'test://session-1', read: sessionTime + 1000 }];
+				storageService.store(stateStorageKey, JSON.stringify(profileState), StorageScope.PROFILE, StorageTarget.USER);
+
+				// No workspace state
+
+				const provider: IChatSessionItemProvider = {
+					chatSessionType: 'test-type',
+					onDidChangeChatSessionItems: Event.None,
+					provideChatSessionItems: async () => [{
+						resource: URI.parse('test://session-1'),
+						label: 'Session 1',
+						timing: { created: sessionTime, lastRequestStarted: sessionTime, lastRequestEnded: sessionTime },
+					}]
+				};
+
+				mockChatSessionsService.registerChatSessionItemProvider(provider);
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+				await viewModel.resolve(undefined);
+
+				const session = viewModel.sessions[0];
+				assert.strictEqual(session.isRead(), true, 'Profile read timestamp should make session read');
+			});
+		});
+
+		test('setRead stores state in both workspace and profile scopes', async () => {
+			return runWithFakedTimers({}, async () => {
+				const provider: IChatSessionItemProvider = {
+					chatSessionType: 'test-type',
+					onDidChangeChatSessionItems: Event.None,
+					provideChatSessionItems: async () => [
+						makeSimpleSessionItem('session-1'),
+					]
+				};
+
+				mockChatSessionsService.registerChatSessionItemProvider(provider);
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+				await viewModel.resolve(undefined);
+
+				const session = viewModel.sessions[0];
+				session.setRead(true);
+
+				// Trigger save
+				storageService.flush();
+
+				// Verify workspace state has read timestamp
+				const workspaceState = JSON.parse(storageService.get(stateStorageKey, StorageScope.WORKSPACE) ?? '[]');
+				const workspaceEntry = workspaceState.find((e: { resource: string }) => e.resource.includes('session-1'));
+				assert.ok(workspaceEntry, 'Workspace state should have entry');
+				assert.ok(typeof workspaceEntry.read === 'number' && workspaceEntry.read > 0, 'Workspace should have read timestamp');
+
+				// Verify profile state has read timestamp
+				const profileState = JSON.parse(storageService.get(stateStorageKey, StorageScope.PROFILE) ?? '[]');
+				const profileEntry = profileState.find((e: { resource: string }) => e.resource.includes('session-1'));
+				assert.ok(profileEntry, 'Profile state should have entry');
+				assert.ok(typeof profileEntry.read === 'number' && profileEntry.read > 0, 'Profile should have read timestamp');
+			});
+		});
+
+		test('marking as unread sets UNREAD_MARKER (-1) in storage', async () => {
+			return runWithFakedTimers({}, async () => {
+				const provider: IChatSessionItemProvider = {
+					chatSessionType: 'test-type',
+					onDidChangeChatSessionItems: Event.None,
+					provideChatSessionItems: async () => [
+						makeSimpleSessionItem('session-1'),
+					]
+				};
+
+				mockChatSessionsService.registerChatSessionItemProvider(provider);
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+				await viewModel.resolve(undefined);
+
+				const session = viewModel.sessions[0];
+
+				// Mark as read first
+				session.setRead(true);
+				assert.strictEqual(session.isRead(), true);
+
+				// Mark as unread
+				session.setRead(false);
+				assert.strictEqual(session.isRead(), false);
+
+				// Trigger save for workspace
+				storageService.flush();
+
+				// Verify workspace state has UNREAD_MARKER (-1)
+				const workspaceState = JSON.parse(storageService.get(stateStorageKey, StorageScope.WORKSPACE) ?? '[]');
+				const workspaceEntry = workspaceState.find((e: { resource: string }) => e.resource.includes('session-1'));
+				assert.ok(workspaceEntry, 'Workspace state should have entry');
+				assert.strictEqual(workspaceEntry.read, -1, 'Workspace should have UNREAD_MARKER');
+			});
+		});
+
+		test('profile state is saved immediately on change', async () => {
+			return runWithFakedTimers({}, async () => {
+				const provider: IChatSessionItemProvider = {
+					chatSessionType: 'test-type',
+					onDidChangeChatSessionItems: Event.None,
+					provideChatSessionItems: async () => [
+						makeSimpleSessionItem('session-1'),
+					]
+				};
+
+				mockChatSessionsService.registerChatSessionItemProvider(provider);
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+				await viewModel.resolve(undefined);
+
+				const session = viewModel.sessions[0];
+
+				// Before archiving, profile should be empty
+				assert.strictEqual(storageService.get(stateStorageKey, StorageScope.PROFILE), undefined);
+
+				// Archive
+				session.setArchived(true);
+
+				// Profile should be saved immediately (no need for flush)
+				const profileState = JSON.parse(storageService.get(stateStorageKey, StorageScope.PROFILE) ?? '[]');
+				const profileEntry = profileState.find((e: { resource: string }) => e.resource.includes('session-1'));
+				assert.ok(profileEntry, 'Profile state should be saved immediately on change');
+			});
+		});
+
+		test('archiving a session marks it as read', async () => {
+			return runWithFakedTimers({}, async () => {
+				const provider: IChatSessionItemProvider = {
+					chatSessionType: 'test-type',
+					onDidChangeChatSessionItems: Event.None,
+					provideChatSessionItems: async () => [
+						makeSimpleSessionItem('session-1'),
+					]
+				};
+
+				mockChatSessionsService.registerChatSessionItemProvider(provider);
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+				await viewModel.resolve(undefined);
+
+				const session = viewModel.sessions[0];
+
+				// Mark as unread first
+				session.setRead(false);
+				assert.strictEqual(session.isRead(), false);
+
+				// Archive it
+				session.setArchived(true);
+				assert.strictEqual(session.isRead(), true, 'Archiving should mark as read');
+			});
+		});
+	});
+
 }); // End of Agent Sessions suite
 
 function makeSimpleSessionItem(id: string, overrides?: Partial<IChatSessionItem>): IChatSessionItem {
