@@ -78,6 +78,7 @@ import { registerLanguageModelActions } from './actions/chatLanguageModelActions
 import { registerMoveActions } from './actions/chatMoveActions.js';
 import { registerNewChatActions } from './actions/chatNewActions.js';
 import { registerChatPromptNavigationActions } from './actions/chatPromptNavigationActions.js';
+import { registerChatQueueActions } from './actions/chatQueueActions.js';
 import { registerQuickChatActions } from './actions/chatQuickInputActions.js';
 import { ChatAgentRecommendation } from './actions/chatAgentRecommendationActions.js';
 import { registerChatTitleActions } from './actions/chatTitleActions.js';
@@ -596,6 +597,12 @@ configurationRegistry.registerConfiguration({
 					}
 				}
 			}
+		},
+		[ChatConfiguration.RequestQueueingEnabled]: {
+			type: 'boolean',
+			description: nls.localize('chat.requestQueuing.enabled.description', "When enabled, allows queuing additional messages while a request is in progress and steering the current request with a new message."),
+			default: false,
+			tags: ['experimental'],
 		},
 		[ChatConfiguration.EditModeHidden]: {
 			type: 'boolean',
@@ -1398,6 +1405,7 @@ registerChatFileTreeActions();
 registerChatPromptNavigationActions();
 registerChatTitleActions();
 registerChatExecuteActions();
+registerChatQueueActions();
 registerQuickChatActions();
 registerChatExportActions();
 registerMoveActions();

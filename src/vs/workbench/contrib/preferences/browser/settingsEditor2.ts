@@ -1597,7 +1597,7 @@ export class SettingsEditor2 extends EditorPane {
 
 		resolvedSettingsRoot.children!.push(await createTocTreeForExtensionSettings(this.extensionService, extensionSettingsGroups, filter));
 
-		resolvedSettingsRoot.children!.unshift(getCommonlyUsedData(groups, toggleData?.commonlyUsed));
+		resolvedSettingsRoot.children!.unshift(getCommonlyUsedData(groups));
 
 		if (toggleData && setAdditionalGroups) {
 			// Add the additional groups to the model to help with searching.
@@ -1671,7 +1671,7 @@ export class SettingsEditor2 extends EditorPane {
 					try {
 						this.settingsTree.reveal(newElement, 0);
 					} catch (e) {
-						// Ignore the error 
+						// Ignore the error
 					}
 				}
 			}

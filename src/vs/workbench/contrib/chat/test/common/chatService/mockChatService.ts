@@ -10,7 +10,7 @@ import { IObservable, observableValue } from '../../../../../../base/common/obse
 import { URI } from '../../../../../../base/common/uri.js';
 import { IChatModel, IChatRequestModel, IChatRequestVariableData, ISerializableChatData } from '../../../common/model/chatModel.js';
 import { IParsedChatRequest } from '../../../common/requestParser/chatParserTypes.js';
-import { IChatCompleteResponse, IChatDetail, IChatModelReference, IChatProgress, IChatProviderInfo, IChatSendRequestData, IChatSendRequestOptions, IChatService, IChatSessionContext, IChatSessionStartOptions, IChatUserActionEvent } from '../../../common/chatService/chatService.js';
+import { ChatRequestQueueKind, ChatSendResult, IChatCompleteResponse, IChatDetail, IChatModelReference, IChatProgress, IChatProviderInfo, IChatSendRequestOptions, IChatService, IChatSessionContext, IChatSessionStartOptions, IChatUserActionEvent } from '../../../common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../../common/constants.js';
 
 export class MockChatService implements IChatService {
@@ -71,7 +71,7 @@ export class MockChatService implements IChatService {
 	/**
 	 * Returns whether the request was accepted.
 	 */
-	sendRequest(sessionResource: URI, message: string): Promise<IChatSendRequestData | undefined> {
+	sendRequest(sessionResource: URI, message: string): Promise<ChatSendResult> {
 		throw new Error('Method not implemented.');
 	}
 	resendRequest(request: IChatRequestModel, options?: IChatSendRequestOptions | undefined): Promise<void> {
@@ -84,6 +84,15 @@ export class MockChatService implements IChatService {
 		throw new Error('Method not implemented.');
 	}
 	cancelCurrentRequestForSession(sessionResource: URI): void {
+		throw new Error('Method not implemented.');
+	}
+	setYieldRequested(sessionResource: URI): void {
+		throw new Error('Method not implemented.');
+	}
+	removePendingRequest(sessionResource: URI, requestId: string): void {
+		throw new Error('Method not implemented.');
+	}
+	setPendingRequests(sessionResource: URI, requests: readonly { requestId: string; kind: ChatRequestQueueKind }[]): void {
 		throw new Error('Method not implemented.');
 	}
 	addCompleteRequest(sessionResource: URI, message: IParsedChatRequest | string, variableData: IChatRequestVariableData | undefined, attempt: number | undefined, response: IChatCompleteResponse): void {

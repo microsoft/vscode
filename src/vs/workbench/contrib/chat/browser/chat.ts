@@ -19,8 +19,8 @@ import { IChatResponseModel, IChatModelInputState } from '../common/model/chatMo
 import { IChatMode } from '../common/chatModes.js';
 import { IParsedChatRequest } from '../common/requestParser/chatParserTypes.js';
 import { CHAT_PROVIDER_ID } from '../common/participants/chatParticipantContribTypes.js';
-import { IChatElicitationRequest, IChatLocationData, IChatSendRequestOptions } from '../common/chatService/chatService.js';
-import { IChatRequestViewModel, IChatResponseViewModel, IChatViewModel } from '../common/model/chatViewModel.js';
+import { ChatRequestQueueKind, IChatElicitationRequest, IChatLocationData, IChatSendRequestOptions } from '../common/chatService/chatService.js';
+import { IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, IChatPendingDividerViewModel } from '../common/model/chatViewModel.js';
 import { ChatAgentLocation, ChatModeKind } from '../common/constants.js';
 import { ChatAttachmentModel } from './attachments/chatAttachmentModel.js';
 import { IChatEditorOptions } from './widgetHosts/editor/chatEditor.js';
@@ -207,7 +207,7 @@ export interface IChatFileTreeInfo {
 	focus(): void;
 }
 
-export type ChatTreeItem = IChatRequestViewModel | IChatResponseViewModel;
+export type ChatTreeItem = IChatRequestViewModel | IChatResponseViewModel | IChatPendingDividerViewModel;
 
 export interface IChatListItemRendererOptions {
 	readonly renderStyle?: 'compact' | 'minimal';
@@ -306,6 +306,11 @@ export interface IChatAcceptInputOptions {
 	// box's current content is being accepted, or 'false' if a specific input
 	// is being submitted to the widget.
 	storeToHistory?: boolean;
+	/**
+	 * When set, queues this message to be sent after the current request completes.
+	 * If Steering, also sets yieldRequested on any active request to signal it should wrap up.
+	 */
+	queue?: ChatRequestQueueKind;
 }
 
 export interface IChatWidgetViewModelChangeEvent {

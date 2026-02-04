@@ -5,6 +5,7 @@
 
 import { Event } from '../../../base/common/event.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
+import { URI } from '../../../base/common/uri.js';
 
 export interface IBrowserViewBounds {
 	windowId: number;
@@ -83,10 +84,16 @@ export interface IBrowserViewFaviconChangeEvent {
 	favicon: string;
 }
 
+export enum BrowserNewPageLocation {
+	Foreground = 'foreground',
+	Background = 'background',
+	NewWindow = 'newWindow'
+}
 export interface IBrowserViewNewPageRequest {
-	url: string;
-	name?: string;
-	background: boolean;
+	resource: URI;
+	location: BrowserNewPageLocation;
+	// Only applicable if location is NewWindow
+	position?: { x?: number; y?: number; width?: number; height?: number };
 }
 
 export interface IBrowserViewFindInPageOptions {

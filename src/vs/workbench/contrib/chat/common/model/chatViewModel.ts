@@ -12,7 +12,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IChatRequestVariableEntry } from '../attachments/chatVariableEntries.js';
-import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatCodeCitation, IChatContentReference, IChatFollowup, IChatMcpServersStarting, IChatProgressMessage, IChatQuestionCarousel, IChatResponseErrorDetails, IChatTask, IChatUsedContext } from '../chatService/chatService.js';
+import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatRequestQueueKind, IChatCodeCitation, IChatContentReference, IChatFollowup, IChatMcpServersStarting, IChatProgressMessage, IChatQuestionCarousel, IChatResponseErrorDetails, IChatTask, IChatUsedContext } from '../chatService/chatService.js';
 import { getFullyQualifiedId, IChatAgentCommand, IChatAgentData, IChatAgentNameService, IChatAgentResult } from '../participants/chatAgents.js';
 import { IParsedChatRequest } from '../requestParser/chatParserTypes.js';
 import { CodeBlockModelCollection } from '../widget/codeBlockModelCollection.js';
@@ -26,6 +26,10 @@ export function isRequestVM(item: unknown): item is IChatRequestViewModel {
 
 export function isResponseVM(item: unknown): item is IChatResponseViewModel {
 	return !!item && typeof (item as IChatResponseViewModel).setVote !== 'undefined';
+}
+
+export function isPendingDividerVM(item: unknown): item is IChatPendingDividerViewModel {
+	return !!item && typeof item === 'object' && (item as IChatPendingDividerViewModel).kind === 'pendingDivider';
 }
 
 export function isChatTreeItem(item: unknown): item is IChatRequestViewModel | IChatResponseViewModel {
@@ -62,7 +66,7 @@ export interface IChatViewModel {
 	readonly onDidDisposeModel: Event<void>;
 	readonly onDidChange: Event<IChatViewModelChangeEvent>;
 	readonly inputPlaceholder?: string;
-	getItems(): (IChatRequestViewModel | IChatResponseViewModel)[];
+	getItems(): (IChatRequestViewModel | IChatResponseViewModel | IChatPendingDividerViewModel)[];
 	setInputPlaceholder(text: string): void;
 	resetInputPlaceholder(): void;
 	editing?: IChatRequestViewModel;
@@ -91,6 +95,8 @@ export interface IChatRequestViewModel {
 	readonly shouldBeBlocked: IObservable<boolean>;
 	readonly modelId?: string;
 	readonly timestamp: number;
+	/** The kind of pending request, or undefined if not pending */
+	readonly pendingKind?: ChatRequestQueueKind;
 }
 
 export interface IChatResponseMarkdownRenderData {
@@ -217,6 +223,15 @@ export interface IChatResponseViewModel {
 	readonly shouldBeBlocked: IObservable<boolean>;
 }
 
+export interface IChatPendingDividerViewModel {
+	readonly kind: 'pendingDivider';
+	readonly id: string; // e.g., 'pending-divider-steering' or 'pending-divider-queued'
+	readonly sessionResource: URI;
+	readonly isComplete: true;
+	readonly dividerKind: ChatRequestQueueKind;
+	currentRenderedHeight: number | undefined;
+}
+
 export interface IChatViewModelOptions {
 	/**
 	 * Maximum number of items to return from getItems().
@@ -276,6 +291,7 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 		});
 
 		this._register(_model.onDidDispose(() => this._onDidDisposeModel.fire()));
+		this._register(_model.onDidChangePendingRequests(() => this._onDidChange.fire(null)));
 		this._register(_model.onDidChange(e => {
 			if (e.kind === 'addRequest') {
 				const requestModel = this.instantiationService.createInstance(ChatRequestViewModel, e.request);
@@ -319,11 +335,37 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 		this._items.push(response);
 	}
 
-	getItems(): (IChatRequestViewModel | IChatResponseViewModel)[] {
-		const items = this._items.filter((item) => !item.shouldBeRemovedOnSend || item.shouldBeRemovedOnSend.afterUndoStop);
+	getItems(): (IChatRequestViewModel | IChatResponseViewModel | IChatPendingDividerViewModel)[] {
+		let items: (IChatRequestViewModel | IChatResponseViewModel | IChatPendingDividerViewModel)[] = this._items.filter((item) => !item.shouldBeRemovedOnSend || item.shouldBeRemovedOnSend.afterUndoStop);
 		if (this._options?.maxVisibleItems !== undefined && items.length > this._options.maxVisibleItems) {
-			return items.slice(-this._options.maxVisibleItems);
+			items = items.slice(-this._options.maxVisibleItems);
 		}
+
+		const pendingRequests = this._model.getPendingRequests();
+		if (pendingRequests.length > 0) {
+			// Separate steering and queued requests
+			const steeringRequests = pendingRequests.filter(p => p.kind === ChatRequestQueueKind.Steering);
+			const queuedRequests = pendingRequests.filter(p => p.kind === ChatRequestQueueKind.Queued);
+
+			// Add steering requests with their divider first
+			if (steeringRequests.length > 0) {
+				items.push({ kind: 'pendingDivider', id: 'pending-divider-steering', sessionResource: this._model.sessionResource, isComplete: true, dividerKind: ChatRequestQueueKind.Steering, currentRenderedHeight: undefined });
+				for (const pending of steeringRequests) {
+					const requestVM = this.instantiationService.createInstance(ChatRequestViewModel, pending.request, pending.kind);
+					items.push(requestVM);
+				}
+			}
+
+			// Add queued requests with their divider
+			if (queuedRequests.length > 0) {
+				items.push({ kind: 'pendingDivider', id: 'pending-divider-queued', sessionResource: this._model.sessionResource, isComplete: true, dividerKind: ChatRequestQueueKind.Queued, currentRenderedHeight: undefined });
+				for (const pending of queuedRequests) {
+					const requestVM = this.instantiationService.createInstance(ChatRequestViewModel, pending.request, pending.kind);
+					items.push(requestVM);
+				}
+			}
+		}
+
 		return items;
 	}
 
@@ -429,8 +471,13 @@ export class ChatRequestViewModel implements IChatRequestViewModel {
 		return this._model.timestamp;
 	}
 
+	get pendingKind() {
+		return this._pendingKind;
+	}
+
 	constructor(
 		private readonly _model: IChatRequestModel,
+		private readonly _pendingKind?: ChatRequestQueueKind,
 	) { }
 }
 

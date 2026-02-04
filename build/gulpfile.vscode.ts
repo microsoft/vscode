@@ -364,6 +364,7 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 		} else if (platform === 'darwin') {
 			const shortcut = gulp.src('resources/darwin/bin/code.sh')
 				.pipe(replace('@@APPNAME@@', product.applicationName))
+				.pipe(replace('@@NAME@@', product.nameShort))
 				.pipe(rename('bin/code'));
 			const policyDest = gulp.src('.build/policies/darwin/**', { base: '.build/policies/darwin' })
 				.pipe(rename(f => f.dirname = `policies/${f.dirname}`));

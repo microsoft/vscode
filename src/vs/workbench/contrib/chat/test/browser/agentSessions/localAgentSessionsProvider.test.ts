@@ -17,7 +17,7 @@ import { workbenchInstantiationService } from '../../../../../test/browser/workb
 import { LocalAgentsSessionsProvider } from '../../../browser/agentSessions/localAgentSessionsProvider.js';
 import { ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
 import { IChatModel, IChatRequestModel, IChatResponseModel } from '../../../common/model/chatModel.js';
-import { IChatDetail, IChatService, IChatSessionStartOptions, ResponseModelState } from '../../../common/chatService/chatService.js';
+import { ChatRequestQueueKind, IChatDetail, IChatService, IChatSessionStartOptions, ResponseModelState } from '../../../common/chatService/chatService.js';
 import { ChatSessionStatus, IChatSessionItem, IChatSessionsService, localChatSessionType } from '../../../common/chatSessionsService.js';
 import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
 import { ChatAgentLocation } from '../../../common/constants.js';
@@ -143,6 +143,12 @@ class MockChatService implements IChatService {
 	}
 
 	cancelCurrentRequestForSession(_sessionResource: URI): void { }
+
+	setYieldRequested(_sessionResource: URI): void { }
+
+	removePendingRequest(_sessionResource: URI, _requestId: string): void { }
+
+	setPendingRequests(_sessionResource: URI, _requests: readonly { requestId: string; kind: ChatRequestQueueKind }[]): void { }
 
 	addCompleteRequest(): void { }
 
@@ -799,36 +805,6 @@ suite('LocalAgentsSessionsProvider', () => {
 				(mockModel as unknown as { setCustomTitle: (title: string) => void }).setCustomTitle('New Title');
 
 				assert.strictEqual(changeEventCount, 0, 'onDidChangeChatSessionItems should NOT fire after model is removed');
-			});
-		});
-
-		test('should fire onDidChange when session items change for local type', async () => {
-			return runWithFakedTimers({}, async () => {
-				const provider = createProvider();
-
-				let changeEventFired = false;
-				disposables.add(provider.onDidChange(() => {
-					changeEventFired = true;
-				}));
-
-				mockChatSessionsService.notifySessionItemsChanged(localChatSessionType);
-
-				assert.strictEqual(changeEventFired, true);
-			});
-		});
-
-		test('should not fire onDidChange when session items change for other types', async () => {
-			return runWithFakedTimers({}, async () => {
-				const provider = createProvider();
-
-				let changeEventFired = false;
-				disposables.add(provider.onDidChange(() => {
-					changeEventFired = true;
-				}));
-
-				mockChatSessionsService.notifySessionItemsChanged('other-type');
-
-				assert.strictEqual(changeEventFired, false);
 			});
 		});
 	});

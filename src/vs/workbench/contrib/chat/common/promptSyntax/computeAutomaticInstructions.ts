@@ -26,7 +26,6 @@ import { ICustomAgent, IPromptPath, IPromptsService } from './service/promptsSer
 import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
 import { ChatConfiguration, ChatModeKind } from '../constants.js';
 import { UserSelectedTools } from '../participants/chatAgents.js';
-import { IChatMode } from '../chatModes.js';
 
 export type InstructionsCollectionEvent = {
 	applyingInstructionsCount: number;
@@ -54,7 +53,7 @@ export class ComputeAutomaticInstructions {
 	private _parseResults: ResourceMap<ParsedPromptFile> = new ResourceMap();
 
 	constructor(
-		private readonly _agent: IChatMode,
+		private readonly _modeKind: ChatModeKind,
 		private readonly _enabledTools: UserSelectedTools | undefined,
 		private readonly _enabledSubagents: (readonly string[]) | undefined,
 		@IPromptsService private readonly _promptsService: IPromptsService,
@@ -119,7 +118,7 @@ export class ComputeAutomaticInstructions {
 	/** public for testing */
 	public async addApplyingInstructions(instructionFiles: readonly IPromptPath[], context: { files: ResourceSet; instructions: ResourceSet }, variables: ChatRequestVariableSet, telemetryEvent: InstructionsCollectionEvent, token: CancellationToken): Promise<void> {
 		const includeApplyingInstructions = this._configurationService.getValue(PromptsConfig.INCLUDE_APPLYING_INSTRUCTIONS);
-		if (!includeApplyingInstructions && this._agent.kind !== ChatModeKind.Edit) {
+		if (!includeApplyingInstructions && this._modeKind !== ChatModeKind.Edit) {
 			this._logService.trace(`[InstructionsContextComputer] includeApplyingInstructions is disabled and agent kind is not Edit. No applying instructions will be added.`);
 			return;
 		}
@@ -400,7 +399,7 @@ export class ComputeAutomaticInstructions {
 
 	private async _addReferencedInstructions(attachedContext: ChatRequestVariableSet, telemetryEvent: InstructionsCollectionEvent, token: CancellationToken): Promise<void> {
 		const includeReferencedInstructions = this._configurationService.getValue(PromptsConfig.INCLUDE_REFERENCED_INSTRUCTIONS);
-		if (!includeReferencedInstructions && this._agent.kind !== ChatModeKind.Edit) {
+		if (!includeReferencedInstructions && this._modeKind !== ChatModeKind.Edit) {
 			this._logService.trace(`[InstructionsContextComputer] includeReferencedInstructions is disabled and agent kind is not Edit. No referenced instructions will be added.`);
 			return;
 		}

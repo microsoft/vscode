@@ -12,7 +12,7 @@ import { RawContextKey, IContextKey, IContextKeyService } from '../../../../plat
 import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
-import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { AUX_WINDOW_GROUP, IEditorService } from '../../../services/editor/common/editorService.js';
 import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
 import { IEditorOpenContext } from '../../../common/editor.js';
 import { BrowserEditorInput } from './browserEditorInput.js';
@@ -21,7 +21,7 @@ import { IBrowserViewModel } from '../../browserView/common/browserView.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
-import { IBrowserViewKeyDownEvent, IBrowserViewNavigationEvent, IBrowserViewLoadError } from '../../../../platform/browserView/common/browserView.js';
+import { IBrowserViewKeyDownEvent, IBrowserViewNavigationEvent, IBrowserViewLoadError, BrowserNewPageLocation } from '../../../../platform/browserView/common/browserView.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
@@ -45,6 +45,7 @@ import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { IChatRequestVariableEntry } from '../../chat/common/attachments/chatVariableEntries.js';
 import { IBrowserTargetLocator, getDisplayNameFromOuterHTML } from '../../../../platform/browserElements/common/browserElements.js';
 import { logBrowserOpen } from './browserViewTelemetry.js';
+import { URI } from '../../../../base/common/uri.js';
 
 export const CONTEXT_BROWSER_CAN_GO_BACK = new RawContextKey<boolean>('browserCanGoBack', false, localize('browser.canGoBack', "Whether the browser can go back"));
 export const CONTEXT_BROWSER_CAN_GO_FORWARD = new RawContextKey<boolean>('browserCanGoForward', false, localize('browser.canGoForward', "Whether the browser can go forward"));
@@ -342,7 +343,11 @@ export class BrowserEditor extends EditorPane {
 		this.setBackgroundImage(this._model.screenshot);
 
 		if (context.newInGroup) {
-			this.focusUrlInput();
+			if (this._model.url) {
+				this._browserContainer.focus();
+			} else {
+				this.focusUrlInput();
+			}
 		}
 
 		// Start / stop screenshots when the model visibility changes
@@ -378,18 +383,27 @@ export class BrowserEditor extends EditorPane {
 			this._devToolsOpenContext.set(e.isDevToolsOpen);
 		}));
 
-		this._inputDisposables.add(this._model.onDidRequestNewPage(({ url, name, background }) => {
-			logBrowserOpen(this.telemetryService, background ? 'browserLinkBackground' : 'browserLinkForeground');
+		this._inputDisposables.add(this._model.onDidRequestNewPage(({ resource, location, position }) => {
+			logBrowserOpen(this.telemetryService, (() => {
+				switch (location) {
+					case BrowserNewPageLocation.Background: return 'browserLinkBackground';
+					case BrowserNewPageLocation.Foreground: return 'browserLinkForeground';
+					case BrowserNewPageLocation.NewWindow: return 'browserLinkNewWindow';
+				}
+			})());
 
-			// Open a new browser tab for the requested URL
-			const browserUri = BrowserViewUri.forUrl(url, name ? `${input.id}-${name}` : undefined);
+			const targetGroup = location === BrowserNewPageLocation.NewWindow ? AUX_WINDOW_GROUP : this.group;
 			this.editorService.openEditor({
-				resource: browserUri,
+				resource: URI.from(resource),
 				options: {
 					pinned: true,
-					inactive: background
+					inactive: location === BrowserNewPageLocation.Background,
+					auxiliary: {
+						bounds: position,
+						compact: true
+					}
 				}
-			}, this.group);
+			}, targetGroup);
 		}));
 
 		this._inputDisposables.add(this.overlayManager!.onDidChangeOverlayState(() => {

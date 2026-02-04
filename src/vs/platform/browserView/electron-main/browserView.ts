@@ -7,13 +7,14 @@ import { WebContentsView, webContents } from 'electron';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
-import { IBrowserViewBounds, IBrowserViewDevToolsStateEvent, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewLoadError, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent, IBrowserViewNewPageRequest, BrowserViewStorageScope, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, IBrowserViewFindInPageResult, IBrowserViewVisibilityEvent } from '../common/browserView.js';
+import { IBrowserViewBounds, IBrowserViewDevToolsStateEvent, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewLoadError, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent, IBrowserViewNewPageRequest, BrowserViewStorageScope, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, IBrowserViewFindInPageResult, IBrowserViewVisibilityEvent, BrowserNewPageLocation } from '../common/browserView.js';
 import { EVENT_KEY_CODE_MAP, KeyCode, KeyMod, SCAN_CODE_STR_TO_EVENT_KEY_CODE } from '../../../base/common/keyCodes.js';
 import { IWindowsMainService } from '../../windows/electron-main/windows.js';
 import { IBaseWindow, ICodeWindow } from '../../window/electron-main/window.js';
 import { IAuxiliaryWindowsMainService } from '../../auxiliaryWindow/electron-main/auxiliaryWindows.js';
 import { IAuxiliaryWindow } from '../../auxiliaryWindow/electron-main/auxiliaryWindow.js';
 import { isMacintosh } from '../../../base/common/platform.js';
+import { BrowserViewUri } from '../common/browserViewUri.js';
 
 /** Key combinations that are used in system-level shortcuts. */
 const nativeShortcuts = new Set([
@@ -38,6 +39,7 @@ export class BrowserView extends Disposable {
 	private _lastScreenshot: VSBuffer | undefined = undefined;
 	private _lastFavicon: string | undefined = undefined;
 	private _lastError: IBrowserViewLoadError | undefined = undefined;
+	private _lastUserGestureTimestamp: number = -Infinity;
 
 	private _window: IBaseWindow | undefined;
 	private _isSendingKeyEvent = false;
@@ -76,14 +78,19 @@ export class BrowserView extends Disposable {
 	readonly onDidClose: Event<void> = this._onDidClose.event;
 
 	constructor(
+		public readonly id: string,
 		private readonly viewSession: Electron.Session,
 		private readonly storageScope: BrowserViewStorageScope,
+		createChildView: (options?: Electron.WebContentsViewConstructorOptions) => BrowserView,
+		options: Electron.WebContentsViewConstructorOptions | undefined,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
 		@IAuxiliaryWindowsMainService private readonly auxiliaryWindowsMainService: IAuxiliaryWindowsMainService
 	) {
 		super();
 
 		const webPreferences: Electron.WebPreferences & { type: ReturnType<Electron.WebContents['getType']> } = {
+			...options?.webPreferences,
+
 			nodeIntegration: false,
 			contextIsolation: true,
 			sandbox: true,
@@ -94,22 +101,45 @@ export class BrowserView extends Disposable {
 			type: 'browserView'
 		};
 
-		this._view = new WebContentsView({ webPreferences });
+		this._view = new WebContentsView({
+			webPreferences,
+			// Passing an `undefined` webContents triggers an error in Electron.
+			...(options?.webContents ? { webContents: options.webContents } : {})
+		});
 		this._view.setBackgroundColor('#FFFFFF');
 
 		this._view.webContents.setWindowOpenHandler((details) => {
-			// For new tab requests, fire event for workbench to handle
-			if (details.disposition === 'background-tab' || details.disposition === 'foreground-tab') {
-				this._onDidRequestNewPage.fire({
-					url: details.url,
-					name: details.frameName || undefined,
-					background: details.disposition === 'background-tab'
-				});
-				return { action: 'deny' }; // Deny the default browser behavior since we're handling it
+			const location = (() => {
+				switch (details.disposition) {
+					case 'background-tab': return BrowserNewPageLocation.Background;
+					case 'foreground-tab': return BrowserNewPageLocation.Foreground;
+					case 'new-window': return BrowserNewPageLocation.NewWindow;
+					default: return undefined;
+				}
+			})();
+
+			if (!location || !this.consumePopupPermission(location)) {
+				// Eventually we may want to surface this. For now, just silently block it.
+				return { action: 'deny' };
 			}
 
-			// Deny other requests like new windows.
-			return { action: 'deny' };
+			return {
+				action: 'allow',
+				createWindow: (options) => {
+					const childView = createChildView(options);
+					const resource = BrowserViewUri.forUrl(details.url, childView.id);
+
+					// Fire event for the workbench to open this view
+					this._onDidRequestNewPage.fire({
+						resource,
+						location,
+						position: { x: options.x, y: options.y, width: options.width, height: options.height }
+					});
+
+					// Return the webContents so Electron can complete the window.open() call
+					return childView.webContents;
+				}
+			};
 		});
 
 		this._view.webContents.on('destroyed', () => {
@@ -250,6 +280,20 @@ export class BrowserView extends Disposable {
 			}
 		});
 
+		// Track user gestures for popup blocking logic.
+		// Roughly based on https://html.spec.whatwg.org/multipage/interaction.html#tracking-user-activation.
+		webContents.on('input-event', (_event, input) => {
+			switch (input.type) {
+				case 'rawKeyDown':
+				case 'keyDown':
+				case 'mouseDown':
+				case 'pointerDown':
+				case 'pointerUp':
+				case 'touchEnd':
+					this._lastUserGestureTimestamp = Date.now();
+			}
+		});
+
 		// For now, always prevent sites from blocking unload.
 		// In the future we may want to show a dialog to ask the user,
 		// with heavy restrictions regarding interaction and repeated prompts.
@@ -266,6 +310,22 @@ export class BrowserView extends Disposable {
 				finalUpdate: result.finalUpdate
 			});
 		});
+	}
+
+	private consumePopupPermission(location: BrowserNewPageLocation): boolean {
+		switch (location) {
+			case BrowserNewPageLocation.Foreground:
+			case BrowserNewPageLocation.Background:
+				return true;
+			case BrowserNewPageLocation.NewWindow:
+				// Each user gesture allows one popup window within 1 second
+				if (this._lastUserGestureTimestamp > Date.now() - 1000) {
+					this._lastUserGestureTimestamp = -Infinity;
+					return true;
+				}
+
+				return false;
+		}
 	}
 
 	get webContents(): Electron.WebContents {

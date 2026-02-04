@@ -334,9 +334,9 @@ export class PromptValidator {
 	}
 
 	private findModelByName(modelName: string): ILanguageModelChatMetadata | undefined {
-		const metadata = this.languageModelsService.lookupLanguageModelByQualifiedName(modelName);
-		if (metadata && metadata.isUserSelectable !== false) {
-			return metadata;
+		const metadataAndId = this.languageModelsService.lookupLanguageModelByQualifiedName(modelName);
+		if (metadataAndId && metadataAndId.metadata.isUserSelectable !== false) {
+			return metadataAndId.metadata;
 		}
 		return undefined;
 	}
