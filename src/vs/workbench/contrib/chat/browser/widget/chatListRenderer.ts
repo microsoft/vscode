@@ -2041,16 +2041,16 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		if (!widget) {
 			return;
 		}
+		const signalMessage = questionCount === 1
+			? localize('chat.questionCarouselSignalOne', "Chat needs your input (1 question).")
+			: localize('chat.questionCarouselSignalMany', "Chat needs your input ({0} questions).", questionCount);
+		this.accessibilitySignalService.playSignal(AccessibilitySignal.chatUserActionRequired, { allowManyInParallel: true, customAlertMessage: signalMessage });
 
 		const targetWindow = dom.getWindow(widget.domNode);
 		if (!targetWindow || targetWindow.document.hasFocus()) {
 			return;
 		}
 
-		const signalMessage = questionCount === 1
-			? localize('chat.questionCarouselSignalOne', "Chat needs your input (1 question).")
-			: localize('chat.questionCarouselSignalMany', "Chat needs your input ({0} questions).", questionCount);
-		this.accessibilitySignalService.playSignal(AccessibilitySignal.chatUserActionRequired, { allowManyInParallel: true, customAlertMessage: signalMessage });
 
 		const sessionTitle = widget.viewModel?.model.title;
 		const notificationTitle = sessionTitle ? localize('chatTitle', "Chat: {0}", sessionTitle) : localize('chat.untitledChat', "Untitled Chat");
