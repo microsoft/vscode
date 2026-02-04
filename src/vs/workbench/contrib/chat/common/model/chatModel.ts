@@ -5,7 +5,7 @@
 
 import { asArray } from '../../../../../base/common/arrays.js';
 import { softAssertNever } from '../../../../../base/common/assert.js';
-import { VSBuffer, decodeHex, encodeHex } from '../../../../../base/common/buffer.js';
+import { VSBuffer, decodeBase64, decodeHex, encodeHex } from '../../../../../base/common/buffer.js';
 import { BugIndicatingError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString, isMarkdownString } from '../../../../../base/common/htmlContent.js';
@@ -29,12 +29,13 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { CellUri, ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
 import { ChatRequestToolReferenceEntry, IChatRequestVariableEntry, isImplicitVariableEntry, isStringImplicitContextValue, isStringVariableEntry } from '../attachments/chatVariableEntries.js';
 import { migrateLegacyTerminalToolSpecificData } from '../chat.js';
-import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatRequestQueueKind, ChatResponseClearToPreviousToolInvocationReason, ElicitationState, IChatAgentMarkdownContentWithVulnerability, IChatClearToPreviousToolInvocation, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatEditingSessionAction, IChatElicitationRequest, IChatElicitationRequestSerialized, IChatExtensionsContent, IChatFollowup, IChatLocationData, IChatMarkdownContent, IChatMcpServersStarting, IChatMcpServersStartingSerialized, IChatModelReference, IChatMultiDiffData, IChatMultiDiffDataSerialized, IChatNotebookEdit, IChatProgress, IChatProgressMessage, IChatPullRequestContent, IChatQuestionCarousel, IChatResponseCodeblockUriPart, IChatResponseProgressFileTreeData, IChatSendRequestOptions, IChatService, IChatSessionContext, IChatSessionTiming, IChatTask, IChatTaskSerialized, IChatTextEdit, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsage, IChatUsedContext, IChatWarningMessage, IChatWorkspaceEdit, ResponseModelState, isIUsedContext } from '../chatService/chatService.js';
+import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatRequestQueueKind, ChatResponseClearToPreviousToolInvocationReason, ElicitationState, IChatAgentMarkdownContentWithVulnerability, IChatClearToPreviousToolInvocation, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatEditingSessionAction, IChatElicitationRequest, IChatElicitationRequestSerialized, IChatExtensionsContent, IChatFollowup, IChatLocationData, IChatMarkdownContent, IChatMcpServersStarting, IChatMcpServersStartingSerialized, IChatModelReference, IChatMultiDiffData, IChatMultiDiffDataSerialized, IChatNotebookEdit, IChatProgress, IChatProgressMessage, IChatPullRequestContent, IChatQuestionCarousel, IChatResponseCodeblockUriPart, IChatResponseProgressFileTreeData, IChatSendRequestOptions, IChatService, IChatSessionContext, IChatSessionTiming, IChatTask, IChatTaskSerialized, IChatTextEdit, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsage, IChatUsedContext, IChatWarningMessage, IChatWorkspaceEdit, IToolResultOutputDetailsSerialized, ResponseModelState, isIUsedContext } from '../chatService/chatService.js';
 import { ChatAgentLocation, ChatModeKind } from '../constants.js';
 import { IChatEditingService, IChatEditingSession, ModifiedFileEntryState } from '../editing/chatEditingService.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../languageModels.js';
 import { IChatAgentCommand, IChatAgentData, IChatAgentResult, IChatAgentService, UserSelectedTools, reviveSerializedAgent } from '../participants/chatAgents.js';
 import { ChatRequestTextPart, IParsedChatRequest, reviveParsedChatRequest } from '../requestParser/chatParserTypes.js';
+import { isToolResultOutputDetails } from '../tools/languageModelToolsService.js';
 import { LocalChatSessionUri } from './chatUri.js';
 import { ObjectMutationLog } from './objectMutationLog.js';
 
@@ -578,10 +579,35 @@ class AbstractResponse implements IResponse {
 			if (resultDetails && 'input' in resultDetails) {
 				const resultPrefix = toolInvocation.kind === 'toolInvocationSerialized' || IChatToolInvocation.isComplete(toolInvocation) ? 'Completed' : 'Errored';
 				text += `\n${resultPrefix} with input: ${resultDetails.input}`;
+			} else if (resultDetails && this.isOutputDetailsSerialized(resultDetails)) {
+				text += `\n${this.formatToolOutputDetails(resultDetails.output.mimeType, VSBuffer.wrap(decodeBase64(resultDetails.output.base64Data)))}`;
+			} else if (isToolResultOutputDetails(resultDetails)) {
+				text += `\n${this.formatToolOutputDetails(resultDetails.output.mimeType, resultDetails.output.value)}`;
 			}
 		}
 
 		return { text, isBlock: true };
+	}
+
+	private isOutputDetailsSerialized(resultDetails: unknown): resultDetails is IToolResultOutputDetailsSerialized {
+		return typeof resultDetails === 'object' && resultDetails !== null && 'output' in resultDetails &&
+			typeof (resultDetails as IToolResultOutputDetailsSerialized).output === 'object' &&
+			(resultDetails as IToolResultOutputDetailsSerialized).output?.type === 'data' &&
+			typeof (resultDetails as IToolResultOutputDetailsSerialized).output?.base64Data === 'string';
+	}
+
+	private formatToolOutputDetails(mimeType: string, value: VSBuffer): string {
+		if (mimeType === 'text/vnd.mermaid') {
+			return this.formatMermaidOutput(value);
+		}
+
+		return localize('toolOutputData', "Tool output: {0} data", mimeType);
+	}
+
+	private formatMermaidOutput(value: VSBuffer): string {
+		const text = value.toString();
+		const fence = getFenceForContent(text);
+		return `${fence}mermaid\n${text}\n${fence}`;
 	}
 
 	private uriToRepr(uri: URI): string {
@@ -2551,6 +2577,16 @@ export function getCodeCitationsMessage(citations: ReadonlyArray<IChatCodeCitati
 		localize('codeCitation', "Similar code found with 1 license type", licenseTypes.size) :
 		localize('codeCitations', "Similar code found with {0} license types", licenseTypes.size);
 	return label;
+}
+
+function getFenceForContent(content: string): string {
+	const backtickMatches = Array.from(content.matchAll(/`+/g), s => s[0].length);
+	if (backtickMatches.length === 0) {
+		return '```';
+	}
+
+	const maxBackticks = Math.max(...backtickMatches);
+	return '`'.repeat(Math.max(3, maxBackticks + 1));
 }
 
 export enum ChatRequestEditedFileEventKind {

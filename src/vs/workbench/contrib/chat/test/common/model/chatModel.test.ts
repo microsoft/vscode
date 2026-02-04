@@ -6,6 +6,7 @@
 import assert from 'assert';
 import * as sinon from 'sinon';
 import { Codicon } from '../../../../../../base/common/codicons.js';
+import { VSBuffer, encodeBase64 } from '../../../../../../base/common/buffer.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -27,9 +28,10 @@ import { IChatRequestImplicitVariableEntry, IChatRequestStringVariableEntry, ICh
 import { ChatAgentService, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatModel, IExportableChatData, ISerializableChatData1, ISerializableChatData2, ISerializableChatData3, isExportableSessionData, isSerializableSessionData, normalizeSerializableChatData, Response } from '../../../common/model/chatModel.js';
 import { ChatRequestTextPart } from '../../../common/requestParser/chatParserTypes.js';
-import { IChatService, IChatToolInvocation } from '../../../common/chatService/chatService.js';
+import { IChatService, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../../common/constants.js';
 import { MockChatService } from '../chatService/mockChatService.js';
+import { ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
 
 suite('ChatModel', () => {
 	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -261,6 +263,40 @@ suite('Response', () => {
 
 		assert.strictEqual(response.toString(), 'text before https://microsoft.com/ text after');
 
+	});
+
+	test('includes mermaid tool output in response string', async () => {
+		const response = store.add(new Response([]));
+		const mermaid = 'flowchart TD\n    A --> B';
+		const encoded = encodeBase64(VSBuffer.fromString(mermaid));
+		const toolInvocation: IChatToolInvocationSerialized = {
+			kind: 'toolInvocationSerialized',
+			presentation: undefined,
+			toolSpecificData: undefined,
+			invocationMessage: 'Rendering mermaid',
+			originMessage: undefined,
+			pastTenseMessage: 'Rendered mermaid',
+			resultDetails: {
+				output: {
+					type: 'data',
+					mimeType: 'text/vnd.mermaid',
+					base64Data: encoded
+				}
+			},
+			isConfirmed: { type: ToolConfirmKind.ConfirmationNotNeeded },
+			isComplete: true,
+			toolCallId: 'tool-call-1',
+			toolId: 'renderMermaidDiagram',
+			source: ToolDataSource.Internal,
+			subAgentInvocationId: undefined,
+			generatedTitle: undefined
+		};
+
+		response.updateContent(toolInvocation);
+
+		const responseString = response.toString();
+		assert.ok(responseString.includes('```mermaid'), 'Should include mermaid code fence');
+		assert.ok(responseString.includes(mermaid), 'Should include mermaid source');
 	});
 
 	test('consolidated edit summary', () => {
