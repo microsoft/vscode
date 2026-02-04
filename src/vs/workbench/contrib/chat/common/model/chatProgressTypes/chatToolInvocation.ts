@@ -28,6 +28,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 	public presentation: IPreparedToolInvocation['presentation'];
 	public readonly toolId: string;
 	public source: ToolDataSource;
+	public readonly displayStyle?: 'expanded' | 'default';
 	public readonly subAgentInvocationId: string | undefined;
 	public parameters: unknown;
 	public generatedTitle?: string;
@@ -73,6 +74,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 		this.toolSpecificData = preparedInvocation?.toolSpecificData;
 		this.toolId = toolData.id;
 		this.source = toolData.source;
+		this.displayStyle = toolData.displayStyle;
 		this.subAgentInvocationId = subAgentInvocationId;
 		this.parameters = parameters;
 		this.chatRequestId = chatRequestId;
@@ -281,6 +283,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 			isConfirmed: waitingForPostApproval ? { type: ToolConfirmKind.Skipped } : IChatToolInvocation.executionConfirmedOrDenied(this),
 			isComplete: true,
 			source: this.source,
+			displayStyle: this.displayStyle,
 			resultDetails: isToolResultOutputDetails(details)
 				? { output: { type: 'data', mimeType: details.output.mimeType, base64Data: encodeBase64(details.output.value) } }
 				: details,

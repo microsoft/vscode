@@ -3720,4 +3720,94 @@ suite('LanguageModelToolsService', () => {
 			assert.ok(!toolIds.includes('childToolWithWhen'), 'Child tool with when=true should NOT be in tool set when context key is false');
 		});
 	});
+
+	suite('displayStyle property', () => {
+		test('displayStyle is propagated to ChatToolInvocation', async () => {
+			const toolData: IToolData = {
+				id: 'testToolWithDisplayStyle',
+				modelDescription: 'Test Tool with display style',
+				displayName: 'Test Tool Display',
+				source: ToolDataSource.Internal,
+				displayStyle: 'expanded',
+			};
+
+			const invocation = new ChatToolInvocation(
+				undefined,
+				toolData,
+				'toolCallId',
+				undefined,
+				{},
+				false
+			);
+
+			assert.strictEqual(invocation.displayStyle, 'expanded', 'displayStyle should be propagated from toolData');
+		});
+
+		test('displayStyle is serialized in toJSON', async () => {
+			const toolData: IToolData = {
+				id: 'testToolWithDisplayStyleSerialized',
+				modelDescription: 'Test Tool with display style serialized',
+				displayName: 'Test Tool Display',
+				source: ToolDataSource.Internal,
+				displayStyle: 'expanded',
+			};
+
+			const invocation = new ChatToolInvocation(
+				undefined,
+				toolData,
+				'toolCallId2',
+				undefined,
+				{},
+				false
+			);
+
+			const serialized = invocation.toJSON();
+
+			assert.strictEqual(serialized.displayStyle, 'expanded', 'displayStyle should be serialized to JSON');
+		});
+
+		test('displayStyle default is undefined when not specified', async () => {
+			const toolData: IToolData = {
+				id: 'testToolWithoutDisplayStyle',
+				modelDescription: 'Test Tool without display style',
+				displayName: 'Test Tool Display',
+				source: ToolDataSource.Internal,
+			};
+
+			const invocation = new ChatToolInvocation(
+				undefined,
+				toolData,
+				'toolCallId3',
+				undefined,
+				{},
+				false
+			);
+
+			assert.strictEqual(invocation.displayStyle, undefined, 'displayStyle should be undefined when not set');
+
+			const serialized = invocation.toJSON();
+			assert.strictEqual(serialized.displayStyle, undefined, 'displayStyle should be undefined in serialized form when not set');
+		});
+
+		test('displayStyle can be set to default', async () => {
+			const toolData: IToolData = {
+				id: 'testToolWithDefaultDisplayStyle',
+				modelDescription: 'Test Tool with default display style',
+				displayName: 'Test Tool Display',
+				source: ToolDataSource.Internal,
+				displayStyle: 'default',
+			};
+
+			const invocation = new ChatToolInvocation(
+				undefined,
+				toolData,
+				'toolCallId4',
+				undefined,
+				{},
+				false
+			);
+
+			assert.strictEqual(invocation.displayStyle, 'default', 'displayStyle should be default when explicitly set');
+		});
+	});
 });

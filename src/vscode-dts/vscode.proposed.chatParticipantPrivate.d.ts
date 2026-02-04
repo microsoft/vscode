@@ -276,7 +276,7 @@ declare module 'vscode' {
 
 	export interface PreparedToolInvocation {
 		pastTenseMessage?: string | MarkdownString;
-		presentation?: 'hidden' | 'hiddenAfterComplete' | undefined;
+		presentation?: 'hidden' | 'hiddenAfterComplete' | 'expanded' | undefined;
 	}
 
 	export class ExtendedLanguageModelToolResult extends LanguageModelToolResult {

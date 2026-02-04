@@ -36,6 +36,7 @@ export interface IRawToolContribution {
 	userDescription?: string;
 	inputSchema?: IJSONSchema;
 	canBeReferencedInPrompt?: boolean;
+	displayStyle?: 'expanded' | 'default';
 }
 
 const languageModelToolsExtensionPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<IRawToolContribution[]>({
@@ -130,6 +131,15 @@ const languageModelToolsExtensionPoint = extensionsRegistry.ExtensionsRegistry.r
 						type: 'string',
 						pattern: '^(?!copilot_|vscode_)'
 					}
+				},
+				displayStyle: {
+					markdownDescription: localize('displayStyle', "Controls how this tool's invocations are displayed during chat responses. Use `expanded` to keep the tool invocation always visible (not collapsed into the 'thinking' section). By default, VS Code decides based on tool type and context."),
+					type: 'string',
+					enum: ['expanded', 'default'],
+					enumDescriptions: [
+						localize('displayStyle.expanded', "Always show the tool invocation expanded, never collapse into the 'thinking' section."),
+						localize('displayStyle.default', "Let VS Code decide whether to collapse based on tool type and context (default behavior).")
+					]
 				}
 			}
 		}

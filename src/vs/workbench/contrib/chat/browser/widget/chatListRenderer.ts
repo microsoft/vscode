@@ -1401,6 +1401,16 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return true;
 		}
 
+		// Check for explicit expanded display style - don't pin tools that should be expanded
+		// Runtime presentation overrides static displayStyle
+		if (part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') {
+			const presentation = part.presentation;
+			const displayStyle = part.displayStyle;
+			if (presentation === 'expanded' || (!presentation && displayStyle === 'expanded')) {
+				return false;
+			}
+		}
+
 		// Don't pin MCP tools
 		const isMcpTool = (part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') && part.source?.type === 'mcp';
 		if (isMcpTool) {
