@@ -25,7 +25,9 @@ VSCODECRASHDIR=$ROOT/.build/crashes
 test -d node_modules || npm i
 
 # Get electron
-npm run electron
+if [[ -z "${VSCODE_SKIP_PRELAUNCH}" ]]; then
+	npm run electron
+fi
 
 # Unit Tests
 if [[ "$OSTYPE" == "darwin"* ]]; then
