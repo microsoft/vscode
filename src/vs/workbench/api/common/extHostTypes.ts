@@ -17,7 +17,7 @@ import { isNumber, isObject, isString, isStringArray } from '../../../base/commo
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { TextEditorSelectionSource } from '../../../platform/editor/common/editor.js';
-import { ExtensionIdentifier, IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
+import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { FileSystemProviderErrorCode, markAsFileSystemProviderError } from '../../../platform/files/common/files.js';
 import { RemoteAuthorityResolverErrorCode } from '../../../platform/remote/common/remoteAuthorityResolver.js';
 import { IRelativePatternDto } from './extHost.protocol.js';
@@ -657,15 +657,6 @@ export enum ViewColumn {
 	Seven = 7,
 	Eight = 8,
 	Nine = 9
-}
-
-export enum StatusBarAlignment {
-	Left = 1,
-	Right = 2
-}
-
-export function asStatusBarItemIdentifier(extension: ExtensionIdentifier, id: string): string {
-	return `${ExtensionIdentifier.toKey(extension)}.${id}`;
 }
 
 export enum TextEditorLineNumbersStyle {

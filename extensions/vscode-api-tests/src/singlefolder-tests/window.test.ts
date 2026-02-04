@@ -1060,4 +1060,28 @@ suite('vscode API - window', () => {
 
 		item.dispose();
 	});
+
+	test('createStatusBar - with compact', async function () {
+
+		const item1 = window.createStatusBarItem('item1', StatusBarAlignment.Left, 20);
+		const item2 = window.createStatusBarItem('item2', StatusBarAlignment.Left,
+			{
+				location: {
+					id: 'vscode.vscode-api-tests.item1',
+					priority: 21
+				},
+				compact: true,
+				alignment: StatusBarAlignment.Right
+			}
+		);
+
+		assert.strictEqual(item1.alignment, StatusBarAlignment.Left);
+		assert.strictEqual(item1.priority, 20);
+
+		assert.strictEqual(item2.alignment, StatusBarAlignment.Left);
+		assert.strictEqual(item2.priority, 21);
+
+		item1.dispose();
+		item2.dispose();
+	});
 });

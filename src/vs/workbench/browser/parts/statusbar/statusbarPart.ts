@@ -9,7 +9,7 @@ import { Disposable, DisposableStore, disposeIfDisposable, IDisposable, MutableD
 import { MultiWindowParts, Part } from '../../part.js';
 import { EventType as TouchEventType, Gesture, GestureEvent } from '../../../../base/browser/touch.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { StatusbarAlignment, IStatusbarService, IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarStyleOverride, isStatusbarEntryLocation, IStatusbarEntryLocation, isStatusbarEntryPriority, IStatusbarEntryPriority } from '../../../services/statusbar/browser/statusbar.js';
+import { StatusbarAlignment, IStatusbarService, IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarStyleOverride, isStatusbarEntryPriority, IStatusbarEntryPriority } from '../../../services/statusbar/browser/statusbar.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IAction, Separator, toAction } from '../../../../base/common/actions.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
@@ -36,6 +36,7 @@ import { StatusBarFocused } from '../../../common/contextkeys.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { IView } from '../../../../base/browser/ui/grid/grid.js';
 import { isManagedHoverTooltipHTMLElement, isManagedHoverTooltipMarkdownString } from '../../../../base/browser/ui/hover/hover.js';
+import { isStatusBarEntryLocation, IStatusBarEntryLocation, StatusBarAlignment } from '../../../services/statusbar/common/types.js';
 
 export interface IStatusbarEntryContainer extends IDisposable {
 
@@ -53,8 +54,8 @@ export interface IStatusbarEntryContainer extends IDisposable {
 	 * @param priority items get arranged from highest priority to lowest priority from left to right
 	 * in their respective alignment slot
 	 */
-	addEntry(entry: IStatusbarEntry, id: string, alignment: StatusbarAlignment, priority?: number | IStatusbarEntryPriority): IStatusbarEntryAccessor;
-	addEntry(entry: IStatusbarEntry, id: string, alignment: StatusbarAlignment, priority?: number | IStatusbarEntryPriority | IStatusbarEntryLocation): IStatusbarEntryAccessor;
+	addEntry(entry: IStatusbarEntry, id: string, alignment: StatusBarAlignment, priority?: number | IStatusbarEntryPriority): IStatusbarEntryAccessor;
+	addEntry(entry: IStatusbarEntry, id: string, alignment: StatusBarAlignment, priority?: number | IStatusbarEntryPriority | IStatusBarEntryLocation): IStatusbarEntryAccessor;
 
 	/**
 	 * Adds an entry to the statusbar with the given alignment relative to another entry. Use the returned
@@ -64,7 +65,7 @@ export interface IStatusbarEntryContainer extends IDisposable {
 	 * @param alignment either LEFT or RIGHT side in the status bar
 	 * @param location a reference to another entry to position relative to
 	 */
-	addEntry(entry: IStatusbarEntry, id: string, alignment: StatusbarAlignment, location?: IStatusbarEntryLocation): IStatusbarEntryAccessor;
+	addEntry(entry: IStatusbarEntry, id: string, alignment: StatusBarAlignment, location?: IStatusBarEntryLocation): IStatusbarEntryAccessor;
 
 	/**
 	 * Return if an entry is visible or not.
@@ -109,7 +110,7 @@ export interface IStatusbarEntryContainer extends IDisposable {
 
 interface IPendingStatusbarEntry {
 	readonly id: string;
-	readonly alignment: StatusbarAlignment;
+	readonly alignment: StatusBarAlignment;
 	readonly priority: IStatusbarEntryPriority;
 
 	entry: IStatusbarEntry;
@@ -229,7 +230,7 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 		return entry;
 	}
 
-	addEntry(entry: IStatusbarEntry, id: string, alignment: StatusbarAlignment, priorityOrLocation: number | IStatusbarEntryLocation | IStatusbarEntryPriority = 0): IStatusbarEntryAccessor {
+	addEntry(entry: IStatusbarEntry, id: string, alignment: StatusBarAlignment, priorityOrLocation: number | IStatusBarEntryLocation | IStatusbarEntryPriority = 0): IStatusbarEntryAccessor {
 		let priority: IStatusbarEntryPriority;
 		if (isStatusbarEntryPriority(priorityOrLocation)) {
 			priority = priorityOrLocation;
@@ -250,7 +251,7 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 		return this.doAddEntry(entry, id, alignment, priority);
 	}
 
-	private doAddPendingEntry(entry: IStatusbarEntry, id: string, alignment: StatusbarAlignment, priority: IStatusbarEntryPriority): IStatusbarEntryAccessor {
+	private doAddPendingEntry(entry: IStatusbarEntry, id: string, alignment: StatusBarAlignment, priority: IStatusbarEntryPriority): IStatusbarEntryAccessor {
 		const pendingEntry: IPendingStatusbarEntry = { entry, id, alignment, priority };
 		this.pendingEntries.push(pendingEntry);
 
@@ -275,7 +276,7 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 		return accessor;
 	}
 
-	private doAddEntry(entry: IStatusbarEntry, id: string, alignment: StatusbarAlignment, priority: IStatusbarEntryPriority): IStatusbarEntryAccessor {
+	private doAddEntry(entry: IStatusbarEntry, id: string, alignment: StatusBarAlignment, priority: IStatusbarEntryPriority): IStatusbarEntryAccessor {
 		const disposables = new DisposableStore();
 
 		// View model item
@@ -331,7 +332,7 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 		return accessor;
 	}
 
-	private doCreateStatusItem(id: string, alignment: StatusbarAlignment, ...extraClasses: string[]): HTMLElement {
+	private doCreateStatusItem(id: string, alignment: StatusBarAlignment, ...extraClasses: string[]): HTMLElement {
 		const itemContainer = $('.statusbar-item', { id });
 
 		if (extraClasses) {
@@ -503,7 +504,7 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 		const compactEntryGroups = new Map<string, Map<string, IStatusbarViewModelEntry>>();
 		for (const entry of mapIdToVisibleEntry.values()) {
 			if (
-				isStatusbarEntryLocation(entry.priority.primary) && // entry references another entry as location
+				isStatusBarEntryLocation(entry.priority.primary) && // entry references another entry as location
 				entry.priority.primary.compact						// entry wants to be compact
 			) {
 				const locationId = entry.priority.primary.location.id;
@@ -814,7 +815,7 @@ export class StatusbarService extends MultiWindowParts<StatusbarPart> implements
 
 	readonly onDidChangeEntryVisibility: Event<{ id: string; visible: boolean }>;
 
-	addEntry(entry: IStatusbarEntry, id: string, alignment: StatusbarAlignment, priorityOrLocation: number | IStatusbarEntryLocation | IStatusbarEntryPriority = 0): IStatusbarEntryAccessor {
+	addEntry(entry: IStatusbarEntry, id: string, alignment: StatusBarAlignment, priorityOrLocation: number | IStatusBarEntryLocation | IStatusbarEntryPriority = 0): IStatusbarEntryAccessor {
 		if (entry.showInAllWindows) {
 			return this.doAddEntryToAllWindows(entry, id, alignment, priorityOrLocation);
 		}
@@ -822,7 +823,7 @@ export class StatusbarService extends MultiWindowParts<StatusbarPart> implements
 		return this.mainPart.addEntry(entry, id, alignment, priorityOrLocation);
 	}
 
-	private doAddEntryToAllWindows(originalEntry: IStatusbarEntry, id: string, alignment: StatusbarAlignment, priorityOrLocation: number | IStatusbarEntryLocation | IStatusbarEntryPriority = 0): IStatusbarEntryAccessor {
+	private doAddEntryToAllWindows(originalEntry: IStatusbarEntry, id: string, alignment: StatusBarAlignment, priorityOrLocation: number | IStatusBarEntryLocation | IStatusbarEntryPriority = 0): IStatusbarEntryAccessor {
 		const entryDisposables = new DisposableStore();
 
 		const accessors = new Set<IStatusbarEntryAccessor>();
@@ -934,7 +935,7 @@ export class ScopedStatusbarService extends Disposable implements IStatusbarServ
 
 	readonly onDidChangeEntryVisibility: Event<{ id: string; visible: boolean }>;
 
-	addEntry(entry: IStatusbarEntry, id: string, alignment: StatusbarAlignment, priorityOrLocation: number | IStatusbarEntryLocation | IStatusbarEntryPriority = 0): IStatusbarEntryAccessor {
+	addEntry(entry: IStatusbarEntry, id: string, alignment: StatusBarAlignment, priorityOrLocation: number | IStatusBarEntryLocation | IStatusbarEntryPriority = 0): IStatusbarEntryAccessor {
 		return this.statusbarEntryContainer.addEntry(entry, id, alignment, priorityOrLocation);
 	}
 

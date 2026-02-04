@@ -9,7 +9,7 @@ import { localize } from '../../../nls.js';
 import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
 import { isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 import { ExtensionsRegistry } from '../../services/extensions/common/extensionsRegistry.js';
-import { IStatusbarService, StatusbarAlignment as MainThreadStatusBarAlignment, IStatusbarEntryAccessor, IStatusbarEntry, StatusbarAlignment, IStatusbarEntryPriority, StatusbarEntryKind } from '../../services/statusbar/browser/statusbar.js';
+import { IStatusbarService, IStatusbarEntryAccessor, IStatusbarEntry, IStatusbarEntryPriority, StatusbarEntryKind, StatusbarAlignment } from '../../services/statusbar/browser/statusbar.js';
 import { ThemeColor } from '../../../base/common/themables.js';
 import { Command } from '../../../editor/common/languages.js';
 import { IAccessibilityInformation, isAccessibilityInformation } from '../../../platform/accessibility/common/accessibility.js';
@@ -20,7 +20,7 @@ import { Event, Emitter } from '../../../base/common/event.js';
 import { InstantiationType, registerSingleton } from '../../../platform/instantiation/common/extensions.js';
 import { Iterable } from '../../../base/common/iterator.js';
 import { ExtensionIdentifier } from '../../../platform/extensions/common/extensions.js';
-import { asStatusBarItemIdentifier } from '../common/extHostTypes.js';
+import { asStatusBarItemIdentifier, isStatusBarEntryLocation, IStatusBarEntryLocation, StatusBarAlignment as MainThreadStatusBarAlignment } from '../../services/statusbar/common/types.js';
 import { STATUS_BAR_ERROR_ITEM_BACKGROUND, STATUS_BAR_WARNING_ITEM_BACKGROUND } from '../../common/theme.js';
 import { IManagedHoverTooltipMarkdownString } from '../../../base/browser/ui/hover/hover.js';
 
@@ -50,7 +50,7 @@ export interface IExtensionStatusBarItemService {
 
 	readonly onDidChange: Event<IExtensionStatusBarItemChangeEvent>;
 
-	setOrUpdateEntry(id: string, statusId: string, extensionId: string | undefined, name: string, text: string, tooltip: IMarkdownString | string | undefined | IManagedHoverTooltipMarkdownString, command: Command | undefined, color: string | ThemeColor | undefined, backgroundColor: ThemeColor | undefined, alignLeft: boolean, priority: number | undefined, accessibilityInformation: IAccessibilityInformation | undefined): StatusBarUpdateKind;
+	setOrUpdateEntry(id: string, statusId: string, extensionId: string | undefined, name: string, text: string, tooltip: IMarkdownString | string | undefined | IManagedHoverTooltipMarkdownString, command: Command | undefined, color: string | ThemeColor | undefined, backgroundColor: ThemeColor | undefined, alignLeft: boolean, priority: number | undefined | IStatusBarEntryLocation, accessibilityInformation: IAccessibilityInformation | undefined): StatusBarUpdateKind;
 
 	unsetEntry(id: string): void;
 
@@ -79,7 +79,7 @@ class ExtensionStatusBarItemService implements IExtensionStatusBarItemService {
 		id: string, extensionId: string | undefined, name: string, text: string,
 		tooltip: IMarkdownString | string | undefined | IManagedHoverTooltipMarkdownString,
 		command: Command | undefined, color: string | ThemeColor | undefined, backgroundColor: ThemeColor | undefined,
-		alignLeft: boolean, priority: number | undefined, accessibilityInformation: IAccessibilityInformation | undefined
+		alignLeft: boolean, priority: number | undefined | IStatusBarEntryLocation, accessibilityInformation: IAccessibilityInformation | undefined
 	): StatusBarUpdateKind {
 		// if there are icons in the text use the tooltip for the aria label
 		let ariaLabel: string;
@@ -121,7 +121,7 @@ class ExtensionStatusBarItemService implements IExtensionStatusBarItemService {
 		// Create new entry if not existing
 		if (!existingEntry) {
 			let entryPriority: number | IStatusbarEntryPriority;
-			if (typeof extensionId === 'string') {
+			if (typeof extensionId === 'string' || isStatusBarEntryLocation(priority)) {
 				// We cannot enforce unique priorities across all extensions, so we
 				// use the extension identifier as a secondary sort key to reduce
 				// the likelyhood of collisions.
@@ -137,7 +137,7 @@ class ExtensionStatusBarItemService implements IExtensionStatusBarItemService {
 				accessor,
 				entry,
 				alignment,
-				priority,
+				priority: isStatusBarEntryLocation(priority) ? priority.location.priority : priority,
 				disposable: toDisposable(() => {
 					accessor.dispose();
 					this._entries.delete(entryId);
@@ -145,7 +145,12 @@ class ExtensionStatusBarItemService implements IExtensionStatusBarItemService {
 				})
 			});
 
-			this._onDidChange.fire({ added: [entryId, { entry, alignment, priority }] });
+			this._onDidChange.fire({
+				added: [entryId, {
+					entry, alignment,
+					priority: isStatusBarEntryLocation(priority) ? priority.location.priority : priority
+				}]
+			});
 			return StatusBarUpdateKind.DidDefine;
 
 		} else {
