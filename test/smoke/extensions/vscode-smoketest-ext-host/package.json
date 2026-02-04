@@ -19,6 +19,10 @@
 			{
 				"command": "smoketest.getExtensionHostPidAndBlock",
 				"title": "Smoke Test: Get Extension Host PID and Block"
+			},
+			{
+				"command": "smoketest.setupGracefulDeactivation",
+				"title": "Smoke Test: Setup Graceful Deactivation"
 			}
 		]
 	}

@@ -9,6 +9,9 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 
+/** @type {string | undefined} */
+let deactivateMarkerFile;
+
 /**
  * @param {vscode.ExtensionContext} context
  */
@@ -48,9 +51,38 @@ function activate(context) {
 			return pid;
 		})
 	);
+
+	// This command sets up a marker file path that will be written during deactivation.
+	// It allows the smoke test to verify that extensions get a chance to deactivate.
+	context.subscriptions.push(
+		vscode.commands.registerCommand('smoketest.setupGracefulDeactivation', () => {
+			const pid = process.pid;
+			const workspaceFolder = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+			const pidFile = workspaceFolder
+				? path.join(workspaceFolder, 'vscode-ext-host-pid-graceful.txt')
+				: path.join(os.tmpdir(), 'vscode-ext-host-pid-graceful.txt');
+			deactivateMarkerFile = workspaceFolder
+				? path.join(workspaceFolder, 'vscode-ext-host-deactivated.txt')
+				: path.join(os.tmpdir(), 'vscode-ext-host-deactivated.txt');
+
+			// Write PID file immediately so test knows the extension is ready
+			fs.writeFileSync(pidFile, String(pid), 'utf-8');
+
+			return { pid, markerFile: deactivateMarkerFile };
+		})
+	);
 }
 
-function deactivate() { }
+function deactivate() {
+	// Write marker file to indicate deactivation was called
+	if (deactivateMarkerFile) {
+		try {
+			fs.writeFileSync(deactivateMarkerFile, `deactivated at ${Date.now()}`, 'utf-8');
+		} catch {
+			// Ignore errors (e.g., folder not accessible)
+		}
+	}
+}
 
 module.exports = {
 	activate,
