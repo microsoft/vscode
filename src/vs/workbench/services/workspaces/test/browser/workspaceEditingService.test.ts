@@ -31,12 +31,10 @@ suite('WorkspaceEditingService', () => {
 
 			event.join(
 				(async () => { executed1 = true; })(),
-				{ id: 'test1', label: 'Test 1' }
 			);
 
 			event.join(
 				(async () => { executed2 = true; })(),
-				{ id: 'test2', label: 'Test 2' }
 			);
 
 			await event.wait();
@@ -54,8 +52,8 @@ suite('WorkspaceEditingService', () => {
 			const promise1 = new Promise<void>(r => { resolve1 = r; });
 			const promise2 = new Promise<void>(r => { resolve2 = r; });
 
-			event.join(promise1, { id: 'test1', label: 'Test 1' });
-			event.join(promise2, { id: 'test2', label: 'Test 2' });
+			event.join(promise1);
+			event.join(promise2);
 
 			let waitCompleted = false;
 			const waitPromise = event.wait().then(() => { waitCompleted = true; });

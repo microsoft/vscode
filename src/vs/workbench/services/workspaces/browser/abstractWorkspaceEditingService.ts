@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDidEnterWorkspaceEvent, IDidEnterWorkspaceEventJoiner, IWorkspaceEditingService } from '../common/workspaceEditing.js';
+import { IDidEnterWorkspaceEvent, IWorkspaceEditingService } from '../common/workspaceEditing.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { hasWorkspaceFileExtension, IAnyWorkspaceIdentifier, isSavedWorkspace, isUntitledWorkspace, isWorkspaceIdentifier, IWorkspaceContextService, IWorkspaceIdentifier, toWorkspaceIdentifier, WorkbenchState, WORKSPACE_EXTENSION, WORKSPACE_FILTER } from '../../../../platform/workspace/common/workspace.js';
@@ -36,16 +36,14 @@ import { Promises } from '../../../../base/common/async.js';
 export class DidEnterWorkspaceEvent implements IDidEnterWorkspaceEvent {
 
 	private readonly promises: Promise<void>[] = [];
-	private readonly joiners: IDidEnterWorkspaceEventJoiner[] = [];
 
 	constructor(
 		readonly oldWorkspace: IAnyWorkspaceIdentifier,
 		readonly newWorkspace: IAnyWorkspaceIdentifier
 	) { }
 
-	join(promise: Promise<void>, joiner: IDidEnterWorkspaceEventJoiner): void {
+	join(promise: Promise<void>): void {
 		this.promises.push(promise);
-		this.joiners.push(joiner);
 	}
 
 	async wait(): Promise<void> {

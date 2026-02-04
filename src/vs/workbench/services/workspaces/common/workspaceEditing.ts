@@ -11,11 +11,6 @@ import { IAnyWorkspaceIdentifier, IWorkspaceIdentifier } from '../../../../platf
 
 export const IWorkspaceEditingService = createDecorator<IWorkspaceEditingService>('workspaceEditingService');
 
-export interface IDidEnterWorkspaceEventJoiner {
-	readonly id: string;
-	readonly label: string;
-}
-
 /**
  * An event that is fired after entering a workspace. Clients can join the entering
  * by providing a promise from the join method. This allows for long running operations
@@ -26,7 +21,7 @@ export interface IDidEnterWorkspaceEvent {
 	readonly oldWorkspace: IAnyWorkspaceIdentifier;
 	readonly newWorkspace: IAnyWorkspaceIdentifier;
 
-	join(promise: Promise<void>, joiner: IDidEnterWorkspaceEventJoiner): void;
+	join(promise: Promise<void>): void;
 }
 
 export interface IWorkspaceEditingService {
