@@ -525,12 +525,6 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		return agent.apiAgent;
 	}
 
-	getHooksForSession(sessionResource: URI): IChatRequestHooks | undefined {
-		const sessionResourceString = sessionResource.toString();
-		const request = [...this._inFlightRequests].find(r => r.extRequest.sessionResource.toString() === sessionResourceString);
-		return request?.hooks;
-	}
-
 	registerChatParticipantDetectionProvider(extension: IExtensionDescription, provider: vscode.ChatParticipantDetectionProvider): vscode.Disposable {
 		const handle = ExtHostChatAgents2._participantDetectionProviderIdPool++;
 		this._participantDetectionProviders.set(handle, new ExtHostParticipantDetector(extension, provider));

@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from '../../../base/common/uri.js';
+import { URI, UriComponents } from '../../../base/common/uri.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 import { ExtHostContext, MainContext, MainThreadHooksShape } from '../common/extHost.protocol.js';
 import { HookResultKind, IHookResult, IHooksExecutionProxy, IHooksExecutionService } from '../../contrib/chat/common/hooksExecutionService.js';
-import { HookTypeValue } from '../../contrib/chat/common/promptSyntax/hookSchema.js';
+import { HookTypeValue, IHookCommand } from '../../contrib/chat/common/promptSyntax/hookSchema.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
 
 @extHostNamedCustomer(MainContext.MainThreadHooks)
 export class MainThreadHooks extends Disposable implements MainThreadHooksShape {
@@ -20,17 +21,21 @@ export class MainThreadHooks extends Disposable implements MainThreadHooksShape 
 		super();
 		const extHostProxy = extHostContext.getProxy(ExtHostContext.ExtHostHooks);
 
-		// Adapter that implements IHooksExecutionProxy by forwarding to ExtHostHooksShape
 		const proxy: IHooksExecutionProxy = {
-			executeHook: async (hookType: HookTypeValue, sessionResource: URI, input: unknown): Promise<IHookResult[]> => {
-				const results = await extHostProxy.$executeHook(hookType, sessionResource, input);
-				return results.map(r => ({
-					kind: r.kind as HookResultKind,
-					result: r.result
-				}));
+			runHookCommand: async (hookCommand: IHookCommand, input: unknown, token: CancellationToken): Promise<IHookResult> => {
+				const result = await extHostProxy.$runHookCommand(hookCommand, input, token);
+				return {
+					kind: result.kind as HookResultKind,
+					result: result.result
+				};
 			}
 		};
 
 		this._hooksExecutionService.setProxy(proxy);
+	}
+
+	async $executeHook(hookType: string, sessionResource: UriComponents, input: unknown, token: CancellationToken): Promise<IHookResult[]> {
+		const uri = URI.revive(sessionResource);
+		return this._hooksExecutionService.executeHook(hookType as HookTypeValue, uri, { input, token });
 	}
 }

@@ -3,97 +3,66 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type * as vscode from 'vscode';
 import { spawn } from 'child_process';
 import { homedir } from 'os';
 import { disposableTimeout } from '../../../base/common/async.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
-import { URI, UriComponents } from '../../../base/common/uri.js';
+import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../../platform/log/common/log.js';
-import { HookTypeValue, IChatRequestHooks, IHookCommand } from '../../contrib/chat/common/promptSyntax/hookSchema.js';
+import { HookTypeValue } from '../../contrib/chat/common/promptSyntax/hookSchema.js';
 import { isToolInvocationContext, IToolInvocationContext } from '../../contrib/chat/common/tools/languageModelToolsService.js';
-import { IHookResultDto } from '../common/extHost.protocol.js';
-import { ExtHostChatAgents2 } from '../common/extHostChatAgents2.js';
+import { IHookCommandDto, MainContext, MainThreadHooksShape } from '../common/extHost.protocol.js';
 import { IChatHookExecutionOptions, IExtHostHooks } from '../common/extHostHooks.js';
+import { IExtHostRpcService } from '../common/extHostRpcService.js';
 import { HookResultKind, IHookResult } from '../../contrib/chat/common/hooksExecutionService.js';
+import * as typeConverters from '../common/extHostTypeConverters.js';
 
 const SIGKILL_DELAY_MS = 5000;
 
 export class NodeExtHostHooks implements IExtHostHooks {
 
-	private _extHostChatAgents: ExtHostChatAgents2 | undefined;
+	private readonly _mainThreadProxy: MainThreadHooksShape;
 
 	constructor(
+		@IExtHostRpcService extHostRpc: IExtHostRpcService,
 		@ILogService private readonly _logService: ILogService
-	) { }
-
-	initialize(extHostChatAgents: ExtHostChatAgents2): void {
-		this._extHostChatAgents = extHostChatAgents;
+	) {
+		this._mainThreadProxy = extHostRpc.getProxy(MainContext.MainThreadHooks);
 	}
 
-	async executeHook(hookType: HookTypeValue, options: IChatHookExecutionOptions, token?: CancellationToken): Promise<IHookResult[]> {
-		if (!this._extHostChatAgents) {
-			throw new Error('ExtHostHooks not initialized');
-		}
-
+	async executeHook(hookType: HookTypeValue, options: IChatHookExecutionOptions, token?: CancellationToken): Promise<vscode.ChatHookResult[]> {
 		if (!options.toolInvocationToken || !isToolInvocationContext(options.toolInvocationToken)) {
 			throw new Error('Invalid or missing tool invocation token');
 		}
 
 		const context = options.toolInvocationToken as IToolInvocationContext;
-		return this._executeHooks(hookType, context.sessionResource, options.input, token);
+
+		const results = await this._mainThreadProxy.$executeHook(hookType, context.sessionResource, options.input, token ?? CancellationToken.None);
+		return results.map(r => typeConverters.ChatHookResult.to({
+			kind: r.kind as HookResultKind,
+			result: r.result
+		}));
 	}
 
-	async $executeHook(hookType: string, sessionResource: UriComponents, input: unknown): Promise<IHookResultDto[]> {
-		if (!this._extHostChatAgents) {
-			return [];
-		}
+	async $runHookCommand(hookCommand: IHookCommandDto, input: unknown, token: CancellationToken): Promise<IHookResult> {
+		this._logService.debug(`[ExtHostHooks] Running hook command: ${JSON.stringify(hookCommand)}`);
 
-		const uri = URI.revive(sessionResource);
-		const results = await this._executeHooks(hookType as HookTypeValue, uri, input, undefined);
-		return results.map(r => ({ kind: r.kind, result: r.result }));
+		try {
+			return this._executeCommand(hookCommand, input, token);
+		} catch (err) {
+			return {
+				kind: HookResultKind.Error,
+				result: err instanceof Error ? err.message : String(err)
+			};
+		}
 	}
 
-	private async _executeHooks(hookType: HookTypeValue, sessionResource: URI, input: unknown, token?: CancellationToken): Promise<IHookResult[]> {
-		const hooks = this._extHostChatAgents!.getHooksForSession(sessionResource);
-		if (!hooks) {
-			return [];
-		}
-
-		const hookCommands = this._getHooksForType(hooks, hookType);
-		if (!hookCommands || hookCommands.length === 0) {
-			return [];
-		}
-
-		this._logService.debug(`[ExtHostHooks] Executing ${hookCommands.length} hook(s) for type '${hookType}'`);
-		this._logService.trace(`[ExtHostHooks] Hook input:`, input);
-
-		const results: IHookResult[] = [];
-		for (const hookCommand of hookCommands) {
-			try {
-				this._logService.debug(`[ExtHostHooks] Running hook command: ${JSON.stringify(hookCommand)}`);
-				const result = await this._executeCommand(hookCommand, input, token);
-				this._logService.debug(`[ExtHostHooks] Hook completed with result kind: ${result.kind === HookResultKind.Success ? 'Success' : 'Error'}`);
-				this._logService.trace(`[ExtHostHooks] Hook output:`, result.result);
-				results.push(result);
-			} catch (err) {
-				this._logService.debug(`[ExtHostHooks] Hook failed with error: ${err instanceof Error ? err.message : String(err)}`);
-				results.push({
-					kind: HookResultKind.Error,
-					result: err instanceof Error ? err.message : String(err)
-				});
-			}
-		}
-		return results;
-	}
-
-	private _getHooksForType(hooks: IChatRequestHooks, hookType: HookTypeValue): readonly IHookCommand[] | undefined {
-		return hooks[hookType];
-	}
-
-	private _executeCommand(hook: IHookCommand, input: unknown, token?: CancellationToken): Promise<IHookResult> {
+	private _executeCommand(hook: IHookCommandDto, input: unknown, token?: CancellationToken): Promise<IHookResult> {
 		const home = homedir();
-		const cwd = hook.cwd ? hook.cwd.fsPath : home;
+		const cwdUri = hook.cwd ? URI.revive(hook.cwd) : undefined;
+		const cwd = cwdUri ? cwdUri.fsPath : home;
 
 		// Determine command and args based on which property is specified
 		// For bash/powershell: spawn the shell directly with explicit args to avoid double shell wrapping

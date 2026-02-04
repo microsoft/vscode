@@ -99,6 +99,8 @@ import { IExtHostDocumentSaveDelegate } from './extHostDocumentData.js';
 import { TerminalShellExecutionCommandLineConfidence } from './extHostTypes.js';
 import * as tasks from './shared/tasks.js';
 import { PromptsType } from '../../contrib/chat/common/promptSyntax/promptTypes.js';
+import { IHookResult } from '../../contrib/chat/common/hooksExecutionService.js';
+import { IHookCommand } from '../../contrib/chat/common/promptSyntax/hookSchema.js';
 
 export type IconPathDto =
 	| UriComponents
@@ -3197,16 +3199,11 @@ export interface IStartMcpOptions {
 	errorOnUserInteraction?: boolean;
 }
 
-export interface IHookResultDto {
-	readonly kind: number;
-	readonly result: string | object;
-}
+export type IHookCommandDto = Dto<IHookCommand>;
 
 export interface ExtHostHooksShape {
-	$executeHook(hookType: string, sessionResource: UriComponents, input: unknown): Promise<IHookResultDto[]>;
+	$runHookCommand(hookCommand: IHookCommandDto, input: unknown, token: CancellationToken): Promise<IHookResult>;
 }
-
-
 
 export interface ExtHostMcpShape {
 	$substituteVariables(workspaceFolder: UriComponents | undefined, value: McpServerLaunch.Serialized): Promise<McpServerLaunch.Serialized>;
@@ -3262,7 +3259,7 @@ export interface MainThreadDataChannelsShape extends IDisposable {
 }
 
 export interface MainThreadHooksShape extends IDisposable {
-	// Empty - main thread only calls extension host, no callbacks needed
+	$executeHook(hookType: string, sessionResource: UriComponents, input: unknown, token: CancellationToken): Promise<IHookResult[]>;
 }
 
 export interface ExtHostDataChannelsShape {

@@ -4,17 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../platform/log/common/log.js';
 import { NodeExtHostHooks } from '../../node/extHostHooksNode.js';
-import { HookType, IChatRequestHooks, IHookCommand } from '../../../contrib/chat/common/promptSyntax/hookSchema.js';
-import { ExtHostChatAgents2 } from '../../common/extHostChatAgents2.js';
-import { IToolInvocationContext } from '../../../contrib/chat/common/tools/languageModelToolsService.js';
-import { ChatHookResultKind } from '../../common/extHostTypes.js';
+import { IHookCommandDto, MainThreadHooksShape } from '../../common/extHost.protocol.js';
+import { IHookResult, HookResultKind } from '../../../contrib/chat/common/hooksExecutionService.js';
+import { IExtHostRpcService } from '../../common/extHostRpcService.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 
-function createHookCommand(command: string, options?: Partial<Omit<IHookCommand, 'type' | 'command'>>): IHookCommand {
+function createHookCommandDto(command: string, options?: Partial<Omit<IHookCommandDto, 'type' | 'command'>>): IHookCommandDto {
 	return {
 		type: 'command',
 		command,
@@ -22,269 +21,99 @@ function createHookCommand(command: string, options?: Partial<Omit<IHookCommand,
 	};
 }
 
-function createMockToolInvocationContext(sessionResource: URI): IToolInvocationContext {
+function createMockExtHostRpcService(mainThreadProxy: MainThreadHooksShape): IExtHostRpcService {
 	return {
-		sessionId: 'test-session-id',
-		sessionResource,
-	};
-}
-
-function createMockExtHostChatAgents(hooks: IChatRequestHooks | undefined): Pick<ExtHostChatAgents2, 'getHooksForSession'> {
-	return {
-		getHooksForSession(_sessionResource: URI): IChatRequestHooks | undefined {
-			return hooks;
-		}
-	};
+		_serviceBrand: undefined,
+		getProxy<T>(): T {
+			return mainThreadProxy as unknown as T;
+		},
+		set<T, R extends T>(_identifier: unknown, instance: R): R {
+			return instance;
+		},
+		dispose(): void { },
+		assertRegistered(): void { },
+		drain(): Promise<void> { return Promise.resolve(); },
+	} as IExtHostRpcService;
 }
 
 suite.skip('ExtHostHooks', () => {
-	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	let hooksService: NodeExtHostHooks;
-	let sessionResource: URI;
 
 	setup(() => {
-		hooksService = new NodeExtHostHooks(new NullLogService());
-		sessionResource = URI.parse('vscode-chat-session://test-session');
-	});
-
-	test('executeHook throws when not initialized', async () => {
-		const toolInvocationToken = createMockToolInvocationContext(sessionResource);
-
-		await assert.rejects(
-			() => hooksService.executeHook(
-				HookType.SessionStart,
-				{ toolInvocationToken },
-				undefined
-			),
-			/ExtHostHooks not initialized/
-		);
-	});
-
-	test('executeHook throws with invalid tool invocation token', async () => {
-		hooksService.initialize(createMockExtHostChatAgents(undefined) as ExtHostChatAgents2);
-
-		await assert.rejects(
-			() => hooksService.executeHook(
-				HookType.SessionStart,
-				{ toolInvocationToken: undefined },
-				undefined
-			),
-			/Invalid or missing tool invocation token/
-		);
-
-		await assert.rejects(
-			() => hooksService.executeHook(
-				HookType.SessionStart,
-				{ toolInvocationToken: { invalid: 'token' } },
-				undefined
-			),
-			/Invalid or missing tool invocation token/
-		);
-	});
-
-	test('executeHook returns empty array when no hooks found for session', async () => {
-		hooksService.initialize(createMockExtHostChatAgents(undefined) as ExtHostChatAgents2);
-
-		const toolInvocationToken = createMockToolInvocationContext(sessionResource);
-		const results = await hooksService.executeHook(
-			HookType.SessionStart,
-			{ toolInvocationToken },
-			undefined
-		);
-
-		assert.deepStrictEqual(results, []);
-	});
-
-	test('executeHook returns empty array when no hooks of specified type exist', async () => {
-		const hooks: IChatRequestHooks = {
-			// Only preToolUse hooks, no sessionStart
-			[HookType.PreToolUse]: [createHookCommand('echo "pre-tool"')]
+		const mockMainThreadProxy: MainThreadHooksShape = {
+			$executeHook: async (): Promise<IHookResult[]> => {
+				return [];
+			},
+			dispose: () => { }
 		};
-		hooksService.initialize(createMockExtHostChatAgents(hooks) as ExtHostChatAgents2);
 
-		const toolInvocationToken = createMockToolInvocationContext(sessionResource);
-		const results = await hooksService.executeHook(
-			HookType.SessionStart,
-			{ toolInvocationToken },
-			undefined
-		);
-
-		assert.deepStrictEqual(results, []);
+		const mockRpcService = createMockExtHostRpcService(mockMainThreadProxy);
+		hooksService = new NodeExtHostHooks(mockRpcService, new NullLogService());
 	});
 
-	test('executeHook runs command and returns success result', async () => {
-		const hooks: IChatRequestHooks = {
-			[HookType.SessionStart]: [createHookCommand('echo "hello world"')]
-		};
-		hooksService.initialize(createMockExtHostChatAgents(hooks) as ExtHostChatAgents2);
+	test('$runHookCommand runs command and returns success result', async () => {
+		const hookCommand = createHookCommandDto('echo "hello world"');
+		const result = await hooksService.$runHookCommand(hookCommand, undefined, CancellationToken.None);
 
-		const toolInvocationToken = createMockToolInvocationContext(sessionResource);
-		const results = await hooksService.executeHook(
-			HookType.SessionStart,
-			{ toolInvocationToken },
-			undefined
-		);
-
-		assert.strictEqual(results.length, 1);
-		assert.strictEqual(results[0].kind, ChatHookResultKind.Success);
-		assert.strictEqual((results[0].result as string).trim(), 'hello world');
+		assert.strictEqual(result.kind, HookResultKind.Success);
+		assert.strictEqual((result.result as string).trim(), 'hello world');
 	});
 
-	test('executeHook parses JSON output', async () => {
-		const hooks: IChatRequestHooks = {
-			[HookType.SessionStart]: [createHookCommand('echo \'{"key": "value"}\'')]
-		};
-		hooksService.initialize(createMockExtHostChatAgents(hooks) as ExtHostChatAgents2);
+	test('$runHookCommand parses JSON output', async () => {
+		const hookCommand = createHookCommandDto('echo \'{"key": "value"}\'');
+		const result = await hooksService.$runHookCommand(hookCommand, undefined, CancellationToken.None);
 
-		const toolInvocationToken = createMockToolInvocationContext(sessionResource);
-		const results = await hooksService.executeHook(
-			HookType.SessionStart,
-			{ toolInvocationToken },
-			undefined
-		);
-
-		assert.strictEqual(results.length, 1);
-		assert.strictEqual(results[0].kind, ChatHookResultKind.Success);
-		assert.deepStrictEqual(results[0].result, { key: 'value' });
+		assert.strictEqual(result.kind, HookResultKind.Success);
+		assert.deepStrictEqual(result.result, { key: 'value' });
 	});
 
-	test('executeHook returns error result for non-zero exit code', async () => {
-		const hooks: IChatRequestHooks = {
-			[HookType.SessionStart]: [createHookCommand('exit 1')]
-		};
-		hooksService.initialize(createMockExtHostChatAgents(hooks) as ExtHostChatAgents2);
+	test('$runHookCommand returns error result for non-zero exit code', async () => {
+		const hookCommand = createHookCommandDto('exit 1');
+		const result = await hooksService.$runHookCommand(hookCommand, undefined, CancellationToken.None);
 
-		const toolInvocationToken = createMockToolInvocationContext(sessionResource);
-		const results = await hooksService.executeHook(
-			HookType.SessionStart,
-			{ toolInvocationToken },
-			undefined
-		);
-
-		assert.strictEqual(results.length, 1);
-		assert.strictEqual(results[0].kind, ChatHookResultKind.Error);
+		assert.strictEqual(result.kind, HookResultKind.Error);
 	});
 
-	test('executeHook captures stderr on failure', async () => {
-		const hooks: IChatRequestHooks = {
-			[HookType.SessionStart]: [createHookCommand('echo "error message" >&2 && exit 1')]
-		};
-		hooksService.initialize(createMockExtHostChatAgents(hooks) as ExtHostChatAgents2);
+	test('$runHookCommand captures stderr on failure', async () => {
+		const hookCommand = createHookCommandDto('echo "error message" >&2 && exit 1');
+		const result = await hooksService.$runHookCommand(hookCommand, undefined, CancellationToken.None);
 
-		const toolInvocationToken = createMockToolInvocationContext(sessionResource);
-		const results = await hooksService.executeHook(
-			HookType.SessionStart,
-			{ toolInvocationToken },
-			undefined
-		);
-
-		assert.strictEqual(results.length, 1);
-		assert.strictEqual(results[0].kind, ChatHookResultKind.Error);
-		assert.strictEqual((results[0].result as string).trim(), 'error message');
+		assert.strictEqual(result.kind, HookResultKind.Error);
+		assert.strictEqual((result.result as string).trim(), 'error message');
 	});
 
-	test('executeHook handles multiple hooks', async () => {
-		const hooks: IChatRequestHooks = {
-			[HookType.SessionStart]: [
-				createHookCommand('echo "first"'),
-				createHookCommand('echo "second"'),
-				createHookCommand('echo "third"')
-			]
-		};
-		hooksService.initialize(createMockExtHostChatAgents(hooks) as ExtHostChatAgents2);
-
-		const toolInvocationToken = createMockToolInvocationContext(sessionResource);
-		const results = await hooksService.executeHook(
-			HookType.SessionStart,
-			{ toolInvocationToken },
-			undefined
-		);
-
-		assert.strictEqual(results.length, 3);
-		assert.strictEqual(results[0].kind, ChatHookResultKind.Success);
-		assert.strictEqual((results[0].result as string).trim(), 'first');
-		assert.strictEqual(results[1].kind, ChatHookResultKind.Success);
-		assert.strictEqual((results[1].result as string).trim(), 'second');
-		assert.strictEqual(results[2].kind, ChatHookResultKind.Success);
-		assert.strictEqual((results[2].result as string).trim(), 'third');
-	});
-
-	test('executeHook passes input to stdin as JSON', async () => {
-		const hooks: IChatRequestHooks = {
-			[HookType.PreToolUse]: [createHookCommand('cat')]
-		};
-		hooksService.initialize(createMockExtHostChatAgents(hooks) as ExtHostChatAgents2);
-
-		const toolInvocationToken = createMockToolInvocationContext(sessionResource);
+	test('$runHookCommand passes input to stdin as JSON', async () => {
+		const hookCommand = createHookCommandDto('cat');
 		const input = { tool: 'bash', args: { command: 'ls' } };
-		const results = await hooksService.executeHook(
-			HookType.PreToolUse,
-			{ toolInvocationToken, input },
-			undefined
-		);
+		const result = await hooksService.$runHookCommand(hookCommand, input, CancellationToken.None);
 
-		assert.strictEqual(results.length, 1);
-		assert.strictEqual(results[0].kind, ChatHookResultKind.Success);
-		assert.deepStrictEqual(results[0].result, input);
+		assert.strictEqual(result.kind, HookResultKind.Success);
+		assert.deepStrictEqual(result.result, input);
 	});
 
-	test('executeHook respects cancellation', async () => {
-		const hooks: IChatRequestHooks = {
-			[HookType.SessionStart]: [createHookCommand('sleep 10')]
-		};
-		hooksService.initialize(createMockExtHostChatAgents(hooks) as ExtHostChatAgents2);
+	test('$runHookCommand returns error for invalid command', async () => {
+		const hookCommand = createHookCommandDto('/nonexistent/command/that/does/not/exist');
+		const result = await hooksService.$runHookCommand(hookCommand, undefined, CancellationToken.None);
 
-		const toolInvocationToken = createMockToolInvocationContext(sessionResource);
-		const cts = disposables.add(new CancellationTokenSource());
-
-		const resultPromise = hooksService.executeHook(
-			HookType.SessionStart,
-			{ toolInvocationToken },
-			cts.token
-		);
-
-		// Cancel after a short delay
-		setTimeout(() => cts.cancel(), 50);
-
-		const results = await resultPromise;
-		assert.strictEqual(results.length, 1);
-		// Cancelled commands return error result
-		assert.strictEqual(results[0].kind, ChatHookResultKind.Error);
+		assert.strictEqual(result.kind, HookResultKind.Error);
 	});
 
-	test('executeHook returns error for invalid command', async () => {
-		const hooks: IChatRequestHooks = {
-			[HookType.SessionStart]: [createHookCommand('/nonexistent/command/that/does/not/exist')]
-		};
-		hooksService.initialize(createMockExtHostChatAgents(hooks) as ExtHostChatAgents2);
+	test('$runHookCommand uses custom environment variables', async () => {
+		const hookCommand = createHookCommandDto('echo $MY_VAR', { env: { MY_VAR: 'custom_value' } });
+		const result = await hooksService.$runHookCommand(hookCommand, undefined, CancellationToken.None);
 
-		const toolInvocationToken = createMockToolInvocationContext(sessionResource);
-		const results = await hooksService.executeHook(
-			HookType.SessionStart,
-			{ toolInvocationToken },
-			undefined
-		);
-
-		assert.strictEqual(results.length, 1);
-		assert.strictEqual(results[0].kind, ChatHookResultKind.Error);
+		assert.strictEqual(result.kind, HookResultKind.Success);
+		assert.strictEqual((result.result as string).trim(), 'custom_value');
 	});
 
-	test('executeHook uses custom environment variables', async () => {
-		const hooks: IChatRequestHooks = {
-			[HookType.SessionStart]: [createHookCommand('echo $MY_VAR', { env: { MY_VAR: 'custom_value' } })]
-		};
-		hooksService.initialize(createMockExtHostChatAgents(hooks) as ExtHostChatAgents2);
+	test('$runHookCommand uses custom cwd', async () => {
+		const hookCommand = createHookCommandDto('pwd', { cwd: URI.file('/tmp') });
+		const result = await hooksService.$runHookCommand(hookCommand, undefined, CancellationToken.None);
 
-		const toolInvocationToken = createMockToolInvocationContext(sessionResource);
-		const results = await hooksService.executeHook(
-			HookType.SessionStart,
-			{ toolInvocationToken },
-			undefined
-		);
-
-		assert.strictEqual(results.length, 1);
-		assert.strictEqual(results[0].kind, ChatHookResultKind.Success);
-		assert.strictEqual((results[0].result as string).trim(), 'custom_value');
+		assert.strictEqual(result.kind, HookResultKind.Success);
+		// The result should contain /tmp or /private/tmp (macOS symlink)
+		assert.ok((result.result as string).includes('tmp'));
 	});
 });
