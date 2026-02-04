@@ -292,7 +292,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	 */
 	private getProgressiveRenderRate(element: IChatResponseViewModel): number {
 		const enum Rate {
-			Min = 5,
+			Min = 40,
 			Max = 2000,
 		}
 
@@ -1042,7 +1042,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		templateData.rowContainer.classList.toggle('chat-response-loading', true);
-		this.traceLayout('doNextProgressiveRender', `START progressive render, index=${index}, renderData=${JSON.stringify(element.renderData)}`);
+		this.traceLayout('doNextProgressiveRender', `START progressive render, index=${index}`);
 		const contentForThisTurn = this.getNextProgressiveRenderContent(element, templateData);
 		const partsToRender = this.diff(templateData.renderedParts ?? [], contentForThisTurn.content, element);
 
@@ -1899,7 +1899,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private renderQuestionCarousel(context: IChatContentPartRenderContext, carousel: IChatQuestionCarousel, templateData: IChatListItemTemplate): IChatContentPart {
 		this.finalizeCurrentThinkingPart(context, templateData);
 
+		const widget = isResponseVM(context.element) ? this.chatWidgetService.getWidgetBySessionResource(context.element.sessionResource) : undefined;
+		const shouldAutoFocus = widget ? widget.getInput() === '' : true;
+
 		const part = this.instantiationService.createInstance(ChatQuestionCarouselPart, carousel, context, {
+			shouldAutoFocus,
 			onSubmit: async (answers) => {
 				// Mark the carousel as used and store the answers
 				const answersRecord = answers ? Object.fromEntries(answers) : undefined;

@@ -16,7 +16,7 @@ import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../..
 import { ConfigurationTarget, IConfigurationChangeEvent } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
-import { ContextKeyEqualsExpr, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyEqualsExpr, ContextKeyExpr, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
@@ -3477,5 +3477,247 @@ suite('LanguageModelToolsService', () => {
 		const toolIds = tools.map(t => t.id);
 
 		assert.ok(toolIds.includes('multiSetTool'), 'Tool should be permitted if it belongs to at least one permitted toolset');
+	});
+
+	suite('ToolSet when clause filtering (issue #291154)', () => {
+		test('ToolSet.getTools filters tools by when clause', () => {
+			// Create a context key for testing
+			contextKeyService.createKey('testFeatureEnabled', false);
+
+			// Create tools with different when clauses
+			const toolWithWhenTrue: IToolData = {
+				id: 'toolWithWhenTrue',
+				modelDescription: 'Tool with when true',
+				displayName: 'Tool with when true',
+				source: ToolDataSource.Internal,
+				when: ContextKeyEqualsExpr.create('testFeatureEnabled', true),
+			};
+
+			const toolWithWhenFalse: IToolData = {
+				id: 'toolWithWhenFalse',
+				modelDescription: 'Tool with when false',
+				displayName: 'Tool with when false',
+				source: ToolDataSource.Internal,
+				when: ContextKeyEqualsExpr.create('testFeatureEnabled', false),
+			};
+
+			const toolWithoutWhen: IToolData = {
+				id: 'toolWithoutWhen',
+				modelDescription: 'Tool without when',
+				displayName: 'Tool without when',
+				source: ToolDataSource.Internal,
+			};
+
+			// Create a tool set and add the tools
+			const testToolSet = store.add(service.createToolSet(
+				ToolDataSource.Internal,
+				'testToolSet',
+				'testToolSetRef',
+				{ description: 'Test Tool Set' }
+			));
+
+			store.add(service.registerToolData(toolWithWhenTrue));
+			store.add(service.registerToolData(toolWithWhenFalse));
+			store.add(service.registerToolData(toolWithoutWhen));
+
+			store.add(testToolSet.addTool(toolWithWhenTrue));
+			store.add(testToolSet.addTool(toolWithWhenFalse));
+			store.add(testToolSet.addTool(toolWithoutWhen));
+
+			// Get tools from the tool set
+			const tools = Array.from(testToolSet.getTools());
+			const toolIds = tools.map(t => t.id);
+
+			// Since testFeatureEnabled is false, only tools with when=false or no when clause should be available
+			assert.ok(toolIds.includes('toolWithWhenFalse'), 'Tool with when=false should be in tool set when context key is false');
+			assert.ok(toolIds.includes('toolWithoutWhen'), 'Tool without when clause should be in tool set');
+			assert.ok(!toolIds.includes('toolWithWhenTrue'), 'Tool with when=true should NOT be in tool set when context key is false');
+		});
+
+		test('ToolSet.getTools updates when context key changes', async () => {
+			return runWithFakedTimers({}, async () => {
+				// Create a context key for testing
+				const testKey = contextKeyService.createKey<string>('dynamicTestKey', 'value1');
+
+				// Create tools with when clauses
+				const toolWithValue1: IToolData = {
+					id: 'toolWithValue1',
+					modelDescription: 'Tool with value1',
+					displayName: 'Tool with value1',
+					source: ToolDataSource.Internal,
+					when: ContextKeyEqualsExpr.create('dynamicTestKey', 'value1'),
+				};
+
+				const toolWithValue2: IToolData = {
+					id: 'toolWithValue2',
+					modelDescription: 'Tool with value2',
+					displayName: 'Tool with value2',
+					source: ToolDataSource.Internal,
+					when: ContextKeyEqualsExpr.create('dynamicTestKey', 'value2'),
+				};
+
+				// Create a tool set and add the tools
+				const dynamicToolSet = store.add(service.createToolSet(
+					ToolDataSource.Internal,
+					'dynamicToolSet',
+					'dynamicToolSetRef',
+					{ description: 'Dynamic Tool Set' }
+				));
+
+				store.add(service.registerToolData(toolWithValue1));
+				store.add(service.registerToolData(toolWithValue2));
+
+				store.add(dynamicToolSet.addTool(toolWithValue1));
+				store.add(dynamicToolSet.addTool(toolWithValue2));
+
+				// Initial state: value1 is set
+				let tools = Array.from(dynamicToolSet.getTools());
+				let toolIds = tools.map(t => t.id);
+
+				assert.strictEqual(tools.length, 1, 'Should have 1 tool initially');
+				assert.strictEqual(toolIds[0], 'toolWithValue1', 'Should be toolWithValue1');
+
+				// Change context key to value2
+				testKey.set('value2');
+
+				// Wait for scheduler to trigger
+				await new Promise(resolve => setTimeout(resolve, 800));
+
+				// Now toolWithValue2 should be available
+				tools = Array.from(dynamicToolSet.getTools());
+				toolIds = tools.map(t => t.id);
+
+				assert.strictEqual(tools.length, 1, 'Should have 1 tool after change');
+				assert.strictEqual(toolIds[0], 'toolWithValue2', 'Should be toolWithValue2 after context change');
+			});
+		});
+
+		test('ToolSet.getTools with complex when expressions', () => {
+			// Create multiple context keys for testing complex expressions
+			contextKeyService.createKey('featureA', true);
+			contextKeyService.createKey('featureB', false);
+			contextKeyService.createKey('featureC', true);
+
+			const toolWithAnd: IToolData = {
+				id: 'toolWithAnd',
+				modelDescription: 'Tool with AND expression',
+				displayName: 'Tool with AND',
+				source: ToolDataSource.Internal,
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.has('featureA'),
+					ContextKeyExpr.has('featureC')
+				),
+			};
+
+			const toolWithOr: IToolData = {
+				id: 'toolWithOr',
+				modelDescription: 'Tool with OR expression',
+				displayName: 'Tool with OR',
+				source: ToolDataSource.Internal,
+				when: ContextKeyExpr.or(
+					ContextKeyExpr.has('featureA'),
+					ContextKeyExpr.has('featureC')
+				),
+			};
+
+			const toolWithNot: IToolData = {
+				id: 'toolWithNot',
+				modelDescription: 'Tool with NOT expression',
+				displayName: 'Tool with NOT',
+				source: ToolDataSource.Internal,
+				when: ContextKeyExpr.not('featureB'),
+			};
+
+			// Create a tool set and add the tools
+			const complexToolSet = store.add(service.createToolSet(
+				ToolDataSource.Internal,
+				'complexToolSet',
+				'complexToolSetRef',
+				{ description: 'Complex Tool Set' }
+			));
+
+			store.add(service.registerToolData(toolWithAnd));
+			store.add(service.registerToolData(toolWithOr));
+			store.add(service.registerToolData(toolWithNot));
+
+			store.add(complexToolSet.addTool(toolWithAnd));
+			store.add(complexToolSet.addTool(toolWithOr));
+			store.add(complexToolSet.addTool(toolWithNot));
+
+			// Get tools from the tool set
+			const tools = Array.from(complexToolSet.getTools());
+			const toolIds = tools.map(t => t.id);
+
+			// featureA=true, featureB=false, featureC=true
+			// toolWithAnd: has('featureA') AND has('featureC') = true
+			// toolWithOr: has('featureA') OR has('featureC') = true
+			// toolWithNot: NOT has('featureB') = true
+			assert.ok(toolIds.includes('toolWithAnd'), 'Tool with AND should be in tool set (has(featureA) AND has(featureC) = true)');
+			assert.ok(toolIds.includes('toolWithOr'), 'Tool with OR should be in tool set (has(featureA) OR has(featureC) = true)');
+			assert.ok(toolIds.includes('toolWithNot'), 'Tool with NOT should be in tool set (NOT has(featureB) = true)');
+		});
+
+		test('ToolSet.getTools filters nested tool sets by when clause', () => {
+			// Create a context key for testing
+			contextKeyService.createKey('nestedFeature', false);
+
+			// Create tools in parent tool set
+			const parentTool: IToolData = {
+				id: 'parentTool',
+				modelDescription: 'Parent Tool',
+				displayName: 'Parent Tool',
+				source: ToolDataSource.Internal,
+			};
+
+			// Create tools in child tool set with when clause
+			const childToolWithWhen: IToolData = {
+				id: 'childToolWithWhen',
+				modelDescription: 'Child Tool with When',
+				displayName: 'Child Tool with When',
+				source: ToolDataSource.Internal,
+				when: ContextKeyEqualsExpr.create('nestedFeature', true),
+			};
+
+			const childToolWithoutWhen: IToolData = {
+				id: 'childToolWithoutWhen',
+				modelDescription: 'Child Tool without When',
+				displayName: 'Child Tool without When',
+				source: ToolDataSource.Internal,
+			};
+
+			// Create parent tool set
+			const parentToolSet = store.add(service.createToolSet(
+				ToolDataSource.Internal,
+				'parentToolSet',
+				'parentToolSetRef',
+				{ description: 'Parent Tool Set' }
+			));
+
+			// Create child tool set
+			const childToolSet = store.add(service.createToolSet(
+				ToolDataSource.Internal,
+				'childToolSet',
+				'childToolSetRef',
+				{ description: 'Child Tool Set' }
+			));
+
+			store.add(service.registerToolData(parentTool));
+			store.add(service.registerToolData(childToolWithWhen));
+			store.add(service.registerToolData(childToolWithoutWhen));
+
+			store.add(parentToolSet.addTool(parentTool));
+			store.add(parentToolSet.addToolSet(childToolSet));
+			store.add(childToolSet.addTool(childToolWithWhen));
+			store.add(childToolSet.addTool(childToolWithoutWhen));
+
+			// Get tools from the parent tool set
+			const tools = Array.from(parentToolSet.getTools());
+			const toolIds = tools.map(t => t.id);
+
+			// Should include parent tool, child tool without when, but not child tool with when
+			assert.ok(toolIds.includes('parentTool'), 'Parent tool should be in tool set');
+			assert.ok(toolIds.includes('childToolWithoutWhen'), 'Child tool without when should be in tool set');
+			assert.ok(!toolIds.includes('childToolWithWhen'), 'Child tool with when=true should NOT be in tool set when context key is false');
+		});
 	});
 });

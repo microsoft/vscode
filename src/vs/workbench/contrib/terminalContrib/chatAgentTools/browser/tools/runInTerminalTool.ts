@@ -66,6 +66,7 @@ import { isNumber, isString } from '../../../../../../base/common/types.js';
 import { ChatConfiguration } from '../../../../chat/common/constants.js';
 import { IChatWidgetService } from '../../../../chat/browser/chat.js';
 import { TerminalChatCommandId } from '../../../chat/browser/terminalChat.js';
+import { clamp } from '../../../../../../base/common/numbers.js';
 import { IOutputAnalyzer } from './outputAnalyzer.js';
 import { SandboxOutputAnalyzer } from './sandboxOutputAnalyzer.js';
 
@@ -738,10 +739,11 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		const executeCancellation = store.add(new CancellationTokenSource(token));
 
 		// Set up timeout if provided and the setting is enabled (only for foreground)
-		if (!args.isBackground && args.timeout !== undefined && args.timeout > 0) {
+		const timeoutValue = args.timeout !== undefined ? clamp(args.timeout, 0, Number.MAX_SAFE_INTEGER) : undefined;
+		if (!args.isBackground && timeoutValue !== undefined && timeoutValue > 0) {
 			const shouldEnforceTimeout = this._configurationService.getValue(TerminalChatAgentToolsSettingId.EnforceTimeoutFromModel) === true;
 			if (shouldEnforceTimeout) {
-				timeoutPromise = timeout(args.timeout);
+				timeoutPromise = timeout(timeoutValue);
 				timeoutPromise.then(() => {
 					if (!executeCancellation.token.isCancellationRequested) {
 						didTimeout = true;

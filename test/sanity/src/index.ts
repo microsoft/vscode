@@ -16,7 +16,7 @@ const options = minimist(process.argv.slice(2), {
 });
 
 if (options.help) {
-	console.info('Usage: npm run sanity-test -- [options]');
+	console.info(`Usage: node ${path.basename(process.argv[1])} [options]`);
 	console.info('Options:');
 	console.info('  --commit, -c <commit>           The commit to test (required)');
 	console.info(`  --quality, -q <quality>         The quality to test (required, "stable", "insider" or "exploration")`);
@@ -36,7 +36,7 @@ if (options.help) {
 const testResults = options['test-results'];
 const mochaOptions: MochaOptions = {
 	color: true,
-	timeout: (options.timeout ?? 600) * 1000,
+	timeout: (options.timeout ?? 10 * 60) * 1000,
 	slow: 3 * 60 * 1000,
 	grep: options.grep,
 	fgrep: options.fgrep,

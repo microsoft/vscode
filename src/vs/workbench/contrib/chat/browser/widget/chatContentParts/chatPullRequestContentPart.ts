@@ -37,7 +37,7 @@ export class ChatPullRequestContentPart extends Disposable implements IChatConte
 		this._register(addDisposableListener(titleLink, 'click', (e) => {
 			e.preventDefault();
 			e.stopPropagation();
-			this.openerService.open(this.pullRequestContent.uri);
+			this.openerService.open(this.pullRequestContent.uri, { allowCommands: true });
 		}));
 	}
 

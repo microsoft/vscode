@@ -248,12 +248,22 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 				break;
 			case PromptHeaderAttributes.infer:
 				if (promptType === PromptsType.agent) {
-					return ['all', 'user', 'agent', 'hidden', 'true', 'false'];
+					return ['true', 'false'];
 				}
 				break;
 			case PromptHeaderAttributes.agents:
 				if (promptType === PromptsType.agent) {
 					return ['["*"]'];
+				}
+				break;
+			case PromptHeaderAttributes.userInvokable:
+				if (promptType === PromptsType.agent) {
+					return ['true', 'false'];
+				}
+				break;
+			case PromptHeaderAttributes.disableModelInvocation:
+				if (promptType === PromptsType.agent) {
+					return ['true', 'false'];
 				}
 				break;
 		}

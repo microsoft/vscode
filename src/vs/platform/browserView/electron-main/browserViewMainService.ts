@@ -78,6 +78,27 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		});
 	}
 
+	/**
+	 * Create a child browser view (used by window.open handler)
+	 */
+	private createBrowserView(id: string, session: Electron.Session, scope: BrowserViewStorageScope, options?: Electron.WebContentsViewConstructorOptions): BrowserView {
+		if (this.browserViews.has(id)) {
+			throw new Error(`Browser view with id ${id} already exists`);
+		}
+
+		const view = this.instantiationService.createInstance(
+			BrowserView,
+			id,
+			session,
+			scope,
+			// Recursive factory for nested windows
+			(options) => this.createBrowserView(generateUuid(), session, scope, options),
+			options
+		);
+		this.browserViews.set(id, view);
+		return view;
+	}
+
 	async getOrCreateBrowserView(id: string, scope: BrowserViewStorageScope, workspaceId?: string): Promise<IBrowserViewState> {
 		if (this.browserViews.has(id)) {
 			// Note: scope will be ignored if the view already exists.
@@ -90,8 +111,7 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		this.configureSession(session);
 		BrowserViewMainService.knownSessions.add(session);
 
-		const view = this.instantiationService.createInstance(BrowserView, session, resolvedScope);
-		this.browserViews.set(id, view);
+		const view = this.createBrowserView(id, session, resolvedScope);
 
 		return view.getState();
 	}

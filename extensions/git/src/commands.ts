@@ -2306,7 +2306,6 @@ export class CommandCenter {
 		}
 
 		let enableSmartCommit = config.get<boolean>('enableSmartCommit') === true;
-		const enableCommitSigning = config.get<boolean>('enableCommitSigning') === true;
 		let noStagedChanges = repository.indexGroup.resourceStates.length === 0;
 		let noUnstagedChanges = repository.workingTreeGroup.resourceStates.length === 0;
 
@@ -2380,8 +2379,9 @@ export class CommandCenter {
 			}
 		}
 
-		// enable signing of commits if configured
-		opts.signCommit = enableCommitSigning;
+		// Enable signing of commits if the setting is enabled. If the setting is not enabled,
+		// we set the option to undefined so that we let git use the repository/global config.
+		opts.signCommit = config.get<boolean>('enableCommitSigning') === true ? true : undefined;
 
 		if (config.get<boolean>('alwaysSignOff')) {
 			opts.signoff = true;

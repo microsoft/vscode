@@ -1746,39 +1746,6 @@ export function triggerUpload(): Promise<FileList | undefined> {
 	});
 }
 
-export interface INotification extends IDisposable {
-	readonly onClick: event.Event<void>;
-}
-
-function sanitizeNotificationText(text: string): string {
-	return text.replace(/`/g, '\''); // convert backticks to single quotes
-}
-
-export async function triggerNotification(message: string, options?: { detail?: string; sticky?: boolean }): Promise<INotification | undefined> {
-	const permission = await Notification.requestPermission();
-	if (permission !== 'granted') {
-		return;
-	}
-
-	const disposables = new DisposableStore();
-
-	const notification = new Notification(sanitizeNotificationText(message), {
-		body: options?.detail ? sanitizeNotificationText(options.detail) : undefined,
-		requireInteraction: options?.sticky,
-	});
-
-	const onClick = new event.Emitter<void>();
-	disposables.add(addDisposableListener(notification, 'click', () => onClick.fire()));
-	disposables.add(addDisposableListener(notification, 'close', () => disposables.dispose()));
-
-	disposables.add(toDisposable(() => notification.close()));
-
-	return {
-		onClick: onClick.event,
-		dispose: () => disposables.dispose()
-	};
-}
-
 export enum DetectedFullscreenMode {
 
 	/**

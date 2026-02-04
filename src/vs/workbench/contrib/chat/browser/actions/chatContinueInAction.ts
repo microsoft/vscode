@@ -105,7 +105,7 @@ export class ChatContinueInSessionActionItem extends ActionWidgetDropdownActionV
 		super(action, {
 			actionProvider: ChatContinueInSessionActionItem.actionProvider(chatSessionsService, instantiationService, location),
 			actionBarActions: ChatContinueInSessionActionItem.getActionBarActions(openerService),
-			reporter: { name: 'ChatContinueInSession', includeOptions: true },
+			reporter: { id: 'ChatContinueInSession', name: 'ChatContinueInSession', includeOptions: true },
 		}, actionWidgetService, keybindingService, contextKeyService, telemetryService);
 	}
 
@@ -131,13 +131,13 @@ export class ChatContinueInSessionActionItem extends ActionWidgetDropdownActionV
 
 				// Continue in Background
 				const backgroundContrib = contributions.find(contrib => contrib.type === AgentSessionProviders.Background);
-				if (backgroundContrib && backgroundContrib.canDelegate !== false) {
+				if (backgroundContrib && backgroundContrib.canDelegate) {
 					actions.push(this.toAction(AgentSessionProviders.Background, backgroundContrib, instantiationService, location));
 				}
 
 				// Continue in Cloud
 				const cloudContrib = contributions.find(contrib => contrib.type === AgentSessionProviders.Cloud);
-				if (cloudContrib && cloudContrib.canDelegate !== false) {
+				if (cloudContrib && cloudContrib.canDelegate) {
 					actions.push(this.toAction(AgentSessionProviders.Cloud, cloudContrib, instantiationService, location));
 				}
 

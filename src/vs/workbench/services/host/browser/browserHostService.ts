@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { IHostService } from './host.js';
+import { IHostService, IToastOptions, IToastResult } from './host.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
 import { IEditorService } from '../../editor/common/editorService.js';
@@ -16,7 +16,7 @@ import { IWorkspace, IWorkspaceProvider } from '../../../browser/web.api.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { ILabelService, Verbosity } from '../../../../platform/label/common/label.js';
 import { EventType, ModifierKeyEmitter, addDisposableListener, addDisposableThrottledListener, detectFullscreen, disposableWindowInterval, getActiveDocument, getActiveWindow, getWindowId, onDidRegisterWindow, trackFocus, getWindows as getDOMWindows } from '../../../../base/browser/dom.js';
-import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableSet, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { IBrowserWorkbenchEnvironmentService } from '../../environment/browser/environmentService.js';
 import { memoize } from '../../../../base/common/decorators.js';
 import { parseLineAndColumnAware } from '../../../../base/common/extpath.js';
@@ -43,6 +43,8 @@ import { IUserDataProfilesService } from '../../../../platform/userDataProfile/c
 import { URI } from '../../../../base/common/uri.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { showBrowserToast } from './toasts.js';
 
 enum HostShutdownReason {
 
@@ -106,6 +108,13 @@ export class BrowserHostService extends Disposable implements IHostService {
 
 		// Track modifier keys to detect keybinding usage
 		this._register(ModifierKeyEmitter.getInstance().event(() => this.updateShutdownReasonFromEvent()));
+
+		// Make sure to hide all toasts when the window gains focus
+		this._register(this.onDidChangeFocus(focus => {
+			if (focus) {
+				this.clearToasts();
+			}
+		}));
 	}
 
 	private onBeforeShutdown(e: BeforeShutdownEvent): void {
@@ -720,6 +729,23 @@ export class BrowserHostService extends Disposable implements IHostService {
 
 	async getNativeWindowHandle(_windowId: number) {
 		return undefined;
+	}
+
+	//#endregion
+
+	//#region Toast Notifications
+
+	private readonly activeToasts = this._register(new DisposableSet());
+
+	async showToast(options: IToastOptions, token: CancellationToken): Promise<IToastResult> {
+		return showBrowserToast({
+			onDidCreateToast: disposable => this.activeToasts.add(disposable),
+			onDidDisposeToast: disposable => this.activeToasts.deleteAndDispose(disposable)
+		}, options, token);
+	}
+
+	private async clearToasts(): Promise<void> {
+		this.activeToasts.clearAndDisposeAll();
 	}
 
 	//#endregion

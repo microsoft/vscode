@@ -1502,6 +1502,12 @@ export interface IDetachedXtermTerminal extends IXtermTerminal {
 	resize(columns: number, rows: number): void;
 
 	/**
+	 * Performs a full reset (RIS) of the terminal, clearing all content
+	 * and resetting cursor position to the origin.
+	 */
+	reset(): void;
+
+	/**
 	 * Access to the terminal buffer for reading cursor position and content.
 	 */
 	readonly buffer: IBufferSet;

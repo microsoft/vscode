@@ -746,27 +746,35 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				acceptLabel,
 				rejectLabel,
 				async (value: IAction | true) => {
-					thePart.hide();
-					this._promptPart = undefined;
 					try {
 						const r = await (onAccept ? onAccept(value) : undefined);
 						resolve(r as T | undefined);
+						// Don't hide if return value is a Symbol (e.g., focusTerminalSelection)
+						// This keeps the elicitation visible while user focuses terminal to provide input
+						if (typeof r === 'symbol') {
+							return ElicitationState.Pending;
+						}
 					} catch {
 						resolve(undefined);
 					}
-
+					thePart.hide();
+					this._promptPart = undefined;
 					return ElicitationState.Accepted;
 				},
 				async () => {
-					thePart.hide();
-					this._promptPart = undefined;
 					try {
 						const r = await (onReject ? onReject() : undefined);
 						resolve(r as T | undefined);
+						// Don't hide if return value is a Symbol (e.g., focusTerminalSelection)
+						// This keeps the elicitation visible while user focuses terminal to provide input
+						if (typeof r === 'symbol') {
+							return ElicitationState.Pending;
+						}
 					} catch {
 						resolve(undefined);
 					}
-
+					thePart.hide();
+					this._promptPart = undefined;
 					return ElicitationState.Rejected;
 				},
 				undefined, // source

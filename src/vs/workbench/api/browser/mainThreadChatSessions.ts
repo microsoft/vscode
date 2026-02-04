@@ -18,7 +18,7 @@ import { IDialogService } from '../../../platform/dialogs/common/dialogs.js';
 import { ILogService } from '../../../platform/log/common/log.js';
 import { hasValidDiff, IAgentSession } from '../../contrib/chat/browser/agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../../contrib/chat/browser/agentSessions/agentSessionsService.js';
-import { ChatViewPaneTarget, IChatWidgetService, isIChatViewViewContext } from '../../contrib/chat/browser/chat.js';
+import { IChatWidgetService, isIChatViewViewContext } from '../../contrib/chat/browser/chat.js';
 import { IChatEditorOptions } from '../../contrib/chat/browser/widgetHosts/editor/chatEditor.js';
 import { ChatEditorInput } from '../../contrib/chat/browser/widgetHosts/editor/chatEditorInput.js';
 import { IChatRequestVariableEntry } from '../../contrib/chat/common/attachments/chatVariableEntries.js';
@@ -28,6 +28,7 @@ import { ChatSessionStatus, IChatSession, IChatSessionContentProvider, IChatSess
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
 import { IChatModel } from '../../contrib/chat/common/model/chatModel.js';
 import { IChatAgentRequest } from '../../contrib/chat/common/participants/chatAgents.js';
+import { IChatTodoListService } from '../../contrib/chat/common/tools/chatTodoListService.js';
 import { IEditorGroupsService } from '../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../services/editor/common/editorService.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
@@ -339,6 +340,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		@IChatSessionsService private readonly _chatSessionsService: IChatSessionsService,
 		@IChatService private readonly _chatService: IChatService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
+		@IChatTodoListService private readonly _chatTodoListService: IChatTodoListService,
 		@IDialogService private readonly _dialogService: IDialogService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
@@ -420,6 +422,9 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		const originalModel = this._chatService.getSession(originalResource);
 		const contribution = this._chatSessionsService.getAllChatSessionContributions().find(c => c.type === chatSessionType);
 
+		// Migrate todos from old session to new session
+		this._chatTodoListService.migrateTodos(originalResource, modifiedResource);
+
 		// Find the group containing the original editor
 		const originalGroup =
 			this.editorGroupService.groups.find(group => group.editors.some(editor => isEqual(editor.resource, originalResource)))
@@ -464,7 +469,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 
 		const chatViewWidget = this._chatWidgetService.getWidgetBySessionResource(originalResource);
 		if (chatViewWidget && isIChatViewViewContext(chatViewWidget.viewContext)) {
-			await this._chatWidgetService.openSession(modifiedResource, ChatViewPaneTarget, { preserveFocus: true });
+			await this._chatWidgetService.openSession(modifiedResource, undefined, { preserveFocus: true });
 		} else {
 			// Loading the session to ensure the session is created and editing session is transferred.
 			const ref = await this._chatService.loadSessionForResource(modifiedResource, ChatAgentLocation.Chat, CancellationToken.None);

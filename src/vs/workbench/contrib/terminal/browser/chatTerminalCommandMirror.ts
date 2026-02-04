@@ -310,7 +310,7 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 			if (!canAppend) {
 				// Reset the terminal if we had previous content (can't append, need full rewrite)
 				if (this._lastVT) {
-					detached.xterm.clearBuffer();
+					detached.xterm.reset();
 				}
 				if (vt.text) {
 					detached.xterm.write(vt.text, resolve);
@@ -544,7 +544,7 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 			if (!canAppend) {
 				// Reset the terminal if we had previous content (can't append, need full rewrite)
 				if (this._lastVT) {
-					detachedRaw.clearBuffer();
+					detachedRaw.reset();
 				}
 				if (vt.text) {
 					detachedRaw.write(vt.text, resolve);

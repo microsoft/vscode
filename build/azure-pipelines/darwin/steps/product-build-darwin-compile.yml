@@ -134,10 +134,6 @@ steps:
       set -e
       npm run gulp vscode-reh-darwin-$(VSCODE_ARCH)-min-ci
       mv ../vscode-reh-darwin-$(VSCODE_ARCH) ../vscode-server-darwin-$(VSCODE_ARCH) # TODO@joaomoreno
-      ARCHIVE_PATH=".build/darwin/server/vscode-server-darwin-$(VSCODE_ARCH).zip"
-      mkdir -p $(dirname $ARCHIVE_PATH)
-      (cd .. && zip -Xry $(Build.SourcesDirectory)/$ARCHIVE_PATH vscode-server-darwin-$(VSCODE_ARCH))
-      echo "##vso[task.setvariable variable=SERVER_PATH]$ARCHIVE_PATH"
     env:
       GITHUB_TOKEN: "$(github-distro-mixin-password)"
     displayName: Build server
@@ -146,10 +142,6 @@ steps:
       set -e
       npm run gulp vscode-reh-web-darwin-$(VSCODE_ARCH)-min-ci
       mv ../vscode-reh-web-darwin-$(VSCODE_ARCH) ../vscode-server-darwin-$(VSCODE_ARCH)-web # TODO@joaomoreno
-      ARCHIVE_PATH=".build/darwin/server/vscode-server-darwin-$(VSCODE_ARCH)-web.zip"
-      mkdir -p $(dirname $ARCHIVE_PATH)
-      (cd .. && zip -Xry $(Build.SourcesDirectory)/$ARCHIVE_PATH vscode-server-darwin-$(VSCODE_ARCH)-web)
-      echo "##vso[task.setvariable variable=WEB_PATH]$ARCHIVE_PATH"
     env:
       GITHUB_TOKEN: "$(github-distro-mixin-password)"
     displayName: Build server (web)
@@ -226,6 +218,13 @@ steps:
 
     - script: |
         set -e
+        export CODESIGN_IDENTITY=$(security find-identity -v -p codesigning $(agent.tempdirectory)/buildagent.keychain | grep -oEi "([0-9A-F]{40})" | head -n 1)
+        node build/darwin/sign-server.ts $(Agent.BuildDirectory)/vscode-server-darwin-$(VSCODE_ARCH)
+        node build/darwin/sign-server.ts $(Agent.BuildDirectory)/vscode-server-darwin-$(VSCODE_ARCH)-web
+      displayName: Sign server binaries
+
+    - script: |
+        set -e
         # Needed for https://github.com/dmgbuild/dmgbuild/blob/main/src/dmgbuild/badge.py
         python3 -m pip install pyobjc-framework-Quartz
         DMG_OUT="$(Pipeline.Workspace)/vscode_client_darwin_$(VSCODE_ARCH)_dmg"
@@ -244,6 +243,22 @@ steps:
         echo "##vso[task.setvariable variable=CLIENT_PATH]$ARCHIVE_PATH"
       condition: eq(variables['BUILT_CLIENT'], 'true')
       displayName: Re-package client after entitlement
+
+    - script: |
+        set -e
+        ARCHIVE_PATH=".build/darwin/server/vscode-server-darwin-$(VSCODE_ARCH).zip"
+        mkdir -p $(dirname $ARCHIVE_PATH)
+        (cd .. && zip -Xry $(Build.SourcesDirectory)/$ARCHIVE_PATH vscode-server-darwin-$(VSCODE_ARCH))
+        echo "##vso[task.setvariable variable=SERVER_PATH]$ARCHIVE_PATH"
+      displayName: Package server
+
+    - script: |
+        set -e
+        ARCHIVE_PATH=".build/darwin/server/vscode-server-darwin-$(VSCODE_ARCH)-web.zip"
+        mkdir -p $(dirname $ARCHIVE_PATH)
+        (cd .. && zip -Xry $(Build.SourcesDirectory)/$ARCHIVE_PATH vscode-server-darwin-$(VSCODE_ARCH)-web)
+        echo "##vso[task.setvariable variable=WEB_PATH]$ARCHIVE_PATH"
+      displayName: Package server (web)
 
     - task: UseDotNet@2
       inputs:
@@ -273,6 +288,7 @@ steps:
       env:
         EsrpCliDllPath: $(EsrpCliDllPath)
         SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+        BUILD_SOURCESDIRECTORY: $(Build.SourcesDirectory)
       displayName: ✍️ Codesign & Notarize
 
   - ${{ if or(eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true), eq(parameters.VSCODE_RUN_BROWSER_TESTS, true), eq(parameters.VSCODE_RUN_REMOTE_TESTS, true)) }}:

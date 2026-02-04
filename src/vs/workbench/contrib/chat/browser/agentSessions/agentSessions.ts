@@ -8,6 +8,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localChatSessionType } from '../../common/chatSessionsService.js';
+import { IChatSessionTiming } from '../../common/chatService/chatService.js';
 import { foreground, listActiveSelectionForeground, registerColor, transparent } from '../../../../../platform/theme/common/colorRegistry.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 
@@ -103,7 +104,7 @@ export function getAgentSessionProviderDescription(provider: AgentSessionProvide
 		case AgentSessionProviders.Cloud:
 			return localize('chat.session.providerDescription.cloud', "Delegate tasks to the GitHub Copilot coding agent. The agent iterates via chat and works asynchronously in the cloud to implement changes and pull requests as needed.");
 		case AgentSessionProviders.Claude:
-			return localize('chat.session.providerDescription.claude', "Delegate tasks to the Claude SDK running locally on your machine. The agent iterates via chat and works asynchronously to implement changes.");
+			return localize('chat.session.providerDescription.claude', "Delegate tasks to the Claude Agent SDK using the Claude models included in your GitHub Copilot subscription. The agent iterates via chat and works interactively to implement changes on your main workspace.");
 		case AgentSessionProviders.Codex:
 			return localize('chat.session.providerDescription.codex', "Opens a new Codex session in the editor. Codex sessions can be managed from the chat sessions view.");
 	}
@@ -152,3 +153,7 @@ export const agentSessionSelectedUnfocusedBadgeBorder = registerColor(
 
 export const AGENT_SESSION_RENAME_ACTION_ID = 'agentSession.rename';
 export const AGENT_SESSION_DELETE_ACTION_ID = 'agentSession.delete';
+
+export function getAgentSessionTime(timing: IChatSessionTiming): number {
+	return timing.lastRequestEnded ?? timing.lastRequestStarted ?? timing.created;
+}

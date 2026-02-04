@@ -747,6 +747,11 @@ export class Menubar extends Disposable {
 				return contextSpecificHandlers.inDevTools(activeWindow.webContents.devToolsWebContents);
 			}
 
+			// Focus is not in the workbench webContents
+			if (!activeWindow.webContents.isFocused()) {
+				return contextSpecificHandlers.inNoWindow();
+			}
+
 			// Finally execute command in Window
 			click(menuItem, win || activeWindow, event);
 		};

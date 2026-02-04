@@ -160,7 +160,7 @@ import { BrowserElevatedFileService } from '../../services/files/browser/elevate
 import { IElevatedFileService } from '../../services/files/common/elevatedFileService.js';
 import { FilesConfigurationService, IFilesConfigurationService } from '../../services/filesConfiguration/common/filesConfigurationService.js';
 import { IHistoryService } from '../../services/history/common/history.js';
-import { IHostService } from '../../services/host/browser/host.js';
+import { IHostService, IToastOptions, IToastResult } from '../../services/host/browser/host.js';
 import { LabelService } from '../../services/label/common/labelService.js';
 import { ILanguageDetectionService } from '../../services/languageDetection/common/languageDetectionWorkerService.js';
 import { IPartVisibilityChangeEvent, IWorkbenchLayoutService, PanelAlignment, Position as PartPosition, Parts } from '../../services/layout/browser/layoutService.js';
@@ -1363,6 +1363,8 @@ export class TestHostService implements IHostService {
 	async getScreenshot(rect?: IRectangle): Promise<VSBuffer | undefined> { return undefined; }
 
 	async getNativeWindowHandle(_windowId: number): Promise<VSBuffer | undefined> { return undefined; }
+
+	async showToast(_options: IToastOptions, token: CancellationToken): Promise<IToastResult> { return { supported: false, clicked: false }; }
 
 	readonly colorScheme = ColorScheme.DARK;
 	onDidChangeColorScheme = Event.None;

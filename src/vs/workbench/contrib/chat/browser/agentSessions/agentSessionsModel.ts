@@ -12,6 +12,7 @@ import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
+import { safeStringify } from '../../../../../base/common/objects.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI, UriComponents } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
@@ -425,9 +426,9 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 	private registerListeners(): void {
 
 		// Sessions changes
-		this._register(this.chatSessionsService.onDidChangeItemsProviders(({ chatSessionType: provider }) => this.resolve(provider)));
+		this._register(this.chatSessionsService.onDidChangeItemsProviders(({ chatSessionType }) => this.resolve(chatSessionType)));
 		this._register(this.chatSessionsService.onDidChangeAvailability(() => this.resolve(undefined)));
-		this._register(this.chatSessionsService.onDidChangeSessionItems(provider => this.resolve(provider)));
+		this._register(this.chatSessionsService.onDidChangeSessionItems(({ chatSessionType }) => this.resolve(chatSessionType)));
 
 		// State
 		this._register(this.storageService.onWillSaveState(() => {
@@ -515,6 +516,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 					archived: session.archived,
 					timing: session.timing,
 					changes: normalizedChanges,
+					metadata: session.metadata,
 				}));
 			}
 		}
@@ -669,6 +671,8 @@ interface ISerializedAgentSession {
 
 	readonly archived: boolean | undefined;
 
+	readonly metadata: { [key: string]: unknown } | undefined;
+
 	readonly timing: {
 		readonly created: number;
 		readonly lastRequestStarted?: number;
@@ -719,9 +723,10 @@ class AgentSessionsCache {
 			timing: session.timing,
 
 			changes: session.changes,
+			metadata: session.metadata
 		} satisfies ISerializedAgentSession));
 
-		this.storageService.store(AgentSessionsCache.SESSIONS_STORAGE_KEY, JSON.stringify(serialized), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		this.storageService.store(AgentSessionsCache.SESSIONS_STORAGE_KEY, safeStringify(serialized), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
 	loadCachedSessions(): IInternalAgentSessionData[] {
@@ -760,6 +765,7 @@ class AgentSessionsCache {
 					insertions: change.insertions,
 					deletions: change.deletions,
 				})) : session.changes,
+				metadata: session.metadata,
 			}));
 		} catch {
 			return []; // invalid data in storage, fallback to empty sessions list

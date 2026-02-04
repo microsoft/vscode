@@ -22,7 +22,7 @@ export enum AgentSessionsGrouping {
 
 export interface IAgentSessionsFilterOptions extends Partial<IAgentSessionsFilter> {
 
-	readonly filterMenuId: MenuId;
+	readonly filterMenuId?: MenuId;
 
 	readonly limitResults?: () => number | undefined;
 	notifyResults?(count: number): void;
@@ -41,7 +41,7 @@ const DEFAULT_EXCLUDES: IAgentSessionsFilterExcludes = Object.freeze({
 
 export class AgentSessionsFilter extends Disposable implements Required<IAgentSessionsFilter> {
 
-	private readonly STORAGE_KEY: string;
+	private readonly STORAGE_KEY = `agentSessions.filterExcludes.agentsessionsviewerfiltersubmenu`;
 
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange = this._onDidChange.event;
@@ -60,8 +60,6 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 		@IStorageService private readonly storageService: IStorageService,
 	) {
 		super();
-
-		this.STORAGE_KEY = `agentSessions.filterExcludes.${this.options.filterMenuId.id.toLowerCase()}`;
 
 		this.updateExcludes(false);
 
@@ -116,14 +114,19 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 	private updateFilterActions(): void {
 		this.actionDisposables.clear();
 
-		this.registerProviderActions(this.actionDisposables);
-		this.registerStateActions(this.actionDisposables);
-		this.registerArchivedActions(this.actionDisposables);
-		this.registerReadActions(this.actionDisposables);
-		this.registerResetAction(this.actionDisposables);
+		const menuId = this.options.filterMenuId;
+		if (!menuId) {
+			return;
+		}
+
+		this.registerProviderActions(this.actionDisposables, menuId);
+		this.registerStateActions(this.actionDisposables, menuId);
+		this.registerArchivedActions(this.actionDisposables, menuId);
+		this.registerReadActions(this.actionDisposables, menuId);
+		this.registerResetAction(this.actionDisposables, menuId);
 	}
 
-	private registerProviderActions(disposables: DisposableStore): void {
+	private registerProviderActions(disposables: DisposableStore, menuId: MenuId): void {
 		const providers: { id: string; label: string }[] = Object.values(AgentSessionProviders).map(provider => ({
 			id: provider,
 			label: getAgentSessionProviderName(provider)
@@ -143,10 +146,10 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 			disposables.add(registerAction2(class extends Action2 {
 				constructor() {
 					super({
-						id: `agentSessions.filter.toggleExclude:${provider.id}.${that.options.filterMenuId.id.toLowerCase()}`,
+						id: `agentSessions.filter.toggleExclude:${provider.id}.${menuId.id.toLowerCase()}`,
 						title: provider.label,
 						menu: {
-							id: that.options.filterMenuId,
+							id: menuId,
 							group: '1_providers',
 							order: counter++,
 						},
@@ -165,7 +168,7 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 		}
 	}
 
-	private registerStateActions(disposables: DisposableStore): void {
+	private registerStateActions(disposables: DisposableStore, menuId: MenuId): void {
 		const states: { id: AgentSessionStatus; label: string }[] = [
 			{ id: AgentSessionStatus.Completed, label: localize('agentSessionStatus.completed', "Completed") },
 			{ id: AgentSessionStatus.InProgress, label: localize('agentSessionStatus.inProgress', "In Progress") },
@@ -179,10 +182,10 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 			disposables.add(registerAction2(class extends Action2 {
 				constructor() {
 					super({
-						id: `agentSessions.filter.toggleExcludeState:${state.id}.${that.options.filterMenuId.id.toLowerCase()}`,
+						id: `agentSessions.filter.toggleExcludeState:${state.id}.${menuId.id.toLowerCase()}`,
 						title: state.label,
 						menu: {
-							id: that.options.filterMenuId,
+							id: menuId,
 							group: '2_states',
 							order: counter++,
 						},
@@ -201,15 +204,15 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 		}
 	}
 
-	private registerArchivedActions(disposables: DisposableStore): void {
+	private registerArchivedActions(disposables: DisposableStore, menuId: MenuId): void {
 		const that = this;
 		disposables.add(registerAction2(class extends Action2 {
 			constructor() {
 				super({
-					id: `agentSessions.filter.toggleExcludeArchived.${that.options.filterMenuId.id.toLowerCase()}`,
+					id: `agentSessions.filter.toggleExcludeArchived.${menuId.id.toLowerCase()}`,
 					title: localize('agentSessions.filter.archived', 'Archived'),
 					menu: {
-						id: that.options.filterMenuId,
+						id: menuId,
 						group: '3_props',
 						order: 1000,
 					},
@@ -222,15 +225,15 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 		}));
 	}
 
-	private registerReadActions(disposables: DisposableStore): void {
+	private registerReadActions(disposables: DisposableStore, menuId: MenuId): void {
 		const that = this;
 		disposables.add(registerAction2(class extends Action2 {
 			constructor() {
 				super({
-					id: `agentSessions.filter.toggleExcludeRead.${that.options.filterMenuId.id.toLowerCase()}`,
+					id: `agentSessions.filter.toggleExcludeRead.${menuId.id.toLowerCase()}`,
 					title: localize('agentSessions.filter.read', 'Read'),
 					menu: {
-						id: that.options.filterMenuId,
+						id: menuId,
 						group: '3_props',
 						order: 0,
 					},
@@ -243,15 +246,15 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 		}));
 	}
 
-	private registerResetAction(disposables: DisposableStore): void {
+	private registerResetAction(disposables: DisposableStore, menuId: MenuId): void {
 		const that = this;
 		disposables.add(registerAction2(class extends Action2 {
 			constructor() {
 				super({
-					id: `agentSessions.filter.resetExcludes.${that.options.filterMenuId.id.toLowerCase()}`,
+					id: `agentSessions.filter.resetExcludes.${menuId.id.toLowerCase()}`,
 					title: localize('agentSessions.filter.reset', "Reset"),
 					menu: {
-						id: that.options.filterMenuId,
+						id: menuId,
 						group: '4_reset',
 						order: 0,
 					},

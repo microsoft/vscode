@@ -423,6 +423,19 @@ export class ChatAgentResponseStream {
 
 					return this;
 				},
+				usage(usage) {
+					throwIfDone(this.usage);
+					checkProposedApiEnabled(that._extension, 'chatParticipantAdditions');
+
+					const dto: IChatProgressDto = {
+						kind: 'usage',
+						promptTokens: usage.promptTokens,
+						completionTokens: usage.completionTokens,
+						promptTokenDetails: usage.promptTokenDetails
+					};
+					_report(dto);
+					return this;
+				},
 			});
 		}
 
@@ -747,7 +760,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 					checkProposedApiEnabled(agent.extension, 'chatParticipantPrivate');
 				}
 
-				return { errorDetails, timings: stream?.timings, metadata: result?.metadata, nextQuestion: result?.nextQuestion, details: result?.details, usage: result?.usage } satisfies IChatAgentResult;
+				return { errorDetails, timings: stream?.timings, metadata: result?.metadata, nextQuestion: result?.nextQuestion, details: result?.details } satisfies IChatAgentResult;
 			}), token);
 		} catch (e) {
 			this._logService.error(e, agent.extension);

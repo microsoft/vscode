@@ -801,35 +801,5 @@ suite('LocalAgentsSessionsProvider', () => {
 				assert.strictEqual(changeEventCount, 0, 'onDidChangeChatSessionItems should NOT fire after model is removed');
 			});
 		});
-
-		test('should fire onDidChange when session items change for local type', async () => {
-			return runWithFakedTimers({}, async () => {
-				const provider = createProvider();
-
-				let changeEventFired = false;
-				disposables.add(provider.onDidChange(() => {
-					changeEventFired = true;
-				}));
-
-				mockChatSessionsService.notifySessionItemsChanged(localChatSessionType);
-
-				assert.strictEqual(changeEventFired, true);
-			});
-		});
-
-		test('should not fire onDidChange when session items change for other types', async () => {
-			return runWithFakedTimers({}, async () => {
-				const provider = createProvider();
-
-				let changeEventFired = false;
-				disposables.add(provider.onDidChange(() => {
-					changeEventFired = true;
-				}));
-
-				mockChatSessionsService.notifySessionItemsChanged('other-type');
-
-				assert.strictEqual(changeEventFired, false);
-			});
-		});
 	});
 });
