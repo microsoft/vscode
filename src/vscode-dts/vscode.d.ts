@@ -6500,7 +6500,7 @@ declare module 'vscode' {
 		/**
 		 * The line comment token, like `// this is a comment`
 		 */
-		lineComment?: string | LineCommentRule | null;
+		lineComment?: string | LineCommentRule;
 
 		/**
 		 * The block comment character pair, like `/* block comment *&#47;`
