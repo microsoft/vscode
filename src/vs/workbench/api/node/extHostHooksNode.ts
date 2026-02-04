@@ -50,7 +50,7 @@ export class NodeExtHostHooks implements IExtHostHooks {
 		this._logService.debug(`[ExtHostHooks] Running hook command: ${JSON.stringify(hookCommand)}`);
 
 		try {
-			return this._executeCommand(hookCommand, input, token);
+			return await this._executeCommand(hookCommand, input, token);
 		} catch (err) {
 			return {
 				kind: HookResultKind.Error,
