@@ -646,7 +646,7 @@ const completionSpec: Fig.Spec = {
 								},
 								{
 									name: ['submit'],
-									description: 'submit fine tuning job',
+									description: 'Submit fine-tuning job.',
 									options: [
 										{
 											name: ['--file', '-f'],
@@ -1009,7 +1009,7 @@ const completionSpec: Fig.Spec = {
 				},
 				{
 					name: ['config'],
-					description: 'Setup monitoring configuration for the project and services',
+					description: 'Set up monitoring configuration for the project and services',
 				},
 				{
 					name: ['context'],
@@ -2409,7 +2409,7 @@ const completionSpec: Fig.Spec = {
 						},
 						{
 							name: ['--repo'],
-							description: 'Github repository to create the release in (e.g. owner/repo)',
+							description: 'GitHub repository to create the release in (e.g. owner/repo)',
 							args: [
 								{
 									name: 'repo',
@@ -2473,7 +2473,7 @@ const completionSpec: Fig.Spec = {
 						},
 						{
 							name: ['--repo', '-r'],
-							description: 'Github repository to create the release in (e.g. owner/repo)',
+							description: 'GitHub repository to create the release in (e.g. owner/repo)',
 							args: [
 								{
 									name: 'repo',
@@ -2574,7 +2574,7 @@ const completionSpec: Fig.Spec = {
 										},
 										{
 											name: ['submit'],
-											description: 'submit fine tuning job',
+											description: 'Submit fine-tuning job.',
 										},
 									],
 								},
@@ -2702,7 +2702,7 @@ const completionSpec: Fig.Spec = {
 						},
 						{
 							name: ['config'],
-							description: 'Setup monitoring configuration for the project and services',
+							description: 'Set up monitoring configuration for the project and services',
 						},
 						{
 							name: ['context'],
