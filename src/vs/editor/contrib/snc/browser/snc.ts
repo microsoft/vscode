@@ -12,6 +12,7 @@ import { createTrustedTypesPolicy } from '../../../../base/browser/trustedTypes.
 import { IHostService } from '../../../../workbench/services/host/browser/host.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import * as dom from '../../../../base/browser/dom.js';
+import './snc.css';
 
 // 'sncVisualization' is a trusted name defined in src/vs/code/electron-sandbox/workbench/workbench(-dev).html
 const ttPolicy = createTrustedTypesPolicy('sncVisualization', { createHTML: value => value });
@@ -68,33 +69,6 @@ class VisualizationWidget extends Disposable implements IOverlayWidget {
 		// Create the widget DOM node
 		this.domNode = document.createElement('div');
 		this.domNode.className = 'snc-visualization-widget';
-
-		// Update styling for overlay widget - use absolute positioning
-		this.domNode.style.position = 'absolute';
-		this.domNode.style.display = 'inline-block';
-		this.domNode.style.marginLeft = '8px';
-		this.domNode.style.padding = '0px 4px';
-		this.domNode.style.background = 'none';
-		this.domNode.style.fontSize = '11px';
-		this.domNode.style.fontStyle = 'italic';
-		this.domNode.style.fontFamily = 'monospace';
-		this.domNode.style.color = 'rgba(255,255,255,0.2)';
-		this.domNode.style.whiteSpace = 'nowrap';
-		this.domNode.style.verticalAlign = 'middle';
-		this.domNode.style.borderRadius = '2px';
-		this.domNode.style.borderColor = 'rgba(127,127,127,0.1)';
-		this.domNode.style.borderStyle = 'solid';
-		this.domNode.style.borderWidth = '1px';
-		this.domNode.style.maxWidth = '800px';
-		this.domNode.style.maxHeight = '600px';
-		this.domNode.style.overflow = 'auto';
-		this.domNode.style.scrollbarWidth = 'thin';
-		this.domNode.style.scrollbarColor = 'rgba(127,127,127,0.1) transparent';
-		// this.domNode.style.textOverflow = 'ellipsis';
-		this.domNode.style.filter = 'none';
-		this.domNode.style.opacity = '0.9';
-		this.domNode.style.zIndex = '1000';
-		this.domNode.style.userSelect = 'text'; // otherwise no text selection allowed
 
 		// Add custom mouse wheel event handling to actually scroll
 		this._register(dom.addDisposableListener(this.domNode, 'wheel', (e: WheelEvent) => {

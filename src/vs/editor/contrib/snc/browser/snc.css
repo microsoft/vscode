@@ -1,0 +1,37 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-editor .snc-visualization-widget {
+	position: absolute;
+	display: inline-block;
+	margin-left: 8px;
+	margin-top: -4px;
+	padding: 4px 4px;
+	background: none;
+	font-size: 11px;
+	font-style: italic;
+	font-family: monospace;
+	color: rgba(255, 255, 255, 0.2);
+	white-space: nowrap;
+	vertical-align: middle;
+	border-radius: 2px;
+	border-color: rgba(127, 127, 127, 0.1);
+	border-style: solid;
+	border-width: 1px;
+	max-width: 800px;
+	max-height: 600px;
+	overflow: auto;
+	scrollbar-width: thin;
+	scrollbar-color: rgba(127, 127, 127, 0.1) transparent;
+	filter: none;
+	opacity: 0.9;
+	z-index: 1000;
+	user-select: text;
+}
+
+/* Dropdown option hover effect */
+.monaco-editor .snc-visualization-widget .snc-dropdown-option:hover {
+	background-color: #094771;
+}

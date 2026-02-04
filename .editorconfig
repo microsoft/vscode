@@ -13,3 +13,9 @@ trim_trailing_whitespace = true
 [{*.yml,*.yaml,package.json}]
 indent_style = space
 indent_size = 2
+
+# AI produces Python with idiomatic 4-space indentation
+[*.py]
+indent_style = space
+indent_size = 4
+trim_trailing_whitespace = true

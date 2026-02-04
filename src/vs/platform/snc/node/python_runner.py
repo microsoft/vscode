@@ -91,8 +91,8 @@ class StaticVisualizer(Protocol):
 class Visualizer(Protocol):
 	can_visualize: Callable[[Any], bool]
 	visualize: Callable[[Any, Any], str]  # takes value, model
-	init_model: Callable[[], Any]
-	update:Callable[[Any, Any, Any, Any], Any]  # takes ui_event, source code, source line, model returns new model
+	init_model: Callable[[Any], Any]  # takes value
+	update: Callable[[Any, Any, Any, Any, Any], Any]  # takes ui_event, source code, source line, model, value; returns (new model, commands)
 
 # Currently, models are persist in the JS UI and are only provided on UI events (which is wrong)
 @dataclass(frozen=True, slots=True)
@@ -130,7 +130,7 @@ def log_value(line: int, value: Any, last_line_in_containing_loop: int | None = 
 			if 'model' in item_model_and_event:
 				model = item_model_and_event['model']
 			elif callable(getattr(vis, 'init_model', None)):
-				model = cast(Visualizer, vis).init_model()
+				model = cast(Visualizer, vis).init_model(value)
 			else:
 				model = UnknownModel()
 
@@ -139,13 +139,13 @@ def log_value(line: int, value: Any, last_line_in_containing_loop: int | None = 
 				updater = cast(Visualizer, vis).update
 				for ev in item_model_and_event['events']:
 					# Add source context to the event
-					model, cmds = updater(ev, _source_code, line, model)
+					model, cmds = updater(ev, _source_code, line, model, value)
 					commands.extend(cmds)
 
 			if callable(getattr(vis, 'init_model', None)):
 				vis_ = cast(Visualizer, vis)
 				if model == UnknownModel(): # eventually the front end should send all models OR each back end fork keep the models
-					html_content = vis_.visualize(value, vis_.init_model())
+					html_content = vis_.visualize(value, vis_.init_model(value))
 				else:
 					html_content = vis_.visualize(value, model)
 			else:
