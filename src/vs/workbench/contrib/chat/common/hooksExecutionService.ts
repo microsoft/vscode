@@ -9,6 +9,7 @@ import { HookTypeValue, IChatRequestHooks, IHookCommand } from './promptSyntax/h
 import { IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { Extensions, IOutputChannelRegistry, IOutputService } from '../../../services/output/common/output.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { localize } from '../../../../nls.js';
@@ -102,6 +103,46 @@ export class HooksExecutionService implements IHooksExecutionService {
 		}
 	}
 
+	private async _runSingleHook(
+		requestId: number,
+		hookType: HookTypeValue,
+		hookCommand: IHookCommand,
+		input: unknown,
+		token: CancellationToken
+	): Promise<IHookResult> {
+		const hookCommandJson = JSON.stringify({
+			...hookCommand,
+			cwd: hookCommand.cwd?.fsPath
+		});
+		this._log(requestId, hookType, `Running: ${hookCommandJson}`);
+		if (input !== undefined) {
+			this._log(requestId, hookType, `Input: ${JSON.stringify(input)}`);
+		}
+
+		const sw = StopWatch.create();
+		try {
+			const result = await this._proxy!.runHookCommand(hookCommand, input, token);
+			this._logResult(requestId, hookType, result, sw.elapsed());
+			return result;
+		} catch (err) {
+			const errMessage = err instanceof Error ? err.message : String(err);
+			this._log(requestId, hookType, `Error in ${sw.elapsed()}ms: ${errMessage}`);
+			return { kind: HookResultKind.Error, result: errMessage };
+		}
+	}
+
+	private _logResult(requestId: number, hookType: HookTypeValue, result: IHookResult, elapsed: number): void {
+		const resultKindStr = result.kind === HookResultKind.Success ? 'Success' : 'Error';
+		const resultStr = typeof result.result === 'string' ? result.result : JSON.stringify(result.result);
+		const hasOutput = resultStr.length > 0 && resultStr !== '{}' && resultStr !== '[]';
+		if (hasOutput) {
+			this._log(requestId, hookType, `Completed (${resultKindStr}) in ${elapsed}ms`);
+			this._log(requestId, hookType, `Output: ${resultStr}`);
+		} else {
+			this._log(requestId, hookType, `Completed (${resultKindStr}) in ${elapsed}ms, no output`);
+		}
+	}
+
 	registerHooks(sessionResource: URI, hooks: IChatRequestHooks): IDisposable {
 		const key = sessionResource.toString();
 		this._sessionHooks.set(key, hooks);
@@ -130,40 +171,15 @@ export class HooksExecutionService implements IHooksExecutionService {
 		}
 
 		const requestId = this._requestCounter++;
+		const token = options?.token ?? CancellationToken.None;
 
 		this._logService.debug(`[HooksExecutionService] Executing ${hookCommands.length} hook(s) for type '${hookType}'`);
 		this._log(requestId, hookType, `Executing ${hookCommands.length} hook(s)`);
 
 		const results: IHookResult[] = [];
-		const token = options?.token ?? CancellationToken.None;
 		for (const hookCommand of hookCommands) {
-			const hookCommandJson = JSON.stringify({
-				...hookCommand,
-				cwd: hookCommand.cwd?.fsPath
-			});
-			this._log(requestId, hookType, `Running: ${hookCommandJson}`);
-			if (options?.input !== undefined) {
-				this._log(requestId, hookType, `Input: ${JSON.stringify(options.input)}`);
-			}
-
-			const startTime = Date.now();
-			try {
-				const result = await this._proxy.runHookCommand(hookCommand, options?.input, token);
-				const elapsed = Date.now() - startTime;
-				const resultKindStr = result.kind === HookResultKind.Success ? 'Success' : 'Error';
-				const resultStr = typeof result.result === 'string' ? result.result : JSON.stringify(result.result);
-				this._log(requestId, hookType, `Completed (${resultKindStr}) in ${elapsed}ms`);
-				this._log(requestId, hookType, `Output: ${resultStr}`);
-				results.push(result);
-			} catch (err) {
-				const elapsed = Date.now() - startTime;
-				const errMessage = err instanceof Error ? err.message : String(err);
-				this._log(requestId, hookType, `Error in ${elapsed}ms: ${errMessage}`);
-				results.push({
-					kind: HookResultKind.Error,
-					result: errMessage
-				});
-			}
+			const result = await this._runSingleHook(requestId, hookType, hookCommand, options?.input, token);
+			results.push(result);
 		}
 
 		return results;
