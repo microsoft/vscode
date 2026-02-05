@@ -433,7 +433,6 @@ async function createCheckoutItems(repository: Repository, detached = false): Pr
 		.filter(p => !!p) as RefProcessor[];
 
 	const buttons = await getRemoteRefItemButtons(repository);
-	//sam-shubham
 
 	const itemsProcessor = new CheckoutItemsProcessor(repository, refProcessors, buttons, detached);
 
