@@ -5,13 +5,10 @@
 
 import './media/modalEditorPart.css';
 import { $, addDisposableListener, append, EventType } from '../../../../base/browser/dom.js';
-import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
-import { Action } from '../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { ThemeIcon } from '../../../../base/common/themables.js';
-import { Codicon } from '../../../../base/common/codicons.js';
-import { widgetClose } from '../../../../platform/theme/common/iconRegistry.js';
+import { MenuId } from '../../../../platform/actions/common/actions.js';
+import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -22,12 +19,11 @@ import { IEditorGroupView, IEditorPartsView } from './editor.js';
 import { EditorPart } from './editorPart.js';
 import { GroupDirection, GroupsOrder, IModalEditorPart } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { EditorPartModalContext } from '../../../common/contextkeys.js';
 import { Verbosity } from '../../../common/editor.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
 import { mainWindow } from '../../../../base/browser/window.js';
-import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
-import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { localize } from '../../../../nls.js';
 
 export interface ICreateModalEditorPartResult {
@@ -74,35 +70,8 @@ export class ModalEditorPart {
 		titleElement.id = titleId;
 		titleElement.textContent = '';
 
-		// Action buttons using ActionBar for proper accessibility
+		// Action buttons
 		const actionBarContainer = append(headerElement, $('div.modal-editor-action-container'));
-		const actionBar = disposables.add(new ActionBar(actionBarContainer));
-
-		// Open as Editor
-		const openAsEditorAction = disposables.add(new Action(
-			'modalEditorPart.openAsEditor',
-			localize('openAsEditor', "Open as Editor"),
-			ThemeIcon.asClassName(Codicon.openInProduct),
-			true,
-			async () => {
-				const activeEditor = editorPart.activeGroup.activeEditor;
-				if (activeEditor) {
-					await this.editorService.openEditor(activeEditor, { pinned: true, preserveFocus: false }, this.editorPartsView.mainPart.activeGroup.id);
-					editorPart.close();
-				}
-			}
-		));
-		actionBar.push(openAsEditorAction, { icon: true, label: false });
-
-		// Close action
-		const closeAction = disposables.add(new Action(
-			'modalEditorPart.close',
-			localize('close', "Close"),
-			ThemeIcon.asClassName(widgetClose),
-			true,
-			async () => editorPart.close()
-		));
-		actionBar.push(closeAction, { icon: true, label: false, keybinding: localize('escape', "Escape") });
 
 		// Create the editor part
 		const editorPart = disposables.add(this.instantiationService.createInstance(
@@ -120,6 +89,12 @@ export class ModalEditorPart {
 			[IEditorService, modalEditorService]
 		)));
 
+		// Create toolbar driven by MenuId.ModalEditorTitle
+		disposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, actionBarContainer, MenuId.ModalEditorTitle, {
+			hiddenItemStrategy: HiddenItemStrategy.NoHide,
+			menuOptions: { shouldForwardArgs: true }
+		}));
+
 		// Update title when active editor changes
 		disposables.add(Event.runAndSubscribe(modalEditorService.onDidActiveEditorChange, (() => {
 			const activeEditor = editorPart.activeGroup.activeEditor;
@@ -129,14 +104,6 @@ export class ModalEditorPart {
 		// Handle close on click outside (on the dimmed background)
 		disposables.add(addDisposableListener(modalElement, EventType.MOUSE_DOWN, e => {
 			if (e.target === modalElement) {
-				editorPart.close();
-			}
-		}));
-
-		// Handle escape key to close
-		disposables.add(addDisposableListener(modalElement, EventType.KEY_DOWN, e => {
-			const event = new StandardKeyboardEvent(e);
-			if (event.keyCode === KeyCode.Escape) {
 				editorPart.close();
 			}
 		}));
@@ -156,7 +123,7 @@ export class ModalEditorPart {
 			editorPartContainer.style.height = `${height}px`;
 
 			const borderSize = 2; // Account for 1px border on all sides and modal header height
-			const headerHeight = 24;
+			const headerHeight = 24 + 1 /* border bottom */;
 			editorPart.layout(width - borderSize, height - borderSize - headerHeight, 0, 0);
 		}));
 
@@ -206,6 +173,13 @@ class ModalEditorPartImpl extends EditorPart implements IModalEditorPart {
 		});
 	}
 
+	protected override handleContextKeys(): void {
+		const isModalEditorPartContext = EditorPartModalContext.bindTo(this.scopedContextKeyService);
+		isModalEditorPartContext.set(true);
+
+		super.handleContextKeys();
+	}
+
 	override removeGroup(group: number | IEditorGroupView, preserveFocus?: boolean): void {
 
 		// Close modal when last group removed
@@ -234,24 +208,26 @@ class ModalEditorPartImpl extends EditorPart implements IModalEditorPart {
 			}
 		}
 
-		this.doClose(false /* do not merge any confirming editors to main part */);
+		this.doClose({ mergeConfirmingEditorsToMainPart: false });
 	}
 
 	protected override saveState(): void {
 		return; // disabled, modal editor part state is not persisted
 	}
 
-	close(): boolean {
-		return this.doClose(true /* merge all confirming editors to main part */);
+	close(options?: { mergeAllEditorsToMainPart?: boolean }): boolean {
+		return this.doClose({ ...options, mergeConfirmingEditorsToMainPart: true });
 	}
 
-	private doClose(mergeConfirmingEditorsToMainPart: boolean): boolean {
+	private doClose(options?: { mergeAllEditorsToMainPart?: boolean; mergeConfirmingEditorsToMainPart?: boolean }): boolean {
 		let result = true;
-		if (mergeConfirmingEditorsToMainPart) {
+		if (options?.mergeConfirmingEditorsToMainPart) {
 
-			// First close all editors that are non-confirming
-			for (const group of this.groups) {
-				group.closeAllEditors({ excludeConfirming: true });
+			// First close all editors that are non-confirming (unless we merge all)
+			if (!options.mergeAllEditorsToMainPart) {
+				for (const group of this.groups) {
+					group.closeAllEditors({ excludeConfirming: true });
+				}
 			}
 
 			// Then merge remaining to main part

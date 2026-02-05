@@ -495,7 +495,8 @@ export interface IAuxiliaryEditorPart extends IEditorPart {
 
 	/**
 	 * Close this auxiliary editor part after moving all
-	 * editors of all groups back to the main editor part.
+	 * dirty editors of all groups back to the main editor
+	 * part.
 	 *
 	 * @returns `false` if an editor could not be moved back.
 	 */
@@ -511,11 +512,13 @@ export interface IModalEditorPart extends IEditorPart {
 
 	/**
 	 * Close this modal editor part after moving all
-	 * editors of all groups back to the main editor part.
+	 * editors of all groups back to the main editor part
+	 * if the related option is set. Dirty editors are
+	 * always moved back to the main part and thus not closed.
 	 *
 	 * @returns `false` if an editor could not be moved back.
 	 */
-	close(): boolean;
+	close(options?: { mergeAllEditorsToMainPart?: boolean }): boolean;
 }
 
 export interface IEditorWorkingSet {

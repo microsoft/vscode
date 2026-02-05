@@ -135,14 +135,3 @@
 	color: var(--vscode-descriptionForeground);
 	font-size: var(--vscode-bodyFontSize-small);
 }
-
-/* Action button */
-.update-status-tooltip .action-button-container {
-	display: flex;
-	justify-content: flex-end;
-	margin-top: 8px;
-}
-
-.update-status-tooltip .action-button-container .monaco-button {
-	padding: 4px 14px;
-}

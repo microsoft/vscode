@@ -305,7 +305,7 @@ const telemetryIgnoredSequences = [
 	'\x1b[O', // Focus out
 ];
 
-const altBufferMessage = localize('runInTerminalTool.altBufferMessage', "The command opened the alternate buffer.");
+const altBufferMessage = '\n' + localize('runInTerminalTool.altBufferMessage', "The command opened the alternate buffer.");
 
 
 export class RunInTerminalTool extends Disposable implements IToolImpl {

@@ -3280,6 +3280,8 @@ export interface MainThreadMcpShape {
 	$getTokenFromServerMetadata(id: number, authDetails: IMcpAuthenticationDetails, options?: IMcpAuthenticationOptions): Promise<string | undefined>;
 	$getTokenForProviderId(id: number, providerId: string, scopes: string[], options?: IMcpAuthenticationOptions): Promise<string | undefined>;
 	$logMcpAuthSetup(data: IAuthMetadataSource): void;
+	$startMcpGateway(): Promise<{ address: UriComponents; gatewayId: string } | undefined>;
+	$disposeMcpGateway(gatewayId: string): void;
 }
 
 export interface MainThreadDataChannelsShape extends IDisposable {

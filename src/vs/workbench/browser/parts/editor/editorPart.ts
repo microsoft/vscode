@@ -34,7 +34,7 @@ import { IBoundarySashes } from '../../../../base/browser/ui/sash/sash.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
-import { EditorPartMaximizedEditorGroupContext, EditorPartMultipleEditorGroupsContext, IsAuxiliaryWindowContext } from '../../../common/contextkeys.js';
+import { EditorPartMaximizedEditorGroupContext, EditorPartMultipleEditorGroupsContext } from '../../../common/contextkeys.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 
 export interface IEditorPartUIState {
@@ -153,7 +153,7 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 	protected readonly container = $('.content');
 
 	readonly scopedInstantiationService: IInstantiationService;
-	private readonly scopedContextKeyService: IContextKeyService;
+	protected readonly scopedContextKeyService: IContextKeyService;
 
 	private centeredLayoutWidget!: CenteredViewLayout;
 
@@ -1036,10 +1036,7 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 		return this.container;
 	}
 
-	private handleContextKeys(): void {
-		const isAuxiliaryWindowContext = IsAuxiliaryWindowContext.bindTo(this.scopedContextKeyService);
-		isAuxiliaryWindowContext.set(this.windowId !== mainWindow.vscodeWindowId);
-
+	protected handleContextKeys(): void {
 		const multipleEditorGroupsContext = EditorPartMultipleEditorGroupsContext.bindTo(this.scopedContextKeyService);
 		const maximizedEditorGroupContext = EditorPartMaximizedEditorGroupContext.bindTo(this.scopedContextKeyService);
 

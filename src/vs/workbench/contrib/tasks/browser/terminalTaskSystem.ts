@@ -472,9 +472,10 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			return Promise.resolve<ITaskTerminateResponse>({ success: false, task: undefined });
 		}
 		return new Promise<ITaskTerminateResponse>((resolve, reject) => {
-			this._register(terminal.onDisposed(terminal => {
+			const onDisposedListener = terminal.onDisposed(terminal => {
 				this._fireTaskEvent(TaskEvent.terminated(task, terminal.instanceId, terminal.exitReason));
-			}));
+				onDisposedListener.dispose();
+			});
 			const onExit = terminal.onExit(() => {
 				const task = activeTerminal.task;
 				try {
@@ -1049,7 +1050,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			const startStopProblemMatcher = new StartStopProblemCollector(problemMatchers, this._markerService, this._modelService, ProblemHandlingStrategy.Clean, this._fileService);
 			this._terminalStatusManager.addTerminal(task, terminal, startStopProblemMatcher);
 			this._taskProblemMonitor.addTerminal(terminal, startStopProblemMatcher);
-			this._register(startStopProblemMatcher.onDidStateChange((event) => {
+			const problemMatcherListener = startStopProblemMatcher.onDidStateChange((event) => {
 				if (event.kind === ProblemCollectorEventKind.BackgroundProcessingBegins) {
 					this._fireTaskEvent(TaskEvent.general(TaskEventKind.ProblemMatcherStarted, task, terminal?.instanceId));
 				} else if (event.kind === ProblemCollectorEventKind.BackgroundProcessingEnds) {
@@ -1060,7 +1061,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 						this._fireTaskEvent(TaskEvent.problemMatcherEnded(task, this._taskHasErrors(task), terminal?.instanceId));
 					}
 				}
-			}));
+			});
 			let processStartedSignaled = false;
 			terminal.processReady.then(() => {
 				if (!processStartedSignaled) {
@@ -1112,6 +1113,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 						onData.dispose();
 						startStopProblemMatcher.done();
 						startStopProblemMatcher.dispose();
+						problemMatcherListener.dispose();
 					}, 100);
 					if (!processStartedSignaled && terminal) {
 						this._fireTaskEvent(TaskEvent.processStarted(task, terminal.instanceId, terminal.processId!));
@@ -1409,12 +1411,17 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 
 	private async _doCreateTerminal(task: Task, group: string | undefined, launchConfigs: IShellLaunchConfig): Promise<ITerminalInstance> {
 		const reconnectedTerminal = await this._reconnectToTerminal(task);
-		const onDisposed = (terminal: ITerminalInstance) => this._fireTaskEvent(TaskEvent.terminated(task, terminal.instanceId, terminal.exitReason));
+		const registerOnDisposed = (terminal: ITerminalInstance) => {
+			const listener = terminal.onDisposed(() => {
+				this._fireTaskEvent(TaskEvent.terminated(task, terminal.instanceId, terminal.exitReason));
+				listener.dispose();
+			});
+		};
 		if (reconnectedTerminal) {
 			if ((CustomTask.is(task) || ContributedTask.is(task)) && task.command.presentation) {
 				reconnectedTerminal.waitOnExit = getWaitOnExitValue(task.command.presentation, task.configurationProperties);
 			}
-			this._register(reconnectedTerminal.onDisposed(onDisposed));
+			registerOnDisposed(reconnectedTerminal);
 			this._logService.trace('reconnected to task and terminal', task._id);
 			return reconnectedTerminal;
 		}
@@ -1426,7 +1433,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 					this._logService.trace(`Found terminal to split for group ${group}`);
 					const originalInstance = terminal.terminal;
 					const result = await this._terminalService.createTerminal({ location: { parentTerminal: originalInstance }, config: launchConfigs });
-					this._register(result.onDisposed(onDisposed));
+					registerOnDisposed(result);
 					if (result) {
 						return result;
 					}
@@ -1436,7 +1443,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		}
 		// Either no group is used, no terminal with the group exists or splitting an existing terminal failed.
 		const createdTerminal = await this._terminalService.createTerminal({ config: launchConfigs });
-		this._register(createdTerminal.onDisposed(onDisposed));
+		registerOnDisposed(createdTerminal);
 		return createdTerminal;
 	}
 
@@ -1455,6 +1462,10 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				if (data) {
 					const terminalData = { lastTask: data.lastTask, group: data.group, terminal, shellIntegrationNonce: data.shellIntegrationNonce };
 					this._terminals[terminal.instanceId] = terminalData;
+					const listener = terminal.onDisposed(() => {
+						this._deleteTaskAndTerminal(terminal, terminalData);
+						listener.dispose();
+					});
 					this._logService.trace('Reconnecting to task terminal', terminalData.lastTask, terminal.instanceId);
 				}
 			}
@@ -1577,10 +1588,10 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		}
 		const terminalKey = terminal.instanceId.toString();
 		const terminalData = { terminal: terminal, lastTask: taskKey, group, shellIntegrationNonce: terminal.shellLaunchConfig.shellIntegrationNonce };
-		const onDisposedListener = this._register(terminal.onDisposed(() => {
+		const onDisposedListener = terminal.onDisposed(() => {
 			this._deleteTaskAndTerminal(terminal, terminalData);
 			onDisposedListener.dispose();
-		}));
+		});
 		this._terminals[terminalKey] = terminalData;
 		terminal.shellLaunchConfig.tabActions = this._terminalTabActions;
 		return [terminal, undefined];

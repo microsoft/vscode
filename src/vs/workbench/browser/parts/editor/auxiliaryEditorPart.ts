@@ -360,6 +360,13 @@ class AuxiliaryEditorPartImpl extends EditorPart implements IAuxiliaryEditorPart
 		super(editorPartsView, `workbench.parts.auxiliaryEditor.${id}`, groupsLabel, windowId, instantiationService, themeService, configurationService, storageService, layoutService, hostService, contextKeyService);
 	}
 
+	protected override handleContextKeys(): void {
+		const isAuxiliaryWindowContext = IsAuxiliaryWindowContext.bindTo(this.scopedContextKeyService);
+		isAuxiliaryWindowContext.set(true);
+
+		super.handleContextKeys();
+	}
+
 	updateOptions(options: { compact: boolean }): void {
 		this.isCompact = options.compact;
 
