@@ -8,7 +8,7 @@ import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ILogService } from '../../../platform/log/common/log.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
-import { IProcessOptions, IProcessResult, ISNCProcessService, IVisualizationItem, SNCCommand, SNCStreamMessage } from '../common/snc.js';
+import { IProcessOptions, IProcessResult, ISNCProcessService, IVisualizationItem, SNCCommand, SNCStreamMessage, SNCTimingData } from '../common/snc.js';
 import { Emitter } from '../../../base/common/event.js';
 
 // Get the directory name equivalent to __dirname in ES modules
@@ -45,6 +45,13 @@ export class SNCProcessService extends Disposable implements ISNCProcessService 
 				const state = { child, buffer: '', stderr: '', timeoutId: undefined as NodeJS.Timeout | undefined, ended: false, tSpawn, tStdinEnd: undefined as number | undefined, tStdoutFirst: undefined as number | undefined, tFirstItem: undefined as number | undefined, tEnd: undefined as number | undefined };
 				this.runs.set(runId, state);
 
+				// Emit spawn timing message immediately so frontend can track trigger-to-spawn
+				this._onStream.fire({
+					runId,
+					type: 'spawn',
+					timing: { spawnTimeMs: tSpawn }
+				});
+
 				child.stdout.on('data', (data) => {
 					if (!state.tStdoutFirst) {
 						state.tStdoutFirst = Date.now();
@@ -71,12 +78,17 @@ export class SNCProcessService extends Disposable implements ISNCProcessService 
 							} else if ((msg && msg.type === 'end')) {
 								state.ended = true;
 								state.tEnd = Date.now();
-								this._onStream.fire({ runId, type: 'end', result: msg.result as IProcessResult });
+								// Build comprehensive timing data for the end message
+								const timing: SNCTimingData = {
+									spawnTimeMs: state.tSpawn,
+									spawnToStdinEndMs: typeof state.tStdinEnd === 'number' ? state.tStdinEnd - state.tSpawn : undefined,
+									spawnToStdoutFirstMs: typeof state.tStdoutFirst === 'number' ? state.tStdoutFirst - state.tSpawn : undefined,
+									spawnToFirstItemMs: typeof state.tFirstItem === 'number' ? state.tFirstItem - state.tSpawn : undefined,
+									spawnToEndMs: typeof state.tEnd === 'number' ? state.tEnd - state.tSpawn : undefined,
+								};
+								this._onStream.fire({ runId, type: 'end', result: msg.result as IProcessResult, timing });
 								try {
-									const spawnToStdoutFirst = typeof state.tStdoutFirst === 'number' ? state.tStdoutFirst - state.tSpawn : undefined;
-									const spawnToFirstItem = typeof state.tFirstItem === 'number' ? state.tFirstItem - state.tSpawn : undefined;
-									const spawnToEnd = typeof state.tEnd === 'number' ? state.tEnd - state.tSpawn : undefined;
-									this.logService.info('SNC timing: run summary', { runId, spawnToStdoutFirstMs: spawnToStdoutFirst, spawnToFirstItemMs: spawnToFirstItem, spawnToEndMs: spawnToEnd });
+									this.logService.info('SNC timing: run summary', { runId, ...timing });
 								} catch { /* ignore */ }
 							}
 						} catch {

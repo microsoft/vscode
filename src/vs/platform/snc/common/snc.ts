@@ -34,10 +34,28 @@ export interface IProcessOptions {
 export type SNCCommand =
 	| { type: 'NewCode'; code: string };
 
+/**
+ * Timing data for visualizer performance measurement.
+ * All times are in milliseconds and relative to spawn time unless otherwise noted.
+ */
+export interface SNCTimingData {
+	/** Backend timestamp (Date.now()) when spawn was called */
+	spawnTimeMs: number;
+	/** Time from spawn to stdin end (code sent) */
+	spawnToStdinEndMs?: number;
+	/** Time from spawn to first byte on stdout */
+	spawnToStdoutFirstMs?: number;
+	/** Time from spawn to first visualization item parsed */
+	spawnToFirstItemMs?: number;
+	/** Time from spawn to run completion */
+	spawnToEndMs?: number;
+}
+
 export type SNCStreamMessage =
 	| { runId: string; type: 'item'; item: IVisualizationItem }
 	| { runId: string; type: 'command'; command: SNCCommand }
-	| { runId: string; type: 'end'; result: IProcessResult }
+	| { runId: string; type: 'end'; result: IProcessResult; timing?: SNCTimingData }
+	| { runId: string; type: 'spawn'; timing: SNCTimingData }
 	| { runId: string; type: 'error'; error: string };
 
 export const ISNCProcessService = createDecorator<ISNCProcessService>('sncProcessService');

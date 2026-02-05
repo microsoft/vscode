@@ -5,7 +5,7 @@ import { IEditorContribution } from '../../../common/editorCommon.js';
 import { ICodeEditor, IViewZone, IOverlayWidget, IOverlayWidgetPosition, IOverlayWidgetPositionCoordinates } from '../../../browser/editorBrowser.js';
 import { Position } from '../../../common/core/position.js';
 import { IModelContentChangedEvent } from '../../../common/textModelEvents.js';
-import { IProcessOptions, IVisualizationItem, SNCCommand, SNCStreamMessage, UiEvent } from '../../../../platform/snc/common/snc.js';
+import { IProcessOptions, IVisualizationItem, SNCCommand, SNCStreamMessage, SNCTimingData, UiEvent } from '../../../../platform/snc/common/snc.js';
 import { IMainProcessService } from '../../../../platform/ipc/common/mainProcessService.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { createTrustedTypesPolicy } from '../../../../base/browser/trustedTypes.js';
@@ -260,6 +260,14 @@ export class SNCController extends Disposable implements IEditorContribution {
 	private streamSubscription: { dispose(): void } | null = null;
 	private streamUpdateTimer: any = null;
 	private cursorUpdateTimer: any = null;
+
+	// Timing tracking: all frontend times use performance.now()
+	private runTriggerMsById: Map<string, number> = new Map();        // When runProgram was called (frontend)
+	private runSpawnTimingById: Map<string, SNCTimingData> = new Map(); // Backend spawn timing data
+	private runFirstItemReceivedMsById: Map<string, number> = new Map(); // When first 'item' message received (frontend)
+	private runFirstRenderMsById: Map<string, number> = new Map();    // When first render completed (frontend)
+
+	// Legacy tracking (kept for backwards compatibility but will be replaced by above)
 	private runStartMsById: Map<string, number> = new Map();
 	private runFirstItemMsById: Map<string, number> = new Map();
 
@@ -679,6 +687,91 @@ export class SNCController extends Disposable implements IEditorContribution {
 		}
 	}
 
+	/**
+	 * Log comprehensive visualizer timing data.
+	 *
+	 * Measurements:
+	 * 1. triggerToSpawn: Time from trigger (runProgram call) to Python spawn
+	 * 2. spawnToFirstStdout: Time from spawn to first visualizer data on stdout (backend)
+	 * 3. firstStdoutToFirstRender: Time from first stdout to first render completion (frontend)
+	 * 4. total: Total time from trigger to first render completion
+	 */
+	private logVisualizerTiming(runId: string, backendTiming: SNCTimingData | undefined, tEnd: number): void {
+		const triggerMs = this.runTriggerMsById.get(runId);
+		const firstItemReceivedMs = this.runFirstItemReceivedMsById.get(runId);
+		const firstRenderMs = this.runFirstRenderMsById.get(runId);
+		const spawnTiming = this.runSpawnTimingById.get(runId);
+
+		// If we don't have the spawn timing from the spawn message, use the one from the end message
+		const timing = spawnTiming || backendTiming;
+
+		if (typeof triggerMs !== 'number' || !timing) {
+			// Not enough data for timing - likely the run was cancelled or errored early
+			return;
+		}
+
+		// Calculate timings
+		// Note: We can't directly compare frontend (performance.now) and backend (Date.now) times,
+		// but we can use the backend's relative timings and our frontend measurements.
+
+		// 1. Trigger to spawn: approximate using the time the spawn message was processed
+		//    Since spawn message is emitted immediately after spawn and IPC is fast,
+		//    this gives us a reasonable approximation
+		const triggerToFirstItemReceived = typeof firstItemReceivedMs === 'number' ? firstItemReceivedMs - triggerMs : undefined;
+
+		// 2. Spawn to first stdout (backend timing)
+		const spawnToFirstStdout = timing.spawnToStdoutFirstMs;
+
+		// 3. Spawn to first item parsed (backend timing)
+		const spawnToFirstItem = timing.spawnToFirstItemMs;
+
+		// 4. First item received to first render (frontend timing)
+		const firstItemToFirstRender = (typeof firstItemReceivedMs === 'number' && typeof firstRenderMs === 'number')
+			? firstRenderMs - firstItemReceivedMs
+			: undefined;
+
+		// 5. Total from trigger to first render
+		const triggerToFirstRender = typeof firstRenderMs === 'number' ? firstRenderMs - triggerMs : undefined;
+
+		// 6. Total from trigger to end
+		const triggerToEnd = tEnd - triggerMs;
+
+		// Build timing summary
+		const timingSummary = {
+			runId,
+			// Frontend timings (all relative to trigger)
+			triggerToFirstItemReceivedMs: triggerToFirstItemReceived !== undefined ? Math.round(triggerToFirstItemReceived * 100) / 100 : undefined,
+			firstItemReceivedToFirstRenderMs: firstItemToFirstRender !== undefined ? Math.round(firstItemToFirstRender * 100) / 100 : undefined,
+			triggerToFirstRenderMs: triggerToFirstRender !== undefined ? Math.round(triggerToFirstRender * 100) / 100 : undefined,
+			triggerToEndMs: Math.round(triggerToEnd * 100) / 100,
+			// Backend timings (all relative to spawn)
+			spawnToStdinEndMs: timing.spawnToStdinEndMs,
+			spawnToFirstStdoutMs: spawnToFirstStdout,
+			spawnToFirstItemParsedMs: spawnToFirstItem,
+			spawnToEndMs: timing.spawnToEndMs,
+		};
+
+		console.log('SNC Visualizer Timing:', timingSummary);
+
+		// Log a human-readable summary
+		const parts: string[] = [];
+		if (triggerToFirstItemReceived !== undefined) {
+			parts.push(`trigger→firstItem: ${Math.round(triggerToFirstItemReceived)}ms`);
+		}
+		if (spawnToFirstStdout !== undefined) {
+			parts.push(`spawn→stdout: ${spawnToFirstStdout}ms`);
+		}
+		if (firstItemToFirstRender !== undefined) {
+			parts.push(`firstItem→render: ${Math.round(firstItemToFirstRender)}ms`);
+		}
+		if (triggerToFirstRender !== undefined) {
+			parts.push(`TOTAL trigger→render: ${Math.round(triggerToFirstRender)}ms`);
+		}
+		if (parts.length > 0) {
+			console.log(`SNC Timing Summary: ${parts.join(' | ')}`);
+		}
+	}
+
 	private async runProgram(content: string, uiEvent?: UiEvent): Promise<void> {
 		// Get the working directory from the first workspace folder
 		const workingDirectory = this.workspaceContextService.getWorkspace().folders[0]?.uri.fsPath || '';
@@ -720,12 +813,23 @@ export class SNCController extends Disposable implements IEditorContribution {
 					return;
 				}
 
-				if (msg.type === 'item') {
+				const now = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
+
+				if (msg.type === 'spawn') {
+					// Store backend spawn timing data
+					this.runSpawnTimingById.set(msg.runId, msg.timing);
+				} else if (msg.type === 'item') {
 					// console.log(msg.item.model)
 					// Timing: first item arrival for this run
+					const isFirstItem = !this.runFirstItemReceivedMsById.has(msg.runId);
+					if (isFirstItem) {
+						this.runFirstItemReceivedMsById.set(msg.runId, now());
+					}
+
+					// Legacy tracking (kept for backwards compatibility)
 					if (!this.runFirstItemMsById.has(msg.runId)) {
 						const t0 = this.runStartMsById.get(msg.runId);
-						const t1 = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+						const t1 = now();
 						if (typeof t0 === 'number') {
 							// console.log('SNC timing: first item', { runId: msg.runId, startToFirstItemMs: t1 - t0 });
 						}
@@ -752,6 +856,17 @@ export class SNCController extends Disposable implements IEditorContribution {
 					// Throttle UI updates
 					if (!this.streamUpdateTimer) {
 						this.updateVisualizationWidgets(this.visualizationItems);
+
+						// Track first render completion time (after updateVisualizationWidgets returns)
+						if (isFirstItem && !this.runFirstRenderMsById.has(msg.runId)) {
+							// Use requestAnimationFrame to ensure the render has actually painted
+							dom.getActiveWindow().requestAnimationFrame(() => {
+								if (!this.runFirstRenderMsById.has(msg.runId)) {
+									this.runFirstRenderMsById.set(msg.runId, now());
+								}
+							});
+						}
+
 						this.streamUpdateTimer = setTimeout(() => {
 							this.streamUpdateTimer = null;
 						}, 16);
@@ -761,18 +876,20 @@ export class SNCController extends Disposable implements IEditorContribution {
 					this.handleCommand(msg.command);
 				} else if (msg.type === 'end') {
 					// console.log('program end');
+					const tEnd = now();
 
-					// Timing: end of run
-					// const tStart = this.runStartMsById.get(msg.runId);
-					// const tFirst = this.runFirstItemMsById.get(msg.runId);
-					// const tEnd = (typeof performance !== 'undefined' ? performance.now() : Date.now());
-					// if (typeof tStart === 'number') {
-					// 	const total = tEnd - tStart;
-					// 	const spawnToFirst = (typeof tFirst === 'number') ? (tFirst - tStart) : -1;
-					// 	console.log('SNC timing: run end', { runId: msg.runId, totalMs: total, spawnToFirstItemMs: spawnToFirst });
-					// }
+					// Comprehensive timing logging
+					this.logVisualizerTiming(msg.runId, msg.timing, tEnd);
+
+					// Legacy timing cleanup
 					this.runStartMsById.delete(msg.runId);
 					this.runFirstItemMsById.delete(msg.runId);
+
+					// New timing cleanup
+					this.runTriggerMsById.delete(msg.runId);
+					this.runSpawnTimingById.delete(msg.runId);
+					this.runFirstItemReceivedMsById.delete(msg.runId);
+					this.runFirstRenderMsById.delete(msg.runId);
 
 					clearTimeout(this.streamUpdateTimer);
 
@@ -791,6 +908,14 @@ export class SNCController extends Disposable implements IEditorContribution {
 					this.eventsBeingHandledCurrentRun = [];
 				} else if (msg.type === 'error') {
 					console.error('SNC streaming error:', msg.error);
+					// Cleanup timing tracking on error
+					this.runTriggerMsById.delete(msg.runId);
+					this.runSpawnTimingById.delete(msg.runId);
+					this.runFirstItemReceivedMsById.delete(msg.runId);
+					this.runFirstRenderMsById.delete(msg.runId);
+					this.runStartMsById.delete(msg.runId);
+					this.runFirstItemMsById.delete(msg.runId);
+
 					this.currentRunId = null;
 					this.eventsBeingHandledCurrentRun = [];
 					this.visualizationItems = [];
@@ -815,6 +940,8 @@ export class SNCController extends Disposable implements IEditorContribution {
 		this.currentRunId = runId;
 		const nowMs = (typeof performance !== 'undefined' ? performance.now() : Date.now());
 		this.runStartMsById.set(runId, nowMs);
+		// Track trigger time for new timing system
+		this.runTriggerMsById.set(runId, nowMs);
 
 		this.eventsBeingHandledCurrentRun = models_and_events.map(m_e => ({
 			line: m_e.line,
