@@ -56,3 +56,6 @@
 
 .monaco-editor .codicon.codicon-terminal-symbol-inline-suggestion,
 .monaco-workbench .codicon.codicon-terminal-symbol-inline-suggestion { color: var(--vscode-terminalSymbolIcon-inlineSuggestionForeground); }
+
+.monaco-editor .codicon.codicon-terminal-symbol-symbol-text,
+.monaco-workbench .codicon.codicon-terminal-symbol-symbol-text { color: var(--vscode-terminalSymbolIcon-symbolText); }
