@@ -593,6 +593,7 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			description: nls.localize('chat.agent.enabled.description', "When enabled, agent mode can be activated from chat and tools in agentic contexts with side effects can be used."),
 			default: true,
+			order: 1,
 			policy: {
 				name: 'ChatAgentMode',
 				category: PolicyCategory.InteractiveSession,
@@ -609,7 +610,7 @@ configurationRegistry.registerConfiguration({
 		[ChatConfiguration.RequestQueueingEnabled]: {
 			type: 'boolean',
 			description: nls.localize('chat.requestQueuing.enabled.description', "When enabled, allows queuing additional messages while a request is in progress and steering the current request with a new message."),
-			default: false,
+			default: true,
 			tags: ['experimental'],
 		},
 		[ChatConfiguration.EditModeHidden]: {
@@ -1191,6 +1192,7 @@ class ChatAgentSettingContribution extends Disposable implements IWorkbenchContr
 							type: 'number',
 							markdownDescription: nls.localize('chat.agent.maxRequests', "The maximum number of requests to allow per-turn when using an agent. When the limit is reached, will ask to confirm to continue."),
 							default: defaultValue,
+							order: 2,
 						},
 					}
 				};

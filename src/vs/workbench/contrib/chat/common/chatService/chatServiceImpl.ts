@@ -13,7 +13,7 @@ import { Iterable } from '../../../../../base/common/iterator.js';
 import { Disposable, DisposableResourceMap, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { revive } from '../../../../../base/common/marshalling.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { autorun, derived, IObservable } from '../../../../../base/common/observable.js';
+import { autorun, derived, IObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { StopWatch } from '../../../../../base/common/stopwatch.js';
 import { isDefined } from '../../../../../base/common/types.js';
@@ -56,9 +56,9 @@ import { IHooksExecutionService } from '../hooks/hooksExecutionService.js';
 const serializedChatKey = 'interactive.sessions';
 
 class CancellableRequest implements IDisposable {
-	private _yieldRequested = false;
+	private readonly _yieldRequested: ISettableObservable<boolean> = observableValue(this, false);
 
-	get yieldRequested(): boolean {
+	get yieldRequested(): IObservable<boolean> {
 		return this._yieldRequested;
 	}
 
@@ -81,7 +81,7 @@ class CancellableRequest implements IDisposable {
 	}
 
 	setYieldRequested(): void {
-		this._yieldRequested = true;
+		this._yieldRequested.set(true, undefined);
 	}
 }
 
@@ -1037,8 +1037,13 @@ export class ChatService extends Disposable implements IChatService {
 					const requestProps = prepareChatAgentRequest(agent, command, enableCommandDetection, request /* Reuse the request object if we already created it for participant detection */, !!detectedAgent);
 					this.generateInitialChatTitleIfNeeded(model, requestProps, defaultAgent, token);
 					const pendingRequest = this._pendingRequests.get(sessionResource);
-					if (pendingRequest && !pendingRequest.requestId) {
-						pendingRequest.requestId = requestProps.requestId;
+					if (pendingRequest) {
+						store.add(autorun(reader => {
+							if (pendingRequest.yieldRequested.read(reader)) {
+								this.chatAgentService.setYieldRequested(agent.id, request.id);
+							}
+						}));
+						pendingRequest.requestId ??= requestProps.requestId;
 					}
 					completeResponseCreated();
 

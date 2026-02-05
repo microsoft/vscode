@@ -242,19 +242,23 @@ class WorkbenchHostService extends Disposable implements IHostService {
 
 	async showToast(options: IToastOptions, token: CancellationToken): Promise<IToastResult> {
 		const id = generateUuid();
-		token.onCancellationRequested(() => this.nativeHostService.clearToast(id));
+		const listener = token.onCancellationRequested(() => this.nativeHostService.clearToast(id));
 
-		// Try native OS notifications first
-		const nativeToast = await this.nativeHostService.showToast({ ...options, id });
-		if (nativeToast.supported) {
-			return nativeToast;
+		try {
+			// Try native OS notifications first
+			const nativeToast = await this.nativeHostService.showToast({ ...options, id });
+			if (nativeToast.supported) {
+				return nativeToast;
+			}
+
+			// Then fallback to browser notifications
+			return await showBrowserToast({
+				onDidCreateToast: (toast: IDisposable) => this.activeBrowserToasts.add(toast),
+				onDidDisposeToast: (toast: IDisposable) => this.activeBrowserToasts.deleteAndDispose(toast)
+			}, options, token);
+		} finally {
+			listener.dispose();
 		}
-
-		// Then fallback to browser notifications
-		return showBrowserToast({
-			onDidCreateToast: (toast: IDisposable) => this.activeBrowserToasts.add(toast),
-			onDidDisposeToast: (toast: IDisposable) => this.activeBrowserToasts.deleteAndDispose(toast)
-		}, options, token);
 	}
 
 	private async clearToasts(): Promise<void> {

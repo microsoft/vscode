@@ -25,7 +25,7 @@ import { InMemoryFileSystemProvider } from '../../../platform/files/common/inMem
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { ISharedProcessService } from '../../../platform/ipc/electron-browser/services.js';
 import { NullLogService } from '../../../platform/log/common/log.js';
-import { INativeHostOptions, INativeHostService, IOSProperties, IOSStatistics, IToastOptions, IToastResult } from '../../../platform/native/common/native.js';
+import { INativeHostOptions, INativeHostService, IOSProperties, IOSStatistics, IToastOptions, IToastResult, PowerSaveBlockerType, SystemIdleState, ThermalState } from '../../../platform/native/common/native.js';
 import { IProductService } from '../../../platform/product/common/productService.js';
 import { AuthInfo, Credentials } from '../../../platform/request/common/request.js';
 import { IStorageService } from '../../../platform/storage/common/storage.js';
@@ -74,7 +74,14 @@ export class TestNativeHostService implements INativeHostService {
 	readonly onDidBlurMainWindow: Event<number> = Event.None;
 	readonly onDidFocusMainOrAuxiliaryWindow: Event<number> = Event.None;
 	readonly onDidBlurMainOrAuxiliaryWindow: Event<number> = Event.None;
+	readonly onDidSuspendOS: Event<void> = Event.None;
 	readonly onDidResumeOS: Event<unknown> = Event.None;
+	readonly onDidChangeOnBatteryPower: Event<boolean> = Event.None;
+	readonly onDidChangeThermalState: Event<ThermalState> = Event.None;
+	readonly onDidChangeSpeedLimit: Event<number> = Event.None;
+	readonly onWillShutdownOS: Event<void> = Event.None;
+	readonly onDidLockScreen: Event<void> = Event.None;
+	readonly onDidUnlockScreen: Event<void> = Event.None;
 	onDidChangeColorScheme = Event.None;
 	onDidChangePassword = Event.None;
 	readonly onDidTriggerWindowSystemContextMenu: Event<{ windowId: number; x: number; y: number }> = Event.None;
@@ -179,6 +186,15 @@ export class TestNativeHostService implements INativeHostService {
 	async showToast(options: IToastOptions): Promise<IToastResult> { return { supported: false, clicked: false }; }
 	async clearToast(id: string): Promise<void> { }
 	async clearToasts(): Promise<void> { }
+
+	// Power APIs
+	async getSystemIdleState(idleThreshold: number): Promise<SystemIdleState> { return 'unknown'; }
+	async getSystemIdleTime(): Promise<number> { return 0; }
+	async getCurrentThermalState(): Promise<ThermalState> { return 'unknown'; }
+	async isOnBatteryPower(): Promise<boolean> { return false; }
+	async startPowerSaveBlocker(type: PowerSaveBlockerType): Promise<number> { return -1; }
+	async stopPowerSaveBlocker(id: number): Promise<boolean> { return false; }
+	async isPowerSaveBlockerStarted(id: number): Promise<boolean> { return false; }
 }
 
 export class TestExtensionTipsService extends AbstractNativeExtensionTipsService {

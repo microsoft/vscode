@@ -156,7 +156,7 @@ export class ModalEditorPart {
 			editorPartContainer.style.height = `${height}px`;
 
 			const borderSize = 2; // Account for 1px border on all sides and modal header height
-			const headerHeight = 35;
+			const headerHeight = 24;
 			editorPart.layout(width - borderSize, height - borderSize - headerHeight, 0, 0);
 		}));
 

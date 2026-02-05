@@ -52,6 +52,33 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	private _state: OutputMonitorState = OutputMonitorState.PollingForIdle;
 	get state(): OutputMonitorState { return this._state; }
 
+	private _formatLastLineForLog(output: string | undefined): string {
+		if (!output) {
+			return '<empty>';
+		}
+		const lastLine = output.trimEnd().split(/\r?\n/).pop() ?? '';
+		if (!lastLine) {
+			return '<empty>';
+		}
+		// Avoid logging potentially sensitive values from common secret prompts.
+		if (/(password|passphrase|token|api\s*key|secret)/i.test(lastLine)) {
+			return '<redacted>';
+		}
+		// Keep logs bounded.
+		return lastLine.length > 200 ? lastLine.slice(0, 200) + '…' : lastLine;
+	}
+
+	private _formatOptionsForLog(options: readonly string[]): string {
+		if (!options.length) {
+			return '[]';
+		}
+		// Keep bounded and single-line.
+		const maxOptions = 12;
+		const shown = options.slice(0, maxOptions).map(o => o.replace(/\r?\n/g, 'return'));
+		const suffix = options.length > maxOptions ? `, …(+${options.length - maxOptions})` : '';
+		return `[${shown.join(', ')}${suffix}]`;
+	}
+
 	private _lastPromptMarker: XtermMarker | undefined;
 
 	private _lastPrompt: string | undefined;
@@ -121,10 +148,13 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			while (!token.isCancellationRequested) {
 				switch (this._state) {
 					case OutputMonitorState.PollingForIdle: {
+						this._logService.trace(`OutputMonitor: Entering PollingForIdle (extended=${extended})`);
 						this._state = await this._waitForIdle(this._execution, extended, token);
+						this._logService.trace(`OutputMonitor: PollingForIdle completed -> state=${OutputMonitorState[this._state]}`);
 						continue;
 					}
 					case OutputMonitorState.Timeout: {
+						this._logService.trace(`OutputMonitor: Entering Timeout state (extended=${extended})`);
 						const shouldContinuePolling = await this._handleTimeoutState(command, invocationContext, extended, token);
 						if (shouldContinuePolling) {
 							extended = true;
@@ -139,11 +169,14 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 					case OutputMonitorState.Cancelled:
 						break;
 					case OutputMonitorState.Idle: {
+						this._logService.trace('OutputMonitor: Entering Idle handler');
 						const idleResult = await this._handleIdleState(token);
 						if (idleResult.shouldContinuePollling) {
+							this._logService.trace('OutputMonitor: Idle handler -> continue polling');
 							this._state = OutputMonitorState.PollingForIdle;
 							continue;
 						} else {
+							this._logService.trace(`OutputMonitor: Idle handler -> stop polling (hasResources=${!!idleResult.resources}, hasModelEval=${!!idleResult.modelOutputEvalResponse}, outputLen=${idleResult.output?.length ?? 0})`);
 							resources = idleResult.resources;
 							modelOutputEvalResponse = idleResult.modelOutputEvalResponse;
 							output = idleResult.output;
@@ -160,6 +193,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				this._state = OutputMonitorState.Cancelled;
 			}
 		} finally {
+			this._logService.trace(`OutputMonitor: Monitoring finished (state=${OutputMonitorState[this._state]}, duration=${Date.now() - pollStartTime}ms)`);
 			this._pollingResult = {
 				state: this._state,
 				output: output ?? this._execution.getOutput(),
@@ -185,8 +219,10 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 
 	private async _handleIdleState(token: CancellationToken): Promise<{ resources?: ILinkLocation[]; modelOutputEvalResponse?: string; shouldContinuePollling: boolean; output?: string }> {
 		const output = this._execution.getOutput(this._lastPromptMarker);
+		this._logService.trace(`OutputMonitor: Idle output summary: len=${output.length}, lastLine=${this._formatLastLineForLog(output)}`);
 
 		if (detectsNonInteractiveHelpPattern(output)) {
+			this._logService.trace('OutputMonitor: Idle -> non-interactive help pattern detected, stopping');
 			return { shouldContinuePollling: false, output };
 		}
 
@@ -196,6 +232,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		const isTask = this._execution.task !== undefined;
 		const isTaskInactive = this._execution.isActive ? !(await this._execution.isActive()) : true;
 		if (isTask && isTaskInactive && detectsVSCodeTaskFinishMessage(output)) {
+			this._logService.trace('OutputMonitor: Idle -> VS Code task finish message detected for inactive task, stopping');
 			// Task is finished, ignore the "press any key to close" message
 			return { shouldContinuePollling: false, output };
 		}
@@ -203,6 +240,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		// Check for generic "press any key" prompts from scripts.
 		// These should be treated as free-form input to let the user press a key.
 		if ((!isTask || !isTaskInactive) && detectsGenericPressAnyKeyPattern(output)) {
+			this._logService.trace('OutputMonitor: Idle -> generic "press any key" detected, requesting free-form input');
 			// Register a marker to track this prompt position so we don't re-detect it
 			const currentMarker = this._execution.instance.registerMarker();
 			if (currentMarker) {
@@ -217,23 +255,29 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				detectedRequestForFreeFormInput: true
 			}, true /* acceptAnyKey */);
 			if (receivedTerminalInput) {
+				this._logService.trace('OutputMonitor: Free-form input received for "press any key", continue polling');
 				await timeout(200);
 				return { shouldContinuePollling: true };
 			} else {
+				this._logService.trace('OutputMonitor: Free-form input declined for "press any key", stopping');
 				return { shouldContinuePollling: false };
 			}
 		}
 
 		// Check if user already inputted since idle was detected (before we even got here)
 		if (this._userInputtedSinceIdleDetected) {
+			this._logService.trace('OutputMonitor: User input detected since idle; skipping prompt and continuing polling');
 			this._cleanupIdleInputListener();
 			return { shouldContinuePollling: true };
 		}
 
+		this._logService.trace('OutputMonitor: Determining user input options via language model');
 		const confirmationPrompt = await this._determineUserInputOptions(this._execution, token);
+		this._logService.trace(`OutputMonitor: Input options result: ${confirmationPrompt ? `prompt=${this._formatLastLineForLog(confirmationPrompt.prompt)}, options=${confirmationPrompt.options.length} ${this._formatOptionsForLog(confirmationPrompt.options)}, freeForm=${!!confirmationPrompt.detectedRequestForFreeFormInput}` : 'none'}`);
 
 		// Check again after the async LLM call - user may have inputted while we were analyzing
 		if (this._userInputtedSinceIdleDetected) {
+			this._logService.trace('OutputMonitor: User input arrived during input-option analysis; continuing polling');
 			this._cleanupIdleInputListener();
 			return { shouldContinuePollling: true };
 		}
@@ -241,26 +285,32 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		if (confirmationPrompt?.detectedRequestForFreeFormInput) {
 			// Check again right before showing prompt
 			if (this._userInputtedSinceIdleDetected) {
+				this._logService.trace('OutputMonitor: User input arrived before showing free-form prompt; continuing polling');
 				this._cleanupIdleInputListener();
 				return { shouldContinuePollling: true };
 			}
 			// Clean up the input listener now - the prompt will set up its own
 			this._cleanupIdleInputListener();
 			this._outputMonitorTelemetryCounters.inputToolFreeFormInputShownCount++;
+			this._logService.trace('OutputMonitor: Showing free-form input elicitation');
 			const receivedTerminalInput = await this._requestFreeFormTerminalInput(token, this._execution, confirmationPrompt);
 			if (receivedTerminalInput) {
 				// Small delay to ensure input is processed
+				this._logService.trace('OutputMonitor: Free-form input received; continuing polling');
 				await timeout(200);
 				// Continue polling as we sent the input
 				return { shouldContinuePollling: true };
 			} else {
 				// User declined
+				this._logService.trace('OutputMonitor: Free-form input declined; stopping');
 				return { shouldContinuePollling: false };
 			}
 		}
 
 		if (confirmationPrompt?.options.length) {
+			this._logService.trace(`OutputMonitor: Showing option-based input flow (options=${confirmationPrompt.options.length})`);
 			const suggestedOptionResult = await this._selectAndHandleOption(confirmationPrompt, token);
+			this._logService.trace(`OutputMonitor: Suggested option result: ${suggestedOptionResult?.suggestedOption ? 'hasSuggestion' : 'none'} (autoSent=${!!suggestedOptionResult?.sentToTerminal})`);
 			if (suggestedOptionResult?.sentToTerminal) {
 				// Continue polling as we sent the input
 				this._cleanupIdleInputListener();
@@ -268,17 +318,21 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			}
 			// Check again after LLM call - user may have inputted while we were selecting option
 			if (this._userInputtedSinceIdleDetected) {
+				this._logService.trace('OutputMonitor: User input arrived during option selection; continuing polling');
 				this._cleanupIdleInputListener();
 				return { shouldContinuePollling: true };
 			}
 			// Clean up the input listener now - the prompt will set up its own
 			this._cleanupIdleInputListener();
+			this._logService.trace('OutputMonitor: Showing confirmation elicitation for suggested option');
 			const confirmed = await this._confirmRunInTerminal(token, suggestedOptionResult?.suggestedOption ?? confirmationPrompt.options[0], this._execution, confirmationPrompt);
 			if (confirmed) {
 				// Continue polling as we sent the input
+				this._logService.trace('OutputMonitor: Option confirmed/sent; continuing polling');
 				return { shouldContinuePollling: true };
 			} else {
 				// User declined
+				this._logService.trace('OutputMonitor: Option declined; stopping');
 				this._execution.instance.focus(true);
 				return { shouldContinuePollling: false };
 			}
@@ -289,6 +343,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 
 		// Let custom poller override if provided
 		const custom = await this._pollFn?.(this._execution, token, this._taskService);
+		this._logService.trace(`OutputMonitor: Custom poller result: ${custom ? 'provided' : 'none'}`);
 		const resources = custom?.resources;
 		const modelOutputEvalResponse = await this._assessOutputForErrors(this._execution.getOutput(), token);
 		return { resources, modelOutputEvalResponse, shouldContinuePollling: false, output: custom?.output ?? output };
@@ -335,6 +390,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				const currentOutput = execution.getOutput();
 
 				if (detectsNonInteractiveHelpPattern(currentOutput)) {
+					this._logService.trace(`OutputMonitor: waitForIdle -> non-interactive help detected (waited=${waited}ms)`);
 					this._state = OutputMonitorState.Idle;
 					this._setupIdleInputListener();
 					return this._state;
@@ -342,6 +398,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 
 				const promptResult = detectsInputRequiredPattern(currentOutput);
 				if (promptResult) {
+					this._logService.trace(`OutputMonitor: waitForIdle -> input-required pattern detected (waited=${waited}ms, lastLine=${this._formatLastLineForLog(currentOutput)})`);
 					this._state = OutputMonitorState.Idle;
 					this._setupIdleInputListener();
 					return this._state;
@@ -358,6 +415,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				const isActive = execution.isActive ? await execution.isActive() : undefined;
 				this._logService.trace(`OutputMonitor: waitForIdle check: waited=${waited}ms, recentlyIdle=${recentlyIdle}, isActive=${isActive}`);
 				if (recentlyIdle && isActive !== true) {
+					this._logService.trace(`OutputMonitor: waitForIdle -> recentlyIdle && !active (waited=${waited}ms, lastLine=${this._formatLastLineForLog(currentOutput)})`);
 					this._state = OutputMonitorState.Idle;
 					this._setupIdleInputListener();
 					return this._state;
@@ -380,10 +438,12 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	 */
 	private _setupIdleInputListener(): void {
 		this._userInputtedSinceIdleDetected = false;
+		this._logService.trace('OutputMonitor: Setting up idle input listener');
 
 		// Set up new listener (MutableDisposable auto-disposes previous)
 		this._userInputListener.value = this._execution.instance.onDidInputData(() => {
 			this._userInputtedSinceIdleDetected = true;
+			this._logService.trace('OutputMonitor: Detected user terminal input while idle');
 		});
 	}
 
@@ -420,13 +480,16 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 
 	private async _determineUserInputOptions(execution: IExecution, token: CancellationToken): Promise<IConfirmationPrompt | undefined> {
 		if (token.isCancellationRequested) {
+			this._logService.trace('OutputMonitor: determineUserInputOptions cancelled before start');
 			return;
 		}
 		const model = await this._getLanguageModel();
 		if (!model) {
+			this._logService.trace('OutputMonitor: determineUserInputOptions no language model available');
 			return undefined;
 		}
 		const lastLines = execution.getOutput(this._lastPromptMarker).trimEnd().split('\n').slice(-15).join('\n');
+		this._logService.trace(`OutputMonitor: determineUserInputOptions analyzing lastLines (len=${lastLines.length})`);
 
 		if (detectsNonInteractiveHelpPattern(lastLines)) {
 			return undefined;
@@ -487,6 +550,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				) {
 					const obj = parsed as { prompt: string; options: unknown; freeFormInput: boolean };
 					if (this._lastPrompt === obj.prompt) {
+						this._logService.trace('OutputMonitor: determineUserInputOptions ignoring duplicate prompt');
 						return;
 					}
 					if (obj.freeFormInput === true) {
@@ -505,7 +569,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				}
 			}
 		} catch (err) {
-			console.error('Failed to parse confirmation prompt from language model response:', err);
+			this._logService.trace('OutputMonitor: Failed to parse confirmation prompt from language model response', err);
 		}
 		return undefined;
 	}

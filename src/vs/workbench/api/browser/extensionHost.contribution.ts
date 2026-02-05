@@ -69,6 +69,7 @@ import './mainThreadDownloadService.js';
 import './mainThreadUrls.js';
 import './mainThreadUriOpeners.js';
 import './mainThreadWindow.js';
+import './mainThreadPower.js';
 import './mainThreadWebviewManager.js';
 import './mainThreadWorkspace.js';
 import './mainThreadComments.js';

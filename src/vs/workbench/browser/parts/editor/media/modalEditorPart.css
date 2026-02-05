@@ -46,21 +46,19 @@
 
 /** Modal Editor Part: Header with title and close button */
 .monaco-modal-editor-block .modal-editor-header {
-	display: grid;
-	grid-template-columns: 1fr auto 1fr;
+	display: flex;
 	align-items: center;
-	height: 32px;
-	min-height: 32px;
+	height: 24px;
+	min-height: 24px;
 	padding: 0 8px;
-	background-color: var(--vscode-editorGroupHeader-tabsBackground);
-	border-bottom: 1px solid var(--vscode-editorGroupHeader-tabsBorder, transparent);
+	background-color: var(--vscode-titleBar-activeBackground);
+	border-bottom: 1px solid var(--vscode-titleBar-border, transparent);
 }
 
 .monaco-modal-editor-block .modal-editor-title {
-	grid-column: 2;
+	flex: 1;
 	font-size: 12px;
-	font-weight: 500;
-	color: var(--vscode-foreground);
+	color: var(--vscode-titleBar-activeForeground);
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
@@ -68,10 +66,8 @@
 }
 
 .monaco-modal-editor-block .modal-editor-action-container {
-	grid-column: 3;
 	display: flex;
 	align-items: center;
-	justify-content: flex-end;
 }
 
 /** Modal Editor Part: Ensure proper sizing */

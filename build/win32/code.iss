@@ -19,7 +19,7 @@ OutputBaseFilename=VSCodeSetup
 Compression=lzma
 SolidCompression=yes
 AppMutex={code:GetAppMutex}
-SetupMutex={#AppMutex}setup
+SetupMutex={code:GetSetupMutex}
 WizardImageFile="{#RepoDir}\resources\win32\inno-big-100.bmp,{#RepoDir}\resources\win32\inno-big-125.bmp,{#RepoDir}\resources\win32\inno-big-150.bmp,{#RepoDir}\resources\win32\inno-big-175.bmp,{#RepoDir}\resources\win32\inno-big-200.bmp,{#RepoDir}\resources\win32\inno-big-225.bmp,{#RepoDir}\resources\win32\inno-big-250.bmp"
 WizardSmallImageFile="{#RepoDir}\resources\win32\inno-small-100.bmp,{#RepoDir}\resources\win32\inno-small-125.bmp,{#RepoDir}\resources\win32\inno-small-150.bmp,{#RepoDir}\resources\win32\inno-small-175.bmp,{#RepoDir}\resources\win32\inno-small-200.bmp,{#RepoDir}\resources\win32\inno-small-225.bmp,{#RepoDir}\resources\win32\inno-small-250.bmp"
 SetupIconFile={#RepoDir}\resources\win32\code.ico
@@ -1467,6 +1467,17 @@ begin
     Result := ''
   else
     Result := '{#AppMutex}';
+end;
+
+function GetSetupMutex(Value: string): string;
+begin
+  // Always create the base setup mutex to prevent multiple installers running.
+  // During background updates, also create a -updating mutex that VS Code checks
+  // to avoid launching while an update is in progress.
+  if IsBackgroundUpdate() then
+    Result := '{#AppMutex}setup,{#AppMutex}-updating'
+  else
+    Result := '{#AppMutex}setup';
 end;
 
 function GetDestDir(Value: string): string;
