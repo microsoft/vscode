@@ -255,6 +255,10 @@
 	color: var(--vscode-inputOption-activeForeground);
 }
 
+.agent-status-badge-section.filtered:hover {
+	filter: brightness(1.1);
+}
+
 /* High contrast: use dotted border for hover, solid for filtered/active */
 .hc-light .agent-status-badge-section:hover,
 .hc-black .agent-status-badge-section:hover {
