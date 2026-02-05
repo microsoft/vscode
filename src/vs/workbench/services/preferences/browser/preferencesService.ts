@@ -29,8 +29,8 @@ import { DEFAULT_EDITOR_ASSOCIATION, IEditorPane } from '../../../common/editor.
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { SideBySideEditorInput } from '../../../common/editor/sideBySideEditorInput.js';
 import { IJSONEditingService } from '../../configuration/common/jsonEditing.js';
-import { GroupDirection, IEditorGroup, IEditorGroupsService } from '../../editor/common/editorGroupsService.js';
-import { IEditorService, SIDE_GROUP } from '../../editor/common/editorService.js';
+import { GroupDirection, IEditorGroupsService } from '../../editor/common/editorGroupsService.js';
+import { ACTIVE_GROUP, IEditorService, MODAL_GROUP, PreferredGroup, SIDE_GROUP } from '../../editor/common/editorService.js';
 import { KeybindingsEditorInput } from './keybindingsEditorInput.js';
 import { DEFAULT_SETTINGS_EDITOR_SETTING, FOLDER_SETTINGS_PATH, IKeybindingsEditorPane, IOpenKeybindingsEditorOptions, IOpenSettingsOptions, IPreferencesEditorModel, IPreferencesService, ISetting, ISettingsEditorOptions, ISettingsGroup, SETTINGS_AUTHORITY, USE_SPLIT_JSON_SETTING, validateSettingsEditorOptions } from '../common/preferences.js';
 import { PreferencesEditorInput, SettingsEditor2Input } from '../common/preferencesEditorInput.js';
@@ -48,7 +48,6 @@ import { IURLService } from '../../../../platform/url/common/url.js';
 import { compareIgnoreCase } from '../../../../base/common/strings.js';
 import { IExtensionService } from '../../extensions/common/extensions.js';
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
-import { findGroup } from '../../editor/common/editorGroupFinder.js';
 
 const emptyEditableSettingsContent = '{\n}';
 
@@ -215,7 +214,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	}
 
 	async openPreferences(): Promise<void> {
-		await this.editorGroupService.activeGroup.openEditor(this.instantiationService.createInstance(PreferencesEditorInput));
+		await this.editorService.openEditor(this.instantiationService.createInstance(PreferencesEditorInput));
 	}
 
 	openSettings(options: IOpenSettingsOptions = {}): Promise<IEditorPane | undefined> {
@@ -274,8 +273,8 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			...options,
 			focusSearch: true
 		};
-		const group = await this.getEditorGroupFromOptions(options);
-		return group.openEditor(input, validateSettingsEditorOptions(options));
+		const group = this.getEditorGroupFromOptions(options);
+		return this.editorService.openEditor(input, validateSettingsEditorOptions(options), group);
 	}
 
 	openApplicationSettings(options: IOpenSettingsOptions = {}): Promise<IEditorPane | undefined> {
@@ -359,7 +358,8 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			}
 
 		} else {
-			const editor = (await this.editorService.openEditor(this.instantiationService.createInstance(KeybindingsEditorInput), { ...options }, options.groupId)) as IKeybindingsEditorPane;
+			const group = this.getEditorGroupFromOptions(options);
+			const editor = (await this.editorService.openEditor(this.instantiationService.createInstance(KeybindingsEditorInput), { ...options }, group)) as IKeybindingsEditorPane;
 			if (options.query) {
 				editor.search(options.query);
 			}
@@ -371,16 +371,21 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		return this.editorService.openEditor({ resource: this.defaultKeybindingsResource, label: nls.localize('defaultKeybindings', "Default Keybindings") });
 	}
 
-	private async getEditorGroupFromOptions(options: IOpenSettingsOptions): Promise<IEditorGroup> {
-		let group = options?.groupId !== undefined ? this.editorGroupService.getGroup(options.groupId) ?? this.editorGroupService.activeGroup : this.editorGroupService.activeGroup;
+	private getEditorGroupFromOptions(options: { groupId?: number; openInModal?: boolean; openToSide?: boolean }): PreferredGroup {
 		if (options.openToSide) {
-			group = (await this.instantiationService.invokeFunction(findGroup, {}, SIDE_GROUP))[0];
+			return SIDE_GROUP;
 		}
-		return group;
+		if (options.openInModal) {
+			return MODAL_GROUP;
+		}
+		if (options?.groupId !== undefined) {
+			return this.editorGroupService.getGroup(options.groupId) ?? this.editorGroupService.activeGroup;
+		}
+		return ACTIVE_GROUP;
 	}
 
 	private async openSettingsJson(resource: URI, options: IOpenSettingsOptions): Promise<IEditorPane | undefined> {
-		const group = await this.getEditorGroupFromOptions(options);
+		const group = this.getEditorGroupFromOptions(options);
 		const editor = await this.doOpenSettingsJson(resource, options, group);
 		if (editor && options?.revealSetting) {
 			await this.revealSetting(options.revealSetting.key, !!options.revealSetting.edit, editor, resource);
@@ -388,7 +393,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		return editor;
 	}
 
-	private async doOpenSettingsJson(resource: URI, options: ISettingsEditorOptions, group: IEditorGroup): Promise<IEditorPane | undefined> {
+	private async doOpenSettingsJson(resource: URI, options: ISettingsEditorOptions, group: PreferredGroup): Promise<IEditorPane | undefined> {
 		const openSplitJSON = !!this.configurationService.getValue(USE_SPLIT_JSON_SETTING);
 		const openDefaultSettings = !!this.configurationService.getValue(DEFAULT_SETTINGS_EDITOR_SETTING);
 		if (openSplitJSON || openDefaultSettings) {
@@ -398,15 +403,15 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		const configurationTarget = options?.target ?? ConfigurationTarget.USER;
 		const editableSettingsEditorInput = await this.getOrCreateEditableSettingsEditorInput(configurationTarget, resource);
 		options = { ...options, pinned: true };
-		return await group.openEditor(editableSettingsEditorInput, { ...validateSettingsEditorOptions(options) });
+		return await this.editorService.openEditor(editableSettingsEditorInput, { ...validateSettingsEditorOptions(options) }, group);
 	}
 
-	private async doOpenSplitJSON(resource: URI, options: ISettingsEditorOptions = {}, group: IEditorGroup,): Promise<IEditorPane | undefined> {
+	private async doOpenSplitJSON(resource: URI, options: ISettingsEditorOptions = {}, group: PreferredGroup,): Promise<IEditorPane | undefined> {
 		const configurationTarget = options.target ?? ConfigurationTarget.USER;
 		await this.createSettingsIfNotExists(configurationTarget, resource);
 		const preferencesEditorInput = this.createSplitJsonEditorInput(configurationTarget, resource);
 		options = { ...options, pinned: true };
-		return group.openEditor(preferencesEditorInput, validateSettingsEditorOptions(options));
+		return this.editorService.openEditor(preferencesEditorInput, validateSettingsEditorOptions(options), group);
 	}
 
 	public createSplitJsonEditorInput(configurationTarget: ConfigurationTarget, resource: URI): EditorInput {
