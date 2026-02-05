@@ -388,6 +388,26 @@ class SwitchToNextModelAction extends Action2 {
 	}
 }
 
+class SwitchToPreviousModelAction extends Action2 {
+	static readonly ID = 'workbench.action.chat.switchToPreviousModel';
+
+	constructor() {
+		super({
+			id: SwitchToPreviousModelAction.ID,
+			title: localize2('interactive.switchToPreviousModel.label', "Switch to Previous Model"),
+			category: CHAT_CATEGORY,
+			f1: true,
+			precondition: ChatContextKeys.enabled,
+		});
+	}
+
+	override run(accessor: ServicesAccessor, ...args: unknown[]): void {
+		const widgetService = accessor.get(IChatWidgetService);
+		const widget = widgetService.lastFocusedWidget;
+		widget?.input.switchToPreviousModel();
+	}
+}
+
 export class OpenModelPickerAction extends Action2 {
 	static readonly ID = 'workbench.action.chat.openModelPicker';
 
@@ -916,6 +936,7 @@ export function registerChatExecuteActions() {
 	registerAction2(ChatSubmitWithCodebaseAction);
 	registerAction2(ToggleChatModeAction);
 	registerAction2(SwitchToNextModelAction);
+	registerAction2(SwitchToPreviousModelAction);
 	registerAction2(OpenModelPickerAction);
 	registerAction2(OpenModePickerAction);
 	registerAction2(OpenSessionTargetPickerAction);

@@ -746,6 +746,15 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 	}
 
+	public switchToPreviousModel(): void {
+		const models = this.getModels();
+		if (models.length > 0) {
+			const currentIndex = models.findIndex(model => model.identifier === this._currentLanguageModel.get()?.identifier);
+			const previousIndex = (currentIndex - 1 + models.length) % models.length;
+			this.setCurrentLanguageModel(models[previousIndex]);
+		}
+	}
+
 	public openModelPicker(): void {
 		this.modelWidget?.show();
 	}
