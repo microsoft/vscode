@@ -320,7 +320,7 @@ suite('Workbench - TerminalInstance', () => {
 				capabilities,
 				title: '',
 				description: '',
-				userHome: undefined,
+				userHome: '/home/user',
 				...partial
 			};
 		}
@@ -350,11 +350,23 @@ suite('Workbench - TerminalInstance', () => {
 			strictEqual(terminalLabelComputer.title, '');
 			strictEqual(terminalLabelComputer.description, '');
 		});
-		test('should resolve cwd', () => {
+		test('should resolve cwd when outside of userHome', () => {
 			const terminalLabelComputer = createLabelComputer({ terminal: { integrated: { tabs: { separator: ' - ', title: '${cwd}', description: '${cwd}' } } } });
 			terminalLabelComputer.refreshLabel(createInstance({ capabilities, cwd: ROOT_1 }));
 			strictEqual(terminalLabelComputer.title, ROOT_1);
 			strictEqual(terminalLabelComputer.description, ROOT_1);
+		});
+		test('should resolve cwd when under userHome', () => {
+			const terminalLabelComputer = createLabelComputer({ terminal: { integrated: { tabs: { separator: ' - ', title: '${cwd}', description: '${cwd}' } } } });
+			terminalLabelComputer.refreshLabel(createInstance({ capabilities, cwd: '/home/user/foo/bar' }));
+			strictEqual(terminalLabelComputer.title, '~/foo/bar');
+			strictEqual(terminalLabelComputer.description, '~/foo/bar');
+		});
+		test('should resolve cwd when exactly at userHome', () => {
+			const terminalLabelComputer = createLabelComputer({ terminal: { integrated: { tabs: { separator: ' - ', title: '${cwd}', description: '${cwd}' } } } });
+			terminalLabelComputer.refreshLabel(createInstance({ capabilities, cwd: '/home/user' }));
+			strictEqual(terminalLabelComputer.title, '~');
+			strictEqual(terminalLabelComputer.description, '~');
 		});
 		test('should resolve workspaceFolder', () => {
 			const terminalLabelComputer = createLabelComputer({ terminal: { integrated: { tabs: { separator: ' - ', title: '${workspaceFolder}', description: '${workspaceFolder}' } } } });
