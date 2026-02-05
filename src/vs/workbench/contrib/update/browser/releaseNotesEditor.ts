@@ -650,6 +650,7 @@ export class ReleaseNotesManager extends Disposable {
 							if (event.data.label) {
 								updateActionBtn.querySelector('.label').textContent = event.data.label;
 								updateActionBtn.dataset.commandId = event.data.commandId;
+								updateActionBtn.setAttribute('aria-label', event.data.label);
 								updateActionBtn.style.display = 'flex';
 							} else {
 								updateActionBtn.style.display = 'none';
@@ -695,6 +696,7 @@ export class ReleaseNotesManager extends Disposable {
 					if (initialAction) {
 						labelSpan.textContent = initialAction.label;
 						updateActionBtn.dataset.commandId = initialAction.commandId;
+						updateActionBtn.setAttribute('aria-label', initialAction.label);
 						updateActionBtn.style.display = 'flex';
 					} else {
 						updateActionBtn.style.display = 'none';
