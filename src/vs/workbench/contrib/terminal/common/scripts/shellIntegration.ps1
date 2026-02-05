@@ -11,22 +11,13 @@ if ((Test-Path variable:global:__VSCodeState) -and $null -ne $Global:__VSCodeSta
 # Disable shell integration when the language mode is restricted
 if ($ExecutionContext.SessionState.LanguageMode -ne "FullLanguage") {
 	$LanguageMode = $ExecutionContext.SessionState.LanguageMode
-	if ($LanguageMode -ne "ConstrainedLanguage") {
+	if (-not $IsWindows -or $LanguageMode -ne "ConstrainedLanguage") {
 		return;
 	}
 	try {
-		# PowerShell 7.4+ supports audit-only constrained language mode, which is safe to run.
-		# Older PowerShell versions do not have SystemPolicy/GetSystemLockdownPolicy, so block.
-		$SystemPolicyType = [Type]::GetType("System.Management.Automation.Security.SystemPolicy, System.Management.Automation", $false)
-		if (-not $SystemPolicyType) {
-			return;
-		}
-		$SystemPolicyMethod = $SystemPolicyType.GetMethod("GetSystemLockdownPolicy")
-		if (-not $SystemPolicyMethod) {
-			return;
-		}
-		$Lockdown = $SystemPolicyMethod.Invoke($null, $null)
-		if ($Lockdown -and $Lockdown.ToString() -ne "Audit") {
+		# Allow ConstrainedLanguage only when Windows lockdown policy is Audit (PS 7.4+).
+		$Lockdown = [System.Management.Automation.Security.SystemPolicy]::GetSystemLockdownPolicy()
+		if ($Lockdown -and $Lockdown -ne [System.Management.Automation.Security.SystemEnforcementMode]::Audit) {
 			return;
 		}
 	} catch {
