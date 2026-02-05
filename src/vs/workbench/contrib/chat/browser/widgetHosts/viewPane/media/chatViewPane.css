@@ -67,10 +67,6 @@
 /* Sessions control: stacked */
 .chat-viewpane.has-sessions-control.sessions-control-orientation-stacked {
 
-	.agent-sessions-container {
-		border-bottom: 1px solid var(--vscode-panel-border);
-	}
-
 	.agent-sessions-new-button-container {
 		/* hide new session button when stacked */
 		display: none;
