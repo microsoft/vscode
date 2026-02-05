@@ -203,6 +203,8 @@ export interface IToolInvocationPreparationContext {
 	chatSessionId?: string;
 	chatSessionResource: URI | undefined;
 	chatInteractionId?: string;
+	/** If set, tells the tool that it should include confirmmation messages. */
+	forceConfirmationReason?: string;
 }
 
 export type ToolInputOutputBase = {

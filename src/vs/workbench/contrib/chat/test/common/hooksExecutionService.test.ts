@@ -308,6 +308,194 @@ suite('HooksExecutionService', () => {
 		});
 	});
 
+	suite('executePreToolUseHook', () => {
+		test('returns allow result when hook allows', async () => {
+			const proxy = createMockProxy(() => ({
+				kind: HookCommandResultKind.Success,
+				result: {
+					hookSpecificOutput: {
+						permissionDecision: 'allow',
+						permissionDecisionReason: 'Tool is safe'
+					}
+				}
+			}));
+			service.setProxy(proxy);
+
+			const hooks = { [HookType.PreToolUse]: [cmd('hook')] };
+			store.add(service.registerHooks(sessionUri, hooks));
+
+			const result = await service.executePreToolUseHook(
+				sessionUri,
+				{ toolName: 'test-tool', toolInput: {}, toolCallId: 'call-1' }
+			);
+
+			assert.ok(result);
+			assert.strictEqual(result.permissionDecision, 'allow');
+			assert.strictEqual(result.permissionDecisionReason, 'Tool is safe');
+		});
+
+		test('returns ask result when hook requires confirmation', async () => {
+			const proxy = createMockProxy(() => ({
+				kind: HookCommandResultKind.Success,
+				result: {
+					hookSpecificOutput: {
+						permissionDecision: 'ask',
+						permissionDecisionReason: 'Requires user approval'
+					}
+				}
+			}));
+			service.setProxy(proxy);
+
+			const hooks = { [HookType.PreToolUse]: [cmd('hook')] };
+			store.add(service.registerHooks(sessionUri, hooks));
+
+			const result = await service.executePreToolUseHook(
+				sessionUri,
+				{ toolName: 'test-tool', toolInput: {}, toolCallId: 'call-1' }
+			);
+
+			assert.ok(result);
+			assert.strictEqual(result.permissionDecision, 'ask');
+			assert.strictEqual(result.permissionDecisionReason, 'Requires user approval');
+		});
+
+		test('deny takes priority over ask and allow', async () => {
+			let callCount = 0;
+			const proxy = createMockProxy(() => {
+				callCount++;
+				// First hook returns allow, second returns ask, third returns deny
+				if (callCount === 1) {
+					return {
+						kind: HookCommandResultKind.Success,
+						result: { hookSpecificOutput: { permissionDecision: 'allow' } }
+					};
+				} else if (callCount === 2) {
+					return {
+						kind: HookCommandResultKind.Success,
+						result: { hookSpecificOutput: { permissionDecision: 'ask' } }
+					};
+				} else {
+					return {
+						kind: HookCommandResultKind.Success,
+						result: { hookSpecificOutput: { permissionDecision: 'deny', permissionDecisionReason: 'Blocked' } }
+					};
+				}
+			});
+			service.setProxy(proxy);
+
+			const hooks = { [HookType.PreToolUse]: [cmd('hook1'), cmd('hook2'), cmd('hook3')] };
+			store.add(service.registerHooks(sessionUri, hooks));
+
+			const result = await service.executePreToolUseHook(
+				sessionUri,
+				{ toolName: 'test-tool', toolInput: {}, toolCallId: 'call-1' }
+			);
+
+			assert.ok(result);
+			assert.strictEqual(result.permissionDecision, 'deny');
+			assert.strictEqual(result.permissionDecisionReason, 'Blocked');
+		});
+
+		test('ask takes priority over allow', async () => {
+			let callCount = 0;
+			const proxy = createMockProxy(() => {
+				callCount++;
+				// First hook returns allow, second returns ask
+				if (callCount === 1) {
+					return {
+						kind: HookCommandResultKind.Success,
+						result: { hookSpecificOutput: { permissionDecision: 'allow' } }
+					};
+				} else {
+					return {
+						kind: HookCommandResultKind.Success,
+						result: { hookSpecificOutput: { permissionDecision: 'ask', permissionDecisionReason: 'Need confirmation' } }
+					};
+				}
+			});
+			service.setProxy(proxy);
+
+			const hooks = { [HookType.PreToolUse]: [cmd('hook1'), cmd('hook2')] };
+			store.add(service.registerHooks(sessionUri, hooks));
+
+			const result = await service.executePreToolUseHook(
+				sessionUri,
+				{ toolName: 'test-tool', toolInput: {}, toolCallId: 'call-1' }
+			);
+
+			assert.ok(result);
+			assert.strictEqual(result.permissionDecision, 'ask');
+			assert.strictEqual(result.permissionDecisionReason, 'Need confirmation');
+		});
+
+		test('ignores results with wrong hookEventName', async () => {
+			let callCount = 0;
+			const proxy = createMockProxy(() => {
+				callCount++;
+				if (callCount === 1) {
+					// First hook returns allow but with wrong hookEventName
+					return {
+						kind: HookCommandResultKind.Success,
+						result: {
+							hookSpecificOutput: {
+								hookEventName: 'PostToolUse',  // Wrong hook type
+								permissionDecision: 'deny'
+							}
+						}
+					};
+				} else {
+					// Second hook returns allow with correct hookEventName
+					return {
+						kind: HookCommandResultKind.Success,
+						result: {
+							hookSpecificOutput: {
+								hookEventName: 'PreToolUse',
+								permissionDecision: 'allow'
+							}
+						}
+					};
+				}
+			});
+			service.setProxy(proxy);
+
+			const hooks = { [HookType.PreToolUse]: [cmd('hook1'), cmd('hook2')] };
+			store.add(service.registerHooks(sessionUri, hooks));
+
+			const result = await service.executePreToolUseHook(
+				sessionUri,
+				{ toolName: 'test-tool', toolInput: {}, toolCallId: 'call-1' }
+			);
+
+			// The deny with wrong hookEventName should be ignored
+			assert.ok(result);
+			assert.strictEqual(result.permissionDecision, 'allow');
+		});
+
+		test('allows results without hookEventName (optional field)', async () => {
+			const proxy = createMockProxy(() => ({
+				kind: HookCommandResultKind.Success,
+				result: {
+					hookSpecificOutput: {
+						// No hookEventName - should be accepted
+						permissionDecision: 'allow'
+					}
+				}
+			}));
+			service.setProxy(proxy);
+
+			const hooks = { [HookType.PreToolUse]: [cmd('hook')] };
+			store.add(service.registerHooks(sessionUri, hooks));
+
+			const result = await service.executePreToolUseHook(
+				sessionUri,
+				{ toolName: 'test-tool', toolInput: {}, toolCallId: 'call-1' }
+			);
+
+			assert.ok(result);
+			assert.strictEqual(result.permissionDecision, 'allow');
+		});
+	});
+
 	function createMockProxy(handler?: (cmd: IHookCommand, input: unknown, token: CancellationToken) => IHookCommandResult): IHooksExecutionProxy {
 		return {
 			runHookCommand: async (hookCommand, input, token) => {
