@@ -24,7 +24,6 @@ import traceback
 import os
 import importlib.util
 import glob
-import time
 from contextlib import redirect_stdout, redirect_stderr
 from io import StringIO
 from typing import List, Dict, Any, Optional, Callable, Protocol, TextIO, cast
@@ -65,13 +64,6 @@ if not all(isinstance(ev, dict) for ev in models_and_events):
 	_stream_out.write(json.dumps({"type": "vis_error", "error": f"Expected SNC_MODELS_AND_EVENTS to be a JSON of a list of dicts, the items were {types_got}"}, ensure_ascii=False) + "\n")
 	_stream_out.flush()
 
-
-def emit_meta(meta: str) -> None:
-	try:
-		_stream_out.write(json.dumps({"type": "meta", "meta": meta, "t": time.time()}, ensure_ascii=False) + "\n")
-		_stream_out.flush()
-	except Exception:
-		pass
 
 # List of directory paths to search for visualizers:
 # 1. .snc/ (project-specific visualizers)
@@ -1155,9 +1147,7 @@ def run_with_visualization(code: str) -> Dict[str, Any]:
 	_source_code = code      # Store source code for visualizers to access
 
 	# Transform and compile
-	emit_meta('transform-start')
 	transformed_ast = transform_code_to_ast(code)
-	emit_meta('transform-done')
 
 	# Optional: write transformed code for debugging (enable by setting SNC_WRITE_TRANSFORMED=1)
 	if os.environ.get('SNC_WRITE_TRANSFORMED'):
@@ -1169,7 +1159,6 @@ def run_with_visualization(code: str) -> Dict[str, Any]:
 				print(f"Warning: Could not unparse transformed AST: {unparse_error}", file=f)
 
 	code_object = compile(transformed_ast, filename='<string>', mode='exec')
-	emit_meta('compile-done')
 
 	# Prepare globals for execution - include our logging functions
 	globals_dict = {
@@ -1187,7 +1176,6 @@ def run_with_visualization(code: str) -> Dict[str, Any]:
 	exit_code = 0
 
 	with redirect_stdout(out_buf), redirect_stderr(err_buf):
-		emit_meta('exec-start')
 		try:
 			exec(code_object, globals_dict)
 		except Exception as e:
@@ -1225,7 +1213,6 @@ if __name__ == "__main__":
 	- Emits a single JSON object to stdout containing stdout, stderr, and exitCode
 	"""
 
-	emit_meta('runner-started')
 	# Expect working directory as argument
 	if len(sys.argv) < 2:
 		print("Error: Working directory required as argument", file=sys.stderr)
@@ -1240,10 +1227,8 @@ if __name__ == "__main__":
 		print(f"Error: Cannot change to directory '{working_directory}': {e}", file=sys.stderr)
 		sys.exit(1)
 
-	emit_meta('chdir-done')
 	# Read code from stdin
 	code = sys.stdin.read()
-	emit_meta('code-received')
 
 	# Run and emit final JSON result to stdout (NDJSON final record)
 	result = run_with_visualization(code)

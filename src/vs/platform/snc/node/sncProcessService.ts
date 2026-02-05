@@ -6,7 +6,6 @@
 import { spawn } from 'node:child_process';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { ILogService } from '../../../platform/log/common/log.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { IProcessOptions, IProcessResult, ISNCProcessService, IVisualizationItem, SNCCommand, SNCStreamMessage, SNCTimingData } from '../common/snc.js';
 import { Emitter } from '../../../base/common/event.js';
@@ -17,9 +16,7 @@ const __dirname = path.dirname(__filename);
 
 export class SNCProcessService extends Disposable implements ISNCProcessService {
 
-	constructor(
-		@ILogService private readonly logService: ILogService
-	) {
+	constructor() {
 		super();
 	}
 
@@ -55,7 +52,6 @@ export class SNCProcessService extends Disposable implements ISNCProcessService 
 				child.stdout.on('data', (data) => {
 					if (!state.tStdoutFirst) {
 						state.tStdoutFirst = Date.now();
-						try { this.logService.info('SNC timing: stdout first byte', { runId, msFromSpawn: state.tStdoutFirst - state.tSpawn, msFromStdinEnd: typeof state.tStdinEnd === 'number' ? state.tStdoutFirst - state.tStdinEnd : undefined }); } catch { /* ignore */ }
 					}
 					state.buffer += data.toString();
 					let idx: number;
@@ -68,13 +64,10 @@ export class SNCProcessService extends Disposable implements ISNCProcessService 
 							if (msg && msg.type === 'item' && msg.item) {
 								if (!state.tFirstItem) {
 									state.tFirstItem = Date.now();
-									try { this.logService.info('SNC timing: first item parsed', { runId, msFromSpawn: state.tFirstItem - state.tSpawn, msFromStdoutFirst: typeof state.tStdoutFirst === 'number' ? state.tFirstItem - state.tStdoutFirst : undefined }); } catch { /* ignore */ }
 								}
 								this._onStream.fire({ runId, type: 'item', item: { ...msg.item, runId } as IVisualizationItem });
 							} else if (msg && msg.type === 'command' && msg.command) {
 								this._onStream.fire({ runId, type: 'command', command: msg.command as SNCCommand });
-							} else if (msg && msg.type === 'meta') {
-								try { this.logService.info('SNC runner meta', { runId, meta: (msg as any).meta, t: (msg as any).t }); } catch { /* ignore */ }
 							} else if ((msg && msg.type === 'end')) {
 								state.ended = true;
 								state.tEnd = Date.now();
@@ -87,9 +80,6 @@ export class SNCProcessService extends Disposable implements ISNCProcessService 
 									spawnToEndMs: typeof state.tEnd === 'number' ? state.tEnd - state.tSpawn : undefined,
 								};
 								this._onStream.fire({ runId, type: 'end', result: msg.result as IProcessResult, timing });
-								try {
-									this.logService.info('SNC timing: run summary', { runId, ...timing });
-								} catch { /* ignore */ }
 							}
 						} catch {
 							// Ignore non-JSON or partial lines
@@ -150,7 +140,6 @@ export class SNCProcessService extends Disposable implements ISNCProcessService 
 				child.stdin.write(content);
 				child.stdin.end();
 				state.tStdinEnd = Date.now();
-				try { this.logService.info('SNC timing: stdin sent', { runId, msFromSpawn: state.tStdinEnd - state.tSpawn }); } catch { /* ignore */ }
 
 				// Resolve once the process is started and input sent
 				resolve();
