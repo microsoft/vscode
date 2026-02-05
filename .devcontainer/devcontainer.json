@@ -4,7 +4,7 @@
 		"dockerfile": "Dockerfile"
 	},
 	"features": {
-		"ghcr.io/devcontainers/features/desktop-lite:1": {},
+		"ghcr.io/devcontainers/features/desktop-lite:": {},
 		"ghcr.io/devcontainers/features/rust:1": {}
 	},
 	"containerEnv": {

@@ -29,7 +29,7 @@ enum ChatContributionPoint {
 	chatInstructions = 'chatInstructions',
 	chatAgents = 'chatAgents',
 	chatPromptFiles = 'chatPromptFiles',
-	chatSkills = 'chatSkills'
+	chatSkills = 'chatSkills',
 }
 
 function registerChatFilesExtensionPoint(point: ChatContributionPoint) {
@@ -79,6 +79,10 @@ function pointToType(contributionPoint: ChatContributionPoint): PromptsType {
 		case ChatContributionPoint.chatInstructions: return PromptsType.instructions;
 		case ChatContributionPoint.chatAgents: return PromptsType.agent;
 		case ChatContributionPoint.chatSkills: return PromptsType.skill;
+		default: {
+			const exhaustiveCheck: never = contributionPoint;
+			throw new Error(`Unknown contribution point: ${exhaustiveCheck}`);
+		}
 	}
 }
 
@@ -148,16 +152,17 @@ CommandsRegistry.registerCommand('_listExtensionPromptFiles', async (accessor): 
 	const promptsService = accessor.get(IPromptsService);
 
 	// Get extension prompt files for all prompt types in parallel
-	const [agents, instructions, prompts, skills] = await Promise.all([
+	const [agents, instructions, prompts, skills, hooks] = await Promise.all([
 		promptsService.listPromptFiles(PromptsType.agent, CancellationToken.None),
 		promptsService.listPromptFiles(PromptsType.instructions, CancellationToken.None),
 		promptsService.listPromptFiles(PromptsType.prompt, CancellationToken.None),
 		promptsService.listPromptFiles(PromptsType.skill, CancellationToken.None),
+		promptsService.listPromptFiles(PromptsType.hook, CancellationToken.None),
 	]);
 
 	// Combine all files and collect extension-contributed ones
 	const result: IExtensionPromptFileResult[] = [];
-	for (const file of [...agents, ...instructions, ...prompts, ...skills]) {
+	for (const file of [...agents, ...instructions, ...prompts, ...skills, ...hooks]) {
 		if (file.storage === PromptsStorage.extension) {
 			result.push({ uri: file.uri.toJSON(), type: file.type });
 		}

@@ -540,6 +540,84 @@
 			"settings": {
 				"foreground": "#A8CAAD"
 			}
+		},
+		{
+			"name": "Markup Heading",
+			"scope": "markup.heading",
+			"settings": {
+				"foreground": "#64b0df",
+				"fontStyle": "bold"
+			}
+		},
+		{
+			"name": "Markup Bold",
+			"scope": "markup.bold",
+			"settings": {
+				"foreground": "#C48081",
+				"fontStyle": "bold"
+			}
+		},
+		{
+			"name": "Markup Italic",
+			"scope": "markup.italic",
+			"settings": {
+				"fontStyle": "italic"
+			}
+		},
+		{
+			"name": "Markup Strikethrough",
+			"scope": "markup.strikethrough",
+			"settings": {
+				"fontStyle": "strikethrough"
+			}
+		},
+		{
+			"name": "Markup Underline",
+			"scope": "markup.underline",
+			"settings": {
+				"fontStyle": "underline"
+			}
+		},
+		{
+			"name": "Markup Quote",
+			"scope": "markup.quote",
+			"settings": {
+				"foreground": "#C184C6"
+			}
+		},
+		{
+			"name": "Markup List",
+			"scope": "markup.list",
+			"settings": {
+				"foreground": "#48C9C4"
+			}
+		},
+		{
+			"name": "Markup Inline Raw",
+			"scope": "markup.inline.raw",
+			"settings": {
+				"foreground": "#D1D6AE"
+			}
+		},
+		{
+			"name": "Markup Raw/Fenced Code Block",
+			"scope": [
+				"markup.raw",
+				"markup.fenced_code"
+			],
+			"settings": {
+				"foreground": "#888888"
+			}
+		},
+		{
+			"name": "Markup Link",
+			"scope": [
+				"meta.link",
+				"markup.underline.link"
+			],
+			"settings": {
+				"foreground": "#48A0C7"
+			}
 		}
 	],
 	"semanticHighlighting": true,

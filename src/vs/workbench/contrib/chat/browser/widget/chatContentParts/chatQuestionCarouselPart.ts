@@ -5,6 +5,8 @@
 
 import * as dom from '../../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../../base/browser/keyboardEvent.js';
+import { getBaseLayerHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegate2.js';
+import { getDefaultHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { KeyCode } from '../../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
@@ -161,6 +163,8 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 					e.stopPropagation();
 					this.handleNext();
 				}
+			} else if ((event.ctrlKey || event.metaKey) && (event.keyCode === KeyCode.Backspace || event.keyCode === KeyCode.Delete)) {
+				e.stopPropagation();
 			}
 		}));
 
@@ -377,6 +381,8 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 				? questionText
 				: questionText.value;
 
+			title.setAttribute('aria-label', messageContent);
+
 			// Check for subtitle in parentheses at the end
 			const parenMatch = messageContent.match(/^(.+?)\s*(\([^)]+\))\s*$/);
 			if (parenMatch) {
@@ -547,6 +553,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			const listItem = dom.$('.chat-question-list-item');
 			listItem.setAttribute('role', 'option');
 			listItem.setAttribute('aria-selected', String(isSelected));
+			listItem.setAttribute('aria-label', localize('chat.questionCarousel.optionLabel', "Option {0}: {1}", index + 1, option.label));
 			listItem.id = `option-${question.id}-${index}`;
 			listItem.tabIndex = -1;
 
@@ -581,6 +588,8 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			if (isSelected) {
 				listItem.classList.add('selected');
 			}
+
+			this._inputBoxes.add(getBaseLayerHoverDelegate().setupManagedHover(getDefaultHoverDelegate('mouse'), listItem, option.label));
 
 			// Click handler
 			this._inputBoxes.add(dom.addDisposableListener(listItem, dom.EventType.CLICK, (e: MouseEvent) => {
@@ -727,6 +736,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			const listItem = dom.$('.chat-question-list-item.multi-select');
 			listItem.setAttribute('role', 'option');
 			listItem.setAttribute('aria-selected', String(isChecked));
+			listItem.setAttribute('aria-label', localize('chat.questionCarousel.optionLabel', "Option {0}: {1}", index + 1, option.label));
 			listItem.id = `option-${question.id}-${index}`;
 			listItem.tabIndex = -1;
 
@@ -780,6 +790,8 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 					checkbox.domNode.click();
 				}
 			}));
+
+			this._inputBoxes.add(getBaseLayerHoverDelegate().setupManagedHover(getDefaultHoverDelegate('mouse'), listItem, option.label));
 
 			selectContainer.appendChild(listItem);
 			checkboxes.push(checkbox);

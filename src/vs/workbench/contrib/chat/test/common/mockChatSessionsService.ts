@@ -19,10 +19,10 @@ export class MockChatSessionsService implements IChatSessionsService {
 
 	private readonly _onDidChangeSessionOptions = new Emitter<URI>();
 	readonly onDidChangeSessionOptions = this._onDidChangeSessionOptions.event;
-	private readonly _onDidChangeItemsProviders = new Emitter<IChatSessionItemProvider>();
+	private readonly _onDidChangeItemsProviders = new Emitter<{ readonly chatSessionType: string }>();
 	readonly onDidChangeItemsProviders = this._onDidChangeItemsProviders.event;
 
-	private readonly _onDidChangeSessionItems = new Emitter<string>();
+	private readonly _onDidChangeSessionItems = new Emitter<{ readonly chatSessionType: string }>();
 	readonly onDidChangeSessionItems = this._onDidChangeSessionItems.event;
 
 	private readonly _onDidChangeAvailability = new Emitter<void>();
@@ -54,7 +54,7 @@ export class MockChatSessionsService implements IChatSessionsService {
 	}
 
 	fireDidChangeSessionItems(chatSessionType: string): void {
-		this._onDidChangeSessionItems.fire(chatSessionType);
+		this._onDidChangeSessionItems.fire({ chatSessionType });
 	}
 
 	fireDidChangeAvailability(): void {
@@ -86,8 +86,8 @@ export class MockChatSessionsService implements IChatSessionsService {
 		this.contributions = contributions;
 	}
 
-	async activateChatSessionItemProvider(chatSessionType: string): Promise<IChatSessionItemProvider | undefined> {
-		return this.sessionItemProviders.get(chatSessionType);
+	async activateChatSessionItemProvider(chatSessionType: string): Promise<void> {
+		// Noop, nothing to activate
 	}
 
 	getIconForSessionType(chatSessionType: string): ThemeIcon | URI | undefined {
@@ -165,10 +165,6 @@ export class MockChatSessionsService implements IChatSessionsService {
 
 	async notifySessionOptionsChange(sessionResource: URI, updates: ReadonlyArray<{ optionId: string; value: string | IChatSessionProviderOptionItem }>): Promise<void> {
 		await this._onRequestNotifyExtension.fireAsync({ sessionResource, updates }, CancellationToken.None);
-	}
-
-	notifySessionItemsChanged(chatSessionType: string): void {
-		this._onDidChangeSessionItems.fire(chatSessionType);
 	}
 
 	getSessionOption(sessionResource: URI, optionId: string): string | undefined {

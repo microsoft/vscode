@@ -239,17 +239,24 @@
 }
 
 .interactive-session .interactive-response .value {
-	.chat-question-list-item:focus,
+	.chat-question-list-item:focus:not(.selected),
 	.chat-question-list:focus {
 		outline: none;
 	}
 
 }
 
-/* Single-select: highlight entire row when selected and also outline */
+/* Single-select: highlight entire row when selected */
 .chat-question-list-item.selected {
 	background-color: var(--vscode-list-activeSelectionBackground);
 	color: var(--vscode-list-activeSelectionForeground);
+}
+
+.chat-question-list:focus-within .chat-question-list-item.selected {
+	outline-width: 1px;
+	outline-style: solid;
+	outline-offset: -1px;
+	outline-color: var(--vscode-focusBorder);
 }
 
 .chat-question-list-item.selected:hover {

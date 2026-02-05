@@ -1253,6 +1253,18 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return this._inputEditor.hasWidgetFocus();
 	}
 
+	focusTodoList(): boolean {
+		return this._chatInputTodoListWidget.value?.focus() ?? false;
+	}
+
+	isTodoListFocused(): boolean {
+		return this._chatInputTodoListWidget.value?.hasFocus() ?? false;
+	}
+
+	hasVisibleTodos(): boolean {
+		return this._chatInputTodoListWidget.value?.hasTodos() ?? false;
+	}
+
 	/**
 	 * Reset the input and update history.
 	 * @param userQuery If provided, this will be added to the history. Followups and programmatic queries should not be passed.
@@ -2140,6 +2152,18 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this.height.set(newHeight, undefined);
 		}));
 		this._register(inputResizeObserver.observe(this.container));
+
+		if (this.options.renderStyle === 'compact') {
+			const toolbarsResizeObserver = this._register(new dom.DisposableResizeObserver(() => {
+				// Have to layout the editor when the toolbars change size, when they share width with the editor.
+				// This handles ensuring we layout when quick chat is shown/hidden.
+				// The toolbar may have changed since the last time it was visible.
+				if (this.cachedWidth) {
+					this.layout(this.cachedWidth);
+				}
+			}));
+			this._register(toolbarsResizeObserver.observe(toolbarsContainer));
+		}
 	}
 
 	public toggleChatInputOverlay(editing: boolean): void {

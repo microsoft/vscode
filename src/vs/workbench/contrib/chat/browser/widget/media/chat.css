@@ -263,6 +263,9 @@
 	color: var(--vscode-descriptionForeground);
 	line-height: 16px;
 	margin-left: auto;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 .interactive-item-container .chat-footer-details.hidden {
@@ -785,6 +788,11 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	top: 4px;
 	right: 6px;
 	z-index: 1;
+}
+
+/* Hide context usage widget in compact mode (quick chat) */
+.interactive-session .interactive-input-part.compact .chat-context-usage-container {
+	display: none;
 }
 
 .interactive-input-part:has(.chat-editing-session > .chat-editing-session-container) .chat-input-container,
@@ -2529,7 +2537,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		top: -13px;
 		right: 20px;
 		border-radius: 3px;
-		width: 28px;
 		height: 26px;
 	}
 
@@ -2546,7 +2553,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 
 	.request-hover:not(.expanded) .actions-container {
-		width: 22px;
 		height: 22px;
 	}
 
@@ -2555,11 +2561,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 
 	.request-hover:not(.expanded) .actions-container {
-
-		.action-label.codicon-discard,
-		.action-label.codicon-x,
-		.action-label.codicon-edit {
-			margin-top: 4px;
+		.action-label {
+			margin: 4px 2px 0;
 			padding: 3px 3px;
 		}
 	}
@@ -2845,5 +2848,40 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .chat-attachments-show-more-button .chat-attached-context-custom-text {
 	font-style: italic;
+	color: var(--vscode-descriptionForeground);
+}
+
+/* Pending request styles */
+.interactive-item-container.pending-request {
+	opacity: 0.7;
+
+	.request-hover {
+		top: -17px !important;
+	}
+}
+
+.interactive-item-container .chat-request-status {
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-chat-font-size-body-xs);
+	margin-top: 2px;
+	text-align: right;
+}
+
+/* Pending divider styles */
+.interactive-item-container.pending-divider {
+	padding: 8px 16px;
+}
+
+.interactive-item-container.pending-divider .pending-divider-content {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.interactive-item-container.pending-divider .pending-divider-label {
+	font-size: var(--vscode-chat-font-size-body-xs);
+	font-weight: 500;
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
 	color: var(--vscode-descriptionForeground);
 }

@@ -300,7 +300,7 @@ export interface ILanguageModelsService {
 	/**
 	 * Find a model by its qualified name. The qualified name is what is used in prompt and agent files and is in the format "Model Name (Vendor)".
 	 */
-	lookupLanguageModelByQualifiedName(qualifiedName: string): ILanguageModelChatMetadata | undefined;
+	lookupLanguageModelByQualifiedName(qualifiedName: string): ILanguageModelChatMetadataAndIdentifier | undefined;
 
 	getLanguageModelGroups(vendor: string): ILanguageModelsGroup[];
 
@@ -642,10 +642,10 @@ export class LanguageModelsService implements ILanguageModelsService {
 		return model;
 	}
 
-	lookupLanguageModelByQualifiedName(referenceName: string): ILanguageModelChatMetadata | undefined {
-		for (const model of this._modelCache.values()) {
+	lookupLanguageModelByQualifiedName(referenceName: string): ILanguageModelChatMetadataAndIdentifier | undefined {
+		for (const [identifier, model] of this._modelCache.entries()) {
 			if (ILanguageModelChatMetadata.matchesQualifiedName(referenceName, model)) {
-				return model;
+				return { metadata: model, identifier };
 			}
 		}
 		return undefined;

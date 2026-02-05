@@ -2403,13 +2403,14 @@ function escapeInvisibleChars(enumValue: string): string {
 export class SettingsTreeFilter implements ITreeFilter<SettingsTreeElement> {
 	constructor(
 		private viewState: ISettingsEditorViewState,
+		private filterGroups: boolean,
 		@IWorkbenchEnvironmentService private environmentService: IWorkbenchEnvironmentService,
 	) { }
 
 	filter(element: SettingsTreeElement, parentVisibility: TreeVisibility): TreeFilterResult<void> {
 		// Filter during search
 		if (this.viewState.filterToCategory && element instanceof SettingsTreeSettingElement) {
-			if (!this.settingContainedInGroup(element.setting, this.viewState.filterToCategory)) {
+			if (!this.settingBelongsToCategory(element, this.viewState.filterToCategory)) {
 				return false;
 			}
 		}
@@ -2424,6 +2425,16 @@ export class SettingsTreeFilter implements ITreeFilter<SettingsTreeElement> {
 
 		// Group with no visible children
 		if (element instanceof SettingsTreeGroupElement) {
+			// When filtering to a specific category, only show that category and its descendants
+			if (this.filterGroups && this.viewState.filterToCategory) {
+				if (!this.groupIsRelatedToCategory(element, this.viewState.filterToCategory)) {
+					return false;
+				}
+				// For groups related to the category, skip the count check and recurse
+				// to let child settings be filtered
+				return TreeVisibility.Recurse;
+			}
+
 			if (typeof element.count === 'number') {
 				return element.count > 0;
 			}
@@ -2441,16 +2452,50 @@ export class SettingsTreeFilter implements ITreeFilter<SettingsTreeElement> {
 		return true;
 	}
 
-	private settingContainedInGroup(setting: ISetting, group: SettingsTreeGroupElement): boolean {
-		return group.children.some(child => {
-			if (child instanceof SettingsTreeGroupElement) {
-				return this.settingContainedInGroup(setting, child);
-			} else if (child instanceof SettingsTreeSettingElement) {
-				return child.setting.key === setting.key;
-			} else {
-				return false;
+	/**
+	 * Checks if a setting element belongs to the category or any of its subcategories
+	 * by traversing up the setting's parent chain using IDs.
+	 */
+	private settingBelongsToCategory(element: SettingsTreeSettingElement, category: SettingsTreeGroupElement): boolean {
+		let parent = element.parent;
+		while (parent) {
+			if (parent.id === category.id) {
+				return true;
 			}
-		});
+			parent = parent.parent;
+		}
+		return false;
+	}
+
+	/**
+	 * Checks if a group is related to the filtered category.
+	 * A group is related if it's the category itself, a descendant of it, or an ancestor of it.
+	 */
+	private groupIsRelatedToCategory(group: SettingsTreeGroupElement, category: SettingsTreeGroupElement): boolean {
+		// Check if this group is the category itself
+		if (group.id === category.id) {
+			return true;
+		}
+
+		// Check if this group is a descendant of the category
+		let parent = group.parent;
+		while (parent) {
+			if (parent.id === category.id) {
+				return true;
+			}
+			parent = parent.parent;
+		}
+
+		// Check if this group is an ancestor of the category
+		let categoryParent = category.parent;
+		while (categoryParent) {
+			if (categoryParent.id === group.id) {
+				return true;
+			}
+			categoryParent = categoryParent.parent;
+		}
+
+		return false;
 	}
 }
 
@@ -2617,7 +2662,7 @@ export class SettingsTree extends WorkbenchObjectTree<SettingsTreeElement> {
 				},
 				accessibilityProvider: new SettingsTreeAccessibilityProvider(configurationService, languageService, userDataProfilesService),
 				styleController: id => new DefaultStyleController(domStylesheetsJs.createStyleSheet(container), id),
-				filter: instantiationService.createInstance(SettingsTreeFilter, viewState),
+				filter: instantiationService.createInstance(SettingsTreeFilter, viewState, true),
 				smoothScrolling: configurationService.getValue<boolean>('workbench.list.smoothScrolling'),
 				multipleSelectionSupport: false,
 				findWidgetEnabled: false,

@@ -146,6 +146,7 @@ export interface ITerminalConfiguration {
 	rightClickBehavior: 'default' | 'copyPaste' | 'paste' | 'selectWord' | 'nothing';
 	middleClickBehavior: 'default' | 'paste';
 	cursorBlinking: boolean;
+	textBlinking: boolean;
 	cursorStyle: 'block' | 'underline' | 'line';
 	cursorStyleInactive: 'outline' | 'block' | 'underline' | 'line' | 'none';
 	cursorWidth: number;

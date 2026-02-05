@@ -11,6 +11,7 @@ import { RawContextKey } from '../../../../platform/contextkey/common/contextkey
 export enum ChatConfiguration {
 	AIDisabled = 'chat.disableAIFeatures',
 	AgentEnabled = 'chat.agent.enabled',
+	RequestQueueingEnabled = 'chat.requestQueuing.enabled',
 	AgentStatusEnabled = 'chat.agentsControl.enabled',
 	EditorAssociations = 'chat.editorAssociations',
 	UnifiedAgentsBar = 'chat.unifiedAgentsBar.enabled',

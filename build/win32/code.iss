@@ -1603,7 +1603,7 @@ begin
   begin
 #ifdef AppxPackageName
     // Remove the old context menu registry keys
-    if IsWindows11OrLater() and WizardIsTaskSelected('addcontextmenufiles') then begin
+    if IsWindows11OrLater() then begin
       RegDeleteKeyIncludingSubkeys({#EnvironmentRootKey}, 'Software\Classes\*\shell\{#RegValueName}');
       RegDeleteKeyIncludingSubkeys({#EnvironmentRootKey}, 'Software\Classes\directory\shell\{#RegValueName}');
       RegDeleteKeyIncludingSubkeys({#EnvironmentRootKey}, 'Software\Classes\directory\background\shell\{#RegValueName}');

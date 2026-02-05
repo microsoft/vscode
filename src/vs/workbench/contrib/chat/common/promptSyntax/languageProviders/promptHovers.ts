@@ -136,8 +136,9 @@ export class PromptHoverProvider implements HoverProvider {
 			return this.createHover(baseMessage + '\n\n' + localize('promptHeader.agent.model.githubCopilot', 'Note: This attribute is not used when target is github-copilot.'), node.range);
 		}
 		const modelHoverContent = (modelName: string): Hover | undefined => {
-			const meta = this.languageModelsService.lookupLanguageModelByQualifiedName(modelName);
-			if (meta) {
+			const result = this.languageModelsService.lookupLanguageModelByQualifiedName(modelName);
+			if (result) {
+				const meta = result.metadata;
 				const lines: string[] = [];
 				lines.push(baseMessage + '\n');
 				lines.push(localize('modelName', '- Name: {0}', meta.name));

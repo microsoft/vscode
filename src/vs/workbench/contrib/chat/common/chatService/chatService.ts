@@ -535,7 +535,7 @@ export type ConfirmedReason =
 
 export interface IChatToolInvocation {
 	readonly presentation: IPreparedToolInvocation['presentation'];
-	readonly toolSpecificData?: IChatTerminalToolInvocationData | ILegacyChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent | IChatSubagentToolInvocationData;
+	readonly toolSpecificData?: IChatTerminalToolInvocationData | ILegacyChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData | IChatToolResourcesInvocationData;
 	readonly originMessage: string | IMarkdownString | undefined;
 	readonly invocationMessage: string | IMarkdownString;
 	readonly pastTenseMessage: string | IMarkdownString | undefined;
@@ -613,6 +613,8 @@ export namespace IChatToolInvocation {
 	interface IChatToolInvocationCancelledState extends IChatToolInvocationStateBase, IChatToolInvocationPostStreamState {
 		type: StateKind.Cancelled;
 		reason: ToolConfirmKind.Denied | ToolConfirmKind.Skipped;
+		/** Optional message explaining why the tool was cancelled (e.g., from hook denial) */
+		reasonMessage?: string | IMarkdownString;
 	}
 
 	export type State =
@@ -793,7 +795,7 @@ export interface IToolResultOutputDetailsSerialized {
  */
 export interface IChatToolInvocationSerialized {
 	presentation: IPreparedToolInvocation['presentation'];
-	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent | IChatSubagentToolInvocationData;
+	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData | IChatToolResourcesInvocationData;
 	invocationMessage: string | IMarkdownString;
 	originMessage: string | IMarkdownString | undefined;
 	pastTenseMessage: string | IMarkdownString | undefined;
@@ -838,6 +840,17 @@ export interface IChatTodoListContent {
 		title: string;
 		status: 'not-started' | 'in-progress' | 'completed';
 	}>;
+}
+
+export interface IChatSimpleToolInvocationData {
+	kind: 'simpleToolInvocation';
+	input: string;
+	output: string;
+}
+
+export interface IChatToolResourcesInvocationData {
+	readonly kind: 'resources';
+	readonly values: Array<URI | Location>;
 }
 
 export interface IChatMcpServersStarting {
@@ -1154,6 +1167,54 @@ export interface IChatSendRequestData extends IChatSendRequestResponseState {
 	slashCommand?: IChatAgentCommand;
 }
 
+/**
+ * Result of a sendRequest call - a discriminated union of possible outcomes.
+ */
+export type ChatSendResult =
+	| ChatSendResultRejected
+	| ChatSendResultSent
+	| ChatSendResultQueued;
+
+export interface ChatSendResultRejected {
+	readonly kind: 'rejected';
+	readonly reason: string;
+}
+
+export interface ChatSendResultSent {
+	readonly kind: 'sent';
+	readonly data: IChatSendRequestData;
+}
+
+export interface ChatSendResultQueued {
+	readonly kind: 'queued';
+	/**
+	 * Promise that resolves when the queued message is actually processed.
+	 * Will resolve to a 'sent' or 'rejected' result.
+	 */
+	readonly deferred: Promise<ChatSendResult>;
+}
+
+export namespace ChatSendResult {
+	export function isSent(result: ChatSendResult): result is ChatSendResultSent {
+		return result.kind === 'sent';
+	}
+
+	export function isRejected(result: ChatSendResult): result is ChatSendResultRejected {
+		return result.kind === 'rejected';
+	}
+
+	export function isQueued(result: ChatSendResult): result is ChatSendResultQueued {
+		return result.kind === 'queued';
+	}
+
+	/** Assertion function for tests - asserts that the result is a sent result */
+	export function assertSent(result: ChatSendResult): asserts result is ChatSendResultSent {
+		if (result.kind !== 'sent') {
+			throw new Error(`Expected ChatSendResult to be 'sent', but was '${result.kind}'`);
+		}
+	}
+}
+
 export interface IChatEditorLocationData {
 	type: ChatAgentLocation.EditorInline;
 	id: string;
@@ -1173,6 +1234,16 @@ export interface IChatTerminalLocationData {
 }
 
 export type IChatLocationData = IChatEditorLocationData | IChatNotebookLocationData | IChatTerminalLocationData;
+
+/**
+ * The kind of queue request.
+ */
+export const enum ChatRequestQueueKind {
+	/** Request is queued to be sent after current request completes */
+	Queued = 'queued',
+	/** Request is queued and signals the active request to yield */
+	Steering = 'steering'
+}
 
 export interface IChatSendRequestOptions {
 	modeInfo?: IChatRequestModeInfo;
@@ -1199,6 +1270,12 @@ export interface IChatSendRequestOptions {
 	 * The label of the confirmation action that was selected.
 	 */
 	confirmation?: string;
+
+	/**
+	 * When set, queues this message to be sent after the current request completes.
+	 * If Steering, also sets yieldRequested on any active request to signal it should wrap up.
+	 */
+	queue?: ChatRequestQueueKind;
 
 }
 
@@ -1241,9 +1318,10 @@ export interface IChatService {
 	getChatSessionFromInternalUri(sessionResource: URI): IChatSessionContext | undefined;
 
 	/**
-	 * Returns whether the request was accepted.`
+	 * Sends a chat request for the given session.
+	 * @returns A result indicating whether the request was sent, queued, or rejected.
 	 */
-	sendRequest(sessionResource: URI, message: string, options?: IChatSendRequestOptions): Promise<IChatSendRequestData | undefined>;
+	sendRequest(sessionResource: URI, message: string, options?: IChatSendRequestOptions): Promise<ChatSendResult>;
 
 	/**
 	 * Sets a custom title for a chat model.
@@ -1254,6 +1332,26 @@ export interface IChatService {
 	adoptRequest(sessionResource: URI, request: IChatRequestModel): Promise<void>;
 	removeRequest(sessionResource: URI, requestId: string): Promise<void>;
 	cancelCurrentRequestForSession(sessionResource: URI): void;
+	/**
+	 * Sets yieldRequested on the active request for the given session.
+	 */
+	setYieldRequested(sessionResource: URI): void;
+	/**
+	 * Removes a pending request from the session's queue.
+	 */
+	removePendingRequest(sessionResource: URI, requestId: string): void;
+	/**
+	 * Sets the pending requests for a session, allowing for deletions/reordering.
+	 * Adding new requests should go through sendRequest with the queue option.
+	 */
+	setPendingRequests(sessionResource: URI, requests: readonly { requestId: string; kind: ChatRequestQueueKind }[]): void;
+	/**
+	 * Ensures pending requests for the session are processing. If restoring from
+	 * storage or after an error, pending requests may be present without an
+	 * active chat message 'loop' happening. THis triggers the loop to happen
+	 * as needed. Idempotent, safe to call at any time.
+	 */
+	processPendingRequests(sessionResource: URI): void;
 	addCompleteRequest(sessionResource: URI, message: IParsedChatRequest | string, variableData: IChatRequestVariableData | undefined, attempt: number | undefined, response: IChatCompleteResponse): void;
 	setChatSessionTitle(sessionResource: URI, title: string): void;
 	getLocalSessionHistory(): Promise<IChatDetail[]>;

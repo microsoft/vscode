@@ -12,8 +12,10 @@ set NAMESHORT=%NAMESHORT:"=%.exe
 set CODE=".build\electron\%NAMESHORT%"
 
 :: Download Electron if needed
-call node build\lib\electron.ts
-if %errorlevel% neq 0 node .\node_modules\gulp\bin\gulp.js electron
+if "%VSCODE_SKIP_PRELAUNCH%"=="" (
+	call node build\lib\electron.ts
+	if %errorlevel% neq 0 node .\node_modules\gulp\bin\gulp.js electron
+)
 
 :: Run tests
 set ELECTRON_ENABLE_LOGGING=1

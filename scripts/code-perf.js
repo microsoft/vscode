@@ -6,6 +6,7 @@
 // @ts-check
 
 const path = require('path');
+const fs = require('fs');
 const perf = require('@vscode/vscode-perf');
 
 const VSCODE_FOLDER = path.join(__dirname, '..');
@@ -62,9 +63,14 @@ function getExePath(buildPath) {
 	}
 	let relativeExePath;
 	switch (process.platform) {
-		case 'darwin':
-			relativeExePath = path.join('Contents', 'MacOS', 'Electron');
+		case 'darwin': {
+			const product = require(path.join(buildPath, 'Contents', 'Resources', 'app', 'product.json'));
+			relativeExePath = path.join('Contents', 'MacOS', product.nameShort);
+			if (!fs.existsSync(path.join(buildPath, relativeExePath))) {
+				relativeExePath = path.join('Contents', 'MacOS', 'Electron');
+			}
 			break;
+		}
 		case 'linux': {
 			const product = require(path.join(buildPath, 'resources', 'app', 'product.json'));
 			relativeExePath = product.applicationName;

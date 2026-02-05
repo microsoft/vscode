@@ -12,6 +12,8 @@ export const PROMPT_DOCUMENTATION_URL = 'https://aka.ms/vscode-ghcp-prompt-snipp
 export const INSTRUCTIONS_DOCUMENTATION_URL = 'https://aka.ms/vscode-ghcp-custom-instructions';
 export const AGENT_DOCUMENTATION_URL = 'https://aka.ms/vscode-ghcp-custom-chat-modes'; // todo
 export const SKILL_DOCUMENTATION_URL = 'https://aka.ms/vscode-agent-skills';
+// TODO: update link when available
+export const HOOK_DOCUMENTATION_URL = 'https://aka.ms/vscode-chat-hooks';
 
 /**
  * Language ID for the reusable prompt syntax.
@@ -51,6 +53,9 @@ export function getLanguageIdForPromptsType(type: PromptsType): string {
 			return AGENT_LANGUAGE_ID;
 		case PromptsType.skill:
 			return SKILL_LANGUAGE_ID;
+		case PromptsType.hook:
+			// Hooks use JSON syntax with schema validation
+			return 'json';
 		default:
 			throw new Error(`Unknown prompt type: ${type}`);
 	}
@@ -66,6 +71,7 @@ export function getPromptsTypeForLanguageId(languageId: string): PromptsType | u
 			return PromptsType.agent;
 		case SKILL_LANGUAGE_ID:
 			return PromptsType.skill;
+		// Note: hook uses 'json' language ID which is shared, so we don't map it here
 		default:
 			return undefined;
 	}
@@ -79,7 +85,8 @@ export enum PromptsType {
 	instructions = 'instructions',
 	prompt = 'prompt',
 	agent = 'agent',
-	skill = 'skill'
+	skill = 'skill',
+	hook = 'hook'
 }
 export function isValidPromptType(type: string): type is PromptsType {
 	return Object.values(PromptsType).includes(type as PromptsType);

@@ -27,14 +27,15 @@ export interface ITOCEntry<T> {
 	hide?: boolean;
 }
 
-const defaultCommonlyUsedSettings: string[] = [
+const COMMONLY_USED_SETTINGS: readonly string[] = [
 	'editor.fontSize',
 	'editor.formatOnSave',
 	'files.autoSave',
+	'GitHub.copilot-chat.manageExtension',
 	'editor.defaultFormatter',
 	'editor.fontFamily',
-	'chat.agent.maxRequests',
 	'editor.wordWrap',
+	'chat.agent.maxRequests',
 	'files.exclude',
 	'workbench.colorTheme',
 	'editor.tabSize',
@@ -42,7 +43,7 @@ const defaultCommonlyUsedSettings: string[] = [
 	'editor.formatOnPaste'
 ];
 
-export function getCommonlyUsedData(settingGroups: ISettingsGroup[], commonlyUsed: string[] = defaultCommonlyUsedSettings): ITOCEntry<ISetting> {
+export function getCommonlyUsedData(settingGroups: ISettingsGroup[]): ITOCEntry<ISetting> {
 	const allSettings = new Map<string, ISetting>();
 	for (const group of settingGroups) {
 		for (const section of group.sections) {
@@ -52,7 +53,7 @@ export function getCommonlyUsedData(settingGroups: ISettingsGroup[], commonlyUse
 		}
 	}
 	const settings: ISetting[] = [];
-	for (const id of commonlyUsed) {
+	for (const id of COMMONLY_USED_SETTINGS) {
 		const setting = allSettings.get(id);
 		if (setting) {
 			settings.push(setting);

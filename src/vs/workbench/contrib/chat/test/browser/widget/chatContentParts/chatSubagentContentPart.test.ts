@@ -22,7 +22,6 @@ import { IMarkdownString } from '../../../../../../../base/common/htmlContent.js
 import { CodeBlockModelCollection } from '../../../../common/widget/codeBlockModelCollection.js';
 import { EditorPool, DiffEditorPool } from '../../../../browser/widget/chatContentParts/chatContentCodePools.js';
 import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
-import { ChatTreeItem } from '../../../../browser/chat.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { RunSubagentTool } from '../../../../common/tools/builtinTools/runSubagentTool.js';
 import { CollapsibleListPool } from '../../../../browser/widget/chatContentParts/chatReferencesContentPart.js';
@@ -52,7 +51,7 @@ suite('ChatSubagentContentPart', () => {
 		};
 
 		return {
-			element: mockElement as ChatTreeItem,
+			element: mockElement as IChatResponseViewModel,
 			elementIndex: 0,
 			container: mainWindow.document.createElement('div'),
 			content: [],

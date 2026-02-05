@@ -4,6 +4,7 @@
   "license": "MIT",
   "devDependencies": {
     "@azure/core-auth": "^1.9.0",
+    "@parcel/watcher": "^2.5.6",
     "@azure/cosmos": "^3",
     "@azure/identity": "^4.2.1",
     "@azure/msal-node": "^2.16.1",
@@ -73,8 +74,7 @@
     "test": "mocha --ui tdd 'lib/**/*.test.ts'"
   },
   "optionalDependencies": {
-    "tree-sitter-typescript": "^0.23.2",
-    "vscode-gulp-watch": "^5.0.3"
+    "tree-sitter-typescript": "^0.23.2"
   },
   "overrides": {
     "path-scurry": {

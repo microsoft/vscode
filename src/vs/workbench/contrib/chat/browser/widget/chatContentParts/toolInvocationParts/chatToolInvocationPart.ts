@@ -22,6 +22,7 @@ import { ExtensionsInstallConfirmationWidgetSubPart } from './chatExtensionsInst
 import { ChatInputOutputMarkdownProgressPart } from './chatInputOutputMarkdownProgressPart.js';
 import { ChatMcpAppSubPart, IMcpAppRenderData } from './chatMcpAppSubPart.js';
 import { ChatResultListSubPart } from './chatResultListSubPart.js';
+import { ChatSimpleToolProgressPart } from './chatSimpleToolProgressPart.js';
 import { ChatTerminalToolConfirmationSubPart } from './chatTerminalToolConfirmationSubPart.js';
 import { ChatTerminalToolProgressPart } from './chatTerminalToolProgressPart.js';
 import { ToolConfirmationSubPart } from './chatToolConfirmationSubPart.js';
@@ -107,9 +108,11 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 			partStore.clear();
 
 			if (toolInvocation.presentation === ToolInvocationPresentation.HiddenAfterComplete && IChatToolInvocation.isComplete(toolInvocation)) {
+				dom.hide(this.domNode);
 				return;
 			}
 
+			dom.show(this.domNode);
 			this.subPart = partStore.add(this.createToolInvocationSubPart());
 			subPartDomNode.replaceWith(this.subPart.domNode);
 			subPartDomNode = this.subPart.domNode;
@@ -182,6 +185,24 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 		if (this.toolInvocation.toolSpecificData?.kind === 'terminal') {
 			return this.instantiationService.createInstance(ChatTerminalToolProgressPart, this.toolInvocation, this.toolInvocation.toolSpecificData, this.context, this.renderer, this.editorPool, this.currentWidthDelegate, this.codeBlockStartIndex, this.codeBlockModelCollection);
 		}
+
+		if (this.toolInvocation.toolSpecificData?.kind === 'resources' && this.toolInvocation.toolSpecificData.values.length > 0) {
+			return this.instantiationService.createInstance(ChatResultListSubPart, this.toolInvocation, this.context, this.toolInvocation.pastTenseMessage ?? this.toolInvocation.invocationMessage, this.toolInvocation.toolSpecificData.values, this.listPool);
+		}
+
+		if (this.toolInvocation.toolSpecificData?.kind === 'simpleToolInvocation') {
+			return this.instantiationService.createInstance(
+				ChatSimpleToolProgressPart,
+				this.toolInvocation,
+				this.context,
+				this.codeBlockStartIndex,
+				this.toolInvocation.pastTenseMessage ?? this.toolInvocation.invocationMessage,
+				this.toolInvocation.originMessage,
+				this.toolInvocation.toolSpecificData,
+				false,
+			);
+		}
+
 
 		const resultDetails = IChatToolInvocation.resultDetails(this.toolInvocation);
 		if (Array.isArray(resultDetails) && resultDetails.length) {

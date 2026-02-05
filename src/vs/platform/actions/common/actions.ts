@@ -251,6 +251,7 @@ export class MenuId {
 	static readonly ChatWelcomeContext = new MenuId('ChatWelcomeContext');
 	static readonly ChatMessageFooter = new MenuId('ChatMessageFooter');
 	static readonly ChatExecute = new MenuId('ChatExecute');
+	static readonly ChatExecuteQueue = new MenuId('ChatExecuteQueue');
 	static readonly ChatInput = new MenuId('ChatInput');
 	static readonly ChatInputSide = new MenuId('ChatInputSide');
 	static readonly ChatModePicker = new MenuId('ChatModePicker');

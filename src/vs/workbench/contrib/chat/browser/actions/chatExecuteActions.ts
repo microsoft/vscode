@@ -822,7 +822,8 @@ export class CancelAction extends Action2 {
 				id: MenuId.ChatExecute,
 				when: ContextKeyExpr.and(
 					ChatContextKeys.requestInProgress,
-					ChatContextKeys.remoteJobCreating.negate()
+					ChatContextKeys.remoteJobCreating.negate(),
+					ChatContextKeys.currentlyEditing.negate(),
 				),
 				order: 4,
 				group: 'navigation',

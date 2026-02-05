@@ -65,6 +65,7 @@ import { IExtHostConsumerFileSystem } from './extHostFileSystemConsumer.js';
 import { ExtHostFileSystemEventService, FileSystemWatcherCreateOptions } from './extHostFileSystemEventService.js';
 import { IExtHostFileSystemInfo } from './extHostFileSystemInfo.js';
 import { IExtHostInitDataService } from './extHostInitDataService.js';
+import { IExtHostHooks } from './extHostHooks.js';
 import { ExtHostInteractive } from './extHostInteractive.js';
 import { ExtHostLabelService } from './extHostLabelService.js';
 import { ExtHostLanguageFeatures } from './extHostLanguageFeatures.js';
@@ -238,6 +239,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostEmbeddings = rpcProtocol.set(ExtHostContext.ExtHostEmbeddings, new ExtHostEmbeddings(rpcProtocol));
 
 	rpcProtocol.set(ExtHostContext.ExtHostMcp, accessor.get(IExtHostMpcService));
+	rpcProtocol.set(ExtHostContext.ExtHostHooks, accessor.get(IExtHostHooks));
 
 	// Check that no named customers are missing
 	const expected = Object.values<ProxyIdentifier<any>>(ExtHostContext);
@@ -249,6 +251,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostMessageService = new ExtHostMessageService(rpcProtocol, extHostLogService);
 	const extHostDialogs = new ExtHostDialogs(rpcProtocol);
 	const extHostChatStatus = new ExtHostChatStatus(rpcProtocol);
+	const extHostHooks = accessor.get(IExtHostHooks);
 
 	// Register API-ish commands
 	ExtHostApiCommands.register(extHostCommands);
@@ -1591,6 +1594,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'chatPromptFiles');
 				return extHostChatAgents2.registerPromptFileProvider(extension, PromptsType.skill, provider);
 			},
+			async executeHook(hookType: vscode.ChatHookType, options: vscode.ChatHookExecutionOptions, token?: vscode.CancellationToken): Promise<vscode.ChatHookResult[]> {
+				checkProposedApiEnabled(extension, 'chatHooks');
+				return extHostHooks.executeHook(hookType, options, token);
+			},
 		};
 
 		// namespace: lm
@@ -2013,7 +2020,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			McpToolAvailability: extHostTypes.McpToolAvailability,
 			McpToolInvocationContentData: extHostTypes.McpToolInvocationContentData,
 			SettingsSearchResultKind: extHostTypes.SettingsSearchResultKind,
-			ChatTodoStatus: extHostTypes.ChatTodoStatus
+			ChatTodoStatus: extHostTypes.ChatTodoStatus,
 		};
 	};
 }
