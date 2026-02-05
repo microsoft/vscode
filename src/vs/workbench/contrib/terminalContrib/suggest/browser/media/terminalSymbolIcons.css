@@ -3,17 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-editor .codicon.codicon-terminal-symbol-alias,
-.monaco-workbench .codicon.codicon-terminal-symbol-alias { color: var(--vscode-terminalSymbolIcon-aliasForeground); }
+.monaco-editor .codicon.codicon-terminal-symbol-file,
+.monaco-workbench .codicon.codicon-terminal-symbol-file { color: var(--vscode-terminalSymbolIcon-fileForeground); }
 
-.monaco-editor .codicon.codicon-terminal-symbol-flag,
-.monaco-workbench .codicon.codicon-terminal-symbol-flag { color: var(--vscode-terminalSymbolIcon-flagForeground); }
+.monaco-editor .codicon.codicon-terminal-symbol-folder,
+.monaco-workbench .codicon.codicon-terminal-symbol-folder { color: var(--vscode-terminalSymbolIcon-folderForeground); }
 
-.monaco-editor .codicon.codicon-terminal-symbol-option-value,
-.monaco-workbench .codicon.codicon-terminal-symbol-option-value { color: var(--vscode-terminalSymbolIcon-optionValueForeground); }
+.monaco-editor .codicon.codicon-terminal-symbol-symbolic-link-file,
+.monaco-workbench .codicon.codicon-terminal-symbolic-link-file { color: var(--vscode-terminalSymbolIcon-symbolicLinkFileForeground); }
+
+.monaco-editor .codicon.codicon-terminal-symbol-symbolic-link-folder,
+.monaco-workbench .codicon.codicon-terminal-symbol-symbolic-link-folder { color: var(--vscode-terminalSymbolIcon-symbolicLinkFolderForeground); }
 
 .monaco-editor .codicon.codicon-terminal-symbol-method,
 .monaco-workbench .codicon.codicon-terminal-symbol-method { color: var(--vscode-terminalSymbolIcon-methodForeground); }
+
+.monaco-editor .codicon.codicon-terminal-symbol-alias,
+.monaco-workbench .codicon.codicon-terminal-symbol-alias { color: var(--vscode-terminalSymbolIcon-aliasForeground); }
 
 .monaco-editor .codicon.codicon-terminal-symbol-argument,
 .monaco-workbench .codicon.codicon-terminal-symbol-argument { color: var(--vscode-terminalSymbolIcon-argumentForeground); }
@@ -21,11 +27,32 @@
 .monaco-editor .codicon.codicon-terminal-symbol-option,
 .monaco-workbench .codicon.codicon-terminal-symbol-option { color: var(--vscode-terminalSymbolIcon-optionForeground); }
 
+.monaco-editor .codicon.codicon-terminal-symbol-option-value,
+.monaco-workbench .codicon.codicon-terminal-symbol-option-value { color: var(--vscode-terminalSymbolIcon-optionValueForeground); }
+
+.monaco-editor .codicon.codicon-terminal-symbol-flag,
+.monaco-workbench .codicon.codicon-terminal-symbol-flag { color: var(--vscode-terminalSymbolIcon-flagForeground); }
+
+.monaco-editor .codicon.codicon-terminal-symbol-commit,
+.monaco-workbench .codicon.codicon-terminal-symbol-commit { color: var(--vscode-terminalSymbolIcon-commitForeground); }
+
+.monaco-editor .codicon.codicon-terminal-symbol-branch,
+.monaco-workbench .codicon.codicon-terminal-symbol-branch { color: var(--vscode-terminalSymbolIcon-branchForeground); }
+
+.monaco-editor .codicon.codicon-terminal-symbol-tag,
+.monaco-workbench .codicon.codicon-terminal-symbol-tag { color: var(--vscode-terminalSymbolIcon-tagForeground); }
+
+.monaco-editor .codicon.codicon-terminal-symbol-stash,
+.monaco-workbench .codicon.codicon-terminal-symbol-stash { color: var(--vscode-terminalSymbolIcon-stashForeground); }
+
+.monaco-editor .codicon.codicon-terminal-symbol-remote,
+.monaco-workbench .codicon.codicon-terminal-symbol-remote { color: var(--vscode-terminalSymbolIcon-remoteForeground); }
+
+.monaco-editor .codicon.codicon-terminal-symbol-pull-request,
+.monaco-workbench .codicon.codicon-terminal-symbol-pull-request { color: var(--vscode-terminalSymbolIcon-pullRequestForeground); }
+
+.monaco-editor .codicon.codicon-terminal-symbol-pull-request-done,
+.monaco-workbench .codicon.codicon-terminal-symbol-pull-request-done { color: var(--vscode-terminalSymbolIcon-pullRequestDoneForeground); }
+
 .monaco-editor .codicon.codicon-terminal-symbol-inline-suggestion,
 .monaco-workbench .codicon.codicon-terminal-symbol-inline-suggestion { color: var(--vscode-terminalSymbolIcon-inlineSuggestionForeground); }
-
-.monaco-editor .codicon.codicon-terminal-symbol-file,
-.monaco-workbench .codicon.codicon-terminal-symbol-file { color: var(--vscode-terminalSymbolIcon-fileForeground); }
-
-.monaco-editor .codicon.codicon-terminal-symbol-folder,
-.monaco-workbench .codicon.codicon-terminal-symbol-folder { color: var(--vscode-terminalSymbolIcon-folderForeground); }
