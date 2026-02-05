@@ -398,10 +398,6 @@ export class UnifiedQuickAccess extends Disposable {
 			return value.substring(1);
 		}
 
-		if (this._arrivedViaShortcut && value.startsWith(this._arrivedViaShortcut)) {
-			return value.substring(1);
-		}
-
 		return value;
 	}
 
