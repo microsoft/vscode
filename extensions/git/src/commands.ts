@@ -443,6 +443,7 @@ type RemoteSourceActionButton = {
 	iconPath: ThemeIcon;
 	tooltip: string;
 	actual: RemoteSourceAction;
+	isFetchAction?: boolean;
 };
 
 async function getRemoteRefItemButtons(repository: Repository) {
@@ -453,10 +454,11 @@ async function getRemoteRefItemButtons(repository: Repository) {
 	const fetchButton: RemoteSourceActionButton = {
 		iconPath: new ThemeIcon('cloud-download'),
 		tooltip: l10n.t('Fetch'),
+		isFetchAction: true,
 		actual: {
 			label: l10n.t('Fetch'),
 			icon: 'cloud-download',
-			run: () => { /* Marker for fetch action */ }
+			run: () => { /* Handled in click handler */ }
 		}
 	};
 
@@ -2849,11 +2851,11 @@ export class CommandCenter {
 			disposables.push(quickPick.onDidHide(() => c(undefined)));
 			disposables.push(quickPick.onDidAccept(() => c(quickPick.activeItems[0])));
 			disposables.push(quickPick.onDidTriggerItemButton(async (e) => {
-				const button = e.button as QuickInputButton & { actual: RemoteSourceAction };
+				const button = e.button as QuickInputButton & RemoteSourceActionButton;
 				const item = e.item as CheckoutItem;
 				if (button.actual && item.refName) {
 					// Handle fetch button
-					if (button.actual.icon === 'cloud-download' && item.refRemote) {
+					if (button.isFetchAction && item.refRemote) {
 						const branchName = item.refName.substring(item.refRemote.length + 1);
 						try {
 							await repository.fetch({ remote: item.refRemote, ref: branchName });
@@ -2862,7 +2864,6 @@ export class CommandCenter {
 							window.showErrorMessage(l10n.t('Failed to fetch branch: {0}', (err.stderr || err.message || String(err))));
 						}
 					} else {
-						// Handle other remote source action buttons
 						button.actual.run(item.refRemote ? item.refName.substring(item.refRemote.length + 1) : item.refName);
 					}
 				}
