@@ -419,7 +419,7 @@ export class UnifiedQuickAccess extends Disposable {
 	}
 
 	/**
-	 * Send the exact message to a new agent session (no prefix stripping).
+	 * Send the exact message to a new agent session (strips leading shortcut character but not prefix).
 	 */
 	private async _sendMessageRaw(value: string): Promise<void> {
 		const message = this._stripLeadingShortcut(value, this._currentTab).trim();
