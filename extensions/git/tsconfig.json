@@ -1,6 +1,7 @@
 {
 	"extends": "../tsconfig.base.json",
 	"compilerOptions": {
+		"rootDir": "./src",
 		"outDir": "./out",
 		"typeRoots": [
 			"./node_modules/@types"
@@ -28,6 +29,7 @@
 		"../../src/vscode-dts/vscode.proposed.tabInputTextMerge.d.ts",
 		"../../src/vscode-dts/vscode.proposed.textEditorDiffInformation.d.ts",
 		"../../src/vscode-dts/vscode.proposed.timeline.d.ts",
+		"../../src/vscode-dts/vscode.proposed.workspaceTrust.d.ts",
 		"../types/lib.textEncoder.d.ts"
 	]
 }

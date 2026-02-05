@@ -6,7 +6,7 @@
 import { session } from 'electron';
 import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
-import { IBrowserViewBounds, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewService, BrowserViewStorageScope, IBrowserViewCaptureScreenshotOptions } from '../common/browserView.js';
+import { IBrowserViewBounds, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewService, BrowserViewStorageScope, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions } from '../common/browserView.js';
 import { joinPath } from '../../../base/common/resources.js';
 import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
 import { createDecorator, IInstantiationService } from '../../instantiation/common/instantiation.js';
@@ -78,6 +78,27 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		});
 	}
 
+	/**
+	 * Create a child browser view (used by window.open handler)
+	 */
+	private createBrowserView(id: string, session: Electron.Session, scope: BrowserViewStorageScope, options?: Electron.WebContentsViewConstructorOptions): BrowserView {
+		if (this.browserViews.has(id)) {
+			throw new Error(`Browser view with id ${id} already exists`);
+		}
+
+		const view = this.instantiationService.createInstance(
+			BrowserView,
+			id,
+			session,
+			scope,
+			// Recursive factory for nested windows
+			(options) => this.createBrowserView(generateUuid(), session, scope, options),
+			options
+		);
+		this.browserViews.set(id, view);
+		return view;
+	}
+
 	async getOrCreateBrowserView(id: string, scope: BrowserViewStorageScope, workspaceId?: string): Promise<IBrowserViewState> {
 		if (this.browserViews.has(id)) {
 			// Note: scope will be ignored if the view already exists.
@@ -90,8 +111,7 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		this.configureSession(session);
 		BrowserViewMainService.knownSessions.add(session);
 
-		const view = this.instantiationService.createInstance(BrowserView, session, resolvedScope);
-		this.browserViews.set(id, view);
+		const view = this.createBrowserView(id, session, resolvedScope);
 
 		return view.getState();
 	}
@@ -123,6 +143,10 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		return this._getBrowserView(id).onDidChangeFocus;
 	}
 
+	onDynamicDidChangeVisibility(id: string) {
+		return this._getBrowserView(id).onDidChangeVisibility;
+	}
+
 	onDynamicDidChangeDevToolsState(id: string) {
 		return this._getBrowserView(id).onDidChangeDevToolsState;
 	}
@@ -141,6 +165,10 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 
 	onDynamicDidRequestNewPage(id: string) {
 		return this._getBrowserView(id).onDidRequestNewPage;
+	}
+
+	onDynamicDidFindInPage(id: string) {
+		return this._getBrowserView(id).onDidFindInPage;
 	}
 
 	onDynamicDidClose(id: string) {
@@ -205,6 +233,22 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 
 	async focus(id: string): Promise<void> {
 		return this._getBrowserView(id).focus();
+	}
+
+	async findInPage(id: string, text: string, options?: IBrowserViewFindInPageOptions): Promise<void> {
+		return this._getBrowserView(id).findInPage(text, options);
+	}
+
+	async stopFindInPage(id: string, keepSelection?: boolean): Promise<void> {
+		return this._getBrowserView(id).stopFindInPage(keepSelection);
+	}
+
+	async getSelectedText(id: string): Promise<string> {
+		return this._getBrowserView(id).getSelectedText();
+	}
+
+	async clearStorage(id: string): Promise<void> {
+		return this._getBrowserView(id).clearStorage();
 	}
 
 	async clearGlobalStorage(): Promise<void> {

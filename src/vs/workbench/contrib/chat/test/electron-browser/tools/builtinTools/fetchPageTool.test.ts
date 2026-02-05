@@ -18,6 +18,7 @@ import { InternalFetchWebPageToolId } from '../../../../common/tools/builtinTool
 import { MockChatService } from '../../../common/chatService/mockChatService.js';
 import { upcastDeepPartial } from '../../../../../../../base/test/common/mock.js';
 import { IChatService } from '../../../../common/chatService/chatService.js';
+import { LocalChatSessionUri } from '../../../../common/model/chatUri.js';
 
 class TestWebContentExtractorService implements IWebContentExtractorService {
 	_serviceBrand: undefined;
@@ -191,7 +192,7 @@ suite('FetchWebPageTool', () => {
 		);
 
 		const preparation = await tool.prepareToolInvocation(
-			{ parameters: { urls: ['https://valid.com', 'test://valid/resource', 'invalid://invalid'] } },
+			{ parameters: { urls: ['https://valid.com', 'test://valid/resource', 'invalid://invalid'] }, chatSessionResource: undefined },
 			CancellationToken.None
 		);
 
@@ -229,7 +230,7 @@ suite('FetchWebPageTool', () => {
 		);
 
 		const preparation1 = await tool.prepareToolInvocation(
-			{ parameters: { urls: ['https://example.com'] }, chatSessionId: 'a' },
+			{ parameters: { urls: ['https://example.com'] }, chatSessionResource: LocalChatSessionUri.forSession('a') },
 			CancellationToken.None
 		);
 
@@ -237,7 +238,7 @@ suite('FetchWebPageTool', () => {
 		assert.strictEqual(preparation1.confirmationMessages?.title, undefined);
 
 		const preparation2 = await tool.prepareToolInvocation(
-			{ parameters: { urls: ['https://other.com'] }, chatSessionId: 'a' },
+			{ parameters: { urls: ['https://other.com'] }, chatSessionResource: LocalChatSessionUri.forSession('a') },
 			CancellationToken.None
 		);
 

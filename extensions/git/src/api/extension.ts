@@ -9,14 +9,14 @@ import { ApiRepository, ApiImpl } from './api1';
 import { Event, EventEmitter } from 'vscode';
 import { CloneManager } from '../cloneManager';
 
-function deprecated(original: unknown, context: ClassMemberDecoratorContext) {
-	if (typeof original !== 'function' || context.kind !== 'method') {
+function deprecated(_target: unknown, key: string | symbol, descriptor: PropertyDescriptor): void {
+	if (typeof descriptor.value !== 'function') {
 		throw new Error('not supported');
 	}
 
-	const key = context.name.toString();
-	return function (this: unknown, ...args: unknown[]) {
-		console.warn(`Git extension API method '${key}' is deprecated.`);
+	const original = descriptor.value;
+	descriptor.value = function (this: unknown, ...args: unknown[]) {
+		console.warn(`Git extension API method '${String(key)}' is deprecated.`);
 		return original.apply(this, args);
 	};
 }

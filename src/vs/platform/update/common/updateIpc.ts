@@ -29,6 +29,7 @@ export class UpdateChannel implements IServerChannel {
 			case '_getInitialState': return Promise.resolve(this.service.state);
 			case 'isLatestVersion': return this.service.isLatestVersion();
 			case '_applySpecificUpdate': return this.service._applySpecificUpdate(arg);
+			case 'disableProgressiveReleases': return this.service.disableProgressiveReleases();
 		}
 
 		throw new Error(`Call not found: ${command}`);
@@ -77,6 +78,10 @@ export class UpdateChannelClient implements IUpdateService {
 
 	_applySpecificUpdate(packagePath: string): Promise<void> {
 		return this.channel.call('_applySpecificUpdate', packagePath);
+	}
+
+	disableProgressiveReleases(): Promise<void> {
+		return this.channel.call('disableProgressiveReleases');
 	}
 
 	dispose(): void {

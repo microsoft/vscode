@@ -20,7 +20,8 @@ import { ITextModel } from '../../../../editor/common/model.js';
 import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
 import { getCodeEditor } from '../../../../editor/browser/editorBrowser.js';
-import { ILanguageModelsConfigurationService, ILanguageModelsProviderGroup } from '../common/languageModelsConfiguration.js';
+import { SnippetController2 } from '../../../../editor/contrib/snippet/browser/snippetController2.js';
+import { ConfigureLanguageModelsOptions, ILanguageModelsConfigurationService, ILanguageModelsProviderGroup } from '../common/languageModelsConfiguration.js';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from '../../../../platform/jsonschemas/common/jsonContributionRegistry.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
@@ -34,9 +35,10 @@ export class LanguageModelsConfigurationService extends Disposable implements IL
 	declare _serviceBrand: undefined;
 
 	private readonly modelsConfigurationFile: URI;
+	get configurationFile(): URI { return this.modelsConfigurationFile; }
 
-	private readonly _onDidChangeLanguageModelGroups = new Emitter<void>();
-	readonly onDidChangeLanguageModelGroups: Event<void> = this._onDidChangeLanguageModelGroups.event;
+	private readonly _onDidChangeLanguageModelGroups = new Emitter<readonly ILanguageModelsProviderGroup[]>();
+	readonly onDidChangeLanguageModelGroups: Event<readonly ILanguageModelsProviderGroup[]> = this._onDidChangeLanguageModelGroups.event;
 
 	private languageModelsProviderGroups: LanguageModelsProviderGroups = [];
 
@@ -61,11 +63,29 @@ export class LanguageModelsConfigurationService extends Disposable implements IL
 	}
 
 	private setLanguageModelsConfiguration(languageModelsConfiguration: LanguageModelsProviderGroups): void {
-		if (equals(this.languageModelsProviderGroups, languageModelsConfiguration)) {
-			return;
+		const changedGroups: ILanguageModelsProviderGroup[] = [];
+		const oldGroupMap = new Map(this.languageModelsProviderGroups.map(g => [`${g.vendor}:${g.name}`, g]));
+		const newGroupMap = new Map(languageModelsConfiguration.map(g => [`${g.vendor}:${g.name}`, g]));
+
+		// Find added or modified groups
+		for (const [key, newGroup] of newGroupMap) {
+			const oldGroup = oldGroupMap.get(key);
+			if (!oldGroup || !equals(oldGroup, newGroup)) {
+				changedGroups.push(newGroup);
+			}
 		}
+
+		// Find removed groups
+		for (const [key, oldGroup] of oldGroupMap) {
+			if (!newGroupMap.has(key)) {
+				changedGroups.push(oldGroup);
+			}
+		}
+
 		this.languageModelsProviderGroups = languageModelsConfiguration;
-		this._onDidChangeLanguageModelGroups.fire();
+		if (changedGroups.length > 0) {
+			this._onDidChangeLanguageModelGroups.fire(changedGroups);
+		}
 	}
 
 	private async updateLanguageModelsConfiguration(): Promise<void> {
@@ -129,9 +149,9 @@ export class LanguageModelsConfigurationService extends Disposable implements IL
 		await this.updateLanguageModelsConfiguration();
 	}
 
-	async configureLanguageModels(range?: IRange): Promise<void> {
+	async configureLanguageModels(options?: ConfigureLanguageModelsOptions): Promise<void> {
 		const editor = await this.editorGroupsService.activeGroup.openEditor(this.textEditorService.createTextEditor({ resource: this.modelsConfigurationFile }));
-		if (!editor || !range) {
+		if (!editor || !options?.group) {
 			return;
 		}
 
@@ -140,10 +160,29 @@ export class LanguageModelsConfigurationService extends Disposable implements IL
 			return;
 		}
 
-		const position = { lineNumber: range.startLineNumber, column: range.startColumn };
-		codeEditor.setPosition(position);
-		codeEditor.revealPositionNearTop(position);
-		codeEditor.focus();
+		if (!options.group.range) {
+			return;
+		}
+
+		if (options.snippet) {
+			// Insert snippet at the end of the last property line (before the closing brace line), with comma prepended
+			const model = codeEditor.getModel();
+			if (!model) {
+				return;
+			}
+			const lastPropertyLine = options.group.range.endLineNumber - 1;
+			const lastPropertyLineLength = model.getLineLength(lastPropertyLine);
+			const insertPosition = { lineNumber: lastPropertyLine, column: lastPropertyLineLength + 1 };
+			codeEditor.setPosition(insertPosition);
+			codeEditor.revealPositionNearTop(insertPosition);
+			codeEditor.focus();
+			SnippetController2.get(codeEditor)?.insert(',\n' + options.snippet);
+		} else {
+			const position = { lineNumber: options.group.range.startLineNumber, column: options.group.range.startColumn };
+			codeEditor.setPosition(position);
+			codeEditor.revealPositionNearTop(position);
+			codeEditor.focus();
+		}
 	}
 
 	private async withLanguageModelsProviderGroups(update?: (languageModelsProviderGroups: LanguageModelsProviderGroups) => Promise<LanguageModelsProviderGroups>): Promise<LanguageModelsProviderGroups> {
@@ -263,13 +302,11 @@ export class ChatLanguageModelsDataContribution extends Disposable implements IW
 
 	constructor(
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
-		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
-		@IUriIdentityService uriIdentityService: IUriIdentityService,
+		@ILanguageModelsConfigurationService languageModelsConfigurationService: ILanguageModelsConfigurationService,
 	) {
 		super();
-		const modelsConfigurationFile = uriIdentityService.extUri.joinPath(userDataProfileService.currentProfile.location, 'models.json');
 		const registry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
-		this._register(registry.registerSchemaAssociation(languageModelsSchemaId, modelsConfigurationFile.toString()));
+		this._register(registry.registerSchemaAssociation(languageModelsSchemaId, languageModelsConfigurationService.configurationFile.toString()));
 
 		this.updateSchema(registry);
 		this._register(this.languageModelsService.onDidChangeLanguageModels(() => this.updateSchema(registry)));

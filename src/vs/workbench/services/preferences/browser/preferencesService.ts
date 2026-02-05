@@ -253,9 +253,9 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			const idMatch = query.match(/^@id:(.+)$/);
 			let key: string | undefined;
 			if (idMatch) {
-				key = idMatch[1];
-			} else if (Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties()[query]) {
-				key = query;
+				key = idMatch[1].trim();
+			} else if (Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties()[query.trim()]) {
+				key = query.trim();
 			}
 			options.query = undefined;
 			if (key) {
@@ -546,18 +546,18 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 
 	private getMostCommonlyUsedSettings(): string[] {
 		return [
-			'files.autoSave',
 			'editor.fontSize',
+			'editor.formatOnSave',
+			'files.autoSave',
+			'editor.defaultFormatter',
 			'editor.fontFamily',
-			'editor.tabSize',
-			'editor.renderWhitespace',
-			'editor.cursorStyle',
-			'editor.multiCursorModifier',
-			'editor.insertSpaces',
 			'editor.wordWrap',
+			'chat.agent.maxRequests',
 			'files.exclude',
-			'files.associations',
-			'workbench.editor.enablePreview'
+			'workbench.colorTheme',
+			'editor.tabSize',
+			'editor.mouseWheelZoom',
+			'editor.formatOnPaste'
 		];
 	}
 

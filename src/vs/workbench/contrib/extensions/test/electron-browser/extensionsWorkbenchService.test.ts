@@ -38,7 +38,7 @@ import { ExtensionKind } from '../../../../../platform/environment/common/enviro
 import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
 import { RemoteAgentService } from '../../../../services/remote/electron-browser/remoteAgentService.js';
 import { ISharedProcessService } from '../../../../../platform/ipc/electron-browser/services.js';
-import { TestContextService } from '../../../../test/common/workbenchTestServices.js';
+import { TestContextService, TestProductService } from '../../../../test/common/workbenchTestServices.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { TestLifecycleService } from '../../../../test/browser/workbenchTestServices.js';
@@ -82,7 +82,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		instantiationService.stub(ILogService, NullLogService);
 		instantiationService.stub(IFileService, disposableStore.add(new FileService(new NullLogService())));
 		instantiationService.stub(IProgressService, ProgressService);
-		instantiationService.stub(IProductService, {});
+		instantiationService.stub(IProductService, TestProductService);
 
 		instantiationService.stub(IExtensionGalleryService, ExtensionGalleryService);
 		instantiationService.stub(IURLService, NativeURLService);

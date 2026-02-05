@@ -126,6 +126,10 @@ abstract class AbstractUpdateService implements IUpdateService {
 		// noop
 	}
 
+	async disableProgressiveReleases(): Promise<void> {
+		// noop - not applicable for snap
+	}
+
 	abstract isLatestVersion(): Promise<boolean | undefined>;
 
 	async _applySpecificUpdate(packagePath: string): Promise<void> {
@@ -162,7 +166,7 @@ export class SnapUpdateService extends AbstractUpdateService {
 		this.setState(State.CheckingForUpdates(false));
 		this.isUpdateAvailable().then(result => {
 			if (result) {
-				this.setState(State.Ready({ version: 'something' }));
+				this.setState(State.Ready({ version: 'something' }, false, false));
 			} else {
 				this.setState(State.Idle(UpdateType.Snap));
 			}

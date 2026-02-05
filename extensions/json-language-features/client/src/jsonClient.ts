@@ -650,8 +650,6 @@ async function startClientWithParticipants(_context: ExtensionContext, languageP
 	async function getSchemaAssociations(forceRefresh: boolean): Promise<ISchemaAssociation[]> {
 		if (!schemaAssociationsCache || forceRefresh) {
 			schemaAssociationsCache = computeSchemaAssociations();
-			runtime.logOutputChannel.info(`Computed schema associations: ${(await schemaAssociationsCache).map(a => `${a.uri} -> [${a.fileMatch.join(', ')}]`).join('\n')}`);
-
 		}
 		return schemaAssociationsCache;
 	}

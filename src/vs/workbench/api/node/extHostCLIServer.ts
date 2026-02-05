@@ -153,8 +153,11 @@ export class CLIServerBase {
 	private async openExternal(data: OpenExternalCommandPipeArgs): Promise<undefined> {
 		for (const uriString of data.uris) {
 			const uri = URI.parse(uriString);
-			const urioOpen = uri.scheme === 'file' ? uri : uriString; // workaround for #112577
-			await this._commands.executeCommand('_remoteCLI.openExternal', urioOpen);
+			if (uri.scheme === 'file') {
+				// skip file:// uris, they refer to the file system of the remote that have no meaning on the local machine
+				continue;
+			}
+			await this._commands.executeCommand('_remoteCLI.openExternal', uriString); // always send the string, workaround for #112577
 		}
 	}
 

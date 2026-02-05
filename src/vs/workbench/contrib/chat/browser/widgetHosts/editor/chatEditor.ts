@@ -43,7 +43,6 @@ export interface IChatEditorOptions extends IEditorOptions {
 		preferred?: string;
 		fallback?: string;
 	};
-	expanded?: boolean;
 }
 
 export class ChatEditor extends EditorPane {

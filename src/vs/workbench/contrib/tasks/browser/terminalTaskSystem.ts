@@ -294,7 +294,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 	getTerminalsForTasks(tasks: Types.SingleOrMany<Task>): URI[] | undefined {
 		const results: URI[] = [];
 		for (const t of asArray(tasks)) {
-			for (const key in this._terminals) {
+			for (const key of Object.keys(this._terminals)) {
 				const value = this._terminals[key];
 				if (value.lastTask === t.getMapKey()) {
 					results.push(value.terminal.resource);
@@ -850,7 +850,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		// Check that the task hasn't changed to include new variables
 		let hasAllVariables = true;
 		variables.forEach(value => {
-			if (value.substring(2, value.length - 1) in lastTask.getVerifiedTask().resolvedVariables) {
+			if (Object.hasOwn(lastTask.getVerifiedTask().resolvedVariables, value.substring(2, value.length - 1))) {
 				hasAllVariables = false;
 			}
 		});
@@ -1305,7 +1305,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			shellLaunchConfig.args = windowsShellArgs ? combinedShellArgs.join(' ') : combinedShellArgs;
 			if (task.command.presentation && task.command.presentation.echo) {
 				if (needsFolderQualification && workspaceFolder) {
-					const folder = cwd && typeof cwd === 'object' && 'path' in cwd ? path.basename(cwd.path) : workspaceFolder.name;
+					const folder = cwd && typeof cwd === 'object' && Object.hasOwn(cwd, 'path') ? path.basename(cwd.path) : workspaceFolder.name;
 					shellLaunchConfig.initialText = this.taskShellIntegrationStartSequence(cwd) + formatMessageForTerminal(nls.localize({
 						key: 'task.executingInFolder',
 						comment: ['The workspace folder the task is running in', 'The task command line or label']
@@ -1411,7 +1411,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		const reconnectedTerminal = await this._reconnectToTerminal(task);
 		const onDisposed = (terminal: ITerminalInstance) => this._fireTaskEvent(TaskEvent.terminated(task, terminal.instanceId, terminal.exitReason));
 		if (reconnectedTerminal) {
-			if ('command' in task && task.command.presentation) {
+			if ((CustomTask.is(task) || ContributedTask.is(task)) && task.command.presentation) {
 				reconnectedTerminal.waitOnExit = getWaitOnExitValue(task.command.presentation, task.configurationProperties);
 			}
 			this._register(reconnectedTerminal.onDisposed(onDisposed));
@@ -1717,7 +1717,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		} else if (Array.isArray(definition)) {
 			definition.forEach((element: any) => this._collectDefinitionVariables(variables, element));
 		} else if (Types.isObject(definition)) {
-			for (const key in definition) {
+			for (const key of Object.keys(definition)) {
 				this._collectDefinitionVariables(variables, definition[key]);
 			}
 		}
@@ -1947,7 +1947,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 
 	public async getTaskForTerminal(instanceId: number): Promise<Task | undefined> {
 		// First check if there's an active task for this terminal
-		for (const key in this._activeTasks) {
+		for (const key of Object.keys(this._activeTasks)) {
 			const activeTask = this._activeTasks[key];
 			if (activeTask.terminal?.instanceId === instanceId) {
 				return activeTask.task;

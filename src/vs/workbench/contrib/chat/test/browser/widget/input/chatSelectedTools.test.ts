@@ -40,7 +40,7 @@ suite('ChatSelectedTools', () => {
 
 		store.add(instaService);
 		toolsService = instaService.get(ILanguageModelToolsService);
-		selectedTools = store.add(instaService.createInstance(ChatSelectedTools, constObservable(ChatMode.Agent)));
+		selectedTools = store.add(instaService.createInstance(ChatSelectedTools, constObservable(ChatMode.Agent), constObservable(undefined)));
 	});
 
 	teardown(function () {
@@ -95,14 +95,14 @@ suite('ChatSelectedTools', () => {
 			store.add(toolset.addTool(toolData2));
 			store.add(toolset.addTool(toolData3));
 
-			assert.strictEqual(Iterable.length(toolsService.getTools()), 3);
+			assert.strictEqual(Iterable.length(toolsService.getTools(undefined)), 3);
 
 			const size = Iterable.length(toolset.getTools());
 			assert.strictEqual(size, 3);
 
 			await timeout(1000); // UGLY the tools service updates its state sync but emits the event async (750ms) delay. This affects the observable that depends on the event
 
-			assert.strictEqual(selectedTools.entriesMap.get().size, 7); // 1 toolset (+3 vscode, execute, read toolsets), 3 tools
+			assert.strictEqual(selectedTools.entriesMap.get().size, 8); // 1 toolset (+4 vscode, execute, read, agent toolsets), 3 tools
 
 			const toSet = new Map<IToolData | ToolSet, boolean>([[toolData1, true], [toolData2, false], [toolData3, false], [toolset, false]]);
 			selectedTools.set(toSet, false);
@@ -159,14 +159,14 @@ suite('ChatSelectedTools', () => {
 			store.add(toolset.addTool(toolData2));
 			store.add(toolset.addTool(toolData3));
 
-			assert.strictEqual(Iterable.length(toolsService.getTools()), 3);
+			assert.strictEqual(Iterable.length(toolsService.getTools(undefined)), 3);
 
 			const size = Iterable.length(toolset.getTools());
 			assert.strictEqual(size, 3);
 
 			await timeout(1000); // UGLY the tools service updates its state sync but emits the event async (750ms) delay. This affects the observable that depends on the event
 
-			assert.strictEqual(selectedTools.entriesMap.get().size, 7); // 1 toolset (+3 vscode, execute, read toolsets), 3 tools
+			assert.strictEqual(selectedTools.entriesMap.get().size, 8); // 1 toolset (+4 vscode, execute, read, agent toolsets), 3 tools
 
 			// Toolset is checked, tools 2 and 3 are unchecked
 			const toSet = new Map<IToolData | ToolSet, boolean>([[toolData1, true], [toolData2, false], [toolData3, false], [toolset, true]]);

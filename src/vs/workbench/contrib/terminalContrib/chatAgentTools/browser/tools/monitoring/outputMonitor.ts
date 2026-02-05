@@ -11,6 +11,7 @@ import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { Disposable, MutableDisposable, type IDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { isObject, isString } from '../../../../../../../base/common/types.js';
+import { URI } from '../../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../../nls.js';
 import { ExtensionIdentifier } from '../../../../../../../platform/extensions/common/extensions.js';
 import { IChatWidgetService } from '../../../../../chat/browser/chat.js';
@@ -27,7 +28,6 @@ import { getTextResponseFromStream } from './utils.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TerminalChatAgentToolsSettingId } from '../../../common/terminalChatAgentToolsConfiguration.js';
 import { ITerminalService } from '../../../../../terminal/browser/terminal.js';
-import { LocalChatSessionUri } from '../../../../../chat/common/model/chatUri.js';
 import { ITerminalLogService } from '../../../../../../../platform/terminal/common/terminal.js';
 
 export interface IOutputMonitor extends Disposable {
@@ -188,6 +188,40 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 
 		if (detectsNonInteractiveHelpPattern(output)) {
 			return { shouldContinuePollling: false, output };
+		}
+
+		// Check for VS Code's task finish messages (like "press any key to close the terminal").
+		// These should only be ignored if it's a task AND the task is finished.
+		// Otherwise, "press any key to continue" from scripts should prompt the user.
+		const isTask = this._execution.task !== undefined;
+		const isTaskInactive = this._execution.isActive ? !(await this._execution.isActive()) : true;
+		if (isTask && isTaskInactive && detectsVSCodeTaskFinishMessage(output)) {
+			// Task is finished, ignore the "press any key to close" message
+			return { shouldContinuePollling: false, output };
+		}
+
+		// Check for generic "press any key" prompts from scripts.
+		// These should be treated as free-form input to let the user press a key.
+		if ((!isTask || !isTaskInactive) && detectsGenericPressAnyKeyPattern(output)) {
+			// Register a marker to track this prompt position so we don't re-detect it
+			const currentMarker = this._execution.instance.registerMarker();
+			if (currentMarker) {
+				this._lastPromptMarker = currentMarker;
+			}
+			this._cleanupIdleInputListener();
+			this._outputMonitorTelemetryCounters.inputToolFreeFormInputShownCount++;
+			const lastLine = output.trimEnd().split(/\r?\n/).pop() || '';
+			const receivedTerminalInput = await this._requestFreeFormTerminalInput(token, this._execution, {
+				prompt: lastLine,
+				options: [],
+				detectedRequestForFreeFormInput: true
+			}, true /* acceptAnyKey */);
+			if (receivedTerminalInput) {
+				await timeout(200);
+				return { shouldContinuePollling: true };
+			} else {
+				return { shouldContinuePollling: false };
+			}
 		}
 
 		// Check if user already inputted since idle was detected (before we even got here)
@@ -419,19 +453,13 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			6. Output: "Continue [y/N]"
 				Response: {"prompt": "Continue", "options": ["y", "N"], "freeFormInput": false}
 
-			7. Output: "Press any key to close the terminal."
-				Response: null
-
-			8. Output: "Terminal will be reused by tasks, press any key to close it."
-				Response: null
-
-			9. Output: "Password:"
+			7. Output: "Password:"
 				Response: {"prompt": "Password:", "freeFormInput": true, "options": []}
-			10. Output: "press ctrl-c to detach, ctrl-d to kill"
+			8. Output: "press ctrl-c to detach, ctrl-d to kill"
 				Response: null
-			11. Output: "Continue (y/n)? y"
+			9. Output: "Continue (y/n)? y"
 				Response: null (the prompt was already answered with 'y')
-			12. Output: "Do you want to proceed? (yes/no)\nyes\nProceeding with operation..."
+			10. Output: "Do you want to proceed? (yes/no)\nyes\nProceeding with operation..."
 				Response: null (the prompt was already answered and there is subsequent output)
 
 			Alternatively, the prompt may request free form input, for example:
@@ -439,6 +467,8 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				Response: {"prompt": "Enter your username:", "freeFormInput": true, "options": []}
 			2. Output: "Password:"
 				Response: {"prompt": "Password:", "freeFormInput": true, "options": []}
+			3. Output: "Press any key to continue..."
+				Response: {"prompt": "Press any key to continue...", "freeFormInput": true, "options": []}
 			Now, analyze this output:
 			${lastLines}
 			`;
@@ -448,14 +478,14 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		try {
 			const match = responseText.match(/\{[\s\S]*\}/);
 			if (match) {
-				const obj = JSON.parse(match[0]) as unknown;
+				const parsed = JSON.parse(match[0]) as unknown;
 				if (
-					isObject(obj) &&
-					'prompt' in obj && isString(obj.prompt) &&
-					'options' in obj &&
-					'options' in obj &&
-					'freeFormInput' in obj && typeof obj.freeFormInput === 'boolean'
+					isObject(parsed) &&
+					Object.hasOwn(parsed, 'prompt') && isString((parsed as Record<string, unknown>).prompt) &&
+					Object.hasOwn(parsed, 'options') &&
+					Object.hasOwn(parsed, 'freeFormInput') && typeof (parsed as Record<string, unknown>).freeFormInput === 'boolean'
 				) {
+					const obj = parsed as { prompt: string; options: unknown; freeFormInput: boolean };
 					if (this._lastPrompt === obj.prompt) {
 						return;
 					}
@@ -517,12 +547,12 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		if (!suggestedOption) {
 			return;
 		}
-		const parsed = suggestedOption.replace(/['"`]/g, '').trim();
-		const index = confirmationPrompt.options.indexOf(parsed);
-		const validOption = confirmationPrompt.options.find(opt => parsed === opt.replace(/['"`]/g, '').trim());
-		if (!validOption || index === -1) {
+		const match = matchTerminalPromptOption(confirmationPrompt.options, suggestedOption);
+		if (!match.option || match.index === -1) {
 			return;
 		}
+		const validOption = match.option;
+		const index = match.index;
 		let sentToTerminal = false;
 		if (this._configurationService.getValue(TerminalChatAgentToolsSettingId.AutoReplyToPrompts)) {
 			await this._execution.instance.sendText(validOption, true);
@@ -534,11 +564,11 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		return description ? { suggestedOption: { description, option: validOption }, sentToTerminal } : { suggestedOption: validOption, sentToTerminal };
 	}
 
-	private async _requestFreeFormTerminalInput(token: CancellationToken, execution: IExecution, confirmationPrompt: IConfirmationPrompt): Promise<boolean> {
+	private async _requestFreeFormTerminalInput(token: CancellationToken, execution: IExecution, confirmationPrompt: IConfirmationPrompt, acceptAnyKey: boolean = false): Promise<boolean> {
 		const focusTerminalSelection = Symbol('focusTerminalSelection');
 		const { promise: userPrompt, part } = this._createElicitationPart<boolean | typeof focusTerminalSelection>(
 			token,
-			execution.sessionId,
+			execution.sessionResource,
 			new MarkdownString(localize('poll.terminal.inputRequest', "The terminal is awaiting input.")),
 			new MarkdownString(localize('poll.terminal.requireInput', "{0}\nPlease provide the required input to the terminal.\n\n", confirmationPrompt.prompt)),
 			'',
@@ -566,7 +596,9 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				resolve(value);
 			};
 			inputDataDisposable = this._register(execution.instance.onDidInputData((data) => {
-				if (!data || data === '\r' || data === '\n' || data === '\r\n') {
+				// For "press any key" prompts, accept any non-empty input
+				// For other free-form inputs (like passwords), only accept on Enter
+				if ((acceptAnyKey && data.length > 0) || (!acceptAnyKey && (data === '\r' || data === '\n' || data === '\r\n'))) {
 					this._outputMonitorTelemetryCounters.inputToolFreeFormInputCount++;
 					settle(true, OutputMonitorState.PollingForIdle);
 				}
@@ -597,15 +629,12 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 
 	private async _confirmRunInTerminal(token: CancellationToken, suggestedOption: SuggestedOption, execution: IExecution, confirmationPrompt: IConfirmationPrompt): Promise<string | boolean | undefined> {
 		const suggestedOptionValue = isString(suggestedOption) ? suggestedOption : suggestedOption.option;
-		if (suggestedOptionValue === 'any key') {
-			return;
-		}
 		const focusTerminalSelection = Symbol('focusTerminalSelection');
 		let inputDataDisposable: IDisposable = Disposable.None;
 		let instanceDisposedDisposable: IDisposable = Disposable.None;
 		const { promise: userPrompt, part } = this._createElicitationPart<string | boolean | typeof focusTerminalSelection | undefined>(
 			token,
-			execution.sessionId,
+			execution.sessionResource,
 			new MarkdownString(localize('poll.terminal.confirmRequired', "The terminal is awaiting input.")),
 			new MarkdownString(localize('poll.terminal.confirmRunDetail', "{0}\n Do you want to send `{1}`{2} followed by `Enter` to the terminal?", confirmationPrompt.prompt, suggestedOptionValue, isString(suggestedOption) ? '' : suggestedOption.description ? ' (' + suggestedOption.description + ')' : '')),
 			'',
@@ -615,7 +644,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				let option: string | undefined = undefined;
 				if (value === true) {
 					option = suggestedOptionValue;
-				} else if (typeof value === 'object' && 'label' in value) {
+				} else if (typeof value === 'object' && Object.hasOwn(value, 'label')) {
 					option = value.label.split(' (')[0];
 				}
 				this._outputMonitorTelemetryCounters.inputToolManualAcceptCount++;
@@ -690,7 +719,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	// attach additional listeners (e.g., onDidRequestHide) or compose with other promises.
 	private _createElicitationPart<T>(
 		token: CancellationToken,
-		sessionId: string | undefined,
+		sessionResource: URI | undefined,
 		title: MarkdownString,
 		detail: MarkdownString,
 		subtitle: string,
@@ -700,7 +729,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		onReject?: () => MaybePromise<T | undefined>,
 		moreActions?: IAction[] | undefined
 	): { promise: Promise<T | undefined>; part: ChatElicitationRequestPart } {
-		const chatModel = sessionId && this._chatService.getSession(LocalChatSessionUri.forSession(sessionId));
+		const chatModel = sessionResource && this._chatService.getSession(sessionResource);
 		if (!(chatModel instanceof ChatModel)) {
 			throw new Error('No model');
 		}
@@ -717,27 +746,35 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				acceptLabel,
 				rejectLabel,
 				async (value: IAction | true) => {
-					thePart.hide();
-					this._promptPart = undefined;
 					try {
 						const r = await (onAccept ? onAccept(value) : undefined);
 						resolve(r as T | undefined);
+						// Don't hide if return value is a Symbol (e.g., focusTerminalSelection)
+						// This keeps the elicitation visible while user focuses terminal to provide input
+						if (typeof r === 'symbol') {
+							return ElicitationState.Pending;
+						}
 					} catch {
 						resolve(undefined);
 					}
-
+					thePart.hide();
+					this._promptPart = undefined;
 					return ElicitationState.Accepted;
 				},
 				async () => {
-					thePart.hide();
-					this._promptPart = undefined;
 					try {
 						const r = await (onReject ? onReject() : undefined);
 						resolve(r as T | undefined);
+						// Don't hide if return value is a Symbol (e.g., focusTerminalSelection)
+						// This keeps the elicitation visible while user focuses terminal to provide input
+						if (typeof r === 'symbol') {
+							return ElicitationState.Pending;
+						}
 					} catch {
 						resolve(undefined);
 					}
-
+					thePart.hide();
+					this._promptPart = undefined;
 					return ElicitationState.Rejected;
 				},
 				undefined, // source
@@ -792,6 +829,39 @@ interface ISuggestedOptionResult {
 	sentToTerminal?: boolean;
 }
 
+export function matchTerminalPromptOption(options: readonly string[], suggestedOption: string): { option: string | undefined; index: number } {
+	const normalize = (value: string) => value.replace(/['"`]/g, '').trim().replace(/[.,:;]+$/, '');
+
+	const normalizedSuggestion = normalize(suggestedOption);
+	if (!normalizedSuggestion) {
+		return { option: undefined, index: -1 };
+	}
+
+	const candidates: string[] = [normalizedSuggestion];
+	const firstWhitespaceToken = normalizedSuggestion.split(/\s+/)[0];
+	if (firstWhitespaceToken && firstWhitespaceToken !== normalizedSuggestion) {
+		candidates.push(firstWhitespaceToken);
+	}
+	const firstAlphaNum = normalizedSuggestion.match(/[A-Za-z0-9]+/);
+	if (firstAlphaNum?.[0] && firstAlphaNum[0] !== normalizedSuggestion && firstAlphaNum[0] !== firstWhitespaceToken) {
+		candidates.push(firstAlphaNum[0]);
+	}
+
+	for (const candidate of candidates) {
+		const exactIndex = options.findIndex(opt => normalize(opt) === candidate);
+		if (exactIndex !== -1) {
+			return { option: options[exactIndex], index: exactIndex };
+		}
+		const lowerCandidate = candidate.toLowerCase();
+		const ciIndex = options.findIndex(opt => normalize(opt).toLowerCase() === lowerCandidate);
+		if (ciIndex !== -1) {
+			return { option: options[ciIndex], index: ciIndex };
+		}
+	}
+
+	return { option: undefined, index: -1 };
+}
+
 export function detectsInputRequiredPattern(cursorLine: string): boolean {
 	return [
 		// PowerShell-style multi-option line (supports [?] Help and optional default suffix) ending
@@ -829,4 +899,43 @@ export function detectsNonInteractiveHelpPattern(cursorLine: string): boolean {
 		/press q\s*(?:\+\s*enter)?\s*(?:to|for)?\s*(?:quit|exit|stop)(?:\s*(?:the )?(?:server|app|process))?/i,
 		/press u\s*(?:\+\s*enter)?\s*(?:to|for)?\s*(?:show|print|display)\s*(?:the )?(?:server )?urls?/i
 	].some(e => e.test(cursorLine));
+}
+
+/**
+ * Localized task finish messages from VS Code's terminalTaskSystem.
+ * These are the same strings used when tasks complete.
+ */
+const taskFinishMessages = [
+	// "Terminal will be reused by tasks, press any key to close it."
+	localize('closeTerminal', "Terminal will be reused by tasks, press any key to close it."),
+	localize('reuseTerminal', "Terminal will be reused by tasks, press any key to close it."),
+	// "Press any key to close the terminal." (with exit code placeholder removed for matching)
+	localize('exitCode.closeTerminal', "Press any key to close the terminal."),
+	localize('exitCode.reuseTerminal', "Press any key to close the terminal."),
+];
+
+/**
+ * Detects VS Code's specific task completion messages like:
+ * - "Press any key to close the terminal."
+ * - "Terminal will be reused by tasks, press any key to close it."
+ * These appear when a task finishes and should be ignored if the task is done.
+ * Note: These messages may be prefixed with " * " by VS Code and may have line wrapping
+ * that can split words across lines (e.g., "t\no" instead of "to").
+ */
+export function detectsVSCodeTaskFinishMessage(cursorLine: string): boolean {
+	// Remove all whitespace to handle line wrapping that splits words mid-word
+	const normalized = cursorLine.replace(/\s/g, '').toLowerCase();
+	return taskFinishMessages.some(msg => normalized.includes(msg.replace(/\s/g, '').toLowerCase()));
+}
+
+/**
+ * Detects generic "press any key" prompts from scripts (not VS Code task messages).
+ * These should prompt the user to interact with the terminal.
+ */
+export function detectsGenericPressAnyKeyPattern(cursorLine: string): boolean {
+	// Match "press any key" but exclude VS Code task-specific messages
+	if (detectsVSCodeTaskFinishMessage(cursorLine)) {
+		return false;
+	}
+	return /press a(?:ny)? key/i.test(cursorLine);
 }

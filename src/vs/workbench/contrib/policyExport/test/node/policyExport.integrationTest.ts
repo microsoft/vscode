@@ -38,8 +38,10 @@ suite('PolicyExport Integration Tests', () => {
 				? join(rootPath, 'scripts', 'code.bat')
 				: join(rootPath, 'scripts', 'code.sh');
 
+			// Skip prelaunch to avoid redownloading electron while the parent VS Code is using it
 			await exec(`"${scriptPath}" --export-policy-data="${tempFile}"`, {
-				cwd: rootPath
+				cwd: rootPath,
+				env: { ...process.env, VSCODE_SKIP_PRELAUNCH: '1' }
 			});
 
 			// Read both files

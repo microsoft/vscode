@@ -31,7 +31,7 @@ import schemaVersion1 from '../common/jsonSchema_v1.js';
 import schemaVersion2, { updateProblemMatchers, updateTaskDefinitions } from '../common/jsonSchema_v2.js';
 import { AbstractTaskService, ConfigureTaskAction } from './abstractTaskService.js';
 import { tasksSchemaId } from '../../../services/configuration/common/configuration.js';
-import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { WorkbenchStateContext } from '../../../common/contextkeys.js';
 import { IQuickAccessRegistry, Extensions as QuickAccessExtensions } from '../../../../platform/quickinput/common/quickAccess.js';
 import { TasksQuickAccessProvider } from './tasksQuickAccess.js';
@@ -542,7 +542,8 @@ configurationRegistry.registerConfiguration({
 				nls.localize('task.allowAutomaticTasks.off', "Never"),
 			],
 			description: nls.localize('task.allowAutomaticTasks', "Enable automatic tasks - note that tasks won't run in an untrusted workspace."),
-			default: 'on',
+			default: 'off',
+			scope: ConfigurationScope.APPLICATION,
 			restricted: true
 		},
 		[TaskSettingId.Reconnection]: {
