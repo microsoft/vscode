@@ -56,8 +56,17 @@
 	flex: 1;
 	min-width: 0;
 	-webkit-app-region: no-drag;
-	background-color: var(--vscode-commandCenter-background);
+	background-color: rgba(255, 255, 255, 0.05);
 	border: 1px solid var(--vscode-commandCenter-border, transparent);
+}
+
+.vs .agent-status-pill {
+	background-color: rgba(0, 0, 0, 0.05);
+}
+
+.hc-black .agent-status-pill,
+.hc-light .agent-status-pill {
+	background-color: transparent;
 }
 
 .agent-status-pill:hover {
@@ -218,12 +227,21 @@
 	align-items: center;
 	height: 22px;
 	border-radius: 6px;
-	background-color: var(--vscode-commandCenter-background);
+	background-color: rgba(255, 255, 255, 0.05);
 	border: 1px solid var(--vscode-commandCenter-border, transparent);
 	flex-shrink: 0;
 	-webkit-app-region: no-drag;
 	margin-left: auto;
 	color: var(--vscode-commandCenter-foreground);
+}
+
+.vs .agent-status-badge {
+	background-color: rgba(0, 0, 0, 0.05);
+}
+
+.hc-black .agent-status-badge,
+.hc-light .agent-status-badge {
+	background-color: transparent;
 }
 
 /* Badge sections */
