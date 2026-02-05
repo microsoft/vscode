@@ -1101,7 +1101,6 @@
       {
         "command": "git.repositories.stashCopyName",
         "title": "%command.stashCopyName%",
-        "icon": "$(diff-multiple)",
         "category": "Git",
         "enablement": "!operationInProgress"
       },
@@ -2086,7 +2085,7 @@
         },
         {
           "command": "git.repositories.stashCopyName",
-          "group": "1_view@2",
+          "group": "9_copy@1",
           "when": "scmProvider == git && scmArtifactGroupId == stashes"
         },
         {
