@@ -784,6 +784,7 @@ export class TestChatEntitlementService implements IChatEntitlementService {
 	readonly organisations: undefined;
 	readonly isInternal = false;
 	readonly sku = undefined;
+	readonly copilotTrackingId = undefined;
 
 	readonly onDidChangeQuotaExceeded = Event.None;
 	readonly onDidChangeQuotaRemaining = Event.None;
