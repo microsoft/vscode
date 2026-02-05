@@ -201,14 +201,7 @@ export class UnifiedQuickAccess extends Disposable {
 			);
 
 			// Get the filter text (without prefix or shortcut character)
-			let filterText: string;
-			if (this._arrivedViaShortcut && picker.value.startsWith(this._arrivedViaShortcut)) {
-				filterText = picker.value.substring(1).trim();
-			} else if (this._currentTab) {
-				filterText = picker.value.substring(this._currentTab.prefix.length).trim();
-			} else {
-				filterText = picker.value.trim();
-			}
+			const filterText = this._getFilterText(picker.value, this._currentTab);
 
 			// Send to agent if:
 			// 1. Send-to-agent item is explicitly selected, OR
@@ -396,6 +389,31 @@ export class UnifiedQuickAccess extends Disposable {
 		}
 	}
 
+	private _stripLeadingShortcut(value: string, tab: IUnifiedQuickAccessTab | undefined): string {
+		if (tab?.id === 'agentSessions' && value.startsWith('<')) {
+			return value.substring(1);
+		}
+
+		if (tab?.id === 'commands' && value.startsWith('>')) {
+			return value.substring(1);
+		}
+
+		if (this._arrivedViaShortcut && value.startsWith(this._arrivedViaShortcut)) {
+			return value.substring(1);
+		}
+
+		return value;
+	}
+
+	private _getFilterText(value: string, tab: IUnifiedQuickAccessTab | undefined): string {
+		let filterText = this._stripLeadingShortcut(value, tab);
+		if (tab && filterText.startsWith(tab.prefix)) {
+			filterText = filterText.substring(tab.prefix.length);
+		}
+
+		return filterText.trim();
+	}
+
 	/**
 	 * Open chat without sending a message.
 	 */
@@ -408,7 +426,7 @@ export class UnifiedQuickAccess extends Disposable {
 	 * Send the exact message to a new agent session (no prefix stripping).
 	 */
 	private async _sendMessageRaw(value: string): Promise<void> {
-		const message = value.trim();
+		const message = this._stripLeadingShortcut(value, this._currentTab).trim();
 		if (!message) {
 			return;
 		}
@@ -432,16 +450,12 @@ export class UnifiedQuickAccess extends Disposable {
 	 */
 	private async _sendMessage(value: string): Promise<void> {
 		// Strip any prefix or shortcut character from the value
-		let message = value;
+		let message = this._stripLeadingShortcut(value, this._currentTab);
 
-		// First, strip shortcut character if we arrived via shortcut
-		if (this._arrivedViaShortcut && message.startsWith(this._arrivedViaShortcut)) {
-			message = message.substring(1).trim();
-		} else if (this._currentTab) {
-			// Otherwise strip the normal prefix
-			if (value.startsWith(this._currentTab.prefix)) {
-				message = value.substring(this._currentTab.prefix.length).trim();
-			}
+		if (this._currentTab && message.startsWith(this._currentTab.prefix)) {
+			message = message.substring(this._currentTab.prefix.length).trim();
+		} else {
+			message = message.trim();
 		}
 
 		if (!message) {
@@ -473,18 +487,10 @@ export class UnifiedQuickAccess extends Disposable {
 		}
 
 		// Get the filter text (without prefix or shortcut character)
-		let filterText: string;
-		if (this._arrivedViaShortcut && picker.value.startsWith(this._arrivedViaShortcut)) {
-			// Strip shortcut character
-			filterText = picker.value.substring(1).trim();
-		} else if (this._currentTab) {
-			filterText = picker.value.substring(this._currentTab.prefix.length).trim();
-		} else {
-			filterText = picker.value.trim();
-		}
+		const filterText = this._getFilterText(picker.value, this._currentTab);
 
 		// Use full input if filter text is empty but there's input (user typed without prefix)
-		const fullInput = picker.value.trim();
+		const fullInput = this._stripLeadingShortcut(picker.value, this._currentTab).trim();
 		const messageToSend = filterText || fullInput;
 
 		// Only show if user has typed something
@@ -499,7 +505,7 @@ export class UnifiedQuickAccess extends Disposable {
 
 		// Check if send-to-agent is already the first item with same description
 		const firstItem = picker.items[0] as IQuickPickItem & { id?: string };
-		if (firstItem?.id === SEND_TO_AGENT_ID && firstItem.description === fullInput) {
+		if (firstItem?.id === SEND_TO_AGENT_ID && firstItem.description === messageToSend) {
 			return; // Already showing correct send-to-agent item
 		}
 
@@ -507,9 +513,9 @@ export class UnifiedQuickAccess extends Disposable {
 		const sendItem: IQuickPickItem & { id: string } = {
 			id: SEND_TO_AGENT_ID,
 			label: `$(send) ${localize('sendToAgentLabel', "Send to agent")}`,
-			description: fullInput,
+			description: messageToSend,
 			alwaysShow: true,
-			ariaLabel: localize('sendToAgentAria', "Send message to agent: {0}", fullInput),
+			ariaLabel: localize('sendToAgentAria', "Send message to agent: {0}", messageToSend),
 		};
 
 		// Get current items, excluding any existing send-to-agent item
@@ -673,13 +679,10 @@ export class UnifiedQuickAccess extends Disposable {
 		if (provider) {
 			// Configure filtering - strip the tab's prefix or shortcut character from the filter value
 			const tabPrefix = tab.prefix;
-			const arrivedViaShortcut = this._arrivedViaShortcut;
 			picker.filterValue = (value: string) => {
-				// If arrived via shortcut, strip the shortcut character
-				if (arrivedViaShortcut && value.startsWith(arrivedViaShortcut)) {
-					return value.substring(1);
-				}
-				// Otherwise strip the normal prefix
+				// Strip shortcut character when it matches the active tab
+				value = this._stripLeadingShortcut(value, tab);
+				// Strip the normal prefix
 				if (value.startsWith(tabPrefix)) {
 					return value.substring(tabPrefix.length);
 				}
