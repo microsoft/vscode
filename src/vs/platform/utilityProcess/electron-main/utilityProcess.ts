@@ -99,14 +99,6 @@ export interface IWindowUtilityProcessConfiguration extends IUtilityProcessConfi
 	 * when the associated browser window closes or reloads.
 	 */
 	readonly windowLifecycleBound?: boolean;
-
-	/**
-	 * Optional period in milliseconds to allow for graceful shutdown
-	 * before forcefully killing the process when the window lifecycle ends.
-	 * If not set or 0, the process will be killed immediately.
-	 * This is useful for extension hosts that need time to deactivate extensions.
-	 */
-	readonly windowLifecycleGraceTime?: number;
 }
 
 function isWindowUtilityProcessConfiguration(config: IUtilityProcessConfiguration): config is IWindowUtilityProcessConfiguration {
@@ -496,17 +488,11 @@ export class WindowUtilityProcess extends UtilityProcess {
 	private registerWindowListeners(window: BrowserWindow, configuration: IWindowUtilityProcessConfiguration): void {
 
 		// If the lifecycle of the utility process is bound to the window,
-		// we terminate the process if the window closes or changes.
-		// If a grace period is configured, we wait for the process to exit
-		// before terminating (e.g. extensions need time to deactivate).
+		// we kill the process if the window closes or changes
 
 		if (configuration.windowLifecycleBound) {
-			const graceTime = configuration.windowLifecycleGraceTime;
-			const terminate = graceTime && graceTime > 0
-				? () => this.waitForExit(graceTime)
-				: () => this.kill();
-			this._register(Event.filter(this.lifecycleMainService.onWillLoadWindow, e => e.window.win === window)(terminate));
-			this._register(Event.fromNodeEventEmitter(window, 'closed')(terminate));
+			this._register(Event.filter(this.lifecycleMainService.onWillLoadWindow, e => e.window.win === window)(() => this.kill()));
+			this._register(Event.fromNodeEventEmitter(window, 'closed')(() => this.kill()));
 		}
 	}
 }

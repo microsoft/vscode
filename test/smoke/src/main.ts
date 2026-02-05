@@ -21,7 +21,6 @@ import { setup as setupNotebookTests } from './areas/notebook/notebook.test';
 import { setup as setupLanguagesTests } from './areas/languages/languages.test';
 import { setup as setupStatusbarTests } from './areas/statusbar/statusbar.test';
 import { setup as setupExtensionTests } from './areas/extensions/extensions.test';
-import { setup as setupExtensionHostRestartTests } from './areas/extensions/extension-host-restart.test';
 import { setup as setupMultirootTests } from './areas/multiroot/multiroot.test';
 import { setup as setupLocalizationTests } from './areas/workbench/localization.test';
 import { setup as setupLaunchTests } from './areas/workbench/launch.test';
@@ -352,16 +351,6 @@ async function setup(): Promise<void> {
 	}
 	await measureAndLog(() => setupRepository(), 'setupRepository', logger);
 
-	// Copy smoke test extension for extension host restart test
-	if (!opts.web) {
-		const smokeExtPath = path.join(rootPath, 'test', 'smoke', 'extensions', 'vscode-smoketest-ext-host');
-		const dest = path.join(extensionsPath, 'vscode-smoketest-ext-host');
-		if (fs.existsSync(dest)) {
-			fs.rmSync(dest, { recursive: true, force: true });
-		}
-		fs.cpSync(smokeExtPath, dest, { recursive: true });
-	}
-
 	logger.log('Smoketest setup done!\n');
 }
 
@@ -414,7 +403,6 @@ describe(`VSCode Smoke Tests (${opts.web ? 'Web' : 'Electron'})`, () => {
 	setupTaskTests(logger);
 	setupStatusbarTests(logger);
 	if (quality !== Quality.Dev && quality !== Quality.OSS) { setupExtensionTests(logger); }
-	if (!opts.web) { setupExtensionHostRestartTests(logger); }
 	setupMultirootTests(logger);
 	if (!opts.web && !opts.remote && quality !== Quality.Dev && quality !== Quality.OSS) { setupLocalizationTests(logger); }
 	if (!opts.web && !opts.remote) { setupLaunchTests(logger); }
