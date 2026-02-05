@@ -8,10 +8,12 @@ import { InstantiationType, registerSingleton } from '../../../platform/instanti
 import { ILogService } from '../../../platform/log/common/log.js';
 import { ExtHostAuthentication, IExtHostAuthentication } from '../common/extHostAuthentication.js';
 import { IExtHostExtensionService } from '../common/extHostExtensionService.js';
+import { IExtHostHooks } from '../common/extHostHooks.js';
 import { ExtHostLogService } from '../common/extHostLogService.js';
 import { ExtensionStoragePaths, IExtensionStoragePaths } from '../common/extHostStoragePaths.js';
 import { ExtHostTelemetry, IExtHostTelemetry } from '../common/extHostTelemetry.js';
 import { ExtHostExtensionService } from './extHostExtensionService.js';
+import { WorkerExtHostHooks } from './extHostHooksWorker.js';
 
 // #########################################################################
 // ###                                                                   ###
@@ -24,3 +26,4 @@ registerSingleton(IExtHostAuthentication, ExtHostAuthentication, InstantiationTy
 registerSingleton(IExtHostExtensionService, ExtHostExtensionService, InstantiationType.Eager);
 registerSingleton(IExtensionStoragePaths, ExtensionStoragePaths, InstantiationType.Eager);
 registerSingleton(IExtHostTelemetry, new SyncDescriptor(ExtHostTelemetry, [true], true));
+registerSingleton(IExtHostHooks, WorkerExtHostHooks, InstantiationType.Eager);
