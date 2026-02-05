@@ -433,6 +433,8 @@ async function createCheckoutItems(repository: Repository, detached = false): Pr
 		.filter(p => !!p) as RefProcessor[];
 
 	const buttons = await getRemoteRefItemButtons(repository);
+	//sam-shubham
+
 	const itemsProcessor = new CheckoutItemsProcessor(repository, refProcessors, buttons, detached);
 
 	return itemsProcessor.processRefs(refs);
@@ -448,7 +450,22 @@ async function getRemoteRefItemButtons(repository: Repository) {
 	// Compute actions for all known remotes
 	const remoteUrlsToActions = new Map<string, RemoteSourceActionButton[]>();
 
-	const getButtons = async (remoteUrl: string) => (await getRemoteSourceActions(remoteUrl)).map((action) => ({ iconPath: new ThemeIcon(action.icon), tooltip: action.label, actual: action }));
+	// Add fetch button for all remote refs
+	const fetchButton: RemoteSourceActionButton = {
+		iconPath: new ThemeIcon('cloud-download'),
+		tooltip: l10n.t('Fetch'),
+		actual: {
+			label: l10n.t('Fetch'),
+			icon: 'cloud-download',
+			run: () => { /* Marker for fetch action */ }
+		}
+	};
+
+	const getButtons = async (remoteUrl: string) => {
+		const actions = (await getRemoteSourceActions(remoteUrl)).map((action) => ({ iconPath: new ThemeIcon(action.icon), tooltip: action.label, actual: action }));
+		// Add fetch button as the first button
+		return [fetchButton, ...actions];
+	};
 
 	for (const remote of repository.remotes) {
 		if (remote.fetchUrl) {
@@ -612,7 +629,11 @@ class CheckoutItemsProcessor extends RefItemsProcessor {
 						item.buttons = buttons;
 					}
 				} else {
-					item.buttons = this.defaultButtons;
+					// For local branches, filter out the fetch button
+					const defaultButtons = this.defaultButtons?.filter(button => button.tooltip !== l10n.t('Fetch'));
+					if (defaultButtons && defaultButtons.length > 0) {
+						item.buttons = defaultButtons;
+					}
 				}
 
 				result.push(item);
@@ -2828,15 +2849,27 @@ export class CommandCenter {
 		const choice = await new Promise<QuickPickItem | undefined>(c => {
 			disposables.push(quickPick.onDidHide(() => c(undefined)));
 			disposables.push(quickPick.onDidAccept(() => c(quickPick.activeItems[0])));
-			disposables.push((quickPick.onDidTriggerItemButton((e) => {
+			disposables.push(quickPick.onDidTriggerItemButton(async (e) => {
 				const button = e.button as QuickInputButton & { actual: RemoteSourceAction };
 				const item = e.item as CheckoutItem;
 				if (button.actual && item.refName) {
-					button.actual.run(item.refRemote ? item.refName.substring(item.refRemote.length + 1) : item.refName);
+					// Handle fetch button
+					if (button.actual.icon === 'cloud-download' && item.refRemote) {
+						const branchName = item.refName.substring(item.refRemote.length + 1);
+						try {
+							await repository.fetch({ remote: item.refRemote, ref: branchName });
+							window.showInformationMessage(l10n.t('Successfully fetched branch \"{0}\" from \"{1}\"', branchName, item.refRemote));
+						} catch (err) {
+							window.showErrorMessage(l10n.t('Failed to fetch branch: {0}', err.message));
+						}
+					} else {
+						// Handle other remote source action buttons
+						button.actual.run(item.refRemote ? item.refName.substring(item.refRemote.length + 1) : item.refName);
+					}
 				}
 
 				c(undefined);
-			})));
+			}));
 			disposables.push(quickPick.onDidChangeValue(() => setQuickPickItems()));
 		});
 
