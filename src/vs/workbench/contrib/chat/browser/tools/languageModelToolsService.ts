@@ -34,7 +34,8 @@ import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
-import { IHooksExecutionService, IPreToolUseCallerInput } from '../../common/hooksExecutionService.js';
+import { IPreToolUseCallerInput } from '../../common/hooks/hooksTypes.js';
+import { IHooksExecutionService } from '../../common/hooks/hooksExecutionService.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ChatRequestToolReferenceEntry, toToolSetVariableEntry, toToolVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { IVariableReference } from '../../common/chatModes.js';
@@ -379,7 +380,8 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 		const hookInput: IPreToolUseCallerInput = {
 			toolName: dto.toolId,
-			toolArgs: dto.parameters,
+			toolInput: dto.parameters,
+			toolCallId: dto.callId,
 		};
 		const hookResult = await this._hooksExecutionService.executePreToolUseHook(dto.context.sessionResource, hookInput, token);
 

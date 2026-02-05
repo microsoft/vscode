@@ -32,7 +32,8 @@ import { ILanguageModelToolsConfirmationService } from '../../../common/tools/la
 import { MockLanguageModelToolsConfirmationService } from '../../common/tools/mockLanguageModelToolsConfirmationService.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ILanguageModelChatMetadata } from '../../../common/languageModels.js';
-import { IHooksExecutionService, IPreToolUseCallerInput, IPreToolUseHookResult, IHooksExecutionOptions, IHookResult, IHooksExecutionProxy } from '../../../common/hooksExecutionService.js';
+import { IHookResult, IPreToolUseCallerInput, IPreToolUseHookResult } from '../../../common/hooks/hooksTypes.js';
+import { IHooksExecutionService, IHooksExecutionOptions, IHooksExecutionProxy } from '../../../common/hooks/hooksExecutionService.js';
 import { HookTypeValue, IChatRequestHooks } from '../../../common/promptSyntax/hookSchema.js';
 import { IDisposable } from '../../../../../../base/common/lifecycle.js';
 
@@ -3833,7 +3834,7 @@ suite('LanguageModelToolsService', () => {
 
 			assert.ok(mockHooksService.lastPreToolUseInput);
 			assert.strictEqual(mockHooksService.lastPreToolUseInput.toolName, 'hookInputTool');
-			assert.deepStrictEqual(mockHooksService.lastPreToolUseInput.toolArgs, { param1: 'value1', param2: 42 });
+			assert.deepStrictEqual(mockHooksService.lastPreToolUseInput.toolInput, { param1: 'value1', param2: 42 });
 		});
 
 		test('when hook denies, tool invoke is never called', async () => {

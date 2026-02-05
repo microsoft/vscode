@@ -8,7 +8,8 @@ import { CancellationToken, CancellationTokenSource } from '../../../../../base/
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { HookCommandResultKind, HooksExecutionService, IHookCommandResult, IHooksExecutionProxy } from '../../common/hooksExecutionService.js';
+import { HookCommandResultKind, IHookCommandResult } from '../../common/hooks/hooksCommandTypes.js';
+import { HooksExecutionService, IHooksExecutionProxy } from '../../common/hooks/hooksExecutionService.js';
 import { HookType, IHookCommand } from '../../common/promptSyntax/hookSchema.js';
 import { IOutputChannel, IOutputService } from '../../../../services/output/common/output.js';
 
@@ -196,7 +197,9 @@ suite('HooksExecutionService', () => {
 				result: {
 					stopReason: 'User requested stop',
 					systemMessage: 'Warning: hook triggered',
-					permissionDecision: 'allow'
+					hookSpecificOutput: {
+						permissionDecision: 'allow'
+					}
 				}
 			}));
 			service.setProxy(proxy);
@@ -210,14 +213,18 @@ suite('HooksExecutionService', () => {
 			assert.strictEqual(results[0].success, true);
 			assert.strictEqual(results[0].stopReason, 'User requested stop');
 			assert.strictEqual(results[0].messageForUser, 'Warning: hook triggered');
-			// Hook-specific fields are in output
-			assert.deepStrictEqual(results[0].output, { permissionDecision: 'allow' });
+			// Hook-specific fields are in output with wrapper
+			assert.deepStrictEqual(results[0].output, { hookSpecificOutput: { permissionDecision: 'allow' } });
 		});
 
 		test('uses defaults when no common fields present', async () => {
 			const proxy = createMockProxy(() => ({
 				kind: HookCommandResultKind.Success,
-				result: { permissionDecision: 'allow' }
+				result: {
+					hookSpecificOutput: {
+						permissionDecision: 'allow'
+					}
+				}
 			}));
 			service.setProxy(proxy);
 
@@ -229,7 +236,7 @@ suite('HooksExecutionService', () => {
 			assert.strictEqual(results.length, 1);
 			assert.strictEqual(results[0].stopReason, undefined);
 			assert.strictEqual(results[0].messageForUser, undefined);
-			assert.deepStrictEqual(results[0].output, { permissionDecision: 'allow' });
+			assert.deepStrictEqual(results[0].output, { hookSpecificOutput: { permissionDecision: 'allow' } });
 		});
 
 		test('handles error results from command', async () => {

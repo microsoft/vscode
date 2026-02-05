@@ -9,7 +9,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../../platform/log/common/log.js';
 import { NodeExtHostHooks } from '../../node/extHostHooksNode.js';
 import { IHookCommandDto, MainThreadHooksShape } from '../../common/extHost.protocol.js';
-import { HookCommandResultKind, IHookResult } from '../../../contrib/chat/common/hooksExecutionService.js';
+import { HookCommandResultKind } from '../../../contrib/chat/common/hooks/hooksCommandTypes.js';
+import { IHookResult } from '../../../contrib/chat/common/hooks/hooksTypes.js';
 import { IExtHostRpcService } from '../../common/extHostRpcService.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 

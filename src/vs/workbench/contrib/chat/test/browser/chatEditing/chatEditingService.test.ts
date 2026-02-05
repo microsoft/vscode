@@ -45,7 +45,7 @@ import { IChatVariablesService } from '../../../common/attachments/chatVariables
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
 import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
-import { IHooksExecutionService } from '../../../common/hooksExecutionService.js';
+import { IHooksExecutionService } from '../../../common/hooks/hooksExecutionService.js';
 import { NullLanguageModelsService } from '../../common/languageModels.js';
 import { MockChatVariablesService } from '../../common/mockChatVariables.js';
 import { MockPromptsService } from '../../common/promptSyntax/service/mockPromptsService.js';
