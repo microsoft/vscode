@@ -1099,6 +1099,13 @@
         "enablement": "!operationInProgress"
       },
       {
+        "command": "git.repositories.stashCopyName",
+        "title": "%command.stashCopyName%",
+        "icon": "$(diff-multiple)",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
         "command": "git.repositories.stashApply",
         "title": "%command.stashApplyEditor%",
         "icon": "$(git-stash-apply)",
@@ -1818,6 +1825,10 @@
           "when": "false"
         },
         {
+          "command": "git.repositories.stashCopyName",
+          "when": "false"
+        },
+        {
           "command": "git.repositories.stashApply",
           "when": "false"
         },
@@ -2071,6 +2082,11 @@
         {
           "command": "git.repositories.stashView",
           "group": "1_view@1",
+          "when": "scmProvider == git && scmArtifactGroupId == stashes"
+        },
+        {
+          "command": "git.repositories.stashCopyName",
+          "group": "1_view@2",
           "when": "scmProvider == git && scmArtifactGroupId == stashes"
         },
         {

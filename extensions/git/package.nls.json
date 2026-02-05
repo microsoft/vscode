@@ -128,6 +128,7 @@
 	"command.stashDropEditor": "Drop Stash",
 	"command.stashView": "View Stash...",
 	"command.stashView2": "View Stash",
+	"command.stashCopyName": "Copy Stash Name",
 	"command.timelineOpenDiff": "Open Changes",
 	"command.timelineCopyCommitId": "Copy Commit ID",
 	"command.timelineCopyCommitMessage": "Copy Commit Message",

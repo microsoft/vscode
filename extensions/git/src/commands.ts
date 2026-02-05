@@ -5315,6 +5315,15 @@ export class CommandCenter {
 		await this._viewStash(repository, stash);
 	}
 
+	@command('git.repositories.stashCopyName', { repository: true })
+	async artifactStashCopyName(repository: Repository, artifact: SourceControlArtifact): Promise<void> {
+		if (!repository || !artifact) {
+			return;
+		}
+
+		env.clipboard.writeText(artifact.name);
+	}
+
 	@command('git.repositories.stashApply', { repository: true })
 	async artifactStashApply(repository: Repository, artifact: SourceControlArtifact): Promise<void> {
 		if (!repository || !artifact) {
