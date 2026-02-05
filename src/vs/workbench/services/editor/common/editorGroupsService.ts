@@ -502,6 +502,22 @@ export interface IAuxiliaryEditorPart extends IEditorPart {
 	close(): boolean;
 }
 
+export interface IModalEditorPart extends IEditorPart {
+
+	/**
+	 * Fired when this modal editor part is about to close.
+	 */
+	readonly onWillClose: Event<void>;
+
+	/**
+	 * Close this modal editor part after moving all
+	 * editors of all groups back to the main editor part.
+	 *
+	 * @returns `false` if an editor could not be moved back.
+	 */
+	close(): boolean;
+}
+
 export interface IEditorWorkingSet {
 	readonly id: string;
 	readonly name: string;
@@ -566,6 +582,15 @@ export interface IEditorGroupsService extends IEditorGroupsContainer {
 	 * in there at the optional position and size on screen.
 	 */
 	createAuxiliaryEditorPart(options?: { bounds?: Partial<IRectangle>; compact?: boolean; alwaysOnTop?: boolean }): Promise<IAuxiliaryEditorPart>;
+
+	/**
+	 * Creates a modal editor part that shows in a modal overlay
+	 * on top of the main workbench window.
+	 *
+	 * If a modal part already exists, it will be returned
+	 * instead of creating a new one.
+	 */
+	createModalEditorPart(): Promise<IModalEditorPart>;
 
 	/**
 	 * Returns the instantiation service that is scoped to the

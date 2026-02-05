@@ -439,6 +439,9 @@ class AuxiliaryEditorPartImpl extends EditorPart implements IAuxiliaryEditorPart
 
 			// Then merge remaining to main part
 			result = this.mergeGroupsToMainPart();
+			if (!result) {
+				return false; // Do not close when editors could not be merged back
+			}
 		}
 
 		this._onWillClose.fire();

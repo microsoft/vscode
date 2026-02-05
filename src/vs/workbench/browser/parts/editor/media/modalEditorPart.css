@@ -1,0 +1,82 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/** Modal Editor Part: Modal Block */
+.monaco-modal-editor-block {
+	position: fixed;
+	height: 100%;
+	width: 100%;
+	left: 0;
+	top: 0;
+	/* z-index cannot be above iframes (50) to support showing them */
+	z-index: 40;
+	display: flex;
+	justify-content: center;
+	align-items: center;
+}
+
+.monaco-modal-editor-block.dimmed {
+	background: rgba(0, 0, 0, 0.3);
+}
+
+/** Modal Editor Part: Shadow Container */
+.monaco-modal-editor-block .modal-editor-shadow {
+	box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+	border-radius: 8px;
+	overflow: hidden;
+}
+
+/** Modal Editor Part: Editor Container */
+.monaco-modal-editor-block .modal-editor-part {
+	display: flex;
+	flex-direction: column;
+	min-width: 400px;
+	min-height: 300px;
+	background-color: var(--vscode-editor-background);
+	border: 1px solid var(--vscode-editorWidget-border, var(--vscode-contrastBorder));
+	border-radius: 8px;
+	overflow: hidden;
+}
+
+.monaco-modal-editor-block .modal-editor-part:focus {
+	outline: none;
+}
+
+/** Modal Editor Part: Header with title and close button */
+.monaco-modal-editor-block .modal-editor-header {
+	display: grid;
+	grid-template-columns: 1fr auto 1fr;
+	align-items: center;
+	height: 32px;
+	min-height: 32px;
+	padding: 0 8px;
+	background-color: var(--vscode-editorGroupHeader-tabsBackground);
+	border-bottom: 1px solid var(--vscode-editorGroupHeader-tabsBorder, transparent);
+}
+
+.monaco-modal-editor-block .modal-editor-title {
+	grid-column: 2;
+	font-size: 12px;
+	font-weight: 500;
+	color: var(--vscode-foreground);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	text-align: center;
+}
+
+.monaco-modal-editor-block .modal-editor-action-container {
+	grid-column: 3;
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
+}
+
+/** Modal Editor Part: Ensure proper sizing */
+.monaco-modal-editor-block .modal-editor-part .content {
+	flex: 1;
+	position: relative;
+	overflow: hidden;
+}

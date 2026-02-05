@@ -907,11 +907,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		// Show stacked
 		else {
-			const sessionsHeight = availableSessionsHeight - 1 /* border bottom */;
-
-			this.sessionsControlContainer.style.height = `${sessionsHeight}px`;
+			this.sessionsControlContainer.style.height = `${availableSessionsHeight}px`;
 			this.sessionsControlContainer.style.width = ``;
-			this.sessionsControl.layout(sessionsHeight, width);
+			this.sessionsControl.layout(availableSessionsHeight, width);
 
 			heightReduction = this.sessionsContainer.offsetHeight;
 			widthReduction = 0; // stacked on top of the chat widget
