@@ -10,7 +10,7 @@
 .monaco-workbench .codicon.codicon-terminal-symbol-folder { color: var(--vscode-terminalSymbolIcon-folderForeground); }
 
 .monaco-editor .codicon.codicon-terminal-symbol-symbolic-link-file,
-.monaco-workbench .codicon.codicon-terminal-symbolic-link-file { color: var(--vscode-terminalSymbolIcon-symbolicLinkFileForeground); }
+.monaco-workbench .codicon.codicon-terminal-symbol-symbolic-link-file { color: var(--vscode-terminalSymbolIcon-symbolicLinkFileForeground); }
 
 .monaco-editor .codicon.codicon-terminal-symbol-symbolic-link-folder,
 .monaco-workbench .codicon.codicon-terminal-symbol-symbolic-link-folder { color: var(--vscode-terminalSymbolIcon-symbolicLinkFolderForeground); }
