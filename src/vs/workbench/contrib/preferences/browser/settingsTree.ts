@@ -2403,14 +2403,14 @@ function escapeInvisibleChars(enumValue: string): string {
 export class SettingsTreeFilter implements ITreeFilter<SettingsTreeElement> {
 	constructor(
 		private viewState: ISettingsEditorViewState,
-		private filterGroups: boolean,
+		private isFilteringGroups: boolean,
 		@IWorkbenchEnvironmentService private environmentService: IWorkbenchEnvironmentService,
 	) { }
 
 	filter(element: SettingsTreeElement, parentVisibility: TreeVisibility): TreeFilterResult<void> {
 		// Filter during search
-		if (this.viewState.filterToCategory && element instanceof SettingsTreeSettingElement) {
-			if (!this.settingBelongsToCategory(element, this.viewState.filterToCategory)) {
+		if (this.viewState.categoryFilter && element instanceof SettingsTreeSettingElement) {
+			if (!this.settingContainedInGroup(element.setting, this.viewState.categoryFilter)) {
 				return false;
 			}
 		}
@@ -2426,8 +2426,8 @@ export class SettingsTreeFilter implements ITreeFilter<SettingsTreeElement> {
 		// Group with no visible children
 		if (element instanceof SettingsTreeGroupElement) {
 			// When filtering to a specific category, only show that category and its descendants
-			if (this.filterGroups && this.viewState.filterToCategory) {
-				if (!this.groupIsRelatedToCategory(element, this.viewState.filterToCategory)) {
+			if (this.isFilteringGroups && this.viewState.categoryFilter) {
+				if (!this.groupIsRelatedToCategory(element, this.viewState.categoryFilter)) {
 					return false;
 				}
 				// For groups related to the category, skip the count check and recurse
@@ -2444,7 +2444,7 @@ export class SettingsTreeFilter implements ITreeFilter<SettingsTreeElement> {
 
 		// Filtered "new extensions" button
 		if (element instanceof SettingsTreeNewExtensionsElement) {
-			if (this.viewState.tagFilters?.size || this.viewState.filterToCategory) {
+			if (this.viewState.tagFilters?.size || this.viewState.categoryFilter) {
 				return false;
 			}
 		}
@@ -2452,19 +2452,16 @@ export class SettingsTreeFilter implements ITreeFilter<SettingsTreeElement> {
 		return true;
 	}
 
-	/**
-	 * Checks if a setting element belongs to the category or any of its subcategories
-	 * by traversing up the setting's parent chain using IDs.
-	 */
-	private settingBelongsToCategory(element: SettingsTreeSettingElement, category: SettingsTreeGroupElement): boolean {
-		let parent = element.parent;
-		while (parent) {
-			if (parent.id === category.id) {
-				return true;
+	private settingContainedInGroup(setting: ISetting, group: SettingsTreeGroupElement): boolean {
+		return group.children.some(child => {
+			if (child instanceof SettingsTreeGroupElement) {
+				return this.settingContainedInGroup(setting, child);
+			} else if (child instanceof SettingsTreeSettingElement) {
+				return child.setting.key === setting.key;
+			} else {
+				return false;
 			}
-			parent = parent.parent;
-		}
-		return false;
+		});
 	}
 
 	/**

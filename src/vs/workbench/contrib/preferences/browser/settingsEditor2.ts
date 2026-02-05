@@ -879,7 +879,7 @@ export class SettingsEditor2 extends EditorPane {
 			// If the target display category is different than the source's, unfocus the category
 			// so that we can render all found settings again.
 			// Then, the reveal call will correctly find the target setting.
-			if (this.viewState.filterToCategory && evt.source.displayCategory !== targetElement.displayCategory) {
+			if (this.viewState.categoryFilter && evt.source.displayCategory !== targetElement.displayCategory) {
 				this.tocTree.setFocus([]);
 			}
 			try {
@@ -1054,8 +1054,8 @@ export class SettingsEditor2 extends EditorPane {
 			const scrollBehavior = this.configurationService.getValue<'paginated' | 'continuous'>(SCROLL_BEHAVIOR_KEY);
 			if (this.searchResultModel || scrollBehavior === 'paginated') {
 				// In search mode or paginated mode, filter to show only the selected category
-				if (this.viewState.filterToCategory !== element) {
-					this.viewState.filterToCategory = element ?? undefined;
+				if (this.viewState.categoryFilter !== element) {
+					this.viewState.categoryFilter = element ?? undefined;
 					// Force render in this case, because
 					// onDidClickSetting relies on the updated view.
 					this.renderTree(undefined, true);
@@ -1063,8 +1063,8 @@ export class SettingsEditor2 extends EditorPane {
 				}
 			} else {
 				// In continuous mode, clear any category filter that may have been set in paginated mode
-				if (this.viewState.filterToCategory) {
-					this.viewState.filterToCategory = undefined;
+				if (this.viewState.categoryFilter) {
+					this.viewState.categoryFilter = undefined;
 					this.renderTree(undefined, true);
 				}
 				if (element && (!e.browserEvent || !(<IFocusEventFromScroll>e.browserEvent).fromScroll)) {
@@ -1709,7 +1709,7 @@ export class SettingsEditor2 extends EditorPane {
 					if (Array.isArray(rootChildren) && rootChildren.length > 0) {
 						const firstCategory = rootChildren[0];
 						if (firstCategory instanceof SettingsTreeGroupElement) {
-							this.viewState.filterToCategory = firstCategory;
+							this.viewState.categoryFilter = firstCategory;
 							this.tocTree.setFocus([firstCategory]);
 							this.tocTree.setSelection([firstCategory]);
 						}
@@ -1918,7 +1918,7 @@ export class SettingsEditor2 extends EditorPane {
 
 			if (expandResults) {
 				this.tocTree.setFocus([]);
-				this.viewState.filterToCategory = undefined;
+				this.viewState.categoryFilter = undefined;
 			}
 			this.tocTreeModel.currentSearchModel = this.searchResultModel;
 
@@ -2040,7 +2040,7 @@ export class SettingsEditor2 extends EditorPane {
 		this.tocTreeModel.currentSearchModel = this.searchResultModel;
 		if (expandResults) {
 			this.tocTree.setFocus([]);
-			this.viewState.filterToCategory = undefined;
+			this.viewState.categoryFilter = undefined;
 			this.tocTree.expandAll();
 			this.settingsTree.scrollTop = 0;
 		}

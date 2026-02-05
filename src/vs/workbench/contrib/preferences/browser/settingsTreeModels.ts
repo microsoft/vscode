@@ -34,7 +34,7 @@ export interface ISettingsEditorViewState {
 	featureFilters?: Set<string>;
 	idFilters?: Set<string>;
 	languageFilter?: string;
-	filterToCategory?: SettingsTreeGroupElement;
+	categoryFilter?: SettingsTreeGroupElement;
 }
 
 export abstract class SettingsTreeElement extends Disposable {
