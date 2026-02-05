@@ -2252,13 +2252,21 @@ export class Repository implements Disposable {
 	}
 
 	private async _sync(head: Branch, rebase: boolean): Promise<void> {
-		let remoteName: string | undefined;
+		let pullRemoteName: string | undefined;
 		let pullBranch: string | undefined;
+		let pushRemoteName: string | undefined;
 		let pushBranch: string | undefined;
 
 		if (head.name && head.upstream) {
-			remoteName = head.upstream.remote;
+			pullRemoteName = head.upstream.remote;
 			pullBranch = `${head.upstream.name}`;
+		}
+
+		if (head.name && head.pushBranch) {
+			pushRemoteName = head.pushBranch.remote;
+			pushBranch = `${head.name}:${head.pushBranch.name}`;
+		} else if (head.name && head.upstream) {
+			pushRemoteName = head.upstream.remote;
 			pushBranch = `${head.name}:${head.upstream.name}`;
 		}
 
@@ -2278,7 +2286,7 @@ export class Repository implements Disposable {
 					}
 
 					if (await this.checkIfMaybeRebased(this.HEAD?.name)) {
-						await this._pullAndHandleTagConflict(rebase, remoteName, pullBranch, { tags, cancellationToken, autoStash });
+						await this._pullAndHandleTagConflict(rebase, pullRemoteName, pullBranch, { tags, cancellationToken, autoStash });
 					}
 				};
 
@@ -2294,16 +2302,17 @@ export class Repository implements Disposable {
 					await fn();
 				}
 
-				const remote = this.remotes.find(r => r.name === remoteName);
+				const remote = this.remotes.find(r => r.name === pushRemoteName);
 
 				if (remote && remote.isReadOnly) {
 					return;
 				}
 
-				const shouldPush = this.HEAD && (typeof this.HEAD.ahead === 'number' ? this.HEAD.ahead > 0 : true);
+				const pushAhead = this.HEAD?.ahead;
+				const shouldPush = this.HEAD && (typeof pushAhead === 'number' ? pushAhead > 0 : true);
 
 				if (shouldPush) {
-					await this._push(remoteName, pushBranch, false, followTags);
+					await this._push(pushRemoteName, pushBranch, false, followTags);
 				}
 			});
 		});
@@ -3125,13 +3134,15 @@ export class Repository implements Disposable {
 			return l10n.t('Synchronize Changes');
 		}
 
-		const remoteName = this.HEAD && this.HEAD.remote || this.HEAD.upstream.remote;
-		const remote = this.remotes.find(r => r.name === remoteName);
+		const pushBranch = this.HEAD.pushBranch ?? this.HEAD.upstream;
+		const pushRemote = this.remotes.find(r => r.name === pushBranch.remote);
 
-		if ((remote && remote.isReadOnly) || !this.HEAD.ahead) {
+		if ((pushRemote && pushRemote.isReadOnly) || !this.HEAD.ahead) {
 			return l10n.t('Pull {0} commits from {1}/{2}', this.HEAD.behind!, this.HEAD.upstream.remote, this.HEAD.upstream.name);
 		} else if (!this.HEAD.behind) {
-			return l10n.t('Push {0} commits to {1}/{2}', this.HEAD.ahead, this.HEAD.upstream.remote, this.HEAD.upstream.name);
+			return l10n.t('Push {0} commits to {1}/{2}', this.HEAD.ahead, pushBranch.remote, pushBranch.name);
+		} else if (this.HEAD.pushBranch && (this.HEAD.pushBranch.remote !== this.HEAD.upstream.remote || this.HEAD.pushBranch.name !== this.HEAD.upstream.name)) {
+			return l10n.t('Pull {0} commits from {1}/{2} and push {3} commits to {4}/{5}', this.HEAD.behind, this.HEAD.upstream.remote, this.HEAD.upstream.name, this.HEAD.ahead, pushBranch.remote, pushBranch.name);
 		} else {
 			return l10n.t('Pull {0} and push {1} commits between {2}/{3}', this.HEAD.behind, this.HEAD.ahead, this.HEAD.upstream.remote, this.HEAD.upstream.name);
 		}
@@ -3262,7 +3273,8 @@ export class Repository implements Disposable {
 			if (this.HEAD.ahead === 0) {
 				this.unpublishedCommits = new Set<string>();
 			} else {
-				const ref1 = `${this.HEAD.upstream.remote}/${this.HEAD.upstream.name}`;
+				const pushRef = this.HEAD.pushBranch ?? this.HEAD.upstream;
+				const ref1 = `${pushRef.remote}/${pushRef.name}`;
 				const ref2 = this.HEAD.name;
 
 				const revList = await this.repository.revList(ref1, ref2);

@@ -9,6 +9,7 @@ import { workspace, commands, window, Uri, WorkspaceEdit, Range, TextDocument, e
 import * as cp from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as os from 'os';
 import { GitExtension, API, Repository, Status } from '../api/git';
 import { eventToPromise } from '../util';
 
@@ -34,6 +35,12 @@ suite('git smoke test', function () {
 		const end = doc.lineAt(doc.lineCount - 1).range.end;
 		edit.replace(doc.uri, new Range(end, end), text);
 		await workspace.applyEdit(edit);
+	}
+
+	function commitFile(relativePath: string) {
+		fs.writeFileSync(file(relativePath), relativePath, 'utf8');
+		cp.execSync('git add ' + relativePath, { cwd });
+		cp.execSync('git commit -m ' + JSON.stringify(relativePath), { cwd });
 	}
 
 	let git: API;
@@ -152,26 +159,79 @@ suite('git smoke test', function () {
 		const appjs = file('app.js');
 		const renamejs = file('rename.js');
 
-		await repository.createBranch('test', true);
+		try {
+			await repository.createBranch('test', true);
 
-		// Delete file (test branch)
-		fs.unlinkSync(appjs);
-		await repository.commit('commit on test', { all: true });
+			fs.unlinkSync(appjs);
+			await repository.commit('commit on test', { all: true });
 
-		await repository.checkout('main');
+			await repository.checkout('main');
 
-		// Rename file (main branch)
-		fs.renameSync(appjs, renamejs);
-		await repository.commit('commit on main', { all: true });
+			fs.renameSync(appjs, renamejs);
+			await repository.commit('commit on main', { all: true });
+
+			try {
+				await repository.merge('test');
+			} catch (e) { }
+
+			assert.strictEqual(repository.state.mergeChanges.length, 1);
+			assert.strictEqual(repository.state.mergeChanges[0].status, Status.DELETED_BY_THEM);
+
+			assert.strictEqual(repository.state.workingTreeChanges.length, 0);
+			assert.strictEqual(repository.state.indexChanges.length, 0);
+		} finally {
+			try { cp.execSync('git merge --abort', { cwd, stdio: 'pipe' }); } catch { }
+		}
+	});
+
+	test('sync respects triangular workflow (pull from upstream, push to origin)', async function () {
+		const testId = Date.now();
+		const upstreamBare = path.join(os.tmpdir(), `vscode-git-sync-upstream-${testId}`);
+		const originBare = path.join(os.tmpdir(), `vscode-git-sync-origin-${testId}`);
+		cp.execSync(`git -c advice.defaultBranchName=false init "${upstreamBare}"`);
+		cp.execSync(`git -c advice.defaultBranchName=false init "${originBare}"`);
 
 		try {
-			await repository.merge('test');
-		} catch (e) { }
+			cp.execSync(`git remote add origin "${originBare}"`, { cwd });
+			cp.execSync(`git remote add upstream "${upstreamBare}"`, { cwd });
 
-		assert.strictEqual(repository.state.mergeChanges.length, 1);
-		assert.strictEqual(repository.state.mergeChanges[0].status, Status.DELETED_BY_THEM);
+			cp.execSync(`git push upstream main:main`, { cwd });
+			cp.execSync('git checkout upstream/main -b feature', { cwd });
+			cp.execSync('git config branch.feature.pushRemote origin', { cwd });
+			cp.execSync('git push origin feature', { cwd });
 
-		assert.strictEqual(repository.state.workingTreeChanges.length, 0);
-		assert.strictEqual(repository.state.indexChanges.length, 0);
+			cp.execSync('git checkout main', { cwd });
+			commitFile('main-first.txt');
+			commitFile('main-second.txt');
+			cp.execSync('git push upstream main', { cwd });
+
+			cp.execSync('git checkout feature', { cwd });
+			cp.execSync('git push', { cwd });
+			commitFile('feature-first.txt');
+
+			await workspace.getConfiguration('git', Uri.file(cwd)).update('confirmSync', false, true);
+			await repository.status();
+
+			assert.strictEqual(repository.state.HEAD?.name, 'feature');
+			assert.strictEqual(repository.state.HEAD?.ahead, 1, 'sync should show 1 commits to push to origin');
+			assert.strictEqual(repository.state.HEAD?.behind, 2, 'sync should show 2 commit to pull from upstream');
+
+			await commands.executeCommand('git.sync');
+			await repository.status();
+			assert.strictEqual(repository.state.HEAD?.ahead, 0);
+			assert.strictEqual(repository.state.HEAD?.behind, 0);
+
+			const originFeatureCommit = cp.execSync('git rev-parse origin/feature', { cwd, encoding: 'utf8' }).trim();
+			assert.strictEqual(repository.state.HEAD?.commit, originFeatureCommit, 'HEAD should be synced with origin/feature');
+			cp.execSync('git merge-base --is-ancestor upstream/main HEAD', { cwd });
+		} finally {
+			try { cp.execSync('git checkout main', { cwd }); } catch { }
+			try { cp.execSync('git branch -D feature', { cwd }); } catch { }
+			try { cp.execSync('git remote remove upstream', { cwd }); } catch { }
+			try { cp.execSync('git remote remove origin', { cwd }); } catch { }
+			try { cp.execSync('git config --unset branch.feature.pushRemote', { cwd }); } catch { }
+			try { fs.rmSync(upstreamBare, { recursive: true, force: true }); } catch { }
+			try { fs.rmSync(originBare, { recursive: true, force: true }); } catch { }
+		}
 	});
 });

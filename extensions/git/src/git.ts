@@ -1002,6 +1002,51 @@ export function parseLsFiles(raw: string): LsFilesElement[] {
 		.map(([, mode, object, stage, file]) => ({ mode, object, stage, file }));
 }
 
+export function parseBranchForEachRefLine(line: string): Branch | undefined {
+	let [branchName, upstream, ref, status, remoteName, upstreamRef] = line.trim().split('\0');
+
+	if (branchName.startsWith('refs/heads/')) {
+		branchName = branchName.substring(11);
+		const index = upstream.indexOf('/');
+
+		let ahead;
+		let behind;
+		const match = /\[(?:ahead ([0-9]+))?[,\s]*(?:behind ([0-9]+))?]|\[gone]/.exec(status);
+		if (match) {
+			[, ahead, behind] = match;
+		}
+
+		return {
+			type: RefType.Head,
+			name: branchName,
+			upstream: upstream !== '' && status !== '[gone]' ? {
+				name: upstreamRef ? upstreamRef.substring(11) : upstream.substring(index + 1),
+				remote: remoteName ? remoteName : upstream.substring(0, index)
+			} : undefined,
+			pushBranch: undefined,
+			commit: ref || undefined,
+			ahead: Number(ahead) || 0,
+			behind: Number(behind) || 0,
+		};
+	} else if (branchName.startsWith('refs/remotes/')) {
+		branchName = branchName.substring(13);
+		const index = branchName.indexOf('/');
+
+		return {
+			type: RefType.RemoteHead,
+			name: branchName.substring(index + 1),
+			remote: branchName.substring(0, index),
+			commit: ref,
+		};
+	}
+
+	return undefined;
+}
+
+export function getPushAhead(branch: Branch): number | undefined {
+	return branch.ahead;
+}
+
 const stashRegex = /([0-9a-f]{40})\n(.*)\nstash@{(\d+)}\n(WIP\s)?on\s([^:]+):\s(.*)\n(\d+)\n(\d+)(?:\x00)/gmi;
 
 function parseGitStashes(raw: string): Stash[] {
@@ -3128,45 +3173,9 @@ export class Repository {
 		}
 
 		const result = await this.exec(args);
-		const branches: Branch[] = result.stdout.trim().split('\n').map<Branch | undefined>(line => {
-			let [branchName, upstream, ref, status, remoteName, upstreamRef] = line.trim().split('\0');
-
-			if (branchName.startsWith('refs/heads/')) {
-				branchName = branchName.substring(11);
-				const index = upstream.indexOf('/');
-
-				let ahead;
-				let behind;
-				const match = /\[(?:ahead ([0-9]+))?[,\s]*(?:behind ([0-9]+))?]|\[gone]/.exec(status);
-				if (match) {
-					[, ahead, behind] = match;
-				}
-
-				return {
-					type: RefType.Head,
-					name: branchName,
-					upstream: upstream !== '' && status !== '[gone]' ? {
-						name: upstreamRef ? upstreamRef.substring(11) : upstream.substring(index + 1),
-						remote: remoteName ? remoteName : upstream.substring(0, index)
-					} : undefined,
-					commit: ref || undefined,
-					ahead: Number(ahead) || 0,
-					behind: Number(behind) || 0,
-				};
-			} else if (branchName.startsWith('refs/remotes/')) {
-				branchName = branchName.substring(13);
-				const index = branchName.indexOf('/');
-
-				return {
-					type: RefType.RemoteHead,
-					name: branchName.substring(index + 1),
-					remote: branchName.substring(0, index),
-					commit: ref,
-				};
-			} else {
-				return undefined;
-			}
-		}).filter((b?: Branch): b is Branch => !!b);
+		const branches: Branch[] = result.stdout.trim().split('\n')
+			.map(line => parseBranchForEachRefLine(line))
+			.filter((b?: Branch): b is Branch => !!b);
 
 		if (branches.length) {
 			const [branch] = branches;
@@ -3178,6 +3187,25 @@ export class Repository {
 
 					(branch as Mutable<Branch>).ahead = Number(ahead) || 0;
 					(branch as Mutable<Branch>).behind = Number(behind) || 0;
+				} catch { }
+			}
+
+			if (branch.type === RefType.Head && branch.name && branch.upstream && !branch.pushBranch) {
+				try {
+					const pushResult = await this.exec(['rev-parse', '--abbrev-ref', `${branch.name}@{push}`]);
+					const pushRef = pushResult.stdout.trim();
+					if (pushRef && pushRef.includes('/')) {
+						const firstSlash = pushRef.indexOf('/');
+						const pushBranch = {
+							remote: pushRef.substring(0, firstSlash),
+							name: pushRef.substring(firstSlash + 1)
+						};
+						(branch as Mutable<Branch>).pushBranch = pushBranch;
+						if (pushBranch.remote !== branch.upstream.remote || pushBranch.name !== branch.upstream.name) {
+							const result = await this.exec(['rev-list', '--count', `${pushBranch.remote}/${pushBranch.name}..${branch.name}`]);
+							(branch as Mutable<Branch>).ahead = Number(result.stdout.trim()) || 0;
+						}
+					}
 				} catch { }
 			}
 
