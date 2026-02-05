@@ -247,11 +247,12 @@
 }
 
 .agent-status-badge-section.filtered {
+	color: var(--vscode-inputOption-activeForeground);
 	background-color: var(--vscode-inputOption-activeBackground);
 }
 
-.agent-status-badge-section.filtered:hover {
-	filter: brightness(1.1);
+.agent-status-badge-section.filtered .agent-status-icon .codicon {
+	color: var(--vscode-inputOption-activeForeground);
 }
 
 /* High contrast: use dotted border for hover, solid for filtered/active */
