@@ -2859,7 +2859,7 @@ export class CommandCenter {
 							await repository.fetch({ remote: item.refRemote, ref: branchName });
 							window.showInformationMessage(l10n.t('Successfully fetched branch \"{0}\" from \"{1}\"', branchName, item.refRemote));
 						} catch (err) {
-							window.showErrorMessage(l10n.t('Failed to fetch branch: {0}', err.message));
+							window.showErrorMessage(l10n.t('Failed to fetch branch: {0}', (err.stderr || err.message || String(err))));
 						}
 					} else {
 						// Handle other remote source action buttons
