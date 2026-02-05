@@ -209,12 +209,13 @@ export class HooksExecutionService implements IHooksExecutionService {
 	}
 
 	/**
-	 * Extract hook-specific output fields.
+	 * Extract hook-specific output fields, excluding common fields.
 	 */
 	private _extractHookSpecificOutput(result: Record<string, unknown>): Record<string, unknown> {
+		const commonFields = new Set(['stopReason', 'systemMessage']);
 		const output: Record<string, unknown> = {};
 		for (const [key, value] of Object.entries(result)) {
-			if (value !== undefined) {
+			if (value !== undefined && !commonFields.has(key)) {
 				output[key] = value;
 			}
 		}
