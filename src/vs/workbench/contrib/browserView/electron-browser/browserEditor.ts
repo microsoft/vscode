@@ -600,10 +600,15 @@ export class BrowserEditor extends EditorPane {
 	}
 
 	/**
-	 * Show the find widget
+	 * Show the find widget, optionally pre-populated with selected text from the browser view
 	 */
-	showFind(): void {
-		this._findWidget.value.reveal();
+	async showFind(): Promise<void> {
+		// Get selected text from the browser view to pre-populate the search box.
+		const selectedText = await this._model?.getSelectedText();
+
+		// Only use the selected text if it doesn't contain newlines (single line selection)
+		const textToReveal = selectedText && !/[\r\n]/.test(selectedText) ? selectedText : undefined;
+		this._findWidget.value.reveal(textToReveal);
 		this._findWidget.value.layout(this._findWidgetContainer.clientWidth);
 	}
 

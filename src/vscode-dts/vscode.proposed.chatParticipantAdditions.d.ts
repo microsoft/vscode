@@ -280,6 +280,28 @@ declare module 'vscode' {
 		}>;
 	}
 
+	/**
+	 * Generic tool result data that displays input and output in collapsible sections.
+	 */
+	export interface ChatSimpleToolResultData {
+		/**
+		 * The input to display.
+		 */
+		input: string;
+		/**
+		 * The output to display.
+		 */
+		output: string;
+	}
+
+
+	export interface ChatToolResourcesInvocationData {
+		/**
+		 * Array of file URIs or locations to display as a collapsible list
+		 */
+		values: Array<Uri | Location>;
+	}
+
 	export class ChatToolInvocationPart {
 		toolName: string;
 		toolCallId: string;
@@ -289,7 +311,7 @@ declare module 'vscode' {
 		pastTenseMessage?: string | MarkdownString;
 		isConfirmed?: boolean;
 		isComplete?: boolean;
-		toolSpecificData?: ChatTerminalToolInvocationData | ChatMcpToolInvocationData | ChatTodoToolInvocationData;
+		toolSpecificData?: ChatTerminalToolInvocationData | ChatMcpToolInvocationData | ChatTodoToolInvocationData | ChatSimpleToolResultData | ChatToolResourcesInvocationData;
 		subAgentInvocationId?: string;
 		presentation?: 'hidden' | 'hiddenAfterComplete' | undefined;
 

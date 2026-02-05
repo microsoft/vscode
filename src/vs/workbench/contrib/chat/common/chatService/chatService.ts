@@ -535,7 +535,7 @@ export type ConfirmedReason =
 
 export interface IChatToolInvocation {
 	readonly presentation: IPreparedToolInvocation['presentation'];
-	readonly toolSpecificData?: IChatTerminalToolInvocationData | ILegacyChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent | IChatSubagentToolInvocationData;
+	readonly toolSpecificData?: IChatTerminalToolInvocationData | ILegacyChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData | IChatToolResourcesInvocationData;
 	readonly originMessage: string | IMarkdownString | undefined;
 	readonly invocationMessage: string | IMarkdownString;
 	readonly pastTenseMessage: string | IMarkdownString | undefined;
@@ -613,6 +613,8 @@ export namespace IChatToolInvocation {
 	interface IChatToolInvocationCancelledState extends IChatToolInvocationStateBase, IChatToolInvocationPostStreamState {
 		type: StateKind.Cancelled;
 		reason: ToolConfirmKind.Denied | ToolConfirmKind.Skipped;
+		/** Optional message explaining why the tool was cancelled (e.g., from hook denial) */
+		reasonMessage?: string | IMarkdownString;
 	}
 
 	export type State =
@@ -793,7 +795,7 @@ export interface IToolResultOutputDetailsSerialized {
  */
 export interface IChatToolInvocationSerialized {
 	presentation: IPreparedToolInvocation['presentation'];
-	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent | IChatSubagentToolInvocationData;
+	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData | IChatToolResourcesInvocationData;
 	invocationMessage: string | IMarkdownString;
 	originMessage: string | IMarkdownString | undefined;
 	pastTenseMessage: string | IMarkdownString | undefined;
@@ -838,6 +840,17 @@ export interface IChatTodoListContent {
 		title: string;
 		status: 'not-started' | 'in-progress' | 'completed';
 	}>;
+}
+
+export interface IChatSimpleToolInvocationData {
+	kind: 'simpleToolInvocation';
+	input: string;
+	output: string;
+}
+
+export interface IChatToolResourcesInvocationData {
+	readonly kind: 'resources';
+	readonly values: Array<URI | Location>;
 }
 
 export interface IChatMcpServersStarting {
@@ -1332,6 +1345,13 @@ export interface IChatService {
 	 * Adding new requests should go through sendRequest with the queue option.
 	 */
 	setPendingRequests(sessionResource: URI, requests: readonly { requestId: string; kind: ChatRequestQueueKind }[]): void;
+	/**
+	 * Ensures pending requests for the session are processing. If restoring from
+	 * storage or after an error, pending requests may be present without an
+	 * active chat message 'loop' happening. THis triggers the loop to happen
+	 * as needed. Idempotent, safe to call at any time.
+	 */
+	processPendingRequests(sessionResource: URI): void;
 	addCompleteRequest(sessionResource: URI, message: IParsedChatRequest | string, variableData: IChatRequestVariableData | undefined, attempt: number | undefined, response: IChatCompleteResponse): void;
 	setChatSessionTitle(sessionResource: URI, title: string): void;
 	getLocalSessionHistory(): Promise<IChatDetail[]>;

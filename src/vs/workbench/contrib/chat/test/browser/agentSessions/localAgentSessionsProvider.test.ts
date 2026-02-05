@@ -62,6 +62,10 @@ class MockChatService implements IChatService {
 
 	}
 
+	processPendingRequests(sessionResource: URI): void {
+
+	}
+
 	setLiveSessionItems(items: IChatDetail[]): void {
 		this.liveSessionItems = items;
 	}

@@ -11,7 +11,7 @@ import { ITextModel } from '../../../../../../../editor/common/model.js';
 import { IExtensionDescription } from '../../../../../../../platform/extensions/common/extensions.js';
 import { PromptsType } from '../../../../common/promptSyntax/promptTypes.js';
 import { ParsedPromptFile } from '../../../../common/promptSyntax/promptFileParser.js';
-import { IAgentSkill, ICustomAgent, IPromptFileContext, IPromptFileResource, IPromptPath, IPromptsService, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
+import { IAgentSkill, ICustomAgent, IPromptFileContext, IPromptFileResource, IPromptPath, IPromptsService, IResolvedAgentFile, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
 import { ResourceSet } from '../../../../../../../base/common/map.js';
 
 export class MockPromptsService implements IPromptsService {
@@ -56,9 +56,8 @@ export class MockPromptsService implements IPromptsService {
 	getParsedPromptFile(textModel: ITextModel): ParsedPromptFile { throw new Error('Not implemented'); }
 	registerContributedFile(type: PromptsType, uri: URI, extension: IExtensionDescription, name: string | undefined, description: string | undefined): IDisposable { throw new Error('Not implemented'); }
 	getPromptLocationLabel(promptPath: IPromptPath): string { throw new Error('Not implemented'); }
-	findAgentMDsInWorkspace(token: CancellationToken): Promise<URI[]> { throw new Error('Not implemented'); }
-	listAgentMDs(token: CancellationToken): Promise<URI[]> { throw new Error('Not implemented'); }
-	listCopilotInstructionsMDs(token: CancellationToken): Promise<URI[]> { throw new Error('Not implemented'); }
+	listNestedAgentMDs(token: CancellationToken): Promise<IResolvedAgentFile[]> { throw new Error('Not implemented'); }
+	listAgentInstructions(token: CancellationToken): Promise<IResolvedAgentFile[]> { throw new Error('Not implemented'); }
 	getAgentFileURIFromModeFile(oldURI: URI): URI | undefined { throw new Error('Not implemented'); }
 	getDisabledPromptFiles(type: PromptsType): ResourceSet { throw new Error('Method not implemented.'); }
 	setDisabledPromptFiles(type: PromptsType, uris: ResourceSet): void { throw new Error('Method not implemented.'); }
@@ -66,5 +65,7 @@ export class MockPromptsService implements IPromptsService {
 	findAgentSkills(token: CancellationToken): Promise<IAgentSkill[] | undefined> { throw new Error('Method not implemented.'); }
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	getPromptDiscoveryInfo(_type: any, _token: CancellationToken): Promise<any> { throw new Error('Method not implemented.'); }
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	getHooks(_token: CancellationToken): Promise<any> { throw new Error('Method not implemented.'); }
 	dispose(): void { }
 }

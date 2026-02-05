@@ -16,7 +16,8 @@ suite('formatStatusOutput', () => {
 
 	const emptySpecialFiles = {
 		agentsMd: { enabled: false, files: [] },
-		copilotInstructions: { enabled: false, files: [] }
+		copilotInstructions: { enabled: false, files: [] },
+		claudeMd: { enabled: false, files: [] }
 	};
 
 	function createPath(displayPath: string, exists: boolean, storage: PromptsStorage = PromptsStorage.local, isDefault = true): IPathInfo {
@@ -213,7 +214,8 @@ suite('formatStatusOutput', () => {
 
 		const specialFiles = {
 			agentsMd: { enabled: false, files: [] },
-			copilotInstructions: { enabled: true, files: [URI.file('/workspace/.github/copilot-instructions.md')] }
+			copilotInstructions: { enabled: true, files: [URI.file('/workspace/.github/copilot-instructions.md')] },
+			claudeMd: { enabled: false, files: [] }
 		};
 
 		const output = formatStatusOutput(statusInfos, specialFiles, []);
@@ -244,7 +246,8 @@ suite('formatStatusOutput', () => {
 
 		const specialFiles = {
 			agentsMd: { enabled: true, files: [URI.file('/workspace/AGENTS.md'), URI.file('/workspace/docs/AGENTS.md')] },
-			copilotInstructions: { enabled: false, files: [] }
+			copilotInstructions: { enabled: false, files: [] },
+			claudeMd: { enabled: false, files: [] }
 		};
 
 		const output = formatStatusOutput(statusInfos, specialFiles, []);

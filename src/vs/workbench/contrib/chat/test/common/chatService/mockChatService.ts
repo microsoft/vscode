@@ -68,6 +68,9 @@ export class MockChatService implements IChatService {
 	appendProgress(request: IChatRequestModel, progress: IChatProgress): void {
 
 	}
+	processPendingRequests(sessionResource: URI): void {
+
+	}
 	/**
 	 * Returns whether the request was accepted.
 	 */

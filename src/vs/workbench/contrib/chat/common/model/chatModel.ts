@@ -14,7 +14,7 @@ import { ResourceMap } from '../../../../../base/common/map.js';
 import { revive } from '../../../../../base/common/marshalling.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { equals } from '../../../../../base/common/objects.js';
-import { IObservable, autorun, autorunSelfDisposable, derived, observableFromEvent, observableSignalFromEvent, observableValue, observableValueOpts } from '../../../../../base/common/observable.js';
+import { IObservable, autorun, autorunSelfDisposable, constObservable, derived, observableFromEvent, observableSignalFromEvent, observableValue, observableValueOpts } from '../../../../../base/common/observable.js';
 import { basename, isEqual } from '../../../../../base/common/resources.js';
 import { hasKey, WithDefinedProps } from '../../../../../base/common/types.js';
 import { URI, UriDto } from '../../../../../base/common/uri.js';
@@ -43,7 +43,6 @@ import { ObjectMutationLog } from './objectMutationLog.js';
  * Represents a queued chat request waiting to be processed.
  */
 export interface IChatPendingRequest {
-	readonly id: string;
 	readonly request: IChatRequestModel;
 	readonly kind: ChatRequestQueueKind;
 	/**
@@ -51,6 +50,35 @@ export interface IChatPendingRequest {
 	 * userSelectedTools is snapshotted to a static observable at queue time.
 	 */
 	readonly sendOptions: IChatSendRequestOptions;
+}
+
+/**
+ * Serializable version of IChatSendRequestOptions for pending requests.
+ * Excludes observables and non-serializable fields.
+ */
+export interface ISerializableSendOptions {
+	modeInfo?: IChatRequestModeInfo;
+	userSelectedModelId?: string;
+	/** Static snapshot of user-selected tools (not an observable) */
+	userSelectedTools?: UserSelectedTools;
+	location?: ChatAgentLocation;
+	locationData?: IChatLocationData;
+	attempt?: number;
+	noCommandDetection?: boolean;
+	agentId?: string;
+	agentIdSilent?: string;
+	slashCommand?: string;
+	confirmation?: string;
+}
+
+/**
+ * Serializable representation of a pending chat request.
+ */
+export interface ISerializablePendingRequestData {
+	id: string;
+	request: ISerializableChatRequestData;
+	kind: ChatRequestQueueKind;
+	sendOptions: ISerializableSendOptions;
 }
 
 export const CHAT_ATTACHABLE_IMAGE_MIME_TYPES: Record<string, string> = {
@@ -1479,6 +1507,8 @@ export interface ISerializableChatData3 extends Omit<ISerializableChatData2, 've
 	/** Current draft input state (added later, fully backwards compatible) */
 	inputState?: ISerializableChatModelInputState;
 	repoData?: IExportableRepoData;
+	/** Pending requests that were queued but not yet processed */
+	pendingRequests?: ISerializablePendingRequestData[];
 }
 
 /**
@@ -1825,13 +1855,13 @@ export class ChatModel extends Disposable implements IChatModel {
 	}
 
 	setPendingRequests(requests: readonly { requestId: string; kind: ChatRequestQueueKind }[]): void {
-		const existingMap = new Map(this._pendingRequests.map(p => [p.id, p]));
+		const existingMap = new Map(this._pendingRequests.map(p => [p.request.id, p]));
 		const newPending: IChatPendingRequest[] = [];
 		for (const { requestId, kind } of requests) {
 			const existing = existingMap.get(requestId);
 			if (existing) {
 				// Update kind if changed, keep existing request and sendOptions
-				newPending.push(existing.kind === kind ? existing : { id: existing.id, request: existing.request, kind, sendOptions: existing.sendOptions });
+				newPending.push(existing.kind === kind ? existing : { request: existing.request, kind, sendOptions: existing.sendOptions });
 			}
 		}
 		this._pendingRequests.length = 0;
@@ -1845,7 +1875,6 @@ export class ChatModel extends Disposable implements IChatModel {
 	 */
 	addPendingRequest(request: ChatRequestModel, kind: ChatRequestQueueKind, sendOptions: IChatSendRequestOptions): IChatPendingRequest {
 		const pendingRequest: IChatPendingRequest = {
-			id: request.id,
 			request,
 			kind,
 			sendOptions,
@@ -1875,7 +1904,7 @@ export class ChatModel extends Disposable implements IChatModel {
 	 * @internal Used by ChatService to remove a pending request
 	 */
 	removePendingRequest(id: string): void {
-		const index = this._pendingRequests.findIndex(r => r.id === id);
+		const index = this._pendingRequests.findIndex(r => r.request.id === id);
 		if (index !== -1) {
 			this._pendingRequests.splice(index, 1);
 			this._onDidChangePendingRequests.fire();
@@ -2049,6 +2078,11 @@ export class ChatModel extends Disposable implements IChatModel {
 
 		this._repoData = isValidFullData && initialData.repoData ? initialData.repoData : undefined;
 
+		// Hydrate pending requests from serialized data
+		if (isValidFullData && initialData.pendingRequests) {
+			this._pendingRequests = this._deserializePendingRequests(initialData.pendingRequests);
+		}
+
 		this._initialLocation = initialData?.initialLocation ?? initialModelProps.initialLocation;
 
 		this._canUseTools = initialModelProps.canUseTools;
@@ -2152,70 +2186,72 @@ export class ChatModel extends Disposable implements IChatModel {
 		}
 
 		try {
-			return requests.map((raw: ISerializableChatRequestData) => {
-				const parsedRequest =
-					typeof raw.message === 'string'
-						? this.getParsedRequestFromString(raw.message)
-						: reviveParsedChatRequest(raw.message);
-
-				// Old messages don't have variableData, or have it in the wrong (non-array) shape
-				const variableData: IChatRequestVariableData = this.reviveVariableData(raw.variableData);
-				const request = new ChatRequestModel({
-					session: this,
-					message: parsedRequest,
-					variableData,
-					timestamp: raw.timestamp ?? -1,
-					restoredId: raw.requestId,
-					confirmation: raw.confirmation,
-					editedFileEvents: raw.editedFileEvents,
-					modelId: raw.modelId,
-				});
-				request.shouldBeRemovedOnSend = raw.isHidden ? { requestId: raw.requestId } : raw.shouldBeRemovedOnSend;
-				// eslint-disable-next-line @typescript-eslint/no-explicit-any, local/code-no-any-casts
-				if (raw.response || raw.result || (raw as any).responseErrorDetails) {
-					const agent = (raw.agent && 'metadata' in raw.agent) ? // Check for the new format, ignore entries in the old format
-						reviveSerializedAgent(raw.agent) : undefined;
-
-					// Port entries from old format
-					const result = 'responseErrorDetails' in raw ?
-						// eslint-disable-next-line local/code-no-dangerous-type-assertions
-						{ errorDetails: raw.responseErrorDetails } as IChatAgentResult : raw.result;
-					let modelState = raw.modelState || { value: raw.isCanceled ? ResponseModelState.Cancelled : ResponseModelState.Complete, completedAt: Date.now() };
-					if (modelState.value === ResponseModelState.Pending || modelState.value === ResponseModelState.NeedsInput) {
-						modelState = { value: ResponseModelState.Cancelled, completedAt: Date.now() };
-					}
-
-					request.response = new ChatResponseModel({
-						responseContent: raw.response ?? [new MarkdownString(raw.response)],
-						session: this,
-						agent,
-						slashCommand: raw.slashCommand,
-						requestId: request.id,
-						modelState,
-						vote: raw.vote,
-						timestamp: raw.timestamp,
-						voteDownReason: raw.voteDownReason,
-						result,
-						followups: raw.followups,
-						restoredId: raw.responseId,
-						timeSpentWaiting: raw.timeSpentWaiting,
-						shouldBeBlocked: request.shouldBeBlocked.get(),
-						codeBlockInfos: raw.responseMarkdownInfo?.map<ICodeBlockInfo>(info => ({ suggestionId: info.suggestionId })),
-					});
-					request.response.shouldBeRemovedOnSend = raw.isHidden ? { requestId: raw.requestId } : raw.shouldBeRemovedOnSend;
-					if (raw.usedContext) { // @ulugbekna: if this's a new vscode sessions, doc versions are incorrect anyway?
-						request.response.applyReference(revive(raw.usedContext));
-					}
-
-					raw.contentReferences?.forEach(r => request.response!.applyReference(revive(r)));
-					raw.codeCitations?.forEach(c => request.response!.applyCodeCitation(revive(c)));
-				}
-				return request;
-			});
+			return requests.map(r => this._deserializeRequest(r));
 		} catch (error) {
 			this.logService.error('Failed to parse chat data', error);
 			return [];
 		}
+	}
+
+	private _deserializeRequest(raw: ISerializableChatRequestData): ChatRequestModel {
+		const parsedRequest =
+			typeof raw.message === 'string'
+				? this.getParsedRequestFromString(raw.message)
+				: reviveParsedChatRequest(raw.message);
+
+		// Old messages don't have variableData, or have it in the wrong (non-array) shape
+		const variableData: IChatRequestVariableData = this.reviveVariableData(raw.variableData);
+		const request = new ChatRequestModel({
+			session: this,
+			message: parsedRequest,
+			variableData,
+			timestamp: raw.timestamp ?? -1,
+			restoredId: raw.requestId,
+			confirmation: raw.confirmation,
+			editedFileEvents: raw.editedFileEvents,
+			modelId: raw.modelId,
+		});
+		request.shouldBeRemovedOnSend = raw.isHidden ? { requestId: raw.requestId } : raw.shouldBeRemovedOnSend;
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any, local/code-no-any-casts
+		if (raw.response || raw.result || (raw as any).responseErrorDetails) {
+			const agent = (raw.agent && 'metadata' in raw.agent) ? // Check for the new format, ignore entries in the old format
+				reviveSerializedAgent(raw.agent) : undefined;
+
+			// Port entries from old format
+			const result = 'responseErrorDetails' in raw ?
+				// eslint-disable-next-line local/code-no-dangerous-type-assertions
+				{ errorDetails: raw.responseErrorDetails } as IChatAgentResult : raw.result;
+			let modelState = raw.modelState || { value: raw.isCanceled ? ResponseModelState.Cancelled : ResponseModelState.Complete, completedAt: Date.now() };
+			if (modelState.value === ResponseModelState.Pending || modelState.value === ResponseModelState.NeedsInput) {
+				modelState = { value: ResponseModelState.Cancelled, completedAt: Date.now() };
+			}
+
+			request.response = new ChatResponseModel({
+				responseContent: raw.response ?? [new MarkdownString(raw.response)],
+				session: this,
+				agent,
+				slashCommand: raw.slashCommand,
+				requestId: request.id,
+				modelState,
+				vote: raw.vote,
+				timestamp: raw.timestamp,
+				voteDownReason: raw.voteDownReason,
+				result,
+				followups: raw.followups,
+				restoredId: raw.responseId,
+				timeSpentWaiting: raw.timeSpentWaiting,
+				shouldBeBlocked: request.shouldBeBlocked.get(),
+				codeBlockInfos: raw.responseMarkdownInfo?.map<ICodeBlockInfo>(info => ({ suggestionId: info.suggestionId })),
+			});
+			request.response.shouldBeRemovedOnSend = raw.isHidden ? { requestId: raw.requestId } : raw.shouldBeRemovedOnSend;
+			if (raw.usedContext) { // @ulugbekna: if this's a new vscode sessions, doc versions are incorrect anyway?
+				request.response.applyReference(revive(raw.usedContext));
+			}
+
+			raw.contentReferences?.forEach(r => request.response!.applyReference(revive(r)));
+			raw.codeCitations?.forEach(c => request.response!.applyCodeCitation(revive(c)));
+		}
+		return request;
 	}
 
 	private reviveVariableData(raw: IChatRequestVariableData): IChatRequestVariableData {
@@ -2235,6 +2271,29 @@ export class ChatModel extends Disposable implements IChatModel {
 			text: message,
 			parts
 		};
+	}
+
+	/**
+	 * Hydrates pending requests from serialized data.
+	 * For each serialized pending request, finds the matching request model and adds it to the pending queue.
+	 */
+	private _deserializePendingRequests(pendingRequests: ISerializablePendingRequestData[]): IChatPendingRequest[] {
+		try {
+			return pendingRequests.map(pending => ({
+				id: pending.id,
+				request: this._deserializeRequest(pending.request),
+				kind: pending.kind,
+				sendOptions: {
+					...pending.sendOptions,
+					userSelectedTools: pending.sendOptions.userSelectedTools
+						? constObservable(pending.sendOptions.userSelectedTools)
+						: undefined,
+				}
+			}));
+		} catch (e) {
+			this.logService.error('Failed to parse pending chat requests', e);
+			return [];
+		}
 	}
 
 
@@ -2551,6 +2610,26 @@ export function getCodeCitationsMessage(citations: ReadonlyArray<IChatCodeCitati
 		localize('codeCitation', "Similar code found with 1 license type", licenseTypes.size) :
 		localize('codeCitations', "Similar code found with {0} license types", licenseTypes.size);
 	return label;
+}
+
+/**
+ * Converts IChatSendRequestOptions to a serializable format by extracting only
+ * serializable fields and converting observables to static values.
+ */
+export function serializeSendOptions(options: IChatSendRequestOptions): ISerializableSendOptions {
+	return {
+		modeInfo: options.modeInfo,
+		userSelectedModelId: options.userSelectedModelId,
+		userSelectedTools: options.userSelectedTools?.get(),
+		location: options.location,
+		locationData: options.locationData,
+		attempt: options.attempt,
+		noCommandDetection: options.noCommandDetection,
+		agentId: options.agentId,
+		agentIdSilent: options.agentIdSilent,
+		slashCommand: options.slashCommand,
+		confirmation: options.confirmation,
+	};
 }
 
 export enum ChatRequestEditedFileEventKind {

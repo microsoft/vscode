@@ -2537,7 +2537,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		top: -13px;
 		right: 20px;
 		border-radius: 3px;
-		width: 28px;
 		height: 26px;
 	}
 
@@ -2554,7 +2553,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 
 	.request-hover:not(.expanded) .actions-container {
-		width: 22px;
 		height: 22px;
 	}
 
@@ -2563,11 +2561,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 
 	.request-hover:not(.expanded) .actions-container {
-
-		.action-label.codicon-discard,
-		.action-label.codicon-x,
-		.action-label.codicon-edit {
-			margin-top: 4px;
+		.action-label {
+			margin: 4px 2px 0;
 			padding: 3px 3px;
 		}
 	}
@@ -2859,6 +2854,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 /* Pending request styles */
 .interactive-item-container.pending-request {
 	opacity: 0.7;
+
+	.request-hover {
+		top: -17px !important;
+	}
 }
 
 .interactive-item-container .chat-request-status {

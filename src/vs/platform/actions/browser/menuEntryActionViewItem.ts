@@ -427,6 +427,7 @@ export class DropdownWithDefaultActionViewItem extends BaseActionViewItem {
 	private readonly _dropdown: DropdownMenuActionViewItem;
 	private _container: HTMLElement | null = null;
 	private readonly _storageKey: string;
+	private readonly _primaryActionListener = this._register(new MutableDisposable());
 
 	get onDidChangeDropdownVisibility(): Event<boolean> {
 		return this._dropdown.onDidChangeVisibility;
@@ -468,12 +469,16 @@ export class DropdownWithDefaultActionViewItem extends BaseActionViewItem {
 
 		this._dropdown = this._register(new DropdownMenuActionViewItem(submenuAction, submenuAction.actions, this._contextMenuService, dropdownOptions));
 		if (options?.togglePrimaryAction) {
-			this._register(this._dropdown.actionRunner.onDidRun((e: IRunEvent) => {
-				if (e.action instanceof MenuItemAction) {
-					this.update(e.action);
-				}
-			}));
+			this.registerTogglePrimaryActionListener();
 		}
+	}
+
+	private registerTogglePrimaryActionListener(): void {
+		this._primaryActionListener.value = this._dropdown.actionRunner.onDidRun((e: IRunEvent) => {
+			if (e.action instanceof MenuItemAction) {
+				this.update(e.action);
+			}
+		});
 	}
 
 	private update(lastAction: MenuItemAction): void {
@@ -516,6 +521,9 @@ export class DropdownWithDefaultActionViewItem extends BaseActionViewItem {
 
 		this._defaultAction.actionRunner = actionRunner;
 		this._dropdown.actionRunner = actionRunner;
+		if (this._primaryActionListener.value) {
+			this.registerTogglePrimaryActionListener();
+		}
 	}
 
 	override get actionRunner(): IActionRunner {

@@ -794,7 +794,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 						OutputMonitor,
 						{
 							instance: toolTerminal.instance,
-							sessionId: invocation.context?.sessionId,
+							sessionResource: chatSessionResource,
 							getOutput: (marker?: IXtermMarker) => execution.getOutput(marker ?? startMarker)
 						},
 						undefined,
@@ -930,6 +930,15 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				// Capture output snapshot before disposing on cancellation
 				if (e instanceof CancellationError) {
 					await this._commandArtifactCollector.capture(toolSpecificData, toolTerminal.instance, commandId);
+					// Mark the command as cancelled if it hasn't finished yet
+					// This ensures the decoration shows a failure icon instead of running
+					const state = toolSpecificData.terminalCommandState ?? {};
+					if (state.exitCode === undefined) {
+						state.exitCode = -1;
+						state.timestamp = state.timestamp ?? timingStart;
+						state.duration = state.duration ?? Math.max(0, Date.now() - state.timestamp);
+					}
+					toolSpecificData.terminalCommandState = state;
 				}
 				// Clean up the execution on error
 				RunInTerminalTool._activeExecutions.get(termId)?.dispose();

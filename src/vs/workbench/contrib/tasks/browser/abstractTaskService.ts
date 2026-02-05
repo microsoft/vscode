@@ -918,7 +918,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		const tasks = await this.getWorkspaceTasks();
 		for (const [, workspaceTasks] of tasks) {
 			if (workspaceTasks.configurations) {
-				for (const taskName in workspaceTasks.configurations.byIdentifier) {
+				for (const taskName of Object.keys(workspaceTasks.configurations.byIdentifier)) {
 					const task = workspaceTasks.configurations.byIdentifier[taskName];
 					if (predicate(task, workspaceTasks.workspaceFolder)) {
 						result.push(task);
@@ -1256,7 +1256,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 						readTasksMap.set(taskKey, task);
 					}
 				});
-				for (const configuration in customized) {
+				for (const configuration of Object.keys(customized)) {
 					const taskKey = customized[configuration].getKey();
 					if (taskKey) {
 						readTasksMap.set(taskKey, customized[configuration]);
@@ -1308,7 +1308,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 					version: '2.0.0',
 					tasks: [customizations]
 				}, TaskRunSource.System, custom, customized, TaskConfig.TaskConfigSource.TasksJson, true);
-				for (const configuration in customized) {
+				for (const configuration of Object.keys(customized)) {
 					key = customized[configuration].getKey()!;
 				}
 			}
@@ -1351,7 +1351,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 					version: '2.0.0',
 					tasks: [customizations]
 				}, TaskRunSource.System, custom, customized, TaskConfig.TaskConfigSource.TasksJson, true);
-				for (const configuration in customized) {
+				for (const configuration of Object.keys(customized)) {
 					key = customized[configuration].getKey()!;
 				}
 			}
@@ -3816,7 +3816,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 									entry = <TaskQuickPickEntryType>task;
 								}
 							}
-							const task: Task | undefined | null = entry && 'task' in entry ? entry.task : undefined;
+							const task: Task | undefined | null = entry && Object.hasOwn(entry, 'task') ? (entry as IQuickPickItem & { task: Task }).task : undefined;
 							if ((task === undefined) || (task === null)) {
 								return;
 							}
@@ -3835,7 +3835,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 						placeHolder: nls.localize('TaskService.pickDefaultBuildTask', 'Select the task to be used as the default build task')
 					}).
 						then((entry) => {
-							const task: Task | undefined | null = entry && 'task' in entry ? entry.task : undefined;
+							const task: Task | undefined | null = entry && Object.hasOwn(entry, 'task') ? (entry as IQuickPickItem & { task: Task }).task : undefined;
 							if ((task === undefined) || (task === null)) {
 								return;
 							}
@@ -3885,7 +3885,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				this._showIgnoredFoldersMessage().then(() => {
 					this._showQuickPick(tasks,
 						nls.localize('TaskService.pickDefaultTestTask', 'Select the task to be used as the default test task'), undefined, true, false, selectedEntry).then((entry) => {
-							const task: Task | undefined | null = entry ? entry.task : undefined;
+							const task: Task | undefined | null = entry && Object.hasOwn(entry, 'task') ? entry.task : undefined;
 							if (!task) {
 								return;
 							}

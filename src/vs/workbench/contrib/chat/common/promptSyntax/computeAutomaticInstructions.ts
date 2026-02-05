@@ -22,7 +22,7 @@ import { PromptsConfig } from './config/config.js';
 import { isPromptOrInstructionsFile } from './config/promptFileLocations.js';
 import { PromptsType } from './promptTypes.js';
 import { ParsedPromptFile } from './promptFileParser.js';
-import { ICustomAgent, IPromptPath, IPromptsService } from './service/promptsService.js';
+import { AgentFileType, ICustomAgent, IPromptPath, IPromptsService } from './service/promptsService.js';
 import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
 import { ChatConfiguration, ChatModeKind } from '../constants.js';
 import { UserSelectedTools } from '../participants/chatAgents.js';
@@ -177,31 +177,33 @@ export class ComputeAutomaticInstructions {
 	}
 
 	private async _addAgentInstructions(variables: ChatRequestVariableSet, telemetryEvent: InstructionsCollectionEvent, token: CancellationToken): Promise<void> {
-		const useCopilotInstructionsFiles = this._configurationService.getValue(PromptsConfig.USE_COPILOT_INSTRUCTION_FILES);
-		const useAgentMd = this._configurationService.getValue(PromptsConfig.USE_AGENT_MD);
-		if (!useCopilotInstructionsFiles && !useAgentMd) {
-			this._logService.trace(`[InstructionsContextComputer] No agent instructions files added (settings disabled).`);
-			return;
-		}
+		const logger = {
+			logInfo: (message: string) => this._logService.trace(`[InstructionsContextComputer] ${message}`)
+		};
+		const allCandidates = await this._promptsService.listAgentInstructions(token, logger);
 
 		const entries: ChatRequestVariableSet = new ChatRequestVariableSet();
-		if (useCopilotInstructionsFiles) {
-			const files: URI[] = await this._promptsService.listCopilotInstructionsMDs(token);
-			for (const file of files) {
-				entries.add(toPromptFileVariableEntry(file, PromptFileVariableKind.Instruction, localize('instruction.file.reason.copilot', 'Automatically attached as setting {0} is enabled', PromptsConfig.USE_COPILOT_INSTRUCTION_FILES), true));
-				telemetryEvent.agentInstructionsCount++;
-				this._logService.trace(`[InstructionsContextComputer] copilot-instruction.md files added: ${file.toString()}`);
+		const copilotEntries: ChatRequestVariableSet = new ChatRequestVariableSet();
+
+		for (const { uri, type } of allCandidates) {
+			const varEntry = toPromptFileVariableEntry(uri, PromptFileVariableKind.Instruction, undefined, true);
+			entries.add(varEntry);
+			if (type === AgentFileType.copilotInstructionsMd) {
+				copilotEntries.add(varEntry);
 			}
-			await this._addReferencedInstructions(entries, telemetryEvent, token);
+
+			telemetryEvent.agentInstructionsCount++;
+			logger.logInfo(`Agent instruction file added: ${uri.toString()}`);
 		}
-		if (useAgentMd) {
-			const files = await this._promptsService.listAgentMDs(token, false);
-			for (const file of files) {
-				entries.add(toPromptFileVariableEntry(file, PromptFileVariableKind.Instruction, localize('instruction.file.reason.agentsmd', 'Automatically attached as setting {0} is enabled', PromptsConfig.USE_AGENT_MD), true));
-				telemetryEvent.agentInstructionsCount++;
-				this._logService.trace(`[InstructionsContextComputer] AGENTS.md files added: ${file.toString()}`);
+
+		// Process referenced instructions from copilot files (maintaining original behavior)
+		if (copilotEntries.length > 0) {
+			await this._addReferencedInstructions(copilotEntries, telemetryEvent, token);
+			for (const entry of copilotEntries.asArray()) {
+				variables.add(entry);
 			}
 		}
+
 		for (const entry of entries.asArray()) {
 			variables.add(entry);
 		}
@@ -263,7 +265,7 @@ export class ComputeAutomaticInstructions {
 		if (readTool) {
 
 			const searchNestedAgentMd = this._configurationService.getValue(PromptsConfig.USE_NESTED_AGENT_MD);
-			const agentsMdPromise = searchNestedAgentMd ? this._promptsService.findAgentMDsInWorkspace(token) : Promise.resolve([]);
+			const agentsMdPromise = searchNestedAgentMd ? this._promptsService.listNestedAgentMDs(token) : Promise.resolve([]);
 
 			entries.push('<instructions>');
 			entries.push('Here is a list of instruction files that contain rules for working with this codebase.');
@@ -294,7 +296,7 @@ export class ComputeAutomaticInstructions {
 			}
 
 			const agentsMdFiles = await agentsMdPromise;
-			for (const uri of agentsMdFiles) {
+			for (const { uri } of agentsMdFiles) {
 				const folderName = this._labelService.getUriLabel(dirname(uri), { relative: true });
 				const description = folderName.trim().length === 0 ? localize('instruction.file.description.agentsmd.root', 'Instructions for the workspace') : localize('instruction.file.description.agentsmd.folder', 'Instructions for folder \'{0}\'', folderName);
 				entries.push('<instruction>');

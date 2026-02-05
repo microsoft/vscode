@@ -58,6 +58,15 @@ class ErrorTestingSettings {
 	public anonymizedRandomUserFile: string = '<REDACTED: user-file-path>';
 	public nodeModulePathToRetain: string = 'node_modules/path/that/shouldbe/retained/names.js:14:15854';
 	public nodeModuleAsarPathToRetain: string = 'node_modules.asar/path/that/shouldbe/retained/names.js:14:12354';
+	public extensionPathToRetain: string = '.vscode/extensions/ms-python.python-2024.0.1/out/extension.js:144:145516';
+	public fullExtensionPath: string = '/Users/username/.vscode/extensions/ms-python.python-2024.0.1/out/extension.js:144:145516';
+	public anonymizedExtensionPath: string = '<REDACTED: user-file-path>/.vscode/extensions/ms-python.python-2024.0.1/out/extension.js:144:145516';
+	public serverInsidersExtensionPathToRetain: string = '.vscode-server-insiders/extensions/ms-vscode.remote-server-2024.1.0/out/server.js:99:8888';
+	public fullServerInsidersExtensionPath: string = '/home/user/.vscode-server-insiders/extensions/ms-vscode.remote-server-2024.1.0/out/server.js:99:8888';
+	public anonymizedServerInsidersExtensionPath: string = '<REDACTED: user-file-path>/.vscode-server-insiders/extensions/ms-vscode.remote-server-2024.1.0/out/server.js:99:8888';
+	public builtinExtensionPathToRetain: string = 'Resources/app/extensions/git/out/git.js:42:1234';
+	public fullBuiltinExtensionPath: string = '/Applications/Visual Studio Code.app/Contents/Resources/app/extensions/git/out/git.js:42:1234';
+	public anonymizedBuiltinExtensionPath: string = '<REDACTED: user-file-path>/Resources/app/extensions/git/out/git.js:42:1234';
 
 	constructor() {
 		this.personalInfo = 'DANGEROUS/PATH';
@@ -81,6 +90,9 @@ class ErrorTestingSettings {
 		`    at t._handleMessage (${this.nodeModuleAsarPathToRetain})`,
 		`    at t._onmessage (/${this.nodeModulePathToRetain})`,
 		`    at t.onmessage (${this.nodeModulePathToRetain})`,
+		`    at uv.provideCodeActions (${this.fullExtensionPath})`,
+		`    at remote.handleConnection (${this.fullServerInsidersExtensionPath})`,
+		`    at git.getRepositoryState (${this.fullBuiltinExtensionPath})`,
 			`    at DedicatedWorkerGlobalScope.self.onmessage`,
 		this.dangerousPathWithImportantInfo,
 		this.dangerousPathWithoutImportantInfo,
@@ -496,6 +508,49 @@ suite('TelemetryService', () => {
 			assert.notStrictEqual(testAppender.events[0].data.callstack.indexOf('(' + settings.nodeModulePathToRetain), -1);
 			assert.notStrictEqual(testAppender.events[0].data.callstack.indexOf('(/' + settings.nodeModuleAsarPathToRetain), -1);
 			assert.notStrictEqual(testAppender.events[0].data.callstack.indexOf('(/' + settings.nodeModulePathToRetain), -1);
+
+			errorTelemetry.dispose();
+			service.dispose();
+		}
+		finally {
+			Errors.setUnexpectedErrorHandler(origErrorHandler);
+		}
+	}));
+
+	test('Unexpected Error Telemetry removes PII but preserves extension path', sinonTestFn(function (this: any) {
+
+		const origErrorHandler = Errors.errorHandler.getUnexpectedErrorHandler();
+		Errors.setUnexpectedErrorHandler(() => { });
+
+		try {
+			const settings = new ErrorTestingSettings();
+			const testAppender = new TestTelemetryAppender();
+			const service = new TestErrorTelemetryService({ appenders: [testAppender] });
+			const errorTelemetry = new ErrorTelemetry(service);
+
+			const dangerousPathWithImportantInfoError: any = new Error(settings.dangerousPathWithImportantInfo);
+			dangerousPathWithImportantInfoError.stack = settings.stack;
+
+			Errors.onUnexpectedError(dangerousPathWithImportantInfoError);
+			this.clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
+
+			// Verify user extension path is preserved but parent folder is redacted
+			assert.notStrictEqual(testAppender.events[0].data.callstack.indexOf(settings.extensionPathToRetain), -1, 'User extension path should be retained');
+			assert.notStrictEqual(testAppender.events[0].data.callstack.indexOf(settings.anonymizedExtensionPath), -1, 'User extension path should be anonymized with preserved extension name');
+			// Verify the username is removed
+			assert.strictEqual(testAppender.events[0].data.callstack.indexOf('/Users/username/'), -1, 'Username should be redacted from extension path');
+
+			// Verify server-insiders extension path is preserved (multi-segment suffix like .vscode-server-insiders)
+			assert.notStrictEqual(testAppender.events[0].data.callstack.indexOf(settings.serverInsidersExtensionPathToRetain), -1, 'Server-insiders extension path should be retained');
+			assert.notStrictEqual(testAppender.events[0].data.callstack.indexOf(settings.anonymizedServerInsidersExtensionPath), -1, 'Server-insiders extension path should be anonymized with preserved extension name');
+			// Verify the home directory is removed
+			assert.strictEqual(testAppender.events[0].data.callstack.indexOf('/home/user/'), -1, 'Home directory should be redacted from server-insiders extension path');
+
+			// Verify built-in extension path is preserved but app folder is redacted
+			assert.notStrictEqual(testAppender.events[0].data.callstack.indexOf(settings.builtinExtensionPathToRetain), -1, 'Built-in extension path should be retained');
+			assert.notStrictEqual(testAppender.events[0].data.callstack.indexOf(settings.anonymizedBuiltinExtensionPath), -1, 'Built-in extension path should be anonymized with preserved extension name');
+			// Verify the app path is removed
+			assert.strictEqual(testAppender.events[0].data.callstack.indexOf('/Applications/Visual Studio Code.app'), -1, 'App path should be redacted from built-in extension path');
 
 			errorTelemetry.dispose();
 			service.dispose();

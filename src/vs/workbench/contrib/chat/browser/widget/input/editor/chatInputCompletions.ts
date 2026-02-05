@@ -356,6 +356,7 @@ class AgentCompletions extends Disposable {
 
 				const justAgents: CompletionItem[] = agents
 					.filter(a => !a.isDefault)
+					.filter(a => !chatSessionAgentIds.has(a.id))
 					.map(agent => {
 						const { label: agentLabel, isDupe } = this.getAgentCompletionDetails(agent);
 						const detail = agent.description;

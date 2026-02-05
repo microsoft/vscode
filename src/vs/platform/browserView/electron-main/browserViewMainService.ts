@@ -243,6 +243,10 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		return this._getBrowserView(id).stopFindInPage(keepSelection);
 	}
 
+	async getSelectedText(id: string): Promise<string> {
+		return this._getBrowserView(id).getSelectedText();
+	}
+
 	async clearStorage(id: string): Promise<void> {
 		return this._getBrowserView(id).clearStorage();
 	}

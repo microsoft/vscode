@@ -153,7 +153,6 @@
 
 .monaco-workbench .part.titlebar {
 	position: relative;
-	overflow: visible !important;
 	background: linear-gradient(
 		to bottom,
 		color-mix(in srgb, var(--vscode-focusBorder) 10%, transparent) 0%,
@@ -171,15 +170,6 @@
 	}
 }
 
-.monaco-workbench .part.titlebar .titlebar-container,
-.monaco-workbench .part.titlebar .titlebar-center,
-.monaco-workbench .part.titlebar .titlebar-center .window-title,
-.monaco-workbench .part.titlebar .command-center,
-.monaco-workbench .part.titlebar .command-center .monaco-action-bar,
-.monaco-workbench .part.titlebar .command-center .actions-container {
-	overflow: visible !important;
-}
-
 /* Status Bar */
 .monaco-workbench .part.statusbar {
 	box-shadow: var(--shadow-md);
@@ -191,7 +181,6 @@
 .monaco-workbench .quick-input-widget {
 	box-shadow: var(--shadow-xl) !important;
 	border-radius: 12px;
-	overflow: hidden;
 	background-color: color-mix(in srgb, var(--vscode-quickInput-background) 30%, transparent) !important;
 	backdrop-filter: var(--backdrop-blur-lg);
 	-webkit-backdrop-filter: var(--backdrop-blur-lg);
@@ -295,7 +284,6 @@
 	box-shadow: var(--shadow-lg);
 	border: none;
 	border-radius: var(--radius-xl);
-	overflow: hidden;
 	backdrop-filter: var(--backdrop-blur-md);
 	-webkit-backdrop-filter: var(--backdrop-blur-md);
 }
@@ -321,7 +309,6 @@
 	box-shadow: var(--shadow-lg);
 	border: none;
 	border-radius: var(--radius-xl);
-	overflow: hidden;
 	backdrop-filter: var(--backdrop-blur-md);
 	-webkit-backdrop-filter: var(--backdrop-blur-md);
 }
@@ -362,7 +349,6 @@
 	background: var(--vscode-editor-background) !important;
 	backdrop-filter: var(--backdrop-blur-sm);
 	-webkit-backdrop-filter: var(--backdrop-blur-sm);
-	overflow: hidden;
 }
 
 .monaco-workbench .monaco-editor .peekview-widget .head,
@@ -374,7 +360,6 @@
 	background-color: color-mix(in srgb, var(--vscode-editorHoverWidget-background) 60%, transparent) !important;
 	box-shadow: var(--shadow-sm-strong);
 	border-radius: var(--radius-lg);
-	overflow: hidden;
 	backdrop-filter: var(--backdrop-blur-md);
 	-webkit-backdrop-filter: var(--backdrop-blur-md);
 }
@@ -523,7 +508,6 @@
 .monaco-workbench .debug-hover-widget {
 	box-shadow: var(--shadow-hover);
 	border-radius: var(--radius-lg);
-	overflow: hidden;
 	backdrop-filter: var(--backdrop-blur-md);
 	-webkit-backdrop-filter: var(--backdrop-blur-md);
 	color: var(--vscode-editor-foreground) !important;
@@ -544,7 +528,6 @@
 	box-shadow: var(--shadow-hover);
 	border: none;
 	border-radius: var(--radius-xl);
-	overflow: hidden;
 	backdrop-filter: var(--backdrop-blur-md);
 	-webkit-backdrop-filter: var(--backdrop-blur-md);
 }
@@ -656,7 +639,6 @@
 	border-radius: var(--radius-lg) !important;
 	backdrop-filter: var(--backdrop-blur-md);
 	-webkit-backdrop-filter: var(--backdrop-blur-md);
-	overflow: visible !important;
 }
 
 .monaco-workbench .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center .action-item.command-center-center:hover {
