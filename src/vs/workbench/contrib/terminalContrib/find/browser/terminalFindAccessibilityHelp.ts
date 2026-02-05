@@ -10,7 +10,8 @@ import { IAccessibleViewImplementation } from '../../../../../platform/accessibi
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { TerminalContextKeys } from '../../../terminal/common/terminalContextKey.js';
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
-import { ITerminalService } from '../../../terminal/browser/terminal.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { TerminalFindCommandId } from '../common/terminal.find.js';
 
 export class TerminalFindAccessibilityHelp implements IAccessibleViewImplementation {
 	readonly priority = 105;
@@ -19,8 +20,8 @@ export class TerminalFindAccessibilityHelp implements IAccessibleViewImplementat
 	readonly when = TerminalContextKeys.findFocus;
 
 	getProvider(accessor: ServicesAccessor): AccessibleContentProvider | undefined {
-		const terminalService = accessor.get(ITerminalService);
-		return new TerminalFindAccessibilityHelpProvider(terminalService);
+		const commandService = accessor.get(ICommandService);
+		return new TerminalFindAccessibilityHelpProvider(commandService);
 	}
 }
 
@@ -30,13 +31,18 @@ class TerminalFindAccessibilityHelpProvider extends Disposable implements IAcces
 	readonly options: IAccessibleViewOptions = { type: AccessibleViewType.Help };
 
 	constructor(
-		private readonly _terminalService: ITerminalService
+		private readonly _commandService: ICommandService
 	) {
 		super();
 	}
 
 	onClose(): void {
-		this._terminalService.activeInstance?.focus();
+		// The Escape key that closes the accessible help will also propagate
+		// and close the terminal find widget. Re-open the find widget after
+		// the Escape event has fully propagated through all handlers.
+		setTimeout(() => {
+			this._commandService.executeCommand(TerminalFindCommandId.FindFocus);
+		}, 200);
 	}
 
 	provideContent(): string {

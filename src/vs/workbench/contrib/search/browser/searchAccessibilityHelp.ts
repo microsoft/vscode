@@ -12,7 +12,8 @@ import { ServicesAccessor } from '../../../../platform/instantiation/common/inst
 import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
 import { SearchContext } from '../common/constants.js';
 import { ISearchViewModelWorkbenchService } from './searchTreeModel/searchViewModelWorkbenchService.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { getSearchView } from './searchActionsBase.js';
 
 export class SearchAccessibilityHelp implements IAccessibleViewImplementation {
 	readonly priority = 105;
@@ -22,14 +23,14 @@ export class SearchAccessibilityHelp implements IAccessibleViewImplementation {
 
 	getProvider(accessor: ServicesAccessor): AccessibleContentProvider | undefined {
 		const searchViewModelService = accessor.get(ISearchViewModelWorkbenchService);
-		const commandService = accessor.get(ICommandService);
+		const viewsService = accessor.get(IViewsService);
 
 		const searchModel = searchViewModelService.searchModel;
 		if (!searchModel) {
 			return undefined;
 		}
 
-		return new SearchAccessibilityHelpProvider(searchModel, commandService);
+		return new SearchAccessibilityHelpProvider(searchModel, viewsService);
 	}
 }
 
@@ -40,13 +41,13 @@ class SearchAccessibilityHelpProvider extends Disposable implements IAccessibleV
 
 	constructor(
 		private readonly _searchModel: { searchResult: { count: () => number }; replaceActive: boolean },
-		private readonly _commandService: ICommandService
+		private readonly _viewsService: IViewsService
 	) {
 		super();
 	}
 
 	onClose(): void {
-		this._commandService.executeCommand('workbench.action.findInFiles');
+		getSearchView(this._viewsService)?.focus();
 	}
 
 	provideContent(): string {

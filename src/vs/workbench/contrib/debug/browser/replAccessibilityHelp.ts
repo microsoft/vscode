@@ -34,19 +34,14 @@ export class ReplAccessibilityHelp implements IAccessibleViewImplementation {
 
 class ReplAccessibilityHelpProvider extends Disposable implements IAccessibleViewContentProvider {
 	public readonly id = AccessibleViewProviderId.ReplHelp;
-	public readonly verbositySettingKey = AccessibilityVerbositySettingId.Debug;
+	public readonly verbositySettingKey = AccessibilityVerbositySettingId.Find;
 	public readonly options = { type: AccessibleViewType.Help };
-	private _treeHadFocus = false;
 	constructor(private readonly _replView: Repl) {
 		super();
-		this._treeHadFocus = !!_replView.getFocusedElement();
 	}
 
 	public onClose(): void {
-		if (this._treeHadFocus) {
-			return this._replView.focusTree();
-		}
-		this._replView.getReplInput().focus();
+		this._replView.focusFilter();
 	}
 
 	public provideContent(): string {
