@@ -20,7 +20,6 @@
 	> .chat-used-context-label .monaco-button.monaco-icon-button {
 		line-height: 1.5em;
 		font-size: 13px;
-		padding-left: 1px;
 
 		.monaco-button-mdlabel {
 			font-size: var(--vscode-chat-font-size-body-s);

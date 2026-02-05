@@ -192,6 +192,9 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 			setRequestTools: (requestId, tools) => {
 				this._proxy.$setRequestTools(requestId, tools);
 			},
+			setYieldRequested: (requestId) => {
+				this._proxy.$setYieldRequested(requestId);
+			},
 			provideFollowups: async (request, result, history, token): Promise<IChatFollowup[]> => {
 				if (!this._agents.get(handle)?.hasFollowups) {
 					return [];

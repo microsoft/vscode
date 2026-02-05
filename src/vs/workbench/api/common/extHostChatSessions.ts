@@ -162,6 +162,13 @@ class ChatSessionItemImpl implements vscode.ChatSessionItem {
 	}
 
 	set metadata(value: { readonly [key: string]: unknown } | undefined) {
+		if (value !== undefined) {
+			try {
+				JSON.stringify(value);
+			} catch {
+				throw new Error('metadata must be JSON-serializable');
+			}
+		}
 		if (!objects.equals(this.#metadata, value)) {
 			this.#metadata = value;
 			this.#onChanged();
@@ -654,7 +661,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		const chatRequest = typeConvert.ChatAgentRequest.to(request, undefined, await this.getModelForRequest(request, entry.sessionObj.extension), [], new Map(), entry.sessionObj.extension, this._logService);
 
 		const stream = entry.sessionObj.getActiveRequestStream(request);
-		await entry.sessionObj.session.requestHandler(chatRequest, { history: history }, stream.apiObject, token);
+		await entry.sessionObj.session.requestHandler(chatRequest, { history, yieldRequested: false }, stream.apiObject, token);
 
 		// TODO: do we need to dispose the stream object?
 		return {};

@@ -52,6 +52,10 @@ const enum RenderConstants {
 	SmoothScrollDuration = 125
 }
 
+const enum TextBlinkConstants {
+	IntervalDuration = 600
+}
+
 
 function getFullBufferLineAsString(lineIndex: number, buffer: IBuffer): { lineData: string | undefined; lineIndex: number } {
 	let line = buffer.getLine(lineIndex);
@@ -229,6 +233,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 			minimumContrastRatio: config.minimumContrastRatio,
 			tabStopWidth: config.tabStopWidth,
 			cursorBlink: config.cursorBlinking,
+			blinkIntervalDuration: config.textBlinking ? TextBlinkConstants.IntervalDuration : 0,
 			cursorStyle: vscodeToXtermCursorStyle<'cursorStyle'>(config.cursorStyle),
 			cursorInactiveStyle: vscodeToXtermCursorStyle(config.cursorStyleInactive),
 			cursorWidth: config.cursorWidth,
@@ -526,6 +531,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		const config = this._terminalConfigurationService.config;
 		this.raw.options.altClickMovesCursor = config.altClickMovesCursor;
 		this._setCursorBlink(config.cursorBlinking);
+		this._setTextBlinking(config.textBlinking);
 		this._setCursorStyle(config.cursorStyle);
 		this._setCursorStyleInactive(config.cursorStyleInactive);
 		this._setCursorWidth(config.cursorWidth);
@@ -789,6 +795,14 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		if (this.raw.options.cursorBlink !== blink) {
 			this.raw.options.cursorBlink = blink;
 			this.raw.refresh(0, this.raw.rows - 1);
+		}
+	}
+
+	private _setTextBlinking(enabled: boolean): void {
+		const blinkIntervalDuration = enabled ? TextBlinkConstants.IntervalDuration : 0;
+		const options = this.raw.options;
+		if (options.blinkIntervalDuration !== blinkIntervalDuration) {
+			options.blinkIntervalDuration = blinkIntervalDuration;
 		}
 	}
 

@@ -7,21 +7,22 @@
 import { EventEmitter } from 'events';
 EventEmitter.defaultMaxListeners = 100;
 
+import es from 'event-stream';
+import glob from 'glob';
 import gulp from 'gulp';
+import filter from 'gulp-filter';
+import plumber from 'gulp-plumber';
+import sourcemaps from 'gulp-sourcemaps';
 import * as path from 'path';
 import * as nodeUtil from 'util';
-import es from 'event-stream';
-import filter from 'gulp-filter';
-import * as util from './lib/util.ts';
-import { getVersion } from './lib/getVersion.ts';
-import * as task from './lib/task.ts';
-import watcher from './lib/watch/index.ts';
-import { createReporter } from './lib/reporter.ts';
-import glob from 'glob';
-import plumber from 'gulp-plumber';
 import * as ext from './lib/extensions.ts';
+import { getVersion } from './lib/getVersion.ts';
+import { createReporter } from './lib/reporter.ts';
+import * as task from './lib/task.ts';
 import * as tsb from './lib/tsb/index.ts';
-import sourcemaps from 'gulp-sourcemaps';
+import { createTsgoStream, spawnTsgo } from './lib/tsgo.ts';
+import * as util from './lib/util.ts';
+import watcher from './lib/watch/index.ts';
 
 const root = path.dirname(import.meta.dirname);
 const commit = getVersion(root);
@@ -77,6 +78,18 @@ const compilations = [
 ];
 
 const getBaseUrl = (out: string) => `https://main.vscode-cdn.net/sourcemaps/${commit}/${out}`;
+
+function rewriteTsgoSourceMappingUrlsIfNeeded(build: boolean, out: string, baseUrl: string): Promise<void> {
+	if (!build) {
+		return Promise.resolve();
+	}
+
+	return util.streamToPromise(
+		gulp.src(path.join(out, '**', '*.js'), { base: out })
+			.pipe(util.rewriteSourceMappingURL(baseUrl))
+			.pipe(gulp.dest(out))
+	);
+}
 
 const tasks = compilations.map(function (tsconfigFile) {
 	const absolutePath = path.join(root, tsconfigFile);
@@ -150,25 +163,22 @@ const tasks = compilations.map(function (tsconfigFile) {
 			.pipe(gulp.dest(out));
 	}));
 
-	const compileTask = task.define(`compile-extension:${name}`, task.series(cleanTask, () => {
-		const pipeline = createPipeline(false, true);
-		const nonts = gulp.src(src, srcOpts).pipe(filter(['**', '!**/*.ts']));
-		const input = es.merge(nonts, pipeline.tsProjectSrc());
+	const compileTask = task.define(`compile-extension:${name}`, task.series(cleanTask, async () => {
+		const nonts = gulp.src(src, srcOpts).pipe(filter(['**', '!**/*.ts'], { dot: true }));
+		const copyNonTs = util.streamToPromise(nonts.pipe(gulp.dest(out)));
+		const tsgo = spawnTsgo(absolutePath, () => rewriteTsgoSourceMappingUrlsIfNeeded(false, out, baseUrl));
 
-		return input
-			.pipe(pipeline())
-			.pipe(gulp.dest(out));
+		await Promise.all([copyNonTs, tsgo]);
 	}));
 
 	const watchTask = task.define(`watch-extension:${name}`, task.series(cleanTask, () => {
-		const pipeline = createPipeline(false);
-		const nonts = gulp.src(src, srcOpts).pipe(filter(['**', '!**/*.ts']));
-		const input = es.merge(nonts, pipeline.tsProjectSrc());
+		const nonts = gulp.src(src, srcOpts).pipe(filter(['**', '!**/*.ts'], { dot: true }));
 		const watchInput = watcher(src, { ...srcOpts, ...{ readDelay: 200 } });
+		const watchNonTs = watchInput.pipe(filter(['**', '!**/*.ts'], { dot: true })).pipe(gulp.dest(out));
+		const tsgoStream = watchInput.pipe(util.debounce(() => createTsgoStream(absolutePath, () => rewriteTsgoSourceMappingUrlsIfNeeded(false, out, baseUrl)), 200));
+		const watchStream = es.merge(nonts.pipe(gulp.dest(out)), watchNonTs, tsgoStream);
 
-		return watchInput
-			.pipe(util.incremental(pipeline, input))
-			.pipe(gulp.dest(out));
+		return watchStream;
 	}));
 
 	// Tasks

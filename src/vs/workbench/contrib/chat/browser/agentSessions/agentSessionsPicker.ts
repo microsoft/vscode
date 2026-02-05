@@ -16,6 +16,7 @@ import { IAgentSession, isLocalAgentSessionItem } from './agentSessionsModel.js'
 import { IAgentSessionsService } from './agentSessionsService.js';
 import { AgentSessionsSorter, groupAgentSessionsByDate, sessionDateFromNow } from './agentSessionsViewer.js';
 import { AGENT_SESSION_DELETE_ACTION_ID, AGENT_SESSION_RENAME_ACTION_ID, getAgentSessionTime } from './agentSessions.js';
+import { AgentSessionsFilter } from './agentSessionsFilter.js';
 
 interface ISessionPickItem extends IQuickPickItem {
 	readonly session: IAgentSession;
@@ -75,8 +76,9 @@ export class AgentSessionsPicker {
 	async pickAgentSession(): Promise<void> {
 		const disposables = new DisposableStore();
 		const picker = disposables.add(this.quickInputService.createQuickPick<ISessionPickItem>({ useSeparators: true }));
+		const filter = disposables.add(this.instantiationService.createInstance(AgentSessionsFilter, {}));
 
-		picker.items = this.createPickerItems();
+		picker.items = this.createPickerItems(filter);
 		picker.canAcceptInBackground = true;
 		picker.placeholder = localize('chatAgentPickerPlaceholder', "Search agent sessions by name");
 
@@ -116,7 +118,7 @@ export class AgentSessionsPicker {
 				await this.agentSessionsService.model.resolve(session.providerType);
 				this.pickAgentSession();
 			} else {
-				picker.items = this.createPickerItems();
+				picker.items = this.createPickerItems(filter);
 			}
 		}));
 
@@ -124,8 +126,10 @@ export class AgentSessionsPicker {
 		picker.show();
 	}
 
-	private createPickerItems(): (ISessionPickItem | IQuickPickSeparator)[] {
-		const sessions = this.agentSessionsService.model.sessions.sort(this.sorter.compare.bind(this.sorter));
+	private createPickerItems(filter: AgentSessionsFilter): (ISessionPickItem | IQuickPickSeparator)[] {
+		const sessions = this.agentSessionsService.model.sessions
+			.filter(session => !filter.exclude(session))
+			.sort(this.sorter.compare.bind(this.sorter));
 		const items: (ISessionPickItem | IQuickPickSeparator)[] = [];
 
 		const groupedSessions = groupAgentSessionsByDate(sessions);

@@ -17,7 +17,6 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IChatAgentRequest, IChatAgentService } from '../../participants/chatAgents.js';
 import { ChatModel, IChatRequestModeInstructions } from '../../model/chatModel.js';
-import { ChatMode, IChatMode, IChatModeService } from '../../chatModes.js';
 import { IChatProgress, IChatService } from '../../chatService/chatService.js';
 import { ChatRequestVariableSet } from '../../attachments/chatVariableEntries.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../constants.js';
@@ -39,6 +38,7 @@ import {
 import { ComputeAutomaticInstructions } from '../../promptSyntax/computeAutomaticInstructions.js';
 import { ManageTodoListToolToolId } from './manageTodoListTool.js';
 import { createToolSimpleTextResult } from './toolHelpers.js';
+import { ICustomAgent, IPromptsService } from '../../promptSyntax/service/promptsService.js';
 
 const BaseModelDescription = `Launch a new agent to handle complex, multi-step tasks autonomously. This tool is good at researching complex questions, searching for code, and executing multi-step tasks. When you are searching for a keyword or file and are not confident that you will find the right match in the first few tries, use this agent to perform the search for you.
 
@@ -63,12 +63,12 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 	constructor(
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 		@IChatService private readonly chatService: IChatService,
-		@IChatModeService private readonly chatModeService: IChatModeService,
 		@ILanguageModelToolsService private readonly languageModelToolsService: ILanguageModelToolsService,
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 		@ILogService private readonly logService: ILogService,
 		@ILanguageModelToolsService private readonly toolsService: ILanguageModelToolsService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IPromptsService private readonly promptsService: IPromptsService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
@@ -142,32 +142,30 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 			let modeModelId = invocation.modelId;
 			let modeTools = invocation.userSelectedTools;
 			let modeInstructions: IChatRequestModeInstructions | undefined;
-			let mode: IChatMode | undefined;
+			let subagent: ICustomAgent | undefined;
 
-			if (args.agentName) {
-				mode = this.chatModeService.findModeByName(args.agentName);
-				if (mode) {
+			const subAgentName = args.agentName;
+			if (subAgentName) {
+				subagent = await this.getSubAgentByName(subAgentName);
+				if (subagent) {
 					// Use mode-specific model if available
-					const modeModelQualifiedNames = mode.model?.get();
+					const modeModelQualifiedNames = subagent.model;
 					if (modeModelQualifiedNames) {
 						// Find the actual model identifier from the qualified name(s)
-						for (const qualifiedName of modeModelQualifiedNames) {
+						outer: for (const qualifiedName of modeModelQualifiedNames) {
 							const lmByQualifiedName = this.languageModelsService.lookupLanguageModelByQualifiedName(qualifiedName);
-							for (const fullId of this.languageModelsService.getLanguageModelIds()) {
-								const lmById = this.languageModelsService.lookupLanguageModel(fullId);
-								if (lmById && lmById?.id === lmByQualifiedName?.id) {
-									modeModelId = fullId;
-									break;
-								}
+							if (lmByQualifiedName?.identifier) {
+								modeModelId = lmByQualifiedName.identifier;
+								break outer;
 							}
 						}
 					}
 
 					// Use mode-specific tools if available
-					const modeCustomTools = mode.customTools?.get();
+					const modeCustomTools = subagent.tools;
 					if (modeCustomTools) {
 						// Convert the mode's custom tools (array of qualified names) to UserSelectedTools format
-						const enablementMap = this.languageModelToolsService.toToolAndToolSetEnablementMap(modeCustomTools, mode.target?.get(), undefined);
+						const enablementMap = this.languageModelToolsService.toToolAndToolSetEnablementMap(modeCustomTools, subagent.target, undefined);
 						// Convert enablement map to UserSelectedTools (Record<string, boolean>)
 						modeTools = {};
 						for (const [tool, enabled] of enablementMap) {
@@ -177,15 +175,15 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 						}
 					}
 
-					const instructions = mode.modeInstructions?.get();
+					const instructions = subagent.agentInstructions;
 					modeInstructions = instructions && {
-						name: mode.name.get(),
+						name: subAgentName,
 						content: instructions.content,
 						toolReferences: this.toolsService.toToolReferences(instructions.toolReferences),
 						metadata: instructions.metadata,
 					};
 				} else {
-					throw new Error(`Requested agent '${args.agentName}' not found. Try again with the correct agent name, or omit the agentName to use the current agent.`);
+					throw new Error(`Requested agent '${subAgentName}' not found. Try again with the correct agent name, or omit the agentName to use the current agent.`);
 				}
 			}
 
@@ -229,7 +227,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 			}
 
 			const variableSet = new ChatRequestVariableSet();
-			const computer = this.instantiationService.createInstance(ComputeAutomaticInstructions, mode ?? ChatMode.Agent, modeTools, undefined); // agents can not call subagents
+			const computer = this.instantiationService.createInstance(ComputeAutomaticInstructions, ChatModeKind.Agent, modeTools, undefined); // agents can not call subagents
 			await computer.collect(variableSet, token);
 
 			// Build the agent request
@@ -241,10 +239,11 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 				variables: { variables: variableSet.asArray() },
 				location: ChatAgentLocation.Chat,
 				subAgentInvocationId: invocation.callId,
-				subAgentName: mode?.name.get() ?? 'subagent',
+				subAgentName: subAgentName,
 				userSelectedModelId: modeModelId,
 				userSelectedTools: modeTools,
 				modeInstructions,
+				parentRequestId: invocation.chatRequestId,
 			};
 
 			// Subscribe to tool invocations to clear markdown parts when a tool is invoked
@@ -299,17 +298,22 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 		}
 	}
 
+	private async getSubAgentByName(name: string): Promise<ICustomAgent | undefined> {
+		const agents = await this.promptsService.getCustomAgents(CancellationToken.None);
+		return agents.find(agent => agent.name === name);
+	}
+
 	async prepareToolInvocation(context: IToolInvocationPreparationContext, _token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
 		const args = context.parameters as IRunSubagentToolInputParams;
 
-		const mode = args.agentName ? this.chatModeService.findModeByName(args.agentName) : undefined;
+		const subagent = args.agentName ? await this.getSubAgentByName(args.agentName) : undefined;
 
 		return {
 			invocationMessage: args.description,
 			toolSpecificData: {
 				kind: 'subagent',
 				description: args.description,
-				agentName: mode?.name.get(),
+				agentName: subagent?.name,
 				prompt: args.prompt,
 			},
 		};

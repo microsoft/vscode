@@ -657,6 +657,10 @@ export class AgentSessionsDataSource implements IAsyncDataSource<IAgentSessionsM
 		const sortedSessions = sessions.sort(this.sorter.compare.bind(this.sorter));
 
 		if (this.filter?.groupResults?.() === AgentSessionsGrouping.Capped) {
+			if (this.filter?.getExcludes().read) {
+				return sortedSessions; // When filtering to show only unread sessions, show a flat list
+			}
+
 			return this.groupSessionsCapped(sortedSessions);
 		} else {
 			return this.groupSessionsByDate(sortedSessions);

@@ -9,7 +9,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { Location } from '../../../../../../editor/common/languages.js';
 import { getToolSpecificDataDescription, getResultDetailsDescription, getToolInvocationA11yDescription } from '../../../browser/accessibility/chatResponseAccessibleView.js';
-import { IChatExtensionsContent, IChatPullRequestContent, IChatSubagentToolInvocationData, IChatTerminalToolInvocationData, IChatTodoListContent, IChatToolInputInvocationData } from '../../../common/chatService/chatService.js';
+import { IChatExtensionsContent, IChatPullRequestContent, IChatSubagentToolInvocationData, IChatTerminalToolInvocationData, IChatTodoListContent, IChatToolInputInvocationData, IChatToolResourcesInvocationData } from '../../../common/chatService/chatService.js';
 
 suite('ChatResponseAccessibleView', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -151,6 +151,56 @@ suite('ChatResponseAccessibleView', () => {
 			const result = getToolSpecificDataDescription(inputData);
 			assert.ok(result.includes('key'));
 			assert.ok(result.includes('value'));
+		});
+
+		test('returns resources list for resources data with URIs', () => {
+			const resourcesData: IChatToolResourcesInvocationData = {
+				kind: 'resources',
+				values: [
+					URI.file('/path/to/file1.ts'),
+					URI.file('/path/to/file2.ts')
+				]
+			};
+			const result = getToolSpecificDataDescription(resourcesData);
+			assert.ok(result.includes('file1.ts'));
+			assert.ok(result.includes('file2.ts'));
+		});
+
+		test('returns resources list for resources data with Locations', () => {
+			const resourcesData: IChatToolResourcesInvocationData = {
+				kind: 'resources',
+				values: [
+					{ uri: URI.file('/path/to/file1.ts'), range: new Range(1, 1, 10, 1) },
+					{ uri: URI.file('/path/to/file2.ts'), range: new Range(5, 1, 15, 1) }
+				]
+			};
+			const result = getToolSpecificDataDescription(resourcesData);
+			assert.ok(result.includes('file1.ts'));
+			assert.ok(result.includes(':1')); // Line number included for Locations
+			assert.ok(result.includes('file2.ts'));
+			assert.ok(result.includes(':5')); // Line number included for Locations
+		});
+
+		test('returns resources list for mixed URIs and Locations', () => {
+			const resourcesData: IChatToolResourcesInvocationData = {
+				kind: 'resources',
+				values: [
+					URI.file('/path/to/file1.ts'),
+					{ uri: URI.file('/path/to/file2.ts'), range: new Range(10, 1, 20, 1) }
+				]
+			};
+			const result = getToolSpecificDataDescription(resourcesData);
+			assert.ok(result.includes('file1.ts'));
+			assert.ok(result.includes('file2.ts'));
+			assert.ok(result.includes(':10')); // Line number for Location only
+		});
+
+		test('returns empty for empty resources array', () => {
+			const resourcesData: IChatToolResourcesInvocationData = {
+				kind: 'resources',
+				values: []
+			};
+			assert.strictEqual(getToolSpecificDataDescription(resourcesData), '');
 		});
 	});
 

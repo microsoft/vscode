@@ -56,7 +56,7 @@
 	flex: 1;
 	min-width: 0;
 	-webkit-app-region: no-drag;
-	background-color: var(--vscode-commandCenter-background);
+	background-color: var(--vscode-agentStatusIndicator-background);
 	border: 1px solid var(--vscode-commandCenter-border, transparent);
 }
 
@@ -218,7 +218,7 @@
 	align-items: center;
 	height: 22px;
 	border-radius: 6px;
-	background-color: var(--vscode-commandCenter-background);
+	background-color: var(--vscode-agentStatusIndicator-background);
 	border: 1px solid var(--vscode-commandCenter-border, transparent);
 	flex-shrink: 0;
 	-webkit-app-region: no-drag;

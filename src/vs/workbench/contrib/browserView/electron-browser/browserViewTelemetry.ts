@@ -20,10 +20,12 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
  *   opens in a new focused editor (e.g., links with target="_blank").
  * - `'browserLinkBackground'`: opened when clicking a link inside the Integrated Browser that
  *   opens in a new background editor (e.g., Ctrl/Cmd+click).
+ * - `'browserLinkNewWindow'`: opened when clicking a link inside the Integrated Browser that
+ *   opens in a new window (e.g., Shift+click).
  * - `'copyToNewWindow'`: opened when the user copies a browser editor to a new window
  *   via "Copy into New Window".
  */
-export type IntegratedBrowserOpenSource = 'commandWithoutUrl' | 'commandWithUrl' | 'newTabCommand' | 'localhostLinkOpener' | 'browserLinkForeground' | 'browserLinkBackground' | 'copyToNewWindow';
+export type IntegratedBrowserOpenSource = 'commandWithoutUrl' | 'commandWithUrl' | 'newTabCommand' | 'localhostLinkOpener' | 'browserLinkForeground' | 'browserLinkBackground' | 'browserLinkNewWindow' | 'copyToNewWindow';
 
 type IntegratedBrowserOpenEvent = {
 	source: IntegratedBrowserOpenSource;

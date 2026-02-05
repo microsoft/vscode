@@ -5,11 +5,23 @@
 
 import { ITerminalInstance, ITerminalService } from '../../terminal/browser/terminal.js';
 import { Emitter } from '../../../../base/common/event.js';
-import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, IDisposable } from '../../../../base/common/lifecycle.js';
 import { IDebugService, IDebugSession, IReplElement } from '../../debug/common/debug.js';
 import { removeAnsiEscapeCodes } from '../../../../base/common/strings.js';
+import { RunOnceWorker } from '../../../../base/common/async.js';
 
 export class UrlFinder extends Disposable {
+	/**
+	 * Debounce time in ms before processing accumulated terminal data.
+	 */
+	private static readonly dataDebounceTimeout = 500;
+
+	/**
+	 * Maximum amount of data to accumulate before skipping URL detection.
+	 * When data exceeds this threshold, it indicates high-throughput scenarios
+	 * (like games or animations) where URL detection is unlikely to find useful results.
+	 */
+	private static readonly maxDataLength = 10000;
 	/**
 	 * Local server url pattern matching following urls:
 	 * http://localhost:3000/ - commonly used across multiple frameworks
@@ -28,7 +40,8 @@ export class UrlFinder extends Disposable {
 
 	private _onDidMatchLocalUrl: Emitter<{ host: string; port: number }> = new Emitter();
 	public readonly onDidMatchLocalUrl = this._onDidMatchLocalUrl.event;
-	private listeners: Map<ITerminalInstance | string, IDisposable> = new Map();
+	private readonly listeners: Map<ITerminalInstance | string, IDisposable> = new Map();
+	private readonly terminalDataWorkers = this._register(new DisposableMap<ITerminalInstance, RunOnceWorker<string>>());
 
 	constructor(terminalService: ITerminalService, debugService: IDebugService) {
 		super();
@@ -42,6 +55,7 @@ export class UrlFinder extends Disposable {
 		this._register(terminalService.onDidDisposeInstance(instance => {
 			this.listeners.get(instance)?.dispose();
 			this.listeners.delete(instance);
+			this.terminalDataWorkers.deleteAndDispose(instance);
 		}));
 
 		// Debug
@@ -63,9 +77,27 @@ export class UrlFinder extends Disposable {
 	private registerTerminalInstance(instance: ITerminalInstance) {
 		if (!UrlFinder.excludeTerminals.includes(instance.title)) {
 			this.listeners.set(instance, instance.onData(data => {
-				this.processData(data);
+				this.getOrCreateWorker(instance).work(data);
 			}));
 		}
+	}
+
+	private getOrCreateWorker(instance: ITerminalInstance): RunOnceWorker<string> {
+		let worker = this.terminalDataWorkers.get(instance);
+		if (!worker) {
+			worker = new RunOnceWorker<string>(chunks => this.processTerminalData(chunks), UrlFinder.dataDebounceTimeout);
+			this.terminalDataWorkers.set(instance, worker);
+		}
+		return worker;
+	}
+
+	private processTerminalData(chunks: string[]): void {
+		// Skip processing if data exceeds threshold (high-throughput scenario like games)
+		const totalLength = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
+		if (totalLength > UrlFinder.maxDataLength) {
+			return;
+		}
+		this.processData(chunks.join(''));
 	}
 
 	private replPositions: Map<string, { position: number; tail: IReplElement }> = new Map();
@@ -91,8 +123,7 @@ export class UrlFinder extends Disposable {
 
 	override dispose() {
 		super.dispose();
-		const listeners = this.listeners.values();
-		for (const listener of listeners) {
+		for (const listener of this.listeners.values()) {
 			listener.dispose();
 		}
 	}

@@ -12,10 +12,11 @@ import { TestConfigurationService } from '../../../../../../../platform/configur
 import { RunSubagentTool } from '../../../../common/tools/builtinTools/runSubagentTool.js';
 import { MockLanguageModelToolsService } from '../mockLanguageModelToolsService.js';
 import { IChatAgentService } from '../../../../common/participants/chatAgents.js';
-import { IChatModeService } from '../../../../common/chatModes.js';
 import { IChatService } from '../../../../common/chatService/chatService.js';
 import { ILanguageModelsService } from '../../../../common/languageModels.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
+import { ICustomAgent, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
+import { MockPromptsService } from '../../promptSyntax/service/mockPromptsService.js';
 
 suite('RunSubagentTool', () => {
 	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -45,28 +46,27 @@ suite('RunSubagentTool', () => {
 			const mockToolsService = testDisposables.add(new MockLanguageModelToolsService());
 			const configService = new TestConfigurationService();
 
-			const mockChatModeService = {
-				findModeByName: (name: string) => {
-					if (name === 'CustomAgent') {
-						return {
-							name: {
-								get: () => 'CustomAgent'
-							}
-						};
-					}
-					return undefined;
-				}
-			} as unknown as IChatModeService;
+			const promptsService = new MockPromptsService();
+			const customMode: ICustomAgent = {
+				uri: URI.parse('file:///test/custom-agent.md'),
+				name: 'CustomAgent',
+				description: 'A test custom agent',
+				tools: ['tool1', 'tool2'],
+				agentInstructions: { content: 'Custom agent body', toolReferences: [] },
+				source: { storage: PromptsStorage.local },
+				visibility: { userInvokable: true, agentInvokable: true }
+			};
+			promptsService.setCustomModes([customMode]);
 
 			const tool = testDisposables.add(new RunSubagentTool(
 				{} as IChatAgentService,
 				{} as IChatService,
-				mockChatModeService,
 				mockToolsService,
 				{} as ILanguageModelsService,
 				new NullLogService(),
 				mockToolsService,
 				configService,
+				promptsService,
 				{} as IInstantiationService,
 			));
 
@@ -97,16 +97,17 @@ suite('RunSubagentTool', () => {
 		test('returns basic tool data', () => {
 			const mockToolsService = testDisposables.add(new MockLanguageModelToolsService());
 			const configService = new TestConfigurationService();
+			const promptsService = new MockPromptsService();
 
 			const tool = testDisposables.add(new RunSubagentTool(
 				{} as IChatAgentService,
 				{} as IChatService,
-				{} as IChatModeService,
 				mockToolsService,
 				{} as ILanguageModelsService,
 				new NullLogService(),
 				mockToolsService,
 				configService,
+				promptsService,
 				{} as IInstantiationService,
 			));
 
@@ -124,16 +125,17 @@ suite('RunSubagentTool', () => {
 			const configService = new TestConfigurationService({
 				'chat.customAgentInSubagent.enabled': true,
 			});
+			const promptsService = new MockPromptsService();
 
 			const tool = testDisposables.add(new RunSubagentTool(
 				{} as IChatAgentService,
 				{} as IChatService,
-				{} as IChatModeService,
 				mockToolsService,
 				{} as ILanguageModelsService,
 				new NullLogService(),
 				mockToolsService,
 				configService,
+				promptsService,
 				{} as IInstantiationService,
 			));
 

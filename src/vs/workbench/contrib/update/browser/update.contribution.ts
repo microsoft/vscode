@@ -10,6 +10,7 @@ import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } fr
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
 import { MenuId, registerAction2, Action2 } from '../../../../platform/actions/common/actions.js';
 import { ProductContribution, UpdateContribution, CONTEXT_UPDATE_STATE, SwitchProductQualityContribution, RELEASE_NOTES_URL, showReleaseNotesInEditor, DOWNLOAD_URL, DefaultAccountUpdateContribution } from './update.js';
+import { UpdateStatusBarEntryContribution } from './updateStatusBarEntry.js';
 import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import product from '../../../../platform/product/common/product.js';
 import { IUpdateService, StateType } from '../../../../platform/update/common/update.js';
@@ -30,10 +31,11 @@ workbench.registerWorkbenchContribution(ProductContribution, LifecyclePhase.Rest
 workbench.registerWorkbenchContribution(UpdateContribution, LifecyclePhase.Restored);
 workbench.registerWorkbenchContribution(SwitchProductQualityContribution, LifecyclePhase.Restored);
 workbench.registerWorkbenchContribution(DefaultAccountUpdateContribution, LifecyclePhase.Eventually);
+workbench.registerWorkbenchContribution(UpdateStatusBarEntryContribution, LifecyclePhase.Restored);
 
 // Release notes
 
-export class ShowCurrentReleaseNotesAction extends Action2 {
+export class ShowReleaseNotesAction extends Action2 {
 
 	constructor() {
 		super({
@@ -54,13 +56,14 @@ export class ShowCurrentReleaseNotesAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
+	async run(accessor: ServicesAccessor, version?: string): Promise<void> {
 		const instantiationService = accessor.get(IInstantiationService);
 		const productService = accessor.get(IProductService);
 		const openerService = accessor.get(IOpenerService);
+		const targetVersion = version ?? productService.version;
 
 		try {
-			await showReleaseNotesInEditor(instantiationService, productService.version, false);
+			await showReleaseNotesInEditor(instantiationService, targetVersion, false);
 		} catch (err) {
 			if (productService.releaseNotesUrl) {
 				await openerService.open(URI.parse(productService.releaseNotesUrl));
@@ -97,7 +100,7 @@ export class ShowCurrentReleaseNotesFromCurrentFileAction extends Action2 {
 	}
 }
 
-registerAction2(ShowCurrentReleaseNotesAction);
+registerAction2(ShowReleaseNotesAction);
 registerAction2(ShowCurrentReleaseNotesFromCurrentFileAction);
 
 // Update

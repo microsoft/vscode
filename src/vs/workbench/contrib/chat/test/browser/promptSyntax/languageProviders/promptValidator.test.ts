@@ -123,7 +123,7 @@ suite('PromptValidator', () => {
 			lookupLanguageModelByQualifiedName(qualifiedName: string) {
 				for (const metadata of testModels) {
 					if (ILanguageModelChatMetadata.matchesQualifiedName(qualifiedName, metadata)) {
-						return metadata;
+						return { metadata, identifier: metadata.id };
 					}
 				}
 				return undefined;

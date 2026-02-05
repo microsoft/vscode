@@ -5,7 +5,7 @@
 
 import { IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ChatTreeItem, IChatCodeBlockInfo } from '../../chat.js';
-import { IChatRendererContent } from '../../../common/model/chatViewModel.js';
+import { IChatRendererContent, IChatRequestViewModel, IChatResponseViewModel } from '../../../common/model/chatViewModel.js';
 import { CodeBlockModelCollection } from '../../../common/widget/codeBlockModelCollection.js';
 import { DiffEditorPool, EditorPool } from './chatContentCodePools.js';
 import { IObservable } from '../../../../../../base/common/observable.js';
@@ -41,7 +41,7 @@ export interface IChatContentPart extends IDisposable {
 }
 
 export interface IChatContentPartRenderContext {
-	readonly element: ChatTreeItem;
+	readonly element: IChatRequestViewModel | IChatResponseViewModel;
 	readonly elementIndex: number;
 	readonly container: HTMLElement;
 	readonly content: ReadonlyArray<IChatRendererContent>;

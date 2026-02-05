@@ -88,6 +88,7 @@ export class MenuId {
 	static readonly EditorContextPeek = new MenuId('EditorContextPeek');
 	static readonly EditorContextShare = new MenuId('EditorContextShare');
 	static readonly EditorTitle = new MenuId('EditorTitle');
+	static readonly ModalEditorTitle = new MenuId('ModalEditorTitle');
 	static readonly CompactWindowEditorTitle = new MenuId('CompactWindowEditorTitle');
 	static readonly EditorTitleRun = new MenuId('EditorTitleRun');
 	static readonly EditorTitleContext = new MenuId('EditorTitleContext');
@@ -251,6 +252,7 @@ export class MenuId {
 	static readonly ChatWelcomeContext = new MenuId('ChatWelcomeContext');
 	static readonly ChatMessageFooter = new MenuId('ChatMessageFooter');
 	static readonly ChatExecute = new MenuId('ChatExecute');
+	static readonly ChatExecuteQueue = new MenuId('ChatExecuteQueue');
 	static readonly ChatInput = new MenuId('ChatInput');
 	static readonly ChatInputSide = new MenuId('ChatInputSide');
 	static readonly ChatModePicker = new MenuId('ChatModePicker');
@@ -324,6 +326,7 @@ export class MenuId {
 
 export interface IMenuActionOptions {
 	arg?: unknown;
+	args?: unknown[];
 	shouldForwardArgs?: boolean;
 	renderShortTitle?: boolean;
 }
@@ -613,7 +616,9 @@ export class MenuItemAction implements IAction {
 	run(...args: unknown[]): Promise<void> {
 		let runArgs: unknown[] = [];
 
-		if (this._options?.arg) {
+		if (this._options?.args) {
+			runArgs = [...runArgs, ...this._options.args];
+		} else if (this._options?.arg) {
 			runArgs = [...runArgs, this._options.arg];
 		}
 

@@ -46,7 +46,7 @@ import { ChatViewId, IChatWidgetService, ISessionTypePickerDelegate, IWorkspaceP
 import { ChatSessionPosition, getResourceForNewChatSession } from '../../chat/browser/chatSessions/chatSessions.contribution.js';
 import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 import { AgentSessionsControl, IAgentSessionsControlOptions } from '../../chat/browser/agentSessions/agentSessionsControl.js';
-import { IAgentSessionsFilter } from '../../chat/browser/agentSessions/agentSessionsViewer.js';
+import { AgentSessionsFilter } from '../../chat/browser/agentSessions/agentSessionsFilter.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { IResolvedWalkthrough, IWalkthroughsService } from '../../welcomeGettingStarted/browser/gettingStartedService.js';
 import { GettingStartedEditorOptions, GettingStartedInput } from '../../welcomeGettingStarted/browser/gettingStartedInput.js';
@@ -140,7 +140,7 @@ export class AgentSessionsWelcomePage extends EditorPane {
 
 	// Telemetry tracking
 	private _openedAt: number = 0;
-	private _closedBy: string = 'unknown';
+	private _closedBy?: string;
 	private _storedInput: AgentSessionsWelcomeInput | undefined;
 
 	constructor(
@@ -202,9 +202,27 @@ export class AgentSessionsWelcomePage extends EditorPane {
 
 	override async setInput(input: AgentSessionsWelcomeInput, options: AgentSessionsWelcomeEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		this._storedInput = input;
+		this._openedAt = Date.now();
 		await super.setInput(input, options, context, token);
 		this._workspaceKind = input.workspaceKind ?? 'empty';
 		await this.buildContent();
+	}
+
+	override clearInput(): void {
+		// Send closed telemetry when the editor is closed
+		if (this._openedAt > 0) {
+			const visibleDurationMs = Date.now() - this._openedAt;
+			this.telemetryService.publicLog2<AgentSessionsWelcomeClosedEvent, AgentSessionsWelcomeClosedClassification>(
+				'agentSessionsWelcome.closed',
+				{
+					visibleDurationMs,
+					closedBy: this._closedBy ?? 'disposed'
+				}
+			);
+			this._openedAt = 0;
+			this._closedBy = undefined;
+		}
+		super.clearInput();
 	}
 
 	private async buildContent(): Promise<void> {
@@ -566,32 +584,20 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		// Hide the control initially until loading completes
 		this.sessionsControlContainer.style.display = 'none';
 
-		// Create a filter that limits results and excludes archived sessions
-		const onDidChangeEmitter = this.sessionsControlDisposables.add(new Emitter<void>());
-		const filter: IAgentSessionsFilter = {
-			onDidChange: onDidChangeEmitter.event,
-			limitResults: () => MAX_SESSIONS,
-			exclude: (session: IAgentSession) => session.isArchived(),
-			getExcludes: () => ({
-				providers: [],
-				states: [],
-				archived: true,
-				read: false,
-			}),
-		};
-
 		const options: IAgentSessionsControlOptions = {
 			overrideStyles: getListStyles({
 				listBackground: editorBackground,
 			}),
-			filter,
+			filter: this.sessionsControlDisposables.add(this.instantiationService.createInstance(AgentSessionsFilter, {
+				limitResults: () => MAX_SESSIONS,
+			})),
 			getHoverPosition: () => HoverPosition.BELOW,
 			trackActiveEditorSession: () => false,
 			source: 'welcomeView',
 			notifySessionOpened: () => {
-				this._closedBy = 'sessionClicked';
 				const isProjectionEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.AgentSessionProjectionEnabled);
 				if (!isProjectionEnabled) {
+					this._closedBy = 'sessionClicked';
 					this.revealMaximizedChat();
 				}
 			}
@@ -907,22 +913,6 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		if (chatViewLocation === ViewContainerLocation.AuxiliaryBar) {
 			this.layoutService.setAuxiliaryBarMaximized(true);
 		}
-	}
-
-	override dispose(): void {
-		// Send closed telemetry before disposing
-		if (this._openedAt > 0) {
-			const visibleDurationMs = Date.now() - this._openedAt;
-			this.telemetryService.publicLog2<AgentSessionsWelcomeClosedEvent, AgentSessionsWelcomeClosedClassification>(
-				'agentSessionsWelcome.closed',
-				{
-					visibleDurationMs,
-					closedBy: this._closedBy
-				}
-			);
-		}
-
-		super.dispose();
 	}
 
 	private async getRecentlyOpenedWorkspaces(onlyTrusted: boolean = false): Promise<Array<IRecentWorkspace | IRecentFolder>> {

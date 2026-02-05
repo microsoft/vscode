@@ -31,6 +31,7 @@ import { localize } from '../../../../../nls.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 
 import { ITextResourceEditorInput } from '../../../../../platform/editor/common/editor.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -54,7 +55,7 @@ import { IChatModel, IChatModelInputState, IChatResponseModel } from '../../comm
 import { ChatMode, IChatModeService } from '../../common/chatModes.js';
 import { chatAgentLeader, ChatRequestAgentPart, ChatRequestDynamicVariablePart, ChatRequestSlashPromptPart, ChatRequestToolPart, ChatRequestToolSetPart, chatSubcommandLeader, formatChatQuestion, IParsedChatRequest } from '../../common/requestParser/chatParserTypes.js';
 import { ChatRequestParser } from '../../common/requestParser/chatRequestParser.js';
-import { IChatLocationData, IChatSendRequestOptions, IChatService } from '../../common/chatService/chatService.js';
+import { ChatRequestQueueKind, ChatSendResult, IChatLocationData, IChatSendRequestOptions, IChatService } from '../../common/chatService/chatService.js';
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
 import { IChatSlashCommandService } from '../../common/participants/chatSlashCommands.js';
 import { IChatTodoListService } from '../../common/tools/chatTodoListService.js';
@@ -237,7 +238,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private visibleChangeCount = 0;
 	private requestInProgress: IContextKey<boolean>;
 	private agentInInput: IContextKey<boolean>;
-	private currentRequest: Promise<void> | undefined;
 
 	private _visible = false;
 	get visible() { return this._visible; }
@@ -257,6 +257,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private readonly _lockedToCodingAgentContextKey: IContextKey<boolean>;
 	private readonly _agentSupportsAttachmentsContextKey: IContextKey<boolean>;
 	private readonly _sessionIsEmptyContextKey: IContextKey<boolean>;
+	private readonly _hasPendingRequestsContextKey: IContextKey<boolean>;
 	private _attachmentCapabilities: IChatAgentAttachmentCapabilities = supportsAllAttachments;
 
 	// Cache for prompt file descriptions to avoid async calls during rendering
@@ -288,7 +289,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.logService.debug('ChatWidget#setViewModel: no viewModel');
 		}
 
-		this.currentRequest = undefined;
 		this._onDidChangeViewModel.fire({ previousSessionResource, currentSessionResource: this._viewModel?.sessionResource });
 	}
 
@@ -344,6 +344,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IDialogService private readonly dialogService: IDialogService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IChatService private readonly chatService: IChatService,
@@ -371,6 +372,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._lockedToCodingAgentContextKey = ChatContextKeys.lockedToCodingAgent.bindTo(this.contextKeyService);
 		this._agentSupportsAttachmentsContextKey = ChatContextKeys.agentSupportsAttachments.bindTo(this.contextKeyService);
 		this._sessionIsEmptyContextKey = ChatContextKeys.chatSessionIsEmpty.bindTo(this.contextKeyService);
+		this._hasPendingRequestsContextKey = ChatContextKeys.hasPendingRequests.bindTo(this.contextKeyService);
 
 		this.viewContext = viewContext ?? {};
 
@@ -696,6 +698,27 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._onDidFocus.fire();
 	}
 
+	focusTodosView(): boolean {
+		if (!this.input.hasVisibleTodos()) {
+			return false;
+		}
+
+		return this.input.focusTodoList();
+	}
+
+	toggleTodosViewFocus(): boolean {
+		if (!this.input.hasVisibleTodos()) {
+			return false;
+		}
+
+		if (this.input.isTodoListFocused()) {
+			this.focusInput();
+			return true;
+		}
+
+		return this.input.focusTodoList();
+	}
+
 	hasInputFocus(): boolean {
 		return this.input.hasFocus();
 	}
@@ -890,17 +913,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	 */
 	private async _checkForAgentInstructionFiles(): Promise<boolean> {
 		try {
-			const useCopilotInstructionsFiles = this.configurationService.getValue(PromptsConfig.USE_COPILOT_INSTRUCTION_FILES);
-			const useAgentMd = this.configurationService.getValue(PromptsConfig.USE_AGENT_MD);
-			if (!useCopilotInstructionsFiles && !useAgentMd) {
-				// If both settings are disabled, return true to hide the hint (since the features aren't enabled)
-				return true;
-			}
-			return (
-				(await this.promptsService.listCopilotInstructionsMDs(CancellationToken.None)).length > 0 ||
-				// Note: only checking for AGENTS.md files at the root folder, not ones in subfolders.
-				(await this.promptsService.listAgentMDs(CancellationToken.None, false)).length > 0
-			);
+			return (await this.promptsService.listAgentInstructions(CancellationToken.None)).length > 0;
 		} catch (error) {
 			// On error, assume no instruction files exist to be safe
 			this.logService.warn('[ChatWidget] Error checking for instruction files:', error);
@@ -1666,7 +1679,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			widgetViewKindTag: this.getWidgetViewKindTag(),
 			defaultMode: this.viewOptions.defaultMode,
 			sessionTypePickerDelegate: this.viewOptions.sessionTypePickerDelegate,
-			workspacePickerDelegate: this.viewOptions.workspacePickerDelegate
+			workspacePickerDelegate: this.viewOptions.workspacePickerDelegate,
 		};
 
 		if (this.viewModel?.editing) {
@@ -1806,6 +1819,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 			this.viewModel = undefined;
 			this.onDidChangeItems();
+			this._hasPendingRequestsContextKey.set(false);
 			return;
 		}
 
@@ -1869,6 +1883,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.onDidChangeItems();
 		}));
 		this._sessionIsEmptyContextKey.set(model.getRequests().length === 0);
+		const updatePendingRequestKeys = () => {
+			const pendingCount = model.getPendingRequests().length;
+			this._hasPendingRequestsContextKey.set(pendingCount > 0);
+		};
+		updatePendingRequestKeys();
+		this.viewModelDisposables.add(model.onDidChangePendingRequests(() => updatePendingRequestKeys()));
 
 		this.refreshParsedInput();
 		this.viewModelDisposables.add(model.onDidChange((e) => {
@@ -2057,11 +2077,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 	}
 
-	private async _acceptInput(query: { query: string } | undefined, options?: IChatAcceptInputOptions): Promise<IChatResponseModel | undefined> {
-		if (this.viewModel?.model.requestInProgress.get()) {
-			return;
-		}
-
+	private async _acceptInput(query: { query: string } | undefined, options: IChatAcceptInputOptions = {}): Promise<IChatResponseModel | undefined> {
 		if (!query && this.input.generating) {
 			// if the user submits the input and generation finishes quickly, just submit it for them
 			const generatingAutoSubmitWindow = 500;
@@ -2101,8 +2117,24 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const isUserQuery = !query;
 
 		if (this.viewModel?.editing) {
+			const editingPendingRequest = this.viewModel.editing.pendingKind;
+			if (editingPendingRequest !== undefined) {
+				const editingRequestId = this.viewModel.editing!.id;
+				this.chatService.removePendingRequest(this.viewModel.sessionResource, editingRequestId);
+				options.queue ??= editingPendingRequest;
+			}
+
 			this.finishedEditing(true);
 			this.viewModel.model?.setCheckpoint(undefined);
+		}
+
+		const model = this.viewModel.model;
+		const requestInProgress = model.requestInProgress.get();
+		if (requestInProgress) {
+			options.queue ??= ChatRequestQueueKind.Queued;
+		}
+		if (!requestInProgress && !(await this.confirmPendingRequestsBeforeSend(model, options))) {
+			return;
 		}
 
 		// process the prompt command
@@ -2140,12 +2172,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			};
 			this.telemetryService.publicLog2<ChatEditingWorkingSetEvent, ChatEditingWorkingSetClassification>('chatEditing/workingSetSize', { originalSize: uniqueWorkingSetEntries.size, actualSize: uniqueWorkingSetEntries.size });
 		}
-		this.chatService.cancelCurrentRequestForSession(this.viewModel.sessionResource);
-		if (this.currentRequest) {
-			// We have to wait the current request to be properly cancelled so that it has a chance to update the model with its result metadata.
-			// This is awkward, it's basically a limitation of the chat provider-based agent.
-			await Promise.race([this.currentRequest, timeout(1000)]);
-		}
 
 		this.input.validateAgentMode();
 
@@ -2158,7 +2184,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				}
 			}
 		}
-		if (this.viewModel.sessionResource) {
+		if (this.viewModel.sessionResource && !options.queue) {
+			// todo@connor4312: move chatAccessibilityService.acceptRequest to a refcount model to handle queue messages
 			this.chatAccessibilityService.acceptRequest(this._viewModel!.sessionResource);
 		}
 
@@ -2172,20 +2199,29 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			...this.getModeRequestOptions(),
 			modeInfo: this.input.currentModeInfo,
 			agentIdSilent: this._lockedAgent?.id,
+			queue: options?.queue,
 		});
 
-		if (!result) {
+		if (this.viewModel.sessionResource && !options.queue) {
 			this.chatAccessibilityService.disposeRequest(this.viewModel.sessionResource);
+		}
+
+		if (ChatSendResult.isRejected(result)) {
 			return;
 		}
 
-		// visibility sync before we accept input to hide the welcome view
+		// visibility sync before firing events to hide the welcome view
 		this.updateChatViewVisibility();
-
 		this.input.acceptInput(options?.storeToHistory ?? isUserQuery);
-		this._onDidSubmitAgent.fire({ agent: result.agent, slashCommand: result.slashCommand });
-		this.handleDelegationExitIfNeeded(this._lockedAgent, result.agent);
-		this.currentRequest = result.responseCompletePromise.then(() => {
+
+		const sent = ChatSendResult.isQueued(result) ? await result.deferred : result;
+		if (!ChatSendResult.isSent(sent)) {
+			return;
+		}
+
+		this._onDidSubmitAgent.fire({ agent: sent.data.agent, slashCommand: sent.data.slashCommand });
+		this.handleDelegationExitIfNeeded(this._lockedAgent, sent.data.agent);
+		sent.data.responseCompletePromise.then(() => {
 			const responses = this.viewModel?.getItems().filter(isResponseVM);
 			const lastResponse = responses?.[responses.length - 1];
 			this.chatAccessibilityService.acceptResponse(this, this.container, lastResponse, this.viewModel?.sessionResource, options?.isVoiceInput);
@@ -2196,10 +2232,49 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					this.input.setValue(question, false);
 				}
 			}
-			this.currentRequest = undefined;
 		});
 
-		return result.responseCreatedPromise;
+		return sent.data.responseCreatedPromise;
+	}
+
+	private async confirmPendingRequestsBeforeSend(model: IChatModel, options: IChatAcceptInputOptions): Promise<boolean> {
+		if (options.queue) {
+			return true;
+		}
+
+		const hasPendingRequests = model.getPendingRequests().length > 0;
+		if (!hasPendingRequests) {
+			return true;
+		}
+
+		const promptResult = await this.dialogService.prompt({
+			type: 'question',
+			message: localize('chat.pendingRequests.prompt.message', "You already have pending requests."),
+			detail: localize('chat.pendingRequests.prompt.detail', "Do you want to keep them in the queue or remove them before sending this message?"),
+			buttons: [
+				{
+					label: localize('chat.pendingRequests.prompt.keep', "Keep Pending Requests"),
+					run: () => 'keep'
+				},
+				{
+					label: localize('chat.pendingRequests.prompt.remove', "Remove Pending Requests"),
+					run: () => 'remove'
+				}
+			],
+			cancelButton: true
+		});
+
+		if (!promptResult.result) {
+			return false;
+		}
+
+		if (promptResult.result === 'remove') {
+			for (const pendingRequest of [...model.getPendingRequests()]) {
+				this.chatService.removePendingRequest(model.sessionResource, pendingRequest.request.id);
+			}
+		}
+
+		return true;
 	}
 
 	getModeRequestOptions(): Partial<IChatSendRequestOptions> {
@@ -2427,7 +2502,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.logService.debug(`ChatWidget#_autoAttachInstructions: prompt files are always enabled`);
 		const enabledTools = this.input.currentModeKind === ChatModeKind.Agent ? this.input.selectedToolsModel.userSelectedTools.get() : undefined;
 		const enabledSubAgents = this.input.currentModeKind === ChatModeKind.Agent ? this.input.currentModeObs.get().agents?.get() : undefined;
-		const computer = this.instantiationService.createInstance(ComputeAutomaticInstructions, this.input.currentModeObs.get(), enabledTools, enabledSubAgents);
+		const computer = this.instantiationService.createInstance(ComputeAutomaticInstructions, this.input.currentModeKind, enabledTools, enabledSubAgents);
 		await computer.collect(attachedContext, CancellationToken.None);
 	}
 

@@ -10,7 +10,7 @@ import { localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { IPromptsService, PromptsStorage, IPromptFileDiscoveryResult, PromptFileSkipReason } from '../../common/promptSyntax/service/promptsService.js';
+import { IPromptsService, PromptsStorage, IPromptFileDiscoveryResult, PromptFileSkipReason, AgentFileType } from '../../common/promptSyntax/service/promptsService.js';
 import { PromptsConfig } from '../../common/promptSyntax/config/config.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { basename, dirname, relativePath } from '../../../../../base/common/resources.js';
@@ -24,6 +24,9 @@ import { CHAT_CATEGORY, CHAT_CONFIG_MENU_ID } from './chatActions.js';
 import { ChatViewId } from '../chat.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
+import { IPathService } from '../../../../services/path/common/pathService.js';
+import { parseAllHookFiles, IParsedHook } from '../promptSyntax/hookUtils.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
 
 /**
  * URL encodes path segments for use in markdown links.
@@ -103,6 +106,8 @@ export interface ITypeStatusInfo {
 	paths: IPathInfo[];
 	files: IFileStatusInfo[];
 	enabled: boolean;
+	/** For hooks only: parsed hooks grouped by lifecycle */
+	parsedHooks?: IParsedHook[];
 }
 
 /**
@@ -141,9 +146,11 @@ export function registerChatCustomizationDiagnosticsAction() {
 			const untitledTextEditorService = accessor.get(IUntitledTextEditorService);
 			const commandService = accessor.get(ICommandService);
 			const workspaceContextService = accessor.get(IWorkspaceContextService);
+			const labelService = accessor.get(ILabelService);
 
 			const token = CancellationToken.None;
 			const workspaceFolders = workspaceContextService.getWorkspace().folders;
+			const pathService = accessor.get(IPathService);
 
 			// Collect status for each type
 			const statusInfos: ITypeStatusInfo[] = [];
@@ -164,7 +171,11 @@ export function registerChatCustomizationDiagnosticsAction() {
 			const skillsStatus = await collectSkillsStatus(promptsService, configurationService, fileService, token);
 			statusInfos.push(skillsStatus);
 
-			// 5. Special files (AGENTS.md, copilot-instructions.md)
+			// 5. Hooks
+			const hooksStatus = await collectHooksStatus(promptsService, fileService, labelService, pathService, workspaceContextService, token);
+			statusInfos.push(hooksStatus);
+
+			// 6. Special files (AGENTS.md, copilot-instructions.md)
 			const specialFilesStatus = await collectSpecialFilesStatus(promptsService, configurationService, token);
 
 			// Generate the markdown output
@@ -274,6 +285,61 @@ async function collectSkillsStatus(
 	return { type, paths, files, enabled };
 }
 
+export interface ISpecialFilesStatus {
+	agentsMd: { enabled: boolean; files: URI[] };
+	copilotInstructions: { enabled: boolean; files: URI[] };
+	claudeMd: { enabled: boolean; files: URI[] };
+}
+
+/**
+ * Collects status for hook files.
+ */
+async function collectHooksStatus(
+	promptsService: IPromptsService,
+	fileService: IFileService,
+	labelService: ILabelService,
+	pathService: IPathService,
+	workspaceContextService: IWorkspaceContextService,
+	token: CancellationToken
+): Promise<ITypeStatusInfo> {
+	const type = PromptsType.hook;
+	const enabled = true; // Hooks are always enabled
+
+	// Get resolved source folders using the shared path resolution logic
+	const resolvedFolders = await promptsService.getResolvedSourceFolders(type);
+	const paths = await convertResolvedFoldersToPathInfo(resolvedFolders, fileService);
+
+	// Get discovery info from the service (handles all duplicate detection and error tracking)
+	const discoveryInfo = await promptsService.getPromptDiscoveryInfo(type, token);
+	const files = discoveryInfo.files.map(convertDiscoveryResultToFileStatus);
+
+	// Parse hook files to extract individual hooks grouped by lifecycle
+	const parsedHooks = await parseHookFiles(promptsService, fileService, labelService, pathService, workspaceContextService, token);
+
+	return { type, paths, files, enabled, parsedHooks };
+}
+
+/**
+ * Parses all hook files and extracts individual hooks.
+ */
+async function parseHookFiles(
+	promptsService: IPromptsService,
+	fileService: IFileService,
+	labelService: ILabelService,
+	pathService: IPathService,
+	workspaceContextService: IWorkspaceContextService,
+	token: CancellationToken
+): Promise<IParsedHook[]> {
+	// Get workspace root and user home for path resolution
+	const workspaceFolder = workspaceContextService.getWorkspace().folders[0];
+	const workspaceRootUri = workspaceFolder?.uri;
+	const userHomeUri = await pathService.userHome();
+	const userHome = userHomeUri.fsPath ?? userHomeUri.path;
+
+	// Use the shared helper
+	return parseAllHookFiles(promptsService, fileService, labelService, workspaceRootUri, userHome, token);
+}
+
 /**
  * Collects status for special files like AGENTS.md and copilot-instructions.md.
  */
@@ -281,24 +347,26 @@ async function collectSpecialFilesStatus(
 	promptsService: IPromptsService,
 	configurationService: IConfigurationService,
 	token: CancellationToken
-): Promise<{ agentsMd: { enabled: boolean; files: URI[] }; copilotInstructions: { enabled: boolean; files: URI[] } }> {
-	// AGENTS.md
+): Promise<ISpecialFilesStatus> {
 	const useAgentMd = configurationService.getValue<boolean>(PromptsConfig.USE_AGENT_MD) ?? false;
-	let agentMdFiles: URI[] = [];
-	if (useAgentMd) {
-		agentMdFiles = await promptsService.listAgentMDs(token, false);
-	}
-
-	// copilot-instructions.md
+	const useClaudeMd = configurationService.getValue<boolean>(PromptsConfig.USE_CLAUDE_MD) ?? false;
 	const useCopilotInstructions = configurationService.getValue<boolean>(PromptsConfig.USE_COPILOT_INSTRUCTION_FILES) ?? false;
-	let copilotInstructionsFiles: URI[] = [];
-	if (useCopilotInstructions) {
-		copilotInstructionsFiles = await promptsService.listCopilotInstructionsMDs(token);
-	}
+
+	const allFiles = await promptsService.listAgentInstructions(token);
 
 	return {
-		agentsMd: { enabled: useAgentMd, files: agentMdFiles },
-		copilotInstructions: { enabled: useCopilotInstructions, files: copilotInstructionsFiles }
+		agentsMd: {
+			enabled: useAgentMd,
+			files: allFiles.filter(f => f.type === AgentFileType.agentsMd).map(f => f.uri)
+		},
+		claudeMd: {
+			enabled: useClaudeMd,
+			files: allFiles.filter(f => f.type === AgentFileType.claudeMd).map(f => f.uri)
+		},
+		copilotInstructions: {
+			enabled: useCopilotInstructions,
+			files: allFiles.filter(f => f.type === AgentFileType.copilotInstructionsMd).map(f => f.uri)
+		}
 	};
 }
 
@@ -407,7 +475,7 @@ function convertDiscoveryResultToFileStatus(result: IPromptFileDiscoveryResult):
  */
 export function formatStatusOutput(
 	statusInfos: ITypeStatusInfo[],
-	specialFiles: { agentsMd: { enabled: boolean; files: URI[] }; copilotInstructions: { enabled: boolean; files: URI[] } },
+	specialFiles: ISpecialFilesStatus,
 	workspaceFolders: readonly IWorkspaceFolder[]
 ): string {
 	const lines: string[] = [];
@@ -442,13 +510,29 @@ export function formatStatusOutput(
 			if (specialFiles.copilotInstructions.enabled) {
 				loadedCount += specialFiles.copilotInstructions.files.length;
 			}
+			if (specialFiles.claudeMd.enabled) {
+				loadedCount += specialFiles.claudeMd.files.length;
+			}
 		}
 
 		lines.push(`**${typeName}**${enabledStatus}<br>`);
 
-		// Show stats line - use "skills" for skills type, "files" for others
+		// Show stats line - use "skills" for skills type, "hooks" for hooks type, "files" for others
 		const statsParts: string[] = [];
-		if (loadedCount > 0) {
+		if (info.type === PromptsType.hook) {
+			// For hooks, show both file count and individual hook count
+			if (loadedCount > 0) {
+				statsParts.push(loadedCount === 1
+					? nls.localize('status.fileLoaded', '1 file loaded')
+					: nls.localize('status.filesLoaded', '{0} files loaded', loadedCount));
+			}
+			if (info.parsedHooks && info.parsedHooks.length > 0) {
+				const hookCount = info.parsedHooks.length;
+				statsParts.push(hookCount === 1
+					? nls.localize('status.hookLoaded', '1 hook loaded')
+					: nls.localize('status.hooksLoaded', '{0} hooks loaded', hookCount));
+			}
+		} else if (loadedCount > 0) {
 			if (info.type === PromptsType.skill) {
 				statsParts.push(loadedCount === 1
 					? nls.localize('status.skillLoaded', '1 skill loaded')
@@ -493,47 +577,51 @@ export function formatStatusOutput(
 		}
 
 		// Render each path with its files as a tree
+		// Skip for hooks since we show files with their hooks below
 		let hasContent = false;
-		for (const path of allPaths) {
-			const pathFiles = filesByPath.get(path.uri.toString()) || [];
+		if (info.type !== PromptsType.hook) {
+			for (const path of allPaths) {
+				const pathFiles = filesByPath.get(path.uri.toString()) || [];
 
-			if (path.exists) {
-				lines.push(`${path.displayPath}<br>`);
-			} else if (path.isDefault) {
-				// Default folders that don't exist - no error icon
-				lines.push(`${path.displayPath}<br>`);
-			} else {
-				// Custom folders that don't exist - show error
-				lines.push(`${ICON_ERROR} ${path.displayPath} - *${nls.localize('status.folderNotFound', 'Folder does not exist')}*<br>`);
-			}
+				if (path.exists) {
+					lines.push(`${path.displayPath}<br>`);
+				} else if (path.isDefault) {
+					// Default folders that don't exist - no error icon
+					lines.push(`${path.displayPath}<br>`);
+				} else {
+					// Custom folders that don't exist - show error
+					lines.push(`${ICON_ERROR} ${path.displayPath} - *${nls.localize('status.folderNotFound', 'Folder does not exist')}*<br>`);
+				}
 
-			if (path.exists && pathFiles.length > 0) {
-				for (let i = 0; i < pathFiles.length; i++) {
-					const file = pathFiles[i];
-					// Show the file ID: skill name for skills, basename for others
-					let fileName: string;
-					if (info.type === PromptsType.skill) {
-						fileName = file.name || `${basename(dirname(file.uri))}`;
-					} else {
-						fileName = basename(file.uri);
-					}
-					const isLast = i === pathFiles.length - 1;
-					const prefix = isLast ? TREE_END : TREE_BRANCH;
-					const filePath = getRelativePath(file.uri, workspaceFolders);
-					if (file.status === 'loaded') {
-						lines.push(`${prefix} [\`${fileName}\`](${filePath})<br>`);
-					} else if (file.status === 'overwritten') {
-						lines.push(`${prefix} ${ICON_WARN} [\`${fileName}\`](${filePath}) - *${nls.localize('status.overwrittenByHigherPriority', 'Overwritten by higher priority file')}*<br>`);
-					} else {
-						lines.push(`${prefix} ${ICON_ERROR} [\`${fileName}\`](${filePath}) - *${file.reason}*<br>`);
+				if (path.exists && pathFiles.length > 0) {
+					for (let i = 0; i < pathFiles.length; i++) {
+						const file = pathFiles[i];
+						// Show the file ID: skill name for skills, basename for others
+						let fileName: string;
+						if (info.type === PromptsType.skill) {
+							fileName = file.name || `${basename(dirname(file.uri))}`;
+						} else {
+							fileName = basename(file.uri);
+						}
+						const isLast = i === pathFiles.length - 1;
+						const prefix = isLast ? TREE_END : TREE_BRANCH;
+						const filePath = getRelativePath(file.uri, workspaceFolders);
+						if (file.status === 'loaded') {
+							lines.push(`${prefix} [\`${fileName}\`](${filePath})<br>`);
+						} else if (file.status === 'overwritten') {
+							lines.push(`${prefix} ${ICON_WARN} [\`${fileName}\`](${filePath}) - *${nls.localize('status.overwrittenByHigherPriority', 'Overwritten by higher priority file')}*<br>`);
+						} else {
+							lines.push(`${prefix} ${ICON_ERROR} [\`${fileName}\`](${filePath}) - *${file.reason}*<br>`);
+						}
 					}
 				}
+				hasContent = true;
 			}
-			hasContent = true;
 		}
 
 		// Render unmatched files (e.g., from extensions) - group by extension ID
-		if (unmatchedFiles.length > 0) {
+		// Skip for hooks since we show files with their hooks below
+		if (info.type !== PromptsType.hook && unmatchedFiles.length > 0) {
 			// Group files by extension ID
 			const filesByExtension = new Map<string, IFileStatusInfo[]>();
 			for (const file of unmatchedFiles) {
@@ -608,6 +696,39 @@ export function formatStatusOutput(
 			}
 		}
 
+		// Special handling for hooks - display grouped by file, then by lifecycle
+		if (info.type === PromptsType.hook && info.parsedHooks && info.parsedHooks.length > 0) {
+			// Group hooks first by file, then by lifecycle within each file
+			const hooksByFile = new Map<string, IParsedHook[]>();
+			for (const hook of info.parsedHooks) {
+				const fileKey = hook.fileUri.toString();
+				const existing = hooksByFile.get(fileKey) ?? [];
+				existing.push(hook);
+				hooksByFile.set(fileKey, existing);
+			}
+
+			// Display hooks grouped by file
+			const fileUris = Array.from(hooksByFile.keys());
+			for (let fileIdx = 0; fileIdx < fileUris.length; fileIdx++) {
+				const fileKey = fileUris[fileIdx];
+				const fileHooks = hooksByFile.get(fileKey)!;
+				const firstHook = fileHooks[0];
+				const filePath = getRelativePath(firstHook.fileUri, workspaceFolders);
+
+				// File as clickable link
+				lines.push(`[${firstHook.filePath}](${filePath})<br>`);
+
+				// Flatten hooks with their lifecycle label
+				for (let i = 0; i < fileHooks.length; i++) {
+					const hook = fileHooks[i];
+					const isLast = i === fileHooks.length - 1;
+					const prefix = isLast ? TREE_END : TREE_BRANCH;
+					lines.push(`${prefix} ${hook.hookTypeLabel}: \`${hook.commandLabel}\`<br>`);
+				}
+			}
+			hasContent = true;
+		}
+
 		if (!hasContent && info.enabled) {
 			lines.push(`*${nls.localize('status.noFilesLoaded', 'No files loaded')}*`);
 		}
@@ -639,6 +760,8 @@ function getTypeName(type: PromptsType): string {
 			return nls.localize('status.type.prompts', 'Prompt Files');
 		case PromptsType.skill:
 			return nls.localize('status.type.skills', 'Skills');
+		case PromptsType.hook:
+			return nls.localize('status.type.hooks', 'Hooks');
 		default:
 			return type;
 	}
