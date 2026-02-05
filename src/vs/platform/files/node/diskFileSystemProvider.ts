@@ -51,6 +51,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 				FileSystemProviderCapabilities.FileReadStream |
 				FileSystemProviderCapabilities.FileFolderCopy |
 				FileSystemProviderCapabilities.FileWriteUnlock |
+				FileSystemProviderCapabilities.FileAppend |
 				FileSystemProviderCapabilities.FileAtomicRead |
 				FileSystemProviderCapabilities.FileAtomicWrite |
 				FileSystemProviderCapabilities.FileAtomicDelete |
@@ -323,7 +324,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 			}
 
 			// Open
-			handle = await this.open(resource, { create: true, unlock: opts.unlock }, disableWriteLock);
+			handle = await this.open(resource, { create: true, append: opts.append, unlock: opts.unlock }, disableWriteLock);
 
 			// Write content at once
 			await this.write(handle, 0, content, 0, content.byteLength);
@@ -375,8 +376,8 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 				}
 			}
 
-			// Windows gets special treatment (write only)
-			if (isWindows && isFileOpenForWriteOptions(opts)) {
+			// Windows gets special treatment (write only, but not for append)
+			if (isWindows && isFileOpenForWriteOptions(opts) && !opts.append) {
 				try {
 
 					// We try to use 'r+' for opening (which will fail if the file does not exist)
@@ -413,7 +414,8 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 					// We take `opts.create` as a hint that the file is opened for writing
 					// as such we use 'w' to truncate an existing or create the
 					// file otherwise. we do not allow reading.
-					'w' :
+					// If `opts.append` is true, use 'a' to append to the file.
+					(opts.append ? 'a' : 'w') :
 					// Otherwise we assume the file is opened for reading
 					// as such we use 'r' to neither truncate, nor create
 					// the file.

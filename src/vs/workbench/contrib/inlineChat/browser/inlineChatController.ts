@@ -33,6 +33,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { ISharedWebContentExtractorService } from '../../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
@@ -45,12 +46,14 @@ import { IChatService } from '../../chat/common/chatService/chatService.js';
 import { IChatRequestVariableEntry, IDiagnosticVariableEntryFilterData } from '../../chat/common/attachments/chatVariableEntries.js';
 import { isResponseVM } from '../../chat/common/model/chatViewModel.js';
 import { ChatAgentLocation } from '../../chat/common/constants.js';
-import { ILanguageModelChatSelector, ILanguageModelsService, isILanguageModelChatSelector } from '../../chat/common/languageModels.js';
+import { ILanguageModelChatMetadata, ILanguageModelChatSelector, ILanguageModelsService, isILanguageModelChatSelector } from '../../chat/common/languageModels.js';
 import { isNotebookContainingCellEditor as isNotebookWithCellEditor } from '../../notebook/browser/notebookEditor.js';
 import { INotebookEditorService } from '../../notebook/browser/services/notebookEditorService.js';
 import { CellUri, ICellEditOperation } from '../../notebook/common/notebookCommon.js';
 import { INotebookService } from '../../notebook/common/notebookService.js';
 import { CTX_INLINE_CHAT_VISIBLE, InlineChatConfigKeys } from '../common/inlineChat.js';
+import { InlineChatAffordance } from './inlineChatAffordance.js';
+import { InlineChatInputWidget, InlineChatSessionOverlayWidget } from './inlineChatOverlayWidget.js';
 import { IInlineChatSession2, IInlineChatSessionService } from './inlineChatSessionService.js';
 import { EditorBasedInlineChatWidget } from './inlineChatWidget.js';
 import { InlineChatZoneWidget } from './inlineChatZoneWidget.js';
@@ -104,9 +107,17 @@ export class InlineChatController implements IEditorContribution {
 		return editor.getContribution<InlineChatController>(InlineChatController.ID) ?? undefined;
 	}
 
+	/**
+	 * Stores the user's explicitly chosen model (qualified name) from a previous inline chat request in the same session.
+	 * When set, this takes priority over the inlineChat.defaultModel setting.
+	 */
+	private static _userSelectedModel: string | undefined;
+
 	private readonly _store = new DisposableStore();
 	private readonly _isActiveController = observableValue(this, false);
+	private readonly _renderMode: IObservable<'zone' | 'hover'>;
 	private readonly _zone: Lazy<InlineChatZoneWidget>;
+	private readonly _gutterIndicator: InlineChatAffordance;
 
 	private readonly _currentSession: IObservable<IInlineChatSession2 | undefined>;
 
@@ -125,17 +136,25 @@ export class InlineChatController implements IEditorContribution {
 		@IInlineChatSessionService private readonly _inlineChatSessionService: IInlineChatSessionService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IConfigurationService configurationService: IConfigurationService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ISharedWebContentExtractorService private readonly _webContentExtractorService: ISharedWebContentExtractorService,
 		@IFileService private readonly _fileService: IFileService,
 		@IChatAttachmentResolveService private readonly _chatAttachmentResolveService: IChatAttachmentResolveService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IMarkerDecorationsService private readonly _markerDecorationsService: IMarkerDecorationsService,
 		@ILanguageModelsService private readonly _languageModelService: ILanguageModelsService,
+		@ILogService private readonly _logService: ILogService,
 	) {
+		const editorObs = observableCodeEditor(_editor);
+
 
 		const ctxInlineChatVisible = CTX_INLINE_CHAT_VISIBLE.bindTo(contextKeyService);
-		const notebookAgentConfig = observableConfigValue(InlineChatConfigKeys.notebookAgent, false, configurationService);
+		const notebookAgentConfig = observableConfigValue(InlineChatConfigKeys.notebookAgent, false, this._configurationService);
+		this._renderMode = observableConfigValue(InlineChatConfigKeys.RenderMode, 'zone', this._configurationService);
+
+		const overlayWidget = this._store.add(this._instaService.createInstance(InlineChatInputWidget, editorObs));
+		const sessionOverlayWidget = this._store.add(this._instaService.createInstance(InlineChatSessionOverlayWidget, editorObs));
+		this._gutterIndicator = this._store.add(this._instaService.createInstance(InlineChatAffordance, this._editor, overlayWidget));
 
 		this._zone = new Lazy<InlineChatZoneWidget>(() => {
 
@@ -200,13 +219,14 @@ export class InlineChatController implements IEditorContribution {
 				() => Promise.resolve(),
 			);
 
+			this._store.add(result);
+
 			result.domNode.classList.add('inline-chat-2');
 
 			return result;
 		});
 
 
-		const editorObs = observableCodeEditor(_editor);
 
 		const sessionsSignal = observableSignalFromEvent(this, _inlineChatSessionService.onDidChangeSessions);
 
@@ -275,11 +295,17 @@ export class InlineChatController implements IEditorContribution {
 
 			// HIDE/SHOW
 			const session = visibleSessionObs.read(r);
+			const renderMode = this._renderMode.read(r);
 			if (!session) {
 				this._zone.rawValue?.hide();
 				this._zone.rawValue?.widget.chatWidget.setModel(undefined);
 				_editor.focus();
 				ctxInlineChatVisible.reset();
+			} else if (renderMode === 'hover') {
+				// hover mode: set model but don't show zone, keep focus in editor
+				this._zone.value.widget.chatWidget.setModel(session.chatModel);
+				this._zone.rawValue?.hide();
+				ctxInlineChatVisible.set(true);
 			} else {
 				ctxInlineChatVisible.set(true);
 				this._zone.value.widget.chatWidget.setModel(session.chatModel);
@@ -290,6 +316,27 @@ export class InlineChatController implements IEditorContribution {
 				}
 				this._zone.value.reveal(this._zone.value.position!);
 				this._zone.value.widget.focus();
+			}
+		}));
+
+		// Show progress overlay widget in hover mode when a request is in progress or edits are not yet settled
+		this._store.add(autorun(r => {
+			const session = visibleSessionObs.read(r);
+			const renderMode = this._renderMode.read(r);
+			if (!session || renderMode !== 'hover') {
+				sessionOverlayWidget.hide();
+				return;
+			}
+			const lastRequest = session.chatModel.lastRequestObs.read(r);
+			const isInProgress = lastRequest?.response?.isInProgress.read(r);
+			const entry = session.editingSession.readEntry(session.uri, r);
+			// When there's no entry (no changes made) and the response is complete, the widget should be hidden.
+			// When there's an entry in Modified state, it needs to be settled (accepted/rejected).
+			const isNotSettled = entry ? entry.state.read(r) === ModifiedFileEntryState.Modified : false;
+			if (isInProgress || isNotSettled) {
+				sessionOverlayWidget.show(session);
+			} else {
+				sessionOverlayWidget.hide();
 			}
 		}));
 
@@ -414,7 +461,6 @@ export class InlineChatController implements IEditorContribution {
 
 	async run(arg?: InlineChatRunOptions): Promise<boolean> {
 		assertType(this._editor.hasModel());
-
 		const uri = this._editor.getModel().uri;
 
 		const existingSession = this._inlineChatSessionService.getSessionByTextModel(uri);
@@ -423,75 +469,92 @@ export class InlineChatController implements IEditorContribution {
 			existingSession.dispose();
 		}
 
+		// use hover overlay to ask for input
+		if (!arg?.message && this._configurationService.getValue<string>(InlineChatConfigKeys.RenderMode) === 'hover') {
+			// show menu and RETURN because the menu is re-entrant
+			await this._gutterIndicator.showMenuAtSelection();
+			return true;
+		}
+
 		this._isActiveController.set(true, undefined);
 
 		const session = this._inlineChatSessionService.createSession(this._editor);
 
-		// ADD diagnostics
-		const entries: IChatRequestVariableEntry[] = [];
-		for (const [range, marker] of this._markerDecorationsService.getLiveMarkers(uri)) {
-			if (range.intersectRanges(this._editor.getSelection())) {
-				const filter = IDiagnosticVariableEntryFilterData.fromMarker(marker);
-				entries.push(IDiagnosticVariableEntryFilterData.toEntry(filter));
-			}
-		}
-		if (entries.length > 0) {
-			this._zone.value.widget.chatWidget.attachmentModel.addContext(...entries);
-			this._zone.value.widget.chatWidget.input.setValue(entries.length > 1
-				? localize('fixN', "Fix the attached problems")
-				: localize('fix1', "Fix the attached problem"),
-				true
-			);
-			this._zone.value.widget.chatWidget.inputEditor.setSelection(new Selection(1, 1, Number.MAX_SAFE_INTEGER, 1));
-		}
 
-		// Check args
-		if (arg && InlineChatRunOptions.isInlineChatRunOptions(arg)) {
-			if (arg.initialRange) {
-				this._editor.revealRange(arg.initialRange);
-			}
-			if (arg.initialSelection) {
-				this._editor.setSelection(arg.initialSelection);
-			}
-			if (arg.attachments) {
-				await Promise.all(arg.attachments.map(async attachment => {
-					await this._zone.value.widget.chatWidget.attachmentModel.addFile(attachment);
-				}));
-				delete arg.attachments;
-			}
-			if (arg.modelSelector) {
-				const id = (await this._languageModelService.selectLanguageModels(arg.modelSelector, false)).sort().at(0);
-				if (!id) {
-					throw new Error(`No language models found matching selector: ${JSON.stringify(arg.modelSelector)}.`);
-				}
-				const model = this._languageModelService.lookupLanguageModel(id);
-				if (!model) {
-					throw new Error(`Language model not loaded: ${id}.`);
-				}
-				this._zone.value.widget.chatWidget.input.setCurrentLanguageModel({ metadata: model, identifier: id });
-			}
-			if (arg.message) {
-				this._zone.value.widget.chatWidget.setInput(arg.message);
-				if (arg.autoSend) {
-					await this._zone.value.widget.chatWidget.acceptInput();
+		// Store for tracking model changes during this session
+		const sessionStore = new DisposableStore();
+
+		try {
+			await this._applyModelDefaults(session, sessionStore);
+
+			// ADD diagnostics
+			const entries: IChatRequestVariableEntry[] = [];
+			for (const [range, marker] of this._markerDecorationsService.getLiveMarkers(uri)) {
+				if (range.intersectRanges(this._editor.getSelection())) {
+					const filter = IDiagnosticVariableEntryFilterData.fromMarker(marker);
+					entries.push(IDiagnosticVariableEntryFilterData.toEntry(filter));
 				}
 			}
-		}
+			if (entries.length > 0) {
+				this._zone.value.widget.chatWidget.attachmentModel.addContext(...entries);
+				this._zone.value.widget.chatWidget.input.setValue(entries.length > 1
+					? localize('fixN', "Fix the attached problems")
+					: localize('fix1', "Fix the attached problem"),
+					true
+				);
+				this._zone.value.widget.chatWidget.inputEditor.setSelection(new Selection(1, 1, Number.MAX_SAFE_INTEGER, 1));
+			}
 
-		if (!arg?.resolveOnResponse) {
-			// DEFAULT: wait for the session to be accepted or rejected
-			await Event.toPromise(session.editingSession.onDidDispose);
-			const rejected = session.editingSession.getEntry(uri)?.state.get() === ModifiedFileEntryState.Rejected;
-			return !rejected;
+			// Check args
+			if (arg && InlineChatRunOptions.isInlineChatRunOptions(arg)) {
+				if (arg.initialRange) {
+					this._editor.revealRange(arg.initialRange);
+				}
+				if (arg.initialSelection) {
+					this._editor.setSelection(arg.initialSelection);
+				}
+				if (arg.attachments) {
+					await Promise.all(arg.attachments.map(async attachment => {
+						await this._zone.value.widget.chatWidget.attachmentModel.addFile(attachment);
+					}));
+					delete arg.attachments;
+				}
+				if (arg.modelSelector) {
+					const id = (await this._languageModelService.selectLanguageModels(arg.modelSelector)).sort().at(0);
+					if (!id) {
+						throw new Error(`No language models found matching selector: ${JSON.stringify(arg.modelSelector)}.`);
+					}
+					const model = this._languageModelService.lookupLanguageModel(id);
+					if (!model) {
+						throw new Error(`Language model not loaded: ${id}.`);
+					}
+					this._zone.value.widget.chatWidget.input.setCurrentLanguageModel({ metadata: model, identifier: id });
+				}
+				if (arg.message) {
+					this._zone.value.widget.chatWidget.setInput(arg.message);
+					if (arg.autoSend) {
+						await this._zone.value.widget.chatWidget.acceptInput();
+					}
+				}
+			}
 
-		} else {
-			// resolveOnResponse: ONLY wait for the file to be modified
-			const modifiedObs = derived(r => {
-				const entry = session.editingSession.readEntry(uri, r);
-				return entry?.state.read(r) === ModifiedFileEntryState.Modified && !entry?.isCurrentlyBeingModifiedBy.read(r);
-			});
-			await waitForState(modifiedObs, state => state === true);
-			return true;
+			if (!arg?.resolveOnResponse) {
+				// DEFAULT: wait for the session to be accepted or rejected
+				await Event.toPromise(session.editingSession.onDidDispose);
+				const rejected = session.editingSession.getEntry(uri)?.state.get() === ModifiedFileEntryState.Rejected;
+				return !rejected;
+
+			} else {
+				// resolveOnResponse: ONLY wait for the file to be modified
+				const modifiedObs = derived(r => {
+					const entry = session.editingSession.readEntry(uri, r);
+					return entry?.state.read(r) === ModifiedFileEntryState.Modified && !entry?.isCurrentlyBeingModifiedBy.read(r);
+				});
+				await waitForState(modifiedObs, state => state === true);
+				return true;
+			}
+		} finally {
+			sessionStore.dispose();
 		}
 	}
 
@@ -511,6 +574,72 @@ export class InlineChatController implements IEditorContribution {
 		}
 		await session.editingSession.reject();
 		session.dispose();
+	}
+
+	private async _selectVendorDefaultModel(session: IInlineChatSession2): Promise<void> {
+		const model = this._zone.value.widget.chatWidget.input.selectedLanguageModel.get();
+		if (model && !model.metadata.isDefaultForLocation[session.chatModel.initialLocation]) {
+			const ids = await this._languageModelService.selectLanguageModels({ vendor: model.metadata.vendor });
+			for (const identifier of ids) {
+				const candidate = this._languageModelService.lookupLanguageModel(identifier);
+				if (candidate?.isDefaultForLocation[session.chatModel.initialLocation]) {
+					this._zone.value.widget.chatWidget.input.setCurrentLanguageModel({ metadata: candidate, identifier });
+					break;
+				}
+			}
+		}
+	}
+
+	/**
+	 * Applies model defaults based on settings and tracks user model changes.
+	 * Prioritization: user session choice > inlineChat.defaultModel setting > vendor default
+	 */
+	private async _applyModelDefaults(session: IInlineChatSession2, sessionStore: DisposableStore): Promise<void> {
+		const userSelectedModel = InlineChatController._userSelectedModel;
+		const defaultModelSetting = this._configurationService.getValue<string>(InlineChatConfigKeys.DefaultModel);
+
+		let modelApplied = false;
+
+		// 1. Try user's explicitly chosen model from a previous inline chat in the same session
+		if (userSelectedModel) {
+			modelApplied = this._zone.value.widget.chatWidget.input.switchModelByQualifiedName([userSelectedModel]);
+			if (!modelApplied) {
+				// User's previously selected model is no longer available, clear it
+				InlineChatController._userSelectedModel = undefined;
+			}
+		}
+
+		// 2. Try inlineChat.defaultModel setting
+		if (!modelApplied && defaultModelSetting) {
+			modelApplied = this._zone.value.widget.chatWidget.input.switchModelByQualifiedName([defaultModelSetting]);
+			if (!modelApplied) {
+				this._logService.warn(`inlineChat.defaultModel setting value '${defaultModelSetting}' did not match any available model. Falling back to vendor default.`);
+			}
+		}
+
+		// 3. Fall back to vendor default
+		if (!modelApplied) {
+			await this._selectVendorDefaultModel(session);
+		}
+
+		// Track model changes - store user's explicit choice in the given sessions.
+		// NOTE: This currently detects any model change, not just user-initiated ones.
+		let initialModelId: string | undefined;
+		sessionStore.add(autorun(r => {
+			const newModel = this._zone.value.widget.chatWidget.input.selectedLanguageModel.read(r);
+			if (!newModel) {
+				return;
+			}
+			if (!initialModelId) {
+				initialModelId = newModel.identifier;
+				return;
+			}
+			if (initialModelId !== newModel.identifier) {
+				// User explicitly changed model, store their choice as qualified name
+				InlineChatController._userSelectedModel = ILanguageModelChatMetadata.asQualifiedName(newModel.metadata);
+				initialModelId = newModel.identifier;
+			}
+		}));
 	}
 
 	async createImageAttachment(attachment: URI): Promise<IChatRequestVariableEntry | undefined> {

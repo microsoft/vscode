@@ -5,7 +5,7 @@
 
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { basename, isEqual } from '../../../../../base/common/resources.js';
@@ -13,7 +13,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { getCodeEditor, ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
-import { Location } from '../../../../../editor/common/languages.js';
+import { isLocation, Location } from '../../../../../editor/common/languages.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { EditorsOrder } from '../../../../common/editor.js';
@@ -121,7 +121,7 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 				return;
 			}
 			if (this._implicitContextEnablement[widget.location] === 'first' && widget.viewModel?.getItems().length !== 0) {
-				widget.input.implicitContext.setValue(undefined, false, undefined);
+				widget.input.implicitContext.setValues([]);
 			}
 		}));
 		this._register(this.chatWidgetService.onDidAddWidget(async (widget) => {
@@ -176,6 +176,7 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 		let isSelection = false;
 
 		let languageId: string | undefined;
+		let providerContext: StringChatContextValue | undefined;
 		if (model) {
 			languageId = model.getLanguageId();
 			if (selection && !selection.isEmpty()) {
@@ -199,6 +200,8 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 					}
 				}
 			}
+			// Also check if a chat context provider can provide additional context for this text editor resource
+			providerContext = await this.chatContextService.contextForResource(model.uri, languageId);
 		}
 
 		const notebookEditor = this.findActiveNotebookEditor();
@@ -265,9 +268,9 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 			const setting = this._implicitContextEnablement[widget.location];
 			const isFirstInteraction = widget.viewModel?.getItems().length === 0;
 			if ((setting === 'always' || setting === 'first' && isFirstInteraction) && !isPromptFile) { // disable implicit context for prompt files
-				widget.input.implicitContext.setValue(newValue, isSelection, languageId);
+				widget.input.implicitContext.setValues([{ value: newValue, isSelection }, { value: providerContext, isSelection: false }]);
 			} else {
-				widget.input.implicitContext.setValue(undefined, false, undefined);
+				widget.input.implicitContext.setValues([]);
 			}
 		}
 	}
@@ -278,6 +281,85 @@ function isEntireCellVisible(cellModel: ITextModel, visibleRanges: IRange[]): bo
 		return true;
 	}
 	return false;
+}
+
+interface ImplicitContextWithSelection {
+	value: Location | URI | StringChatContextValue | undefined;
+	isSelection: boolean;
+}
+
+export class ChatImplicitContexts extends Disposable {
+	private _onDidChangeValue = this._register(new Emitter<void>());
+	readonly onDidChangeValue = this._onDidChangeValue.event;
+
+	private _values: DisposableMap<ChatImplicitContext, DisposableStore> = this._register(new DisposableMap());
+	private readonly _valuesDisposables: DisposableStore = this._register(new DisposableStore());
+
+	setValues(values: ImplicitContextWithSelection[]): void {
+		this._valuesDisposables.clear();
+		this._values.clearAndDisposeAll();
+
+		if (!values || values.length === 0) {
+			this._onDidChangeValue.fire();
+			return;
+		}
+
+		const definedValues = values.filter(value => value.value !== undefined);
+		for (const value of definedValues) {
+			const implicitContext = new ChatImplicitContext();
+			implicitContext.setValue(value.value, value.isSelection);
+			const disposableStore = new DisposableStore();
+			disposableStore.add(implicitContext.onDidChangeValue(() => {
+				this._onDidChangeValue.fire();
+			}));
+			disposableStore.add(implicitContext);
+			this._values.set(implicitContext, disposableStore);
+		}
+		this._onDidChangeValue.fire();
+	}
+
+	get values(): ChatImplicitContext[] {
+		return Array.from(this._values.keys());
+	}
+
+	get hasEnabled(): boolean {
+		return Array.from(this._values.keys()).some(v => v.enabled);
+	}
+
+	setEnabled(enabled: boolean): void {
+		this.values.forEach((v) => v.enabled = enabled);
+	}
+
+	get hasValue(): boolean {
+		return this.values.some(v => v.value !== undefined);
+	}
+
+	get hasNonUri(): boolean {
+		return this.values.some(v => v.value !== undefined && !URI.isUri(v.value));
+	}
+
+	getLocations(): Location[] {
+		return this.values.filter(v => isLocation(v.value)).map(v => v.value as Location);
+	}
+
+	getUris(): URI[] {
+		return this.values.filter(v => URI.isUri(v.value)).map(v => v.value as URI);
+	}
+
+	get hasNonStringContext(): boolean {
+		return this.values.some(v => v.value !== undefined && !isStringImplicitContextValue(v.value));
+	}
+
+	enabledBaseEntries(includeAllLocations: boolean): IChatRequestVariableEntry[] {
+		return this.values.flatMap(v => {
+			if (v.enabled) {
+				return v.toBaseEntries();
+			} else if (includeAllLocations && isLocation(v.value)) {
+				return v.toBaseEntries();
+			}
+			return [];
+		});
+	}
 }
 
 export class ChatImplicitContext extends Disposable implements IChatRequestImplicitVariableEntry {
@@ -300,13 +382,17 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 	get name(): string {
 		if (URI.isUri(this.value)) {
 			return `file:${basename(this.value)}`;
-		} else if (isStringImplicitContextValue(this.value)) {
-			return this.value.name;
-		} else if (this.value) {
-			return `file:${basename(this.value.uri)}`;
-		} else {
-			return 'implicit';
 		}
+		if (isLocation(this.value)) {
+			return `file:${basename(this.value.uri)}`;
+		}
+		if (isStringImplicitContextValue(this.value)) {
+			if (this.value.name === undefined && this.value.resourceUri === undefined) {
+				throw new Error('ChatContextItem must have either a label or a resourceUri');
+			}
+			return this.value.name ?? basename(this.value.resourceUri!);
+		}
+		return 'implicit';
 	}
 
 	readonly kind = 'implicit';
@@ -315,7 +401,11 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 		if (URI.isUri(this.value)) {
 			return `User's active file`;
 		} else if (isStringImplicitContextValue(this.value)) {
-			return this.value.modelDescription ?? `User's active context from ${this.value.name}`;
+			if (this.value.name === undefined && this.value.resourceUri === undefined) {
+				throw new Error('ChatContextItem must have either a label or a resourceUri');
+			}
+			const contextName = this.value.name ?? basename(this.value.resourceUri!);
+			return this.value.modelDescription ?? `User's active context from ${contextName}`;
 		} else if (this._isSelection) {
 			return `User's active selection`;
 		} else {
@@ -338,7 +428,7 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 		return this._value;
 	}
 
-	private _enabled = true;
+	private _enabled = false;
 	get enabled() {
 		return this._enabled;
 	}
@@ -363,7 +453,7 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 		return undefined;
 	}
 
-	setValue(value: Location | URI | StringChatContextValue | undefined, isSelection: boolean, languageId?: string): void {
+	setValue(value: Location | URI | StringChatContextValue | undefined, isSelection: boolean): void {
 		if (isStringImplicitContextValue(value)) {
 			this._value = value;
 		} else {
@@ -388,7 +478,10 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 					value: this.value.value ?? this.name,
 					modelDescription: this.modelDescription,
 					icon: this.value.icon,
-					uri: this.value.uri
+					uri: this.value.uri,
+					resourceUri: this.value.resourceUri,
+					handle: this.value.handle,
+					commandId: this.value.commandId
 				}
 			];
 		}

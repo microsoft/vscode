@@ -4,13 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 .chat-editor-overlay-widget {
-	padding: 2px;
-	color: var(--vscode-button-foreground);
-	background-color: var(--vscode-button-background);
-	border-radius: 2px;
+	padding: 2px 4px;
+	color: var(--vscode-foreground);
+	background-color: var(--vscode-editorWidget-background);
+	border-radius: 6px;
 	border: 1px solid var(--vscode-contrastBorder);
 	display: flex;
 	align-items: center;
+	justify-content: center;
+	gap: 4px;
 	z-index: 10;
 	box-shadow: 0 2px 8px var(--vscode-widget-shadow);
 	overflow: hidden;
@@ -54,23 +56,39 @@
 }
 
 .chat-editor-overlay-widget .action-item > .action-label {
-	padding: 5px;
-	font-size: 12px;
-	border-radius: 2px; /* same as overlay widget */
+	padding: 4px 6px;
+	font-size: 11px;
+	line-height: 14px;
+	border-radius: 4px; /* same as overlay widget */
 }
 
-
-.chat-editor-overlay-widget .action-item:first-child > .action-label {
-	padding-left: 7px;
+.chat-editor-overlay-widget .monaco-action-bar .actions-container {
+	gap: 4px;
 }
 
-.chat-editor-overlay-widget .action-item:last-child > .action-label {
-	padding-right: 7px;
-}
-
-.chat-editor-overlay-widget.busy .chat-editor-overlay-progress .codicon,
-.chat-editor-overlay-widget .action-item > .action-label.codicon {
+.chat-editor-overlay-widget .action-item.primary > .action-label {
+	background-color: var(--vscode-button-background);
 	color: var(--vscode-button-foreground);
+}
+
+.monaco-workbench .chat-editor-overlay-widget .monaco-action-bar .action-item.primary > .action-label:hover {
+	background-color: var(--vscode-button-hoverBackground);
+}
+
+.chat-editor-overlay-widget.busy .chat-editor-overlay-progress .codicon {
+	color: var(--vscode-foreground);
+}
+
+.chat-editor-overlay-widget .action-item > .action-label.codicon:not(.separator) {
+	color: var(--vscode-foreground);
+	width: 22px; /* align with default icon button dimensions */
+	height: 22px;
+	padding: 0;
+	font-size: 16px;
+	line-height: 22px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
 }
 
 .chat-diff-change-content-widget .monaco-action-bar .action-item.disabled,
@@ -85,18 +103,13 @@
 	}
 }
 
-.chat-diff-change-content-widget .action-item > .action-label {
-	border-radius: 2px; /* same as overlay widget */
-}
-
-
 .chat-editor-overlay-widget .action-item.label-item {
 	font-variant-numeric: tabular-nums;
 }
 
 .chat-editor-overlay-widget .monaco-action-bar .action-item.label-item > .action-label,
 .chat-editor-overlay-widget .monaco-action-bar .action-item.label-item > .action-label:hover {
-	color: var(--vscode-button-foreground);
+	color: var(--vscode-foreground);
 	opacity: 1;
 }
 

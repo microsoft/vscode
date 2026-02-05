@@ -36,6 +36,12 @@ import { InlineSuggestionGutterMenuData, SimpleInlineSuggestModel } from '../../
 import { jumpToNextInlineEditId } from '../../../../controller/commandIds.js';
 import { splitIntoContinuousLineRanges, WidgetLayoutConstants, WidgetOutline, WidgetPlacementContext } from './longDistnaceWidgetPlacement.js';
 import { InlineCompletionEditorType } from '../../../../model/provideInlineCompletions.js';
+import { basename } from '../../../../../../../../base/common/resources.js';
+import { IModelService } from '../../../../../../../common/services/model.js';
+import { ILanguageService } from '../../../../../../../common/languages/language.js';
+import { getIconClasses } from '../../../../../../../common/services/getIconClasses.js';
+import { FileKind } from '../../../../../../../../platform/files/common/files.js';
+import { TextModelValueReference } from '../../../../model/textModelValueReference.js';
 
 const BORDER_RADIUS = 6;
 const MAX_WIDGET_WIDTH = { EMPTY_SPACE: 425, OVERLAY: 375 };
@@ -65,6 +71,8 @@ export class InlineEditsLongDistanceHint extends Disposable implements IInlineEd
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IThemeService private readonly _themeService: IThemeService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+		@IModelService private readonly _modelService: IModelService,
+		@ILanguageService private readonly _languageService: ILanguageService,
 	) {
 		super();
 
@@ -114,6 +122,7 @@ export class InlineEditsLongDistanceHint extends Disposable implements IInlineEd
 						model: viewState.model,
 						inlineSuggestInfo: viewState.inlineSuggestInfo,
 						nextCursorPosition: viewState.nextCursorPosition,
+						target: viewState.target,
 					} satisfies ILongDistancePreviewProps;
 				}),
 				this._editor,
@@ -361,7 +370,7 @@ export class InlineEditsLongDistanceHint extends Disposable implements IInlineEd
 
 	private readonly _widgetContent = derived(this, reader => // TODO@hediet: remove when n.div lazily creates previewEditor.element node
 		n.div({
-			class: 'inline-edits-long-distance-hint-widget',
+			class: ['inline-edits-long-distance-hint-widget', 'show-file-icons'],
 			style: {
 				position: 'absolute',
 				overflow: 'hidden',
@@ -403,37 +412,56 @@ export class InlineEditsLongDistanceHint extends Disposable implements IInlineEd
 						return children;
 					}
 
-					// Outline Element
-					const source = this._originalOutlineSource.read(reader);
-					const originalTargetLineNumber = this._originalTargetLineNumber.read(reader);
-					const outlineItems = source?.getAt(originalTargetLineNumber, reader).slice(0, 1) ?? [];
-					const outlineElements: ChildNode[] = [];
-					if (outlineItems.length > 0) {
-						for (let i = 0; i < outlineItems.length; i++) {
-							const item = outlineItems[i];
-							const icon = SymbolKinds.toIcon(item.kind);
-							outlineElements.push(n.div({
-								class: 'breadcrumb-item',
-								style: { display: 'flex', alignItems: 'center', flex: '1 1 auto', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
-							}, [
-								renderIcon(icon),
-								'\u00a0',
-								item.name,
-								...(i === outlineItems.length - 1
-									? []
-									: [renderIcon(Codicon.chevronRight)]
-								)
-							]));
+					// Check if this is a cross-file edit
+					const currentUri = this._editorObs.model.read(reader)?.uri;
+					const targetUri = viewState.target.uri;
+					const isCrossFileEdit = targetUri && (!currentUri || targetUri.toString() !== currentUri.toString());
+
+					if (isCrossFileEdit) {
+						// For cross-file edits, show target filename instead of outline
+						const fileName = basename(targetUri);
+						const iconClasses = getIconClasses(this._modelService, this._languageService, targetUri, FileKind.FILE);
+						children.push(n.div({
+							class: 'target-file',
+							style: { display: 'flex', alignItems: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+						}, [
+							n.elem('span', { class: iconClasses, style: { flexShrink: '0', marginRight: '4px' } }),
+							fileName,
+						]));
+					} else {
+						// Outline Element
+						const source = this._originalOutlineSource.read(reader);
+						const originalTargetLineNumber = this._originalTargetLineNumber.read(reader);
+						const outlineItems = source?.getAt(originalTargetLineNumber, reader).slice(0, 1) ?? [];
+						const outlineElements: ChildNode[] = [];
+						if (outlineItems.length > 0) {
+							for (let i = 0; i < outlineItems.length; i++) {
+								const item = outlineItems[i];
+								const icon = SymbolKinds.toIcon(item.kind);
+								outlineElements.push(n.div({
+									class: 'breadcrumb-item',
+									style: { display: 'flex', alignItems: 'center', flex: '1 1 auto', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
+								}, [
+									renderIcon(icon),
+									'\u00a0',
+									item.name,
+									...(i === outlineItems.length - 1
+										? []
+										: [renderIcon(Codicon.chevronRight)]
+									)
+								]));
+							}
 						}
+						children.push(n.div({ class: 'outline-elements', style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, outlineElements));
 					}
-					children.push(n.div({ class: 'outline-elements', style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, outlineElements));
 
 					// Show Edit Direction
-					const arrowIcon = viewState.hint.lineNumber < originalTargetLineNumber ? Codicon.arrowDown : Codicon.arrowUp;
+					const originalTargetLineNumber = this._originalTargetLineNumber.read(reader);
+					const arrowIcon = isCrossFileEdit ? Codicon.arrowRight : (viewState.hint.lineNumber < originalTargetLineNumber ? Codicon.arrowDown : Codicon.arrowUp);
 					const keybinding = this._keybindingService.lookupKeybinding(jumpToNextInlineEditId);
-					let label = 'Go to suggestion';
+					let label = isCrossFileEdit ? 'Go to file' : 'Go to suggestion';
 					if (keybinding && keybinding.getLabel() === 'Tab') {
-						label = 'Tab to jump';
+						label = isCrossFileEdit ? 'Tab to open' : 'Tab to jump';
 					}
 					children.push(n.div({
 						class: 'go-to-label',
@@ -483,6 +511,7 @@ export interface ILongDistanceViewState {
 	diff: DetailedLineRangeMapping[];
 	nextCursorPosition: Position | null;
 	editorType: InlineCompletionEditorType;
+	target: TextModelValueReference;
 
 	model: SimpleInlineSuggestModel;
 	inlineSuggestInfo: InlineSuggestionGutterMenuData;

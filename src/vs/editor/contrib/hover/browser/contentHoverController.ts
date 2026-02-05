@@ -17,7 +17,7 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { ResultKind } from '../../../../platform/keybinding/common/keybindingResolver.js';
 import { HoverVerbosityAction } from '../../../common/languages.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
-import { isMousePositionWithinElement, shouldShowHover } from './hoverUtils.js';
+import { isMousePositionWithinElement, shouldShowHover, isTriggerModifierPressed } from './hoverUtils.js';
 import { ContentHoverWidgetWrapper } from './contentHoverWidgetWrapper.js';
 import './hover.css';
 import { Emitter } from '../../../../base/common/event.js';
@@ -266,12 +266,19 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 	}
 
 	private _onKeyDown(e: IKeyboardEvent): void {
-		if (this._ignoreMouseEvents) {
+		if (this._ignoreMouseEvents || !this._contentWidget) {
 			return;
 		}
-		if (!this._contentWidget) {
+
+		if (this._hoverSettings.enabled === 'onKeyboardModifier'
+			&& isTriggerModifierPressed(this._editor.getOption(EditorOption.multiCursorModifier), e)
+			&& this._mouseMoveEvent) {
+			if (!this._contentWidget.isVisible) {
+				this._contentWidget.showsOrWillShow(this._mouseMoveEvent);
+			}
 			return;
 		}
+
 		const isPotentialKeyboardShortcut = this._isPotentialKeyboardShortcut(e);
 		const isModifierKeyPressed = isModifierKey(e.keyCode);
 		if (isPotentialKeyboardShortcut || isModifierKeyPressed) {

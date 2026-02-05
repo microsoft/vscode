@@ -76,6 +76,7 @@ export interface IProductConfiguration {
 	readonly win32AppUserModelId?: string;
 	readonly win32MutexName?: string;
 	readonly win32RegValueName?: string;
+	readonly win32VersionedUpdate?: boolean;
 	readonly applicationName: string;
 	readonly embedderIdentifier?: string;
 
@@ -204,22 +205,11 @@ export interface IProductConfiguration {
 		readonly hasPrereleaseVersion?: boolean;
 		readonly excludeVersionRange?: string;
 	}>;
+	readonly extensionsForceVersionByQuality?: readonly string[];
 
 	readonly msftInternalDomains?: string[];
 	readonly linkProtectionTrustedDomains?: readonly string[];
 
-	readonly defaultAccount?: {
-		readonly authenticationProvider: {
-			readonly id: string;
-			readonly enterpriseProviderId: string;
-			readonly enterpriseProviderConfig: string;
-			readonly enterpriseProviderUriSetting: string;
-			readonly scopes: string[][];
-		};
-		readonly tokenEntitlementUrl: string;
-		readonly chatEntitlementUrl: string;
-		readonly mcpRegistryDataUrl: string;
-	};
 	readonly authClientIdMetadataUrl?: string;
 
 	readonly 'configurationSync.store'?: ConfigurationSyncStore;
@@ -349,6 +339,8 @@ export interface IDefaultChatAgent {
 	readonly extensionId: string;
 	readonly chatExtensionId: string;
 
+	readonly chatExtensionOutputId: string;
+
 	readonly documentationUrl: string;
 	readonly skusDocumentationUrl: string;
 	readonly publicCodeMatchesUrl: string;
@@ -372,6 +364,8 @@ export interface IDefaultChatAgent {
 
 	readonly entitlementUrl: string;
 	readonly entitlementSignupLimitedUrl: string;
+	readonly tokenEntitlementUrl: string;
+	readonly mcpRegistryDataUrl: string;
 
 	readonly chatQuotaExceededContext: string;
 	readonly completionsQuotaExceededContext: string;

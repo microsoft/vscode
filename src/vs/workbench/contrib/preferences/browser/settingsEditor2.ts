@@ -1059,8 +1059,46 @@ export class SettingsEditor2 extends EditorPane {
 					this.settingsTree.scrollTop = 0;
 				}
 			} else if (element && (!e.browserEvent || !(<IFocusEventFromScroll>e.browserEvent).fromScroll)) {
-				this.settingsTree.reveal(element, 0);
-				this.settingsTree.setFocus([element]);
+				let targetElement = element;
+				// Searches equvalent old Object currently living in the Tree nodes.
+				if (!this.settingsTree.hasElement(targetElement)) {
+					if (element instanceof SettingsTreeGroupElement) {
+						const targetId = element.id;
+
+						const findInViewNodes = (nodes: any[]): SettingsTreeGroupElement | undefined => {
+							for (const node of nodes) {
+								if (node.element instanceof SettingsTreeGroupElement && node.element.id === targetId) {
+									return node.element;
+								}
+								if (node.children && node.children.length > 0) {
+									const found = findInViewNodes(node.children);
+									if (found) {
+										return found;
+									}
+								}
+							}
+							return undefined;
+						};
+
+						try {
+							const rootNode = this.settingsTree.getNode(null);
+							if (rootNode && rootNode.children) {
+								const foundOldElement = findInViewNodes(rootNode.children);
+								if (foundOldElement) {
+									// Now we don't reveal the New Object, reveal the Old Object"
+									targetElement = foundOldElement;
+								}
+							}
+						} catch (err) {
+							// Tree might be in an invalid state, ignore
+						}
+					}
+				}
+
+				if (this.settingsTree.hasElement(targetElement)) {
+					this.settingsTree.reveal(targetElement, 0);
+					this.settingsTree.setFocus([targetElement]);
+				}
 			}
 		}));
 
@@ -1559,7 +1597,7 @@ export class SettingsEditor2 extends EditorPane {
 
 		resolvedSettingsRoot.children!.push(await createTocTreeForExtensionSettings(this.extensionService, extensionSettingsGroups, filter));
 
-		resolvedSettingsRoot.children!.unshift(getCommonlyUsedData(groups, toggleData?.commonlyUsed));
+		resolvedSettingsRoot.children!.unshift(getCommonlyUsedData(groups));
 
 		if (toggleData && setAdditionalGroups) {
 			// Add the additional groups to the model to help with searching.
@@ -1579,6 +1617,15 @@ export class SettingsEditor2 extends EditorPane {
 
 		this.searchResultModel?.updateChildren();
 
+		const firstVisibleElement = this.settingsTree.firstVisibleElement;
+		let anchorId: string | undefined;
+
+		if (firstVisibleElement instanceof SettingsTreeSettingElement) {
+			anchorId = firstVisibleElement.setting.key;
+		} else if (firstVisibleElement instanceof SettingsTreeGroupElement) {
+			anchorId = firstVisibleElement.id;
+		}
+
 		if (this.settingsTreeModel.value) {
 			this.refreshModels(resolvedSettingsRoot);
 
@@ -1589,6 +1636,45 @@ export class SettingsEditor2 extends EditorPane {
 
 			this.refreshTOCTree();
 			this.renderTree(undefined, forceRefresh);
+
+			if (anchorId) {
+				const newModel = this.settingsTreeModel.value;
+				let newElement: SettingsTreeElement | undefined;
+
+				// eslint-disable-next-line no-restricted-syntax
+				const settings = newModel.getElementsByName(anchorId);
+				if (settings && settings.length > 0) {
+					newElement = settings[0];
+				} else {
+					const findGroup = (roots: SettingsTreeGroupElement[]): SettingsTreeGroupElement | undefined => {
+						for (const g of roots) {
+							if (g.id === anchorId) {
+								return g;
+							}
+							if (g.children) {
+								for (const child of g.children) {
+									if (child instanceof SettingsTreeGroupElement) {
+										const found = findGroup([child]);
+										if (found) {
+											return found;
+										}
+									}
+								}
+							}
+						}
+						return undefined;
+					};
+					newElement = findGroup([newModel.root]);
+				}
+
+				if (newElement) {
+					try {
+						this.settingsTree.reveal(newElement, 0);
+					} catch (e) {
+						// Ignore the error
+					}
+				}
+			}
 		} else {
 			this.settingsTreeModel.value = this.instantiationService.createInstance(SettingsTreeModel, this.viewState, this.workspaceTrustManagementService.isWorkspaceTrusted());
 			this.refreshModels(resolvedSettingsRoot);

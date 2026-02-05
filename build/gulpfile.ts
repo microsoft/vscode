@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { EventEmitter } from 'events';
+EventEmitter.defaultMaxListeners = 100;
+
 import glob from 'glob';
 import gulp from 'gulp';
 import { createRequire } from 'node:module';
@@ -12,29 +14,25 @@ import * as compilation from './lib/compilation.ts';
 import * as task from './lib/task.ts';
 import * as util from './lib/util.ts';
 
-EventEmitter.defaultMaxListeners = 100;
-
 const require = createRequire(import.meta.url);
 
-const { transpileTask, compileTask, watchTask, compileApiProposalNamesTask, watchApiProposalNamesTask } = compilation;
-
 // API proposal names
-gulp.task(compileApiProposalNamesTask);
-gulp.task(watchApiProposalNamesTask);
+gulp.task(compilation.compileApiProposalNamesTask);
+gulp.task(compilation.watchApiProposalNamesTask);
 
 // SWC Client Transpile
-const transpileClientSWCTask = task.define('transpile-client-esbuild', task.series(util.rimraf('out'), transpileTask('src', 'out', true)));
+const transpileClientSWCTask = task.define('transpile-client-esbuild', task.series(util.rimraf('out'), compilation.transpileTask('src', 'out', true)));
 gulp.task(transpileClientSWCTask);
 
 // Transpile only
-const transpileClientTask = task.define('transpile-client', task.series(util.rimraf('out'), transpileTask('src', 'out')));
+const transpileClientTask = task.define('transpile-client', task.series(util.rimraf('out'), compilation.transpileTask('src', 'out')));
 gulp.task(transpileClientTask);
 
 // Fast compile for development time
-const compileClientTask = task.define('compile-client', task.series(util.rimraf('out'), compileApiProposalNamesTask, compileTask('src', 'out', false)));
+const compileClientTask = task.define('compile-client', task.series(util.rimraf('out'), compilation.copyCodiconsTask, compilation.compileApiProposalNamesTask, compilation.compileTask('src', 'out', false)));
 gulp.task(compileClientTask);
 
-const watchClientTask = task.define('watch-client', task.series(util.rimraf('out'), task.parallel(watchTask('out', false), watchApiProposalNamesTask)));
+const watchClientTask = task.define('watch-client', task.series(util.rimraf('out'), task.parallel(compilation.watchTask('out', false), compilation.watchApiProposalNamesTask, compilation.watchCodiconsTask)));
 gulp.task(watchClientTask);
 
 // All

@@ -268,7 +268,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				return;
 			}
 
-			const shellType: string | undefined = 'shell' in terminal.state ? terminal.state.shell as string : undefined;
+			const shellType: string | undefined = Object.hasOwn(terminal.state, 'shell') ? terminal.state.shell as string : undefined;
 			const terminalShellType = getTerminalShellType(shellType);
 			if (!terminalShellType) {
 				console.debug(`#terminalCompletions Shell type ${shellType} not supported`);
@@ -412,6 +412,13 @@ export async function resolveCwdFromCurrentCommandString(currentCommandString: s
 			lastSlashIndex = prefix.lastIndexOf('/');
 		}
 		const relativeFolder = lastSlashIndex === -1 ? '' : prefix.slice(0, lastSlashIndex);
+
+		// Don't pre-resolve paths with .. segments - let the completion service handle those
+		// to avoid double-navigation (e.g., typing ../ would resolve cwd to parent here,
+		// then completion service would navigate up again from the already-parent cwd)
+		if (relativeFolder.includes('..')) {
+			return undefined;
+		}
 
 		// Use vscode.Uri.joinPath for path resolution
 		const resolvedUri = vscode.Uri.joinPath(currentCwd, relativeFolder);

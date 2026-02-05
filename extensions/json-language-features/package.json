@@ -126,6 +126,23 @@
           "tags": [
             "usesOnlineServices"
           ]
+        },
+        "json.schemaDownload.trustedDomains": {
+          "type": "object",
+          "default": {
+            "https://schemastore.azurewebsites.net/": true,
+            "https://raw.githubusercontent.com/": true,
+            "https://www.schemastore.org/": true,
+            "https://json.schemastore.org/": true,
+            "https://json-schema.org/": true
+          },
+          "additionalProperties": {
+            "type": "boolean"
+          },
+          "description": "%json.schemaDownload.trustedDomains.desc%",
+          "tags": [
+            "usesOnlineServices"
+          ]
         }
       }
     },

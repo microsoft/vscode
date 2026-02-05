@@ -9,7 +9,7 @@
 	z-index: 2550;
 	left: 50%;
 	-webkit-app-region: no-drag;
-	border-radius: 6px;
+	border-radius: 8px;
 }
 
 .quick-input-titlebar {
@@ -89,7 +89,7 @@
 .quick-input-header {
 	cursor: grab;
 	display: flex;
-	padding: 6px 6px 2px 6px;
+	padding: 6px 6px 4px 6px;
 }
 
 .quick-input-widget.hidden-input .quick-input-header {
@@ -155,14 +155,6 @@
 	margin-left: 6px;
 }
 
-.quick-input-action .monaco-text-button {
-	font-size: 11px;
-	padding: 0 6px;
-	display: flex;
-	height: 25px;
-	align-items: center;
-}
-
 .quick-input-message {
 	margin-top: -1px;
 	padding: 5px;
@@ -196,7 +188,7 @@
 .quick-input-list .monaco-list {
 	overflow: hidden;
 	max-height: calc(20 * 22px);
-	padding-bottom: 5px;
+	padding-bottom: 7px;
 }
 
 .quick-input-list .monaco-scrollable-element {

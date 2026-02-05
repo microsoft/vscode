@@ -1612,7 +1612,15 @@ export class ListView<T> implements IListView<T> {
 
 	private probeDynamicHeight(index: number): number {
 		const item = this.items[index];
+		const diff = this.probeDynamicHeightForItem(item, index);
+		if (diff > 0) {
+			this.virtualDelegate.setDynamicHeight?.(item.element, item.size);
+		}
 
+		return diff;
+	}
+
+	private probeDynamicHeightForItem(item: IItem<T>, index: number): number {
 		if (!!this.virtualDelegate.getDynamicHeight) {
 			const newSize = this.virtualDelegate.getDynamicHeight(item.element);
 			if (newSize !== null) {
@@ -1660,8 +1668,6 @@ export class ListView<T> implements IListView<T> {
 		renderer.renderElement(item.element, index, row.templateData);
 		item.size = row.domNode.offsetHeight;
 		renderer.disposeElement?.(item.element, index, row.templateData);
-
-		this.virtualDelegate.setDynamicHeight?.(item.element, item.size);
 
 		item.lastDynamicHeightWidth = this.renderWidth;
 		row.domNode.remove();

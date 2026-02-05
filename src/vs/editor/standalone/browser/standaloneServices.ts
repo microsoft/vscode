@@ -21,6 +21,7 @@ import { IDisposable, IReference, ImmortalReference, toDisposable, DisposableSto
 import { OS, isLinux, isMacintosh } from '../../../base/common/platform.js';
 import Severity from '../../../base/common/severity.js';
 import { URI } from '../../../base/common/uri.js';
+import { IRenameSymbolTrackerService, NullRenameSymbolTrackerService } from '../../browser/services/renameSymbolTrackerService.js';
 import { IBulkEditOptions, IBulkEditResult, IBulkEditService, ResourceEdit, ResourceTextEdit } from '../../browser/services/bulkEditService.js';
 import { isDiffEditorConfigurationKey, isEditorConfigurationKey } from '../../common/config/editorConfigurationSchema.js';
 import { EditOperation, ISingleEditOperation } from '../../common/core/editOperation.js';
@@ -99,7 +100,7 @@ import { IDataChannelService, NullDataChannelService } from '../../../platform/d
 import { IWebWorkerService } from '../../../platform/webWorker/browser/webWorkerService.js';
 import { StandaloneWebWorkerService } from './services/standaloneWebWorkerService.js';
 import { IDefaultAccountService } from '../../../platform/defaultAccount/common/defaultAccount.js';
-import { IDefaultAccount } from '../../../base/common/defaultAccount.js';
+import { IDefaultAccount, IDefaultAccountAuthenticationProvider, IPolicyData } from '../../../base/common/defaultAccount.js';
 
 class SimpleModel implements IResolvedTextEditorModel {
 
@@ -219,6 +220,7 @@ class StandaloneEnvironmentService implements IEnvironmentService {
 	readonly keyboardLayoutResource: URI = URI.from({ scheme: 'monaco', authority: 'keyboardLayoutResource' });
 	readonly argvResource: URI = URI.from({ scheme: 'monaco', authority: 'argvResource' });
 	readonly untitledWorkspacesHome: URI = URI.from({ scheme: 'monaco', authority: 'untitledWorkspacesHome' });
+	readonly builtinWorkbenchModesHome: URI = URI.from({ scheme: 'monaco', authority: 'builtinWorkbenchModesHome' });
 	readonly workspaceStorageHome: URI = URI.from({ scheme: 'monaco', authority: 'workspaceStorageHome' });
 	readonly localHistoryHome: URI = URI.from({ scheme: 'monaco', authority: 'localHistoryHome' });
 	readonly cacheHome: URI = URI.from({ scheme: 'monaco', authority: 'cacheHome' });
@@ -1113,13 +1115,27 @@ class StandaloneDefaultAccountService implements IDefaultAccountService {
 	declare readonly _serviceBrand: undefined;
 
 	readonly onDidChangeDefaultAccount: Event<IDefaultAccount | null> = Event.None;
+	readonly onDidChangePolicyData: Event<IPolicyData | null> = Event.None;
+	readonly policyData: IPolicyData | null = null;
 
 	async getDefaultAccount(): Promise<IDefaultAccount | null> {
 		return null;
 	}
 
-	setDefaultAccount(account: IDefaultAccount | null): void {
+	setDefaultAccountProvider(): void {
 		// no-op
+	}
+
+	async refresh(): Promise<IDefaultAccount | null> {
+		return null;
+	}
+
+	getDefaultAccountAuthenticationProvider(): IDefaultAccountAuthenticationProvider {
+		return { id: 'default', name: 'Default', enterprise: false };
+	}
+
+	async signIn(): Promise<IDefaultAccount | null> {
+		return null;
 	}
 }
 
@@ -1166,6 +1182,7 @@ registerSingleton(ITreeSitterLibraryService, StandaloneTreeSitterLibraryService,
 registerSingleton(ILoggerService, NullLoggerService, InstantiationType.Eager);
 registerSingleton(IDataChannelService, NullDataChannelService, InstantiationType.Eager);
 registerSingleton(IDefaultAccountService, StandaloneDefaultAccountService, InstantiationType.Eager);
+registerSingleton(IRenameSymbolTrackerService, NullRenameSymbolTrackerService, InstantiationType.Eager);
 
 /**
  * We don't want to eagerly instantiate services because embedders get a one time chance

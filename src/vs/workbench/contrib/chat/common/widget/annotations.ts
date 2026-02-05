@@ -2,14 +2,13 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { findLastIdx } from '../../../../../base/common/arraysFind.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { basename } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IRange } from '../../../../../editor/common/core/range.js';
 import { isLocation } from '../../../../../editor/common/languages.js';
 import { IChatProgressRenderableResponseContent, IChatProgressResponseContent, appendMarkdownString, canMergeMarkdownStrings } from '../model/chatModel.js';
-import { IChatAgentVulnerabilityDetails, IChatMarkdownContent } from '../chatService/chatService.js';
+import { IChatAgentVulnerabilityDetails } from '../chatService/chatService.js';
 
 export const contentRefUrl = 'http://_vscodecontentref_'; // must be lowercase for URI
 
@@ -18,7 +17,7 @@ export function annotateSpecialMarkdownContent(response: Iterable<IChatProgressR
 
 	const result: IChatProgressRenderableResponseContent[] = [];
 	for (const item of response) {
-		const previousItemIndex = findLastIdx(result, p => p.kind !== 'textEditGroup' && p.kind !== 'undoStop');
+		const previousItemIndex = result.findLastIndex(p => p.kind !== 'textEditGroup' && p.kind !== 'undoStop');
 		const previousItem = result[previousItemIndex];
 		if (item.kind === 'inlineReference') {
 			let label: string | undefined = item.name;
@@ -60,7 +59,8 @@ export function annotateSpecialMarkdownContent(response: Iterable<IChatProgressR
 		} else if (item.kind === 'codeblockUri') {
 			if (previousItem?.kind === 'markdownContent') {
 				const isEditText = item.isEdit ? ` isEdit` : '';
-				const markdownText = `<vscode_codeblock_uri${isEditText}>${item.uri.toString()}</vscode_codeblock_uri>`;
+				const subAgentText = item.subAgentInvocationId ? ` subAgentInvocationId="${encodeURIComponent(item.subAgentInvocationId)}"` : '';
+				const markdownText = `<vscode_codeblock_uri${isEditText}${subAgentText}>${item.uri.toString()}</vscode_codeblock_uri>`;
 				const merged = appendMarkdownString(previousItem.content, new MarkdownString(markdownText));
 				// delete the previous and append to ensure that we don't reorder the edit before the undo stop containing it
 				result.splice(previousItemIndex, 1);
@@ -79,39 +79,34 @@ export interface IMarkdownVulnerability {
 	readonly description: string;
 	readonly range: IRange;
 }
-
-export function annotateVulnerabilitiesInText(response: ReadonlyArray<IChatProgressResponseContent>): readonly IChatMarkdownContent[] {
-	const result: IChatMarkdownContent[] = [];
-	for (const item of response) {
-		const previousItem = result[result.length - 1];
-		if (item.kind === 'markdownContent') {
-			if (previousItem?.kind === 'markdownContent') {
-				result[result.length - 1] = { content: new MarkdownString(previousItem.content.value + item.content.value, { isTrusted: previousItem.content.isTrusted }), kind: 'markdownContent' };
-			} else {
-				result.push(item);
-			}
-		} else if (item.kind === 'markdownVuln') {
-			const vulnText = encodeURIComponent(JSON.stringify(item.vulnerabilities));
-			const markdownText = `<vscode_annotation details='${vulnText}'>${item.content.value}</vscode_annotation>`;
-			if (previousItem?.kind === 'markdownContent') {
-				result[result.length - 1] = { content: new MarkdownString(previousItem.content.value + markdownText, { isTrusted: previousItem.content.isTrusted }), kind: 'markdownContent' };
-			} else {
-				result.push({ content: new MarkdownString(markdownText), kind: 'markdownContent' });
-			}
-		}
-	}
-
-	return result;
-}
-
-export function extractCodeblockUrisFromText(text: string): { uri: URI; isEdit?: boolean; textWithoutResult: string } | undefined {
-	const match = /<vscode_codeblock_uri( isEdit)?>(.*?)<\/vscode_codeblock_uri>/ms.exec(text);
+export function extractCodeblockUrisFromText(text: string): { uri: URI; isEdit?: boolean; subAgentInvocationId?: string; textWithoutResult: string } | undefined {
+	const match = /<vscode_codeblock_uri( isEdit)?( subAgentInvocationId="([^"]*)")?>([\s\S]*?)<\/vscode_codeblock_uri>/ms.exec(text);
 	if (match) {
-		const [all, isEdit, uriString] = match;
+		const [all, isEdit, , encodedSubAgentId, uriString] = match;
 		if (uriString) {
 			const result = URI.parse(uriString);
 			const textWithoutResult = text.substring(0, match.index) + text.substring(match.index + all.length);
-			return { uri: result, textWithoutResult, isEdit: !!isEdit };
+			let subAgentInvocationId: string | undefined;
+			if (encodedSubAgentId) {
+				try {
+					subAgentInvocationId = decodeURIComponent(encodedSubAgentId);
+				} catch {
+					subAgentInvocationId = encodedSubAgentId;
+				}
+			}
+			return { uri: result, textWithoutResult, isEdit: !!isEdit, subAgentInvocationId };
+		}
+	}
+	return undefined;
+}
+
+export function extractSubAgentInvocationIdFromText(text: string): string | undefined {
+	const match = /<vscode_codeblock_uri[^>]* subAgentInvocationId="([^"]*)"/ms.exec(text);
+	if (match) {
+		try {
+			return decodeURIComponent(match[1]);
+		} catch {
+			return match[1];
 		}
 	}
 	return undefined;

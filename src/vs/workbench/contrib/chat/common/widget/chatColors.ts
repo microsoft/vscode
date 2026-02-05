@@ -73,3 +73,8 @@ export const chatLinesRemovedForeground = registerColor(
 	'chat.linesRemovedForeground',
 	{ dark: '#FC6A6A', light: '#BC2F32', hcDark: '#F48771', hcLight: '#B5200D' },
 	localize('chat.linesRemovedForeground', 'Foreground color of lines removed in chat code block pill.'), true);
+
+export const chatThinkingShimmer = registerColor(
+	'chat.thinkingShimmer',
+	{ dark: '#ffffff', light: '#000000', hcDark: '#ffffff', hcLight: '#000000' },
+	localize('chat.thinkingShimmer', 'Shimmer highlight for thinking/working labels.'), true);

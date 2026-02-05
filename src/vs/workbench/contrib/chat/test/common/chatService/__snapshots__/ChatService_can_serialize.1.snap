@@ -1,6 +1,5 @@
 {
   responderUsername: "",
-  responderAvatarIconUri: undefined,
   initialLocation: "panel",
   requests: [
     {

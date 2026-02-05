@@ -33,7 +33,7 @@ import * as callh from '../../contrib/callHierarchy/common/callHierarchy.js';
 import * as search from '../../contrib/search/common/search.js';
 import * as typeh from '../../contrib/typeHierarchy/common/typeHierarchy.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
-import { ExtHostContext, ExtHostLanguageFeaturesShape, HoverWithId, ICallHierarchyItemDto, ICodeActionDto, ICodeActionProviderMetadataDto, IdentifiableInlineCompletion, IdentifiableInlineCompletions, IDocumentDropEditDto, IDocumentDropEditProviderMetadata, IDocumentFilterDto, IIndentationRuleDto, IInlayHintDto, IInlineCompletionModelInfoDto, ILanguageConfigurationDto, ILanguageWordDefinitionDto, ILinkDto, ILocationDto, ILocationLinkDto, IOnEnterRuleDto, IPasteEditDto, IPasteEditProviderMetadataDto, IRegExpDto, ISignatureHelpProviderMetadataDto, ISuggestDataDto, ISuggestDataDtoField, ISuggestResultDtoField, ITypeHierarchyItemDto, IWorkspaceSymbolDto, MainContext, MainThreadLanguageFeaturesShape } from '../common/extHost.protocol.js';
+import { ExtHostContext, ExtHostLanguageFeaturesShape, HoverWithId, ICallHierarchyItemDto, ICodeActionDto, ICodeActionProviderMetadataDto, IdentifiableInlineCompletion, IdentifiableInlineCompletions, IDocumentDropEditDto, IDocumentDropEditProviderMetadata, IDocumentFilterDto, IIndentationRuleDto, IInlayHintDto, IInlineCompletionChangeHintDto, IInlineCompletionModelInfoDto, ILanguageConfigurationDto, ILanguageWordDefinitionDto, ILinkDto, ILocationDto, ILocationLinkDto, IOnEnterRuleDto, IPasteEditDto, IPasteEditProviderMetadataDto, IRegExpDto, ISignatureHelpProviderMetadataDto, ISuggestDataDto, ISuggestDataDtoField, ISuggestResultDtoField, ITypeHierarchyItemDto, IWorkspaceSymbolDto, MainContext, MainThreadLanguageFeaturesShape } from '../common/extHost.protocol.js';
 import { InlineCompletionEndOfLifeReasonKind } from '../common/extHostTypes.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { DataChannelForwardingTelemetryService, forwardToChannelIf, isCopilotLikeExtension } from '../../../platform/dataChannel/browser/forwardingTelemetryService.js';
@@ -683,10 +683,10 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 		this._registrations.set(handle, provider);
 	}
 
-	$emitInlineCompletionsChange(handle: number): void {
+	$emitInlineCompletionsChange(handle: number, changeHint: IInlineCompletionChangeHintDto | undefined): void {
 		const obj = this._registrations.get(handle);
 		if (obj instanceof ExtensionBackedInlineCompletionsProvider) {
-			obj._emitDidChange();
+			obj._emitDidChange(changeHint);
 		}
 	}
 
@@ -1290,8 +1290,8 @@ export class MainThreadDocumentRangeSemanticTokensProvider implements languages.
 
 class ExtensionBackedInlineCompletionsProvider extends Disposable implements languages.InlineCompletionsProvider<IdentifiableInlineCompletions> {
 	public readonly setModelId: ((modelId: string) => Promise<void>) | undefined;
-	public readonly _onDidChangeEmitter = new Emitter<void>();
-	public readonly onDidChangeInlineCompletions: Event<void> | undefined;
+	public readonly _onDidChangeEmitter = new Emitter<languages.IInlineCompletionChangeHint | void>();
+	public readonly onDidChangeInlineCompletions: Event<languages.IInlineCompletionChangeHint | void> | undefined;
 
 	public readonly _onDidChangeModelInfoEmitter = new Emitter<void>();
 	public readonly onDidChangeModelInfo: Event<void> | undefined;
@@ -1334,9 +1334,9 @@ class ExtensionBackedInlineCompletionsProvider extends Disposable implements lan
 		}
 	}
 
-	public _emitDidChange() {
+	public _emitDidChange(changeHint: IInlineCompletionChangeHintDto | undefined) {
 		if (this._supportsOnDidChange) {
-			this._onDidChangeEmitter.fire();
+			this._onDidChangeEmitter.fire(changeHint);
 		}
 	}
 

@@ -5,8 +5,7 @@
 
 import { createLogger, defineConfig, Plugin } from 'vite';
 import path, { join } from 'path';
-/// @ts-ignore
-import { urlToEsmPlugin } from './rollup-url-to-module-plugin/index.mjs';
+import { rollupEsmUrlPlugin } from '@vscode/rollup-plugin-esm-url';
 import { statSync } from 'fs';
 import { pathToFileURL } from 'url';
 
@@ -52,7 +51,7 @@ function injectBuiltinExtensionsPlugin(): Plugin {
 	const prebuiltExtensionsLocation = '.build/builtInExtensions';
 	async function getScannedBuiltinExtensions(vsCodeDevLocation: string) {
 		// use the build utility as to not duplicate the code
-		const extensionsUtil = await import(pathToFileURL(path.join(vsCodeDevLocation, 'build', 'lib', 'extensions.js')).toString());
+		const extensionsUtil = await import(pathToFileURL(path.join(vsCodeDevLocation, 'build', 'lib', 'extensions.ts')).toString());
 		const localExtensions = extensionsUtil.scanBuiltinExtensions(path.join(vsCodeDevLocation, 'extensions'));
 		const prebuiltExtensions = extensionsUtil.scanBuiltinExtensions(path.join(vsCodeDevLocation, prebuiltExtensionsLocation));
 		for (const ext of localExtensions) {
@@ -165,7 +164,7 @@ logger.warn = (msg, options) => {
 
 export default defineConfig({
 	plugins: [
-		urlToEsmPlugin(),
+		rollupEsmUrlPlugin({}),
 		injectBuiltinExtensionsPlugin(),
 		createHotClassSupport()
 	],
@@ -178,6 +177,14 @@ export default defineConfig({
 		}
 	},
 	root: '../..', // To support /out/... paths
+	build: {
+		rollupOptions: {
+			input: {
+				//index: path.resolve(__dirname, 'index.html'),
+				workbench: path.resolve(__dirname, 'workbench-vite.html'),
+			}
+		}
+	},
 	server: {
 		cors: true,
 		port: 5199,
@@ -185,7 +192,6 @@ export default defineConfig({
 		fs: {
 			allow: [
 				// To allow loading from sources, not needed when loading monaco-editor from npm package
-				/// @ts-ignore
 				join(import.meta.dirname, '../../../')
 			]
 		}

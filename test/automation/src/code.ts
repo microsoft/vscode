@@ -18,7 +18,7 @@ export interface LaunchOptions {
 	// Allows you to override the Playwright instance
 	playwright?: typeof playwright;
 	codePath?: string;
-	readonly workspacePath: string;
+	readonly workspacePath?: string;
 	userDataDir?: string;
 	readonly extensionsPath?: string;
 	readonly logger: Logger;
@@ -36,6 +36,7 @@ export interface LaunchOptions {
 	readonly browser?: 'chromium' | 'webkit' | 'firefox' | 'chromium-msedge' | 'chromium-chrome';
 	readonly quality: Quality;
 	version: { major: number; minor: number; patch: number };
+	readonly extensionDevelopmentPath?: string;
 }
 
 interface ICodeInstance {

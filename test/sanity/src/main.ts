@@ -4,17 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import minimist from 'minimist';
-import { setup as setupCliTests } from './cli.test';
-import { TestContext } from './context';
-import { setup as setupDesktopTests } from './desktop.test';
-import { setup as setupServerTests } from './server.test';
-import { setup as setupServerWebTests } from './serverWeb.test';
+import os from 'os';
+import { setup as setupCliTests } from './cli.test.js';
+import { TestContext } from './context.js';
+import { setup as setupDesktopTests } from './desktop.test.js';
+import { setup as setupServerTests } from './server.test.js';
+import { setup as setupServerWebTests } from './serverWeb.test.js';
+import { setup as setupWSLTests } from './wsl.test.js';
 
 const options = minimist(process.argv.slice(2), {
 	string: ['commit', 'quality'],
-	boolean: ['cleanup', 'verbose'],
+	boolean: ['cleanup', 'verbose', 'signing-check', 'headless', 'detection'],
 	alias: { commit: 'c', quality: 'q', verbose: 'v' },
-	default: { cleanup: true, verbose: false },
+	default: { cleanup: true, verbose: false, 'signing-check': true, headless: true, 'detection': true },
 });
 
 if (!options.commit) {
@@ -25,23 +27,27 @@ if (!options.quality) {
 	throw new Error('--quality is required');
 }
 
-const context = new TestContext(options.quality, options.commit, options.verbose);
-
-describe('VS Code Sanity Tests', () => {
-	beforeEach(() => {
-		const cwd = context.createTempDir();
-		process.chdir(cwd);
-		context.log(`Changed working directory to: ${cwd}`);
-	});
-
-	if (options.cleanup) {
-		afterEach(() => {
-			context.cleanup();
-		});
-	}
-
-	setupCliTests(context);
-	setupDesktopTests(context);
-	setupServerTests(context);
-	setupServerWebTests(context);
+const context = new TestContext({
+	quality: options.quality,
+	commit: options.commit,
+	verbose: options.verbose,
+	cleanup: options.cleanup,
+	checkSigning: options['signing-check'],
+	headlessBrowser: options.headless,
+	downloadOnly: !options['detection'],
 });
+
+context.log(`Arguments: ${process.argv.slice(2).join(' ')}`);
+context.log(`Platform: ${os.platform()}, Architecture: ${os.arch()}`);
+context.log(`Capabilities: ${Array.from(context.capabilities).join(', ')}`);
+
+beforeEach(function () {
+	context.consoleOutputs = [];
+	(this.currentTest! as { consoleOutputs?: string[] }).consoleOutputs = context.consoleOutputs;
+});
+
+setupCliTests(context);
+setupDesktopTests(context);
+setupServerTests(context);
+setupServerWebTests(context);
+setupWSLTests(context);

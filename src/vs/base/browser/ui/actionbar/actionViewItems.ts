@@ -385,7 +385,10 @@ export class ActionViewItem extends BaseActionViewItem {
 		if (this.cssClass && this.label) {
 			this.label.classList.remove(...this.cssClass.split(' '));
 		}
-		if (this.options.icon) {
+		if (this.action.id === Separator.ID && this.action.class) {
+			this.label?.classList.add(this.action.class);
+
+		} else if (this.options.icon) {
 			this.cssClass = this.getClass();
 
 			if (this.label) {

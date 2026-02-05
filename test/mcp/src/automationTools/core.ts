@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { z } from 'zod';
 import { ApplicationService } from '../application';
 
 /**
@@ -12,25 +13,26 @@ import { ApplicationService } from '../application';
 export function applyCoreTools(server: McpServer, appService: ApplicationService): RegisteredTool[] {
 	const tools: RegisteredTool[] = [];
 
-	// Playwright keeps using this as a start... maybe it needs some massaging
-	// server.tool(
-	// 	'vscode_automation_restart',
-	// 	'Restart VS Code with optional workspace or folder and extra arguments',
-	// 	{
-	// 		workspaceOrFolder: z.string().optional().describe('Optional path to workspace or folder to open'),
-	// 		extraArgs: z.array(z.string()).optional().describe('Optional extra command line arguments')
-	// 	},
-	// 	async (args) => {
-	// 		const { workspaceOrFolder, extraArgs } = args;
-	// 		await app.restart({ workspaceOrFolder, extraArgs });
-	// 		return {
-	// 			content: [{
-	// 				type: 'text' as const,
-	// 				text: `VS Code restarted successfully${workspaceOrFolder ? ` with workspace: ${workspaceOrFolder}` : ''}`
-	// 			}]
-	// 		};
-	// 	}
-	// );
+	tools.push(server.tool(
+		'vscode_automation_restart',
+		'Restart VS Code with optional workspace or folder and extra command-line arguments',
+		{
+			workspaceOrFolder: z.string().optional().describe('Path to a workspace or folder to open on restart'),
+			extraArgs: z.array(z.string()).optional().describe('Extra CLI arguments to pass on restart')
+		},
+		async ({ workspaceOrFolder, extraArgs }) => {
+			const app = await appService.getOrCreateApplication();
+			await app.restart({ workspaceOrFolder, extraArgs });
+			const workspaceText = workspaceOrFolder ? ` with workspace: ${workspaceOrFolder}` : '';
+			const argsText = extraArgs?.length ? ` (args: ${extraArgs.join(' ')})` : '';
+			return {
+				content: [{
+					type: 'text' as const,
+					text: `VS Code restarted successfully${workspaceText}${argsText}`
+				}]
+			};
+		}
+	));
 
 	tools.push(server.tool(
 		'vscode_automation_stop',

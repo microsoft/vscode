@@ -9,7 +9,7 @@ import * as glob from '../../../../../base/common/glob.js';
 import { IListVirtualDelegate, ListDragOverEffectPosition, ListDragOverEffectType } from '../../../../../base/browser/ui/list/list.js';
 import { IProgressService, ProgressLocation, } from '../../../../../platform/progress/common/progress.js';
 import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
-import { IFileService, FileKind, FileOperationError, FileOperationResult, FileChangeType } from '../../../../../platform/files/common/files.js';
+import { IFileService, FileKind, FileOperationError, FileOperationResult, FileChangeType, FileSystemProviderCapabilities } from '../../../../../platform/files/common/files.js';
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 import { isTemporaryWorkspace, IWorkspaceContextService, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
 import { IDisposable, Disposable, dispose, toDisposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
@@ -591,7 +591,7 @@ export class ExplorerFindProvider implements IAsyncFindProvider<ExplorerItem> {
 	}
 
 	private async searchInWorkspace(patternLowercase: string, root: ExplorerItem, rootIndex: number, isFuzzyMatch: boolean, token: CancellationToken): Promise<{ explorerRoot: ExplorerItem; files: URI[]; directories: URI[]; hitMaxResults: boolean }> {
-		const segmentMatchPattern = caseInsensitiveGlobPattern(isFuzzyMatch ? fuzzyMatchingGlobPattern(patternLowercase) : continousMatchingGlobPattern(patternLowercase));
+		const segmentMatchPattern = isFuzzyMatch ? fuzzyMatchingGlobPattern(patternLowercase) : continousMatchingGlobPattern(patternLowercase);
 
 		const searchExcludePattern = getExcludes(this.configurationService.getValue<ISearchConfiguration>({ resource: root.resource })) || {};
 		const searchOptions: IFileQuery = {
@@ -603,6 +603,7 @@ export class ExplorerFindProvider implements IAsyncFindProvider<ExplorerItem> {
 			shouldGlobMatchFilePattern: true,
 			cacheKey: `explorerfindprovider:${root.name}:${rootIndex}:${this.sessionId}`,
 			excludePattern: searchExcludePattern,
+			ignoreGlobCase: true,
 		};
 
 		let fileResults: ISearchComplete | undefined;
@@ -652,7 +653,7 @@ function getMatchingDirectoriesFromFiles(resources: URI[], root: ExplorerItem, s
 	for (const dirResource of uniqueDirectories) {
 		const stats = dirResource.path.split('/');
 		const dirStat = stats[stats.length - 1];
-		if (!dirStat || !glob.match(segmentMatchPattern, dirStat)) {
+		if (!dirStat || !glob.match(segmentMatchPattern, dirStat, { ignoreCase: true })) {
 			continue;
 		}
 
@@ -696,19 +697,6 @@ function continousMatchingGlobPattern(pattern: string): string {
 		return '*';
 	}
 	return '*' + pattern + '*';
-}
-
-function caseInsensitiveGlobPattern(pattern: string): string {
-	let caseInsensitiveFilePattern = '';
-	for (let i = 0; i < pattern.length; i++) {
-		const char = pattern[i];
-		if (/[a-zA-Z]/.test(char)) {
-			caseInsensitiveFilePattern += `[${char.toLowerCase()}${char.toUpperCase()}]`;
-		} else {
-			caseInsensitiveFilePattern += char;
-		}
-	}
-	return caseInsensitiveFilePattern;
 }
 
 export interface ICompressedNavigationController {
@@ -1379,9 +1367,10 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 			const ignoreFile = ignoreTree.get(dirUri);
 			ignoreFile?.updateContents(content.value.toString());
 		} else {
-			// Otherwise we create a new ignorefile and add it to the tree
+			// Otherwise we create a new ignore file and add it to the tree
 			const ignoreParent = ignoreTree.findSubstr(dirUri);
-			const ignoreFile = new IgnoreFile(content.value.toString(), dirUri.path, ignoreParent);
+			const ignoreCase = !this.fileService.hasCapability(ignoreFileResource, FileSystemProviderCapabilities.PathCaseSensitive);
+			const ignoreFile = new IgnoreFile(content.value.toString(), dirUri.path, ignoreParent, ignoreCase);
 			ignoreTree.set(dirUri, ignoreFile);
 			// If we haven't seen this resource before then we need to add it to the list of resources we're tracking
 			if (!this.ignoreFileResourcesPerRoot.get(root)?.has(ignoreFileResource)) {

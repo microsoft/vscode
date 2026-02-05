@@ -24,7 +24,7 @@ import { TestInstantiationService } from '../../../../../../platform/instantiati
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { AgentSessionProviders, getAgentSessionProviderIcon, getAgentSessionProviderName } from '../../../browser/agentSessions/agentSessions.js';
 
-suite('Agent Sessions', () => {
+suite('AgentSessions', () => {
 
 	suite('AgentSessionsViewModel', () => {
 
@@ -176,8 +176,8 @@ suite('Agent Sessions', () => {
 
 		test('should handle session with all properties', async () => {
 			return runWithFakedTimers({}, async () => {
-				const startTime = Date.now();
-				const endTime = startTime + 1000;
+				const created = Date.now();
+				const lastRequestEnded = created + 1000;
 
 				const provider: IChatSessionItemProvider = {
 					chatSessionType: 'test-type',
@@ -190,8 +190,8 @@ suite('Agent Sessions', () => {
 							status: ChatSessionStatus.Completed,
 							tooltip: 'Session tooltip',
 							iconPath: ThemeIcon.fromId('check'),
-							timing: { startTime, endTime },
-							changes: { files: 1, insertions: 10, deletions: 5, details: [] }
+							timing: { created, lastRequestStarted: created, lastRequestEnded },
+							changes: { files: 1, insertions: 10, deletions: 5 }
 						}
 					]
 				};
@@ -210,8 +210,8 @@ suite('Agent Sessions', () => {
 					assert.strictEqual(session.description.value, '**Bold** description');
 				}
 				assert.strictEqual(session.status, ChatSessionStatus.Completed);
-				assert.strictEqual(session.timing.startTime, startTime);
-				assert.strictEqual(session.timing.endTime, endTime);
+				assert.strictEqual(session.timing.created, created);
+				assert.strictEqual(session.timing.lastRequestEnded, lastRequestEnded);
 				assert.deepStrictEqual(session.changes, { files: 1, insertions: 10, deletions: 5 });
 			});
 		});
@@ -230,17 +230,12 @@ suite('Agent Sessions', () => {
 					chatSessionType: 'type-2',
 					onDidChangeChatSessionItems: Event.None,
 					provideChatSessionItems: async () => [
-						{
-							id: 'session-2',
-							resource: URI.parse('test://session-2'),
-							label: 'Session 2',
-							timing: makeNewSessionTiming()
-						}
+						makeSimpleSessionItem('session-2'),
 					]
 				};
 
-				mockChatSessionsService.registerChatSessionItemProvider(provider1);
-				mockChatSessionsService.registerChatSessionItemProvider(provider2);
+				disposables.add(mockChatSessionsService.registerChatSessionItemProvider(provider1));
+				disposables.add(mockChatSessionsService.registerChatSessionItemProvider(provider2));
 
 				viewModel = createViewModel();
 
@@ -250,8 +245,8 @@ suite('Agent Sessions', () => {
 
 				// Now resolve only type-1
 				await viewModel.resolve('type-1');
-				// Should still have both sessions, but only type-1 was re-resolved
-				assert.strictEqual(viewModel.sessions.length, 2);
+				// Only type-1 sessions remain since non-resolved providers are cleared
+				assert.strictEqual(viewModel.sessions.length, 1);
 			});
 		});
 
@@ -550,7 +545,7 @@ suite('Agent Sessions', () => {
 			});
 		});
 
-		test('should preserve sessions from non-resolved providers', async () => {
+		test('should not preserve sessions from non-resolved providers', async () => {
 			return runWithFakedTimers({}, async () => {
 				let provider1CallCount = 0;
 				let provider2CallCount = 0;
@@ -595,19 +590,16 @@ suite('Agent Sessions', () => {
 				assert.strictEqual(viewModel.sessions.length, 2);
 				assert.strictEqual(provider1CallCount, 1);
 				assert.strictEqual(provider2CallCount, 1);
-				const originalSession1Label = viewModel.sessions[0].label;
 
 				// Now resolve only type-2
 				await viewModel.resolve('type-2');
 
-				// Should still have both sessions
-				assert.strictEqual(viewModel.sessions.length, 2);
+				// Should still have only one session
+				assert.strictEqual(viewModel.sessions.length, 1);
 				// Provider 1 should not be called again
 				assert.strictEqual(provider1CallCount, 1);
 				// Provider 2 should be called again
 				assert.strictEqual(provider2CallCount, 2);
-				// Session 1 should be preserved with original label
-				assert.strictEqual(viewModel.sessions.find(s => s.resource.toString() === 'test://session-1')?.label, originalSession1Label);
 			});
 		});
 
@@ -758,6 +750,7 @@ suite('Agent Sessions', () => {
 
 	suite('AgentSessionsFilter', () => {
 		const disposables = new DisposableStore();
+		const storageKey = 'agentSessions.filterExcludes.agentsessionsviewerfiltersubmenu';
 		let mockChatSessionsService: MockChatSessionsService;
 		let instantiationService: TestInstantiationService;
 
@@ -796,7 +789,7 @@ suite('Agent Sessions', () => {
 				{ filterMenuId: MenuId.ViewTitle }
 			));
 
-			// Default: archived sessions should NOT be excluded (archived: false by default)
+			// Default: archived sessions should NOT be excluded unless grouped by capped
 			const archivedSession = createSession({
 				isArchived: () => true
 			});
@@ -835,7 +828,7 @@ suite('Agent Sessions', () => {
 				states: [],
 				archived: false
 			};
-			storageService.store(`agentSessions.filterExcludes.${MenuId.ViewTitle.id.toLowerCase()}`, JSON.stringify(excludes), StorageScope.PROFILE, StorageTarget.USER);
+			storageService.store(storageKey, JSON.stringify(excludes), StorageScope.PROFILE, StorageTarget.USER);
 
 			// After excluding type-1, session1 should be filtered but not session2
 			assert.strictEqual(filter.exclude(session1), true);
@@ -859,14 +852,14 @@ suite('Agent Sessions', () => {
 				states: [],
 				archived: false
 			};
-			storageService.store(`agentSessions.filterExcludes.${MenuId.ViewTitle.id.toLowerCase()}`, JSON.stringify(excludes), StorageScope.PROFILE, StorageTarget.USER);
+			storageService.store(storageKey, JSON.stringify(excludes), StorageScope.PROFILE, StorageTarget.USER);
 
 			assert.strictEqual(filter.exclude(session1), true);
 			assert.strictEqual(filter.exclude(session2), true);
 			assert.strictEqual(filter.exclude(session3), false);
 		});
 
-		test('should filter not out archived sessions', () => {
+		test('should not exclude archived sessions when not capped', () => {
 			const storageService = instantiationService.get(IStorageService);
 			const filter = disposables.add(instantiationService.createInstance(
 				AgentSessionsFilter,
@@ -883,7 +876,7 @@ suite('Agent Sessions', () => {
 				isArchived: () => false
 			});
 
-			// By default, archived sessions should NOT be filtered (archived: false in default excludes)
+			// By default, archived sessions should NOT be filtered when not capped
 			assert.strictEqual(filter.exclude(archivedSession), false);
 			assert.strictEqual(filter.exclude(activeSession), false);
 
@@ -893,9 +886,9 @@ suite('Agent Sessions', () => {
 				states: [],
 				archived: true
 			};
-			storageService.store(`agentSessions.filterExcludes.${MenuId.ViewTitle.id.toLowerCase()}`, JSON.stringify(excludes), StorageScope.PROFILE, StorageTarget.USER);
+			storageService.store(storageKey, JSON.stringify(excludes), StorageScope.PROFILE, StorageTarget.USER);
 
-			// After excluding archived, only archived session should be filtered
+			// Archived exclusion only applies when grouped by capped
 			assert.strictEqual(filter.exclude(archivedSession), false);
 			assert.strictEqual(filter.exclude(activeSession), false);
 		});
@@ -933,7 +926,7 @@ suite('Agent Sessions', () => {
 				states: [ChatSessionStatus.Failed],
 				archived: false
 			};
-			storageService.store(`agentSessions.filterExcludes.${MenuId.ViewTitle.id.toLowerCase()}`, JSON.stringify(excludes), StorageScope.PROFILE, StorageTarget.USER);
+			storageService.store(storageKey, JSON.stringify(excludes), StorageScope.PROFILE, StorageTarget.USER);
 
 			// After excluding failed status, only failedSession should be filtered
 			assert.strictEqual(filter.exclude(failedSession), true);
@@ -958,7 +951,7 @@ suite('Agent Sessions', () => {
 				states: [ChatSessionStatus.Failed, ChatSessionStatus.InProgress],
 				archived: false
 			};
-			storageService.store(`agentSessions.filterExcludes.${MenuId.ViewTitle.id.toLowerCase()}`, JSON.stringify(excludes), StorageScope.PROFILE, StorageTarget.USER);
+			storageService.store(storageKey, JSON.stringify(excludes), StorageScope.PROFILE, StorageTarget.USER);
 
 			assert.strictEqual(filter.exclude(failedSession), true);
 			assert.strictEqual(filter.exclude(completedSession), false);
@@ -990,7 +983,7 @@ suite('Agent Sessions', () => {
 				states: [ChatSessionStatus.Failed],
 				archived: true
 			};
-			storageService.store(`agentSessions.filterExcludes.${MenuId.ViewTitle.id.toLowerCase()}`, JSON.stringify(excludes), StorageScope.PROFILE, StorageTarget.USER);
+			storageService.store(storageKey, JSON.stringify(excludes), StorageScope.PROFILE, StorageTarget.USER);
 
 			// session1 should be excluded for multiple reasons
 			assert.strictEqual(filter.exclude(session1), true);
@@ -1016,7 +1009,7 @@ suite('Agent Sessions', () => {
 				states: [],
 				archived: false
 			};
-			storageService.store(`agentSessions.filterExcludes.${MenuId.ViewTitle.id.toLowerCase()}`, JSON.stringify(excludes), StorageScope.PROFILE, StorageTarget.USER);
+			storageService.store(storageKey, JSON.stringify(excludes), StorageScope.PROFILE, StorageTarget.USER);
 
 			assert.strictEqual(changeEventFired, true);
 		});
@@ -1039,7 +1032,7 @@ suite('Agent Sessions', () => {
 				states: [],
 				archived: false
 			};
-			storageService.store(`agentSessions.filterExcludes.${MenuId.ViewTitle.id.toLowerCase()}`, JSON.stringify(excludes), StorageScope.PROFILE, StorageTarget.USER);
+			storageService.store(storageKey, JSON.stringify(excludes), StorageScope.PROFILE, StorageTarget.USER);
 
 			// Should now be excluded
 			assert.strictEqual(filter.exclude(session), true);
@@ -1104,7 +1097,7 @@ suite('Agent Sessions', () => {
 				states: [],
 				archived: false
 			};
-			storageService.store(`agentSessions.filterExcludes.${MenuId.ViewTitle.id.toLowerCase()}`, JSON.stringify(excludes), StorageScope.PROFILE, StorageTarget.USER);
+			storageService.store(storageKey, JSON.stringify(excludes), StorageScope.PROFILE, StorageTarget.USER);
 
 			// Nothing should be excluded
 			assert.strictEqual(filter.exclude(session), false);
@@ -1125,7 +1118,7 @@ suite('Agent Sessions', () => {
 				states: [],
 				archived: false
 			};
-			storageService.store(`agentSessions.filterExcludes.${MenuId.ViewTitle.id.toLowerCase()}`, JSON.stringify(excludes), StorageScope.PROFILE, StorageTarget.USER);
+			storageService.store(storageKey, JSON.stringify(excludes), StorageScope.PROFILE, StorageTarget.USER);
 
 			assert.strictEqual(filter.exclude(session), false);
 		});
@@ -1152,19 +1145,19 @@ suite('Agent Sessions', () => {
 				states: [],
 				archived: false
 			};
-			storageService.store(`agentSessions.filterExcludes.${MenuId.ViewTitle.id.toLowerCase()}`, JSON.stringify(excludes), StorageScope.PROFILE, StorageTarget.USER);
+			storageService.store(storageKey, JSON.stringify(excludes), StorageScope.PROFILE, StorageTarget.USER);
 
 			// filter1 should exclude the session
 			assert.strictEqual(filter1.exclude(session), true);
-			// filter2 should not exclude the session (different storage key)
-			assert.strictEqual(filter2.exclude(session), false);
+			// filter2 should also exclude the session (shared storage key)
+			assert.strictEqual(filter2.exclude(session), true);
 		});
 
 		test('should handle malformed storage data gracefully', () => {
 			const storageService = instantiationService.get(IStorageService);
 
 			// Store malformed JSON
-			storageService.store(`agentSessions.filterExcludes.${MenuId.ViewTitle.id.toLowerCase()}`, 'invalid json', StorageScope.PROFILE, StorageTarget.USER);
+			storageService.store(storageKey, 'invalid json', StorageScope.PROFILE, StorageTarget.USER);
 
 			// Filter should still be created with default excludes
 			const filter = disposables.add(instantiationService.createInstance(
@@ -1196,7 +1189,7 @@ suite('Agent Sessions', () => {
 				states: [ChatSessionStatus.Completed],
 				archived: true
 			};
-			storageService.store(`agentSessions.filterExcludes.${MenuId.ViewTitle.id.toLowerCase()}`, JSON.stringify(excludes), StorageScope.PROFILE, StorageTarget.USER);
+			storageService.store(storageKey, JSON.stringify(excludes), StorageScope.PROFILE, StorageTarget.USER);
 
 			// Should be excluded due to archived (checked first)
 			assert.strictEqual(filter.exclude(session), true);
@@ -1219,7 +1212,7 @@ suite('Agent Sessions', () => {
 				states: [ChatSessionStatus.Completed, ChatSessionStatus.InProgress, ChatSessionStatus.Failed],
 				archived: false
 			};
-			storageService.store(`agentSessions.filterExcludes.${MenuId.ViewTitle.id.toLowerCase()}`, JSON.stringify(excludes), StorageScope.PROFILE, StorageTarget.USER);
+			storageService.store(storageKey, JSON.stringify(excludes), StorageScope.PROFILE, StorageTarget.USER);
 
 			assert.strictEqual(filter.exclude(completedSession), true);
 			assert.strictEqual(filter.exclude(inProgressSession), true);
@@ -1400,6 +1393,8 @@ suite('Agent Sessions', () => {
 			instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
 			instantiationService.stub(IChatSessionsService, mockChatSessionsService);
 			instantiationService.stub(ILifecycleService, disposables.add(new TestLifecycleService()));
+			const storageService = instantiationService.get(IStorageService);
+			storageService.store('agentSessions.readDateBaseline2', 1, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		});
 
 		teardown(() => {
@@ -1410,11 +1405,21 @@ suite('Agent Sessions', () => {
 
 		test('should mark session as read and unread', async () => {
 			return runWithFakedTimers({}, async () => {
+				const futureSessionTiming: IChatSessionItem['timing'] = {
+					created: Date.UTC(2026, 1 /* February */, 1),
+					lastRequestStarted: Date.UTC(2026, 1 /* February */, 1),
+					lastRequestEnded: Date.UTC(2026, 1 /* February */, 2),
+				};
+
 				const provider: IChatSessionItemProvider = {
 					chatSessionType: 'test-type',
 					onDidChangeChatSessionItems: Event.None,
 					provideChatSessionItems: async () => [
-						makeSimpleSessionItem('session-1'),
+						{
+							resource: URI.parse('test://session-1'),
+							label: 'Session 1',
+							timing: futureSessionTiming,
+						},
 					]
 				};
 
@@ -1520,10 +1525,11 @@ suite('Agent Sessions', () => {
 
 		test('should consider sessions before initial date as read by default', async () => {
 			return runWithFakedTimers({}, async () => {
-				// Session with timing before the READ_STATE_INITIAL_DATE (December 8, 2025)
-				const oldSessionTiming = {
-					startTime: Date.UTC(2025, 10 /* November */, 1),
-					endTime: Date.UTC(2025, 10 /* November */, 2),
+				// Without migration, all sessions are unread by default
+				const oldSessionTiming: IChatSessionItem['timing'] = {
+					created: Date.UTC(2025, 10 /* November */, 1),
+					lastRequestStarted: Date.UTC(2025, 10 /* November */, 1),
+					lastRequestEnded: Date.UTC(2025, 10 /* November */, 2),
 				};
 
 				const provider: IChatSessionItemProvider = {
@@ -1544,17 +1550,17 @@ suite('Agent Sessions', () => {
 				await viewModel.resolve(undefined);
 
 				const session = viewModel.sessions[0];
-				// Sessions before the initial date should be considered read
-				assert.strictEqual(session.isRead(), true);
+				// Sessions are unread by default (migration already happened in setup)
+				assert.strictEqual(session.isRead(), false);
 			});
 		});
 
 		test('should consider sessions after initial date as unread by default', async () => {
 			return runWithFakedTimers({}, async () => {
-				// Session with timing after the READ_STATE_INITIAL_DATE (December 8, 2025)
-				const newSessionTiming = {
-					startTime: Date.UTC(2025, 11 /* December */, 10),
-					endTime: Date.UTC(2025, 11 /* December */, 11),
+				const newSessionTiming: IChatSessionItem['timing'] = {
+					created: Date.UTC(2026, 1 /* February */, 1),
+					lastRequestStarted: Date.UTC(2026, 1 /* February */, 1),
+					lastRequestEnded: Date.UTC(2026, 1 /* February */, 2),
 				};
 
 				const provider: IChatSessionItemProvider = {
@@ -1583,9 +1589,10 @@ suite('Agent Sessions', () => {
 		test('should use endTime for read state comparison when available', async () => {
 			return runWithFakedTimers({}, async () => {
 				// Session with startTime before initial date but endTime after
-				const sessionTiming = {
-					startTime: Date.UTC(2025, 10 /* November */, 1),
-					endTime: Date.UTC(2025, 11 /* December */, 10),
+				const sessionTiming: IChatSessionItem['timing'] = {
+					created: Date.UTC(2025, 10 /* November */, 1),
+					lastRequestStarted: Date.UTC(2025, 10 /* November */, 1),
+					lastRequestEnded: Date.UTC(2026, 1 /* February */, 1),
 				};
 
 				const provider: IChatSessionItemProvider = {
@@ -1606,16 +1613,18 @@ suite('Agent Sessions', () => {
 				await viewModel.resolve(undefined);
 
 				const session = viewModel.sessions[0];
-				// Should use endTime (December 10) which is after the initial date
+				// Should use lastRequestEnded (December 10) which is after the initial date
 				assert.strictEqual(session.isRead(), false);
 			});
 		});
 
 		test('should use startTime for read state comparison when endTime is not available', async () => {
 			return runWithFakedTimers({}, async () => {
-				// Session with only startTime before initial date
-				const sessionTiming = {
-					startTime: Date.UTC(2025, 10 /* November */, 1),
+				// Session with only startTime
+				const sessionTiming: IChatSessionItem['timing'] = {
+					created: Date.UTC(2025, 10 /* November */, 1),
+					lastRequestStarted: Date.UTC(2025, 10 /* November */, 1),
+					lastRequestEnded: undefined,
 				};
 
 				const provider: IChatSessionItemProvider = {
@@ -1636,8 +1645,177 @@ suite('Agent Sessions', () => {
 				await viewModel.resolve(undefined);
 
 				const session = viewModel.sessions[0];
-				// Should use startTime (November 1) which is before the initial date
+				// Sessions are unread by default
+				assert.strictEqual(session.isRead(), false);
+			});
+		});
+
+		test('should treat archived sessions as read', async () => {
+			return runWithFakedTimers({}, async () => {
+				const newSessionTiming: IChatSessionItem['timing'] = {
+					created: Date.UTC(2026, 1 /* February */, 1),
+					lastRequestStarted: Date.UTC(2026, 1 /* February */, 1),
+					lastRequestEnded: Date.UTC(2026, 1 /* February */, 2),
+				};
+
+				const provider: IChatSessionItemProvider = {
+					chatSessionType: 'test-type',
+					onDidChangeChatSessionItems: Event.None,
+					provideChatSessionItems: async () => [
+						{
+							resource: URI.parse('test://new-session'),
+							label: 'New Session',
+							timing: newSessionTiming,
+						}
+					]
+				};
+
+				mockChatSessionsService.registerChatSessionItemProvider(provider);
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+
+				await viewModel.resolve(undefined);
+
+				const session = viewModel.sessions[0];
+				// Session after the initial date should be unread by default
+				assert.strictEqual(session.isRead(), false);
+				assert.strictEqual(session.isArchived(), false);
+
+				// Archive the session
+				session.setArchived(true);
+
+				// Archived sessions should always be considered read
+				assert.strictEqual(session.isArchived(), true);
 				assert.strictEqual(session.isRead(), true);
+			});
+		});
+
+		test('should mark session as read when archiving', async () => {
+			return runWithFakedTimers({}, async () => {
+				const newSessionTiming: IChatSessionItem['timing'] = {
+					created: Date.UTC(2026, 1 /* February */, 1),
+					lastRequestStarted: Date.UTC(2026, 1 /* February */, 1),
+					lastRequestEnded: Date.UTC(2026, 1 /* February */, 2),
+				};
+
+				const provider: IChatSessionItemProvider = {
+					chatSessionType: 'test-type',
+					onDidChangeChatSessionItems: Event.None,
+					provideChatSessionItems: async () => [
+						{
+							resource: URI.parse('test://new-session'),
+							label: 'New Session',
+							timing: newSessionTiming,
+						}
+					]
+				};
+
+				mockChatSessionsService.registerChatSessionItemProvider(provider);
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+
+				await viewModel.resolve(undefined);
+
+				const session = viewModel.sessions[0];
+				assert.strictEqual(session.isRead(), false);
+
+				// Archive the session
+				session.setArchived(true);
+
+				// Should be read after archiving (archived sessions are always read)
+				assert.strictEqual(session.isRead(), true);
+
+				// Unarchive the session
+				session.setArchived(false);
+
+				// After unarchiving, the read state depends on the stored read date vs session timing.
+				// When archiving marked the session as read, the read date was set to the test's
+				// faked Date.now() which may be earlier than the session's lastRequestEnded,
+				// so the session may appear unread again based on the time comparison.
+				assert.strictEqual(session.isArchived(), false);
+			});
+		});
+
+		test('should fire onDidChangeSessions when archiving an unread session', async () => {
+			return runWithFakedTimers({}, async () => {
+				const newSessionTiming: IChatSessionItem['timing'] = {
+					created: Date.UTC(2026, 1 /* February */, 1),
+					lastRequestStarted: Date.UTC(2026, 1 /* February */, 1),
+					lastRequestEnded: Date.UTC(2026, 1 /* February */, 2),
+				};
+
+				const provider: IChatSessionItemProvider = {
+					chatSessionType: 'test-type',
+					onDidChangeChatSessionItems: Event.None,
+					provideChatSessionItems: async () => [
+						{
+							resource: URI.parse('test://new-session'),
+							label: 'New Session',
+							timing: newSessionTiming,
+						}
+					]
+				};
+
+				mockChatSessionsService.registerChatSessionItemProvider(provider);
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+
+				await viewModel.resolve(undefined);
+
+				const session = viewModel.sessions[0];
+				assert.strictEqual(session.isRead(), false);
+
+				let changeEventCount = 0;
+				disposables.add(viewModel.onDidChangeSessions(() => {
+					changeEventCount++;
+				}));
+
+				// Archive the session (which also marks as read)
+				session.setArchived(true);
+
+				// Fires twice: once for setting read state, once for setting archived state
+				assert.strictEqual(changeEventCount, 2);
+			});
+		});
+
+		test('should not fire onDidChangeSessions when archiving an already read session', async () => {
+			return runWithFakedTimers({}, async () => {
+				// Session with timing
+				const oldSessionTiming: IChatSessionItem['timing'] = {
+					created: Date.UTC(2025, 10 /* November */, 1),
+					lastRequestStarted: Date.UTC(2025, 10 /* November */, 1),
+					lastRequestEnded: Date.UTC(2025, 10 /* November */, 2),
+				};
+
+				const provider: IChatSessionItemProvider = {
+					chatSessionType: 'test-type',
+					onDidChangeChatSessionItems: Event.None,
+					provideChatSessionItems: async () => [
+						{
+							resource: URI.parse('test://old-session'),
+							label: 'Old Session',
+							timing: oldSessionTiming,
+						}
+					]
+				};
+
+				mockChatSessionsService.registerChatSessionItemProvider(provider);
+				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+
+				await viewModel.resolve(undefined);
+
+				const session = viewModel.sessions[0];
+				// Mark session as read first
+				session.setRead(true);
+				assert.strictEqual(session.isRead(), true);
+
+				let changeEventCount = 0;
+				disposables.add(viewModel.onDidChangeSessions(() => {
+					changeEventCount++;
+				}));
+
+				// Archive the session
+				session.setArchived(true);
+
+				// Should fire only once for archived state change since session is already read
+				assert.strictEqual(changeEventCount, 1);
 			});
 		});
 	});
@@ -1688,70 +1866,6 @@ suite('Agent Sessions', () => {
 				sessionStatus = ChatSessionStatus.Completed;
 				await viewModel.resolve(undefined);
 				assert.strictEqual(viewModel.sessions[0].status, ChatSessionStatus.Completed);
-			});
-		});
-
-		test('should track inProgressTime when transitioning to InProgress', async () => {
-			return runWithFakedTimers({}, async () => {
-				let sessionStatus = ChatSessionStatus.Completed;
-
-				const provider: IChatSessionItemProvider = {
-					chatSessionType: 'test-type',
-					onDidChangeChatSessionItems: Event.None,
-					provideChatSessionItems: async () => [
-						{
-							resource: URI.parse('test://session-1'),
-							label: 'Test Session',
-							status: sessionStatus,
-							timing: makeNewSessionTiming()
-						}
-					]
-				};
-
-				mockChatSessionsService.registerChatSessionItemProvider(provider);
-				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
-
-				await viewModel.resolve(undefined);
-				const session1 = viewModel.sessions[0];
-				assert.strictEqual(session1.timing.inProgressTime, undefined);
-
-				// Change to InProgress
-				sessionStatus = ChatSessionStatus.InProgress;
-				await viewModel.resolve(undefined);
-				const session2 = viewModel.sessions[0];
-				assert.notStrictEqual(session2.timing.inProgressTime, undefined);
-			});
-		});
-
-		test('should track finishedOrFailedTime when transitioning from InProgress', async () => {
-			return runWithFakedTimers({}, async () => {
-				let sessionStatus = ChatSessionStatus.InProgress;
-
-				const provider: IChatSessionItemProvider = {
-					chatSessionType: 'test-type',
-					onDidChangeChatSessionItems: Event.None,
-					provideChatSessionItems: async () => [
-						{
-							resource: URI.parse('test://session-1'),
-							label: 'Test Session',
-							status: sessionStatus,
-							timing: makeNewSessionTiming()
-						}
-					]
-				};
-
-				mockChatSessionsService.registerChatSessionItemProvider(provider);
-				viewModel = disposables.add(instantiationService.createInstance(AgentSessionsModel));
-
-				await viewModel.resolve(undefined);
-				const session1 = viewModel.sessions[0];
-				assert.strictEqual(session1.timing.finishedOrFailedTime, undefined);
-
-				// Change to Completed
-				sessionStatus = ChatSessionStatus.Completed;
-				await viewModel.resolve(undefined);
-				const session2 = viewModel.sessions[0];
-				assert.notStrictEqual(session2.timing.finishedOrFailedTime, undefined);
 			});
 		});
 
@@ -2054,8 +2168,15 @@ function makeSimpleSessionItem(id: string, overrides?: Partial<IChatSessionItem>
 	};
 }
 
-function makeNewSessionTiming(): IChatSessionItem['timing'] {
+function makeNewSessionTiming(options?: {
+	created?: number;
+	lastRequestStarted?: number | undefined;
+	lastRequestEnded?: number | undefined;
+}): IChatSessionItem['timing'] {
+	const now = Date.now();
 	return {
-		startTime: Date.now(),
+		created: options?.created ?? now,
+		lastRequestStarted: options?.lastRequestStarted,
+		lastRequestEnded: options?.lastRequestEnded,
 	};
 }

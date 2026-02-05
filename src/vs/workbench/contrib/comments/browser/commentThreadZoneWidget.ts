@@ -116,6 +116,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 	private _commentThreadWidget!: CommentThreadWidget;
 	private readonly _onDidClose = new Emitter<ReviewZoneWidget | undefined>();
 	private readonly _onDidCreateThread = new Emitter<ReviewZoneWidget>();
+	private readonly _onDidChangeExpandedState = new Emitter<boolean>();
 	private _isExpanded?: boolean;
 	private _initialCollapsibleState?: languages.CommentThreadCollapsibleState;
 	private _commentGlyph?: CommentGlyphWidget;
@@ -183,6 +184,10 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 
 	public get onDidCreateThread(): Event<ReviewZoneWidget> {
 		return this._onDidCreateThread.event;
+	}
+
+	public get onDidChangeExpandedState(): Event<boolean> {
+		return this._onDidChangeExpandedState.event;
 	}
 
 	public getPosition(): IPosition | undefined {
@@ -540,10 +545,14 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			range = new Range(range.startLineNumber + distance, range.startColumn, range.endLineNumber + distance, range.endColumn);
 		}
 
+		const wasExpanded = this._isExpanded;
 		this._isExpanded = true;
 		super.show(range ?? new Range(0, 0, 0, 0), heightInLines);
 		this._commentThread.collapsibleState = languages.CommentThreadCollapsibleState.Expanded;
 		this._refresh(this._commentThreadWidget.getDimensions());
+		if (!wasExpanded) {
+			this._onDidChangeExpandedState.fire(true);
+		}
 	}
 
 	async collapseAndFocusRange() {
@@ -563,6 +572,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			if (!this._commentThread.comments || !this._commentThread.comments.length) {
 				this.deleteCommentThread();
 			}
+			this._onDidChangeExpandedState.fire(false);
 		}
 		super.hide();
 	}

@@ -3,13 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as playwright from 'playwright';
 import { getDevElectronPath, Quality, ConsoleLogger, FileLogger, Logger, MultiLogger, getBuildElectronPath, getBuildVersion, measureAndLog, Application } from '../../automation';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as vscodetest from '@vscode/test-electron';
-import { createApp, retry } from './utils';
+import { createApp, retry, parseVersion } from './utils';
 import { opts } from './options';
 
 const rootPath = path.join(__dirname, '..', '..', '..');
@@ -60,11 +59,6 @@ function fail(errorMessage): void {
 
 let quality: Quality;
 let version: string | undefined;
-
-function parseVersion(version: string): { major: number; minor: number; patch: number } {
-	const [, major, minor, patch] = /^(\d+)\.(\d+)\.(\d+)/.exec(version)!;
-	return { major: parseInt(major), minor: parseInt(minor), patch: parseInt(patch) };
-}
 
 function parseQuality(): Quality {
 	if (process.env.VSCODE_DEV === '1') {
@@ -202,7 +196,7 @@ async function ensureStableCode(): Promise<void> {
 		}));
 
 		if (process.platform === 'darwin') {
-			// Visual Studio Code.app/Contents/MacOS/Electron
+			// Visual Studio Code.app/Contents/MacOS/Code
 			stableCodePath = path.dirname(path.dirname(path.dirname(stableCodeExecutable)));
 		} else {
 			// VSCode/Code.exe (Windows) | VSCode/code (Linux)
@@ -232,7 +226,7 @@ async function setup(): Promise<void> {
 	logger.log('Smoketest setup done!\n');
 }
 
-export async function getApplication({ recordVideo }: { recordVideo?: boolean } = {}) {
+export async function getApplication({ recordVideo, workspacePath }: { recordVideo?: boolean; workspacePath?: string } = {}) {
 	const testCodePath = getDevElectronPath();
 	const electronPath = testCodePath;
 	if (!fs.existsSync(electronPath || '')) {
@@ -245,14 +239,11 @@ export async function getApplication({ recordVideo }: { recordVideo?: boolean } 
 
 	await setup();
 	const application = createApp({
-		// Pass the alpha version of Playwright down... This is a hack since Playwright MCP
-		// doesn't play nice with Playwright Test: https://github.com/microsoft/playwright-mcp/issues/917
-		// eslint-disable-next-line local/code-no-any-casts
-		playwright: playwright as any,
 		quality,
 		version: parseVersion(version ?? '0.0.0'),
 		codePath: opts.build,
-		workspacePath: rootPath,
+		// Use provided workspace path, or fall back to rootPath on CI (GitHub Actions)
+		workspacePath: workspacePath ?? (process.env.GITHUB_ACTIONS ? rootPath : undefined),
 		logger,
 		logsPath: logsRootPath,
 		crashesPath: crashesRootPath,
@@ -264,6 +255,7 @@ export async function getApplication({ recordVideo }: { recordVideo?: boolean } 
 		headless: opts.headless,
 		browser: opts.browser,
 		extraArgs: (opts.electronArgs || '').split(' ').map(arg => arg.trim()).filter(arg => !!arg),
+		extensionDevelopmentPath: opts.extensionDevelopmentPath,
 	});
 	await application.start();
 	application.code.driver.currentPage.on('close', async () => {
@@ -292,12 +284,12 @@ export class ApplicationService {
 		return this._application;
 	}
 
-	async getOrCreateApplication({ recordVideo }: { recordVideo?: boolean } = {}): Promise<Application> {
+	async getOrCreateApplication({ recordVideo, workspacePath }: { recordVideo?: boolean; workspacePath?: string } = {}): Promise<Application> {
 		if (this._closing) {
 			await this._closing;
 		}
 		if (!this._application) {
-			this._application = await getApplication({ recordVideo });
+			this._application = await getApplication({ recordVideo, workspacePath });
 			this._application.code.driver.currentPage.on('close', () => {
 				this._closing = (async () => {
 					if (this._application) {

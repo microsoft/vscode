@@ -236,7 +236,7 @@ export async function searchFilesAndFolders(
 	configurationService: IConfigurationService,
 	searchService: ISearchService
 ): Promise<{ folders: URI[]; files: URI[] }> {
-	const segmentMatchPattern = caseInsensitiveGlobPattern(fuzzyMatch ? fuzzyMatchingGlobPattern(pattern) : continousMatchingGlobPattern(pattern));
+	const segmentMatchPattern = fuzzyMatch ? fuzzyMatchingGlobPattern(pattern) : continousMatchingGlobPattern(pattern);
 
 	const searchExcludePattern = getExcludes(configurationService.getValue<ISearchConfiguration>({ resource: workspace })) || {};
 	const searchOptions: IFileQuery = {
@@ -249,6 +249,7 @@ export async function searchFilesAndFolders(
 		cacheKey,
 		excludePattern: searchExcludePattern,
 		sortByScore: true,
+		ignoreGlobCase: true,
 	};
 
 	let searchResult: ISearchComplete | undefined;
@@ -284,19 +285,6 @@ function continousMatchingGlobPattern(pattern: string): string {
 	return '*' + pattern + '*';
 }
 
-function caseInsensitiveGlobPattern(pattern: string): string {
-	let caseInsensitiveFilePattern = '';
-	for (let i = 0; i < pattern.length; i++) {
-		const char = pattern[i];
-		if (/[a-zA-Z]/.test(char)) {
-			caseInsensitiveFilePattern += `[${char.toLowerCase()}${char.toUpperCase()}]`;
-		} else {
-			caseInsensitiveFilePattern += char;
-		}
-	}
-	return caseInsensitiveFilePattern;
-}
-
 // TODO: remove this and have support from the search service
 function getMatchingFoldersFromFiles(resources: URI[], workspace: URI, segmentMatchPattern: string): URI[] {
 	const uniqueFolders = new ResourceSet();
@@ -318,7 +306,7 @@ function getMatchingFoldersFromFiles(resources: URI[], workspace: URI, segmentMa
 	for (const folderResource of uniqueFolders) {
 		const stats = folderResource.path.split('/');
 		const dirStat = stats[stats.length - 1];
-		if (!dirStat || !glob.match(segmentMatchPattern, dirStat)) {
+		if (!dirStat || !glob.match(segmentMatchPattern, dirStat, { ignoreCase: true })) {
 			continue;
 		}
 

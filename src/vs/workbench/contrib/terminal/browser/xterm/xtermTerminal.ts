@@ -46,10 +46,14 @@ import { equals } from '../../../../../base/common/objects.js';
 import type { IProgressState } from '@xterm/addon-progress';
 import type { CommandDetectionCapability } from '../../../../../platform/terminal/common/capabilities/commandDetectionCapability.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { assert } from '../../../../../base/common/assert.js';
+import { isNumber } from '../../../../../base/common/types.js';
 
 const enum RenderConstants {
 	SmoothScrollDuration = 125
+}
+
+const enum TextBlinkConstants {
+	IntervalDuration = 600
 }
 
 
@@ -107,6 +111,8 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	get lastInputEvent(): string | undefined { return this._lastInputEvent; }
 	private _progressState: IProgressState = { state: 0, value: 0 };
 	get progressState(): IProgressState { return this._progressState; }
+	get buffer() { return this.raw.buffer; }
+	get cols() { return this.raw.cols; }
 
 	// Always on addons
 	private _markNavigationAddon: MarkNavigationAddon;
@@ -227,6 +233,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 			minimumContrastRatio: config.minimumContrastRatio,
 			tabStopWidth: config.tabStopWidth,
 			cursorBlink: config.cursorBlinking,
+			blinkIntervalDuration: config.textBlinking ? TextBlinkConstants.IntervalDuration : 0,
 			cursorStyle: vscodeToXtermCursorStyle<'cursorStyle'>(config.cursorStyle),
 			cursorInactiveStyle: vscodeToXtermCursorStyle(config.cursorStyleInactive),
 			cursorWidth: config.cursorWidth,
@@ -524,6 +531,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		const config = this._terminalConfigurationService.config;
 		this.raw.options.altClickMovesCursor = config.altClickMovesCursor;
 		this._setCursorBlink(config.cursorBlinking);
+		this._setTextBlinking(config.textBlinking);
 		this._setCursorStyle(config.cursorStyle);
 		this._setCursorStyleInactive(config.cursorStyleInactive);
 		this._setCursorWidth(config.cursorWidth);
@@ -719,6 +727,10 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		this._accessibilitySignalService.playSignal(AccessibilitySignal.clear);
 	}
 
+	reset(): void {
+		this.raw.reset();
+	}
+
 	hasSelection(): boolean {
 		return this.raw.hasSelection();
 	}
@@ -783,6 +795,14 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		if (this.raw.options.cursorBlink !== blink) {
 			this.raw.options.cursorBlink = blink;
 			this.raw.refresh(0, this.raw.rows - 1);
+		}
+	}
+
+	private _setTextBlinking(enabled: boolean): void {
+		const blinkIntervalDuration = enabled ? TextBlinkConstants.IntervalDuration : 0;
+		const options = this.raw.options;
+		if (options.blinkIntervalDuration !== blinkIntervalDuration) {
+			options.blinkIntervalDuration = blinkIntervalDuration;
 		}
 	}
 
@@ -920,22 +940,24 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		this._onDidRequestRefreshDimensions.fire();
 	}
 
-	async getRangeAsVT(startMarker: IXtermMarker, endMarker?: IXtermMarker, skipLastLine?: boolean): Promise<string> {
+	async getRangeAsVT(startMarker?: IXtermMarker, endMarker?: IXtermMarker, skipLastLine?: boolean): Promise<string> {
 		if (!this._serializeAddon) {
 			const Addon = await this._xtermAddonLoader.importAddon('serialize');
 			this._serializeAddon = new Addon();
 			this.raw.loadAddon(this._serializeAddon);
 		}
 
-		assert(startMarker.line !== -1);
-		let end = endMarker?.line ?? this.raw.buffer.active.length - 1;
-		if (skipLastLine) {
+		const hasValidEndMarker = isNumber(endMarker?.line);
+		const start = isNumber(startMarker?.line) && startMarker?.line > -1 ? startMarker.line : 0;
+		let end = hasValidEndMarker ? endMarker.line : this.raw.buffer.active.length - 1;
+		if (skipLastLine && hasValidEndMarker) {
 			end = end - 1;
 		}
+		end = Math.max(end, start);
 		return this._serializeAddon.serialize({
 			range: {
-				start: startMarker.line,
-				end: end
+				start: startMarker?.line ?? 0,
+				end
 			}
 		});
 	}

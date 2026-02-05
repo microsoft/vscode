@@ -6,7 +6,7 @@
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { asyncTransaction, transaction } from '../../../../../base/common/observable.js';
 import { splitLines } from '../../../../../base/common/strings.js';
-import { vBoolean, vObj, vOptionalProp, vString, vUndefined, vUnion, vWithJsonSchemaRef } from '../../../../../base/common/validation.js';
+import { vBoolean, vObj, vOptionalProp, vString, vUnchecked, vUndefined, vUnion, vWithJsonSchemaRef } from '../../../../../base/common/validation.js';
 import * as nls from '../../../../../nls.js';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from '../../../../../platform/accessibility/common/accessibility.js';
 import { Action2, MenuId } from '../../../../../platform/actions/common/actions.js';
@@ -80,6 +80,7 @@ const argsValidator = vUnion(vObj({
 	showNoResultNotification: vOptionalProp(vBoolean()),
 	providerId: vOptionalProp(vWithJsonSchemaRef(providerIdSchemaUri, vString())),
 	explicit: vOptionalProp(vBoolean()),
+	changeHintData: vOptionalProp(vUnchecked()),
 }), vUndefined());
 
 export class TriggerInlineSuggestionAction extends EditorAction {
@@ -118,6 +119,7 @@ export class TriggerInlineSuggestionAction extends EditorAction {
 			await controller?.model.get()?.trigger(tx, {
 				provider: provider,
 				explicit: validatedArgs?.explicit ?? true,
+				changeHint: validatedArgs?.changeHintData ? { data: validatedArgs.changeHintData } : undefined,
 			});
 			controller?.playAccessibilitySignal(tx);
 		});

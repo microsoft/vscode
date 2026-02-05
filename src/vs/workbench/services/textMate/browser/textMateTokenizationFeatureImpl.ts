@@ -471,7 +471,7 @@ function equalsTokenRules(a: ITextMateThemingRule[] | null, b: ITextMateThemingR
 		const s1 = r1.settings;
 		const s2 = r2.settings;
 		if (s1 && s2) {
-			if (s1.fontStyle !== s2.fontStyle || s1.foreground !== s2.foreground || s1.background !== s2.background) {
+			if (s1.fontStyle !== s2.fontStyle || s1.foreground !== s2.foreground || s1.background !== s2.background || s1.lineHeight !== s2.lineHeight || s1.fontSize !== s2.fontSize || s1.fontFamily !== s2.fontFamily) {
 				return false;
 			}
 		} else if (!s1 || !s2) {

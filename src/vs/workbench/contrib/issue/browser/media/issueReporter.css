@@ -80,9 +80,7 @@
 .issue-reporter-body .monaco-text-button {
 	display: block;
 	width: auto;
-	padding: 4px 10px;
 	align-self: flex-end;
-	font-size: 13px;
 }
 
 .issue-reporter-body .monaco-button-dropdown {
@@ -603,10 +601,6 @@ body.issue-reporter-body  {
 	line-height: 15px; /* approximate button height for vertical centering */
 }
 
-.issue-reporter-body .internal-elements .monaco-text-button {
-	font-size: 10px;
-	padding: 2px 8px;
-}
 
 .issue-reporter-body .internal-elements #show-private-repo-name {
 	align-self: flex-end;

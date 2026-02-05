@@ -19,10 +19,12 @@ import { IWorkspaceContextService, WorkspaceFolder } from '../../../../../../pla
 import { TestWorkspace, Workspace } from '../../../../../../platform/workspace/test/common/testWorkspace.js';
 import { ILifecycleService } from '../../../../../services/lifecycle/common/lifecycle.js';
 import { InMemoryTestFileService, TestContextService, TestLifecycleService, TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
-import { ChatModel } from '../../../common/model/chatModel.js';
+import { ChatModel, ISerializableChatData3 } from '../../../common/model/chatModel.js';
 import { ChatSessionStore, IChatTransfer } from '../../../common/model/chatSessionStore.js';
 import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
 import { MockChatModel } from './mockChatModel.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 
 function createMockChatModel(sessionResource: URI, options?: { customTitle?: string }): ChatModel {
 	const sessionId = LocalChatSessionUri.parseLocalSessionId(sessionResource);
@@ -58,6 +60,7 @@ suite('ChatSessionStore', () => {
 		instantiationService.stub(IEnvironmentService, { workspaceStorageHome: URI.file('/test/workspaceStorage') });
 		instantiationService.stub(ILifecycleService, testDisposables.add(new TestLifecycleService()));
 		instantiationService.stub(IUserDataProfilesService, { defaultProfile: toUserDataProfile('default', 'Default', URI.file('/test/userdata'), URI.file('/test/cache')) });
+		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 	});
 
 	test('hasSessions returns false when no sessions exist', () => {
@@ -140,7 +143,7 @@ suite('ChatSessionStore', () => {
 		const session = await store.readSession('session-1');
 
 		assert.ok(session);
-		assert.strictEqual(session.sessionId, 'session-1');
+		assert.strictEqual((session.value as ISerializableChatData3).sessionId, 'session-1');
 	});
 
 	test('deleteSession removes session from index', async () => {
@@ -263,7 +266,7 @@ suite('ChatSessionStore', () => {
 
 			const sessionData = await store.readTransferredSession(sessionResource);
 			assert.ok(sessionData);
-			assert.strictEqual(sessionData.sessionId, 'transfer-session');
+			assert.strictEqual((sessionData.value as ISerializableChatData3).sessionId, 'transfer-session');
 		});
 
 		test('readTransferredSession cleans up after reading', async () => {

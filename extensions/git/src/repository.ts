@@ -8,14 +8,14 @@ import * as fs from 'fs';
 import * as fsPromises from 'fs/promises';
 import * as path from 'path';
 import picomatch from 'picomatch';
-import { CancellationError, CancellationToken, CancellationTokenSource, Command, commands, Disposable, Event, EventEmitter, FileDecoration, FileType, l10n, LogLevel, LogOutputChannel, Memento, ProgressLocation, ProgressOptions, QuickDiffProvider, RelativePattern, scm, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, TabInputNotebookDiff, TabInputTextDiff, TabInputTextMultiDiff, ThemeColor, ThemeIcon, Uri, window, workspace, WorkspaceEdit } from 'vscode';
+import { CancellationError, CancellationToken, CancellationTokenSource, Command, commands, Disposable, Event, EventEmitter, ExcludeSettingOptions, FileDecoration, FileType, l10n, LogLevel, LogOutputChannel, Memento, ProgressLocation, ProgressOptions, QuickDiffProvider, RelativePattern, scm, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, TabInputNotebookDiff, TabInputTextDiff, TabInputTextMultiDiff, ThemeColor, ThemeIcon, Uri, window, workspace, WorkspaceEdit } from 'vscode';
 import { ActionButton } from './actionButton';
 import { ApiRepository } from './api/api1';
-import { Branch, BranchQuery, Change, CommitOptions, DiffChange, FetchOptions, ForcePushMode, GitErrorCodes, LogOptions, Ref, RefType, Remote, Status } from './api/git';
+import { Branch, BranchQuery, Change, CommitOptions, DiffChange, FetchOptions, ForcePushMode, GitErrorCodes, LogOptions, Ref, RefType, Remote, RepositoryKind, Status } from './api/git';
 import { AutoFetcher } from './autofetch';
 import { GitBranchProtectionProvider, IBranchProtectionProviderRegistry } from './branchProtection';
 import { debounce, memoize, sequentialize, throttle } from './decorators';
-import { Repository as BaseRepository, BlameInformation, Commit, CommitShortStat, GitError, LogFileOptions, LsTreeElement, PullOptions, RefQuery, Stash, Submodule, Worktree } from './git';
+import { Repository as BaseRepository, BlameInformation, Commit, CommitShortStat, GitError, IDotGit, LogFileOptions, LsTreeElement, PullOptions, RefQuery, Stash, Submodule, Worktree } from './git';
 import { GitHistoryProvider } from './historyProvider';
 import { Operation, OperationKind, OperationManager, OperationResult } from './operation';
 import { CommitCommandsCenter, IPostCommitCommandsProviderRegistry } from './postCommitCommands';
@@ -866,11 +866,11 @@ export class Repository implements Disposable {
 		return this.repository.rootRealPath;
 	}
 
-	get dotGit(): { path: string; commonPath?: string } {
+	get dotGit(): IDotGit {
 		return this.repository.dotGit;
 	}
 
-	get kind(): 'repository' | 'submodule' | 'worktree' {
+	get kind(): RepositoryKind {
 		return this.repository.kind;
 	}
 
@@ -957,11 +957,14 @@ export class Repository implements Disposable {
 				: new ThemeIcon('repo');
 
 		// Hidden
-		// This is a temporary solution to hide worktrees created by Copilot
-		// when the main repository is opened. Users can still manually open
-		// the worktree from the Repositories view.
-		this._isHidden = repository.kind === 'worktree' &&
-			isCopilotWorktree(repository.root) && parent !== undefined;
+		// This is a temporary solution to hide:
+		// * repositories in the empty window
+		// * worktrees created by Copilot when the main repository
+		//   is opened. Users can still manually open the worktree
+		//   from the Repositories view.
+		this._isHidden = workspace.workspaceFolders === undefined ||
+			(repository.kind === 'worktree' &&
+				isCopilotWorktree(repository.root) && parent !== undefined);
 
 		const root = Uri.file(repository.root);
 		this._sourceControl = scm.createSourceControl('git', 'Git', root, icon, this._isHidden, parent);
@@ -1114,6 +1117,12 @@ export class Repository implements Disposable {
 			return undefined;
 		}
 
+		// Ignore path that is inside the .git directory (ex: COMMIT_EDITMSG)
+		if (isDescendant(this.dotGit.commonPath ?? this.dotGit.path, uri.fsPath)) {
+			this.logger.trace(`[Repository][provideOriginalResource] Resource is inside .git directory: ${uri.toString()}`);
+			return undefined;
+		}
+
 		// Ignore symbolic links
 		const stat = await workspace.fs.stat(uri);
 		if ((stat.type & FileType.SymbolicLink) !== 0) {
@@ -1124,6 +1133,12 @@ export class Repository implements Disposable {
 		// Ignore path that is not inside the current repository
 		if (this.repositoryResolver.getRepository(uri) !== this) {
 			this.logger.trace(`[Repository][provideOriginalResource] Resource is not part of the repository: ${uri.toString()}`);
+			return undefined;
+		}
+
+		// Ignore path that is inside a hidden repository
+		if (this.isHidden === true) {
+			this.logger.trace(`[Repository][provideOriginalResource] Repository is hidden: ${uri.toString()}`);
 			return undefined;
 		}
 
@@ -1888,120 +1903,99 @@ export class Repository implements Disposable {
 		});
 	}
 
-	private async _getWorktreeIncludeFiles(): Promise<Set<string>> {
+	private async _getWorktreeIncludePaths(): Promise<Set<string>> {
 		const config = workspace.getConfiguration('git', Uri.file(this.root));
-		const worktreeIncludeFiles = config.get<string[]>('worktreeIncludeFiles', ['**/node_modules{,/**}']);
+		const worktreeIncludeFiles = config.get<string[]>('worktreeIncludeFiles', []);
 
 		if (worktreeIncludeFiles.length === 0) {
 			return new Set<string>();
 		}
 
-		try {
-			// Expand the glob patterns
-			const matchedFiles = new Set<string>();
-			for (const pattern of worktreeIncludeFiles) {
-				for await (const file of fsPromises.glob(pattern, { cwd: this.root })) {
-					matchedFiles.add(file);
-				}
-			}
+		const filePattern = worktreeIncludeFiles
+			.map(pattern => new RelativePattern(this.root, pattern));
 
-			// Collect unique directories from all the matched files. Check
-			// first whether directories are ignored in order to limit the
-			// number of git check-ignore calls.
-			const directoriesToCheck = new Set<string>();
-			for (const file of matchedFiles) {
-				let parent = path.dirname(file);
-				while (parent && parent !== '.') {
-					directoriesToCheck.add(path.join(this.root, parent));
-					parent = path.dirname(parent);
-				}
-			}
+		// Get all files matching the globs (no ignore files applied)
+		const allFiles = await workspace.findFiles2(filePattern, {
+			useExcludeSettings: ExcludeSettingOptions.None,
+			useIgnoreFiles: { local: false, parent: false, global: false }
+		});
 
-			const gitIgnoredDirectories = await this.checkIgnore(Array.from(directoriesToCheck));
+		// Get files matching the globs with git ignore files applied
+		const nonIgnoredFiles = await workspace.findFiles2(filePattern, {
+			useExcludeSettings: ExcludeSettingOptions.None,
+			useIgnoreFiles: { local: true, parent: true, global: true }
+		});
 
-			// Files under a git ignored directory are ignored
-			const gitIgnoredFiles = new Set<string>();
-			const filesToCheck: string[] = [];
-
-			for (const file of matchedFiles) {
-				const fullPath = path.join(this.root, file);
-				let parent = path.dirname(fullPath);
-				let isUnderIgnoredDir = false;
-
-				while (parent !== this.root && parent.length > this.root.length) {
-					if (gitIgnoredDirectories.has(parent)) {
-						isUnderIgnoredDir = true;
-						break;
-					}
-					parent = path.dirname(parent);
-				}
-
-				if (isUnderIgnoredDir) {
-					gitIgnoredFiles.add(fullPath);
-				} else {
-					filesToCheck.push(fullPath);
-				}
-			}
-
-			// Check the files that are not under a git ignored directories
-			const filesToCheckResults = await this.checkIgnore(Array.from(filesToCheck));
-			filesToCheckResults.forEach(ignoredFile => gitIgnoredFiles.add(ignoredFile));
-
-			return gitIgnoredFiles;
-		} catch (err) {
-			this.logger.warn(`[Repository][_getWorktreeIncludeFiles] Failed to get worktree include files: ${err}`);
-			return new Set<string>();
+		// Files that are git ignored = all files - non-ignored files
+		const gitIgnoredFiles = new Set(allFiles.map(uri => uri.fsPath));
+		for (const uri of nonIgnoredFiles) {
+			gitIgnoredFiles.delete(uri.fsPath);
 		}
+
+		// Add the folder paths for git ignored files
+		const gitIgnoredPaths = new Set(gitIgnoredFiles);
+
+		for (const filePath of gitIgnoredFiles) {
+			let dir = path.dirname(filePath);
+			while (dir !== this.root && !gitIgnoredFiles.has(dir)) {
+				gitIgnoredPaths.add(dir);
+				dir = path.dirname(dir);
+			}
+		}
+
+		return gitIgnoredPaths;
 	}
 
 	private async _copyWorktreeIncludeFiles(worktreePath: string): Promise<void> {
-		const ignoredFiles = await this._getWorktreeIncludeFiles();
-		if (ignoredFiles.size === 0) {
+		const gitIgnoredPaths = await this._getWorktreeIncludePaths();
+		if (gitIgnoredPaths.size === 0) {
 			return;
 		}
 
 		try {
+			// Find minimal set of paths (folders and files) to copy.
+			// The goal is to reduce the number of copy operations
+			// needed.
+			const pathsToCopy = new Set<string>();
+			for (const filePath of gitIgnoredPaths) {
+				const relativePath = path.relative(this.root, filePath);
+				const firstSegment = relativePath.split(path.sep)[0];
+				pathsToCopy.add(path.join(this.root, firstSegment));
+			}
+
+			const startTime = Date.now();
+			const limiter = new Limiter<void>(15);
+			const files = Array.from(pathsToCopy);
+
 			// Copy files
-			let copiedFiles = 0;
-			const results = await window.withProgress({
-				location: ProgressLocation.Notification,
-				title: l10n.t('Copying additional files to the worktree'),
-				cancellable: false
-			}, async (progress) => {
-				const limiter = new Limiter<void>(10);
-				const files = Array.from(ignoredFiles);
+			const results = await Promise.allSettled(files.map(sourceFile =>
+				limiter.queue(async () => {
+					const targetFile = path.join(worktreePath, relativePath(this.root, sourceFile));
+					await fsPromises.mkdir(path.dirname(targetFile), { recursive: true });
+					await fsPromises.cp(sourceFile, targetFile, {
+						filter: src => gitIgnoredPaths.has(src),
+						force: true,
+						mode: fs.constants.COPYFILE_FICLONE,
+						recursive: true,
+						verbatimSymlinks: true
+					});
+				})
+			));
 
-				return Promise.allSettled(files.map(sourceFile =>
-					limiter.queue(async () => {
-						const targetFile = path.join(worktreePath, relativePath(this.root, sourceFile));
-						await fsPromises.mkdir(path.dirname(targetFile), { recursive: true });
-						await fsPromises.cp(sourceFile, targetFile, {
-							force: true,
-							recursive: false,
-							verbatimSymlinks: true
-						});
+			// Log any failed operations
+			const failedOperations = results.filter(r => r.status === 'rejected');
+			this.logger.info(`[Repository][_copyWorktreeIncludeFiles] Copied ${files.length - failedOperations.length}/${files.length} folder(s)/file(s) to worktree. [${Date.now() - startTime}ms]`);
 
-						copiedFiles++;
-						progress.report({
-							increment: 100 / ignoredFiles.size,
-							message: l10n.t('({0}/{1})', copiedFiles, ignoredFiles.size)
-						});
-					})
-				));
-			});
+			if (failedOperations.length > 0) {
+				window.showWarningMessage(l10n.t('Failed to copy {0} folder(s)/file(s) to the worktree.', failedOperations.length));
 
-			// When expanding the glob patterns, both directories and files are matched however
-			// directories cannot be copied so we filter out `ERR_FS_EISDIR` errors as those are
-			// expected.
-			const errors = results.filter(r => r.status === 'rejected' &&
-				(r.reason as NodeJS.ErrnoException).code !== 'ERR_FS_EISDIR');
-
-			if (errors.length > 0) {
-				this.logger.warn(`[Repository][_copyWorktreeIncludeFiles] Failed to copy ${errors.length} files to worktree.`);
-				window.showWarningMessage(l10n.t('Failed to copy {0} files to the worktree.', errors.length));
+				this.logger.warn(`[Repository][_copyWorktreeIncludeFiles] Failed to copy ${failedOperations.length} folder(s)/file(s) to worktree.`);
+				for (const error of failedOperations) {
+					this.logger.warn(`  - ${(error as PromiseRejectedResult).reason}`);
+				}
 			}
 		} catch (err) {
-			this.logger.warn(`[Repository][_copyWorktreeIncludeFiles] Failed to copy files to worktree: ${err}`);
+			this.logger.warn(`[Repository][_copyWorktreeIncludeFiles] Failed to copy folder(s)/file(s) to worktree: ${err}`);
 		}
 	}
 
@@ -2396,8 +2390,8 @@ export class Repository implements Disposable {
 		return this.run(Operation.Show, () => this.repository.detectObjectType(object));
 	}
 
-	async apply(patch: string, reverse?: boolean): Promise<void> {
-		return await this.run(Operation.Apply, () => this.repository.apply(patch, reverse));
+	async apply(patch: string, options?: { allowEmpty?: boolean; reverse?: boolean; threeWay?: boolean }): Promise<void> {
+		return await this.run(Operation.Apply, () => this.repository.apply(patch, options));
 	}
 
 	async getStashes(): Promise<Stash[]> {
@@ -3306,6 +3300,12 @@ export class StagedResourceQuickDiffProvider implements QuickDiffProvider {
 
 		if (uri.scheme !== 'file') {
 			this.logger.trace(`[StagedResourceQuickDiffProvider][provideOriginalResource] Resource is not a file: ${uri.scheme}`);
+			return undefined;
+		}
+
+		// Ignore path that is inside a hidden repository
+		if (this._repository.isHidden === true) {
+			this.logger.trace(`[StagedResourceQuickDiffProvider][provideOriginalResource] Repository is hidden: ${uri.toString()}`);
 			return undefined;
 		}
 

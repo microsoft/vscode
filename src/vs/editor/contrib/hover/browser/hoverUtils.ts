@@ -37,9 +37,19 @@ export function shouldShowHover(
 	if (hoverEnabled === 'off') {
 		return false;
 	}
+	return isTriggerModifierPressed(multiCursorModifier, mouseEvent.event);
+}
+
+/**
+ * Returns true if the trigger modifier (inverse of multi-cursor modifier) is pressed.
+ * This works with both mouse and keyboard events by relying only on the modifier flags.
+ */
+export function isTriggerModifierPressed(
+	multiCursorModifier: 'altKey' | 'ctrlKey' | 'metaKey',
+	event: { ctrlKey: boolean; metaKey: boolean; altKey: boolean }
+): boolean {
 	if (multiCursorModifier === 'altKey') {
-		return mouseEvent.event.ctrlKey || mouseEvent.event.metaKey;
-	} else {
-		return mouseEvent.event.altKey;
+		return event.ctrlKey || event.metaKey;
 	}
+	return event.altKey; // multiCursorModifier is ctrlKey or metaKey
 }

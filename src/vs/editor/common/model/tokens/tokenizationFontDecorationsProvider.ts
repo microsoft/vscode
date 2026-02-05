@@ -49,12 +49,6 @@ export class TokenizationFontDecorationProvider extends Disposable implements De
 			for (const annotation of fontChanges.changes.annotations) {
 
 				const startPosition = this.textModel.getPositionAt(annotation.range.start);
-				const endPosition = this.textModel.getPositionAt(annotation.range.endExclusive);
-
-				if (startPosition.lineNumber !== endPosition.lineNumber) {
-					// The token should be always on a single line
-					continue;
-				}
 				const lineNumber = startPosition.lineNumber;
 
 				let fontTokenAnnotation: IAnnotationUpdate<IFontTokenAnnotation>;
@@ -75,8 +69,8 @@ export class TokenizationFontDecorationProvider extends Disposable implements De
 					};
 					TokenizationFontDecorationProvider.DECORATION_COUNT++;
 
-					if (annotation.annotation.lineHeight) {
-						affectedLineHeights.add(new LineHeightChangingDecoration(0, decorationId, lineNumber, annotation.annotation.lineHeight));
+					if (annotation.annotation.lineHeightMultiplier) {
+						affectedLineHeights.add(new LineHeightChangingDecoration(0, decorationId, lineNumber, annotation.annotation.lineHeightMultiplier));
 					}
 					affectedLineFonts.add(new LineFontChangingDecoration(0, decorationId, lineNumber));
 
@@ -124,37 +118,41 @@ export class TokenizationFontDecorationProvider extends Disposable implements De
 		this._onDidChangeFont.fire(affectedLineFonts);
 	}
 
-	public getDecorationsInRange(range: Range, ownerId?: number, filterOutValidation?: boolean, onlyMinimapDecorations?: boolean): IModelDecoration[] {
+	public getDecorationsInRange(range: Range, ownerId?: number, filterOutValidation?: boolean, filterFontDecorations?: boolean, onlyMinimapDecorations?: boolean): IModelDecoration[] {
 		const startOffsetOfRange = this.textModel.getOffsetAt(range.getStartPosition());
 		const endOffsetOfRange = this.textModel.getOffsetAt(range.getEndPosition());
 		const annotations = this._fontAnnotatedString.getAnnotationsIntersecting(new OffsetRange(startOffsetOfRange, endOffsetOfRange));
 
 		const decorations: IModelDecoration[] = [];
 		for (const annotation of annotations) {
-			const annotationStartPosition = this.textModel.getPositionAt(annotation.range.start);
-			const annotationEndPosition = this.textModel.getPositionAt(annotation.range.endExclusive);
-			const range = Range.fromPositions(annotationStartPosition, annotationEndPosition);
 			const anno = annotation.annotation;
-			const className = classNameForFontTokenDecorations(anno.fontToken.fontFamily ?? '', anno.fontToken.fontSize ?? '');
-			const affectsFont = !!(anno.fontToken.fontFamily || anno.fontToken.fontSize);
-			const id = anno.decorationId;
-			decorations.push({
-				id: id,
-				options: {
-					description: 'FontOptionDecoration',
-					inlineClassName: className,
-					affectsFont
-				},
-				ownerId: 0,
-				range
-			});
+			const affectsFont = !!(anno.fontToken.fontFamily || anno.fontToken.fontSizeMultiplier);
+			if (!(affectsFont && filterFontDecorations)) {
+				const annotationStartPosition = this.textModel.getPositionAt(annotation.range.start);
+				const annotationEndPosition = this.textModel.getPositionAt(annotation.range.endExclusive);
+				const range = Range.fromPositions(annotationStartPosition, annotationEndPosition);
+				const anno = annotation.annotation;
+				const className = classNameForFontTokenDecorations(anno.fontToken.fontFamily ?? '', anno.fontToken.fontSizeMultiplier ?? 0);
+				const id = anno.decorationId;
+				decorations.push({
+					id: id,
+					options: {
+						description: 'FontOptionDecoration',
+						inlineClassName: className,
+						lineHeight: anno.fontToken.lineHeightMultiplier,
+						affectsFont
+					},
+					ownerId: 0,
+					range
+				});
+			}
 		}
 		return decorations;
 	}
 
 	public getAllDecorations(ownerId?: number, filterOutValidation?: boolean): IModelDecoration[] {
 		return this.getDecorationsInRange(
-			new Range(1, 1, this.textModel.getLineCount(), 1),
+			new Range(1, 1, this.textModel.getLineCount(), this.textModel.getLineMaxColumn(this.textModel.getLineCount())),
 			ownerId,
 			filterOutValidation
 		);

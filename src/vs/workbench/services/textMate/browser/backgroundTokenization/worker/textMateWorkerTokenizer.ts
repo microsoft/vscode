@@ -198,8 +198,8 @@ export class TextMateWorkerTokenizer extends MirrorTextModel {
 					range: new OffsetRange(offsetAtLineStart + fontInfo.startIndex, offsetAtLineStart + fontInfo.endIndex),
 					annotation: {
 						fontFamily: fontInfo.fontFamily ?? undefined,
-						fontSize: fontInfo.fontSize ?? undefined,
-						lineHeight: fontInfo.lineHeight ?? undefined
+						fontSizeMultiplier: fontInfo.fontSizeMultiplier ?? undefined,
+						lineHeightMultiplier: fontInfo.lineHeightMultiplier ?? undefined
 					}
 				});
 			}

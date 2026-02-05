@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import * as sinon from 'sinon';
+import { Codicon } from '../../../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -22,10 +23,11 @@ import { IStorageService } from '../../../../../../platform/storage/common/stora
 import { IExtensionService } from '../../../../../services/extensions/common/extensions.js';
 import { TestExtensionService, TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
 import { CellUri } from '../../../../notebook/common/notebookCommon.js';
+import { IChatRequestImplicitVariableEntry, IChatRequestStringVariableEntry, IChatRequestFileEntry, StringChatContextValue } from '../../../common/attachments/chatVariableEntries.js';
 import { ChatAgentService, IChatAgentService } from '../../../common/participants/chatAgents.js';
-import { ChatModel, IExportableChatData, ISerializableChatData1, ISerializableChatData2, ISerializableChatData3, isExportableSessionData, isSerializableSessionData, normalizeSerializableChatData, Response } from '../../../common/model/chatModel.js';
+import { ChatModel, ChatRequestModel, IExportableChatData, ISerializableChatData1, ISerializableChatData2, ISerializableChatData3, isExportableSessionData, isSerializableSessionData, normalizeSerializableChatData, Response } from '../../../common/model/chatModel.js';
 import { ChatRequestTextPart } from '../../../common/requestParser/chatParserTypes.js';
-import { IChatService, IChatToolInvocation } from '../../../common/chatService/chatService.js';
+import { ChatRequestQueueKind, IChatService, IChatToolInvocation } from '../../../common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../../common/constants.js';
 import { MockChatService } from '../chatService/mockChatService.js';
 
@@ -50,12 +52,11 @@ suite('ChatModel', () => {
 			initialLocation: ChatAgentLocation.Chat,
 			requests: [],
 			responderUsername: 'bot',
-			responderAvatarIconUri: undefined
 		};
 
 		const model = testDisposables.add(instantiationService.createInstance(
 			ChatModel,
-			exportedData,
+			{ value: exportedData, serializer: undefined! },
 			{ initialLocation: ChatAgentLocation.Chat, canUseTools: true }
 		));
 
@@ -70,24 +71,21 @@ suite('ChatModel', () => {
 			version: 3,
 			sessionId: 'existing-session',
 			creationDate: now - 1000,
-			lastMessageDate: now,
 			customTitle: 'My Chat',
 			initialLocation: ChatAgentLocation.Chat,
 			requests: [],
 			responderUsername: 'bot',
-			responderAvatarIconUri: undefined
 		};
 
 		const model = testDisposables.add(instantiationService.createInstance(
 			ChatModel,
-			serializableData,
+			{ value: serializableData, serializer: undefined! },
 			{ initialLocation: ChatAgentLocation.Chat, canUseTools: true }
 		));
 
 		assert.strictEqual(model.isImported, false);
 		assert.strictEqual(model.sessionId, 'existing-session');
 		assert.strictEqual(model.timestamp, now - 1000);
-		assert.strictEqual(model.lastMessageDate, now);
 		assert.strictEqual(model.customTitle, 'My Chat');
 	});
 
@@ -99,7 +97,7 @@ suite('ChatModel', () => {
 
 		const model = testDisposables.add(instantiationService.createInstance(
 			ChatModel,
-			invalidData,
+			{ value: invalidData, serializer: undefined! },
 			{ initialLocation: ChatAgentLocation.Chat, canUseTools: true }
 		));
 
@@ -167,6 +165,69 @@ suite('ChatModel', () => {
 		assert.strictEqual(request1.response!.isCompleteAddedRequest, true);
 		assert.strictEqual(request1.shouldBeRemovedOnSend, undefined);
 		assert.strictEqual(request1.response!.shouldBeRemovedOnSend, undefined);
+	});
+
+	test('inputModel.toJSON filters extension-contributed contexts', async function () {
+		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+
+		const fileAttachment: IChatRequestFileEntry = {
+			kind: 'file',
+			value: URI.parse('file:///test.ts'),
+			id: 'file-id',
+			name: 'test.ts',
+		};
+
+		const stringContextValue: StringChatContextValue = {
+			value: 'pr-content',
+			name: 'PR #123',
+			icon: Codicon.gitPullRequest,
+			uri: URI.parse('pr://123'),
+			handle: 1
+		};
+
+		const stringAttachment: IChatRequestStringVariableEntry = {
+			kind: 'string',
+			value: 'pr-content',
+			id: 'string-id',
+			name: 'PR #123',
+			icon: Codicon.gitPullRequest,
+			uri: URI.parse('pr://123'),
+			handle: 1
+		};
+
+		const implicitWithStringContext: IChatRequestImplicitVariableEntry = {
+			kind: 'implicit',
+			isFile: true,
+			value: stringContextValue,
+			uri: URI.parse('pr://123'),
+			isSelection: false,
+			enabled: true,
+			id: 'implicit-string-id',
+			name: 'PR Context',
+		};
+
+		const implicitWithUri: IChatRequestImplicitVariableEntry = {
+			kind: 'implicit',
+			isFile: true,
+			value: URI.parse('file:///current.ts'),
+			uri: URI.parse('file:///current.ts'),
+			isSelection: false,
+			enabled: true,
+			id: 'implicit-uri-id',
+			name: 'current.ts',
+		};
+
+		model.inputModel.setState({
+			attachments: [fileAttachment, stringAttachment, implicitWithStringContext, implicitWithUri],
+			inputText: 'test'
+		});
+
+		const serialized = model.inputModel.toJSON();
+		assert.ok(serialized);
+
+		// Should filter out string attachments and implicit attachments with StringChatContextValue
+		// Should keep file attachments and implicit attachments with URI values
+		assert.deepStrictEqual(serialized.attachments, [fileAttachment, implicitWithUri]);
 	});
 });
 
@@ -411,14 +472,12 @@ suite('normalizeSerializableChatData', () => {
 			creationDate: Date.now(),
 			initialLocation: undefined,
 			requests: [],
-			responderAvatarIconUri: undefined,
 			responderUsername: 'bot',
 			sessionId: 'session1',
 		};
 
 		const newData = normalizeSerializableChatData(v1Data);
 		assert.strictEqual(newData.creationDate, v1Data.creationDate);
-		assert.strictEqual(newData.lastMessageDate, v1Data.creationDate);
 		assert.strictEqual(newData.version, 3);
 	});
 
@@ -426,10 +485,8 @@ suite('normalizeSerializableChatData', () => {
 		const v2Data: ISerializableChatData2 = {
 			version: 2,
 			creationDate: 100,
-			lastMessageDate: Date.now(),
 			initialLocation: undefined,
 			requests: [],
-			responderAvatarIconUri: undefined,
 			responderUsername: 'bot',
 			sessionId: 'session1',
 			computedTitle: 'computed title'
@@ -438,7 +495,6 @@ suite('normalizeSerializableChatData', () => {
 		const newData = normalizeSerializableChatData(v2Data);
 		assert.strictEqual(newData.version, 3);
 		assert.strictEqual(newData.creationDate, v2Data.creationDate);
-		assert.strictEqual(newData.lastMessageDate, v2Data.lastMessageDate);
 		assert.strictEqual(newData.customTitle, v2Data.computedTitle);
 	});
 
@@ -450,14 +506,12 @@ suite('normalizeSerializableChatData', () => {
 
 			initialLocation: undefined,
 			requests: [],
-			responderAvatarIconUri: undefined,
 			responderUsername: 'bot',
 		};
 
 		const newData = normalizeSerializableChatData(v1Data);
 		assert.strictEqual(newData.version, 3);
 		assert.ok(newData.creationDate > 0);
-		assert.ok(newData.lastMessageDate > 0);
 		assert.ok(newData.sessionId);
 	});
 
@@ -465,12 +519,10 @@ suite('normalizeSerializableChatData', () => {
 		const v3Data: ISerializableChatData3 = {
 			// Test case where old data was wrongly normalized and these fields were missing
 			creationDate: undefined!,
-			lastMessageDate: undefined!,
 
 			version: 3,
 			initialLocation: undefined,
 			requests: [],
-			responderAvatarIconUri: undefined,
 			responderUsername: 'bot',
 			sessionId: 'session1',
 			customTitle: 'computed title'
@@ -479,7 +531,6 @@ suite('normalizeSerializableChatData', () => {
 		const newData = normalizeSerializableChatData(v3Data);
 		assert.strictEqual(newData.version, 3);
 		assert.ok(newData.creationDate > 0);
-		assert.ok(newData.lastMessageDate > 0);
 		assert.ok(newData.sessionId);
 	});
 });
@@ -492,7 +543,6 @@ suite('isExportableSessionData', () => {
 			initialLocation: ChatAgentLocation.Chat,
 			requests: [],
 			responderUsername: 'bot',
-			responderAvatarIconUri: undefined
 		};
 
 		assert.strictEqual(isExportableSessionData(validData), true);
@@ -502,7 +552,6 @@ suite('isExportableSessionData', () => {
 		const invalidData = {
 			initialLocation: ChatAgentLocation.Chat,
 			responderUsername: 'bot',
-			responderAvatarIconUri: undefined
 		};
 
 		assert.strictEqual(isExportableSessionData(invalidData), false);
@@ -513,7 +562,6 @@ suite('isExportableSessionData', () => {
 			initialLocation: ChatAgentLocation.Chat,
 			requests: 'not-an-array',
 			responderUsername: 'bot',
-			responderAvatarIconUri: undefined
 		};
 
 		assert.strictEqual(isExportableSessionData(invalidData), false);
@@ -523,7 +571,6 @@ suite('isExportableSessionData', () => {
 		const invalidData = {
 			initialLocation: ChatAgentLocation.Chat,
 			requests: [],
-			responderAvatarIconUri: undefined
 		};
 
 		assert.strictEqual(isExportableSessionData(invalidData), false);
@@ -534,7 +581,6 @@ suite('isExportableSessionData', () => {
 			initialLocation: ChatAgentLocation.Chat,
 			requests: [],
 			responderUsername: 123,
-			responderAvatarIconUri: undefined
 		};
 
 		assert.strictEqual(isExportableSessionData(invalidData), false);
@@ -557,12 +603,10 @@ suite('isSerializableSessionData', () => {
 			version: 3,
 			sessionId: 'session1',
 			creationDate: Date.now(),
-			lastMessageDate: Date.now(),
 			customTitle: undefined,
 			initialLocation: ChatAgentLocation.Chat,
 			requests: [],
 			responderUsername: 'bot',
-			responderAvatarIconUri: undefined
 		};
 
 		assert.strictEqual(isSerializableSessionData(validData), true);
@@ -573,7 +617,6 @@ suite('isSerializableSessionData', () => {
 			version: 3,
 			sessionId: 'session1',
 			creationDate: Date.now(),
-			lastMessageDate: Date.now(),
 			customTitle: undefined,
 			initialLocation: ChatAgentLocation.Chat,
 			requests: [{
@@ -584,7 +627,6 @@ suite('isSerializableSessionData', () => {
 				usedContext: { documents: [], kind: 'usedContext' }
 			}],
 			responderUsername: 'bot',
-			responderAvatarIconUri: undefined
 		};
 
 		assert.strictEqual(isSerializableSessionData(validData), true);
@@ -594,12 +636,10 @@ suite('isSerializableSessionData', () => {
 		const invalidData = {
 			version: 3,
 			creationDate: Date.now(),
-			lastMessageDate: Date.now(),
 			customTitle: undefined,
 			initialLocation: ChatAgentLocation.Chat,
 			requests: [],
 			responderUsername: 'bot',
-			responderAvatarIconUri: undefined
 		};
 
 		assert.strictEqual(isSerializableSessionData(invalidData), false);
@@ -609,12 +649,10 @@ suite('isSerializableSessionData', () => {
 		const invalidData = {
 			version: 3,
 			sessionId: 'session1',
-			lastMessageDate: Date.now(),
 			customTitle: undefined,
 			initialLocation: ChatAgentLocation.Chat,
 			requests: [],
 			responderUsername: 'bot',
-			responderAvatarIconUri: undefined
 		};
 
 		assert.strictEqual(isSerializableSessionData(invalidData), false);
@@ -625,12 +663,10 @@ suite('isSerializableSessionData', () => {
 			version: 3,
 			sessionId: 'session1',
 			creationDate: Date.now(),
-			lastMessageDate: Date.now(),
 			customTitle: undefined,
 			initialLocation: ChatAgentLocation.Chat,
 			requests: 'not-an-array',
 			responderUsername: 'bot',
-			responderAvatarIconUri: undefined
 		};
 
 		assert.strictEqual(isSerializableSessionData(invalidData), false);
@@ -671,11 +707,10 @@ suite('ChatResponseModel', () => {
 			assert.strictEqual(response.confirmationAdjustedTimestamp.get(), start);
 
 			// Add pending confirmation via tool invocation
-			const toolState = observableValue<any>('state', { type: 0 /* IChatToolInvocation.StateKind.WaitingForConfirmation */ });
+			const toolState = observableValue<any>('state', { type: 1 /* IChatToolInvocation.StateKind.WaitingForConfirmation */, confirmationMessages: { title: 'Please confirm' } });
 			const toolInvocation = {
 				kind: 'toolInvocation',
 				invocationMessage: 'calling tool',
-				confirmationMessages: { title: 'Please confirm' },
 				state: toolState
 			} as Partial<IChatToolInvocation> as IChatToolInvocation;
 
@@ -687,7 +722,7 @@ suite('ChatResponseModel', () => {
 			assert.strictEqual(response.confirmationAdjustedTimestamp.get(), start);
 
 			// Resolve confirmation
-			toolState.set({ type: 3 /* IChatToolInvocation.StateKind.Completed */ }, undefined);
+			toolState.set({ type: 4 /* IChatToolInvocation.StateKind.Completed */ }, undefined);
 
 			// Now adjusted timestamp should reflect the wait time
 			// The wait time was 2000ms.
@@ -701,5 +736,224 @@ suite('ChatResponseModel', () => {
 		} finally {
 			clock.restore();
 		}
+	});
+});
+
+suite('ChatModel - Pending Requests', () => {
+	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	let instantiationService: TestInstantiationService;
+
+	function createModel(): ChatModel {
+		return testDisposables.add(instantiationService.createInstance(
+			ChatModel,
+			undefined,
+			{ initialLocation: ChatAgentLocation.Chat, canUseTools: true }
+		));
+	}
+
+	function addRequestToModel(model: ChatModel, text: string): ChatRequestModel {
+		return model.addRequest(
+			{ text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, text.length, 1, text.length), text)] },
+			{ variables: [] },
+			0
+		);
+	}
+
+	setup(async () => {
+		instantiationService = testDisposables.add(new TestInstantiationService());
+		instantiationService.stub(IStorageService, testDisposables.add(new TestStorageService()));
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IExtensionService, new TestExtensionService());
+		instantiationService.stub(IContextKeyService, new MockContextKeyService());
+		instantiationService.stub(IChatAgentService, testDisposables.add(instantiationService.createInstance(ChatAgentService)));
+		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+		instantiationService.stub(IChatService, new MockChatService());
+	});
+
+	test('addPendingRequest - queued messages are added at the end', () => {
+		const model = createModel();
+		const request1 = addRequestToModel(model, 'first');
+		const request2 = addRequestToModel(model, 'second');
+
+		model.addPendingRequest(request1, ChatRequestQueueKind.Queued, {});
+		model.addPendingRequest(request2, ChatRequestQueueKind.Queued, {});
+
+		const pending = model.getPendingRequests();
+		assert.strictEqual(pending.length, 2);
+		assert.strictEqual(pending[0].request.id, request1.id);
+		assert.strictEqual(pending[1].request.id, request2.id);
+	});
+
+	test('addPendingRequest - steering messages are inserted before queued messages', () => {
+		const model = createModel();
+		const queued = addRequestToModel(model, 'queued');
+		const steering = addRequestToModel(model, 'steering');
+
+		model.addPendingRequest(queued, ChatRequestQueueKind.Queued, {});
+		model.addPendingRequest(steering, ChatRequestQueueKind.Steering, {});
+
+		const pending = model.getPendingRequests();
+		assert.strictEqual(pending.length, 2);
+		assert.strictEqual(pending[0].request.id, steering.id);
+		assert.strictEqual(pending[0].kind, ChatRequestQueueKind.Steering);
+		assert.strictEqual(pending[1].request.id, queued.id);
+		assert.strictEqual(pending[1].kind, ChatRequestQueueKind.Queued);
+	});
+
+	test('addPendingRequest - multiple steering messages maintain order', () => {
+		const model = createModel();
+		const [steering1, steering2, queued] = ['s1', 's2', 'q'].map(t => addRequestToModel(model, t));
+
+		model.addPendingRequest(queued, ChatRequestQueueKind.Queued, {});
+		model.addPendingRequest(steering1, ChatRequestQueueKind.Steering, {});
+		model.addPendingRequest(steering2, ChatRequestQueueKind.Steering, {});
+
+		const pending = model.getPendingRequests();
+		assert.strictEqual(pending.length, 3);
+		assert.strictEqual(pending[0].request.id, steering1.id);
+		assert.strictEqual(pending[1].request.id, steering2.id);
+		assert.strictEqual(pending[2].request.id, queued.id);
+	});
+
+	test('addPendingRequest - fires onDidChangePendingRequests event', () => {
+		const model = createModel();
+		const request = addRequestToModel(model, 'test');
+
+		let eventFired = false;
+		testDisposables.add(model.onDidChangePendingRequests(() => { eventFired = true; }));
+
+		model.addPendingRequest(request, ChatRequestQueueKind.Queued, {});
+
+		assert.strictEqual(eventFired, true);
+	});
+
+	test('removePendingRequest - removes specified request', () => {
+		const model = createModel();
+		const [request1, request2] = ['r1', 'r2'].map(t => addRequestToModel(model, t));
+
+		model.addPendingRequest(request1, ChatRequestQueueKind.Queued, {});
+		model.addPendingRequest(request2, ChatRequestQueueKind.Queued, {});
+
+		model.removePendingRequest(request1.id);
+
+		const pending = model.getPendingRequests();
+		assert.strictEqual(pending.length, 1);
+		assert.strictEqual(pending[0].request.id, request2.id);
+	});
+
+	test('removePendingRequest - no-op for non-existent request', () => {
+		const model = createModel();
+		const request = addRequestToModel(model, 'test');
+		model.addPendingRequest(request, ChatRequestQueueKind.Queued, {});
+
+		let eventCount = 0;
+		testDisposables.add(model.onDidChangePendingRequests(() => { eventCount++; }));
+
+		model.removePendingRequest('non-existent-id');
+
+		assert.strictEqual(model.getPendingRequests().length, 1);
+		assert.strictEqual(eventCount, 0);
+	});
+
+	test('dequeuePendingRequest - returns and removes first request', () => {
+		const model = createModel();
+		const [request1, request2] = ['r1', 'r2'].map(t => addRequestToModel(model, t));
+
+		model.addPendingRequest(request1, ChatRequestQueueKind.Queued, {});
+		model.addPendingRequest(request2, ChatRequestQueueKind.Queued, {});
+
+		const dequeued = model.dequeuePendingRequest();
+
+		assert.strictEqual(dequeued?.request.id, request1.id);
+		assert.strictEqual(model.getPendingRequests().length, 1);
+		assert.strictEqual(model.getPendingRequests()[0].request.id, request2.id);
+	});
+
+	test('dequeuePendingRequest - returns undefined when empty', () => {
+		const model = createModel();
+		assert.strictEqual(model.dequeuePendingRequest(), undefined);
+	});
+
+	test('dequeuePendingRequest - fires event when request dequeued', () => {
+		const model = createModel();
+		const request = addRequestToModel(model, 'test');
+		model.addPendingRequest(request, ChatRequestQueueKind.Queued, {});
+
+		let eventFired = false;
+		testDisposables.add(model.onDidChangePendingRequests(() => { eventFired = true; }));
+
+		model.dequeuePendingRequest();
+
+		assert.strictEqual(eventFired, true);
+	});
+
+	test('clearPendingRequests - removes all pending requests', () => {
+		const model = createModel();
+		['r1', 'r2', 'r3'].forEach(t => {
+			model.addPendingRequest(addRequestToModel(model, t), ChatRequestQueueKind.Queued, {});
+		});
+
+		model.clearPendingRequests();
+
+		assert.strictEqual(model.getPendingRequests().length, 0);
+	});
+
+	test('clearPendingRequests - no event when already empty', () => {
+		const model = createModel();
+
+		let eventFired = false;
+		testDisposables.add(model.onDidChangePendingRequests(() => { eventFired = true; }));
+
+		model.clearPendingRequests();
+
+		assert.strictEqual(eventFired, false);
+	});
+
+	test('setPendingRequests - reorders existing pending requests', () => {
+		const model = createModel();
+		const [r1, r2, r3] = ['r1', 'r2', 'r3'].map(t => addRequestToModel(model, t));
+
+		model.addPendingRequest(r1, ChatRequestQueueKind.Queued, {});
+		model.addPendingRequest(r2, ChatRequestQueueKind.Queued, {});
+		model.addPendingRequest(r3, ChatRequestQueueKind.Steering, {});
+
+		// Reverse the order
+		model.setPendingRequests([
+			{ requestId: r2.id, kind: ChatRequestQueueKind.Queued },
+			{ requestId: r1.id, kind: ChatRequestQueueKind.Steering }, // Change kind
+		]);
+
+		const pending = model.getPendingRequests();
+		assert.strictEqual(pending.length, 2);
+		assert.strictEqual(pending[0].request.id, r2.id);
+		assert.strictEqual(pending[1].request.id, r1.id);
+		assert.strictEqual(pending[1].kind, ChatRequestQueueKind.Steering);
+	});
+
+	test('setPendingRequests - ignores non-existent request IDs', () => {
+		const model = createModel();
+		const request = addRequestToModel(model, 'test');
+		model.addPendingRequest(request, ChatRequestQueueKind.Queued, {});
+
+		model.setPendingRequests([
+			{ requestId: 'non-existent', kind: ChatRequestQueueKind.Queued },
+			{ requestId: request.id, kind: ChatRequestQueueKind.Queued },
+		]);
+
+		const pending = model.getPendingRequests();
+		assert.strictEqual(pending.length, 1);
+		assert.strictEqual(pending[0].request.id, request.id);
+	});
+
+	test('pending requests preserve send options', () => {
+		const model = createModel();
+		const request = addRequestToModel(model, 'test');
+		const sendOptions = { agentId: 'test-agent', attempt: 3 };
+
+		const pending = model.addPendingRequest(request, ChatRequestQueueKind.Queued, sendOptions);
+
+		assert.strictEqual(pending.sendOptions.agentId, 'test-agent');
+		assert.strictEqual(pending.sendOptions.attempt, 3);
 	});
 });

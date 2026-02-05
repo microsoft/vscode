@@ -1,6 +1,7 @@
 {
 	"extends": "../tsconfig.base.json",
 	"compilerOptions": {
+		"rootDir": "./src",
 		"outDir": "./out",
 		"noFallthroughCasesInSwitch": true,
 		"noUnusedLocals": false,
@@ -11,6 +12,7 @@
 		"../../src/vscode-dts/vscode.d.ts",
 		"../../src/vscode-dts/vscode.proposed.nativeWindowHandle.d.ts",
 		"../../src/vscode-dts/vscode.proposed.authIssuers.d.ts",
-		"../../src/vscode-dts/vscode.proposed.authenticationChallenges.d.ts"
+		"../../src/vscode-dts/vscode.proposed.authenticationChallenges.d.ts",
+		"../../src/vscode-dts/vscode.proposed.envIsAppPortable.d.ts"
 	]
 }

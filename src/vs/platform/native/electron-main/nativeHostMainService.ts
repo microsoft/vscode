@@ -5,12 +5,12 @@
 
 import * as fs from 'fs';
 import { exec } from 'child_process';
-import { app, BrowserWindow, clipboard, contentTracing, Display, Menu, MessageBoxOptions, MessageBoxReturnValue, OpenDevToolsOptions, OpenDialogOptions, OpenDialogReturnValue, powerMonitor, SaveDialogOptions, SaveDialogReturnValue, screen, shell, webContents } from 'electron';
+import { app, BrowserWindow, clipboard, contentTracing, Display, Menu, MessageBoxOptions, MessageBoxReturnValue, Notification, OpenDevToolsOptions, OpenDialogOptions, OpenDialogReturnValue, powerMonitor, SaveDialogOptions, SaveDialogReturnValue, screen, shell, webContents } from 'electron';
 import { arch, cpus, freemem, loadavg, platform, release, totalmem, type } from 'os';
 import { promisify } from 'util';
 import { memoize } from '../../../base/common/decorators.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { Disposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { matchesSomeScheme, Schemas } from '../../../base/common/network.js';
 import { dirname, join, posix, resolve, win32 } from '../../../base/common/path.js';
 import { isLinux, isMacintosh, isWindows } from '../../../base/common/platform.js';
@@ -27,7 +27,7 @@ import { IEnvironmentMainService } from '../../environment/electron-main/environ
 import { createDecorator, IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { ILifecycleMainService, IRelaunchOptions } from '../../lifecycle/electron-main/lifecycleMainService.js';
 import { ILogService } from '../../log/common/log.js';
-import { FocusMode, ICommonNativeHostService, INativeHostOptions, IOSProperties, IOSStatistics } from '../common/native.js';
+import { FocusMode, ICommonNativeHostService, INativeHostOptions, IOSProperties, IOSStatistics, IToastOptions, IToastResult } from '../common/native.js';
 import { IProductService } from '../../product/common/productService.js';
 import { IPartsSplash } from '../../theme/common/themeService.js';
 import { IThemeMainService } from '../../theme/electron-main/themeMainService.js';
@@ -43,10 +43,12 @@ import { IV8Profile } from '../../profiling/common/profiling.js';
 import { IAuxiliaryWindowsMainService } from '../../auxiliaryWindow/electron-main/auxiliaryWindows.js';
 import { IAuxiliaryWindow } from '../../auxiliaryWindow/electron-main/auxiliaryWindow.js';
 import { CancellationError } from '../../../base/common/errors.js';
+import { zip } from '../../../base/node/zip.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IProxyAuthService } from './auth.js';
 import { AuthInfo, Credentials, IRequestService } from '../../request/common/request.js';
 import { randomPath } from '../../../base/common/extpath.js';
+import { CancellationTokenSource } from '../../../base/common/cancellation.js';
 
 export interface INativeHostMainService extends AddFirstParameterToFunctions<ICommonNativeHostService, Promise<unknown> /* only methods, not events */, number | undefined /* window ID */> { }
 
@@ -1151,6 +1153,64 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	// #endregion
 
+	//#region Toast Notifications
+
+	private readonly activeToasts = this._register(new DisposableMap<string>());
+
+	async showToast(windowId: number | undefined, options: IToastOptions): Promise<IToastResult> {
+		if (!Notification.isSupported()) {
+			return { supported: false, clicked: false };
+		}
+
+		const toast = new Notification({
+			title: options.title,
+			body: options.body,
+			silent: options.silent,
+			actions: options.actions?.map(action => ({
+				type: 'button',
+				text: action
+			}))
+		});
+
+		const disposables = new DisposableStore();
+		this.activeToasts.set(options.id, disposables);
+
+		const cts = new CancellationTokenSource();
+
+		disposables.add(toDisposable(() => {
+			this.activeToasts.deleteAndDispose(options.id);
+			toast.removeAllListeners();
+			toast.close();
+			cts.dispose(true);
+		}));
+
+		return new Promise<IToastResult>(r => {
+			const resolve = (result: IToastResult) => {
+				r(result);				// first return the result before...
+				disposables.dispose();	// ...disposing which would invalidate the result object
+			};
+
+			cts.token.onCancellationRequested(() => resolve({ supported: true, clicked: false }));
+
+			toast.on('click', () => resolve({ supported: true, clicked: true }));
+			toast.on('action', (_event, actionIndex) => resolve({ supported: true, clicked: true, actionIndex }));
+			toast.on('close', () => resolve({ supported: true, clicked: false }));
+			toast.on('failed', () => resolve({ supported: false, clicked: false }));
+
+			toast.show();
+		});
+	}
+
+	async clearToast(windowId: number | undefined, toastId: string): Promise<void> {
+		this.activeToasts.deleteAndDispose(toastId);
+	}
+
+	async clearToasts(): Promise<void> {
+		this.activeToasts.clearAndDisposeAll();
+	}
+
+	//#endregion
+
 	//#region Registry (windows)
 
 	async windowsGetStringRegKey(windowId: number | undefined, hive: 'HKEY_CURRENT_USER' | 'HKEY_LOCAL_MACHINE' | 'HKEY_CLASSES_ROOT' | 'HKEY_USERS' | 'HKEY_CURRENT_CONFIG', path: string, name: string): Promise<string | undefined> {
@@ -1164,6 +1224,14 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		} catch {
 			return undefined;
 		}
+	}
+
+	//#endregion
+
+	//#region Zip
+
+	async createZipFile(windowId: number | undefined, zipPath: URI, files: { path: string; contents: string }[]): Promise<void> {
+		await zip(zipPath.fsPath, files);
 	}
 
 	//#endregion

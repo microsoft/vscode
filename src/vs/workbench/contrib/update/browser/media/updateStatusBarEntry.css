@@ -1,0 +1,148 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.update-status-tooltip {
+	display: flex;
+	flex-direction: column;
+	padding: 4px 0;
+	min-width: 300px;
+	max-width: 400px;
+}
+
+/* Header with title and gear icon */
+.update-status-tooltip .header {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	margin-bottom: 12px;
+}
+
+.update-status-tooltip .header .title {
+	font-weight: 600;
+	font-size: var(--vscode-bodyFontSize);
+	color: var(--vscode-foreground);
+	margin-bottom: 0;
+}
+
+.update-status-tooltip .header .monaco-action-bar {
+	margin-left: auto;
+}
+
+/* Product info section with logo */
+.update-status-tooltip .product-info {
+	display: flex;
+	gap: 12px;
+	margin-bottom: 16px;
+}
+
+.update-status-tooltip .product-logo {
+	width: 48px;
+	height: 48px;
+	border-radius: var(--vscode-cornerRadius-large);
+	padding: 5px;
+	flex-shrink: 0;
+	background-image: url('../../../../browser/media/code-icon.svg');
+	background-size: contain;
+	background-position: center;
+	background-repeat: no-repeat;
+}
+
+.update-status-tooltip .product-details {
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+}
+
+.update-status-tooltip .product-name {
+	font-weight: 600;
+	color: var(--vscode-foreground);
+	margin-bottom: 4px;
+}
+
+.update-status-tooltip .product-version,
+.update-status-tooltip .product-release-date {
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-bodyFontSize-small);
+}
+
+.update-status-tooltip .release-notes-link {
+	color: var(--vscode-textLink-foreground);
+	text-decoration: none;
+	font-size: var(--vscode-bodyFontSize-small);
+	cursor: pointer;
+}
+
+.update-status-tooltip .release-notes-link:hover {
+	color: var(--vscode-textLink-activeForeground);
+	text-decoration: underline;
+}
+
+/* What's Included section */
+.update-status-tooltip .whats-included .section-title {
+	font-weight: 600;
+	color: var(--vscode-foreground);
+	margin-bottom: 8px;
+}
+
+.update-status-tooltip .whats-included ul {
+	margin: 0;
+	padding-left: 16px;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-bodyFontSize-small);
+}
+
+.update-status-tooltip .whats-included li {
+	margin-bottom: 2px;
+}
+
+/* Progress bar */
+.update-status-tooltip .progress-container {
+	margin-bottom: 8px;
+}
+
+.update-status-tooltip .progress-bar {
+	width: 100%;
+	height: 4px;
+	background-color: color-mix(in srgb, var(--vscode-progressBar-background) 30%, transparent);
+	border-radius: var(--vscode-cornerRadius-small);
+	overflow: hidden;
+}
+
+.update-status-tooltip .progress-bar .progress-fill {
+	height: 100%;
+	background-color: var(--vscode-progressBar-background);
+	border-radius: var(--vscode-cornerRadius-small);
+	transition: width 0.3s ease;
+}
+
+.update-status-tooltip .progress-text {
+	display: flex;
+	justify-content: space-between;
+	margin-top: 4px;
+	font-size: var(--vscode-bodyFontSize-small);
+	color: var(--vscode-descriptionForeground);
+}
+
+.update-status-tooltip .progress-details {
+	color: var(--vscode-descriptionForeground);
+	margin-bottom: 4px;
+}
+
+.update-status-tooltip .speed-info,
+.update-status-tooltip .time-remaining {
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-bodyFontSize-small);
+}
+
+/* Action button */
+.update-status-tooltip .action-button-container {
+	display: flex;
+	justify-content: flex-end;
+	margin-top: 8px;
+}
+
+.update-status-tooltip .action-button-container .monaco-button {
+	padding: 4px 14px;
+}

@@ -1406,6 +1406,7 @@ class InlineCompletionAdapter {
 			requestUuid: context.requestUuid,
 			requestIssuedDateTime: context.requestIssuedDateTime,
 			earliestShownDateTime: context.earliestShownDateTime,
+			changeHint: context.changeHint,
 		}, token);
 
 		if (!result) {
@@ -2619,7 +2620,7 @@ export class ExtHostLanguageFeatures extends CoreDisposable implements extHostPr
 
 		const supportsOnDidChange = isProposedApiEnabled(extension, 'inlineCompletionsAdditions') && typeof provider.onDidChange === 'function';
 		if (supportsOnDidChange) {
-			const subscription = provider.onDidChange!(_ => this._proxy.$emitInlineCompletionsChange(handle));
+			const subscription = provider.onDidChange!(e => this._proxy.$emitInlineCompletionsChange(handle, e ? { data: e.data } : undefined));
 			result = Disposable.from(result, subscription);
 		}
 

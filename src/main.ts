@@ -356,6 +356,10 @@ function configureCommandlineSwitchesSync(cliArgs: NativeParsedArgs) {
 	// use up to 2
 	app.commandLine.appendSwitch('max-active-webgl-contexts', '32');
 
+	// Disable Skia Graphite backend.
+	// Refs https://github.com/microsoft/vscode/issues/284162
+	app.commandLine.appendSwitch('disable-skia-graphite');
+
 	return argvConfig;
 }
 

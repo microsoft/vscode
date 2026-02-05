@@ -27,6 +27,7 @@
           ".cts",
           ".mts"
         ],
+        "firstLine": "^#!.*\\b(deno|bun|ts-node)\\b",
         "configuration": "./language-configuration.json"
       },
       {

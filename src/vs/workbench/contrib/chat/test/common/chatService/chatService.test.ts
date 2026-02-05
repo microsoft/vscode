@@ -37,13 +37,15 @@ import { TestMcpService } from '../../../../mcp/test/common/testMcpService.js';
 import { ChatAgentService, IChatAgent, IChatAgentData, IChatAgentImplementation, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { IChatEditingService, IChatEditingSession } from '../../../common/editing/chatEditingService.js';
 import { ChatModel, IChatModel, ISerializableChatData } from '../../../common/model/chatModel.js';
-import { IChatFollowup, IChatModelReference, IChatService } from '../../../common/chatService/chatService.js';
+import { ChatSendResult, IChatFollowup, IChatModelReference, IChatService } from '../../../common/chatService/chatService.js';
 import { ChatService } from '../../../common/chatService/chatServiceImpl.js';
 import { ChatSlashCommandService, IChatSlashCommandService } from '../../../common/participants/chatSlashCommands.js';
 import { IChatVariablesService } from '../../../common/attachments/chatVariables.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { MockChatService } from './mockChatService.js';
 import { MockChatVariablesService } from '../mockChatVariables.js';
+import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
+import { MockPromptsService } from '../promptSyntax/service/mockPromptsService.js';
 
 const chatAgentWithUsedContextId = 'ChatProviderWithUsedContext';
 const chatAgentWithUsedContext: IChatAgent = {
@@ -156,6 +158,7 @@ suite('ChatService', () => {
 			[IChatVariablesService, new MockChatVariablesService()],
 			[IWorkbenchAssignmentService, new NullWorkbenchAssignmentService()],
 			[IMcpService, new TestMcpService()],
+			[IPromptsService, new MockPromptsService()],
 		)));
 		instantiationService.stub(IStorageService, testDisposables.add(new TestStorageService()));
 		instantiationService.stub(ILogService, new NullLogService());
@@ -268,8 +271,8 @@ suite('ChatService', () => {
 		const modelRef = testDisposables.add(startSessionModel(testService));
 		const model = modelRef.object;
 		const response = await testService.sendRequest(model.sessionResource, `@${chatAgentWithUsedContextId} test request`);
-		assert(response);
-		await response.responseCompletePromise;
+		ChatSendResult.assertSent(response);
+		await response.data.responseCompletePromise;
 
 		await assertSnapshot(toSnapshotExportData(model));
 	});
@@ -294,22 +297,22 @@ suite('ChatService', () => {
 
 		// Send a request to default agent
 		const response = await testService.sendRequest(model.sessionResource, `test request`, { agentId: 'defaultAgent' });
-		assert(response);
-		await response.responseCompletePromise;
+		ChatSendResult.assertSent(response);
+		await response.data.responseCompletePromise;
 		assert.strictEqual(model.getRequests().length, 1);
 		assert.strictEqual(model.getRequests()[0].response?.result?.metadata?.historyLength, 0);
 
 		// Send a request to agent2- it can't see the default agent's message
 		const response2 = await testService.sendRequest(model.sessionResource, `test request`, { agentId: 'agent2' });
-		assert(response2);
-		await response2.responseCompletePromise;
+		ChatSendResult.assertSent(response2);
+		await response2.data.responseCompletePromise;
 		assert.strictEqual(model.getRequests().length, 2);
 		assert.strictEqual(model.getRequests()[1].response?.result?.metadata?.historyLength, 0);
 
 		// Send a request to defaultAgent - the default agent can see agent2's message
 		const response3 = await testService.sendRequest(model.sessionResource, `test request`, { agentId: 'defaultAgent' });
-		assert(response3);
-		await response3.responseCompletePromise;
+		ChatSendResult.assertSent(response3);
+		await response3.data.responseCompletePromise;
 		assert.strictEqual(model.getRequests().length, 3);
 		assert.strictEqual(model.getRequests()[2].response?.result?.metadata?.historyLength, 2);
 	});
@@ -326,13 +329,13 @@ suite('ChatService', () => {
 		await assertSnapshot(toSnapshotExportData(model));
 
 		const response = await testService.sendRequest(model.sessionResource, `@${chatAgentWithUsedContextId} test request`);
-		assert(response);
-		await response.responseCompletePromise;
+		ChatSendResult.assertSent(response);
+		await response.data.responseCompletePromise;
 		assert.strictEqual(model.getRequests().length, 1);
 
 		const response2 = await testService.sendRequest(model.sessionResource, `test request 2`);
-		assert(response2);
-		await response2.responseCompletePromise;
+		ChatSendResult.assertSent(response2);
+		await response2.data.responseCompletePromise;
 		assert.strictEqual(model.getRequests().length, 2);
 
 		await assertSnapshot(toSnapshotExportData(model));
@@ -351,9 +354,9 @@ suite('ChatService', () => {
 			assert.strictEqual(chatModel1.getRequests().length, 0);
 
 			const response = await testService.sendRequest(chatModel1.sessionResource, `@${chatAgentWithUsedContextId} test request`);
-			assert(response);
+			ChatSendResult.assertSent(response);
 
-			await response.responseCompletePromise;
+			await response.data.responseCompletePromise;
 
 			serializedChatData = JSON.parse(JSON.stringify(chatModel1));
 		}
@@ -382,9 +385,9 @@ suite('ChatService', () => {
 			assert.strictEqual(chatModel1.getRequests().length, 0);
 
 			const response = await testService.sendRequest(chatModel1.sessionResource, `@${chatAgentWithUsedContextId} test request`);
-			assert(response);
+			ChatSendResult.assertSent(response);
 
-			await response.responseCompletePromise;
+			await response.data.responseCompletePromise;
 
 			serializedChatData = JSON.parse(JSON.stringify(chatModel1));
 		}

@@ -21,12 +21,14 @@ import { setup as setupNotebookTests } from './areas/notebook/notebook.test';
 import { setup as setupLanguagesTests } from './areas/languages/languages.test';
 import { setup as setupStatusbarTests } from './areas/statusbar/statusbar.test';
 import { setup as setupExtensionTests } from './areas/extensions/extensions.test';
+import { setup as setupExtensionHostRestartTests } from './areas/extensions/extension-host-restart.test';
 import { setup as setupMultirootTests } from './areas/multiroot/multiroot.test';
 import { setup as setupLocalizationTests } from './areas/workbench/localization.test';
 import { setup as setupLaunchTests } from './areas/workbench/launch.test';
 import { setup as setupTerminalTests } from './areas/terminal/terminal.test';
 import { setup as setupTaskTests } from './areas/task/task.test';
-import { setup as setupChatTests } from './areas/chat/chat.test';
+import { setup as setupChatTests } from './areas/chat/chatDisabled.test';
+import { setup as setupChatAnonymousTests } from './areas/chat/chatAnonymous.test';
 import { setup as setupAccessibilityTests } from './areas/accessibility/accessibility.test';
 
 const rootPath = path.join(__dirname, '..', '..', '..');
@@ -321,7 +323,7 @@ async function ensureStableCode(): Promise<void> {
 		});
 
 		if (process.platform === 'darwin') {
-			// Visual Studio Code.app/Contents/MacOS/Electron
+			// Visual Studio Code.app/Contents/MacOS/Code
 			stableCodePath = path.dirname(path.dirname(path.dirname(stableCodeExecutable)));
 		} else {
 			// VSCode/Code.exe (Windows) | VSCode/code (Linux)
@@ -349,6 +351,16 @@ async function setup(): Promise<void> {
 		await measureAndLog(() => ensureStableCode(), 'ensureStableCode', logger);
 	}
 	await measureAndLog(() => setupRepository(), 'setupRepository', logger);
+
+	// Copy smoke test extension for extension host restart test
+	if (!opts.web) {
+		const smokeExtPath = path.join(rootPath, 'test', 'smoke', 'extensions', 'vscode-smoketest-ext-host');
+		const dest = path.join(extensionsPath, 'vscode-smoketest-ext-host');
+		if (fs.existsSync(dest)) {
+			fs.rmSync(dest, { recursive: true, force: true });
+		}
+		fs.cpSync(smokeExtPath, dest, { recursive: true });
+	}
 
 	logger.log('Smoketest setup done!\n');
 }
@@ -402,9 +414,11 @@ describe(`VSCode Smoke Tests (${opts.web ? 'Web' : 'Electron'})`, () => {
 	setupTaskTests(logger);
 	setupStatusbarTests(logger);
 	if (quality !== Quality.Dev && quality !== Quality.OSS) { setupExtensionTests(logger); }
+	if (!opts.web) { setupExtensionHostRestartTests(logger); }
 	setupMultirootTests(logger);
 	if (!opts.web && !opts.remote && quality !== Quality.Dev && quality !== Quality.OSS) { setupLocalizationTests(logger); }
 	if (!opts.web && !opts.remote) { setupLaunchTests(logger); }
 	if (!opts.web) { setupChatTests(logger); }
-	setupAccessibilityTests(logger, opts);
+	if (!opts.web && quality === Quality.Insiders) { setupChatAnonymousTests(logger); }
+	setupAccessibilityTests(logger, opts, quality);
 });

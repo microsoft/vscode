@@ -29,6 +29,7 @@ export interface IDotGit {
 	readonly path: string;
 	readonly commonPath?: string;
 	readonly superProjectPath?: string;
+	readonly isBare: boolean;
 }
 
 export interface IFileStatus {
@@ -577,7 +578,12 @@ export class Git {
 			commonDotGitPath = path.normalize(commonDotGitPath);
 		}
 
+		const raw = await fs.readFile(path.join(commonDotGitPath ?? dotGitPath, 'config'), 'utf8');
+		const coreSections = GitConfigParser.parse(raw).find(s => s.name === 'core');
+		const isBare = coreSections?.properties['bare'] === 'true';
+
 		return {
+			isBare,
 			path: dotGitPath,
 			commonPath: commonDotGitPath !== dotGitPath ? commonDotGitPath : undefined,
 			superProjectPath: superProjectPath ? path.normalize(superProjectPath) : undefined
@@ -1675,11 +1681,19 @@ export class Repository {
 		}
 	}
 
-	async apply(patch: string, reverse?: boolean): Promise<void> {
+	async apply(patch: string, options?: { reverse?: boolean; threeWay?: boolean; allowEmpty?: boolean }): Promise<void> {
 		const args = ['apply', patch];
 
-		if (reverse) {
-			args.push('-R');
+		if (options?.allowEmpty) {
+			args.push('--allow-empty');
+		}
+
+		if (options?.reverse) {
+			args.push('--reverse');
+		}
+
+		if (options?.threeWay) {
+			args.push('--3way');
 		}
 
 		try {
@@ -2061,8 +2075,12 @@ export class Repository {
 			args.push('--signoff');
 		}
 
-		if (opts.signCommit) {
-			args.push('-S');
+		if (opts.signCommit !== undefined) {
+			if (opts.signCommit) {
+				args.push('-S');
+			} else {
+				args.push('--no-gpg-sign');
+			}
 		}
 
 		if (opts.empty) {
@@ -2954,11 +2972,29 @@ export class Repository {
 	}
 
 	private async getWorktreesFS(): Promise<Worktree[]> {
+		const result: Worktree[] = [];
+		const mainRepositoryPath = this.dotGit.commonPath ?? this.dotGit.path;
+
 		try {
+			if (!this.dotGit.isBare) {
+				// Add main worktree for a non-bare repository
+				const headPath = path.join(mainRepositoryPath, 'HEAD');
+				const headContent = (await fs.readFile(headPath, 'utf8')).trim();
+
+				const mainRepositoryWorktreeName = path.basename(path.dirname(mainRepositoryPath));
+
+				result.push({
+					name: mainRepositoryWorktreeName,
+					path: path.dirname(mainRepositoryPath),
+					ref: headContent.replace(/^ref: /, ''),
+					detached: !headContent.startsWith('ref: '),
+					main: true
+				} satisfies Worktree);
+			}
+
 			// List all worktree folder names
-			const worktreesPath = path.join(this.dotGit.commonPath ?? this.dotGit.path, 'worktrees');
+			const worktreesPath = path.join(mainRepositoryPath, 'worktrees');
 			const dirents = await fs.readdir(worktreesPath, { withFileTypes: true });
-			const result: Worktree[] = [];
 
 			for (const dirent of dirents) {
 				if (!dirent.isDirectory()) {
@@ -2979,7 +3015,8 @@ export class Repository {
 						// Remove 'ref: ' prefix
 						ref: headContent.replace(/^ref: /, ''),
 						// Detached if HEAD does not start with 'ref: '
-						detached: !headContent.startsWith('ref: ')
+						detached: !headContent.startsWith('ref: '),
+						main: false
 					});
 				} catch (err) {
 					if (/ENOENT/.test(err.message)) {
@@ -2994,7 +3031,7 @@ export class Repository {
 		}
 		catch (err) {
 			if (/ENOENT/.test(err.message) || /ENOTDIR/.test(err.message)) {
-				return [];
+				return result;
 			}
 
 			throw err;
