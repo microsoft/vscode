@@ -199,6 +199,11 @@ export interface IHooksExecutionService {
 	executePreToolUseHook(sessionResource: URI, input: IPreToolUseCallerInput, token?: CancellationToken): Promise<IPreToolUseHookResult | undefined>;
 }
 
+/**
+ * Keys that should be redacted when logging hook input.
+ */
+const redactedInputKeys = ['toolArgs'];
+
 export class HooksExecutionService implements IHooksExecutionService {
 	declare readonly _serviceBrand: undefined;
 
@@ -236,6 +241,16 @@ export class HooksExecutionService implements IHooksExecutionService {
 		}
 	}
 
+	private _redactForLogging(input: object): object {
+		const result: Record<string, unknown> = { ...input };
+		for (const key of redactedInputKeys) {
+			if (Object.hasOwn(result, key)) {
+				result[key] = '...';
+			}
+		}
+		return result;
+	}
+
 	private async _runSingleHook(
 		requestId: number,
 		hookType: HookTypeValue,
@@ -262,7 +277,8 @@ export class HooksExecutionService implements IHooksExecutionService {
 			cwd: hookCommand.cwd?.fsPath
 		});
 		this._log(requestId, hookType, `Running: ${hookCommandJson}`);
-		this._log(requestId, hookType, `Input: ${JSON.stringify(fullInput)}`);
+		const inputForLog = this._redactForLogging(fullInput);
+		this._log(requestId, hookType, `Input: ${JSON.stringify(inputForLog)}`);
 
 		const sw = StopWatch.create();
 		try {
