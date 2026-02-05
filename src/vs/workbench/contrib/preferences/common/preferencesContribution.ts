@@ -125,6 +125,17 @@ registry.registerConfiguration({
 			'description': nls.localize('settingsSearchTocBehavior', "Controls the behavior of the Settings editor Table of Contents while searching. If this setting is being changed in the Settings editor, the setting will take effect after the search query is modified."),
 			'default': 'filter',
 			'scope': ConfigurationScope.WINDOW
+		},
+		'workbench.settings.scrollBehavior': {
+			'type': 'string',
+			'enum': ['paginated', 'continuous'],
+			'enumDescriptions': [
+				nls.localize('settingsScrollBehavior.paginated', "Show only settings from the selected category. Clicking a category in the Table of Contents filters the view to that category."),
+				nls.localize('settingsScrollBehavior.continuous', "Show all settings in a continuous scrolling list. Clicking a category scrolls to that section."),
+			],
+			'description': nls.localize('settingsScrollBehavior', "Controls whether the Settings editor shows one category at a time (paginated) or allows continuous scrolling through all settings."),
+			'default': 'paginated',
+			'scope': ConfigurationScope.WINDOW
 		}
 	}
 });

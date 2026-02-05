@@ -7,7 +7,7 @@ import { encodeBase64 } from '../../../../../../base/common/buffer.js';
 import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { IObservable, ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { localize } from '../../../../../../nls.js';
-import { ConfirmedReason, IChatExtensionsContent, IChatSubagentToolInvocationData, IChatTodoListContent, IChatToolInputInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind, type IChatTerminalToolInvocationData } from '../../chatService/chatService.js';
+import { ConfirmedReason, IChatExtensionsContent, IChatSimpleToolInvocationData, IChatSubagentToolInvocationData, IChatTodoListContent, IChatToolInputInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind, type IChatTerminalToolInvocationData } from '../../chatService/chatService.js';
 import { IPreparedToolInvocation, isToolResultOutputDetails, IToolConfirmationMessages, IToolData, IToolProgressStep, IToolResult, ToolDataSource } from '../../tools/languageModelToolsService.js';
 
 export interface IStreamingToolCallOptions {
@@ -33,7 +33,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 	public generatedTitle?: string;
 	public readonly chatRequestId?: string;
 
-	public toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatTodoListContent | IChatSubagentToolInvocationData;
+	public toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData;
 
 	private readonly _progress = observableValue<{ message?: string | IMarkdownString; progress: number | undefined }>(this, { progress: 0 });
 	private readonly _state: ISettableObservable<IChatToolInvocation.State>;

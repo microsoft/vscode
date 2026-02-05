@@ -51,7 +51,7 @@ import { ILanguageModelToolsService } from '../tools/languageModelToolsService.j
 import { ChatSessionOperationLog } from '../model/chatSessionOperationLog.js';
 import { IPromptsService } from '../promptSyntax/service/promptsService.js';
 import { IChatRequestHooks } from '../promptSyntax/hookSchema.js';
-import { IHooksExecutionService } from '../hooksExecutionService.js';
+import { IHooksExecutionService } from '../hooks/hooksExecutionService.js';
 
 const serializedChatKey = 'interactive.sessions';
 

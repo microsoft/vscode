@@ -7,7 +7,9 @@ import { URI, UriComponents } from '../../../base/common/uri.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 import { ExtHostContext, MainContext, MainThreadHooksShape } from '../common/extHost.protocol.js';
-import { HookCommandResultKind, IHookCommandResult, IHookResult, IHooksExecutionProxy, IHooksExecutionService } from '../../contrib/chat/common/hooksExecutionService.js';
+import { HookCommandResultKind, IHookCommandResult } from '../../contrib/chat/common/hooks/hooksCommandTypes.js';
+import { IHookResult } from '../../contrib/chat/common/hooks/hooksTypes.js';
+import { IHooksExecutionProxy, IHooksExecutionService } from '../../contrib/chat/common/hooks/hooksExecutionService.js';
 import { HookTypeValue, IHookCommand } from '../../contrib/chat/common/promptSyntax/hookSchema.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 

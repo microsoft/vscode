@@ -3,155 +3,32 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { URI } from '../../../../base/common/uri.js';
-import { HookType, HookTypeValue, IChatRequestHooks, IHookCommand } from './promptSyntax/hookSchema.js';
-import { IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { ILogService } from '../../../../platform/log/common/log.js';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { StopWatch } from '../../../../base/common/stopwatch.js';
-import { Extensions, IOutputChannelRegistry, IOutputService } from '../../../services/output/common/output.js';
-import { Registry } from '../../../../platform/registry/common/platform.js';
-import { localize } from '../../../../nls.js';
-import { vEnum, vObj, vOptionalProp, vString } from '../../../../base/common/validation.js';
+import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { HookType, HookTypeValue, IChatRequestHooks, IHookCommand } from '../promptSyntax/hookSchema.js';
+import { IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { StopWatch } from '../../../../../base/common/stopwatch.js';
+import { Extensions, IOutputChannelRegistry, IOutputService } from '../../../../services/output/common/output.js';
+import { Registry } from '../../../../../platform/registry/common/platform.js';
+import { localize } from '../../../../../nls.js';
+import {
+	HookCommandResultKind,
+	IHookCommandInput,
+	IHookCommandResult,
+	IPreToolUseCommandInput,
+} from './hooksCommandTypes.js';
+import {
+	commonHookOutputValidator,
+	IHookResult,
+	IPreToolUseCallerInput,
+	IPreToolUseHookResult,
+	preToolUseOutputValidator,
+} from './hooksTypes.js';
 
 export const hooksOutputChannelId = 'hooksExecution';
 const hooksOutputChannelLabel = localize('hooksExecutionChannel', "Hooks");
-
-//#region Hook Input Types
-
-/**
- * Common properties added to all hook inputs by the execution service.
- * These are built internally when executing hooks - callers don't provide them.
- */
-export interface ICommonHookInput {
-	readonly timestamp: string;
-	readonly cwd: string;
-	readonly sessionId: string;
-	readonly hookEventName: string;
-}
-
-//#endregion
-
-//#region Common Hook Output
-
-/**
- * Common output fields that can be present in any hook result.
- * These fields control execution flow and user feedback.
- */
-export interface ICommonHookOutput {
-	/**
-	 * If set, stops processing entirely after this hook.
-	 * The message is shown to the user but not to the agent.
-	 */
-	readonly stopReason?: string;
-	/**
-	 * Message shown to the user.
-	 */
-	readonly systemMessage?: string;
-}
-
-const commonHookOutputValidator = vObj({
-	stopReason: vOptionalProp(vString()),
-	systemMessage: vOptionalProp(vString()),
-});
-
-//#endregion
-
-//#region PreToolUse Hook Types
-
-/**
- * Input provided by the caller when invoking the preToolUse hook.
- * This is the minimal set of data that the tool service knows about.
- */
-export interface IPreToolUseCallerInput {
-	readonly toolName: string;
-	readonly toolArgs: unknown;
-}
-
-/**
- * Full input passed to the preToolUse hook.
- * Combines the caller input with common hook properties.
- */
-export interface IPreToolUseHookInput extends ICommonHookInput {
-	readonly toolName: string;
-	readonly toolArgs: unknown;
-}
-
-/**
- * Valid permission decisions for preToolUse hooks.
- */
-export type PreToolUsePermissionDecision = 'allow' | 'deny';
-
-/**
- * Output from the preToolUse hook.
- */
-export interface IPreToolUseHookOutput {
-	readonly permissionDecision: PreToolUsePermissionDecision;
-	readonly permissionDecisionReason?: string;
-}
-
-const preToolUseOutputValidator = vObj({
-	permissionDecision: vEnum('allow', 'deny'),
-	permissionDecisionReason: vOptionalProp(vString()),
-});
-
-//#endregion
-
-export const enum HookCommandResultKind {
-	Success = 1,
-	Error = 2
-}
-
-//#region Hook Result Types
-
-/**
- * Raw result from spawning a hook command.
- * This is the low-level result before semantic processing.
- */
-export interface IHookCommandResult {
-	readonly kind: HookCommandResultKind;
-	/**
-	 * For success, this is stdout (parsed as JSON if valid, otherwise string).
-	 * For errors, this is stderr.
-	 */
-	readonly result: string | object;
-}
-
-/**
- * Semantic hook result with common fields extracted and defaults applied.
- * This is what callers receive from executeHook.
- */
-export interface IHookResult {
-	/**
-	 * If set, the agent should stop processing entirely after this hook.
-	 * The message is shown to the user but not to the agent.
-	 */
-	readonly stopReason?: string;
-	/**
-	 * Message shown to the user.
-	 */
-	readonly messageForUser?: string;
-	/**
-	 * The hook's output (hook-specific fields only).
-	 * For errors, this is the error message string.
-	 */
-	readonly output: unknown;
-	/**
-	 * Whether the hook command executed successfully (exit code 0).
-	 */
-	readonly success: boolean;
-}
-
-/**
- * Result from preToolUse hooks with permission decision fields.
- */
-export interface IPreToolUseHookResult extends IHookResult {
-	readonly permissionDecision?: PreToolUsePermissionDecision;
-	readonly permissionDecisionReason?: string;
-}
-
-//#endregion
 
 export interface IHooksExecutionOptions {
 	readonly input?: unknown;
@@ -199,6 +76,11 @@ export interface IHooksExecutionService {
 	executePreToolUseHook(sessionResource: URI, input: IPreToolUseCallerInput, token?: CancellationToken): Promise<IPreToolUseHookResult | undefined>;
 }
 
+/**
+ * Keys that should be redacted when logging hook input.
+ */
+const redactedInputKeys = ['toolArgs'];
+
 export class HooksExecutionService implements IHooksExecutionService {
 	declare readonly _serviceBrand: undefined;
 
@@ -236,6 +118,16 @@ export class HooksExecutionService implements IHooksExecutionService {
 		}
 	}
 
+	private _redactForLogging(input: object): object {
+		const result: Record<string, unknown> = { ...input };
+		for (const key of redactedInputKeys) {
+			if (Object.hasOwn(result, key)) {
+				result[key] = '...';
+			}
+		}
+		return result;
+	}
+
 	private async _runSingleHook(
 		requestId: number,
 		hookType: HookTypeValue,
@@ -245,7 +137,7 @@ export class HooksExecutionService implements IHooksExecutionService {
 		token: CancellationToken
 	): Promise<IHookResult> {
 		// Build the common hook input properties
-		const commonInput: ICommonHookInput = {
+		const commonInput: IHookCommandInput = {
 			timestamp: new Date().toISOString(),
 			cwd: hookCommand.cwd?.fsPath ?? '',
 			sessionId: sessionResource.toString(),
@@ -253,7 +145,7 @@ export class HooksExecutionService implements IHooksExecutionService {
 		};
 
 		// Merge common properties with caller-specific input
-		const fullInput = callerInput !== undefined && callerInput !== null && typeof callerInput === 'object'
+		const fullInput = !!callerInput && typeof callerInput === 'object'
 			? { ...commonInput, ...callerInput }
 			: commonInput;
 
@@ -262,8 +154,7 @@ export class HooksExecutionService implements IHooksExecutionService {
 			cwd: hookCommand.cwd?.fsPath
 		});
 		this._log(requestId, hookType, `Running: ${hookCommandJson}`);
-		// Log input with toolArgs truncated to avoid excessively long logs
-		const inputForLog = { ...fullInput as object, toolArgs: '...' };
+		const inputForLog = this._redactForLogging(fullInput);
 		this._log(requestId, hookType, `Input: ${JSON.stringify(inputForLog)}`);
 
 		const sw = StopWatch.create();
@@ -318,18 +209,15 @@ export class HooksExecutionService implements IHooksExecutionService {
 	}
 
 	/**
-	 * Extract only known hook-specific output fields.
-	 * This prevents unknown fields from being passed through.
+	 * Extract hook-specific output fields, excluding common fields.
 	 */
 	private _extractHookSpecificOutput(result: Record<string, unknown>): Record<string, unknown> {
+		const commonFields = new Set(['stopReason', 'systemMessage']);
 		const output: Record<string, unknown> = {};
-
-		// PreToolUse hook fields
-		if (result.permissionDecision !== undefined) {
-			output.permissionDecision = result.permissionDecision;
-		}
-		if (result.permissionDecisionReason !== undefined) {
-			output.permissionDecisionReason = result.permissionDecisionReason;
+		for (const [key, value] of Object.entries(result)) {
+			if (value !== undefined && !commonFields.has(key)) {
+				output[key] = value;
+			}
 		}
 
 		return output;
@@ -396,9 +284,15 @@ export class HooksExecutionService implements IHooksExecutionService {
 	}
 
 	async executePreToolUseHook(sessionResource: URI, input: IPreToolUseCallerInput, token?: CancellationToken): Promise<IPreToolUseHookResult | undefined> {
-		// Pass the caller input directly - common properties are added in _runSingleHook
+		// Convert camelCase caller input to snake_case for external command
+		const toolSpecificInput: IPreToolUseCommandInput = {
+			tool_name: input.toolName,
+			tool_input: input.toolInput,
+			tool_use_id: input.toolCallId,
+		};
+
 		const results = await this.executeHook(HookType.PreToolUse, sessionResource, {
-			input,
+			input: toolSpecificInput,
 			token: token ?? CancellationToken.None,
 		});
 
@@ -408,20 +302,24 @@ export class HooksExecutionService implements IHooksExecutionService {
 			if (result.success && typeof result.output === 'object' && result.output !== null) {
 				const validationResult = preToolUseOutputValidator.validate(result.output);
 				if (!validationResult.error) {
-					const hookOutput = validationResult.content;
-					const preToolUseResult: IPreToolUseHookResult = {
-						...result,
-						permissionDecision: hookOutput.permissionDecision,
-						permissionDecisionReason: hookOutput.permissionDecisionReason,
-					};
+					// Extract from hookSpecificOutput wrapper
+					const hookSpecificOutput = validationResult.content.hookSpecificOutput;
+					if (hookSpecificOutput) {
+						const preToolUseResult: IPreToolUseHookResult = {
+							...result,
+							permissionDecision: hookSpecificOutput.permissionDecision,
+							permissionDecisionReason: hookSpecificOutput.permissionDecisionReason,
+							additionalContext: hookSpecificOutput.additionalContext,
+						};
 
-					// If any hook denies, return immediately with that denial
-					if (hookOutput.permissionDecision === 'deny') {
-						return preToolUseResult;
-					}
-					// Track the last allow in case we need to return it
-					if (hookOutput.permissionDecision === 'allow') {
-						lastAllowResult = preToolUseResult;
+						// If any hook denies, return immediately with that denial
+						if (hookSpecificOutput.permissionDecision === 'deny') {
+							return preToolUseResult;
+						}
+						// Track the last allow in case we need to return it
+						if (hookSpecificOutput.permissionDecision === 'allow') {
+							lastAllowResult = preToolUseResult;
+						}
 					}
 				} else {
 					// If validation fails, log a warning and continue to next result
