@@ -4,12 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as sinon from 'sinon';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { Downloading, StateType } from '../../../../../platform/update/common/update.js';
 import { computeDownloadSpeed, computeDownloadTimeRemaining, formatBytes, formatTimeRemaining } from '../../browser/updateStatusBarEntry.js';
 
 suite('UpdateStatusBarEntry', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	let clock: sinon.SinonFakeTimers;
+
+	setup(() => {
+		clock = sinon.useFakeTimers();
+	});
+
+	teardown(() => {
+		clock.restore();
+	});
 
 	function createDownloadingState(downloadedBytes?: number, totalBytes?: number, startTime?: number): Downloading {
 		return { type: StateType.Downloading, explicit: true, overwrite: false, downloadedBytes, totalBytes, startTime };
