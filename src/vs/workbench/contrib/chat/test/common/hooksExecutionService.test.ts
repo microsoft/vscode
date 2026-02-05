@@ -251,6 +251,31 @@ suite('HooksExecutionService', () => {
 			assert.strictEqual(results[0].stopReason, undefined);
 		});
 
+		test('passes through hook-specific output fields for non-preToolUse hooks', async () => {
+			// Stop hooks return different fields (decision, reason) than preToolUse hooks
+			const proxy = createMockProxy(() => ({
+				kind: HookCommandResultKind.Success,
+				result: {
+					decision: 'block',
+					reason: 'Please run the tests'
+				}
+			}));
+			service.setProxy(proxy);
+
+			const hooks = { [HookType.Stop]: [cmd('check-stop')] };
+			store.add(service.registerHooks(sessionUri, hooks));
+
+			const results = await service.executeHook(HookType.Stop, sessionUri);
+
+			assert.strictEqual(results.length, 1);
+			assert.strictEqual(results[0].success, true);
+			// Hook-specific fields should be in output, not undefined
+			assert.deepStrictEqual(results[0].output, {
+				decision: 'block',
+				reason: 'Please run the tests'
+			});
+		});
+
 		test('passes input to proxy', async () => {
 			let receivedInput: unknown;
 			const proxy = createMockProxy((_cmd, input) => {

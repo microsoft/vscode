@@ -262,9 +262,7 @@ export class HooksExecutionService implements IHooksExecutionService {
 			cwd: hookCommand.cwd?.fsPath
 		});
 		this._log(requestId, hookType, `Running: ${hookCommandJson}`);
-		// Log input with toolArgs truncated to avoid excessively long logs
-		const inputForLog = { ...fullInput as object, toolArgs: '...' };
-		this._log(requestId, hookType, `Input: ${JSON.stringify(inputForLog)}`);
+		this._log(requestId, hookType, `Input: ${JSON.stringify(fullInput)}`);
 
 		const sw = StopWatch.create();
 		try {
@@ -318,18 +316,14 @@ export class HooksExecutionService implements IHooksExecutionService {
 	}
 
 	/**
-	 * Extract only known hook-specific output fields.
-	 * This prevents unknown fields from being passed through.
+	 * Extract hook-specific output fields.
 	 */
 	private _extractHookSpecificOutput(result: Record<string, unknown>): Record<string, unknown> {
 		const output: Record<string, unknown> = {};
-
-		// PreToolUse hook fields
-		if (result.permissionDecision !== undefined) {
-			output.permissionDecision = result.permissionDecision;
-		}
-		if (result.permissionDecisionReason !== undefined) {
-			output.permissionDecisionReason = result.permissionDecisionReason;
+		for (const [key, value] of Object.entries(result)) {
+			if (value !== undefined) {
+				output[key] = value;
+			}
 		}
 
 		return output;
