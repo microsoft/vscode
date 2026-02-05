@@ -11,7 +11,7 @@ import { CONTEXT_FIND_INPUT_FOCUSED, CONTEXT_REPLACE_INPUT_FOCUSED } from '../..
 import { localize } from '../../../../nls.js';
 import { AccessibleViewProviderId, AccessibleViewType, IAccessibleViewContentProvider, IAccessibleViewOptions } from '../../../../platform/accessibility/browser/accessibleView.js';
 import { AccessibleViewRegistry, IAccessibleViewImplementation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
-import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
 
@@ -39,7 +39,6 @@ export class EditorFindAccessibilityHelp implements IAccessibleViewImplementatio
 	 */
 	getProvider(accessor: ServicesAccessor) {
 		const codeEditorService = accessor.get(ICodeEditorService);
-		const contextKeyService = accessor.get(IContextKeyService);
 		const codeEditor = codeEditorService.getActiveCodeEditor() || codeEditorService.getFocusedCodeEditor();
 
 		if (!codeEditor) {
@@ -52,7 +51,8 @@ export class EditorFindAccessibilityHelp implements IAccessibleViewImplementatio
 		}
 
 		// Track which input was focused when accessible help was opened
-		const wasReplaceInputFocused = !!CONTEXT_REPLACE_INPUT_FOCUSED.getValue(contextKeyService);
+		// Uses the controller's tracked state since context keys are cleared when focus moves
+		const wasReplaceInputFocused = findController.wasReplaceInputLastFocused();
 
 		return new EditorFindAccessibilityHelpProvider(findController, wasReplaceInputFocused);
 	}
