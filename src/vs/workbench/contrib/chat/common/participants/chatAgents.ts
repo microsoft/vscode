@@ -26,6 +26,7 @@ import { asJson, IRequestService } from '../../../../../platform/request/common/
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ChatContextKeys } from '../actions/chatContextKeys.js';
 import { IChatAgentEditedFileEvent, IChatProgressHistoryResponseContent, IChatRequestModeInstructions, IChatRequestVariableData, ISerializableChatAgentData } from '../model/chatModel.js';
+import { IChatRequestHooks } from '../promptSyntax/hookSchema.js';
 import { IRawChatCommandContribution } from './chatParticipantContribTypes.js';
 import { IChatFollowup, IChatLocationData, IChatProgress, IChatResponseErrorDetails, IChatTaskDto } from '../chatService/chatService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../constants.js';
@@ -150,6 +151,11 @@ export interface IChatAgentRequest {
 	modeInstructions?: IChatRequestModeInstructions;
 	editedFileEvents?: IChatAgentEditedFileEvent[];
 	/**
+	 * Collected hooks configuration for this request.
+	 * Contains all hooks defined in hooks.json files, organized by hook type.
+	 */
+	hooks?: IChatRequestHooks;
+	/**
 	 * Unique ID for the subagent invocation, used to group tool calls from the same subagent run together.
 	 */
 	subAgentInvocationId?: string;
@@ -157,6 +163,14 @@ export interface IChatAgentRequest {
 	 * Display name of the subagent that is invoking this request.
 	 */
 	subAgentName?: string;
+	/**
+	 * Set to true by the editor to request the language model gracefully stop after its next opportunity.
+	 */
+	yieldRequested?: boolean;
+	/**
+	 * The request ID of the parent request that invoked this subagent.
+	 */
+	parentRequestId?: string;
 
 }
 
@@ -190,8 +204,6 @@ export interface IChatAgentResult {
 	readonly metadata?: { readonly [key: string]: unknown };
 	readonly details?: string;
 	nextQuestion?: IChatQuestion;
-	/** Token usage information for this request */
-	readonly usage?: IChatAgentResultUsage;
 }
 
 export const IChatAgentService = createDecorator<IChatAgentService>('chatAgentService');

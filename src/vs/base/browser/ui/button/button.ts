@@ -351,10 +351,10 @@ export class Button extends Disposable implements IButton {
 	set checked(value: boolean) {
 		if (value) {
 			this._element.classList.add('checked');
-			this._element.setAttribute('aria-checked', 'true');
+			this._element.setAttribute('aria-pressed', 'true');
 		} else {
 			this._element.classList.remove('checked');
-			this._element.setAttribute('aria-checked', 'false');
+			this._element.setAttribute('aria-pressed', 'false');
 		}
 	}
 

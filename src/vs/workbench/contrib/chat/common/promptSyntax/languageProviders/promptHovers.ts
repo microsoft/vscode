@@ -83,7 +83,7 @@ export class PromptHoverProvider implements HoverProvider {
 						case PromptHeaderAttributes.handOffs:
 							return this.getHandsOffHover(attribute, position, promptType === PromptsType.agent && isGithubTarget(promptType, header.target));
 						case PromptHeaderAttributes.infer:
-							return this.createHover(description + '\n\n' + localize('promptHeader.attribute.infer.hover', '- `all`, `true`: Available in the agent picker and can be used as a subagent.\n- `user`, `false`: Only available in the agent picker.\n- `agent`: Only available as a subagent (not shown in picker).\n- `hidden`: Not available in the picker nor as a subagent.'), attribute.range);
+							return this.createHover(description + '\n\n' + localize('promptHeader.attribute.infer.hover', 'Deprecated: Use `user-invokable` and `disable-model-invocation` instead.'), attribute.range);
 						default:
 							return this.createHover(description, attribute.range);
 					}
@@ -136,8 +136,9 @@ export class PromptHoverProvider implements HoverProvider {
 			return this.createHover(baseMessage + '\n\n' + localize('promptHeader.agent.model.githubCopilot', 'Note: This attribute is not used when target is github-copilot.'), node.range);
 		}
 		const modelHoverContent = (modelName: string): Hover | undefined => {
-			const meta = this.languageModelsService.lookupLanguageModelByQualifiedName(modelName);
-			if (meta) {
+			const result = this.languageModelsService.lookupLanguageModelByQualifiedName(modelName);
+			if (result) {
+				const meta = result.metadata;
 				const lines: string[] = [];
 				lines.push(baseMessage + '\n');
 				lines.push(localize('modelName', '- Name: {0}', meta.name));

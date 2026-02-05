@@ -248,7 +248,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			run(accessor: ServicesAccessor, args: string | IOpenSettingsActionOptions) {
 				// args takes a string for backcompat
 				const opts = typeof args === 'string' ? { query: args } : sanitizeOpenSettingsArgs(args);
-				return accessor.get(IPreferencesService).openSettings(opts);
+				return accessor.get(IPreferencesService).openSettings({ openInModal: true, ...opts });
 			}
 		}));
 		this._register(registerAction2(class extends Action2 {
@@ -846,7 +846,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			run(accessor: ServicesAccessor, ...args: unknown[]) {
 				const query = typeof args[0] === 'string' ? args[0] : undefined;
 				const groupId = getEditorGroupFromArguments(accessor, args)?.id;
-				return accessor.get(IPreferencesService).openGlobalKeybindingSettings(false, { query, groupId });
+				return accessor.get(IPreferencesService).openGlobalKeybindingSettings(false, { query, groupId, openInModal: true });
 			}
 		}));
 		this._register(MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {

@@ -1,10 +1,10 @@
 {
 	"information_for_contributors": [
-		"This file has been converted from https://github.com/JuliaEditorSupport/atom-language-julia/blob/master/grammars/julia_vscode.json",
+		"This file has been converted from https://github.com/JuliaEditorSupport/atom-language-julia/blob/master/variants/julia_vscode.json",
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/JuliaEditorSupport/atom-language-julia/commit/111548fbd25d083ec131d2732a4f46953ea92a65",
+	"version": "https://github.com/JuliaEditorSupport/atom-language-julia/commit/93454227ce9a7aa92f41b157c6a74f3971b4ae14",
 	"name": "Julia",
 	"scopeName": "source.julia",
 	"comment": "This grammar is used by Atom (Oniguruma), GitHub (PCRE), and VSCode (Oniguruma),\nso all regexps must be compatible with both engines.\n\nSpecs:\n- https://github.com/kkos/oniguruma/blob/master/doc/RE\n- https://www.pcre.org/current/doc/html/",

@@ -34,6 +34,26 @@ export const AGENT_FILE_EXTENSION = '.agent.md';
 export const SKILL_FILENAME = 'SKILL.md';
 
 /**
+ * AGENT file name
+ */
+export const AGENT_MD_FILENAME = 'AGENTS.md';
+
+/**
+ * Claude file name.
+ */
+export const CLAUDE_MD_FILENAME = 'CLAUDE.md';
+
+/**
+ * Claude local file name.
+ */
+export const CLAUDE_LOCAL_MD_FILENAME = 'CLAUDE.local.md';
+
+/**
+ * Default hook file name (case insensitive).
+ */
+export const HOOKS_FILENAME = 'hooks.json';
+
+/**
  * Copilot custom instructions file name.
  */
 export const COPILOT_CUSTOM_INSTRUCTIONS_FILENAME = 'copilot-instructions.md';
@@ -60,6 +80,11 @@ export const LEGACY_MODE_DEFAULT_SOURCE_FOLDER = '.github/chatmodes';
 export const AGENTS_SOURCE_FOLDER = '.github/agents';
 
 /**
+ * Hooks folder.
+ */
+export const HOOKS_SOURCE_FOLDER = '.github/hooks';
+
+/**
  * Tracks where prompt files originate from.
  */
 export enum PromptFileSource {
@@ -67,6 +92,9 @@ export enum PromptFileSource {
 	CopilotPersonal = 'copilot-personal',
 	ClaudePersonal = 'claude-personal',
 	ClaudeWorkspace = 'claude-workspace',
+	ClaudeWorkspaceLocal = 'claude-workspace-local',
+	AgentsWorkspace = 'agents-workspace',
+	AgentsPersonal = 'agents-personal',
 	ConfigWorkspace = 'config-workspace',
 	ConfigPersonal = 'config-personal',
 	ExtensionContribution = 'extension-contribution',
@@ -114,8 +142,10 @@ export interface IResolvedPromptFile {
  */
 export const DEFAULT_SKILL_SOURCE_FOLDERS: readonly IPromptSourceFolder[] = [
 	{ path: '.github/skills', source: PromptFileSource.GitHubWorkspace, storage: PromptsStorage.local },
+	{ path: '.agents/skills', source: PromptFileSource.AgentsWorkspace, storage: PromptsStorage.local },
 	{ path: '.claude/skills', source: PromptFileSource.ClaudeWorkspace, storage: PromptsStorage.local },
 	{ path: '~/.copilot/skills', source: PromptFileSource.CopilotPersonal, storage: PromptsStorage.user },
+	{ path: '~/.agents/skills', source: PromptFileSource.AgentsPersonal, storage: PromptsStorage.user },
 	{ path: '~/.claude/skills', source: PromptFileSource.ClaudePersonal, storage: PromptsStorage.user },
 ];
 
@@ -138,6 +168,16 @@ export const DEFAULT_PROMPT_SOURCE_FOLDERS: readonly IPromptSourceFolder[] = [
  */
 export const DEFAULT_AGENT_SOURCE_FOLDERS: readonly IPromptSourceFolder[] = [
 	{ path: AGENTS_SOURCE_FOLDER, source: PromptFileSource.GitHubWorkspace, storage: PromptsStorage.local },
+];
+
+/**
+ * Default hook file paths.
+ */
+export const DEFAULT_HOOK_FILE_PATHS: readonly IPromptSourceFolder[] = [
+	{ path: '.github/hooks/hooks.json', source: PromptFileSource.GitHubWorkspace, storage: PromptsStorage.local },
+	{ path: '.claude/settings.local.json', source: PromptFileSource.ClaudeWorkspaceLocal, storage: PromptsStorage.local },
+	{ path: '.claude/settings.json', source: PromptFileSource.ClaudeWorkspace, storage: PromptsStorage.local },
+	{ path: '~/.claude/settings.json', source: PromptFileSource.ClaudePersonal, storage: PromptsStorage.user },
 ];
 
 /**
@@ -176,6 +216,19 @@ export function getPromptFileType(fileUri: URI): PromptsType | undefined {
 		return PromptsType.agent;
 	}
 
+	// Check if it's a hooks.json file (case insensitive)
+	if (filename.toLowerCase() === HOOKS_FILENAME.toLowerCase()) {
+		return PromptsType.hook;
+	}
+
+	// Check if it's a settings.local.json or settings.json file in a .claude folder
+	if (filename.toLowerCase() === 'settings.local.json' || filename.toLowerCase() === 'settings.json') {
+		const dir = dirname(fileUri.path);
+		if (dir.endsWith('/.claude') || dir === '.claude') {
+			return PromptsType.hook;
+		}
+	}
+
 	return undefined;
 }
 
@@ -196,6 +249,8 @@ export function getPromptFileExtension(type: PromptsType): string {
 			return AGENT_FILE_EXTENSION;
 		case PromptsType.skill:
 			return SKILL_FILENAME;
+		case PromptsType.hook:
+			return HOOKS_FILENAME;
 		default:
 			throw new Error('Unknown prompt type');
 	}
@@ -211,6 +266,8 @@ export function getPromptFileDefaultLocations(type: PromptsType): readonly IProm
 			return DEFAULT_AGENT_SOURCE_FOLDERS;
 		case PromptsType.skill:
 			return DEFAULT_SKILL_SOURCE_FOLDERS;
+		case PromptsType.hook:
+			return DEFAULT_HOOK_FILE_PATHS;
 		default:
 			throw new Error('Unknown prompt type');
 	}

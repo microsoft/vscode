@@ -42,11 +42,11 @@ import { IAgentSession } from '../../chat/browser/agentSessions/agentSessionsMod
 import { AgentSessionsWelcomeEditorOptions, AgentSessionsWelcomeInput, AgentSessionsWelcomeWorkspaceKind } from './agentSessionsWelcomeInput.js';
 import { IChatService } from '../../chat/common/chatService/chatService.js';
 import { IChatModel } from '../../chat/common/model/chatModel.js';
-import { ChatViewId, ChatViewPaneTarget, IChatWidgetService, ISessionTypePickerDelegate, IWorkspacePickerDelegate, IWorkspacePickerItem } from '../../chat/browser/chat.js';
+import { ChatViewId, IChatWidgetService, ISessionTypePickerDelegate, IWorkspacePickerDelegate, IWorkspacePickerItem } from '../../chat/browser/chat.js';
 import { ChatSessionPosition, getResourceForNewChatSession } from '../../chat/browser/chatSessions/chatSessions.contribution.js';
 import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 import { AgentSessionsControl, IAgentSessionsControlOptions } from '../../chat/browser/agentSessions/agentSessionsControl.js';
-import { IAgentSessionsFilter } from '../../chat/browser/agentSessions/agentSessionsViewer.js';
+import { AgentSessionsFilter } from '../../chat/browser/agentSessions/agentSessionsFilter.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { IResolvedWalkthrough, IWalkthroughsService } from '../../welcomeGettingStarted/browser/gettingStartedService.js';
 import { GettingStartedEditorOptions, GettingStartedInput } from '../../welcomeGettingStarted/browser/gettingStartedInput.js';
@@ -134,7 +134,7 @@ export class AgentSessionsWelcomePage extends EditorPane {
 	private walkthroughs: IResolvedWalkthrough[] = [];
 	private _selectedSessionProvider: AgentSessionProviders = AgentSessionProviders.Local;
 	private _selectedWorkspace: IWorkspacePickerItem | undefined;
-	private _recentWorkspaces: Array<IRecentWorkspace | IRecentFolder> = [];
+	private _recentTrustedWorkspaces: Array<IRecentWorkspace | IRecentFolder> = [];
 	private _isEmptyWorkspace: boolean = false;
 	private _workspaceKind: AgentSessionsWelcomeWorkspaceKind = 'empty';
 
@@ -177,6 +177,14 @@ export class AgentSessionsWelcomePage extends EditorPane {
 
 		this.contextService = this._register(contextKeyService.createScoped(this.container));
 		ChatContextKeys.inAgentSessionsWelcome.bindTo(this.contextService).set(true);
+
+		this._register(this.chatEntitlementService.onDidChangeSentiment(() => {
+			const input = this.input || this._storedInput;
+			if (this.chatEntitlementService.sentiment.hidden && input) {
+				this._closedBy = 'chatHidden';
+				this.group.closeEditor(input);
+			}
+		}));
 	}
 
 	protected createEditor(parent: HTMLElement): void {
@@ -192,9 +200,28 @@ export class AgentSessionsWelcomePage extends EditorPane {
 	}
 
 	override async setInput(input: AgentSessionsWelcomeInput, options: AgentSessionsWelcomeEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+		this._storedInput = input;
+		this._openedAt = Date.now();
 		await super.setInput(input, options, context, token);
 		this._workspaceKind = input.workspaceKind ?? 'empty';
 		await this.buildContent();
+	}
+
+	override clearInput(): void {
+		// Send closed telemetry when the editor is closed
+		if (this._openedAt > 0) {
+			const visibleDurationMs = Date.now() - this._openedAt;
+			this.telemetryService.publicLog2<AgentSessionsWelcomeClosedEvent, AgentSessionsWelcomeClosedClassification>(
+				'agentSessionsWelcome.closed',
+				{
+					visibleDurationMs,
+					closedBy: this._closedBy ?? 'disposed'
+				}
+			);
+			this._openedAt = 0;
+			this._closedBy = undefined;
+		}
+		super.clearInput();
 	}
 
 	private async buildContent(): Promise<void> {
@@ -206,17 +233,8 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		// Detect empty workspace and fetch recent workspaces
 		this._isEmptyWorkspace = this.workspaceContextService.getWorkbenchState() === WorkbenchState.EMPTY;
 		if (this._isEmptyWorkspace) {
-			const recentlyOpened = await this.workspacesService.getRecentlyOpened();
-			const trustInfoPromises = recentlyOpened.workspaces.map(async ws => {
-				const uri = isRecentWorkspace(ws) ? ws.workspace.configPath : ws.folderUri;
-				const trustInfo = await this.workspaceTrustManagementService.getUriTrustInfo(uri);
-				return { workspace: ws, trusted: trustInfo.trusted };
-			});
-			const trustInfoResults = await Promise.all(trustInfoPromises);
-			const filteredWorkspaces = trustInfoResults
-				.filter(result => result.trusted)
-				.map(result => result.workspace);
-			this._recentWorkspaces = filteredWorkspaces.slice(0, MAX_REPO_PICKS);
+			const recentlyOpened = await this.getRecentlyOpenedWorkspaces(true);
+			this._recentTrustedWorkspaces = recentlyOpened.slice(0, MAX_REPO_PICKS);
 		}
 
 		// Get walkthroughs
@@ -227,7 +245,7 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		append(header, $('h1.product-name', {}, this.productService.nameLong));
 
 		const startEntries = append(header, $('.agentSessionsWelcome-startEntries'));
-		this.buildStartEntries(startEntries);
+		await this.buildStartEntries(startEntries);
 
 		// Chat input section
 		const chatSection = append(this.contentContainer, $('.agentSessionsWelcome-chatSection'));
@@ -257,10 +275,14 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		this.scrollableElement?.scanDomNode();
 	}
 
-	private buildStartEntries(container: HTMLElement): void {
+	private async buildStartEntries(container: HTMLElement): Promise<void> {
+		const workspaces = await this.getRecentlyOpenedWorkspaces(false);
+		const openEntry = workspaces.length > 0
+			? { icon: Codicon.folderOpened, label: localize('openRecent', "Open Recent..."), command: 'workbench.action.openRecent' }
+			: { icon: Codicon.folderOpened, label: localize('openFolder', "Open Folder..."), command: 'workbench.action.files.openFolder' };
 		const entries = [
-			{ icon: Codicon.folderOpened, label: localize('openRecent', "Open Recent..."), command: 'workbench.action.openRecent' },
-			{ icon: Codicon.newFile, label: localize('newFile', "New file..."), command: 'workbench.action.files.newUntitledFile' },
+			openEntry,
+			{ icon: Codicon.newFile, label: localize('newFile', "New file..."), command: 'welcome.showNewFileEntries' },
 			{ icon: Codicon.repoClone, label: localize('cloneRepo', "Clone Git Repository..."), command: 'git.clone' },
 		];
 
@@ -324,7 +346,7 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		const onDidChangeSelectedWorkspace = this.contentDisposables.add(new Emitter<IWorkspacePickerItem | undefined>());
 		const onDidChangeWorkspaces = this.contentDisposables.add(new Emitter<void>());
 		const workspacePickerDelegate: IWorkspacePickerDelegate | undefined = this._isEmptyWorkspace ? {
-			getWorkspaces: () => this._recentWorkspaces.map(w => ({
+			getWorkspaces: () => this._recentTrustedWorkspaces.map(w => ({
 				uri: this.getWorkspaceUri(w),
 				label: this.getWorkspaceLabel(w),
 				isFolder: isRecentFolder(w),
@@ -459,7 +481,7 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		);
 
 		// Find the workspace to determine if it's a folder or workspace file
-		const workspace = this._recentWorkspaces.find(w =>
+		const workspace = this._recentTrustedWorkspaces.find(w =>
 			this.getWorkspaceUri(w).toString() === this._selectedWorkspace?.uri.toString());
 
 		if (workspace) {
@@ -561,25 +583,13 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		// Hide the control initially until loading completes
 		this.sessionsControlContainer.style.display = 'none';
 
-		// Create a filter that limits results and excludes archived sessions
-		const onDidChangeEmitter = this.sessionsControlDisposables.add(new Emitter<void>());
-		const filter: IAgentSessionsFilter = {
-			onDidChange: onDidChangeEmitter.event,
-			limitResults: () => MAX_SESSIONS,
-			exclude: (session: IAgentSession) => session.isArchived(),
-			getExcludes: () => ({
-				providers: [],
-				states: [],
-				archived: true,
-				read: false,
-			}),
-		};
-
 		const options: IAgentSessionsControlOptions = {
 			overrideStyles: getListStyles({
 				listBackground: editorBackground,
 			}),
-			filter,
+			filter: this.sessionsControlDisposables.add(this.instantiationService.createInstance(AgentSessionsFilter, {
+				limitResults: () => MAX_SESSIONS,
+			})),
 			getHoverPosition: () => HoverPosition.BELOW,
 			trackActiveEditorSession: () => false,
 			source: 'welcomeView',
@@ -587,6 +597,7 @@ export class AgentSessionsWelcomePage extends EditorPane {
 				this._closedBy = 'sessionClicked';
 				const isProjectionEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.AgentSessionProjectionEnabled);
 				if (!isProjectionEnabled) {
+					this._closedBy = 'sessionClicked';
 					this.revealMaximizedChat();
 				}
 			}
@@ -879,9 +890,22 @@ export class AgentSessionsWelcomePage extends EditorPane {
 	}
 
 	private async closeEditorAndMaximizeAuxiliaryBar(sessionResource?: URI): Promise<void> {
-		await this.commandService.executeCommand('workbench.action.closeActiveEditor');
+		const editorToClose = this.input || this._storedInput;
+
+		if (editorToClose && this.group.contains(editorToClose)) {
+			// Wait until the active editor changed so that the chat doesn't toggle back
+			await new Promise<void>(resolve => {
+				const disposable = this.group.onDidActiveEditorChange(e => {
+					disposable.dispose();
+					resolve();
+				});
+
+				this.group.closeEditor(editorToClose);
+			});
+		}
+		// Now proceed with opening chat and maximizing
 		if (sessionResource) {
-			await this.chatWidgetService.openSession(sessionResource, ChatViewPaneTarget);
+			await this.chatWidgetService.openSession(sessionResource);
 		} else {
 			await this.commandService.executeCommand('workbench.action.chat.open');
 		}

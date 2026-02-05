@@ -12,7 +12,7 @@ import { URI, UriComponents } from '../../../../../base/common/uri.js';
 import { IChatMarkdownContent, ResponseModelState } from '../chatService/chatService.js';
 import { ModifiedFileEntryState } from '../editing/chatEditingService.js';
 import { IParsedChatRequest } from '../requestParser/chatParserTypes.js';
-import { IChatAgentEditedFileEvent, IChatDataSerializerLog, IChatModel, IChatProgressResponseContent, IChatRequestModel, IChatRequestVariableData, ISerializableChatData, ISerializableChatModelInputState, ISerializableChatRequestData, SerializedChatResponsePart } from './chatModel.js';
+import { IChatAgentEditedFileEvent, IChatDataSerializerLog, IChatModel, IChatPendingRequest, IChatProgressResponseContent, IChatRequestModel, IChatRequestVariableData, ISerializableChatData, ISerializableChatModelInputState, ISerializableChatRequestData, ISerializablePendingRequestData, SerializedChatResponsePart, serializeSendOptions } from './chatModel.js';
 import * as Adapt from './objectMutationLog.js';
 
 /**
@@ -159,6 +159,13 @@ const inputStateSchema = Adapt.object<ISerializableChatModelInputState, ISeriali
 	contrib: Adapt.v(i => i.contrib, objectsEqual),
 });
 
+const pendingRequestSchema = Adapt.object<IChatPendingRequest, ISerializablePendingRequestData>({
+	id: Adapt.t(p => p.request.id, Adapt.key()),
+	request: Adapt.t(p => p.request, requestSchema),
+	kind: Adapt.v(p => p.kind),
+	sendOptions: Adapt.v(p => serializeSendOptions(p.sendOptions), objectsEqual),
+});
+
 export const storageSchema = Adapt.object<IChatModel, ISerializableChatData>({
 	version: Adapt.v(() => 3),
 	creationDate: Adapt.v(m => m.timestamp),
@@ -170,6 +177,7 @@ export const storageSchema = Adapt.object<IChatModel, ISerializableChatData>({
 	requests: Adapt.t(m => m.getRequests(), Adapt.array(requestSchema)),
 	hasPendingEdits: Adapt.v(m => m.editingSession?.entries.get().some(e => e.state.get() === ModifiedFileEntryState.Modified)),
 	repoData: Adapt.v(m => m.repoData, objectsEqual),
+	pendingRequests: Adapt.t(m => m.getPendingRequests(), Adapt.array(pendingRequestSchema)),
 });
 
 export class ChatSessionOperationLog extends Adapt.ObjectMutationLog<IChatModel, ISerializableChatData> implements IChatDataSerializerLog {

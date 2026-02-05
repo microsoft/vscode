@@ -82,10 +82,10 @@ class MockLanguageModelsService implements ILanguageModelsService {
 		return this.models.get(identifier);
 	}
 
-	lookupLanguageModelByQualifiedName(referenceName: string): ILanguageModelChatMetadata | undefined {
-		for (const metadata of this.models.values()) {
+	lookupLanguageModelByQualifiedName(referenceName: string): ILanguageModelChatMetadataAndIdentifier | undefined {
+		for (const [identifier, metadata] of this.models.entries()) {
 			if (ILanguageModelChatMetadata.matchesQualifiedName(referenceName, metadata)) {
-				return metadata;
+				return { metadata, identifier };
 			}
 		}
 		return undefined;

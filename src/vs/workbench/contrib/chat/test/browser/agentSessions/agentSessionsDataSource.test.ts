@@ -6,13 +6,92 @@
 import assert from 'assert';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { AgentSessionsDataSource, AgentSessionListItem, IAgentSessionsFilter } from '../../../browser/agentSessions/agentSessionsViewer.js';
+import { AgentSessionsDataSource, AgentSessionListItem, IAgentSessionsFilter, sessionDateFromNow } from '../../../browser/agentSessions/agentSessionsViewer.js';
 import { AgentSessionSection, IAgentSession, IAgentSessionSection, IAgentSessionsModel, isAgentSessionSection } from '../../../browser/agentSessions/agentSessionsModel.js';
 import { ChatSessionStatus, isSessionInProgressStatus } from '../../../common/chatSessionsService.js';
 import { ITreeSorter } from '../../../../../../base/browser/ui/tree/tree.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { AgentSessionsGrouping } from '../../../browser/agentSessions/agentSessionsFilter.js';
+import { getAgentSessionTime } from '../../../browser/agentSessions/agentSessions.js';
+import { IChatSessionTiming } from '../../../common/chatService/chatService.js';
+
+suite('getAgentSessionTime', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('returns lastRequestEnded when available', () => {
+		const timing: IChatSessionTiming = {
+			created: 1000,
+			lastRequestStarted: 2000,
+			lastRequestEnded: 3000,
+		};
+		assert.strictEqual(getAgentSessionTime(timing), 3000);
+	});
+
+	test('returns lastRequestStarted when lastRequestEnded is undefined', () => {
+		const timing: IChatSessionTiming = {
+			created: 1000,
+			lastRequestStarted: 2000,
+			lastRequestEnded: undefined,
+		};
+		assert.strictEqual(getAgentSessionTime(timing), 2000);
+	});
+
+	test('returns created when both lastRequestEnded and lastRequestStarted are undefined', () => {
+		const timing: IChatSessionTiming = {
+			created: 1000,
+			lastRequestStarted: undefined,
+			lastRequestEnded: undefined,
+		};
+		assert.strictEqual(getAgentSessionTime(timing), 1000);
+	});
+});
+
+suite('sessionDateFromNow', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const ONE_DAY = 24 * 60 * 60 * 1000;
+
+	test('returns "1 day ago" for yesterday', () => {
+		const now = Date.now();
+		const startOfToday = new Date(now).setHours(0, 0, 0, 0);
+		// Time in the middle of yesterday
+		const yesterday = startOfToday - ONE_DAY / 2;
+		assert.strictEqual(sessionDateFromNow(yesterday), '1 day ago');
+	});
+
+	test('returns "2 days ago" for two days ago', () => {
+		const now = Date.now();
+		const startOfToday = new Date(now).setHours(0, 0, 0, 0);
+		const startOfYesterday = startOfToday - ONE_DAY;
+		// Time in the middle of two days ago
+		const twoDaysAgo = startOfYesterday - ONE_DAY / 2;
+		assert.strictEqual(sessionDateFromNow(twoDaysAgo), '2 days ago');
+	});
+
+	test('returns fromNow result for today', () => {
+		const now = Date.now();
+		const startOfToday = new Date(now).setHours(0, 0, 0, 0);
+		// A time from today - guaranteed to be after startOfToday
+		const fiveMinutesAfterMidnight = startOfToday + 5 * 60 * 1000;
+		const result = sessionDateFromNow(fiveMinutesAfterMidnight);
+		// Should return a time ago string, not "1 day ago" or "2 days ago"
+		assert.ok(result.includes('min') || result.includes('sec') || result.includes('hr') || result === 'now', `Expected minutes/seconds/hours ago or now, got: ${result}`);
+	});
+
+	test('returns fromNow result for three or more days ago', () => {
+		const now = Date.now();
+		const startOfToday = new Date(now).setHours(0, 0, 0, 0);
+		// Time 5 days ago
+		const fiveDaysAgo = startOfToday - 5 * ONE_DAY;
+		const result = sessionDateFromNow(fiveDaysAgo);
+		// Should return "5 days ago" from fromNow, not our special handling
+		assert.ok(result.includes('day'), `Expected days ago, got: ${result}`);
+		assert.ok(!result.includes('1 day') && !result.includes('2 days'), `Should not be 1 or 2 days ago, got: ${result}`);
+	});
+});
 
 suite('AgentSessionsDataSource', () => {
 
@@ -67,12 +146,13 @@ suite('AgentSessionsDataSource', () => {
 	function createMockFilter(options: {
 		groupBy?: AgentSessionsGrouping;
 		exclude?: (session: IAgentSession) => boolean;
+		excludeRead?: boolean;
 	}): IAgentSessionsFilter {
 		return {
 			onDidChange: Event.None,
 			groupResults: () => options.groupBy,
 			exclude: options.exclude ?? (() => false),
-			getExcludes: () => ({ providers: [], states: [], archived: false, read: false })
+			getExcludes: () => ({ providers: [], states: [], archived: false, read: options.excludeRead ?? false })
 		};
 	}
 
@@ -80,8 +160,8 @@ suite('AgentSessionsDataSource', () => {
 		return {
 			compare: (a, b) => {
 				// Sort by end time, most recent first
-				const aTime = a.timing.lastRequestEnded ?? a.timing.lastRequestStarted ?? a.timing.created;
-				const bTime = b.timing.lastRequestEnded ?? b.timing.lastRequestStarted ?? b.timing.created;
+				const aTime = getAgentSessionTime(a.timing);
+				const bTime = getAgentSessionTime(b.timing);
 				return bTime - aTime;
 			}
 		};
@@ -367,6 +447,59 @@ suite('AgentSessionsDataSource', () => {
 			assert.ok(olderSection);
 			assert.strictEqual(olderSection.sessions[0].label, 'Session old2');
 			assert.strictEqual(olderSection.sessions[1].label, 'Session old1');
+		});
+
+		test('capped grouping with unread filter returns flat list without More section', () => {
+			const now = Date.now();
+			const sessions = [
+				createMockSession({ id: '1', startTime: now, isRead: false }),
+				createMockSession({ id: '2', startTime: now - ONE_DAY, isRead: false }),
+				createMockSession({ id: '3', startTime: now - 2 * ONE_DAY, isRead: false }),
+				createMockSession({ id: '4', startTime: now - 3 * ONE_DAY, isRead: false }),
+				createMockSession({ id: '5', startTime: now - 4 * ONE_DAY, isRead: false }),
+			];
+
+			const filter = createMockFilter({
+				groupBy: AgentSessionsGrouping.Capped,
+				excludeRead: true  // Filtering to show only unread sessions
+			});
+			const sorter = createMockSorter();
+			const dataSource = new AgentSessionsDataSource(filter, sorter);
+
+			const mockModel = createMockModel(sessions);
+			const result = Array.from(dataSource.getChildren(mockModel));
+
+			// Should be a flat list without sections (no More section)
+			assert.strictEqual(result.length, 5);
+			assert.strictEqual(getSectionsFromResult(result).length, 0);
+		});
+
+		test('capped grouping without unread filter includes More section', () => {
+			const now = Date.now();
+			const sessions = [
+				createMockSession({ id: '1', startTime: now }),
+				createMockSession({ id: '2', startTime: now - ONE_DAY }),
+				createMockSession({ id: '3', startTime: now - 2 * ONE_DAY }),
+				createMockSession({ id: '4', startTime: now - 3 * ONE_DAY }),
+				createMockSession({ id: '5', startTime: now - 4 * ONE_DAY }),
+			];
+
+			const filter = createMockFilter({
+				groupBy: AgentSessionsGrouping.Capped,
+				excludeRead: false  // Not filtering to unread only
+			});
+			const sorter = createMockSorter();
+			const dataSource = new AgentSessionsDataSource(filter, sorter);
+
+			const mockModel = createMockModel(sessions);
+			const result = Array.from(dataSource.getChildren(mockModel));
+
+			// Should have 3 top sessions + 1 More section
+			assert.strictEqual(result.length, 4);
+			const sections = getSectionsFromResult(result);
+			assert.strictEqual(sections.length, 1);
+			assert.strictEqual(sections[0].section, AgentSessionSection.More);
+			assert.strictEqual(sections[0].sessions.length, 2);
 		});
 	});
 });

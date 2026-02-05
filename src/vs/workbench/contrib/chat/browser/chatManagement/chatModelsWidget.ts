@@ -1292,13 +1292,14 @@ export class ChatModelsWidget extends Disposable {
 		const configurableVendors = this.languageModelsService.getVendors().filter(vendor => vendor.managementCommand || vendor.configuration);
 
 		const entitlement = this.chatEntitlementService.entitlement;
+		const isManagedEntitlement = entitlement === ChatEntitlement.Business || entitlement === ChatEntitlement.Enterprise;
 		const supportsAddingModels = this.chatEntitlementService.isInternal
 			|| (entitlement !== ChatEntitlement.Unknown
 				&& entitlement !== ChatEntitlement.Available
-				&& entitlement !== ChatEntitlement.Business
-				&& entitlement !== ChatEntitlement.Enterprise);
+				&& !isManagedEntitlement);
 
 		this.addButton.enabled = supportsAddingModels && configurableVendors.length > 0;
+		this.addButton.setTitle(!supportsAddingModels && isManagedEntitlement ? localize('models.managedByOrganization', "Adding models is managed by your organization") : '');
 
 		this.dropdownActions = configurableVendors.map(vendor => toAction({
 			id: `enable-${vendor.vendor}`,

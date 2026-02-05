@@ -30,6 +30,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IRemoteAuthorityResolverService } from '../../../../platform/remote/common/remoteAuthorityResolver.js';
 import { ITunnelService } from '../../../../platform/tunnel/common/tunnel.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { WebviewPortMappingManager } from '../../../../platform/webview/common/webviewPortMapping.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { decodeAuthority, webviewGenericCspSource, webviewRootResourceAuthority } from '../common/webview.js';
@@ -163,6 +164,7 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 		@ITunnelService private readonly _tunnelService: ITunnelService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
+		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 	) {
 		super();
 
@@ -763,7 +765,7 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 			const result = await loadLocalResource(uri, {
 				ifNoneMatch,
 				roots: this._content.options.localResourceRoots || [],
-			}, this._fileService, this._logService, this._resourceLoadingCts.token);
+			}, this._uriIdentityService, this._fileService, this._logService, this._resourceLoadingCts.token);
 
 			switch (result.type) {
 				case WebviewResourceResponse.Type.Success: {

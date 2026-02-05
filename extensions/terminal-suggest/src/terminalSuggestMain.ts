@@ -268,7 +268,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				return;
 			}
 
-			const shellType: string | undefined = 'shell' in terminal.state ? terminal.state.shell as string : undefined;
+			const shellType: string | undefined = Object.hasOwn(terminal.state, 'shell') ? terminal.state.shell as string : undefined;
 			const terminalShellType = getTerminalShellType(shellType);
 			if (!terminalShellType) {
 				console.debug(`#terminalCompletions Shell type ${shellType} not supported`);

@@ -12,12 +12,11 @@ import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/edit
 import { EditorExtensions, IEditorFactoryRegistry } from '../../../common/editor.js';
 import { IEditorResolverService, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { AuxiliaryBarMaximizedContext } from '../../../common/contextkeys.js';
-import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
 import { AgentSessionsWelcomeInput } from './agentSessionsWelcomeInput.js';
 import { AgentSessionsWelcomePage, AgentSessionsWelcomeInputSerializer } from './agentSessionsWelcome.js';
@@ -119,6 +118,11 @@ class AgentSessionsWelcomeRunnerContribution extends Disposable implements IWork
 	}
 
 	private async run(): Promise<void> {
+		// Check if AI features are enabled
+		if (this.chatEntitlementService.sentiment.hidden) {
+			return;
+		}
+
 		// Get startup editor configuration
 		const startupEditor = this.configurationService.getValue<string>('workbench.startupEditor');
 

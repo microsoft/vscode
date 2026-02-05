@@ -259,11 +259,11 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	private readonly _alternativeIdMap: Map</* alternativeId */ string, /* primaryType */ string> = new Map();
 	private readonly _contextKeys = new Set<string>();
 
-	private readonly _onDidChangeItemsProviders = this._register(new Emitter<IChatSessionItemProvider>());
-	readonly onDidChangeItemsProviders: Event<IChatSessionItemProvider> = this._onDidChangeItemsProviders.event;
+	private readonly _onDidChangeItemsProviders = this._register(new Emitter<{ readonly chatSessionType: string }>());
+	readonly onDidChangeItemsProviders = this._onDidChangeItemsProviders.event;
 
-	private readonly _onDidChangeSessionItems = this._register(new Emitter<string>());
-	readonly onDidChangeSessionItems: Event<string> = this._onDidChangeSessionItems.event;
+	private readonly _onDidChangeSessionItems = this._register(new Emitter<{ readonly chatSessionType: string }>());
+	readonly onDidChangeSessionItems = this._onDidChangeSessionItems.event;
 
 	private readonly _onDidChangeAvailability = this._register(new Emitter<void>());
 	readonly onDidChangeAvailability: Event<void> = this._onDidChangeAvailability.event;
@@ -339,7 +339,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			}
 		}));
 
-		this._register(this.onDidChangeSessionItems(chatSessionType => {
+		this._register(this.onDidChangeSessionItems(({ chatSessionType }) => {
 			this.updateInProgressStatus(chatSessionType).catch(error => {
 				this._logService.warn(`Failed to update progress status for '${chatSessionType}':`, error);
 			});
@@ -637,7 +637,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 				this._onDidChangeItemsProviders.fire(provider);
 			}
 			for (const { contribution } of this._contributions.values()) {
-				this._onDidChangeSessionItems.fire(contribution.type);
+				this._onDidChangeSessionItems.fire({ chatSessionType: contribution.type });
 			}
 		}
 		this._updateHasCanDelegateProvidersContextKey();
@@ -730,7 +730,11 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		return this._isContributionAvailable(contribution) ? contribution : undefined;
 	}
 
-	async activateChatSessionItemProvider(chatViewType: string): Promise<IChatSessionItemProvider | undefined> {
+	async activateChatSessionItemProvider(chatViewType: string): Promise<void> {
+		await this.doActivateChatSessionItemProvider(chatViewType);
+	}
+
+	private async doActivateChatSessionItemProvider(chatViewType: string): Promise<IChatSessionItemProvider | undefined> {
 		await this._extensionService.whenInstalledExtensionsRegistered();
 		const resolvedType = this._resolveToPrimaryType(chatViewType);
 		if (resolvedType) {
@@ -777,7 +781,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 				continue; // skip: not considered for resolving
 			}
 
-			const provider = await this.activateChatSessionItemProvider(contrib.type);
+			const provider = await this.doActivateChatSessionItemProvider(contrib.type);
 			if (!provider) {
 				// We requested this provider but it is not available
 				if (providersToResolve?.includes(contrib.type)) {
@@ -828,7 +832,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 		const disposables = new DisposableStore();
 		disposables.add(provider.onDidChangeChatSessionItems(() => {
-			this._onDidChangeSessionItems.fire(chatSessionType);
+			this._onDidChangeSessionItems.fire({ chatSessionType });
 		}));
 
 		this.updateInProgressStatus(chatSessionType).catch(error => {
@@ -1007,10 +1011,6 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	public setSessionOption(sessionResource: URI, optionId: string, value: string | IChatSessionProviderOptionItem): boolean {
 		const session = this._sessions.get(sessionResource);
 		return !!session?.setOption(optionId, value);
-	}
-
-	public notifySessionItemsChanged(chatSessionType: string): void {
-		this._onDidChangeSessionItems.fire(chatSessionType);
 	}
 
 	/**

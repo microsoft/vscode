@@ -16,7 +16,8 @@ export type Capability =
 	| 'deb' | 'rpm' | 'snap'
 	| 'desktop'
 	| 'browser'
-	| 'wsl';
+	| 'wsl'
+	| 'github-account';
 
 /**
  * Detect the capabilities of the current environment.
@@ -29,6 +30,7 @@ export function detectCapabilities(): ReadonlySet<Capability> {
 	detectDesktop(capabilities);
 	detectBrowser(capabilities);
 	detectWSL(capabilities);
+	detectGitHubAccount(capabilities);
 	return capabilities;
 }
 
@@ -62,7 +64,7 @@ function detectArch(capabilities: Set<Capability>) {
 	let arch = os.arch();
 
 	if (os.platform() === 'win32') {
-		const winArch = process.env['PROCESSOR_ARCHITEW6432'] || process.env['PROCESSOR_ARCHITECTURE'];
+		const winArch = process.env.PROCESSOR_ARCHITEW6432 || process.env.PROCESSOR_ARCHITECTURE;
 		if (winArch === 'ARM64') {
 			arch = 'arm64';
 		} else if (winArch === 'AMD64') {
@@ -131,7 +133,10 @@ function detectBrowser(capabilities: Set<Capability>) {
 			break;
 		}
 		case 'win32': {
-			const path = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH ?? 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe';
+			const path =
+				process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH ??
+				`${process.env['ProgramFiles(x86)']}\\Microsoft\\Edge\\Application\\msedge.exe`;
+
 			if (fs.existsSync(path)) {
 				capabilities.add('browser');
 			}
@@ -144,14 +149,20 @@ function detectBrowser(capabilities: Set<Capability>) {
  * Detect if WSL is available on Windows.
  */
 function detectWSL(capabilities: Set<Capability>) {
-	if (os.platform() !== 'win32') {
-		return;
-	}
-	const systemRoot = process.env['SystemRoot'];
-	if (systemRoot) {
-		const wslPath = `${systemRoot}\\System32\\wsl.exe`;
+	if (os.platform() === 'win32') {
+		const wslPath = `${process.env.SystemRoot}\\System32\\wsl.exe`;
 		if (fs.existsSync(wslPath)) {
 			capabilities.add('wsl');
 		}
 	}
 }
+
+/**
+ * Detect if GitHub account and password are available in the environment.
+ */
+function detectGitHubAccount(capabilities: Set<Capability>) {
+	if (process.env.GITHUB_ACCOUNT && process.env.GITHUB_PASSWORD) {
+		capabilities.add('github-account');
+	}
+}
+
