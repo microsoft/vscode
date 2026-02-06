@@ -2305,6 +2305,9 @@ export class ChatModel extends Disposable implements IChatModel {
 	resetCheckpoint(): void {
 		for (const request of this._requests) {
 			request.setShouldBeBlocked(false);
+			if (request.response) {
+				request.response.setBlockedState(false);
+			}
 		}
 	}
 
@@ -2329,6 +2332,9 @@ export class ChatModel extends Disposable implements IChatModel {
 			const request = this._requests[i];
 			if (this._checkpoint && !checkpoint) {
 				request.setShouldBeBlocked(false);
+				if (request.response) {
+					request.response.setBlockedState(false);
+				}
 			} else if (checkpoint && i >= checkpointIndex) {
 				request.setShouldBeBlocked(true);
 				if (request.response) {
@@ -2336,6 +2342,9 @@ export class ChatModel extends Disposable implements IChatModel {
 				}
 			} else if (checkpoint && i < checkpointIndex) {
 				request.setShouldBeBlocked(false);
+				if (request.response) {
+					request.response.setBlockedState(false);
+				}
 			}
 		}
 

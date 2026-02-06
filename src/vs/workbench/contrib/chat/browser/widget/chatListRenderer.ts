@@ -2007,8 +2007,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return part;
 		}
 
-		// Render the active carousel in the input part (above the input box)
-		const part = widget?.input.renderQuestionCarousel(carousel, context, {
+		// Render the active carousel in the input part (above the input box, not while editing)
+		const isEditing = !!this.viewModel?.editing;
+		const part = isEditing ? undefined : widget?.input.renderQuestionCarousel(carousel, context, {
 			shouldAutoFocus,
 			onSubmit: async (answers) => handleSubmit(answers, part!)
 		});

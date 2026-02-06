@@ -45,7 +45,7 @@ export const HOOK_TYPES = [
 	{
 		id: HookType.PreToolUse,
 		label: nls.localize('hookType.preToolUse.label', "Pre-Tool Use"),
-		description: nls.localize('hookType.preToolUse.description', "Executed before the agent uses any tool (such as bash, edit, view).")
+		description: nls.localize('hookType.preToolUse.description', "Executed before the agent uses any tool.")
 	},
 	{
 		id: HookType.PostToolUse,
@@ -181,7 +181,7 @@ export const hookFileSchema: IJSONSchema = {
 				},
 				PreToolUse: {
 					...hookArraySchema,
-					description: nls.localize('hookFile.preToolUse', 'Executed before the agent uses any tool (such as bash, edit, view). This is the most powerful hook as it can approve or deny tool executions. Use to block dangerous commands, enforce security policies, require approval for sensitive operations, or log tool usage.')
+					description: nls.localize('hookFile.preToolUse', 'Executed before the agent uses any tool. This is the most powerful hook as it can approve or deny tool executions. Use to block dangerous commands, enforce security policies, require approval for sensitive operations, or log tool usage.')
 				},
 				PostToolUse: {
 					...hookArraySchema,

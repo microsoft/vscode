@@ -190,6 +190,7 @@ export class ChatListWidget extends Disposable {
 	private _lastItem: ChatTreeItem | undefined;
 	private _mostRecentlyFocusedItemIndex: number = -1;
 	private _scrollLock: boolean = true;
+	private _suppressAutoScroll: boolean = false;
 	private _settingChangeCounter: number = 0;
 	private _visibleChangeCount: number = 0;
 
@@ -525,7 +526,6 @@ export class ChatListWidget extends Disposable {
 		}));
 
 		const editing = this._viewModel.editing;
-		const checkpoint = this._viewModel.model?.checkpoint;
 
 		this._withPersistedAutoScroll(() => {
 			this._tree.setChildren(null, treeItems, {
@@ -534,6 +534,9 @@ export class ChatListWidget extends Disposable {
 						// Pending types only have 'id', request/response have 'dataId'
 						const baseId = (isRequestVM(element) || isResponseVM(element)) ? element.dataId : element.id;
 						const disablement = (isRequestVM(element) || isResponseVM(element)) ? element.shouldBeRemovedOnSend : undefined;
+						// Per-element editing state: only re-render items whose editing role changed
+						const isEditTarget = isRequestVM(element) && editing?.id === element.id;
+						const isBlocked = (isRequestVM(element) || isResponseVM(element)) ? element.shouldBeBlocked.get() : false;
 						return baseId +
 							// If a response is in the process of progressive rendering, we need to ensure that it will
 							// be re-rendered so progressive rendering is restarted, even if the model wasn't updated.
@@ -542,10 +545,11 @@ export class ChatListWidget extends Disposable {
 							(isResponseVM(element) ? `_${element.contentReferences.length}` : '') +
 							// Re-render if element becomes hidden due to undo/redo
 							`_${disablement ? `${disablement.afterUndoStop || '1'}` : '0'}` +
-							// Re-render if we have an element currently being edited
-							`_${editing ? '1' : '0'}` +
-							// Re-render if we have an element currently being checkpointed
-							`_${checkpoint ? '1' : '0'}` +
+							// Re-render the request being edited and requests whose blocked state changed
+							`_${isEditTarget ? 'edit' : ''}` +
+							`_${isBlocked ? 'blocked' : ''}` +
+							// Re-render requests when editing starts/stops (for hover button visibility, click handlers)
+							(isRequestVM(element) ? `_${editing ? '1' : '0'}` : '') +
 							// Re-render all if invoked by setting change
 							`_setting${this._settingChangeCounter}` +
 							// Rerender request if we got new content references in the response
@@ -706,7 +710,19 @@ export class ChatListWidget extends Disposable {
 		}
 	}
 
+	/**
+	 * Suppress auto-scroll behavior temporarily. While suppressed,
+	 * _withPersistedAutoScroll will not scroll to bottom after operations.
+	 */
+	set suppressAutoScroll(value: boolean) {
+		this._suppressAutoScroll = value;
+	}
+
 	private _withPersistedAutoScroll(fn: () => void): void {
+		if (this._suppressAutoScroll) {
+			fn();
+			return;
+		}
 		const wasScrolledToBottom = this.isScrolledToBottom;
 		fn();
 		if (wasScrolledToBottom) {
