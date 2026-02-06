@@ -9,17 +9,21 @@ import { ActionViewItem, BaseActionViewItem, IActionViewItemOptions } from '../.
 import { Action, IAction } from '../../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { KeyCode } from '../../../../../../base/common/keyCodes.js';
-import { IDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../nls.js';
+import { IActionViewItemService } from '../../../../../../platform/actions/browser/actionViewItemService.js';
 import { ActionWidgetDropdownActionViewItem } from '../../../../../../platform/actions/browser/actionWidgetDropdownActionViewItem.js';
+import { MenuId, SubmenuItemAction } from '../../../../../../platform/actions/common/actions.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IActionWidgetDropdownAction } from '../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
+import { IWorkbenchContribution } from '../../../../../common/contributions.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { ChatSubmitAction } from '../../actions/chatExecuteActions.js';
 import { ChatQueueMessageAction, ChatSteerWithMessageAction } from '../../actions/chatQueueActions.js';
@@ -209,5 +213,29 @@ class ChevronActionWidgetDropdown extends ActionWidgetDropdownActionViewItem {
 	protected override renderLabel(element: HTMLElement): IDisposable | null {
 		element.classList.add('codicon', 'codicon-chevron-down');
 		return null;
+	}
+}
+
+
+/**
+ * Workbench contribution that registers a custom action view item for the
+ * queue/steer picker in the execute toolbar. This replaces the default split
+ * button with a custom dropdown similar to the model switcher.
+ */
+export class ChatQueuePickerRendering extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'chat.queuePickerRendering';
+
+	constructor(
+		@IActionViewItemService actionViewItemService: IActionViewItemService,
+		@IInstantiationService instantiationService: IInstantiationService,
+	) {
+		super();
+		this._register(actionViewItemService.register(MenuId.ChatExecute, MenuId.ChatExecuteQueue, (action, options) => {
+			if (!(action instanceof SubmenuItemAction)) {
+				return undefined;
+			}
+			return instantiationService.createInstance(ChatQueuePickerActionItem, action, options);
+		}));
 	}
 }

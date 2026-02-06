@@ -4,23 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { localize, localize2 } from '../../../../../nls.js';
-import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
-import { Action2, MenuId, MenuRegistry, registerAction2, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
-import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
-import { IWorkbenchContribution } from '../../../../common/contributions.js';
+import { localize, localize2 } from '../../../../../nls.js';
+import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ChatRequestQueueKind, IChatService } from '../../common/chatService/chatService.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { isRequestVM } from '../../common/model/chatViewModel.js';
 import { IChatWidgetService } from '../chat.js';
-import { ChatQueuePickerActionItem } from '../widget/input/chatQueuePickerActionItem.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 
 const queueingEnabledCondition = ContextKeyExpr.equals(`config.${ChatConfiguration.RequestQueueingEnabled}`, true);
@@ -263,29 +258,6 @@ export class ChatRemoveAllPendingRequestsAction extends Action2 {
 		for (const pendingRequest of [...model.getPendingRequests()]) {
 			chatService.removePendingRequest(model.sessionResource, pendingRequest.request.id);
 		}
-	}
-}
-
-/**
- * Workbench contribution that registers a custom action view item for the
- * queue/steer picker in the execute toolbar. This replaces the default split
- * button with a custom dropdown similar to the model switcher.
- */
-export class ChatQueuePickerRendering extends Disposable implements IWorkbenchContribution {
-
-	static readonly ID = 'chat.queuePickerRendering';
-
-	constructor(
-		@IActionViewItemService actionViewItemService: IActionViewItemService,
-		@IInstantiationService instantiationService: IInstantiationService,
-	) {
-		super();
-		this._register(actionViewItemService.register(MenuId.ChatExecute, MenuId.ChatExecuteQueue, (action, options) => {
-			if (!(action instanceof SubmenuItemAction)) {
-				return undefined;
-			}
-			return instantiationService.createInstance(ChatQueuePickerActionItem, action, options);
-		}));
 	}
 }
 
