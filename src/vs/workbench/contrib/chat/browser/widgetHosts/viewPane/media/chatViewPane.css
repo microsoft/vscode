@@ -70,7 +70,7 @@
 	.agent-sessions-container {
 		/* center it above the chat which has this max-width restriction */
 		max-width: 950px;
-		margin: auto;
+		margin: 0 auto;
 		width: 100%;
 	}
 
