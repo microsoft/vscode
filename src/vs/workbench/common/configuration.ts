@@ -54,6 +54,41 @@ export const windowConfigurationNodeBase = Object.freeze<IConfigurationNode>({
 	'type': 'object',
 });
 
+export const workspaceConfigurationNodeBase = Object.freeze<IConfigurationNode>({
+    'id': 'workspace',
+    'order': 9,
+    'title': localize('workspaceConfigurationTitle', "Workspace"),
+    'type': 'object',
+    'properties': {
+        'workspace.protectedFiles': {
+            'type': 'object',
+            'default': {},
+            'description': localize('workspace.protectedFiles', "Glob patterns for files that should not be accessed programmatically by extensions."),
+            'additionalProperties': {
+                'type': 'object',
+                'properties': {
+                    'read': {
+                        'type': 'boolean',
+                        'default': false,
+                        'description': localize('workspace.protectedFiles.read', "Allow programmatic read access")
+                    },
+                    'write': {
+                        'type': 'boolean',
+                        'default': false,
+                        'description': localize('workspace.protectedFiles.write', "Allow programmatic write access")
+                    },
+                    'suggest': {
+                        'type': 'boolean',
+                        'default': false,
+                        'description': localize('workspace.protectedFiles.suggest', "Allow inline or completion-based suggestions")
+                    }
+                },
+                'additionalProperties': false
+            }
+        }
+    }
+});
+
 export const Extensions = {
 	ConfigurationMigration: 'base.contributions.configuration.migration'
 };

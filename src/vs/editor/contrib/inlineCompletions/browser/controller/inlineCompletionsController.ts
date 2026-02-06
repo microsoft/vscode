@@ -26,6 +26,7 @@ import { observableCodeEditor } from '../../../../browser/observableCodeEditor.j
 import { TriggerInlineEditCommandsRegistry } from '../../../../browser/triggerInlineEditCommandsRegistry.js';
 import { getOuterEditor } from '../../../../browser/widget/codeEditor/embeddedCodeEditorWidget.js';
 import { EditorOption } from '../../../../common/config/editorOptions.js';
+import { ITextModel } from '../../../../common/model.js';
 import { Position } from '../../../../common/core/position.js';
 import { Range } from '../../../../common/core/range.js';
 import { CursorChangeReason } from '../../../../common/cursorEvents.js';
@@ -43,6 +44,9 @@ import { InlineSuggestionsView } from '../view/inlineSuggestionsView.js';
 import { inlineSuggestCommitId } from './commandIds.js';
 import { setInlineCompletionsControllerGetter } from './common.js';
 import { InlineCompletionContextKeys } from './inlineCompletionContextKeys.js';
+import { match } from '../../../../../base/common/glob.js';
+import { relativePath } from '../../../../../base/common/resources.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 
 setInlineCompletionsControllerGetter((editor) => InlineCompletionsController.get(editor));
 
@@ -65,6 +69,30 @@ export class InlineCompletionsController extends Disposable {
 
 	public static get(editor: ICodeEditor): InlineCompletionsController | null {
 		return hotClassGetOriginalInstance(editor.getContribution<InlineCompletionsController>(InlineCompletionsController.ID));
+	}
+
+	private isSuggestionAllowed(model: ITextModel): boolean {
+	const rules = this._configurationService.getValue<Record<string, any>>('workspace.protectedFiles');
+	if (!rules) {
+		return true;
+	}
+	const resourcePath = model.uri.fsPath;
+	for (const pattern of Object.keys(rules)) {
+		let matches = match(pattern, resourcePath);
+		if (!matches) {
+			const workspaceFolder = this._workspaceContextService.getWorkspaceFolder(model.uri);
+			if (workspaceFolder) {
+				const relative = relativePath(workspaceFolder.uri, model.uri);
+				if (relative && match(pattern, relative)) {
+					matches = true;
+				}
+			}
+		}
+		if (matches) {
+			return rules[pattern]?.suggest !== false;
+			}
+		}
+		return true;
 	}
 
 	private readonly _editorObs;
@@ -100,7 +128,7 @@ export class InlineCompletionsController extends Disposable {
 		if (this._editorObs.isReadonly.read(reader)) { return undefined; }
 		const textModel = this._editorObs.model.read(reader);
 		if (!textModel) { return undefined; }
-
+		if (!this.isSuggestionAllowed(textModel)) { return undefined; }
 		const model: InlineCompletionsModel = this._instantiationService.createInstance(
 			InlineCompletionsModel,
 			textModel,
@@ -130,7 +158,8 @@ export class InlineCompletionsController extends Disposable {
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
 		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
-		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
+		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService
 	) {
 		super();
 		this._editorObs = observableCodeEditor(this.editor);
