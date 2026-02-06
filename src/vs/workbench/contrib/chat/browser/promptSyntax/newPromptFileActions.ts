@@ -352,7 +352,7 @@ class NewHookFileAction extends Action2 {
 		const hookFileUri = URI.joinPath(selectedFolder.uri, HOOKS_FILENAME);
 
 		// Check if hooks.json already exists
-		let hooksContent: { version: number; hooks: Record<string, unknown[]> };
+		let hooksContent: { hooks: Record<string, unknown[]> };
 		const fileExists = await fileService.exists(hookFileUri);
 
 		if (fileExists) {
@@ -373,7 +373,7 @@ class NewHookFileAction extends Action2 {
 			}
 		} else {
 			// Create new structure
-			hooksContent = { version: 1, hooks: {} };
+			hooksContent = { hooks: {} };
 		}
 
 		// Add the new hook entry (append if hook type already exists)

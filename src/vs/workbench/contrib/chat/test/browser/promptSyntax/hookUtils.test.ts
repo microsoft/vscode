@@ -33,7 +33,6 @@ suite('hookUtils', () => {
 
 		suite('simple format', () => {
 			const simpleFormat = `{
-	"version": 1,
 	"hooks": {
 		"SessionStart": [
 			{
@@ -59,9 +58,9 @@ suite('hookUtils', () => {
 				assert.ok(result);
 				assert.strictEqual(getSelectedText(simpleFormat, result), 'echo first');
 				assert.deepStrictEqual(result, {
-					startLineNumber: 7,
+					startLineNumber: 6,
 					startColumn: 17,
-					endLineNumber: 7,
+					endLineNumber: 6,
 					endColumn: 27
 				});
 			});
@@ -71,9 +70,9 @@ suite('hookUtils', () => {
 				assert.ok(result);
 				assert.strictEqual(getSelectedText(simpleFormat, result), 'echo second');
 				assert.deepStrictEqual(result, {
-					startLineNumber: 11,
+					startLineNumber: 10,
 					startColumn: 17,
-					endLineNumber: 11,
+					endLineNumber: 10,
 					endColumn: 28
 				});
 			});
@@ -83,9 +82,9 @@ suite('hookUtils', () => {
 				assert.ok(result);
 				assert.strictEqual(getSelectedText(simpleFormat, result), 'echo foo > test.derp');
 				assert.deepStrictEqual(result, {
-					startLineNumber: 17,
+					startLineNumber: 16,
 					startColumn: 17,
-					endLineNumber: 17,
+					endLineNumber: 16,
 					endColumn: 37
 				});
 			});
@@ -249,7 +248,7 @@ suite('hookUtils', () => {
 			});
 
 			test('returns undefined when hooks key is missing', () => {
-				const content = '{ "version": 1 }';
+				const content = '{ "other": 1 }';
 				const result = findHookCommandSelection(content, 'sessionStart', 0, 'command');
 				assert.strictEqual(result, undefined);
 			});
@@ -346,7 +345,6 @@ suite('hookUtils', () => {
 
 		suite('simple format', () => {
 			const simpleFormat = `{
-	"version": 1,
 	"hooks": {
 		"sessionStart": [
 			{
@@ -372,9 +370,9 @@ suite('hookUtils', () => {
 				assert.ok(result);
 				assert.strictEqual(getSelectedText(simpleFormat, result), 'echo first');
 				assert.deepStrictEqual(result, {
-					startLineNumber: 7,
+					startLineNumber: 6,
 					startColumn: 17,
-					endLineNumber: 7,
+					endLineNumber: 6,
 					endColumn: 27
 				});
 			});
@@ -384,9 +382,9 @@ suite('hookUtils', () => {
 				assert.ok(result);
 				assert.strictEqual(getSelectedText(simpleFormat, result), 'echo second');
 				assert.deepStrictEqual(result, {
-					startLineNumber: 11,
+					startLineNumber: 10,
 					startColumn: 17,
-					endLineNumber: 11,
+					endLineNumber: 10,
 					endColumn: 28
 				});
 			});
@@ -396,9 +394,9 @@ suite('hookUtils', () => {
 				assert.ok(result);
 				assert.strictEqual(getSelectedText(simpleFormat, result), 'echo foo > test.derp');
 				assert.deepStrictEqual(result, {
-					startLineNumber: 17,
+					startLineNumber: 16,
 					startColumn: 17,
-					endLineNumber: 17,
+					endLineNumber: 16,
 					endColumn: 37
 				});
 			});
@@ -562,7 +560,7 @@ suite('hookUtils', () => {
 			});
 
 			test('returns undefined when hooks key is missing', () => {
-				const content = '{ "version": 1 }';
+				const content = '{ "other": 1 }';
 				const result = findHookCommandSelection(content, 'sessionStart', 0, 'command');
 				assert.strictEqual(result, undefined);
 			});

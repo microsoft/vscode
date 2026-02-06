@@ -1320,23 +1320,6 @@ export class PromptsService extends Disposable implements IPromptsService {
 					continue;
 				}
 
-				// Validate version field for Copilot hooks.json format
-				const filename = basename(uri).toLowerCase();
-				if (filename === 'hooks.json' && json.version !== 1) {
-					files.push({
-						uri,
-						storage,
-						status: 'skipped',
-						skipReason: 'parse-error',
-						errorMessage: json.version === undefined
-							? 'Missing version field (expected: 1)'
-							: `Invalid version: ${json.version} (expected: 1)`,
-						name,
-						extensionId
-					});
-					continue;
-				}
-
 				// File is valid
 				files.push({ uri, storage, status: 'loaded', name, extensionId });
 			} catch (e) {

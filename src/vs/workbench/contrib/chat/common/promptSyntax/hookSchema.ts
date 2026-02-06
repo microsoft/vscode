@@ -9,6 +9,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { joinPath } from '../../../../../base/common/resources.js';
 import { isAbsolute } from '../../../../../base/common/path.js';
 import { untildify } from '../../../../../base/common/labels.js';
+import * as platform from '../../../../../base/common/platform.js';
 
 /**
  * Enum of available hook types that can be configured in hooks.json
@@ -76,14 +77,22 @@ export interface IHookCommand {
 	readonly type: 'command';
 	/** Cross-platform command to execute. */
 	readonly command?: string;
-	/** Bash-specific command. */
-	readonly bash?: string;
-	/** PowerShell-specific command. */
-	readonly powershell?: string;
+	/** Windows-specific command override. */
+	readonly windows?: string;
+	/** Linux-specific command override. */
+	readonly linux?: string;
+	/** macOS-specific command override. */
+	readonly osx?: string;
 	/** Resolved working directory URI. */
 	readonly cwd?: URI;
 	readonly env?: Record<string, string>;
 	readonly timeoutSec?: number;
+	/** Original JSON field name that provided the windows command. */
+	readonly windowsSource?: 'windows' | 'powershell';
+	/** Original JSON field name that provided the linux command. */
+	readonly linuxSource?: 'linux' | 'bash';
+	/** Original JSON field name that provided the osx command. */
+	readonly osxSource?: 'osx' | 'bash';
 }
 
 /**
@@ -106,14 +115,17 @@ export interface IChatRequestHooks {
  */
 const hookCommandSchema: IJSONSchema = {
 	type: 'object',
-	additionalProperties: false,
+	additionalProperties: true,
 	required: ['type'],
 	anyOf: [
 		{ required: ['command'] },
+		{ required: ['windows'] },
+		{ required: ['linux'] },
+		{ required: ['osx'] },
 		{ required: ['bash'] },
 		{ required: ['powershell'] }
 	],
-	errorMessage: nls.localize('hook.commandRequired', 'At least one of "command", "bash", or "powershell" must be specified.'),
+	errorMessage: nls.localize('hook.commandRequired', 'At least one of "command", "windows", "linux", or "osx" must be specified.'),
 	properties: {
 		type: {
 			type: 'string',
@@ -122,15 +134,19 @@ const hookCommandSchema: IJSONSchema = {
 		},
 		command: {
 			type: 'string',
-			description: nls.localize('hook.command', 'The command to execute. This is the recommended way to specify commands and works cross-platform.')
+			description: nls.localize('hook.command', 'The command to execute. This is the default cross-platform command.')
 		},
-		bash: {
+		windows: {
 			type: 'string',
-			description: nls.localize('hook.bash', 'Path to a bash script or an inline bash command. Use for Unix-specific commands when cross-platform "command" is not sufficient.')
+			description: nls.localize('hook.windows', 'Windows-specific command. If specified and running on Windows, this overrides the "command" field.')
 		},
-		powershell: {
+		linux: {
 			type: 'string',
-			description: nls.localize('hook.powershell', 'Path to a PowerShell script or an inline PowerShell command. Use for Windows-specific commands when cross-platform "command" is not sufficient.')
+			description: nls.localize('hook.linux', 'Linux-specific command. If specified and running on Linux, this overrides the "command" field.')
+		},
+		osx: {
+			type: 'string',
+			description: nls.localize('hook.osx', 'macOS-specific command. If specified and running on macOS, this overrides the "command" field.')
 		},
 		cwd: {
 			type: 'string',
@@ -158,14 +174,9 @@ export const hookFileSchema: IJSONSchema = {
 	$schema: 'http://json-schema.org/draft-07/schema#',
 	type: 'object',
 	description: nls.localize('hookFile.description', 'GitHub Copilot hook configuration file. Hooks enable executing custom shell commands at strategic points in an agent\'s workflow.'),
-	additionalProperties: false,
-	required: ['version', 'hooks'],
+	additionalProperties: true,
+	required: ['hooks'],
 	properties: {
-		version: {
-			type: 'number',
-			enum: [1],
-			description: nls.localize('hookFile.version', 'Schema version. Must be 1.')
-		},
 		hooks: {
 			type: 'object',
 			description: nls.localize('hookFile.hooks', 'Hook definitions organized by type.'),
@@ -207,15 +218,14 @@ export const hookFileSchema: IJSONSchema = {
 			label: nls.localize('hookFile.snippet.basic', 'Basic hook configuration'),
 			description: nls.localize('hookFile.snippet.basic.description', 'A basic hook configuration with common hooks'),
 			body: {
-				version: 1,
 				hooks: {
-					sessionStart: [
+					SessionStart: [
 						{
 							type: 'command',
-							command: '${1:echo "Session started"}'
+							command: '${1:echo "Session started" >> session.log}',
 						}
 					],
-					preToolUse: [
+					PreToolUse: [
 						{
 							type: 'command',
 							command: '${2:./scripts/validate.sh}',
@@ -252,21 +262,44 @@ export function toHookType(rawHookTypeId: string): HookType | undefined {
 
 /**
  * Normalizes a raw hook command object, validating structure.
+ * Maps legacy bash/powershell fields to platform-specific overrides:
+ * - bash -> linux + osx
+ * - powershell -> windows
  * This is an internal helper - use resolveHookCommand for the full resolution.
  */
-function normalizeHookCommand(raw: Record<string, unknown>): { command?: string; bash?: string; powershell?: string; cwd?: string; env?: Record<string, string>; timeoutSec?: number } | undefined {
+function normalizeHookCommand(raw: Record<string, unknown>): { command?: string; windows?: string; linux?: string; osx?: string; windowsSource?: 'windows' | 'powershell'; linuxSource?: 'linux' | 'bash'; osxSource?: 'osx' | 'bash'; cwd?: string; env?: Record<string, string>; timeoutSec?: number } | undefined {
 	if (raw.type !== 'command') {
 		return undefined;
 	}
 
 	const hasCommand = typeof raw.command === 'string' && raw.command.length > 0;
-	const hasBash = typeof raw.bash === 'string' && raw.bash.length > 0;
-	const hasPowerShell = typeof raw.powershell === 'string' && raw.powershell.length > 0;
+	const hasBash = typeof raw.bash === 'string' && (raw.bash as string).length > 0;
+	const hasPowerShell = typeof raw.powershell === 'string' && (raw.powershell as string).length > 0;
+
+	// Platform overrides can be strings directly
+	const hasWindows = typeof raw.windows === 'string' && (raw.windows as string).length > 0;
+	const hasLinux = typeof raw.linux === 'string' && (raw.linux as string).length > 0;
+	const hasOsx = typeof raw.osx === 'string' && (raw.osx as string).length > 0;
+
+	// Map bash -> linux + osx (if not already specified)
+	// Map powershell -> windows (if not already specified)
+	const windows = hasWindows ? raw.windows as string : (hasPowerShell ? raw.powershell as string : undefined);
+	const linux = hasLinux ? raw.linux as string : (hasBash ? raw.bash as string : undefined);
+	const osx = hasOsx ? raw.osx as string : (hasBash ? raw.bash as string : undefined);
+
+	// Track source field names for editor focus (which JSON field to highlight)
+	const windowsSource: 'windows' | 'powershell' | undefined = hasWindows ? 'windows' : (hasPowerShell ? 'powershell' : undefined);
+	const linuxSource: 'linux' | 'bash' | undefined = hasLinux ? 'linux' : (hasBash ? 'bash' : undefined);
+	const osxSource: 'osx' | 'bash' | undefined = hasOsx ? 'osx' : (hasBash ? 'bash' : undefined);
 
 	return {
 		...(hasCommand && { command: raw.command as string }),
-		...(hasBash && { bash: raw.bash as string }),
-		...(hasPowerShell && { powershell: raw.powershell as string }),
+		...(windows && { windows }),
+		...(linux && { linux }),
+		...(osx && { osx }),
+		...(windowsSource && { windowsSource }),
+		...(linuxSource && { linuxSource }),
+		...(osxSource && { osxSource }),
 		...(typeof raw.cwd === 'string' && { cwd: raw.cwd }),
 		...(typeof raw.env === 'object' && raw.env !== null && { env: raw.env as Record<string, string> }),
 		...(typeof raw.timeoutSec === 'number' && { timeoutSec: raw.timeoutSec }),
@@ -274,23 +307,103 @@ function normalizeHookCommand(raw: Record<string, unknown>): { command?: string;
 }
 
 /**
- * Formats a hook command for display.
- * If `command` is present, returns just that value.
- * Otherwise, joins "bash: <value>" and "powershell: <value>" with " | ".
+ * Gets a label for the current platform.
  */
-export function formatHookCommandLabel(hook: IHookCommand): string {
-	if (hook.command) {
-		return hook.command;
+export function getCurrentPlatformLabel(): string {
+	if (platform.isWindows) {
+		return 'Windows';
+	} else if (platform.isMacintosh) {
+		return 'macOS';
+	} else if (platform.isLinux) {
+		return 'Linux';
+	}
+	return '';
+}
+
+/**
+ * Resolves the effective command for the current platform.
+ * This applies OS-specific overrides (windows, linux, osx) to get the actual command that will be executed.
+ * Similar to how launch.json handles platform-specific configurations in debugAdapter.ts.
+ */
+export function resolveEffectiveCommand(hook: IHookCommand): string | undefined {
+	// Select the platform-specific override based on the current OS
+	if (platform.isWindows && hook.windows) {
+		return hook.windows;
+	} else if (platform.isMacintosh && hook.osx) {
+		return hook.osx;
+	} else if (platform.isLinux && hook.linux) {
+		return hook.linux;
 	}
 
-	const parts: string[] = [];
-	if (hook.bash) {
-		parts.push(`bash: ${hook.bash}`);
+	// Fall back to the default command
+	return hook.command;
+}
+
+/**
+ * Checks if the hook is using a platform-specific command override.
+ */
+export function isUsingPlatformOverride(hook: IHookCommand): boolean {
+	if (platform.isWindows && hook.windows) {
+		return true;
+	} else if (platform.isMacintosh && hook.osx) {
+		return true;
+	} else if (platform.isLinux && hook.linux) {
+		return true;
 	}
-	if (hook.powershell) {
-		parts.push(`powershell: ${hook.powershell}`);
+	return false;
+}
+
+/**
+ * Gets the source shell type for the effective command on the current platform.
+ * Returns 'powershell' if the Windows command came from a powershell field,
+ * 'bash' if the Linux/macOS command came from a bash field,
+ * or undefined for default shell handling.
+ */
+export function getEffectiveCommandSource(hook: IHookCommand): 'powershell' | 'bash' | undefined {
+	if (platform.isWindows && hook.windows && hook.windowsSource === 'powershell') {
+		return 'powershell';
+	} else if (platform.isMacintosh && hook.osx && hook.osxSource === 'bash') {
+		return 'bash';
+	} else if (platform.isLinux && hook.linux && hook.linuxSource === 'bash') {
+		return 'bash';
 	}
-	return parts.join(' | ');
+	return undefined;
+}
+
+/**
+ * Gets the original JSON field key name for the current platform's command.
+ * Returns the actual field name from the JSON (e.g., 'bash' instead of 'osx' if bash was used).
+ * This is used for editor focus to highlight the correct field.
+ */
+export function getEffectiveCommandFieldKey(hook: IHookCommand): string {
+	if (platform.isWindows && hook.windows) {
+		return hook.windowsSource ?? 'windows';
+	} else if (platform.isMacintosh && hook.osx) {
+		return hook.osxSource ?? 'osx';
+	} else if (platform.isLinux && hook.linux) {
+		return hook.linuxSource ?? 'linux';
+	}
+	return 'command';
+}
+
+/**
+ * Formats a hook command for display.
+ * Resolves OS-specific overrides to show the effective command for the current platform.
+ * If using a platform-specific override, includes the platform as a prefix badge.
+ */
+export function formatHookCommandLabel(hook: IHookCommand): string {
+	const command = resolveEffectiveCommand(hook) ?? '';
+	if (!command) {
+		return '';
+	}
+
+	// Add platform badge if using platform-specific override
+	if (isUsingPlatformOverride(hook)) {
+		const platformLabel = getCurrentPlatformLabel();
+		return `[${platformLabel}] ${command}`;
+	}
+
+	return command;
 }
 
 /**
@@ -324,8 +437,12 @@ export function resolveHookCommand(raw: Record<string, unknown>, workspaceRootUr
 	return {
 		type: 'command',
 		...(normalized.command && { command: normalized.command }),
-		...(normalized.bash && { bash: normalized.bash }),
-		...(normalized.powershell && { powershell: normalized.powershell }),
+		...(normalized.windows && { windows: normalized.windows }),
+		...(normalized.linux && { linux: normalized.linux }),
+		...(normalized.osx && { osx: normalized.osx }),
+		...(normalized.windowsSource && { windowsSource: normalized.windowsSource }),
+		...(normalized.linuxSource && { linuxSource: normalized.linuxSource }),
+		...(normalized.osxSource && { osxSource: normalized.osxSource }),
 		...(cwdUri && { cwd: cwdUri }),
 		...(normalized.env && { env: normalized.env }),
 		...(normalized.timeoutSec !== undefined && { timeoutSec: normalized.timeoutSec }),

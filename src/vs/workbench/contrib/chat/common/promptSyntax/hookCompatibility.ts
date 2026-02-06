@@ -81,11 +81,6 @@ export function parseCopilotHooks(
 
 	const root = json as Record<string, unknown>;
 
-	// Check version
-	if (root.version !== 1) {
-		return result;
-	}
-
 	const hooks = root.hooks;
 	if (!hooks || typeof hooks !== 'object') {
 		return result;
