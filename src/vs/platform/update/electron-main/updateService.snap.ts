@@ -156,7 +156,7 @@ export class SnapUpdateService extends AbstractUpdateService {
 		const onDebouncedCurrentChange = Event.debounce(onCurrentChange, (_, e) => e, 2000);
 		const listener = onDebouncedCurrentChange(() => this.checkForUpdates(false));
 
-		lifecycleMainService.onWillShutdown(() => {
+		Event.once(lifecycleMainService.onWillShutdown)(() => {
 			listener.dispose();
 			watcher.close();
 		});
