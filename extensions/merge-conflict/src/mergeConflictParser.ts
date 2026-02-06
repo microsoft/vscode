@@ -151,6 +151,61 @@ export class MergeConflictParser {
 		return text.includes(startHeaderMarker) && text.includes(endFooterMarker);
 	}
 
+	/**
+	 * Check if a document is part of an active Git merge operation.
+	 * This helps prevent false positives from text patterns that look like merge conflicts
+	 * (e.g., SEARCH/REPLACE blocks used by diff tools).
+	 *
+	 * @returns true if the file is part of an active merge, or if we can't determine (fallback to current behavior)
+	 */
+	static async isInActiveMerge(document: vscode.TextDocument): Promise<boolean> {
+		try {
+			const gitExtension = vscode.extensions.getExtension<{
+				getAPI(version: 1): {
+					getRepository(uri: vscode.Uri): {
+						state: {
+							mergeChanges: {
+								uri: vscode.Uri;
+							}[];
+						};
+					} | null;
+				};
+			}>('vscode.git');
+
+			if (!gitExtension) {
+				// Git extension not available, fall back to current behavior
+				return true;
+			}
+
+			if (!gitExtension.isActive) {
+				await gitExtension.activate();
+			}
+
+			const git = gitExtension.exports.getAPI(1);
+			const repository = git.getRepository(document.uri);
+
+			if (!repository) {
+				// Document is not in a git repository - don't show merge UI
+				return false;
+			}
+
+			// Check if there are merge changes (indicates active merge)
+			const mergeChanges = repository.state.mergeChanges;
+			if (mergeChanges.length === 0) {
+				return false;
+			}
+
+			// Check if this specific file is in merge changes
+			const documentUriString = document.uri.toString();
+			return mergeChanges.some(
+				(change) => change.uri.toString() === documentUriString,
+			);
+		} catch (error) {
+			// If anything goes wrong, fall back to current behavior (show merge UI)
+			return true;
+		}
+	}
+
 	private static shiftBackOneCharacter(document: vscode.TextDocument, range: vscode.Position, unlessEqual: vscode.Position): vscode.Position {
 		if (range.isEqual(unlessEqual)) {
 			return range;
