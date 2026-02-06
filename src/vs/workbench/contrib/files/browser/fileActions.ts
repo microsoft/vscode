@@ -48,6 +48,7 @@ import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { trim, rtrim } from '../../../../base/common/strings.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { ResourceFileEdit } from '../../../../editor/browser/services/bulkEditService.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IExplorerService } from './files.js';
 import { BrowserFileUpload, FileDownload } from './fileImportExport.js';
 import { IPaneCompositePartService } from '../../../services/panecomposite/browser/panecomposite.js';
@@ -706,6 +707,155 @@ export class OpenActiveFileInEmptyWorkspace extends Action2 {
 		} else {
 			dialogService.error(nls.localize('openFileToShowInNewWindow.unsupportedschema', "The active editor must contain an openable resource."));
 		}
+	}
+}
+
+export class DuplicateActiveFileAction extends Action2 {
+
+	static readonly ID = 'workbench.files.action.duplicateActiveFile';
+	static readonly LABEL = nls.localize2('duplicateActiveFile', "Duplicate");
+
+	constructor() {
+		super({
+			id: DuplicateActiveFileAction.ID,
+			title: DuplicateActiveFileAction.LABEL,
+			f1: true,
+			category: Categories.File,
+			metadata: {
+				description: nls.localize2('duplicateActiveFileDescription', "Duplicates the active file to a new location.")
+			}
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		const fileService = accessor.get(IFileService);
+		const dialogService = accessor.get(IDialogService);
+		const explorerService = accessor.get(IExplorerService);
+		const quickInputService = accessor.get(IQuickInputService);
+		const notificationService = accessor.get(INotificationService);
+		const contextService = accessor.get(IWorkspaceContextService);
+
+		const resource = EditorResourceAccessor.getOriginalUri(editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
+		if (!resource) {
+			dialogService.error(nls.localize('duplicateActiveFile.noResource', "The active editor must contain a file resource."));
+			return;
+		}
+
+		if (!fileService.hasProvider(resource)) {
+			dialogService.error(nls.localize('duplicateActiveFile.unsupportedScheme', "The file system does not support duplicating this file."));
+			return;
+		}
+
+		const filename = resources.basename(resource);
+
+		// Compute relative path from workspace folder, or fall back to just filename
+		const workspaceFolder = contextService.getWorkspaceFolder(resource);
+		let relativePath: string;
+		let baseResource: URI;
+
+		if (workspaceFolder) {
+			relativePath = resources.relativePath(workspaceFolder.uri, resource) || filename;
+			baseResource = workspaceFolder.uri;
+		} else {
+			// No workspace folder, use parent directory and just the filename
+			relativePath = filename;
+			baseResource = resources.dirname(resource);
+		}
+
+		// Set up selection to select the filename without extension
+		const lastDot = relativePath.lastIndexOf('.');
+		const lastSep = Math.max(relativePath.lastIndexOf('/'), relativePath.lastIndexOf('\\'));
+		const filenameStart = lastSep >= 0 ? lastSep + 1 : 0;
+		const selectionEnd = lastDot > filenameStart ? lastDot : relativePath.length;
+
+		return new Promise<void>((resolve) => {
+			const inputBox = quickInputService.createInputBox();
+			inputBox.title = nls.localize('duplicateTitle', "Duplicate");
+			inputBox.value = relativePath;
+			inputBox.valueSelection = [filenameStart, selectionEnd];
+			inputBox.placeholder = nls.localize('duplicatePlaceholder', "Enter the new file path");
+			inputBox.ignoreFocusOut = true;
+
+			let validationTimer: ReturnType<typeof setTimeout> | undefined;
+
+			const validateInput = async (value: string): Promise<string | undefined> => {
+				if (!value || value.length === 0 || /^\s+$/.test(value)) {
+					return nls.localize('duplicateEmptyError', "A file path must be provided.");
+				}
+
+				// Check for existing file (warning only)
+				const targetUri = resources.joinPath(baseResource, value);
+				if (value !== relativePath && await fileService.exists(targetUri)) {
+					return nls.localize('duplicateExistsWarning', "A file with this path already exists. It will be replaced.");
+				}
+
+				return undefined;
+			};
+
+			inputBox.onDidChangeValue(value => {
+				if (validationTimer) {
+					clearTimeout(validationTimer);
+				}
+				validationTimer = setTimeout(async () => {
+					const validationMessage = await validateInput(value);
+					inputBox.validationMessage = validationMessage;
+				}, 100);
+			});
+
+			inputBox.onDidAccept(async () => {
+				const newPath = inputBox.value.trim();
+
+				if (!newPath || newPath.length === 0) {
+					inputBox.validationMessage = nls.localize('duplicateEmptyError', "A file path must be provided.");
+					return;
+				}
+
+				const targetUri = resources.joinPath(baseResource, newPath);
+				const targetFilename = resources.basename(targetUri);
+
+				// Check if target exists and ask for confirmation
+				const exists = await fileService.exists(targetUri);
+				if (exists) {
+					const { confirmed } = await dialogService.confirm({
+						type: Severity.Warning,
+						message: nls.localize('confirmDuplicateOverwrite', "A file with the name '{0}' already exists. Do you want to replace it?", targetFilename),
+						primaryButton: nls.localize('replaceButtonLabel', "&&Replace")
+					});
+					if (!confirmed) {
+						return;
+					}
+				}
+
+				inputBox.hide();
+
+				try {
+					const resourceFileEdit = new ResourceFileEdit(resource, targetUri, { copy: true, overwrite: exists });
+					await explorerService.applyBulkEdit([resourceFileEdit], {
+						confirmBeforeUndo: true,
+						undoLabel: nls.localize('duplicateUndo', "Duplicate {0}", filename),
+						progressLabel: nls.localize('duplicateProgress', "Duplicating {0}", filename)
+					});
+
+					// Open the new file
+					await editorService.openEditor({ resource: targetUri, options: { pinned: true } });
+				} catch (error) {
+					notificationService.error(nls.localize('duplicateError', "Failed to duplicate file: {0}", getErrorMessage(error)));
+				}
+
+				resolve();
+			});
+
+			inputBox.onDidHide(() => {
+				inputBox.dispose();
+				if (validationTimer) {
+					clearTimeout(validationTimer);
+				}
+				resolve();
+			});
+
+			inputBox.show();
+		});
 	}
 }
 
