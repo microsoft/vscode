@@ -835,6 +835,10 @@ export interface IChatSubagentToolInvocationData {
 	agentName?: string;
 	prompt?: string;
 	result?: string;
+	/**
+	 * Stable ID for this subagent instance, used for resume and UI grouping.
+	 */
+	subAgentInvocationId?: string;
 }
 
 export interface IChatTodoListContent {

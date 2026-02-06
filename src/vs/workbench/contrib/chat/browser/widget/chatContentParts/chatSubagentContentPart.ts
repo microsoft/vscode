@@ -721,8 +721,17 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 
 		// Match subagent tool invocations with the same subAgentInvocationId to keep them grouped
 		if ((other.kind === 'toolInvocation' || other.kind === 'toolInvocationSerialized') && (other.subAgentInvocationId || other.toolId === RunSubagentTool.Id)) {
-			// For runSubagent tool, use toolCallId as the effective ID
-			const otherEffectiveId = other.toolId === RunSubagentTool.Id ? other.toolCallId : other.subAgentInvocationId;
+			// For runSubagent tool, prefer toolSpecificData.subAgentInvocationId (stable across resumes),
+			// then fall back to toolCallId for backward compat
+			let otherEffectiveId: string | undefined;
+			if (other.toolId === RunSubagentTool.Id) {
+				const specificData = other.kind === 'toolInvocation'
+					? (other as IChatToolInvocation).toolSpecificData
+					: (other as IChatToolInvocationSerialized).toolSpecificData;
+				otherEffectiveId = (specificData?.kind === 'subagent' ? specificData.subAgentInvocationId : undefined) ?? other.toolCallId;
+			} else {
+				otherEffectiveId = other.subAgentInvocationId;
+			}
 			// If both have IDs, they must match
 			if (this.subAgentInvocationId && otherEffectiveId) {
 				return this.subAgentInvocationId === otherEffectiveId;

@@ -169,6 +169,13 @@ export interface IChatAgentRequest {
 	 */
 	parentRequestId?: string;
 
+	/**
+	 * When set, indicates that this is a resumed subagent invocation.
+	 * The extension should rehydrate the prior conversation context for this subagent
+	 * using the stored transcript keyed by this ID.
+	 */
+	resumeSubAgentInvocationId?: string;
+
 }
 
 export interface IChatQuestion {

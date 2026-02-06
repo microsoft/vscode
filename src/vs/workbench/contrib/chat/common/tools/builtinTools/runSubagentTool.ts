@@ -43,8 +43,9 @@ import { ICustomAgent, IPromptsService } from '../../promptSyntax/service/prompt
 const BaseModelDescription = `Launch a new agent to handle complex, multi-step tasks autonomously. This tool is good at researching complex questions, searching for code, and executing multi-step tasks. When you are searching for a keyword or file and are not confident that you will find the right match in the first few tries, use this agent to perform the search for you.
 
 - Agents do not run async or in the background, you will wait for the agent\'s result.
-- When the agent is done, it will return a single message back to you. The result returned by the agent is not visible to the user. To show the user the result, you should send a text message back to the user with a concise summary of the result.
-- Each agent invocation is stateless. You will not be able to send additional messages to the agent, nor will the agent be able to communicate with you outside of its final report. Therefore, your prompt should contain a highly detailed task description for the agent to perform autonomously and you should specify exactly what information the agent should return back to you in its final and only message to you.
+- When the agent is done, it will return a single message back to you. The result returned by the agent is not visible to the user. To show the user the result, you should send a text message back to you with a concise summary of the result.
+- Each agent invocation is stateless by default. You will not be able to send additional messages to the agent, nor will the agent be able to communicate with you outside of its final report. Therefore, your prompt should contain a highly detailed task description for the agent to perform autonomously and you should specify exactly what information the agent should return back to you in its final and only message to you.
+- To resume a previous subagent with its full prior context, pass the subAgentInvocationId from the previous run. The subagent will then have access to its entire prior conversation history along with your new prompt.
 - The agent's outputs should generally be trusted
 - Clearly tell the agent whether you expect it to write code or just to do research (search, file reads, web fetches, etc.), since it is not aware of the user\'s intent`;
 
@@ -52,6 +53,7 @@ export interface IRunSubagentToolInputParams {
 	prompt: string;
 	description: string;
 	agentName?: string;
+	resumeSubAgentInvocationId?: string;
 }
 
 export class RunSubagentTool extends Disposable implements IToolImpl {
@@ -87,6 +89,10 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 				description: {
 					type: 'string',
 					description: 'A short (3-5 word) description of the task'
+				},
+				resumeSubAgentInvocationId: {
+					type: 'string',
+					description: 'Optional. Pass the subAgentInvocationId from a previous run to resume that subagent with its full prior context. The subagent will have access to its entire prior conversation history along with your new prompt.'
 				}
 			},
 			required: ['prompt', 'description']
@@ -190,8 +196,16 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 			// Track whether we should collect markdown (after the last tool invocation)
 			const markdownParts: string[] = [];
 
-			// Generate a stable subAgentInvocationId for routing edits to this subagent's content part
-			const subAgentInvocationId = invocation.callId ?? `subagent-${generateUuid()}`;
+			const preparedSubAgentInvocationId = invocation.toolSpecificData?.kind === 'subagent'
+				? invocation.toolSpecificData.subAgentInvocationId
+				: undefined;
+
+			// If resuming, use the provided stable ID; otherwise prefer the prepared stable ID,
+			// falling back to the tool call id for backward compatibility.
+			const subAgentInvocationId = args.resumeSubAgentInvocationId ?? preparedSubAgentInvocationId ?? invocation.callId ?? `subagent-${generateUuid()}`;
+			if (invocation.toolSpecificData?.kind === 'subagent') {
+				invocation.toolSpecificData.subAgentInvocationId = subAgentInvocationId;
+			}
 
 			let inEdit = false;
 			const progressCallback = (parts: IChatProgress[]) => {
@@ -238,12 +252,13 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 				message: args.prompt,
 				variables: { variables: variableSet.asArray() },
 				location: ChatAgentLocation.Chat,
-				subAgentInvocationId: invocation.callId,
+				subAgentInvocationId: subAgentInvocationId,
 				subAgentName: subAgentName,
 				userSelectedModelId: modeModelId,
 				userSelectedTools: modeTools,
 				modeInstructions,
 				parentRequestId: invocation.chatRequestId,
+				resumeSubAgentInvocationId: args.resumeSubAgentInvocationId,
 			};
 
 			// Subscribe to tool invocations to clear markdown parts when a tool is invoked
@@ -276,11 +291,11 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 				invocation.toolSpecificData.result = resultText;
 			}
 
-			// Return result with toolMetadata containing subAgentInvocationId for trajectory tracking
+			// Return result with toolMetadata containing subAgentInvocationId for trajectory tracking and resume
 			return {
 				content: [{
 					kind: 'text',
-					value: resultText
+					value: `[subAgentInvocationId: ${subAgentInvocationId}]\n\n${resultText}`
 				}],
 				toolMetadata: {
 					subAgentInvocationId,
@@ -307,6 +322,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 		const args = context.parameters as IRunSubagentToolInputParams;
 
 		const subagent = args.agentName ? await this.getSubAgentByName(args.agentName) : undefined;
+		const subAgentInvocationId = args.resumeSubAgentInvocationId ?? `subagent-${generateUuid()}`;
 
 		return {
 			invocationMessage: args.description,
@@ -315,6 +331,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 				description: args.description,
 				agentName: subagent?.name,
 				prompt: args.prompt,
+				subAgentInvocationId,
 			},
 		};
 	}
