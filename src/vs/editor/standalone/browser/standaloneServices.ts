@@ -101,6 +101,8 @@ import { IWebWorkerService } from '../../../platform/webWorker/browser/webWorker
 import { StandaloneWebWorkerService } from './services/standaloneWebWorkerService.js';
 import { IDefaultAccountService } from '../../../platform/defaultAccount/common/defaultAccount.js';
 import { IDefaultAccount, IDefaultAccountAuthenticationProvider, IPolicyData } from '../../../base/common/defaultAccount.js';
+import { IUserInteractionService } from '../../../platform/userInteraction/browser/userInteractionService.js';
+import { UserInteractionService } from '../../../platform/userInteraction/browser/userInteractionServiceImpl.js';
 
 class SimpleModel implements IResolvedTextEditorModel {
 
@@ -1183,6 +1185,7 @@ registerSingleton(ILoggerService, NullLoggerService, InstantiationType.Eager);
 registerSingleton(IDataChannelService, NullDataChannelService, InstantiationType.Eager);
 registerSingleton(IDefaultAccountService, StandaloneDefaultAccountService, InstantiationType.Eager);
 registerSingleton(IRenameSymbolTrackerService, NullRenameSymbolTrackerService, InstantiationType.Eager);
+registerSingleton(IUserInteractionService, UserInteractionService, InstantiationType.Eager);
 
 /**
  * We don't want to eagerly instantiate services because embedders get a one time chance

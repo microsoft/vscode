@@ -1,6 +1,7 @@
 {
 	"$schema": "vscode://schemas/color-theme",
 	"name": "2026 Dark",
+	"include": "../../theme-defaults/themes/dark_modern.json",
 	"type": "dark",
 	"colors": {
 		"foreground": "#bfbfbf",

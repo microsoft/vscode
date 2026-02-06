@@ -26,6 +26,13 @@
 	--backdrop-blur-lg: blur(40px) saturate(180%);
 }
 
+/* Dark theme: add brightness reduction for contrast-safe luminosity blending over bright backgrounds */
+.monaco-workbench.vs-dark {
+	--backdrop-blur-sm: blur(12px) brightness(0.55);
+	--backdrop-blur-md: blur(20px) saturate(180%) brightness(0.55);
+	--backdrop-blur-lg: blur(40px) saturate(180%) brightness(0.55);
+}
+
 /* Stealth Shadows - shadow-based depth for UI elements, controlled by workbench.stealthShadows.enabled */
 
 /* Activity Bar */
@@ -146,22 +153,11 @@
 	box-shadow: var(--shadow-md);
 }
 
-.monaco-workbench .part.titlebar {
-	position: relative;
-	background: linear-gradient(
-		to bottom,
-		color-mix(in srgb, var(--vscode-focusBorder) 10%, transparent) 0%,
-		transparent 100%
-	), var(--vscode-titleBar-activeBackground) !important;
-}
-
 .monaco-workbench .part.titlebar.inactive {
 	background: var(--vscode-titleBar-inactiveBackground) !important;
 
-	.command-center .monaco-action-bar,
-	.command-center .actions-container,
-	.agent-status-pill, .agent-status-badge {
-		background-color: transparent !important;
+	& > * {
+		opacity: 0.3;
 	}
 }
 
@@ -179,7 +175,6 @@
 	background-color: color-mix(in srgb, var(--vscode-quickInput-background) 60%, transparent) !important;
 	backdrop-filter: var(--backdrop-blur-lg);
 	-webkit-backdrop-filter: var(--backdrop-blur-lg);
-	-webkit-backdrop-filter: blur(40px) saturate(180%);
 }
 
 .monaco-workbench.vs-dark .quick-input-widget {
