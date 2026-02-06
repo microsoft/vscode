@@ -1256,6 +1256,61 @@ def find_fuzzy_segment_at_index(selection_regex: str | None, string_value: str, 
     return None
 
 
+# === Adjacency helpers for selection extension ===
+
+def is_adjacent_right(idx: int, last_end: int, string_value: str) -> bool:
+    """
+    Check if idx is adjacent to last_end for right-extension purposes.
+
+    Returns True if idx >= last_end and all characters at internal indices
+    in [last_end, idx) are anchor/sentinel characters (which can be skipped).
+
+    This handles cases like:
+    - Extending past $ to reach \\n (at end of line)
+    - Extending past $ to reach \\Z (at end of string)
+    - Extending past ^ to reach the first char of the next line
+
+    Anchor characters (\\A, ^, $, \\Z) are zero-width regex positions that
+    appear as visual markers in the UI. They don't represent actual string
+    content, so it's natural to allow clicking "through" them to reach the
+    next real character.
+    """
+    if idx < last_end:
+        return False
+    if idx == last_end:
+        return True
+    # Don't consider out-of-bounds indices as adjacent
+    if idx >= compute_internal_length(string_value):
+        return False
+    # Check if all characters between last_end and idx are anchors
+    skipped = extract_by_internal_indices(string_value, last_end, idx)
+    return len(skipped) > 0 and all(c in (DC1, DC2, DC3, DC4) for c in skipped)
+
+
+def is_adjacent_left(idx: int, first_start: int, string_value: str) -> bool:
+    """
+    Check if idx is adjacent to first_start for left-extension purposes.
+
+    Returns True if idx < first_start and all characters at internal indices
+    in (idx, first_start) are anchor/sentinel characters (which can be skipped).
+
+    This handles cases like:
+    - Extending past ^ to reach \\n (going left from start of next line)
+    - Extending past ^ to reach \\A (going left from start of string)
+    - Extending past $ to reach the last char of the previous line
+    """
+    if idx >= first_start:
+        return False
+    if idx == first_start - 1:
+        return True
+    # Don't consider out-of-bounds indices as adjacent
+    if idx < 0:
+        return False
+    # Check if all characters between idx+1 and first_start are anchors
+    skipped = extract_by_internal_indices(string_value, idx + 1, first_start)
+    return len(skipped) > 0 and all(c in (DC1, DC2, DC3, DC4) for c in skipped)
+
+
 # === Source code analysis functions ===
 
 def extract_expression_from_line(source_code: str, line_number: int) -> Tuple[str, str | None]:
@@ -1744,16 +1799,18 @@ def update(event, source_code: str, source_line: int, model: dict, value: str) -
                 fuzzy_info = find_fuzzy_segment_at_index(selection_regex, value, idx)
 
             # Check if extending from the right (end of last segment)
-            if last_end is not None and isinstance(idx, int) and idx == last_end:
-                # Keep existing regex, start new segment from end of last
-                model['anchorIdx'] = last_end
+            # Uses broader adjacency: allows skipping over anchor chars ($, ^, \A, \Z)
+            if last_end is not None and isinstance(idx, int) and is_adjacent_right(idx, last_end, value):
+                # Keep existing regex, start new segment from where user clicked
+                # (not from last_end, to avoid including skipped anchors in the segment)
+                model['anchorIdx'] = idx
                 model['anchorType'] = anchor_type
                 model['cursorIdx'] = idx
                 model['extendDirection'] = 'right'
                 model['insertAfterSegment'] = None  # Not inserting at specific position
-            # Check if extending from the left (char immediately to the left of first segment)
-            # This is symmetric with right extension: click the adjacent char to extend
-            elif first_start is not None and isinstance(idx, int) and idx == first_start - 1:
+            # Check if extending from the left (near the start of first segment)
+            # Uses broader adjacency: allows skipping over anchor chars
+            elif first_start is not None and isinstance(idx, int) and is_adjacent_left(idx, first_start, value):
                 # Keep existing regex, start new segment extending left from first
                 # Anchor at first_start so the selection can span from cursor (first_start-1) to anchor
                 model['anchorIdx'] = first_start

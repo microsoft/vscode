@@ -29,6 +29,8 @@ from string_visualizer import (
     replace_segment_pattern,
     extract_quantifier,
     _subpattern_to_string,
+    is_adjacent_right,
+    is_adjacent_left,
     DC1, DC2, DC3, DC4,  # Sentinel characters
 )
 
@@ -1813,6 +1815,501 @@ class TestFuzzyPatternRecognition(unittest.TestCase):
         self.assertEqual(len(highlights), 2)
         _, _, seg_type, _, _, _ = highlights[1]
         self.assertEqual(seg_type, 'literal')
+
+
+# =============================================================================
+# Selection Adjacency Tests (skip over anchors)
+# =============================================================================
+
+class TestIsAdjacentRight(unittest.TestCase):
+    """Unit tests for is_adjacent_right helper function.
+
+    is_adjacent_right(idx, last_end, string_value) returns True if idx is
+    at or just past last_end, with only anchor/sentinel chars in between.
+    """
+
+    def test_exact_adjacent(self):
+        """idx == last_end is always adjacent."""
+        self.assertTrue(is_adjacent_right(7, 7, "hello\nworld"))
+
+    def test_skip_dollar_to_newline(self):
+        """Skip $ to reach \\n at end of line.
+
+        String "hello\\nworld":
+        Internal: ..., o=6, $=7, \\n=8, ...
+        last_end=7 (at $), idx=8 (\\n). Skipped: $ (anchor).
+        """
+        self.assertTrue(is_adjacent_right(8, 7, "hello\nworld"))
+
+    def test_skip_dollar_to_backslash_Z(self):
+        """Skip $ to reach \\Z at end of string.
+
+        String "hello":
+        Internal: ..., o=6, $=7, \\Z=8
+        last_end=7 (at $), idx=8 (\\Z). Skipped: $ (anchor).
+        """
+        self.assertTrue(is_adjacent_right(8, 7, "hello"))
+
+    def test_skip_caret_after_newline_to_first_char(self):
+        """Skip ^ to reach first char of next line.
+
+        String "hello\\nworld":
+        Internal: ..., \\n=8, ^=9, w=10, ...
+        last_end=9 (at ^), idx=10 (w). Skipped: ^ (anchor).
+        """
+        self.assertTrue(is_adjacent_right(10, 9, "hello\nworld"))
+
+    def test_skip_multiple_anchors_between_consecutive_newlines(self):
+        """Skip ^$ between consecutive newlines.
+
+        String "a\\n\\nb":
+        Internal: ..., \\n=4, ^=5, $=6, \\n=7, ...
+        last_end=5, idx=7. Skipped: ^$ (both anchors).
+        """
+        self.assertTrue(is_adjacent_right(7, 5, "a\n\nb"))
+
+    def test_not_adjacent_over_real_char(self):
+        """Cannot skip \\n (a real character, not an anchor).
+
+        String "hello\\nworld":
+        Internal: ..., $=7, \\n=8, ^=9, ...
+        last_end=7, idx=9. Skipped: $\\n — \\n is real.
+        """
+        self.assertFalse(is_adjacent_right(9, 7, "hello\nworld"))
+
+    def test_far_away_not_adjacent(self):
+        """Far-away index is not adjacent."""
+        self.assertFalse(is_adjacent_right(12, 7, "hello\nworld"))
+
+    def test_before_last_end_not_adjacent(self):
+        """idx < last_end is not adjacent."""
+        self.assertFalse(is_adjacent_right(5, 7, "hello\nworld"))
+
+    def test_out_of_bounds_not_adjacent(self):
+        """Out-of-bounds idx is not adjacent."""
+        self.assertFalse(is_adjacent_right(100, 7, "hello"))
+
+
+class TestIsAdjacentLeft(unittest.TestCase):
+    """Unit tests for is_adjacent_left helper function.
+
+    is_adjacent_left(idx, first_start, string_value) returns True if idx is
+    just before first_start, with only anchor/sentinel chars in between.
+    """
+
+    def test_exact_adjacent(self):
+        """idx == first_start - 1 is always adjacent."""
+        self.assertTrue(is_adjacent_left(9, 10, "hello\nworld"))
+
+    def test_skip_caret_to_newline(self):
+        """Skip ^ to reach \\n going left.
+
+        String "hello\\nworld":
+        Internal: ..., \\n=8, ^=9, w=10, ...
+        first_start=10 (w), idx=8 (\\n). Skipped: ^ (anchor).
+        """
+        self.assertTrue(is_adjacent_left(8, 10, "hello\nworld"))
+
+    def test_skip_caret_to_backslash_A(self):
+        """Skip ^ to reach \\A at start of string.
+
+        String "hello":
+        Internal: \\A=0, ^=1, h=2, ...
+        first_start=2 (h), idx=0 (\\A). Skipped: ^ (anchor).
+        """
+        self.assertTrue(is_adjacent_left(0, 2, "hello"))
+
+    def test_skip_dollar_to_last_char_of_prev_line(self):
+        """Skip $ to reach last char of previous line going left.
+
+        String "hello\\nworld":
+        Internal: ..., o=6, $=7, \\n=8, ...
+        first_start=8 (\\n), idx=6 (o). Skipped: $ (anchor).
+        """
+        self.assertTrue(is_adjacent_left(6, 8, "hello\nworld"))
+
+    def test_skip_multiple_anchors_between_consecutive_newlines(self):
+        """Skip $^ between consecutive newlines going left.
+
+        String "a\\n\\nb":
+        Internal: ..., \\n=4, ^=5, $=6, \\n=7, ...
+        first_start=7, idx=4. Skipped: ^$ (both anchors going left).
+
+        Wait, skipped chars are at indices 5 and 6, which are ^ and $.
+        """
+        self.assertTrue(is_adjacent_left(4, 7, "a\n\nb"))
+
+    def test_not_adjacent_over_real_char(self):
+        """Cannot skip \\n (a real character) going left.
+
+        String "hello\\nworld":
+        Internal: ..., o=6, $=7, \\n=8, ^=9, w=10, ...
+        first_start=10, idx=7. Between: \\n=8, ^=9. \\n is real.
+        """
+        self.assertFalse(is_adjacent_left(7, 10, "hello\nworld"))
+
+    def test_far_away_not_adjacent(self):
+        """Far-away index is not adjacent."""
+        self.assertFalse(is_adjacent_left(2, 10, "hello\nworld"))
+
+    def test_at_first_start_not_adjacent(self):
+        """idx == first_start is not adjacent (must be to the left)."""
+        self.assertFalse(is_adjacent_left(10, 10, "hello\nworld"))
+
+    def test_past_first_start_not_adjacent(self):
+        """idx > first_start is not adjacent."""
+        self.assertFalse(is_adjacent_left(11, 10, "hello\nworld"))
+
+
+class TestSelectionAdjacencyIntegration(unittest.TestCase):
+    """Integration tests for extending selections across anchor boundaries.
+
+    These test the full flow through update() to verify that the adjacency
+    fix works end-to-end for various scenarios.
+    """
+
+    def test_right_extend_over_dollar_to_newline(self):
+        """BUG: After /(^)(.*)/, clicking \\n (past $) should extend, not reset.
+
+        This is the user's primary reported bug: can't generate /^.*\\n/
+        because \\n is drawn after $ and not considered adjacent.
+
+        String "hello\\nworld":
+        Internal: \\A=0, ^=1, h=2, e=3, l=4, l=5, o=6, $=7, \\n=8, ^=9, w=10, ...
+
+        /(^)(.*)/ matches ^hello, last_end=7 (at $).
+        Clicking \\n at index 8 should extend the selection.
+        """
+        value = "hello\nworld"
+        model = init_model(value)
+        source_code = "x = 'hello\\nworld'"
+
+        # Select ^ literal at index 1
+        model, _ = update(make_mouse_down_event(1, top_half=True),
+                         source_code, 1, model, value)
+        model, _ = update(make_mouse_up_event(1),
+                         source_code, 1, model, value)
+        self.assertEqual(model['selectionRegex'], '/(^)/')
+
+        # Extend with .* fuzzy
+        last_end = get_last_segment_end_internal_idx(model['selectionRegex'], value)
+        model, _ = update(make_mouse_down_event(last_end, top_half=False),
+                         source_code, 1, model, value)
+        model, _ = update(make_mouse_up_event(last_end),
+                         source_code, 1, model, value)
+        self.assertEqual(model['selectionRegex'], '/(^)(.*)/')
+
+        # Verify last_end is at $ (one past the fuzzy segment's last char)
+        last_end = get_last_segment_end_internal_idx(model['selectionRegex'], value)
+        self.assertEqual(last_end, 7)  # $ is at index 7
+
+        # Click \n at index 8 (past $ at 7) — THIS WAS THE BUG
+        model, _ = update(make_mouse_down_event(8, top_half=True),
+                         source_code, 1, model, value)
+        model, _ = update(make_mouse_up_event(8),
+                         source_code, 1, model, value)
+
+        # Should extend with \n, NOT reset
+        self.assertEqual(model['selectionRegex'], '/(^)(.*)(\\n)/')
+
+    def test_right_extend_over_dollar_to_newline_hello_first(self):
+        """Extend /(hello)/ by clicking \\n (past $) should extend.
+
+        String "hello\\nworld":
+        /(hello)/ matches "hello", last_end=7 (at $).
+        Clicking \\n at 8 should extend.
+        """
+        value = "hello\nworld"
+        model = init_model(value)
+        source_code = "x = 'hello\\nworld'"
+
+        # Select "hello" (indices 2-6)
+        model, _ = update(make_mouse_down_event(2, top_half=True),
+                         source_code, 1, model, value)
+        model, _ = update(make_mouse_move_event(6),
+                         source_code, 1, model, value)
+        model, _ = update(make_mouse_up_event(6),
+                         source_code, 1, model, value)
+        self.assertEqual(model['selectionRegex'], '/(hello)/')
+
+        last_end = get_last_segment_end_internal_idx(model['selectionRegex'], value)
+        self.assertEqual(last_end, 7)
+
+        # Click \n at 8 (skips $ at 7)
+        model, _ = update(make_mouse_down_event(8, top_half=True),
+                         source_code, 1, model, value)
+        model, _ = update(make_mouse_up_event(8),
+                         source_code, 1, model, value)
+
+        self.assertEqual(model['selectionRegex'], '/(hello)(\\n)/')
+
+    def test_right_extend_over_dollar_to_backslash_Z(self):
+        """After selecting "hello", clicking \\Z (past $) should extend.
+
+        String "hello":
+        Internal: \\A=0, ^=1, h=2, e=3, l=4, l=5, o=6, $=7, \\Z=8
+
+        /(hello)/ ends at 7 (at $).
+        Clicking \\Z at 8 should extend.
+        """
+        value = "hello"
+        model = init_model(value)
+        source_code = "x = 'hello'"
+
+        # Select "hello"
+        model, _ = update(make_mouse_down_event(2, top_half=True),
+                         source_code, 1, model, value)
+        model, _ = update(make_mouse_move_event(6),
+                         source_code, 1, model, value)
+        model, _ = update(make_mouse_up_event(6),
+                         source_code, 1, model, value)
+        self.assertEqual(model['selectionRegex'], '/(hello)/')
+
+        last_end = get_last_segment_end_internal_idx(model['selectionRegex'], value)
+        self.assertEqual(last_end, 7)  # at $
+
+        # Click \Z at 8 (past $ at 7)
+        model, _ = update(make_mouse_down_event(8, top_half=True),
+                         source_code, 1, model, value)
+        model, _ = update(make_mouse_up_event(8),
+                         source_code, 1, model, value)
+
+        self.assertEqual(model['selectionRegex'], '/(hello)(\\Z)/')
+
+    def test_right_extend_fuzzy_over_dollar_to_newline(self):
+        """Fuzzy extension over $ to \\n should work too.
+
+        Same as literal but using bottom-half click for fuzzy.
+        """
+        value = "hello\nworld"
+        model = init_model(value)
+        source_code = "x = 'hello\\nworld'"
+
+        # Select "hello"
+        model, _ = update(make_mouse_down_event(2, top_half=True),
+                         source_code, 1, model, value)
+        model, _ = update(make_mouse_move_event(6),
+                         source_code, 1, model, value)
+        model, _ = update(make_mouse_up_event(6),
+                         source_code, 1, model, value)
+        self.assertEqual(model['selectionRegex'], '/(hello)/')
+
+        last_end = get_last_segment_end_internal_idx(model['selectionRegex'], value)
+
+        # Click \n at 8 with fuzzy (bottom half) — skips $ at 7
+        model, _ = update(make_mouse_down_event(8, top_half=False),
+                         source_code, 1, model, value)
+        model, _ = update(make_mouse_up_event(8),
+                         source_code, 1, model, value)
+
+        self.assertEqual(model['selectionRegex'], '/(hello)(.*)/')
+
+    def test_left_extend_over_caret_to_newline(self):
+        """Select "world", clicking \\n (past ^ going left) should extend left.
+
+        String "hello\\nworld":
+        Internal: ..., $=7, \\n=8, ^=9, w=10, o=11, r=12, l=13, d=14, ...
+
+        /(world)/ starts at 10 (w), first_start=10.
+        Clicking \\n at 8: ^ at 9 is between (anchor). Should extend left.
+        """
+        value = "hello\nworld"
+        model = init_model(value)
+        source_code = "x = 'hello\\nworld'"
+
+        # Select "world" at indices 10-14
+        model, _ = update(make_mouse_down_event(10, top_half=True),
+                         source_code, 1, model, value)
+        model, _ = update(make_mouse_move_event(14),
+                         source_code, 1, model, value)
+        model, _ = update(make_mouse_up_event(14),
+                         source_code, 1, model, value)
+        self.assertEqual(model['selectionRegex'], '/(world)/')
+
+        first_start = get_first_segment_start_internal_idx(model['selectionRegex'], value)
+        self.assertEqual(first_start, 10)
+
+        # Click \n at 8 (past ^ at 9)
+        model, _ = update(make_mouse_down_event(8, top_half=True),
+                         source_code, 1, model, value)
+        model, _ = update(make_mouse_up_event(8),
+                         source_code, 1, model, value)
+
+        # Should extend left (includes \n and ^ which is between)
+        self.assertEqual(model['selectionRegex'], '/(\\n^)(world)/')
+
+    def test_left_extend_over_caret_to_backslash_A(self):
+        """Select "hello" from h, clicking \\A (past ^) should extend left.
+
+        String "hello":
+        Internal: \\A=0, ^=1, h=2, e=3, l=4, l=5, o=6, $=7, \\Z=8
+
+        /(hello)/ starts at 2 (h), first_start=2.
+        Clicking \\A at 0: ^ at 1 is between (anchor). Should extend left.
+        """
+        value = "hello"
+        model = init_model(value)
+        source_code = "x = 'hello'"
+
+        # Select "hello"
+        model, _ = update(make_mouse_down_event(2, top_half=True),
+                         source_code, 1, model, value)
+        model, _ = update(make_mouse_move_event(6),
+                         source_code, 1, model, value)
+        model, _ = update(make_mouse_up_event(6),
+                         source_code, 1, model, value)
+        self.assertEqual(model['selectionRegex'], '/(hello)/')
+
+        first_start = get_first_segment_start_internal_idx(model['selectionRegex'], value)
+        self.assertEqual(first_start, 2)
+
+        # Click \A at 0 (past ^ at 1)
+        model, _ = update(make_mouse_down_event(0, top_half=True),
+                         source_code, 1, model, value)
+        model, _ = update(make_mouse_up_event(0),
+                         source_code, 1, model, value)
+
+        # Should extend left with \A and ^
+        self.assertEqual(model['selectionRegex'], '/(\\A^)(hello)/')
+
+    def test_no_extend_over_real_characters(self):
+        """Should NOT extend when real characters are between click and selection.
+
+        String "hello\\nworld":
+        Select "world" at w=10, first_start=10.
+        Click $ at 7: between are \\n (real) and ^ (anchor). Can't skip \\n.
+        Should reset, not extend.
+        """
+        value = "hello\nworld"
+        model = init_model(value)
+        source_code = "x = 'hello\\nworld'"
+
+        # Select "world"
+        model, _ = update(make_mouse_down_event(10, top_half=True),
+                         source_code, 1, model, value)
+        model, _ = update(make_mouse_move_event(14),
+                         source_code, 1, model, value)
+        model, _ = update(make_mouse_up_event(14),
+                         source_code, 1, model, value)
+        self.assertEqual(model['selectionRegex'], '/(world)/')
+
+        # Click $ at 7 — there's \n (real char) between $ and the selection
+        model, _ = update(make_mouse_down_event(7, top_half=True),
+                         source_code, 1, model, value)
+
+        # Should reset, not extend
+        self.assertIsNone(model['selectionRegex'])
+
+    def test_drag_after_skipped_adjacency_works(self):
+        """After extending via skipped adjacency, drag should still work.
+
+        Click \\n (skipping $), then drag to ^ to select \\n^.
+        """
+        value = "hello\nworld"
+        model = init_model(value)
+        source_code = "x = 'hello\\nworld'"
+
+        # Select "hello"
+        model, _ = update(make_mouse_down_event(2, top_half=True),
+                         source_code, 1, model, value)
+        model, _ = update(make_mouse_move_event(6),
+                         source_code, 1, model, value)
+        model, _ = update(make_mouse_up_event(6),
+                         source_code, 1, model, value)
+        self.assertEqual(model['selectionRegex'], '/(hello)/')
+
+        # Click \n at 8 (skips $ at 7) and drag to ^ at 9
+        model, _ = update(make_mouse_down_event(8, top_half=True),
+                         source_code, 1, model, value)
+        model, _ = update(make_mouse_move_event(9),
+                         source_code, 1, model, value)
+        model, _ = update(make_mouse_up_event(9),
+                         source_code, 1, model, value)
+
+        # Should extend with \n^ (both selected by the drag)
+        self.assertEqual(model['selectionRegex'], '/(hello)(\\n^)/')
+
+    def test_right_extend_skipped_adjacency_does_not_include_anchor(self):
+        """When extending right by skipping an anchor, the skipped anchor
+        should NOT be included in the new segment.
+
+        After /(hello)/ with last_end=7 ($), clicking \\n at 8 should
+        produce a segment containing just \\n, not $\\n.
+        """
+        value = "hello\nworld"
+        model = init_model(value)
+        source_code = "x = 'hello\\nworld'"
+
+        # Select "hello"
+        model, _ = update(make_mouse_down_event(2, top_half=True),
+                         source_code, 1, model, value)
+        model, _ = update(make_mouse_move_event(6),
+                         source_code, 1, model, value)
+        model, _ = update(make_mouse_up_event(6),
+                         source_code, 1, model, value)
+
+        # Click \n at 8
+        model, _ = update(make_mouse_down_event(8, top_half=True),
+                         source_code, 1, model, value)
+        model, _ = update(make_mouse_up_event(8),
+                         source_code, 1, model, value)
+
+        # Should be just \n, NOT $\n
+        self.assertEqual(model['selectionRegex'], '/(hello)(\\n)/')
+
+    def test_existing_right_extend_still_works(self):
+        """The standard right extension (idx == last_end) should still work.
+
+        Regression test to make sure the fix doesn't break existing behavior.
+        """
+        value = "hello world"
+        model = init_model(value)
+        source_code = "x = 'hello world'"
+
+        # Select "hello" (indices 2-6)
+        model, _ = update(make_mouse_down_event(2, top_half=True),
+                         source_code, 1, model, value)
+        model, _ = update(make_mouse_move_event(6),
+                         source_code, 1, model, value)
+        model, _ = update(make_mouse_up_event(6),
+                         source_code, 1, model, value)
+        self.assertEqual(model['selectionRegex'], '/(hello)/')
+
+        # Extend with fuzzy at exact end
+        end_idx = get_last_segment_end_internal_idx(model['selectionRegex'], value)
+        model, _ = update(make_mouse_down_event(end_idx, top_half=False),
+                         source_code, 1, model, value)
+        model, _ = update(make_mouse_up_event(end_idx),
+                         source_code, 1, model, value)
+
+        self.assertEqual(model['selectionRegex'], '/(hello)(.*)/')
+
+    def test_existing_left_extend_still_works(self):
+        """The standard left extension (idx == first_start - 1) should still work.
+
+        Regression test.
+        """
+        value = "hello world"
+        model = init_model(value)
+        source_code = "x = 'hello world'"
+
+        # Select "world"
+        model, _ = update(make_mouse_down_event(8, top_half=True),
+                         source_code, 1, model, value)
+        model, _ = update(make_mouse_move_event(12),
+                         source_code, 1, model, value)
+        model, _ = update(make_mouse_up_event(12),
+                         source_code, 1, model, value)
+        self.assertEqual(model['selectionRegex'], '/(world)/')
+
+        # Extend left at first_start - 1 (standard adjacency)
+        start_idx = get_first_segment_start_internal_idx(model['selectionRegex'], value)
+        model, _ = update(make_mouse_down_event(start_idx - 1, top_half=False),
+                         source_code, 1, model, value)
+        model, _ = update(make_mouse_up_event(start_idx - 1),
+                         source_code, 1, model, value)
+
+        self.assertEqual(model['selectionRegex'], '/(.*)(world)/')
 
 
 # =============================================================================
