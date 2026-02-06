@@ -764,6 +764,12 @@
         "enablement": "!operationInProgress"
       },
       {
+        "command": "git.exclude",
+        "title": "%command.exclude%",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
         "command": "git.revealInExplorer",
         "title": "%command.revealInExplorer%",
         "category": "Git"
@@ -1586,6 +1592,10 @@
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && resourceScheme == file && scmActiveResourceRepository"
         },
         {
+          "command": "git.exclude",
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && resourceScheme == file && scmActiveResourceRepository"
+        },
+        {
           "command": "git.stashIncludeUntracked",
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
         },
@@ -2293,6 +2303,11 @@
           "group": "1_modification@3"
         },
         {
+          "command": "git.exclude",
+          "when": "scmProvider == git && scmResourceGroup == workingTree",
+          "group": "1_modification@4"
+        },
+        {
           "command": "git.stage",
           "when": "scmProvider == git && scmResourceGroup == untracked",
           "group": "1_modification"
@@ -2316,6 +2331,11 @@
           "command": "git.ignore",
           "when": "scmProvider == git && scmResourceGroup == untracked",
           "group": "1_modification@3"
+        },
+        {
+          "command": "git.exclude",
+          "when": "scmProvider == git && scmResourceGroup == untracked",
+          "group": "1_modification@4"
         }
       ],
       "scm/resourceState/context": [
@@ -2480,6 +2500,11 @@
           "group": "1_modification@3"
         },
         {
+          "command": "git.exclude",
+          "when": "scmProvider == git && scmResourceGroup == workingTree",
+          "group": "1_modification@4"
+        },
+        {
           "command": "git.revealFileInOS.linux",
           "when": "scmProvider == git && scmResourceGroup == workingTree && remoteName == '' && isLinux",
           "group": "2_view@1"
@@ -2548,6 +2573,11 @@
           "command": "git.ignore",
           "when": "scmProvider == git && scmResourceGroup == untracked",
           "group": "1_modification@3"
+        },
+        {
+          "command": "git.exclude",
+          "when": "scmProvider == git && scmResourceGroup == untracked",
+          "group": "1_modification@4"
         }
       ],
       "scm/history/title": [

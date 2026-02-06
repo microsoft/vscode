@@ -2430,27 +2430,44 @@ export class Repository implements Disposable {
 		return await this.run(Operation.GetCommitTemplate, async () => this.repository.getCommitTemplate());
 	}
 
+	private async appendToIgnoreRuleFile(ignoreFile: string, files: Uri[]): Promise<void> {
+		const textToAppend = files
+			.map(uri => relativePath(this.repository.root, uri.fsPath)
+				.replace(/\\|\[/g, match => match === '\\' ? '/' : `\\${match}`))
+			.join('\n');
+
+		await fsPromises.mkdir(path.dirname(ignoreFile), { recursive: true });
+
+		const document = await new Promise(c => fs.exists(ignoreFile, c))
+			? await workspace.openTextDocument(ignoreFile)
+			: await workspace.openTextDocument(Uri.file(ignoreFile).with({ scheme: 'untitled' }));
+
+		await window.showTextDocument(document);
+
+		const edit = new WorkspaceEdit();
+		const lastLine = document.lineAt(document.lineCount - 1);
+		const text = lastLine.isEmptyOrWhitespace ? `${textToAppend}\n` : `\n${textToAppend}\n`;
+
+		edit.insert(document.uri, lastLine.range.end, text);
+		await workspace.applyEdit(edit);
+		await document.save();
+	}
+
 	async ignore(files: Uri[]): Promise<void> {
 		return await this.run(Operation.Ignore, async () => {
-			const ignoreFile = `${this.repository.root}${path.sep}.gitignore`;
-			const textToAppend = files
-				.map(uri => relativePath(this.repository.root, uri.fsPath)
-					.replace(/\\|\[/g, match => match === '\\' ? '/' : `\\${match}`))
-				.join('\n');
+			const ignoreFile = path.join(this.repository.root, '.gitignore');
+			await this.appendToIgnoreRuleFile(ignoreFile, files);
+		});
+	}
 
-			const document = await new Promise(c => fs.exists(ignoreFile, c))
-				? await workspace.openTextDocument(ignoreFile)
-				: await workspace.openTextDocument(Uri.file(ignoreFile).with({ scheme: 'untitled' }));
-
-			await window.showTextDocument(document);
-
-			const edit = new WorkspaceEdit();
-			const lastLine = document.lineAt(document.lineCount - 1);
-			const text = lastLine.isEmptyOrWhitespace ? `${textToAppend}\n` : `\n${textToAppend}\n`;
-
-			edit.insert(document.uri, lastLine.range.end, text);
-			await workspace.applyEdit(edit);
-			await document.save();
+	async exclude(files: Uri[]): Promise<void> {
+		return await this.run(Operation.Ignore, async () => {
+			const excludeFile = path.join(
+				this.repository.dotGit.commonPath ?? this.repository.dotGit.path,
+				'info',
+				'exclude',
+			);
+			await this.appendToIgnoreRuleFile(excludeFile, files);
 		});
 	}
 
