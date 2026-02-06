@@ -111,6 +111,10 @@ class DropdownSelect:
     dropdown_id: str
     option_value: str
 
+@dataclass(frozen=True, slots=True)
+class SearchBoxInput:
+    value: str
+
 # attached handlers can be Python code strings that evaluate to functions of type: RawEventJSON -> ModelEvent
 # def mouse_move(i) -> Callable[[dict], MouseMove | MouseDown | MouseUp | KeyDown]:
 #     return lambda _: MouseMove(i)
@@ -1641,33 +1645,6 @@ def visualize(value, model=None):
         for i in range(start, end):
             highlight_by_index[i] = highlight
 
-    # Build debug info showing current regex and segments
-    selection_regex = model.get('selectionRegex')
-    debug_html = ""
-    if selection_regex:
-        # Show raw regex
-        inner_pattern = get_regex_inner_pattern(selection_regex)
-        stripped_pattern = strip_capturing_groups(inner_pattern) if inner_pattern else ""
-        debug_html += f'<div style="color: {GRAY}; font-size: 0.9em; margin-bottom: 4px;">Regex: <span style="color: #4ec9b0;">{html.escape(selection_regex)}</span></div>'
-        debug_html += f'<div style="color: {GRAY}; font-size: 0.9em; margin-bottom: 4px;">Pattern: <span style="color: #dcdcaa;">{html.escape(stripped_pattern)}</span></div>'
-
-        # Show segments with highlighting
-        segments_html = []
-        for i, (start, end, seg_type, pattern_display, repetition, _seg_idx) in enumerate(highlights):
-            if seg_type == 'literal':
-                color = "rgba(255,255,0,0.35)"
-                # Get the matched text by internal indices
-                segment_text = extract_by_internal_indices(value, start, end)
-                # Convert sentinel chars to display representation
-                display_text = segment_text.replace(DC1, '\\A').replace(DC2, '^').replace(DC3, '$').replace(DC4, '\\Z')
-                text = repr(display_text)
-            else:
-                color = "rgba(150,100,255,0.35)"
-                text = "(.*)"
-            segments_html.append(f'<span style="background-color: {color}; padding: 1px 3px; margin-right: 4px;">{html.escape(text)}</span>')
-        if segments_html:
-            debug_html += f'<div style="color: {GRAY}; font-size: 0.9em; margin-bottom: 8px;">Segments: {"".join(segments_html)}</div>'
-
     # Build character sequence with data-snc-idx attributes and highlighting
     char_elements = []
 
@@ -1687,11 +1664,40 @@ def visualize(value, model=None):
     index += 1
 
     chars_html = ''.join(char_elements)
+
+    # Build the search box at the bottom
+    selection_regex = model.get('selectionRegex')
+    inner_pattern = get_regex_inner_pattern(selection_regex) if selection_regex else ""
+    search_box_value = strip_capturing_groups(inner_pattern) if inner_pattern else ""
+    search_input_event = "lambda e: SearchBoxInput(value=e.get('value', ''))"
+    search_box_html = (
+        f'<div style="margin-top: 4px; white-space: normal;">'
+        f'<input type="text" tabindex="0"'
+        f' snc-input="{html.escape(search_input_event)}"'
+        f' value="{html.escape(search_box_value)}"'
+        f' placeholder="regex search"'
+        f' spellcheck="false"'
+        f' style="'
+        f'background: #1e1e1e;'
+        f'color: #dcdcaa;'
+        f'border: 1px solid #3c3c3c;'
+        f'border-radius: 3px;'
+        f'padding: 2px 6px;'
+        f'font-family: inherit;'
+        f'font-size: 12px;'
+        f'outline: none;'
+        f'width: 100%;'
+        f'box-sizing: border-box;'
+        f'"'
+        f' />'
+        f'</div>'
+    )
+
     # Add tabindex to make div focusable for keyboard events, and snc-key-down handler
     return (
         f'<div tabindex="0" snc-key-down="{html.escape(repr(KeyDown()))}" style="color: {STRING}; white-space: pre; user-select: none; outline: none;">'
-        f'{debug_html}'
         f'''<div style="line-height: 28px;">{chars_html}</div>'''
+        f'{search_box_html}'
         '</div>'
     )
 
@@ -1944,5 +1950,26 @@ def update(event, source_code: str, source_line: int, model: dict, value: str) -
                     model['selectionRegex'] = replace_segment_pattern(current_regex, segment_index, pattern)
             # Close the dropdown
             model['openDropdown'] = None
+
+        case SearchBoxInput(value=val):
+            # Update regex from search box input
+            current_regex = model.get('selectionRegex')
+            if val:
+                new_regex = f"/{val}/"
+                if new_regex != current_regex:
+                    model['undoHistory'] = model.get('undoHistory', []) + [current_regex]
+                    model['redoHistory'] = []
+                    model['selectionRegex'] = new_regex
+            else:
+                # Empty input - clear the regex
+                if current_regex is not None:
+                    model['undoHistory'] = model.get('undoHistory', []) + [current_regex]
+                    model['redoHistory'] = []
+                    model['selectionRegex'] = None
+            # Clear any in-progress drag state since user is editing directly
+            model['anchorIdx'] = None
+            model['cursorIdx'] = None
+            model['dragging'] = False
+            model['insertAfterSegment'] = None
 
     return (model, commands)

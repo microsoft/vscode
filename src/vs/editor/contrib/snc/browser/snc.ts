@@ -54,10 +54,11 @@ class VisualizationWidget extends Disposable implements IOverlayWidget {
 	private readonly lineNumber: number;
 	private readonly onPointerEvent: (pythonEventStr: string, ev: MouseEvent) => void;
 	private readonly onKeyboardEvent: (pythonEventStr: string, ev: KeyboardEvent) => void;
+	private readonly onInputEvent: (pythonEventStr: string, value: string) => void;
 	private moveThrottleTimer: any = null;
 	private readonly moveThrottleDelay = 16;
 
-	constructor(editor: ICodeEditor, lineNumber: number, visIndex: number, onPointerEvent: (pythonEventStr: string, ev: MouseEvent) => void, onKeyboardEvent: (pythonEventStr: string, ev: KeyboardEvent) => void) {
+	constructor(editor: ICodeEditor, lineNumber: number, visIndex: number, onPointerEvent: (pythonEventStr: string, ev: MouseEvent) => void, onKeyboardEvent: (pythonEventStr: string, ev: KeyboardEvent) => void, onInputEvent: (pythonEventStr: string, value: string) => void) {
 		super();
 		this.editor = editor;
 		this.position = new Position(lineNumber, 1);
@@ -65,6 +66,7 @@ class VisualizationWidget extends Disposable implements IOverlayWidget {
 		this.lineNumber = lineNumber;
 		this.onPointerEvent = onPointerEvent;
 		this.onKeyboardEvent = onKeyboardEvent;
+		this.onInputEvent = onInputEvent;
 
 		// Create the widget DOM node
 		this.domNode = document.createElement('div');
@@ -98,7 +100,15 @@ class VisualizationWidget extends Disposable implements IOverlayWidget {
 			this.dispatch_as_python_event('snc-mouse-up', ev);
 		}));
 		this._register(dom.addDisposableListener(this.domNode, 'keydown', (ev: KeyboardEvent) => {
+			// Skip keyboard dispatch for input/textarea elements to allow normal typing
+			const target = ev.target as HTMLElement;
+			if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) {
+				return;
+			}
 			this.dispatch_keyboard_event('snc-key-down', ev);
+		}));
+		this._register(dom.addDisposableListener(this.domNode, 'input', (ev: Event) => {
+			this.dispatch_input_event('snc-input', ev);
 		}));
 
 		// Add the widget to the editor
@@ -141,6 +151,23 @@ class VisualizationWidget extends Disposable implements IOverlayWidget {
 		if (this.domNode.hasAttribute(attr_name)) {
 			const pythonEventStr: string = this.domNode.getAttribute(attr_name) ?? '';
 			this.onKeyboardEvent(pythonEventStr, ev);
+		}
+	}
+
+	private dispatch_input_event(attr_name: string, ev: Event): void {
+		const target = ev.target as HTMLElement;
+		if (!target) { return; }
+
+		// Walk up from target to find element with snc-input attribute
+		let el: Element | null = target;
+		while (el && el !== this.domNode) {
+			if (el.hasAttribute(attr_name)) {
+				const pythonEventStr: string = el.getAttribute(attr_name) ?? '';
+				const value = (target as HTMLInputElement).value ?? '';
+				this.onInputEvent(pythonEventStr, value);
+				return;
+			}
+			el = el.parentElement;
 		}
 	}
 
@@ -205,6 +232,8 @@ class VisualizationWidget extends Disposable implements IOverlayWidget {
 		// Check if focus is inside this widget before replacing HTML
 		const activeElement = document.activeElement;
 		let focusedIndex = -1;
+		let savedSelectionStart: number | null = null;
+		let savedSelectionEnd: number | null = null;
 
 		if (activeElement && this.domNode.contains(activeElement)) {
 			// Find which focusable element (by index) was focused
@@ -215,6 +244,11 @@ class VisualizationWidget extends Disposable implements IOverlayWidget {
 					break;
 				}
 			}
+			// Save cursor position for input/textarea elements
+			if (activeElement instanceof HTMLInputElement || activeElement instanceof HTMLTextAreaElement) {
+				savedSelectionStart = activeElement.selectionStart;
+				savedSelectionEnd = activeElement.selectionEnd;
+			}
 		}
 
 		const trustedHtml = ttPolicy?.createHTML(html) ?? html;
@@ -224,7 +258,13 @@ class VisualizationWidget extends Disposable implements IOverlayWidget {
 		if (focusedIndex >= 0) {
 			const focusableElements = this.domNode.querySelectorAll('[tabindex]');
 			if (focusedIndex < focusableElements.length) {
-				(focusableElements[focusedIndex] as HTMLElement).focus();
+				const el = focusableElements[focusedIndex] as HTMLElement;
+				el.focus();
+				// Restore cursor position for input/textarea elements
+				if (savedSelectionStart !== null && (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement)) {
+					el.selectionStart = savedSelectionStart;
+					el.selectionEnd = savedSelectionEnd;
+				}
 			}
 		}
 	}
@@ -566,12 +606,13 @@ export class SNCController extends Disposable implements IEditorContribution {
 					for (let i = 0; i < stepItems.length; i++) {
 						const item = stepItems[i];
 						const visIndex = (item as any).visIndex ?? i;
-						const widget = new VisualizationWidget(
-							this.editor,
-							lineNumber,
-							visIndex,
-							(pythonEventStr, ev) => { this.onPointerEvent(lineNumber, visIndex, pythonEventStr, ev); },
-							(pythonEventStr, ev) => { this.onKeyboardEvent(lineNumber, visIndex, pythonEventStr, ev); }
+					const widget = new VisualizationWidget(
+						this.editor,
+						lineNumber,
+						visIndex,
+						(pythonEventStr, ev) => { this.onPointerEvent(lineNumber, visIndex, pythonEventStr, ev); },
+						(pythonEventStr, ev) => { this.onKeyboardEvent(lineNumber, visIndex, pythonEventStr, ev); },
+						(pythonEventStr, value) => { this.onInputEvent(lineNumber, visIndex, pythonEventStr, value); }
 						);
 						widget.updateContent(item.html);
 						widgets.push(widget);
@@ -656,6 +697,15 @@ export class SNCController extends Disposable implements IEditorContribution {
 		const event: UiEvent = { line: lineNumber, visIndex, pythonEventStr, eventJSON };
 		// console.log('SNC keyboard event', JSON.stringify(event));
 
+		this.sendEventToPython(event);
+	}
+
+	/**
+	 * Handle input event from VisualizationWidget (for text inputs with snc-input attribute)
+	 */
+	private onInputEvent(lineNumber: number, visIndex: number, pythonEventStr: string, value: string): void {
+		const eventJSON = { type: 'input', value };
+		const event: UiEvent = { line: lineNumber, visIndex, pythonEventStr, eventJSON };
 		this.sendEventToPython(event);
 	}
 
