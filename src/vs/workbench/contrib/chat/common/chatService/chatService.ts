@@ -498,7 +498,7 @@ export interface ILegacyChatTerminalToolInvocationData {
 }
 
 export function isLegacyChatTerminalToolInvocationData(data: unknown): data is ILegacyChatTerminalToolInvocationData {
-	return !!data && typeof data === 'object' && 'command' in data;
+	return !!data && typeof data === 'object' && 'command' in data && 'language' in data;
 }
 
 export interface IChatToolInputInvocationData {
@@ -817,7 +817,11 @@ export interface IChatExtensionsContent {
 }
 
 export interface IChatPullRequestContent {
-	uri: URI;
+	/**
+	 * @deprecated use `command` instead
+	 */
+	uri?: URI;
+	command: Command;
 	title: string;
 	description: string;
 	author: string;
