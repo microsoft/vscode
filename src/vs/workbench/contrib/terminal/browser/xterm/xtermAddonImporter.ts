@@ -43,7 +43,7 @@ export class XtermAddonImporter {
 			switch (name) {
 				case 'clipboard': addon = (await importAMDNodeModule<typeof import('@xterm/addon-clipboard')>('@xterm/addon-clipboard', 'lib/addon-clipboard.js')).ClipboardAddon as IXtermAddonNameToCtor[T]; break;
 				case 'image': addon = (await importAMDNodeModule<typeof import('@xterm/addon-image')>('@xterm/addon-image', 'lib/addon-image.js')).ImageAddon as IXtermAddonNameToCtor[T]; break;
-				case 'ligatures': addon = (await importAMDNodeModule<typeof import('@xterm/addon-ligatures')>('@xterm/addon-ligatures', 'lib/addon-ligatures.js')).LigaturesAddon as IXtermAddonNameToCtor[T]; break;
+				case 'ligatures': addon = (await importAMDNodeModule<typeof import('@xterm/addon-ligatures')>('@xterm/addon-ligatures', 'lib/addon-ligatures.mjs')).LigaturesAddon as IXtermAddonNameToCtor[T]; break;
 				case 'progress': addon = (await importAMDNodeModule<typeof import('@xterm/addon-progress')>('@xterm/addon-progress', 'lib/addon-progress.js')).ProgressAddon as IXtermAddonNameToCtor[T]; break;
 				case 'search': addon = (await importAMDNodeModule<typeof import('@xterm/addon-search')>('@xterm/addon-search', 'lib/addon-search.js')).SearchAddon as IXtermAddonNameToCtor[T]; break;
 				case 'serialize': addon = (await importAMDNodeModule<typeof import('@xterm/addon-serialize')>('@xterm/addon-serialize', 'lib/addon-serialize.js')).SerializeAddon as IXtermAddonNameToCtor[T]; break;

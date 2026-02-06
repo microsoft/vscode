@@ -142,7 +142,7 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 			slashCommands: [],
 			disambiguation: [],
 			locations: [location],
-			metadata: { helpTextPrefix: SetupAgent.SETUP_NEEDED_MESSAGE },
+			metadata: { helpTextPrefix: defaultChat.chatExtensionId === 'ai-fullcode.ai-fullcode-ui-editor' ? SetupAgent.SETUP_NEEDED_MESSAGE_OSS : SetupAgent.SETUP_NEEDED_MESSAGE },
 			description,
 			extensionId: nullExtensionDescription.identifier,
 			extensionVersion: undefined,
@@ -160,6 +160,7 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 	}
 
 	private static readonly SETUP_NEEDED_MESSAGE = new MarkdownString(localize('settingUpCopilotNeeded', "You need to set up GitHub Copilot and be signed in to use Chat."));
+	private static readonly SETUP_NEEDED_MESSAGE_OSS = new MarkdownString(localize('settingUpAiFullcodeReady', "You can use Chat with AI Fullcode. No sign-in required."));
 	private static readonly TRUST_NEEDED_MESSAGE = new MarkdownString(localize('trustNeeded', "You need to trust this workspace to use Chat."));
 
 	private readonly _onUnresolvableError = this._register(new Emitter<void>());
@@ -195,6 +196,11 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 	}
 
 	private async doInvoke(request: IChatAgentRequest, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService, chatWidgetService: IChatWidgetService, chatAgentService: IChatAgentService, languageModelToolsService: ILanguageModelToolsService): Promise<IChatAgentResult> {
+		// OSS: default が ai-fullcode のときはサインイン不要。Setup をスキップしてそのまま Chat に転送する。
+		if (defaultChat.chatExtensionId === 'ai-fullcode.ai-fullcode-ui-editor') {
+			return this.doInvokeWithoutSetup(request, progress, chatService, languageModelsService, chatWidgetService, chatAgentService, languageModelToolsService);
+		}
+
 		if (
 			!this.context.state.installed ||									// Extension not installed: run setup to install
 			this.context.state.disabled ||										// Extension disabled: run setup to enable
@@ -259,6 +265,19 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 	private async doForwardRequestToChatWhenReady(requestModel: IChatRequestModel, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService, chatAgentService: IChatAgentService, chatWidgetService: IChatWidgetService, languageModelToolsService: ILanguageModelToolsService): Promise<void> {
 		const widget = chatWidgetService.getWidgetBySessionResource(requestModel.session.sessionResource);
 		const modeInfo = widget?.input.currentModeInfo;
+
+		// OSS (ai-fullcode): agentReady/languageModelReady/toolsModelReady は Copilot 前提のため満たされずタイムアウトする。
+		// 拡張の Agent と LM は既に使えるので、ready 待ちをスキップしてすぐ resend する。
+		// （パネル用 SetupAgent は ai-fullcode 時は登録しないため、通常はこの分岐は Inline 等でしか使われない）
+		if (defaultChat.chatExtensionId === 'ai-fullcode.ai-fullcode-ui-editor') {
+			await this.whenAgentActivated(chatService);
+			await chatService.resendRequest(requestModel, {
+				...widget?.getModeRequestOptions(),
+				modeInfo,
+				userSelectedModelId: widget?.input.currentLanguageModel
+			});
+			return;
+		}
 
 		// We need a signal to know when we can resend the request to
 		// Chat. Waiting for the registration of the agent is not
@@ -453,9 +472,10 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 
 		// User has cancelled the setup
 		else {
+			const setupMessage = defaultChat.chatExtensionId === 'ai-fullcode.ai-fullcode-ui-editor' ? SetupAgent.SETUP_NEEDED_MESSAGE_OSS : SetupAgent.SETUP_NEEDED_MESSAGE;
 			progress({
 				kind: 'markdownContent',
-				content: this.workspaceTrustManagementService.isWorkspaceTrusted() ? SetupAgent.SETUP_NEEDED_MESSAGE : SetupAgent.TRUST_NEEDED_MESSAGE
+				content: this.workspaceTrustManagementService.isWorkspaceTrusted() ? setupMessage : SetupAgent.TRUST_NEEDED_MESSAGE
 			});
 		}
 

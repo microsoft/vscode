@@ -260,7 +260,7 @@ export class ChatRequestTelemetry {
 	private isComplete = false;
 
 	constructor(private readonly opts: {
-		agent: IChatAgentData;
+		agent: IChatAgentData | undefined;
 		agentSlashCommandPart: ChatRequestAgentSubcommandPart | undefined;
 		commandPart: ChatRequestSlashCommandPart | undefined;
 		sessionId: string;
@@ -284,6 +284,12 @@ export class ChatRequestTelemetry {
 		if (this.isComplete) {
 			return;
 		}
+		// Guard: agent or request may be undefined when default agent was not available (e.g. OSS before extension registers)
+		const agent = detectedAgent ?? this.opts.agent;
+		if (!agent || !request) {
+			this.isComplete = true;
+			return;
+		}
 
 		this.isComplete = true;
 		this.telemetryService.publicLog2<ChatProviderInvokedEvent, ChatProviderInvokedClassification>('interactiveSessionProviderInvoked', {
@@ -291,8 +297,8 @@ export class ChatRequestTelemetry {
 			totalTime,
 			result,
 			requestType,
-			agent: detectedAgent?.id ?? this.opts.agent.id,
-			agentExtensionId: detectedAgent?.extensionId.value ?? this.opts.agent.extensionId.value,
+			agent: agent.id,
+			agentExtensionId: agent.extensionId?.value,
 			slashCommand: this.opts.agentSlashCommandPart ? this.opts.agentSlashCommandPart.command.name : this.opts.commandPart?.slashCommand.command,
 			chatSessionId: this.opts.sessionId,
 			enableCommandDetection: this.opts.enableCommandDetection,

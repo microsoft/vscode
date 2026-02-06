@@ -15,40 +15,104 @@
 // または、VSCode OSSの実際のエントリーポイントからインポート
 
 // 統合レイヤーのインポート
+import * as vscode from 'vscode';
 import { initASTBridge } from './ast-bridge';
 import { initUIOperation } from './ui-operation';
 import { initPreview } from './preview';
 import { initChatView } from './ai-chat';
+import { registerApplyPlanCommand, registerPlanConfirmCommands } from './ai-chat/applyPlanCommand';
 import { initStorage } from './storage';
+import { handleChatMessage, applyOneOperation, verifyCodeViaWebApi, setExtensionPathForPlanScript } from './ai-chat/mcpBridge';
+import { LM_VENDOR, createAiFullcodeLanguageModelProvider } from './lm-provider';
 
 /**
- * VSCode OSS起動と統合レイヤー初期化
- *
- * Phase 1: VSCode OSS起動
- * - VSCode Web版を起動
- * - 統合レイヤーを初期化（Phase 2以降で実装される機能はプレースホルダー）
+ * LM プロバイダーとツールのみを登録する（activate 直後に同期的に呼ぶ用）。
+ * Chat が「モデル未登録」で真っ黒にならないよう、Participant 登録の直後に必ず実行する。
+ */
+export function registerLmAndTools(context: vscode.ExtensionContext): void {
+  try {
+    context.subscriptions.push(
+      vscode.lm.registerLanguageModelChatProvider(LM_VENDOR, createAiFullcodeLanguageModelProvider())
+    );
+    console.log('[AI-FULLCODE] LM provider registered', LM_VENDOR);
+  } catch (error) {
+    console.error('[AI-FULLCODE] Failed to register LM provider:', error);
+    throw error;
+  }
+  try {
+    context.subscriptions.push(
+      vscode.lm.registerTool<{ instruction: string }>('aiFullcodeGetUiPlan', {
+        invoke: async (options, _token) => {
+          const plan = await handleChatMessage(options.input.instruction);
+          return new vscode.LanguageModelToolResult([
+            new vscode.LanguageModelTextPart(JSON.stringify(plan)),
+          ]);
+        },
+      }),
+      vscode.lm.registerTool<{ operation: Record<string, unknown>; filePath?: string }>('aiFullcodeApplyOperation', {
+        invoke: async (options, _token) => {
+          const result = await applyOneOperation(
+            options.input.operation as Record<string, unknown> & { filePath?: string },
+            options.input.filePath
+          );
+          return new vscode.LanguageModelToolResult([
+            new vscode.LanguageModelTextPart(JSON.stringify(result)),
+          ]);
+        },
+      }),
+      vscode.lm.registerTool<{ code?: string; filePath?: string }>('aiFullcodeVerify', {
+        invoke: async (options, _token) => {
+          const result = await verifyCodeViaWebApi(options.input.code, options.input.filePath);
+          return new vscode.LanguageModelToolResult([
+            new vscode.LanguageModelTextPart(JSON.stringify(result)),
+          ]);
+        },
+      })
+    );
+    console.log('[AI-FULLCODE] LM tools registered');
+  } catch (error) {
+    console.warn('[AI Fullcode UI Editor] Failed to register LM tools:', error);
+  }
+}
+
+/**
+ * VSCode OSS起動と統合レイヤー初期化（LM・ツールは extension.ts で先に登録済み）。
  *
  * @param context VSCode拡張機能コンテキスト
  */
 export async function initAIFullcodeUIEditor(context: any): Promise<void> {
   try {
-    // Phase 2: AST Bridge初期化
+    if (context?.extensionUri?.fsPath) {
+      setExtensionPathForPlanScript(context.extensionUri);
+    }
+  } catch {
+    // フォールバックなしで続行
+  }
+  try {
     initASTBridge();
-
-    // Phase 3: UI Operation初期化（contextを渡す）
     initUIOperation(context);
-
-    // Phase 4: Preview初期化（contextを渡す）
     initPreview(context);
-
-    // Phase 6: AI Chat初期化
-    initChatView();
-
-    // Phase 2: Storage初期化（contextを渡す）
-    initStorage(context, 'default'); // TODO: プロジェクトIDを動的に取得
   } catch (error) {
-    console.error('[Main] ❌ Initialization error:', error);
-    throw error;
+    console.warn('[AI Fullcode UI Editor] Phase 2–4 init error (continuing):', error);
+  }
+
+  try {
+    initChatView();
+  } catch (error) {
+    // ChatService が利用できない場合などは警告のみ
+  }
+
+  try {
+    registerApplyPlanCommand(context);
+    registerPlanConfirmCommands(context);
+  } catch (error) {
+    console.warn('[AI Fullcode UI Editor] registerApplyPlanCommand error:', error);
+  }
+
+  try {
+    initStorage(context, 'default');
+  } catch (error) {
+    console.warn('[AI Fullcode UI Editor] Storage init error:', error);
   }
 }
 

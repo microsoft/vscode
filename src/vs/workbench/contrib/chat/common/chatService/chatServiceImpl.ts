@@ -33,7 +33,7 @@ import { IMcpService } from '../../../mcp/common/mcpTypes.js';
 import { awaitStatsForSession } from '../chat.js';
 import { IChatAgentCommand, IChatAgentData, IChatAgentHistoryEntry, IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../participants/chatAgents.js';
 import { chatEditingSessionIsReady } from '../editing/chatEditingService.js';
-import { ChatModel, ChatRequestModel, ChatRequestRemovalReason, IChatModel, IChatRequestModel, IChatRequestVariableData, IChatResponseModel, IExportableChatData, ISerializableChatData, ISerializableChatDataIn, ISerializableChatsData, normalizeSerializableChatData, toChatHistoryContent, updateRanges } from '../model/chatModel.js';
+import { ChatModel, ChatRequestModel, ChatRequestRemovalReason, IChatModel, IChatRequestModel, IChatRequestVariableData, IChatResponseModel, IExportableChatData, ISerializableChatData, ISerializableChatDataIn, ISerializableChatRequestData, ISerializableChatsData, normalizeSerializableChatData, toChatHistoryContent, updateRanges } from '../model/chatModel.js';
 import { ChatModelStore, IStartSessionProps } from '../model/chatModelStore.js';
 import { chatAgentLeader, ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, ChatRequestTextPart, chatSubcommandLeader, getPromptText, IParsedChatRequest } from '../requestParser/chatParserTypes.js';
 import { ChatRequestParser } from '../requestParser/chatRequestParser.js';
@@ -282,12 +282,15 @@ export class ChatService extends Disposable implements IChatService {
 			}
 
 			const sessions = arrayOfSessions.reduce<ISerializableChatsData>((acc, session) => {
-				// Revive serialized markdown strings in response data
+				// Revive serialized markdown strings in response data (履歴選択時に本文が表示されるようにする)
 				for (const request of session.requests) {
 					if (Array.isArray(request.response)) {
 						request.response = request.response.map((response) => {
 							if (typeof response === 'string') {
 								return new MarkdownString(response);
+							}
+							if (response && typeof response === 'object' && 'value' in response && typeof (response as { value: unknown }).value === 'string') {
+								return MarkdownString.lift(response as { value: string; isTrusted?: boolean; supportThemeIcons?: boolean; supportHtml?: boolean });
 							}
 							return response;
 						});
@@ -482,9 +485,34 @@ export class ChatService extends Disposable implements IChatService {
 
 	async getOrRestoreSession(sessionResource: URI): Promise<IChatModelReference | undefined> {
 		this.trace('getOrRestoreSession', `${sessionResource}`);
+		const LOG = (msg: string, ...args: unknown[]) => console.log('[CHAT-HISTORY]', msg, ...args);
+		LOG('getOrRestoreSession START', sessionResource.toString());
+
 		const existingRef = this._sessionModels.acquireExisting(sessionResource);
 		if (existingRef) {
-			return existingRef;
+			const model = existingRef.object;
+			const reqs = model.getRequests();
+			LOG('existingRef found, requests=', reqs.length, reqs.map((r, i) => ({
+				i,
+				hasResponse: !!r.response,
+				valueLength: Array.isArray(r.response?.response?.value) ? r.response.response.value.length : 'n/a',
+				valueKind0: Array.isArray(r.response?.response?.value) && r.response.response.value[0] ? (r.response.response.value[0] as { kind?: string }).kind : 'n/a',
+			})));
+			// 履歴選択時: メモリ上のモデルに空レスポンスがあれば破棄し、ファイルから再読する
+			const hasEmptyResponse = model.getRequests().some(r => {
+				const val = r.response?.response?.value;
+				return Array.isArray(val) && val.length === 0;
+			});
+			if (hasEmptyResponse) {
+				LOG('hasEmptyResponse=true, disposing existingRef, will read from file');
+				existingRef.dispose();
+				// 同期的に _models から削除されたので、以下でファイルから読む
+			} else {
+				LOG('returning existingRef (no empty response)');
+				return existingRef;
+			}
+		} else {
+			LOG('no existingRef, will read from file');
 		}
 
 		const sessionId = LocalChatSessionUri.parseLocalSessionId(sessionResource);
@@ -496,14 +524,31 @@ export class ChatService extends Disposable implements IChatService {
 		if (isEqual(this.transferredSessionResource, sessionResource)) {
 			this._transferredSessionResource = undefined;
 			sessionData = revive(await this._chatSessionStore.readTransferredSession(sessionResource));
+			LOG('readTransferredSession done');
 		} else {
 			sessionData = revive(await this._chatSessionStore.readSession(sessionId));
+			LOG('readSession done', sessionId);
 		}
 
 		if (!sessionData) {
+			LOG('sessionData is undefined, returning undefined');
 			return undefined;
 		}
 
+		const reqCount = sessionData.requests?.length ?? 0;
+		const reqLog = sessionData.requests?.map((r, i) => {
+			const resp = (r as ISerializableChatRequestData).response;
+			const arr = Array.isArray(resp) ? resp : undefined;
+			const first = arr?.[0];
+			return {
+				i,
+				responseIsArray: Array.isArray(resp),
+				responseLength: arr?.length ?? 0,
+				item0Type: first !== undefined ? typeof first : 'n/a',
+				item0Keys: first !== null && typeof first === 'object' ? Object.keys(first) : [],
+			};
+		});
+		LOG('sessionData.requests.length=', reqCount, reqLog);
 		const sessionRef = this._sessionModels.acquireOrCreate({
 			initialData: sessionData,
 			location: sessionData.initialLocation ?? ChatAgentLocation.Chat,
@@ -512,6 +557,7 @@ export class ChatService extends Disposable implements IChatService {
 			canUseTools: true,
 		});
 
+		LOG('acquireOrCreate done, sessionRef.object.getRequests().length=', sessionRef.object.getRequests().length);
 		return sessionRef;
 	}
 
@@ -701,7 +747,18 @@ export class ChatService extends Disposable implements IChatService {
 		const location = options?.location ?? model.initialLocation;
 		const attempt = options?.attempt ?? 0;
 		const enableCommandDetection = !options?.noCommandDetection;
-		const defaultAgent = this.chatAgentService.getDefaultAgent(location, options?.modeInfo?.kind)!;
+		let defaultAgent = this.chatAgentService.getDefaultAgent(location, options?.modeInfo?.kind);
+		if (!defaultAgent) {
+			try {
+				await this.activateDefaultAgent(location);
+				defaultAgent = this.chatAgentService.getDefaultAgent(location, options?.modeInfo?.kind);
+			} catch (_e) {
+				this.trace('resendRequest', 'activateDefaultAgent failed or no default agent');
+			}
+		}
+		if (!defaultAgent) {
+			throw new Error('No default chat agent available. Ensure the chat extension is installed and enabled.');
+		}
 
 		model.removeRequest(request.id, ChatRequestRemovalReason.Resend);
 
@@ -746,7 +803,20 @@ export class ChatService extends Disposable implements IChatService {
 
 		const location = options?.location ?? model.initialLocation;
 		const attempt = options?.attempt ?? 0;
-		const defaultAgent = this.chatAgentService.getDefaultAgent(location, options?.modeInfo?.kind)!;
+		let defaultAgent = this.chatAgentService.getDefaultAgent(location, options?.modeInfo?.kind);
+		// OSS (ai-fullcode): パネル用 SetupAgent を登録しないため、拡張の impl 登録前に getDefaultAgent が undefined になることがある。拡張を有効化してから再取得する。
+		if (!defaultAgent) {
+			try {
+				await this.activateDefaultAgent(location);
+				defaultAgent = this.chatAgentService.getDefaultAgent(location, options?.modeInfo?.kind);
+			} catch (_e) {
+				this.trace('sendRequest', 'activateDefaultAgent failed or no default agent');
+			}
+		}
+		if (!defaultAgent) {
+			this.logService.warn('Cannot send chat request: no default agent available. Ensure the chat extension is installed and enabled.');
+			return undefined;
+		}
 
 		const parsedRequest = this.parseChatRequest(sessionResource, request, location, options);
 		const silentAgent = options?.agentIdSilent ? this.chatAgentService.getAgent(options.agentIdSilent) : undefined;

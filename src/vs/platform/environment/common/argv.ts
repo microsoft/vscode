@@ -89,6 +89,7 @@ export interface NativeParsedArgs {
 	'inspect-brk-sharedprocess'?: string;
 	'disable-extensions'?: boolean;
 	'disable-extension'?: string[]; // undefined or array of 1 or more
+	'enable-extension'?: string[]; // undefined or array of 1 or more (default chat agent 等を環境で有効化)
 	'list-extensions'?: boolean;
 	'show-versions'?: boolean;
 	'category'?: string;

@@ -65,8 +65,6 @@ export class DesignEntryManager {
       
       return designEntryCode;
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error(`[DesignEntryManager] ❌ design-entry.tsx生成エラー: ${errorMessage}`);
       throw error;
     }
   }
@@ -83,8 +81,6 @@ export class DesignEntryManager {
       const builder = this.getBuilder();
       return await builder.scanProject();
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error(`[DesignEntryManager] ❌ コンポーネント一覧取得エラー: ${errorMessage}`);
       return [];
     }
   }

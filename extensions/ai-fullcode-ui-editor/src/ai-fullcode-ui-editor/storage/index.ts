@@ -60,13 +60,11 @@ export function initStorage(context: vscode.ExtensionContext, projectId: string 
     // ✅ workspace切替イベントはCatalogManager.init()内で購読される
 
     // Phase 4: design-entry.tsxを初期生成（registry方式）
-    initializeDesignEntry(projectId).catch(error => {
-      console.error('[Storage] Failed to initialize design-entry.tsx:', error);
+    initializeDesignEntry(projectId).catch(() => {
+      // Silent error handling
     });
 
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    console.error('[Storage] 初期化エラー:', errorMessage);
     throw error;
   }
 }
@@ -98,7 +96,6 @@ export function registerStorageCommands(context: vscode.ExtensionContext): void 
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         vscode.window.showErrorMessage(`ファイル一覧取得エラー: ${errorMessage}`);
-        console.error('[Storage Command] ファイル一覧取得エラー:', errorMessage);
       }
     })
   );
@@ -122,7 +119,6 @@ export default function TestStorage() {
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         vscode.window.showErrorMessage(`テストファイル作成エラー: ${errorMessage}`);
-        console.error('[Storage Command] テストファイル作成エラー:', errorMessage);
       }
     })
   );
@@ -145,7 +141,6 @@ export default function TestStorage() {
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         vscode.window.showErrorMessage(`ファイル読み込みエラー: ${errorMessage}`);
-        console.error('[Storage Command] ファイル読み込みエラー:', errorMessage);
       }
     })
   );

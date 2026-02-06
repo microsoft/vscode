@@ -18,12 +18,8 @@ import { registerUIOperationCommands } from './commands';
  * @param context VSCode拡張機能コンテキスト
  */
 export function initUIOperation(context: any): void {
-  console.log('[UI Operation] 初期化開始...');
-  
   // UI操作コマンドを登録
   registerUIOperationCommands(context);
-  
-  console.log('[UI Operation] 初期化完了');
 }
 
 // Phase 3: UI操作連携

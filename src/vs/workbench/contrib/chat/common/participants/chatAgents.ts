@@ -250,6 +250,7 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 	constructor(
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 		this._hasDefaultAgent = ChatContextKeys.enabled.bindTo(this.contextKeyService);
@@ -344,6 +345,10 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 
 		entry.impl = agentImpl;
 		this._onDidChangeAgents.fire(new MergedChatAgent(entry.data, agentImpl));
+
+		// 診断: impl 登録直後の getActivatedAgents() をログ（Agent 未登録の切り分け用）
+		const activated = this.getActivatedAgents();
+		this.logService.info(`[ChatAgent] registerAgentImplementation id=${id}, activatedCount=${activated.length}, ids=[${activated.map(a => a.id).join(', ')}]`);
 
 		return toDisposable(() => {
 			entry.impl = undefined;

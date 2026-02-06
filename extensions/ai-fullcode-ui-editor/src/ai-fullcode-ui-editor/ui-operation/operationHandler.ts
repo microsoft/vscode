@@ -9,7 +9,7 @@
  */
 
 import { astManager } from '../ast-bridge/astManager';
-import { syncManager } from '../ast-bridge/syncManager';
+import { updateTextModelFromASTAndSave } from '../ast-bridge/astToTextModel';
 import { saveFile } from '../storage/projectStorageAdapter';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -43,25 +43,30 @@ async function getUiStructureModule(): Promise<any> {
       // 動的インポート（実行時）
       uiStructureModule = await import(modulePath);
     } catch (error) {
-      console.error('[UI Operation Handler] UI構造操作モジュールのインポートに失敗:', error);
-      // フォールバック: エラーをログに記録するが、処理は続行
-      // 実際のUI操作処理は後で実装
+      // Silent error handling
     }
   }
   return uiStructureModule;
 }
 
+export type HandleUIOperationOptions = {
+  /** true のとき保存せずメモリのみ更新（プレビュー用） */
+  dryRun?: boolean;
+};
+
 /**
  * UI操作を処理
- * 
+ *
  * @param filePath ファイルパス
  * @param operation UI操作
  * @param projectId プロジェクトID（永続ストレージ保存用）
+ * @param options dryRun: true なら updateTextModelFromASTAndSave / saveFile を呼ばず、astManager のみ更新
  */
 export async function handleUIOperation(
   filePath: string,
   operation: unknown,
-  projectId?: string
+  projectId?: string,
+  options?: HandleUIOperationOptions
 ): Promise<{ success: boolean; error?: string }> {
   try {
     // 1. astManagerからファイルを取得
@@ -77,7 +82,7 @@ export async function handleUIOperation(
       if (!loadedFile) {
         throw new Error(`Failed to load file: ${filePath}`);
       }
-      return handleUIOperation(filePath, operation, projectId);
+      return handleUIOperation(filePath, operation, projectId, options);
     }
 
     // 2. UI構造操作モジュールを取得
@@ -91,31 +96,34 @@ export async function handleUIOperation(
 
     // 3. AI操作の場合は特別な処理
     if (op.type === 'ai-operation') {
+      const originalCode = file.getFullText();
       const result = await module.applyUiStructureOperationWithAI(file, op);
       if (!result.success) {
         throw new Error(result.error || 'AI operation failed');
       }
       const newTsx = result.updatedCode || file.getFullText();
-      
-      // 4. TextModel更新（VSCode Undo Stackに統合）
-      await syncManager.syncFromAST(filePath, newTsx);
-      
-      // 5. 永続ストレージ保存
+      if (options?.dryRun) {
+        astManager.loadFile(filePath, newTsx);
+        return { success: true };
+      }
+      // 4. 最小 diff で適用（変更範囲だけ TextEdit）→ 永続保存
+      await updateTextModelFromASTAndSave(filePath, newTsx, {
+        minimalDiff: true,
+        originalCode,
+      });
+      // 5. 永続ストレージ保存（拡張内プロジェクト用）
       if (projectId) {
         try {
           await saveFile(projectId, filePath, newTsx);
-          console.log(`[UI Operation Handler] ✅ 永続ストレージに保存: ${filePath}`);
         } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : String(error);
-          console.error(`[UI Operation Handler] ⚠️ 永続ストレージ保存エラー: ${errorMessage}`);
           // エラーが発生しても処理は続行（メモリ内の状態は正しい）
         }
       }
-      
       return { success: true };
     }
 
     // 4. 通常のUI操作
+    const originalCode = file.getFullText();
     const result = module.applyUiStructureOperation(file, op);
     if (!result.success) {
       throw new Error(result.error || 'UI structure operation failed');
@@ -123,26 +131,26 @@ export async function handleUIOperation(
 
     // 5. UI構造AST → TSX（既にapplyUiStructureOperation内で処理済み）
     const newTsx = result.updatedCode || file.getFullText();
-
-    // 6. TextModel更新（VSCode Undo Stackに統合）
-    await syncManager.syncFromAST(filePath, newTsx);
-
-    // 7. 永続ストレージ保存
+    if (options?.dryRun) {
+      astManager.loadFile(filePath, newTsx);
+      return { success: true };
+    }
+    // 6. 最小 diff で適用（変更範囲だけ TextEdit）→ 永続保存
+    await updateTextModelFromASTAndSave(filePath, newTsx, {
+      minimalDiff: true,
+      originalCode,
+    });
+    // 7. 永続ストレージ保存（拡張内プロジェクト用）
     if (projectId) {
       try {
         await saveFile(projectId, filePath, newTsx);
-        console.log(`[UI Operation Handler] ✅ 永続ストレージに保存: ${filePath}`);
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        console.error(`[UI Operation Handler] ⚠️ 永続ストレージ保存エラー: ${errorMessage}`);
         // エラーが発生しても処理は続行（メモリ内の状態は正しい）
       }
     }
-
     return { success: true };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    console.error('[UI Operation Handler] エラー:', errorMessage);
     return {
       success: false,
       error: errorMessage,
@@ -160,7 +168,6 @@ async function getCurrentFileContent(filePath: string): Promise<string | null> {
     const document = await vscode.workspace.openTextDocument(uri);
     return document.getText();
   } catch (error) {
-    console.error('[UI Operation Handler] ファイル内容取得エラー:', error);
     return null;
   }
 }

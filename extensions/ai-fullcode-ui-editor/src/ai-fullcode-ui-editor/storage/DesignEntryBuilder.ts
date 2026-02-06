@@ -77,7 +77,6 @@ export class DesignEntryBuilder {
       // ✅ ワークスペースルートを取得
       const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
       if (!workspaceFolder) {
-        console.warn('[DesignEntryBuilder] No workspace folder found. Cannot scan project files.');
         return [];
       }
 
@@ -104,10 +103,7 @@ export class DesignEntryBuilder {
           const files = await this.scanDirectoryForTsx(dirPath, workspaceRoot, kind);
           tsxFiles.push(...files);
         } catch (error) {
-          if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-          } else {
-            console.error(`[DesignEntryBuilder] Failed to scan ${dir}/:`, error);
-          }
+          // Silent error handling
         }
       }
 
@@ -119,7 +115,6 @@ export class DesignEntryBuilder {
           // ファイル内容を読み込み（ワークスペースから直接）
           const content = await fs.readFile(absolutePath, 'utf-8');
           if (!content) {
-            console.log(`[DesignEntryBuilder] Failed to read file: ${absolutePath}`);
             continue;
           }
 
@@ -148,26 +143,12 @@ export class DesignEntryBuilder {
 
           // ✅ 個別ファイルログは削除（選択時の繰り返しログを防ぐ）
         } catch (error) {
-          console.error(`[DesignEntryBuilder] Failed to scan file ${filePath}:`, error);
+          // Silent error handling
         }
       }
 
-      // ✅ スキャンサマリーのみログ出力（一度だけ）
-      const pagesCount = components.filter(c =>
-        c.componentType === 'page' ||
-        c.filePath.startsWith('/pages/') ||
-        (c.filePath.startsWith('/app/') && c.filePath.match(/\/page\.(tsx|jsx)$/)) ||
-        c.filePath.startsWith('/screens/')
-      ).length;
-      const componentsCount = components.filter(c =>
-        c.componentType === 'component' ||
-        c.filePath.startsWith('/components/') ||
-        c.filePath.startsWith('/designs/') ||
-        c.filePath.startsWith('/ui/')
-      ).length;
-
     } catch (error) {
-      console.error('[DesignEntryBuilder] ❌ Failed to scan project:', error);
+      // Silent error handling
     }
 
     return components;
@@ -218,7 +199,7 @@ export class DesignEntryBuilder {
         }
       }
     } catch (error) {
-      console.error(`[DesignEntryBuilder] Failed to scan directory ${dirPath}:`, error);
+      // Silent error handling
     }
 
     return files;
@@ -298,12 +279,7 @@ export class DesignEntryBuilder {
       catalogItems = await this.catalog.generateCatalogFromDesigns();
     }
 
-    // ✅ スキャンサマリーのみログ出力（一度だけ、選択時は呼ばれない）
-    const pages = catalogItems.filter(item => item.kind === 'page');
-    const componentItems = catalogItems.filter(item => item.kind === 'component');
-
     if (catalogItems.length === 0) {
-      console.warn('[DesignEntryBuilder] ⚠️ No catalog items found. Please create files in /pages/, /app/, /screens/, /components/, /designs/, or /ui/ directories');
       // フォールバック: 空のregistryを返す
       return await this.generateRegistryCodeFromCatalog([], undefined);
     }
@@ -371,23 +347,16 @@ export class DesignEntryBuilder {
           }
         } else {
           // absoluteFilePathが存在しない場合は、importPathWithExtensionから推測
-          // ただし、これは推測なので警告を出す
-          console.warn(`[DesignEntryBuilder] ⚠️ absoluteFilePath not found for ${item.component}, skipping`);
           skippedCount++;
           continue;
         }
       } catch (error) {
         // ファイルが存在しない場合はスキップ
         skippedCount++;
-        console.warn(`[DesignEntryBuilder] ⚠️ File not found: ${item.absoluteFilePath} (skipping)`);
         continue;
       }
 
       validatedItems.push(item);
-    }
-
-    if (skippedCount > 0) {
-      console.warn(`[DesignEntryBuilder] ⚠️ Skipped ${skippedCount} items (files not found)`);
     }
 
     // ✅ 検証済みアイテムのみを使用
@@ -404,7 +373,6 @@ export class DesignEntryBuilder {
       // ✅ 根本原因2の修正: componentRefNameのバリデーション
       // 無効なJavaScript識別子を防止（空文字列、特殊文字、数字で始まるなど）
       if (!componentRefName || !/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(componentRefName)) {
-        console.warn(`[DesignEntryBuilder] ⚠️ Invalid component reference name: "${componentRefName}" for ${item.component}, using fallback`);
         // フォールバック: インデックスベースの安全な識別子
         const fallbackIndex = imports.length;
         componentRefName = `Component${fallbackIndex}`;
@@ -455,8 +423,6 @@ export class DesignEntryBuilder {
             componentIds.push(componentId);
           }
         }
-      } else {
-        console.warn(`[DesignEntryBuilder] ⚠️ Duplicate registry key detected: ${componentId}, skipping`);
       }
     }
 
@@ -476,7 +442,6 @@ export class DesignEntryBuilder {
 
     // ✅ 検証済みアイテムが0件の場合は空のregistryを返す
     if (validatedItems.length === 0) {
-      console.warn('[DesignEntryBuilder] ⚠️ No valid files found after validation. Returning empty registry.');
       return this.generateEmptyRegistry();
     }
 

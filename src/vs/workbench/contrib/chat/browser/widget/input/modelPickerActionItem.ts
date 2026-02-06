@@ -92,7 +92,9 @@ function getModelPickerActionBarActionProvider(commandService: ICommandService, 
 	const actionProvider: IActionProvider = {
 		getActions: () => {
 			const additionalActions: IAction[] = [];
+			const isOssDefaultChat = productService.defaultChatAgent?.chatExtensionId === 'ai-fullcode.ai-fullcode-ui-editor';
 			if (
+				isOssDefaultChat ||
 				chatEntitlementService.entitlement === ChatEntitlement.Free ||
 				chatEntitlementService.entitlement === ChatEntitlement.Pro ||
 				chatEntitlementService.entitlement === ChatEntitlement.ProPlus ||

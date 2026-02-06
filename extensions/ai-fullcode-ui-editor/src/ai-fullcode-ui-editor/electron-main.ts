@@ -15,15 +15,10 @@ import { initAIFullcodeUIEditor } from './main';
  * Web版と同じ初期化ロジックを使用します。
  */
 export async function initElectron(context?: any): Promise<void> {
-  console.log('[AI Fullcode UI Editor] Electron版初期化開始...');
-
   try {
     // Web版と同じ初期化処理を使用（contextが提供されない場合はnullを渡す）
     await initAIFullcodeUIEditor(context || null);
-
-    console.log('[AI Fullcode UI Editor] Electron版初期化完了');
   } catch (error) {
-    console.error('[AI Fullcode UI Editor] Electron版初期化エラー:', error);
     throw error;
   }
 }
@@ -31,7 +26,6 @@ export async function initElectron(context?: any): Promise<void> {
 // Electron版エントリーポイント
 if (require.main === module) {
   initElectron().catch((error) => {
-    console.error('[AI Fullcode UI Editor] Electron版起動エラー:', error);
     process.exit(1);
   });
 }

@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Drag & Drop Test Page</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 20px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #1e1e1e;
+      color: #cccccc;
+    }
+
+    .test-section {
+      margin-bottom: 40px;
+      padding: 20px;
+      background: #2d2d2d;
+      border-radius: 8px;
+    }
+
+    .test-section h2 {
+      margin-top: 0;
+      color: #4ec9b0;
+    }
+
+    /* Grid Test */
+    .grid-container {
+      display: grid;
+      grid-template-columns: repeat(3, 100px);
+      grid-template-rows: repeat(3, 100px);
+      gap: 10px;
+      padding: 20px;
+      background: #252526;
+      border: 2px solid #3e3e42;
+    }
+
+    .grid-item {
+      background: #007acc;
+      border: 2px solid #005a9e;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-weight: bold;
+      cursor: move;
+      user-select: none;
+    }
+
+    .grid-item:hover {
+      background: #0098ff;
+    }
+
+    /* Flex Row Test */
+    .flex-row-container {
+      display: flex;
+      flex-direction: row;
+      gap: 10px;
+      padding: 20px;
+      background: #252526;
+      border: 2px solid #3e3e42;
+    }
+
+    .flex-item {
+      background: #4ec9b0;
+      border: 2px solid #2d7d7d;
+      padding: 20px;
+      min-width: 100px;
+      color: white;
+      font-weight: bold;
+      cursor: move;
+      user-select: none;
+    }
+
+    .flex-item:hover {
+      background: #6ed4c0;
+    }
+
+    /* Flex Column Test */
+    .flex-column-container {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding: 20px;
+      background: #252526;
+      border: 2px solid #3e3e42;
+    }
+
+    /* Guide Styles */
+    .drop-guide-line {
+      pointer-events: none;
+      z-index: 10000;
+    }
+
+    .drop-guide-box {
+      pointer-events: none;
+      z-index: 10000;
+    }
+
+    /* Debug Panel */
+    .debug-panel {
+      position: fixed;
+      top: 10px;
+      right: 10px;
+      background: #252526;
+      border: 2px solid #3e3e42;
+      padding: 15px;
+      border-radius: 8px;
+      max-width: 300px;
+      font-size: 12px;
+    }
+
+    .debug-panel h3 {
+      margin-top: 0;
+      color: #4ec9b0;
+    }
+
+    .debug-log {
+      max-height: 200px;
+      overflow-y: auto;
+      background: #1e1e1e;
+      padding: 10px;
+      border-radius: 4px;
+      font-family: monospace;
+      font-size: 11px;
+    }
+
+    .debug-log-entry {
+      margin-bottom: 5px;
+      padding: 5px;
+      border-left: 2px solid #007acc;
+      padding-left: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="debug-panel">
+    <h3>Debug Log</h3>
+    <div class="debug-log" id="debugLog"></div>
+    <button onclick="clearDebugLog()" style="margin-top: 10px; padding: 5px 10px; cursor: pointer;">Clear</button>
+  </div>
+
+  <h1>Drag & Drop Test Page</h1>
+
+  <!-- Grid Test -->
+  <div class="test-section">
+    <h2>Grid Layout Test</h2>
+    <p>3x3 Grid with gap. Drag items between cells.</p>
+    <div class="grid-container" id="gridContainer">
+      <div class="grid-item" data-ai-node-id="grid-item-1">1</div>
+      <div class="grid-item" data-ai-node-id="grid-item-2">2</div>
+      <div class="grid-item" data-ai-node-id="grid-item-3">3</div>
+      <div class="grid-item" data-ai-node-id="grid-item-4">4</div>
+      <div class="grid-item" data-ai-node-id="grid-item-5">5</div>
+      <div class="grid-item" data-ai-node-id="grid-item-6">6</div>
+      <div class="grid-item" data-ai-node-id="grid-item-7">7</div>
+      <div class="grid-item" data-ai-node-id="grid-item-8">8</div>
+      <div class="grid-item" data-ai-node-id="grid-item-9">9</div>
+    </div>
+  </div>
+
+  <!-- Flex Row Test -->
+  <div class="test-section">
+    <h2>Flex Row Layout Test</h2>
+    <p>Horizontal flex with gap. Drag items between elements.</p>
+    <div class="flex-row-container" id="flexRowContainer">
+      <div class="flex-item" data-ai-node-id="flex-row-item-1">Item 1</div>
+      <div class="flex-item" data-ai-node-id="flex-row-item-2">Item 2</div>
+      <div class="flex-item" data-ai-node-id="flex-row-item-3">Item 3</div>
+      <div class="flex-item" data-ai-node-id="flex-row-item-4">Item 4</div>
+    </div>
+  </div>
+
+  <!-- Flex Column Test -->
+  <div class="test-section">
+    <h2>Flex Column Layout Test</h2>
+    <p>Vertical flex with gap. Drag items between elements.</p>
+    <div class="flex-column-container" id="flexColumnContainer">
+      <div class="flex-item" data-ai-node-id="flex-column-item-1">Item 1</div>
+      <div class="flex-item" data-ai-node-id="flex-column-item-2">Item 2</div>
+      <div class="flex-item" data-ai-node-id="flex-column-item-3">Item 3</div>
+      <div class="flex-item" data-ai-node-id="flex-column-item-4">Item 4</div>
+    </div>
+  </div>
+
+  <script>
+    // Enable debug mode
+    window.DEBUG_DND = true;
+
+    // Debug log function
+    function addDebugLog(message) {
+      const log = document.getElementById('debugLog');
+      const entry = document.createElement('div');
+      entry.className = 'debug-log-entry';
+      entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+      log.appendChild(entry);
+      log.scrollTop = log.scrollHeight;
+    }
+
+    function clearDebugLog() {
+      document.getElementById('debugLog').innerHTML = '';
+    }
+
+    // Override console.log to capture DND logs
+    const originalLog = console.log;
+    console.log = function(...args) {
+      originalLog.apply(console, args);
+      if (args[0] && typeof args[0] === 'string' && args[0].startsWith('[DND:')) {
+        addDebugLog(args.join(' '));
+      }
+    };
+
+    // Simple drag & drop implementation for testing
+    let draggedElement = null;
+    let draggedElementId = null;
+
+    document.addEventListener('mousedown', (e) => {
+      const item = e.target.closest('.grid-item, .flex-item');
+      if (!item) return;
+
+      draggedElement = item;
+      draggedElementId = item.getAttribute('data-ai-node-id');
+      item.style.opacity = '0.5';
+      e.preventDefault();
+    });
+
+    document.addEventListener('mousemove', (e) => {
+      if (!draggedElement) return;
+
+      // Update ghost position
+      draggedElement.style.position = 'fixed';
+      draggedElement.style.left = e.clientX - 50 + 'px';
+      draggedElement.style.top = e.clientY - 50 + 'px';
+      draggedElement.style.zIndex = '10001';
+    });
+
+    document.addEventListener('mouseup', (e) => {
+      if (!draggedElement) return;
+
+      draggedElement.style.opacity = '1';
+      draggedElement.style.position = '';
+      draggedElement.style.left = '';
+      draggedElement.style.top = '';
+      draggedElement.style.zIndex = '';
+
+      draggedElement = null;
+      draggedElementId = null;
+    });
+
+    addDebugLog('Test page loaded. Enable DEBUG_DND to see logs.');
+  </script>
+</body>
+</html>
+

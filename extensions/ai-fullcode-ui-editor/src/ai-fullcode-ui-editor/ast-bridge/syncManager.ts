@@ -49,8 +49,6 @@ export class SyncManager {
   async syncFromAST(filePath: string, code: string): Promise<void> {
     // 既にTextModelから更新中の場合はスキップ（無限ループ防止）
     if (this.isUpdatingFromTextModel) {
-      // eslint-disable-next-line no-console
-      console.log('[SyncManager] TextModel更新中のため、AST更新をスキップ');
       return;
     }
 

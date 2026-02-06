@@ -46,40 +46,28 @@ export class PreviewPanel {
     const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
     if (workspaceFolder) {
       this.workspaceRoot = workspaceFolder.uri.fsPath;
-      console.log(`[PreviewPanel] workspace=${this.workspaceRoot}`);
     }
 
-    this.panel.webview.html = await this.previewService.getPreviewHtml(context);
+    // ✅ Cursor 2.2準拠: Runtimeバンドルを確実に準備してからPreview HTMLを生成
+    // ✅ getPreviewHtml内でensureRuntimeBundleが呼ばれるため、ここではそのまま呼び出す
+    try {
+      this.panel.webview.html = await this.previewService.getPreviewHtml(context, this.panel.webview);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.panel.webview.html = this.previewService.getErrorHtml(
+        `Preview generation failed:\n\n${errorMessage}\n\n` +
+        `Please check the console for details.`
+      );
+    }
 
     // postMessage Bridge
     this.panel.webview.onDidReceiveMessage(async (message) => {
-      if (message.type === 'PREVIEW_LOADED') {
-        console.log(`[Preview] Loaded URL: ${message.url}`);
-      } else if (message.type === 'PREVIEW_MODE_CHANGED') {
-        console.log(`[Preview] mode switched -> ${message.mode}`);
-      } else if (message.type === 'SELECT_NODE') {
-        // Phase 5.0: 要素選択イベント（フォールバックモード）
-        console.log(`[Preview] Node selected (fallback):`, {
-          tagName: message.elementInfo?.tagName,
-          id: message.elementInfo?.id,
-          classList: message.elementInfo?.classList,
-        });
-      } else if (message.type === 'ELEMENT_INFO') {
-        // ✅ 重要: iframeからのELEMENT_INFOメッセージを処理（プライマリモード）
-        console.log(`[Preview] Element info received:`, {
-          nodeId: message.payload?.nodeId,
-          tagName: message.payload?.tagName,
-        });
-      } else if (message.type === 'EDIT_MODE_UNAVAILABLE') {
+      if (message.type === 'EDIT_MODE_UNAVAILABLE') {
         // ✅ 重要: Edit Modeが無効化された場合
-        console.warn('[PreviewPanel] Edit Mode unavailable:', message.reason);
         vscode.window.showWarningMessage(
           `Edit Mode not available: ${message.reason}`,
           { modal: false }
         );
-      } else if (message.type === 'FRAME_BLOCKED_ERROR') {
-        // エラーはログのみ（モード切替には影響しない）
-        console.warn('[PreviewPanel] Frame blocked warning (ignored):', message.error);
       } else if (message.type === 'APPLY_CHANGE_PLAN') {
         // ✅ Phase 6: ChangePlan を適用
         await this.handleApplyChangePlan(message);
@@ -93,7 +81,6 @@ export class PreviewPanel {
     // Panelが閉じられたときにクリーンアップ
     this.panel.onDidDispose(() => {
       this.panel = null;
-      console.log('[Preview] cleanup completed');
     });
 
     context.subscriptions.push(this.panel);
@@ -182,10 +169,7 @@ export class PreviewPanel {
             beforeContent.substring(plan.range.end);
         } else {
           // 一致しない場合は警告
-          console.warn('[PreviewPanel] Patch before does not match:', {
-            expected: plan.patch.before,
-            actual: before,
-          });
+          // Silent error handling
         }
       } else {
         // 範囲指定がない場合は簡易置換（Phase 6: プレースホルダー）
@@ -205,13 +189,7 @@ export class PreviewPanel {
         beforeContent: beforeContent,
         afterContent: afterContent,
       });
-
-      console.log('[PreviewPanel] ✅ Change plan applied:', {
-        planId: message.planId,
-        filePath: plan.filePath,
-      });
     } catch (error) {
-      console.error('[PreviewPanel] ❌ Failed to apply change plan:', error);
       this.panel?.webview.postMessage({
         type: 'APPLY_CHANGE_PLAN_RESPONSE',
         messageId: message.messageId,

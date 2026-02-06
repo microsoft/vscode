@@ -79,7 +79,6 @@ export class CatalogService {
       this.cache = catalogItems;
       return catalogItems;
     } catch (error) {
-      console.error('[CatalogService] Failed to scan catalog items:', error);
       return [];
     }
   }
@@ -135,7 +134,6 @@ export class CatalogService {
         category,
       };
     } catch (error) {
-      console.error(`[CatalogService] Failed to extract metadata from ${filePath}:`, error);
       return null;
     }
   }

@@ -1540,7 +1540,10 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			policiesData: this.policyService.serialize(),
 			continueOn: this.environmentMainService.continueOn,
 
-			cssModules: this.cssDevelopmentService.isEnabled ? await this.cssDevelopmentService.getCssModules() : undefined
+			cssModules: this.cssDevelopmentService.isEnabled ? await this.cssDevelopmentService.getCssModules() : undefined,
+
+			// デフォルトチャットエージェント拡張を環境で有効化（無効だと "No default agent contributed" でチャットが表示されない）
+			'enable-extension': this.environmentMainService.args['enable-extension'] ?? (product.defaultChatAgent?.chatExtensionId ? [product.defaultChatAgent.chatExtensionId] : undefined)
 		};
 
 		// New window

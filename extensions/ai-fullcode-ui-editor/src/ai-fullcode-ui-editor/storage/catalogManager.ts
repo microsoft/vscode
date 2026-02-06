@@ -136,10 +136,8 @@ class CatalogTreeDataProvider implements vscode.TreeDataProvider<CatalogTreeNode
         this._onDidChangeTreeData.fire();
       }
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
       this.state = 'FAILED';
       this.pages = [];
-      console.error('[CatalogTreeDataProvider] state=FAILED scan_error reason=', errorMessage);
       this._onDidChangeTreeData.fire();
     }
   }
@@ -241,8 +239,6 @@ export class CatalogManager {
    * カタログを初期化
    */
   init(context: vscode.ExtensionContext): void {
-    console.log('[CatalogManager] init() called, projectId:', this.projectId);
-
     try {
       // ツリーデータプロバイダーを作成
       this.dataProvider = new CatalogTreeDataProvider(this.projectId);
@@ -285,8 +281,6 @@ export class CatalogManager {
 
                 await Promise.race([switchPromise, timeoutPromise]);
               } catch (error) {
-                const errorMessage = error instanceof Error ? error.message : String(error);
-                console.error('[CatalogManager] workspace_root_changed error:', errorMessage);
                 // エラーはログのみ（UIブロックしない）
               }
             }
@@ -295,8 +289,7 @@ export class CatalogManager {
       );
 
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error('[CatalogManager] init error:', errorMessage);
+      // Silent error handling
     }
   }
 
@@ -313,7 +306,6 @@ export class CatalogManager {
 
           if (!urlPath) {
             const errorMsg = `Page item missing urlPath field. id=${catalogItem.id}, component=${catalogItem.component}`;
-            console.error('[CatalogManager] selectPage_invalid_urlPath reason=missing_urlPath item=', catalogItem);
             throw new Error(errorMsg);
           }
 
@@ -325,18 +317,14 @@ export class CatalogManager {
 
           if (isAbsolutePath) {
             const errorMsg = `Invalid urlPath detected (absolute path): ${urlPath}. This should be a URL path like '/company', not a file path.`;
-            console.error('[CatalogManager] selectPage_invalid_urlPath reason=absolute_path_detected urlPath=', urlPath, 'item=', catalogItem);
             throw new Error(errorMsg);
           }
-
-          console.log('[CatalogManager] selectPage urlPath=', urlPath);
 
           // ✅ Phase 4: Preview連携は削除（ページ一覧機能は現状実装しない）
           // 将来的にPreview連携が必要な場合は、ここでpreviewBridge.send()を呼び出す
           vscode.window.showInformationMessage(`ページを選択しました: ${urlPath}`);
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : String(error);
-          console.error(`[CatalogManager] ❌ Failed to select page: ${errorMessage}`);
           vscode.window.showErrorMessage(
             `ページの選択に失敗しました: ${errorMessage}`
           );
@@ -348,14 +336,11 @@ export class CatalogManager {
     context.subscriptions.push(
       vscode.commands.registerCommand('ai-fullcode-ui-editor.catalog.selectComponent', async (catalogItem: UICatalogItem) => {
         try {
-          console.log('[CatalogManager] ✅ Selecting component:', catalogItem.name);
-
           // ✅ Phase 4: Preview連携は削除（コンポーネント一覧機能は現状実装しない）
           // 将来的にPreview連携が必要な場合は、ここでpreviewBridge.send()を呼び出す
           vscode.window.showInformationMessage(`コンポーネントを選択しました: ${catalogItem.name}`);
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : String(error);
-          console.error(`[CatalogManager] ❌ Failed to select component: ${errorMessage}`);
           vscode.window.showErrorMessage(
             `コンポーネントの選択に失敗しました: ${errorMessage}`
           );

@@ -13,6 +13,6 @@
     "resolveJsonModule": true,
     "moduleResolution": "node"
   },
-  "exclude": ["node_modules", ".vscode-test", "out", "src/preview"]
+  "exclude": ["node_modules", ".vscode-test", "out", "src/preview", "**/legacy/**", "**/test/**"]
 }
 

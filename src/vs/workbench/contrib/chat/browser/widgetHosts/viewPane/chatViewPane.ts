@@ -692,6 +692,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			this.agentSessionsService.model.getSession(oldModelResource)?.setRead(true);
 		}
 
+		// 履歴からセッションを開いたときなど、model に request がある場合に Welcome を隠してチャット一覧を表示する
+		this._onDidChangeViewWelcomeState.fire();
+
 		return model;
 	}
 
@@ -733,6 +736,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	}
 
 	async loadSession(sessionResource: URI): Promise<IChatModel | undefined> {
+		const LOG = (msg: string, ...args: unknown[]) => console.log('[CHAT-HISTORY]', msg, ...args);
+		LOG('loadSession START', sessionResource.toString());
+
 		return this.progressService.withProgress({ location: ChatViewId, delay: 200 }, async () => {
 			let queue: Promise<void> = Promise.resolve();
 
@@ -748,9 +754,20 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			}
 
 			const newModelRef = await this.chatService.loadSessionForResource(sessionResource, ChatAgentLocation.Chat, CancellationToken.None);
+			LOG('loadSession loadSessionForResource done', { hasModelRef: !!newModelRef, requestCount: newModelRef?.object?.getRequests?.()?.length ?? 'n/a' });
 			clearWidget.dispose();
 			await queue;
-			return this.showModel(newModelRef);
+			// 履歴から選択したセッションが読めない場合、新規セッションを開始せず空のまま表示する
+			if (!newModelRef) {
+				LOG('loadSession newModelRef is undefined, showModel(undefined, false)');
+				return this.showModel(undefined, false);
+			}
+			const model = await this.showModel(newModelRef);
+			const reqs = model?.getRequests?.() ?? [];
+			const valueLengths = reqs.map(r => Array.isArray(r.response?.response?.value) ? r.response.response.value.length : -1);
+			const valueKind0s = reqs.map(r => (Array.isArray(r.response?.response?.value) && r.response.response.value[0] ? (r.response.response.value[0] as { kind?: string }).kind : 'n/a'));
+			LOG('loadSession showModel done', 'requestCount=', reqs.length, 'valueLengths=', JSON.stringify(valueLengths), 'valueKind0s=', JSON.stringify(valueKind0s));
+			return model;
 		});
 	}
 

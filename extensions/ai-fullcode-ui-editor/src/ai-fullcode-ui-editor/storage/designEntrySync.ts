@@ -68,8 +68,6 @@ export function initDesignEntrySync(
       // design-entry.tsxはregistry方式で固定されているため、更新は不要
       // カタログ選択時のみPreview Runtimeに通知される
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error(`[DesignEntrySync] ❌ 永続ストレージ保存エラー: ${errorMessage}`);
       // エラーが発生しても処理は続行（ユーザー体験を損なわない）
     }
   });

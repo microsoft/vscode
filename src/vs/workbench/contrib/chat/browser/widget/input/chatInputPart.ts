@@ -356,15 +356,14 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const modeId: 'ask' | 'agent' | 'edit' | 'custom' | undefined = mode.isBuiltin ? this.currentModeKind : 'custom';
 
 		const modeInstructions = mode.modeInstructions?.get();
+		// 組み込みモード（Ask/Agent/Edit）でも name を渡す（拡張が agent モードで /apply 不要の適用をするため）
+		const resolvedModeInstructions = modeInstructions
+			? { name: mode.name.get(), content: modeInstructions.content, toolReferences: this.toolService.toToolReferences(modeInstructions.toolReferences), metadata: modeInstructions.metadata }
+			: (mode.isBuiltin ? { name: mode.name.get(), content: '', toolReferences: [], metadata: undefined } : undefined);
 		return {
 			kind: this.currentModeKind,
 			isBuiltin: mode.isBuiltin,
-			modeInstructions: modeInstructions ? {
-				name: mode.name.get(),
-				content: modeInstructions.content,
-				toolReferences: this.toolService.toToolReferences(modeInstructions.toolReferences),
-				metadata: modeInstructions.metadata,
-			} : undefined,
+			modeInstructions: resolvedModeInstructions,
 			modeId: modeId,
 			applyCodeBlockSuggestionId: undefined,
 		};

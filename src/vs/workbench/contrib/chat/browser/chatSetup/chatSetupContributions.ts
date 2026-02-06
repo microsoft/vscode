@@ -4,8 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../../../base/common/actions.js';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Lazy } from '../../../../../base/common/lazy.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Disposable, DisposableStore, markAsSingleton, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import Severity from '../../../../../base/common/severity.js';
 import { equalsIgnoreCase } from '../../../../../base/common/strings.js';
@@ -80,6 +83,16 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 			return; // disabled
 		}
 
+		// OSS: when default chat is ai-fullcode, register a welcome so the chat view is not black (no Copilot descriptor)
+		if (defaultChat.chatExtensionId === 'ai-fullcode.ai-fullcode-ui-editor') {
+			chatViewsWelcomeRegistry.register({
+				icon: ThemeIcon.fromId(Codicon.chatSparkle.id),
+				title: localize('chat.ossWelcome.title', "Welcome to AI Fullcode Chat"),
+				content: new MarkdownString(localize('chat.ossWelcome.content', "Use the input below to chat with AI Fullcode. You can ask questions, get code suggestions, or use MCP tools."), { isTrusted: true }),
+				when: ContextKeyExpr.true()
+			});
+		}
+
 		const controller = new Lazy(() => this._register(this.instantiationService.createInstance(ChatSetupController, context, requests)));
 
 		this.registerSetupAgents(context, controller);
@@ -105,23 +118,23 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 					if (!defaultAgentDisposables.value) {
 						const disposables = defaultAgentDisposables.value = new DisposableStore();
 
-						// Panel Agents
-						const panelAgentDisposables = disposables.add(new DisposableStore());
-						for (const mode of [ChatModeKind.Ask, ChatModeKind.Edit, ChatModeKind.Agent]) {
-							const { agent, disposable } = SetupAgent.registerDefaultAgents(this.instantiationService, ChatAgentLocation.Chat, mode, context, controller);
-							panelAgentDisposables.add(disposable);
-							panelAgentDisposables.add(agent.onUnresolvableError(() => {
-								const panelAgentHasGuidance = chatViewsWelcomeRegistry.get().some(descriptor => this.contextKeyService.contextMatchesRules(descriptor.when));
-								if (panelAgentHasGuidance) {
-									// An unresolvable error from our agent registrations means that
-									// Chat is unhealthy for some reason. We clear our panel
-									// registration to give Chat a chance to show a custom message
-									// to the user from the views and stop pretending as if there was
-									// a functional agent.
-									this.logService.error('[chat setup] Unresolvable error from Chat agent registration, clearing registration.');
-									panelAgentDisposables.dispose();
-								}
-							}));
+						// Panel Agents (Chat). OSS (ai-fullcode): 登録しない。getDefaultAgent は拡張を優先するため
+						// 最初のメッセージは SetupAgent に届かず拡張に直行する＝転送経路が使われない。
+						// パネル用 SetupAgent を最初から出さず、拡張エージェントのみにすることで真っ黒を防ぐ。
+						const skipPanelAgents = defaultChat.chatExtensionId === 'ai-fullcode.ai-fullcode-ui-editor';
+						if (!skipPanelAgents) {
+							const panelAgentDisposables = disposables.add(new DisposableStore());
+							for (const mode of [ChatModeKind.Ask, ChatModeKind.Edit, ChatModeKind.Agent]) {
+								const { agent, disposable } = SetupAgent.registerDefaultAgents(this.instantiationService, ChatAgentLocation.Chat, mode, context, controller);
+								panelAgentDisposables.add(disposable);
+								panelAgentDisposables.add(agent.onUnresolvableError(() => {
+									const panelAgentHasGuidance = chatViewsWelcomeRegistry.get().some(descriptor => this.contextKeyService.contextMatchesRules(descriptor.when));
+									if (panelAgentHasGuidance) {
+										this.logService.error('[chat setup] Unresolvable error from Chat agent registration, clearing registration.');
+										panelAgentDisposables.dispose();
+									}
+								}));
+							}
 						}
 
 						// Inline Agents
@@ -130,8 +143,10 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 						disposables.add(SetupAgent.registerDefaultAgents(this.instantiationService, ChatAgentLocation.EditorInline, undefined, context, controller).disposable);
 					}
 
-					// Built-In Agent + Tool (unless installed, signed-in and enabled)
-					if ((!context.state.installed || context.state.entitlement === ChatEntitlement.Unknown || context.state.entitlement === ChatEntitlement.Unresolved) && !vscodeAgentDisposables.value) {
+					// Built-In Agent + Tool (unless installed, signed-in and enabled).
+					// OSS (ai-fullcode): 登録しない。パネルに vscode/workspace/terminal が出て「変なのが増える」のを防ぐ。
+					const skipBuiltInAgents = defaultChat.chatExtensionId === 'ai-fullcode.ai-fullcode-ui-editor';
+					if (!skipBuiltInAgents && (!context.state.installed || context.state.entitlement === ChatEntitlement.Unknown || context.state.entitlement === ChatEntitlement.Unresolved) && !vscodeAgentDisposables.value) {
 						const disposables = vscodeAgentDisposables.value = new DisposableStore();
 						disposables.add(SetupAgent.registerBuiltInAgents(this.instantiationService, context, controller));
 					}
@@ -550,6 +565,25 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 			await this.extensionService.whenInstalledExtensionsRegistered();
 			if (this.extensionService.extensions.find(ext => ExtensionIdentifier.equals(ext.identifier, defaultChat.chatExtensionId))) {
 				context.update({ installed: true, disabled: false, untrusted: false });
+				return;
+			}
+		}
+
+		// OSS: default chat extension may be loaded from app's extensions/ folder (not in workbench "local").
+		// If it's loaded in extensionService, treat as installed so Chat doesn't show empty setup.
+		if (defaultChat.chatExtensionId) {
+			await this.extensionService.whenInstalledExtensionsRegistered();
+			const loaded = this.extensionService.extensions.find(ext => ExtensionIdentifier.equals(ext.identifier, defaultChat.chatExtensionId));
+			if (loaded) {
+				context.update({ installed: true, disabled: false, untrusted: false });
+				// Still subscribe to workbench changes so disable/enable is reflected
+				this._register(Event.runAndSubscribe<IExtension | undefined>(this.extensionsWorkbenchService.onChange, e => {
+					if (e && !ExtensionIdentifier.equals(e.identifier.id, defaultChat.chatExtensionId)) { return; }
+					const ext = this.extensionsWorkbenchService.local.find(value => ExtensionIdentifier.equals(value.identifier.id, defaultChat.chatExtensionId));
+					const disabled = ext?.local ? !this.extensionEnablementService.isEnabled(ext.local) : false;
+					const untrusted = !!(ext?.local && disabled && this.extensionEnablementService.getEnablementState(ext.local) === EnablementState.DisabledByTrustRequirement);
+					context.update({ installed: true, disabled: !!ext?.local && disabled && !untrusted, untrusted });
+				}));
 				return;
 			}
 		}

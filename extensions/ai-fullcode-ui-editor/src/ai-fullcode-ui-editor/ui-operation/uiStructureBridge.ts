@@ -21,16 +21,8 @@ export async function executeUIOperation(
   operation: unknown, // TODO: UIOperation型
   projectId?: string
 ): Promise<{ success: boolean; error?: string }> {
-  // eslint-disable-next-line no-console
-  console.log('[UI Structure Bridge] UI操作実行:', { filePath, operation });
-  
   // operationHandlerを呼び出し
   const result = await handleUIOperation(filePath, operation, projectId);
-  
-  if (!result.success) {
-    // eslint-disable-next-line no-console
-    console.error('[UI Structure Bridge] UI操作失敗:', result.error);
-  }
   
   return result;
 }

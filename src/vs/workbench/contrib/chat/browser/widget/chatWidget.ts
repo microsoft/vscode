@@ -802,8 +802,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private onDidChangeItems(skipDynamicLayout?: boolean) {
-		if (this._visible || !this.viewModel) {
-			const treeItems = (this.viewModel?.getItems() ?? [])
+		// viewModel がある限りツリーと welcome/list 表示を同期する。履歴復元時は widget が非表示でも
+		// setModel から呼ばれるため、_visible でガードするとツリーが描画されず Welcome のまま／真っ黒になる。
+		if (this.viewModel) {
+			const treeItems = (this.viewModel.getItems())
 				.map((item): ITreeElement<ChatTreeItem> => {
 					return {
 						element: item,
@@ -2003,6 +2005,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._codeBlockModelCollection.clear();
 
 		this.container.setAttribute('data-session-id', model.sessionId);
+		const reqs = model.getRequests();
+		const valueLengths = reqs.map(r => Array.isArray(r.response?.response?.value) ? r.response.response.value.length : -1);
+		const valueKind0s = reqs.map(r => (Array.isArray(r.response?.response?.value) && r.response.response.value[0] ? (r.response.response.value[0] as { kind?: string }).kind : 'n/a'));
+		console.log('[CHAT-HISTORY]', 'chatWidget.setModel', model.sessionId, 'requests=', reqs.length, 'valueLengths=', JSON.stringify(valueLengths), 'valueKind0s=', JSON.stringify(valueKind0s));
 		this.viewModel = this.instantiationService.createInstance(ChatViewModel, model, this._codeBlockModelCollection);
 
 		// Pass input model reference to input part for state syncing
@@ -2084,7 +2090,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 		}));
 
-		if (this.tree && this.visible) {
+		// 履歴復元時は widget が非表示でもツリーを必ず描画する。visible でガードすると
+		// 非表示のまま list に切り替わらず Welcome が残り、表示時に真っ黒になるのを防ぐ。
+		if (this.tree) {
 			this.onDidChangeItems();
 			this.scrollToEnd();
 		}

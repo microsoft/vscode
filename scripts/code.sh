@@ -47,8 +47,16 @@ function code() {
 		DISABLE_TEST_EXTENSION=""
 	fi
 
+	# チャット表示のため: ai-fullcode-ui-editor を開発パスで読み込む（code.sh だけでは拡張が読み込まれず No default agent で表示されない問題の対策）
+	# 既に --extensionDevelopmentPath が渡されていれば上書きしない
+	AI_FULLCODE_EXT_PATH="$ROOT/extensions/ai-fullcode-ui-editor"
+	EXT_DEV_ARG=""
+	if [[ -d "$AI_FULLCODE_EXT_PATH" ]] && [[ "$*" != *"--extensionDevelopmentPath"* ]]; then
+		EXT_DEV_ARG="--extensionDevelopmentPath=$AI_FULLCODE_EXT_PATH"
+	fi
+
 	# Launch Code
-	exec "$CODE" . $DISABLE_TEST_EXTENSION "$@"
+	exec "$CODE" . $DISABLE_TEST_EXTENSION $EXT_DEV_ARG "$@"
 }
 
 function code-wsl()

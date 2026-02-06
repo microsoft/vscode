@@ -482,14 +482,33 @@ export class ChatSessionStore extends Disposable {
 		}
 
 		try {
+			const LOG = (msg: string, ...args: unknown[]) => console.log('[CHAT-HISTORY]', msg, ...args);
 			// TODO Copied from ChatService.ts, cleanup
 			const session: ISerializableChatDataIn = revive(JSON.parse(rawData)); // Revive serialized URIs in session data
-			// Revive serialized markdown strings in response data
+			const beforeLog = session.requests?.map((r, i) => {
+				const resp = (r as { response?: unknown }).response;
+				const arr = Array.isArray(resp) ? resp : undefined;
+				const first = arr?.[0];
+				return {
+					i,
+					responseType: typeof resp,
+					responseIsArray: Array.isArray(resp),
+					responseLength: arr?.length ?? 0,
+					item0Type: first !== undefined ? typeof first : 'n/a',
+					item0Keys: first !== null && typeof first === 'object' ? Object.keys(first as object) : [],
+				};
+			});
+			LOG('readSessionFromLocation BEFORE revive response', sessionId, 'requests=', session.requests?.length, beforeLog);
+			// Revive serialized markdown strings in response data (履歴選択時に本文が表示されるようにする)
 			for (const request of session.requests) {
 				if (Array.isArray(request.response)) {
 					request.response = request.response.map((response) => {
 						if (typeof response === 'string') {
 							return new MarkdownString(response);
+						}
+						// JSON 復元後のプレーンオブジェクト { value: "..." } を MarkdownString に変換
+						if (response && typeof response === 'object' && 'value' in response && typeof (response as { value: unknown }).value === 'string') {
+							return MarkdownString.lift(response as { value: string; isTrusted?: boolean; supportThemeIcons?: boolean; supportHtml?: boolean });
 						}
 						return response;
 					});
@@ -497,6 +516,11 @@ export class ChatSessionStore extends Disposable {
 					request.response = [new MarkdownString(request.response)];
 				}
 			}
+			LOG('readSessionFromLocation AFTER revive response', sessionId, session.requests?.map((r, i) => ({
+				i,
+				responseLength: Array.isArray(r.response) ? r.response.length : 0,
+				item0IsMarkdownString: Array.isArray(r.response) && r.response[0] !== undefined && typeof (r.response[0] as { value?: string }).value === 'string',
+			})));
 
 			return normalizeSerializableChatData(session);
 		} catch (err) {

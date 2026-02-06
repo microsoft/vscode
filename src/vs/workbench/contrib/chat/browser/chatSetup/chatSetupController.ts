@@ -25,6 +25,7 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { IActivityService, ProgressBadge } from '../../../../services/activity/common/activity.js';
 import { AuthenticationSession, IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
+import { IExtensionGalleryService } from '../../../../../platform/extensionManagement/common/extensionManagement.js';
 import { IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { ChatEntitlement, ChatEntitlementContext, ChatEntitlementRequests, isProUser } from '../../../../services/chat/common/chatEntitlementService.js';
 import { CHAT_OPEN_ACTION_ID } from '../actions/chatActions.js';
@@ -59,6 +60,7 @@ export class ChatSetupController extends Disposable {
 		private readonly requests: ChatEntitlementRequests,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
+		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IProductService private readonly productService: IProductService,
 		@ILogService private readonly logService: ILogService,
@@ -247,8 +249,8 @@ export class ChatSetupController extends Disposable {
 		try {
 			await this.doInstall();
 		} catch (e) {
-			this.logService.error(`[chat setup] install: error ${error}`);
 			error = e;
+			this.logService.error(`[chat setup] install: error ${toErrorMessage(e)}`);
 		}
 
 		if (error) {
@@ -270,6 +272,14 @@ export class ChatSetupController extends Disposable {
 	}
 
 	private async doInstall(): Promise<void> {
+		// OSS: skip install when extension gallery is not configured (e.g. no marketplace URL)
+		if (!this.extensionGalleryService.isEnabled()) {
+			this.logService.info('[chat setup] Extension gallery not configured, skipping chat extension install.');
+			return;
+		}
+		if (!defaultChat.chatExtensionId) {
+			return;
+		}
 		await this.extensionsWorkbenchService.install(defaultChat.chatExtensionId, {
 			enable: true,
 			isApplicationScoped: true, 	// install into all profiles

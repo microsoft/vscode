@@ -561,6 +561,15 @@ class CodeMain {
 			args._ = [];
 		}
 
+		// Resolve extension development paths to absolute so they are not misinterpreted
+		// (e.g. ./extensions/ai-fullcode-ui-editor -> /full/path/extensions/ai-fullcode-ui-editor)
+		if (Array.isArray(args.extensionDevelopmentPath)) {
+			const cwdDir = cwd();
+			args.extensionDevelopmentPath = args.extensionDevelopmentPath.map(p =>
+				/^[^:/?#]+?:\/\//.test(p) ? p : resolve(cwdDir, p)
+			);
+		}
+
 		// Normalize paths and watch out for goto line mode
 		if (!args['remote']) {
 			const paths = this.doValidatePaths(args._, args.goto);

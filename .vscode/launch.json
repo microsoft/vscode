@@ -592,6 +592,28 @@
 			]
 		},
 		{
+			"name": "Code - OSS with AI Fullcode extension",
+			"type": "extensionHost",
+			"request": "launch",
+			"runtimeExecutable": "${workspaceFolder}/scripts/code.sh",
+			"windows": {
+				"runtimeExecutable": "${workspaceFolder}/scripts/code.bat"
+			},
+			"args": [
+				"${workspaceFolder}",
+				"--extensionDevelopmentPath=${workspaceFolder}/extensions/ai-fullcode-ui-editor"
+			],
+			"outFiles": [
+				"${workspaceFolder}/out/**/*.js",
+				"${workspaceFolder}/extensions/ai-fullcode-ui-editor/out/**/*.js"
+			],
+			"preLaunchTask": "Ensure Prelaunch Dependencies",
+			"presentation": {
+				"group": "0_vscode",
+				"order": 2
+			}
+		},
+		{
 			"name": "Monaco Editor - Playground",
 			"type": "chrome",
 			"request": "launch",

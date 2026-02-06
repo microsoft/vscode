@@ -2,15 +2,53 @@
   "name": "ai-fullcode-ui-editor",
   "displayName": "AI Fullcode UI Editor",
   "version": "1.0.0",
+  "publisher": "ai-fullcode",
   "description": "AI Fullcode UI Editor - VSCode OSS統合版",
   "engines": {
     "vscode": "^1.80.0"
   },
+  "enabledApiProposals": [
+    "defaultChatParticipant",
+    "chatParticipantAdditions"
+  ],
   "activationEvents": [
-    "onStartupFinished"
+    "*",
+    "onStartupFinished",
+    "onAuthenticationRequest:ai-fullcode",
+    "onChatParticipant:ai-fullcode.default"
   ],
   "main": "./out/extension.js",
       "contributes": {
+        "chatParticipants": [
+          {
+            "id": "ai-fullcode.default",
+            "name": "AI-Fullcode",
+            "fullName": "AI Fullcode",
+            "description": "ask=チャットのみ / agent=指示を計画取得してファイルに適用。",
+            "isDefault": true,
+            "locations": ["chat"],
+            "modes": ["ask", "agent", "edit"],
+            "commands": [
+              {
+                "name": "apply",
+                "description": "（agent と同様）計画取得して適用。例: /apply ボタンを追加して",
+                "sampleRequest": "ボタンを追加して"
+              }
+            ]
+          }
+        ],
+        "authentication": [
+          {
+            "id": "ai-fullcode",
+            "label": "AI Fullcode"
+          }
+        ],
+        "languageModelChatProviders": [
+          {
+            "vendor": "ai-fullcode",
+            "displayName": "AI Fullcode"
+          }
+        ],
         "commands": [
           {
             "command": "ai-fullcode-ui-editor.storage.listFiles",
@@ -39,6 +77,22 @@
           {
             "command": "ai-fullcode-ui-editor.catalog.refresh",
             "title": "Refresh Catalog"
+          },
+          {
+            "command": "ai-fullcode-ui-editor.applyAiPlan",
+            "title": "AI Fullcode: 指示から計画を取得して適用"
+          },
+          {
+            "command": "ai-fullcode-ui-editor.applyPlan",
+            "title": "AI Fullcode: 計画を適用する"
+          },
+          {
+            "command": "ai-fullcode-ui-editor.cancelPlan",
+            "title": "AI Fullcode: 計画をやめる"
+          },
+          {
+            "command": "ai-fullcode-ui-editor.undoLastChange",
+            "title": "AI Fullcode: 直前の変更を元に戻す"
           }
         ],
         "views": {
@@ -49,11 +103,88 @@
               "when": "false"
             }
           ]
-        }
+        },
+        "configuration": {
+          "title": "AI Fullcode UI Editor",
+          "properties": {
+            "aiFullcodeUiEditor.openaiApiKey": {
+              "type": "string",
+              "default": "",
+              "description": "OpenAI API キー（推奨）。他 LM が無いときこのキーでチャット応答。空なら設定未使用。※空のときはワークスペースの .env.local/.env の OPENAI_API_KEY を本拡張が独自に参照する（VS Code 標準ではない）。本拡張は Web を使用せずアプリのみで動作します。"
+            }
+          }
+        },
+        "languageModelTools": [
+          {
+            "name": "aiFullcodeGetUiPlan",
+            "displayName": "AI Fullcode: UI操作計画取得",
+            "toolReferenceName": "aiFullcodeGetUiPlan",
+            "canBeReferencedInPrompt": true,
+            "modelDescription": "Get a UI operation plan (operations array) from a natural language instruction. Uses the active editor's file path and code via the extension's plan script. Returns plan with operations, reasoning, and optional alternatives. Use before aiFullcodeApplyOperation for each operation.",
+            "userDescription": "自然言語の指示から UI 操作計画（操作列）を取得する。アクティブエディタのファイル・コードを使って拡張内で計画を生成し、operations, reasoning を返す。",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "instruction": {
+                  "type": "string",
+                  "description": "UI操作の自然言語指示。例: 'ボタンを追加して' / 'Add a button that submits the form'"
+                }
+              },
+              "required": ["instruction"]
+            }
+          },
+          {
+            "name": "aiFullcodeApplyOperation",
+            "displayName": "AI Fullcode: 1操作を適用",
+            "toolReferenceName": "aiFullcodeApplyOperation",
+            "canBeReferencedInPrompt": true,
+            "modelDescription": "Apply one UI operation from a plan to the current file. Input: one operation object from plan.operations (type, filePath, sourceId, targetId, etc.). Must be used after aiFullcodeGetUiPlan. filePath is optional; defaults to active editor.",
+            "userDescription": "計画（plan.operations）の 1 件の操作を現在のファイルに適用する。aiFullcodeGetUiPlan の後に使用。operation は plan.operations[i] の形で渡す。",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "operation": {
+                  "type": "object",
+                  "description": "plan.operations の 1 要素。type, filePath, sourceId, targetId 等を含むオブジェクト。"
+                },
+                "filePath": {
+                  "type": "string",
+                  "description": "適用先ファイルパス。省略時はアクティブエディタのファイル。"
+                }
+              },
+              "required": ["operation"]
+            }
+          },
+          {
+            "name": "aiFullcodeVerify",
+            "displayName": "AI Fullcode: コード検証",
+            "toolReferenceName": "aiFullcodeVerify",
+            "canBeReferencedInPrompt": true,
+            "modelDescription": "Verify code (parse/syntax). If code is omitted, verifies the active editor content. Returns { valid: boolean, error?: string }.",
+            "userDescription": "コードの構文・パースを検証する。code 省略時はアクティブエディタの内容を検証。",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string",
+                  "description": "検証するコード。省略時はアクティブエディタの内容を使用。"
+                },
+                "filePath": {
+                  "type": "string",
+                  "description": "スクリプト種別用ファイルパス（例: .tsx）。省略時はアクティブエディタのパス。"
+                }
+              }
+            }
+          }
+        ]
       },
   "scripts": {
     "compile": "tsc -p ./",
-    "watch": "tsc -watch -p ./"
+    "watch": "tsc -watch -p ./",
+    "build:runtime": "node scripts/build-runtime.js",
+    "build:plan": "node scripts/bundle-runPlan.js",
+    "build": "npm run compile && npm run build:runtime && npm run build:plan",
+    "verify-tools": "node scripts/verify-lm-tools.js"
   },
   "dependencies": {
     "ts-morph": "^27.0.2",
@@ -66,7 +197,8 @@
     "@types/vscode": "^1.80.0",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "esbuild": "^0.24.0"
   }
 }
 

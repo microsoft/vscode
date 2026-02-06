@@ -1755,6 +1755,9 @@ export class ChatModel extends Disposable implements IChatModel {
 		this._disableBackgroundKeepAlive = initialModelProps.disableBackgroundKeepAlive ?? false;
 
 		this._requests = initialData ? this._deserialize(initialData) : [];
+		if (initialData && Array.isArray((initialData as { requests?: unknown }).requests)) {
+			this.logService.trace(`[ChatModel] restored session ${this._sessionId}, requests=${this._requests.length}, rawRequests=${(initialData as { requests: unknown[] }).requests.length}`);
+		}
 		this._timestamp = (isValidFullData && initialData.creationDate) || Date.now();
 		this._lastMessageDate = (isValidFullData && initialData.lastMessageDate) || this._timestamp;
 		this._customTitle = isValidFullData ? initialData.customTitle : undefined;
@@ -1876,14 +1879,22 @@ export class ChatModel extends Disposable implements IChatModel {
 	}
 
 	private _deserialize(obj: IExportableChatData | ISerializableChatData): ChatRequestModel[] {
+		const LOG = (msg: string, ...args: unknown[]) => console.log('[CHAT-HISTORY]', msg, ...args);
 		const requests = obj.requests;
 		if (!Array.isArray(requests)) {
 			this.logService.error(`Ignoring malformed session data: ${JSON.stringify(obj)}`);
 			return [];
 		}
+		LOG('_deserialize START', 'requests.length=', requests.length);
 
-		try {
-			return requests.map((raw: ISerializableChatRequestData) => {
+		const result: ChatRequestModel[] = [];
+		for (let i = 0; i < requests.length; i++) {
+			const raw = requests[i] as ISerializableChatRequestData;
+			if (raw.response || (raw as { result?: unknown }).result || (raw as { responseErrorDetails?: unknown }).responseErrorDetails) {
+				const rawItem0 = Array.isArray(raw.response) && raw.response[0] !== undefined ? raw.response[0] : null;
+				LOG('_deserialize request', i, 'raw.response', 'length=', Array.isArray(raw.response) ? raw.response.length : 0, 'item0:', rawItem0 !== null ? JSON.stringify({ type: typeof rawItem0, kind: (rawItem0 as { kind?: string })?.kind, hasValue: rawItem0 !== null && typeof rawItem0 === 'object' && 'value' in rawItem0, isMarkdownString: isMarkdownString(rawItem0) }) : 'n/a');
+			}
+			try {
 				const parsedRequest =
 					typeof raw.message === 'string'
 						? this.getParsedRequestFromString(raw.message)
@@ -1904,15 +1915,27 @@ export class ChatModel extends Disposable implements IChatModel {
 				request.shouldBeRemovedOnSend = raw.isHidden ? { requestId: raw.requestId } : raw.shouldBeRemovedOnSend;
 				// eslint-disable-next-line @typescript-eslint/no-explicit-any, local/code-no-any-casts
 				if (raw.response || raw.result || (raw as any).responseErrorDetails) {
-					const agent = (raw.agent && 'metadata' in raw.agent) ? // Check for the new format, ignore entries in the old format
-						reviveSerializedAgent(raw.agent) : undefined;
+					let agent: IChatAgentData | undefined;
+					if (raw.agent && 'metadata' in raw.agent) {
+						try {
+							agent = reviveSerializedAgent(raw.agent);
+						} catch (e) {
+							this.logService.warn('Failed to revive agent for request, using undefined', e);
+							agent = undefined;
+						}
+					} else {
+						agent = undefined;
+					}
 
 					// Port entries from old format
-					const result = 'responseErrorDetails' in raw ?
+					const resultData = 'responseErrorDetails' in raw ?
 						// eslint-disable-next-line local/code-no-dangerous-type-assertions
 						{ errorDetails: raw.responseErrorDetails } as IChatAgentResult : raw.result;
+					// 履歴選択時に本文が表示されるよう、raw.response を正規化（プレーンオブジェクト→MarkdownString）
+					const responseContent = this.normalizeRestoredResponse(raw.response, obj);
+					LOG('_deserialize request', i, 'normalizeRestoredResponse out length=', responseContent.length, 'item0Type=', responseContent[0] ? typeof responseContent[0] : 'n/a');
 					request.response = new ChatResponseModel({
-						responseContent: raw.response ?? [new MarkdownString(raw.response)],
+						responseContent,
 						session: this,
 						agent,
 						slashCommand: raw.slashCommand,
@@ -1921,7 +1944,7 @@ export class ChatModel extends Disposable implements IChatModel {
 						vote: raw.vote,
 						timestamp: raw.timestamp,
 						voteDownReason: raw.voteDownReason,
-						result,
+						result: resultData,
 						followups: raw.followups,
 						restoredId: raw.responseId,
 						timeSpentWaiting: raw.timeSpentWaiting,
@@ -1936,12 +1959,99 @@ export class ChatModel extends Disposable implements IChatModel {
 					raw.contentReferences?.forEach(r => request.response!.applyReference(revive(r)));
 					raw.codeCitations?.forEach(c => request.response!.applyCodeCitation(revive(c)));
 				}
-				return request;
-			});
-		} catch (error) {
-			this.logService.error('Failed to parse chat data', error);
-			return [];
+				result.push(request);
+			} catch (error) {
+				this.logService.warn(`Failed to parse chat request at index ${i}, skipping`, error);
+			}
 		}
+		return result;
+	}
+
+	/**
+	 * 履歴復元時: raw.response を正規化し、プレーンオブジェクトを MarkdownString に変換して本文が表示されるようにする。
+	 */
+	private normalizeRestoredResponse(
+		rawResponse: ISerializableChatRequestData['response'],
+		_obj: IExportableChatData | ISerializableChatData
+	): ReadonlyArray<IMarkdownString | IChatResponseProgressFileTreeData | IChatContentInlineReference | IChatAgentMarkdownContentWithVulnerability | IChatResponseCodeblockUriPart | IChatThinkingPart> {
+		const LOG = (msg: string, ...args: unknown[]) => console.log('[CHAT-HISTORY]', msg, ...args);
+		const emptyPlaceholder = [new MarkdownString(localize('chat.history.emptyResponse', '(No response content was saved)'))];
+		const inItem0 = Array.isArray(rawResponse) && rawResponse[0] !== undefined ? rawResponse[0] : null;
+		LOG('normalizeRestoredResponse IN', 'length=', Array.isArray(rawResponse) ? rawResponse.length : 0, 'item0:', inItem0 !== null ? JSON.stringify({ type: typeof inItem0, kind: (inItem0 as { kind?: string })?.kind, hasValue: inItem0 !== null && typeof inItem0 === 'object' && 'value' in inItem0, isMarkdownString: isMarkdownString(inItem0) }) : 'n/a');
+		if (!rawResponse || !Array.isArray(rawResponse) || rawResponse.length === 0) {
+			LOG('normalizeRestoredResponse OUT emptyPlaceholder');
+			return emptyPlaceholder;
+		}
+		const normalized: Array<IMarkdownString | IChatResponseProgressFileTreeData | IChatContentInlineReference | IChatAgentMarkdownContentWithVulnerability | IChatResponseCodeblockUriPart | IChatThinkingPart> = [];
+		for (const item of rawResponse) {
+			if (isMarkdownString(item)) {
+				normalized.push(item);
+				continue;
+			}
+			if (item && typeof item === 'object' && 'kind' in item) {
+				// 既に part 形式（markdownContent 等）のとき、content がプレーンなら IMarkdownString として push（Response が markdownContent に包む）
+				if ((item as { kind: string }).kind === 'markdownContent') {
+					const part = item as IChatMarkdownContent;
+					const c = part.content;
+					if (typeof c === 'string') {
+						normalized.push(new MarkdownString(c));
+					} else if (c && typeof c === 'object' && 'value' in c && typeof (c as { value: string }).value === 'string') {
+						normalized.push(MarkdownString.lift(c as { value: string; isTrusted?: boolean; supportThemeIcons?: boolean; supportHtml?: boolean }));
+					} else {
+						normalized.push(item as IChatAgentMarkdownContentWithVulnerability);
+					}
+				} else {
+					normalized.push(item as IChatResponseProgressFileTreeData | IChatContentInlineReference | IChatAgentMarkdownContentWithVulnerability | IChatResponseCodeblockUriPart | IChatThinkingPart);
+				}
+				continue;
+			}
+			if (typeof item === 'string') {
+				normalized.push(new MarkdownString(item));
+				continue;
+			}
+			if (item && typeof item === 'object' && 'value' in item && typeof (item as { value: unknown }).value === 'string') {
+				normalized.push(MarkdownString.lift(item as { value: string; isTrusted?: boolean; supportThemeIcons?: boolean; supportHtml?: boolean }));
+				continue;
+			}
+			LOG('normalizeRestoredResponse item not matched', { type: typeof item, keys: item !== null && typeof item === 'object' ? Object.keys(item) : [] });
+		}
+		// 履歴復元時: 先頭が mcpServersStarting だとUIが本文を表示しないため、markdownContent/IMarkdownString を先頭に並べ替える
+		const contentFirst = this.reorderResponsePartsForDisplay(normalized);
+		LOG('normalizeRestoredResponse OUT', { length: contentFirst.length, usedPlaceholder: contentFirst.length === 0 });
+		return contentFirst.length > 0 ? contentFirst : emptyPlaceholder;
+	}
+
+	/**
+	 * 履歴表示用: 本文（markdownContent/IMarkdownString）を先頭にし、mcpServersStarting 等は後ろに寄せる。
+	 * 保存形式では先頭が mcpServersStarting になることが多く、UI が先頭パートを優先するため詳細が表示されなくなる。
+	 * 本文が1件もない場合（mcpServersStarting のみ等）はプレースホルダーを先頭に挿入し、UI に何か表示されるようにする。
+	 */
+	private reorderResponsePartsForDisplay(
+		parts: ReadonlyArray<IMarkdownString | IChatResponseProgressFileTreeData | IChatContentInlineReference | IChatAgentMarkdownContentWithVulnerability | IChatResponseCodeblockUriPart | IChatThinkingPart>
+	): Array<IMarkdownString | IChatResponseProgressFileTreeData | IChatContentInlineReference | IChatAgentMarkdownContentWithVulnerability | IChatResponseCodeblockUriPart | IChatThinkingPart> {
+		const content: typeof parts[number][] = [];
+		const other: typeof parts[number][] = [];
+		for (const p of parts) {
+			if (isMarkdownString(p)) {
+				content.push(p);
+			} else if (p && typeof p === 'object' && 'kind' in p) {
+				if ((p as { kind: string }).kind === 'markdownContent' || (p as { kind: string }).kind === 'markdownVuln') {
+					content.push(p as IChatAgentMarkdownContentWithVulnerability);
+				} else {
+					other.push(p as IChatResponseProgressFileTreeData | IChatContentInlineReference | IChatAgentMarkdownContentWithVulnerability | IChatResponseCodeblockUriPart | IChatThinkingPart);
+				}
+			} else {
+				other.push(p);
+			}
+		}
+		if (content.length > 0) {
+			return [...content, ...other];
+		}
+		// 本文が0件のときはプレースホルダーを先頭に置き、先頭パートが markdown になるようにする
+		if (other.length > 0) {
+			return [new MarkdownString(localize('chat.history.noTextContent', '(No message text was saved for this response)')), ...other];
+		}
+		return [];
 	}
 
 	private reviveVariableData(raw: IChatRequestVariableData): IChatRequestVariableData {

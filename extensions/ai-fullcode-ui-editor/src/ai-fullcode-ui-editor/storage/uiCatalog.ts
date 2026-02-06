@@ -117,14 +117,13 @@ export class UICatalog {
             return filteredCatalog;
           }
         } catch (error) {
-          console.error('[UICatalog] Failed to parse catalog:', error);
+          // Silent error handling
         }
       }
 
       // パースに失敗した場合は、designs/配下から自動生成
       return await this.generateCatalogFromDesigns();
     } catch (error) {
-      console.error('[UICatalog] Failed to load catalog:', error);
       // エラー時は、designs/配下から自動生成
       return await this.generateCatalogFromDesigns();
     }
@@ -151,7 +150,6 @@ export class UICatalog {
       const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
 
       if (!workspaceFolder) {
-        console.warn('[UICatalog] No workspace folder found. Cannot scan catalog files.');
         return [];
       }
 
@@ -206,10 +204,6 @@ export class UICatalog {
 
         } catch (error) {
           // ディレクトリが存在しない場合はスキップ
-          if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-          } else {
-            console.error(`[UICatalog] Failed to scan ${target.path}/:`, error);
-          }
         }
       }
 
@@ -249,17 +243,7 @@ export class UICatalog {
         } catch (error) {
           // 個別のファイル同期エラーは警告のみ（他のファイルの同期を続行）
           syncErrorCount++;
-          const errorMessage = error instanceof Error ? error.message : String(error);
-          console.warn(`[UICatalog] ⚠️ Failed to sync file to persistent storage: ${filePath} (${errorMessage})`);
         }
-      }
-
-      if (syncCount > 0) {
-      }
-      if (syncErrorCount > 0) {
-        console.warn(`[UICatalog] ⚠️ Failed to sync ${syncErrorCount} files to persistent storage`);
-      }
-      if (skippedCount > 0) {
       }
 
       const catalog: UICatalogItem[] = catalogFiles.map(({ filePath, kind }) => {
@@ -299,7 +283,6 @@ export class UICatalog {
 
       return catalog;
     } catch (error) {
-      console.error('[UICatalog] Failed to generate catalog from project:', error);
       return [];
     }
   }
@@ -389,7 +372,7 @@ export class UICatalog {
         }
       }
     } catch (error) {
-      console.error(`[UICatalog] Failed to scan directory ${dirPath}:`, error);
+      // Silent error handling
     }
 
     return files;
@@ -419,7 +402,6 @@ export const uiCatalog: Array<{
 
       await saveFile(this.projectId, this.catalogPath, content);
     } catch (error) {
-      console.error('[UICatalog] Failed to save catalog:', error);
       throw error;
     }
   }

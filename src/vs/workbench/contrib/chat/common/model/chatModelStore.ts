@@ -97,28 +97,14 @@ export class ChatModelStore extends ReferenceCollection<ChatModel> implements ID
 	}
 
 	protected destroyReferencedObject(key: string, object: ChatModel): void {
-		this._modelsToDispose.add(key);
-		const promise = this.doDestroyReferencedObject(key, object);
+		// 同期的に _models から削除し dispose する（履歴選択時に空モデルを破棄してファイルから再読するため）
+		this.logService.trace(`Disposing chat session ${key}`);
+		this._models.delete(key);
+		this._onDidDisposeModel.fire(object);
+		object.dispose();
+		const promise = this.delegate.willDisposeModel(object).catch(error => this.logService.error(error));
 		this._pendingDisposals.add(promise);
-		promise.finally(() => {
-			this._pendingDisposals.delete(promise);
-		});
-	}
-
-	private async doDestroyReferencedObject(key: string, object: ChatModel): Promise<void> {
-		try {
-			await this.delegate.willDisposeModel(object);
-		} catch (error) {
-			this.logService.error(error);
-		} finally {
-			if (this._modelsToDispose.has(key)) {
-				this.logService.trace(`Disposing chat session ${key}`);
-				this._models.delete(key);
-				this._onDidDisposeModel.fire(object);
-				object.dispose();
-			}
-			this._modelsToDispose.delete(key);
-		}
+		promise.finally(() => this._pendingDisposals.delete(promise));
 	}
 
 	/**

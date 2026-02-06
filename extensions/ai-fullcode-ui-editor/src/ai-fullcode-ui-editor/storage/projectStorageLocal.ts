@@ -37,8 +37,6 @@ export async function loadProjectFile(
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
       return null;
     }
-    // その他のエラーはログに記録
-    console.error('[ProjectStorageLocal] ファイル読み込みエラー:', error);
     return null;
   }
 }
@@ -67,7 +65,6 @@ export async function saveProjectFile(
 
     await writeFile(persistentFilePath, content, 'utf-8');
   } catch (error) {
-    console.error('[ProjectStorageLocal] ファイル保存エラー:', error);
     throw error;
   }
 }
@@ -127,7 +124,6 @@ export async function listProjectFiles(projectId: string): Promise<string[]> {
         if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
           return;
         }
-        console.error('[ProjectStorageLocal] ディレクトリ探索エラー:', error);
       }
     }
 
@@ -135,7 +131,6 @@ export async function listProjectFiles(projectId: string): Promise<string[]> {
 
     return files;
   } catch (error) {
-    console.error('[ProjectStorageLocal] ファイル一覧取得エラー:', error);
     return [];
   }
 }

@@ -155,7 +155,9 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 					return URI.parse(extensionDevelopmentPath);
 				}
 
-				return URI.file(normalize(extensionDevelopmentPath));
+				// resolve() so relative paths (e.g. ./extensions/ai-fullcode-ui-editor) become
+				// absolute and are not misinterpreted as /extensions/... from another cwd
+				return URI.file(resolve(extensionDevelopmentPath));
 			});
 		}
 
@@ -175,7 +177,7 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 				return URI.parse(extensionTestsPath);
 			}
 
-			return URI.file(normalize(extensionTestsPath));
+			return URI.file(resolve(extensionTestsPath));
 		}
 
 		return undefined;
@@ -198,6 +200,19 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 		}
 
 		return false;
+	}
+
+	get enableExtensions(): readonly string[] | undefined {
+		const enableExtension = this.args['enable-extension'];
+		if (Array.isArray(enableExtension) && enableExtension.length > 0) {
+			return enableExtension;
+		}
+		// レンダラーで args に enable-extension が渡っていない場合のフォールバック（チャット表示のため）
+		const defaultChatId = this.productService.defaultChatAgent?.chatExtensionId;
+		if (defaultChatId) {
+			return [defaultChatId];
+		}
+		return undefined;
 	}
 
 	@memoize

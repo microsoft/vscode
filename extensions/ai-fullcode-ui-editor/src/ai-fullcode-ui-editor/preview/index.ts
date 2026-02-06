@@ -51,8 +51,6 @@ function registerPreviewCommands(context: vscode.ExtensionContext): void {
 
         // ✅ 重要: workspaceが切り替わった場合はPreviewパネルを再作成
         if (currentWorkspaceRoot && currentWorkspaceRoot !== workspaceRoot) {
-          console.log(`[Preview] workspace changed: ${currentWorkspaceRoot} -> ${workspaceRoot}`);
-
           // Previewパネルを閉じる
           if (previewPanel) {
             previewPanel.dispose();
@@ -72,7 +70,6 @@ function registerPreviewCommands(context: vscode.ExtensionContext): void {
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         vscode.window.showErrorMessage(`Preview起動エラー: ${errorMessage}`);
-        console.error('[Preview] Preview起動エラー:', error);
       }
     })
   );

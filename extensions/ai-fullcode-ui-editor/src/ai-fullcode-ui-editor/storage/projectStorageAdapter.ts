@@ -21,8 +21,7 @@ async function getProjectStorageModule(): Promise<any> {
       // これにより、TypeScriptファイルの直接インポート問題を回避
       projectStorageModule = await import('./projectStorageLocal');
     } catch (error) {
-      console.error('[Project Storage Adapter] モジュール読み込み失敗:', error);
-      // フォールバック: エラーをログに記録するが、処理は続行
+      // Silent error handling
     }
   }
   return projectStorageModule;
@@ -50,8 +49,6 @@ export async function loadFile(
     const content = await module.loadProjectFile(projectId, filePath);
     return content;
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    console.error('[Project Storage Adapter] ファイル読み込みエラー:', errorMessage);
     return null;
   }
 }
@@ -78,8 +75,6 @@ export async function saveFile(
 
     await module.saveProjectFile(projectId, filePath, content);
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    console.error('[Project Storage Adapter] ファイル保存エラー:', errorMessage);
     throw error;
   }
 }
@@ -104,8 +99,6 @@ export async function checkFileExists(
     const exists = await module.fileExists(projectId, filePath);
     return exists;
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    console.error('[Project Storage Adapter] ファイル存在確認エラー:', errorMessage);
     return false;
   }
 }
@@ -128,8 +121,6 @@ export async function listFiles(
     const files = await module.listProjectFiles(projectId);
     return files;
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    console.error('[Project Storage Adapter] ファイル一覧取得エラー:', errorMessage);
     return [];
   }
 }

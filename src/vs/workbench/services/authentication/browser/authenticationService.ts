@@ -279,7 +279,22 @@ export class AuthenticationService extends Disposable implements IAuthentication
 			return [];
 		}
 
-		const authProvider = this._authenticationProviders.get(id) || await this.tryActivateProvider(id, activateImmediate);
+		let authProvider: IAuthenticationProvider | undefined;
+		try {
+			authProvider = this._authenticationProviders.get(id) || await this.tryActivateProvider(id, activateImmediate);
+		} catch (err) {
+			// [TEMPORARY / REMOVE WHEN CHAT AGENT IS READY FIRST]
+			// OSS: default chat agent が ai-fullcode のとき、拡張の認証プロバイダー登録が
+			// Chat の getSessions より遅れるとタイムアウトする。暫定で例外を潰して [] を返し
+			// クラッシュを防ぐ。正解は「Agent を拡張で登録し agentReady を真にすること」であり、
+			// この if は fork 本体のアンチパターン。削除条件は docs/vscode-extension/CHAT_AGENT.md の「暫定コード削除」を参照。
+			if (id === 'ai-fullcode') {
+				this._logService.debug(`Authentication provider 'ai-fullcode' not ready, returning empty sessions: ${err instanceof Error ? err.message : err}`);
+				return [];
+			}
+			throw err;
+		}
+
 		if (authProvider) {
 			// Check if the authorization server is in the list of supported authorization servers
 			const server = options?.authorizationServer;

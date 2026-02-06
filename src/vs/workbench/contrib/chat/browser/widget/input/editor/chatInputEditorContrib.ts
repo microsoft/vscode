@@ -34,7 +34,10 @@ const placeholderDecorationType = 'chat-session-detail';
 const slashCommandTextDecorationType = 'chat-session-text';
 const variableTextDecorationType = 'chat-variable-text';
 
-function agentAndCommandToKey(agent: IChatAgentData, subcommand: string | undefined): string {
+function agentAndCommandToKey(agent: IChatAgentData | undefined, subcommand: string | undefined): string {
+	if (!agent) {
+		return '';
+	}
 	return subcommand ? `${agent.id}__${subcommand}` : agent.id;
 }
 
@@ -94,7 +97,9 @@ class InputEditorDecorations extends Disposable {
 			this.triggerInputEditorDecorationsUpdate();
 		}));
 		this._register(this.widget.onDidSubmitAgent((e) => {
-			this.previouslyUsedAgents.add(agentAndCommandToKey(e.agent, e.slashCommand?.name));
+			if (e.agent) {
+				this.previouslyUsedAgents.add(agentAndCommandToKey(e.agent, e.slashCommand?.name));
+			}
 		}));
 		this._register(this.chatAgentService.onDidChangeAgents(() => this.triggerInputEditorDecorationsUpdate()));
 		this._register(this.promptsService.onDidChangeSlashCommands(() => this.triggerInputEditorDecorationsUpdate()));
@@ -352,12 +357,14 @@ class InputEditorSlashCommandMode extends Disposable {
 	) {
 		super();
 		this._register(this.widget.onDidChangeAgent(e => {
-			if (e.slashCommand && e.slashCommand.isSticky || !e.slashCommand && e.agent.metadata.isSticky) {
+			if (e.agent && (e.slashCommand?.isSticky || (!e.slashCommand && e.agent.metadata?.isSticky))) {
 				this.repopulateAgentCommand(e.agent, e.slashCommand);
 			}
 		}));
 		this._register(this.widget.onDidSubmitAgent(e => {
-			this.repopulateAgentCommand(e.agent, e.slashCommand);
+			if (e.agent) {
+				this.repopulateAgentCommand(e.agent, e.slashCommand);
+			}
 		}));
 	}
 
@@ -370,7 +377,7 @@ class InputEditorSlashCommandMode extends Disposable {
 		let value: string | undefined;
 		if (slashCommand && slashCommand.isSticky) {
 			value = `${chatAgentLeader}${agent.name} ${chatSubcommandLeader}${slashCommand.name} `;
-		} else if (agent.metadata.isSticky) {
+		} else if (agent.metadata?.isSticky) {
 			value = `${chatAgentLeader}${agent.name} `;
 		}
 
