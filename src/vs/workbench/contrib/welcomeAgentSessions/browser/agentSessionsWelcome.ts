@@ -140,8 +140,7 @@ export class AgentSessionsWelcomePage extends EditorPane {
 
 	// Telemetry tracking
 	private _openedAt: number = 0;
-	private _closedBy?: string;
-	private _storedInput: AgentSessionsWelcomeInput | undefined;
+	private _closedBy: string = 'unknown';
 
 	constructor(
 		group: IEditorGroup,
@@ -595,6 +594,7 @@ export class AgentSessionsWelcomePage extends EditorPane {
 			trackActiveEditorSession: () => false,
 			source: 'welcomeView',
 			notifySessionOpened: () => {
+				this._closedBy = 'sessionClicked';
 				const isProjectionEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.AgentSessionProjectionEnabled);
 				if (!isProjectionEnabled) {
 					this._closedBy = 'sessionClicked';
@@ -915,18 +915,20 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		}
 	}
 
-	private async getRecentlyOpenedWorkspaces(onlyTrusted: boolean = false): Promise<Array<IRecentWorkspace | IRecentFolder>> {
-		const workspaces = await this.workspacesService.getRecentlyOpened();
-		const trustInfoPromises = workspaces.workspaces.map(async ws => {
-			const uri = isRecentWorkspace(ws) ? ws.workspace.configPath : ws.folderUri;
-			const trustInfo = await this.workspaceTrustManagementService.getUriTrustInfo(uri);
-			return { workspace: ws, trusted: trustInfo.trusted };
-		});
-		const trustInfoResults = await Promise.all(trustInfoPromises);
-		const filteredWorkspaces = trustInfoResults
-			.filter(result => onlyTrusted ? result.trusted : true)
-			.map(result => result.workspace);
-		return filteredWorkspaces;
+	override dispose(): void {
+		// Send closed telemetry before disposing
+		if (this._openedAt > 0) {
+			const visibleDurationMs = Date.now() - this._openedAt;
+			this.telemetryService.publicLog2<AgentSessionsWelcomeClosedEvent, AgentSessionsWelcomeClosedClassification>(
+				'agentSessionsWelcome.closed',
+				{
+					visibleDurationMs,
+					closedBy: this._closedBy
+				}
+			);
+		}
+
+		super.dispose();
 	}
 }
 

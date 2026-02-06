@@ -706,6 +706,40 @@ export class ChatListWidget extends Disposable {
 		}
 	}
 
+	/**
+	 * Smoothly scroll the list to reveal the last item.
+	 */
+	scrollToEndSmooth(duration: number = 300): void {
+		if (!this._lastItem) {
+			return;
+		}
+
+		const target = Math.max(0, this._tree.scrollHeight - this._tree.renderHeight);
+		const win = dom.getWindow(this._container);
+		const start = this._tree.scrollTop;
+		const diff = target - start;
+		if (Math.abs(diff) < 1) {
+			this._tree.scrollTop = target;
+			return;
+		}
+
+		const easeOutQuad = (t: number) => t * (2 - t);
+		const startTime = win.performance ? win.performance.now() : Date.now();
+
+		const step = () => {
+			const now = win.performance ? win.performance.now() : Date.now();
+			const t = Math.min(1, (now - startTime) / duration);
+			this._tree.scrollTop = start + diff * easeOutQuad(t);
+			if (t < 1) {
+				win.requestAnimationFrame(step);
+			} else {
+				this._tree.scrollTop = target;
+			}
+		};
+
+		win.requestAnimationFrame(step);
+	}
+
 	private _withPersistedAutoScroll(fn: () => void): void {
 		const wasScrolledToBottom = this.isScrolledToBottom;
 		fn();

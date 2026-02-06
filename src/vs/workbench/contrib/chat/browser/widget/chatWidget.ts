@@ -626,6 +626,64 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.renderWelcomeViewContentIfNeeded();
 		this.createList(this.listContainer, { editable: !isInlineChat(this) && !isQuickChat(this), ...this.viewOptions.rendererOptions, renderStyle });
 
+		// Scroll to bottom button
+		const scrollToBottomBtn = dom.append(this.listContainer, $('.chat-scroll-to-bottom-button'));
+		const scrollToBottomIcon = dom.append(scrollToBottomBtn, $('.codicon.codicon-chevron-down'));
+
+		scrollToBottomBtn.title = localize('scrollToBottom', "Scroll to bottom");
+		scrollToBottomBtn.style.position = 'absolute';
+		scrollToBottomBtn.style.right = '12px';
+		scrollToBottomBtn.style.bottom = '12px';
+		scrollToBottomBtn.style.width = '28px';
+		scrollToBottomBtn.style.height = '28px';
+		scrollToBottomBtn.style.borderRadius = '50%';
+		scrollToBottomBtn.style.cursor = 'pointer';
+		scrollToBottomBtn.style.zIndex = '5';
+		scrollToBottomBtn.style.background = 'var(--vscode-button-background)';
+
+		scrollToBottomIcon.style.position = 'relative';
+		scrollToBottomIcon.style.top = '6px';
+		scrollToBottomIcon.style.left = '6px';
+
+		scrollToBottomBtn.style.display = 'none';
+
+		this._register(dom.addDisposableListener(scrollToBottomBtn, dom.EventType.CLICK, () => {
+			if (this.listWidget) {
+				if (this.listWidget.scrollToEndSmooth) {
+					this.listWidget.scrollToEndSmooth();
+				} else {
+					this.listWidget.scrollToEnd();
+				}
+
+			}
+		}));
+
+		const updateScrollToBottomBtnVisibility = () => {
+			if (!this.listWidget) {
+				scrollToBottomBtn.style.display = 'none';
+				return;
+			}
+
+			const remaining = this.listWidget.scrollHeight - (this.listWidget.scrollTop + this.listWidget.renderHeight);
+			const threshold = 0.8 * this.listWidget.renderHeight;
+
+			if (remaining > threshold) {
+				scrollToBottomBtn.style.display = '';
+			} else {
+				scrollToBottomBtn.style.display = 'none';
+			}
+		};
+
+		this._register(this.listWidget.onDidScroll(updateScrollToBottomBtnVisibility));
+		this._register(this.listWidget.onDidChangeContentHeight(updateScrollToBottomBtnVisibility));
+
+		this._register(
+			dom.scheduleAtNextAnimationFrame(
+				dom.getWindow(this.listContainer),
+				updateScrollToBottomBtnVisibility
+			)
+		);
+
 		// Update the font family and size
 		this._register(autorun(reader => {
 			const fontFamily = this.chatLayoutService.fontFamily.read(reader);

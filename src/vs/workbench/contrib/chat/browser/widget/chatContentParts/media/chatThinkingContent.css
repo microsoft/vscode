@@ -20,13 +20,10 @@
 	> .chat-used-context-label .monaco-button.monaco-icon-button {
 		line-height: 1.5em;
 		font-size: 13px;
+		padding-left: 1px;
 
-		.monaco-button-mdlabel {
+		.codicon, .monaco-button-mdlabel {
 			font-size: var(--vscode-chat-font-size-body-s);
-		}
-
-		.codicon {
-			font-size: 12px;
 		}
 
 		.rendered-markdown.collapsible-title-content {
