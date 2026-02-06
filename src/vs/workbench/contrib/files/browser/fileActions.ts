@@ -710,6 +710,58 @@ export class OpenActiveFileInEmptyWorkspace extends Action2 {
 	}
 }
 
+interface ActiveFileContext {
+	resource: URI;
+	filename: string;
+	relativePath: string;
+	baseResource: URI;
+	filenameStart: number;
+	selectionEnd: number;
+}
+
+function getActiveFileContext(
+	editorService: IEditorService,
+	fileService: IFileService,
+	contextService: IWorkspaceContextService,
+	dialogService: IDialogService,
+	operationName: string
+): ActiveFileContext | undefined {
+	const resource = EditorResourceAccessor.getOriginalUri(editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
+	if (!resource) {
+		dialogService.error(nls.localize('activeFile.noResource', "The active editor must contain a file resource."));
+		return undefined;
+	}
+
+	if (!fileService.hasProvider(resource)) {
+		dialogService.error(nls.localize('activeFile.unsupportedScheme', "The file system does not support {0} this file.", operationName));
+		return undefined;
+	}
+
+	const filename = resources.basename(resource);
+
+	// Compute relative path from workspace folder, or fall back to just filename
+	const workspaceFolder = contextService.getWorkspaceFolder(resource);
+	let relativePath: string;
+	let baseResource: URI;
+
+	if (workspaceFolder) {
+		relativePath = resources.relativePath(workspaceFolder.uri, resource) || filename;
+		baseResource = workspaceFolder.uri;
+	} else {
+		// No workspace folder, use parent directory and just the filename
+		relativePath = filename;
+		baseResource = resources.dirname(resource);
+	}
+
+	// Set up selection to select the filename without extension
+	const lastDot = relativePath.lastIndexOf('.');
+	const lastSep = Math.max(relativePath.lastIndexOf('/'), relativePath.lastIndexOf('\\'));
+	const filenameStart = lastSep >= 0 ? lastSep + 1 : 0;
+	const selectionEnd = lastDot > filenameStart ? lastDot : relativePath.length;
+
+	return { resource, filename, relativePath, baseResource, filenameStart, selectionEnd };
+}
+
 export class DuplicateActiveFileAction extends Action2 {
 
 	static readonly ID = 'workbench.files.action.duplicateActiveFile';
@@ -736,38 +788,12 @@ export class DuplicateActiveFileAction extends Action2 {
 		const notificationService = accessor.get(INotificationService);
 		const contextService = accessor.get(IWorkspaceContextService);
 
-		const resource = EditorResourceAccessor.getOriginalUri(editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
-		if (!resource) {
-			dialogService.error(nls.localize('duplicateActiveFile.noResource', "The active editor must contain a file resource."));
+		const context = getActiveFileContext(editorService, fileService, contextService, dialogService, nls.localize('duplicating', "duplicating"));
+		if (!context) {
 			return;
 		}
 
-		if (!fileService.hasProvider(resource)) {
-			dialogService.error(nls.localize('duplicateActiveFile.unsupportedScheme', "The file system does not support duplicating this file."));
-			return;
-		}
-
-		const filename = resources.basename(resource);
-
-		// Compute relative path from workspace folder, or fall back to just filename
-		const workspaceFolder = contextService.getWorkspaceFolder(resource);
-		let relativePath: string;
-		let baseResource: URI;
-
-		if (workspaceFolder) {
-			relativePath = resources.relativePath(workspaceFolder.uri, resource) || filename;
-			baseResource = workspaceFolder.uri;
-		} else {
-			// No workspace folder, use parent directory and just the filename
-			relativePath = filename;
-			baseResource = resources.dirname(resource);
-		}
-
-		// Set up selection to select the filename without extension
-		const lastDot = relativePath.lastIndexOf('.');
-		const lastSep = Math.max(relativePath.lastIndexOf('/'), relativePath.lastIndexOf('\\'));
-		const filenameStart = lastSep >= 0 ? lastSep + 1 : 0;
-		const selectionEnd = lastDot > filenameStart ? lastDot : relativePath.length;
+		const { resource, filename, relativePath, baseResource, filenameStart, selectionEnd } = context;
 
 		return new Promise<void>((resolve) => {
 			const inputBox = quickInputService.createInputBox();
@@ -885,38 +911,12 @@ export class RenameActiveFileAction extends Action2 {
 		const notificationService = accessor.get(INotificationService);
 		const contextService = accessor.get(IWorkspaceContextService);
 
-		const resource = EditorResourceAccessor.getOriginalUri(editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
-		if (!resource) {
-			dialogService.error(nls.localize('renameActiveFile.noResource', "The active editor must contain a file resource."));
+		const context = getActiveFileContext(editorService, fileService, contextService, dialogService, nls.localize('renaming', "renaming"));
+		if (!context) {
 			return;
 		}
 
-		if (!fileService.hasProvider(resource)) {
-			dialogService.error(nls.localize('renameActiveFile.unsupportedScheme', "The file system does not support renaming this file."));
-			return;
-		}
-
-		const filename = resources.basename(resource);
-
-		// Compute relative path from workspace folder, or fall back to just filename
-		const workspaceFolder = contextService.getWorkspaceFolder(resource);
-		let relativePath: string;
-		let baseResource: URI;
-
-		if (workspaceFolder) {
-			relativePath = resources.relativePath(workspaceFolder.uri, resource) || filename;
-			baseResource = workspaceFolder.uri;
-		} else {
-			// No workspace folder, use parent directory and just the filename
-			relativePath = filename;
-			baseResource = resources.dirname(resource);
-		}
-
-		// Set up selection to select the filename without extension
-		const lastDot = relativePath.lastIndexOf('.');
-		const lastSep = Math.max(relativePath.lastIndexOf('/'), relativePath.lastIndexOf('\\'));
-		const filenameStart = lastSep >= 0 ? lastSep + 1 : 0;
-		const selectionEnd = lastDot > filenameStart ? lastDot : relativePath.length;
+		const { resource, filename, relativePath, baseResource, filenameStart, selectionEnd } = context;
 
 		return new Promise<void>((resolve) => {
 			const inputBox = quickInputService.createInputBox();
