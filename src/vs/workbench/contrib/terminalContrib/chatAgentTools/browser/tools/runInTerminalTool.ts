@@ -639,7 +639,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		}
 
 		// If forceConfirmationReason is set, always show confirmation regardless of auto-approval
-		const shouldShowConfirmation = !isFinalAutoApproved || !!context.forceConfirmationReason;
+		const shouldShowConfirmation = !isFinalAutoApproved || context.forceConfirmationReason !== undefined;
 		const confirmationMessages = shouldShowConfirmation ? {
 			title: confirmationTitle,
 			message: new MarkdownString(localize('runInTerminal.confirmationMessage', "Explanation: {0}\n\nGoal: {1}", args.explanation, args.goal)),

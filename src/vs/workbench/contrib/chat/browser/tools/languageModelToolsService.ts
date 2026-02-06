@@ -530,7 +530,8 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				preparedInvocation = await this.prepareToolInvocationWithHookResult(tool, dto, preToolUseHookResult, token);
 				prepareTimeWatch.stop();
 
-				const autoConfirmed = await this.resolveAutoConfirmFromHook(preToolUseHookResult, tool, dto, preparedInvocation, dto.context?.sessionResource);
+				const { autoConfirmed, preparedInvocation: updatedPreparedInvocation } = await this.resolveAutoConfirmFromHook(preToolUseHookResult, tool, dto, preparedInvocation, dto.context?.sessionResource);
+				preparedInvocation = updatedPreparedInvocation;
 
 
 				// Important: a tool invocation that will be autoconfirmed should never
@@ -578,7 +579,8 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				preparedInvocation = await this.prepareToolInvocationWithHookResult(tool, dto, preToolUseHookResult, token);
 				prepareTimeWatch.stop();
 
-				const fallbackAutoConfirmed = await this.resolveAutoConfirmFromHook(preToolUseHookResult, tool, dto, preparedInvocation, undefined);
+				const { autoConfirmed: fallbackAutoConfirmed, preparedInvocation: updatedPreparedInvocation } = await this.resolveAutoConfirmFromHook(preToolUseHookResult, tool, dto, preparedInvocation, undefined);
+				preparedInvocation = updatedPreparedInvocation;
 				if (preparedInvocation?.confirmationMessages?.title && !fallbackAutoConfirmed) {
 					const result = await this._dialogService.confirm({ message: renderAsPlaintext(preparedInvocation.confirmationMessages.title), detail: renderAsPlaintext(preparedInvocation.confirmationMessages.message!) });
 					if (!result.confirmed) {
@@ -664,7 +666,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	}
 
 	private async prepareToolInvocationWithHookResult(tool: IToolEntry, dto: IToolInvocation, hookResult: IPreToolUseHookResult | undefined, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
-		const forceConfirmationReason = hookResult?.permissionDecision === 'ask' ? (hookResult.permissionDecisionReason ?? '') : undefined;
+		const forceConfirmationReason = hookResult?.permissionDecision === 'ask' ? (hookResult.permissionDecisionReason || 'Hook requested confirmation') : undefined;
 		return this.prepareToolInvocation(tool, dto, forceConfirmationReason, token);
 	}
 
@@ -673,6 +675,9 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	 * If the hook returned 'allow', auto-approves. If 'ask', forces confirmation
 	 * and ensures confirmation messages exist on `preparedInvocation`. Otherwise
 	 * falls back to normal auto-confirm logic.
+	 *
+	 * Returns the possibly-updated preparedInvocation along with the auto-confirm decision,
+	 * since when the hook returns 'ask' and preparedInvocation was undefined, we create one.
 	 */
 	private async resolveAutoConfirmFromHook(
 		hookResult: IPreToolUseHookResult | undefined,
@@ -680,10 +685,10 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		dto: IToolInvocation,
 		preparedInvocation: IPreparedToolInvocation | undefined,
 		sessionResource: URI | undefined,
-	): Promise<ConfirmedReason | undefined> {
+	): Promise<{ autoConfirmed: ConfirmedReason | undefined; preparedInvocation: IPreparedToolInvocation | undefined }> {
 		if (hookResult?.permissionDecision === 'allow') {
 			this._logService.debug(`[LanguageModelToolsService#invokeTool] Tool ${dto.toolId} auto-approved by preToolUse hook`);
-			return { type: ToolConfirmKind.ConfirmationNotNeeded, reason: localize('hookAllowed', "Allowed by hook") };
+			return { autoConfirmed: { type: ToolConfirmKind.ConfirmationNotNeeded, reason: localize('hookAllowed', "Allowed by hook") }, preparedInvocation };
 		}
 
 		if (hookResult?.permissionDecision === 'ask') {
@@ -707,11 +712,12 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 					rawInput: dto.parameters,
 				};
 			}
-			return undefined;
+			return { autoConfirmed: undefined, preparedInvocation };
 		}
 
 		// No hook decision - use normal auto-confirm logic
-		return this.shouldAutoConfirm(tool.data.id, tool.data.runsInWorkspace, tool.data.source, dto.parameters, sessionResource);
+		const autoConfirmed = await this.shouldAutoConfirm(tool.data.id, tool.data.runsInWorkspace, tool.data.source, dto.parameters, sessionResource);
+		return { autoConfirmed, preparedInvocation };
 	}
 
 	private async prepareToolInvocation(tool: IToolEntry, dto: IToolInvocation, forceConfirmationReason: string | undefined, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
