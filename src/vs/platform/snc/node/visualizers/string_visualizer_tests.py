@@ -19,6 +19,7 @@ from string_visualizer import (
     update, init_model, visualize,
     MouseDown, MouseMove, MouseUp, KeyDown,
     DropdownToggle, DropdownSelect,
+    SearchBoxInput,
     NewCode,
     compute_internal_length,
     extract_by_internal_indices,
@@ -29,6 +30,8 @@ from string_visualizer import (
     replace_segment_pattern,
     extract_quantifier,
     _subpattern_to_string,
+    strip_capturing_groups,
+    get_regex_inner_pattern,
     is_adjacent_right,
     is_adjacent_left,
     DC1, DC2, DC3, DC4,  # Sentinel characters
@@ -2310,6 +2313,717 @@ class TestSelectionAdjacencyIntegration(unittest.TestCase):
                          source_code, 1, model, value)
 
         self.assertEqual(model['selectionRegex'], '/(.*)(world)/')
+
+
+# =============================================================================
+# Search Box Tests
+# =============================================================================
+
+def make_search_box_input_event(value: str) -> dict:
+    """Create a SearchBoxInput event dict (simulates typing in the search box).
+
+    Args:
+        value: The full current value of the search box input field.
+    """
+    return {
+        'pythonEventStr': "lambda e: SearchBoxInput(value=e.get('value', ''))",
+        'eventJSON': {
+            'type': 'input',
+            'value': value,
+        }
+    }
+
+
+class TestSearchBoxBasics(unittest.TestCase):
+    """Test basic search box input behavior."""
+
+    def setUp(self):
+        self.value = "hello world"
+        self.model = init_model(self.value)
+        self.source_code = "x = 'hello world'"
+        self.source_line = 1
+
+    def test_typing_regex_sets_selection_regex(self):
+        """Typing a regex in the search box sets selectionRegex directly."""
+        model, commands = update(make_search_box_input_event('/hello/'),
+                                self.source_code, self.source_line, self.model, self.value)
+
+        self.assertEqual(model['selectionRegex'], '/hello/')
+        self.assertEqual(commands, [])
+
+    def test_typing_regex_with_groups_sets_selection_regex(self):
+        """Typing a regex with capturing groups works."""
+        model, commands = update(make_search_box_input_event('/(hello)(.*)(world)/'),
+                                self.source_code, self.source_line, self.model, self.value)
+
+        self.assertEqual(model['selectionRegex'], '/(hello)(.*)(world)/')
+
+    def test_clearing_search_box_clears_regex(self):
+        """Clearing the search box (empty value) sets selectionRegex to None."""
+        self.model['selectionRegex'] = '/(hello)/'
+        self.model['undoHistory'] = [None]
+
+        model, _ = update(make_search_box_input_event(''),
+                          self.source_code, self.source_line, self.model, self.value)
+
+        self.assertIsNone(model['selectionRegex'])
+
+    def test_typing_saves_undo_history(self):
+        """Each search box change saves the previous value to undo history."""
+        model, _ = update(make_search_box_input_event('/hello/'),
+                          self.source_code, self.source_line, self.model, self.value)
+
+        self.assertEqual(model['undoHistory'], [None])  # Previous was None
+
+        model, _ = update(make_search_box_input_event('/hello world/'),
+                          self.source_code, self.source_line, model, self.value)
+
+        self.assertEqual(model['undoHistory'], [None, '/hello/'])
+
+    def test_same_value_does_not_add_to_undo(self):
+        """Typing the same value again doesn't add duplicate undo entries."""
+        model, _ = update(make_search_box_input_event('/hello/'),
+                          self.source_code, self.source_line, self.model, self.value)
+
+        self.assertEqual(model['undoHistory'], [None])
+
+        # Same value again
+        model, _ = update(make_search_box_input_event('/hello/'),
+                          self.source_code, self.source_line, model, self.value)
+
+        self.assertEqual(model['undoHistory'], [None])  # No duplicate
+
+    def test_typing_clears_drag_state(self):
+        """Typing in the search box clears any in-progress drag state."""
+        self.model['anchorIdx'] = 5
+        self.model['cursorIdx'] = 8
+        self.model['dragging'] = True
+        self.model['insertAfterSegment'] = 1
+
+        model, _ = update(make_search_box_input_event('/hello/'),
+                          self.source_code, self.source_line, self.model, self.value)
+
+        self.assertIsNone(model['anchorIdx'])
+        self.assertIsNone(model['cursorIdx'])
+        self.assertFalse(model['dragging'])
+        self.assertIsNone(model['insertAfterSegment'])
+
+    def test_invalid_regex_still_stored(self):
+        """An invalid regex is still stored so the user can keep editing."""
+        model, _ = update(make_search_box_input_event('/[unclosed/'),
+                          self.source_code, self.source_line, self.model, self.value)
+
+        self.assertEqual(model['selectionRegex'], '/[unclosed/')
+
+    def test_search_box_value_without_delimiters(self):
+        """Value without / delimiters is stored as-is (future search types)."""
+        model, _ = update(make_search_box_input_event('hello'),
+                          self.source_code, self.source_line, self.model, self.value)
+
+        self.assertEqual(model['selectionRegex'], 'hello')
+
+
+class TestSearchBoxVisualize(unittest.TestCase):
+    """Test that the search box renders correctly in visualize output."""
+
+    def test_search_box_present_in_output(self):
+        """The search box input element is present in visualize output."""
+        html = visualize("hello world")
+        self.assertIn('<input', html)
+        self.assertIn('snc-input', html)
+        self.assertIn('SearchBoxInput', html)
+
+    def test_search_box_shows_empty_when_no_regex(self):
+        """Search box value is empty when there's no selection regex."""
+        model = init_model("hello world")
+        html = visualize("hello world", model)
+        # The value attribute should be empty
+        self.assertIn('value=""', html)
+
+    def test_search_box_shows_current_regex(self):
+        """Search box shows the full selectionRegex with / delimiters."""
+        model = init_model("hello world")
+        model['selectionRegex'] = '/(hello)(.*)(world)/'
+
+        html = visualize("hello world", model)
+        self.assertIn('/(hello)(.*)(world)/', html)
+
+    def test_search_box_shows_regex_after_mouse_selection(self):
+        """After a mouse selection, the search box reflects the built regex."""
+        value = "hello world"
+        model = init_model(value)
+        source_code = "x = 'hello world'"
+
+        # Select "hello" by mouse
+        model, _ = update(make_mouse_down_event(2, top_half=True),
+                         source_code, 1, model, value)
+        model, _ = update(make_mouse_move_event(6),
+                         source_code, 1, model, value)
+        model, _ = update(make_mouse_up_event(6),
+                         source_code, 1, model, value)
+
+        html = visualize(value, model)
+        self.assertIn('/(hello)/', html)
+
+    def test_search_box_has_placeholder(self):
+        """Search box has a placeholder for when it's empty."""
+        html = visualize("hello world")
+        self.assertIn('placeholder=', html)
+
+
+class TestSearchBoxToMouseInteraction(unittest.TestCase):
+    """Test transitioning from search box editing to mouse-based selection."""
+
+    def setUp(self):
+        self.value = "hello world"
+        self.model = init_model(self.value)
+        self.source_code = "x = 'hello world'"
+        self.source_line = 1
+
+    def test_type_regex_then_extend_with_mouse(self):
+        """Type a regex in the search box, then extend it with mouse selection.
+
+        Type /(hello)/ -> extend right with fuzzy -> /(hello)(.*)/
+        """
+        # Type regex in search box
+        model, _ = update(make_search_box_input_event('/(hello)/'),
+                          self.source_code, self.source_line, self.model, self.value)
+
+        self.assertEqual(model['selectionRegex'], '/(hello)/')
+
+        # Now extend with fuzzy from the right end
+        end_idx = get_last_segment_end_internal_idx(model['selectionRegex'], self.value)
+        self.assertIsNotNone(end_idx)
+
+        model, _ = update(make_mouse_down_event(end_idx, top_half=False),
+                          self.source_code, self.source_line, model, self.value)
+        model, _ = update(make_mouse_up_event(end_idx),
+                          self.source_code, self.source_line, model, self.value)
+
+        self.assertEqual(model['selectionRegex'], '/(hello)(.*)/')
+
+    def test_type_regex_then_click_inside_fuzzy(self):
+        """Type a regex with fuzzy, then click inside the fuzzy to anchor it.
+
+        Type /(hello)(.*)(world)/ -> click inside fuzzy to split with literal.
+        """
+        # Type regex with fuzzy segment in the search box
+        model, _ = update(make_search_box_input_event('/(hello)(.*)/'),
+                          self.source_code, self.source_line, self.model, self.value)
+
+        self.assertEqual(model['selectionRegex'], '/(hello)(.*)/')
+
+        # Find the fuzzy segment and click inside it to add a literal anchor
+        # In "hello world", (.*) matches " world" (indices 7-12)
+        # Click at 'w' (index 8) to anchor inside the fuzzy
+        fuzzy_info = find_fuzzy_segment_at_index(model['selectionRegex'], self.value, 8)
+        self.assertIsNotNone(fuzzy_info)
+
+        model, _ = update(make_mouse_down_event(8, top_half=True),
+                          self.source_code, self.source_line, model, self.value)
+        model, _ = update(make_mouse_move_event(12),
+                          self.source_code, self.source_line, model, self.value)
+        model, _ = update(make_mouse_up_event(12),
+                          self.source_code, self.source_line, model, self.value)
+
+        self.assertEqual(model['selectionRegex'], '/(hello)(.*)(world)/')
+
+    def test_type_regex_then_new_mouse_selection_replaces(self):
+        """Clicking far from the typed regex starts a fresh selection.
+
+        Type /(hello)/ -> click in unrelated area -> replaces with new selection.
+        """
+        # Type regex
+        model, _ = update(make_search_box_input_event('/(hello)/'),
+                          self.source_code, self.source_line, self.model, self.value)
+
+        self.assertEqual(model['selectionRegex'], '/(hello)/')
+
+        # Click on 'w' at index 8 (not adjacent to "hello" selection end at 7)
+        # This is far enough away that it should start fresh
+        # Actually, let's click somewhere definitely not adjacent
+        # "hello" ends at index 7, and 'w' is at index 8.
+        # is_adjacent_right(8, 7, value) == True because 8 >= 7 and idx == last_end + 1
+        # So let's click at 10 ('r') which is NOT adjacent to index 7
+        model, _ = update(make_mouse_down_event(10, top_half=True),
+                          self.source_code, self.source_line, model, self.value)
+        model, _ = update(make_mouse_up_event(10),
+                          self.source_code, self.source_line, model, self.value)
+
+        # Should reset and create a fresh single-char selection
+        self.assertEqual(model['selectionRegex'], '/(r)/')
+
+    def test_type_regex_then_extend_left_with_mouse(self):
+        """Type a regex in the search box, then extend it from the left.
+
+        Type /(world)/ -> extend left with fuzzy -> /(.*)(world)/
+        """
+        # Type regex in search box
+        model, _ = update(make_search_box_input_event('/(world)/'),
+                          self.source_code, self.source_line, self.model, self.value)
+
+        self.assertEqual(model['selectionRegex'], '/(world)/')
+
+        # Extend left with fuzzy
+        start_idx = get_first_segment_start_internal_idx(model['selectionRegex'], self.value)
+        self.assertIsNotNone(start_idx)
+
+        model, _ = update(make_mouse_down_event(start_idx - 1, top_half=False),
+                          self.source_code, self.source_line, model, self.value)
+        model, _ = update(make_mouse_up_event(start_idx - 1),
+                          self.source_code, self.source_line, model, self.value)
+
+        self.assertEqual(model['selectionRegex'], '/(.*)(world)/')
+
+
+class TestMouseToSearchBoxInteraction(unittest.TestCase):
+    """Test transitioning from mouse-based selection to search box editing."""
+
+    def setUp(self):
+        self.value = "hello world"
+        self.model = init_model(self.value)
+        self.source_code = "x = 'hello world'"
+        self.source_line = 1
+
+    def _select_hello(self, model):
+        """Helper to create /(hello)/ via mouse selection."""
+        model, _ = update(make_mouse_down_event(2, top_half=True),
+                          self.source_code, self.source_line, model, self.value)
+        model, _ = update(make_mouse_move_event(6),
+                          self.source_code, self.source_line, model, self.value)
+        model, _ = update(make_mouse_up_event(6),
+                          self.source_code, self.source_line, model, self.value)
+        return model
+
+    def _select_hello_fuzzy_world(self, model):
+        """Helper to create /(hello)(.*)(world)/ via mouse selection."""
+        model = self._select_hello(model)
+
+        # Add fuzzy
+        end_idx = get_last_segment_end_internal_idx(model['selectionRegex'], self.value)
+        model, _ = update(make_mouse_down_event(end_idx, top_half=False),
+                          self.source_code, self.source_line, model, self.value)
+        model, _ = update(make_mouse_up_event(end_idx),
+                          self.source_code, self.source_line, model, self.value)
+
+        # Add "world" inside fuzzy
+        model, _ = update(make_mouse_down_event(8, top_half=True),
+                          self.source_code, self.source_line, model, self.value)
+        model, _ = update(make_mouse_move_event(12),
+                          self.source_code, self.source_line, model, self.value)
+        model, _ = update(make_mouse_up_event(12),
+                          self.source_code, self.source_line, model, self.value)
+        return model
+
+    def test_mouse_selection_then_edit_in_search_box(self):
+        """Build a regex with mouse, then edit it via the search box."""
+        model = self._select_hello(self.model)
+        self.assertEqual(model['selectionRegex'], '/(hello)/')
+
+        # Now tweak the regex via search box
+        model, _ = update(make_search_box_input_event('/(hell)/'),
+                          self.source_code, self.source_line, model, self.value)
+
+        self.assertEqual(model['selectionRegex'], '/(hell)/')
+        self.assertEqual(model['undoHistory'], [None, '/(hello)/'])
+
+    def test_mouse_selection_then_clear_via_search_box(self):
+        """Build regex with mouse, then clear it by emptying the search box."""
+        model = self._select_hello(self.model)
+        self.assertEqual(model['selectionRegex'], '/(hello)/')
+
+        model, _ = update(make_search_box_input_event(''),
+                          self.source_code, self.source_line, model, self.value)
+
+        self.assertIsNone(model['selectionRegex'])
+        self.assertEqual(model['undoHistory'], [None, '/(hello)/'])
+
+    def test_mouse_selection_then_search_box_then_mouse_again(self):
+        """Full round trip: mouse -> search box edit -> mouse extend.
+
+        Build /(hello)/ with mouse -> edit to /(hel)/ in search box -> extend right.
+        """
+        model = self._select_hello(self.model)
+        self.assertEqual(model['selectionRegex'], '/(hello)/')
+
+        # Edit in search box to shorten the pattern
+        model, _ = update(make_search_box_input_event('/(hel)/'),
+                          self.source_code, self.source_line, model, self.value)
+
+        self.assertEqual(model['selectionRegex'], '/(hel)/')
+
+        # Extend right with fuzzy from end of "hel" match
+        end_idx = get_last_segment_end_internal_idx(model['selectionRegex'], self.value)
+        self.assertIsNotNone(end_idx)
+
+        model, _ = update(make_mouse_down_event(end_idx, top_half=False),
+                          self.source_code, self.source_line, model, self.value)
+        model, _ = update(make_mouse_up_event(end_idx),
+                          self.source_code, self.source_line, model, self.value)
+
+        self.assertEqual(model['selectionRegex'], '/(hel)(.*)/')
+
+    def test_complex_mouse_then_edit_pattern_in_search_box(self):
+        """Build /(hello)(.*)(world)/ with mouse, then change .* to \\s+ via search box."""
+        model = self._select_hello_fuzzy_world(self.model)
+        self.assertEqual(model['selectionRegex'], '/(hello)(.*)(world)/')
+
+        # Edit the pattern in the search box to change .* to \s+
+        model, _ = update(make_search_box_input_event(r'/(hello)(\s+)(world)/'),
+                          self.source_code, self.source_line, model, self.value)
+
+        self.assertEqual(model['selectionRegex'], r'/(hello)(\s+)(world)/')
+
+    def test_mouse_then_search_box_then_extend_left(self):
+        """Mouse selection -> edit in search box -> extend left with mouse.
+
+        Build /(world)/ with mouse -> edit to /(world!)/ in search box (invalid for this string) ->
+        fix back to /(world)/ -> extend left.
+        """
+        value = "hello world"
+        model = init_model(value)
+
+        # Select "world" with mouse
+        model, _ = update(make_mouse_down_event(8, top_half=True),
+                          self.source_code, self.source_line, model, value)
+        model, _ = update(make_mouse_move_event(12),
+                          self.source_code, self.source_line, model, value)
+        model, _ = update(make_mouse_up_event(12),
+                          self.source_code, self.source_line, model, value)
+
+        self.assertEqual(model['selectionRegex'], '/(world)/')
+
+        # Edit in search box
+        model, _ = update(make_search_box_input_event('/(world!)/'),
+                          self.source_code, self.source_line, model, value)
+        self.assertEqual(model['selectionRegex'], '/(world!)/')
+
+        # Fix back
+        model, _ = update(make_search_box_input_event('/(world)/'),
+                          self.source_code, self.source_line, model, value)
+        self.assertEqual(model['selectionRegex'], '/(world)/')
+
+        # Extend left with fuzzy
+        start_idx = get_first_segment_start_internal_idx(model['selectionRegex'], value)
+        model, _ = update(make_mouse_down_event(start_idx - 1, top_half=False),
+                          self.source_code, self.source_line, model, value)
+        model, _ = update(make_mouse_up_event(start_idx - 1),
+                          self.source_code, self.source_line, model, value)
+
+        self.assertEqual(model['selectionRegex'], '/(.*)(world)/')
+
+
+class TestSearchBoxUndoRedo(unittest.TestCase):
+    """Test undo/redo interactions with search box edits."""
+
+    def setUp(self):
+        self.value = "hello world"
+        self.model = init_model(self.value)
+        self.source_code = "x = 'hello world'"
+        self.source_line = 1
+
+    def test_undo_search_box_edit(self):
+        """Cmd-Z after a search box edit restores the previous regex."""
+        # Type a regex
+        model, _ = update(make_search_box_input_event('/(hello)/'),
+                          self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(model['selectionRegex'], '/(hello)/')
+
+        # Undo
+        model, _ = update(make_key_down_event('z', meta_key=True),
+                          self.source_code, self.source_line, model, self.value)
+
+        self.assertIsNone(model['selectionRegex'])
+        self.assertEqual(model['undoHistory'], [])
+        self.assertEqual(model['redoHistory'], ['/(hello)/'])
+
+    def test_redo_search_box_edit(self):
+        """Cmd-Shift-Z after undoing a search box edit restores the regex."""
+        model, _ = update(make_search_box_input_event('/(hello)/'),
+                          self.source_code, self.source_line, self.model, self.value)
+
+        # Undo
+        model, _ = update(make_key_down_event('z', meta_key=True),
+                          self.source_code, self.source_line, model, self.value)
+        self.assertIsNone(model['selectionRegex'])
+
+        # Redo
+        model, _ = update(make_key_down_event('z', meta_key=True, shift_key=True),
+                          self.source_code, self.source_line, model, self.value)
+
+        self.assertEqual(model['selectionRegex'], '/(hello)/')
+
+    def test_undo_across_mouse_and_search_box(self):
+        """Undo traverses both mouse selections and search box edits.
+
+        Mouse: None -> /(hello)/ -> /(hello)(.*)/
+        Search box: /(hello)(.*)(world)/
+        Undo 3 times should get back to None.
+        """
+        # Mouse: select hello
+        model, _ = update(make_mouse_down_event(2, top_half=True),
+                          self.source_code, self.source_line, self.model, self.value)
+        model, _ = update(make_mouse_move_event(6),
+                          self.source_code, self.source_line, model, self.value)
+        model, _ = update(make_mouse_up_event(6),
+                          self.source_code, self.source_line, model, self.value)
+        self.assertEqual(model['selectionRegex'], '/(hello)/')
+
+        # Mouse: extend with fuzzy
+        end_idx = get_last_segment_end_internal_idx(model['selectionRegex'], self.value)
+        model, _ = update(make_mouse_down_event(end_idx, top_half=False),
+                          self.source_code, self.source_line, model, self.value)
+        model, _ = update(make_mouse_up_event(end_idx),
+                          self.source_code, self.source_line, model, self.value)
+        self.assertEqual(model['selectionRegex'], '/(hello)(.*)/')
+
+        # Search box: refine to /(hello)(.*)(world)/
+        model, _ = update(make_search_box_input_event('/(hello)(.*)(world)/'),
+                          self.source_code, self.source_line, model, self.value)
+        self.assertEqual(model['selectionRegex'], '/(hello)(.*)(world)/')
+        self.assertEqual(model['undoHistory'], [None, '/(hello)/', '/(hello)(.*)/'])
+
+        # Undo 1: back to /(hello)(.*)/
+        model, _ = update(make_key_down_event('z', meta_key=True),
+                          self.source_code, self.source_line, model, self.value)
+        self.assertEqual(model['selectionRegex'], '/(hello)(.*)/')
+
+        # Undo 2: back to /(hello)/
+        model, _ = update(make_key_down_event('z', meta_key=True),
+                          self.source_code, self.source_line, model, self.value)
+        self.assertEqual(model['selectionRegex'], '/(hello)/')
+
+        # Undo 3: back to None
+        model, _ = update(make_key_down_event('z', meta_key=True),
+                          self.source_code, self.source_line, model, self.value)
+        self.assertIsNone(model['selectionRegex'])
+
+    def test_search_box_edit_clears_redo_history(self):
+        """A search box edit after an undo clears the redo history."""
+        # Create a regex
+        model, _ = update(make_search_box_input_event('/(hello)/'),
+                          self.source_code, self.source_line, self.model, self.value)
+
+        # Undo it
+        model, _ = update(make_key_down_event('z', meta_key=True),
+                          self.source_code, self.source_line, model, self.value)
+        self.assertEqual(model['redoHistory'], ['/(hello)/'])
+
+        # Type something new in search box - should clear redo
+        model, _ = update(make_search_box_input_event('/(world)/'),
+                          self.source_code, self.source_line, model, self.value)
+        self.assertEqual(model['selectionRegex'], '/(world)/')
+        self.assertEqual(model['redoHistory'], [])
+
+
+class TestSearchBoxEnterGeneratesCode(unittest.TestCase):
+    """Test that Enter key generates code from a search-box-entered regex."""
+
+    def setUp(self):
+        self.value = "hello world"
+        self.model = init_model(self.value)
+        self.source_code = "x = 'hello world'"
+        self.source_line = 1
+
+    def test_enter_after_search_box_regex(self):
+        """Enter generates code using the regex typed in the search box."""
+        model, _ = update(make_search_box_input_event('/(hello)(.*)(world)/'),
+                          self.source_code, self.source_line, self.model, self.value)
+
+        model, commands = update(make_key_down_event('Enter'),
+                                self.source_code, self.source_line, model, self.value)
+
+        self.assertEqual(len(commands), 1)
+        self.assertIsInstance(commands[0], NewCode)
+        # The generated code should have the stripped pattern (no groups)
+        self.assertIn("re.search(r'hello.*world'", commands[0].code)
+
+    def test_enter_after_search_box_simple_regex(self):
+        """Enter generates code for a simple regex without groups."""
+        model, _ = update(make_search_box_input_event('/hello/'),
+                          self.source_code, self.source_line, self.model, self.value)
+
+        model, commands = update(make_key_down_event('Enter'),
+                                self.source_code, self.source_line, model, self.value)
+
+        self.assertEqual(len(commands), 1)
+        self.assertIsInstance(commands[0], NewCode)
+        self.assertIn("re.search(r'hello'", commands[0].code)
+
+
+class TestSearchBoxEscape(unittest.TestCase):
+    """Test Escape key interactions with the search box."""
+
+    def setUp(self):
+        self.value = "hello world"
+        self.model = init_model(self.value)
+        self.source_code = "x = 'hello world'"
+        self.source_line = 1
+
+    def test_escape_clears_search_box_typed_regex(self):
+        """Escape clears a regex that was typed in the search box."""
+        model, _ = update(make_search_box_input_event('/(hello)/'),
+                          self.source_code, self.source_line, self.model, self.value)
+
+        model, _ = update(make_key_down_event('Escape'),
+                          self.source_code, self.source_line, model, self.value)
+
+        self.assertIsNone(model['selectionRegex'])
+        # The typed regex should be in undo history (recoverable)
+        self.assertIn('/(hello)/', model['undoHistory'])
+
+
+class TestSearchBoxHighlighting(unittest.TestCase):
+    """Test that regex typed in search box produces correct highlighting."""
+
+    def test_typed_regex_with_groups_highlights_segments(self):
+        """A typed regex with groups produces segment highlights."""
+        value = "hello world"
+        model = init_model(value)
+        model['selectionRegex'] = '/(hello)(.*)(world)/'
+
+        highlights = parse_regex_for_highlighting(model['selectionRegex'], value)
+        self.assertEqual(len(highlights), 3)
+
+        # First segment: literal "hello"
+        self.assertEqual(highlights[0][2], 'literal')
+
+        # Second segment: fuzzy (.*)
+        self.assertEqual(highlights[1][2], 'fuzzy')
+
+        # Third segment: literal "world"
+        self.assertEqual(highlights[2][2], 'literal')
+
+    def test_typed_regex_without_groups_no_segment_highlights(self):
+        """A typed regex without groups produces no segment highlights."""
+        value = "hello world"
+        model = init_model(value)
+        model['selectionRegex'] = '/hello.*world/'
+
+        highlights = parse_regex_for_highlighting(model['selectionRegex'], value)
+        # No groups -> no segment highlights
+        self.assertEqual(len(highlights), 0)
+
+    def test_typed_invalid_regex_no_highlights(self):
+        """An invalid regex produces no highlights (graceful handling)."""
+        value = "hello world"
+        model = init_model(value)
+        model['selectionRegex'] = '/[unclosed/'
+
+        highlights = parse_regex_for_highlighting(model['selectionRegex'], value)
+        self.assertEqual(len(highlights), 0)
+
+    def test_typed_regex_no_match_no_highlights(self):
+        """A valid regex that doesn't match produces no highlights."""
+        value = "hello world"
+        model = init_model(value)
+        model['selectionRegex'] = '/(xyz)/'
+
+        highlights = parse_regex_for_highlighting(model['selectionRegex'], value)
+        self.assertEqual(len(highlights), 0)
+
+
+class TestSearchBoxMultipleRoundTrips(unittest.TestCase):
+    """Test multiple round trips between search box and mouse interactions."""
+
+    def setUp(self):
+        self.value = "hello world"
+        self.model = init_model(self.value)
+        self.source_code = "x = 'hello world'"
+        self.source_line = 1
+
+    def test_mouse_then_searchbox_then_mouse_then_searchbox(self):
+        """Multiple alternations between mouse and search box.
+
+        Mouse: /(hello)/
+        Search box: /(hello)(.*)/
+        Mouse: extend with (world) inside fuzzy -> /(hello)(.*)(world)/
+        Search box: tweak to /(hello)(\\s+)(world)/
+        """
+        # Mouse: select "hello"
+        model, _ = update(make_mouse_down_event(2, top_half=True),
+                          self.source_code, self.source_line, self.model, self.value)
+        model, _ = update(make_mouse_move_event(6),
+                          self.source_code, self.source_line, model, self.value)
+        model, _ = update(make_mouse_up_event(6),
+                          self.source_code, self.source_line, model, self.value)
+        self.assertEqual(model['selectionRegex'], '/(hello)/')
+
+        # Search box: add fuzzy
+        model, _ = update(make_search_box_input_event('/(hello)(.*)/'),
+                          self.source_code, self.source_line, model, self.value)
+        self.assertEqual(model['selectionRegex'], '/(hello)(.*)/')
+
+        # Mouse: click inside fuzzy to add "world"
+        model, _ = update(make_mouse_down_event(8, top_half=True),
+                          self.source_code, self.source_line, model, self.value)
+        model, _ = update(make_mouse_move_event(12),
+                          self.source_code, self.source_line, model, self.value)
+        model, _ = update(make_mouse_up_event(12),
+                          self.source_code, self.source_line, model, self.value)
+        self.assertEqual(model['selectionRegex'], '/(hello)(.*)(world)/')
+
+        # Search box: tweak fuzzy to \s+
+        model, _ = update(make_search_box_input_event(r'/(hello)(\s+)(world)/'),
+                          self.source_code, self.source_line, model, self.value)
+        self.assertEqual(model['selectionRegex'], r'/(hello)(\s+)(world)/')
+
+        # Verify the full undo history
+        self.assertEqual(model['undoHistory'], [
+            None,
+            '/(hello)/',
+            '/(hello)(.*)/',
+            '/(hello)(.*)(world)/',
+        ])
+
+    def test_searchbox_to_mouse_preserves_undo_chain(self):
+        """Switching input methods doesn't break the undo chain."""
+        # Search box
+        model, _ = update(make_search_box_input_event('/(hello)/'),
+                          self.source_code, self.source_line, self.model, self.value)
+
+        # Mouse extend
+        end_idx = get_last_segment_end_internal_idx(model['selectionRegex'], self.value)
+        model, _ = update(make_mouse_down_event(end_idx, top_half=False),
+                          self.source_code, self.source_line, model, self.value)
+        model, _ = update(make_mouse_up_event(end_idx),
+                          self.source_code, self.source_line, model, self.value)
+        self.assertEqual(model['selectionRegex'], '/(hello)(.*)/')
+
+        # Search box again
+        model, _ = update(make_search_box_input_event('/(hello)(\\d+)/'),
+                          self.source_code, self.source_line, model, self.value)
+        self.assertEqual(model['selectionRegex'], '/(hello)(\\d+)/')
+
+        # Undo all the way back
+        model, _ = update(make_key_down_event('z', meta_key=True),
+                          self.source_code, self.source_line, model, self.value)
+        self.assertEqual(model['selectionRegex'], '/(hello)(.*)/')
+
+        model, _ = update(make_key_down_event('z', meta_key=True),
+                          self.source_code, self.source_line, model, self.value)
+        self.assertEqual(model['selectionRegex'], '/(hello)/')
+
+        model, _ = update(make_key_down_event('z', meta_key=True),
+                          self.source_code, self.source_line, model, self.value)
+        self.assertIsNone(model['selectionRegex'])
+
+    def test_incremental_typing_in_search_box(self):
+        """Simulates the user incrementally typing a regex character by character.
+
+        Each keystroke fires an input event with the full current value.
+        """
+        model = self.model
+
+        # Type "/" -> "/h" -> "/he" -> "/hel" -> "/hell" -> "/hello" -> "/hello/"
+        steps = ['/', '/h', '/he', '/hel', '/hell', '/hello', '/hello/']
+        for step_value in steps:
+            model, _ = update(make_search_box_input_event(step_value),
+                              self.source_code, self.source_line, model, self.value)
+            self.assertEqual(model['selectionRegex'], step_value)
+
+        # Only the changing values should be in undo history
+        self.assertEqual(model['undoHistory'], [None, '/', '/h', '/he', '/hel', '/hell', '/hello'])
 
 
 # =============================================================================
