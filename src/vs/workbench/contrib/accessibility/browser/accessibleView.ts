@@ -93,6 +93,7 @@ export class AccessibleView extends Disposable {
 	private _currentContent: string | undefined;
 
 	private _lastProvider: AccesibleViewContentProvider | undefined;
+	private _lastProviderPosition: Map<string, Position> = new Map();
 
 	private _viewContainer: HTMLElement | undefined;
 
@@ -640,6 +641,17 @@ export class AccessibleView extends Disposable {
 				}
 			} else if (previousPosition) {
 				this._editorWidget.setPosition(previousPosition);
+			} else {
+				// Restore the saved position for this provider if available (e.g., after close and reopen)
+				const savedPosition = this._lastProviderPosition.get(provider.id);
+				if (savedPosition) {
+					const lineCount = this._editorWidget.getModel()?.getLineCount() ?? 0;
+					// Only restore if the saved position is still valid within the current content
+					if (savedPosition.lineNumber <= lineCount) {
+						this._editorWidget.setPosition(savedPosition);
+						this._editorWidget.revealLine(savedPosition.lineNumber);
+					}
+				}
 			}
 		});
 		this._updateToolbar(this._currentProvider.actions, provider.options.type);
@@ -661,6 +673,11 @@ export class AccessibleView extends Disposable {
 				return;
 			}
 			this._updateContextKeys(provider, false);
+			// Save the cursor position for this provider so it can be restored on reopen
+			const currentPosition = this._editorWidget.getPosition();
+			if (currentPosition) {
+				this._lastProviderPosition.set(provider.id, currentPosition);
+			}
 			this._lastProvider = undefined;
 			this._currentContent = undefined;
 			this._currentProvider?.dispose();
