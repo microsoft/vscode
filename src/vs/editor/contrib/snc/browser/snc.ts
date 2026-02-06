@@ -828,10 +828,10 @@ export class SNCController extends Disposable implements IEditorContribution {
 
 				const now = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
 
-				if (msg.type === 'spawn') {
-					// Store backend spawn timing data
-					this.runSpawnTimingById.set(msg.runId, msg.timing);
-				} else if (msg.type === 'item') {
+			if (msg.type === 'spawn') {
+				// Store backend spawn timing data
+				this.runSpawnTimingById.set(msg.runId, msg.timing);
+			} else if (msg.type === 'item') {
 					// console.log(msg.item.model)
 					// Timing: first item arrival for this run
 					const isFirstItem = !this.runFirstItemReceivedMsById.has(msg.runId);
@@ -880,7 +880,7 @@ export class SNCController extends Disposable implements IEditorContribution {
 					// Handle commands from visualizers
 					this.handleCommand(msg.command);
 				} else if (msg.type === 'end') {
-					// console.log('program end');
+				// console.log('program end');
 					const tEnd = now();
 
 					// Comprehensive timing logging
@@ -895,8 +895,19 @@ export class SNCController extends Disposable implements IEditorContribution {
 
 					clearTimeout(this.streamUpdateTimer);
 
-					// remove prior runs
-					this.visualizationItems = this.visualizationItems.filter(visItem => visItem.runId === this.currentRunId);
+					// Remove items from prior runs, but keep old items as fallback
+					// if the current run didn't produce a replacement (e.g., due to
+					// pipe corruption losing some items during concurrent fork writes).
+					const currentRunItems = new Set(
+						this.visualizationItems
+							.filter(v => v.runId === this.currentRunId)
+							.map(v => `${v.line}:${v.visIndex}`)
+					);
+					this.visualizationItems = this.visualizationItems.filter(visItem =>
+						visItem.runId === this.currentRunId ||
+						!currentRunItems.has(`${visItem.line}:${visItem.visIndex}`)
+					);
+
 					this.updateVisualizationWidgets(this.visualizationItems);
 
 					if (msg.result.stdout) {

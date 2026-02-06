@@ -22,6 +22,7 @@ import ast
 import html
 import traceback
 import os
+import signal
 import importlib.util
 import glob
 import time
@@ -34,6 +35,7 @@ from typing import List, Dict, Any, Optional, Callable, Protocol, TextIO, cast
 # These variables accumulate data as the transformed code executes
 execution_step = 0  # Incremental counter for each logged event
 line_emit_counter: Dict[int, int] = {}  # Per-line item index during a run
+_current_run_id: str = ""  # Run ID for preload mode, included in item/command messages
 
 _loaded_visualizers = []
 
@@ -167,7 +169,10 @@ def log_value(line: int, value: Any, last_line_in_containing_loop: int | None = 
 
 	# Stream this item immediately to stdout (bypassing redirected stdout)
 	try:
-		_stream_out.write(json.dumps({"type": "item", "item": item}, ensure_ascii=False) + "\n")
+		msg: Dict[str, Any] = {"type": "item", "item": item}
+		if _current_run_id:
+			msg["run_id"] = _current_run_id
+		_stream_out.write(json.dumps(msg, ensure_ascii=False) + "\n")
 		_stream_out.flush()
 	except Exception:
 		# Never let streaming failure break user program execution
@@ -181,7 +186,10 @@ def log_value(line: int, value: Any, last_line_in_containing_loop: int | None = 
 			if hasattr(cmd, '__dataclass_fields__'):
 				for field_name in cmd.__dataclass_fields__:
 					cmd_dict[field_name] = getattr(cmd, field_name)
-			_stream_out.write(json.dumps({"type": "command", "command": cmd_dict}, ensure_ascii=False) + "\n")
+			cmd_msg: Dict[str, Any] = {"type": "command", "command": cmd_dict}
+			if _current_run_id:
+				cmd_msg["run_id"] = _current_run_id
+			_stream_out.write(json.dumps(cmd_msg, ensure_ascii=False) + "\n")
 			_stream_out.flush()
 		except Exception:
 			pass
@@ -1134,6 +1142,67 @@ def extract_error_line_from_traceback(tb_str: str) -> int:
 	# Default to line 1 if we can't determine the actual error line
 	return 1
 
+
+def split_leading_imports(source_code: str):
+	"""
+	Split source code into leading import statements and the remaining body.
+
+	Parses the source into an AST, collects contiguous Import/ImportFrom
+	statements (and module docstrings) from the top of the file, and returns
+	two compiled code objects: one for the imports and one for the body.
+
+	The imports code object is NOT transformed (no logging injected) so it
+	can be safely exec'd in the parent process for checkpoint 2 caching.
+	The body code object IS transformed with logging statements.
+
+	Returns:
+		(import_code_object, body_code_object) — either may be None on error.
+		import_code_object: compiled imports (no transformation/logging).
+		body_code_object: compiled transformed body (with logging).
+	"""
+	tree = ast.parse(source_code)
+
+	# Walk top-level statements; collect leading imports and docstrings
+	split_idx = 0
+	for stmt in tree.body:
+		if isinstance(stmt, (ast.Import, ast.ImportFrom)):
+			split_idx += 1
+		elif isinstance(stmt, ast.Expr) and isinstance(stmt.value, ast.Constant) and isinstance(stmt.value.value, str):
+			# Module docstring or bare string expression — keep with imports
+			split_idx += 1
+		else:
+			break
+
+	import_stmts = tree.body[:split_idx]
+	body_stmts = tree.body[split_idx:]
+
+	# Compile raw imports (no transformation — no logging side effects)
+	import_module = ast.Module(body=import_stmts, type_ignores=[])
+	ast.fix_missing_locations(import_module)
+	import_code = compile(import_module, filename='<string>', mode='exec')
+
+	# Transform and compile body with logging
+	transformer = CodeTransformer()
+	new_body = []
+	for stmt in body_stmts:
+		transformed = transformer.visit(stmt)
+		if isinstance(transformed, list):
+			new_body.extend(transformed)
+		else:
+			new_body.append(transformed)
+
+	body_module = ast.Module(body=new_body, type_ignores=[])
+	for node in ast.walk(body_module):
+		if hasattr(node, 'lineno') and not hasattr(node, 'col_offset'):
+			setattr(node, 'col_offset', 0)
+		if hasattr(node, 'end_lineno') and not hasattr(node, 'end_col_offset'):
+			setattr(node, 'end_col_offset', 0)
+	ast.fix_missing_locations(body_module)
+	body_code = compile(body_module, filename='<string>', mode='exec')
+
+	return import_code, body_code
+
+
 def transform_code_to_ast(source_code: str) -> ast.Module:
 	"""
 	Transform the source code by injecting logging statements, returning an AST.
@@ -1314,12 +1383,17 @@ def execute_code(code_object: Any, globals_dict: Dict[str, Any]) -> Dict[str, An
 	}
 
 
-def _execute_run(code_object: Any, models_and_events_json: str, run_id: str) -> None:
-	"""Execute a run with the given code object and models/events."""
-	global models_and_events, execution_step, line_emit_counter
+def _execute_run(code_object: Any, models_and_events_json: str, run_id: str, globals_dict: Optional[Dict[str, Any]] = None) -> None:
+	"""Execute a run with the given code object and models/events.
+	
+	If globals_dict is provided (e.g. pre-populated with imports for checkpoint 2),
+	it is used directly. Otherwise a fresh globals dict is created.
+	"""
+	global models_and_events, execution_step, line_emit_counter, _current_run_id
 
 	execution_step = 0
 	line_emit_counter = {}
+	_current_run_id = run_id
 
 	if models_and_events_json and models_and_events_json.strip():
 		try:
@@ -1329,12 +1403,13 @@ def _execute_run(code_object: Any, models_and_events_json: str, run_id: str) -> 
 	else:
 		models_and_events = []
 
-	globals_dict = {
-		'__name__': '__main__',
-		'__file__': '<string>',
-		'_log_value': log_value,
-		'_log_and_return': log_and_return
-	}
+	if globals_dict is None:
+		globals_dict = {
+			'__name__': '__main__',
+			'__file__': '<string>',
+			'_log_value': log_value,
+			'_log_and_return': log_and_return
+		}
 	sys.argv = []
 
 	result = execute_code(code_object, globals_dict)
@@ -1347,7 +1422,9 @@ def run_preload_mode(working_directory: str) -> None:
 	Run in preload mode with fork-based checkpoints for fast execution.
 	
 	Checkpoint 1: Process with visualizers preloaded, ready to receive code.
-	Checkpoint 2: Same code as before, skip transformation using cached code_object.
+	Checkpoint 2: Same code as before AND leading imports already executed in
+	              the parent process. The forked child only needs to run the
+	              transformed body (skipping both AST transformation and imports).
 	"""
 	global models_and_events, _source_code, execution_step, line_emit_counter
 
@@ -1365,11 +1442,17 @@ def run_preload_mode(working_directory: str) -> None:
 	visualizers_hash = _preload_visualizers()
 	emit_meta('visualizers-loaded')
 
-	# Checkpoint 2 cache
+	# Checkpoint 2 cache — includes pre-executed imports
 	cached_code_hash: str = ""
-	cached_code_object: Any = None
+	cached_body_code: Any = None          # compiled transformed body (no imports)
+	cached_import_globals: Optional[Dict[str, Any]] = None  # globals after exec'ing imports
 
 	emit_checkpoint_ready(1, code_hash="", visualizers_hash=visualizers_hash)
+
+	last_child_pid: Optional[int] = None  # Track last forked child to kill on next run
+
+	# Ignore SIGCHLD to auto-reap zombies (except for explicit waitpid calls)
+	signal.signal(signal.SIGCHLD, signal.SIG_IGN)
 
 	while True:
 		try:
@@ -1396,7 +1479,17 @@ def run_preload_mode(working_directory: str) -> None:
 
 			emit_meta(f'received-run-{run_id}')
 
-			use_checkpoint2 = (code_hash == cached_code_hash and cached_code_object is not None)
+			# Kill previous child to prevent concurrent writes to stdout pipe.
+			# Without this, two fork children write to the same pipe simultaneously,
+			# causing interleaved bytes that corrupt NDJSON messages and lose items.
+			if last_child_pid is not None:
+				try:
+					os.kill(last_child_pid, signal.SIGKILL)
+				except OSError:
+					pass  # Already exited
+				last_child_pid = None
+
+			use_checkpoint2 = (code_hash == cached_code_hash and cached_body_code is not None)
 
 			if use_checkpoint2:
 				emit_meta(f'checkpoint2-hit-{run_id}')
@@ -1408,25 +1501,46 @@ def run_preload_mode(working_directory: str) -> None:
 				continue
 
 			if pid > 0:
+				# --- Parent process ---
+				last_child_pid = pid
 				emit_fork_result(True, child_pid=pid)
 				if not use_checkpoint2 and code.strip():
 					try:
-						transformed_ast = transform_code_to_ast(code)
-						cached_code_object = compile(transformed_ast, filename='<string>', mode='exec')
+						import_code, body_code = split_leading_imports(code)
+
+						# Execute imports in the parent (suppress stdout/stderr
+						# so stray prints don't corrupt the NDJSON stream).
+						import_globals: Dict[str, Any] = {
+							'__name__': '__main__',
+							'__file__': '<string>',
+							'_log_value': log_value,
+							'_log_and_return': log_and_return
+						}
+						with redirect_stdout(StringIO()), redirect_stderr(StringIO()):
+							exec(import_code, import_globals)
+
+						cached_body_code = body_code
+						cached_import_globals = import_globals
 						cached_code_hash = code_hash
 						emit_checkpoint_ready(2, code_hash=code_hash, visualizers_hash=visualizers_hash)
 					except Exception:
 						pass
 				continue
 
-			# Child process
+			# --- Child process ---
 			_source_code = code
 			execution_step = 0
 			line_emit_counter = {}
 
 			if use_checkpoint2:
 				emit_meta('checkpoint2-child-started')
-				_execute_run(cached_code_object, models_and_events_json, run_id)
+				# Imports are already loaded in the parent's memory (inherited
+				# via fork).  Build a globals dict from the cached import state
+				# and execute only the body.
+				globals_dict = dict(cached_import_globals)  # shallow copy
+				globals_dict['_log_value'] = log_value
+				globals_dict['_log_and_return'] = log_and_return
+				_execute_run(cached_body_code, models_and_events_json, run_id, globals_dict=globals_dict)
 			else:
 				emit_meta('checkpoint1-child-started')
 
