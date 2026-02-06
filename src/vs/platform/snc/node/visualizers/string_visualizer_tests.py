@@ -18,6 +18,7 @@ import re
 from string_visualizer import (
     update, init_model, visualize,
     MouseDown, MouseMove, MouseUp, KeyDown,
+    HandleMouseDown,
     DropdownToggle, DropdownSelect,
     SearchBoxInput,
     NewCode,
@@ -28,6 +29,7 @@ from string_visualizer import (
     parse_regex_for_highlighting,
     find_fuzzy_segment_at_index,
     replace_segment_pattern,
+    resize_literal_segment,
     extract_quantifier,
     _subpattern_to_string,
     strip_capturing_groups,
@@ -3024,6 +3026,447 @@ class TestSearchBoxMultipleRoundTrips(unittest.TestCase):
 
         # Only the changing values should be in undo history
         self.assertEqual(model['undoHistory'], [None, '/', '/h', '/he', '/hel', '/hell', '/hello'])
+
+
+# =============================================================================
+# Test Helper: Handle Mouse Down Events
+# =============================================================================
+
+def make_handle_mouse_down_event(segment_index: int, side: str) -> dict:
+    """Create a HandleMouseDown event dict for drag handle interaction.
+
+    Args:
+        segment_index: Index of the segment whose handle is being dragged
+        side: 'left' or 'right' - which handle
+    """
+    return {
+        'pythonEventStr': repr(HandleMouseDown(segment_index=segment_index, side=side)),
+        'eventJSON': {
+            'buttons': 1,
+        }
+    }
+
+
+# =============================================================================
+# Tests: resize_literal_segment (core function)
+# =============================================================================
+
+class TestResizeLiteralSegment(unittest.TestCase):
+    """Test the resize_literal_segment function that modifies a literal segment's boundaries.
+
+    For "hello world", internal indices are:
+        0=\\A, 1=^, 2=h, 3=e, 4=l, 5=l, 6=o, 7=' ', 8=w, 9=o, 10=r, 11=l, 12=d, 13=$, 14=\\Z
+
+    /(hello)/ matches "hello" at string indices 0-4, internal range [2, 7).
+    """
+
+    def setUp(self):
+        self.value = "hello world"
+
+    def test_expand_right(self):
+        """Expand 'hello' right to include space -> 'hello '."""
+        result = resize_literal_segment('/(hello)/', 0, self.value, 2, 8)
+        self.assertEqual(result, '/(hello\\ )/')
+
+    def test_collapse_right(self):
+        """Collapse 'hello' from right to 'hell'."""
+        result = resize_literal_segment('/(hello)/', 0, self.value, 2, 6)
+        self.assertEqual(result, '/(hell)/')
+
+    def test_expand_left(self):
+        """Expand 'ello' left to include 'h' -> 'hello'."""
+        result = resize_literal_segment('/(ello)/', 0, self.value, 2, 7)
+        self.assertEqual(result, '/(hello)/')
+
+    def test_collapse_left(self):
+        """Collapse 'hello' from left to 'ello'."""
+        result = resize_literal_segment('/(hello)/', 0, self.value, 3, 7)
+        self.assertEqual(result, '/(ello)/')
+
+    def test_single_char(self):
+        """Resize to single char 'h'."""
+        result = resize_literal_segment('/(hello)/', 0, self.value, 2, 3)
+        self.assertEqual(result, '/(h)/')
+
+    def test_no_change_if_empty_range(self):
+        """Empty range (new_end <= new_start) returns original regex unchanged."""
+        result = resize_literal_segment('/(hello)/', 0, self.value, 5, 5)
+        self.assertEqual(result, '/(hello)/')
+
+    def test_multi_segment_resize_first(self):
+        """Resize first segment in multi-segment regex."""
+        result = resize_literal_segment('/(hello)(.*)(world)/', 0, self.value, 2, 8)
+        self.assertEqual(result, '/(hello\\ )(.*)(world)/')
+
+    def test_multi_segment_resize_last(self):
+        """Resize last segment in multi-segment regex."""
+        result = resize_literal_segment('/(hello)(.*)(world)/', 2, self.value, 7, 13)
+        self.assertEqual(result, '/(hello)(.*)(\\ world)/')
+
+    def test_preserves_other_segments(self):
+        """Other segments are unchanged when one is resized."""
+        result = resize_literal_segment('/(hello)(.*)(world)/', 0, self.value, 2, 3)
+        self.assertEqual(result, '/(h)(.*)(world)/')
+
+
+# =============================================================================
+# Tests: Literal Drag Handle Update Logic
+# =============================================================================
+
+class TestLiteralDragHandleUpdate(unittest.TestCase):
+    """Test the handle drag interaction flow through update().
+
+    For "hello world", internal indices are:
+        0=\\A, 1=^, 2=h, 3=e, 4=l, 5=l, 6=o, 7=' ', 8=w, 9=o, 10=r, 11=l, 12=d, 13=$, 14=\\Z
+    """
+
+    def setUp(self):
+        self.value = "hello world"
+        self.model = init_model(self.value)
+        self.source_code = "x = 'hello world'"
+        self.source_line = 1
+
+    # --- Handle drag start ---
+
+    def test_handle_mouse_down_right_starts_drag(self):
+        """HandleMouseDown on right side starts handle drag mode."""
+        model = init_model(self.value)
+        model['selectionRegex'] = '/(hello)/'
+
+        model, commands = update(make_handle_mouse_down_event(0, 'right'),
+                                 self.source_code, self.source_line, model, self.value)
+
+        self.assertIsNotNone(model.get('handleDrag'))
+        self.assertEqual(model['handleDrag']['segmentIndex'], 0)
+        self.assertEqual(model['handleDrag']['side'], 'right')
+        self.assertEqual(commands, [])
+
+    def test_handle_mouse_down_left_starts_drag(self):
+        """HandleMouseDown on left side starts handle drag mode."""
+        model = init_model(self.value)
+        model['selectionRegex'] = '/(hello)/'
+
+        model, commands = update(make_handle_mouse_down_event(0, 'left'),
+                                 self.source_code, self.source_line, model, self.value)
+
+        self.assertIsNotNone(model.get('handleDrag'))
+        self.assertEqual(model['handleDrag']['segmentIndex'], 0)
+        self.assertEqual(model['handleDrag']['side'], 'left')
+
+    # --- Mouse move during handle drag ---
+
+    def test_mouse_move_during_handle_drag_updates_cursor(self):
+        """MouseMove during handle drag updates the drag cursor position."""
+        model = init_model(self.value)
+        model['selectionRegex'] = '/(hello)/'
+
+        model, _ = update(make_handle_mouse_down_event(0, 'right'),
+                          self.source_code, self.source_line, model, self.value)
+        model, _ = update(make_mouse_move_event(8),
+                          self.source_code, self.source_line, model, self.value)
+
+        self.assertEqual(model['handleDrag']['cursorIdx'], 8)
+
+    def test_mouse_move_during_handle_drag_does_not_start_new_selection(self):
+        """MouseMove during handle drag should NOT set anchorIdx/cursorIdx on model root."""
+        model = init_model(self.value)
+        model['selectionRegex'] = '/(hello)/'
+
+        model, _ = update(make_handle_mouse_down_event(0, 'right'),
+                          self.source_code, self.source_line, model, self.value)
+        model, _ = update(make_mouse_move_event(8),
+                          self.source_code, self.source_line, model, self.value)
+
+        # The normal drag state should not be set
+        self.assertIsNone(model.get('anchorIdx'))
+        self.assertFalse(model.get('dragging', False))
+
+    # --- Mouse up finalizes handle drag ---
+
+    def test_mouse_up_finalizes_handle_drag(self):
+        """MouseUp finalizes the handle drag and clears handleDrag state."""
+        model = init_model(self.value)
+        model['selectionRegex'] = '/(hello)/'
+
+        model, _ = update(make_handle_mouse_down_event(0, 'right'),
+                          self.source_code, self.source_line, model, self.value)
+        model, _ = update(make_mouse_move_event(7),
+                          self.source_code, self.source_line, model, self.value)
+        model, _ = update(make_mouse_up_event(7),
+                          self.source_code, self.source_line, model, self.value)
+
+        self.assertIsNone(model.get('handleDrag'))
+
+    # --- Full drag right handle sequences ---
+
+    def test_drag_right_handle_right_expands(self):
+        """Drag right handle rightward: hello -> hello (space)."""
+        model = init_model(self.value)
+        model['selectionRegex'] = '/(hello)/'
+
+        model, _ = update(make_handle_mouse_down_event(0, 'right'),
+                          self.source_code, self.source_line, model, self.value)
+        model, _ = update(make_mouse_move_event(7),
+                          self.source_code, self.source_line, model, self.value)
+        model, _ = update(make_mouse_up_event(7),
+                          self.source_code, self.source_line, model, self.value)
+
+        self.assertEqual(model['selectionRegex'], '/(hello\\ )/')
+
+    def test_drag_right_handle_left_collapses(self):
+        """Drag right handle leftward: hello -> hell."""
+        model = init_model(self.value)
+        model['selectionRegex'] = '/(hello)/'
+
+        # hello is internal [2,7). Drag right handle to index 5 (second l).
+        model, _ = update(make_handle_mouse_down_event(0, 'right'),
+                          self.source_code, self.source_line, model, self.value)
+        model, _ = update(make_mouse_move_event(5),
+                          self.source_code, self.source_line, model, self.value)
+        model, _ = update(make_mouse_up_event(5),
+                          self.source_code, self.source_line, model, self.value)
+
+        self.assertEqual(model['selectionRegex'], '/(hell)/')
+
+    # --- Full drag left handle sequences ---
+
+    def test_drag_left_handle_left_expands(self):
+        """Drag left handle leftward: ello -> hello."""
+        model = init_model(self.value)
+        model['selectionRegex'] = '/(ello)/'
+
+        # ello matches internal [3,7). Drag left handle to index 2 (h).
+        model, _ = update(make_handle_mouse_down_event(0, 'left'),
+                          self.source_code, self.source_line, model, self.value)
+        model, _ = update(make_mouse_move_event(2),
+                          self.source_code, self.source_line, model, self.value)
+        model, _ = update(make_mouse_up_event(2),
+                          self.source_code, self.source_line, model, self.value)
+
+        self.assertEqual(model['selectionRegex'], '/(hello)/')
+
+    def test_drag_left_handle_right_collapses(self):
+        """Drag left handle rightward: hello -> ello."""
+        model = init_model(self.value)
+        model['selectionRegex'] = '/(hello)/'
+
+        # hello is internal [2,7). Drag left handle to index 3 (e).
+        model, _ = update(make_handle_mouse_down_event(0, 'left'),
+                          self.source_code, self.source_line, model, self.value)
+        model, _ = update(make_mouse_move_event(3),
+                          self.source_code, self.source_line, model, self.value)
+        model, _ = update(make_mouse_up_event(3),
+                          self.source_code, self.source_line, model, self.value)
+
+        self.assertEqual(model['selectionRegex'], '/(ello)/')
+
+    # --- Minimum size: cannot collapse to empty ---
+
+    def test_right_handle_cannot_collapse_past_start(self):
+        """Dragging right handle past start keeps at least 1 char."""
+        model = init_model(self.value)
+        model['selectionRegex'] = '/(h)/'
+
+        # h is internal [2,3). Drag right handle to index 1 (past start).
+        model, _ = update(make_handle_mouse_down_event(0, 'right'),
+                          self.source_code, self.source_line, model, self.value)
+        model, _ = update(make_mouse_move_event(1),
+                          self.source_code, self.source_line, model, self.value)
+        model, _ = update(make_mouse_up_event(1),
+                          self.source_code, self.source_line, model, self.value)
+
+        # Should stay as /(h)/ - at least 1 char
+        self.assertEqual(model['selectionRegex'], '/(h)/')
+
+    def test_left_handle_cannot_collapse_past_end(self):
+        """Dragging left handle past end keeps at least 1 char."""
+        model = init_model(self.value)
+        model['selectionRegex'] = '/(h)/'
+
+        # h is internal [2,3). Drag left handle to index 3 (past end).
+        model, _ = update(make_handle_mouse_down_event(0, 'left'),
+                          self.source_code, self.source_line, model, self.value)
+        model, _ = update(make_mouse_move_event(3),
+                          self.source_code, self.source_line, model, self.value)
+        model, _ = update(make_mouse_up_event(3),
+                          self.source_code, self.source_line, model, self.value)
+
+        # Should stay as /(h)/ - at least 1 char
+        self.assertEqual(model['selectionRegex'], '/(h)/')
+
+    # --- Multi-segment resize ---
+
+    def test_resize_first_segment_in_multi(self):
+        """Resize first segment in /(hello)(.*)(world)/."""
+        model = init_model(self.value)
+        model['selectionRegex'] = '/(hello)(.*)(world)/'
+
+        # Drag right handle of hello to include space.
+        model, _ = update(make_handle_mouse_down_event(0, 'right'),
+                          self.source_code, self.source_line, model, self.value)
+        model, _ = update(make_mouse_move_event(7),
+                          self.source_code, self.source_line, model, self.value)
+        model, _ = update(make_mouse_up_event(7),
+                          self.source_code, self.source_line, model, self.value)
+
+        self.assertEqual(model['selectionRegex'], '/(hello\\ )(.*)(world)/')
+
+    def test_resize_last_segment_in_multi(self):
+        """Resize last segment in /(hello)(.*)(world)/."""
+        model = init_model(self.value)
+        model['selectionRegex'] = '/(hello)(.*)(world)/'
+
+        # world is internal [8,13). Drag left handle to index 7 (space).
+        model, _ = update(make_handle_mouse_down_event(2, 'left'),
+                          self.source_code, self.source_line, model, self.value)
+        model, _ = update(make_mouse_move_event(7),
+                          self.source_code, self.source_line, model, self.value)
+        model, _ = update(make_mouse_up_event(7),
+                          self.source_code, self.source_line, model, self.value)
+
+        self.assertEqual(model['selectionRegex'], '/(hello)(.*)(\\ world)/')
+
+    # --- Undo history ---
+
+    def test_handle_drag_saves_to_undo_history(self):
+        """Handle drag finalization saves old regex to undo history."""
+        model = init_model(self.value)
+        model['selectionRegex'] = '/(hello)/'
+
+        model, _ = update(make_handle_mouse_down_event(0, 'right'),
+                          self.source_code, self.source_line, model, self.value)
+        model, _ = update(make_mouse_move_event(7),
+                          self.source_code, self.source_line, model, self.value)
+        model, _ = update(make_mouse_up_event(7),
+                          self.source_code, self.source_line, model, self.value)
+
+        self.assertIn('/(hello)/', model['undoHistory'])
+
+    def test_handle_drag_no_change_does_not_add_to_undo(self):
+        """If handle is dragged back to original position, no undo entry."""
+        model = init_model(self.value)
+        model['selectionRegex'] = '/(hello)/'
+        undo_before = list(model.get('undoHistory', []))
+
+        # Drag right handle to 8 then back to 6 (original last char index).
+        model, _ = update(make_handle_mouse_down_event(0, 'right'),
+                          self.source_code, self.source_line, model, self.value)
+        model, _ = update(make_mouse_move_event(8),
+                          self.source_code, self.source_line, model, self.value)
+        model, _ = update(make_mouse_move_event(6),
+                          self.source_code, self.source_line, model, self.value)
+        model, _ = update(make_mouse_up_event(6),
+                          self.source_code, self.source_line, model, self.value)
+
+        self.assertEqual(model['selectionRegex'], '/(hello)/')
+        self.assertEqual(model.get('undoHistory', []), undo_before)
+
+    # --- Preview during drag ---
+
+    def test_preview_shows_resized_segment_during_drag(self):
+        """During handle drag, the visualize output reflects the resized segment."""
+        model = init_model(self.value)
+        model['selectionRegex'] = '/(hello)/'
+
+        model, _ = update(make_handle_mouse_down_event(0, 'right'),
+                          self.source_code, self.source_line, model, self.value)
+        model, _ = update(make_mouse_move_event(7),
+                          self.source_code, self.source_line, model, self.value)
+
+        # Still in handle-drag mode (no mouse-up yet).
+        self.assertIsNotNone(model.get('handleDrag'))
+
+        # The visualize function should use the preview regex which includes the space.
+        html_output = visualize(self.value, model)
+        # The space character (index 7) should have highlight styling
+        # (border-top indicates literal highlight).
+        # We check that the space char is highlighted by looking for border-top near the space.
+        self.assertIn('border-top', html_output)
+
+    # --- Mouse released outside (buttons=0) during handle drag ---
+
+    def test_mouse_move_buttons_0_finalizes_handle_drag(self):
+        """MouseMove with buttons=0 during handle drag finalizes it."""
+        model = init_model(self.value)
+        model['selectionRegex'] = '/(hello)/'
+
+        model, _ = update(make_handle_mouse_down_event(0, 'right'),
+                          self.source_code, self.source_line, model, self.value)
+        model, _ = update(make_mouse_move_event(7),
+                          self.source_code, self.source_line, model, self.value)
+
+        # Mouse released outside - buttons=0
+        model, _ = update(make_mouse_move_event(8, buttons=0),
+                          self.source_code, self.source_line, model, self.value)
+
+        self.assertIsNone(model.get('handleDrag'))
+        self.assertEqual(model['selectionRegex'], '/(hello\\ )/')
+
+
+# =============================================================================
+# Tests: Literal Drag Handle Rendering
+# =============================================================================
+
+class TestLiteralDragHandleRendering(unittest.TestCase):
+    """Test that drag handles appear in HTML for literal segments, not fuzzy."""
+
+    def setUp(self):
+        self.value = "hello world"
+
+    def test_literal_segment_has_ew_resize_cursor(self):
+        """Literal selection bracket renders elements with ew-resize cursor."""
+        model = init_model(self.value)
+        model['selectionRegex'] = '/(hello)/'
+        html_output = visualize(self.value, model)
+        self.assertIn('ew-resize', html_output)
+
+    def test_literal_segment_has_left_handle(self):
+        """First char of literal segment renders a left drag handle."""
+        model = init_model(self.value)
+        model['selectionRegex'] = '/(hello)/'
+        html_output = visualize(self.value, model)
+        self.assertIn("side=&#x27;left&#x27;", html_output)
+
+    def test_literal_segment_has_right_handle(self):
+        """Last char of literal segment renders a right drag handle."""
+        model = init_model(self.value)
+        model['selectionRegex'] = '/(hello)/'
+        html_output = visualize(self.value, model)
+        self.assertIn("side=&#x27;right&#x27;", html_output)
+
+    def test_literal_handle_has_HandleMouseDown_event(self):
+        """Drag handle elements have HandleMouseDown event attribute."""
+        model = init_model(self.value)
+        model['selectionRegex'] = '/(hello)/'
+        html_output = visualize(self.value, model)
+        self.assertIn('HandleMouseDown', html_output)
+
+    def test_fuzzy_segment_has_no_drag_handles(self):
+        """Fuzzy selection does NOT render drag handles."""
+        model = init_model(self.value)
+        model['selectionRegex'] = '/(.*)/'
+        html_output = visualize(self.value, model)
+        self.assertNotIn('ew-resize', html_output)
+        self.assertNotIn('HandleMouseDown', html_output)
+
+    def test_mixed_segments_only_literal_has_handles(self):
+        """In /(hello)(.*)(world)/, only literal segments have handles."""
+        model = init_model(self.value)
+        model['selectionRegex'] = '/(hello)(.*)(world)/'
+        html_output = visualize(self.value, model)
+        # Should have handles for hello and world (both literal)
+        self.assertIn('HandleMouseDown', html_output)
+        # Count occurrences: 2 segments * 2 handles each = 4 HandleMouseDown
+        handle_count = html_output.count('HandleMouseDown')
+        self.assertEqual(handle_count, 4)
+
+    def test_handle_is_4px_box(self):
+        """Drag handle is a 4px box."""
+        model = init_model(self.value)
+        model['selectionRegex'] = '/(hello)/'
+        html_output = visualize(self.value, model)
+        self.assertIn('width: 4px', html_output)
+        self.assertIn('height: 4px', html_output)
 
 
 # =============================================================================

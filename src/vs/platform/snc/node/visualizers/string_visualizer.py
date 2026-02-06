@@ -112,6 +112,11 @@ class DropdownSelect:
     option_value: str
 
 @dataclass(frozen=True, slots=True)
+class HandleMouseDown:
+    segment_index: int
+    side: str  # 'left' or 'right'
+
+@dataclass(frozen=True, slots=True)
 class SearchBoxInput:
     value: str
 
@@ -344,6 +349,14 @@ def char_span(string, index, is_special, highlight=None, model=None):
                 pat_html = f'<span style="position: relative; display: inline-block; vertical-align: baseline">{fuzzy_dropdown_html(pat_str, segment_index, color)}</span>'
             else:
                 pat_html = overlay_html(pat_str, 'left', seg_type, color)
+                # Left drag handle for literal segments (4px invisible box at upper-left corner)
+                left_handle_event = repr(HandleMouseDown(segment_index=segment_index, side='left'))
+                pat_html += (
+                    '<span style="position: relative; display: inline-block; width: 0; height: 0; vertical-align: text-top;">'
+                    f'<span snc-mouse-down="{html.escape(left_handle_event)}" '
+                    'style="position: absolute; top: 0; left: 0; width: 4px; height: 4px; '
+                    'cursor: ew-resize; z-index: 20;"></span></span>'
+                )
         if end - 1 == index:
             styles += f' border-right: 1px solid {color}; padding-right: 0px;'
             if min_count == max_count:
@@ -361,6 +374,15 @@ def char_span(string, index, is_special, highlight=None, model=None):
             else:
                 rep_str = f'{min_count}-{max_count}'
             repetition_html = overlay_html(rep_str, 'right', seg_type, color)
+            if seg_type == 'literal':
+                # Right drag handle for literal segments (4px invisible box at upper-right corner)
+                right_handle_event = repr(HandleMouseDown(segment_index=segment_index, side='right'))
+                repetition_html += (
+                    '<span style="position: relative; display: inline-block; width: 0; height: 0; vertical-align: text-top;">'
+                    f'<span snc-mouse-down="{html.escape(right_handle_event)}" '
+                    'style="position: absolute; top: 0; left: -4px; width: 4px; height: 4px; '
+                    'cursor: ew-resize; z-index: 20;"></span></span>'
+                )
 
     return f'{pat_html}<span data-snc-idx="{index}" snc-mouse-move="{html.escape(repr(MouseMove(index)))}" snc-mouse-down="{html.escape(repr(MouseDown(index)))}" snc-mouse-up="{html.escape(repr(MouseUp(index)))}" style="{styles}">{html.escape(string)}</span>{repetition_html}'
 
@@ -765,6 +787,57 @@ def replace_segment_pattern(selection_regex: str, segment_index: int, new_char_c
         _, quantifier = extract_quantifier(old_content)
         # Build new segment with new char class + old quantifier
         segments[segment_index] = f"({new_char_class}{quantifier})"
+
+    return f"/{''.join(segments)}/"
+
+
+def resize_literal_segment(selection_regex: str, segment_index: int, string_value: str,
+                           new_start: int, new_end: int) -> str:
+    """
+    Resize a literal segment to cover [new_start, new_end) in internal indices.
+
+    Extracts text from string_value at the given internal indices, converts each
+    character to its regex literal form, and replaces the specified segment's content.
+
+    Args:
+        selection_regex: Regex with / delimiters, e.g., "/(hello)/"
+        segment_index: 0-based index of the segment to resize
+        string_value: The string being visualized
+        new_start: New start internal index (inclusive)
+        new_end: New end internal index (exclusive)
+
+    Returns:
+        New regex pattern with the segment resized, or original if range is empty.
+    """
+    if new_end <= new_start:
+        return selection_regex  # Can't make empty
+
+    # Extract text from internal indices
+    text = extract_by_internal_indices(string_value, new_start, new_end)
+
+    # Convert to regex literal
+    regex_parts = [char_to_regex_literal(char) for char in text]
+    new_content = ''.join(regex_parts)
+
+    # Parse the inner pattern and replace the segment
+    inner_pattern = selection_regex[1:-1]
+    segments = []
+    depth = 0
+    current_start = 0
+
+    for i, char in enumerate(inner_pattern):
+        if char == '(' and (i == 0 or inner_pattern[i-1] != '\\'):
+            if depth == 0:
+                current_start = i
+            depth += 1
+        elif char == ')' and (i == 0 or inner_pattern[i-1] != '\\'):
+            depth -= 1
+            if depth == 0:
+                segments.append(inner_pattern[current_start:i+1])
+
+    # Replace the specified segment
+    if 0 <= segment_index < len(segments):
+        segments[segment_index] = f'({new_content})'
 
     return f"/{''.join(segments)}/"
 
@@ -1573,6 +1646,46 @@ def vis_char_with_index(char, i, highlight_by_index, model=None):
     return (char_span(char, i, False, highlight_by_index.get(i), model), i + 1)
 
 
+def _compute_handle_drag_regex(model: dict, string_value: str) -> str | None:
+    """
+    Compute the regex during an active handle drag, resizing the target literal segment.
+
+    Uses the handleDrag state (segmentIndex, side, cursorIdx) plus the current
+    selectionRegex and string_value to determine the new segment boundaries.
+
+    Args:
+        model: The model state (must have handleDrag set)
+        string_value: The string being visualized
+
+    Returns:
+        The preview regex with the segment resized, or the current selectionRegex on error.
+    """
+    handle_drag = model['handleDrag']
+    segment_index = handle_drag['segmentIndex']
+    side = handle_drag['side']
+    cursor_idx = handle_drag['cursorIdx']
+    selection_regex = model.get('selectionRegex')
+
+    if selection_regex is None:
+        return None
+
+    # Get current highlights to find segment boundaries
+    highlights = parse_regex_for_highlighting(selection_regex, string_value)
+    if segment_index >= len(highlights):
+        return selection_regex
+
+    current_start, current_end, seg_type, _, _, _ = highlights[segment_index]
+
+    if side == 'right':
+        new_start = current_start
+        new_end = max(cursor_idx + 1, current_start + 1)  # At least 1 char
+    else:  # left
+        new_start = min(cursor_idx, current_end - 1)  # At least 1 char
+        new_end = current_end
+
+    return resize_literal_segment(selection_regex, segment_index, string_value, new_start, new_end)
+
+
 def build_preview_regex(model, string_value: str) -> str | None:
     """
     Build what the regex would look like if we finalized the in-progress selection.
@@ -1586,6 +1699,13 @@ def build_preview_regex(model, string_value: str) -> str | None:
     Returns:
         The preview regex string, or the current selectionRegex if no in-progress selection
     """
+    # Check for handle drag state first
+    handle_drag = model.get('handleDrag')
+    if handle_drag is not None:
+        cursor_idx = handle_drag.get('cursorIdx')
+        if cursor_idx is not None:
+            return _compute_handle_drag_regex(model, string_value)
+
     a = model.get('anchorIdx')
     c = model.get('cursorIdx')
 
@@ -1717,6 +1837,7 @@ def init_model(value):
         "extendDirection": None,  # "left", "right", or None - which side we're extending from
         "insertAfterSegment": None,  # Segment index to insert after (for clicking inside fuzzy)
         "openDropdown": None,     # {"id": "fuzzy-pattern-0", "segmentIndex": 0} when dropdown is open
+        "handleDrag": None,       # {"segmentIndex": int, "side": "left"|"right", "cursorIdx": int} when dragging a handle
         "undoHistory": [],        # Stack of previous selectionRegex states
         "redoHistory": [],        # Stack for redo
         "handledKeys": ["Escape", "Enter", "cmd z", "cmd shift z"]  # Keys to intercept from VS Code
@@ -1760,6 +1881,30 @@ def finalize_segment(model: dict, string_value: str) -> dict:
     return model
 
 
+def finalize_handle_drag(model: dict, string_value: str) -> dict:
+    """
+    Finalize a handle drag and update selectionRegex.
+
+    Computes the resized regex from the handle drag state, saves to undo history
+    if changed, and clears the handleDrag state.
+
+    Args:
+        model: The model state (must have handleDrag set)
+        string_value: The string being visualized
+    """
+    new_regex = _compute_handle_drag_regex(model, string_value)
+    current_regex = model.get('selectionRegex')
+
+    # Only update if something changed
+    if new_regex != current_regex:
+        model['undoHistory'] = model.get('undoHistory', []) + [current_regex]
+        model['redoHistory'] = []
+        model['selectionRegex'] = new_regex
+
+    model['handleDrag'] = None
+    return model
+
+
 def update(event, source_code: str, source_line: int, model: dict, value: str) -> Tuple[dict, List[Any]]:
     """
     Update model based on event. Returns (new_model, commands) tuple.
@@ -1786,9 +1931,24 @@ def update(event, source_code: str, source_line: int, model: dict, value: str) -
     msg = make_python_event(event_json) if callable(make_python_event) else make_python_event
 
     match msg:
+        case HandleMouseDown(segment_index=seg_idx, side=side):
+            # Start a handle drag on a literal segment edge
+            model['handleDrag'] = {
+                'segmentIndex': seg_idx,
+                'side': side,
+                'cursorIdx': None,  # Will be set on first MouseMove
+            }
+            # Clear any normal drag state
+            model['dragging'] = False
+            model['anchorIdx'] = None
+            model['cursorIdx'] = None
+            model['openDropdown'] = None
+
         case MouseDown(index=idx):
             # Close any open dropdown when clicking elsewhere
             model['openDropdown'] = None
+            # Cancel any handle drag
+            model['handleDrag'] = None
 
             selection_regex = model.get('selectionRegex')
 
@@ -1846,7 +2006,14 @@ def update(event, source_code: str, source_line: int, model: dict, value: str) -
             model['dragging'] = True
 
         case MouseMove(index=idx):
-            if event_json.get('buttons') == 0:  # Mouse released outside widget
+            if model.get('handleDrag') is not None:
+                # Handle drag mode: update cursor position on the drag handle
+                if event_json.get('buttons') == 0:
+                    # Mouse released outside widget - finalize handle drag
+                    model = finalize_handle_drag(model, value)
+                else:
+                    model['handleDrag']['cursorIdx'] = idx
+            elif event_json.get('buttons') == 0:  # Mouse released outside widget
                 model = finalize_segment(model, value)
             elif model.get('dragging'):
                 # For fuzzy, don't update cursorIdx during drag (no drag preview)
@@ -1855,7 +2022,11 @@ def update(event, source_code: str, source_line: int, model: dict, value: str) -
                     model['cursorIdx'] = idx
 
         case MouseUp(index=idx):
-            if model.get('dragging'):
+            if model.get('handleDrag') is not None:
+                # Finalize handle drag
+                model['handleDrag']['cursorIdx'] = idx
+                model = finalize_handle_drag(model, value)
+            elif model.get('dragging'):
                 # For literal selections, update cursor on mouse up
                 # For fuzzy, cursor stays at anchor (no drag)
                 anchor_type = model.get('anchorType', 'literal')
