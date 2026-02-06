@@ -24,6 +24,8 @@ import traceback
 import os
 import importlib.util
 import glob
+import time
+import hashlib
 from contextlib import redirect_stdout, redirect_stderr
 from io import StringIO
 from typing import List, Dict, Any, Optional, Callable, Protocol, TextIO, cast
@@ -248,6 +250,84 @@ def _visualizers() -> List[StaticVisualizer | Visualizer]:
 				_loaded_visualizers.append(visualizer)
 
 	return _loaded_visualizers
+
+
+# ============================================================================
+# PRELOADING INFRASTRUCTURE
+# Fork-based checkpointing for fast execution
+# ============================================================================
+
+_visualizers_hash = ""  # Hash of visualizer files for cache invalidation
+
+
+def emit_meta(meta: str) -> None:
+	"""Emit a meta message for debugging/timing."""
+	try:
+		_stream_out.write(json.dumps({"type": "meta", "meta": meta, "t": time.time()}, ensure_ascii=False) + "\n")
+		_stream_out.flush()
+	except Exception:
+		pass
+
+
+def emit_checkpoint_ready(checkpoint: int, code_hash: str = "", visualizers_hash: str = "") -> None:
+	"""Emit a message indicating a checkpoint is ready for forking."""
+	try:
+		msg = {
+			"type": "checkpoint_ready",
+			"checkpoint": checkpoint,
+			"pid": os.getpid(),
+			"code_hash": code_hash,
+			"visualizers_hash": visualizers_hash
+		}
+		_stream_out.write(json.dumps(msg, ensure_ascii=False) + "\n")
+		_stream_out.flush()
+	except Exception:
+		pass
+
+
+def emit_fork_result(success: bool, child_pid: int = 0, error: str = "") -> None:
+	"""Emit result of a fork operation."""
+	try:
+		msg = {
+			"type": "fork_result",
+			"success": success,
+			"child_pid": child_pid,
+			"error": error
+		}
+		_stream_out.write(json.dumps(msg, ensure_ascii=False) + "\n")
+		_stream_out.flush()
+	except Exception:
+		pass
+
+
+def _compute_visualizers_hash() -> str:
+	"""Compute a hash of all visualizer files for cache invalidation."""
+	hasher = hashlib.md5()
+	for dir in search_paths:
+		if not os.path.isdir(dir):
+			continue
+		for filepath in sorted(glob.glob(os.path.join(dir, '*_visualizer.py'))):
+			try:
+				with open(filepath, 'rb') as f:
+					hasher.update(filepath.encode())
+					hasher.update(f.read())
+			except Exception:
+				pass
+	return hasher.hexdigest()
+
+
+def _preload_visualizers() -> str:
+	"""Preload all visualizers and return the hash."""
+	global _visualizers_hash
+	_visualizers()
+	_visualizers_hash = _compute_visualizers_hash()
+	return _visualizers_hash
+
+
+def compute_code_hash(code: str) -> str:
+	"""Compute a hash of the code for checkpoint identification."""
+	return hashlib.md5(code.encode()).hexdigest()
+
 
 class CodeTransformer(ast.NodeTransformer):
 	"""
@@ -1202,39 +1282,223 @@ def run_with_visualization(code: str) -> Dict[str, Any]:
 	}
 
 
+# ============================================================================
+# PRELOAD MODE FUNCTIONS
+# ============================================================================
+
+
+def execute_code(code_object: Any, globals_dict: Dict[str, Any]) -> Dict[str, Any]:
+	"""Execute compiled code and return result with stdout/stderr/exitCode."""
+	out_buf = StringIO()
+	err_buf = StringIO()
+	exit_code = 0
+
+	with redirect_stdout(out_buf), redirect_stderr(err_buf):
+		emit_meta('exec-start')
+		try:
+			exec(code_object, globals_dict)
+		except Exception as e:
+			tb_str = traceback.format_exc()
+			error_type = type(e).__name__
+			error_message = str(e)
+			error_line = extract_error_line_from_traceback(tb_str)
+			error_msg_str = f"{error_type}: {error_message}"
+			log_value(error_line, error_msg_str)
+			print(tb_str, file=sys.stderr)
+			exit_code = 1
+
+	return {
+		"stdout": out_buf.getvalue(),
+		"stderr": err_buf.getvalue(),
+		"exitCode": exit_code
+	}
+
+
+def _execute_run(code_object: Any, models_and_events_json: str, run_id: str) -> None:
+	"""Execute a run with the given code object and models/events."""
+	global models_and_events, execution_step, line_emit_counter
+
+	execution_step = 0
+	line_emit_counter = {}
+
+	if models_and_events_json and models_and_events_json.strip():
+		try:
+			models_and_events = json.loads(models_and_events_json)
+		except Exception:
+			models_and_events = []
+	else:
+		models_and_events = []
+
+	globals_dict = {
+		'__name__': '__main__',
+		'__file__': '<string>',
+		'_log_value': log_value,
+		'_log_and_return': log_and_return
+	}
+	sys.argv = []
+
+	result = execute_code(code_object, globals_dict)
+	_stream_out.write(json.dumps({"type": "end", "result": result, "run_id": run_id}) + "\n")
+	_stream_out.flush()
+
+
+def run_preload_mode(working_directory: str) -> None:
+	"""
+	Run in preload mode with fork-based checkpoints for fast execution.
+	
+	Checkpoint 1: Process with visualizers preloaded, ready to receive code.
+	Checkpoint 2: Same code as before, skip transformation using cached code_object.
+	"""
+	global models_and_events, _source_code, execution_step, line_emit_counter
+
+	emit_meta('preload-mode-start')
+
+	try:
+		os.chdir(working_directory)
+	except OSError as e:
+		_stream_out.write(json.dumps({"type": "error", "error": f"Cannot chdir: {e}"}) + "\n")
+		_stream_out.flush()
+		sys.exit(1)
+
+	emit_meta('chdir-done')
+
+	visualizers_hash = _preload_visualizers()
+	emit_meta('visualizers-loaded')
+
+	# Checkpoint 2 cache
+	cached_code_hash: str = ""
+	cached_code_object: Any = None
+
+	emit_checkpoint_ready(1, code_hash="", visualizers_hash=visualizers_hash)
+
+	while True:
+		try:
+			line = sys.stdin.readline()
+			if not line:
+				break
+
+			line = line.strip()
+			if not line:
+				continue
+
+			try:
+				cmd = json.loads(line)
+			except json.JSONDecodeError:
+				continue
+
+			if cmd.get('type') != 'run':
+				continue
+
+			code = cmd.get('code', '')
+			models_and_events_json = cmd.get('models_and_events', '')
+			run_id = cmd.get('run_id', '')
+			code_hash = compute_code_hash(code)
+
+			emit_meta(f'received-run-{run_id}')
+
+			use_checkpoint2 = (code_hash == cached_code_hash and cached_code_object is not None)
+
+			if use_checkpoint2:
+				emit_meta(f'checkpoint2-hit-{run_id}')
+
+			try:
+				pid = os.fork()
+			except OSError as e:
+				emit_fork_result(False, error=str(e))
+				continue
+
+			if pid > 0:
+				emit_fork_result(True, child_pid=pid)
+				if not use_checkpoint2 and code.strip():
+					try:
+						transformed_ast = transform_code_to_ast(code)
+						cached_code_object = compile(transformed_ast, filename='<string>', mode='exec')
+						cached_code_hash = code_hash
+						emit_checkpoint_ready(2, code_hash=code_hash, visualizers_hash=visualizers_hash)
+					except Exception:
+						pass
+				continue
+
+			# Child process
+			_source_code = code
+			execution_step = 0
+			line_emit_counter = {}
+
+			if use_checkpoint2:
+				emit_meta('checkpoint2-child-started')
+				_execute_run(cached_code_object, models_and_events_json, run_id)
+			else:
+				emit_meta('checkpoint1-child-started')
+
+				if not code.strip():
+					result = {"stdout": "", "stderr": "", "exitCode": 0}
+					_stream_out.write(json.dumps({"type": "end", "result": result, "run_id": run_id}) + "\n")
+					_stream_out.flush()
+					os._exit(0)
+
+				emit_meta('transform-start')
+				try:
+					transformed_ast = transform_code_to_ast(code)
+				except SyntaxError as e:
+					error_line = e.lineno or 1
+					log_value(error_line, f"SyntaxError: {e.msg}")
+					result = {"stdout": "", "stderr": str(e), "exitCode": 1}
+					_stream_out.write(json.dumps({"type": "end", "result": result, "run_id": run_id}) + "\n")
+					_stream_out.flush()
+					os._exit(0)
+
+				emit_meta('transform-done')
+				code_object = compile(transformed_ast, filename='<string>', mode='exec')
+				emit_meta('compile-done')
+				_execute_run(code_object, models_and_events_json, run_id)
+
+			os._exit(0)
+
+		except Exception as e:
+			try:
+				_stream_out.write(json.dumps({"type": "error", "error": str(e)}) + "\n")
+				_stream_out.flush()
+			except Exception:
+				pass
+
+
 if __name__ == "__main__":
 	"""
 	Main execution block - handles command line usage of the python_runner.
 
-	Direct IPC mode:
-	- Expects only the working directory as an argument
-	- Reads code from stdin
-	- Visualized items encountered during execution are streamed to stdout (NDJSON)
-	- Emits a single JSON object to stdout containing stdout, stderr, and exitCode
+	Modes:
+	1. Preload mode: python_runner.py --preload <working_dir>
+	2. Direct mode: python_runner.py <working_dir>
 	"""
 
-	# Expect working directory as argument
+	emit_meta('runner-started')
+
 	if len(sys.argv) < 2:
 		print("Error: Working directory required as argument", file=sys.stderr)
 		sys.exit(1)
 
+	if sys.argv[1] == '--preload':
+		if len(sys.argv) < 3:
+			print("Error: --preload requires working directory", file=sys.stderr)
+			sys.exit(1)
+		run_preload_mode(sys.argv[2])
+		sys.exit(0)
+
 	_, working_directory, *_ = sys.argv
 
-	# Change to the specified working directory before executing code
 	try:
 		os.chdir(working_directory)
 	except OSError as e:
 		print(f"Error: Cannot change to directory '{working_directory}': {e}", file=sys.stderr)
 		sys.exit(1)
 
-	# Read code from stdin
+	emit_meta('chdir-done')
 	code = sys.stdin.read()
+	emit_meta('code-received')
 
-	# Run and emit final JSON result to stdout (NDJSON final record)
 	result = run_with_visualization(code)
 	try:
 		_stream_out.write(json.dumps({"type": "end", "result": result}, ensure_ascii=False) + "\n")
 		_stream_out.flush()
 	except Exception:
-		# If writing the result fails for any reason, we cannot recover here
 		pass
