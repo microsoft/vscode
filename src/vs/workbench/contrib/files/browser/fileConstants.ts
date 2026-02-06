@@ -49,3 +49,4 @@ export const NEW_UNTITLED_FILE_COMMAND_ID = 'workbench.action.files.newUntitledF
 export const NEW_UNTITLED_FILE_LABEL = nls.localize2('newUntitledFile', "New Untitled Text File");
 export const NEW_FILE_COMMAND_ID = 'workbench.action.files.newFile';
 export const DUPLICATE_ACTIVE_FILE_COMMAND_ID = 'workbench.files.action.duplicateActiveFile';
+export const RENAME_ACTIVE_FILE_COMMAND_ID = 'workbench.files.action.renameActiveFile';

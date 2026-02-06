@@ -859,6 +859,164 @@ export class DuplicateActiveFileAction extends Action2 {
 	}
 }
 
+export class RenameActiveFileAction extends Action2 {
+
+	static readonly ID = 'workbench.files.action.renameActiveFile';
+	static readonly LABEL = nls.localize2('renameActiveFile', "Rename");
+
+	constructor() {
+		super({
+			id: RenameActiveFileAction.ID,
+			title: RenameActiveFileAction.LABEL,
+			f1: true,
+			category: Categories.File,
+			metadata: {
+				description: nls.localize2('renameActiveFileDescription', "Renames or moves the active file to a new location.")
+			}
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		const fileService = accessor.get(IFileService);
+		const dialogService = accessor.get(IDialogService);
+		const explorerService = accessor.get(IExplorerService);
+		const quickInputService = accessor.get(IQuickInputService);
+		const notificationService = accessor.get(INotificationService);
+		const contextService = accessor.get(IWorkspaceContextService);
+
+		const resource = EditorResourceAccessor.getOriginalUri(editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
+		if (!resource) {
+			dialogService.error(nls.localize('renameActiveFile.noResource', "The active editor must contain a file resource."));
+			return;
+		}
+
+		if (!fileService.hasProvider(resource)) {
+			dialogService.error(nls.localize('renameActiveFile.unsupportedScheme', "The file system does not support renaming this file."));
+			return;
+		}
+
+		const filename = resources.basename(resource);
+
+		// Compute relative path from workspace folder, or fall back to just filename
+		const workspaceFolder = contextService.getWorkspaceFolder(resource);
+		let relativePath: string;
+		let baseResource: URI;
+
+		if (workspaceFolder) {
+			relativePath = resources.relativePath(workspaceFolder.uri, resource) || filename;
+			baseResource = workspaceFolder.uri;
+		} else {
+			// No workspace folder, use parent directory and just the filename
+			relativePath = filename;
+			baseResource = resources.dirname(resource);
+		}
+
+		// Set up selection to select the filename without extension
+		const lastDot = relativePath.lastIndexOf('.');
+		const lastSep = Math.max(relativePath.lastIndexOf('/'), relativePath.lastIndexOf('\\'));
+		const filenameStart = lastSep >= 0 ? lastSep + 1 : 0;
+		const selectionEnd = lastDot > filenameStart ? lastDot : relativePath.length;
+
+		return new Promise<void>((resolve) => {
+			const inputBox = quickInputService.createInputBox();
+			inputBox.title = nls.localize('renameTitle', "Rename");
+			inputBox.value = relativePath;
+			inputBox.valueSelection = [filenameStart, selectionEnd];
+			inputBox.placeholder = nls.localize('renamePlaceholder', "Enter the new file path");
+			inputBox.ignoreFocusOut = true;
+
+			let validationTimer: ReturnType<typeof setTimeout> | undefined;
+
+			const validateInput = async (value: string): Promise<{ message: string; isError: boolean } | undefined> => {
+				if (!value || value.length === 0 || /^\s+$/.test(value)) {
+					return { message: nls.localize('renameEmptyError', "A file path must be provided."), isError: true };
+				}
+
+				// Same path as original - no change needed
+				if (value === relativePath) {
+					return undefined;
+				}
+
+				// Check for existing file (error - cannot overwrite with rename)
+				const targetUri = resources.joinPath(baseResource, value);
+				if (await fileService.exists(targetUri)) {
+					return { message: nls.localize('renameExistsError', "A file or folder with this path already exists."), isError: true };
+				}
+
+				return undefined;
+			};
+
+			inputBox.onDidChangeValue(value => {
+				if (validationTimer) {
+					clearTimeout(validationTimer);
+				}
+				validationTimer = setTimeout(async () => {
+					const validation = await validateInput(value);
+					if (validation) {
+						inputBox.validationMessage = validation.message;
+						inputBox.severity = validation.isError ? Severity.Error : Severity.Warning;
+					} else {
+						inputBox.validationMessage = undefined;
+					}
+				}, 100);
+			});
+
+			inputBox.onDidAccept(async () => {
+				const newPath = inputBox.value.trim();
+
+				if (!newPath || newPath.length === 0) {
+					inputBox.validationMessage = nls.localize('renameEmptyError', "A file path must be provided.");
+					inputBox.severity = Severity.Error;
+					return;
+				}
+
+				// Same path - just close
+				if (newPath === relativePath) {
+					inputBox.hide();
+					resolve();
+					return;
+				}
+
+				const targetUri = resources.joinPath(baseResource, newPath);
+
+				// Check if target exists - block rename
+				if (await fileService.exists(targetUri)) {
+					inputBox.validationMessage = nls.localize('renameExistsError', "A file or folder with this path already exists.");
+					inputBox.severity = Severity.Error;
+					return;
+				}
+
+				inputBox.hide();
+
+				try {
+					const resourceFileEdit = new ResourceFileEdit(resource, targetUri);
+					await explorerService.applyBulkEdit([resourceFileEdit], {
+						confirmBeforeUndo: true,
+						undoLabel: nls.localize('renameUndo', "Rename {0}", filename),
+						progressLabel: nls.localize('renameProgress', "Renaming {0}", filename)
+					});
+					// Editor automatically updates to new location - no openEditor() needed
+				} catch (error) {
+					notificationService.error(nls.localize('renameError', "Failed to rename file: {0}", getErrorMessage(error)));
+				}
+
+				resolve();
+			});
+
+			inputBox.onDidHide(() => {
+				inputBox.dispose();
+				if (validationTimer) {
+					clearTimeout(validationTimer);
+				}
+				resolve();
+			});
+
+			inputBox.show();
+		});
+	}
+}
+
 export function validateFileName(pathService: IPathService, item: ExplorerItem, name: string, os: OperatingSystem): { content: string; severity: Severity } | null {
 	// Produce a well formed file name
 	name = getWellFormedFileName(name);
