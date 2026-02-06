@@ -41,7 +41,7 @@ export async function showBrowserToast(controller: IShowToastController, options
 			disposables.dispose();	// ...disposing which would invalidate the result object
 		};
 
-		cts.token.onCancellationRequested(() => resolve({ supported: true, clicked: false }));
+		disposables.add(cts.token.onCancellationRequested(() => resolve({ supported: true, clicked: false })));
 
 		Event.once(toast.onClick)(() => resolve({ supported: true, clicked: true }));
 		Event.once(toast.onClose)(() => resolve({ supported: true, clicked: false }));

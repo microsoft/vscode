@@ -95,6 +95,13 @@
 	flex: auto;
 }
 
+.settings-editor > .settings-header > .settings-header-controls > .settings-right-controls {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding-bottom: 4px;
+}
+
 .settings-editor > .settings-header > .settings-header-controls .settings-tabs-widget .action-label {
 	opacity: 0.9;
 	border-radius: 0;
@@ -118,6 +125,7 @@
 	opacity: 1;
 	color: var(--vscode-settings-headerForeground);
 }
+
 .settings-editor > .settings-header > .settings-header-controls .settings-tabs-widget .action-label.checked:not(:focus) {
 	border-bottom-color: var(--vscode-settings-headerForeground);
 }
@@ -173,7 +181,8 @@
 }
 
 .settings-editor > .settings-body > .monaco-split-view2.separator-border .split-view-view:not(:first-child):before {
-	z-index: 16; /* Above sticky scroll */
+	z-index: 16;
+	/* Above sticky scroll */
 }
 
 .settings-editor > .settings-body .settings-toc-container,
@@ -228,7 +237,8 @@
 }
 
 .settings-editor > .settings-body .settings-tree-container .monaco-tree-sticky-container .monaco-list-row.focused .settings-row-inner-container {
-	background-color: unset; /* Remove Sticky Scroll focus */
+	background-color: unset;
+	/* Remove Sticky Scroll focus */
 }
 
 .settings-editor > .settings-body .settings-tree-container .monaco-list-row:not(.focused) .settings-row-inner-container:hover {
@@ -241,7 +251,8 @@
 }
 
 .settings-editor > .settings-body .settings-tree-container .monaco-list:focus-within .monaco-tree-sticky-container .monaco-list-row.focused .settings-group-title-label {
-	outline: none; /* Remove Sticky Scroll focus */
+	outline: none;
+	/* Remove Sticky Scroll focus */
 }
 
 .settings-editor > .settings-body .settings-tree-container .settings-editor-tree > .monaco-scrollable-element > .shadow.top {
@@ -336,6 +347,7 @@
 .settings-editor > .settings-body .settings-tree-container .monaco-scrollable-element {
 	padding-top: 0px;
 }
+
 .settings-editor > .settings-body .settings-toc-container .monaco-scrollable-element {
 	padding-top: 0px;
 }
@@ -363,20 +375,25 @@
 }
 
 .settings-editor > .settings-body .settings-tree-container .monaco-list-rows {
-	min-height: 100%; /* Avoid the hover being cut off. See #164602 and #165518 */
-	overflow: visible !important; /* Allow validation errors to flow out of the tree container. Override inline style from ScrollableElement. */
+	min-height: 100%;
+	/* Avoid the hover being cut off. See #164602 and #165518 */
+	overflow: visible !important;
+	/* Allow validation errors to flow out of the tree container. Override inline style from ScrollableElement. */
 }
 
 .settings-editor > .settings-body .settings-tree-container .monaco-list-row .monaco-tl-contents {
-	max-width: min(100%, 1200px); /* We don't want the widgets to be too long */
+	max-width: min(100%, 1200px);
+	/* We don't want the widgets to be too long */
 	margin: auto;
 	box-sizing: border-box;
 	padding-left: 24px;
 	padding-right: 24px;
 	overflow: visible;
 }
+
 .settings-editor > .settings-body .settings-tree-container .monaco-list-row .monaco-tl-contents.group-title {
-	max-width: min(100%, 1200px); /* Cut off title if too long for window */
+	max-width: min(100%, 1200px);
+	/* Cut off title if too long for window */
 }
 
 .settings-editor > .settings-body .settings-tree-container .settings-group-title-label,
@@ -393,8 +410,10 @@
 .settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-title {
 	overflow: hidden;
 	text-overflow: ellipsis;
-	display: inline-block; /* size to contents for hover to show context button */
-	padding-bottom: 2px; /* so that focus outlines wrap around nicely for indicators, especially ones with codicons */
+	display: inline-block;
+	/* size to contents for hover to show context button */
+	padding-bottom: 2px;
+	/* so that focus outlines wrap around nicely for indicators, especially ones with codicons */
 }
 
 .settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-modified-indicator {
@@ -517,6 +536,7 @@
 	margin-top: -1px;
 	z-index: 1;
 }
+
 .settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-item-contents.invalid-input .setting-item-validation-message {
 	position: static;
 	margin-top: 1rem;
@@ -544,6 +564,7 @@
 .settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-markdown * {
 	margin: 0px;
 }
+
 .settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-markdown *:not(:last-child) {
 	margin-bottom: 8px;
 }
@@ -727,12 +748,15 @@
 	overflow: hidden;
 	text-overflow: ellipsis;
 }
+
 .settings-editor > .settings-body .settings-tree-container .settings-group-title-label.settings-group-level-1 {
 	font-size: 26px;
 }
+
 .settings-editor > .settings-body .settings-tree-container .settings-group-title-label.settings-group-level-2 {
 	font-size: 22px;
 }
+
 .settings-editor > .settings-body .settings-tree-container .settings-group-title-label.settings-group-level-3 {
 	font-size: 18px;
 }
@@ -744,6 +768,7 @@
 .settings-editor > .settings-body .settings-tree-container .setting-list-widget .setting-list-object-list-row.select-container {
 	width: 320px;
 }
+
 .settings-editor > .settings-body .settings-tree-container .setting-list-widget .setting-list-object-list-row.select-container > select {
 	width: inherit;
 }

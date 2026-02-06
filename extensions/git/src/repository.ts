@@ -957,11 +957,14 @@ export class Repository implements Disposable {
 				: new ThemeIcon('repo');
 
 		// Hidden
-		// This is a temporary solution to hide worktrees created by Copilot
-		// when the main repository is opened. Users can still manually open
-		// the worktree from the Repositories view.
-		this._isHidden = repository.kind === 'worktree' &&
-			isCopilotWorktree(repository.root) && parent !== undefined;
+		// This is a temporary solution to hide:
+		// * repositories in the empty window
+		// * worktrees created by Copilot when the main repository
+		//   is opened. Users can still manually open the worktree
+		//   from the Repositories view.
+		this._isHidden = workspace.workspaceFolders === undefined ||
+			(repository.kind === 'worktree' &&
+				isCopilotWorktree(repository.root) && parent !== undefined);
 
 		const root = Uri.file(repository.root);
 		this._sourceControl = scm.createSourceControl('git', 'Git', root, icon, this._isHidden, parent);

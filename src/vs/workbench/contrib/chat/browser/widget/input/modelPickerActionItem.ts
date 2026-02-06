@@ -56,10 +56,9 @@ function modelDelegateToWidgetActionsProvider(delegate: IModelPickerDelegate, te
 					checked: true,
 					category: DEFAULT_MODEL_PICKER_CATEGORY,
 					class: undefined,
-					description: localize('chat.modelPicker.auto.detail', "Best for your request based on capacity and performance."),
 					tooltip: localize('chat.modelPicker.auto', "Auto"),
 					label: localize('chat.modelPicker.auto', "Auto"),
-					hover: { content: localize('chat.modelPicker.auto.description', "Automatically selects the best model for your task based on context and complexity."), position: pickerOptions.hoverPosition },
+					hover: { content: localize('chat.modelPicker.auto.description', "Automatically selects the best model for your task based on capacity."), position: pickerOptions.hoverPosition },
 					run: () => { }
 				} satisfies IActionWidgetDropdownAction];
 			}

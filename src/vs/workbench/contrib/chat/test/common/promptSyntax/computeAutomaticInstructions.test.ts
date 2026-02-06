@@ -17,7 +17,6 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { FileService } from '../../../../../../platform/files/common/fileService.js';
-import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
@@ -34,7 +33,7 @@ import { INSTRUCTION_FILE_EXTENSION, INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, LEGACY_
 import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID } from '../../../common/promptSyntax/promptTypes.js';
 import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
 import { PromptsService } from '../../../common/promptSyntax/service/promptsServiceImpl.js';
-import { mockFiles } from './testUtils/mockFilesystem.js';
+import { mockFiles, TestInMemoryFileSystemProviderWithRealPath } from './testUtils/mockFilesystem.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { IPathService } from '../../../../../services/path/common/pathService.js';
 import { IFileQuery, ISearchService } from '../../../../../services/search/common/search.js';
@@ -53,6 +52,7 @@ suite('ComputeAutomaticInstructions', () => {
 	let testConfigService: TestConfigurationService;
 	let fileService: IFileService;
 	let toolsService: ILanguageModelToolsService;
+	let fileSystemProvider: TestInMemoryFileSystemProviderWithRealPath;
 
 	setup(async () => {
 		instaService = disposables.add(new TestInstantiationService());
@@ -64,6 +64,7 @@ suite('ComputeAutomaticInstructions', () => {
 		testConfigService = new TestConfigurationService();
 		testConfigService.setUserConfiguration(PromptsConfig.USE_COPILOT_INSTRUCTION_FILES, true);
 		testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_MD, true);
+		testConfigService.setUserConfiguration(PromptsConfig.USE_CLAUDE_MD, false);
 		testConfigService.setUserConfiguration(PromptsConfig.USE_NESTED_AGENT_MD, false);
 		testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
 		testConfigService.setUserConfiguration(PromptsConfig.INCLUDE_APPLYING_INSTRUCTIONS, true);
@@ -109,7 +110,7 @@ suite('ComputeAutomaticInstructions', () => {
 			}
 		});
 
-		const fileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
+		fileSystemProvider = disposables.add(new TestInMemoryFileSystemProviderWithRealPath());
 		disposables.add(fileService.registerProvider(Schemas.file, fileSystemProvider));
 
 		const pathService = {
@@ -173,6 +174,7 @@ suite('ComputeAutomaticInstructions', () => {
 
 	teardown(() => {
 		sinon.restore();
+		fileSystemProvider.clearRealPathMappings();
 	});
 
 	suite('collect', () => {
@@ -1177,5 +1179,509 @@ suite('ComputeAutomaticInstructions', () => {
 			await contextComputer.collect(variables, cancelledToken);
 			assert.ok(true, 'Should handle cancellation without errors');
 		});
+	});
+
+	test('should collect CLAUDE.md when enabled', async () => {
+		const rootFolderName = 'collect-claude-test';
+		const rootFolder = `/${rootFolderName}`;
+		const rootFolderUri = URI.file(rootFolder);
+
+		workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+		await mockFiles(fileService, [
+			{
+				path: `${rootFolder}/CLAUDE.md`,
+				contents: [
+					'Claude guidelines',
+				]
+			},
+			{
+				path: `${rootFolder}/src/file.ts`,
+				contents: [
+					'console.log("test");',
+				]
+			},
+		]);
+
+		// Test when USE_CLAUDE_MD is true
+		testConfigService.setUserConfiguration(PromptsConfig.USE_CLAUDE_MD, true);
+		const contextComputer = instaService.createInstance(ComputeAutomaticInstructions, ChatModeKind.Agent, undefined, undefined);
+		const variables = new ChatRequestVariableSet();
+		variables.add(toFileVariableEntry(URI.joinPath(rootFolderUri, 'src/file.ts')));
+
+		await contextComputer.collect(variables, CancellationToken.None);
+
+		let instructionFiles = variables.asArray().filter(v => isPromptFileVariableEntry(v));
+		let paths = instructionFiles.map(i => isPromptFileVariableEntry(i) ? i.value.path : undefined);
+		assert.ok(paths.includes(`${rootFolder}/CLAUDE.md`), 'Should include CLAUDE.md when enabled');
+
+		// Test when USE_CLAUDE_MD is false
+		testConfigService.setUserConfiguration(PromptsConfig.USE_CLAUDE_MD, false);
+		const contextComputer2 = instaService.createInstance(ComputeAutomaticInstructions, ChatModeKind.Agent, undefined, undefined);
+		const variables2 = new ChatRequestVariableSet();
+		variables2.add(toFileVariableEntry(URI.joinPath(rootFolderUri, 'src/file.ts')));
+
+		await contextComputer2.collect(variables2, CancellationToken.None);
+
+		instructionFiles = variables2.asArray().filter(v => isPromptFileVariableEntry(v));
+		paths = instructionFiles.map(i => isPromptFileVariableEntry(i) ? i.value.path : undefined);
+		assert.ok(!paths.includes(`${rootFolder}/CLAUDE.md`), 'Should not include CLAUDE.md when disabled');
+	});
+
+	test('should collect .claude/CLAUDE.md when enabled', async () => {
+		const rootFolderName = 'collect-claude-test';
+		const rootFolder = `/${rootFolderName}`;
+		const rootFolderUri = URI.file(rootFolder);
+
+		workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+		await mockFiles(fileService, [
+			{
+				path: `${rootFolder}/.claude/CLAUDE.md`,
+				contents: [
+					'Claude guidelines',
+				]
+			},
+			{
+				path: `${rootFolder}/src/file.ts`,
+				contents: [
+					'console.log("test");',
+				]
+			},
+		]);
+
+		// Test when USE_CLAUDE_MD is true
+		testConfigService.setUserConfiguration(PromptsConfig.USE_CLAUDE_MD, true);
+		const contextComputer = instaService.createInstance(ComputeAutomaticInstructions, ChatModeKind.Agent, undefined, undefined);
+		const variables = new ChatRequestVariableSet();
+		variables.add(toFileVariableEntry(URI.joinPath(rootFolderUri, 'src/file.ts')));
+
+		await contextComputer.collect(variables, CancellationToken.None);
+
+		let instructionFiles = variables.asArray().filter(v => isPromptFileVariableEntry(v));
+		let paths = instructionFiles.map(i => isPromptFileVariableEntry(i) ? i.value.path : undefined);
+		assert.ok(paths.includes(`${rootFolder}/.claude/CLAUDE.md`), 'Should include .claude/CLAUDE.md when enabled');
+
+		// Test when USE_CLAUDE_MD is false
+		testConfigService.setUserConfiguration(PromptsConfig.USE_CLAUDE_MD, false);
+		const contextComputer2 = instaService.createInstance(ComputeAutomaticInstructions, ChatModeKind.Agent, undefined, undefined);
+		const variables2 = new ChatRequestVariableSet();
+		variables2.add(toFileVariableEntry(URI.joinPath(rootFolderUri, 'src/file.ts')));
+
+		await contextComputer2.collect(variables2, CancellationToken.None);
+
+		instructionFiles = variables2.asArray().filter(v => isPromptFileVariableEntry(v));
+		paths = instructionFiles.map(i => isPromptFileVariableEntry(i) ? i.value.path : undefined);
+		assert.ok(!paths.includes(`${rootFolder}/.claude/CLAUDE.md`), 'Should not include .claude/CLAUDE.md when disabled');
+	});
+
+	test('should collect ~/.claude/CLAUDE.md when enabled', async () => {
+		const rootFolderName = 'collect-claude-home-test';
+		const rootFolder = `/${rootFolderName}`;
+		const rootFolderUri = URI.file(rootFolder);
+
+		workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+		await mockFiles(fileService, [
+			{
+				path: `/home/user/.claude/CLAUDE.md`,
+				contents: [
+					'Claude guidelines from home',
+				]
+			},
+			{
+				path: `${rootFolder}/src/file.ts`,
+				contents: [
+					'console.log("test");',
+				]
+			},
+		]);
+
+		// Test when USE_CLAUDE_MD is true
+		testConfigService.setUserConfiguration(PromptsConfig.USE_CLAUDE_MD, true);
+		const contextComputer = instaService.createInstance(ComputeAutomaticInstructions, ChatModeKind.Agent, undefined, undefined);
+		const variables = new ChatRequestVariableSet();
+		variables.add(toFileVariableEntry(URI.joinPath(rootFolderUri, 'src/file.ts')));
+
+		await contextComputer.collect(variables, CancellationToken.None);
+
+		let instructionFiles = variables.asArray().filter(v => isPromptFileVariableEntry(v));
+		let paths = instructionFiles.map(i => isPromptFileVariableEntry(i) ? i.value.path : undefined);
+		assert.ok(paths.includes(`/home/user/.claude/CLAUDE.md`), 'Should include ~/.claude/CLAUDE.md when enabled');
+
+		// Test when USE_CLAUDE_MD is false
+		testConfigService.setUserConfiguration(PromptsConfig.USE_CLAUDE_MD, false);
+		const contextComputer2 = instaService.createInstance(ComputeAutomaticInstructions, ChatModeKind.Agent, undefined, undefined);
+		const variables2 = new ChatRequestVariableSet();
+		variables2.add(toFileVariableEntry(URI.joinPath(rootFolderUri, 'src/file.ts')));
+
+		await contextComputer2.collect(variables2, CancellationToken.None);
+
+		instructionFiles = variables2.asArray().filter(v => isPromptFileVariableEntry(v));
+		paths = instructionFiles.map(i => isPromptFileVariableEntry(i) ? i.value.path : undefined);
+		assert.ok(!paths.includes(`/home/user/.claude/CLAUDE.md`), 'Should not include ~/.claude/CLAUDE.md when disabled');
+	});
+
+	test('should collect instructions from multi-root workspace', async () => {
+		const rootFolder1Name = 'multi-root-1';
+		const rootFolder1 = `/${rootFolder1Name}`;
+		const rootFolder1Uri = URI.file(rootFolder1);
+
+		const rootFolder2Name = 'multi-root-2';
+		const rootFolder2 = `/${rootFolder2Name}`;
+		const rootFolder2Uri = URI.file(rootFolder2);
+
+		workspaceContextService.setWorkspace(testWorkspace(rootFolder1Uri, rootFolder2Uri));
+
+		await mockFiles(fileService, [
+			{
+				path: `${rootFolder1}/.github/instructions/ts.instructions.md`,
+				contents: [
+					'---',
+					'applyTo: "**/*.ts"',
+					'---',
+					'TS from root 1',
+				]
+			},
+			{
+				path: `${rootFolder2}/.github/instructions/js.instructions.md`,
+				contents: [
+					'---',
+					'applyTo: "**/*.js"',
+					'---',
+					'JS from root 2',
+				]
+			},
+			{
+				path: `${rootFolder1}/src/file.ts`,
+				contents: ['console.log("test");'],
+			},
+			{
+				path: `${rootFolder2}/src/file.js`,
+				contents: ['console.log("test");'],
+			},
+		]);
+
+		const contextComputer = instaService.createInstance(ComputeAutomaticInstructions, ChatModeKind.Agent, undefined, undefined);
+		const variables = new ChatRequestVariableSet();
+		variables.add(toFileVariableEntry(URI.joinPath(rootFolder1Uri, 'src/file.ts')));
+		variables.add(toFileVariableEntry(URI.joinPath(rootFolder2Uri, 'src/file.js')));
+
+		await contextComputer.collect(variables, CancellationToken.None);
+
+		const instructionFiles = variables.asArray().filter(v => isPromptFileVariableEntry(v));
+		const paths = instructionFiles.map(i => isPromptFileVariableEntry(i) ? i.value.path : undefined);
+
+		assert.strictEqual(instructionFiles.length, 2, 'Should collect one instruction from each root');
+		assert.ok(paths.includes(`${rootFolder1}/.github/instructions/ts.instructions.md`), 'Should include instruction from first root');
+		assert.ok(paths.includes(`${rootFolder2}/.github/instructions/js.instructions.md`), 'Should include instruction from second root');
+	});
+
+	test('should collect CLAUDE.md from multi-root workspace', async () => {
+		const rootFolder1Name = 'multi-root-claude-1';
+		const rootFolder1 = `/${rootFolder1Name}`;
+		const rootFolder1Uri = URI.file(rootFolder1);
+
+		const rootFolder2Name = 'multi-root-claude-2';
+		const rootFolder2 = `/${rootFolder2Name}`;
+		const rootFolder2Uri = URI.file(rootFolder2);
+
+		workspaceContextService.setWorkspace(testWorkspace(rootFolder1Uri, rootFolder2Uri));
+
+		await mockFiles(fileService, [
+			{
+				path: `${rootFolder1}/CLAUDE.md`,
+				contents: ['Claude guidelines from root 1'],
+			},
+			{
+				path: `${rootFolder2}/CLAUDE.md`,
+				contents: ['Claude guidelines from root 2'],
+			},
+			{
+				path: `${rootFolder1}/src/file.ts`,
+				contents: ['console.log("test");'],
+			},
+			{
+				path: `${rootFolder2}/src/file.js`,
+				contents: ['console.log("test");'],
+			},
+		]);
+
+		// Test when USE_CLAUDE_MD is true
+		testConfigService.setUserConfiguration(PromptsConfig.USE_CLAUDE_MD, true);
+		const contextComputer = instaService.createInstance(ComputeAutomaticInstructions, ChatModeKind.Agent, undefined, undefined);
+		const variables = new ChatRequestVariableSet();
+		variables.add(toFileVariableEntry(URI.joinPath(rootFolder1Uri, 'src/file.ts')));
+		variables.add(toFileVariableEntry(URI.joinPath(rootFolder2Uri, 'src/file.js')));
+
+		await contextComputer.collect(variables, CancellationToken.None);
+
+		const instructionFiles = variables.asArray().filter(v => isPromptFileVariableEntry(v));
+		const paths = instructionFiles.map(i => isPromptFileVariableEntry(i) ? i.value.path : undefined);
+
+		assert.ok(paths.includes(`${rootFolder1}/CLAUDE.md`), 'Should include CLAUDE.md from first root');
+		assert.ok(paths.includes(`${rootFolder2}/CLAUDE.md`), 'Should include CLAUDE.md from second root');
+	});
+
+	test('should collect .claude/CLAUDE.md from multi-root workspace', async () => {
+		const rootFolder1Name = 'multi-root-dotclaude-1';
+		const rootFolder1 = `/${rootFolder1Name}`;
+		const rootFolder1Uri = URI.file(rootFolder1);
+
+		const rootFolder2Name = 'multi-root-dotclaude-2';
+		const rootFolder2 = `/${rootFolder2Name}`;
+		const rootFolder2Uri = URI.file(rootFolder2);
+
+		workspaceContextService.setWorkspace(testWorkspace(rootFolder1Uri, rootFolder2Uri));
+
+		await mockFiles(fileService, [
+			{
+				path: `${rootFolder1}/.claude/CLAUDE.md`,
+				contents: ['Claude guidelines from .claude folder in root 1'],
+			},
+			{
+				path: `${rootFolder2}/.claude/CLAUDE.md`,
+				contents: ['Claude guidelines from .claude folder in root 2'],
+			},
+			{
+				path: `${rootFolder1}/src/file.ts`,
+				contents: ['console.log("test");'],
+			},
+			{
+				path: `${rootFolder2}/src/file.js`,
+				contents: ['console.log("test");'],
+			},
+		]);
+
+		// Test when USE_CLAUDE_MD is true
+		testConfigService.setUserConfiguration(PromptsConfig.USE_CLAUDE_MD, true);
+		const contextComputer = instaService.createInstance(ComputeAutomaticInstructions, ChatModeKind.Agent, undefined, undefined);
+		const variables = new ChatRequestVariableSet();
+		variables.add(toFileVariableEntry(URI.joinPath(rootFolder1Uri, 'src/file.ts')));
+		variables.add(toFileVariableEntry(URI.joinPath(rootFolder2Uri, 'src/file.js')));
+
+		await contextComputer.collect(variables, CancellationToken.None);
+
+		const instructionFiles = variables.asArray().filter(v => isPromptFileVariableEntry(v));
+		const paths = instructionFiles.map(i => isPromptFileVariableEntry(i) ? i.value.path : undefined);
+
+		assert.ok(paths.includes(`${rootFolder1}/.claude/CLAUDE.md`), 'Should include .claude/CLAUDE.md from first root');
+		assert.ok(paths.includes(`${rootFolder2}/.claude/CLAUDE.md`), 'Should include .claude/CLAUDE.md from second root');
+	});
+
+	test('should collect both root CLAUDE.md and .claude/CLAUDE.md from multi-root workspace', async () => {
+		const rootFolder1Name = 'multi-root-mixed-1';
+		const rootFolder1 = `/${rootFolder1Name}`;
+		const rootFolder1Uri = URI.file(rootFolder1);
+
+		const rootFolder2Name = 'multi-root-mixed-2';
+		const rootFolder2 = `/${rootFolder2Name}`;
+		const rootFolder2Uri = URI.file(rootFolder2);
+
+		workspaceContextService.setWorkspace(testWorkspace(rootFolder1Uri, rootFolder2Uri));
+
+		await mockFiles(fileService, [
+			{
+				path: `${rootFolder1}/CLAUDE.md`,
+				contents: ['Claude guidelines from root 1'],
+			},
+			{
+				path: `${rootFolder1}/.claude/CLAUDE.md`,
+				contents: ['Claude guidelines from .claude folder in root 1'],
+			},
+			{
+				path: `${rootFolder2}/CLAUDE.md`,
+				contents: ['Claude guidelines from root 2'],
+			},
+			{
+				path: `${rootFolder2}/.claude/CLAUDE.md`,
+				contents: ['Claude guidelines from .claude folder in root 2'],
+			},
+			{
+				path: `${rootFolder1}/src/file.ts`,
+				contents: ['console.log("test");'],
+			},
+			{
+				path: `${rootFolder2}/src/file.js`,
+				contents: ['console.log("test");'],
+			},
+		]);
+
+		// Test when USE_CLAUDE_MD is true
+		testConfigService.setUserConfiguration(PromptsConfig.USE_CLAUDE_MD, true);
+		const contextComputer = instaService.createInstance(ComputeAutomaticInstructions, ChatModeKind.Agent, undefined, undefined);
+		const variables = new ChatRequestVariableSet();
+		variables.add(toFileVariableEntry(URI.joinPath(rootFolder1Uri, 'src/file.ts')));
+		variables.add(toFileVariableEntry(URI.joinPath(rootFolder2Uri, 'src/file.js')));
+
+		await contextComputer.collect(variables, CancellationToken.None);
+
+		const instructionFiles = variables.asArray().filter(v => isPromptFileVariableEntry(v));
+		const paths = instructionFiles.map(i => isPromptFileVariableEntry(i) ? i.value.path : undefined);
+
+		assert.ok(paths.includes(`${rootFolder1}/CLAUDE.md`), 'Should include CLAUDE.md from first root');
+		assert.ok(paths.includes(`${rootFolder1}/.claude/CLAUDE.md`), 'Should include .claude/CLAUDE.md from first root');
+		assert.ok(paths.includes(`${rootFolder2}/CLAUDE.md`), 'Should include CLAUDE.md from second root');
+		assert.ok(paths.includes(`${rootFolder2}/.claude/CLAUDE.md`), 'Should include .claude/CLAUDE.md from second root');
+	});
+
+	test('should not collect CLAUDE.md from multi-root workspace when disabled', async () => {
+		const rootFolder1Name = 'multi-root-disabled-1';
+		const rootFolder1 = `/${rootFolder1Name}`;
+		const rootFolder1Uri = URI.file(rootFolder1);
+
+		const rootFolder2Name = 'multi-root-disabled-2';
+		const rootFolder2 = `/${rootFolder2Name}`;
+		const rootFolder2Uri = URI.file(rootFolder2);
+
+		workspaceContextService.setWorkspace(testWorkspace(rootFolder1Uri, rootFolder2Uri));
+
+		await mockFiles(fileService, [
+			{
+				path: `${rootFolder1}/CLAUDE.md`,
+				contents: ['Claude guidelines from root 1'],
+			},
+			{
+				path: `${rootFolder2}/CLAUDE.md`,
+				contents: ['Claude guidelines from root 2'],
+			},
+			{
+				path: `${rootFolder1}/src/file.ts`,
+				contents: ['console.log("test");'],
+			},
+			{
+				path: `${rootFolder2}/src/file.js`,
+				contents: ['console.log("test");'],
+			},
+		]);
+
+		// Test when USE_CLAUDE_MD is false
+		testConfigService.setUserConfiguration(PromptsConfig.USE_CLAUDE_MD, false);
+		const contextComputer = instaService.createInstance(ComputeAutomaticInstructions, ChatModeKind.Agent, undefined, undefined);
+		const variables = new ChatRequestVariableSet();
+		variables.add(toFileVariableEntry(URI.joinPath(rootFolder1Uri, 'src/file.ts')));
+		variables.add(toFileVariableEntry(URI.joinPath(rootFolder2Uri, 'src/file.js')));
+
+		await contextComputer.collect(variables, CancellationToken.None);
+
+		const instructionFiles = variables.asArray().filter(v => isPromptFileVariableEntry(v));
+		const paths = instructionFiles.map(i => isPromptFileVariableEntry(i) ? i.value.path : undefined);
+
+		assert.ok(!paths.includes(`${rootFolder1}/CLAUDE.md`), 'Should not include CLAUDE.md from first root when disabled');
+		assert.ok(!paths.includes(`${rootFolder2}/CLAUDE.md`), 'Should not include CLAUDE.md from second root when disabled');
+	});
+
+	test('should collect both CLAUDE.md and CLAUDE.local.md from multi-root workspace', async () => {
+		const rootFolder1Name = 'multi-root-claude-both-1';
+		const rootFolder1 = `/${rootFolder1Name}`;
+		const rootFolder1Uri = URI.file(rootFolder1);
+
+		const rootFolder2Name = 'multi-root-claude-both-2';
+		const rootFolder2 = `/${rootFolder2Name}`;
+		const rootFolder2Uri = URI.file(rootFolder2);
+
+		workspaceContextService.setWorkspace(testWorkspace(rootFolder1Uri, rootFolder2Uri));
+
+		await mockFiles(fileService, [
+			{
+				path: `${rootFolder1}/CLAUDE.md`,
+				contents: ['Claude guidelines from root 1'],
+			},
+			{
+				path: `${rootFolder1}/CLAUDE.local.md`,
+				contents: ['Local Claude guidelines from root 1'],
+			},
+			{
+				path: `${rootFolder2}/CLAUDE.md`,
+				contents: ['Claude guidelines from root 2'],
+			},
+			{
+				path: `${rootFolder2}/CLAUDE.local.md`,
+				contents: ['Local Claude guidelines from root 2'],
+			},
+			{
+				path: `${rootFolder1}/src/file.ts`,
+				contents: ['console.log("test");'],
+			},
+			{
+				path: `${rootFolder2}/src/file.js`,
+				contents: ['console.log("test");'],
+			},
+		]);
+
+		// Test when USE_CLAUDE_MD is true
+		testConfigService.setUserConfiguration(PromptsConfig.USE_CLAUDE_MD, true);
+		const contextComputer = instaService.createInstance(ComputeAutomaticInstructions, ChatModeKind.Agent, undefined, undefined);
+		const variables = new ChatRequestVariableSet();
+		variables.add(toFileVariableEntry(URI.joinPath(rootFolder1Uri, 'src/file.ts')));
+		variables.add(toFileVariableEntry(URI.joinPath(rootFolder2Uri, 'src/file.js')));
+
+		await contextComputer.collect(variables, CancellationToken.None);
+
+		const instructionFiles = variables.asArray().filter(v => isPromptFileVariableEntry(v));
+		const paths = instructionFiles.map(i => isPromptFileVariableEntry(i) ? i.value.path : undefined);
+
+		assert.ok(paths.includes(`${rootFolder1}/CLAUDE.md`), 'Should include CLAUDE.md from first root');
+		assert.ok(paths.includes(`${rootFolder1}/CLAUDE.local.md`), 'Should include CLAUDE.local.md from first root');
+		assert.ok(paths.includes(`${rootFolder2}/CLAUDE.md`), 'Should include CLAUDE.md from second root');
+		assert.ok(paths.includes(`${rootFolder2}/CLAUDE.local.md`), 'Should include CLAUDE.local.md from second root');
+	});
+
+	test('should filter symlinks', async () => {
+		const rootFolderName = 'partial-symlink-test';
+		const rootFolder = `/${rootFolderName}`;
+		const rootFolderUri = URI.file(rootFolder);
+
+		workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+		const copilotUri = URI.joinPath(rootFolderUri, '.github/copilot-instructions.md');
+		const agentMdUri = URI.joinPath(rootFolderUri, 'AGENTS.md');
+		const claudeMdUri = URI.joinPath(rootFolderUri, 'CLAUDE.md');
+
+		// Create all three agent instruction files
+		await mockFiles(fileService, [
+			{
+				path: `${rootFolder}/src/file.ts`,
+				contents: ['console.log("test");'],
+			},
+			{
+				path: copilotUri.path,
+				contents: ['# Copilot Instructions'],
+			},
+			{
+				path: agentMdUri.path,
+				contents: ['# Copilot Instructions'],
+			},
+			{
+				path: claudeMdUri.path,
+				contents: ['# Copilot Instructions'],
+			},
+		]);
+
+		// AGENTS.md and CLAUDE.md are symlinks to copilot
+		fileSystemProvider.setRealPath(agentMdUri, copilotUri);
+		fileSystemProvider.setRealPath(claudeMdUri, copilotUri);
+
+		// Enable all three types of agent instructions
+		testConfigService.setUserConfiguration(PromptsConfig.USE_COPILOT_INSTRUCTION_FILES, true);
+		testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_MD, true);
+		testConfigService.setUserConfiguration(PromptsConfig.USE_CLAUDE_MD, true);
+
+		const contextComputer = instaService.createInstance(ComputeAutomaticInstructions, ChatModeKind.Agent, undefined, undefined);
+		const variables = new ChatRequestVariableSet();
+		variables.add(toFileVariableEntry(URI.joinPath(rootFolderUri, 'src/file.ts')));
+
+		await contextComputer.collect(variables, CancellationToken.None);
+
+		const instructionFiles = variables.asArray().filter(v => isPromptFileVariableEntry(v));
+		const paths = instructionFiles.map(i => isPromptFileVariableEntry(i) ? i.value.path : undefined);
+
+		// copilot-instructions.md should be included
+		// AGENTS.md should be skipped as link to copilot
+		// CLAUDE.md should be skipped as link to copilot
+		assert.strictEqual(instructionFiles.length, 1, 'Should include 1 files (copilot)');
+		assert.ok(paths.includes(copilotUri.path), 'Should include copilot-instructions.md');
+		assert.ok(!paths.includes(agentMdUri.path), 'Should not include AGENTS.md (symlink to copilot)');
+		assert.ok(!paths.includes(claudeMdUri.path), 'Should not include CLAUDE.md (symlink to copilot)');
 	});
 });

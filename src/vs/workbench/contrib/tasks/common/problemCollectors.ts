@@ -461,8 +461,8 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 				}
 			});
 
-			this._register(markerChanged); // Ensures markerChanged is tracked and disposed of properly
-
+			// Dispose the debounced listener after timeout - no need to register it since
+			// it's only used temporarily and will be disposed below
 			setTimeout(() => {
 				if (markerChanged) {
 					const _markerChanged = markerChanged;

@@ -643,7 +643,7 @@ export class Menubar extends Disposable {
 			case StateType.AvailableForDownload:
 				return [new MenuItem({
 					label: this.mnemonicLabel(nls.localize('miDownloadUpdate', "D&&ownload Available Update")), click: () => {
-						this.updateService.downloadUpdate();
+						this.updateService.downloadUpdate(true);
 					}
 				})];
 

@@ -187,6 +187,7 @@ div.chat-terminal-content-part.progress-step > div.chat-terminal-output-containe
 .chat-terminal-output-terminal .xterm-viewport {
 	background: inherit !important;
 }
+
 .chat-terminal-output-terminal.chat-terminal-output-terminal-no-output {
 	display: none;
 }
@@ -207,8 +208,17 @@ div.chat-terminal-content-part.progress-step > div.chat-terminal-output-containe
 	display: block;
 }
 
-.chat-terminal-output-container .xterm-scrollable-element .scrollbar {
+.chat-terminal-output-container .xterm-scrollable-element .xterm-scrollbar {
 	display: none;
+}
+
+/* Allow clicks to pass through scrollbar track to reach inline links, but keep slider draggable */
+.chat-terminal-output-container > .monaco-scrollable-element > .scrollbar.horizontal {
+	pointer-events: none;
+}
+
+.chat-terminal-output-container > .monaco-scrollable-element > .scrollbar.horizontal .slider {
+	pointer-events: auto;
 }
 
 .chat-terminal-output div,

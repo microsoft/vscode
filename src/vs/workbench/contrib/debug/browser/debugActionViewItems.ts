@@ -308,8 +308,11 @@ export class FocusSessionActionViewItem extends SelectActionViewItem<IDebugSessi
 			sessionListeners.push(session.onDidEndAdapter(() => dispose(sessionListeners)));
 			this.update();
 		}));
+		// Apply the same pattern to existing sessions - track listeners for cleanup
 		this.getSessions().forEach(session => {
-			this._register(session.onDidChangeName(() => this.update()));
+			const sessionListeners: IDisposable[] = [];
+			sessionListeners.push(session.onDidChangeName(() => this.update()));
+			sessionListeners.push(session.onDidEndAdapter(() => dispose(sessionListeners)));
 		});
 		this._register(this.debugService.onDidEndSession(() => this.update()));
 

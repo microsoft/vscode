@@ -14,6 +14,7 @@
 		"../../src/vscode-dts/vscode.proposed.canonicalUriProvider.d.ts",
 		"../../src/vscode-dts/vscode.proposed.findFiles2.d.ts",
 		"../../src/vscode-dts/vscode.proposed.editSessionIdentityProvider.d.ts",
+		"../../src/vscode-dts/vscode.proposed.envIsConnectionMetered.d.ts",
 		"../../src/vscode-dts/vscode.proposed.quickDiffProvider.d.ts",
 		"../../src/vscode-dts/vscode.proposed.quickPickSortByLabel.d.ts",
 		"../../src/vscode-dts/vscode.proposed.scmActionButton.d.ts",

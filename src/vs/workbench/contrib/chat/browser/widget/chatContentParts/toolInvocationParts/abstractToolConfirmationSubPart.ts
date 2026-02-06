@@ -54,29 +54,46 @@ export abstract class AbstractToolConfirmationSubPart extends BaseChatToolInvoca
 	}
 	protected render(config: IToolConfirmationConfig) {
 		const { keybindingService, languageModelToolsService, toolInvocation } = this;
-		const allowTooltip = keybindingService.appendKeybinding(config.allowLabel, config.allowActionId);
-		const skipTooltip = keybindingService.appendKeybinding(config.skipLabel, config.skipActionId);
 
+		const state = toolInvocation.state.get();
+		const customButtons = state.type === IChatToolInvocation.StateKind.WaitingForConfirmation
+			? state.confirmationMessages?.customButtons
+			: undefined;
 
-		const additionalActions = this.additionalPrimaryActions();
-		const buttons: IChatConfirmationButton<(() => void)>[] = [
-			{
-				label: config.allowLabel,
-				tooltip: allowTooltip,
+		let buttons: IChatConfirmationButton<(() => void)>[];
+
+		if (customButtons && customButtons.length > 0) {
+			buttons = customButtons.map((label, index) => ({
+				label,
 				data: () => {
-					this.confirmWith(toolInvocation, { type: ToolConfirmKind.UserAction });
+					this.confirmWith(toolInvocation, { type: ToolConfirmKind.UserAction, selectedButton: label });
 				},
-				moreActions: additionalActions.length > 0 ? additionalActions : undefined,
-			},
-			{
-				label: localize('skip', "Skip"),
-				tooltip: skipTooltip,
-				data: () => {
-					this.confirmWith(toolInvocation, { type: ToolConfirmKind.Skipped });
+				isSecondary: index > 0,
+			}));
+		} else {
+			const allowTooltip = keybindingService.appendKeybinding(config.allowLabel, config.allowActionId);
+			const skipTooltip = keybindingService.appendKeybinding(config.skipLabel, config.skipActionId);
+
+			const additionalActions = this.additionalPrimaryActions();
+			buttons = [
+				{
+					label: config.allowLabel,
+					tooltip: allowTooltip,
+					data: () => {
+						this.confirmWith(toolInvocation, { type: ToolConfirmKind.UserAction });
+					},
+					moreActions: additionalActions.length > 0 ? additionalActions : undefined,
 				},
-				isSecondary: true,
-			}
-		];
+				{
+					label: localize('skip', "Skip"),
+					tooltip: skipTooltip,
+					data: () => {
+						this.confirmWith(toolInvocation, { type: ToolConfirmKind.Skipped });
+					},
+					isSecondary: true,
+				}
+			];
+		}
 
 		const contentElement = this.createContentElement();
 		const tool = languageModelToolsService.getTool(toolInvocation.toolId);

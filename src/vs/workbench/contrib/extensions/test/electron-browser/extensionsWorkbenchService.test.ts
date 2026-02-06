@@ -38,7 +38,7 @@ import { ExtensionKind } from '../../../../../platform/environment/common/enviro
 import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
 import { RemoteAgentService } from '../../../../services/remote/electron-browser/remoteAgentService.js';
 import { ISharedProcessService } from '../../../../../platform/ipc/electron-browser/services.js';
-import { TestContextService } from '../../../../test/common/workbenchTestServices.js';
+import { TestContextService, TestProductService } from '../../../../test/common/workbenchTestServices.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { TestLifecycleService } from '../../../../test/browser/workbenchTestServices.js';
@@ -58,6 +58,7 @@ import { UserDataProfileService } from '../../../../services/userDataProfile/com
 import { IUserDataProfileService } from '../../../../services/userDataProfile/common/userDataProfile.js';
 import { toUserDataProfile } from '../../../../../platform/userDataProfile/common/userDataProfile.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IMeteredConnectionService } from '../../../../../platform/meteredConnection/common/meteredConnection.js';
 
 suite('ExtensionsWorkbenchServiceTest', () => {
 
@@ -82,7 +83,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		instantiationService.stub(ILogService, NullLogService);
 		instantiationService.stub(IFileService, disposableStore.add(new FileService(new NullLogService())));
 		instantiationService.stub(IProgressService, ProgressService);
-		instantiationService.stub(IProductService, {});
+		instantiationService.stub(IProductService, TestProductService);
 
 		instantiationService.stub(IExtensionGalleryService, ExtensionGalleryService);
 		instantiationService.stub(IURLService, NativeURLService);
@@ -147,6 +148,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		instantiationService.stubPromise(INotificationService, 'prompt', 0);
 		(<TestExtensionEnablementService>instantiationService.get(IWorkbenchExtensionEnablementService)).reset();
 		instantiationService.stub(IUpdateService, { onStateChange: Event.None, state: State.Uninitialized });
+		instantiationService.stub(IMeteredConnectionService, { isConnectionMetered: false, onDidChangeIsConnectionMetered: Event.None });
 	});
 
 	test('test gallery extension', async () => {

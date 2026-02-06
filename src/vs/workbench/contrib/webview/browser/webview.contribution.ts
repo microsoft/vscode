@@ -9,9 +9,11 @@ import { CopyAction, CutAction, PasteAction } from '../../../../editor/contrib/c
 import * as nls from '../../../../nls.js';
 import { MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { IWebviewService, IWebview } from './webview.js';
 import { WebviewInput } from '../../webviewPanel/browser/webviewEditorInput.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { WebviewFindAccessibilityHelp } from './webviewFindAccessibilityHelp.js';
 
 
 const PRIORITY = 100;
@@ -83,3 +85,6 @@ if (PasteAction) {
 		when: ContextKeyExpr.not(PreventDefaultContextMenuItemsContextKeyName),
 	});
 }
+
+// Register webview find accessibility help
+AccessibleViewRegistry.register(new WebviewFindAccessibilityHelp());

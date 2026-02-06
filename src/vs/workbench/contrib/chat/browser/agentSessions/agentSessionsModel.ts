@@ -426,9 +426,9 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 	private registerListeners(): void {
 
 		// Sessions changes
-		this._register(this.chatSessionsService.onDidChangeItemsProviders(({ chatSessionType: provider }) => this.resolve(provider)));
+		this._register(this.chatSessionsService.onDidChangeItemsProviders(({ chatSessionType }) => this.resolve(chatSessionType)));
 		this._register(this.chatSessionsService.onDidChangeAvailability(() => this.resolve(undefined)));
-		this._register(this.chatSessionsService.onDidChangeSessionItems(provider => this.resolve(provider)));
+		this._register(this.chatSessionsService.onDidChangeSessionItems(({ chatSessionType }) => this.resolve(chatSessionType)));
 
 		// State
 		this._register(this.storageService.onWillSaveState(() => {

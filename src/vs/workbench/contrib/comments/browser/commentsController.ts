@@ -8,7 +8,7 @@ import { coalesce } from '../../../../base/common/arrays.js';
 import { findFirstIdxMonotonousOrArrLen } from '../../../../base/common/arraysFind.js';
 import { CancelablePromise, createCancelablePromise, Delayer } from '../../../../base/common/async.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
-import { DisposableStore, dispose, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, dispose, IDisposable } from '../../../../base/common/lifecycle.js';
 import './media/review.css';
 import { ICodeEditor, IEditorMouseEvent, isCodeEditor, isDiffEditor } from '../../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
@@ -448,9 +448,8 @@ export function revealCommentThread(commentService: ICommentService, editorServi
 	});
 }
 
-export class CommentController implements IEditorContribution {
-	private readonly globalToDispose = new DisposableStore();
-	private readonly localToDispose = new DisposableStore();
+export class CommentController extends Disposable implements IEditorContribution {
+	private readonly localToDispose: DisposableStore = this._register(new DisposableStore());
 	private editor: ICodeEditor | undefined;
 	private _commentWidgets: ReviewZoneWidget[];
 	private _commentInfos: ICommentInfo[];
@@ -489,6 +488,7 @@ export class CommentController implements IEditorContribution {
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@INotificationService private readonly notificationService: INotificationService
 	) {
+		super();
 		this._commentInfos = [];
 		this._commentWidgets = [];
 		this._pendingNewCommentCache = {};
@@ -506,7 +506,7 @@ export class CommentController implements IEditorContribution {
 		this.editor = editor;
 
 		this._commentingRangeDecorator = new CommentingRangeDecorator();
-		this.globalToDispose.add(this._commentingRangeDecorator.onDidChangeDecorationsCount(count => {
+		this._register(this._commentingRangeDecorator.onDidChangeDecorationsCount(count => {
 			if (count === 0) {
 				this.clearEditorListeners();
 			} else if (this._editorDisposables.length === 0) {
@@ -514,9 +514,9 @@ export class CommentController implements IEditorContribution {
 			}
 		}));
 
-		this.globalToDispose.add(this._commentThreadRangeDecorator = new CommentThreadRangeDecorator(this.commentService));
+		this._register(this._commentThreadRangeDecorator = new CommentThreadRangeDecorator(this.commentService));
 
-		this.globalToDispose.add(this.commentService.onDidDeleteDataProvider(ownerId => {
+		this._register(this.commentService.onDidDeleteDataProvider(ownerId => {
 			if (ownerId) {
 				delete this._pendingNewCommentCache[ownerId];
 				delete this._pendingEditsCache[ownerId];
@@ -526,17 +526,17 @@ export class CommentController implements IEditorContribution {
 			}
 			this.beginCompute();
 		}));
-		this.globalToDispose.add(this.commentService.onDidSetDataProvider(_ => this.beginComputeAndHandleEditorChange()));
-		this.globalToDispose.add(this.commentService.onDidUpdateCommentingRanges(_ => this.beginComputeAndHandleEditorChange()));
+		this._register(this.commentService.onDidSetDataProvider(_ => this.beginComputeAndHandleEditorChange()));
+		this._register(this.commentService.onDidUpdateCommentingRanges(_ => this.beginComputeAndHandleEditorChange()));
 
-		this.globalToDispose.add(this.commentService.onDidSetResourceCommentInfos(async e => {
+		this._register(this.commentService.onDidSetResourceCommentInfos(async e => {
 			const editorURI = this.editor && this.editor.hasModel() && this.editor.getModel().uri;
 			if (editorURI && editorURI.toString() === e.resource.toString()) {
 				await this.setComments(e.commentInfos.filter(commentInfo => commentInfo !== null));
 			}
 		}));
 
-		this.globalToDispose.add(this.commentService.onDidChangeCommentingEnabled(e => {
+		this._register(this.commentService.onDidChangeCommentingEnabled(e => {
 			if (e) {
 				this.registerEditorListeners();
 				this.beginCompute();
@@ -550,17 +550,17 @@ export class CommentController implements IEditorContribution {
 			}
 		}));
 
-		this.globalToDispose.add(this.editor.onWillChangeModel(e => this.onWillChangeModel(e)));
-		this.globalToDispose.add(this.editor.onDidChangeModel(_ => this.onModelChanged()));
-		this.globalToDispose.add(this.configurationService.onDidChangeConfiguration(e => {
+		this._register(this.editor.onWillChangeModel(e => this.onWillChangeModel(e)));
+		this._register(this.editor.onDidChangeModel(_ => this.onModelChanged()));
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('diffEditor.renderSideBySide')) {
 				this.beginCompute();
 			}
 		}));
 
 		this.onModelChanged();
-		this.globalToDispose.add(this.codeEditorService.registerDecorationType('comment-controller', COMMENTEDITOR_DECORATION_KEY, {}));
-		this.globalToDispose.add(
+		this._register(this.codeEditorService.registerDecorationType('comment-controller', COMMENTEDITOR_DECORATION_KEY, {}));
+		this._register(
 			this.commentService.registerContinueOnCommentProvider({
 				provideContinueOnComments: () => {
 					const pendingComments: languages.PendingCommentThread[] = [];
@@ -879,9 +879,8 @@ export class CommentController implements IEditorContribution {
 		this._findNearestCommentingRange(true);
 	}
 
-	public dispose(): void {
-		this.globalToDispose.dispose();
-		this.localToDispose.dispose();
+	public override dispose(): void {
+		super.dispose();
 		dispose(this._editorDisposables);
 		dispose(this._commentWidgets);
 
@@ -1098,8 +1097,8 @@ export class CommentController implements IEditorContribution {
 		const zoneWidget = this.instantiationService.createInstance(ReviewZoneWidget, this.editor, uniqueOwner, thread, pendingComment ?? continueOnCommentReply?.comment, pendingEdits);
 		await zoneWidget.display(thread.range, shouldReveal);
 		this._commentWidgets.push(zoneWidget);
-		zoneWidget.onDidChangeExpandedState(() => this._updateCommentWidgetVisibleContext());
-		zoneWidget.onDidClose(() => this._updateCommentWidgetVisibleContext());
+		this.localToDispose.add(zoneWidget.onDidChangeExpandedState(() => this._updateCommentWidgetVisibleContext()));
+		this.localToDispose.add(zoneWidget.onDidClose(() => this._updateCommentWidgetVisibleContext()));
 		this.openCommentsView(thread);
 	}
 

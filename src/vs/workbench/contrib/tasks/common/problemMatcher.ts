@@ -358,8 +358,7 @@ abstract class AbstractLineMatcher implements ILineMatcher {
 			if (trim) {
 				value = Strings.trim(value)!;
 			}
-			// eslint-disable-next-line local/code-no-any-casts
-			(data as any)[property] += endOfLine + value;
+			(data as Record<string, string | undefined>)[property] = data[property]! + endOfLine + value;
 		}
 	}
 
@@ -371,8 +370,7 @@ abstract class AbstractLineMatcher implements ILineMatcher {
 				if (trim) {
 					value = Strings.trim(value)!;
 				}
-				// eslint-disable-next-line local/code-no-any-casts
-				(data as any)[property] = value;
+				(data as Record<string, string | undefined>)[property] = value;
 			}
 		}
 	}
@@ -672,7 +670,7 @@ export namespace Config {
 	}
 
 	export namespace CheckedProblemPattern {
-		export function is(value: any): value is ICheckedProblemPattern {
+		export function is(value: unknown): value is ICheckedProblemPattern {
 			const candidate: IProblemPattern = value as IProblemPattern;
 			return candidate && Types.isString(candidate.regexp);
 		}
@@ -691,7 +689,7 @@ export namespace Config {
 	}
 
 	export namespace NamedProblemPattern {
-		export function is(value: any): value is INamedProblemPattern {
+		export function is(value: unknown): value is INamedProblemPattern {
 			const candidate: INamedProblemPattern = value as INamedProblemPattern;
 			return candidate && Types.isString(candidate.name);
 		}
@@ -706,7 +704,7 @@ export namespace Config {
 	}
 
 	export namespace NamedCheckedProblemPattern {
-		export function is(value: any): value is INamedCheckedProblemPattern {
+		export function is(value: unknown): value is INamedCheckedProblemPattern {
 			const candidate: INamedProblemPattern = value as INamedProblemPattern;
 			return candidate && NamedProblemPattern.is(candidate) && Types.isString(candidate.regexp);
 		}
@@ -715,15 +713,15 @@ export namespace Config {
 	export type MultiLineProblemPattern = IProblemPattern[];
 
 	export namespace MultiLineProblemPattern {
-		export function is(value: any): value is MultiLineProblemPattern {
-			return value && Array.isArray(value);
+		export function is(value: unknown): value is MultiLineProblemPattern {
+			return Array.isArray(value);
 		}
 	}
 
 	export type MultiLineCheckedProblemPattern = ICheckedProblemPattern[];
 
 	export namespace MultiLineCheckedProblemPattern {
-		export function is(value: any): value is MultiLineCheckedProblemPattern {
+		export function is(value: unknown): value is MultiLineCheckedProblemPattern {
 			if (!MultiLineProblemPattern.is(value)) {
 				return false;
 			}
@@ -754,7 +752,7 @@ export namespace Config {
 	}
 
 	export namespace NamedMultiLineCheckedProblemPattern {
-		export function is(value: any): value is INamedMultiLineCheckedProblemPattern {
+		export function is(value: unknown): value is INamedMultiLineCheckedProblemPattern {
 			const candidate = value as INamedMultiLineCheckedProblemPattern;
 			return candidate && Types.isString(candidate.name) && Array.isArray(candidate.patterns) && MultiLineCheckedProblemPattern.is(candidate.patterns);
 		}
@@ -937,7 +935,7 @@ export class ProblemPatternParser extends Parser {
 	public parse(value: Config.MultiLineProblemPattern): MultiLineProblemPattern;
 	public parse(value: Config.INamedProblemPattern): INamedProblemPattern;
 	public parse(value: Config.INamedMultiLineCheckedProblemPattern): INamedMultiLineProblemPattern;
-	public parse(value: Config.IProblemPattern | Config.MultiLineProblemPattern | Config.INamedProblemPattern | Config.INamedMultiLineCheckedProblemPattern): any {
+	public parse(value: Config.IProblemPattern | Config.MultiLineProblemPattern | Config.INamedProblemPattern | Config.INamedMultiLineCheckedProblemPattern): IProblemPattern | MultiLineProblemPattern | INamedProblemPattern | INamedMultiLineProblemPattern | null {
 		if (Config.NamedMultiLineCheckedProblemPattern.is(value)) {
 			return this.createNamedMultiLineProblemPattern(value);
 		} else if (Config.MultiLineCheckedProblemPattern.is(value)) {
@@ -1015,8 +1013,7 @@ export class ProblemPatternParser extends Parser {
 		function copyProperty(result: IProblemPattern, source: Config.IProblemPattern, resultKey: keyof IProblemPattern, sourceKey: keyof Config.IProblemPattern) {
 			const value = source[sourceKey];
 			if (typeof value === 'number') {
-				// eslint-disable-next-line local/code-no-any-casts
-				(result as any)[resultKey] = value;
+				(result as unknown as Record<string, unknown>)[resultKey] = value;
 			}
 		}
 		copyProperty(result, value, 'file', 'file');
@@ -1906,8 +1903,7 @@ class ProblemMatcherRegistryImpl implements IProblemMatcherRegistry {
 				}
 				const matcher = this.get('tsc-watch');
 				if (matcher) {
-					// eslint-disable-next-line local/code-no-any-casts
-					(<any>matcher).tscWatch = true;
+					(matcher as unknown as Record<string, unknown>).tscWatch = true;
 				}
 				resolve(undefined);
 			});

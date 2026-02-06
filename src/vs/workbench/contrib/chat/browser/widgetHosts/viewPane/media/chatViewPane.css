@@ -68,7 +68,10 @@
 .chat-viewpane.has-sessions-control.sessions-control-orientation-stacked {
 
 	.agent-sessions-container {
-		border-bottom: 1px solid var(--vscode-panel-border);
+		/* center it above the chat which has this max-width restriction */
+		max-width: 950px;
+		margin: 0 auto;
+		width: 100%;
 	}
 
 	.agent-sessions-new-button-container {

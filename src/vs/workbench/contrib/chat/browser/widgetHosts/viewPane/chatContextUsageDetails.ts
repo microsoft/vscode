@@ -51,7 +51,6 @@ export class ChatContextUsageDetails extends Disposable {
 		super();
 
 		this.domNode = $('.chat-context-usage-details');
-		this.domNode.setAttribute('tabindex', '0');
 
 		// Using same structure as ChatUsageWidget quota items
 		this.quotaItem = this.domNode.appendChild($('.quota-item'));

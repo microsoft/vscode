@@ -22,6 +22,7 @@ import { ILogService } from '../../../platform/log/common/log.js';
 import { isChatViewTitleActionContext } from '../../contrib/chat/common/actions/chatActions.js';
 import { IChatAgentRequest, IChatAgentResult, IChatAgentResultTimings, UserSelectedTools } from '../../contrib/chat/common/participants/chatAgents.js';
 import { ChatAgentVoteDirection, IChatContentReference, IChatFollowup, IChatResponseErrorDetails, IChatUserActionEvent, IChatVoteAction } from '../../contrib/chat/common/chatService/chatService.js';
+import { IChatRequestHooks } from '../../contrib/chat/common/promptSyntax/hookSchema.js';
 import { LocalChatSessionUri } from '../../contrib/chat/common/model/chatUri.js';
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
 import { checkProposedApiEnabled, isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
@@ -447,6 +448,8 @@ interface InFlightChatRequest {
 	requestId: string;
 	extRequest: vscode.ChatRequest;
 	extension: IRelaxedExtensionDescription;
+	hooks?: IChatRequestHooks;
+	yieldRequested: boolean;
 }
 
 export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsShape2 {
@@ -623,7 +626,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 
 		return detector.provider.provideParticipantDetection(
 			extRequest,
-			{ history },
+			{ history, yieldRequested: false },
 			{ participants: options.participants, location: typeConvert.ChatLocation.to(options.location) },
 			token
 		);
@@ -683,6 +686,13 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		this._onDidChangeChatRequestTools.fire(request.extRequest);
 	}
 
+	$setYieldRequested(requestId: string): void {
+		const request = [...this._inFlightRequests].find(r => r.requestId === requestId);
+		if (request) {
+			request.yieldRequested = true;
+		}
+	}
+
 	async $invokeAgent(handle: number, requestDto: Dto<IChatAgentRequest>, context: { history: IChatAgentHistoryEntryDto[]; chatSessionContext?: IChatSessionContextDto }, token: CancellationToken): Promise<IChatAgentResult | undefined> {
 		const agent = this._agents.get(handle);
 		if (!agent) {
@@ -715,7 +725,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 				agent.extension,
 				this._logService
 			);
-			inFlightRequest = { requestId: requestDto.requestId, extRequest, extension: agent.extension };
+			inFlightRequest = { requestId: requestDto.requestId, extRequest, extension: agent.extension, hooks: request.hooks, yieldRequested: false };
 			this._inFlightRequests.add(inFlightRequest);
 
 
@@ -731,7 +741,11 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 				};
 			}
 
-			const chatContext: vscode.ChatContext = { history, chatSessionContext };
+			const chatContext: vscode.ChatContext = {
+				history,
+				chatSessionContext,
+				get yieldRequested() { return inFlightRequest?.yieldRequested ?? false; }
+			};
 			const task = agent.invoke(
 				extRequest,
 				chatContext,
@@ -865,7 +879,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		const convertedHistory = await this.prepareHistoryTurns(agent.extension, agent.id, context);
 
 		const ehResult = typeConvert.ChatAgentResult.to(result);
-		return (await agent.provideFollowups(ehResult, { history: convertedHistory }, token))
+		return (await agent.provideFollowups(ehResult, { history: convertedHistory, yieldRequested: false }, token))
 			.filter(f => {
 				// The followup must refer to a participant that exists from the same extension
 				const isValid = !f.participant || Iterable.some(
@@ -965,7 +979,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		}
 
 		const history = await this.prepareHistoryTurns(agent.extension, agent.id, { history: context });
-		return await agent.provideTitle({ history }, token);
+		return await agent.provideTitle({ history, yieldRequested: false }, token);
 	}
 
 	async $provideChatSummary(handle: number, context: IChatAgentHistoryEntryDto[], token: CancellationToken): Promise<string | undefined> {
@@ -975,7 +989,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		}
 
 		const history = await this.prepareHistoryTurns(agent.extension, agent.id, { history: context });
-		return await agent.provideSummary({ history }, token);
+		return await agent.provideSummary({ history, yieldRequested: false }, token);
 	}
 }
 
