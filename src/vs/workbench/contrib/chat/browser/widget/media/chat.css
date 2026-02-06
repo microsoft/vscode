@@ -1053,6 +1053,23 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	position: relative;
 }
 
+/* question carousel - this is above edits and todos */
+.interactive-session .interactive-input-part > .chat-question-carousel-widget-container {
+	width: 100%;
+	position: relative;
+}
+
+.interactive-session .interactive-input-part > .chat-question-carousel-widget-container:empty {
+	display: none;
+}
+
+.interactive-session .interactive-input-part > .chat-question-carousel-widget-container .chat-question-carousel-container {
+	margin: 0px;
+	border: 1px solid var(--vscode-input-border, transparent);
+	background-color: var(--vscode-editor-background);
+	border-radius: 4px;
+}
+
 /* Chat Todo List Widget Container - mirrors chat-editing-session styling */
 .interactive-session .interactive-input-part > .chat-todo-list-widget-container {
 	margin-bottom: -4px;

@@ -99,6 +99,7 @@ interface IFocusEventFromScroll extends KeyboardEvent {
 
 const searchBoxLabel = localize('SearchSettings.AriaLabel', "Search settings");
 const SEARCH_TOC_BEHAVIOR_KEY = 'workbench.settings.settingsSearchTocBehavior';
+const SCROLL_BEHAVIOR_KEY = 'workbench.settings.scrollBehavior';
 
 const SHOW_AI_RESULTS_ENABLED_LABEL = localize('showAiResultsEnabled', "Show AI-recommended results");
 const SHOW_AI_RESULTS_DISABLED_LABEL = localize('showAiResultsDisabled', "No AI results available at this time...");
@@ -878,7 +879,7 @@ export class SettingsEditor2 extends EditorPane {
 			// If the target display category is different than the source's, unfocus the category
 			// so that we can render all found settings again.
 			// Then, the reveal call will correctly find the target setting.
-			if (this.viewState.filterToCategory && evt.source.displayCategory !== targetElement.displayCategory) {
+			if (this.viewState.categoryFilter && evt.source.displayCategory !== targetElement.displayCategory) {
 				this.tocTree.setFocus([]);
 			}
 			try {
@@ -1050,54 +1051,63 @@ export class SettingsEditor2 extends EditorPane {
 
 			this.tocFocusedElement = element;
 			this.tocTree.setSelection(element ? [element] : []);
-			if (this.searchResultModel) {
-				if (this.viewState.filterToCategory !== element) {
-					this.viewState.filterToCategory = element ?? undefined;
+			const scrollBehavior = this.configurationService.getValue<'paginated' | 'continuous'>(SCROLL_BEHAVIOR_KEY);
+			if (this.searchResultModel || scrollBehavior === 'paginated') {
+				// In search mode or paginated mode, filter to show only the selected category
+				if (this.viewState.categoryFilter !== element) {
+					this.viewState.categoryFilter = element ?? undefined;
 					// Force render in this case, because
 					// onDidClickSetting relies on the updated view.
 					this.renderTree(undefined, true);
 					this.settingsTree.scrollTop = 0;
 				}
-			} else if (element && (!e.browserEvent || !(<IFocusEventFromScroll>e.browserEvent).fromScroll)) {
-				let targetElement = element;
-				// Searches equvalent old Object currently living in the Tree nodes.
-				if (!this.settingsTree.hasElement(targetElement)) {
-					if (element instanceof SettingsTreeGroupElement) {
-						const targetId = element.id;
+			} else {
+				// In continuous mode, clear any category filter that may have been set in paginated mode
+				if (this.viewState.categoryFilter) {
+					this.viewState.categoryFilter = undefined;
+					this.renderTree(undefined, true);
+				}
+				if (element && (!e.browserEvent || !(<IFocusEventFromScroll>e.browserEvent).fromScroll)) {
+					let targetElement = element;
+					// Searches equivalent old Object currently living in the Tree nodes.
+					if (!this.settingsTree.hasElement(targetElement)) {
+						if (element instanceof SettingsTreeGroupElement) {
+							const targetId = element.id;
 
-						const findInViewNodes = (nodes: any[]): SettingsTreeGroupElement | undefined => {
-							for (const node of nodes) {
-								if (node.element instanceof SettingsTreeGroupElement && node.element.id === targetId) {
-									return node.element;
-								}
-								if (node.children && node.children.length > 0) {
-									const found = findInViewNodes(node.children);
-									if (found) {
-										return found;
+							const findInViewNodes = (nodes: any[]): SettingsTreeGroupElement | undefined => {
+								for (const node of nodes) {
+									if (node.element instanceof SettingsTreeGroupElement && node.element.id === targetId) {
+										return node.element;
+									}
+									if (node.children && node.children.length > 0) {
+										const found = findInViewNodes(node.children);
+										if (found) {
+											return found;
+										}
 									}
 								}
-							}
-							return undefined;
-						};
+								return undefined;
+							};
 
-						try {
-							const rootNode = this.settingsTree.getNode(null);
-							if (rootNode && rootNode.children) {
-								const foundOldElement = findInViewNodes(rootNode.children);
-								if (foundOldElement) {
-									// Now we don't reveal the New Object, reveal the Old Object"
-									targetElement = foundOldElement;
+							try {
+								const rootNode = this.settingsTree.getNode(null);
+								if (rootNode && rootNode.children) {
+									const foundOldElement = findInViewNodes(rootNode.children);
+									if (foundOldElement) {
+										// Now we don't reveal the New Object, reveal the Old Object"
+										targetElement = foundOldElement;
+									}
 								}
+							} catch (err) {
+								// Tree might be in an invalid state, ignore
 							}
-						} catch (err) {
-							// Tree might be in an invalid state, ignore
 						}
 					}
-				}
 
-				if (this.settingsTree.hasElement(targetElement)) {
-					this.settingsTree.reveal(targetElement, 0);
-					this.settingsTree.setFocus([targetElement]);
+					if (this.settingsTree.hasElement(targetElement)) {
+						this.settingsTree.reveal(targetElement, 0);
+						this.settingsTree.setFocus([targetElement]);
+					}
 				}
 			}
 		}));
@@ -1246,6 +1256,12 @@ export class SettingsEditor2 extends EditorPane {
 	private updateTreeScrollSync(): void {
 		this.settingRenderers.cancelSuggesters();
 		if (this.searchResultModel) {
+			return;
+		}
+
+		// In paginated mode, we don't sync scroll position since categories are filtered
+		const scrollBehavior = this.configurationService.getValue<'paginated' | 'continuous'>(SCROLL_BEHAVIOR_KEY);
+		if (scrollBehavior === 'paginated') {
 			return;
 		}
 
@@ -1685,6 +1701,21 @@ export class SettingsEditor2 extends EditorPane {
 				await this.onSearchInputChanged(true);
 			} else {
 				this.refreshTOCTree();
+
+				// In paginated mode, set initial category to the first one (Commonly Used)
+				const scrollBehavior = this.configurationService.getValue<'paginated' | 'continuous'>(SCROLL_BEHAVIOR_KEY);
+				if (scrollBehavior === 'paginated') {
+					const rootChildren = this.settingsTreeModel.value.root.children;
+					if (Array.isArray(rootChildren) && rootChildren.length > 0) {
+						const firstCategory = rootChildren[0];
+						if (firstCategory instanceof SettingsTreeGroupElement) {
+							this.viewState.categoryFilter = firstCategory;
+							this.tocTree.setFocus([firstCategory]);
+							this.tocTree.setSelection([firstCategory]);
+						}
+					}
+				}
+
 				this.refreshTree();
 				this.tocTree.collapseAll();
 			}
@@ -1887,7 +1918,7 @@ export class SettingsEditor2 extends EditorPane {
 
 			if (expandResults) {
 				this.tocTree.setFocus([]);
-				this.viewState.filterToCategory = undefined;
+				this.viewState.categoryFilter = undefined;
 			}
 			this.tocTreeModel.currentSearchModel = this.searchResultModel;
 
@@ -2009,7 +2040,7 @@ export class SettingsEditor2 extends EditorPane {
 		this.tocTreeModel.currentSearchModel = this.searchResultModel;
 		if (expandResults) {
 			this.tocTree.setFocus([]);
-			this.viewState.filterToCategory = undefined;
+			this.viewState.categoryFilter = undefined;
 			this.tocTree.expandAll();
 			this.settingsTree.scrollTop = 0;
 		}

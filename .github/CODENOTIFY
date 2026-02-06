@@ -117,6 +117,7 @@ src/vs/workbench/contrib/preferences/** @rzhao271
 
 # Build
 build/azure-pipelines/** @lszomoru
+build/azure-pipelines/common/sanity-tests.yml @dmitrivMS
 build/lib/i18n.ts @TylerLeonhardt
 resources/linux/debian/** @rzhao271
 resources/linux/rpm/** @rzhao271
@@ -144,3 +145,6 @@ extensions/github/** @lszomoru
 # Chat Editing, Inline Chat
 src/vs/workbench/contrib/chat/browser/chatEditing/** @jrieken
 src/vs/workbench/contrib/inlineChat/** @jrieken
+
+# Testing
+test/sanity/** @dmitrivMS

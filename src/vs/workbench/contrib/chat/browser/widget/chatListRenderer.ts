@@ -1967,26 +1967,61 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		const widget = isResponseVM(context.element) ? this.chatWidgetService.getWidgetBySessionResource(context.element.sessionResource) : undefined;
 		const shouldAutoFocus = widget ? widget.getInput() === '' : true;
+		const responseId = isResponseVM(context.element) ? context.element.requestId : undefined;
 
-		const part = this.instantiationService.createInstance(ChatQuestionCarouselPart, carousel, context, {
-			shouldAutoFocus,
-			onSubmit: async (answers) => {
-				// Mark the carousel as used and store the answers
-				const answersRecord = answers ? Object.fromEntries(answers) : undefined;
-				if (answersRecord) {
-					carousel.data = answersRecord;
-				}
-				carousel.isUsed = true;
-
-				// Notify the extension about the carousel answers to resolve the deferred promise
-				if (isResponseVM(context.element) && carousel.resolveId) {
-					this.chatService.notifyQuestionCarouselAnswer(context.element.requestId, carousel.resolveId, answersRecord);
-				}
-
-				// Remove from pending carousels
-				this.removeCarouselFromTracking(context, part);
+		const handleSubmit = async (answers: Map<string, unknown> | undefined, part: ChatQuestionCarouselPart) => {
+			// Mark the carousel as used and store the answers
+			const answersRecord = answers ? Object.fromEntries(answers) : undefined;
+			if (answersRecord) {
+				carousel.data = answersRecord;
 			}
+			carousel.isUsed = true;
+
+			// Notify the extension about the carousel answers to resolve the deferred promise
+			if (isResponseVM(context.element) && carousel.resolveId) {
+				this.chatService.notifyQuestionCarouselAnswer(context.element.requestId, carousel.resolveId, answersRecord);
+			}
+
+			// Remove from pending carousels
+			this.removeCarouselFromTracking(context, part);
+
+			// Clear from input part (always clear on submit, no response check needed)
+			widget?.input.clearQuestionCarousel();
+		};
+
+		// If carousel is already used or response is complete/canceled, render summary inline in the list
+		const responseIsComplete = isResponseVM(context.element) && context.element.isComplete;
+		const inputPartHasCarousel = widget?.input.questionCarousel !== undefined;
+
+		if (carousel.isUsed || responseIsComplete) {
+			// Clear the carousel from input part when response completes (stopped/canceled)
+			// Only clear if this response's carousel is currently displayed (pass responseId)
+			if (responseIsComplete && inputPartHasCarousel && responseId) {
+				widget?.input.clearQuestionCarousel(responseId);
+			}
+
+			const part = this.instantiationService.createInstance(ChatQuestionCarouselPart, carousel, context, {
+				shouldAutoFocus: false,
+				onSubmit: async (answers) => handleSubmit(answers, part)
+			});
+			return part;
+		}
+
+		// Render the active carousel in the input part (above the input box, not while editing)
+		const isEditing = !!this.viewModel?.editing;
+		const part = isEditing ? undefined : widget?.input.renderQuestionCarousel(carousel, context, {
+			shouldAutoFocus,
+			onSubmit: async (answers) => handleSubmit(answers, part!)
 		});
+
+		// If we couldn't render in the input part, fall back to inline rendering
+		if (!part) {
+			const fallbackPart = this.instantiationService.createInstance(ChatQuestionCarouselPart, carousel, context, {
+				shouldAutoFocus,
+				onSubmit: async (answers) => handleSubmit(answers, fallbackPart)
+			});
+			return fallbackPart;
+		}
 
 		// If global auto-approve (yolo mode) is enabled, skip with defaults immediately
 		if (!carousel.isUsed && this.configService.getValue<boolean>(ChatConfiguration.GlobalAutoApprove)) {
@@ -1994,19 +2029,40 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		// Track the carousel for auto-skip when user submits a new message
+		// Only add tracking if not already tracked (prevents duplicate tracking on re-render)
 		if (isResponseVM(context.element) && carousel.allowSkip && !carousel.isUsed) {
 			let carousels = this.pendingQuestionCarousels.get(context.element.sessionResource);
 			if (!carousels) {
 				carousels = new Set();
 				this.pendingQuestionCarousels.set(context.element.sessionResource, carousels);
 			}
-			carousels.add(part);
+			if (!carousels.has(part)) {
+				carousels.add(part);
 
-			// Clean up when the part is disposed
-			part.addDisposable({ dispose: () => this.removeCarouselFromTracking(context, part) });
+				// Clean up when the part is disposed
+				part.addDisposable({ dispose: () => this.removeCarouselFromTracking(context, part) });
+			}
 		}
 
-		return part;
+		// Return a placeholder that will re-render as a summary when the carousel is used or response is complete/stopped
+		return this.renderNoContent((other, _followingContent, element) => {
+			// Re-render (return false) if:
+			// - carousel was used/submitted
+			// - response is complete (stopped)
+			if (carousel.isUsed || (isResponseVM(element) && element.isComplete)) {
+				return false;
+			}
+			// Use resolveId for comparison instead of object identity to handle re-rendering during scrolling
+			if (other.kind === 'questionCarousel') {
+				const otherCarousel = other as IChatQuestionCarousel;
+				// Compare by resolveId if available, otherwise fall back to object identity
+				if (carousel.resolveId && otherCarousel.resolveId) {
+					return carousel.resolveId === otherCarousel.resolveId;
+				}
+				return other === carousel;
+			}
+			return false;
+		});
 	}
 
 	private _notifyOnQuestionCarousel(context: IChatContentPartRenderContext, carousel: IChatQuestionCarousel): void {

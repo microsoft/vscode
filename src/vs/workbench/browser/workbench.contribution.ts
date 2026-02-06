@@ -349,6 +349,15 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'description': localize('revealIfOpen', "Controls whether an editor is revealed in any of the visible groups if opened. If disabled, an editor will prefer to open in the currently active editor group. If enabled, an already opened editor will be revealed instead of opened again in the currently active editor group. Note that there are some cases where this setting is ignored, such as when forcing an editor to open in a specific group or to the side of the currently active group."),
 				'default': false
 			},
+			'workbench.editor.allowOpenInModalEditor': {
+				'type': 'boolean',
+				'description': localize('allowOpenInModalEditor', "Controls whether editors can be opened in a modal overlay. When enabled, certain editors such as Settings and Keyboard Shortcuts may open in a centered modal overlay instead of as a regular editor tab."),
+				'default': product.quality !== 'stable', // TODO@bpasero figure out the default for stable
+				tags: ['experimental'],
+				experiment: {
+					mode: 'auto'
+				}
+			},
 			'workbench.editor.swipeToNavigate': {
 				'type': 'boolean',
 				'description': localize('swipeToNavigate', "Navigate between open files using three-finger swipe horizontally. Note that System Preferences > Trackpad > More Gestures > 'Swipe between pages' must be set to 'Swipe with two or three fingers'."),

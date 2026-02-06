@@ -18,6 +18,7 @@ import { IExtHostStorage, ExtHostStorage } from './extHostStorage.js';
 import { IExtHostTunnelService, ExtHostTunnelService } from './extHostTunnelService.js';
 import { IExtHostApiDeprecationService, ExtHostApiDeprecationService, } from './extHostApiDeprecationService.js';
 import { IExtHostWindow, ExtHostWindow } from './extHostWindow.js';
+import { IExtHostPower, ExtHostPower } from './extHostPower.js';
 import { IExtHostConsumerFileSystem, ExtHostConsumerFileSystem } from './extHostFileSystemConsumer.js';
 import { IExtHostFileSystemInfo, ExtHostFileSystemInfo } from './extHostFileSystemInfo.js';
 import { IExtHostSecretState, ExtHostSecretState } from './extHostSecretState.js';
@@ -57,6 +58,7 @@ registerSingleton(IExtHostTerminalService, WorkerExtHostTerminalService, Instant
 registerSingleton(IExtHostTerminalShellIntegration, ExtHostTerminalShellIntegration, InstantiationType.Eager);
 registerSingleton(IExtHostTunnelService, ExtHostTunnelService, InstantiationType.Eager);
 registerSingleton(IExtHostWindow, ExtHostWindow, InstantiationType.Eager);
+registerSingleton(IExtHostPower, ExtHostPower, InstantiationType.Eager);
 registerSingleton(IExtHostUrlsService, ExtHostUrls, InstantiationType.Eager);
 registerSingleton(IExtHostWorkspace, ExtHostWorkspace, InstantiationType.Eager);
 registerSingleton(IExtHostSecretState, ExtHostSecretState, InstantiationType.Eager);
