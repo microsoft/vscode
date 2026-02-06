@@ -527,47 +527,10 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				dto.userSelectedTools = request.userSelectedTools && { ...request.userSelectedTools };
 
 				prepareTimeWatch = StopWatch.create(true);
-				const forceConfirmationReason = preToolUseHookResult?.permissionDecision === 'ask' ? (preToolUseHookResult.permissionDecisionReason || true) : undefined;
-				preparedInvocation = await this.prepareToolInvocation(tool, dto, forceConfirmationReason, token);
+				preparedInvocation = await this.prepareToolInvocationWithHookResult(tool, dto, preToolUseHookResult, token);
 				prepareTimeWatch.stop();
 
-				// Determine auto-confirm based on hook result and normal settings
-				// Hook decisions have priority: 'allow' auto-approves, 'ask' forces confirmation
-				let autoConfirmed: ConfirmedReason | undefined;
-				if (preToolUseHookResult?.permissionDecision === 'allow') {
-					// Hook explicitly allows - auto-approve with reason
-					autoConfirmed = { type: ToolConfirmKind.ConfirmationNotNeeded, reason: localize('hookAllowed', "Allowed by hook") };
-					this._logService.debug(`[LanguageModelToolsService#invokeTool] Tool ${dto.toolId} auto-approved by preToolUse hook`);
-				} else if (preToolUseHookResult?.permissionDecision === 'ask') {
-					// Hook explicitly requires confirmation - never auto-approve
-					autoConfirmed = undefined;
-					this._logService.debug(`[LanguageModelToolsService#invokeTool] Tool ${dto.toolId} requires confirmation (preToolUse hook returned 'ask')`);
-					// Ensure confirmation messages exist when hook requires confirmation
-					if (!preparedInvocation?.confirmationMessages?.title) {
-						if (!preparedInvocation) {
-							preparedInvocation = {};
-						}
-						const fullReferenceName = getToolFullReferenceName(tool.data);
-						const hookReason = preToolUseHookResult.permissionDecisionReason;
-						// Use MarkdownString for message so the input editor is shown
-						// (chatToolConfirmationSubPart only shows editor when typeof message !== 'string')
-						const baseMessage = localize('hookRequiresConfirmation.message', "{0} hook confirmation required", HookType.PreToolUse);
-						preparedInvocation.confirmationMessages = {
-							...preparedInvocation.confirmationMessages,
-							title: localize('hookRequiresConfirmation.title', "Use the '{0}' tool?", fullReferenceName),
-							message: new MarkdownString(hookReason ? `${baseMessage}\n\n${hookReason}` : baseMessage),
-							allowAutoConfirm: false,
-						};
-						// Show input editor for confirmation
-						preparedInvocation.toolSpecificData = {
-							kind: 'input',
-							rawInput: dto.parameters,
-						};
-					}
-				} else {
-					// No hook decision - use normal auto-confirm logic
-					autoConfirmed = await this.shouldAutoConfirm(tool.data.id, tool.data.runsInWorkspace, tool.data.source, dto.parameters, dto.context?.sessionResource);
-				}
+				const autoConfirmed = await this.resolveAutoConfirmFromHook(preToolUseHookResult, tool, dto, preparedInvocation, dto.context?.sessionResource);
 
 
 				// Important: a tool invocation that will be autoconfirmed should never
@@ -612,42 +575,10 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				}
 			} else {
 				prepareTimeWatch = StopWatch.create(true);
-				const forceConfirmationReasonFallback = preToolUseHookResult?.permissionDecision === 'ask' ? (preToolUseHookResult.permissionDecisionReason || true) : undefined;
-				preparedInvocation = await this.prepareToolInvocation(tool, dto, forceConfirmationReasonFallback, token);
+				preparedInvocation = await this.prepareToolInvocationWithHookResult(tool, dto, preToolUseHookResult, token);
 				prepareTimeWatch.stop();
-				// Determine auto-confirm based on hook result and normal settings
-				// Note: hooks only run with session context, but check anyway for consistency
-				let fallbackAutoConfirmed: ConfirmedReason | undefined;
-				if (preToolUseHookResult?.permissionDecision === 'allow') {
-					fallbackAutoConfirmed = { type: ToolConfirmKind.ConfirmationNotNeeded, reason: localize('hookAllowed', "Allowed by hook") };
-				} else if (preToolUseHookResult?.permissionDecision === 'ask') {
-					fallbackAutoConfirmed = undefined;
 
-					// Ensure confirmation messages exist when hook requires confirmation
-					if (!preparedInvocation?.confirmationMessages?.title) {
-						if (!preparedInvocation) {
-							preparedInvocation = {};
-						}
-						const fullReferenceName = getToolFullReferenceName(tool.data);
-						const hookReason = preToolUseHookResult.permissionDecisionReason;
-						// Use MarkdownString for message so the input editor is shown
-						// (chatToolConfirmationSubPart only shows editor when typeof message !== 'string')
-						const baseMessage = localize('hookRequiresConfirmation.message', "{0} hook confirmation required", HookType.PreToolUse);
-						preparedInvocation.confirmationMessages = {
-							...preparedInvocation.confirmationMessages,
-							title: localize('hookRequiresConfirmation.title', "Use the '{0}' tool?", fullReferenceName),
-							message: new MarkdownString(hookReason ? `${baseMessage}\n\n${hookReason}` : baseMessage),
-							allowAutoConfirm: false,
-						};
-						// Show input editor for confirmation
-						preparedInvocation.toolSpecificData = {
-							kind: 'input',
-							rawInput: dto.parameters,
-						};
-					}
-				} else {
-					fallbackAutoConfirmed = await this.shouldAutoConfirm(tool.data.id, tool.data.runsInWorkspace, tool.data.source, dto.parameters, undefined);
-				}
+				const fallbackAutoConfirmed = await this.resolveAutoConfirmFromHook(preToolUseHookResult, tool, dto, preparedInvocation, undefined);
 				if (preparedInvocation?.confirmationMessages?.title && !fallbackAutoConfirmed) {
 					const result = await this._dialogService.confirm({ message: renderAsPlaintext(preparedInvocation.confirmationMessages.title), detail: renderAsPlaintext(preparedInvocation.confirmationMessages.message!) });
 					if (!result.confirmed) {
@@ -732,7 +663,58 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		}
 	}
 
-	private async prepareToolInvocation(tool: IToolEntry, dto: IToolInvocation, forceConfirmationReason: string | true | undefined, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
+	private async prepareToolInvocationWithHookResult(tool: IToolEntry, dto: IToolInvocation, hookResult: IPreToolUseHookResult | undefined, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
+		const forceConfirmationReason = hookResult?.permissionDecision === 'ask' ? (hookResult.permissionDecisionReason ?? '') : undefined;
+		return this.prepareToolInvocation(tool, dto, forceConfirmationReason, token);
+	}
+
+	/**
+	 * Determines the auto-confirm decision based on a preToolUse hook result.
+	 * If the hook returned 'allow', auto-approves. If 'ask', forces confirmation
+	 * and ensures confirmation messages exist on `preparedInvocation`. Otherwise
+	 * falls back to normal auto-confirm logic.
+	 */
+	private async resolveAutoConfirmFromHook(
+		hookResult: IPreToolUseHookResult | undefined,
+		tool: IToolEntry,
+		dto: IToolInvocation,
+		preparedInvocation: IPreparedToolInvocation | undefined,
+		sessionResource: URI | undefined,
+	): Promise<ConfirmedReason | undefined> {
+		if (hookResult?.permissionDecision === 'allow') {
+			this._logService.debug(`[LanguageModelToolsService#invokeTool] Tool ${dto.toolId} auto-approved by preToolUse hook`);
+			return { type: ToolConfirmKind.ConfirmationNotNeeded, reason: localize('hookAllowed', "Allowed by hook") };
+		}
+
+		if (hookResult?.permissionDecision === 'ask') {
+			this._logService.debug(`[LanguageModelToolsService#invokeTool] Tool ${dto.toolId} requires confirmation (preToolUse hook returned 'ask')`);
+			// Ensure confirmation messages exist when hook requires confirmation
+			if (!preparedInvocation?.confirmationMessages?.title) {
+				if (!preparedInvocation) {
+					preparedInvocation = {};
+				}
+				const fullReferenceName = getToolFullReferenceName(tool.data);
+				const hookReason = hookResult.permissionDecisionReason;
+				const baseMessage = localize('hookRequiresConfirmation.message', "{0} hook confirmation required", HookType.PreToolUse);
+				preparedInvocation.confirmationMessages = {
+					...preparedInvocation.confirmationMessages,
+					title: localize('hookRequiresConfirmation.title', "Use the '{0}' tool?", fullReferenceName),
+					message: new MarkdownString(hookReason ? `${baseMessage}\n\n${hookReason}` : baseMessage),
+					allowAutoConfirm: false,
+				};
+				preparedInvocation.toolSpecificData = {
+					kind: 'input',
+					rawInput: dto.parameters,
+				};
+			}
+			return undefined;
+		}
+
+		// No hook decision - use normal auto-confirm logic
+		return this.shouldAutoConfirm(tool.data.id, tool.data.runsInWorkspace, tool.data.source, dto.parameters, sessionResource);
+	}
+
+	private async prepareToolInvocation(tool: IToolEntry, dto: IToolInvocation, forceConfirmationReason: string | undefined, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
 		let prepared: IPreparedToolInvocation | undefined;
 		if (tool.impl!.prepareToolInvocation) {
 			const preparePromise = tool.impl!.prepareToolInvocation({
@@ -741,7 +723,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				chatSessionId: dto.context?.sessionId,
 				chatSessionResource: dto.context?.sessionResource,
 				chatInteractionId: dto.chatInteractionId,
-				forceConfirmationReason: typeof forceConfirmationReason === 'string' ? forceConfirmationReason : (forceConfirmationReason ? '' : undefined)
+				forceConfirmationReason: forceConfirmationReason
 			}, token);
 
 			const raceResult = await Promise.race([
