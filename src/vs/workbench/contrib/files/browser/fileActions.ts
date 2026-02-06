@@ -10,7 +10,7 @@ import * as resources from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { Action } from '../../../../base/common/actions.js';
-import { dispose, IDisposable } from '../../../../base/common/lifecycle.js';
+import { dispose, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { VIEWLET_ID, IFilesConfiguration, VIEW_ID, UndoConfirmLevel } from '../common/files.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { EditorResourceAccessor, SideBySideEditor } from '../../../common/editor.js';
@@ -18,7 +18,7 @@ import { IQuickInputService, ItemActivation } from '../../../../platform/quickin
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ITextModel } from '../../../../editor/common/model.js';
 import { IHostService } from '../../../services/host/browser/host.js';
-import { REVEAL_IN_EXPLORER_COMMAND_ID, SAVE_ALL_IN_GROUP_COMMAND_ID, NEW_UNTITLED_FILE_COMMAND_ID } from './fileConstants.js';
+import { REVEAL_IN_EXPLORER_COMMAND_ID, SAVE_ALL_IN_GROUP_COMMAND_ID, NEW_UNTITLED_FILE_COMMAND_ID, DUPLICATE_ACTIVE_FILE_COMMAND_ID, RENAME_ACTIVE_FILE_COMMAND_ID } from './fileConstants.js';
 import { ITextModelService, ITextModelContentProvider } from '../../../../editor/common/services/resolverService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
@@ -733,7 +733,7 @@ function getActiveFileContext(
 	}
 
 	if (!fileService.hasProvider(resource)) {
-		dialogService.error(nls.localize('activeFile.unsupportedScheme', "The file system does not support {0} this file.", operationName));
+		dialogService.error(nls.localize('activeFile.unsupportedScheme', "The file system does not support {0} for this file.", operationName));
 		return undefined;
 	}
 
@@ -762,10 +762,32 @@ function getActiveFileContext(
 	return { resource, filename, relativePath, baseResource, filenameStart, selectionEnd };
 }
 
+function normalizeActiveFilePath(value: string): string {
+	return getWellFormedFileName(value.trim());
+}
+
+export function validateActiveFilePath(pathService: IPathService, baseResource: URI, value: string): string | undefined {
+	const normalizedValue = getWellFormedFileName(value);
+	if (!normalizedValue || /^\s+$/.test(normalizedValue)) {
+		return undefined;
+	}
+
+	if (normalizedValue[0] === '/' || normalizedValue[0] === '\\' || isAbsolute(normalizedValue) || /^[a-zA-Z]:/.test(normalizedValue)) {
+		return nls.localize('activeFilePathAbsoluteError', "The file path must be relative.");
+	}
+
+	const names = coalesce(normalizedValue.split(/[\\/]/));
+	if (names.some(name => !pathService.hasValidBasename(baseResource, OS, name))) {
+		return nls.localize('activeFilePathInvalidError', "The name '{0}' is not valid as a file or folder name.", trimLongName(normalizedValue));
+	}
+
+	return undefined;
+}
+
 export class DuplicateActiveFileAction extends Action2 {
 
-	static readonly ID = 'workbench.files.action.duplicateActiveFile';
-	static readonly LABEL = nls.localize2('duplicateActiveFile', "Duplicate");
+	static readonly ID = DUPLICATE_ACTIVE_FILE_COMMAND_ID;
+	static readonly LABEL = nls.localize2('duplicateActiveFile', "Duplicate...");
 
 	constructor() {
 		super({
@@ -773,6 +795,7 @@ export class DuplicateActiveFileAction extends Action2 {
 			title: DuplicateActiveFileAction.LABEL,
 			f1: true,
 			category: Categories.File,
+			precondition: ActiveEditorContext,
 			metadata: {
 				description: nls.localize2('duplicateActiveFileDescription', "Duplicates the active file to a new location.")
 			}
@@ -787,6 +810,7 @@ export class DuplicateActiveFileAction extends Action2 {
 		const quickInputService = accessor.get(IQuickInputService);
 		const notificationService = accessor.get(INotificationService);
 		const contextService = accessor.get(IWorkspaceContextService);
+		const pathService = accessor.get(IPathService);
 
 		const context = getActiveFileContext(editorService, fileService, contextService, dialogService, nls.localize('duplicating', "duplicating"));
 		if (!context) {
@@ -795,100 +819,132 @@ export class DuplicateActiveFileAction extends Action2 {
 
 		const { resource, filename, relativePath, baseResource, filenameStart, selectionEnd } = context;
 
-		return new Promise<void>((resolve) => {
-			const inputBox = quickInputService.createInputBox();
-			inputBox.title = nls.localize('duplicateTitle', "Duplicate");
-			inputBox.value = relativePath;
-			inputBox.valueSelection = [filenameStart, selectionEnd];
-			inputBox.placeholder = nls.localize('duplicatePlaceholder', "Enter the new file path");
-			inputBox.ignoreFocusOut = true;
+		let validationTimer: ReturnType<typeof setTimeout> | undefined;
+		const disposables = new DisposableStore();
+		try {
+			await new Promise<void>((resolve) => {
+				const inputBox = disposables.add(quickInputService.createInputBox());
+				inputBox.title = nls.localize('duplicateTitle', "Duplicate...");
+				inputBox.value = relativePath;
+				inputBox.valueSelection = [filenameStart, selectionEnd];
+				inputBox.placeholder = nls.localize('duplicatePlaceholder', "Enter the new file path");
+				inputBox.ignoreFocusOut = true;
 
-			let validationTimer: ReturnType<typeof setTimeout> | undefined;
+				const validateInput = async (value: string): Promise<{ message: string; isError: boolean } | undefined> => {
+					const normalizedValue = normalizeActiveFilePath(value);
+					if (!normalizedValue || normalizedValue.length === 0 || /^\s+$/.test(normalizedValue)) {
+						return { message: nls.localize('duplicateEmptyError', "A file path must be provided."), isError: true };
+					}
 
-			const validateInput = async (value: string): Promise<string | undefined> => {
-				if (!value || value.length === 0 || /^\s+$/.test(value)) {
-					return nls.localize('duplicateEmptyError', "A file path must be provided.");
-				}
+					const validationError = validateActiveFilePath(pathService, baseResource, normalizedValue);
+					if (validationError) {
+						return { message: validationError, isError: true };
+					}
 
-				// Check for existing file (warning only)
-				const targetUri = resources.joinPath(baseResource, value);
-				if (value !== relativePath && await fileService.exists(targetUri)) {
-					return nls.localize('duplicateExistsWarning', "A file with this path already exists. It will be replaced.");
-				}
+					if (normalizedValue === relativePath) {
+						return { message: nls.localize('duplicateSamePathError', "The duplicate path must be different from the original."), isError: true };
+					}
 
-				return undefined;
-			};
+					// Check for existing file (warning only)
+					const targetUri = resources.joinPath(baseResource, normalizedValue);
+					if (await fileService.exists(targetUri)) {
+						return { message: nls.localize('duplicateExistsWarning', "A file with this path already exists. It will be replaced."), isError: false };
+					}
 
-			inputBox.onDidChangeValue(value => {
-				if (validationTimer) {
-					clearTimeout(validationTimer);
-				}
-				validationTimer = setTimeout(async () => {
-					const validationMessage = await validateInput(value);
-					inputBox.validationMessage = validationMessage;
-				}, 100);
-			});
+					return undefined;
+				};
 
-			inputBox.onDidAccept(async () => {
-				const newPath = inputBox.value.trim();
+				disposables.add(inputBox.onDidChangeValue(value => {
+					if (validationTimer) {
+						clearTimeout(validationTimer);
+					}
+					validationTimer = setTimeout(async () => {
+						const validation = await validateInput(value);
+						if (validation) {
+							inputBox.validationMessage = validation.message;
+							inputBox.severity = validation.isError ? Severity.Error : Severity.Warning;
+						} else {
+							inputBox.validationMessage = undefined;
+							inputBox.severity = Severity.Ignore;
+						}
+					}, 100);
+				}));
 
-				if (!newPath || newPath.length === 0) {
-					inputBox.validationMessage = nls.localize('duplicateEmptyError', "A file path must be provided.");
-					return;
-				}
+				disposables.add(inputBox.onDidAccept(async () => {
+					const newPath = normalizeActiveFilePath(inputBox.value);
 
-				const targetUri = resources.joinPath(baseResource, newPath);
-				const targetFilename = resources.basename(targetUri);
-
-				// Check if target exists and ask for confirmation
-				const exists = await fileService.exists(targetUri);
-				if (exists) {
-					const { confirmed } = await dialogService.confirm({
-						type: Severity.Warning,
-						message: nls.localize('confirmDuplicateOverwrite', "A file with the name '{0}' already exists. Do you want to replace it?", targetFilename),
-						primaryButton: nls.localize('replaceButtonLabel', "&&Replace")
-					});
-					if (!confirmed) {
+					if (!newPath || newPath.length === 0) {
+						inputBox.validationMessage = nls.localize('duplicateEmptyError', "A file path must be provided.");
+						inputBox.severity = Severity.Error;
 						return;
 					}
-				}
 
-				inputBox.hide();
+					const validationError = validateActiveFilePath(pathService, baseResource, newPath);
+					if (validationError) {
+						inputBox.validationMessage = validationError;
+						inputBox.severity = Severity.Error;
+						return;
+					}
 
-				try {
-					const resourceFileEdit = new ResourceFileEdit(resource, targetUri, { copy: true, overwrite: exists });
-					await explorerService.applyBulkEdit([resourceFileEdit], {
-						confirmBeforeUndo: true,
-						undoLabel: nls.localize('duplicateUndo', "Duplicate {0}", filename),
-						progressLabel: nls.localize('duplicateProgress', "Duplicating {0}", filename)
-					});
+					if (newPath === relativePath) {
+						inputBox.validationMessage = nls.localize('duplicateSamePathError', "The duplicate path must be different from the original.");
+						inputBox.severity = Severity.Error;
+						return;
+					}
 
-					// Open the new file
-					await editorService.openEditor({ resource: targetUri, options: { pinned: true } });
-				} catch (error) {
-					notificationService.error(nls.localize('duplicateError', "Failed to duplicate file: {0}", getErrorMessage(error)));
-				}
+					const targetUri = resources.joinPath(baseResource, newPath);
+					const targetFilename = resources.basename(targetUri);
 
-				resolve();
+					// Check if target exists and ask for confirmation
+					const exists = await fileService.exists(targetUri);
+					if (exists) {
+						const { confirmed } = await dialogService.confirm({
+							type: Severity.Warning,
+							message: nls.localize('confirmDuplicateOverwrite', "A file with the name '{0}' already exists. Do you want to replace it?", targetFilename),
+							primaryButton: nls.localize('replaceButtonLabel', "&&Replace")
+						});
+						if (!confirmed) {
+							return;
+						}
+					}
+
+					inputBox.hide();
+
+					try {
+						const resourceFileEdit = new ResourceFileEdit(resource, targetUri, { copy: true, overwrite: exists });
+						await explorerService.applyBulkEdit([resourceFileEdit], {
+							confirmBeforeUndo: true,
+							undoLabel: nls.localize('duplicateUndo', "Duplicate {0}", filename),
+							progressLabel: nls.localize('duplicateProgress', "Duplicating {0}", filename)
+						});
+						await refreshIfSeparator(newPath, explorerService);
+
+						// Open the new file
+						await editorService.openEditor({ resource: targetUri, options: { pinned: true } });
+					} catch (error) {
+						notificationService.error(nls.localize('duplicateError', "Failed to duplicate file: {0}", getErrorMessage(error)));
+					}
+				}));
+
+				disposables.add(inputBox.onDidHide(() => {
+					if (validationTimer) {
+						clearTimeout(validationTimer);
+					}
+					resolve();
+				}));
+
+				inputBox.show();
 			});
-
-			inputBox.onDidHide(() => {
-				inputBox.dispose();
-				if (validationTimer) {
-					clearTimeout(validationTimer);
-				}
-				resolve();
-			});
-
-			inputBox.show();
-		});
+		} finally {
+			disposables.dispose();
+		}
 	}
 }
 
 export class RenameActiveFileAction extends Action2 {
 
-	static readonly ID = 'workbench.files.action.renameActiveFile';
-	static readonly LABEL = nls.localize2('renameActiveFile', "Rename");
+	static readonly ID = RENAME_ACTIVE_FILE_COMMAND_ID;
+	static readonly LABEL = nls.localize2('renameActiveFile', "Rename...");
 
 	constructor() {
 		super({
@@ -896,6 +952,7 @@ export class RenameActiveFileAction extends Action2 {
 			title: RenameActiveFileAction.LABEL,
 			f1: true,
 			category: Categories.File,
+			precondition: ActiveEditorContext,
 			metadata: {
 				description: nls.localize2('renameActiveFileDescription', "Renames or moves the active file to a new location.")
 			}
@@ -910,6 +967,7 @@ export class RenameActiveFileAction extends Action2 {
 		const quickInputService = accessor.get(IQuickInputService);
 		const notificationService = accessor.get(INotificationService);
 		const contextService = accessor.get(IWorkspaceContextService);
+		const pathService = accessor.get(IPathService);
 
 		const context = getActiveFileContext(editorService, fileService, contextService, dialogService, nls.localize('renaming', "renaming"));
 		if (!context) {
@@ -918,102 +976,117 @@ export class RenameActiveFileAction extends Action2 {
 
 		const { resource, filename, relativePath, baseResource, filenameStart, selectionEnd } = context;
 
-		return new Promise<void>((resolve) => {
-			const inputBox = quickInputService.createInputBox();
-			inputBox.title = nls.localize('renameTitle', "Rename");
-			inputBox.value = relativePath;
-			inputBox.valueSelection = [filenameStart, selectionEnd];
-			inputBox.placeholder = nls.localize('renamePlaceholder', "Enter the new file path");
-			inputBox.ignoreFocusOut = true;
+		let validationTimer: ReturnType<typeof setTimeout> | undefined;
+		const disposables = new DisposableStore();
+		try {
+			await new Promise<void>((resolve) => {
+				const inputBox = disposables.add(quickInputService.createInputBox());
+				inputBox.title = nls.localize('renameTitle', "Rename...");
+				inputBox.value = relativePath;
+				inputBox.valueSelection = [filenameStart, selectionEnd];
+				inputBox.placeholder = nls.localize('renamePlaceholder', "Enter the new file path");
+				inputBox.ignoreFocusOut = true;
 
-			let validationTimer: ReturnType<typeof setTimeout> | undefined;
-
-			const validateInput = async (value: string): Promise<{ message: string; isError: boolean } | undefined> => {
-				if (!value || value.length === 0 || /^\s+$/.test(value)) {
-					return { message: nls.localize('renameEmptyError', "A file path must be provided."), isError: true };
-				}
-
-				// Same path as original - no change needed
-				if (value === relativePath) {
-					return undefined;
-				}
-
-				// Check for existing file (error - cannot overwrite with rename)
-				const targetUri = resources.joinPath(baseResource, value);
-				if (await fileService.exists(targetUri)) {
-					return { message: nls.localize('renameExistsError', "A file or folder with this path already exists."), isError: true };
-				}
-
-				return undefined;
-			};
-
-			inputBox.onDidChangeValue(value => {
-				if (validationTimer) {
-					clearTimeout(validationTimer);
-				}
-				validationTimer = setTimeout(async () => {
-					const validation = await validateInput(value);
-					if (validation) {
-						inputBox.validationMessage = validation.message;
-						inputBox.severity = validation.isError ? Severity.Error : Severity.Warning;
-					} else {
-						inputBox.validationMessage = undefined;
+				const validateInput = async (value: string): Promise<{ message: string; isError: boolean } | undefined> => {
+					const normalizedValue = normalizeActiveFilePath(value);
+					if (!normalizedValue || normalizedValue.length === 0 || /^\s+$/.test(normalizedValue)) {
+						return { message: nls.localize('renameEmptyError', "A file path must be provided."), isError: true };
 					}
-				}, 100);
-			});
 
-			inputBox.onDidAccept(async () => {
-				const newPath = inputBox.value.trim();
+					const validationError = validateActiveFilePath(pathService, baseResource, normalizedValue);
+					if (validationError) {
+						return { message: validationError, isError: true };
+					}
 
-				if (!newPath || newPath.length === 0) {
-					inputBox.validationMessage = nls.localize('renameEmptyError', "A file path must be provided.");
-					inputBox.severity = Severity.Error;
-					return;
-				}
+					// Same path as original - no change needed
+					if (normalizedValue === relativePath) {
+						return undefined;
+					}
 
-				// Same path - just close
-				if (newPath === relativePath) {
+					// Check for existing file (error - cannot overwrite with rename)
+					const targetUri = resources.joinPath(baseResource, normalizedValue);
+					if (await fileService.exists(targetUri)) {
+						return { message: nls.localize('renameExistsError', "A file or folder with this path already exists."), isError: true };
+					}
+
+					return undefined;
+				};
+
+				disposables.add(inputBox.onDidChangeValue(value => {
+					if (validationTimer) {
+						clearTimeout(validationTimer);
+					}
+					validationTimer = setTimeout(async () => {
+						const validation = await validateInput(value);
+						if (validation) {
+							inputBox.validationMessage = validation.message;
+							inputBox.severity = validation.isError ? Severity.Error : Severity.Warning;
+						} else {
+							inputBox.validationMessage = undefined;
+							inputBox.severity = Severity.Ignore;
+						}
+					}, 100);
+				}));
+
+				disposables.add(inputBox.onDidAccept(async () => {
+					const newPath = normalizeActiveFilePath(inputBox.value);
+
+					if (!newPath || newPath.length === 0) {
+						inputBox.validationMessage = nls.localize('renameEmptyError', "A file path must be provided.");
+						inputBox.severity = Severity.Error;
+						return;
+					}
+
+					const validationError = validateActiveFilePath(pathService, baseResource, newPath);
+					if (validationError) {
+						inputBox.validationMessage = validationError;
+						inputBox.severity = Severity.Error;
+						return;
+					}
+
+					// Same path - just close
+					if (newPath === relativePath) {
+						inputBox.hide();
+						return;
+					}
+
+					const targetUri = resources.joinPath(baseResource, newPath);
+
+					// Check if target exists - block rename
+					if (await fileService.exists(targetUri)) {
+						inputBox.validationMessage = nls.localize('renameExistsError', "A file or folder with this path already exists.");
+						inputBox.severity = Severity.Error;
+						return;
+					}
+
 					inputBox.hide();
+
+					try {
+						const resourceFileEdit = new ResourceFileEdit(resource, targetUri);
+						await explorerService.applyBulkEdit([resourceFileEdit], {
+							confirmBeforeUndo: true,
+							undoLabel: nls.localize('renameUndo', "Rename {0}", filename),
+							progressLabel: nls.localize('renameProgress', "Renaming {0}", filename)
+						});
+						await refreshIfSeparator(newPath, explorerService);
+						// Editor automatically updates to new location - no openEditor() needed
+					} catch (error) {
+						notificationService.error(nls.localize('renameError', "Failed to rename file: {0}", getErrorMessage(error)));
+					}
+				}));
+
+				disposables.add(inputBox.onDidHide(() => {
+					if (validationTimer) {
+						clearTimeout(validationTimer);
+					}
 					resolve();
-					return;
-				}
+				}));
 
-				const targetUri = resources.joinPath(baseResource, newPath);
-
-				// Check if target exists - block rename
-				if (await fileService.exists(targetUri)) {
-					inputBox.validationMessage = nls.localize('renameExistsError', "A file or folder with this path already exists.");
-					inputBox.severity = Severity.Error;
-					return;
-				}
-
-				inputBox.hide();
-
-				try {
-					const resourceFileEdit = new ResourceFileEdit(resource, targetUri);
-					await explorerService.applyBulkEdit([resourceFileEdit], {
-						confirmBeforeUndo: true,
-						undoLabel: nls.localize('renameUndo', "Rename {0}", filename),
-						progressLabel: nls.localize('renameProgress', "Renaming {0}", filename)
-					});
-					// Editor automatically updates to new location - no openEditor() needed
-				} catch (error) {
-					notificationService.error(nls.localize('renameError', "Failed to rename file: {0}", getErrorMessage(error)));
-				}
-
-				resolve();
+				inputBox.show();
 			});
-
-			inputBox.onDidHide(() => {
-				inputBox.dispose();
-				if (validationTimer) {
-					clearTimeout(validationTimer);
-				}
-				resolve();
-			});
-
-			inputBox.show();
-		});
+		} finally {
+			disposables.dispose();
+		}
 	}
 }
 
