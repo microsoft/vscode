@@ -361,6 +361,10 @@ export class SNCController extends Disposable implements IEditorContribution {
 	}
 
 	onDidChangeModelContent(e: IModelContentChangedEvent): void {
+		// Immediately adjust visualization items for line changes (deletions/insertions)
+		// so stale visualizers don't linger on deleted or shifted lines.
+		this.adjustVisualizationItemsForContentChange(e);
+
 		// Debounce to avoid running on every keystroke
 		if (this.debounceTimer) {
 			clearTimeout(this.debounceTimer);
@@ -369,6 +373,63 @@ export class SNCController extends Disposable implements IEditorContribution {
 		this.debounceTimer = setTimeout(() => {
 			this.runProgram(this.getProgram());
 		}, this.debounceDelay);
+	}
+
+	/**
+	 * Adjust visualization items when lines are inserted or deleted.
+	 * Removes items on deleted lines and shifts line numbers for items below the change.
+	 * This ensures visualizers don't appear on stale/wrong lines during the debounce
+	 * period before the new run completes.
+	 */
+	private adjustVisualizationItemsForContentChange(e: IModelContentChangedEvent): void {
+		if (this.visualizationItems.length === 0) {
+			return;
+		}
+
+		// Process changes bottom-to-top to avoid cascading offset issues
+		// (each change uses original line numbers; processing bottom-up means
+		// earlier changes don't affect the line numbers of later changes)
+		const changes = [...e.changes].sort((a, b) => b.range.startLineNumber - a.range.startLineNumber);
+		let itemsChanged = false;
+
+		for (const change of changes) {
+			const startLine = change.range.startLineNumber;
+			const endLine = change.range.endLineNumber;
+			const oldLineCount = endLine - startLine + 1;
+			const newLineCount = (change.text.match(/\n/g) || []).length + 1;
+			const lineDelta = newLineCount - oldLineCount;
+
+			if (lineDelta === 0) {
+				continue;
+			}
+
+			const newItems: IVisualizationItem[] = [];
+
+			for (const item of this.visualizationItems) {
+				if (item.line < startLine) {
+					// Before the change: unaffected
+					newItems.push(item);
+				} else if (item.line > endLine) {
+					// After the change: shift line number
+					newItems.push({ ...item, line: item.line + lineDelta });
+					itemsChanged = true;
+				} else if (lineDelta < 0 && item.line > startLine + newLineCount - 1) {
+					// Within the changed range, on a line that was deleted
+					itemsChanged = true;
+					// Don't push - remove this item
+				} else {
+					// Within the changed range but on a line that still exists
+					// (content may have changed; will be corrected by the re-run)
+					newItems.push(item);
+				}
+			}
+
+			this.visualizationItems = newItems;
+		}
+
+		if (itemsChanged) {
+			this.updateVisualizationWidgets(this.visualizationItems);
+		}
 	}
 
 	private onWindowBecameVisible(): void {
@@ -945,17 +1006,10 @@ export class SNCController extends Disposable implements IEditorContribution {
 
 					clearTimeout(this.streamUpdateTimer);
 
-					// Remove items from prior runs, but keep old items as fallback
-					// if the current run didn't produce a replacement (e.g., due to
-					// pipe corruption losing some items during concurrent fork writes).
-					const currentRunItems = new Set(
-						this.visualizationItems
-							.filter(v => v.runId === this.currentRunId)
-							.map(v => `${v.line}:${v.visIndex}`)
-					);
+					// Only keep items from the current run. Prior-run items are stale
+					// and would show visualizers on lines whose content has changed.
 					this.visualizationItems = this.visualizationItems.filter(visItem =>
-						visItem.runId === this.currentRunId ||
-						!currentRunItems.has(`${visItem.line}:${visItem.visIndex}`)
+						visItem.runId === this.currentRunId
 					);
 
 					this.updateVisualizationWidgets(this.visualizationItems);
