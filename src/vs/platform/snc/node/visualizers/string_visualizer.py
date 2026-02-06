@@ -1666,9 +1666,9 @@ def visualize(value, model=None):
     chars_html = ''.join(char_elements)
 
     # Build the search box at the bottom
+    # Show the full selectionRegex (with / delimiters) so other search types can be supported later
     selection_regex = model.get('selectionRegex')
-    inner_pattern = get_regex_inner_pattern(selection_regex) if selection_regex else ""
-    search_box_value = strip_capturing_groups(inner_pattern) if inner_pattern else ""
+    search_box_value = selection_regex if selection_regex else ""
     search_input_event = "lambda e: SearchBoxInput(value=e.get('value', ''))"
     search_box_html = (
         f'<div style="margin-top: 4px; white-space: normal;">'
@@ -1952,20 +1952,15 @@ def update(event, source_code: str, source_line: int, model: dict, value: str) -
             model['openDropdown'] = None
 
         case SearchBoxInput(value=val):
-            # Update regex from search box input
+            # Update selectionRegex directly from search box input.
+            # The value includes delimiters (e.g., /pattern/) to support
+            # different search types in the future.
             current_regex = model.get('selectionRegex')
-            if val:
-                new_regex = f"/{val}/"
-                if new_regex != current_regex:
-                    model['undoHistory'] = model.get('undoHistory', []) + [current_regex]
-                    model['redoHistory'] = []
-                    model['selectionRegex'] = new_regex
-            else:
-                # Empty input - clear the regex
-                if current_regex is not None:
-                    model['undoHistory'] = model.get('undoHistory', []) + [current_regex]
-                    model['redoHistory'] = []
-                    model['selectionRegex'] = None
+            new_regex = val if val else None
+            if new_regex != current_regex:
+                model['undoHistory'] = model.get('undoHistory', []) + [current_regex]
+                model['redoHistory'] = []
+                model['selectionRegex'] = new_regex
             # Clear any in-progress drag state since user is editing directly
             model['anchorIdx'] = None
             model['cursorIdx'] = None
