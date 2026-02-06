@@ -11,11 +11,11 @@ import TelemetryReporter from '@vscode/extension-telemetry';
 
 class ScanTask {
 	public origins: Set<string> = new Set<string>();
-	public delayTask: Delayer<Promise<interfaces.IDocumentMergeConflict[]>>;
+	public delayTask: Delayer<interfaces.IDocumentMergeConflict[]>;
 
 	constructor(delayTime: number, initialOrigin: string) {
 		this.origins.add(initialOrigin);
-		this.delayTask = new Delayer<Promise<interfaces.IDocumentMergeConflict[]>>(delayTime);
+		this.delayTask = new Delayer<interfaces.IDocumentMergeConflict[]>(delayTime);
 	}
 
 	public addOrigin(name: string): void {
@@ -57,7 +57,7 @@ export default class DocumentMergeConflictTracker implements vscode.Disposable, 
 
 		if (!key) {
 			// Document doesn't have a uri, can't cache it, so return
-			return this.getConflictsOrEmpty(document, [origin]);
+			return Promise.resolve(this.getConflictsOrEmpty(document, [origin]));
 		}
 
 		let cacheItem = this.cache.get(key);
@@ -75,8 +75,7 @@ export default class DocumentMergeConflictTracker implements vscode.Disposable, 
 			this.cache?.delete(key!);
 
 			return conflicts;
-		})
-			.then((p) => p);
+		});
 	}
 
 	isPending(document: vscode.TextDocument, origin: string): boolean {

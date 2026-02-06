@@ -198,7 +198,7 @@ export class MergeConflictParser {
 			// Check if this specific file is in merge changes
 			const documentUriString = document.uri.toString();
 			return mergeChanges.some(
-				(change) => change.uri.toString() === documentUriString,
+				change => change.uri.toString() === documentUriString,
 			);
 		} catch (error) {
 			// If anything goes wrong, fall back to current behavior (show merge UI)
