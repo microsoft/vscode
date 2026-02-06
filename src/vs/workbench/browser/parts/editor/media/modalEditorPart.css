@@ -23,7 +23,7 @@
 
 /** Modal Editor Part: Shadow Container */
 .monaco-modal-editor-block .modal-editor-shadow {
-	box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+	box-shadow: 0 4px 32px var(--vscode-widget-shadow, rgba(0, 0, 0, 0.2));
 	border-radius: 8px;
 	overflow: hidden;
 }
@@ -49,21 +49,21 @@
 	display: grid;
 	grid-template-columns: 1fr auto 1fr;
 	align-items: center;
-	height: 24px;
-	min-height: 24px;
-	padding: 0 8px;
+	height: 32px;
+	min-height: 32px;
+	padding: 0 8px 0 16px;
 	background-color: var(--vscode-titleBar-activeBackground);
 	border-bottom: 1px solid var(--vscode-titleBar-border, transparent);
 }
 
 .monaco-modal-editor-block .modal-editor-title {
-	grid-column: 2;
+	grid-column: 1;
 	font-size: 12px;
+	font-weight: 500;
 	color: var(--vscode-titleBar-activeForeground);
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
-	text-align: center;
 }
 
 .monaco-modal-editor-block .modal-editor-action-container {
@@ -71,6 +71,10 @@
 	display: flex;
 	align-items: center;
 	justify-content: flex-end;
+}
+
+.monaco-modal-editor-block .modal-editor-action-container .actions-container {
+	gap: 4px;
 }
 
 /** Modal Editor Part: Ensure proper sizing */
