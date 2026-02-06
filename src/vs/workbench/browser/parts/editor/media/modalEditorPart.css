@@ -10,8 +10,8 @@
 	width: 100%;
 	left: 0;
 	top: 0;
-	/* z-index cannot be above iframes (50) to support showing them */
-	z-index: 40;
+	/* z-index for modal editors: below dialogs, quick input, context views, hovers but above other things */
+	z-index: 2000;
 	display: flex;
 	justify-content: center;
 	align-items: center;
