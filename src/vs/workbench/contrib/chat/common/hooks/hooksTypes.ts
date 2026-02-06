@@ -67,7 +67,7 @@ export interface IPreToolUseCallerInput {
 export const preToolUseOutputValidator = vObj({
 	hookSpecificOutput: vOptionalProp(vObj({
 		hookEventName: vOptionalProp(vString()),
-		permissionDecision: vEnum('allow', 'deny'),
+		permissionDecision: vEnum('allow', 'deny', 'ask'),
 		permissionDecisionReason: vOptionalProp(vString()),
 		additionalContext: vOptionalProp(vString()),
 	})),
@@ -75,8 +75,11 @@ export const preToolUseOutputValidator = vObj({
 
 /**
  * Valid permission decisions for preToolUse hooks.
+ * - 'allow': Auto-approve the tool execution (skip user confirmation)
+ * - 'deny': Deny the tool execution
+ * - 'ask': Always require user confirmation (never auto-approve)
  */
-export type PreToolUsePermissionDecision = 'allow' | 'deny';
+export type PreToolUsePermissionDecision = 'allow' | 'deny' | 'ask';
 
 /**
  * Result from preToolUse hooks with permission decision fields.

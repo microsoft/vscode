@@ -6,11 +6,11 @@
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ChatRequestQueueKind, IChatService } from '../../common/chatService/chatService.js';
 import { ChatConfiguration } from '../../common/constants.js';
@@ -19,6 +19,7 @@ import { IChatWidgetService } from '../chat.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 
 const queueingEnabledCondition = ContextKeyExpr.equals(`config.${ChatConfiguration.RequestQueueingEnabled}`, true);
+const requestInProgressOrPendingToolCall = ContextKeyExpr.or(ChatContextKeys.requestInProgress, ChatContextKeys.Editing.hasToolConfirmation);
 
 export interface IChatRemovePendingRequestContext {
 	sessionResource: URI;
@@ -47,23 +48,18 @@ export class ChatQueueMessageAction extends Action2 {
 			category: CHAT_CATEGORY,
 			precondition: ContextKeyExpr.and(
 				queueingEnabledCondition,
-				ChatContextKeys.requestInProgress,
+				requestInProgressOrPendingToolCall,
 				ChatContextKeys.inputHasText
 			),
 			keybinding: {
 				when: ContextKeyExpr.and(
 					ChatContextKeys.inChatInput,
-					ChatContextKeys.requestInProgress,
+					requestInProgressOrPendingToolCall,
 					queueingEnabledCondition
 				),
 				primary: KeyCode.Enter,
 				weight: KeybindingWeight.EditorContrib + 1
 			},
-			menu: [{
-				id: MenuId.ChatExecuteQueue,
-				group: 'navigation',
-				order: 1,
-			}]
 		});
 	}
 
@@ -96,23 +92,18 @@ export class ChatSteerWithMessageAction extends Action2 {
 			category: CHAT_CATEGORY,
 			precondition: ContextKeyExpr.and(
 				queueingEnabledCondition,
-				ChatContextKeys.requestInProgress,
+				requestInProgressOrPendingToolCall,
 				ChatContextKeys.inputHasText
 			),
 			keybinding: {
 				when: ContextKeyExpr.and(
 					ChatContextKeys.inChatInput,
-					ChatContextKeys.requestInProgress,
+					requestInProgressOrPendingToolCall,
 					queueingEnabledCondition
 				),
 				primary: KeyMod.Alt | KeyCode.Enter,
 				weight: KeybindingWeight.EditorContrib + 1
 			},
-			menu: [{
-				id: MenuId.ChatExecuteQueue,
-				group: 'navigation',
-				order: 2,
-			}]
 		});
 	}
 
@@ -277,19 +268,31 @@ export function registerChatQueueActions(): void {
 	registerAction2(ChatSendPendingImmediatelyAction);
 	registerAction2(ChatRemoveAllPendingRequestsAction);
 
-	// Register the queue submenu as a split button dropdown in the execute toolbar
-	// This shows "Add to Queue" / "Steer with Message" when a request is in progress and input has text
+	// Register the queue submenu in the execute toolbar.
+	// The custom ChatQueuePickerActionItem (registered via IActionViewItemService)
+	// replaces the default rendering with a dropdown that shows hover descriptions.
+	// We still need items in ChatExecuteQueue so the menu system treats it as non-empty.
+	MenuRegistry.appendMenuItem(MenuId.ChatExecuteQueue, {
+		command: { id: ChatQueueMessageAction.ID, title: localize2('chat.queueMessage', "Add to Queue"), icon: Codicon.add },
+		group: 'navigation',
+		order: 1,
+	});
+	MenuRegistry.appendMenuItem(MenuId.ChatExecuteQueue, {
+		command: { id: ChatSteerWithMessageAction.ID, title: localize2('chat.steerWithMessage', "Steer with Message"), icon: Codicon.arrowRight },
+		group: 'navigation',
+		order: 2,
+	});
+
 	MenuRegistry.appendMenuItem(MenuId.ChatExecute, {
 		submenu: MenuId.ChatExecuteQueue,
 		title: localize2('chat.queueSubmenu', "Queue"),
 		icon: Codicon.listOrdered,
 		when: ContextKeyExpr.and(
 			queueingEnabledCondition,
-			ChatContextKeys.requestInProgress,
+			requestInProgressOrPendingToolCall,
 			ChatContextKeys.inputHasText
 		),
 		group: 'navigation',
 		order: 4,
-		isSplitButton: { togglePrimaryAction: true }
 	});
 }

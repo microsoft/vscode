@@ -13,7 +13,7 @@ import { ReplaceInput } from '../../../../base/browser/ui/findinput/replaceInput
 import { IInputBoxStyles, IMessage, InputBox } from '../../../../base/browser/ui/inputbox/inputBox.js';
 import { Widget } from '../../../../base/browser/ui/widget.js';
 import { Action } from '../../../../base/common/actions.js';
-import { Delayer } from '../../../../base/common/async.js';
+import { Delayer, disposableTimeout } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { CONTEXT_FIND_WIDGET_NOT_VISIBLE } from '../../../../editor/contrib/find/browser/findModel.js';
@@ -138,6 +138,14 @@ export class SearchWidget extends Widget {
 	private ignoreGlobalFindBufferOnNextFocus = false;
 	private previousGlobalFindBufferValue: string | null = null;
 
+	/**
+	 * Tracks whether the accessibility help hint has been announced in the ARIA label.
+	 * Reset when the widget loses focus, allowing the hint to be announced again
+	 * on the next focus.
+	 */
+	private _accessibilityHelpHintAnnounced = false;
+	private _labelResetTimeout: IDisposable | undefined;
+
 	private _onSearchSubmit = this._register(new Emitter<{ triggeredOnType: boolean; delay: number }>());
 	readonly onSearchSubmit: Event<{ triggeredOnType: boolean; delay: number }> = this._onSearchSubmit.event;
 
@@ -251,6 +259,7 @@ export class SearchWidget extends Widget {
 
 		if (focusReplace && this.isReplaceShown()) {
 			if (this.replaceInput) {
+				this._updateSearchInputAriaLabel(false);
 				this.replaceInput.focus();
 				if (select) {
 					this.replaceInput.select();
@@ -258,12 +267,48 @@ export class SearchWidget extends Widget {
 			}
 		} else {
 			if (this.searchInput) {
+				this._updateSearchInputAriaLabel(true);
 				this.searchInput.focus();
 				if (select) {
 					this.searchInput.select();
 				}
 			}
 		}
+	}
+
+	/**
+	 * Updates the ARIA label of the search input box.
+	 * When a screen reader is active and the accessibility verbosity setting is enabled,
+	 * includes a hint about pressing Alt+F1 for accessibility help on first focus.
+	 * The hint is only announced once per focus cycle to prevent double-speak.
+	 * @param includeHint Whether to include the accessibility help hint in the label
+	 */
+	private _updateSearchInputAriaLabel(includeHint: boolean): void {
+		if (!this.searchInput) {
+			return;
+		}
+
+		let searchLabel = nls.localize('label.Search', 'Search: Type Search Term and press Enter to search');
+
+		// Include accessibility help hint when requested, screen reader is active, and setting is enabled
+		// Note: Using raw string for setting ID - this setting may not be registered yet
+		if (includeHint && !this._accessibilityHelpHintAnnounced && this.configurationService.getValue('accessibility.verbosity.find') && this.accessibilityService.isScreenReaderOptimized()) {
+			const keybinding = this.keybindingService.lookupKeybinding('editor.action.accessibilityHelp')?.getAriaLabel();
+			if (keybinding) {
+				searchLabel += ', ' + nls.localize('accessibilityHelpHintInLabel', "Press {0} for accessibility help", keybinding);
+				this._accessibilityHelpHintAnnounced = true;
+
+				// Reset to plain label after delay to avoid repeated announcement on focus changes
+				this._labelResetTimeout?.dispose();
+				this._labelResetTimeout = disposableTimeout(() => {
+					if (this.searchInput) {
+						this.searchInput.inputBox.setAriaLabel(nls.localize('label.Search', 'Search: Type Search Term and press Enter to search'));
+					}
+				}, 1000);
+			}
+		}
+
+		this.searchInput.inputBox.setAriaLabel(searchLabel);
 	}
 
 	setWidth(width: number) {

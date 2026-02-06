@@ -34,6 +34,8 @@ import { Selection } from '../../../common/core/selection.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { FindWidgetSearchHistory } from './findWidgetSearchHistory.js';
 import { ReplaceWidgetHistory } from './replaceWidgetHistory.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 
 const SEARCH_STRING_MAX_LENGTH = 524288;
 
@@ -472,6 +474,8 @@ export class FindController extends CommonFindController implements IFindControl
 		@IStorageService _storageService: IStorageService,
 		@IClipboardService clipboardService: IClipboardService,
 		@IHoverService hoverService: IHoverService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 	) {
 		super(editor, _contextKeyService, _storageService, clipboardService, notificationService, hoverService);
 		this._widget = null;
@@ -529,7 +533,7 @@ export class FindController extends CommonFindController implements IFindControl
 	}
 
 	private _createFindWidget() {
-		this._widget = this._register(new FindWidget(this._editor, this, this._state, this._contextViewService, this._keybindingService, this._contextKeyService, this._hoverService, this._findWidgetSearchHistory, this._replaceWidgetHistory));
+		this._widget = this._register(new FindWidget(this._editor, this, this._state, this._contextViewService, this._keybindingService, this._contextKeyService, this._hoverService, this._findWidgetSearchHistory, this._replaceWidgetHistory, this._configurationService, this._accessibilityService));
 		this._findOptionsWidget = this._register(new FindOptionsWidget(this._editor, this._state, this._keybindingService));
 	}
 

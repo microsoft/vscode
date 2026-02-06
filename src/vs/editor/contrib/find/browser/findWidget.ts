@@ -14,11 +14,11 @@ import { ReplaceInput } from '../../../../base/browser/ui/findinput/replaceInput
 import { IMessage as InputBoxMessage } from '../../../../base/browser/ui/inputbox/inputBox.js';
 import { ISashEvent, IVerticalSashLayoutProvider, Orientation, Sash } from '../../../../base/browser/ui/sash/sash.js';
 import { Widget } from '../../../../base/browser/ui/widget.js';
-import { Delayer } from '../../../../base/common/async.js';
+import { Delayer, disposableTimeout } from '../../../../base/common/async.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
-import { toDisposable } from '../../../../base/common/lifecycle.js';
+import { toDisposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import * as platform from '../../../../base/common/platform.js';
 import * as strings from '../../../../base/common/strings.js';
 import './findWidget.css';
@@ -28,7 +28,7 @@ import { Range } from '../../../common/core/range.js';
 import { CONTEXT_FIND_INPUT_FOCUSED, CONTEXT_FIND_WIDGET_FOCUSED, CONTEXT_REPLACE_INPUT_FOCUSED, FIND_IDS, MATCHES_LIMIT } from './findModel.js';
 import { FindReplaceState, FindReplaceStateChangedEvent } from './findState.js';
 import * as nls from '../../../../nls.js';
-import { AccessibilitySupport } from '../../../../platform/accessibility/common/accessibility.js';
+import { AccessibilitySupport, IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { ContextScopedFindInput, ContextScopedReplaceInput } from '../../../../platform/history/browser/contextScopedHistoryWidget.js';
 import { showHistoryKeybindingHint } from '../../../../platform/history/browser/historyWidgetKeybindingHint.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -44,6 +44,7 @@ import { Selection } from '../../../common/core/selection.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IHistory } from '../../../../base/common/history.js';
 import { HoverStyle, type IHoverLifecycleOptions } from '../../../../base/browser/ui/hover/hover.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 
 const findCollapsedIcon = registerIcon('find-collapsed', Codicon.chevronRight, nls.localize('findCollapsedIcon', 'Icon to indicate that the editor find widget is collapsed.'));
 const findExpandedIcon = registerIcon('find-expanded', Codicon.chevronDown, nls.localize('findExpandedIcon', 'Icon to indicate that the editor find widget is expanded.'));
@@ -144,6 +145,8 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 	private _isVisible: boolean;
 	private _isReplaceVisible: boolean;
 	private _ignoreChangeEvent: boolean;
+	private _accessibilityHelpHintAnnounced: boolean;
+	private _labelResetTimeout: IDisposable | undefined;
 	private _lastFocusedInputWasReplace: boolean = false;
 
 	private readonly _findFocusTracker: dom.IFocusTracker;
@@ -170,6 +173,8 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		private readonly _hoverService: IHoverService,
 		private readonly _findWidgetSearchHistory: IHistory<string> | undefined,
 		private readonly _replaceWidgetHistory: IHistory<string> | undefined,
+		private readonly _configurationService: IConfigurationService,
+		private readonly _accessibilityService: IAccessibilityService,
 	) {
 		super();
 		this._codeEditor = codeEditor;
@@ -182,6 +187,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		this._isVisible = false;
 		this._isReplaceVisible = false;
 		this._ignoreChangeEvent = false;
+		this._accessibilityHelpHintAnnounced = false;
 
 		this._updateHistoryDelayer = new Delayer<void>(500);
 		this._register(toDisposable(() => this._updateHistoryDelayer.cancel()));
@@ -483,23 +489,25 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 	// ----- actions
 
 	private _getAriaLabel(label: string, currentMatch: Range | null, searchString: string): string {
+		let result: string;
 		if (label === NLS_NO_RESULTS) {
-			return searchString === ''
+			result = searchString === ''
 				? nls.localize('ariaSearchNoResultEmpty', "{0} found", label)
 				: nls.localize('ariaSearchNoResult', "{0} found for '{1}'", label, searchString);
-		}
-		if (currentMatch) {
+		} else if (currentMatch) {
 			const ariaLabel = nls.localize('ariaSearchNoResultWithLineNum', "{0} found for '{1}', at {2}", label, searchString, currentMatch.startLineNumber + ':' + currentMatch.startColumn);
 			const model = this._codeEditor.getModel();
 			if (model && (currentMatch.startLineNumber <= model.getLineCount()) && (currentMatch.startLineNumber >= 1)) {
 				const lineContent = model.getLineContent(currentMatch.startLineNumber);
-				return `${lineContent}, ${ariaLabel}`;
+				result = `${lineContent}, ${ariaLabel}`;
+			} else {
+				result = ariaLabel;
 			}
-
-			return ariaLabel;
+		} else {
+			result = nls.localize('ariaSearchNoResultWithLineNumNoCurrentMatch', "{0} found for '{1}'", label, searchString);
 		}
 
-		return nls.localize('ariaSearchNoResultWithLineNumNoCurrentMatch', "{0} found for '{1}'", label, searchString);
+		return result;
 	}
 
 	/**
@@ -574,6 +582,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 			this._revealTimeouts.push(setTimeout(() => {
 				this._domNode.classList.add('visible');
 				this._domNode.setAttribute('aria-hidden', 'false');
+				this._updateFindInputAriaLabel();
 			}, 0));
 
 			// validate query again as it's being dismissed when we hide the find widget.
@@ -622,6 +631,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 
 		if (this._isVisible) {
 			this._isVisible = false;
+			this._accessibilityHelpHintAnnounced = false;
 
 			this._updateButtons();
 
@@ -1324,6 +1334,31 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 	private updateAccessibilitySupport(): void {
 		const value = this._codeEditor.getOption(EditorOption.accessibilitySupport);
 		this._findInput.setFocusInputOnOptionClick(value !== AccessibilitySupport.Enabled);
+		this._updateFindInputAriaLabel();
+	}
+
+	private _updateFindInputAriaLabel(): void {
+		let findLabel = NLS_FIND_INPUT_LABEL;
+		let replaceLabel = NLS_REPLACE_INPUT_LABEL;
+		if (!this._accessibilityHelpHintAnnounced && this._configurationService.getValue('accessibility.verbosity.find') && this._accessibilityService.isScreenReaderOptimized()) {
+			const accessibilityHelpKeybinding = this._keybindingService.lookupKeybinding('editor.action.accessibilityHelp')?.getAriaLabel();
+			if (accessibilityHelpKeybinding) {
+				const hint = nls.localize('accessibilityHelpHintInLabel', "Press {0} for accessibility help", accessibilityHelpKeybinding);
+				findLabel = nls.localize('findInputAriaLabelWithHint', "{0}, {1}", findLabel, hint);
+				replaceLabel = nls.localize('replaceInputAriaLabelWithHint', "{0}, {1}", replaceLabel, hint);
+			}
+			this._accessibilityHelpHintAnnounced = true;
+			// Schedule reset to plain labels after initial announcement
+			this._labelResetTimeout?.dispose();
+			this._labelResetTimeout = disposableTimeout(() => {
+				if (this._isVisible) {
+					this._findInput.inputBox.setAriaLabel(NLS_FIND_INPUT_LABEL);
+					this._replaceInput.inputBox.setAriaLabel(NLS_REPLACE_INPUT_LABEL);
+				}
+			}, 1000);
+		}
+		this._findInput.inputBox.setAriaLabel(findLabel);
+		this._replaceInput.inputBox.setAriaLabel(replaceLabel);
 	}
 
 	getViewState() {

@@ -8,6 +8,8 @@ import { IContextViewService } from '../../../../platform/contextview/browser/co
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { IBrowserViewModel } from '../common/browserView.js';
 import { localize } from '../../../../nls.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
@@ -33,7 +35,9 @@ export class BrowserFindWidget extends SimpleFindWidget {
 		@IContextViewService contextViewService: IContextViewService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IHoverService hoverService: IHoverService,
-		@IKeybindingService keybindingService: IKeybindingService
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IAccessibilityService accessibilityService: IAccessibilityService
 	) {
 		super({
 			showCommonFindToggles: true,
@@ -44,7 +48,7 @@ export class BrowserFindWidget extends SimpleFindWidget {
 			previousMatchActionId: 'workbench.action.browser.findPrevious',
 			nextMatchActionId: 'workbench.action.browser.findNext',
 			closeWidgetActionId: 'workbench.action.browser.hideFind'
-		}, contextViewService, contextKeyService, hoverService, keybindingService);
+		}, contextViewService, contextKeyService, hoverService, keybindingService, configurationService, accessibilityService);
 
 		this._findWidgetVisible = CONTEXT_BROWSER_FIND_WIDGET_VISIBLE.bindTo(contextKeyService);
 		this._findWidgetFocused = CONTEXT_BROWSER_FIND_WIDGET_FOCUSED.bindTo(contextKeyService);

@@ -3864,5 +3864,93 @@ suite('LanguageModelToolsService', () => {
 
 			assert.strictEqual(invokeCalled, false, 'Tool invoke should not be called when hook denies');
 		});
+
+		test('when hook returns ask, tool is not auto-approved', async () => {
+			mockHooksService.preToolUseHookResult = {
+				output: undefined,
+				success: true,
+				permissionDecision: 'ask',
+				permissionDecisionReason: 'Requires user confirmation',
+			};
+
+			let invokeCompleted = false;
+			const tool = registerToolForTest(hookService, store, 'hookAskTool', {
+				invoke: async () => {
+					invokeCompleted = true;
+					return { content: [{ kind: 'text', value: 'success' }] };
+				},
+				prepareToolInvocation: async () => ({
+					confirmationMessages: {
+						title: 'Confirm this action?',
+						message: 'This tool requires confirmation',
+						allowAutoConfirm: true
+					}
+				})
+			});
+
+			const capture: { invocation?: ChatToolInvocation } = {};
+			stubGetSession(hookChatService, 'hook-test-ask', { requestId: 'req1', capture });
+
+			// Start invocation - it should wait for confirmation
+			const invokePromise = hookService.invokeTool(
+				tool.makeDto({ test: 1 }, { sessionId: 'hook-test-ask' }),
+				async () => 0,
+				CancellationToken.None
+			);
+
+			// Wait for invocation to be captured
+			await new Promise(resolve => setTimeout(resolve, 50));
+			const invocation = capture.invocation;
+			assert.ok(invocation, 'Tool invocation should be created');
+
+			// Check that the tool is waiting for confirmation (not auto-approved)
+			const state = invocation.state.get();
+			assert.strictEqual(state.type, IChatToolInvocation.StateKind.WaitingForConfirmation,
+				'Tool should be waiting for confirmation when hook returns ask');
+
+			// Confirm the tool to let the test complete
+			IChatToolInvocation.confirmWith(invocation, { type: ToolConfirmKind.UserAction });
+			await invokePromise;
+
+			assert.strictEqual(invokeCompleted, true, 'Tool should complete after confirmation');
+		});
+
+		test('when hook returns allow, tool is auto-approved', async () => {
+			mockHooksService.preToolUseHookResult = {
+				output: undefined,
+				success: true,
+				permissionDecision: 'allow',
+			};
+
+			let invokeCompleted = false;
+			const tool = registerToolForTest(hookService, store, 'hookAutoApproveTool', {
+				invoke: async () => {
+					invokeCompleted = true;
+					return { content: [{ kind: 'text', value: 'success' }] };
+				},
+				prepareToolInvocation: async () => ({
+					confirmationMessages: {
+						title: 'Confirm this action?',
+						message: 'This tool would normally require confirmation',
+						allowAutoConfirm: true
+					}
+				})
+			});
+
+			const capture: { invocation?: ChatToolInvocation } = {};
+			stubGetSession(hookChatService, 'hook-test-auto-approve', { requestId: 'req1', capture });
+
+			// Invoke the tool - it should auto-approve due to hook
+			const result = await hookService.invokeTool(
+				tool.makeDto({ test: 1 }, { sessionId: 'hook-test-auto-approve' }),
+				async () => 0,
+				CancellationToken.None
+			);
+
+			// Tool should have completed without waiting for confirmation
+			assert.strictEqual(invokeCompleted, true, 'Tool should complete immediately when hook allows');
+			assert.strictEqual(result.content[0].kind, 'text');
+			assert.strictEqual((result.content[0] as IToolResultTextPart).value, 'success');
+		});
 	});
 });

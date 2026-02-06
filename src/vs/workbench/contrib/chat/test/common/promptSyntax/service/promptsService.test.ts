@@ -2982,4 +2982,274 @@ suite('PromptsService', () => {
 			assert.strictEqual(skillCommand, undefined, 'Should not find skill command when skills are disabled');
 		});
 	});
+
+	suite('getPromptSlashCommands - userInvokable filtering', () => {
+		teardown(() => {
+			sinon.restore();
+		});
+
+		test('should return correct userInvokable value for skills with user-invokable: false', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
+			testConfigService.setUserConfiguration(PromptsConfig.SKILLS_LOCATION_KEY, {});
+
+			const rootFolderName = 'user-invokable-false';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			// Create a skill with user-invokable: false (should be hidden from / menu)
+			await mockFiles(fileService, [
+				{
+					path: `${rootFolder}/.github/skills/hidden-skill/SKILL.md`,
+					contents: [
+						'---',
+						'name: "hidden-skill"',
+						'description: "A skill hidden from the / menu"',
+						'user-invokable: false',
+						'---',
+						'Hidden skill content',
+					],
+				},
+			]);
+
+			const slashCommands = await service.getPromptSlashCommands(CancellationToken.None);
+
+			const hiddenSkillCommand = slashCommands.find(cmd => cmd.name === 'hidden-skill');
+			assert.ok(hiddenSkillCommand, 'Should find hidden skill in slash commands');
+			assert.strictEqual(hiddenSkillCommand.parsedPromptFile?.header?.userInvokable, false,
+				'Should have userInvokable=false in parsed header');
+
+			// Verify the filtering logic would correctly exclude this skill
+			const filteredCommands = slashCommands.filter(c => c.parsedPromptFile?.header?.userInvokable !== false);
+			const hiddenSkillInFiltered = filteredCommands.find(cmd => cmd.name === 'hidden-skill');
+			assert.strictEqual(hiddenSkillInFiltered, undefined,
+				'Hidden skill should be filtered out when applying userInvokable filter');
+		});
+
+		test('should return correct userInvokable value for skills with user-invokable: true', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
+			testConfigService.setUserConfiguration(PromptsConfig.SKILLS_LOCATION_KEY, {});
+
+			const rootFolderName = 'user-invokable-true';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			// Create a skill with explicit user-invokable: true
+			await mockFiles(fileService, [
+				{
+					path: `${rootFolder}/.github/skills/visible-skill/SKILL.md`,
+					contents: [
+						'---',
+						'name: "visible-skill"',
+						'description: "A skill visible in the / menu"',
+						'user-invokable: true',
+						'---',
+						'Visible skill content',
+					],
+				},
+			]);
+
+			const slashCommands = await service.getPromptSlashCommands(CancellationToken.None);
+
+			const visibleSkillCommand = slashCommands.find(cmd => cmd.name === 'visible-skill');
+			assert.ok(visibleSkillCommand, 'Should find visible skill in slash commands');
+			assert.strictEqual(visibleSkillCommand.parsedPromptFile?.header?.userInvokable, true,
+				'Should have userInvokable=true in parsed header');
+
+			// Verify the filtering logic would correctly include this skill
+			const filteredCommands = slashCommands.filter(c => c.parsedPromptFile?.header?.userInvokable !== false);
+			const visibleSkillInFiltered = filteredCommands.find(cmd => cmd.name === 'visible-skill');
+			assert.ok(visibleSkillInFiltered,
+				'Visible skill should be included when applying userInvokable filter');
+		});
+
+		test('should default to true for skills without user-invokable attribute', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
+			testConfigService.setUserConfiguration(PromptsConfig.SKILLS_LOCATION_KEY, {});
+
+			const rootFolderName = 'user-invokable-undefined';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			// Create a skill without user-invokable attribute (should default to true)
+			await mockFiles(fileService, [
+				{
+					path: `${rootFolder}/.github/skills/default-skill/SKILL.md`,
+					contents: [
+						'---',
+						'name: "default-skill"',
+						'description: "A skill without explicit user-invokable"',
+						'---',
+						'Default skill content',
+					],
+				},
+			]);
+
+			const slashCommands = await service.getPromptSlashCommands(CancellationToken.None);
+
+			const defaultSkillCommand = slashCommands.find(cmd => cmd.name === 'default-skill');
+			assert.ok(defaultSkillCommand, 'Should find default skill in slash commands');
+			assert.strictEqual(defaultSkillCommand.parsedPromptFile?.header?.userInvokable, undefined,
+				'Should have userInvokable=undefined when attribute is not specified');
+
+			// Verify the filtering logic would correctly include this skill (undefined !== false is true)
+			const filteredCommands = slashCommands.filter(c => c.parsedPromptFile?.header?.userInvokable !== false);
+			const defaultSkillInFiltered = filteredCommands.find(cmd => cmd.name === 'default-skill');
+			assert.ok(defaultSkillInFiltered,
+				'Skill without user-invokable attribute should be included when applying userInvokable filter');
+		});
+
+		test('should handle prompts with user-invokable: false', async () => {
+			const rootFolderName = 'prompt-user-invokable-false';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			// Create a prompt with user-invokable: false
+			await mockFiles(fileService, [
+				{
+					path: `${rootFolder}/.github/prompts/hidden-prompt.prompt.md`,
+					contents: [
+						'---',
+						'name: "hidden-prompt"',
+						'description: "A prompt hidden from the / menu"',
+						'user-invokable: false',
+						'---',
+						'Hidden prompt content',
+					],
+				},
+			]);
+
+			const slashCommands = await service.getPromptSlashCommands(CancellationToken.None);
+
+			const hiddenPromptCommand = slashCommands.find(cmd => cmd.name === 'hidden-prompt');
+			assert.ok(hiddenPromptCommand, 'Should find hidden prompt in slash commands');
+			assert.strictEqual(hiddenPromptCommand.parsedPromptFile?.header?.userInvokable, false,
+				'Should have userInvokable=false in parsed header');
+
+			// Verify the filtering logic would correctly exclude this prompt
+			const filteredCommands = slashCommands.filter(c => c.parsedPromptFile?.header?.userInvokable !== false);
+			const hiddenPromptInFiltered = filteredCommands.find(cmd => cmd.name === 'hidden-prompt');
+			assert.strictEqual(hiddenPromptInFiltered, undefined,
+				'Hidden prompt should be filtered out when applying userInvokable filter');
+		});
+
+		test('should correctly filter mixed user-invokable values', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
+			testConfigService.setUserConfiguration(PromptsConfig.SKILLS_LOCATION_KEY, {});
+
+			const rootFolderName = 'mixed-user-invokable';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			// Create a mix of skills and prompts with different user-invokable values
+			await mockFiles(fileService, [
+				{
+					path: `${rootFolder}/.github/prompts/visible-prompt.prompt.md`,
+					contents: [
+						'---',
+						'name: "visible-prompt"',
+						'description: "A visible prompt"',
+						'---',
+						'Visible prompt content',
+					],
+				},
+				{
+					path: `${rootFolder}/.github/prompts/hidden-prompt.prompt.md`,
+					contents: [
+						'---',
+						'name: "hidden-prompt"',
+						'description: "A hidden prompt"',
+						'user-invokable: false',
+						'---',
+						'Hidden prompt content',
+					],
+				},
+				{
+					path: `${rootFolder}/.github/skills/visible-skill/SKILL.md`,
+					contents: [
+						'---',
+						'name: "visible-skill"',
+						'description: "A visible skill"',
+						'user-invokable: true',
+						'---',
+						'Visible skill content',
+					],
+				},
+				{
+					path: `${rootFolder}/.github/skills/hidden-skill/SKILL.md`,
+					contents: [
+						'---',
+						'name: "hidden-skill"',
+						'description: "A hidden skill"',
+						'user-invokable: false',
+						'---',
+						'Hidden skill content',
+					],
+				},
+			]);
+
+			const slashCommands = await service.getPromptSlashCommands(CancellationToken.None);
+
+			// All commands should be present in the raw list
+			assert.strictEqual(slashCommands.length, 4, 'Should find all 4 commands');
+
+			// Apply the same filtering logic as chatInputCompletions.ts
+			const filteredCommands = slashCommands.filter(c => c.parsedPromptFile?.header?.userInvokable !== false);
+
+			assert.strictEqual(filteredCommands.length, 2, 'Should have 2 commands after filtering');
+			assert.ok(filteredCommands.find(c => c.name === 'visible-prompt'), 'visible-prompt should be included');
+			assert.ok(filteredCommands.find(c => c.name === 'visible-skill'), 'visible-skill should be included');
+			assert.strictEqual(filteredCommands.find(c => c.name === 'hidden-prompt'), undefined, 'hidden-prompt should be excluded');
+			assert.strictEqual(filteredCommands.find(c => c.name === 'hidden-skill'), undefined, 'hidden-skill should be excluded');
+		});
+
+		test('should handle skills with missing header gracefully', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
+			testConfigService.setUserConfiguration(PromptsConfig.SKILLS_LOCATION_KEY, {});
+
+			const rootFolderName = 'missing-header';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			// Create a skill without any YAML header
+			await mockFiles(fileService, [
+				{
+					path: `${rootFolder}/.github/skills/no-header-skill/SKILL.md`,
+					contents: [
+						'This skill has no YAML header at all.',
+						'Just plain markdown content.',
+					],
+				},
+			]);
+
+			const slashCommands = await service.getPromptSlashCommands(CancellationToken.None);
+
+			// Find the skill by checking all commands (name will be derived from filename)
+			const noHeaderSkill = slashCommands.find(cmd =>
+				cmd.promptPath.uri.path.includes('no-header-skill'));
+			assert.ok(noHeaderSkill, 'Should find skill without header in slash commands');
+			assert.strictEqual(noHeaderSkill.parsedPromptFile?.header, undefined,
+				'Should have undefined header');
+
+			// Verify the filtering logic handles missing header correctly
+			// parsedPromptFile?.header?.userInvokable !== false
+			// When header is undefined: undefined !== false is true, so skill is included
+			const filteredCommands = slashCommands.filter(c => c.parsedPromptFile?.header?.userInvokable !== false);
+			const noHeaderSkillInFiltered = filteredCommands.find(cmd =>
+				cmd.promptPath.uri.path.includes('no-header-skill'));
+			assert.ok(noHeaderSkillInFiltered,
+				'Skill without header should be included when applying userInvokable filter (defaults to true)');
+		});
+	});
 });

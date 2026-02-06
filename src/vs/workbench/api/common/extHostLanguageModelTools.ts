@@ -290,8 +290,12 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 			chatRequestId: context.chatRequestId,
 			chatSessionId: context.chatSessionId,
 			chatSessionResource: context.chatSessionResource,
-			chatInteractionId: context.chatInteractionId
+			chatInteractionId: context.chatInteractionId,
+			forceConfirmationReason: context.forceConfirmationReason
 		};
+		if (context.forceConfirmationReason) {
+			checkProposedApiEnabled(item.extension, 'chatParticipantPrivate');
+		}
 		if (item.tool.prepareInvocation) {
 			const result = await item.tool.prepareInvocation(options, token);
 			if (!result) {
@@ -309,7 +313,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 				} : undefined,
 				invocationMessage: typeConvert.MarkdownString.fromStrict(result.invocationMessage),
 				pastTenseMessage: typeConvert.MarkdownString.fromStrict(result.pastTenseMessage),
-				presentation: result.presentation as ToolInvocationPresentation | undefined
+				presentation: result.presentation as ToolInvocationPresentation | undefined,
 			};
 		}
 

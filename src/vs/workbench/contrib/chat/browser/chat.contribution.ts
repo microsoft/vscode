@@ -141,6 +141,7 @@ import { ChatWindowNotifier } from './chatWindowNotifier.js';
 import { ChatRepoInfoContribution } from './chatRepoInfo.js';
 import { VALID_PROMPT_FOLDER_PATTERN } from '../common/promptSyntax/utils/promptFilesLocator.js';
 import { ChatTipService, IChatTipService } from './chatTipService.js';
+import { ChatQueuePickerRendering } from './widget/input/chatQueuePickerActionItem.js';
 
 const toolReferenceNameEnumValues: string[] = [];
 const toolReferenceNameEnumDescriptions: string[] = [];
@@ -612,6 +613,16 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.requestQueuing.enabled.description', "When enabled, allows queuing additional messages while a request is in progress and steering the current request with a new message."),
 			default: true,
 			tags: ['experimental'],
+		},
+		[ChatConfiguration.RequestQueueingDefaultAction]: {
+			type: 'string',
+			enum: ['queue', 'steer'],
+			enumDescriptions: [
+				nls.localize('chat.requestQueuing.defaultAction.queue', "Queue the message to send after the current request completes."),
+				nls.localize('chat.requestQueuing.defaultAction.steer', "Steer the current request by sending the message immediately, signaling the current request to yield."),
+			],
+			description: nls.localize('chat.requestQueuing.defaultAction.description', "Controls which action is the default for the queue button when a request is in progress."),
+			default: 'steer',
 		},
 		[ChatConfiguration.EditModeHidden]: {
 			type: 'boolean',
@@ -1438,6 +1449,7 @@ registerWorkbenchContribution2(ChatAgentActionsContribution.ID, ChatAgentActions
 registerWorkbenchContribution2(ToolReferenceNamesContribution.ID, ToolReferenceNamesContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatAgentRecommendation.ID, ChatAgentRecommendation, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(ChatEditingEditorAccessibility.ID, ChatEditingEditorAccessibility, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(ChatQueuePickerRendering.ID, ChatQueuePickerRendering, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatEditingEditorOverlay.ID, ChatEditingEditorOverlay, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(SimpleBrowserOverlay.ID, SimpleBrowserOverlay, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatEditingEditorContextKeys.ID, ChatEditingEditorContextKeys, WorkbenchPhase.AfterRestored);

@@ -1673,6 +1673,184 @@ suite('PromptValidator', () => {
 			assert.ok(markers.every(m => m.message.includes('Supported: ')));
 		});
 
+		test('skill with user-invokable: false is valid', async () => {
+			const content = [
+				'---',
+				'name: my-skill',
+				'description: Background knowledge skill',
+				'user-invokable: false',
+				'---',
+				'This skill provides background context.'
+			].join('\n');
+			const markers = await validate(content, PromptsType.skill, URI.parse('file:///.github/skills/my-skill/SKILL.md'));
+			assert.deepStrictEqual(markers, [], 'user-invokable: false should be valid for skills');
+		});
+
+		test('skill with user-invokable: true is valid', async () => {
+			const content = [
+				'---',
+				'name: my-skill',
+				'description: User-accessible skill',
+				'user-invokable: true',
+				'---',
+				'This skill can be invoked by users.'
+			].join('\n');
+			const markers = await validate(content, PromptsType.skill, URI.parse('file:///.github/skills/my-skill/SKILL.md'));
+			assert.deepStrictEqual(markers, [], 'user-invokable: true should be valid for skills');
+		});
+
+		test('skill with invalid user-invokable value shows error', async () => {
+			// String value instead of boolean
+			{
+				const content = [
+					'---',
+					'name: my-skill',
+					'description: Test Skill',
+					'user-invokable: "false"',
+					'---',
+					'Body'
+				].join('\n');
+				const markers = await validate(content, PromptsType.skill, URI.parse('file:///.github/skills/my-skill/SKILL.md'));
+				assert.strictEqual(markers.length, 1);
+				assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
+				assert.strictEqual(markers[0].message, `The 'user-invokable' attribute must be a boolean.`);
+			}
+
+			// Number value instead of boolean
+			{
+				const content = [
+					'---',
+					'name: my-skill',
+					'description: Test Skill',
+					'user-invokable: 0',
+					'---',
+					'Body'
+				].join('\n');
+				const markers = await validate(content, PromptsType.skill, URI.parse('file:///.github/skills/my-skill/SKILL.md'));
+				assert.strictEqual(markers.length, 1);
+				assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
+				assert.strictEqual(markers[0].message, `The 'user-invokable' attribute must be a boolean.`);
+			}
+		});
+
+		test('skill with disable-model-invocation: true is valid', async () => {
+			const content = [
+				'---',
+				'name: my-skill',
+				'description: Manual-only skill',
+				'disable-model-invocation: true',
+				'---',
+				'This skill must be triggered manually with /name.'
+			].join('\n');
+			const markers = await validate(content, PromptsType.skill, URI.parse('file:///.github/skills/my-skill/SKILL.md'));
+			assert.deepStrictEqual(markers, [], 'disable-model-invocation: true should be valid for skills');
+		});
+
+		test('skill with disable-model-invocation: false is valid', async () => {
+			const content = [
+				'---',
+				'name: my-skill',
+				'description: Auto-loadable skill',
+				'disable-model-invocation: false',
+				'---',
+				'This skill can be loaded automatically by the agent.'
+			].join('\n');
+			const markers = await validate(content, PromptsType.skill, URI.parse('file:///.github/skills/my-skill/SKILL.md'));
+			assert.deepStrictEqual(markers, [], 'disable-model-invocation: false should be valid for skills');
+		});
+
+		test('skill with invalid disable-model-invocation value shows error', async () => {
+			// String value instead of boolean
+			{
+				const content = [
+					'---',
+					'name: my-skill',
+					'description: Test Skill',
+					'disable-model-invocation: "true"',
+					'---',
+					'Body'
+				].join('\n');
+				const markers = await validate(content, PromptsType.skill, URI.parse('file:///.github/skills/my-skill/SKILL.md'));
+				assert.strictEqual(markers.length, 1);
+				assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
+				assert.strictEqual(markers[0].message, `The 'disable-model-invocation' attribute must be a boolean.`);
+			}
+
+			// Number value instead of boolean
+			{
+				const content = [
+					'---',
+					'name: my-skill',
+					'description: Test Skill',
+					'disable-model-invocation: 1',
+					'---',
+					'Body'
+				].join('\n');
+				const markers = await validate(content, PromptsType.skill, URI.parse('file:///.github/skills/my-skill/SKILL.md'));
+				assert.strictEqual(markers.length, 1);
+				assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
+				assert.strictEqual(markers[0].message, `The 'disable-model-invocation' attribute must be a boolean.`);
+			}
+		});
+
+		test('skill with argument-hint is valid', async () => {
+			const content = [
+				'---',
+				'name: my-skill',
+				'description: Skill with argument hint',
+				'argument-hint: "[issue-number]"',
+				'---',
+				'This skill expects an issue number.'
+			].join('\n');
+			const markers = await validate(content, PromptsType.skill, URI.parse('file:///.github/skills/my-skill/SKILL.md'));
+			assert.deepStrictEqual(markers, [], 'argument-hint should be valid for skills');
+		});
+
+		test('skill with empty argument-hint shows error', async () => {
+			const content = [
+				'---',
+				'name: my-skill',
+				'description: Test Skill',
+				'argument-hint: ""',
+				'---',
+				'Body'
+			].join('\n');
+			const markers = await validate(content, PromptsType.skill, URI.parse('file:///.github/skills/my-skill/SKILL.md'));
+			assert.strictEqual(markers.length, 1);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
+			assert.strictEqual(markers[0].message, `The 'argument-hint' attribute should not be empty.`);
+		});
+
+		test('skill with non-string argument-hint shows error', async () => {
+			const content = [
+				'---',
+				'name: my-skill',
+				'description: Test Skill',
+				'argument-hint: 123',
+				'---',
+				'Body'
+			].join('\n');
+			const markers = await validate(content, PromptsType.skill, URI.parse('file:///.github/skills/my-skill/SKILL.md'));
+			assert.strictEqual(markers.length, 1);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
+			assert.strictEqual(markers[0].message, `The 'argument-hint' attribute must be a string.`);
+		});
+
+		test('skill with all visibility attributes combined is valid', async () => {
+			const content = [
+				'---',
+				'name: my-skill',
+				'description: Complex visibility skill',
+				'user-invokable: false',
+				'disable-model-invocation: true',
+				'argument-hint: "[optional-arg]"',
+				'---',
+				'This skill has complex visibility settings.'
+			].join('\n');
+			const markers = await validate(content, PromptsType.skill, URI.parse('file:///.github/skills/my-skill/SKILL.md'));
+			assert.deepStrictEqual(markers, [], 'All visibility attributes combined should be valid');
+		});
+
 	});
 
 });
