@@ -107,7 +107,6 @@ export const NEW_EMPTY_EDITOR_WINDOW_COMMAND_ID = 'workbench.action.newEmptyEdit
 
 export const CLOSE_MODAL_EDITOR_COMMAND_ID = 'workbench.action.closeModalEditor';
 export const MOVE_MODAL_EDITOR_TO_MAIN_COMMAND_ID = 'workbench.action.moveModalEditorToMain';
-export const MOVE_MODAL_EDITOR_TO_NEW_WINDOW_COMMAND_ID = 'workbench.action.moveModalEditorToNewWindow';
 
 export const API_OPEN_EDITOR_COMMAND_ID = '_workbench.open';
 export const API_OPEN_DIFF_EDITOR_COMMAND_ID = '_workbench.diff';
