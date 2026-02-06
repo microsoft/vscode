@@ -78,18 +78,10 @@
 
 	&.chat-view-position-left {
 		flex-direction: row;
-
-		.agent-sessions-container {
-			border-right: 1px solid var(--vscode-panel-border);
-		}
 	}
 
 	&.chat-view-position-right {
 		flex-direction: row-reverse;
-
-		.agent-sessions-container {
-			border-left: 1px solid var(--vscode-panel-border);
-		}
 	}
 
 	.agent-sessions-new-button-container {
