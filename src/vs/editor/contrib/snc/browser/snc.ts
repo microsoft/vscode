@@ -265,7 +265,8 @@ export class SNCController extends Disposable implements IEditorContribution {
 	private runTriggerMsById: Map<string, number> = new Map();        // When runProgram was called (frontend)
 	private runSpawnTimingById: Map<string, SNCTimingData> = new Map(); // Backend spawn timing data
 	private runFirstItemReceivedMsById: Map<string, number> = new Map(); // When first 'item' message received (frontend)
-	private runFirstRenderMsById: Map<string, number> = new Map();    // When first render completed (frontend)
+	private runFirstRenderMsById: Map<string, number> = new Map();    // When first render completed synchronously (frontend)
+	private runFirstRenderFrameMsById: Map<string, number> = new Map(); // When first render frame completed via rAF (frontend)
 
 
 	constructor(
@@ -696,6 +697,7 @@ export class SNCController extends Disposable implements IEditorContribution {
 		const triggerMs = this.runTriggerMsById.get(runId);
 		const firstItemReceivedMs = this.runFirstItemReceivedMsById.get(runId);
 		const firstRenderMs = this.runFirstRenderMsById.get(runId);
+		const firstRenderFrameMs = this.runFirstRenderFrameMsById.get(runId);
 		const spawnTiming = this.runSpawnTimingById.get(runId);
 
 		// If we don't have the spawn timing from the spawn message, use the one from the end message
@@ -721,15 +723,23 @@ export class SNCController extends Disposable implements IEditorContribution {
 		// 3. Spawn to first item parsed (backend timing)
 		const spawnToFirstItem = timing.spawnToFirstItemMs;
 
-		// 4. First item received to first render (frontend timing)
+		// 4. First item received to first render (frontend timing, sync DOM mutation)
 		const firstItemToFirstRender = (typeof firstItemReceivedMs === 'number' && typeof firstRenderMs === 'number')
 			? firstRenderMs - firstItemReceivedMs
 			: undefined;
 
-		// 5. Total from trigger to first render
+		// 5. First render sync to render frame (editor's rAF render pass cost)
+		const firstRenderToFrame = (typeof firstRenderMs === 'number' && typeof firstRenderFrameMs === 'number')
+			? firstRenderFrameMs - firstRenderMs
+			: undefined;
+
+		// 6. Total from trigger to first render (sync)
 		const triggerToFirstRender = typeof firstRenderMs === 'number' ? firstRenderMs - triggerMs : undefined;
 
-		// 6. Total from trigger to end
+		// 7. Total from trigger to first render frame (rAF)
+		const triggerToFirstRenderFrame = typeof firstRenderFrameMs === 'number' ? firstRenderFrameMs - triggerMs : undefined;
+
+		// 8. Total from trigger to end
 		const triggerToEnd = tEnd - triggerMs;
 
 		// Build timing summary
@@ -738,7 +748,9 @@ export class SNCController extends Disposable implements IEditorContribution {
 			// Frontend timings (all relative to trigger)
 			triggerToFirstItemReceivedMs: triggerToFirstItemReceived !== undefined ? Math.round(triggerToFirstItemReceived * 100) / 100 : undefined,
 			firstItemReceivedToFirstRenderMs: firstItemToFirstRender !== undefined ? Math.round(firstItemToFirstRender * 100) / 100 : undefined,
+			firstRenderToFrameMs: firstRenderToFrame !== undefined ? Math.round(firstRenderToFrame * 100) / 100 : undefined,
 			triggerToFirstRenderMs: triggerToFirstRender !== undefined ? Math.round(triggerToFirstRender * 100) / 100 : undefined,
+			triggerToFirstRenderFrameMs: triggerToFirstRenderFrame !== undefined ? Math.round(triggerToFirstRenderFrame * 100) / 100 : undefined,
 			triggerToEndMs: Math.round(triggerToEnd * 100) / 100,
 			// Backend timings (all relative to spawn)
 			spawnToStdinEndMs: timing.spawnToStdinEndMs,
@@ -760,7 +772,12 @@ export class SNCController extends Disposable implements IEditorContribution {
 		if (firstItemToFirstRender !== undefined) {
 			parts.push(`firstItem→render: ${Math.round(firstItemToFirstRender)}ms`);
 		}
-		if (triggerToFirstRender !== undefined) {
+		if (firstRenderToFrame !== undefined) {
+			parts.push(`render→frame: ${Math.round(firstRenderToFrame)}ms`);
+		}
+		if (triggerToFirstRenderFrame !== undefined) {
+			parts.push(`TOTAL trigger→frame: ${Math.round(triggerToFirstRenderFrame)}ms`);
+		} else if (triggerToFirstRender !== undefined) {
 			parts.push(`TOTAL trigger→render: ${Math.round(triggerToFirstRender)}ms`);
 		}
 		if (parts.length > 0) {
@@ -843,13 +860,15 @@ export class SNCController extends Disposable implements IEditorContribution {
 					if (!this.streamUpdateTimer) {
 						this.updateVisualizationWidgets(this.visualizationItems);
 
-						// Track first render completion time (after updateVisualizationWidgets returns)
+						// Track first render timing:
+						// 1. Sync: DOM mutations from changeViewZones are complete
+						// 2. rAF: fires after the editor's scheduled render pass
+						//    (registered after _scheduleRender's rAF, so runs after it)
 						if (isFirstItem && !this.runFirstRenderMsById.has(msg.runId)) {
-							// Use requestAnimationFrame to ensure the render has actually painted
+							this.runFirstRenderMsById.set(msg.runId, now());
+							const runId = msg.runId;
 							dom.getActiveWindow().requestAnimationFrame(() => {
-								if (!this.runFirstRenderMsById.has(msg.runId)) {
-									this.runFirstRenderMsById.set(msg.runId, now());
-								}
+								this.runFirstRenderFrameMsById.set(runId, now());
 							});
 						}
 
@@ -872,6 +891,7 @@ export class SNCController extends Disposable implements IEditorContribution {
 					this.runSpawnTimingById.delete(msg.runId);
 					this.runFirstItemReceivedMsById.delete(msg.runId);
 					this.runFirstRenderMsById.delete(msg.runId);
+					this.runFirstRenderFrameMsById.delete(msg.runId);
 
 					clearTimeout(this.streamUpdateTimer);
 
@@ -895,6 +915,7 @@ export class SNCController extends Disposable implements IEditorContribution {
 					this.runSpawnTimingById.delete(msg.runId);
 					this.runFirstItemReceivedMsById.delete(msg.runId);
 					this.runFirstRenderMsById.delete(msg.runId);
+					this.runFirstRenderFrameMsById.delete(msg.runId);
 
 					this.currentRunId = null;
 					this.eventsBeingHandledCurrentRun = [];
