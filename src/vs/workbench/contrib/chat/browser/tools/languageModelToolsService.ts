@@ -666,7 +666,13 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	}
 
 	private async prepareToolInvocationWithHookResult(tool: IToolEntry, dto: IToolInvocation, hookResult: IPreToolUseHookResult | undefined, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
-		const forceConfirmationReason = hookResult?.permissionDecision === 'ask' ? (hookResult.permissionDecisionReason || 'Hook requested confirmation') : undefined;
+		let forceConfirmationReason: string | undefined;
+		if (hookResult?.permissionDecision === 'ask') {
+			const hookMessage = localize('preToolUseHookRequiredConfirmation', "{0} required confirmation", HookType.PreToolUse);
+			forceConfirmationReason = hookResult.permissionDecisionReason
+				? `${hookMessage}: ${hookResult.permissionDecisionReason}`
+				: hookMessage;
+		}
 		return this.prepareToolInvocation(tool, dto, forceConfirmationReason, token);
 	}
 
