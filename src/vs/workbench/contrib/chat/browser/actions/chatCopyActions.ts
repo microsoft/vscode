@@ -95,11 +95,11 @@ export function registerChatCopyActions() {
 		}
 	});
 
-	registerAction2(class CopyMessageMarkdownAction extends Action2 {
+	registerAction2(class CopyMessageAction extends Action2 {
 		constructor() {
 			super({
-				id: 'workbench.action.chat.copyMessageMarkdown',
-				title: localize2('interactive.copyMessageMarkdown.label', "Copy Message"),
+				id: 'workbench.action.chat.copyMessage',
+				title: localize2('interactive.copyMessage.label', "Copy Message"),
 				f1: false,
 				category: CHAT_CATEGORY,
 				icon: Codicon.copy,
@@ -116,11 +116,16 @@ export function registerChatCopyActions() {
 		}
 
 		async run(accessor: ServicesAccessor, ...args: unknown[]) {
+			const chatWidgetService = accessor.get(IChatWidgetService);
 			const clipboardService = accessor.get(IClipboardService);
 
-			const item = args[0] as ChatTreeItem | undefined;
-			if (!item) {
-				return;
+			const widget = chatWidgetService.lastFocusedWidget;
+			let item = args[0] as ChatTreeItem | undefined;
+			if (!isChatTreeItem(item)) {
+				item = widget?.getFocus();
+				if (!item) {
+					return;
+				}
 			}
 
 			if (isRequestVM(item)) {
