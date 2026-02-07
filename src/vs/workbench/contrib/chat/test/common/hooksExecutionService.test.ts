@@ -494,6 +494,111 @@ suite('HooksExecutionService', () => {
 			assert.ok(result);
 			assert.strictEqual(result.permissionDecision, 'allow');
 		});
+
+		test('returns updatedInput when hook provides it', async () => {
+			const proxy = createMockProxy(() => ({
+				kind: HookCommandResultKind.Success,
+				result: {
+					hookSpecificOutput: {
+						permissionDecision: 'allow',
+						updatedInput: { path: '/safe/path.ts' }
+					}
+				}
+			}));
+			service.setProxy(proxy);
+
+			const hooks = { [HookType.PreToolUse]: [cmd('hook')] };
+			store.add(service.registerHooks(sessionUri, hooks));
+
+			const result = await service.executePreToolUseHook(
+				sessionUri,
+				{ toolName: 'test-tool', toolInput: { path: '/original/path.ts' }, toolCallId: 'call-1' }
+			);
+
+			assert.ok(result);
+			assert.strictEqual(result.permissionDecision, 'allow');
+			assert.deepStrictEqual(result.updatedInput, { path: '/safe/path.ts' });
+		});
+
+		test('later hook updatedInput overrides earlier one', async () => {
+			let callCount = 0;
+			const proxy = createMockProxy(() => {
+				callCount++;
+				if (callCount === 1) {
+					return {
+						kind: HookCommandResultKind.Success,
+						result: { hookSpecificOutput: { permissionDecision: 'allow', updatedInput: { value: 'first' } } }
+					};
+				}
+				return {
+					kind: HookCommandResultKind.Success,
+					result: { hookSpecificOutput: { permissionDecision: 'allow', updatedInput: { value: 'second' } } }
+				};
+			});
+			service.setProxy(proxy);
+
+			const hooks = { [HookType.PreToolUse]: [cmd('hook1'), cmd('hook2')] };
+			store.add(service.registerHooks(sessionUri, hooks));
+
+			const result = await service.executePreToolUseHook(
+				sessionUri,
+				{ toolName: 'test-tool', toolInput: {}, toolCallId: 'call-1' }
+			);
+
+			assert.ok(result);
+			assert.deepStrictEqual(result.updatedInput, { value: 'second' });
+		});
+
+		test('returns result with updatedInput even without permission decision', async () => {
+			const proxy = createMockProxy(() => ({
+				kind: HookCommandResultKind.Success,
+				result: {
+					hookSpecificOutput: {
+						updatedInput: { modified: true }
+					}
+				}
+			}));
+			service.setProxy(proxy);
+
+			const hooks = { [HookType.PreToolUse]: [cmd('hook')] };
+			store.add(service.registerHooks(sessionUri, hooks));
+
+			const result = await service.executePreToolUseHook(
+				sessionUri,
+				{ toolName: 'test-tool', toolInput: {}, toolCallId: 'call-1' }
+			);
+
+			assert.ok(result);
+			assert.deepStrictEqual(result.updatedInput, { modified: true });
+			assert.strictEqual(result.permissionDecision, undefined);
+		});
+
+		test('updatedInput combined with ask shows modified input to user', async () => {
+			const proxy = createMockProxy(() => ({
+				kind: HookCommandResultKind.Success,
+				result: {
+					hookSpecificOutput: {
+						permissionDecision: 'ask',
+						permissionDecisionReason: 'Modified input needs review',
+						updatedInput: { command: 'echo safe' }
+					}
+				}
+			}));
+			service.setProxy(proxy);
+
+			const hooks = { [HookType.PreToolUse]: [cmd('hook')] };
+			store.add(service.registerHooks(sessionUri, hooks));
+
+			const result = await service.executePreToolUseHook(
+				sessionUri,
+				{ toolName: 'test-tool', toolInput: { command: 'rm -rf /' }, toolCallId: 'call-1' }
+			);
+
+			assert.ok(result);
+			assert.strictEqual(result.permissionDecision, 'ask');
+			assert.strictEqual(result.permissionDecisionReason, 'Modified input needs review');
+			assert.deepStrictEqual(result.updatedInput, { command: 'echo safe' });
+		});
 	});
 
 	suite('executePostToolUseHook', () => {

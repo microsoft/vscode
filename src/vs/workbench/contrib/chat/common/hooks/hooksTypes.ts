@@ -16,7 +16,7 @@
  * External types (in hooksCommandTypes.ts) define the contract with spawned commands.
  */
 
-import { vEnum, vObj, vOptionalProp, vString } from '../../../../../base/common/validation.js';
+import { vEnum, vObj, vObjAny, vOptionalProp, vString } from '../../../../../base/common/validation.js';
 
 //#region Common Hook Types
 
@@ -67,8 +67,9 @@ export interface IPreToolUseCallerInput {
 export const preToolUseOutputValidator = vObj({
 	hookSpecificOutput: vOptionalProp(vObj({
 		hookEventName: vOptionalProp(vString()),
-		permissionDecision: vEnum('allow', 'deny', 'ask'),
+		permissionDecision: vOptionalProp(vEnum('allow', 'deny', 'ask')),
 		permissionDecisionReason: vOptionalProp(vString()),
+		updatedInput: vOptionalProp(vObjAny()),
 		additionalContext: vOptionalProp(vString()),
 	})),
 });
@@ -88,6 +89,12 @@ export type PreToolUsePermissionDecision = 'allow' | 'deny' | 'ask';
 export interface IPreToolUseHookResult extends IHookResult {
 	readonly permissionDecision?: PreToolUsePermissionDecision;
 	readonly permissionDecisionReason?: string;
+	/**
+	 * Modified tool input parameters from the hook.
+	 * When set, replaces the original tool input before execution.
+	 * Combine with 'allow' to auto-approve, or 'ask' to show modified input to the user.
+	 */
+	readonly updatedInput?: object;
 	readonly additionalContext?: string[];
 }
 

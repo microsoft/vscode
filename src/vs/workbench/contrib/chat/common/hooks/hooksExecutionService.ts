@@ -390,6 +390,7 @@ export class HooksExecutionService extends Disposable implements IHooksExecution
 		let mostRestrictiveDecision: PreToolUsePermissionDecision | undefined;
 		let winningResult: IHookResult | undefined;
 		let winningReason: string | undefined;
+		let lastUpdatedInput: object | undefined;
 
 		for (const result of results) {
 			if (result.success && typeof result.output === 'object' && result.output !== null) {
@@ -408,6 +409,11 @@ export class HooksExecutionService extends Disposable implements IHooksExecution
 							allAdditionalContext.push(hookSpecificOutput.additionalContext);
 						}
 
+						// Track the last updatedInput (later hooks override earlier ones)
+						if (hookSpecificOutput.updatedInput) {
+							lastUpdatedInput = hookSpecificOutput.updatedInput;
+						}
+
 						// Track the most restrictive decision: deny > ask > allow
 						const decision = hookSpecificOutput.permissionDecision;
 						if (decision && this._isMoreRestrictive(decision, mostRestrictiveDecision)) {
@@ -422,14 +428,16 @@ export class HooksExecutionService extends Disposable implements IHooksExecution
 			}
 		}
 
-		if (!mostRestrictiveDecision || !winningResult) {
+		if (!mostRestrictiveDecision && !lastUpdatedInput && allAdditionalContext.length === 0) {
 			return undefined;
 		}
 
+		const baseResult = winningResult ?? results[0];
 		return {
-			...winningResult,
+			...baseResult,
 			permissionDecision: mostRestrictiveDecision,
 			permissionDecisionReason: winningReason,
+			updatedInput: lastUpdatedInput,
 			additionalContext: allAdditionalContext.length > 0 ? allAdditionalContext : undefined,
 		};
 	}

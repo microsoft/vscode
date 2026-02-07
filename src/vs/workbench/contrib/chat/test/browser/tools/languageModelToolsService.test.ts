@@ -14,6 +14,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { IAccessibilityService } from '../../../../../../platform/accessibility/common/accessibility.js';
 import { TestAccessibilityService } from '../../../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
+import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget, IConfigurationChangeEvent } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
@@ -147,6 +148,7 @@ interface TestToolsServiceOptions {
 	accessibilitySignalService?: Partial<IAccessibilitySignalService>;
 	telemetryService?: Partial<ITelemetryService>;
 	hooksExecutionService?: MockHooksExecutionService;
+	commandService?: Partial<ICommandService>;
 	/** Called after configurationService is created but before the service is instantiated */
 	configureServices?: (config: TestConfigurationService) => void;
 }
@@ -180,6 +182,9 @@ function createTestToolsService(store: ReturnType<typeof ensureNoDisposablesAreL
 	}
 	if (options?.telemetryService) {
 		instaService.stub(ITelemetryService, options.telemetryService);
+	}
+	if (options?.commandService) {
+		instaService.stub(ICommandService, options.commandService as ICommandService);
 	}
 
 	const service = store.add(instaService.createInstance(LanguageModelToolsService));
@@ -4036,6 +4041,152 @@ suite('LanguageModelToolsService', () => {
 			assert.strictEqual(invokeCompleted, true, 'Tool should complete immediately when hook allows');
 			assert.strictEqual(result.content[0].kind, 'text');
 			assert.strictEqual((result.content[0] as IToolResultTextPart).value, 'success');
+		});
+
+		test('when hook returns updatedInput, tool is invoked with replaced parameters', async () => {
+			let receivedParameters: Record<string, any> | undefined;
+			mockHooksService.preToolUseHookResult = {
+				output: undefined,
+				success: true,
+				permissionDecision: 'allow',
+				updatedInput: { safeCommand: 'echo hello' },
+			};
+
+			const tool = registerToolForTest(hookService, store, 'hookUpdatedInputTool', {
+				invoke: async (dto) => {
+					receivedParameters = dto.parameters;
+					return { content: [{ kind: 'text', value: 'done' }] };
+				},
+				prepareToolInvocation: async () => ({
+					confirmationMessages: {
+						title: 'Confirm?',
+						message: 'Confirm action',
+						allowAutoConfirm: true
+					}
+				})
+			});
+
+			stubGetSession(hookChatService, 'hook-test-updated-input', { requestId: 'req1' });
+
+			await hookService.invokeTool(
+				tool.makeDto({ originalCommand: 'rm -rf /' }, { sessionId: 'hook-test-updated-input' }),
+				async () => 0,
+				CancellationToken.None
+			);
+
+			assert.deepStrictEqual(receivedParameters, { safeCommand: 'echo hello' });
+		});
+
+		test('when hook returns updatedInput that fails schema validation, original parameters are kept', async () => {
+			const mockCommandService = {
+				executeCommand: async (commandId: string) => {
+					if (commandId === 'json.validate') {
+						return [{ message: 'Missing required property "command"', range: [{ line: 0, character: 0 }, { line: 0, character: 1 }], severity: 'Error' }];
+					}
+					return undefined;
+				}
+			};
+
+			const mockHooks = new MockHooksExecutionService();
+			const setup = createTestToolsService(store, {
+				hooksExecutionService: mockHooks,
+				commandService: mockCommandService as ICommandService,
+			});
+
+			let receivedParameters: Record<string, any> | undefined;
+			mockHooks.preToolUseHookResult = {
+				output: undefined,
+				success: true,
+				permissionDecision: 'allow',
+				updatedInput: { invalidField: 'wrong' },
+			};
+
+			const tool = registerToolForTest(setup.service, store, 'hookValidationFailTool', {
+				invoke: async (dto) => {
+					receivedParameters = dto.parameters;
+					return { content: [{ kind: 'text', value: 'done' }] };
+				},
+				prepareToolInvocation: async () => ({
+					confirmationMessages: {
+						title: 'Confirm?',
+						message: 'Confirm action',
+						allowAutoConfirm: true
+					}
+				})
+			}, {
+				inputSchema: {
+					type: 'object',
+					properties: { command: { type: 'string' } },
+					required: ['command'],
+				}
+			});
+
+			stubGetSession(setup.chatService, 'hook-test-validation-fail', { requestId: 'req1' });
+
+			await setup.service.invokeTool(
+				tool.makeDto({ command: 'original' }, { sessionId: 'hook-test-validation-fail' }),
+				async () => 0,
+				CancellationToken.None
+			);
+
+			// Original parameters should be kept since validation failed
+			assert.deepStrictEqual(receivedParameters, { command: 'original' });
+		});
+
+		test('when hook returns updatedInput that passes schema validation, parameters are replaced', async () => {
+			const mockCommandService = {
+				executeCommand: async (commandId: string) => {
+					if (commandId === 'json.validate') {
+						return []; // no diagnostics = valid
+					}
+					return undefined;
+				}
+			};
+
+			const mockHooks = new MockHooksExecutionService();
+			const setup = createTestToolsService(store, {
+				hooksExecutionService: mockHooks,
+				commandService: mockCommandService as ICommandService,
+			});
+
+			let receivedParameters: Record<string, any> | undefined;
+			mockHooks.preToolUseHookResult = {
+				output: undefined,
+				success: true,
+				permissionDecision: 'allow',
+				updatedInput: { command: 'safe-command' },
+			};
+
+			const tool = registerToolForTest(setup.service, store, 'hookValidationPassTool', {
+				invoke: async (dto) => {
+					receivedParameters = dto.parameters;
+					return { content: [{ kind: 'text', value: 'done' }] };
+				},
+				prepareToolInvocation: async () => ({
+					confirmationMessages: {
+						title: 'Confirm?',
+						message: 'Confirm action',
+						allowAutoConfirm: true
+					}
+				})
+			}, {
+				inputSchema: {
+					type: 'object',
+					properties: { command: { type: 'string' } },
+					required: ['command'],
+				}
+			});
+
+			stubGetSession(setup.chatService, 'hook-test-validation-pass', { requestId: 'req1' });
+
+			await setup.service.invokeTool(
+				tool.makeDto({ command: 'original' }, { sessionId: 'hook-test-validation-pass' }),
+				async () => 0,
+				CancellationToken.None
+			);
+
+			// Updated parameters should be applied since validation passed
+			assert.deepStrictEqual(receivedParameters, { command: 'safe-command' });
 		});
 	});
 

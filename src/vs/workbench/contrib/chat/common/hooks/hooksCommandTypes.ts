@@ -88,6 +88,7 @@ export interface IPreToolUseCommandOutput extends IHookCommandOutput {
 		readonly hookEventName?: string;
 		readonly permissionDecision?: 'allow' | 'deny';
 		readonly permissionDecisionReason?: string;
+		readonly updatedInput?: object;
 		readonly additionalContext?: string;
 	};
 }

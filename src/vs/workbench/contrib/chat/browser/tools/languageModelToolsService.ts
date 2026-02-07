@@ -23,6 +23,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
@@ -122,6 +123,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		@IStorageService private readonly _storageService: IStorageService,
 		@ILanguageModelToolsConfirmationService private readonly _confirmationService: ILanguageModelToolsConfirmationService,
 		@IHooksExecutionService private readonly _hooksExecutionService: IHooksExecutionService,
+		@ICommandService private readonly _commandService: ICommandService,
 	) {
 		super();
 
@@ -423,6 +425,38 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	}
 
 	/**
+	 * Validate updatedInput from a preToolUse hook against the tool's input schema
+	 * using the json.validate command from the JSON extension.
+	 * @returns An error message string if validation fails, or undefined if valid.
+	 */
+	private async _validateUpdatedInput(toolId: string, toolData: IToolData | undefined, updatedInput: object): Promise<string | undefined> {
+		if (!toolData?.inputSchema) {
+			return undefined;
+		}
+
+		type JsonDiagnostic = {
+			message: string;
+			range: { line: number; character: number }[];
+			severity: string;
+			code?: string | number;
+		};
+
+		try {
+			const schemaUri = createToolSchemaUri(toolId);
+			const inputJson = JSON.stringify(updatedInput);
+			const diagnostics = await this._commandService.executeCommand<JsonDiagnostic[]>('json.validate', schemaUri, inputJson) || [];
+			if (diagnostics.length > 0) {
+				return diagnostics.map(d => d.message).join('; ');
+			}
+		} catch (e) {
+			// json extension may not be available; skip validation
+			this._logService.debug(`[LanguageModelToolsService#_validateUpdatedInput] json.validate command failed, skipping validation: ${toErrorMessage(e)}`);
+		}
+
+		return undefined;
+	}
+
+	/**
 	 * Execute the postToolUse hook after tool completion.
 	 * If the hook returns a "block" decision, additional context is appended to the tool result
 	 * as feedback for the agent indicating the block and reason. The tool has already run,
@@ -515,6 +549,17 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				this._pendingToolCalls.delete(pendingToolCallKey);
 			}
 			return hookDenialResult;
+		}
+
+		// Apply updatedInput from preToolUse hook if provided, after validating against the tool's input schema
+		if (preToolUseHookResult?.updatedInput) {
+			const validationError = await this._validateUpdatedInput(dto.toolId, toolData, preToolUseHookResult.updatedInput);
+			if (validationError) {
+				this._logService.warn(`[LanguageModelToolsService#invokeTool] Tool ${dto.toolId} updatedInput from preToolUse hook failed schema validation: ${validationError}`);
+			} else {
+				this._logService.debug(`[LanguageModelToolsService#invokeTool] Tool ${dto.toolId} input modified by preToolUse hook`);
+				dto.parameters = preToolUseHookResult.updatedInput;
+			}
 		}
 
 		// Fire the event to notify listeners that a tool is being invoked
