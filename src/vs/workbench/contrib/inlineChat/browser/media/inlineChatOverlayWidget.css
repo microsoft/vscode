@@ -86,8 +86,7 @@
 	justify-content: center;
 }
 
-.chat-diff-change-content-widget .monaco-action-bar .action-item.primary.disabled,
-.chat-editor-overlay-widget .monaco-action-bar .action-item.primary.disabled {
+.inline-chat-session-overlay-container .monaco-action-bar .action-item.primary.disabled {
 
 	> .action-label.codicon::before,
 	> .action-label.codicon,
@@ -97,4 +96,3 @@
 		opacity: 0.6;
 	}
 }
-
