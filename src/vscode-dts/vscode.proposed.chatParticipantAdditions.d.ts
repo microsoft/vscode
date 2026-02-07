@@ -5,6 +5,8 @@
 
 // version: 3
 
+/// <reference path="vscode.proposed.chatHooks.d.ts" />
+
 declare module 'vscode' {
 
 	export interface ChatParticipant {
