@@ -21,6 +21,7 @@ from string_visualizer import (
     HandleMouseDown,
     DropdownToggle, DropdownSelect,
     SearchBoxInput,
+    RepetitionInput,
     NewCode,
     compute_internal_length,
     extract_by_internal_indices,
@@ -29,6 +30,7 @@ from string_visualizer import (
     parse_regex_for_highlighting,
     find_fuzzy_segment_at_index,
     replace_segment_pattern,
+    replace_segment_repetition,
     resize_literal_segment,
     extract_quantifier,
     _subpattern_to_string,
@@ -3467,6 +3469,484 @@ class TestLiteralDragHandleRendering(unittest.TestCase):
         html_output = visualize(self.value, model)
         self.assertIn('width: 4px', html_output)
         self.assertIn('height: 4px', html_output)
+
+
+# =============================================================================
+# Test Helper: Repetition Input Events
+# =============================================================================
+
+def make_repetition_input_event(dropdown_id: str, field: str, value: str) -> dict:
+    """Create a RepetitionInput event dict for repetition text field interaction.
+
+    Args:
+        dropdown_id: The dropdown ID (e.g., 'repetition-0')
+        field: Which field changed: 'exact', 'min', or 'max'
+        value: The new value of the field
+    """
+    return {
+        'pythonEventStr': repr(RepetitionInput(dropdown_id=dropdown_id, field=field, value=value)),
+        'eventJSON': {}
+    }
+
+
+# =============================================================================
+# Tests: replace_segment_repetition (core function)
+# =============================================================================
+
+class TestReplaceSegmentRepetition(unittest.TestCase):
+    """Test the replace_segment_repetition function that modifies a segment's quantifier.
+
+    replace_segment_repetition should replace the quantifier of a segment,
+    preserving the base pattern (character class or literal content).
+
+    Note: Results are canonicalized, so groups are only kept when:
+    - Two adjacent non-fuzzy (literal) segments exist, OR
+    - The segment text contains non-capturing groups (?:...)
+    Single-segment regexes always have groups stripped.
+    """
+
+    # --- Fuzzy segment (single atom) repetition changes ---
+
+    def test_replace_star_with_plus_on_fuzzy(self):
+        """Replacing .* quantifier with + gives .+ (canonical: no group for single segment)."""
+        result = replace_segment_repetition('/(.*)/', 0, '+')
+        self.assertEqual(result, '/.+/')
+
+    def test_replace_star_with_question_on_fuzzy(self):
+        """Replacing .* quantifier with ? gives .? (canonical)."""
+        result = replace_segment_repetition('/(.*)/', 0, '?')
+        self.assertEqual(result, '/.?/')
+
+    def test_replace_star_with_exact_on_fuzzy(self):
+        """Replacing .* quantifier with {3} gives .{3} (canonical)."""
+        result = replace_segment_repetition('/(.*)/', 0, '{3}')
+        self.assertEqual(result, '/.{3}/')
+
+    def test_replace_star_with_range_on_fuzzy(self):
+        """Replacing .* quantifier with {2,5} gives .{2,5} (canonical)."""
+        result = replace_segment_repetition('/(.*)/', 0, '{2,5}')
+        self.assertEqual(result, '/.{2,5}/')
+
+    def test_replace_star_with_no_quantifier_on_fuzzy(self):
+        """Replacing .* with '' (exactly 1) gives . (canonical)."""
+        result = replace_segment_repetition('/(.*)/', 0, '')
+        self.assertEqual(result, '/./')
+
+    def test_replace_plus_with_star_on_fuzzy(self):
+        """Replacing .+ quantifier with * gives .* (canonical)."""
+        result = replace_segment_repetition('/(.+)/', 0, '*')
+        self.assertEqual(result, '/.*/')
+
+    def test_replace_on_char_class_fuzzy(self):
+        r"""Replacing \s* quantifier with + gives \s+ (canonical)."""
+        result = replace_segment_repetition(r'/(\s*)/', 0, '+')
+        self.assertEqual(result, r'/\s+/')
+
+    def test_replace_on_bracket_class_fuzzy(self):
+        """Replacing [a-z]* quantifier with {2,5} gives [a-z]{2,5} (canonical)."""
+        result = replace_segment_repetition('/([a-z]*)/', 0, '{2,5}')
+        self.assertEqual(result, '/[a-z]{2,5}/')
+
+    # --- Literal segment (single char) repetition changes ---
+
+    def test_replace_repetition_on_literal_single_char(self):
+        """Adding + to single char literal 'h' gives h+ (canonical: no group)."""
+        result = replace_segment_repetition('/(h)/', 0, '+')
+        self.assertEqual(result, '/h+/')
+
+    def test_replace_single_char_with_exact(self):
+        """Adding {3} to single char literal 'h' gives h{3} (canonical: no group)."""
+        result = replace_segment_repetition('/(h)/', 0, '{3}')
+        self.assertEqual(result, '/h{3}/')
+
+    # --- Literal segment (multi char) repetition changes ---
+
+    def test_replace_repetition_on_literal_multi_char(self):
+        """Adding + to multi-char literal 'hello' wraps in (?:hello)+ and keeps group."""
+        result = replace_segment_repetition('/(hello)/', 0, '+')
+        # Group kept because text contains (?:
+        self.assertEqual(result, '/((?:hello)+)/')
+
+    def test_replace_repetition_on_literal_multi_char_exact(self):
+        """Adding {3} to multi-char literal 'hello' wraps in (?:hello){3}."""
+        result = replace_segment_repetition('/(hello)/', 0, '{3}')
+        self.assertEqual(result, '/((?:hello){3})/')
+
+    def test_remove_repetition_from_literal_multi_char(self):
+        """Removing quantifier from (?:hello)+ gives back hello (canonical: no group)."""
+        result = replace_segment_repetition('/((?:hello)+)/', 0, '')
+        # Unwraps (?:...) and removes group since no (?:) in result
+        self.assertEqual(result, '/hello/')
+
+    def test_change_repetition_on_literal_multi_char(self):
+        """Changing (?:hello)+ to (?:hello){2,5} keeps group."""
+        result = replace_segment_repetition('/((?:hello)+)/', 0, '{2,5}')
+        self.assertEqual(result, '/((?:hello){2,5})/')
+
+    # --- Multi-segment regex (canonical form strips groups for non-adjacent-literal segments) ---
+
+    def test_replace_in_middle_segment(self):
+        """Replace repetition of middle (fuzzy) segment in multi-segment regex.
+
+        Canonical form: no adjacent literals -> no groups needed.
+        """
+        result = replace_segment_repetition('/(hello)(.*)(world)/', 1, '+')
+        self.assertEqual(result, '/hello.+world/')
+
+    def test_replace_preserves_other_segments(self):
+        """When adding (?:...) to one segment, it keeps its group."""
+        result = replace_segment_repetition('/(hello)(.*)(world)/', 0, '{3}')
+        # (?:hello){3} segment keeps group, others get canonicalized
+        self.assertEqual(result, '/((?:hello){3}).*world/')
+
+    def test_replace_last_segment_repetition(self):
+        """Replace repetition of last segment wraps in (?:...) and keeps group."""
+        result = replace_segment_repetition('/(hello)(.*)(world)/', 2, '+')
+        self.assertEqual(result, '/hello.*((?:world)+)/')
+
+    # --- Edge cases ---
+
+    def test_out_of_bounds_index_unchanged(self):
+        """Out of bounds segment index leaves regex unchanged (canonical form)."""
+        result = replace_segment_repetition('/(hello)/', 5, '+')
+        self.assertEqual(result, '/hello/')
+
+    def test_replace_with_min_only_range(self):
+        """Replace with {2,} (2 or more) quantifier (canonical)."""
+        result = replace_segment_repetition('/(.*)/', 0, '{2,}')
+        self.assertEqual(result, '/.{2,}/')
+
+    def test_escaped_chars_in_literal(self):
+        r"""Escaped chars like \n are single atoms, no wrapping needed (canonical)."""
+        result = replace_segment_repetition(r'/(\n)/', 0, '+')
+        self.assertEqual(result, r'/\n+/')
+
+
+# =============================================================================
+# Tests: Repetition Dropdown Toggle
+# =============================================================================
+
+class TestRepetitionDropdownToggle(unittest.TestCase):
+    """Tests for toggling the repetition dropdown via DropdownToggle."""
+
+    def test_repetition_dropdown_toggle_opens(self):
+        """DropdownToggle with repetition-* ID opens the repetition dropdown."""
+        model = init_model("hello world")
+        model['selectionRegex'] = '/(hello)/'
+        self.assertIsNone(model.get('openDropdown'))
+
+        event = make_dropdown_toggle_event('repetition-0')
+        model, _ = update(event, '', 1, model, "hello world")
+
+        self.assertIsNotNone(model.get('openDropdown'))
+        self.assertEqual(model['openDropdown']['id'], 'repetition-0')
+        self.assertEqual(model['openDropdown']['segmentIndex'], 0)
+
+    def test_repetition_dropdown_toggle_closes(self):
+        """DropdownToggle closes an already-open repetition dropdown."""
+        model = init_model("hello world")
+        model['selectionRegex'] = '/(hello)/'
+        model['openDropdown'] = {'id': 'repetition-0', 'segmentIndex': 0}
+
+        event = make_dropdown_toggle_event('repetition-0')
+        model, _ = update(event, '', 1, model, "hello world")
+
+        self.assertIsNone(model.get('openDropdown'))
+
+    def test_repetition_dropdown_toggle_switches(self):
+        """Opening a different repetition dropdown closes the old one."""
+        model = init_model("hello world")
+        model['selectionRegex'] = '/(hello)(.*)(world)/'
+        model['openDropdown'] = {'id': 'repetition-0', 'segmentIndex': 0}
+
+        event = make_dropdown_toggle_event('repetition-2')
+        model, _ = update(event, '', 1, model, "hello world")
+
+        self.assertEqual(model['openDropdown']['id'], 'repetition-2')
+        self.assertEqual(model['openDropdown']['segmentIndex'], 2)
+
+
+# =============================================================================
+# Tests: Repetition Dropdown Select (simple options: 1, ?, *, +)
+# =============================================================================
+
+class TestRepetitionDropdownSelect(unittest.TestCase):
+    """Tests for selecting simple repetition options from the dropdown.
+
+    Note: Results are canonicalized, so groups may be stripped for non-adjacent-literal
+    segments. Multi-segment regexes without adjacent literals lose their groups.
+    """
+
+    def test_select_star_on_fuzzy(self):
+        """Select * on a fuzzy segment changes .+ to .* (canonical: no groups)."""
+        model = init_model("hello world")
+        model['selectionRegex'] = '/hello.+world/'
+        model['openDropdown'] = {'id': 'repetition-1', 'segmentIndex': 1}
+
+        event = make_dropdown_select_event('repetition-1', '*')
+        model, _ = update(event, '', 1, model, "hello world")
+
+        self.assertEqual(model['selectionRegex'], '/hello.*world/')
+        self.assertIsNone(model.get('openDropdown'))
+
+    def test_select_plus_on_fuzzy(self):
+        """Select + on a fuzzy segment changes .* to .+ (canonical: no groups)."""
+        model = init_model("hello world")
+        model['selectionRegex'] = '/hello.*world/'
+        model['openDropdown'] = {'id': 'repetition-1', 'segmentIndex': 1}
+
+        event = make_dropdown_select_event('repetition-1', '+')
+        model, _ = update(event, '', 1, model, "hello world")
+
+        self.assertEqual(model['selectionRegex'], '/hello.+world/')
+        self.assertIsNone(model.get('openDropdown'))
+
+    def test_select_question_on_fuzzy(self):
+        """Select ? on a fuzzy segment changes .* to .? (canonical: no groups)."""
+        model = init_model("hello world")
+        model['selectionRegex'] = '/hello.*world/'
+        model['openDropdown'] = {'id': 'repetition-1', 'segmentIndex': 1}
+
+        event = make_dropdown_select_event('repetition-1', '?')
+        model, _ = update(event, '', 1, model, "hello world")
+
+        self.assertEqual(model['selectionRegex'], '/hello.?world/')
+        self.assertIsNone(model.get('openDropdown'))
+
+    def test_select_1_removes_quantifier(self):
+        """Select 1 on a fuzzy segment removes the quantifier (e.g., .* -> .)."""
+        model = init_model("hello world")
+        model['selectionRegex'] = '/hello.*world/'
+        model['openDropdown'] = {'id': 'repetition-1', 'segmentIndex': 1}
+
+        event = make_dropdown_select_event('repetition-1', '1')
+        model, _ = update(event, '', 1, model, "hello world")
+
+        self.assertEqual(model['selectionRegex'], '/hello.world/')
+        self.assertIsNone(model.get('openDropdown'))
+
+    def test_select_plus_on_literal(self):
+        """Select + on a literal segment adds + quantifier, wrapping multi-char in (?:...)."""
+        model = init_model("hello world")
+        model['selectionRegex'] = '/hello.*world/'
+        model['openDropdown'] = {'id': 'repetition-0', 'segmentIndex': 0}
+
+        event = make_dropdown_select_event('repetition-0', '+')
+        model, _ = update(event, '', 1, model, "hello world")
+
+        # (?:hello)+ gets a group because it contains (?:)
+        self.assertEqual(model['selectionRegex'], '/((?:hello)+).*world/')
+        self.assertIsNone(model.get('openDropdown'))
+
+    def test_repetition_select_saves_undo(self):
+        """Changing repetition saves previous regex to undo history."""
+        model = init_model("hello world")
+        model['selectionRegex'] = '/hello.*world/'
+        model['openDropdown'] = {'id': 'repetition-1', 'segmentIndex': 1}
+
+        event = make_dropdown_select_event('repetition-1', '+')
+        model, _ = update(event, '', 1, model, "hello world")
+
+        self.assertIn('/hello.*world/', model['undoHistory'])
+
+    def test_repetition_select_wrong_id_ignored(self):
+        """Selection ignored if dropdown ID doesn't match."""
+        model = init_model("hello world")
+        model['selectionRegex'] = '/hello.*/'
+        model['openDropdown'] = {'id': 'repetition-0', 'segmentIndex': 0}
+
+        event = make_dropdown_select_event('repetition-1', '+')
+        model, _ = update(event, '', 1, model, "hello world")
+
+        # Regex unchanged
+        self.assertEqual(model['selectionRegex'], '/hello.*/')
+        # Dropdown still closes
+        self.assertIsNone(model.get('openDropdown'))
+
+
+# =============================================================================
+# Tests: RepetitionInput (text field changes for {n} and {n,m})
+# =============================================================================
+
+class TestRepetitionInput(unittest.TestCase):
+    """Tests for RepetitionInput events from {n} and {n,m} text fields.
+
+    Note: Results are canonicalized. Single-segment fuzzy patterns lose their groups.
+    """
+
+    def test_exact_field_sets_exact_quantifier(self):
+        """Typing '3' in the {n} field sets quantifier to {3} (canonical: no group)."""
+        model = init_model("hello world")
+        model['selectionRegex'] = '/.*/'
+        model['openDropdown'] = {'id': 'repetition-0', 'segmentIndex': 0,
+                                  'exactN': '', 'rangeMin': '', 'rangeMax': ''}
+
+        event = make_repetition_input_event('repetition-0', 'exact', '3')
+        model, _ = update(event, '', 1, model, "hello world")
+
+        self.assertEqual(model['selectionRegex'], '/.{3}/')
+        # Dropdown should remain open for further edits
+        self.assertIsNotNone(model.get('openDropdown'))
+        self.assertEqual(model['openDropdown']['exactN'], '3')
+
+    def test_exact_field_empty_does_not_change_regex(self):
+        """Empty {n} field does not change the regex."""
+        model = init_model("hello world")
+        model['selectionRegex'] = '/.*/'
+        model['openDropdown'] = {'id': 'repetition-0', 'segmentIndex': 0,
+                                  'exactN': '3', 'rangeMin': '', 'rangeMax': ''}
+
+        event = make_repetition_input_event('repetition-0', 'exact', '')
+        model, _ = update(event, '', 1, model, "hello world")
+
+        # Should not crash; dropdown state updated but regex may not change
+        self.assertIsNotNone(model.get('openDropdown'))
+        self.assertEqual(model['openDropdown']['exactN'], '')
+
+    def test_range_min_and_max_set_range_quantifier(self):
+        """Typing in both min and max fields sets {min,max} quantifier."""
+        model = init_model("hello world")
+        model['selectionRegex'] = '/.*/'
+        model['openDropdown'] = {'id': 'repetition-0', 'segmentIndex': 0,
+                                  'exactN': '', 'rangeMin': '', 'rangeMax': ''}
+
+        # Set min to 2
+        event = make_repetition_input_event('repetition-0', 'min', '2')
+        model, _ = update(event, '', 1, model, "hello world")
+
+        # With only min, should produce {2,}
+        self.assertEqual(model['openDropdown']['rangeMin'], '2')
+
+        # Set max to 5
+        event = make_repetition_input_event('repetition-0', 'max', '5')
+        model, _ = update(event, '', 1, model, "hello world")
+
+        self.assertEqual(model['selectionRegex'], '/.{2,5}/')
+        self.assertEqual(model['openDropdown']['rangeMax'], '5')
+
+    def test_range_min_only_sets_min_quantifier(self):
+        """Setting only min field gives {n,} quantifier (canonical: no group)."""
+        model = init_model("hello world")
+        model['selectionRegex'] = '/.*/'
+        model['openDropdown'] = {'id': 'repetition-0', 'segmentIndex': 0,
+                                  'exactN': '', 'rangeMin': '', 'rangeMax': ''}
+
+        event = make_repetition_input_event('repetition-0', 'min', '2')
+        model, _ = update(event, '', 1, model, "hello world")
+
+        self.assertEqual(model['selectionRegex'], '/.{2,}/')
+
+    def test_range_max_only_does_not_change_regex(self):
+        """Setting only max field (no min) does not produce a valid quantifier."""
+        model = init_model("hello world")
+        original_regex = '/.*/'
+        model['selectionRegex'] = original_regex
+        model['openDropdown'] = {'id': 'repetition-0', 'segmentIndex': 0,
+                                  'exactN': '', 'rangeMin': '', 'rangeMax': ''}
+
+        event = make_repetition_input_event('repetition-0', 'max', '5')
+        model, _ = update(event, '', 1, model, "hello world")
+
+        # rangeMax only is not a valid quantifier on its own; regex unchanged
+        self.assertEqual(model['openDropdown']['rangeMax'], '5')
+
+    def test_repetition_input_saves_undo(self):
+        """RepetitionInput that changes the regex saves to undo history."""
+        model = init_model("hello world")
+        model['selectionRegex'] = '/.*/'
+        model['openDropdown'] = {'id': 'repetition-0', 'segmentIndex': 0,
+                                  'exactN': '', 'rangeMin': '', 'rangeMax': ''}
+
+        event = make_repetition_input_event('repetition-0', 'exact', '3')
+        model, _ = update(event, '', 1, model, "hello world")
+
+        self.assertIn('/.*/', model['undoHistory'])
+
+    def test_repetition_input_non_numeric_ignored(self):
+        """Non-numeric values in text fields are ignored."""
+        model = init_model("hello world")
+        model['selectionRegex'] = '/.*/'
+        original_regex = '/.*/'
+        model['openDropdown'] = {'id': 'repetition-0', 'segmentIndex': 0,
+                                  'exactN': '', 'rangeMin': '', 'rangeMax': ''}
+
+        event = make_repetition_input_event('repetition-0', 'exact', 'abc')
+        model, _ = update(event, '', 1, model, "hello world")
+
+        # Non-numeric value should not change regex
+        self.assertEqual(model['selectionRegex'], original_regex)
+
+    def test_repetition_input_on_literal_multi_char(self):
+        """RepetitionInput on a multi-char literal wraps in (?:...) and keeps group."""
+        model = init_model("hello world")
+        model['selectionRegex'] = '/hello/'
+        model['openDropdown'] = {'id': 'repetition-0', 'segmentIndex': 0,
+                                  'exactN': '', 'rangeMin': '', 'rangeMax': ''}
+
+        event = make_repetition_input_event('repetition-0', 'exact', '3')
+        model, _ = update(event, '', 1, model, "hello world")
+
+        self.assertEqual(model['selectionRegex'], '/((?:hello){3})/')
+
+
+# =============================================================================
+# Tests: Repetition Dropdown Rendering
+# =============================================================================
+
+class TestRepetitionDropdownRendering(unittest.TestCase):
+    """Tests that repetition dropdowns render correctly in visualize output.
+
+    Note: We use canonical regexes that actually produce highlights for the test value.
+    For "hello world": hello.*world matches and produces 3 segments.
+    For single segments, use regexes that match the test value.
+    """
+
+    def test_literal_segment_has_clickable_repetition(self):
+        """Literal segment renders repetition count as a clickable dropdown trigger."""
+        model = init_model("helloworld")
+        # Adjacent literals need groups to be preserved in canonical form
+        model['selectionRegex'] = '/(hello)(world)/'
+
+        html_output = visualize("helloworld", model)
+
+        # Should contain a repetition dropdown toggle event
+        self.assertIn('repetition-0', html_output)
+
+    def test_fuzzy_segment_has_clickable_repetition(self):
+        """Fuzzy segment renders repetition count as a clickable dropdown trigger."""
+        model = init_model("hello world")
+        # Use canonical form that will produce highlights
+        model['selectionRegex'] = '/hello.*world/'
+
+        html_output = visualize("hello world", model)
+
+        # Should contain repetition dropdown toggle events
+        # Segment 1 is fuzzy (.*)
+        self.assertIn('repetition-1', html_output)
+
+    def test_repetition_dropdown_open_shows_options(self):
+        """When repetition dropdown is open, options are rendered."""
+        model = init_model("hello world")
+        model['selectionRegex'] = '/hello.*world/'
+        model['openDropdown'] = {'id': 'repetition-1', 'segmentIndex': 1,
+                                  'exactN': '', 'rangeMin': '', 'rangeMax': ''}
+
+        html_output = visualize("hello world", model)
+
+        # Should contain dropdown select options
+        self.assertIn('DropdownSelect', html_output)
+
+    def test_repetition_dropdown_has_text_input_fields(self):
+        """When repetition dropdown is open, text input fields for {n} and {n,m} are present."""
+        model = init_model("hello world")
+        model['selectionRegex'] = '/hello.*world/'
+        model['openDropdown'] = {'id': 'repetition-1', 'segmentIndex': 1,
+                                  'exactN': '', 'rangeMin': '', 'rangeMax': ''}
+
+        html_output = visualize("hello world", model)
+
+        # Should contain RepetitionInput events for text fields
+        self.assertIn('RepetitionInput', html_output)
 
 
 # =============================================================================
