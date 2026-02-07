@@ -44,7 +44,7 @@ git commit --no-verify --amend -m 'message'
 git push -f
 ```
 
-After that, to update on latest VS Code as below. Currently can't move up because I need a C++20 compiler for tree-sitter on the newer versions of node.
+After that, to update on latest VS Code see below. Currently can't move up because I need a C++20 compiler for tree-sitter on the newer versions of node.
 
 ```
 git fetch ms --tags

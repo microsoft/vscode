@@ -48,8 +48,11 @@ SELECTION (Programming by Demonstration):
 - Pressing Enter generates regex code: re.search(r'pattern', var, re.M).group(0)
 
 MODEL STATE:
-- selectionRegex: Regex pattern with / delimiters, e.g., "/(hello)(.*)(world)/"
-  Each segment is wrapped in a capturing group for position tracking.
+- selectionRegex: Regex pattern with / delimiters in canonical form.
+  All segments (literal and fuzzy) are ungrouped by default.
+  Groups are only kept when two literal segments are adjacent,
+  to disambiguate their boundary:
+    e.g., "/hello.*world/" or "/(hello)(world).*/"
   The / prefix/suffix anticipates other search types (literal strings, globs).
 - anchorIdx/cursorIdx: Current drag start/end positions (internal indices)
 - anchorType: 'literal' or 'fuzzy' based on where the drag started
@@ -612,15 +615,16 @@ def append_segment_to_regex(current_regex: str | None, segment_type: str, text: 
     """
     Append a new segment to the regex pattern.
 
-    Each segment is wrapped in a capturing group for position tracking.
+    The result is canonicalized: literal segments are ungrouped unless
+    adjacent to another literal segment.
 
     Args:
-        current_regex: Current regex pattern with / delimiters (e.g., "/(hello)/") or None
+        current_regex: Current regex pattern with / delimiters (canonical form) or None
         segment_type: 'literal' or 'fuzzy'
         text: The text to add (from augmented string, may contain sentinel chars)
 
     Returns:
-        New regex pattern with the segment appended, e.g., "/(hello)(.*)/"
+        Canonicalized regex pattern with the segment appended, e.g., "/hello(.*)/"
     """
     if current_regex is None:
         # Start fresh with empty pattern
@@ -636,7 +640,9 @@ def append_segment_to_regex(current_regex: str | None, segment_type: str, text: 
     else:  # fuzzy
         new_segment = "(.*)"
 
-    return f"/{inner_pattern}{new_segment}/"
+    result = canonicalize_regex(f"/{inner_pattern}{new_segment}/")
+    assert result is not None
+    return result
 
 
 def prepend_segment_to_regex(current_regex: str | None, segment_type: str, text: str) -> str:
@@ -645,14 +651,15 @@ def prepend_segment_to_regex(current_regex: str | None, segment_type: str, text:
 
     Similar to append_segment_to_regex but inserts at the start.
     Used when extending selections from the left side.
+    The result is canonicalized.
 
     Args:
-        current_regex: Current regex pattern with / delimiters (e.g., "/(hello)/") or None
+        current_regex: Current regex pattern with / delimiters (canonical form) or None
         segment_type: 'literal' or 'fuzzy'
         text: The text to add (from augmented string, may contain sentinel chars)
 
     Returns:
-        New regex pattern with the segment prepended, e.g., "/(new)(hello)/"
+        Canonicalized regex pattern with the segment prepended.
     """
     if current_regex is None:
         # Start fresh with empty pattern
@@ -668,7 +675,9 @@ def prepend_segment_to_regex(current_regex: str | None, segment_type: str, text:
     else:  # fuzzy
         new_segment = "(.*)"
 
-    return f"/{new_segment}{inner_pattern}/"
+    result = canonicalize_regex(f"/{new_segment}{inner_pattern}/")
+    assert result is not None
+    return result
 
 
 def insert_segment_at_position(current_regex: str | None, position: int, segment_type: str, text: str) -> str:
@@ -679,49 +688,44 @@ def insert_segment_at_position(current_regex: str | None, position: int, segment
     determines where in the regex the new segment goes to maintain text order.
 
     Args:
-        current_regex: Current regex pattern with / delimiters (e.g., "/(.*)(world)/") or None
+        current_regex: Current regex pattern with / delimiters (e.g., "/(.*)world/") or None
         position: The 0-based position to insert at (0 = prepend, len = append)
         segment_type: 'literal' or 'fuzzy'
         text: The text to add (from augmented string, may contain sentinel chars)
 
     Returns:
-        New regex pattern with the segment inserted at the given position.
+        New regex pattern with the segment inserted at the given position (canonicalized).
     """
     if current_regex is None:
         return append_segment_to_regex(None, segment_type, text)
 
-    # Build the new segment
+    # Build the new segment content (without group parens)
     if segment_type == 'literal':
         regex_parts = [char_to_regex_literal(char) for char in text]
-        new_segment = f"({''.join(regex_parts)})"
+        new_segment_text = ''.join(regex_parts)
     else:  # fuzzy
-        new_segment = "(.*)"
+        new_segment_text = '.*'
 
-    # Parse the existing segments (simple approach: find top-level groups)
+    # Parse all segments (splitting ungrouped fuzzy/literal for correct indexing)
     inner_pattern = current_regex[1:-1]
-    segments = []
-    depth = 0
-    current_start = 0
+    segments = parse_all_segments(inner_pattern)
 
-    for i, char in enumerate(inner_pattern):
-        if char == '(' and (i == 0 or inner_pattern[i-1] != '\\'):
-            if depth == 0:
-                current_start = i
-            depth += 1
-        elif char == ')' and (i == 0 or inner_pattern[i-1] != '\\'):
-            depth -= 1
-            if depth == 0:
-                segments.append(inner_pattern[current_start:i+1])
+    # Create the new segment
+    new_seg = {'text': new_segment_text, 'is_grouped': True}
 
-    # Insert the new segment at the specified position
+    # Insert at the specified position
     if position <= 0:
-        segments.insert(0, new_segment)
+        segments.insert(0, new_seg)
     elif position >= len(segments):
-        segments.append(new_segment)
+        segments.append(new_seg)
     else:
-        segments.insert(position, new_segment)
+        segments.insert(position, new_seg)
 
-    return f"/{''.join(segments)}/"
+    # Rebuild as fully-grouped, then canonicalize
+    fully_grouped = '/' + ''.join(f"({s['text']})" for s in segments) + '/'
+    result = canonicalize_regex(fully_grouped)
+    assert result is not None
+    return result
 
 
 def extract_quantifier(pattern: str) -> tuple[str, str]:
@@ -747,48 +751,36 @@ def extract_quantifier(pattern: str) -> tuple[str, str]:
 
 def replace_segment_pattern(selection_regex: str, segment_index: int, new_char_class: str) -> str:
     """
-    Replace the character class of a specific capturing group, preserving its quantifier.
+    Replace the character class of a specific segment, preserving its quantifier.
 
     Used when selecting a different fuzzy pattern from the dropdown.
 
     Args:
-        selection_regex: Current regex with / delimiters, e.g., "/(hello)(.*)(world)/"
-        segment_index: 0-based index of the segment to replace
+        selection_regex: Current regex with / delimiters (canonical form)
+        segment_index: 0-based index of the segment to replace (matches highlight segment indices)
         new_char_class: The new character class (e.g., r"\\s", r"\\d", r"[a-z]")
                         Note: This should NOT include a quantifier.
 
     Returns:
         New regex pattern with the segment's character class replaced,
-        but its quantifier preserved.
+        but its quantifier preserved (canonicalized).
     """
     inner_pattern = selection_regex[1:-1]
 
-    # Parse the existing segments (find top-level groups)
-    segments = []
-    depth = 0
-    current_start = 0
-
-    for i, char in enumerate(inner_pattern):
-        if char == '(' and (i == 0 or inner_pattern[i-1] != '\\'):
-            if depth == 0:
-                current_start = i
-            depth += 1
-        elif char == ')' and (i == 0 or inner_pattern[i-1] != '\\'):
-            depth -= 1
-            if depth == 0:
-                segments.append(inner_pattern[current_start:i+1])
+    # Parse all segments (splitting ungrouped fuzzy/literal for correct indexing)
+    segments = parse_all_segments(inner_pattern)
 
     # Replace the specified segment, preserving its quantifier
     if 0 <= segment_index < len(segments):
-        old_segment = segments[segment_index]
-        # Extract content inside parentheses
-        old_content = old_segment[1:-1]  # Strip ( and )
-        # Extract the quantifier from the old pattern
-        _, quantifier = extract_quantifier(old_content)
-        # Build new segment with new char class + old quantifier
-        segments[segment_index] = f"({new_char_class}{quantifier})"
+        old_text = segments[segment_index]['text']
+        _, quantifier = extract_quantifier(old_text)
+        segments[segment_index] = {'text': f'{new_char_class}{quantifier}', 'is_grouped': True}
 
-    return f"/{''.join(segments)}/"
+    # Rebuild as fully-grouped, then canonicalize
+    fully_grouped = '/' + ''.join(f"({s['text']})" for s in segments) + '/'
+    result = canonicalize_regex(fully_grouped)
+    assert result is not None
+    return result
 
 
 def resize_literal_segment(selection_regex: str, segment_index: int, string_value: str,
@@ -847,41 +839,29 @@ def get_regex_inner_pattern(selection_regex: str | None) -> str | None:
     Extract the inner pattern from a selection regex (strips / delimiters).
 
     Args:
-        selection_regex: Regex with / delimiters, e.g., "/(hello)(.*)/"
+        selection_regex: Regex with / delimiters, e.g., "/hello(.*)world/"
 
     Returns:
-        Inner pattern without delimiters, e.g., "(hello)(.*)", or None if input is None
+        Inner pattern without delimiters, e.g., "hello(.*)world", or None if input is None
     """
     if selection_regex is None:
         return None
     return selection_regex[1:-1]
 
 
-def count_regex_groups(selection_regex: str | None) -> int:
+def count_regex_segments(selection_regex: str | None) -> int:
     """
-    Count the number of capturing groups in the regex.
+    Count the number of segments in the regex (both grouped and ungrouped).
 
     This tells us how many segments have been selected.
+    Works with canonical regex format where some segments may not be in groups.
     """
     if selection_regex is None:
         return 0
     inner = get_regex_inner_pattern(selection_regex)
     if not inner:
         return 0
-    # Parse the regex and count SUBPATTERN entries
-    try:
-        parsed = regex_parser.parse(inner)
-        count = 0
-        for op, av in parsed:
-            # SUBPATTERN represents a capturing group
-            if op.__class__.__name__ == 'SUBPATTERN' or str(op) == 'SUBPATTERN':
-                count += 1
-        # Simpler approach: count unescaped opening parens that aren't (?
-        # Actually, since we build the regex ourselves with simple (group) structure,
-        # we can just count the groups by parsing
-        return parsed.state.groups - 1  # groups includes group 0 (whole match)
-    except Exception:
-        return 0
+    return len(parse_all_segments(inner))
 
 
 # Mapping from category constants to shorthand display strings
@@ -1142,6 +1122,292 @@ def _analyze_group(subpattern: list) -> Tuple[List[str], bool, Tuple[int, int | 
     return anchors, is_fuzzy, repetition, pattern_display
 
 
+def parse_top_level_segments(inner_pattern: str) -> list:
+    """Parse a regex inner pattern into top-level segments by parentheses.
+
+    A segment is either:
+    - Ungrouped content (literal text, anchors, fuzzy patterns not wrapped in parens)
+    - A top-level parenthesized group
+
+    Returns list of dicts with:
+    - 'text': Content (without outer parens for grouped segments)
+    - 'is_grouped': Whether the segment was wrapped in parentheses
+
+    Note: ungrouped content may contain mixed literal/fuzzy patterns (e.g., 'hello.*world').
+    Use parse_all_segments() if you need each literal/fuzzy region as a separate segment.
+
+    Examples:
+        'hello.*world'    -> [{'text':'hello.*world','is_grouped':False}]
+        '(hello)(world)'  -> [{'text':'hello','is_grouped':True}, {'text':'world','is_grouped':True}]
+        'hello(.*)'       -> [{'text':'hello','is_grouped':False}, {'text':'.*','is_grouped':True}]
+    """
+    if not inner_pattern:
+        return []
+
+    segments = []
+    depth = 0
+    group_start = None
+    last_end = 0
+    i = 0
+
+    while i < len(inner_pattern):
+        char = inner_pattern[i]
+
+        if char == '\\':
+            # Skip escaped character
+            i += 2
+            continue
+
+        if char == '(':
+            if depth == 0:
+                # Capture ungrouped content before this group
+                if i > last_end:
+                    segments.append({'text': inner_pattern[last_end:i], 'is_grouped': False})
+                group_start = i
+            depth += 1
+        elif char == ')':
+            depth -= 1
+            if depth == 0:
+                segments.append({'text': inner_pattern[group_start + 1:i], 'is_grouped': True})
+                last_end = i + 1
+
+        i += 1
+
+    # Capture trailing ungrouped content
+    if last_end < len(inner_pattern):
+        segments.append({'text': inner_pattern[last_end:], 'is_grouped': False})
+
+    return segments
+
+
+# --- String-level helpers for splitting ungrouped regex content ---
+
+def _is_fuzzy_start(text: str, pos: int) -> int | None:
+    """Check if position starts a fuzzy base pattern (wildcard).
+
+    Returns end position of the base pattern, or None if not a fuzzy start.
+    Recognizes: . (any), \\s \\S \\d \\D \\w \\W (shorthand classes), [...] (char classes).
+    """
+    if pos >= len(text):
+        return None
+
+    c = text[pos]
+
+    # . (any character) - but not \\. (escaped dot)
+    if c == '.':
+        return pos + 1
+
+    # Shorthand character classes: \s \S \d \D \w \W
+    if c == '\\' and pos + 1 < len(text) and text[pos + 1] in 'sSwWdD':
+        return pos + 2
+
+    # Character class [...]
+    if c == '[':
+        j = pos + 1
+        if j < len(text) and text[j] == '^':
+            j += 1  # negation
+        if j < len(text) and text[j] == ']':
+            j += 1  # ] at start of class is literal
+        while j < len(text):
+            if text[j] == '\\' and j + 1 < len(text):
+                j += 2
+                continue
+            if text[j] == ']':
+                return j + 1
+            j += 1
+        return None  # Unclosed [
+
+    return None
+
+
+def _skip_quantifier(text: str, pos: int) -> int:
+    """Skip a quantifier at the given position. Returns new position (unchanged if no quantifier)."""
+    if pos >= len(text):
+        return pos
+
+    c = text[pos]
+    if c in '*+?':
+        pos += 1
+        # Lazy modifier?
+        if pos < len(text) and text[pos] == '?':
+            pos += 1
+        return pos
+
+    if c == '{':
+        j = pos + 1
+        while j < len(text) and (text[j].isdigit() or text[j] == ','):
+            j += 1
+        if j < len(text) and text[j] == '}':
+            j += 1
+            # Lazy modifier?
+            if j < len(text) and text[j] == '?':
+                j += 1
+            return j
+
+    return pos
+
+
+def _skip_literal_unit(text: str, pos: int) -> int:
+    """Skip one literal unit (char or escape sequence) at the given position."""
+    if pos >= len(text):
+        return pos
+    if text[pos] == '\\' and pos + 1 < len(text):
+        return pos + 2
+    return pos + 1
+
+
+def _split_ungrouped_into_segments(text: str) -> list:
+    """Split ungrouped pattern text into separate literal and fuzzy segments.
+
+    Fuzzy patterns are wildcard bases (., \\s, \\d, \\w, [...]) with optional quantifiers.
+    Everything else is literal.
+
+    Returns list of segment text strings.
+    E.g., 'hello.*world' -> ['hello', '.*', 'world']
+          'hello'         -> ['hello']
+          '.*'            -> ['.*']
+          '.*\\s+'        -> ['.*', '\\s+']
+    """
+    if not text:
+        return []
+
+    segments = []
+    i = 0
+    literal_start = 0
+
+    while i < len(text):
+        fuzzy_base_end = _is_fuzzy_start(text, i)
+        if fuzzy_base_end is not None:
+            # Flush accumulated literal
+            if i > literal_start:
+                segments.append(text[literal_start:i])
+            # Consume fuzzy base + optional quantifier
+            fuzzy_end = _skip_quantifier(text, fuzzy_base_end)
+            segments.append(text[i:fuzzy_end])
+            i = fuzzy_end
+            literal_start = i
+        else:
+            # Skip one literal unit
+            i = _skip_literal_unit(text, i)
+
+    # Flush remaining literal
+    if literal_start < len(text):
+        segments.append(text[literal_start:len(text)])
+
+    return segments
+
+
+def parse_all_segments(inner_pattern: str) -> list:
+    """Parse a regex inner pattern into all segments, splitting ungrouped fuzzy/literal.
+
+    Like parse_top_level_segments, but also splits ungrouped content at fuzzy/literal
+    boundaries. The number of segments returned matches the number of capture groups
+    produced by _to_fully_grouped_inner().
+
+    Returns list of dicts with 'text' and 'is_grouped'.
+
+    Examples:
+        'hello.*world'    -> [{'text':'hello','is_grouped':False}, {'text':'.*','is_grouped':False}, {'text':'world','is_grouped':False}]
+        '(hello)(world)'  -> [{'text':'hello','is_grouped':True}, {'text':'world','is_grouped':True}]
+        '.*(hello)(world)' -> [{'text':'.*','is_grouped':False}, {'text':'hello','is_grouped':True}, {'text':'world','is_grouped':True}]
+    """
+    string_segments = parse_top_level_segments(inner_pattern)
+    all_segments = []
+    for seg in string_segments:
+        if seg['is_grouped']:
+            all_segments.append(seg)
+        else:
+            sub_texts = _split_ungrouped_into_segments(seg['text'])
+            for st in sub_texts:
+                all_segments.append({'text': st, 'is_grouped': False})
+    return all_segments
+
+
+def canonicalize_regex(selection_regex: str | None) -> str | None:
+    """Simplify a selection regex by removing unnecessary top-level groups.
+
+    The canonical form removes groups from ALL segments (literal and fuzzy) unless
+    two non-fuzzy (literal) segments are adjacent, in which case both keep groups
+    to disambiguate their boundary.
+
+    Examples:
+        '/(hello)(.*)(world)/' -> '/hello.*world/'     (no adjacent literals)
+        '/(hello)(world)/'     -> '/(hello)(world)/'   (adjacent literals need groups)
+        '/(hello)(world)(.*)/' -> '/(hello)(world).*/' (hello/world adjacent, .* not)
+
+    This is idempotent: canonicalizing an already-canonical regex returns the same result.
+    """
+    if selection_regex is None:
+        return None
+
+    inner = selection_regex[1:-1]  # Strip / delimiters
+    if not inner:
+        return selection_regex
+
+    segments = parse_all_segments(inner)
+    if not segments:
+        return selection_regex
+
+    # Analyze each segment for fuzziness
+    for seg in segments:
+        try:
+            parsed = regex_parser.parse(seg['text'])
+            _, is_fuzzy, _, _ = _analyze_group(list(parsed))
+            seg['is_fuzzy'] = is_fuzzy
+        except Exception:
+            seg['is_fuzzy'] = False
+
+    # Determine which segments need groups:
+    # Only non-fuzzy (literal) segments adjacent to another non-fuzzy segment need groups.
+    # Fuzzy segments never need groups (their pattern structure is always distinguishable).
+    needs_group = [False] * len(segments)
+
+    for i in range(len(segments) - 1):
+        if not segments[i]['is_fuzzy'] and not segments[i + 1]['is_fuzzy']:
+            needs_group[i] = True
+            needs_group[i + 1] = True
+
+    # Rebuild
+    parts = []
+    for i, seg in enumerate(segments):
+        if needs_group[i]:
+            parts.append(f"({seg['text']})")
+        else:
+            parts.append(seg['text'])
+
+    return f"/{''.join(parts)}/"
+
+
+def _to_fully_grouped_inner(inner_pattern: str) -> str:
+    """Convert a (possibly canonical) inner pattern to fully-grouped form.
+
+    Every segment (grouped or ungrouped) is wrapped in a capturing group.
+    Ungrouped content is split at fuzzy/literal boundaries so each region
+    becomes its own group. Used internally for regex matching.
+
+    Examples:
+        'hello.*world'     -> '(hello)(.*)(world)'
+        '(hello)(world)'   -> '(hello)(world)'  (already fully grouped)
+        'hello'            -> '(hello)'
+        '.*(hello)(world)' -> '(.*)(hello)(world)'
+    """
+    string_segments = parse_top_level_segments(inner_pattern)
+    if not string_segments:
+        return inner_pattern
+
+    result_parts = []
+    for seg in string_segments:
+        if seg['is_grouped']:
+            result_parts.append(f"({seg['text']})")
+        else:
+            # Split ungrouped content into sub-segments at fuzzy/literal boundaries
+            sub_texts = _split_ungrouped_into_segments(seg['text'])
+            for st in sub_texts:
+                result_parts.append(f"({st})")
+
+    return ''.join(result_parts) if result_parts else inner_pattern
+
+
 def parse_regex_for_highlighting(selection_regex: str | None, string_value: str) -> List[Tuple[int, int, str, str, Tuple[int, int | float]]]:
     """
     Parse the selection regex and run it against the ORIGINAL string to get highlight ranges.
@@ -1150,11 +1416,14 @@ def parse_regex_for_highlighting(selection_regex: str | None, string_value: str)
     1. Match the regex against the original string (not augmented)
     2. Translate string positions to internal visual indices
 
+    Handles canonical regex format where some segments may not be in explicit groups.
+    Internally converts to fully-grouped form for matching.
+
     This ensures regex patterns work correctly (e.g., \\n+ matches consecutive newlines)
     while still producing the correct internal indices for UI highlighting.
 
     Args:
-        selection_regex: Regex with / delimiters, e.g., "/(\\A)(hello)(.*)(world)(\\Z)/"
+        selection_regex: Regex with / delimiters, e.g., "/hello(.*)world/" or "/(hello)(world)/"
         string_value: The string being visualized
 
     Returns:
@@ -1170,9 +1439,13 @@ def parse_regex_for_highlighting(selection_regex: str | None, string_value: str)
     if not inner_pattern:
         return []
 
-    # Parse the regex to understand its structure
+    # Convert to fully-grouped form so every segment is a capturing group.
+    # This handles canonical regex where some segments may be ungrouped.
+    grouped_pattern = _to_fully_grouped_inner(inner_pattern)
+
+    # Parse the fully-grouped regex to understand its structure
     try:
-        parsed = regex_parser.parse(inner_pattern)
+        parsed = regex_parser.parse(grouped_pattern)
     except Exception:
         return []
 
@@ -1187,10 +1460,10 @@ def parse_regex_for_highlighting(selection_regex: str | None, string_value: str)
             anchors, is_fuzzy, repetition, pattern_display = _analyze_group(subpattern)
             group_info.append((anchors, is_fuzzy, repetition, pattern_display))
 
-    # Run the regex against the ORIGINAL string (not augmented!)
+    # Run the fully-grouped regex against the ORIGINAL string (not augmented!)
     # re.M makes ^ and $ match at line boundaries
     try:
-        match = re.search(inner_pattern, string_value, re.M)
+        match = re.search(grouped_pattern, string_value, re.M)
     except Exception:
         return []
 
@@ -1545,11 +1818,12 @@ def generate_regex_code(source_code: str, line_number: int, string_value: str,
 
 def strip_capturing_groups(pattern: str) -> str:
     """
-    Strip capturing groups from a pattern, leaving just the inner content.
+    Strip any remaining capturing groups from a pattern, leaving just the inner content.
 
-    For example: "(hello)(.*)(world)" -> "hello.*world"
+    For example: "hello(.*)world" -> "hello.*world"
+                 "(hello)(world)" -> "helloworld"
 
-    Since we build the regex with simple non-nested groups, we can do a simple replacement.
+    Used when generating re.search() code, where groups are not needed.
     """
     result = []
     i = 0
@@ -1577,7 +1851,7 @@ def generate_regex_code_from_pattern(source_code: str, line_number: int, selecti
     Args:
         source_code: The full source code
         line_number: Line where the string is visualized (1-indexed)
-        selection_regex: Regex with / delimiters, e.g., "/(hello)(.*)(world)/"
+        selection_regex: Regex with / delimiters (canonical form), e.g., "/hello(.*)world/"
 
     Returns:
         New source code with regex search line inserted
@@ -1786,7 +2060,7 @@ def visualize(value, model=None):
     chars_html = ''.join(char_elements)
 
     # Build the search box at the bottom
-    # Show the full selectionRegex (with / delimiters) so other search types can be supported later
+    # Show the canonical selectionRegex (with / delimiters) so other search types can be supported later
     selection_regex = model.get('selectionRegex')
     search_box_value = selection_regex if selection_regex else ""
     search_input_event = "lambda e: SearchBoxInput(value=e.get('value', ''))"
@@ -1829,7 +2103,7 @@ def init_model(value):
         value: The string value being visualized (not stored in model)
     """
     return {
-        "selectionRegex": None,   # Regex pattern with / delimiters, e.g., "/(hello)(.*)(world)/"
+        "selectionRegex": None,   # Regex pattern with / delimiters in canonical form, e.g., "/hello.*world/"
         "anchorIdx": None,
         "anchorType": None,       # "literal" or "fuzzy" - determined when drag starts
         "cursorIdx": None,
