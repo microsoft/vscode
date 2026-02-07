@@ -1,6 +1,6 @@
 /* eslint-disable header/header */
 import { registerEditorContribution, EditorContributionInstantiation } from '../../../browser/editorExtensions.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { IEditorContribution } from '../../../common/editorCommon.js';
 import { ICodeEditor, IViewZone, IOverlayWidget, IOverlayWidgetPosition, IOverlayWidgetPositionCoordinates } from '../../../browser/editorBrowser.js';
 import { Position } from '../../../common/core/position.js';
@@ -57,6 +57,8 @@ class VisualizationWidget extends Disposable implements IOverlayWidget {
 	private readonly onInputEvent: (pythonEventStr: string, value: string) => void;
 	private moveThrottleTimer: any = null;
 	private readonly moveThrottleDelay = 16;
+	private hoistedDropdown: HTMLElement | null = null;
+	private hoistedDropdownListeners: IDisposable[] = [];
 
 	constructor(editor: ICodeEditor, lineNumber: number, visIndex: number, onPointerEvent: (pythonEventStr: string, ev: MouseEvent) => void, onKeyboardEvent: (pythonEventStr: string, ev: KeyboardEvent) => void, onInputEvent: (pythonEventStr: string, value: string) => void) {
 		super();
@@ -234,17 +236,23 @@ class VisualizationWidget extends Disposable implements IOverlayWidget {
 	private static readonly FOCUSABLE_SELECTOR = '[tabindex], input, textarea, select';
 
 	updateContent(html: string): void {
-		// Check if focus is inside this widget before replacing HTML
+		// Save focus state BEFORE cleaning up the hoisted dropdown (removing it
+		// from the DOM would cause the browser to lose focus on any input inside it).
 		const activeElement = document.activeElement;
 		let focusedIndex = -1;
 		let savedSelectionStart: number | null = null;
 		let savedSelectionEnd: number | null = null;
 
-		if (activeElement && this.domNode.contains(activeElement)) {
-			// Find which focusable element (by index) was focused
-			const focusableElements = this.domNode.querySelectorAll(VisualizationWidget.FOCUSABLE_SELECTOR);
-			for (let i = 0; i < focusableElements.length; i++) {
-				if (focusableElements[i] === activeElement) {
+		// Build the combined list of focusable elements across widget + hoisted dropdown
+		const widgetFocusable = Array.from(this.domNode.querySelectorAll(VisualizationWidget.FOCUSABLE_SELECTOR));
+		const oldHoistedFocusable = this.hoistedDropdown
+			? Array.from(this.hoistedDropdown.querySelectorAll(VisualizationWidget.FOCUSABLE_SELECTOR))
+			: [];
+		const allOldFocusable = [...widgetFocusable, ...oldHoistedFocusable];
+
+		if (activeElement && (this.domNode.contains(activeElement) || (this.hoistedDropdown && this.hoistedDropdown.contains(activeElement)))) {
+			for (let i = 0; i < allOldFocusable.length; i++) {
+				if (allOldFocusable[i] === activeElement) {
 					focusedIndex = i;
 					break;
 				}
@@ -256,14 +264,25 @@ class VisualizationWidget extends Disposable implements IOverlayWidget {
 			}
 		}
 
+		// Now safe to clean up the old hoisted dropdown
+		this.cleanupHoistedDropdown();
+
 		const trustedHtml = ttPolicy?.createHTML(html) ?? html;
 		this.domNode.innerHTML = trustedHtml as string;
 
+		// Hoist any dropdown panel outside the overflow container
+		this.hoistDropdownPanel();
+
 		// Restore focus to the same nth focusable element
+		// Look in both the widget and any hoisted dropdown
 		if (focusedIndex >= 0) {
-			const focusableElements = this.domNode.querySelectorAll(VisualizationWidget.FOCUSABLE_SELECTOR);
-			if (focusedIndex < focusableElements.length) {
-				const el = focusableElements[focusedIndex] as HTMLElement;
+			const widgetFocusable = Array.from(this.domNode.querySelectorAll(VisualizationWidget.FOCUSABLE_SELECTOR));
+			const hoistedFocusable = this.hoistedDropdown
+				? Array.from(this.hoistedDropdown.querySelectorAll(VisualizationWidget.FOCUSABLE_SELECTOR))
+				: [];
+			const allFocusable = [...widgetFocusable, ...hoistedFocusable];
+			if (focusedIndex < allFocusable.length) {
+				const el = allFocusable[focusedIndex] as HTMLElement;
 				el.focus();
 				// Restore cursor position for input/textarea elements
 				if (savedSelectionStart !== null && (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement)) {
@@ -272,6 +291,115 @@ class VisualizationWidget extends Disposable implements IOverlayWidget {
 				}
 			}
 		}
+	}
+
+	/**
+	 * Hoist a dropdown panel out of this widget's overflow container and
+	 * position it as a fixed overlay in the editor container.
+	 */
+	private hoistDropdownPanel(): void {
+		const panel = this.domNode.querySelector('.snc-dropdown-panel') as HTMLElement;
+		if (!panel) { return; }
+
+		const trigger = this.domNode.querySelector('.snc-dropdown-trigger') as HTMLElement;
+		if (!trigger) { return; }
+
+		// Get trigger's viewport position before moving anything
+		const triggerRect = trigger.getBoundingClientRect();
+		const align = panel.getAttribute('data-snc-dropdown-align') || 'left';
+
+		// Remove from the widget DOM
+		panel.remove();
+
+		// Position as fixed overlay
+		panel.style.position = 'fixed';
+		panel.style.top = `${triggerRect.bottom}px`;
+		if (align === 'right') {
+			panel.style.left = '';
+			panel.style.right = `${dom.getWindow(this.editor.getContainerDomNode()).innerWidth - triggerRect.right}px`;
+		} else {
+			panel.style.left = `${triggerRect.left}px`;
+			panel.style.right = '';
+		}
+		panel.style.zIndex = '10000';
+
+		// Append to the editor's container so it escapes widget overflow
+		this.editor.getContainerDomNode().appendChild(panel);
+		this.hoistedDropdown = panel;
+
+		// Wire up event listeners on the hoisted panel
+		// (since it's outside this.domNode, normal event bubbling won't reach our listeners)
+		this.hoistedDropdownListeners.push(
+			dom.addDisposableListener(panel, 'mousedown', (ev: MouseEvent) => {
+				if (!ev.target) { return; }
+				const node = ev.target as Node;
+				let el: Element | null = node.nodeType === Node.ELEMENT_NODE ? (node as Element) : (node.parentElement);
+				while (el && el !== panel.parentElement) {
+					if (el.hasAttribute('snc-mouse-down')) {
+						const pythonEventStr: string = el.getAttribute('snc-mouse-down') ?? '';
+						this.onPointerEvent(pythonEventStr, ev);
+					}
+					el = el.parentElement;
+				}
+			})
+		);
+		this.hoistedDropdownListeners.push(
+			dom.addDisposableListener(panel, 'keydown', (ev: KeyboardEvent) => {
+				const target = ev.target as HTMLElement;
+				if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) {
+					if (ev.key !== 'Enter' && ev.key !== 'Escape') {
+						return;
+					}
+				}
+				// Walk up within the hoisted panel for snc-key-down
+				let el: Element | null = target;
+				while (el && el !== panel.parentElement) {
+					if (el.hasAttribute('snc-key-down')) {
+						const pythonEventStr: string = el.getAttribute('snc-key-down') ?? '';
+						this.onKeyboardEvent(pythonEventStr, ev);
+						return;
+					}
+					el = el.parentElement;
+				}
+				// Fall back to the widget DOM (the snc-key-down handler is on
+				// the visualizer's wrapper div inside this.domNode, not in the panel)
+				const keyHandler = this.domNode.querySelector('[snc-key-down]');
+				if (keyHandler) {
+					const pythonEventStr: string = keyHandler.getAttribute('snc-key-down') ?? '';
+					this.onKeyboardEvent(pythonEventStr, ev);
+				}
+			})
+		);
+		this.hoistedDropdownListeners.push(
+			dom.addDisposableListener(panel, 'input', (ev: Event) => {
+				const target = ev.target as HTMLElement;
+				if (!target) { return; }
+				let el: Element | null = target;
+				while (el && el !== panel.parentElement) {
+					if (el.hasAttribute('snc-input')) {
+						const pythonEventStr: string = el.getAttribute('snc-input') ?? '';
+						const value = (target as HTMLInputElement).value ?? '';
+						this.onInputEvent(pythonEventStr, value);
+						return;
+					}
+					el = el.parentElement;
+				}
+			})
+		);
+	}
+
+	/**
+	 * Remove any hoisted dropdown panel and dispose its event listeners.
+	 */
+	private cleanupHoistedDropdown(): void {
+		if (this.hoistedDropdown) {
+			this.hoistedDropdown.remove();
+			this.hoistedDropdown = null;
+		}
+		for (const d of this.hoistedDropdownListeners) {
+			d.dispose();
+		}
+		this.hoistedDropdownListeners = [];
 	}
 
 	/**
@@ -285,6 +413,7 @@ class VisualizationWidget extends Disposable implements IOverlayWidget {
 	 * Dispose of the widget
 	 */
 	override dispose(): void {
+		this.cleanupHoistedDropdown();
 		this.editor.removeOverlayWidget(this);
 		super.dispose();
 	}

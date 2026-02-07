@@ -245,7 +245,7 @@ def render_dropdown(
 
     # Dropdown container (absolutely positioned below trigger)
     dropdown_html = (
-        '<div style="'
+        '<div class="snc-dropdown-panel" data-snc-dropdown-align="left" style="'
         'position: absolute;'
         'left: 0;'
         'top: 100%;'
@@ -262,7 +262,7 @@ def render_dropdown(
 
     # Wrap trigger and dropdown in a relative container
     return (
-        f'<span style="position: relative; display: inline-block;">'
+        f'<span class="snc-dropdown-trigger" style="position: relative; display: inline-block;">'
         f'{trigger_html}{dropdown_html}</span>'
     )
 
@@ -439,7 +439,7 @@ def char_span(string, index, is_special, highlight=None, model=None):
         )
 
         dropdown_panel = (
-            '<div style="'
+            '<div class="snc-dropdown-panel" data-snc-dropdown-align="right" style="'
             'position: absolute;'
             'right: 0;'
             'top: 100%;'
@@ -455,7 +455,7 @@ def char_span(string, index, is_special, highlight=None, model=None):
         )
 
         return (
-            f'<span style="position: relative; display: inline-block; vertical-align: {v_align}">'
+            f'<span class="snc-dropdown-trigger" style="position: relative; display: inline-block; vertical-align: {v_align}">'
             f'{trigger_html}{dropdown_panel}</span>'
         )
 
