@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { katexContainerClassName, katexContainerLatexAttributeName } from '../../../markdown/common/markedKatexExtension.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isChatTreeItem, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
@@ -90,6 +92,50 @@ export function registerChatCopyActions() {
 
 			const text = stringifyItem(item, false);
 			await clipboardService.writeText(text);
+		}
+	});
+
+	registerAction2(class CopyMessageMarkdownAction extends Action2 {
+		constructor() {
+			super({
+				id: 'workbench.action.chat.copyMessageMarkdown',
+				title: localize2('interactive.copyMessageMarkdown.label', "Copy Message"),
+				f1: false,
+				category: CHAT_CATEGORY,
+				icon: Codicon.copy,
+				menu: [{
+					id: MenuId.ChatMessageFooter,
+					group: 'navigation',
+					order: 1,
+					when: ContextKeyExpr.and(
+						ContextKeyExpr.or(ChatContextKeys.isResponse, ChatContextKeys.isRequest),
+						ChatContextKeys.responseIsFiltered.negate()
+					)
+				}]
+			});
+		}
+
+		async run(accessor: ServicesAccessor, ...args: unknown[]) {
+			const clipboardService = accessor.get(IClipboardService);
+
+			const item = args[0] as ChatTreeItem | undefined;
+			if (!item) {
+				return;
+			}
+
+			if (isRequestVM(item)) {
+				await clipboardService.writeText(item.messageText);
+			} else if (isResponseVM(item)) {
+				// Copy the full markdown output of the response
+				const markdown = item.response.getMarkdown();
+				if (markdown) {
+					await clipboardService.writeText(markdown);
+				} else {
+					// Fallback to the string representation
+					const text = stringifyItem(item, false);
+					await clipboardService.writeText(text);
+				}
+			}
 		}
 	});
 
