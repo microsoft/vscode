@@ -7,7 +7,7 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { StopWatch } from '../../../../../base/common/stopwatch.js';
-import { URI } from '../../../../../base/common/uri.js';
+import { URI, isUriComponents } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -116,6 +116,8 @@ export class HooksExecutionService extends Disposable implements IHooksExecution
 
 	private _proxy: IHooksExecutionProxy | undefined;
 	private readonly _sessionHooks = new Map<string, IChatRequestHooks>();
+	/** Stored transcript path per session (keyed by session URI string). */
+	private readonly _sessionTranscriptPaths = new Map<string, URI>();
 	private _channelRegistered = false;
 	private _requestCounter = 0;
 
@@ -160,20 +162,37 @@ export class HooksExecutionService extends Disposable implements IHooksExecution
 		return result;
 	}
 
+	/**
+	 * JSON.stringify replacer that converts URI / UriComponents values to their string form.
+	 */
+	private readonly _uriReplacer = (_key: string, value: unknown): unknown => {
+		if (URI.isUri(value)) {
+			return value.fsPath;
+		}
+		if (isUriComponents(value)) {
+			return URI.revive(value).fsPath;
+		}
+		return value;
+	};
+
 	private async _runSingleHook(
 		requestId: number,
 		hookType: HookTypeValue,
 		hookCommand: IHookCommand,
 		sessionResource: URI,
 		callerInput: unknown,
+		transcriptPath: URI | undefined,
 		token: CancellationToken
 	): Promise<IHookResult> {
-		// Build the common hook input properties
+		// Build the common hook input properties.
+		// URI values are kept as URI objects through the RPC boundary, and converted
+		// to filesystem paths on the extension host side during JSON serialization.
 		const commonInput: IHookCommandInput = {
 			timestamp: new Date().toISOString(),
-			cwd: hookCommand.cwd?.fsPath ?? '',
+			cwd: hookCommand.cwd ?? URI.file(''),
 			sessionId: sessionResource.toString(),
 			hookEventName: hookType,
+			...(transcriptPath ? { transcript_path: transcriptPath } : undefined),
 		};
 
 		// Merge common properties with caller-specific input
@@ -181,13 +200,10 @@ export class HooksExecutionService extends Disposable implements IHooksExecution
 			? { ...commonInput, ...callerInput }
 			: commonInput;
 
-		const hookCommandJson = JSON.stringify({
-			...hookCommand,
-			cwd: hookCommand.cwd?.fsPath
-		});
+		const hookCommandJson = JSON.stringify(hookCommand, this._uriReplacer);
 		this._log(requestId, hookType, `Running: ${hookCommandJson}`);
 		const inputForLog = this._redactForLogging(fullInput);
-		this._log(requestId, hookType, `Input: ${JSON.stringify(inputForLog)}`);
+		this._log(requestId, hookType, `Input: ${JSON.stringify(inputForLog, this._uriReplacer)}`);
 
 		const sw = StopWatch.create();
 		try {
@@ -267,11 +283,30 @@ export class HooksExecutionService extends Disposable implements IHooksExecution
 		}
 	}
 
+	/**
+	 * Extract `transcript_path` from hook input if present.
+	 * The caller (e.g. SessionStart) may include it as a URI in the input object.
+	 */
+	private _extractTranscriptPath(input: unknown): URI | undefined {
+		if (typeof input !== 'object' || input === null) {
+			return undefined;
+		}
+		const transcriptPath = (input as Record<string, unknown>)['transcriptPath'];
+		if (URI.isUri(transcriptPath)) {
+			return transcriptPath;
+		}
+		if (isUriComponents(transcriptPath)) {
+			return URI.revive(transcriptPath);
+		}
+		return undefined;
+	}
+
 	registerHooks(sessionResource: URI, hooks: IChatRequestHooks): IDisposable {
 		const key = sessionResource.toString();
 		this._sessionHooks.set(key, hooks);
 		return toDisposable(() => {
 			this._sessionHooks.delete(key);
+			this._sessionTranscriptPaths.delete(key);
 		});
 	}
 
@@ -288,6 +323,14 @@ export class HooksExecutionService extends Disposable implements IHooksExecution
 				return results;
 			}
 
+			const sessionKey = sessionResource.toString();
+
+			// Extract and store transcript_path from input when present (e.g. SessionStart)
+			const inputTranscriptPath = this._extractTranscriptPath(options?.input);
+			if (inputTranscriptPath) {
+				this._sessionTranscriptPaths.set(sessionKey, inputTranscriptPath);
+			}
+
 			const hooks = this.getHooksForSession(sessionResource);
 			if (!hooks) {
 				return results;
@@ -298,6 +341,8 @@ export class HooksExecutionService extends Disposable implements IHooksExecution
 				return results;
 			}
 
+			const transcriptPath = this._sessionTranscriptPaths.get(sessionKey);
+
 			const requestId = this._requestCounter++;
 			const token = options?.token ?? CancellationToken.None;
 
@@ -305,7 +350,7 @@ export class HooksExecutionService extends Disposable implements IHooksExecution
 			this._log(requestId, hookType, `Executing ${hookCommands.length} hook(s)`);
 
 			for (const hookCommand of hookCommands) {
-				const result = await this._runSingleHook(requestId, hookType, hookCommand, sessionResource, options?.input, token);
+				const result = await this._runSingleHook(requestId, hookType, hookCommand, sessionResource, options?.input, transcriptPath, token);
 				results.push(result);
 
 				// If stopReason is set, stop processing remaining hooks

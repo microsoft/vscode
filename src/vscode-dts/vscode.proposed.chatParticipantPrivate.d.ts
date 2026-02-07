@@ -115,6 +115,11 @@ declare module 'vscode' {
 		 * The request ID of the parent request that invoked this subagent.
 		 */
 		readonly parentRequestId?: string;
+
+		/**
+		 * Whether any hooks are enabled for this request.
+		 */
+		readonly hasHooksEnabled: boolean;
 	}
 
 	export enum ChatRequestEditedFileEventKind {

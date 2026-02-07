@@ -9,7 +9,7 @@ import { homedir } from 'os';
 import { disposableTimeout } from '../../../base/common/async.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
-import { URI } from '../../../base/common/uri.js';
+import { URI, isUriComponents } from '../../../base/common/uri.js';
 import { ILogService } from '../../../platform/log/common/log.js';
 import { HookTypeValue, getEffectiveCommandSource, resolveEffectiveCommand } from '../../contrib/chat/common/promptSyntax/hookSchema.js';
 import { isToolInvocationContext, IToolInvocationContext } from '../../contrib/chat/common/tools/languageModelToolsService.js';
@@ -142,7 +142,14 @@ export class NodeExtHostHooks implements IExtHostHooks {
 			// Write input to stdin
 			if (input !== undefined && input !== null) {
 				try {
-					child.stdin.write(JSON.stringify(input));
+					// Use a replacer to convert URI values to filesystem paths.
+					// URIs arrive as UriComponents objects via the RPC boundary.
+					child.stdin.write(JSON.stringify(input, (_key, value) => {
+						if (isUriComponents(value)) {
+							return URI.revive(value).fsPath;
+						}
+						return value;
+					}));
 				} catch {
 					// Ignore stdin write errors
 				}
