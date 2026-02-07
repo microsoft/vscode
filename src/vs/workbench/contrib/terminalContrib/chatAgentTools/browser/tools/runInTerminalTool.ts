@@ -58,6 +58,7 @@ import type { ICommandLineRewriter } from './commandLineRewriter/commandLineRewr
 import { CommandLineCdPrefixRewriter } from './commandLineRewriter/commandLineCdPrefixRewriter.js';
 import { CommandLinePreventHistoryRewriter } from './commandLineRewriter/commandLinePreventHistoryRewriter.js';
 import { CommandLinePwshChainOperatorRewriter } from './commandLineRewriter/commandLinePwshChainOperatorRewriter.js';
+import { CommandLinePwshSshRewriter } from './commandLineRewriter/commandLinePwshSshRewriter.js';
 import { CommandLineSandboxRewriter } from './commandLineRewriter/commandLineSandboxRewriter.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IHistoryService } from '../../../../../services/history/common/history.js';
@@ -106,6 +107,17 @@ function createPowerShellModelDescription(shell: string): string {
 		'- Use Select-Object, Where-Object, Format-Table to filter output',
 		'- Use -First/-Last parameters to limit results',
 		'- For pager commands, add | Out-String or | Format-List',
+		'',
+		'SSH and Remote Commands:',
+		'- CRITICAL: PowerShell evaluates $(...) as a local subexpression even inside double quotes',
+		'- For SSH commands with remote shell expansion, use SINGLE quotes around the remote command:',
+		'  WRONG: ssh server "kill $(pgrep -f app)" ← PowerShell runs pgrep locally!',
+		"  RIGHT: ssh server 'kill $(pgrep -f app)' ← $() is passed literally to remote shell",
+		'- For SSH nohup/background processes, ALWAYS redirect stdout and stderr to prevent session hangs:',
+		'  WRONG: ssh server "nohup app &" ← PowerShell SSH hangs waiting for stdout to close',
+		'  RIGHT: ssh server "nohup app > /dev/null 2>&1 &" ← SSH session closes cleanly',
+		'- If you need local PowerShell variable expansion in SSH args, use backtick escaping:',
+		'  ssh server "echo `$env:USERNAME connected"',
 		'',
 		'Best Practices:',
 		'- Use proper cmdlet names instead of aliases in scripts',
@@ -384,6 +396,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		this._commandLineRewriters = [
 			this._register(this._instantiationService.createInstance(CommandLineCdPrefixRewriter)),
 			this._register(this._instantiationService.createInstance(CommandLinePwshChainOperatorRewriter, this._treeSitterCommandParser)),
+			this._register(this._instantiationService.createInstance(CommandLinePwshSshRewriter)),
 			this._register(this._instantiationService.createInstance(CommandLinePreventHistoryRewriter)),
 			this._register(this._instantiationService.createInstance(CommandLineSandboxRewriter)),
 		];
