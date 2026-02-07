@@ -7,7 +7,7 @@ import assert from 'assert';
 import * as sinon from 'sinon';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { Downloading, StateType } from '../../../../../platform/update/common/update.js';
-import { computeDownloadSpeed, computeDownloadTimeRemaining, formatBytes, formatTimeRemaining } from '../../browser/updateStatusBarEntry.js';
+import { computeDownloadSpeed, computeDownloadTimeRemaining, formatBytes, formatDate, formatTimeRemaining, tryParseDate } from '../../browser/updateStatusBarEntry.js';
 
 suite('UpdateStatusBarEntry', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -126,6 +126,32 @@ suite('UpdateStatusBarEntry', () => {
 			assert.strictEqual(formatBytes(1126), '1.1 KB');
 			assert.strictEqual(formatBytes(1075), '1 KB');
 			assert.strictEqual(formatBytes(1024 * 1024 * 25.35), '25.4 MB');
+		});
+	});
+
+	suite('tryParseDate', () => {
+		test('returns undefined for undefined input', () => {
+			assert.strictEqual(tryParseDate(undefined), undefined);
+		});
+
+		test('returns undefined for invalid date strings', () => {
+			assert.strictEqual(tryParseDate(''), undefined);
+			assert.strictEqual(tryParseDate('not-a-date'), undefined);
+		});
+
+		test('parses valid ISO date strings', () => {
+			const result = tryParseDate('2026-02-06T05:03:03.991Z');
+			assert.ok(result !== undefined);
+			assert.strictEqual(typeof result, 'number');
+			assert.ok(result > 0);
+		});
+	});
+
+	suite('formatDate', () => {
+		test('formats a timestamp as a readable date', () => {
+			const result = formatDate(1705276800000);
+			assert.ok(result.length > 0);
+			assert.ok(result.includes('2024'));
 		});
 	});
 

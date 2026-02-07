@@ -362,17 +362,23 @@ export class UpdateStatusBarEntryContribution extends Disposable implements IWor
 		const productVersion = this.productService.version;
 		if (productVersion) {
 			const currentVersion = dom.append(details, dom.$('.product-version'));
-			currentVersion.textContent = nls.localize('updateStatus.currentVersionLabel', "Current Version: {0}", productVersion);
+			const currentCommitId = this.productService.commit?.substring(0, 7);
+			currentVersion.textContent = currentCommitId
+				? nls.localize('updateStatus.currentVersionLabelWithCommit', "Current Version: {0} ({1})", productVersion, currentCommitId)
+				: nls.localize('updateStatus.currentVersionLabel', "Current Version: {0}", productVersion);
 		}
 
 		const version = update?.productVersion;
 		if (version) {
 			const latestVersion = dom.append(details, dom.$('.product-version'));
-			latestVersion.textContent = nls.localize('updateStatus.latestVersionLabel', "Latest Version: {0}", version);
+			const updateCommitId = update.version?.substring(0, 7);
+			latestVersion.textContent = updateCommitId
+				? nls.localize('updateStatus.latestVersionLabelWithCommit', "Latest Version: {0} ({1})", version, updateCommitId)
+				: nls.localize('updateStatus.latestVersionLabel', "Latest Version: {0}", version);
 		}
 
 		const releaseDate = update?.timestamp ?? tryParseDate(this.productService.date);
-		if (releaseDate) {
+		if (typeof releaseDate === 'number' && releaseDate > 0) {
 			const releaseDateNode = dom.append(details, dom.$('.product-release-date'));
 			releaseDateNode.textContent = nls.localize('updateStatus.releasedLabel', "Released {0}", formatDate(releaseDate));
 		}
@@ -416,11 +422,11 @@ export class UpdateStatusBarEntryContribution extends Disposable implements IWor
  * Tries to parse a date string and returns the timestamp or undefined if parsing fails.
  */
 export function tryParseDate(date: string | undefined): number | undefined {
-	try {
-		return date !== undefined ? Date.parse(date) : undefined;
-	} catch {
+	if (date === undefined) {
 		return undefined;
 	}
+	const parsed = Date.parse(date);
+	return isNaN(parsed) ? undefined : parsed;
 }
 
 /**
