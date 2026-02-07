@@ -475,12 +475,12 @@ def char_span(string, index, is_special, highlight=None, model=None):
                 pat_html = f'<span style="position: relative; display: inline-block; vertical-align: baseline">{fuzzy_dropdown_html(pat_str, segment_index, color)}</span>'
             else:
                 pat_html = overlay_html(pat_str, 'left', seg_type, color)
-                # Left drag handle for literal segments (4px invisible box at upper-left corner)
+                # Left drag handle for literal segments (3px x 4px invisible box at upper-left corner)
                 left_handle_event = repr(HandleMouseDown(segment_index=segment_index, side='left'))
                 pat_html += (
                     '<span style="position: relative; display: inline-block; width: 0; height: 0; vertical-align: text-top;">'
                     f'<span snc-mouse-down="{html.escape(left_handle_event)}" '
-                    'style="position: absolute; top: 0; left: 0; width: 4px; height: 4px; '
+                    'style="position: absolute; top: -1px; left: -1px; width: 3px; height: 4px; '
                     'cursor: ew-resize; z-index: 20;"></span></span>'
                 )
         if end - 1 == index:
@@ -502,12 +502,12 @@ def char_span(string, index, is_special, highlight=None, model=None):
             # Render repetition as a clickable dropdown (for both literal and fuzzy)
             repetition_html = repetition_dropdown_html(rep_str, segment_index, seg_type, color)
             if seg_type == 'literal':
-                # Right drag handle for literal segments (4px invisible box at upper-right corner)
+                # Right drag handle for literal segments (3px x 4px invisible box at upper-right corner)
                 right_handle_event = repr(HandleMouseDown(segment_index=segment_index, side='right'))
                 repetition_html += (
                     '<span style="position: relative; display: inline-block; width: 0; height: 0; vertical-align: text-top;">'
                     f'<span snc-mouse-down="{html.escape(right_handle_event)}" '
-                    'style="position: absolute; top: 0; left: -4px; width: 4px; height: 4px; '
+                    'style="position: absolute; top: -1px; left: -3px; width: 3px; height: 4px; '
                     'cursor: ew-resize; z-index: 20;"></span></span>'
                 )
 
@@ -994,8 +994,11 @@ def resize_literal_segment(selection_regex: str, segment_index: int, string_valu
     Extracts text from string_value at the given internal indices, converts each
     character to its regex literal form, and replaces the specified segment's content.
 
+    Handles both grouped (e.g., "/(hello)/") and ungrouped canonical form
+    (e.g., "/hello/", "/hello.*world/").
+
     Args:
-        selection_regex: Regex with / delimiters, e.g., "/(hello)/"
+        selection_regex: Regex with / delimiters, e.g., "/(hello)/" or "/hello/"
         segment_index: 0-based index of the segment to resize
         string_value: The string being visualized
         new_start: New start internal index (inclusive)
@@ -1014,27 +1017,25 @@ def resize_literal_segment(selection_regex: str, segment_index: int, string_valu
     regex_parts = [char_to_regex_literal(char) for char in text]
     new_content = ''.join(regex_parts)
 
-    # Parse the inner pattern and replace the segment
+    # Parse all segments (handles both grouped and ungrouped canonical form)
     inner_pattern = selection_regex[1:-1]
-    segments = []
-    depth = 0
-    current_start = 0
+    segments = parse_all_segments(inner_pattern)
 
-    for i, char in enumerate(inner_pattern):
-        if char == '(' and (i == 0 or inner_pattern[i-1] != '\\'):
-            if depth == 0:
-                current_start = i
-            depth += 1
-        elif char == ')' and (i == 0 or inner_pattern[i-1] != '\\'):
-            depth -= 1
-            if depth == 0:
-                segments.append(inner_pattern[current_start:i+1])
+    if not segments or segment_index >= len(segments):
+        return selection_regex
 
-    # Replace the specified segment
-    if 0 <= segment_index < len(segments):
-        segments[segment_index] = f'({new_content})'
+    # Replace the specified segment's text, preserving its grouped/ungrouped status
+    segments[segment_index]['text'] = new_content
 
-    return f"/{''.join(segments)}/"
+    # Rebuild the regex, preserving each segment's grouping
+    parts = []
+    for seg in segments:
+        if seg['is_grouped']:
+            parts.append(f"({seg['text']})")
+        else:
+            parts.append(seg['text'])
+
+    return f"/{''.join(parts)}/"
 
 
 def get_regex_inner_pattern(selection_regex: str | None) -> str | None:

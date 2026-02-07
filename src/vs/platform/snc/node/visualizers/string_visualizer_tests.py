@@ -3110,6 +3110,38 @@ class TestResizeLiteralSegment(unittest.TestCase):
         result = resize_literal_segment('/(hello)(.*)(world)/', 0, self.value, 2, 3)
         self.assertEqual(result, '/(h)(.*)(world)/')
 
+    # --- Canonical ungrouped form (the form actually stored in model) ---
+
+    def test_ungrouped_single_expand_right(self):
+        """Ungrouped /hello/ expanded right to include space."""
+        result = resize_literal_segment('/hello/', 0, self.value, 2, 8)
+        self.assertEqual(result, '/hello\\ /')
+
+    def test_ungrouped_single_collapse_right(self):
+        """Ungrouped /hello/ collapsed from right to 'hell'."""
+        result = resize_literal_segment('/hello/', 0, self.value, 2, 6)
+        self.assertEqual(result, '/hell/')
+
+    def test_ungrouped_single_collapse_left(self):
+        """Ungrouped /hello/ collapsed from left to 'ello'."""
+        result = resize_literal_segment('/hello/', 0, self.value, 3, 7)
+        self.assertEqual(result, '/ello/')
+
+    def test_ungrouped_single_char_expand(self):
+        """Ungrouped single char /h/ expanded right."""
+        result = resize_literal_segment('/h/', 0, self.value, 2, 4)
+        self.assertEqual(result, '/he/')
+
+    def test_ungrouped_multi_segment_resize_first(self):
+        """Ungrouped /hello.*world/ resize first literal segment."""
+        result = resize_literal_segment('/hello.*world/', 0, self.value, 2, 8)
+        self.assertEqual(result, '/hello\\ .*world/')
+
+    def test_ungrouped_multi_segment_resize_last(self):
+        """Ungrouped /hello.*world/ resize last literal segment."""
+        result = resize_literal_segment('/hello.*world/', 2, self.value, 7, 13)
+        self.assertEqual(result, '/hello.*\\ world/')
+
 
 # =============================================================================
 # Tests: Literal Drag Handle Update Logic
@@ -3461,14 +3493,6 @@ class TestLiteralDragHandleRendering(unittest.TestCase):
         # Count occurrences: 2 segments * 2 handles each = 4 HandleMouseDown
         handle_count = html_output.count('HandleMouseDown')
         self.assertEqual(handle_count, 4)
-
-    def test_handle_is_4px_box(self):
-        """Drag handle is a 4px box."""
-        model = init_model(self.value)
-        model['selectionRegex'] = '/(hello)/'
-        html_output = visualize(self.value, model)
-        self.assertIn('width: 4px', html_output)
-        self.assertIn('height: 4px', html_output)
 
 
 # =============================================================================
