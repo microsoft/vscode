@@ -100,10 +100,13 @@ class VisualizationWidget extends Disposable implements IOverlayWidget {
 			this.dispatch_as_python_event('snc-mouse-up', ev);
 		}));
 		this._register(dom.addDisposableListener(this.domNode, 'keydown', (ev: KeyboardEvent) => {
-			// Skip keyboard dispatch for input/textarea elements to allow normal typing
+			// For input/textarea elements, only dispatch Enter/Escape (to close dropdowns etc.)
+			// Other keys are left alone so normal typing works.
 			const target = ev.target as HTMLElement;
 			if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) {
-				return;
+				if (ev.key !== 'Enter' && ev.key !== 'Escape') {
+					return;
+				}
 			}
 			this.dispatch_keyboard_event('snc-key-down', ev);
 		}));
@@ -228,6 +231,8 @@ class VisualizationWidget extends Disposable implements IOverlayWidget {
 	/**
 	 * Update the widget's HTML content
 	 */
+	private static readonly FOCUSABLE_SELECTOR = '[tabindex], input, textarea, select';
+
 	updateContent(html: string): void {
 		// Check if focus is inside this widget before replacing HTML
 		const activeElement = document.activeElement;
@@ -237,7 +242,7 @@ class VisualizationWidget extends Disposable implements IOverlayWidget {
 
 		if (activeElement && this.domNode.contains(activeElement)) {
 			// Find which focusable element (by index) was focused
-			const focusableElements = this.domNode.querySelectorAll('[tabindex]');
+			const focusableElements = this.domNode.querySelectorAll(VisualizationWidget.FOCUSABLE_SELECTOR);
 			for (let i = 0; i < focusableElements.length; i++) {
 				if (focusableElements[i] === activeElement) {
 					focusedIndex = i;
@@ -256,7 +261,7 @@ class VisualizationWidget extends Disposable implements IOverlayWidget {
 
 		// Restore focus to the same nth focusable element
 		if (focusedIndex >= 0) {
-			const focusableElements = this.domNode.querySelectorAll('[tabindex]');
+			const focusableElements = this.domNode.querySelectorAll(VisualizationWidget.FOCUSABLE_SELECTOR);
 			if (focusedIndex < focusableElements.length) {
 				const el = focusableElements[focusedIndex] as HTMLElement;
 				el.focus();
@@ -667,13 +672,13 @@ export class SNCController extends Disposable implements IEditorContribution {
 					for (let i = 0; i < stepItems.length; i++) {
 						const item = stepItems[i];
 						const visIndex = (item as any).visIndex ?? i;
-					const widget = new VisualizationWidget(
-						this.editor,
-						lineNumber,
-						visIndex,
-						(pythonEventStr, ev) => { this.onPointerEvent(lineNumber, visIndex, pythonEventStr, ev); },
-						(pythonEventStr, ev) => { this.onKeyboardEvent(lineNumber, visIndex, pythonEventStr, ev); },
-						(pythonEventStr, value) => { this.onInputEvent(lineNumber, visIndex, pythonEventStr, value); }
+						const widget = new VisualizationWidget(
+							this.editor,
+							lineNumber,
+							visIndex,
+							(pythonEventStr, ev) => { this.onPointerEvent(lineNumber, visIndex, pythonEventStr, ev); },
+							(pythonEventStr, ev) => { this.onKeyboardEvent(lineNumber, visIndex, pythonEventStr, ev); },
+							(pythonEventStr, value) => { this.onInputEvent(lineNumber, visIndex, pythonEventStr, value); }
 						);
 						widget.updateContent(item.html);
 						widgets.push(widget);
@@ -939,10 +944,10 @@ export class SNCController extends Disposable implements IEditorContribution {
 
 				const now = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
 
-			if (msg.type === 'spawn') {
-				// Store backend spawn timing data
-				this.runSpawnTimingById.set(msg.runId, msg.timing);
-			} else if (msg.type === 'item') {
+				if (msg.type === 'spawn') {
+					// Store backend spawn timing data
+					this.runSpawnTimingById.set(msg.runId, msg.timing);
+				} else if (msg.type === 'item') {
 					// console.log(msg.item.model)
 					// Timing: first item arrival for this run
 					const isFirstItem = !this.runFirstItemReceivedMsById.has(msg.runId);
@@ -991,7 +996,7 @@ export class SNCController extends Disposable implements IEditorContribution {
 					// Handle commands from visualizers
 					this.handleCommand(msg.command);
 				} else if (msg.type === 'end') {
-				// console.log('program end');
+					// console.log('program end');
 					const tEnd = now();
 
 					// Comprehensive timing logging

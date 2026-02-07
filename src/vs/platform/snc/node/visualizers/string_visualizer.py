@@ -2523,12 +2523,16 @@ def update(event, source_code: str, source_line: int, model: dict, value: str) -
             shift_key = event_json.get('shiftKey', False)
 
             if key == 'Enter':
-                # Generate regex code if we have a selection
-                selection_regex = model.get('selectionRegex')
+                # Close dropdown if open, otherwise generate regex code
+                if model.get('openDropdown'):
+                    model['openDropdown'] = None
+                else:
+                    # Generate regex code if we have a selection
+                    selection_regex = model.get('selectionRegex')
 
-                if selection_regex and source_code and source_line:
-                    new_code = generate_regex_code_from_pattern(source_code, source_line, selection_regex)
-                    commands.append(NewCode(code=new_code))
+                    if selection_regex and source_code and source_line:
+                        new_code = generate_regex_code_from_pattern(source_code, source_line, selection_regex)
+                        commands.append(NewCode(code=new_code))
 
             elif key == 'Escape':
                 # Close dropdown if open, otherwise clear selections
