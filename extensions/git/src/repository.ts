@@ -696,6 +696,30 @@ export interface IRepositoryResolver {
 	getRepository(hint: SourceControl | SourceControlResourceGroup | Uri | string): Repository | undefined;
 }
 
+export function getSyncTooltip(HEAD: Branch | undefined, remotes: Remote[]): string {
+	if (!HEAD
+		|| !HEAD.name
+		|| !HEAD.commit
+		|| !HEAD.upstream
+		|| !(HEAD.ahead || HEAD.behind)
+	) {
+		return l10n.t('Synchronize Changes');
+	}
+
+	const pushRemoteName = HEAD.pushBranch?.remote;
+	const pushRemote = remotes.find(r => r.name === pushRemoteName);
+
+	if ((pushRemote && pushRemote.isReadOnly) || !HEAD.ahead) {
+		return l10n.t('Pull {0} commits from {1}/{2}', HEAD.behind!, HEAD.upstream.remote, HEAD.upstream.name);
+	} else if (pushRemote && pushRemoteName && !HEAD.behind) {
+		return l10n.t('Push {0} commits to {1}/{2}', HEAD.ahead!, pushRemoteName, HEAD.pushBranch!.name);
+	} else if (HEAD.pushBranch && (HEAD.pushBranch.remote !== HEAD.upstream.remote || HEAD.pushBranch.name !== HEAD.upstream.name)) {
+		return l10n.t('Pull {0} commits from {1}/{2} and push {3} commits to {4}/{5}', HEAD.behind!, HEAD.upstream.remote, HEAD.upstream.name, HEAD.ahead!, HEAD.pushBranch.remote, HEAD.pushBranch.name);
+	} else {
+		return l10n.t('Pull {0} and push {1} commits between {2}/{3}', HEAD.behind!, HEAD.ahead!, HEAD.upstream.remote, HEAD.upstream.name);
+	}
+}
+
 export class Repository implements Disposable {
 	static readonly WORKTREE_ROOT_STORAGE_KEY = 'worktreeRoot';
 
@@ -3122,27 +3146,7 @@ export class Repository implements Disposable {
 	}
 
 	get syncTooltip(): string {
-		if (!this.HEAD
-			|| !this.HEAD.name
-			|| !this.HEAD.commit
-			|| !this.HEAD.upstream
-			|| !(this.HEAD.ahead || this.HEAD.behind)
-		) {
-			return l10n.t('Synchronize Changes');
-		}
-
-		const pushRemoteName = this.HEAD?.pushBranch?.remote;
-		const pushRemote = this.remotes.find(r => r.name === pushRemoteName);
-
-		if ((pushRemote && pushRemote.isReadOnly) || !this.HEAD.ahead) {
-			return l10n.t('Pull {0} commits from {1}/{2}', this.HEAD.behind!, this.HEAD.upstream.remote, this.HEAD.upstream.name);
-		} else if (pushRemote && pushRemoteName && !this.HEAD.behind) {
-			return l10n.t('Push {0} commits to {1}/{2}', this.HEAD.ahead!, pushRemoteName, this.HEAD.pushBranch!.name);
-		} else if (this.HEAD.pushBranch && (this.HEAD.pushBranch.remote !== this.HEAD.upstream.remote || this.HEAD.pushBranch.name !== this.HEAD.upstream.name)) {
-			return l10n.t('Pull {0} commits from {1}/{2} and push {3} commits to {4}/{5}', this.HEAD.behind!, this.HEAD.upstream.remote, this.HEAD.upstream.name, this.HEAD.ahead!, this.HEAD.pushBranch.remote, this.HEAD.pushBranch.name);
-		} else {
-			return l10n.t('Pull {0} and push {1} commits between {2}/{3}', this.HEAD.behind!, this.HEAD.ahead!, this.HEAD.upstream.remote, this.HEAD.upstream.name);
-		}
+		return getSyncTooltip(this.HEAD, this.remotes);
 	}
 
 	private updateInputBoxPlaceholder(): void {

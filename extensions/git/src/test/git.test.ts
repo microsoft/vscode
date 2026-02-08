@@ -7,6 +7,24 @@ import 'mocha';
 import { GitStatusParser, parseGitCommits, parseGitmodules, parseLsTree, parseLsFiles, parseGitRemotes } from '../git';
 import * as assert from 'assert';
 import { splitInChunks } from '../util';
+import { getSyncTooltip } from '../repository';
+import { Branch, Remote, RefType } from '../api/git';
+
+function branch(overrides: Partial<Branch> & { name: string; commit?: string; upstream: { remote: string; name: string } }): Branch {
+	return {
+		type: RefType.Head,
+		name: overrides.name,
+		commit: overrides.commit ?? 'abc123',
+		upstream: overrides.upstream,
+		pushBranch: overrides.pushBranch,
+		ahead: overrides.ahead,
+		behind: overrides.behind
+	};
+}
+
+function remote(props: { name: string; isReadOnly?: boolean }): Remote {
+	return { name: props.name, isReadOnly: props.isReadOnly ?? false };
+}
 
 suite('git', () => {
 	suite('GitStatusParser', () => {
@@ -661,6 +679,121 @@ suite('git', () => {
 				[...splitInChunks(['0', '01', '012', '0', '01', '012', '0', '01', '012'], 9)],
 				[['0', '01', '012', '0', '01'], ['012', '0', '01', '012']]
 			);
+		});
+	});
+
+	suite('getSyncTooltip', () => {
+		test('returns default when HEAD is undefined', () => {
+			assert.strictEqual(getSyncTooltip(undefined, []), 'Synchronize Changes');
+		});
+
+		test('returns default when HEAD has no upstream', () => {
+			const HEAD: Branch = {
+				type: RefType.Head,
+				name: 'main',
+				commit: 'abc123',
+				upstream: undefined,
+				ahead: 1,
+				behind: 0
+			};
+			assert.strictEqual(getSyncTooltip(HEAD, []), 'Synchronize Changes');
+		});
+
+		test('returns default when HEAD has no name', () => {
+			const HEAD = branch({ name: '', upstream: { remote: 'origin', name: 'main' } });
+			assert.strictEqual(getSyncTooltip(HEAD, []), 'Synchronize Changes');
+		});
+
+		test('returns default when HEAD has no commit', () => {
+			const HEAD: Branch = {
+				type: RefType.Head,
+				name: 'main',
+				commit: undefined,
+				upstream: { remote: 'origin', name: 'main' },
+				ahead: 1,
+				behind: 0
+			};
+			assert.strictEqual(getSyncTooltip(HEAD, []), 'Synchronize Changes');
+		});
+
+		test('returns default when neither ahead nor behind', () => {
+			const HEAD = branch({
+				name: 'main',
+				upstream: { remote: 'origin', name: 'main' },
+				ahead: 0,
+				behind: 0
+			});
+			assert.strictEqual(getSyncTooltip(HEAD, []), 'Synchronize Changes');
+		});
+
+		test('pull only when push remote is read-only', () => {
+			const HEAD = branch({
+				name: 'main',
+				upstream: { remote: 'origin', name: 'main' },
+				pushBranch: { remote: 'origin', name: 'main' },
+				ahead: 2,
+				behind: 1
+			});
+			const remotes = [remote({ name: 'origin', isReadOnly: true })];
+			assert.strictEqual(getSyncTooltip(HEAD, remotes), 'Pull 1 commits from origin/main');
+		});
+
+		test('pull only when no commits to push', () => {
+			const HEAD = branch({
+				name: 'main',
+				upstream: { remote: 'origin', name: 'main' },
+				ahead: 0,
+				behind: 3
+			});
+			const remotes = [remote({ name: 'origin' })];
+			assert.strictEqual(getSyncTooltip(HEAD, remotes), 'Pull 3 commits from origin/main');
+		});
+
+		test('push only when no commits to pull', () => {
+			const HEAD = branch({
+				name: 'main',
+				upstream: { remote: 'origin', name: 'main' },
+				pushBranch: { remote: 'origin', name: 'main' },
+				ahead: 2,
+				behind: 0
+			});
+			const remotes = [remote({ name: 'origin' })];
+			assert.strictEqual(getSyncTooltip(HEAD, remotes), 'Push 2 commits to origin/main');
+		});
+
+		test('pull and push to different remotes', () => {
+			const HEAD = branch({
+				name: 'feature',
+				upstream: { remote: 'upstream', name: 'main' },
+				pushBranch: { remote: 'origin', name: 'feature' },
+				ahead: 1,
+				behind: 2
+			});
+			const remotes = [remote({ name: 'upstream' }), remote({ name: 'origin' })];
+			assert.strictEqual(getSyncTooltip(HEAD, remotes), 'Pull 2 commits from upstream/main and push 1 commits to origin/feature');
+		});
+
+		test('pull and push between same remote/branch', () => {
+			const HEAD = branch({
+				name: 'main',
+				upstream: { remote: 'origin', name: 'main' },
+				ahead: 1,
+				behind: 1
+			});
+			const remotes = [remote({ name: 'origin' })];
+			assert.strictEqual(getSyncTooltip(HEAD, remotes), 'Pull 1 and push 1 commits between origin/main');
+		});
+
+		test('push only when push remote differs but behind is zero', () => {
+			const HEAD = branch({
+				name: 'feature',
+				upstream: { remote: 'upstream', name: 'main' },
+				pushBranch: { remote: 'origin', name: 'feature' },
+				ahead: 1,
+				behind: 0
+			});
+			const remotes = [remote({ name: 'upstream' }), remote({ name: 'origin' })];
+			assert.strictEqual(getSyncTooltip(HEAD, remotes), 'Push 1 commits to origin/feature');
 		});
 	});
 });
