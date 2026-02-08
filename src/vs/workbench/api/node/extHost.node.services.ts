@@ -31,6 +31,8 @@ import { IExtHostMpcService } from '../common/extHostMcp.js';
 import { NodeExtHostMpcService } from './extHostMcpNode.js';
 import { IExtHostAuthentication } from '../common/extHostAuthentication.js';
 import { NodeExtHostAuthentication } from './extHostAuthentication.js';
+import { IExtHostHooks } from '../common/extHostHooks.js';
+import { NodeExtHostHooks } from './extHostHooksNode.js';
 
 // #########################################################################
 // ###                                                                   ###
@@ -53,3 +55,4 @@ registerSingleton(IExtHostTerminalService, ExtHostTerminalService, Instantiation
 registerSingleton(IExtHostTunnelService, NodeExtHostTunnelService, InstantiationType.Eager);
 registerSingleton(IExtHostVariableResolverProvider, NodeExtHostVariableResolverProviderService, InstantiationType.Eager);
 registerSingleton(IExtHostMpcService, NodeExtHostMpcService, InstantiationType.Eager);
+registerSingleton(IExtHostHooks, NodeExtHostHooks, InstantiationType.Eager);

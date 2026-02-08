@@ -12,7 +12,7 @@ import { RawContextKey, IContextKey, IContextKeyService } from '../../../../plat
 import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
-import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { AUX_WINDOW_GROUP, IEditorService } from '../../../services/editor/common/editorService.js';
 import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
 import { IEditorOpenContext } from '../../../common/editor.js';
 import { BrowserEditorInput } from './browserEditorInput.js';
@@ -21,7 +21,7 @@ import { IBrowserViewModel } from '../../browserView/common/browserView.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
-import { IBrowserViewKeyDownEvent, IBrowserViewNavigationEvent, IBrowserViewLoadError } from '../../../../platform/browserView/common/browserView.js';
+import { IBrowserViewKeyDownEvent, IBrowserViewNavigationEvent, IBrowserViewLoadError, BrowserNewPageLocation } from '../../../../platform/browserView/common/browserView.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
@@ -45,11 +45,13 @@ import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { IChatRequestVariableEntry } from '../../chat/common/attachments/chatVariableEntries.js';
 import { IBrowserTargetLocator, getDisplayNameFromOuterHTML } from '../../../../platform/browserElements/common/browserElements.js';
 import { logBrowserOpen } from './browserViewTelemetry.js';
+import { URI } from '../../../../base/common/uri.js';
 
 export const CONTEXT_BROWSER_CAN_GO_BACK = new RawContextKey<boolean>('browserCanGoBack', false, localize('browser.canGoBack', "Whether the browser can go back"));
 export const CONTEXT_BROWSER_CAN_GO_FORWARD = new RawContextKey<boolean>('browserCanGoForward', false, localize('browser.canGoForward', "Whether the browser can go forward"));
 export const CONTEXT_BROWSER_FOCUSED = new RawContextKey<boolean>('browserFocused', true, localize('browser.editorFocused', "Whether the browser editor is focused"));
 export const CONTEXT_BROWSER_STORAGE_SCOPE = new RawContextKey<string>('browserStorageScope', '', localize('browser.storageScope', "The storage scope of the current browser view"));
+export const CONTEXT_BROWSER_HAS_URL = new RawContextKey<boolean>('browserHasUrl', false, localize('browser.hasUrl', "Whether the browser has a URL loaded"));
 export const CONTEXT_BROWSER_DEVTOOLS_OPEN = new RawContextKey<boolean>('browserDevToolsOpen', false, localize('browser.devToolsOpen', "Whether developer tools are open for the current browser view"));
 export const CONTEXT_BROWSER_ELEMENT_SELECTION_ACTIVE = new RawContextKey<boolean>('browserElementSelectionActive', false, localize('browser.elementSelectionActive', "Whether element selection is currently active"));
 
@@ -104,7 +106,7 @@ class BrowserNavigationBar extends Disposable {
 		// URL input
 		this._urlInput = $<HTMLInputElement>('input.browser-url-input');
 		this._urlInput.type = 'text';
-		this._urlInput.placeholder = localize('browser.urlPlaceholder', "Enter URL...");
+		this._urlInput.placeholder = localize('browser.urlPlaceholder', "Enter a URL");
 
 		// Create actions toolbar (right side) with scoped context
 		const actionsContainer = $('.browser-actions-toolbar');
@@ -185,6 +187,7 @@ export class BrowserEditor extends EditorPane {
 	private _canGoBackContext!: IContextKey<boolean>;
 	private _canGoForwardContext!: IContextKey<boolean>;
 	private _storageScopeContext!: IContextKey<string>;
+	private _hasUrlContext!: IContextKey<boolean>;
 	private _devToolsOpenContext!: IContextKey<boolean>;
 	private _elementSelectionActiveContext!: IContextKey<boolean>;
 
@@ -222,6 +225,7 @@ export class BrowserEditor extends EditorPane {
 		this._canGoBackContext = CONTEXT_BROWSER_CAN_GO_BACK.bindTo(contextKeyService);
 		this._canGoForwardContext = CONTEXT_BROWSER_CAN_GO_FORWARD.bindTo(contextKeyService);
 		this._storageScopeContext = CONTEXT_BROWSER_STORAGE_SCOPE.bindTo(contextKeyService);
+		this._hasUrlContext = CONTEXT_BROWSER_HAS_URL.bindTo(contextKeyService);
 		this._devToolsOpenContext = CONTEXT_BROWSER_DEVTOOLS_OPEN.bindTo(contextKeyService);
 		this._elementSelectionActiveContext = CONTEXT_BROWSER_ELEMENT_SELECTION_ACTIVE.bindTo(contextKeyService);
 
@@ -342,7 +346,11 @@ export class BrowserEditor extends EditorPane {
 		this.setBackgroundImage(this._model.screenshot);
 
 		if (context.newInGroup) {
-			this.focusUrlInput();
+			if (this._model.url) {
+				this._browserContainer.focus();
+			} else {
+				this.focusUrlInput();
+			}
 		}
 
 		// Start / stop screenshots when the model visibility changes
@@ -378,18 +386,27 @@ export class BrowserEditor extends EditorPane {
 			this._devToolsOpenContext.set(e.isDevToolsOpen);
 		}));
 
-		this._inputDisposables.add(this._model.onDidRequestNewPage(({ url, name, background }) => {
-			logBrowserOpen(this.telemetryService, background ? 'browserLinkBackground' : 'browserLinkForeground');
+		this._inputDisposables.add(this._model.onDidRequestNewPage(({ resource, location, position }) => {
+			logBrowserOpen(this.telemetryService, (() => {
+				switch (location) {
+					case BrowserNewPageLocation.Background: return 'browserLinkBackground';
+					case BrowserNewPageLocation.Foreground: return 'browserLinkForeground';
+					case BrowserNewPageLocation.NewWindow: return 'browserLinkNewWindow';
+				}
+			})());
 
-			// Open a new browser tab for the requested URL
-			const browserUri = BrowserViewUri.forUrl(url, name ? `${input.id}-${name}` : undefined);
+			const targetGroup = location === BrowserNewPageLocation.NewWindow ? AUX_WINDOW_GROUP : this.group;
 			this.editorService.openEditor({
-				resource: browserUri,
+				resource: URI.from(resource),
 				options: {
 					pinned: true,
-					inactive: background
+					inactive: location === BrowserNewPageLocation.Background,
+					auxiliary: {
+						bounds: position,
+						compact: true
+					}
 				}
-			}, this.group);
+			}, targetGroup);
 		}));
 
 		this._inputDisposables.add(this.overlayManager!.onDidChangeOverlayState(() => {
@@ -586,10 +603,15 @@ export class BrowserEditor extends EditorPane {
 	}
 
 	/**
-	 * Show the find widget
+	 * Show the find widget, optionally pre-populated with selected text from the browser view
 	 */
-	showFind(): void {
-		this._findWidget.value.reveal();
+	async showFind(): Promise<void> {
+		// Get selected text from the browser view to pre-populate the search box.
+		const selectedText = await this._model?.getSelectedText();
+
+		// Only use the selected text if it doesn't contain newlines (single line selection)
+		const textToReveal = selectedText && !/[\r\n]/.test(selectedText) ? selectedText : undefined;
+		this._findWidget.value.reveal(textToReveal);
 		this._findWidget.value.layout(this._findWidgetContainer.clientWidth);
 	}
 
@@ -747,6 +769,7 @@ export class BrowserEditor extends EditorPane {
 		// Update context keys for command enablement
 		this._canGoBackContext.set(event.canGoBack);
 		this._canGoForwardContext.set(event.canGoForward);
+		this._hasUrlContext.set(!!event.url);
 
 		// Update visibility (welcome screen, error, browser view)
 		this.updateVisibility();
@@ -768,15 +791,11 @@ export class BrowserEditor extends EditorPane {
 		content.appendChild(title);
 
 		const subtitle = $('.browser-welcome-subtitle');
-		subtitle.textContent = localize('browser.welcomeSubtitle', "Enter a URL above to get started.");
-		content.appendChild(subtitle);
-
 		const chatEnabled = this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.enabled.key);
-		if (chatEnabled) {
-			const tip = $('.browser-welcome-tip');
-			tip.textContent = localize('browser.welcomeTip', "Tip: Use Add Element to Chat to reference UI elements in chat prompts.");
-			content.appendChild(tip);
-		}
+		subtitle.textContent = chatEnabled
+			? localize('browser.welcomeSubtitleChat', "Use Add Element to Chat to reference UI elements in chat prompts.")
+			: localize('browser.welcomeSubtitle', "Enter a URL above to get started.");
+		content.appendChild(subtitle);
 
 		container.appendChild(content);
 		return container;
@@ -900,6 +919,7 @@ export class BrowserEditor extends EditorPane {
 
 		this._canGoBackContext.reset();
 		this._canGoForwardContext.reset();
+		this._hasUrlContext.reset();
 		this._storageScopeContext.reset();
 		this._devToolsOpenContext.reset();
 		this._elementSelectionActiveContext.reset();

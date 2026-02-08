@@ -36,7 +36,7 @@ export class MermaidEditorManager extends Disposable implements vscode.WebviewPa
 	 *
 	 * If a preview already exists for this diagram, it will be revealed instead of creating a new one.
 	 */
-	public openPreview(mermaidSource: string): void {
+	public openPreview(mermaidSource: string, title?: string): void {
 		const webviewId = getWebviewId(mermaidSource);
 		const existingPreview = this._previews.get(webviewId);
 		if (existingPreview) {
@@ -47,6 +47,7 @@ export class MermaidEditorManager extends Disposable implements vscode.WebviewPa
 		const preview = MermaidPreview.create(
 			webviewId,
 			mermaidSource,
+			title,
 			this._extensionUri,
 			this._webviewManager,
 			vscode.ViewColumn.Active);
@@ -126,13 +127,14 @@ class MermaidPreview extends Disposable {
 	public static create(
 		diagramId: string,
 		mermaidSource: string,
+		title: string | undefined,
 		extensionUri: vscode.Uri,
 		webviewManager: MermaidWebviewManager,
 		viewColumn: vscode.ViewColumn
 	): MermaidPreview {
 		const webviewPanel = vscode.window.createWebviewPanel(
 			mermaidEditorViewType,
-			'', // Filled in later
+			title ?? vscode.l10n.t('Mermaid Diagram'),
 			viewColumn,
 			{
 				retainContextWhenHidden: false,
@@ -161,7 +163,6 @@ class MermaidPreview extends Disposable {
 	) {
 		super();
 
-		this._webviewPanel.title = vscode.l10n.t('Mermaid Diagram'); // TODO: Can we generate a better title from the content?
 		this._webviewPanel.iconPath = new vscode.ThemeIcon('graph');
 
 		this._webviewPanel.webview.options = {
@@ -174,7 +175,7 @@ class MermaidPreview extends Disposable {
 		this._webviewPanel.webview.html = this._getHtml();
 
 		// Register with the webview manager
-		this._register(this._webviewManager.registerWebview(this.diagramId, this._webviewPanel.webview, this._mermaidSource, 'editor'));
+		this._register(this._webviewManager.registerWebview(this.diagramId, this._webviewPanel.webview, this._mermaidSource, undefined, 'editor'));
 
 		this._register(this._webviewPanel.onDidChangeViewState(e => {
 			if (e.webviewPanel.active) {

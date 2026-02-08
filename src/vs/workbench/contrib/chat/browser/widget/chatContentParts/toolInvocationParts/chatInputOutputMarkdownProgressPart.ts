@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ProgressBar } from '../../../../../../../base/browser/ui/progressbar/progressbar.js';
-import { Emitter } from '../../../../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { Lazy } from '../../../../../../../base/common/lazy.js';
 import { toDisposable } from '../../../../../../../base/common/lifecycle.js';
@@ -31,8 +30,6 @@ export class ChatInputOutputMarkdownProgressPart extends BaseChatToolInvocationS
 
 	public readonly domNode: HTMLElement;
 	private readonly collapsibleListPart: ChatCollapsibleInputOutputContentPart;
-
-	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
 
 	public get codeblocks(): IChatCodeBlockInfo[] {
 		return this.collapsibleListPart.codeblocks;
@@ -119,7 +116,6 @@ export class ChatInputOutputMarkdownProgressPart extends BaseChatToolInvocationS
 			(isError && configurationService.getValue<boolean>(ChatConfiguration.AutoExpandToolFailures)) ||
 			(ChatInputOutputMarkdownProgressPart._expandedByDefault.get(toolInvocation) ?? false),
 		));
-		this._register(collapsibleListPart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 		this._register(toDisposable(() => ChatInputOutputMarkdownProgressPart._expandedByDefault.set(toolInvocation, collapsibleListPart.expanded)));
 
 		const progressObservable = toolInvocation.kind === 'toolInvocation' ? toolInvocation.state.map((s, r) => s.type === IChatToolInvocation.StateKind.Executing ? s.progress.read(r) : undefined) : undefined;

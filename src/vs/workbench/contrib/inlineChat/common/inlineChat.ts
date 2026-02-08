@@ -65,6 +65,9 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 				localize('affordance.gutter', "Show an affordance in the gutter."),
 				localize('affordance.editor', "Show an affordance in the editor at the cursor position."),
 			],
+			experiment: {
+				mode: 'auto'
+			},
 			tags: ['experimental']
 		},
 		[InlineChatConfigKeys.RenderMode]: {
@@ -76,6 +79,9 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 				localize('renderMode.zone', "Render inline chat as a zone widget below the current line."),
 				localize('renderMode.hover', "Render inline chat as a hover overlay."),
 			],
+			experiment: {
+				mode: 'auto'
+			},
 			tags: ['experimental']
 		}
 	}

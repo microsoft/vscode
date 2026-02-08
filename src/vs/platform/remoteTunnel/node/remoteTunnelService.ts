@@ -55,13 +55,13 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 
 	declare readonly _serviceBrand: undefined;
 
-	private readonly _onDidTokenFailedEmitter = new Emitter<IRemoteTunnelSession | undefined>();
+	private readonly _onDidTokenFailedEmitter = this._register(new Emitter<IRemoteTunnelSession | undefined>());
 	public readonly onDidTokenFailed = this._onDidTokenFailedEmitter.event;
 
-	private readonly _onDidChangeTunnelStatusEmitter = new Emitter<TunnelStatus>();
+	private readonly _onDidChangeTunnelStatusEmitter = this._register(new Emitter<TunnelStatus>());
 	public readonly onDidChangeTunnelStatus = this._onDidChangeTunnelStatusEmitter.event;
 
-	private readonly _onDidChangeModeEmitter = new Emitter<TunnelMode>();
+	private readonly _onDidChangeModeEmitter = this._register(new Emitter<TunnelMode>());
 	public readonly onDidChangeMode = this._onDidChangeModeEmitter.event;
 
 	private readonly _logger: ILogger;

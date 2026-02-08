@@ -985,9 +985,9 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 			: this.contextService.getWorkspace().folders.map((folder) => folder.name).join(', ');
 		quickPick.placeholder = localize('continueEditSessionPick.title.v2', "Select a development environment to continue working on {0} in", `'${workspaceContext}'`);
 		quickPick.items = this.createPickItems();
-		this.extensionService.onDidChangeExtensions(() => {
+		disposables.add(this.extensionService.onDidChangeExtensions(() => {
 			quickPick.items = this.createPickItems();
-		});
+		}));
 
 		const command = await new Promise<string | undefined>((resolve, reject) => {
 			disposables.add(quickPick.onDidHide(() => {

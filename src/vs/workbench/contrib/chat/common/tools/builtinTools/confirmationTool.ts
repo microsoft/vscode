@@ -9,6 +9,7 @@ import { IChatTerminalToolInvocationData } from '../../chatService/chatService.j
 import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolInvocationPresentation, ToolProgress } from '../languageModelToolsService.js';
 
 export const ConfirmationToolId = 'vscode_get_confirmation';
+export const ConfirmationToolWithOptionsId = 'vscode_get_confirmation_with_options';
 
 export const ConfirmationToolData: IToolData = {
 	id: ConfirmationToolId,
@@ -41,11 +42,39 @@ export const ConfirmationToolData: IToolData = {
 	}
 };
 
+export const ConfirmationToolWithOptionsData: IToolData = {
+	id: ConfirmationToolWithOptionsId,
+	displayName: 'Confirmation Tool with Options',
+	modelDescription: 'A tool that demonstrates different types of confirmations. Takes a title, message, and buttons.',
+	source: ToolDataSource.Internal,
+	inputSchema: {
+		type: 'object',
+		properties: {
+			title: {
+				type: 'string',
+				description: 'Title for the confirmation dialog'
+			},
+			message: {
+				type: 'string',
+				description: 'Message to show in the confirmation dialog'
+			},
+			buttons: {
+				type: 'array',
+				items: { type: 'string' },
+				description: 'Custom button labels to display.'
+			}
+		},
+		required: ['title', 'message', 'buttons'],
+		additionalProperties: false
+	}
+};
+
 export interface IConfirmationToolParams {
 	title: string;
 	message: string;
 	confirmationType?: 'basic' | 'terminal';
 	terminalCommand?: string;
+	buttons?: string[];
 }
 
 export class ConfirmationTool implements IToolImpl {
@@ -78,7 +107,8 @@ export class ConfirmationTool implements IToolImpl {
 			confirmationMessages: {
 				title: parameters.title,
 				message: new MarkdownString(parameters.message),
-				allowAutoConfirm: true
+				allowAutoConfirm: (parameters.buttons || []).length ? false : true, // We cannot auto confirm if there are custom buttons, as we don't know which one to select
+				customButtons: parameters.buttons,
 			},
 			toolSpecificData,
 			presentation: ToolInvocationPresentation.HiddenAfterComplete
@@ -86,7 +116,17 @@ export class ConfirmationTool implements IToolImpl {
 	}
 
 	async invoke(invocation: IToolInvocation, countTokens: CountTokensCallback, progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
-		// This is a no-op tool - just return success
+		// If a custom button was selected, return the button label
+		if (invocation.selectedCustomButton) {
+			return {
+				content: [{
+					kind: 'text',
+					value: invocation.selectedCustomButton
+				}]
+			};
+		}
+
+		// Default: return 'yes' for standard Allow confirmation
 		return {
 			content: [{
 				kind: 'text',

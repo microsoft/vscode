@@ -706,26 +706,7 @@ class ExtHostTreeView<T> extends Disposable {
 		}
 		const extTreeItem = await asPromise(() => this._dataProvider.getTreeItem(element));
 		const handle = this._createHandle(element, extTreeItem, parent, true);
-		const children = await this.getChildren(parent ? parent.item.handle : undefined);
-		// If getChildren returned undefined, it means a concurrent refresh invalidated
-		// the fetch. Wait for the refresh to complete and check if the element was resolved.
-		if (children === undefined) {
-			this._logService.warn(`[${this._viewId}] Concurrent refresh detected in _resolveTreeNode for element ${handle} from extension ${this._extension.identifier.value}, waiting for refresh to complete`);
-			this._proxy.$logResolveTreeNodeRetry(this._extension.identifier.value, 1, false);
-			// Wait for any pending refresh to complete
-			await this._refreshPromise;
-			// Check if the element is now in the cache after the refresh completed
-			const cachedElement = this.getExtensionElement(handle);
-			if (cachedElement) {
-				const node = this._nodes.get(cachedElement);
-				if (node) {
-					return node;
-				}
-			}
-			// Still not found after refresh completed - log and throw
-			this._proxy.$logResolveTreeNodeRetry(this._extension.identifier.value, 1, true);
-			throw new Error(`Cannot resolve tree item for element ${handle} from extension ${this._extension.identifier.value}`);
-		}
+		await this.getChildren(parent ? parent.item.handle : undefined);
 		const cachedElement = this.getExtensionElement(handle);
 		if (cachedElement) {
 			const node = this._nodes.get(cachedElement);
@@ -733,6 +714,8 @@ class ExtHostTreeView<T> extends Disposable {
 				return node;
 			}
 		}
+		this._logService.error(`[TreeView:${this._viewId}] Failed to resolve tree node for element ${handle}`);
+		this._proxy.$logResolveTreeNodeFailure(this._extension.identifier.value);
 		throw new Error(`Cannot resolve tree item for element ${handle} from extension ${this._extension.identifier.value}`);
 	}
 

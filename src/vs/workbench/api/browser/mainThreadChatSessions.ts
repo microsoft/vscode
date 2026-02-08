@@ -18,7 +18,7 @@ import { IDialogService } from '../../../platform/dialogs/common/dialogs.js';
 import { ILogService } from '../../../platform/log/common/log.js';
 import { hasValidDiff, IAgentSession } from '../../contrib/chat/browser/agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../../contrib/chat/browser/agentSessions/agentSessionsService.js';
-import { ChatViewPaneTarget, IChatWidgetService, isIChatViewViewContext } from '../../contrib/chat/browser/chat.js';
+import { IChatWidgetService, isIChatViewViewContext } from '../../contrib/chat/browser/chat.js';
 import { IChatEditorOptions } from '../../contrib/chat/browser/widgetHosts/editor/chatEditor.js';
 import { ChatEditorInput } from '../../contrib/chat/browser/widgetHosts/editor/chatEditorInput.js';
 import { IChatRequestVariableEntry } from '../../contrib/chat/common/attachments/chatVariableEntries.js';
@@ -28,6 +28,7 @@ import { ChatSessionStatus, IChatSession, IChatSessionContentProvider, IChatSess
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
 import { IChatModel } from '../../contrib/chat/common/model/chatModel.js';
 import { IChatAgentRequest } from '../../contrib/chat/common/participants/chatAgents.js';
+import { IChatTodoListService } from '../../contrib/chat/common/tools/chatTodoListService.js';
 import { IEditorGroupsService } from '../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../services/editor/common/editorService.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
@@ -339,6 +340,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		@IChatSessionsService private readonly _chatSessionsService: IChatSessionsService,
 		@IChatService private readonly _chatService: IChatService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
+		@IChatTodoListService private readonly _chatTodoListService: IChatTodoListService,
 		@IDialogService private readonly _dialogService: IDialogService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
@@ -417,58 +419,66 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		}
 
 		const originalEditor = this._editorService.editors.find(editor => editor.resource?.toString() === originalResource.toString());
-		const originalModel = this._chatService.getSession(originalResource);
+		const originalModel = this._chatService.getActiveSessionReference(originalResource);
 		const contribution = this._chatSessionsService.getAllChatSessionContributions().find(c => c.type === chatSessionType);
 
-		// Find the group containing the original editor
-		const originalGroup =
-			this.editorGroupService.groups.find(group => group.editors.some(editor => isEqual(editor.resource, originalResource)))
-			?? this.editorGroupService.activeGroup;
+		try {
 
-		const options: IChatEditorOptions = {
-			title: {
-				preferred: originalEditor?.getName() || undefined,
-				fallback: localize('chatEditorContributionName', "{0}", contribution?.displayName),
-			}
-		};
+			// Migrate todos from old session to new session
+			this._chatTodoListService.migrateTodos(originalResource, modifiedResource);
 
-		// Prefetch the chat session content to make the subsequent editor swap quick
-		const newSession = await this._chatSessionsService.getOrCreateChatSession(
-			URI.revive(modifiedResource),
-			CancellationToken.None,
-		);
+			// Find the group containing the original editor
+			const originalGroup =
+				this.editorGroupService.groups.find(group => group.editors.some(editor => isEqual(editor.resource, originalResource)))
+				?? this.editorGroupService.activeGroup;
 
-		if (originalEditor) {
-			newSession.transferredState = originalEditor instanceof ChatEditorInput
-				? { editingSession: originalEditor.transferOutEditingSession(), inputState: originalModel?.inputModel.toJSON() }
-				: undefined;
-
-			this._editorService.replaceEditors([{
-				editor: originalEditor,
-				replacement: {
-					resource: modifiedResource,
-					options,
-				},
-			}], originalGroup);
-			return;
-		}
-
-		// If chat editor is in the side panel, then those are not listed as editors.
-		// In that case we need to transfer editing session using the original model.
-		if (originalModel) {
-			newSession.transferredState = {
-				editingSession: originalModel.editingSession,
-				inputState: originalModel.inputModel.toJSON()
+			const options: IChatEditorOptions = {
+				title: {
+					preferred: originalEditor?.getName() || undefined,
+					fallback: localize('chatEditorContributionName', "{0}", contribution?.displayName),
+				}
 			};
-		}
 
-		const chatViewWidget = this._chatWidgetService.getWidgetBySessionResource(originalResource);
-		if (chatViewWidget && isIChatViewViewContext(chatViewWidget.viewContext)) {
-			await this._chatWidgetService.openSession(modifiedResource, ChatViewPaneTarget, { preserveFocus: true });
-		} else {
-			// Loading the session to ensure the session is created and editing session is transferred.
-			const ref = await this._chatService.loadSessionForResource(modifiedResource, ChatAgentLocation.Chat, CancellationToken.None);
-			ref?.dispose();
+			// Prefetch the chat session content to make the subsequent editor swap quick
+			const newSession = await this._chatSessionsService.getOrCreateChatSession(
+				URI.revive(modifiedResource),
+				CancellationToken.None,
+			);
+
+			if (originalEditor) {
+				newSession.transferredState = originalEditor instanceof ChatEditorInput
+					? { editingSession: originalEditor.transferOutEditingSession(), inputState: originalModel?.object?.inputModel.toJSON() }
+					: undefined;
+
+				await this._editorService.replaceEditors([{
+					editor: originalEditor,
+					replacement: {
+						resource: modifiedResource,
+						options,
+					},
+				}], originalGroup);
+				return;
+			}
+
+			// If chat editor is in the side panel, then those are not listed as editors.
+			// In that case we need to transfer editing session using the original model.
+			if (originalModel) {
+				newSession.transferredState = {
+					editingSession: originalModel.object.editingSession,
+					inputState: originalModel.object.inputModel.toJSON()
+				};
+			}
+
+			const chatViewWidget = this._chatWidgetService.getWidgetBySessionResource(originalResource);
+			if (chatViewWidget && isIChatViewViewContext(chatViewWidget.viewContext)) {
+				await this._chatWidgetService.openSession(modifiedResource, undefined, { preserveFocus: true });
+			} else {
+				// Loading the session to ensure the session is created and editing session is transferred.
+				const ref = await this._chatService.loadSessionForResource(modifiedResource, ChatAgentLocation.Chat, CancellationToken.None);
+				ref?.dispose();
+			}
+		} finally {
+			originalModel?.dispose();
 		}
 	}
 

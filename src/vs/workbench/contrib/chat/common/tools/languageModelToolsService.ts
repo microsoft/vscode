@@ -17,14 +17,14 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Location } from '../../../../../editor/common/languages.js';
 import { localize } from '../../../../../nls.js';
-import { ContextKeyExpression } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpression, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { ByteSize } from '../../../../../platform/files/common/files.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IProgress } from '../../../../../platform/progress/common/progress.js';
 import { ChatRequestToolReferenceEntry } from '../attachments/chatVariableEntries.js';
 import { IVariableReference } from '../chatModes.js';
-import { IChatExtensionsContent, IChatSubagentToolInvocationData, IChatTodoListContent, IChatToolInputInvocationData, IChatToolInvocation, type IChatTerminalToolInvocationData } from '../chatService/chatService.js';
+import { IChatExtensionsContent, IChatSimpleToolInvocationData, IChatSubagentToolInvocationData, IChatTodoListContent, IChatToolInputInvocationData, IChatToolInvocation, type IChatTerminalToolInvocationData } from '../chatService/chatService.js';
 import { ILanguageModelChatMetadata, LanguageModelPartAudience } from '../languageModels.js';
 import { UserSelectedTools } from '../participants/chatAgents.js';
 import { PromptElementJSON, stringifyPromptElementJSON } from './promptTsxTypes.js';
@@ -179,9 +179,11 @@ export interface IToolInvocation {
 	 * Lets us add some nicer UI to toolcalls that came from a sub-agent, but in the long run, this should probably just be rendered in a similar way to thinking text + tool call groups
 	 */
 	subAgentInvocationId?: string;
-	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatTodoListContent | IChatSubagentToolInvocationData;
+	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData;
 	modelId?: string;
 	userSelectedTools?: UserSelectedTools;
+	/** The label of the custom button selected by the user during confirmation, if custom buttons were used. */
+	selectedCustomButton?: string;
 }
 
 export interface IToolInvocationContext {
@@ -198,11 +200,15 @@ export function isToolInvocationContext(obj: any): obj is IToolInvocationContext
 export interface IToolInvocationPreparationContext {
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	parameters: any;
+	toolCallId: string;
 	chatRequestId?: string;
 	/** @deprecated Use {@link chatSessionResource} instead */
 	chatSessionId?: string;
 	chatSessionResource: URI | undefined;
 	chatInteractionId?: string;
+	modelId?: string;
+	/** If set, tells the tool that it should include confirmation messages. */
+	forceConfirmationReason?: string;
 }
 
 export type ToolInputOutputBase = {
@@ -312,6 +318,8 @@ export interface IToolConfirmationMessages {
 	confirmResults?: boolean;
 	/** If title is not set (no confirmation needed), this reason will be shown to explain why confirmation was not needed */
 	confirmationNotNeededReason?: string | IMarkdownString;
+	/** Custom button labels to display instead of the default Allow/Skip buttons. */
+	customButtons?: string[];
 }
 
 export interface IToolConfirmationAction {
@@ -349,7 +357,7 @@ export interface IPreparedToolInvocation {
 	originMessage?: string | IMarkdownString;
 	confirmationMessages?: IToolConfirmationMessages;
 	presentation?: ToolInvocationPresentation;
-	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatTodoListContent | IChatSubagentToolInvocationData;
+	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData;
 }
 
 export interface IToolImpl {
@@ -391,8 +399,9 @@ export class ToolSet implements IToolSet {
 		readonly referenceName: string,
 		readonly icon: ThemeIcon,
 		readonly source: ToolDataSource,
-		readonly description?: string,
-		readonly legacyFullNames?: string[],
+		readonly description: string | undefined,
+		readonly legacyFullNames: string[] | undefined,
+		private readonly _contextKeyService: IContextKeyService,
 	) {
 
 		this.isHomogenous = derived(r => {
@@ -420,7 +429,7 @@ export class ToolSet implements IToolSet {
 
 	getTools(r?: IReader): Iterable<IToolData> {
 		return Iterable.concat(
-			this._tools.observable.read(r),
+			Iterable.filter(this._tools.observable.read(r), toolData => this._contextKeyService.contextMatchesRules(toolData.when)),
 			...Iterable.map(this._toolSets.observable.read(r), toolSet => toolSet.getTools(r))
 		);
 	}

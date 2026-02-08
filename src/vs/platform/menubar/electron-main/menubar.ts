@@ -643,7 +643,7 @@ export class Menubar extends Disposable {
 			case StateType.AvailableForDownload:
 				return [new MenuItem({
 					label: this.mnemonicLabel(nls.localize('miDownloadUpdate', "D&&ownload Available Update")), click: () => {
-						this.updateService.downloadUpdate();
+						this.updateService.downloadUpdate(true);
 					}
 				})];
 
@@ -745,6 +745,11 @@ export class Menubar extends Disposable {
 			if (activeWindow.webContents.isDevToolsFocused() &&
 				activeWindow.webContents.devToolsWebContents) {
 				return contextSpecificHandlers.inDevTools(activeWindow.webContents.devToolsWebContents);
+			}
+
+			// Focus is not in the workbench webContents
+			if (!activeWindow.webContents.isFocused()) {
+				return contextSpecificHandlers.inNoWindow();
 			}
 
 			// Finally execute command in Window

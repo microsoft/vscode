@@ -37,6 +37,8 @@ import { IAction, toAction } from '../../../../../base/common/actions.js';
 import { WebviewInput } from '../../../webviewPanel/browser/webviewEditorInput.js';
 import { IBrowserTargetLocator, getDisplayNameFromOuterHTML } from '../../../../../platform/browserElements/common/browserElements.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { observableConfigValue, observableContextKey } from '../../../../../platform/observable/common/platformObservableUtils.js';
 
 type BrowserType = 'simpleBrowser' | 'livePreview';
 
@@ -366,11 +368,8 @@ class SimpleBrowserOverlayController {
 		@IInstantiationService instaService: IInstantiationService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IBrowserElementsService private readonly _browserElementsService: IBrowserElementsService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
-
-		if (!this.configurationService.getValue('chat.sendElementsToChat.enabled')) {
-			return;
-		}
 
 		this._domNode.classList.add('chat-simple-browser-overlay');
 		this._domNode.style.position = 'absolute';
@@ -444,11 +443,18 @@ class SimpleBrowserOverlayController {
 			return undefined;
 		});
 
+		// Observe chat enabled state and sendElementsToChat configuration
+		const chatEnabledObs = observableContextKey<boolean>(ChatContextKeys.enabled.key, this.contextKeyService);
+		const sendElementsEnabledObs = observableConfigValue<boolean>('chat.sendElementsToChat.enabled', true, this.configurationService);
+
 		this._store.add(autorun(r => {
 
 			const activeEditor = activeIdObs.read(r);
+			const isChatEnabled = chatEnabledObs.read(r);
+			const isSendElementsEnabled = sendElementsEnabledObs.read(r);
 
-			if (!activeEditor) {
+			// Hide if chat is not enabled, sendElementsToChat is not enabled, or no active editor
+			if (!isChatEnabled || !isSendElementsEnabled || !activeEditor) {
 				hide();
 				return;
 			}

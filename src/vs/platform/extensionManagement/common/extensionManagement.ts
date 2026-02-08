@@ -339,7 +339,10 @@ export interface IDeprecationInfo {
 	readonly extension?: {
 		readonly id: string;
 		readonly displayName: string;
-		readonly autoMigrate?: { readonly storage: boolean };
+		readonly autoMigrate?: {
+			readonly storage: boolean;
+			readonly donotDisable?: boolean;
+		};
 		readonly preRelease?: boolean;
 	};
 	readonly settings?: readonly string[];
@@ -723,7 +726,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration)
 			[AllowedExtensionsConfigKey]: {
 				// Note: Type is set only to object because to support policies generation during build time, where single type is expected.
 				type: 'object',
-				markdownDescription: localize('extensions.allowed', "Specify a list of extensions that are allowed to use. This helps maintain a secure and consistent development environment by restricting the use of unauthorized extensions. For more information on how to configure this setting, please visit the [Configure Allowed Extensions](https://code.visualstudio.com/docs/setup/enterprise#_configure-allowed-extensions) section."),
+				markdownDescription: localize('extensions.allowed', "Specify a list of extensions that are allowed to use. This helps maintain a secure and consistent development environment by restricting the use of unauthorized extensions. For more information on how to configure this setting, please visit the [Configure Allowed Extensions](https://aka.ms/vscode/enterprise/extensions/allowed) section."),
 				default: '*',
 				defaultSnippets: [{
 					body: {},
@@ -742,7 +745,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration)
 					localization: {
 						description: {
 							key: 'extensions.allowed.policy',
-							value: localize('extensions.allowed.policy', "Specify a list of extensions that are allowed to use. This helps maintain a secure and consistent development environment by restricting the use of unauthorized extensions. More information: https://code.visualstudio.com/docs/setup/enterprise#_configure-allowed-extensions"),
+							value: localize('extensions.allowed.policy', "Specify a list of extensions that are allowed to use. This helps maintain a secure and consistent development environment by restricting the use of unauthorized extensions. More information: https://aka.ms/vscode/enterprise/extensions/allowed"),
 						}
 					}
 				},

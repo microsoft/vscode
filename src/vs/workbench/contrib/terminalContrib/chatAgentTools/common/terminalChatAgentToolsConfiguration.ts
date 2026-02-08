@@ -349,6 +349,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			// xxd
 			// - Only allow flags and a single input file as it's difficult to parse the outfile
 			//   positional argument safely.
+			'/^xxd$/': true,
 			'/^xxd\\b(\\s+-\\S+)*\\s+[^-\\s]\\S*$/': true,
 
 			// #endregion

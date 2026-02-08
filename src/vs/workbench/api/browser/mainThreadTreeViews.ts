@@ -14,7 +14,9 @@ import { Registry } from '../../../platform/registry/common/platform.js';
 import { IExtensionService } from '../../services/extensions/common/extensions.js';
 import { ILogService } from '../../../platform/log/common/log.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
-import { createStringDataTransferItem, VSDataTransfer } from '../../../base/common/dataTransfer.js';
+import { createStringDataTransferItem, UriList, VSDataTransfer } from '../../../base/common/dataTransfer.js';
+import { Mimes } from '../../../base/common/mime.js';
+import { URI } from '../../../base/common/uri.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { DataTransferFileCache } from '../common/shared/dataTransferCache.js';
 import * as typeConvert from '../common/extHostTypeConverters.js';
@@ -140,23 +142,17 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 		this._dataProviders.deleteAndDispose(treeViewId);
 	}
 
-	$logResolveTreeNodeRetry(extensionId: string, retryCount: number, exhausted: boolean): void {
-		type TreeViewResolveRetryEvent = {
+	$logResolveTreeNodeFailure(extensionId: string): void {
+		type TreeViewResolveFailureEvent = {
 			extensionId: string;
-			retryCount: number;
-			exhausted: boolean;
 		};
-		type TreeViewResolveRetryClassification = {
+		type TreeViewResolveFailureClassification = {
 			extensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The extension identifier.' };
-			retryCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Number of retry attempts made.' };
-			exhausted: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether all retry attempts were exhausted.' };
 			owner: 'alexr00';
-			comment: 'Tracks tree view resolve retries due to concurrent refresh races.';
+			comment: 'Tracks tree view resolve failures due to concurrent refresh races.';
 		};
-		this.telemetryService.publicLog2<TreeViewResolveRetryEvent, TreeViewResolveRetryClassification>('treeView.resolveRetry', {
-			extensionId,
-			retryCount,
-			exhausted
+		this.telemetryService.publicLog2<TreeViewResolveFailureEvent, TreeViewResolveFailureClassification>('treeView.resolveFailure', {
+			extensionId
 		});
 	}
 
@@ -270,7 +266,11 @@ class TreeViewDragAndDropController implements ITreeViewDragAndDropController {
 
 		const additionalDataTransfer = new VSDataTransfer();
 		additionalDataTransferDTO.items.forEach(([type, item]) => {
-			additionalDataTransfer.replace(type, createStringDataTransferItem(item.asString));
+			// For text/uri-list, reconstruct from uriListData which has been transformed by the URI transformer
+			const value = type === Mimes.uriList && item.uriListData
+				? UriList.create(item.uriListData.map(part => typeof part === 'string' ? part : URI.revive(part)))
+				: item.asString;
+			additionalDataTransfer.replace(type, createStringDataTransferItem(value));
 		});
 		return additionalDataTransfer;
 	}

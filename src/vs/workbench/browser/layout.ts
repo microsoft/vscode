@@ -1981,6 +1981,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			this.toggleMaximizedPanel();
 		}
 
+		// Leave auxiliary bar maximized state because changing
+		// panel alignment requires the editor part to be visible
+		this.setAuxiliaryBarMaximized(false);
+
 		this.stateModel.setRuntimeValue(LayoutStateKeys.PANEL_ALIGNMENT, alignment);
 
 		this.adjustPartPositions(this.getSideBarPosition(), alignment, this.getPanelPosition());
@@ -2983,7 +2987,10 @@ class LayoutStateModel extends Disposable {
 		// Auxiliary bar: Maximized settings
 		if (this.isNew[StorageScope.WORKSPACE]) {
 			const defaultAuxiliaryBarVisibility = this.configurationService.getValue(WorkbenchLayoutSettings.AUXILIARYBAR_DEFAULT_VISIBILITY);
-			if (
+			const startupEditor = this.configurationService.getValue<'none' | 'welcomePage' | 'readme' | 'newUntitledFile' | 'welcomePageInEmptyWorkbench' | 'terminal' | 'agentSessionsWelcomePage'>('workbench.startupEditor');
+			if (startupEditor === 'agentSessionsWelcomePage') {
+				this.applyAuxiliaryBarHiddenOverride(true);
+			} else if (
 				defaultAuxiliaryBarVisibility === 'maximized' ||
 				(defaultAuxiliaryBarVisibility === 'maximizedInWorkspace' && this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY)
 			) {
@@ -3022,6 +3029,10 @@ class LayoutStateModel extends Disposable {
 
 		this.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_LAST_NON_MAXIMIZED_SIZE, this.getInitializationValue(LayoutStateKeys.AUXILIARYBAR_SIZE));
 		this.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_WAS_LAST_MAXIMIZED, true);
+	}
+
+	private applyAuxiliaryBarHiddenOverride(value: boolean): void {
+		this.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_HIDDEN, value);
 	}
 
 	save(workspace: boolean, global: boolean): void {

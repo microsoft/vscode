@@ -115,6 +115,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			description: localize('inlineChatDefaultModelDescription', "Select the default language model to use for inline chat from the available providers. Model names may include the provider in parentheses, for example 'Claude Haiku 4.5 (copilot)'."),
 			type: 'string',
 			default: '',
+			order: 1,
 			enum: InlineChatDefaultModel.modelIds,
 			enumItemLabels: InlineChatDefaultModel.modelLabels,
 			markdownEnumDescriptions: InlineChatDefaultModel.modelDescriptions

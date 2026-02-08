@@ -9,7 +9,6 @@ import { splitLinesIncludeSeparators } from '../../../../../base/common/strings.
 import { URI } from '../../../../../base/common/uri.js';
 import { parse, YamlNode, YamlParseError, Position as YamlPosition } from '../../../../../base/common/yaml.js';
 import { Range } from '../../../../../editor/common/core/range.js';
-import { InferValue, parseInferValue } from './service/promptsService.js';
 
 export class PromptFileParser {
 	constructor() {
@@ -80,6 +79,8 @@ export namespace PromptHeaderAttributes {
 	export const compatibility = 'compatibility';
 	export const metadata = 'metadata';
 	export const agents = 'agents';
+	export const userInvokable = 'user-invokable';
+	export const disableModelInvocation = 'disable-model-invocation';
 }
 
 export namespace GithubPromptHeaderAttributes {
@@ -193,13 +194,10 @@ export class PromptHeader {
 		return this.getStringAttribute(PromptHeaderAttributes.target);
 	}
 
-	public get infer(): InferValue | undefined {
+	public get infer(): boolean | undefined {
 		const attribute = this._parsedHeader.attributes.find(attr => attr.key === PromptHeaderAttributes.infer);
 		if (attribute?.value.type === 'boolean') {
-			return attribute.value.value ? 'all' : 'user';
-		}
-		if (attribute?.value.type === 'string' && attribute.value.value) {
-			return parseInferValue(attribute.value.value);
+			return attribute.value.value;
 		}
 		return undefined;
 	}
@@ -320,6 +318,22 @@ export class PromptHeader {
 
 	public get agents(): string[] | undefined {
 		return this.getStringArrayAttribute(PromptHeaderAttributes.agents);
+	}
+
+	public get userInvokable(): boolean | undefined {
+		return this.getBooleanAttribute(PromptHeaderAttributes.userInvokable);
+	}
+
+	public get disableModelInvocation(): boolean | undefined {
+		return this.getBooleanAttribute(PromptHeaderAttributes.disableModelInvocation);
+	}
+
+	private getBooleanAttribute(key: string): boolean | undefined {
+		const attribute = this._parsedHeader.attributes.find(attr => attr.key === key);
+		if (attribute?.value.type === 'boolean') {
+			return attribute.value.value;
+		}
+		return undefined;
 	}
 }
 

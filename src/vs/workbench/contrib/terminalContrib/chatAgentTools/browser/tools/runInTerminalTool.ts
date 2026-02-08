@@ -66,6 +66,7 @@ import { isNumber, isString } from '../../../../../../base/common/types.js';
 import { ChatConfiguration } from '../../../../chat/common/constants.js';
 import { IChatWidgetService } from '../../../../chat/browser/chat.js';
 import { TerminalChatCommandId } from '../../../chat/browser/terminalChat.js';
+import { clamp } from '../../../../../../base/common/numbers.js';
 
 // #region Tool data
 
@@ -304,7 +305,7 @@ const telemetryIgnoredSequences = [
 	'\x1b[O', // Focus out
 ];
 
-const altBufferMessage = localize('runInTerminalTool.altBufferMessage', "The command opened the alternate buffer.");
+const altBufferMessage = '\n' + localize('runInTerminalTool.altBufferMessage', "The command opened the alternate buffer.");
 
 
 export class RunInTerminalTool extends Disposable implements IToolImpl {
@@ -637,12 +638,14 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			}
 		}
 
-		const confirmationMessages = isFinalAutoApproved ? undefined : {
+		// If forceConfirmationReason is set, always show confirmation regardless of auto-approval
+		const shouldShowConfirmation = !isFinalAutoApproved || context.forceConfirmationReason !== undefined;
+		const confirmationMessages = shouldShowConfirmation ? {
 			title: confirmationTitle,
 			message: new MarkdownString(localize('runInTerminal.confirmationMessage', "Explanation: {0}\n\nGoal: {1}", args.explanation, args.goal)),
 			disclaimer,
 			terminalCustomActions: customActions,
-		};
+		} : undefined;
 
 		return {
 			confirmationMessages,
@@ -732,10 +735,11 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		const executeCancellation = store.add(new CancellationTokenSource(token));
 
 		// Set up timeout if provided and the setting is enabled (only for foreground)
-		if (!args.isBackground && args.timeout !== undefined && args.timeout > 0) {
+		const timeoutValue = args.timeout !== undefined ? clamp(args.timeout, 0, Number.MAX_SAFE_INTEGER) : undefined;
+		if (!args.isBackground && timeoutValue !== undefined && timeoutValue > 0) {
 			const shouldEnforceTimeout = this._configurationService.getValue(TerminalChatAgentToolsSettingId.EnforceTimeoutFromModel) === true;
 			if (shouldEnforceTimeout) {
-				timeoutPromise = timeout(args.timeout);
+				timeoutPromise = timeout(timeoutValue);
 				timeoutPromise.then(() => {
 					if (!executeCancellation.token.isCancellationRequested) {
 						didTimeout = true;
@@ -792,7 +796,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 						OutputMonitor,
 						{
 							instance: toolTerminal.instance,
-							sessionId: invocation.context?.sessionId,
+							sessionResource: chatSessionResource,
 							getOutput: (marker?: IXtermMarker) => execution.getOutput(marker ?? startMarker)
 						},
 						undefined,
@@ -928,6 +932,15 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				// Capture output snapshot before disposing on cancellation
 				if (e instanceof CancellationError) {
 					await this._commandArtifactCollector.capture(toolSpecificData, toolTerminal.instance, commandId);
+					// Mark the command as cancelled if it hasn't finished yet
+					// This ensures the decoration shows a failure icon instead of running
+					const state = toolSpecificData.terminalCommandState ?? {};
+					if (state.exitCode === undefined) {
+						state.exitCode = -1;
+						state.timestamp = state.timestamp ?? timingStart;
+						state.duration = state.duration ?? Math.max(0, Date.now() - state.timestamp);
+					}
+					toolSpecificData.terminalCommandState = state;
 				}
 				// Clean up the execution on error
 				RunInTerminalTool._activeExecutions.get(termId)?.dispose();

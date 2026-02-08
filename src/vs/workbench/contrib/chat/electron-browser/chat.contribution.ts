@@ -128,6 +128,7 @@ class ChatLifecycleHandler extends Disposable {
 		@IChatWidgetService private readonly widgetService: IChatWidgetService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IExtensionService extensionService: IExtensionService,
+		@INativeWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService,
 	) {
 		super();
 
@@ -147,6 +148,10 @@ class ChatLifecycleHandler extends Disposable {
 	}
 
 	private shouldVetoShutdown(reason: ShutdownReason): boolean | Promise<boolean> {
+		if (this.environmentService.enableSmokeTestDriver) {
+			return false;
+		}
+
 		if (!this.hasNonCloudSessionInProgress()) {
 			return false;
 		}

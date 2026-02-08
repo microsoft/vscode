@@ -9,7 +9,7 @@ import { EventType, addDisposableListener } from '../../../../../../base/browser
 import { IDelayedHoverOptions } from '../../../../../../base/browser/ui/hover/hover.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
-import { autorun, IObservable, observableValue } from '../../../../../../base/common/observable.js';
+import { IObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { localize } from '../../../../../../nls.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -202,17 +202,17 @@ export class ChatContextUsageWidget extends Disposable {
 		const response = lastRequest.response;
 		const modelId = lastRequest.modelId;
 
-		// Subscribe to response changes to update when the response completes.
-		this._lastRequestDisposable.value = autorun(reader => {
-			const isComplete = !response.isInProgress.read(reader);
-			if (isComplete) {
-				this.updateFromResponse(response, modelId);
-			}
+		// Update immediately if usage data is already available
+		this.updateFromResponse(response, modelId);
+
+		// Subscribe to response changes to update whenever usage data changes
+		this._lastRequestDisposable.value = response.onDidChange(() => {
+			this.updateFromResponse(response, modelId);
 		});
 	}
 
 	private updateFromResponse(response: IChatResponseModel, modelId: string): void {
-		const usage = response.result?.usage;
+		const usage = response.usage;
 		const modelMetadata = this.languageModelsService.lookupLanguageModel(modelId);
 		const maxInputTokens = modelMetadata?.maxInputTokens;
 

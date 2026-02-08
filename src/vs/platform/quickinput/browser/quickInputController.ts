@@ -236,8 +236,10 @@ export class QuickInputController extends Disposable {
 				const activeDescendant = list.getActiveDescendant();
 				if (activeDescendant) {
 					inputBox.setAttribute('aria-activedescendant', activeDescendant);
+					inputBox.setListFocusMode(true);
 				} else {
 					inputBox.removeAttribute('aria-activedescendant');
+					inputBox.setListFocusMode(false);
 				}
 			}
 		}));
@@ -280,8 +282,10 @@ export class QuickInputController extends Disposable {
 				const activeDescendant = tree.getActiveDescendant();
 				if (activeDescendant) {
 					inputBox.setAttribute('aria-activedescendant', activeDescendant);
+					inputBox.setListFocusMode(true);
 				} else {
 					inputBox.removeAttribute('aria-activedescendant');
+					inputBox.setListFocusMode(false);
 				}
 			}
 		}));
@@ -341,6 +345,8 @@ export class QuickInputController extends Disposable {
 			// See: https://github.com/microsoft/vscode/issues/271032
 			if (!isModifierKey(e.keyCode)) {
 				inputBox.removeAttribute('aria-activedescendant');
+				// Reset ARIA popup mode to allow normal text editing with arrow keys
+				inputBox.setListFocusMode(false);
 			}
 		}));
 		this._register(dom.addDisposableListener(container, dom.EventType.FOCUS, (e: FocusEvent) => {

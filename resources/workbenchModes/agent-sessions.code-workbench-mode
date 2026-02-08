@@ -23,5 +23,6 @@
 		"workbench.startupEditor": "none",
 		"workbench.tips.enabled": false,
 		"workbench.layoutControl.type": "toggles",
+		"workbench.activityBar.autoHide": true
 	}
 }

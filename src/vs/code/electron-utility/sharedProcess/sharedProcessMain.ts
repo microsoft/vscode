@@ -132,6 +132,8 @@ import { McpManagementChannel } from '../../../platform/mcp/common/mcpManagement
 import { AllowedMcpServersService } from '../../../platform/mcp/common/allowedMcpServersService.js';
 import { IMcpGalleryManifestService } from '../../../platform/mcp/common/mcpGalleryManifest.js';
 import { McpGalleryManifestIPCService } from '../../../platform/mcp/common/mcpGalleryManifestServiceIpc.js';
+import { IMeteredConnectionService } from '../../../platform/meteredConnection/common/meteredConnection.js';
+import { MeteredConnectionChannelClient, METERED_CONNECTION_CHANNEL } from '../../../platform/meteredConnection/common/meteredConnectionIpc.js';
 
 class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 
@@ -295,6 +297,10 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 		const nativeHostService = new NativeHostService(-1 /* we are not running in a browser window context */, mainProcessService) as INativeHostService;
 		services.set(INativeHostService, nativeHostService);
 
+		// Metered Connection
+		const meteredConnectionService = this._register(new MeteredConnectionChannelClient(mainProcessService.getChannel(METERED_CONNECTION_CHANNEL)));
+		services.set(IMeteredConnectionService, meteredConnectionService);
+
 		// Download
 		services.set(IDownloadService, new SyncDescriptor(DownloadService, undefined, true));
 
@@ -321,6 +327,7 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 				commonProperties: resolveCommonProperties(release(), hostname(), process.arch, productService.commit, productService.version, this.configuration.machineId, this.configuration.sqmId, this.configuration.devDeviceId, internalTelemetry, productService.date),
 				sendErrorTelemetry: true,
 				piiPaths: getPiiPathsFromEnvironment(environmentService),
+				meteredConnectionService,
 			}, configurationService, productService);
 		} else {
 			telemetryService = NullTelemetryService;

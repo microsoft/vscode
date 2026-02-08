@@ -117,10 +117,10 @@ export class DebugService implements IDebugService {
 	) {
 		this.breakpointsToSendOnResourceSaved = new Set<URI>();
 
-		this._onDidChangeState = new Emitter<State>();
-		this._onDidNewSession = new Emitter<IDebugSession>();
-		this._onWillNewSession = new Emitter<IDebugSession>();
-		this._onDidEndSession = new Emitter();
+		this._onDidChangeState = this.disposables.add(new Emitter<State>());
+		this._onDidNewSession = this.disposables.add(new Emitter<IDebugSession>());
+		this._onWillNewSession = this.disposables.add(new Emitter<IDebugSession>());
+		this._onDidEndSession = this.disposables.add(new Emitter());
 
 		this.adapterManager = this.instantiationService.createInstance(AdapterManager, {
 			onDidNewSession: this.onDidNewSession,

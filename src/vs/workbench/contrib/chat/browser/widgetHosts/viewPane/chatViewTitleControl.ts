@@ -84,8 +84,10 @@ export class ChatViewTitleControl extends Disposable {
 
 	private render(parent: HTMLElement): void {
 		const elements = h('div.chat-view-title-container', [
-			h('div.chat-view-title-navigation-toolbar@navigationToolbar'),
-			h('div.chat-view-title-actions-toolbar@actionsToolbar'),
+			h('div.chat-view-title-inner', [
+				h('div.chat-view-title-navigation-toolbar@navigationToolbar'),
+				h('div.chat-view-title-actions-toolbar@actionsToolbar'),
+			]),
 		]);
 
 		// Toolbar on the left

@@ -12,10 +12,12 @@ import { TestConfigurationService } from '../../../../../../../platform/configur
 import { RunSubagentTool } from '../../../../common/tools/builtinTools/runSubagentTool.js';
 import { MockLanguageModelToolsService } from '../mockLanguageModelToolsService.js';
 import { IChatAgentService } from '../../../../common/participants/chatAgents.js';
-import { IChatModeService } from '../../../../common/chatModes.js';
 import { IChatService } from '../../../../common/chatService/chatService.js';
-import { ILanguageModelsService } from '../../../../common/languageModels.js';
+import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../common/languageModels.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
+import { ICustomAgent, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
+import { MockPromptsService } from '../../promptSyntax/service/mockPromptsService.js';
+import { ExtensionIdentifier } from '../../../../../../../platform/extensions/common/extensions.js';
 
 suite('RunSubagentTool', () => {
 	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -45,15 +47,27 @@ suite('RunSubagentTool', () => {
 			const mockToolsService = testDisposables.add(new MockLanguageModelToolsService());
 			const configService = new TestConfigurationService();
 
+			const promptsService = new MockPromptsService();
+			const customMode: ICustomAgent = {
+				uri: URI.parse('file:///test/custom-agent.md'),
+				name: 'CustomAgent',
+				description: 'A test custom agent',
+				tools: ['tool1', 'tool2'],
+				agentInstructions: { content: 'Custom agent body', toolReferences: [] },
+				source: { storage: PromptsStorage.local },
+				visibility: { userInvokable: true, agentInvokable: true }
+			};
+			promptsService.setCustomModes([customMode]);
+
 			const tool = testDisposables.add(new RunSubagentTool(
 				{} as IChatAgentService,
 				{} as IChatService,
-				{} as IChatModeService,
 				mockToolsService,
 				{} as ILanguageModelsService,
 				new NullLogService(),
 				mockToolsService,
 				configService,
+				promptsService,
 				{} as IInstantiationService,
 			));
 
@@ -64,6 +78,7 @@ suite('RunSubagentTool', () => {
 						description: 'Test task',
 						agentName: 'CustomAgent',
 					},
+					toolCallId: 'test-call-1',
 					chatSessionResource: URI.parse('test://session'),
 				},
 				CancellationToken.None
@@ -76,6 +91,7 @@ suite('RunSubagentTool', () => {
 				description: 'Test task',
 				agentName: 'CustomAgent',
 				prompt: 'Test prompt',
+				modelName: undefined,
 			});
 		});
 	});
@@ -84,16 +100,17 @@ suite('RunSubagentTool', () => {
 		test('returns basic tool data', () => {
 			const mockToolsService = testDisposables.add(new MockLanguageModelToolsService());
 			const configService = new TestConfigurationService();
+			const promptsService = new MockPromptsService();
 
 			const tool = testDisposables.add(new RunSubagentTool(
 				{} as IChatAgentService,
 				{} as IChatService,
-				{} as IChatModeService,
 				mockToolsService,
 				{} as ILanguageModelsService,
 				new NullLogService(),
 				mockToolsService,
 				configService,
+				promptsService,
 				{} as IInstantiationService,
 			));
 
@@ -111,16 +128,17 @@ suite('RunSubagentTool', () => {
 			const configService = new TestConfigurationService({
 				'chat.customAgentInSubagent.enabled': true,
 			});
+			const promptsService = new MockPromptsService();
 
 			const tool = testDisposables.add(new RunSubagentTool(
 				{} as IChatAgentService,
 				{} as IChatService,
-				{} as IChatModeService,
 				mockToolsService,
 				{} as ILanguageModelsService,
 				new NullLogService(),
 				mockToolsService,
 				configService,
+				promptsService,
 				{} as IInstantiationService,
 			));
 
@@ -191,6 +209,278 @@ suite('RunSubagentTool', () => {
 
 			// Only the matching event should be captured
 			assert.deepStrictEqual(matchingEvents, ['matching-tool']);
+		});
+	});
+
+	suite('model fallback behavior', () => {
+		function createMetadata(name: string, multiplierNumeric?: number): ILanguageModelChatMetadata {
+			return {
+				extension: new ExtensionIdentifier('test.extension'),
+				name,
+				id: name.toLowerCase().replace(/\s+/g, '-'),
+				vendor: 'TestVendor',
+				version: '1.0',
+				family: 'test',
+				maxInputTokens: 128000,
+				maxOutputTokens: 8192,
+				isDefaultForLocation: {},
+				modelPickerCategory: undefined,
+				multiplierNumeric,
+			};
+		}
+
+		function createTool(opts: {
+			models: Map<string, ILanguageModelChatMetadata>;
+			qualifiedNameMap?: Map<string, ILanguageModelChatMetadataAndIdentifier>;
+			customAgents?: ICustomAgent[];
+		}) {
+			const mockToolsService = testDisposables.add(new MockLanguageModelToolsService());
+			const configService = new TestConfigurationService();
+			const promptsService = new MockPromptsService();
+			if (opts.customAgents) {
+				promptsService.setCustomModes(opts.customAgents);
+			}
+
+			const mockLanguageModelsService: Partial<ILanguageModelsService> = {
+				lookupLanguageModel(modelId: string) {
+					return opts.models.get(modelId);
+				},
+				lookupLanguageModelByQualifiedName(qualifiedName: string) {
+					return opts.qualifiedNameMap?.get(qualifiedName);
+				},
+			};
+
+			const tool = testDisposables.add(new RunSubagentTool(
+				{} as IChatAgentService,
+				{} as IChatService,
+				mockToolsService,
+				mockLanguageModelsService as ILanguageModelsService,
+				new NullLogService(),
+				mockToolsService,
+				configService,
+				promptsService,
+				{} as IInstantiationService,
+			));
+
+			return tool;
+		}
+
+		function createAgent(name: string, modelQualifiedNames?: string[]): ICustomAgent {
+			return {
+				uri: URI.parse(`file:///test/${name}.md`),
+				name,
+				description: `Agent ${name}`,
+				tools: ['tool1'],
+				model: modelQualifiedNames,
+				agentInstructions: { content: 'test', toolReferences: [] },
+				source: { storage: PromptsStorage.local },
+				visibility: { userInvokable: true, agentInvokable: true }
+			};
+		}
+
+		test('falls back to main model when subagent model has higher multiplier', async () => {
+			const mainMeta = createMetadata('GPT-4o', 1);
+			const expensiveMeta = createMetadata('O3 Pro', 50);
+			const models = new Map([
+				['main-model-id', mainMeta],
+				['expensive-model-id', expensiveMeta],
+			]);
+			const qualifiedNameMap = new Map([
+				['O3 Pro (TestVendor)', { metadata: expensiveMeta, identifier: 'expensive-model-id' }],
+			]);
+
+			const agent = createAgent('ExpensiveAgent', ['O3 Pro (TestVendor)']);
+			const tool = createTool({ models, qualifiedNameMap, customAgents: [agent] });
+
+			const result = await tool.prepareToolInvocation({
+				parameters: { prompt: 'test', description: 'test task', agentName: 'ExpensiveAgent' },
+				toolCallId: 'call-1',
+				modelId: 'main-model-id',
+				chatSessionResource: URI.parse('test://session'),
+			}, CancellationToken.None);
+
+			assert.ok(result);
+			// Should fall back to the main model's name, not the expensive model
+			assert.deepStrictEqual(result.toolSpecificData, {
+				kind: 'subagent',
+				description: 'test task',
+				agentName: 'ExpensiveAgent',
+				prompt: 'test',
+				modelName: 'GPT-4o',
+			});
+		});
+
+		test('uses subagent model when it has equal multiplier', async () => {
+			const mainMeta = createMetadata('GPT-4o', 1);
+			const sameCostMeta = createMetadata('Claude Sonnet', 1);
+			const models = new Map([
+				['main-model-id', mainMeta],
+				['same-cost-model-id', sameCostMeta],
+			]);
+			const qualifiedNameMap = new Map([
+				['Claude Sonnet (TestVendor)', { metadata: sameCostMeta, identifier: 'same-cost-model-id' }],
+			]);
+
+			const agent = createAgent('SameCostAgent', ['Claude Sonnet (TestVendor)']);
+			const tool = createTool({ models, qualifiedNameMap, customAgents: [agent] });
+
+			const result = await tool.prepareToolInvocation({
+				parameters: { prompt: 'test', description: 'test task', agentName: 'SameCostAgent' },
+				toolCallId: 'call-2',
+				modelId: 'main-model-id',
+				chatSessionResource: URI.parse('test://session'),
+			}, CancellationToken.None);
+
+			assert.ok(result);
+			assert.deepStrictEqual(result.toolSpecificData, {
+				kind: 'subagent',
+				description: 'test task',
+				agentName: 'SameCostAgent',
+				prompt: 'test',
+				modelName: 'Claude Sonnet',
+			});
+		});
+
+		test('uses subagent model when it has lower multiplier', async () => {
+			const mainMeta = createMetadata('O3 Pro', 50);
+			const cheapMeta = createMetadata('GPT-4o Mini', 0.25);
+			const models = new Map([
+				['main-model-id', mainMeta],
+				['cheap-model-id', cheapMeta],
+			]);
+			const qualifiedNameMap = new Map([
+				['GPT-4o Mini (TestVendor)', { metadata: cheapMeta, identifier: 'cheap-model-id' }],
+			]);
+
+			const agent = createAgent('CheapAgent', ['GPT-4o Mini (TestVendor)']);
+			const tool = createTool({ models, qualifiedNameMap, customAgents: [agent] });
+
+			const result = await tool.prepareToolInvocation({
+				parameters: { prompt: 'test', description: 'test task', agentName: 'CheapAgent' },
+				toolCallId: 'call-3',
+				modelId: 'main-model-id',
+				chatSessionResource: URI.parse('test://session'),
+			}, CancellationToken.None);
+
+			assert.ok(result);
+			assert.deepStrictEqual(result.toolSpecificData, {
+				kind: 'subagent',
+				description: 'test task',
+				agentName: 'CheapAgent',
+				prompt: 'test',
+				modelName: 'GPT-4o Mini',
+			});
+		});
+
+		test('uses subagent model when main model has no multiplier', async () => {
+			const mainMeta = createMetadata('Unknown Model', undefined);
+			const subMeta = createMetadata('O3 Pro', 50);
+			const models = new Map([
+				['main-model-id', mainMeta],
+				['sub-model-id', subMeta],
+			]);
+			const qualifiedNameMap = new Map([
+				['O3 Pro (TestVendor)', { metadata: subMeta, identifier: 'sub-model-id' }],
+			]);
+
+			const agent = createAgent('SubAgent', ['O3 Pro (TestVendor)']);
+			const tool = createTool({ models, qualifiedNameMap, customAgents: [agent] });
+
+			const result = await tool.prepareToolInvocation({
+				parameters: { prompt: 'test', description: 'test task', agentName: 'SubAgent' },
+				toolCallId: 'call-4',
+				modelId: 'main-model-id',
+				chatSessionResource: URI.parse('test://session'),
+			}, CancellationToken.None);
+
+			assert.ok(result);
+			// No fallback when main model's multiplier is unknown
+			assert.deepStrictEqual(result.toolSpecificData, {
+				kind: 'subagent',
+				description: 'test task',
+				agentName: 'SubAgent',
+				prompt: 'test',
+				modelName: 'O3 Pro',
+			});
+		});
+
+		test('uses subagent model when subagent model has no multiplier', async () => {
+			const mainMeta = createMetadata('GPT-4o', 1);
+			const subMeta = createMetadata('Custom Model', undefined);
+			const models = new Map([
+				['main-model-id', mainMeta],
+				['sub-model-id', subMeta],
+			]);
+			const qualifiedNameMap = new Map([
+				['Custom Model (TestVendor)', { metadata: subMeta, identifier: 'sub-model-id' }],
+			]);
+
+			const agent = createAgent('CustomAgent', ['Custom Model (TestVendor)']);
+			const tool = createTool({ models, qualifiedNameMap, customAgents: [agent] });
+
+			const result = await tool.prepareToolInvocation({
+				parameters: { prompt: 'test', description: 'test task', agentName: 'CustomAgent' },
+				toolCallId: 'call-5',
+				modelId: 'main-model-id',
+				chatSessionResource: URI.parse('test://session'),
+			}, CancellationToken.None);
+
+			assert.ok(result);
+			// No fallback when subagent model's multiplier is unknown
+			assert.deepStrictEqual(result.toolSpecificData, {
+				kind: 'subagent',
+				description: 'test task',
+				agentName: 'CustomAgent',
+				prompt: 'test',
+				modelName: 'Custom Model',
+			});
+		});
+
+		test('uses main model when no subagent is specified', async () => {
+			const mainMeta = createMetadata('GPT-4o', 1);
+			const models = new Map([['main-model-id', mainMeta]]);
+
+			const tool = createTool({ models });
+
+			const result = await tool.prepareToolInvocation({
+				parameters: { prompt: 'test', description: 'test task' },
+				toolCallId: 'call-6',
+				modelId: 'main-model-id',
+				chatSessionResource: URI.parse('test://session'),
+			}, CancellationToken.None);
+
+			assert.ok(result);
+			assert.deepStrictEqual(result.toolSpecificData, {
+				kind: 'subagent',
+				description: 'test task',
+				agentName: undefined,
+				prompt: 'test',
+				modelName: 'GPT-4o',
+			});
+		});
+
+		test('uses main model when subagent has no model configured', async () => {
+			const mainMeta = createMetadata('GPT-4o', 1);
+			const models = new Map([['main-model-id', mainMeta]]);
+
+			const agent = createAgent('NoModelAgent', undefined);
+			const tool = createTool({ models, customAgents: [agent] });
+
+			const result = await tool.prepareToolInvocation({
+				parameters: { prompt: 'test', description: 'test task', agentName: 'NoModelAgent' },
+				toolCallId: 'call-7',
+				modelId: 'main-model-id',
+				chatSessionResource: URI.parse('test://session'),
+			}, CancellationToken.None);
+
+			assert.ok(result);
+			assert.deepStrictEqual(result.toolSpecificData, {
+				kind: 'subagent',
+				description: 'test task',
+				agentName: 'NoModelAgent',
+				prompt: 'test',
+				modelName: 'GPT-4o',
+			});
 		});
 	});
 });

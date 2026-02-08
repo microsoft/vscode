@@ -16,7 +16,7 @@ import { ServicesAccessor } from '../../../../../platform/instantiation/common/i
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { migrateLegacyTerminalToolSpecificData } from '../../common/chat.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { IChatExtensionsContent, IChatPullRequestContent, IChatSubagentToolInvocationData, IChatTerminalToolInvocationData, IChatTodoListContent, IChatToolInputInvocationData, IChatToolInvocation, ILegacyChatTerminalToolInvocationData, IToolResultOutputDetailsSerialized, isLegacyChatTerminalToolInvocationData } from '../../common/chatService/chatService.js';
+import { IChatExtensionsContent, IChatPullRequestContent, IChatSimpleToolInvocationData, IChatSubagentToolInvocationData, IChatTerminalToolInvocationData, IChatTodoListContent, IChatToolInputInvocationData, IChatToolInvocation, IChatToolResourcesInvocationData, ILegacyChatTerminalToolInvocationData, IToolResultOutputDetailsSerialized, isLegacyChatTerminalToolInvocationData } from '../../common/chatService/chatService.js';
 import { isResponseVM } from '../../common/model/chatViewModel.js';
 import { IToolResultInputOutputDetails, IToolResultOutputDetails, isToolResultInputOutputDetails, isToolResultOutputDetails, toolContentToA11yString } from '../../common/tools/languageModelToolsService.js';
 import { ChatTreeItem, IChatWidget, IChatWidgetService } from '../chat.js';
@@ -48,7 +48,7 @@ export class ChatResponseAccessibleView implements IAccessibleViewImplementation
 	}
 }
 
-type ToolSpecificData = IChatTerminalToolInvocationData | ILegacyChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent | IChatSubagentToolInvocationData;
+type ToolSpecificData = IChatTerminalToolInvocationData | ILegacyChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData | IChatToolResourcesInvocationData;
 type ResultDetails = Array<URI | Location> | IToolResultInputOutputDetails | IToolResultOutputDetails | IToolResultOutputDetailsSerialized;
 
 function isOutputDetailsSerialized(obj: unknown): obj is IToolResultOutputDetailsSerialized {
@@ -102,6 +102,27 @@ export function getToolSpecificDataDescription(toolSpecificData: ToolSpecificDat
 			return typeof toolSpecificData.rawInput === 'string'
 				? toolSpecificData.rawInput
 				: JSON.stringify(toolSpecificData.rawInput);
+		case 'resources': {
+			const values = toolSpecificData.values;
+			if (values.length === 0) {
+				return '';
+			}
+			const paths = values.map(v => {
+				if ('uri' in v && 'range' in v) {
+					// Location
+					return `${v.uri.fsPath || v.uri.path}:${v.range.startLineNumber}`;
+				} else {
+					// URI
+					return v.fsPath || v.path;
+				}
+			}).join(', ');
+			return localize('resourcesList', "Resources: {0}", paths);
+		}
+		case 'simpleToolInvocation': {
+			const inputText = toolSpecificData.input;
+			const outputText = toolSpecificData.output;
+			return localize('simpleToolInvocation', "Input: {0}, Output: {1}", inputText, outputText);
+		}
 		default:
 			return '';
 	}

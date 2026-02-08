@@ -750,6 +750,7 @@ suite('AgentSessions', () => {
 
 	suite('AgentSessionsFilter', () => {
 		const disposables = new DisposableStore();
+		const storageKey = 'agentSessions.filterExcludes.agentsessionsviewerfiltersubmenu';
 		let mockChatSessionsService: MockChatSessionsService;
 		let instantiationService: TestInstantiationService;
 
@@ -788,7 +789,7 @@ suite('AgentSessions', () => {
 				{ filterMenuId: MenuId.ViewTitle }
 			));
 
-			// Default: archived sessions should NOT be excluded (archived: false by default)
+			// Default: archived sessions should NOT be excluded unless grouped by capped
 			const archivedSession = createSession({
 				isArchived: () => true
 			});
@@ -827,7 +828,7 @@ suite('AgentSessions', () => {
 				states: [],
 				archived: false
 			};
-			storageService.store(`agentSessions.filterExcludes.${MenuId.ViewTitle.id.toLowerCase()}`, JSON.stringify(excludes), StorageScope.PROFILE, StorageTarget.USER);
+			storageService.store(storageKey, JSON.stringify(excludes), StorageScope.PROFILE, StorageTarget.USER);
 
 			// After excluding type-1, session1 should be filtered but not session2
 			assert.strictEqual(filter.exclude(session1), true);
@@ -851,14 +852,14 @@ suite('AgentSessions', () => {
 				states: [],
 				archived: false
 			};
-			storageService.store(`agentSessions.filterExcludes.${MenuId.ViewTitle.id.toLowerCase()}`, JSON.stringify(excludes), StorageScope.PROFILE, StorageTarget.USER);
+			storageService.store(storageKey, JSON.stringify(excludes), StorageScope.PROFILE, StorageTarget.USER);
 
 			assert.strictEqual(filter.exclude(session1), true);
 			assert.strictEqual(filter.exclude(session2), true);
 			assert.strictEqual(filter.exclude(session3), false);
 		});
 
-		test('should filter not out archived sessions', () => {
+		test('should not exclude archived sessions when not capped', () => {
 			const storageService = instantiationService.get(IStorageService);
 			const filter = disposables.add(instantiationService.createInstance(
 				AgentSessionsFilter,
@@ -875,7 +876,7 @@ suite('AgentSessions', () => {
 				isArchived: () => false
 			});
 
-			// By default, archived sessions should NOT be filtered (archived: false in default excludes)
+			// By default, archived sessions should NOT be filtered when not capped
 			assert.strictEqual(filter.exclude(archivedSession), false);
 			assert.strictEqual(filter.exclude(activeSession), false);
 
@@ -885,9 +886,9 @@ suite('AgentSessions', () => {
 				states: [],
 				archived: true
 			};
-			storageService.store(`agentSessions.filterExcludes.${MenuId.ViewTitle.id.toLowerCase()}`, JSON.stringify(excludes), StorageScope.PROFILE, StorageTarget.USER);
+			storageService.store(storageKey, JSON.stringify(excludes), StorageScope.PROFILE, StorageTarget.USER);
 
-			// After excluding archived, only archived session should be filtered
+			// Archived exclusion only applies when grouped by capped
 			assert.strictEqual(filter.exclude(archivedSession), false);
 			assert.strictEqual(filter.exclude(activeSession), false);
 		});
@@ -925,7 +926,7 @@ suite('AgentSessions', () => {
 				states: [ChatSessionStatus.Failed],
 				archived: false
 			};
-			storageService.store(`agentSessions.filterExcludes.${MenuId.ViewTitle.id.toLowerCase()}`, JSON.stringify(excludes), StorageScope.PROFILE, StorageTarget.USER);
+			storageService.store(storageKey, JSON.stringify(excludes), StorageScope.PROFILE, StorageTarget.USER);
 
 			// After excluding failed status, only failedSession should be filtered
 			assert.strictEqual(filter.exclude(failedSession), true);
@@ -950,7 +951,7 @@ suite('AgentSessions', () => {
 				states: [ChatSessionStatus.Failed, ChatSessionStatus.InProgress],
 				archived: false
 			};
-			storageService.store(`agentSessions.filterExcludes.${MenuId.ViewTitle.id.toLowerCase()}`, JSON.stringify(excludes), StorageScope.PROFILE, StorageTarget.USER);
+			storageService.store(storageKey, JSON.stringify(excludes), StorageScope.PROFILE, StorageTarget.USER);
 
 			assert.strictEqual(filter.exclude(failedSession), true);
 			assert.strictEqual(filter.exclude(completedSession), false);
@@ -982,7 +983,7 @@ suite('AgentSessions', () => {
 				states: [ChatSessionStatus.Failed],
 				archived: true
 			};
-			storageService.store(`agentSessions.filterExcludes.${MenuId.ViewTitle.id.toLowerCase()}`, JSON.stringify(excludes), StorageScope.PROFILE, StorageTarget.USER);
+			storageService.store(storageKey, JSON.stringify(excludes), StorageScope.PROFILE, StorageTarget.USER);
 
 			// session1 should be excluded for multiple reasons
 			assert.strictEqual(filter.exclude(session1), true);
@@ -1008,7 +1009,7 @@ suite('AgentSessions', () => {
 				states: [],
 				archived: false
 			};
-			storageService.store(`agentSessions.filterExcludes.${MenuId.ViewTitle.id.toLowerCase()}`, JSON.stringify(excludes), StorageScope.PROFILE, StorageTarget.USER);
+			storageService.store(storageKey, JSON.stringify(excludes), StorageScope.PROFILE, StorageTarget.USER);
 
 			assert.strictEqual(changeEventFired, true);
 		});
@@ -1031,7 +1032,7 @@ suite('AgentSessions', () => {
 				states: [],
 				archived: false
 			};
-			storageService.store(`agentSessions.filterExcludes.${MenuId.ViewTitle.id.toLowerCase()}`, JSON.stringify(excludes), StorageScope.PROFILE, StorageTarget.USER);
+			storageService.store(storageKey, JSON.stringify(excludes), StorageScope.PROFILE, StorageTarget.USER);
 
 			// Should now be excluded
 			assert.strictEqual(filter.exclude(session), true);
@@ -1096,7 +1097,7 @@ suite('AgentSessions', () => {
 				states: [],
 				archived: false
 			};
-			storageService.store(`agentSessions.filterExcludes.${MenuId.ViewTitle.id.toLowerCase()}`, JSON.stringify(excludes), StorageScope.PROFILE, StorageTarget.USER);
+			storageService.store(storageKey, JSON.stringify(excludes), StorageScope.PROFILE, StorageTarget.USER);
 
 			// Nothing should be excluded
 			assert.strictEqual(filter.exclude(session), false);
@@ -1117,7 +1118,7 @@ suite('AgentSessions', () => {
 				states: [],
 				archived: false
 			};
-			storageService.store(`agentSessions.filterExcludes.${MenuId.ViewTitle.id.toLowerCase()}`, JSON.stringify(excludes), StorageScope.PROFILE, StorageTarget.USER);
+			storageService.store(storageKey, JSON.stringify(excludes), StorageScope.PROFILE, StorageTarget.USER);
 
 			assert.strictEqual(filter.exclude(session), false);
 		});
@@ -1144,19 +1145,19 @@ suite('AgentSessions', () => {
 				states: [],
 				archived: false
 			};
-			storageService.store(`agentSessions.filterExcludes.${MenuId.ViewTitle.id.toLowerCase()}`, JSON.stringify(excludes), StorageScope.PROFILE, StorageTarget.USER);
+			storageService.store(storageKey, JSON.stringify(excludes), StorageScope.PROFILE, StorageTarget.USER);
 
 			// filter1 should exclude the session
 			assert.strictEqual(filter1.exclude(session), true);
-			// filter2 should not exclude the session (different storage key)
-			assert.strictEqual(filter2.exclude(session), false);
+			// filter2 should also exclude the session (shared storage key)
+			assert.strictEqual(filter2.exclude(session), true);
 		});
 
 		test('should handle malformed storage data gracefully', () => {
 			const storageService = instantiationService.get(IStorageService);
 
 			// Store malformed JSON
-			storageService.store(`agentSessions.filterExcludes.${MenuId.ViewTitle.id.toLowerCase()}`, 'invalid json', StorageScope.PROFILE, StorageTarget.USER);
+			storageService.store(storageKey, 'invalid json', StorageScope.PROFILE, StorageTarget.USER);
 
 			// Filter should still be created with default excludes
 			const filter = disposables.add(instantiationService.createInstance(
@@ -1188,7 +1189,7 @@ suite('AgentSessions', () => {
 				states: [ChatSessionStatus.Completed],
 				archived: true
 			};
-			storageService.store(`agentSessions.filterExcludes.${MenuId.ViewTitle.id.toLowerCase()}`, JSON.stringify(excludes), StorageScope.PROFILE, StorageTarget.USER);
+			storageService.store(storageKey, JSON.stringify(excludes), StorageScope.PROFILE, StorageTarget.USER);
 
 			// Should be excluded due to archived (checked first)
 			assert.strictEqual(filter.exclude(session), true);
@@ -1211,7 +1212,7 @@ suite('AgentSessions', () => {
 				states: [ChatSessionStatus.Completed, ChatSessionStatus.InProgress, ChatSessionStatus.Failed],
 				archived: false
 			};
-			storageService.store(`agentSessions.filterExcludes.${MenuId.ViewTitle.id.toLowerCase()}`, JSON.stringify(excludes), StorageScope.PROFILE, StorageTarget.USER);
+			storageService.store(storageKey, JSON.stringify(excludes), StorageScope.PROFILE, StorageTarget.USER);
 
 			assert.strictEqual(filter.exclude(completedSession), true);
 			assert.strictEqual(filter.exclude(inProgressSession), true);
@@ -1393,7 +1394,7 @@ suite('AgentSessions', () => {
 			instantiationService.stub(IChatSessionsService, mockChatSessionsService);
 			instantiationService.stub(ILifecycleService, disposables.add(new TestLifecycleService()));
 			const storageService = instantiationService.get(IStorageService);
-			storageService.store('agentSessions.readDateBaseline', 1, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+			storageService.store('agentSessions.readDateBaseline2', 1, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		});
 
 		teardown(() => {

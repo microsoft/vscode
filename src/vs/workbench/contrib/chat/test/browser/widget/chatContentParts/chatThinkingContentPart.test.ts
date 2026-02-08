@@ -25,7 +25,6 @@ import { ThinkingDisplayMode } from '../../../../common/constants.js';
 import { CodeBlockModelCollection } from '../../../../common/widget/codeBlockModelCollection.js';
 import { EditorPool, DiffEditorPool } from '../../../../browser/widget/chatContentParts/chatContentCodePools.js';
 import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
-import { ChatTreeItem } from '../../../../browser/chat.js';
 import { ILanguageModelsService } from '../../../../common/languageModels.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 
@@ -49,7 +48,7 @@ suite('ChatThinkingContentPart', () => {
 		};
 
 		return {
-			element: mockElement as ChatTreeItem,
+			element: mockElement as IChatResponseViewModel,
 			elementIndex: 0,
 			container: mainWindow.document.createElement('div'),
 			content: [],

@@ -447,6 +447,24 @@ export function sortExtensionVersions(versions: IRawGalleryExtensionVersion[], p
 	return versions;
 }
 
+/**
+ * Filters extension versions to return only the relevant versions for a given target platform.
+ *
+ * This function processes a list of extension versions (expected to be sorted by version descending)
+ * and returns a filtered list containing:
+ * 1. All versions that are NOT compatible with the target platform (for other platforms)
+ * 2. At most one compatible release version (the first/latest one encountered)
+ * 3. At most one compatible pre-release version (the first/latest one encountered)
+ *
+ * When a platform-specific version (exactly matching targetPlatform) is encountered with the same
+ * version number as a previously stored universal/undefined version, it replaces that version.
+ * This ensures platform-specific builds are preferred over universal builds for the same version.
+ *
+ * @param versions - Array of extension versions, expected to be sorted by version number descending
+ * @param targetPlatform - The target platform to filter for (e.g., LINUX_X64, WIN32_X64)
+ * @param allTargetPlatforms - All target platforms the extension supports
+ * @returns Filtered array of versions relevant for the target platform
+ */
 export function filterLatestExtensionVersionsForTargetPlatform(versions: IRawGalleryExtensionVersion[], targetPlatform: TargetPlatform, allTargetPlatforms: TargetPlatform[]): IRawGalleryExtensionVersion[] {
 	const latestVersions: IRawGalleryExtensionVersion[] = [];
 
@@ -463,19 +481,19 @@ export function filterLatestExtensionVersionsForTargetPlatform(versions: IRawGal
 		}
 
 		// For compatible versions, only include the first (latest) of each type
-		// Prefer specific target platform matches over undefined/universal platforms
+		// Prefer specific target platform matches over undefined/universal platforms only when version numbers are the same
 		if (isPreReleaseVersion(version)) {
 			if (preReleaseVersionIndex === -1) {
 				preReleaseVersionIndex = latestVersions.length;
 				latestVersions.push(version);
-			} else if (versionTargetPlatform === targetPlatform) {
+			} else if (versionTargetPlatform === targetPlatform && latestVersions[preReleaseVersionIndex].version === version.version) {
 				latestVersions[preReleaseVersionIndex] = version;
 			}
 		} else {
 			if (releaseVersionIndex === -1) {
 				releaseVersionIndex = latestVersions.length;
 				latestVersions.push(version);
-			} else if (versionTargetPlatform === targetPlatform) {
+			} else if (versionTargetPlatform === targetPlatform && latestVersions[releaseVersionIndex].version === version.version) {
 				latestVersions[releaseVersionIndex] = version;
 			}
 		}
@@ -1139,8 +1157,23 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 
 		const runQuery = async (query: Query, token: CancellationToken) => {
 			const { extensions, total } = await this.queryGalleryExtensions(query, { targetPlatform: CURRENT_TARGET_PLATFORM, compatible: false, includePreRelease: !!options.includePreRelease, productVersion: options.productVersion ?? { version: this.productService.version, date: this.productService.date } }, extensionGalleryManifest, token);
-			extensions.forEach((e, index) => setTelemetry(e, ((query.pageNumber - 1) * query.pageSize) + index, options.source));
-			return { extensions, total };
+
+			const result: IGalleryExtension[] = [];
+			let defaultChatAgentExtension: IGalleryExtension | undefined;
+			for (let index = 0; index < extensions.length; index++) {
+				const extension = extensions[index];
+				setTelemetry(extension, ((query.pageNumber - 1) * query.pageSize) + index, options.source);
+				if (areSameExtensions(extension.identifier, { id: this.productService.defaultChatAgent.extensionId, })) {
+					defaultChatAgentExtension = extension;
+				} else {
+					result.push(extension);
+				}
+			}
+			if (defaultChatAgentExtension) {
+				result.push(defaultChatAgentExtension);
+			}
+
+			return { extensions: result, total };
 		};
 		const { extensions, total } = await runQuery(query, token);
 		const getPage = async (pageIndex: number, ct: CancellationToken) => {
@@ -1957,6 +1990,16 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 				}
 			}
 		}
+
+		deprecated[this.productService.defaultChatAgent.extensionId.toLowerCase()] = {
+			disallowInstall: true,
+			extension: {
+				id: this.productService.defaultChatAgent.chatExtensionId,
+				displayName: 'GitHub Copilot Chat',
+				autoMigrate: { storage: false, donotDisable: true },
+				preRelease: this.productService.quality !== 'stable'
+			}
+		};
 
 		return { malicious, deprecated, search, autoUpdate };
 	}

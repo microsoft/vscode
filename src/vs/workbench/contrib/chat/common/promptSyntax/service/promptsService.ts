@@ -14,6 +14,7 @@ import { IChatModeInstructions, IVariableReference } from '../../chatModes.js';
 import { PromptsType } from '../promptTypes.js';
 import { IHandOff, ParsedPromptFile } from '../promptFileParser.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
+import { IChatRequestHooks } from '../hookSchema.js';
 import { IResolvedPromptSourceFolder } from '../config/promptFileLocations.js';
 
 /**
@@ -123,23 +124,17 @@ export type IAgentSource = {
  * - 'agent': only usable as subagent by the subagent tool
  * - 'hidden': neither in picker nor usable as subagent
  */
-export type InferValue = 'all' | 'user' | 'agent' | 'hidden';
+export type ICustomAgentVisibility = {
+	readonly userInvokable: boolean;
+	readonly agentInvokable: boolean;
+};
 
-/**
- * Parses an infer value from the raw header value.
- * Boolean true maps to 'all', false maps to 'user'.
- */
-export function parseInferValue(value: boolean | string | undefined): InferValue | undefined {
-	if (value === undefined) {
-		return undefined;
+export function isCustomAgentVisibility(obj: unknown): obj is ICustomAgentVisibility {
+	if (typeof obj !== 'object' || obj === null) {
+		return false;
 	}
-	if (typeof value === 'boolean') {
-		return value ? 'all' : 'user';
-	}
-	if (value === 'all' || value === 'user' || value === 'agent' || value === 'hidden') {
-		return value;
-	}
-	return undefined;
+	const v = obj as { userInvokable?: unknown; agentInvokable?: unknown };
+	return typeof v.userInvokable === 'boolean' && typeof v.agentInvokable === 'boolean';
 }
 
 export interface ICustomAgent {
@@ -179,13 +174,9 @@ export interface ICustomAgent {
 	readonly target?: string;
 
 	/**
-	 * Infer metadata controlling agent visibility.
-	 * - 'all': available as custom agent in picker AND can be used as subagent
-	 * - 'user': only available in the custom agent picker
-	 * - 'agent': only usable as subagent by the subagent tool
-	 * - 'hidden': neither in picker nor usable as subagent
+	 * What visibility the agent has (user invokable, subagent invokable).
 	 */
-	readonly infer?: InferValue;
+	readonly visibility: ICustomAgentVisibility;
 
 	/**
 	 * Contents of the custom agent file body and other agent instructions.
@@ -228,6 +219,42 @@ export interface IAgentSkill {
 	readonly storage: PromptsStorage;
 	readonly name: string;
 	readonly description: string | undefined;
+	/**
+	 * If true, the skill should not be automatically loaded by the agent.
+	 * Use for workflows you want to trigger manually with /name.
+	 */
+	readonly disableModelInvocation: boolean;
+	/**
+	 * If false, the skill is hidden from the / menu.
+	 * Use for background knowledge users shouldn't invoke directly.
+	 */
+	readonly userInvokable: boolean;
+}
+
+/**
+ * Type of agent instruction file.
+ */
+export enum AgentFileType {
+	agentsMd = 'agentsMd',
+	claudeMd = 'claudeMd',
+	copilotInstructionsMd = 'copilotInstructionsMd',
+}
+
+/**
+ * Represents a resolved agent instruction file with its real path for duplicate detection.
+ * Used by listAgentInstructions to filter out symlinks pointing to the same file.
+ */
+export interface IResolvedAgentFile {
+	readonly uri: URI;
+	/**
+	 * The real path of the file, if it is a symlink.
+	 */
+	readonly realPath: URI | undefined;
+	readonly type: AgentFileType;
+}
+
+export interface Logger {
+	logInfo(message: string): void;
 }
 
 /**
@@ -256,6 +283,10 @@ export interface IPromptFileDiscoveryResult {
 	readonly duplicateOf?: URI;
 	/** Extension ID if from extension */
 	readonly extensionId?: string;
+	/** If true, the skill is hidden from the / menu (user-invokable: false) */
+	readonly userInvokable?: boolean;
+	/** If true, the skill won't be automatically loaded by the agent (disable-model-invocation: true) */
+	readonly disableModelInvocation?: boolean;
 }
 
 /**
@@ -352,20 +383,15 @@ export interface IPromptsService extends IDisposable {
 	getPromptLocationLabel(promptPath: IPromptPath): string;
 
 	/**
-	 * Gets list of all AGENTS.md files in the workspace.
+	 * Gets list of AGENTS.md files, including optionally nested ones from subfolders.
 	 */
-	findAgentMDsInWorkspace(token: CancellationToken): Promise<URI[]>;
+	listNestedAgentMDs(token: CancellationToken): Promise<IResolvedAgentFile[]>;
 
 	/**
-	 * Gets list of AGENTS.md files.
-	 * @param includeNested Whether to include AGENTS.md files from subfolders, or only from the root.
+	 * Gets combined list of agent instruction files (AGENTS.md, CLAUDE.md, copilot-instructions.md).
+	 * Combines results from listAgentMDs (non-nested), listClaudeMDs, and listCopilotInstructionsMDs.
 	 */
-	listAgentMDs(token: CancellationToken, includeNested: boolean): Promise<URI[]>;
-
-	/**
-	 * Gets list of .github/copilot-instructions.md files.
-	 */
-	listCopilotInstructionsMDs(token: CancellationToken): Promise<URI[]>;
+	listAgentInstructions(token: CancellationToken, logger?: Logger): Promise<IResolvedAgentFile[]>;
 
 	/**
 	 * For a chat mode file URI, return the name of the agent file that it should use.
@@ -406,4 +432,10 @@ export interface IPromptsService extends IDisposable {
 	 * Used for diagnostics and config-info displays.
 	 */
 	getPromptDiscoveryInfo(type: PromptsType, token: CancellationToken): Promise<IPromptDiscoveryInfo>;
+
+	/**
+	 * Gets all hooks collected from hooks.json files.
+	 * The result is cached and invalidated when hook files change.
+	 */
+	getHooks(token: CancellationToken): Promise<IChatRequestHooks | undefined>;
 }

@@ -288,6 +288,11 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 		type: 'boolean',
 		default: false
 	},
+	[TerminalSettingId.TextBlinking]: {
+		description: localize('terminal.integrated.textBlinking', "Controls whether text blinking is enabled in the terminal."),
+		type: 'boolean',
+		default: false
+	},
 	[TerminalSettingId.CursorStyle]: {
 		description: localize('terminal.integrated.cursorStyle', "Controls the style of terminal cursor when the terminal is focused."),
 		enum: ['block', 'line', 'underline'],

@@ -192,6 +192,9 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 			setRequestTools: (requestId, tools) => {
 				this._proxy.$setRequestTools(requestId, tools);
 			},
+			setYieldRequested: (requestId) => {
+				this._proxy.$setYieldRequested(requestId);
+			},
 			provideFollowups: async (request, result, history, token): Promise<IChatFollowup[]> => {
 				if (!this._agents.get(handle)?.hasFollowups) {
 					return [];
@@ -266,12 +269,12 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		const { progress, chatSession } = pendingProgress;
 		const chatProgressParts: IChatProgress[] = [];
 
+		const response = chatSession?.getRequests().find(req => req.id === requestId)?.response;
+
 		for (const item of chunks) {
 			const [progress, responsePartHandle] = Array.isArray(item) ? item : [item];
 
 			if (progress.kind === 'externalEdits') {
-				// todo@connor4312: be more specific here, pass response model through to invocation?
-				const response = chatSession?.getRequests().at(-1)?.response;
 				if (chatSession?.editingSession && responsePartHandle !== undefined && response) {
 					const parts = progress.start
 						? await chatSession.editingSession.startExternalEdits(response, responsePartHandle, revive(progress.resources), progress.undoStopId)
@@ -296,6 +299,18 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 			if (progress.kind === 'updateToolInvocation') {
 				// Update the streaming data for an existing tool invocation
 				this._languageModelToolsService.updateToolStream(progress.toolCallId, progress.streamData?.partialInput, CancellationToken.None);
+				continue;
+			}
+
+			if (progress.kind === 'usage') {
+				if (response) {
+					response.setUsage({
+						kind: 'usage',
+						promptTokens: progress.promptTokens,
+						completionTokens: progress.completionTokens,
+						promptTokenDetails: progress.promptTokenDetails
+					});
+				}
 				continue;
 			}
 

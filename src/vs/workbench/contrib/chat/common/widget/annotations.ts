@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { findLastIdx } from '../../../../../base/common/arraysFind.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { basename } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -18,7 +17,7 @@ export function annotateSpecialMarkdownContent(response: Iterable<IChatProgressR
 
 	const result: IChatProgressRenderableResponseContent[] = [];
 	for (const item of response) {
-		const previousItemIndex = findLastIdx(result, p => p.kind !== 'textEditGroup' && p.kind !== 'undoStop');
+		const previousItemIndex = result.findLastIndex(p => p.kind !== 'textEditGroup' && p.kind !== 'undoStop');
 		const previousItem = result[previousItemIndex];
 		if (item.kind === 'inlineReference') {
 			let label: string | undefined = item.name;
