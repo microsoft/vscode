@@ -2258,16 +2258,14 @@ export class Repository implements Disposable {
 		let pushBranch: string | undefined;
 
 		if (head.name && head.upstream) {
-			pullRemoteName = head.upstream.remote;
+			pullRemoteName = pushRemoteName = head.upstream.remote;
 			pullBranch = `${head.upstream.name}`;
+			pushBranch = `${head.name}:${head.upstream.name}`;
 		}
 
 		if (head.name && head.pushBranch) {
 			pushRemoteName = head.pushBranch.remote;
 			pushBranch = `${head.name}:${head.pushBranch.name}`;
-		} else if (head.name && head.upstream) {
-			pushRemoteName = head.upstream.remote;
-			pushBranch = `${head.name}:${head.upstream.name}`;
 		}
 
 		await this.run(Operation.Sync, async () => {
@@ -2302,14 +2300,13 @@ export class Repository implements Disposable {
 					await fn();
 				}
 
-				const remote = this.remotes.find(r => r.name === pushRemoteName);
+				const pushRemote = this.remotes.find(r => r.name === pushRemoteName);
 
-				if (remote && remote.isReadOnly) {
+				if (pushRemote && pushRemote.isReadOnly) {
 					return;
 				}
 
-				const pushAhead = this.HEAD?.ahead;
-				const shouldPush = this.HEAD && (typeof pushAhead === 'number' ? pushAhead > 0 : true);
+				const shouldPush = this.HEAD && (typeof this.HEAD.ahead === 'number' ? this.HEAD.ahead > 0 : true);
 
 				if (shouldPush) {
 					await this._push(pushRemoteName, pushBranch, false, followTags);
