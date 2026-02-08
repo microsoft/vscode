@@ -8,11 +8,8 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { Schemas } from '../../../../base/common/network.js';
 import * as platform from '../../../../base/common/platform.js';
-import * as resources from '../../../../base/common/resources.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
-import { URI } from '../../../../base/common/uri.js';
 import './links.css';
 import { ICodeEditor, MouseTargetType } from '../../../browser/editorBrowser.js';
 import { EditorAction, EditorContributionInstantiation, registerEditorAction, registerEditorContribution, ServicesAccessor } from '../../../browser/editorExtensions.js';
@@ -27,6 +24,7 @@ import { IFeatureDebounceInformation, ILanguageFeatureDebounceService } from '..
 import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
 import { ClickLinkGesture, ClickLinkKeyboardEvent, ClickLinkMouseEvent } from '../../gotoSymbol/browser/link/clickLinkGesture.js';
 import { getLinks, Link, LinksList } from './getLinks.js';
+import { resolveRelativeFileLink } from './linkDetectorUtils.js';
 import * as nls from '../../../../nls.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
@@ -229,25 +227,8 @@ export class LinkDetector extends Disposable implements IEditorContribution {
 		link.resolve(CancellationToken.None).then(uri => {
 
 			// Support for relative file URIs of the shape file://./relativeFile.txt or file:///./relativeFile.txt
-			if (typeof uri === 'string' && this.editor.hasModel()) {
-				const modelUri = this.editor.getModel().uri;
-				if (modelUri.scheme === Schemas.file && uri.startsWith(`${Schemas.file}:`)) {
-					const parsedUri = URI.parse(uri);
-					if (parsedUri.scheme === Schemas.file) {
-						const fsPath = resources.originalFSPath(parsedUri);
-
-						let relativePath: string | null = null;
-						if (fsPath.startsWith('/./') || fsPath.startsWith('\\.\\')) {
-							relativePath = `.${fsPath.substr(1)}`;
-						} else if (fsPath.startsWith('//./') || fsPath.startsWith('\\\\.\\')) {
-							relativePath = `.${fsPath.substr(2)}`;
-						}
-
-						if (relativePath) {
-							uri = resources.joinPath(modelUri, relativePath);
-						}
-					}
-				}
+			if (this.editor.hasModel()) {
+				uri = resolveRelativeFileLink(uri, this.editor.getModel().uri);
 			}
 
 			return this.openerService.open(uri, { openToSide, fromUserGesture, allowContributedOpeners: true, allowCommands: true, fromWorkspace: true });
