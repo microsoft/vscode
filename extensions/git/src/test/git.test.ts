@@ -10,15 +10,11 @@ import { splitInChunks } from '../util';
 import { getSyncTooltip } from '../repository';
 import { Branch, Remote, RefType } from '../api/git';
 
-function branch(overrides: Partial<Branch> & { name: string; commit?: string; upstream: { remote: string; name: string } }): Branch {
+function branch(fields: Partial<Branch>): Branch {
 	return {
 		type: RefType.Head,
-		name: overrides.name,
-		commit: overrides.commit ?? 'abc123',
-		upstream: overrides.upstream,
-		pushBranch: overrides.pushBranch,
-		ahead: overrides.ahead,
-		behind: overrides.behind
+		commit: 'abc123',
+		...fields
 	};
 }
 
