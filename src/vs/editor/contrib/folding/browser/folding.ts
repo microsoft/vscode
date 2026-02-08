@@ -234,7 +234,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 		}
 
 		this._currentModelHasFoldedImports = false;
-		this.foldingModel = new FoldingModel(model, this.foldingDecorationProvider);
+		this.foldingModel = new FoldingModel(model, this.foldingDecorationProvider, this.editor);
 		this.localToDispose.add(this.foldingModel);
 
 		this.hiddenRangeModel = new HiddenRangeModel(this.foldingModel);

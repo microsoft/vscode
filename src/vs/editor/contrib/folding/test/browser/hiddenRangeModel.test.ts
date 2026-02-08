@@ -10,6 +10,8 @@ import { computeRanges } from '../../browser/indentRangeProvider.js';
 import { createTextModel } from '../../../../test/common/testTextModel.js';
 import { TestDecorationProvider } from './foldingModel.test.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { ICodeEditor } from '../../../../browser/editorBrowser.js';
+import { EditorOption } from '../../../../common/config/editorOptions.js';
 
 
 interface ExpectedRange {
@@ -28,6 +30,17 @@ suite('Hidden Range Model', () => {
 		assert.deepStrictEqual(actual.map(r => ({ startLineNumber: r.startLineNumber, endLineNumber: r.endLineNumber })), expectedRegions, message);
 	}
 
+	function createEditor(foldingAddNewlineAtEnd: boolean = true): ICodeEditor {
+		return {
+			getOption: (option: EditorOption) => {
+				if (option === EditorOption.foldingAddNewlineAtEnd) {
+					return foldingAddNewlineAtEnd;
+				}
+				return undefined;
+			}
+		} as ICodeEditor;
+	}
+
 	test('hasRanges', () => {
 		const lines = [
 		/* 1*/	'/**',
@@ -42,7 +55,7 @@ suite('Hidden Range Model', () => {
 		/* 10*/	'}'];
 
 		const textModel = createTextModel(lines.join('\n'));
-		const foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel));
+		const foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel), createEditor());
 		const hiddenRangeModel = new HiddenRangeModel(foldingModel);
 		try {
 			assert.strictEqual(hiddenRangeModel.hasRanges(), false);

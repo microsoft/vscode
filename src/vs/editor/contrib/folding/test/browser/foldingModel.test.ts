@@ -16,6 +16,8 @@ import { FoldingModel, getNextFoldLine, getParentFoldLine, getPreviousFoldLine, 
 import { FoldingRegion } from '../../browser/foldingRanges.js';
 import { computeRanges } from '../../browser/indentRangeProvider.js';
 import { createTextModel } from '../../../../test/common/testTextModel.js';
+import { ICodeEditor } from '../../../../browser/editorBrowser.js';
+import { EditorOption } from '../../../../common/config/editorOptions.js';
 
 
 interface ExpectedRegion {
@@ -136,6 +138,17 @@ suite('Folding Model', () => {
 		assert.deepStrictEqual(actual.map(r => ({ startLineNumber: r.startLineNumber, endLineNumber: r.endLineNumber, isCollapsed: r.isCollapsed })), expectedRegions, message);
 	}
 
+	function createEditor(foldingAddNewlineAtEnd: boolean = true): ICodeEditor {
+		return {
+			getOption: (option: EditorOption) => {
+				if (option === EditorOption.foldingAddNewlineAtEnd) {
+					return foldingAddNewlineAtEnd;
+				}
+				return undefined;
+			}
+		} as ICodeEditor;
+	}
+
 	test('getRegionAtLine', () => {
 		const lines = [
 		/* 1*/	'/**',
@@ -149,7 +162,7 @@ suite('Folding Model', () => {
 
 		const textModel = createTextModel(lines.join('\n'));
 		try {
-			const foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel));
+			const foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel), createEditor());
 
 			const ranges = computeRanges(textModel, false, undefined);
 			foldingModel.update(ranges);
@@ -188,7 +201,7 @@ suite('Folding Model', () => {
 
 		const textModel = createTextModel(lines.join('\n'));
 		try {
-			const foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel));
+			const foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel), createEditor());
 
 			const ranges = computeRanges(textModel, false, undefined);
 			foldingModel.update(ranges);
@@ -234,7 +247,7 @@ suite('Folding Model', () => {
 
 		const textModel = createTextModel(lines.join('\n'));
 		try {
-			const foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel));
+			const foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel), createEditor());
 
 			const ranges = computeRanges(textModel, false, undefined);
 			foldingModel.update(ranges);
@@ -274,7 +287,7 @@ suite('Folding Model', () => {
 
 		const textModel = createTextModel(lines.join('\n'));
 		try {
-			const foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel));
+			const foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel), createEditor());
 
 			const ranges = computeRanges(textModel, false, undefined);
 			foldingModel.update(ranges);
@@ -311,7 +324,7 @@ suite('Folding Model', () => {
 
 		const textModel = createTextModel(lines.join('\n'));
 		try {
-			const foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel));
+			const foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel), createEditor());
 
 			const ranges = computeRanges(textModel, false, undefined);
 			foldingModel.update(ranges);
@@ -353,7 +366,7 @@ suite('Folding Model', () => {
 		const textModel = createTextModel(lines.join('\n'));
 		try {
 
-			const foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel));
+			const foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel), createEditor());
 
 			const ranges = computeRanges(textModel, false, { start: /^\/\/#region$/, end: /^\/\/#endregion$/ });
 			foldingModel.update(ranges);
@@ -403,7 +416,7 @@ suite('Folding Model', () => {
 
 		const textModel = createTextModel(lines.join('\n'));
 		try {
-			const foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel));
+			const foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel), createEditor());
 
 			const ranges = computeRanges(textModel, false, { start: /^\/\/#region$/, end: /^\/\/#endregion$/ });
 			foldingModel.update(ranges);
@@ -449,7 +462,7 @@ suite('Folding Model', () => {
 
 		const textModel = createTextModel(lines.join('\n'));
 		try {
-			const foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel));
+			const foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel), createEditor());
 
 			const ranges = computeRanges(textModel, false, { start: /^\/\/#region$/, end: /^\/\/#endregion$/ });
 			foldingModel.update(ranges);
@@ -505,7 +518,7 @@ suite('Folding Model', () => {
 
 		const textModel = createTextModel(lines.join('\n'));
 		try {
-			const foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel));
+			const foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel), createEditor());
 
 			const ranges = computeRanges(textModel, false, { start: /^\s*\/\/#region$/, end: /^\s*\/\/#endregion$/ });
 			foldingModel.update(ranges);
@@ -561,7 +574,7 @@ suite('Folding Model', () => {
 
 		const textModel = createTextModel(lines.join('\n'));
 		try {
-			const foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel));
+			const foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel), createEditor());
 
 			const ranges = computeRanges(textModel, false, { start: /^\/\/#region$/, end: /^\/\/#endregion$/ });
 			foldingModel.update(ranges);
@@ -613,7 +626,7 @@ suite('Folding Model', () => {
 
 		const textModel = createTextModel(lines.join('\n'));
 		try {
-			const foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel));
+			const foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel), createEditor());
 
 			const ranges = computeRanges(textModel, false, { start: /^\/\/#region$/, end: /^\/\/#endregion$/ });
 			foldingModel.update(ranges);
@@ -660,7 +673,7 @@ suite('Folding Model', () => {
 
 		const textModel = createTextModel(lines.join('\n'));
 		try {
-			const foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel));
+			const foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel), createEditor());
 
 			const ranges = computeRanges(textModel, false, { start: /^\/\/#region$/, end: /^\/\/#endregion$/ });
 			foldingModel.update(ranges);
@@ -705,7 +718,7 @@ suite('Folding Model', () => {
 
 		const textModel = createTextModel(lines.join('\n'));
 		try {
-			const foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel));
+			const foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel), createEditor());
 
 			const ranges = computeRanges(textModel, false, { start: /^\/\/#region$/, end: /^\/\/#endregion$/ });
 			foldingModel.update(ranges);
@@ -745,7 +758,7 @@ suite('Folding Model', () => {
 
 		const textModel = createTextModel(lines.join('\n'));
 		try {
-			const foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel));
+			const foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel), createEditor());
 
 			const ranges = computeRanges(textModel, false, { start: /^\/\/#region$/, end: /^\/\/#endregion$/ });
 			foldingModel.update(ranges);
@@ -788,7 +801,7 @@ suite('Folding Model', () => {
 
 		const textModel = createTextModel(lines.join('\n'));
 		try {
-			const foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel));
+			const foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel), createEditor());
 
 			const ranges = computeRanges(textModel, false, undefined);
 			foldingModel.update(ranges);
@@ -856,7 +869,7 @@ suite('Folding Model', () => {
 
 		const textModel = createTextModel(lines.join('\n'));
 		try {
-			const foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel));
+			const foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel), createEditor());
 
 			const ranges = computeRanges(textModel, false, undefined);
 			foldingModel.update(ranges);
@@ -913,7 +926,7 @@ suite('Folding Model', () => {
 
 		const textModel = createTextModel(lines.join('\n'));
 		try {
-			const foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel));
+			const foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel), createEditor());
 
 			const ranges = computeRanges(textModel, false, undefined);
 			foldingModel.update(ranges);
@@ -937,6 +950,120 @@ suite('Folding Model', () => {
 			assert.strictEqual(getPreviousFoldLine(4, foldingModel), 2);
 			assert.strictEqual(getPreviousFoldLine(5, foldingModel), 4);
 			assert.strictEqual(getPreviousFoldLine(6, foldingModel), 4);
+		} finally {
+			textModel.dispose();
+		}
+	});
+
+	test('add newline when foldingAddNewlineAtEnd is enabled', () => {
+		const lines = [
+			/* 1*/	'class A:',
+			/* 2*/	'    def foo(self):',
+			/* 3*/	'        return',
+		];
+
+		const textModel = createTextModel(lines.join('\n'));
+		try {
+			const foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel), createEditor(true));
+			const ranges = computeRanges(textModel, false, undefined);
+			foldingModel.update(ranges);
+
+			// Verify initial state
+			assert.strictEqual(textModel.getLineCount(), 3);
+			assert.strictEqual(textModel.getLineContent(1), 'class A:');
+
+			// Fold the outermost region (class A)
+			foldingModel.toggleCollapseState([foldingModel.getRegionAtLine(1)!]);
+			foldingModel.update(ranges);
+
+			// After folding the last line, a newline should be added
+			assert.strictEqual(textModel.getLineCount(), 4, 'Should have added a newline');
+			assert.strictEqual(textModel.getLineContent(4), '', 'New line should be empty');
+		} finally {
+			textModel.dispose();
+		}
+	});
+
+
+	test('no newline when foldingAddNewlineAtEnd is disabled', () => {
+		const lines = [
+			/* 1*/	'class A:',
+			/* 2*/	'    def foo(self):',
+			/* 3*/	'        return',
+		];
+
+		const textModel = createTextModel(lines.join('\n'));
+		try {
+			const foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel), createEditor(false));
+
+			const ranges = computeRanges(textModel, false, undefined);
+			foldingModel.update(ranges);
+
+			// Verify initial state
+			assert.strictEqual(textModel.getLineCount(), 3);
+
+			foldingModel.toggleCollapseState([foldingModel.getRegionAtLine(1)!]);
+			foldingModel.update(ranges);
+
+			assert.strictEqual(textModel.getLineCount(), 3, 'Should not have added a newline');
+		} finally {
+			textModel.dispose();
+		}
+	});
+
+	test('no newline when last line is already empty', () => {
+		const lines = [
+			/* 1*/	'class A:',
+			/* 2*/	'    def foo(self):',
+			/* 3*/	'        return',
+			/* 4*/	'',
+		];
+
+		const textModel = createTextModel(lines.join('\n'));
+		try {
+			const foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel), createEditor(true));
+
+			const ranges = computeRanges(textModel, false, undefined);
+			foldingModel.update(ranges);
+
+			// Verify initial state
+			assert.strictEqual(textModel.getLineCount(), 4);
+			assert.strictEqual(textModel.getLineContent(4), '');
+
+			foldingModel.toggleCollapseState([foldingModel.getRegionAtLine(1)!]);
+			foldingModel.update(ranges);
+
+			assert.strictEqual(textModel.getLineCount(), 4, 'Should not have added another newline');
+		} finally {
+			textModel.dispose();
+		}
+	});
+
+	test('no newline when folding non-last line', () => {
+		const lines = [
+			/* 1*/	'class A:',
+			/* 2*/	'    def foo(self):',
+			/* 3*/	'        return',
+			/* 4*/	'',
+			/* 5*/	'class B:',
+			/* 6*/	'    def bar(self):',
+			/* 7*/	'        return',
+		];
+
+		const textModel = createTextModel(lines.join('\n'));
+		try {
+			const foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel), createEditor(true));
+
+			const ranges = computeRanges(textModel, false, undefined);
+			foldingModel.update(ranges);
+
+			// Verify initial state
+			assert.strictEqual(textModel.getLineCount(), 7);
+
+			foldingModel.toggleCollapseState([foldingModel.getRegionAtLine(1)!]);
+			foldingModel.update(ranges);
+
+			assert.strictEqual(textModel.getLineCount(), 7, 'Should not have added a newline for non-last region');
 		} finally {
 			textModel.dispose();
 		}
