@@ -706,15 +706,17 @@ export function getSyncTooltip(HEAD: Branch | undefined, remotes: Remote[]): str
 		return l10n.t('Synchronize Changes');
 	}
 
+	const remoteName = HEAD && HEAD.remote || HEAD.upstream.remote;
+	const remote = remotes.find(r => r.name === remoteName);
 	const pushRemoteName = HEAD.pushBranch?.remote;
 	const pushRemote = remotes.find(r => r.name === pushRemoteName);
 
-	if ((pushRemote && pushRemote.isReadOnly) || !HEAD.ahead) {
+	if (remote && pushRemote && !pushRemote.isReadOnly && pushRemoteName && HEAD.ahead && HEAD.behind) {
+		return l10n.t('Pull {0} commits from {1}/{2} and push {3} commits to {4}/{5}', HEAD.behind, HEAD.upstream.remote, HEAD.upstream.name, HEAD.ahead, HEAD.pushBranch.remote, HEAD.pushBranch.name);
+	} else if ((pushRemote && pushRemote.isReadOnly) || !HEAD.ahead) {
 		return l10n.t('Pull {0} commits from {1}/{2}', HEAD.behind!, HEAD.upstream.remote, HEAD.upstream.name);
-	} else if (pushRemote && pushRemoteName && !HEAD.behind) {
-		return l10n.t('Push {0} commits to {1}/{2}', HEAD.ahead!, pushRemoteName, HEAD.pushBranch!.name);
-	} else if (HEAD.pushBranch && (HEAD.pushBranch.remote !== HEAD.upstream.remote || HEAD.pushBranch.name !== HEAD.upstream.name)) {
-		return l10n.t('Pull {0} commits from {1}/{2} and push {3} commits to {4}/{5}', HEAD.behind!, HEAD.upstream.remote, HEAD.upstream.name, HEAD.ahead!, HEAD.pushBranch.remote, HEAD.pushBranch.name);
+	} else if (!HEAD.behind) {
+		return l10n.t('Push {0} commits to {1}/{2}', HEAD.ahead!, pushRemoteName ?? HEAD.upstream.name, HEAD.pushBranch?.name ?? HEAD.upstream.name);
 	} else {
 		return l10n.t('Pull {0} and push {1} commits between {2}/{3}', HEAD.behind!, HEAD.ahead!, HEAD.upstream.remote, HEAD.upstream.name);
 	}

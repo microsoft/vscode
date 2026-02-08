@@ -4248,17 +4248,16 @@ export class CommandCenter {
 			return;
 		}
 
-		const pushBranch = HEAD.pushBranch ?? HEAD.upstream;
-		const pushRemote = repository.remotes.find(r => r.name === pushBranch.remote);
+		const pushRemoteName = HEAD.pushBranch?.remote || HEAD.remote || HEAD.upstream.remote;
+		const pushRemote = repository.remotes.find(r => r.name === pushRemoteName);
 		const isReadonly = pushRemote && pushRemote.isReadOnly;
 
 		const config = workspace.getConfiguration('git');
 		const shouldPrompt = !isReadonly && config.get<boolean>('confirmSync') === true;
 
 		if (shouldPrompt) {
-			const triangular = HEAD.pushBranch && (HEAD.pushBranch.remote !== HEAD.upstream.remote || HEAD.pushBranch.name !== HEAD.upstream.name);
-			const message = triangular
-				? l10n.t('This action will pull commits from "{0}/{1}" and push commits to "{2}/{3}".', HEAD.upstream.remote, HEAD.upstream.name, pushBranch.remote, pushBranch.name)
+			const message = HEAD.pushBranch
+				? l10n.t('This action will pull commits from "{0}/{1}" and push commits to "{2}/{3}".', HEAD.upstream.remote, HEAD.upstream.name, HEAD.pushBranch.remote, HEAD.pushBranch.name)
 				: l10n.t('This action will pull and push commits from and to "{0}/{1}".', HEAD.upstream.remote, HEAD.upstream.name);
 			const yes = l10n.t('OK');
 			const neverAgain = l10n.t('OK, Don\'t Show Again');

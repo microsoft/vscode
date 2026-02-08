@@ -3181,7 +3181,7 @@ export class Repository {
 				} catch { }
 			}
 
-			if (branch.type === RefType.Head && branch.name && branch.upstream && !branch.pushBranch) {
+			if (branch.type === RefType.Head && branch.name && branch.upstream) {
 				try {
 					const pushResult = await this.exec(['rev-parse', '--abbrev-ref', `${branch.name}@{push}`]);
 					const pushRef = pushResult.stdout.trim();
@@ -3191,8 +3191,8 @@ export class Repository {
 							remote: pushRef.substring(0, firstSlash),
 							name: pushRef.substring(firstSlash + 1)
 						};
-						(branch as Mutable<Branch>).pushBranch = pushBranch;
 						if (pushBranch.remote !== branch.upstream.remote || pushBranch.name !== branch.upstream.name) {
+							(branch as Mutable<Branch>).pushBranch = pushBranch;
 							const result = await this.exec(['rev-list', '--count', `${pushBranch.remote}/${pushBranch.name}..${branch.name}`]);
 							(branch as Mutable<Branch>).ahead = Number(result.stdout.trim()) || 0;
 						}
