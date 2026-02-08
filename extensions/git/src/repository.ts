@@ -3131,17 +3131,17 @@ export class Repository implements Disposable {
 			return l10n.t('Synchronize Changes');
 		}
 
-		const pushBranch = this.HEAD.pushBranch ?? this.HEAD.upstream;
-		const pushRemote = this.remotes.find(r => r.name === pushBranch.remote);
+		const pushRemoteName = this.HEAD?.pushBranch?.remote;
+		const pushRemote = this.remotes.find(r => r.name === pushRemoteName);
 
 		if ((pushRemote && pushRemote.isReadOnly) || !this.HEAD.ahead) {
 			return l10n.t('Pull {0} commits from {1}/{2}', this.HEAD.behind!, this.HEAD.upstream.remote, this.HEAD.upstream.name);
-		} else if (!this.HEAD.behind) {
-			return l10n.t('Push {0} commits to {1}/{2}', this.HEAD.ahead, pushBranch.remote, pushBranch.name);
+		} else if (pushRemote && pushRemoteName && !this.HEAD.behind) {
+			return l10n.t('Push {0} commits to {1}/{2}', this.HEAD.ahead!, pushRemoteName, this.HEAD.pushBranch!.name);
 		} else if (this.HEAD.pushBranch && (this.HEAD.pushBranch.remote !== this.HEAD.upstream.remote || this.HEAD.pushBranch.name !== this.HEAD.upstream.name)) {
-			return l10n.t('Pull {0} commits from {1}/{2} and push {3} commits to {4}/{5}', this.HEAD.behind, this.HEAD.upstream.remote, this.HEAD.upstream.name, this.HEAD.ahead, pushBranch.remote, pushBranch.name);
+			return l10n.t('Pull {0} commits from {1}/{2} and push {3} commits to {4}/{5}', this.HEAD.behind!, this.HEAD.upstream.remote, this.HEAD.upstream.name, this.HEAD.ahead!, this.HEAD.pushBranch.remote, this.HEAD.pushBranch.name);
 		} else {
-			return l10n.t('Pull {0} and push {1} commits between {2}/{3}', this.HEAD.behind, this.HEAD.ahead, this.HEAD.upstream.remote, this.HEAD.upstream.name);
+			return l10n.t('Pull {0} and push {1} commits between {2}/{3}', this.HEAD.behind!, this.HEAD.ahead!, this.HEAD.upstream.remote, this.HEAD.upstream.name);
 		}
 	}
 
