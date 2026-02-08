@@ -162,11 +162,13 @@ suite('git smoke test', function () {
 		try {
 			await repository.createBranch('test', true);
 
+			// Delete file (test branch)
 			fs.unlinkSync(appjs);
 			await repository.commit('commit on test', { all: true });
 
 			await repository.checkout('main');
 
+			// Rename file (main branch)
 			fs.renameSync(appjs, renamejs);
 			await repository.commit('commit on main', { all: true });
 

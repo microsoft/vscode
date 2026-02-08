@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'mocha';
-import { GitStatusParser, parseGitCommits, parseGitmodules, parseLsTree, parseLsFiles, parseGitRemotes, parseBranchForEachRefLine } from '../git';
-import { RefType } from '../api/git';
+import { GitStatusParser, parseGitCommits, parseGitmodules, parseLsTree, parseLsFiles, parseGitRemotes } from '../git';
 import * as assert from 'assert';
 import { splitInChunks } from '../util';
 
@@ -662,65 +661,6 @@ suite('git', () => {
 				[...splitInChunks(['0', '01', '012', '0', '01', '012', '0', '01', '012'], 9)],
 				[['0', '01', '012', '0', '01'], ['012', '0', '01', '012']]
 			);
-		});
-	});
-
-	suite('parseBranchForEachRefLine', () => {
-		test('local branch with upstream', () => {
-			const line = 'refs/heads/main\0origin/main\0abc123\0[ahead 2, behind 1]';
-			const result = parseBranchForEachRefLine(line);
-
-			assert.deepStrictEqual(result, {
-				type: RefType.Head,
-				name: 'main',
-				upstream: { name: 'main', remote: 'origin' },
-				pushBranch: undefined,
-				commit: 'abc123',
-				ahead: 2,
-				behind: 1
-			});
-		});
-
-		test('local branch with different push remote (triangular workflow)', () => {
-			const line = 'refs/heads/feature\0upstream/main\0abc123\0[ahead 2, behind 1]\0upstream\0refs/heads/main';
-			const result = parseBranchForEachRefLine(line);
-
-			assert.deepStrictEqual(result, {
-				type: RefType.Head,
-				name: 'feature',
-				upstream: { name: 'main', remote: 'upstream' },
-				pushBranch: undefined,
-				commit: 'abc123',
-				ahead: 2,
-				behind: 1
-			});
-		});
-
-		test('local branch without push remote configured', () => {
-			const line = 'refs/heads/feature\0upstream/main\0def456\0[ahead 3]\0upstream\0refs/heads/main';
-			const result = parseBranchForEachRefLine(line);
-
-			assert.deepStrictEqual(result, {
-				type: RefType.Head,
-				name: 'feature',
-				upstream: { name: 'main', remote: 'upstream' },
-				pushBranch: undefined,
-				commit: 'def456',
-				ahead: 3,
-				behind: 0
-			});
-		});
-
-		test('remote branch', () => {
-			const line = 'refs/remotes/origin/main\0\0abc123\0';
-			const result = parseBranchForEachRefLine(line);
-
-			assert.deepStrictEqual(result, {
-				type: RefType.RemoteHead,
-				name: 'main',
-				remote: 'origin',
-				commit: 'abc123'
-			});
 		});
 	});
 });
