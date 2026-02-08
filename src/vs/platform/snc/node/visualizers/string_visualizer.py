@@ -146,15 +146,16 @@ GRAY = "#808080"
 # Each tuple is (pattern_value, display_label)
 # Note: These are character classes only - repetition is handled separately
 FUZZY_PATTERN_OPTIONS = [
-    (r".", r"."),
     (r"\s", r"\s"),
-    (r"\S", r"\S"),
     (r"\d", r"\d"),
-    (r"\w", r"\w"),
-    (r"[0-9.]", r"[0-9.]"),
+    (r"[0-9\.]", r"[0-9\.]"),
     (r"[a-z]", r"[a-z]"),
+    (r"[A-Z]", r"[A-Z]"),
     (r"[A-Za-z]", r"[A-Za-z]"),
     (r"[A-Za-z0-9]", r"[A-Za-z0-9]"),
+    (r"\w", r"\w"),
+    (r"\S", r"\S"),
+    (r".", r"."),
     (r"[\S\s]", r"[\S\s]"),
 ]
 
@@ -165,6 +166,60 @@ DC1 = chr(0x11)  # \A - start of string anchor
 DC2 = chr(0x12)  # ^  - start of line anchor
 DC3 = chr(0x13)  # $  - end of line anchor
 DC4 = chr(0x14)  # \Z - end of string anchor
+
+_SENTINEL_CHARS = [DC1, DC2, DC3, DC4]
+
+
+def synthesize_fuzzy_pattern(actual_text: str, next_char: str = '') -> str:
+    """
+    Synthesize a fuzzy regex pattern that matches exactly the given text.
+
+    Enumerates patterns from FUZZY_PATTERN_OPTIONS and picks the most specific
+    one that matches the dragged text, so the highlighted fuzzy segment
+    corresponds precisely to the user's mouse drag distance.
+
+    Step 1: Try each pattern with * repetition (e.g. \\s*, \\d*), but only
+            if the character after the drag does NOT match the pattern
+            (otherwise * would greedily overshoot the drag boundary).
+    Step 2: If none matched with *, try each with {n} repetition (e.g. \\d{3}).
+
+    Args:
+        actual_text: The actual string characters under the drag range
+                     (sentinel chars should already be stripped).
+        next_char: The character immediately after the drag range, or ''
+                   if at end of string. Used to check whether * would overshoot.
+
+    Returns:
+        A regex pattern string like "\\s*", "\\d{3}", or ".*".
+    """
+    if not actual_text:
+        return ".*"
+
+    n = len(actual_text)
+
+    # Step 1: Try * repetition — prefer more specific character classes first.
+    # Only use * if the pattern naturally stops at the drag boundary,
+    # i.e., the next character does NOT match the pattern.
+    for pattern_str, _ in FUZZY_PATTERN_OPTIONS:
+        try:
+            if re.fullmatch(pattern_str + '*', actual_text):
+                # Check boundary: if next_char also matches, * would overshoot
+                if next_char and re.fullmatch(pattern_str, next_char):
+                    continue
+                return pattern_str + '*'
+        except Exception:
+            continue
+
+    # Step 2: Try {n} repetition
+    for pattern_str, _ in FUZZY_PATTERN_OPTIONS:
+        try:
+            if re.fullmatch(pattern_str + '{' + str(n) + '}', actual_text):
+                return pattern_str + '{' + str(n) + '}'
+        except Exception:
+            continue
+
+    # Fallback (should be unreachable since [\S\s]{n} matches everything)
+    return r"[\S\s]*"
 
 
 def char_to_regex_literal(char: str) -> str:
@@ -510,8 +565,17 @@ def char_span(string, index, is_special, highlight=None, model=None):
                     'style="position: absolute; top: -1px; left: -3px; width: 3px; height: 4px; '
                     'cursor: ew-resize; z-index: 20;"></span></span>'
                 )
+    elif model is not None and model.get('hoverIdx') == index and not model.get('dragging'):
+        # Hover preview: show border indicating literal/fuzzy on the hovered character
+        hover_type = model.get('hoverType', 'literal')
+        color = '#00aeff' if hover_type == 'literal' else '#868686'
+        border_side = 'top' if hover_type == 'literal' else 'bottom'
+        gradient_dir = 'bottom' if hover_type == 'literal' else 'top'
+        styles += f' border-{border_side}: 1px solid {color}; border-image: linear-gradient(to {gradient_dir}, {color} 20%, transparent 20%) 1;'
+        styles += f' border-left: 1px solid {color}; margin-left: -1px;'
+        styles += f' border-right: 1px solid {color}; padding-right: 0px;'
 
-    return f'{pat_html}<span data-snc-idx="{index}" snc-mouse-move="{html.escape(repr(MouseMove(index)))}" snc-mouse-down="{html.escape(repr(MouseDown(index)))}" snc-mouse-up="{html.escape(repr(MouseUp(index)))}" style="{styles}">{html.escape(string)}</span>{repetition_html}'
+    return f'{pat_html}<span snc-mouse-move="{html.escape(repr(MouseMove(index)))}" snc-mouse-down="{html.escape(repr(MouseDown(index)))}" snc-mouse-up="{html.escape(repr(MouseUp(index)))}" style="{styles}">{html.escape(string)}</span>{repetition_html}'
 
 
 # === Index mapping functions ===
@@ -762,7 +826,7 @@ def append_segment_to_regex(current_regex: str | None, segment_type: str, text: 
         regex_parts = [char_to_regex_literal(char) for char in text]
         new_segment = f"({''.join(regex_parts)})"
     else:  # fuzzy
-        new_segment = "(.*)"
+        new_segment = f"({text})" if text else "(.*)"
 
     result = canonicalize_regex(f"/{inner_pattern}{new_segment}/")
     assert result is not None
@@ -797,7 +861,7 @@ def prepend_segment_to_regex(current_regex: str | None, segment_type: str, text:
         regex_parts = [char_to_regex_literal(char) for char in text]
         new_segment = f"({''.join(regex_parts)})"
     else:  # fuzzy
-        new_segment = "(.*)"
+        new_segment = f"({text})" if text else "(.*)"
 
     result = canonicalize_regex(f"/{new_segment}{inner_pattern}/")
     assert result is not None
@@ -828,7 +892,7 @@ def insert_segment_at_position(current_regex: str | None, position: int, segment
         regex_parts = [char_to_regex_literal(char) for char in text]
         new_segment_text = ''.join(regex_parts)
     else:  # fuzzy
-        new_segment_text = '.*'
+        new_segment_text = text if text else '.*'
 
     # Parse all segments (splitting ungrouped fuzzy/literal for correct indexing)
     inner_pattern = current_regex[1:-1]
@@ -1842,7 +1906,7 @@ def is_adjacent_right(idx: int, last_end: int, string_value: str) -> bool:
         return False
     # Check if all characters between last_end and idx are anchors
     skipped = extract_by_internal_indices(string_value, last_end, idx)
-    return len(skipped) > 0 and all(c in (DC1, DC2, DC3, DC4) for c in skipped)
+    return len(skipped) > 0 and all(c in _SENTINEL_CHARS for c in skipped)
 
 
 def is_adjacent_left(idx: int, first_start: int, string_value: str) -> bool:
@@ -1866,7 +1930,7 @@ def is_adjacent_left(idx: int, first_start: int, string_value: str) -> bool:
         return False
     # Check if all characters between idx+1 and first_start are anchors
     skipped = extract_by_internal_indices(string_value, idx + 1, first_start)
-    return len(skipped) > 0 and all(c in (DC1, DC2, DC3, DC4) for c in skipped)
+    return len(skipped) > 0 and all(c in _SENTINEL_CHARS for c in skipped)
 
 
 # === Source code analysis functions ===
@@ -2113,7 +2177,7 @@ def generate_regex_code_from_pattern(source_code: str, line_number: int, selecti
 
 
 def vis_char_with_index(char, i, highlight_by_index, model=None):
-    """Visualize a character with data-snc-idx attribute and optional highlighting.
+    """Visualize a character with optional highlighting.
 
     Args:
         highlight_by_index: dict mapping index -> highlight tuple or None
@@ -2208,17 +2272,23 @@ def build_preview_regex(model, string_value: str) -> str | None:
         end = max(a, c) + 1
 
     if anchor_type == 'fuzzy':
-        # Fuzzy is always (.*), no text needed
+        # Synthesize a fuzzy pattern from the dragged text
+        selected_text = extract_by_internal_indices(string_value, start, end)
+        actual_text = ''.join(c for c in selected_text if c not in _SENTINEL_CHARS)
+        # Get the next character after the drag for boundary checking
+        next_text = extract_by_internal_indices(string_value, end, end + 1)
+        next_char = ''.join(c for c in next_text if c not in _SENTINEL_CHARS)
+        fuzzy_pattern = synthesize_fuzzy_pattern(actual_text, next_char)
         if extend_direction == 'left':
-            return prepend_segment_to_regex(current_regex, 'fuzzy', '')
+            return prepend_segment_to_regex(current_regex, 'fuzzy', fuzzy_pattern)
         elif insert_after_segment is not None:
             if insert_after_segment == 0:
                 insert_position = 0
             else:
                 insert_position = insert_after_segment + 1
-            return insert_segment_at_position(current_regex, insert_position, 'fuzzy', '')
+            return insert_segment_at_position(current_regex, insert_position, 'fuzzy', fuzzy_pattern)
         else:
-            return append_segment_to_regex(current_regex, 'fuzzy', '')
+            return append_segment_to_regex(current_regex, 'fuzzy', fuzzy_pattern)
     else:
         # Literal: need actual text from the selection
         selected_text = extract_by_internal_indices(string_value, start, end)
@@ -2247,7 +2317,7 @@ def visualize(value, model=None):
         for i in range(start, end):
             highlight_by_index[i] = highlight
 
-    # Build character sequence with data-snc-idx attributes and highlighting
+    # Build character sequence with highlighting
     char_elements = []
 
     # Prefix markers are selectable with internal indices 0 (\A) and 1 (^)
@@ -2322,7 +2392,9 @@ def init_model(value):
         "handleDrag": None,       # {"segmentIndex": int, "side": "left"|"right", "cursorIdx": int} when dragging a handle
         "undoHistory": [],        # Stack of previous selectionRegex states
         "redoHistory": [],        # Stack for redo
-        "handledKeys": ["Escape", "Enter", "cmd z", "cmd shift z"]  # Keys to intercept from VS Code
+        "handledKeys": ["Escape", "Enter", "cmd z", "cmd shift z"],  # Keys to intercept from VS Code
+        "hoverIdx": None,         # Internal index of the character currently hovered
+        "hoverType": None,        # "literal" or "fuzzy" based on mouse position in top/bottom half
     }
 
 
@@ -2431,6 +2503,9 @@ def update(event, source_code: str, source_line: int, model: dict, value: str) -
             model['openDropdown'] = None
             # Cancel any handle drag
             model['handleDrag'] = None
+            # Clear hover preview (actual selection takes over)
+            model['hoverIdx'] = None
+            model['hoverType'] = None
 
             selection_regex = model.get('selectionRegex')
 
@@ -2495,13 +2570,13 @@ def update(event, source_code: str, source_line: int, model: dict, value: str) -
                     model = finalize_handle_drag(model, value)
                 else:
                     model['handleDrag']['cursorIdx'] = idx
-            elif event_json.get('buttons') == 0:  # Mouse released outside widget
+            elif event_json.get('buttons') == 0:  # No mouse button held
                 model = finalize_segment(model, value)
+                # Update hover preview state
+                model['hoverIdx'] = idx
+                model['hoverType'] = 'literal' if is_top_half(event_json) else 'fuzzy'
             elif model.get('dragging'):
-                # For fuzzy, don't update cursorIdx during drag (no drag preview)
-                anchor_type = model.get('anchorType', 'literal')
-                if anchor_type == 'literal':
-                    model['cursorIdx'] = idx
+                model['cursorIdx'] = idx
 
         case MouseUp(index=idx):
             if model.get('handleDrag') is not None:
@@ -2509,12 +2584,7 @@ def update(event, source_code: str, source_line: int, model: dict, value: str) -
                 model['handleDrag']['cursorIdx'] = idx
                 model = finalize_handle_drag(model, value)
             elif model.get('dragging'):
-                # For literal selections, update cursor on mouse up
-                # For fuzzy, cursor stays at anchor (no drag)
-                anchor_type = model.get('anchorType', 'literal')
-                if anchor_type == 'literal':
-                    model['cursorIdx'] = idx
-
+                model['cursorIdx'] = idx
                 model = finalize_segment(model, value)
 
         case KeyDown():
