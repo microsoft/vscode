@@ -5,7 +5,7 @@
 
 import { LanguageModelCache, getLanguageModelCache } from '../languageModelCache';
 import { Stylesheet, LanguageService as CSSLanguageService } from 'vscode-css-languageservice';
-import { LanguageMode, Workspace, Color, TextDocument, Position, Range, CompletionList, DocumentContext, Diagnostic } from './languageModes';
+import { LanguageMode, Workspace, Color, TextDocument, TextEdit, Position, Range, CompletionList, DocumentContext, FormattingOptions, Diagnostic } from './languageModes';
 import { HTMLDocumentRegions, CSS_STYLE_RULE } from './embeddedSupport';
 
 export function getCSSMode(cssLanguageService: CSSLanguageService, documentRegions: LanguageModelCache<HTMLDocumentRegions>, workspace: Workspace): LanguageMode {
@@ -48,6 +48,47 @@ export function getCSSMode(cssLanguageService: CSSLanguageService, documentRegio
 		async findDocumentColors(document: TextDocument) {
 			const embedded = embeddedCSSDocuments.get(document);
 			return cssLanguageService.findDocumentColors(embedded, cssStylesheets.get(embedded));
+		},
+		async format(document: TextDocument, range: Range, formatParams: FormattingOptions, settings = workspace.settings): Promise<TextEdit[]> {
+			const embedded = embeddedCSSDocuments.get(document);
+			const formatSettings = {
+				...settings?.css?.format,
+				...formatParams,
+			};
+
+			// Indent and format corrections for embedded CSS in HTML documents
+			const htmlSettings = settings?.html?.format;
+			const baseIndent = htmlSettings?.indentSize ?? 2;
+			const additionalIndent = htmlSettings?.indentInnerHtml ? 1 : 0;
+			const styleContentIndent = baseIndent + additionalIndent;
+			const styleTagIndent = styleContentIndent - 1;
+
+			let edits = cssLanguageService.format(embedded, range, formatSettings);
+
+			if (edits.length > 0) {
+				edits = edits.map(edit => {
+					const formattedLines = edit.newText.split('\n').map(line => {
+						const indent = line.endsWith(';')
+							? styleContentIndent + 1
+							: styleContentIndent;
+						return '\t'.repeat(indent) + line.trim();
+					});
+
+					return {
+						...edit,
+						newText: formattedLines.join('\n')
+					};
+				});
+
+				const openTag = `${'\t'.repeat(styleTagIndent)}<style>\n`;
+				const preCloseTag = `\n${'\t'.repeat(styleTagIndent)}`;
+
+				edits[0].newText = openTag + edits[0].newText;
+				edits[edits.length - 1].newText += preCloseTag;
+
+				return edits;
+			}
+			return [];
 		},
 		async getColorPresentations(document: TextDocument, color: Color, range: Range) {
 			const embedded = embeddedCSSDocuments.get(document);

@@ -45,9 +45,9 @@ export function getHTMLMode(htmlLanguageService: HTMLLanguageService, workspace:
 		async format(document: TextDocument, range: Range, formatParams: FormattingOptions, settings = workspace.settings) {
 			const formatSettings: HTMLFormatConfiguration = merge(settings?.html?.format, {});
 			if (formatSettings.contentUnformatted) {
-				formatSettings.contentUnformatted = formatSettings.contentUnformatted + ',script';
+				formatSettings.contentUnformatted = formatSettings.contentUnformatted + ',script,style';
 			} else {
-				formatSettings.contentUnformatted = 'script';
+				formatSettings.contentUnformatted = 'script,style';
 			}
 			merge(formatParams, formatSettings);
 			return htmlLanguageService.format(document, range, formatSettings);
