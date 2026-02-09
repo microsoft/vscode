@@ -69,6 +69,7 @@ export namespace PromptHeaderAttributes {
 	export const mode = 'mode';
 	export const model = 'model';
 	export const applyTo = 'applyTo';
+	export const paths = 'paths';
 	export const tools = 'tools';
 	export const handOffs = 'handoffs';
 	export const advancedOptions = 'advancedOptions';
@@ -188,6 +189,15 @@ export class PromptHeader {
 
 	public get applyTo(): string | undefined {
 		return this.getStringAttribute(PromptHeaderAttributes.applyTo);
+	}
+
+	/**
+	 * Gets the 'paths' attribute from the header.
+	 * The `paths` field supports a list of glob patterns that scope the instruction
+	 * to specific files (used by Claude rules). Returns a string array or undefined.
+	 */
+	public get paths(): readonly string[] | undefined {
+		return this.getStringOrStringArrayAttribute(PromptHeaderAttributes.paths);
 	}
 
 	public get argumentHint(): string | undefined {

@@ -971,13 +971,7 @@ export function registerChatActions() {
 				category: CHAT_CATEGORY,
 				icon: Codicon.sparkle,
 				f1: true,
-				precondition: ChatContextKeys.enabled,
-				menu: {
-					id: CHAT_CONFIG_MENU_ID,
-					when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('view', ChatViewId)),
-					order: 11,
-					group: '1_level'
-				}
+				precondition: ChatContextKeys.enabled
 			});
 		}
 

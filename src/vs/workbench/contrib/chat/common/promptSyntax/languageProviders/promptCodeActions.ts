@@ -106,7 +106,10 @@ export class PromptCodeActionProvider implements CodeActionProvider {
 	}
 
 	private getUpdateToolsCodeActions(promptFile: ParsedPromptFile, promptType: PromptsType, model: ITextModel, range: Range, result: CodeAction[]): void {
-		const toolsAttr = promptFile.header?.getAttribute(PromptHeaderAttributes.tools);
+		if (!promptFile.header) {
+			return;
+		}
+		const toolsAttr = promptFile.header.getAttribute(PromptHeaderAttributes.tools);
 		if (!toolsAttr || !toolsAttr.value.range.containsRange(range)) {
 			return;
 		}

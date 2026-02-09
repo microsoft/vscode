@@ -4,15 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { ICommandEvent, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
-import { InMemoryStorageService, IStorageService } from '../../../../../platform/storage/common/storage.js';
-import { ChatTipService } from '../../browser/chatTipService.js';
+import { IStorageService, InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
+import { ChatTipService, ITipDefinition, TipEligibilityTracker } from '../../browser/chatTipService.js';
+import { IPromptsService, IResolvedAgentFile } from '../../common/promptSyntax/service/promptsService.js';
+import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { ChatModeKind } from '../../common/constants.js';
 
 class MockContextKeyServiceWithRulesMatching extends MockContextKeyService {
 	override contextMatchesRules(): boolean {
@@ -26,6 +31,9 @@ suite('ChatTipService', () => {
 	let instantiationService: TestInstantiationService;
 	let contextKeyService: MockContextKeyServiceWithRulesMatching;
 	let configurationService: TestConfigurationService;
+	let commandExecutedEmitter: Emitter<ICommandEvent>;
+	let storageService: InMemoryStorageService;
+	let mockInstructionFiles: IResolvedAgentFile[];
 
 	function createProductService(hasCopilot: boolean): IProductService {
 		return {
@@ -44,9 +52,19 @@ suite('ChatTipService', () => {
 		instantiationService = testDisposables.add(new TestInstantiationService());
 		contextKeyService = new MockContextKeyServiceWithRulesMatching();
 		configurationService = new TestConfigurationService();
+		commandExecutedEmitter = testDisposables.add(new Emitter<ICommandEvent>());
+		storageService = testDisposables.add(new InMemoryStorageService());
+		mockInstructionFiles = [];
 		instantiationService.stub(IContextKeyService, contextKeyService);
 		instantiationService.stub(IConfigurationService, configurationService);
-		instantiationService.stub(IStorageService, testDisposables.add(new InMemoryStorageService()));
+		instantiationService.stub(IStorageService, storageService);
+		instantiationService.stub(ICommandService, {
+			onDidExecuteCommand: commandExecutedEmitter.event,
+			onWillExecuteCommand: testDisposables.add(new Emitter<ICommandEvent>()).event,
+		} as Partial<ICommandService> as ICommandService);
+		instantiationService.stub(IPromptsService, {
+			listAgentInstructions: async () => mockInstructionFiles,
+		} as Partial<IPromptsService> as IPromptsService);
 	});
 
 	test('returns a tip for new requests with timestamp after service creation', () => {
@@ -202,5 +220,171 @@ suite('ChatTipService', () => {
 		// Should be able to get a tip again on a new request
 		const tip2 = service.getNextTip('request-2', now + 2000, contextKeyService);
 		assert.ok(tip2, 'Should return a tip after disabling and re-enabling');
+	});
+
+	test('excludes tip.undoChanges when restore checkpoint command has been executed', () => {
+		const tip: ITipDefinition = {
+			id: 'tip.undoChanges',
+			message: 'test',
+			excludeWhenCommandsExecuted: ['workbench.action.chat.restoreCheckpoint'],
+		};
+
+		const tracker = testDisposables.add(new TipEligibilityTracker(
+			[tip],
+			{ onDidExecuteCommand: commandExecutedEmitter.event, onWillExecuteCommand: Event.None } as Partial<ICommandService> as ICommandService,
+			storageService,
+			{ listAgentInstructions: async () => [] } as Partial<IPromptsService> as IPromptsService,
+		));
+
+		assert.strictEqual(tracker.isExcluded(tip), false, 'Should not be excluded before command is executed');
+
+		commandExecutedEmitter.fire({ commandId: 'workbench.action.chat.restoreCheckpoint', args: [] });
+
+		assert.strictEqual(tracker.isExcluded(tip), true, 'Should be excluded after command is executed');
+	});
+
+	test('excludes tip.customInstructions when instruction files exist in workspace', async () => {
+		const tip: ITipDefinition = {
+			id: 'tip.customInstructions',
+			message: 'test',
+		};
+
+		const tracker = testDisposables.add(new TipEligibilityTracker(
+			[tip],
+			{ onDidExecuteCommand: Event.None, onWillExecuteCommand: Event.None } as Partial<ICommandService> as ICommandService,
+			storageService,
+			{ listAgentInstructions: async () => [{ uri: { path: '/.github/copilot-instructions.md' } } as IResolvedAgentFile] } as Partial<IPromptsService> as IPromptsService,
+		));
+
+		// Wait for the async file check to complete
+		await new Promise(r => setTimeout(r, 0));
+
+		assert.strictEqual(tracker.isExcluded(tip), true, 'Should be excluded when instruction files exist');
+	});
+
+	test('does not exclude tip.customInstructions when no instruction files exist', async () => {
+		const tip: ITipDefinition = {
+			id: 'tip.customInstructions',
+			message: 'test',
+		};
+
+		const tracker = testDisposables.add(new TipEligibilityTracker(
+			[tip],
+			{ onDidExecuteCommand: Event.None, onWillExecuteCommand: Event.None } as Partial<ICommandService> as ICommandService,
+			storageService,
+			{ listAgentInstructions: async () => [] } as Partial<IPromptsService> as IPromptsService,
+		));
+
+		// Wait for the async file check to complete
+		await new Promise(r => setTimeout(r, 0));
+
+		assert.strictEqual(tracker.isExcluded(tip), false, 'Should not be excluded when no instruction files exist');
+	});
+
+	test('excludes tip.agentMode when agent mode has been used in workspace', () => {
+		const tip: ITipDefinition = {
+			id: 'tip.agentMode',
+			message: 'test',
+			excludeWhenModesUsed: [ChatModeKind.Agent],
+		};
+
+		contextKeyService.createKey(ChatContextKeys.chatModeKind.key, ChatModeKind.Agent);
+		contextKeyService.createKey(ChatContextKeys.chatModeName.key, 'Agent');
+
+		const tracker = testDisposables.add(new TipEligibilityTracker(
+			[tip],
+			{ onDidExecuteCommand: Event.None, onWillExecuteCommand: Event.None } as Partial<ICommandService> as ICommandService,
+			storageService,
+			{ listAgentInstructions: async () => [] } as Partial<IPromptsService> as IPromptsService,
+		));
+
+		assert.strictEqual(tracker.isExcluded(tip), false, 'Should not be excluded before mode is recorded');
+
+		tracker.recordCurrentMode(contextKeyService);
+
+		assert.strictEqual(tracker.isExcluded(tip), true, 'Should be excluded after agent mode has been recorded');
+	});
+
+	test('excludes tip.planMode when Plan mode has been used in workspace', () => {
+		const tip: ITipDefinition = {
+			id: 'tip.planMode',
+			message: 'test',
+			excludeWhenModesUsed: ['Plan'],
+		};
+
+		contextKeyService.createKey(ChatContextKeys.chatModeKind.key, ChatModeKind.Agent);
+		contextKeyService.createKey(ChatContextKeys.chatModeName.key, 'Plan');
+
+		const tracker = testDisposables.add(new TipEligibilityTracker(
+			[tip],
+			{ onDidExecuteCommand: Event.None, onWillExecuteCommand: Event.None } as Partial<ICommandService> as ICommandService,
+			storageService,
+			{ listAgentInstructions: async () => [] } as Partial<IPromptsService> as IPromptsService,
+		));
+
+		assert.strictEqual(tracker.isExcluded(tip), false, 'Should not be excluded before mode is recorded');
+
+		tracker.recordCurrentMode(contextKeyService);
+
+		assert.strictEqual(tracker.isExcluded(tip), true, 'Should be excluded after Plan mode has been recorded');
+	});
+
+	test('persists command exclusions to workspace storage across tracker instances', () => {
+		const tip: ITipDefinition = {
+			id: 'tip.undoChanges',
+			message: 'test',
+			excludeWhenCommandsExecuted: ['workbench.action.chat.restoreCheckpoint'],
+		};
+
+		const tracker1 = testDisposables.add(new TipEligibilityTracker(
+			[tip],
+			{ onDidExecuteCommand: commandExecutedEmitter.event, onWillExecuteCommand: Event.None } as Partial<ICommandService> as ICommandService,
+			storageService,
+			{ listAgentInstructions: async () => [] } as Partial<IPromptsService> as IPromptsService,
+		));
+
+		commandExecutedEmitter.fire({ commandId: 'workbench.action.chat.restoreCheckpoint', args: [] });
+		assert.strictEqual(tracker1.isExcluded(tip), true);
+
+		// Second tracker reads from storage — should be excluded immediately
+		const tracker2 = testDisposables.add(new TipEligibilityTracker(
+			[tip],
+			{ onDidExecuteCommand: Event.None, onWillExecuteCommand: Event.None } as Partial<ICommandService> as ICommandService,
+			storageService,
+			{ listAgentInstructions: async () => [] } as Partial<IPromptsService> as IPromptsService,
+		));
+
+		assert.strictEqual(tracker2.isExcluded(tip), true, 'New tracker should read persisted exclusion from workspace storage');
+	});
+
+	test('persists mode exclusions to workspace storage across tracker instances', () => {
+		const tip: ITipDefinition = {
+			id: 'tip.agentMode',
+			message: 'test',
+			excludeWhenModesUsed: [ChatModeKind.Agent],
+		};
+
+		contextKeyService.createKey(ChatContextKeys.chatModeKind.key, ChatModeKind.Agent);
+		contextKeyService.createKey(ChatContextKeys.chatModeName.key, 'Agent');
+
+		const tracker1 = testDisposables.add(new TipEligibilityTracker(
+			[tip],
+			{ onDidExecuteCommand: Event.None, onWillExecuteCommand: Event.None } as Partial<ICommandService> as ICommandService,
+			storageService,
+			{ listAgentInstructions: async () => [] } as Partial<IPromptsService> as IPromptsService,
+		));
+
+		tracker1.recordCurrentMode(contextKeyService);
+		assert.strictEqual(tracker1.isExcluded(tip), true);
+
+		// Second tracker reads from storage — should be excluded immediately
+		const tracker2 = testDisposables.add(new TipEligibilityTracker(
+			[tip],
+			{ onDidExecuteCommand: Event.None, onWillExecuteCommand: Event.None } as Partial<ICommandService> as ICommandService,
+			storageService,
+			{ listAgentInstructions: async () => [] } as Partial<IPromptsService> as IPromptsService,
+		));
+
+		assert.strictEqual(tracker2.isExcluded(tip), true, 'New tracker should read persisted mode exclusion from workspace storage');
 	});
 });

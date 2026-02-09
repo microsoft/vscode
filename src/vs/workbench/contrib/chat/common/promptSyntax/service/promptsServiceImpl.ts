@@ -567,7 +567,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 				} satisfies IAgentInstructions;
 
 				const name = ast.header?.name ?? promptPath.name ?? getCleanPromptName(uri);
-				const target = getTarget(PromptsType.agent, ast.header);
+				const target = getTarget(PromptsType.agent, ast.header ?? uri);
 
 				const source: IAgentSource = IAgentSource.fromPromptPath(promptPath);
 				if (!ast.header) {

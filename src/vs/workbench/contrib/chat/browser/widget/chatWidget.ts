@@ -2228,7 +2228,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			queue: options?.queue,
 		});
 
-		if (this.viewModel.sessionResource && !options.queue) {
+		if (this.viewModel.sessionResource && !options.queue && ChatSendResult.isRejected(result)) {
 			this.chatAccessibilityService.disposeRequest(this.viewModel.sessionResource);
 		}
 
@@ -2243,6 +2243,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const sent = ChatSendResult.isQueued(result) ? await result.deferred : result;
 		if (!ChatSendResult.isSent(sent)) {
 			return;
+		}
+
+		// If this was a queued request that just got dequeued, start the progress sound now
+		if (options.queue && this.viewModel?.sessionResource) {
+			this.chatAccessibilityService.acceptRequest(this.viewModel.sessionResource);
 		}
 
 		this._onDidSubmitAgent.fire({ agent: sent.data.agent, slashCommand: sent.data.slashCommand });

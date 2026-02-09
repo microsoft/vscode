@@ -184,14 +184,17 @@ export interface IChatSession extends IDisposable {
 	) => Promise<void>;
 }
 
-export interface IChatSessionItemProvider {
-	readonly chatSessionType: string;
-	readonly onDidChangeChatSessionItems: Event<void>;
-	provideChatSessionItems(token: CancellationToken): Promise<IChatSessionItem[]>;
-}
-
 export interface IChatSessionContentProvider {
 	provideChatSessionContent(sessionResource: URI, token: CancellationToken): Promise<IChatSession>;
+}
+
+export interface IChatSessionItemController {
+
+	readonly onDidChangeChatSessionItems: Event<void>;
+
+	get items(): readonly IChatSessionItem[];
+
+	refresh(token: CancellationToken): Promise<void>;
 }
 
 /**
@@ -215,7 +218,7 @@ export interface IChatSessionsService {
 
 	getChatSessionContribution(chatSessionType: string): IChatSessionsExtensionPoint | undefined;
 
-	registerChatSessionItemProvider(provider: IChatSessionItemProvider): IDisposable;
+	registerChatSessionItemController(chatSessionType: string, controller: IChatSessionItemController): IDisposable;
 	activateChatSessionItemProvider(chatSessionType: string): Promise<void>;
 
 	getAllChatSessionContributions(): IChatSessionsExtensionPoint[];

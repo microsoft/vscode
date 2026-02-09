@@ -13,15 +13,11 @@ import { Schemas } from '../../../../../base/common/network.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { IChatModel } from '../../common/model/chatModel.js';
 import { convertLegacyChatSessionTiming, IChatDetail, IChatService, ResponseModelState } from '../../common/chatService/chatService.js';
-import { ChatSessionStatus, IChatSessionItem, IChatSessionItemProvider, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
+import { ChatSessionStatus, IChatSessionItem, IChatSessionItemController, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 
-interface IChatSessionItemWithProvider extends IChatSessionItem {
-	readonly provider: IChatSessionItemProvider;
-}
-
-export class LocalAgentsSessionsProvider extends Disposable implements IChatSessionItemProvider, IWorkbenchContribution {
+export class LocalAgentsSessionsController extends Disposable implements IChatSessionItemController, IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.localAgentsSessionsProvider';
 
@@ -40,9 +36,18 @@ export class LocalAgentsSessionsProvider extends Disposable implements IChatSess
 	) {
 		super();
 
-		this._register(this.chatSessionsService.registerChatSessionItemProvider(this));
+		this._register(this.chatSessionsService.registerChatSessionItemController(this.chatSessionType, this));
 
 		this.registerListeners();
+	}
+
+	private _items: IChatSessionItem[] = [];
+	get items(): readonly IChatSessionItem[] {
+		return this._items;
+	}
+
+	async refresh(token: CancellationToken): Promise<void> {
+		this._items = await this.provideChatSessionItems(token);
 	}
 
 	private registerListeners(): void {
@@ -66,8 +71,8 @@ export class LocalAgentsSessionsProvider extends Disposable implements IChatSess
 		}));
 	}
 
-	async provideChatSessionItems(token: CancellationToken): Promise<IChatSessionItem[]> {
-		const sessions: IChatSessionItemWithProvider[] = [];
+	private async provideChatSessionItems(token: CancellationToken): Promise<IChatSessionItem[]> {
+		const sessions: IChatSessionItem[] = [];
 		const sessionsByResource = new ResourceSet();
 
 		for (const sessionDetail of await this.chatService.getLiveSessionItems()) {
@@ -88,7 +93,7 @@ export class LocalAgentsSessionsProvider extends Disposable implements IChatSess
 		return sessions;
 	}
 
-	private async getHistoryItems(): Promise<IChatSessionItemWithProvider[]> {
+	private async getHistoryItems(): Promise<IChatSessionItem[]> {
 		try {
 			const historyItems = await this.chatService.getHistorySessionItems();
 
@@ -98,7 +103,7 @@ export class LocalAgentsSessionsProvider extends Disposable implements IChatSess
 		}
 	}
 
-	private toChatSessionItem(chat: IChatDetail): IChatSessionItemWithProvider | undefined {
+	private toChatSessionItem(chat: IChatDetail): IChatSessionItem | undefined {
 		const model = this.chatService.getSession(chat.sessionResource);
 
 		let description: string | undefined;
@@ -112,7 +117,6 @@ export class LocalAgentsSessionsProvider extends Disposable implements IChatSess
 
 		return {
 			resource: chat.sessionResource,
-			provider: this,
 			label: chat.title,
 			description,
 			status: model ? this.modelToStatus(model) : this.chatResponseStateToStatus(chat.lastResponseState),

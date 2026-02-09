@@ -26,6 +26,8 @@ import { askForPromptFileName } from './pickers/askForPromptName.js';
 import { askForPromptSourceFolder } from './pickers/askForPromptSourceFolder.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { getCleanPromptName, SKILL_FILENAME } from '../../common/promptSyntax/config/promptFileLocations.js';
+import { Target } from '../../common/promptSyntax/service/promptsService.js';
+import { getTarget } from '../../common/promptSyntax/languageProviders/promptValidator.js';
 
 
 class AbstractNewPromptFileAction extends Action2 {
@@ -81,7 +83,7 @@ class AbstractNewPromptFileAction extends Action2 {
 		if (editor && editor.hasModel() && isEqual(editor.getModel().uri, promptUri)) {
 			SnippetController2.get(editor)?.apply([{
 				range: editor.getModel().getFullModelRange(),
-				template: getDefaultContentSnippet(this.type, cleanName),
+				template: getDefaultContentSnippet(this.type, cleanName, getTarget(this.type, promptUri)),
 			}]);
 		}
 
@@ -139,7 +141,7 @@ class AbstractNewPromptFileAction extends Action2 {
 	}
 }
 
-function getDefaultContentSnippet(promptType: PromptsType, name: string | undefined): string {
+function getDefaultContentSnippet(promptType: PromptsType, name: string | undefined, target: Target): string {
 	switch (promptType) {
 		case PromptsType.prompt:
 			return [
@@ -150,23 +152,45 @@ function getDefaultContentSnippet(promptType: PromptsType, name: string | undefi
 				`\${3:Define the prompt content here. You can include instructions, examples, and any other relevant information to guide the AI's responses.}`,
 			].join('\n');
 		case PromptsType.instructions:
-			return [
-				`---`,
-				`description: \${1:Describe when these instructions should be loaded}`,
-				`# applyTo: '\${1|**,**/*.ts|}' # when provided, instructions will automatically be added to the request context when the pattern matches an attached file`,
-				`---`,
-				`\${2:Provide project context and coding guidelines that AI should follow when generating code, answering questions, or reviewing changes.}`,
-			].join('\n');
+			if (target === Target.Claude) {
+				return [
+					`---`,
+					`description: \${1:Describe when these instructions should be loaded}`,
+					`paths:`,
+					`. - "src/**/*.ts"`,
+					`---`,
+					`\${2:Provide coding guidelines that AI should follow when generating code, answering questions, or reviewing changes.}`,
+				].join('\n');
+			} else {
+				return [
+					`---`,
+					`description: \${1:Describe when these instructions should be loaded}`,
+					`# applyTo: '\${1|**,**/*.ts|}' # when provided, instructions will automatically be added to the request context when the pattern matches an attached file`,
+					`---`,
+					`\${2:Provide project context and coding guidelines that AI should follow when generating code, answering questions, or reviewing changes.}`,
+				].join('\n');
+			}
 		case PromptsType.agent:
-			return [
-				`---`,
-				`name: ${name ?? '${1:agent-name}'}`,
-				`description: \${2:Describe what this custom agent does and when to use it.}`,
-				`argument-hint: \${3:The inputs this agent expects, e.g., "a task to implement" or "a question to answer".}`,
-				`# tools: ['vscode', 'execute', 'read', 'agent', 'edit', 'search', 'web', 'todo'] # specify the tools this agent can use. If not set, all enabled tools are allowed.`,
-				`---`,
-				`\${4:Define what this custom agent does, including its behavior, capabilities, and any specific instructions for its operation.}`,
-			].join('\n');
+			if (target === Target.Claude) {
+				return [
+					`---`,
+					`name: ${name ?? '${1:agent-name}'}`,
+					`description: \${2:Describe what this custom agent does and when to use it.}`,
+					`tools: Read, Grep, Glob, Bash # specify the tools this agent can use. If not set, all enabled tools are allowed.`,
+					`---`,
+					`\${4:Define what this custom agent does, including its behavior, capabilities, and any specific instructions for its operation.}`,
+				].join('\n');
+			} else {
+				return [
+					`---`,
+					`name: ${name ?? '${1:agent-name}'}`,
+					`description: \${2:Describe what this custom agent does and when to use it.}`,
+					`argument-hint: \${3:The inputs this agent expects, e.g., "a task to implement" or "a question to answer".}`,
+					`# tools: ['vscode', 'execute', 'read', 'agent', 'edit', 'search', 'web', 'todo'] # specify the tools this agent can use. If not set, all enabled tools are allowed.`,
+					`---`,
+					`\${4:Define what this custom agent does, including its behavior, capabilities, and any specific instructions for its operation.}`,
+				].join('\n');
+			}
 		case PromptsType.skill:
 			return [
 				`---`,
@@ -282,7 +306,7 @@ class NewSkillFileAction extends Action2 {
 		if (editor && editor.hasModel() && isEqual(editor.getModel().uri, skillFileUri)) {
 			SnippetController2.get(editor)?.apply([{
 				range: editor.getModel().getFullModelRange(),
-				template: getDefaultContentSnippet(PromptsType.skill, trimmedName),
+				template: getDefaultContentSnippet(PromptsType.skill, trimmedName, Target.Undefined),
 			}]);
 		}
 	}
@@ -320,7 +344,7 @@ class NewUntitledPromptFileAction extends Action2 {
 		if (editor && editor.hasModel()) {
 			SnippetController2.get(editor)?.apply([{
 				range: editor.getModel().getFullModelRange(),
-				template: getDefaultContentSnippet(type, undefined),
+				template: getDefaultContentSnippet(type, undefined, Target.Undefined),
 			}]);
 		}
 

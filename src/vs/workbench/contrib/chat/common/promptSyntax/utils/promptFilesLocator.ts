@@ -7,12 +7,12 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { isAbsolute } from '../../../../../../base/common/path.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
 import * as nls from '../../../../../../nls.js';
-import { IFileService } from '../../../../../../platform/files/common/files.js';
+import { FileOperationError, FileOperationResult, IFileService } from '../../../../../../platform/files/common/files.js';
 import { getPromptFileLocationsConfigKey, isTildePath, PromptsConfig } from '../config/config.js';
 import { basename, dirname, isEqualOrParent, joinPath } from '../../../../../../base/common/resources.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { COPILOT_CUSTOM_INSTRUCTIONS_FILENAME, AGENTS_SOURCE_FOLDER, getPromptFileExtension, getPromptFileType, LEGACY_MODE_FILE_EXTENSION, getCleanPromptName, AGENT_FILE_EXTENSION, getPromptFileDefaultLocations, SKILL_FILENAME, IPromptSourceFolder, DEFAULT_AGENT_SOURCE_FOLDERS, IResolvedPromptFile, IResolvedPromptSourceFolder, PromptFileSource } from '../config/promptFileLocations.js';
+import { COPILOT_CUSTOM_INSTRUCTIONS_FILENAME, AGENTS_SOURCE_FOLDER, getPromptFileExtension, getPromptFileType, LEGACY_MODE_FILE_EXTENSION, getCleanPromptName, AGENT_FILE_EXTENSION, getPromptFileDefaultLocations, SKILL_FILENAME, IPromptSourceFolder, DEFAULT_AGENT_SOURCE_FOLDERS, IResolvedPromptFile, IResolvedPromptSourceFolder, PromptFileSource, isInClaudeRulesFolder } from '../config/promptFileLocations.js';
 import { PromptsType } from '../promptTypes.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { Schemas } from '../../../../../../base/common/network.js';
@@ -462,13 +462,19 @@ export class PromptFilesLocator {
 
 	/**
 	 * Uses the file service to resolve the provided location and return either the file at the location of files in the directory.
+	 * For claude rules folders (.claude/rules), this searches recursively to support subdirectories.
 	 */
 	private async resolveFilesAtLocation(location: URI, type: PromptsType, token: CancellationToken): Promise<URI[]> {
 		if (type === PromptsType.skill) {
 			return this.findAgentSkillsInFolder(location, token);
 		}
+		// Claude rules folders support subdirectories, so search recursively
+		const recursive = type === PromptsType.instructions && isInClaudeRulesFolder(joinPath(location, 'dummy.md'));
 		try {
 			const info = await this.fileService.resolve(location);
+			if (token.isCancellationRequested) {
+				return [];
+			}
 			if (info.isFile) {
 				return [info.resource];
 			} else if (info.isDirectory && info.children) {
@@ -476,11 +482,20 @@ export class PromptFilesLocator {
 				for (const child of info.children) {
 					if (child.isFile) {
 						result.push(child.resource);
+					} else if (recursive && child.isDirectory) {
+						// Recursively search subdirectories for claude rules
+						const subFiles = await this.resolveFilesAtLocation(child.resource, type, token);
+						result.push(...subFiles);
 					}
 				}
 				return result;
 			}
-		} catch (error) {
+		} catch (e) {
+			if (e instanceof FileOperationError && e.fileOperationResult === FileOperationResult.FILE_NOT_FOUND) {
+				// ignore
+			} else {
+				this.logService.error(`Failed to resolve files at location: ${location.toString()}`, e);
+			}
 		}
 		return [];
 	}
