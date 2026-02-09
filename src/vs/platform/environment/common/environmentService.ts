@@ -108,6 +108,9 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 	get untitledWorkspacesHome(): URI { return URI.file(join(this.userDataPath, 'Workspaces')); }
 
 	@memoize
+	get builtinWorkbenchModesHome(): URI { return joinPath(URI.file(this.appRoot), 'resources', 'workbenchModes'); }
+
+	@memoize
 	get builtinExtensionsPath(): string {
 		const cliBuiltinExtensionsDir = this.args['builtin-extensions-dir'];
 		if (cliBuiltinExtensionsDir) {
@@ -117,6 +120,7 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 		return normalize(join(FileAccess.asFileUri('').fsPath, '..', 'extensions'));
 	}
 
+	@memoize
 	get extensionsDownloadLocation(): URI {
 		const cliExtensionsDownloadDir = this.args['extensions-download-dir'];
 		if (cliExtensionsDownloadDir) {
@@ -214,7 +218,7 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 		const result: [string, string][] = [];
 		for (const entry of this.args.log || []) {
 			const matches = EXTENSION_IDENTIFIER_WITH_LOG_REGEX.exec(entry);
-			if (matches && matches[1] && matches[2]) {
+			if (matches?.[1] && matches[2]) {
 				result.push([matches[1], matches[2]]);
 			}
 		}
@@ -252,7 +256,16 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 		return undefined;
 	}
 
+	@memoize
+	get agentSessionsWorkspace(): URI {
+		return joinPath(this.appSettingsHome, 'agent-sessions.code-workspace');
+	}
+
 	get editSessionId(): string | undefined { return this.args['editSessionId']; }
+
+	get exportPolicyData(): string | undefined {
+		return this.args['export-policy-data'];
+	}
 
 	get continueOn(): string | undefined {
 		return this.args['continueOn'];

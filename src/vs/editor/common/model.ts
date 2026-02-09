@@ -19,14 +19,16 @@ import { IWordAtPosition } from './core/wordHelper.js';
 import { FormattingOptions } from './languages.js';
 import { ILanguageSelection } from './languages/language.js';
 import { IBracketPairsTextModelPart } from './textModelBracketPairs.js';
-import { IModelContentChange, IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, InternalModelContentChangeEvent, ModelFontChangedEvent, ModelInjectedTextChangedEvent, ModelLineHeightChangedEvent } from './textModelEvents.js';
+import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, ModelFontChangedEvent, ModelLineHeightChangedEvent } from './textModelEvents.js';
+import { IModelContentChange } from './model/mirrorTextModel.js';
 import { IGuidesTextModelPart } from './textModelGuides.js';
 import { ITokenizationTextModelPart } from './tokenizationTextModelPart.js';
 import { UndoRedoGroup } from '../../platform/undoRedo/common/undoRedo.js';
 import { TokenArray } from './tokens/lineTokens.js';
 import { IEditorModel } from './editorCommon.js';
-import { TextModelEditReason } from './textModelEditReason.js';
+import { TextModelEditSource } from './textModelEditSource.js';
 import { TextEdit } from './core/edits/textEdit.js';
+import { IViewModel } from './viewModel.js';
 
 /**
  * Vertical Lane in the overview ruler of the editor.
@@ -221,7 +223,7 @@ export interface IModelDecorationOptions {
 	 */
 	glyphMargin?: IModelDecorationGlyphMarginOptions | null;
 	/**
-	 * If set, the decoration will override the line height of the lines it spans. Maximum value is 300px.
+	 * If set, the decoration will override the line height of the lines it spans. This value is a multiplier to the default line height.
 	 */
 	lineHeight?: number | null;
 	/**
@@ -305,6 +307,20 @@ export interface IModelDecorationOptions {
 	 * @internal
 	 */
 	affectsFont?: boolean | null;
+
+	/**
+	 * The text direction of the decoration.
+	 */
+	textDirection?: TextDirection | null;
+}
+
+/**
+ * Text Direction for a decoration.
+ */
+export enum TextDirection {
+	LTR = 0,
+
+	RTL = 1,
 }
 
 /**
@@ -675,8 +691,8 @@ export interface ITextSnapshot {
 /**
  * @internal
  */
-export function isITextSnapshot(obj: any): obj is ITextSnapshot {
-	return (obj && typeof obj.read === 'function');
+export function isITextSnapshot(obj: unknown): obj is ITextSnapshot {
+	return (!!obj && typeof (obj as ITextSnapshot).read === 'function');
 }
 
 /**
@@ -699,6 +715,18 @@ export interface ITextModel {
 	 * @internal
 	 */
 	readonly isForSimpleWidget: boolean;
+
+	/**
+	 * Method to register a view model on a model
+	 * @internal
+	 */
+	registerViewModel(viewModel: IViewModel): void;
+
+	/**
+	 * Method which unregister a view model on a model
+	 * @internal
+	 */
+	unregisterViewModel(viewModel: IViewModel): void;
 
 	/**
 	 * If true, the text model might contain RTL.
@@ -1198,7 +1226,7 @@ export interface ITextModel {
 	/**
 	 * @internal
 	*/
-	edit(edit: TextEdit, options?: { reason?: TextModelEditReason }): void;
+	edit(edit: TextEdit, options?: { reason?: TextModelEditSource }): void;
 
 	/**
 	 * Push edit operations, basically editing the model. This is the preferred way
@@ -1212,7 +1240,7 @@ export interface ITextModel {
 	/**
 	 * @internal
 	 */
-	pushEditOperations(beforeCursorState: Selection[] | null, editOperations: IIdentifiedSingleEditOperation[], cursorStateComputer: ICursorStateComputer, group?: UndoRedoGroup, reason?: TextModelEditReason): Selection[] | null;
+	pushEditOperations(beforeCursorState: Selection[] | null, editOperations: IIdentifiedSingleEditOperation[], cursorStateComputer: ICursorStateComputer, group?: UndoRedoGroup, reason?: TextModelEditSource): Selection[] | null;
 
 	/**
 	 * Change the end of line sequence. This is the preferred way of
@@ -1228,7 +1256,7 @@ export interface ITextModel {
 	 */
 	applyEdits(operations: readonly IIdentifiedSingleEditOperation[]): void;
 	/** @internal */
-	applyEdits(operations: readonly IIdentifiedSingleEditOperation[], reason: TextModelEditReason): void;
+	applyEdits(operations: readonly IIdentifiedSingleEditOperation[], reason: TextModelEditSource): void;
 	applyEdits(operations: readonly IIdentifiedSingleEditOperation[], computeUndoEdits: false): void;
 	applyEdits(operations: readonly IIdentifiedSingleEditOperation[], computeUndoEdits: true): IValidEditOperation[];
 
@@ -1251,36 +1279,25 @@ export interface ITextModel {
 	/**
 	 * Undo edit operations until the previous undo/redo point.
 	 * The inverse edit operations will be pushed on the redo stack.
-	 * @internal
 	 */
 	undo(): void | Promise<void>;
 
 	/**
 	 * Is there anything in the undo stack?
-	 * @internal
 	 */
 	canUndo(): boolean;
 
 	/**
 	 * Redo edit operations until the next undo/redo point.
 	 * The inverse edit operations will be pushed on the undo stack.
-	 * @internal
 	 */
 	redo(): void | Promise<void>;
 
 	/**
 	 * Is there anything in the redo stack?
-	 * @internal
 	 */
 	canRedo(): boolean;
 
-	/**
-	 * @deprecated Please use `onDidChangeContent` instead.
-	 * An event emitted when the contents of the model have changed.
-	 * @internal
-	 * @event
-	 */
-	readonly onDidChangeContentOrInjectedText: Event<InternalModelContentChangeEvent | ModelInjectedTextChangedEvent>;
 	/**
 	 * An event emitted when the contents of the model have changed.
 	 * @event
@@ -1492,7 +1509,7 @@ export class ValidAnnotatedEditOperation implements IIdentifiedSingleEditOperati
  * `lineNumber` is 1 based.
  */
 export interface IReadonlyTextBuffer {
-	onDidChangeContent: Event<void>;
+	readonly onDidChangeContent: Event<void>;
 	equals(other: ITextBuffer): boolean;
 	mightContainRTL(): boolean;
 	mightContainUnusualLineTerminators(): boolean;

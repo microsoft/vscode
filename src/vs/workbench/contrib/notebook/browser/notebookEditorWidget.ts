@@ -29,7 +29,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Color, RGBA } from '../../../../base/common/color.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { combinedDisposable, Disposable, DisposableStore, dispose } from '../../../../base/common/lifecycle.js';
+import { combinedDisposable, Disposable, DisposableStore, dispose, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { setTimeout0 } from '../../../../base/common/platform.js';
 import { extname, isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -37,7 +37,8 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import { FontMeasurements } from '../../../../editor/browser/config/fontMeasurements.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { IEditorOptions } from '../../../../editor/common/config/editorOptions.js';
-import { BareFontInfo, FontInfo } from '../../../../editor/common/config/fontInfo.js';
+import { FontInfo } from '../../../../editor/common/config/fontInfo.js';
+import { createBareFontInfoFromRawSettings } from '../../../../editor/common/config/fontInfoFromSettings.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { Selection } from '../../../../editor/common/core/selection.js';
 import { SuggestController } from '../../../../editor/contrib/suggest/browser/suggestController.js';
@@ -105,6 +106,7 @@ import { NotebookHorizontalTracker } from './viewParts/notebookHorizontalTracker
 import { NotebookCellEditorPool } from './view/notebookCellEditorPool.js';
 import { InlineCompletionsController } from '../../../../editor/contrib/inlineCompletions/browser/controller/inlineCompletionsController.js';
 import { NotebookCellLayoutManager } from './notebookCellLayoutManager.js';
+import { FloatingEditorToolbar } from '../../../../editor/contrib/floatingMenu/browser/floatingMenu.js';
 
 const $ = DOM.$;
 
@@ -113,6 +115,7 @@ export function getDefaultNotebookCreationOptions(): INotebookEditorCreationOpti
 	const skipContributions = [
 		'editor.contrib.review',
 		FloatingEditorClickMenu.ID,
+		FloatingEditorToolbar.ID,
 		'editor.contrib.dirtydiff',
 		'editor.contrib.testingOutputPeek',
 		'editor.contrib.testingDecorations',
@@ -474,7 +477,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 	private _debugFlag: boolean = false;
 
-	private _debug(...args: any[]) {
+	private _debug(...args: unknown[]) {
 		if (!this._debugFlag) {
 			return;
 		}
@@ -605,7 +608,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	private _generateFontInfo(): void {
 		const editorOptions = this.configurationService.getValue<IEditorOptions>('editor');
 		const targetWindow = DOM.getWindow(this.getDomNode());
-		this._fontInfo = FontMeasurements.readFontInfo(targetWindow, BareFontInfo.createFromRawSettings(editorOptions, PixelRatio.getInstance(targetWindow).value));
+		this._fontInfo = FontMeasurements.readFontInfo(targetWindow, createBareFontInfoFromRawSettings(editorOptions, PixelRatio.getInstance(targetWindow).value));
 	}
 
 	private _createBody(parent: HTMLElement): void {
@@ -1513,16 +1516,17 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		}));
 
 		let hasPendingChangeContentHeight = false;
+		const renderScrollHeightDisposable = this._localStore.add(new MutableDisposable());
 		this._localStore.add(this._list.onDidChangeContentHeight(() => {
 			if (hasPendingChangeContentHeight) {
 				return;
 			}
 			hasPendingChangeContentHeight = true;
 
-			this._localStore.add(DOM.scheduleAtNextAnimationFrame(DOM.getWindow(this.getDomNode()), () => {
+			renderScrollHeightDisposable.value = DOM.scheduleAtNextAnimationFrame(DOM.getWindow(this.getDomNode()), () => {
 				hasPendingChangeContentHeight = false;
 				this._updateScrollHeight();
-			}, 100));
+			}, 100);
 		}));
 
 		this._localStore.add(this._list.onDidRemoveOutputs(outputs => {
@@ -2127,7 +2131,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			return false;
 		}
 
-		let container: any = activeSelection.commonAncestorContainer;
+		let container: Node | null = activeSelection.commonAncestorContainer;
 
 		if (!this._body.contains(container)) {
 			return false;
@@ -2368,7 +2372,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	//#endregion
 
 	async layoutNotebookCell(cell: ICellViewModel, height: number, context?: CellLayoutContext): Promise<void> {
-		return this._cellLayoutManager?.layoutNotebookCell(cell, height, context);
+		return this._cellLayoutManager?.layoutNotebookCell(cell, height);
 	}
 
 	getActiveCell() {
@@ -2990,7 +2994,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	}
 
 	//#region --- webview IPC ----
-	postMessage(message: any) {
+	postMessage(message: unknown) {
 		if (this._webview?.isResolved()) {
 			this._webview.postKernelMessage(message);
 		}

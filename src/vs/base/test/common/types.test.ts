@@ -104,6 +104,85 @@ suite('Types', () => {
 		assert(types.isString('foo'));
 	});
 
+	test('isStringArray', () => {
+		assert(!types.isStringArray(undefined));
+		assert(!types.isStringArray(null));
+		assert(!types.isStringArray(5));
+		assert(!types.isStringArray('foo'));
+		assert(!types.isStringArray(true));
+		assert(!types.isStringArray({}));
+		assert(!types.isStringArray(/test/));
+		assert(!types.isStringArray(new RegExp('')));
+		assert(!types.isStringArray(new Date()));
+		assert(!types.isStringArray(assert));
+		assert(!types.isStringArray(function foo() { /**/ }));
+		assert(!types.isStringArray({ foo: 'bar' }));
+		assert(!types.isStringArray([1, 2, 3]));
+		assert(!types.isStringArray([1, 2, '3']));
+		assert(!types.isStringArray(['foo', 'bar', 5]));
+		assert(!types.isStringArray(['foo', null, 'bar']));
+		assert(!types.isStringArray(['foo', undefined, 'bar']));
+
+		assert(types.isStringArray([]));
+		assert(types.isStringArray(['foo']));
+		assert(types.isStringArray(['foo', 'bar']));
+		assert(types.isStringArray(['foo', 'bar', 'baz']));
+	});
+
+	test('isArrayOf', () => {
+		// Basic non-array values
+		assert(!types.isArrayOf(undefined, types.isString));
+		assert(!types.isArrayOf(null, types.isString));
+		assert(!types.isArrayOf(5, types.isString));
+		assert(!types.isArrayOf('foo', types.isString));
+		assert(!types.isArrayOf(true, types.isString));
+		assert(!types.isArrayOf({}, types.isString));
+		assert(!types.isArrayOf(/test/, types.isString));
+		assert(!types.isArrayOf(new RegExp(''), types.isString));
+		assert(!types.isArrayOf(new Date(), types.isString));
+		assert(!types.isArrayOf(assert, types.isString));
+		assert(!types.isArrayOf(function foo() { /**/ }, types.isString));
+		assert(!types.isArrayOf({ foo: 'bar' }, types.isString));
+
+		// Arrays with wrong types
+		assert(!types.isArrayOf([1, 2, 3], types.isString));
+		assert(!types.isArrayOf([1, 2, '3'], types.isString));
+		assert(!types.isArrayOf(['foo', 'bar', 5], types.isString));
+		assert(!types.isArrayOf(['foo', null, 'bar'], types.isString));
+		assert(!types.isArrayOf(['foo', undefined, 'bar'], types.isString));
+
+		// Valid string arrays
+		assert(types.isArrayOf([], types.isString));
+		assert(types.isArrayOf(['foo'], types.isString));
+		assert(types.isArrayOf(['foo', 'bar'], types.isString));
+		assert(types.isArrayOf(['foo', 'bar', 'baz'], types.isString));
+
+		// Valid number arrays
+		assert(types.isArrayOf([], types.isNumber));
+		assert(types.isArrayOf([1], types.isNumber));
+		assert(types.isArrayOf([1, 2, 3], types.isNumber));
+		assert(!types.isArrayOf([1, 2, '3'], types.isNumber));
+
+		// Valid boolean arrays
+		assert(types.isArrayOf([], types.isBoolean));
+		assert(types.isArrayOf([true], types.isBoolean));
+		assert(types.isArrayOf([true, false, true], types.isBoolean));
+		assert(!types.isArrayOf([true, 1, false], types.isBoolean));
+
+		// Valid function arrays
+		assert(types.isArrayOf([], types.isFunction));
+		assert(types.isArrayOf([assert], types.isFunction));
+		assert(types.isArrayOf([assert, function foo() { /**/ }], types.isFunction));
+		assert(!types.isArrayOf([assert, 'foo'], types.isFunction));
+
+		// Custom type guard
+		const isEven = (n: unknown): n is number => types.isNumber(n) && n % 2 === 0;
+		assert(types.isArrayOf([], isEven));
+		assert(types.isArrayOf([2, 4, 6], isEven));
+		assert(!types.isArrayOf([2, 3, 4], isEven));
+		assert(!types.isArrayOf([1, 3, 5], isEven));
+	});
+
 	test('isNumber', () => {
 		assert(!types.isNumber(undefined));
 		assert(!types.isNumber(null));
@@ -825,5 +904,99 @@ suite('Types', () => {
 		assert.throws(() => types.validateConstraints([1, true], [types.isNumber, types.isString]));
 		assert.throws(() => types.validateConstraints(['2'], [types.isNumber]));
 		assert.throws(() => types.validateConstraints([1, 'test', true], [Number, String, Number]));
+	});
+
+	suite('hasKey', () => {
+		test('should return true when object has specified key', () => {
+			type A = { a: string };
+			type B = { b: number };
+			const obj: A | B = { a: 'test' };
+
+			assert(types.hasKey(obj, { a: true }));
+			// After this check, TypeScript knows obj is type A
+			assert.strictEqual(obj.a, 'test');
+		});
+
+		test('should return false when object does not have specified key', () => {
+			type A = { a: string };
+			type B = { b: number };
+			const obj: A | B = { b: 42 };
+
+			// @ts-expect-error
+			assert(!types.hasKey(obj, { a: true }));
+		});
+
+		test('should work with multiple keys', () => {
+			type A = { a: string; b: number };
+			type B = { c: boolean };
+			const obj: A | B = { a: 'test', b: 42 };
+
+			assert(types.hasKey(obj, { a: true, b: true }));
+			// After this check, TypeScript knows obj is type A
+			assert.strictEqual(obj.a, 'test');
+			assert.strictEqual(obj.b, 42);
+		});
+
+		test('should return false if any key is missing', () => {
+			type A = { a: string; b: number };
+			type B = { a: string };
+			const obj: A | B = { a: 'test' };
+
+			assert(!types.hasKey(obj, { a: true, b: true }));
+		});
+
+		test('should work with empty key object', () => {
+			type A = { a: string };
+			type B = { b: number };
+			const obj: A | B = { a: 'test' };
+
+			// Empty key object should return true (all zero keys exist)
+			assert(types.hasKey(obj, {}));
+		});
+
+		test('should work with complex union types', () => {
+			type TypeA = { kind: 'a'; value: string };
+			type TypeB = { kind: 'b'; count: number };
+			type TypeC = { kind: 'c'; items: string[] };
+
+			const objA: TypeA | TypeB | TypeC = { kind: 'a', value: 'hello' };
+			const objB: TypeA | TypeB | TypeC = { kind: 'b', count: 5 };
+
+			assert(types.hasKey(objA, { value: true }));
+			// @ts-expect-error
+			assert(!types.hasKey(objA, { count: true }));
+			// @ts-expect-error
+			assert(!types.hasKey(objA, { items: true }));
+
+			// @ts-expect-error
+			assert(!types.hasKey(objB, { value: true }));
+			// @ts-expect-error
+			assert(types.hasKey(objB, { count: true }));
+			// @ts-expect-error
+			assert(!types.hasKey(objB, { items: true }));
+		});
+
+		test('should handle objects with optional properties', () => {
+			type A = { a: string; b?: number };
+			type B = { c: boolean };
+			const obj1: A | B = { a: 'test', b: 42 };
+			const obj2: A | B = { a: 'test' };
+
+			assert(types.hasKey(obj1, { a: true }));
+			assert(types.hasKey(obj1, { b: true }));
+
+			assert(types.hasKey(obj2, { a: true }));
+			assert(!types.hasKey(obj2, { b: true }));
+		});
+
+		test('should work with nested objects', () => {
+			type A = { data: { nested: string } };
+			type B = { value: number };
+			const obj: A | B = { data: { nested: 'test' } };
+
+			assert(types.hasKey(obj, { data: true }));
+			// @ts-expect-error
+			assert(!types.hasKey(obj, { value: true }));
+		});
 	});
 });

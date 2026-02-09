@@ -1,0 +1,48 @@
+{
+  "name": "dotenv",
+  "displayName": "%displayName%",
+  "description": "%description%",
+  "version": "1.0.0",
+  "publisher": "vscode",
+  "license": "MIT",
+  "engines": {
+    "vscode": "*"
+  },
+  "scripts": {
+    "update-grammar": "node ../node_modules/vscode-grammar-updater/bin dotenv-org/dotenv-vscode syntaxes/dotenv.tmLanguage.json ./syntaxes/dotenv.tmLanguage.json"
+  },
+  "categories": ["Programming Languages"],
+  "contributes": {
+    "languages": [
+      {
+        "id": "dotenv",
+        "extensions": [
+          ".env"
+        ],
+        "filenames": [
+          ".env",
+          ".flaskenv",
+          "user-dirs.dirs"
+        ],
+        "filenamePatterns": [
+          ".env.*"
+        ],
+        "aliases": [
+          "Dotenv"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "dotenv",
+        "scopeName": "source.dotenv",
+        "path": "./syntaxes/dotenv.tmLanguage.json"
+      }
+    ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
+  }
+}

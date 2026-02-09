@@ -118,7 +118,7 @@ const inlineSuggestionHintsNextIcon = registerIcon('inline-suggestion-hints-next
 const inlineSuggestionHintsPreviousIcon = registerIcon('inline-suggestion-hints-previous', Codicon.chevronLeft, localize('parameterHintsPreviousIcon', 'Icon for show previous parameter hint.'));
 
 export class InlineSuggestionHintsContentWidget extends Disposable implements IContentWidget {
-	public static readonly hot = createHotClass(InlineSuggestionHintsContentWidget);
+	public static readonly hot = createHotClass(this);
 
 	private static _dropDownVisible = false;
 	public static get dropDownVisible() { return this._dropDownVisible; }
@@ -143,12 +143,7 @@ export class InlineSuggestionHintsContentWidget extends Disposable implements IC
 			true,
 			() => this._commandService.executeCommand(commandId),
 		);
-		const kb = this.keybindingService.lookupKeybinding(commandId, this._contextKeyService);
-		let tooltip = label;
-		if (kb) {
-			tooltip = localize({ key: 'content', comment: ['A label', 'A keybinding'] }, '{0} ({1})', label, kb.getLabel());
-		}
-		action.tooltip = tooltip;
+		action.tooltip = this.keybindingService.appendKeybinding(label, commandId, this._contextKeyService);
 		return action;
 	}
 

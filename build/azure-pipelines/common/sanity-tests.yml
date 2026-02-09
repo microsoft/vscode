@@ -1,0 +1,129 @@
+parameters:
+  - name: name
+    type: string
+  - name: displayName
+    type: string
+  - name: poolName
+    type: string
+  - name: os
+    type: string
+    default: linux
+  - name: container
+    type: string
+    default: ""
+  - name: arch
+    type: string
+    default: amd64
+  - name: baseImage
+    type: string
+    default: ""
+  - name: pageSize
+    type: string
+    default: ""
+  - name: args
+    type: string
+    default: ""
+
+jobs:
+  - job: ${{ parameters.name }}
+    displayName: ${{ parameters.displayName }}
+    pool:
+      name: ${{ parameters.poolName }}
+      os: ${{ parameters.os }}
+    timeoutInMinutes: 30
+    variables:
+      TEST_DIR: $(Build.SourcesDirectory)/test/sanity
+      LOG_FILE: $(TEST_DIR)/results.xml
+      DOCKER_CACHE_DIR: $(Pipeline.Workspace)/docker-cache
+      DOCKER_CACHE_FILE: $(DOCKER_CACHE_DIR)/${{ parameters.container }}.tar
+    steps:
+      - checkout: self
+        fetchDepth: 1
+        fetchTags: false
+        sparseCheckoutDirectories: test/sanity .nvmrc
+        displayName: Checkout test/sanity
+
+      - task: NodeTool@0
+        inputs:
+          versionSource: fromFile
+          versionFilePath: .nvmrc
+        displayName: Install Node.js
+
+      - script: npm config set registry "$(NPM_REGISTRY)" --location=project
+        workingDirectory: $(TEST_DIR)
+        displayName: Configure NPM Registry
+
+      - task: npmAuthenticate@0
+        inputs:
+          workingFile: $(TEST_DIR)/.npmrc
+        displayName: Authenticate with NPM Registry
+
+      - script: npm ci
+        workingDirectory: $(TEST_DIR)
+        displayName: Install NPM Dependencies
+
+      - script: npm run compile
+        workingDirectory: $(TEST_DIR)
+        displayName: Compile Sanity Tests
+
+      # Windows
+      - ${{ if eq(parameters.os, 'windows') }}:
+        - script: $(TEST_DIR)/scripts/run-win32.cmd -c $(BUILD_COMMIT) -q $(BUILD_QUALITY) -t $(LOG_FILE) -v ${{ parameters.args }}
+          workingDirectory: $(TEST_DIR)
+          displayName: Run Sanity Tests
+
+      # macOS
+      - ${{ if eq(parameters.os, 'macOS') }}:
+        - bash: $(TEST_DIR)/scripts/run-macOS.sh -c $(BUILD_COMMIT) -q $(BUILD_QUALITY) -t $(LOG_FILE) -v ${{ parameters.args }}
+          workingDirectory: $(TEST_DIR)
+          displayName: Run Sanity Tests
+
+      # Native Linux host
+      - ${{ if and(eq(parameters.container, ''), eq(parameters.os, 'linux')) }}:
+        - bash: $(TEST_DIR)/scripts/run-ubuntu.sh -c $(BUILD_COMMIT) -q $(BUILD_QUALITY) -t $(LOG_FILE) -v ${{ parameters.args }}
+          workingDirectory: $(TEST_DIR)
+          displayName: Run Sanity Tests
+
+      # Linux Docker container
+      - ${{ if ne(parameters.container, '') }}:
+        - task: Cache@2
+          inputs:
+            key: 'docker-v3 | "${{ parameters.container }}" | "${{ parameters.arch }}" | "${{ parameters.pageSize }}" | "$(Agent.OS)" | $(TEST_DIR)/containers/${{ parameters.container }}.dockerfile'
+            path: $(DOCKER_CACHE_DIR)
+            restoreKeys: docker-v3 | "${{ parameters.container }}" | "${{ parameters.arch }}" | "${{ parameters.pageSize }}" | "$(Agent.OS)"
+            cacheHitVar: DOCKER_CACHE_HIT
+          displayName: Download Docker Image
+
+        - bash: |
+            docker load -i "$(DOCKER_CACHE_FILE)"
+            rm -f "$(DOCKER_CACHE_FILE)"
+          condition: eq(variables.DOCKER_CACHE_HIT, 'true')
+          displayName: Load Docker Image
+
+        - bash: |
+            $(TEST_DIR)/scripts/run-docker.sh \
+              --container "${{ parameters.container }}" \
+              --arch "${{ parameters.arch }}" \
+              --base-image "${{ parameters.baseImage }}" \
+              --page-size "${{ parameters.pageSize }}" \
+              --quality "$(BUILD_QUALITY)" \
+              --commit "$(BUILD_COMMIT)" \
+              --test-results "/root/results.xml" \
+              --verbose \
+              ${{ parameters.args }}
+          workingDirectory: $(TEST_DIR)
+          displayName: Run Sanity Tests
+
+        - bash: |
+            mkdir -p "$(DOCKER_CACHE_DIR)"
+            docker save -o "$(DOCKER_CACHE_FILE)" "${{ parameters.container }}"
+          condition: and(succeeded(), ne(variables.DOCKER_CACHE_HIT, 'true'))
+          displayName: Save Docker Image
+
+      - task: PublishTestResults@2
+        inputs:
+          testResultsFormat: JUnit
+          testResultsFiles: $(LOG_FILE)
+          testRunTitle: ${{ parameters.displayName }}
+        displayName: Publish Test Results
+        condition: succeededOrFailed()

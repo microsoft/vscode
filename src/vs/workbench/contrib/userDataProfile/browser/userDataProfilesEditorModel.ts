@@ -6,6 +6,7 @@
 import { Action, IAction, Separator, toAction } from '../../../../base/common/actions.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
+import { isMarkdownString } from '../../../../base/common/htmlContent.js';
 import { localize } from '../../../../nls.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -312,7 +313,7 @@ export abstract class AbstractUserDataProfileElement extends Disposable {
 		return {
 			handle: child.handle,
 			checkbox: child.checkbox,
-			label: child.label?.label ?? '',
+			label: child.label ? (isMarkdownString(child.label.label) ? child.label.label.value : child.label.label) : '',
 			description: isString(child.description) ? child.description : undefined,
 			resource: URI.revive(child.resourceUri),
 			icon: child.themeIcon,

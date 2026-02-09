@@ -118,6 +118,7 @@ export class TestStoredFileWorkingCopyModelWithCustomSave extends TestStoredFile
 			isSymbolicLink: false,
 			readonly: false,
 			locked: false,
+			executable: false,
 			children: undefined
 		};
 	}

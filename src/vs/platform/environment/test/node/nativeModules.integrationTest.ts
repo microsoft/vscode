@@ -50,9 +50,9 @@ flakySuite('Native Modules (all platforms)', () => {
 		assert.ok(result, testErrorMessage('native-keymap'));
 	});
 
-	test('native-watchdog', async () => {
-		const watchDog = await import('native-watchdog');
-		assert.ok(typeof watchDog.start === 'function', testErrorMessage('native-watchdog'));
+	test('@vscode/native-watchdog', async () => {
+		const watchDog = await import('@vscode/native-watchdog');
+		assert.ok(typeof watchDog.start === 'function', testErrorMessage('@vscode/native-watchdog'));
 	});
 
 	test('@vscode/sudo-prompt', async () => {
@@ -115,6 +115,7 @@ flakySuite('Native Modules (all platforms)', () => {
 		const proxyAgent = await import('@vscode/proxy-agent');
 		// This call will load `@vscode/proxy-agent` which is a native module that we want to test on Windows
 		const windowsCerts = await proxyAgent.loadSystemCertificates({
+			loadSystemCertificatesFromNode: () => undefined,
 			log: {
 				trace: () => { },
 				debug: () => { },

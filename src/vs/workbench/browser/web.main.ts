@@ -68,7 +68,7 @@ import { IProgressService } from '../../platform/progress/common/progress.js';
 import { DelayedLogChannel } from '../services/output/common/delayedLogChannel.js';
 import { dirname, joinPath } from '../../base/common/resources.js';
 import { IUserDataProfile, IUserDataProfilesService } from '../../platform/userDataProfile/common/userDataProfile.js';
-import { NullPolicyService } from '../../platform/policy/common/policy.js';
+import { IPolicyService } from '../../platform/policy/common/policy.js';
 import { IRemoteExplorerService } from '../services/remote/common/remoteExplorerService.js';
 import { DisposableTunnel, TunnelProtocol } from '../../platform/tunnel/common/tunnel.js';
 import { ILabelService } from '../../platform/label/common/label.js';
@@ -95,6 +95,11 @@ import { ISecretStorageService } from '../../platform/secrets/common/secrets.js'
 import { TunnelSource } from '../services/remote/common/tunnelModel.js';
 import { mainWindow } from '../../base/browser/window.js';
 import { INotificationService, Severity } from '../../platform/notification/common/notification.js';
+import { IDefaultAccountService } from '../../platform/defaultAccount/common/defaultAccount.js';
+import { DefaultAccountService } from '../services/accounts/browser/defaultAccount.js';
+import { AccountPolicyService } from '../services/policies/common/accountPolicyService.js';
+import { WorkbenchModeService } from '../services/layout/browser/workbenchModeService.js';
+import { IWorkbenchModeService } from '../services/layout/common/workbenchModeService.js';
 
 export class BrowserMain extends Disposable {
 
@@ -345,9 +350,17 @@ export class BrowserMain extends Disposable {
 		serviceCollection.set(IRemoteAgentService, remoteAgentService);
 		this._register(RemoteFileSystemProviderClient.register(remoteAgentService, fileService, logService));
 
+		// Default Account
+		const defaultAccountService = this._register(new DefaultAccountService(productService));
+		serviceCollection.set(IDefaultAccountService, defaultAccountService);
+
+		// Policies
+		const policyService = new AccountPolicyService(logService, defaultAccountService);
+		serviceCollection.set(IPolicyService, policyService);
+
 		// Long running services (workspace, config, storage)
 		const [configurationService, storageService] = await Promise.all([
-			this.createWorkspaceService(workspace, environmentService, userDataProfileService, userDataProfilesService, fileService, remoteAgentService, uriIdentityService, logService).then(service => {
+			this.createWorkspaceService(workspace, environmentService, userDataProfileService, userDataProfilesService, fileService, remoteAgentService, uriIdentityService, policyService, logService).then(service => {
 
 				// Workspace
 				serviceCollection.set(IWorkspaceContextService, service);
@@ -376,6 +389,14 @@ export class BrowserMain extends Disposable {
 		//
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
+		// Layout Mode
+		const workbenchModeService: WorkbenchModeService = this._register(new WorkbenchModeService(configurationService, fileService, environmentService, uriIdentityService, logService, storageService));
+		serviceCollection.set(IWorkbenchModeService, workbenchModeService);
+		try {
+			await workbenchModeService.initialize();
+		} catch (error) {
+			logService.error('Error while initializing workbench mode service', error);
+		}
 
 		// Workspace Trust Service
 		const workspaceTrustEnablementService = new WorkspaceTrustEnablementService(configurationService, environmentService);
@@ -478,7 +499,7 @@ export class BrowserMain extends Disposable {
 		if (indexedDB) {
 			userDataProvider = new IndexedDBFileSystemProvider(Schemas.vscodeUserData, indexedDB, userDataStore, true);
 			this.indexedDBFileSystemProviders.push(userDataProvider);
-			this.registerDeveloperActions(<IndexedDBFileSystemProvider>userDataProvider);
+			this.registerDeveloperActions(userDataProvider);
 		} else {
 			logService.info('Using in-memory user data provider');
 			userDataProvider = new InMemoryFileSystemProvider();
@@ -551,7 +572,7 @@ export class BrowserMain extends Disposable {
 		}
 	}
 
-	private async createWorkspaceService(workspace: IAnyWorkspaceIdentifier, environmentService: IBrowserWorkbenchEnvironmentService, userDataProfileService: IUserDataProfileService, userDataProfilesService: IUserDataProfilesService, fileService: FileService, remoteAgentService: IRemoteAgentService, uriIdentityService: IUriIdentityService, logService: ILogService): Promise<WorkspaceService> {
+	private async createWorkspaceService(workspace: IAnyWorkspaceIdentifier, environmentService: IBrowserWorkbenchEnvironmentService, userDataProfileService: IUserDataProfileService, userDataProfilesService: IUserDataProfilesService, fileService: FileService, remoteAgentService: IRemoteAgentService, uriIdentityService: IUriIdentityService, policyService: IPolicyService, logService: ILogService): Promise<WorkspaceService> {
 
 		// Temporary workspaces do not exist on startup because they are
 		// just in memory. As such, detect this case and eagerly create
@@ -567,7 +588,7 @@ export class BrowserMain extends Disposable {
 		}
 
 		const configurationCache = new ConfigurationCache([Schemas.file, Schemas.vscodeUserData, Schemas.tmp] /* Cache all non native resources */, environmentService, fileService);
-		const workspaceService = new WorkspaceService({ remoteAuthority: this.configuration.remoteAuthority, configurationCache }, environmentService, userDataProfileService, userDataProfilesService, fileService, remoteAgentService, uriIdentityService, logService, new NullPolicyService());
+		const workspaceService = new WorkspaceService({ remoteAuthority: this.configuration.remoteAuthority, configurationCache }, environmentService, userDataProfileService, userDataProfilesService, fileService, remoteAgentService, uriIdentityService, logService, policyService);
 
 		try {
 			await workspaceService.initialize(workspace);

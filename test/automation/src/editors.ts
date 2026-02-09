@@ -10,12 +10,9 @@ export class Editors {
 	constructor(private code: Code) { }
 
 	async saveOpenedFile(): Promise<any> {
-		if (process.platform === 'darwin') {
-			await this.code.sendKeybinding('cmd+s');
-		} else {
-			await this.code.sendKeybinding('ctrl+s');
-		}
-		await this.code.waitForElements('.tab.active.dirty', false, results => results.length === 0);
+		await this.code.dispatchKeybinding(process.platform === 'darwin' ? 'cmd+s' : 'ctrl+s', async () => {
+			await this.code.waitForElements('.tab.active.dirty', false, results => results.length === 0);
+		});
 	}
 
 	async selectTab(fileName: string): Promise<void> {
@@ -48,7 +45,7 @@ export class Editors {
 		await this.waitForActiveEditor(fileName, retryCount);
 	}
 
-	async waitForActiveTab(fileName: string, isDirty: boolean = false, retryCount?: number): Promise<void> {
+	private async waitForActiveTab(fileName: string, isDirty: boolean = false, retryCount?: number): Promise<void> {
 		await this.code.waitForElement(`.tabs-container div.tab.active${isDirty ? '.dirty' : ''}[aria-selected="true"][data-resource-name$="${fileName}"]`, undefined, retryCount);
 	}
 
@@ -64,9 +61,9 @@ export class Editors {
 	async newUntitledFile(): Promise<void> {
 		const accept = () => this.waitForEditorFocus('Untitled-1');
 		if (process.platform === 'darwin') {
-			await this.code.sendKeybinding('cmd+n', accept);
+			await this.code.dispatchKeybinding('cmd+n', accept);
 		} else {
-			await this.code.sendKeybinding('ctrl+n', accept);
+			await this.code.dispatchKeybinding('ctrl+n', accept);
 		}
 	}
 }

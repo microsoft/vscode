@@ -86,6 +86,13 @@ class SCMInput extends Disposable implements ISCMInput {
 	private readonly _onDidChangeValidationMessage = new Emitter<IInputValidation>();
 	readonly onDidChangeValidationMessage: Event<IInputValidation> = this._onDidChangeValidationMessage.event;
 
+	clearValidation(): void {
+		this._onDidClearValidation.fire();
+	}
+
+	private readonly _onDidClearValidation = new Emitter<void>();
+	readonly onDidClearValidation: Event<void> = this._onDidClearValidation.event;
+
 	private _validateInput: IInputValidator = () => Promise.resolve(undefined);
 
 	get validateInput(): IInputValidator {
@@ -430,6 +437,10 @@ export class SCMService implements ISCMService {
 		let bestMatchLength = Number.POSITIVE_INFINITY;
 
 		for (const repository of this.repositories) {
+			if (repository.provider.isHidden === true) {
+				continue;
+			}
+
 			const root = repository.provider.rootUri;
 
 			if (!root) {

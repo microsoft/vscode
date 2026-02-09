@@ -42,10 +42,14 @@ export interface IAccessibilityInformation {
 	role?: string;
 }
 
-export function isAccessibilityInformation(obj: any): obj is IAccessibilityInformation {
-	return obj && typeof obj === 'object'
-		&& typeof obj.label === 'string'
-		&& (typeof obj.role === 'undefined' || typeof obj.role === 'string');
+export function isAccessibilityInformation(obj: unknown): obj is IAccessibilityInformation {
+	if (!obj || typeof obj !== 'object') {
+		return false;
+	}
+
+	const candidate = obj as Partial<IAccessibilityInformation>;
+	return typeof candidate.label === 'string'
+		&& (typeof candidate.role === 'undefined' || typeof candidate.role === 'string');
 }
 
 export const ACCESSIBLE_VIEW_SHOWN_STORAGE_PREFIX = 'ACCESSIBLE_VIEW_SHOWN_';

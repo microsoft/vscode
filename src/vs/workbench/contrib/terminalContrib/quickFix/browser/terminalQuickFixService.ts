@@ -94,9 +94,9 @@ export class TerminalQuickFixService implements ITerminalQuickFixService {
 const quickFixExtensionPoint = ExtensionsRegistry.registerExtensionPoint<ITerminalCommandSelector[]>({
 	extensionPoint: 'terminalQuickFixes',
 	defaultExtensionKind: ['workspace'],
-	activationEventsGenerator: (terminalQuickFixes: ITerminalCommandSelector[], result: { push(item: string): void }) => {
+	activationEventsGenerator: function* (terminalQuickFixes: readonly ITerminalCommandSelector[]) {
 		for (const quickFixContrib of terminalQuickFixes ?? []) {
-			result.push(`onTerminalQuickFixRequest:${quickFixContrib.id}`);
+			yield `onTerminalQuickFixRequest:${quickFixContrib.id}`;
 		}
 	},
 	jsonSchema: {

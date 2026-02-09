@@ -24,6 +24,8 @@ import { getZoomLevel, isFullscreen, setFullscreen } from '../../../../base/brow
 import { getActiveWindow } from '../../../../base/browser/dom.js';
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
+import { assert } from '../../../../base/common/assert.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 
 type NativeCodeWindow = CodeWindow & {
 	readonly vscode: ISandboxGlobals;
@@ -45,9 +47,11 @@ export class NativeAuxiliaryWindow extends AuxiliaryWindow {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IHostService hostService: IHostService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
-		@IDialogService private readonly dialogService: IDialogService
+		@IDialogService private readonly dialogService: IDialogService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService
 	) {
-		super(window, container, stylesHaveLoaded, configurationService, hostService, environmentService);
+		super(window, container, stylesHaveLoaded, configurationService, hostService, environmentService, contextMenuService, layoutService);
 
 		if (!isMacintosh) {
 			// For now, limit this to platforms that have clear maximised
@@ -143,15 +147,17 @@ export class NativeAuxiliaryWindowService extends BrowserAuxiliaryWindowService 
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IHostService hostService: IHostService,
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@IContextMenuService contextMenuService: IContextMenuService,
 	) {
-		super(layoutService, dialogService, configurationService, telemetryService, hostService, environmentService);
+		super(layoutService, dialogService, configurationService, telemetryService, hostService, environmentService, contextMenuService);
 	}
 
 	protected override async resolveWindowId(auxiliaryWindow: NativeCodeWindow): Promise<number> {
 		mark('code/auxiliaryWindow/willResolveWindowId');
 		const windowId = await auxiliaryWindow.vscode.ipcRenderer.invoke('vscode:registerAuxiliaryWindow', this.nativeHostService.windowId);
 		mark('code/auxiliaryWindow/didResolveWindowId');
+		assert(typeof windowId === 'number');
 
 		return windowId;
 	}
@@ -172,7 +178,7 @@ export class NativeAuxiliaryWindowService extends BrowserAuxiliaryWindowService 
 	}
 
 	protected override createAuxiliaryWindow(targetWindow: CodeWindow, container: HTMLElement, stylesHaveLoaded: Barrier): AuxiliaryWindow {
-		return new NativeAuxiliaryWindow(targetWindow, container, stylesHaveLoaded, this.configurationService, this.nativeHostService, this.instantiationService, this.hostService, this.environmentService, this.dialogService);
+		return new NativeAuxiliaryWindow(targetWindow, container, stylesHaveLoaded, this.configurationService, this.nativeHostService, this.instantiationService, this.hostService, this.environmentService, this.dialogService, this.contextMenuService, this.layoutService);
 	}
 }
 

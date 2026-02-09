@@ -22,6 +22,8 @@ import * as types from './extHostTypes.js';
 import { TransientCellMetadata, TransientDocumentMetadata } from '../../contrib/notebook/common/notebookCommon.js';
 import * as search from '../../contrib/search/common/search.js';
 import type * as vscode from 'vscode';
+import { PromptsType } from '../../contrib/chat/common/promptSyntax/promptTypes.js';
+import type { IExtensionPromptFileResult } from '../../contrib/chat/common/promptSyntax/chatPromptFilesContribution.js';
 
 //#region --- NEW world
 
@@ -41,21 +43,28 @@ const newCommands: ApiCommand[] = [
 			if (isFalsyOrEmpty(value)) {
 				return undefined;
 			}
+			class MergedInfo extends types.SymbolInformation implements vscode.DocumentSymbol {
+				static to(symbol: languages.DocumentSymbol): MergedInfo {
+					const res = new MergedInfo(
+						symbol.name,
+						typeConverters.SymbolKind.to(symbol.kind),
+						symbol.containerName || '',
+						new types.Location(apiArgs[0], typeConverters.Range.to(symbol.range))
+					);
+					res.detail = symbol.detail;
+					res.range = res.location.range;
+					res.selectionRange = typeConverters.Range.to(symbol.selectionRange);
+					res.children = symbol.children ? symbol.children.map(MergedInfo.to) : [];
+					return res;
+				}
 
-			function wrap(symbol: languages.DocumentSymbol): types.SymbolInformationAndDocumentSymbol {
-				return new types.SymbolInformationAndDocumentSymbol(
-					symbol.name,
-					typeConverters.SymbolKind.to(symbol.kind),
-					symbol.detail,
-					symbol.containerName || '',
-					apiArgs[0],
-					typeConverters.Range.to(symbol.range),
-					typeConverters.Range.to(symbol.selectionRange),
-					symbol.children ? symbol.children.map(wrap) : []
-				);
+				detail!: string;
+				range!: vscode.Range;
+				selectionRange!: vscode.Range;
+				children!: vscode.DocumentSymbol[];
+				override containerName: string = '';
 			}
-
-			return value.map(wrap);
+			return value.map(MergedInfo.to);
 
 		})
 	),
@@ -543,9 +552,27 @@ const newCommands: ApiCommand[] = [
 				attachments: v.attachments,
 				autoSend: v.autoSend,
 				position: v.position ? typeConverters.Position.from(v.position) : undefined,
+				resolveOnResponse: v.resolveOnResponse
 			};
 		})],
 		ApiCommandResult.Void
+	),
+	// --- extension prompt files
+	new ApiCommand(
+		'vscode.extensionPromptFileProvider', '_listExtensionPromptFiles', 'Get all extension-contributed prompt files (custom agents, instructions, and prompt files).',
+		[],
+		new ApiCommandResult<IExtensionPromptFileResult[], { uri: vscode.Uri; type: PromptsType }[]>(
+			'A promise that resolves to an array of objects containing uri and type.',
+			(value) => {
+				if (!value) {
+					return [];
+				}
+				return value.map(item => ({
+					uri: URI.revive(item.uri),
+					type: item.type
+				}));
+			}
+		)
 	)
 ];
 
@@ -556,6 +583,7 @@ type InlineChatEditorApiArg = {
 	attachments?: vscode.Uri[];
 	autoSend?: boolean;
 	position?: vscode.Position;
+	resolveOnResponse?: boolean;
 };
 
 type InlineChatRunOptions = {
@@ -565,6 +593,7 @@ type InlineChatRunOptions = {
 	attachments?: URI[];
 	autoSend?: boolean;
 	position?: IPosition;
+	resolveOnResponse?: boolean;
 };
 
 //#endregion

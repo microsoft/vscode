@@ -407,16 +407,20 @@ class ConfigureSaveConflictAction extends Action {
 	}
 }
 
-export const acceptLocalChangesCommand = (accessor: ServicesAccessor, resource: URI) => {
+export const acceptLocalChangesCommand = (accessor: ServicesAccessor, resource: unknown) => {
 	return acceptOrRevertLocalChangesCommand(accessor, resource, true);
 };
 
-export const revertLocalChangesCommand = (accessor: ServicesAccessor, resource: URI) => {
+export const revertLocalChangesCommand = (accessor: ServicesAccessor, resource: unknown) => {
 	return acceptOrRevertLocalChangesCommand(accessor, resource, false);
 };
 
-async function acceptOrRevertLocalChangesCommand(accessor: ServicesAccessor, resource: URI, accept: boolean) {
+async function acceptOrRevertLocalChangesCommand(accessor: ServicesAccessor, resource: unknown, accept: boolean) {
 	const editorService = accessor.get(IEditorService);
+
+	if (!URI.isUri(resource)) {
+		return;
+	}
 
 	const editorPane = editorService.activeEditorPane;
 	if (!editorPane) {

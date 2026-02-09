@@ -36,7 +36,7 @@ export function deserializeWorkspaceInfos(serializedBackupWorkspaces: ISerialize
 				}
 			));
 		}
-	} catch (e) {
+	} catch {
 		// ignore URI parsing exceptions
 	}
 
@@ -59,7 +59,7 @@ export function deserializeFolderInfos(serializedBackupWorkspaces: ISerializedBa
 				}
 			));
 		}
-	} catch (e) {
+	} catch {
 		// ignore URI parsing exceptions
 	}
 
@@ -67,12 +67,6 @@ export function deserializeFolderInfos(serializedBackupWorkspaces: ISerializedBa
 }
 
 export interface ISerializedEmptyWindowBackupInfo extends IEmptyWindowBackupInfo { }
-
-export interface ILegacySerializedBackupWorkspaces {
-	readonly rootURIWorkspaces: ISerializedWorkspaceBackupInfo[];
-	readonly folderWorkspaceInfos: ISerializedFolderBackupInfo[];
-	readonly emptyWorkspaceInfos: ISerializedEmptyWindowBackupInfo[];
-}
 
 export interface ISerializedBackupWorkspaces {
 	readonly workspaces: ISerializedWorkspaceBackupInfo[];

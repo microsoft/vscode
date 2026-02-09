@@ -47,7 +47,7 @@ export async function initialize(injectPath: string): Promise<void> {
 	console.log(`[bootstrap-import] Initialized node_modules redirector for: ${injectPath}`);
 }
 
-export async function resolve(specifier: string | number, context: any, nextResolve: (arg0: any, arg1: any) => any) {
+export async function resolve(specifier: string | number, context: unknown, nextResolve: (arg0: unknown, arg1: unknown) => unknown) {
 
 	const newSpecifier = _specifierToUrl[specifier];
 	if (newSpecifier !== undefined) {

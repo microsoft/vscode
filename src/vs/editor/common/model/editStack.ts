@@ -15,7 +15,7 @@ import * as buffer from '../../../base/common/buffer.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
 import { basename } from '../../../base/common/resources.js';
 import { ISingleEditOperation } from '../core/editOperation.js';
-import { EditReasons, TextModelEditReason } from '../textModelEditReason.js';
+import { EditSources, TextModelEditSource } from '../textModelEditSource.js';
 
 function uriGetComparisonKey(resource: URI): string {
 	return resource.toString();
@@ -425,7 +425,7 @@ export class EditStack {
 		editStackElement.append(this._model, [], getModelEOL(this._model), this._model.getAlternativeVersionId(), null);
 	}
 
-	public pushEditOperation(beforeCursorState: Selection[] | null, editOperations: ISingleEditOperation[], cursorStateComputer: ICursorStateComputer | null, group?: UndoRedoGroup, reason: TextModelEditReason = EditReasons.unknown({ name: 'pushEditOperation' })): Selection[] | null {
+	public pushEditOperation(beforeCursorState: Selection[] | null, editOperations: ISingleEditOperation[], cursorStateComputer: ICursorStateComputer | null, group?: UndoRedoGroup, reason: TextModelEditSource = EditSources.unknown({ name: 'pushEditOperation' })): Selection[] | null {
 		const editStackElement = this._getOrCreateEditStackElement(beforeCursorState, group);
 		const inverseEditOperations = this._model.applyEdits(editOperations, true, reason);
 		const afterCursorState = EditStack._computeCursorState(cursorStateComputer, inverseEditOperations);

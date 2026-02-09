@@ -45,7 +45,10 @@ registerTerminalAction({
 			return;
 		}
 
-		let signal = isObject(args) && 'signal' in args ? toOptionalString(args.signal) : undefined;
+		function isSignalArg(obj: unknown): obj is { signal: string } {
+			return isObject(obj) && 'signal' in obj;
+		}
+		let signal = isSignalArg(args) ? toOptionalString(args.signal) : undefined;
 
 		if (!signal) {
 			const signalOptions: QuickPickItem[] = [

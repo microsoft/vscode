@@ -35,7 +35,7 @@ import { IExtensionService } from '../../extensions/common/extensions.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { IProgress, IProgressService, IProgressStep, ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
-import { TextModelEditReason, EditReasons } from '../../../../editor/common/textModelEditReason.js';
+import { TextModelEditSource, EditSources } from '../../../../editor/common/textModelEditSource.js';
 
 interface IBackupMetaData extends IWorkingCopyBackupMeta {
 	mtime: number;
@@ -169,7 +169,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}
 
 		if (fileEventImpactsModel && this.inOrphanMode !== newInOrphanModeGuess) {
-			let newInOrphanModeValidated: boolean = false;
+			let newInOrphanModeValidated = false;
 			if (newInOrphanModeGuess) {
 				// We have received reports of users seeing delete events even though the file still
 				// exists (network shares issue: https://github.com/microsoft/vscode/issues/13665).
@@ -371,7 +371,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			value: buffer,
 			encoding: preferredEncoding.encoding,
 			readonly: false,
-			locked: false
+			locked: false,
+			executable: false
 		}, true /* dirty (resolved from buffer) */, options);
 	}
 
@@ -419,7 +420,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			value: await createTextBufferFactoryFromStream(await this.textFileService.getDecodedStream(this.resource, backup.value, { encoding: UTF8 })),
 			encoding,
 			readonly: false,
-			locked: false
+			locked: false,
+			executable: false
 		}, true /* dirty (resolved from backup) */, options);
 
 		// Restore orphaned flag based on state
@@ -517,6 +519,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			etag: content.etag,
 			readonly: content.readonly,
 			locked: content.locked,
+			executable: false,
 			isFile: true,
 			isDirectory: false,
 			isSymbolicLink: false,
@@ -536,7 +539,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 		// Update Existing Model
 		if (this.textEditorModel) {
-			this.doUpdateTextModel(content.value, EditReasons.reloadFromDisk());
+			this.doUpdateTextModel(content.value, EditSources.reloadFromDisk());
 		}
 
 		// Create New Model
@@ -568,7 +571,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		this.autoDetectLanguage();
 	}
 
-	private doUpdateTextModel(value: ITextBufferFactory, reason: TextModelEditReason): void {
+	private doUpdateTextModel(value: ITextBufferFactory, reason: TextModelEditSource): void {
 		this.trace('doUpdateTextModel()');
 
 		// Update model value in a block that ignores content change events for dirty tracking
@@ -1118,7 +1121,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		return this.forceResolveFromFile();
 	}
 
-	private hasEncodingSetExplicitly: boolean = false;
+	private hasEncodingSetExplicitly = false;
 
 	setEncoding(encoding: string, mode: EncodingMode): Promise<void> {
 
@@ -1151,8 +1154,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 				return; // return early if the encoding is already the same
 			}
 
-			if (this.isDirty() && !this.inConflictMode) {
-				await this.save();
+			if (this.isDirty()) {
+				throw new Error('Cannot re-open a dirty text document with different encoding. Save it first.');
 			}
 
 			this.updatePreferredEncoding(encoding);

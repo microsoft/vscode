@@ -105,9 +105,9 @@ function toTsTriggerReason(context: vscode.SignatureHelpContext): Proto.Signatur
 		case vscode.SignatureHelpTriggerKind.TriggerCharacter:
 			if (context.triggerCharacter) {
 				if (context.isRetrigger) {
-					return { kind: 'retrigger', triggerCharacter: context.triggerCharacter as any };
+					return { kind: 'retrigger', triggerCharacter: context.triggerCharacter as Proto.SignatureHelpRetriggerCharacter };
 				} else {
-					return { kind: 'characterTyped', triggerCharacter: context.triggerCharacter as any };
+					return { kind: 'characterTyped', triggerCharacter: context.triggerCharacter as Proto.SignatureHelpTriggerCharacter };
 				}
 			} else {
 				return { kind: 'invoked' };

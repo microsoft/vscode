@@ -29,7 +29,7 @@ export class DocumentSemanticTokensResult {
 	constructor(
 		public readonly provider: DocumentSemanticTokensProvider,
 		public readonly tokens: SemanticTokens | SemanticTokensEdits | null,
-		public readonly error: any
+		public readonly error: unknown
 	) { }
 }
 

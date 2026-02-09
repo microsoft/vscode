@@ -18,7 +18,6 @@ import { ServicesAccessor } from '../../../../../platform/instantiation/common/i
 import { IDebugService } from '../../../debug/common/debug.js';
 import { CTX_INLINE_CHAT_FOCUSED } from '../../../inlineChat/common/inlineChat.js';
 import { insertCell } from './cellOperations.js';
-import { NotebookChatController } from './chat/notebookChatController.js';
 import { CELL_TITLE_CELL_GROUP_ID, CellToolbarOrder, INotebookActionContext, INotebookCellActionContext, INotebookCellToolbarActionContext, INotebookCommandContext, NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT, NotebookAction, NotebookCellAction, NotebookMultiCellAction, cellExecutionArgs, getContextFromActiveEditor, getContextFromUri, parseMultiCellExecutionArgs } from './coreActions.js';
 import { CellEditState, CellFocusMode, EXECUTE_CELL_COMMAND_ID, IActiveNotebookEditor, ICellViewModel, IFocusNotebookCellOptions, ScrollToRevealBehavior } from '../notebookBrowser.js';
 import * as icons from '../notebookIcons.js';
@@ -285,7 +284,7 @@ registerAction2(class ExecuteCell extends NotebookMultiCellAction {
 		});
 	}
 
-	override parseArgs(accessor: ServicesAccessor, ...args: any[]): INotebookCommandContext | undefined {
+	override parseArgs(accessor: ServicesAccessor, ...args: unknown[]): INotebookCommandContext | undefined {
 		return parseMultiCellExecutionArgs(accessor, ...args);
 	}
 
@@ -295,21 +294,6 @@ registerAction2(class ExecuteCell extends NotebookMultiCellAction {
 
 		if (context.ui) {
 			await context.notebookEditor.focusNotebookCell(context.cell, 'container', { skipReveal: true });
-		}
-
-		const chatController = NotebookChatController.get(context.notebookEditor);
-		const editingCell = chatController?.getEditingCell();
-		if (chatController?.hasFocus() && editingCell) {
-			const group = editorGroupsService.activeGroup;
-
-			if (group) {
-				if (group.activeEditor) {
-					group.pinEditor(group.activeEditor);
-				}
-			}
-
-			await context.notebookEditor.executeNotebookCells([editingCell]);
-			return;
 		}
 
 		await runCell(editorGroupsService, context, editorService);
@@ -342,7 +326,7 @@ registerAction2(class ExecuteAboveCells extends NotebookMultiCellAction {
 		});
 	}
 
-	override parseArgs(accessor: ServicesAccessor, ...args: any[]): INotebookCommandContext | undefined {
+	override parseArgs(accessor: ServicesAccessor, ...args: unknown[]): INotebookCommandContext | undefined {
 		return parseMultiCellExecutionArgs(accessor, ...args);
 	}
 
@@ -389,7 +373,7 @@ registerAction2(class ExecuteCellAndBelow extends NotebookMultiCellAction {
 		});
 	}
 
-	override parseArgs(accessor: ServicesAccessor, ...args: any[]): INotebookCommandContext | undefined {
+	override parseArgs(accessor: ServicesAccessor, ...args: unknown[]): INotebookCommandContext | undefined {
 		return parseMultiCellExecutionArgs(accessor, ...args);
 	}
 
@@ -424,7 +408,7 @@ registerAction2(class ExecuteCellFocusContainer extends NotebookMultiCellAction 
 		});
 	}
 
-	override parseArgs(accessor: ServicesAccessor, ...args: any[]): INotebookCommandContext | undefined {
+	override parseArgs(accessor: ServicesAccessor, ...args: unknown[]): INotebookCommandContext | undefined {
 		return parseMultiCellExecutionArgs(accessor, ...args);
 	}
 
@@ -502,7 +486,7 @@ registerAction2(class CancelExecuteCell extends NotebookMultiCellAction {
 		});
 	}
 
-	override parseArgs(accessor: ServicesAccessor, ...args: any[]): INotebookCommandContext | undefined {
+	override parseArgs(accessor: ServicesAccessor, ...args: unknown[]): INotebookCommandContext | undefined {
 		return parseMultiCellExecutionArgs(accessor, ...args);
 	}
 

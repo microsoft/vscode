@@ -40,13 +40,11 @@
           ".repo"
         ],
         "filenames": [
-          "gitconfig",
-          ".env"
+          "gitconfig"
         ],
         "filenamePatterns": [
           "**/.config/git/config",
-          "**/.git/config",
-          ".*.env"
+          "**/.git/config"
         ],
         "aliases": [
           "Properties",

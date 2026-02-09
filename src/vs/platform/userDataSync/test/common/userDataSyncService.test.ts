@@ -31,29 +31,17 @@ suite('UserDataSyncService', () => {
 			// Manifest
 			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} },
 			// Settings
-			{ type: 'GET', url: `${target.url}/v1/resource/settings/latest`, headers: {} },
 			{ type: 'POST', url: `${target.url}/v1/resource/settings`, headers: { 'If-Match': '0' } },
 			// Keybindings
-			{ type: 'GET', url: `${target.url}/v1/resource/keybindings/latest`, headers: {} },
 			{ type: 'POST', url: `${target.url}/v1/resource/keybindings`, headers: { 'If-Match': '0' } },
 			// Snippets
-			{ type: 'GET', url: `${target.url}/v1/resource/snippets/latest`, headers: {} },
 			{ type: 'POST', url: `${target.url}/v1/resource/snippets`, headers: { 'If-Match': '0' } },
 			// Tasks
-			{ type: 'GET', url: `${target.url}/v1/resource/tasks/latest`, headers: {} },
 			{ type: 'POST', url: `${target.url}/v1/resource/tasks`, headers: { 'If-Match': '0' } },
-			// MCP
-			{ type: 'GET', url: `${target.url}/v1/resource/mcp/latest`, headers: {} },
 			// Global state
-			{ type: 'GET', url: `${target.url}/v1/resource/globalState/latest`, headers: {} },
 			{ type: 'POST', url: `${target.url}/v1/resource/globalState`, headers: { 'If-Match': '0' } },
-			// Extensions
-			{ type: 'GET', url: `${target.url}/v1/resource/extensions/latest`, headers: {} },
 			// Prompts
-			{ type: 'GET', url: `${target.url}/v1/resource/prompts/latest`, headers: {} },
 			{ type: 'POST', url: `${target.url}/v1/resource/prompts`, headers: { 'If-Match': '0' } },
-			// Profiles
-			{ type: 'GET', url: `${target.url}/v1/resource/profiles/latest`, headers: {} },
 		]);
 
 	});
@@ -73,26 +61,15 @@ suite('UserDataSyncService', () => {
 			// Manifest
 			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} },
 			// Keybindings
-			{ type: 'GET', url: `${target.url}/v1/resource/keybindings/latest`, headers: {} },
 			{ type: 'POST', url: `${target.url}/v1/resource/keybindings`, headers: { 'If-Match': '0' } },
 			// Snippets
-			{ type: 'GET', url: `${target.url}/v1/resource/snippets/latest`, headers: {} },
 			{ type: 'POST', url: `${target.url}/v1/resource/snippets`, headers: { 'If-Match': '0' } },
 			// Snippets
-			{ type: 'GET', url: `${target.url}/v1/resource/tasks/latest`, headers: {} },
 			{ type: 'POST', url: `${target.url}/v1/resource/tasks`, headers: { 'If-Match': '0' } },
-			// MCP
-			{ type: 'GET', url: `${target.url}/v1/resource/mcp/latest`, headers: {} },
 			// Global state
-			{ type: 'GET', url: `${target.url}/v1/resource/globalState/latest`, headers: {} },
 			{ type: 'POST', url: `${target.url}/v1/resource/globalState`, headers: { 'If-Match': '0' } },
-			// Extensions
-			{ type: 'GET', url: `${target.url}/v1/resource/extensions/latest`, headers: {} },
 			// Prompts
-			{ type: 'GET', url: `${target.url}/v1/resource/prompts/latest`, headers: {} },
 			{ type: 'POST', url: `${target.url}/v1/resource/prompts`, headers: { 'If-Match': '0' } },
-			// Profiles
-			{ type: 'GET', url: `${target.url}/v1/resource/profiles/latest`, headers: {} },
 		]);
 	});
 
@@ -109,24 +86,6 @@ suite('UserDataSyncService', () => {
 		assert.deepStrictEqual(target.requests, [
 			// Manifest
 			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} },
-			// Settings
-			{ type: 'GET', url: `${target.url}/v1/resource/settings/latest`, headers: {} },
-			// Keybindings
-			{ type: 'GET', url: `${target.url}/v1/resource/keybindings/latest`, headers: {} },
-			// Snippets
-			{ type: 'GET', url: `${target.url}/v1/resource/snippets/latest`, headers: {} },
-			// Tasks
-			{ type: 'GET', url: `${target.url}/v1/resource/tasks/latest`, headers: {} },
-			// MCP
-			{ type: 'GET', url: `${target.url}/v1/resource/mcp/latest`, headers: {} },
-			// Global state
-			{ type: 'GET', url: `${target.url}/v1/resource/globalState/latest`, headers: {} },
-			// Extensions
-			{ type: 'GET', url: `${target.url}/v1/resource/extensions/latest`, headers: {} },
-			// Prompts
-			{ type: 'GET', url: `${target.url}/v1/resource/prompts/latest`, headers: {} },
-			// Profiles
-			{ type: 'GET', url: `${target.url}/v1/resource/profiles/latest`, headers: {} },
 		]);
 	});
 
@@ -153,11 +112,8 @@ suite('UserDataSyncService', () => {
 			{ type: 'GET', url: `${target.url}/v1/resource/keybindings/latest`, headers: {} },
 			{ type: 'GET', url: `${target.url}/v1/resource/snippets/latest`, headers: {} },
 			{ type: 'GET', url: `${target.url}/v1/resource/tasks/latest`, headers: {} },
-			{ type: 'GET', url: `${target.url}/v1/resource/mcp/latest`, headers: {} },
 			{ type: 'GET', url: `${target.url}/v1/resource/globalState/latest`, headers: {} },
-			{ type: 'GET', url: `${target.url}/v1/resource/extensions/latest`, headers: {} },
 			{ type: 'GET', url: `${target.url}/v1/resource/prompts/latest`, headers: {} },
-			{ type: 'GET', url: `${target.url}/v1/resource/profiles/latest`, headers: {} },
 		]);
 	});
 
@@ -196,12 +152,9 @@ suite('UserDataSyncService', () => {
 			{ type: 'GET', url: `${target.url}/v1/resource/snippets/latest`, headers: {} },
 			{ type: 'POST', url: `${target.url}/v1/resource/snippets`, headers: { 'If-Match': '1' } },
 			{ type: 'GET', url: `${target.url}/v1/resource/tasks/latest`, headers: {} },
-			{ type: 'GET', url: `${target.url}/v1/resource/mcp/latest`, headers: {} },
 			{ type: 'GET', url: `${target.url}/v1/resource/globalState/latest`, headers: {} },
-			{ type: 'GET', url: `${target.url}/v1/resource/extensions/latest`, headers: {} },
 			{ type: 'GET', url: `${target.url}/v1/resource/prompts/latest`, headers: {} },
 			{ type: 'POST', url: `${target.url}/v1/resource/prompts`, headers: { 'If-Match': '1' } },
-			{ type: 'GET', url: `${target.url}/v1/resource/profiles/latest`, headers: {} },
 		]);
 
 	});
@@ -242,22 +195,11 @@ suite('UserDataSyncService', () => {
 			{ type: 'GET', url: `${target.url}/v1/resource/snippets/latest`, headers: {} },
 			{ type: 'POST', url: `${target.url}/v1/resource/snippets`, headers: { 'If-Match': '1' } },
 			{ type: 'GET', url: `${target.url}/v1/resource/tasks/latest`, headers: {} },
-			{ type: 'GET', url: `${target.url}/v1/resource/mcp/latest`, headers: {} },
 			{ type: 'GET', url: `${target.url}/v1/resource/globalState/latest`, headers: {} },
-			{ type: 'GET', url: `${target.url}/v1/resource/extensions/latest`, headers: {} },
 			{ type: 'GET', url: `${target.url}/v1/resource/prompts/latest`, headers: {} },
 			{ type: 'POST', url: `${target.url}/v1/resource/prompts`, headers: { 'If-Match': '1' } },
-			{ type: 'GET', url: `${target.url}/v1/resource/profiles/latest`, headers: {} },
 			{ type: 'POST', url: `${target.url}/v1/collection`, headers: {} },
 			{ type: 'POST', url: `${target.url}/v1/resource/profiles`, headers: { 'If-Match': '0' } },
-			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/settings/latest`, headers: {} },
-			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/keybindings/latest`, headers: {} },
-			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/snippets/latest`, headers: {} },
-			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/tasks/latest`, headers: {} },
-			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/mcp/latest`, headers: {} },
-			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/globalState/latest`, headers: {} },
-			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/extensions/latest`, headers: {} },
-			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/prompts/latest`, headers: {} },
 		]);
 
 	});
@@ -360,14 +302,6 @@ suite('UserDataSyncService', () => {
 			// Profiles
 			{ type: 'POST', url: `${target.url}/v1/collection`, headers: {} },
 			{ type: 'POST', url: `${target.url}/v1/resource/profiles`, headers: { 'If-Match': '0' } },
-			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/settings/latest`, headers: {} },
-			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/keybindings/latest`, headers: {} },
-			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/snippets/latest`, headers: {} },
-			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/tasks/latest`, headers: {} },
-			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/mcp/latest`, headers: {} },
-			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/globalState/latest`, headers: {} },
-			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/extensions/latest`, headers: {} },
-			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/prompts/latest`, headers: {} },
 		]);
 	});
 
@@ -499,14 +433,6 @@ suite('UserDataSyncService', () => {
 			{ type: 'GET', url: `${target.url}/v1/resource/prompts/latest`, headers: { 'If-None-Match': '1' } },
 			// Profiles
 			{ type: 'GET', url: `${target.url}/v1/resource/profiles/latest`, headers: { 'If-None-Match': '0' } },
-			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/settings/latest`, headers: {} },
-			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/keybindings/latest`, headers: {} },
-			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/snippets/latest`, headers: {} },
-			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/tasks/latest`, headers: {} },
-			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/mcp/latest`, headers: {} },
-			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/globalState/latest`, headers: {} },
-			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/extensions/latest`, headers: {} },
-			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/prompts/latest`, headers: {} },
 		]);
 
 	});
@@ -552,29 +478,17 @@ suite('UserDataSyncService', () => {
 			// Manifest
 			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} },
 			// Settings
-			{ type: 'GET', url: `${target.url}/v1/resource/settings/latest`, headers: {} },
 			{ type: 'POST', url: `${target.url}/v1/resource/settings`, headers: { 'If-Match': '0' } },
 			// Keybindings
-			{ type: 'GET', url: `${target.url}/v1/resource/keybindings/latest`, headers: {} },
 			{ type: 'POST', url: `${target.url}/v1/resource/keybindings`, headers: { 'If-Match': '0' } },
 			// Snippets
-			{ type: 'GET', url: `${target.url}/v1/resource/snippets/latest`, headers: {} },
 			{ type: 'POST', url: `${target.url}/v1/resource/snippets`, headers: { 'If-Match': '0' } },
 			// Tasks
-			{ type: 'GET', url: `${target.url}/v1/resource/tasks/latest`, headers: {} },
 			{ type: 'POST', url: `${target.url}/v1/resource/tasks`, headers: { 'If-Match': '0' } },
-			// MCP
-			{ type: 'GET', url: `${target.url}/v1/resource/mcp/latest`, headers: {} },
 			// Global state
-			{ type: 'GET', url: `${target.url}/v1/resource/globalState/latest`, headers: {} },
 			{ type: 'POST', url: `${target.url}/v1/resource/globalState`, headers: { 'If-Match': '0' } },
-			// Extensions
-			{ type: 'GET', url: `${target.url}/v1/resource/extensions/latest`, headers: {} },
 			// Prompts
-			{ type: 'GET', url: `${target.url}/v1/resource/prompts/latest`, headers: {} },
 			{ type: 'POST', url: `${target.url}/v1/resource/prompts`, headers: { 'If-Match': '0' } },
-			// Profiles
-			{ type: 'GET', url: `${target.url}/v1/resource/profiles/latest`, headers: {} },
 		]);
 
 	});
@@ -766,13 +680,6 @@ suite('UserDataSyncService', () => {
 			// Profiles
 			{ type: 'POST', url: `${target.url}/v1/collection`, headers: {} },
 			{ type: 'POST', url: `${target.url}/v1/resource/profiles`, headers: { 'If-Match': '0' } },
-			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/keybindings/latest`, headers: {} },
-			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/snippets/latest`, headers: {} },
-			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/tasks/latest`, headers: {} },
-			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/mcp/latest`, headers: {} },
-			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/globalState/latest`, headers: {} },
-			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/extensions/latest`, headers: {} },
-			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/prompts/latest`, headers: {} },
 		]);
 	});
 
@@ -821,13 +728,6 @@ suite('UserDataSyncService', () => {
 			{ type: 'GET', url: `${target.url}/v1/resource/prompts/latest`, headers: { 'If-None-Match': '1' } },
 			// Profiles
 			{ type: 'GET', url: `${target.url}/v1/resource/profiles/latest`, headers: { 'If-None-Match': '0' } },
-			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/settings/latest`, headers: {} },
-			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/snippets/latest`, headers: {} },
-			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/tasks/latest`, headers: {} },
-			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/mcp/latest`, headers: {} },
-			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/globalState/latest`, headers: {} },
-			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/extensions/latest`, headers: {} },
-			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/prompts/latest`, headers: {} },
 		]);
 
 	});

@@ -79,6 +79,8 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 	private static readonly SHOW_CLOSE_REMOTE_COMMAND_ID = !isWeb; // web does not have a "Close Remote" command
 	private static readonly INSTALL_REMOTE_EXTENSIONS_ID = 'workbench.action.remote.extensions';
 
+	private static readonly DEFAULT_REMOTE_STATUS_LABEL = '$(remote)';
+
 	private static readonly REMOTE_STATUS_LABEL_MAX_LENGTH = 40;
 
 	private static readonly REMOTE_CONNECTION_LATENCY_SCHEDULER_DELAY = 60 * 1000;
@@ -86,8 +88,8 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 
 	private remoteStatusEntry: IStatusbarEntryAccessor | undefined;
 
-	private readonly legacyIndicatorMenu: IMenu; // to be removed once migration completed
-	private readonly remoteIndicatorMenu: IMenu;
+	private readonly remoteIndicatorMenu: IMenu; 				// filters its entries based on the current remote name of the window
+	private readonly unrestrictedRemoteIndicatorMenu: IMenu; 	// does not filter its entries based on the current remote name of the window
 
 	private remoteMenuActionsGroups: ActionGroup[] | undefined;
 
@@ -161,7 +163,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 	) {
 		super();
 
-		this.legacyIndicatorMenu = this._register(this.menuService.createMenu(MenuId.StatusBarWindowIndicatorMenu, this.contextKeyService)); // to be removed once migration completed
+		this.unrestrictedRemoteIndicatorMenu = this._register(this.menuService.createMenu(MenuId.StatusBarWindowIndicatorMenu, this.contextKeyService)); // to be removed once migration completed
 		this.remoteIndicatorMenu = this._register(this.menuService.createMenu(MenuId.StatusBarRemoteIndicatorMenu, this.contextKeyService));
 
 		this.connectionStateContextKey = new RawContextKey<'' | 'initializing' | 'disconnected' | 'connected'>('remoteConnectionState', '').bindTo(this.contextKeyService);
@@ -254,7 +256,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 			this.updateRemoteStatusIndicator();
 		};
 
-		this._register(this.legacyIndicatorMenu.onDidChange(updateRemoteActions));
+		this._register(this.unrestrictedRemoteIndicatorMenu.onDidChange(updateRemoteActions));
 		this._register(this.remoteIndicatorMenu.onDidChange(updateRemoteActions));
 
 		// Update indicator when formatter changes as it may have an impact on the remote label
@@ -482,7 +484,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 
 	private getRemoteMenuActions(doNotUseCache?: boolean): ActionGroup[] {
 		if (!this.remoteMenuActionsGroups || doNotUseCache) {
-			this.remoteMenuActionsGroups = this.remoteIndicatorMenu.getActions().filter(a => this.validatedGroup(a[0])).concat(this.legacyIndicatorMenu.getActions());
+			this.remoteMenuActionsGroups = this.remoteIndicatorMenu.getActions().filter(a => this.validatedGroup(a[0])).concat(this.unrestrictedRemoteIndicatorMenu.getActions());
 		}
 		return this.remoteMenuActionsGroups;
 	}
@@ -553,7 +555,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 			}
 		}
 
-		this.renderRemoteStatusIndicator(`$(remote)`, nls.localize('noHost.tooltip', "Open a Remote Window"));
+		this.renderRemoteStatusIndicator(RemoteStatusIndicator.DEFAULT_REMOTE_STATUS_LABEL, nls.localize('noHost.tooltip', "Open a Remote Window"));
 		return;
 	}
 
@@ -562,7 +564,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 
 		const properties: IStatusbarEntry = {
 			name: nls.localize('remoteHost', "Remote Host"),
-			kind: this.networkState === 'offline' ? 'offline' : 'remote',
+			kind: this.networkState === 'offline' ? 'offline' : text !== RemoteStatusIndicator.DEFAULT_REMOTE_STATUS_LABEL ? 'remote' : undefined, // only emphasize when applicable
 			ariaLabel,
 			text,
 			showProgress,
@@ -590,8 +592,8 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 			// to replace with an alert icon for when a normal remote indicator
 			// is shown.
 
-			if (!showProgress && initialText.startsWith('$(remote)')) {
-				return initialText.replace('$(remote)', '$(alert)');
+			if (!showProgress && initialText.startsWith(RemoteStatusIndicator.DEFAULT_REMOTE_STATUS_LABEL)) {
+				return initialText.replace(RemoteStatusIndicator.DEFAULT_REMOTE_STATUS_LABEL, '$(alert)');
 			}
 
 			return initialText;
@@ -842,7 +844,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 		}));
 
 		// refresh the items when actions change
-		disposables.add(this.legacyIndicatorMenu.onDidChange(() => quickPick.items = computeItems()));
+		disposables.add(this.unrestrictedRemoteIndicatorMenu.onDidChange(() => quickPick.items = computeItems()));
 		disposables.add(this.remoteIndicatorMenu.onDidChange(() => quickPick.items = computeItems()));
 
 		disposables.add(quickPick.onDidHide(() => disposables.dispose()));

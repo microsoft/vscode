@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BrowserType, IElementData, INativeBrowserElementsService } from '../common/browserElements.js';
+import { IElementData, INativeBrowserElementsService, IBrowserTargetLocator } from '../common/browserElements.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { IRectangle } from '../../window/common/window.js';
 import { BrowserWindow, webContents } from 'electron';
@@ -14,6 +14,7 @@ import { IWindowsMainService } from '../../windows/electron-main/windows.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { AddFirstParameterToFunctions } from '../../../base/common/types.js';
+import { IBrowserViewMainService } from '../../browserView/electron-main/browserViewMainService.js';
 
 export const INativeBrowserElementsMainService = createDecorator<INativeBrowserElementsMainService>('browserElementsMainService');
 export interface INativeBrowserElementsMainService extends AddFirstParameterToFunctions<INativeBrowserElementsService, Promise<unknown> /* only methods, not events */, number | undefined /* window ID */> { }
@@ -27,53 +28,47 @@ interface NodeDataResponse {
 export class NativeBrowserElementsMainService extends Disposable implements INativeBrowserElementsMainService {
 	_serviceBrand: undefined;
 
-	currentLocalAddress: string | undefined;
-
 	constructor(
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
 		@IAuxiliaryWindowsMainService private readonly auxiliaryWindowsMainService: IAuxiliaryWindowsMainService,
-
+		@IBrowserViewMainService private readonly browserViewMainService: IBrowserViewMainService
 	) {
 		super();
 	}
 
 	get windowId(): never { throw new Error('Not implemented in electron-main'); }
 
-	async findWebviewTarget(debuggers: any, windowId: number, browserType: BrowserType): Promise<string | undefined> {
+	/**
+	 * Find the webview target that matches the given locator.
+	 * Checks either webviewId or browserViewId depending on what's provided.
+	 */
+	async findWebviewTarget(debuggers: Electron.Debugger, locator: IBrowserTargetLocator): Promise<string | undefined> {
 		const { targetInfos } = await debuggers.sendCommand('Target.getTargets');
-		let target: typeof targetInfos[number] | undefined = undefined;
-		const matchingTarget = targetInfos.find((targetInfo: { url: string }) => {
-			try {
-				const url = new URL(targetInfo.url);
-				if (browserType === BrowserType.LiveServer) {
-					return url.searchParams.get('id') && url.searchParams.get('extensionId') === 'ms-vscode.live-server';
-				} else if (browserType === BrowserType.SimpleBrowser) {
-					return url.searchParams.get('parentId') === windowId.toString() && url.searchParams.get('extensionId') === 'vscode.simple-browser';
-				}
-				return false;
-			} catch (err) {
-				return false;
-			}
-		});
 
-		// search for webview via search parameters
-		if (matchingTarget) {
-			let resultId: string | undefined;
-			let url: URL | undefined;
-			try {
-				url = new URL(matchingTarget.url);
-				resultId = url.searchParams.get('id')!;
-			} catch (e) {
+		if (locator.webviewId) {
+			let extensionId = '';
+			for (const targetInfo of targetInfos) {
+				try {
+					const url = new URL(targetInfo.url);
+					if (url.searchParams.get('id') === locator.webviewId) {
+						extensionId = url.searchParams.get('extensionId') || '';
+						break;
+					}
+				} catch (err) {
+					// ignore
+				}
+			}
+			if (!extensionId) {
 				return undefined;
 			}
 
-			target = targetInfos.find((targetInfo: { url: string }) => {
+			// search for webview via search parameters
+			const target = targetInfos.find((targetInfo: { url: string }) => {
 				try {
 					const url = new URL(targetInfo.url);
-					const isLiveServer = browserType === BrowserType.LiveServer && url.searchParams.get('serverWindowId') === resultId;
-					const isSimpleBrowser = browserType === BrowserType.SimpleBrowser && url.searchParams.get('id') === resultId && url.searchParams.has('vscodeBrowserReqId');
+					const isLiveServer = extensionId === 'ms-vscode.live-server' && url.searchParams.get('serverWindowId') === locator.webviewId;
+					const isSimpleBrowser = extensionId === 'vscode.simple-browser' && url.searchParams.get('id') === locator.webviewId && url.searchParams.has('vscodeBrowserReqId');
 					if (isLiveServer || isSimpleBrowser) {
-						this.currentLocalAddress = url.origin;
 						return true;
 					}
 					return false;
@@ -81,35 +76,30 @@ export class NativeBrowserElementsMainService extends Disposable implements INat
 					return false;
 				}
 			});
-
-			if (target) {
-				return target.targetId;
-			}
+			return target?.targetId;
 		}
 
-		// fallback: search for webview without parameters based on current origin
-		target = targetInfos.find((targetInfo: { url: string }) => {
-			try {
-				const url = new URL(targetInfo.url);
-				return (this.currentLocalAddress === url.origin);
-			} catch (e) {
-				return false;
-			}
-		});
+		if (locator.browserViewId) {
+			const webContentsInstance = this.browserViewMainService.tryGetBrowserView(locator.browserViewId)?.webContents;
+			const target = targetInfos.find((targetInfo: { targetId: string; type: string }) => {
+				if (targetInfo.type !== 'page') {
+					return false;
+				}
 
-		if (!target) {
-			return undefined;
+				return webContents.fromDevToolsTargetId(targetInfo.targetId) === webContentsInstance;
+			});
+			return target?.targetId;
 		}
 
-		return target.targetId;
+		return undefined;
 	}
 
-	async waitForWebviewTargets(debuggers: any, windowId: number, browserType: BrowserType): Promise<any> {
+	async waitForWebviewTargets(debuggers: Electron.Debugger, locator: IBrowserTargetLocator): Promise<string | undefined> {
 		const start = Date.now();
 		const timeout = 10000;
 
 		while (Date.now() - start < timeout) {
-			const targetId = await this.findWebviewTarget(debuggers, windowId, browserType);
+			const targetId = await this.findWebviewTarget(debuggers, locator);
 			if (targetId) {
 				return targetId;
 			}
@@ -122,7 +112,7 @@ export class NativeBrowserElementsMainService extends Disposable implements INat
 		return undefined;
 	}
 
-	async startDebugSession(windowId: number | undefined, token: CancellationToken, browserType: BrowserType, cancelAndDetachId?: number): Promise<void> {
+	async startDebugSession(windowId: number | undefined, token: CancellationToken, locator: IBrowserTargetLocator, cancelAndDetachId?: number): Promise<void> {
 		const window = this.windowById(windowId);
 		if (!window?.win) {
 			return undefined;
@@ -142,7 +132,7 @@ export class NativeBrowserElementsMainService extends Disposable implements INat
 		}
 
 		try {
-			const matchingTargetId = await this.waitForWebviewTargets(debuggers, windowId!, browserType);
+			const matchingTargetId = await this.waitForWebviewTargets(debuggers, locator);
 			if (!matchingTargetId) {
 				if (debuggers.isAttached()) {
 					debuggers.detach();
@@ -172,7 +162,7 @@ export class NativeBrowserElementsMainService extends Disposable implements INat
 		});
 	}
 
-	async finishOverlay(debuggers: any, sessionId: string | undefined): Promise<void> {
+	async finishOverlay(debuggers: Electron.Debugger, sessionId: string | undefined): Promise<void> {
 		if (debuggers.isAttached() && sessionId) {
 			await debuggers.sendCommand('Overlay.setInspectMode', {
 				mode: 'none',
@@ -187,7 +177,7 @@ export class NativeBrowserElementsMainService extends Disposable implements INat
 		}
 	}
 
-	async getElementData(windowId: number | undefined, rect: IRectangle, token: CancellationToken, browserType: BrowserType, cancellationId?: number): Promise<IElementData | undefined> {
+	async getElementData(windowId: number | undefined, rect: IRectangle, token: CancellationToken, locator: IBrowserTargetLocator, cancellationId?: number): Promise<IElementData | undefined> {
 		const window = this.windowById(windowId);
 		if (!window?.win) {
 			return undefined;
@@ -208,7 +198,7 @@ export class NativeBrowserElementsMainService extends Disposable implements INat
 
 		let targetSessionId: string | undefined = undefined;
 		try {
-			const targetId = await this.findWebviewTarget(debuggers, windowId!, browserType);
+			const targetId = await this.findWebviewTarget(debuggers, locator);
 			const { sessionId } = await debuggers.sendCommand('Target.attachToTarget', {
 				targetId: targetId,
 				flatten: true,
@@ -340,9 +330,9 @@ export class NativeBrowserElementsMainService extends Disposable implements INat
 		return { outerHTML: nodeData.outerHTML, computedStyle: nodeData.computedStyle, bounds: scaledBounds };
 	}
 
-	async getNodeData(sessionId: string, debuggers: any, window: BrowserWindow, cancellationId?: number): Promise<NodeDataResponse> {
+	async getNodeData(sessionId: string, debuggers: Electron.Debugger, window: BrowserWindow, cancellationId?: number): Promise<NodeDataResponse> {
 		return new Promise((resolve, reject) => {
-			const onMessage = async (event: any, method: string, params: { backendNodeId: number }) => {
+			const onMessage = async (event: Electron.Event, method: string, params: { backendNodeId: number }) => {
 				if (method === 'Overlay.inspectNodeRequested') {
 					debuggers.off('message', onMessage);
 					await debuggers.sendCommand('Runtime.evaluate', {
@@ -373,7 +363,7 @@ export class NativeBrowserElementsMainService extends Disposable implements INat
 						const content = model.content;
 						const margin = model.margin;
 						const x = Math.min(margin[0], content[0]);
-						const y = Math.min(margin[1], content[1]) + 32.4; // 32.4 is height of the title bar
+						const y = Math.min(margin[1], content[1]);
 						const width = Math.max(margin[2] - margin[0], content[2] - content[0]);
 						const height = Math.max(margin[5] - margin[1], content[5] - content[1]);
 
@@ -416,7 +406,7 @@ export class NativeBrowserElementsMainService extends Disposable implements INat
 		});
 	}
 
-	formatMatchedStyles(matched: any): string {
+	formatMatchedStyles(matched: { inlineStyle?: { cssProperties?: Array<{ name: string; value: string }> }; matchedCSSRules?: Array<{ rule: { selectorList: { selectors: Array<{ text: string }> }; origin: string; style: { cssProperties: Array<{ name: string; value: string }> } } }>; inherited?: Array<{ inlineStyle?: { cssText: string }; matchedCSSRules?: Array<{ rule: { selectorList: { selectors: Array<{ text: string }> }; origin: string; style: { cssProperties: Array<{ name: string; value: string }> } } }> }> }): string {
 		const lines: string[] = [];
 
 		// inline
@@ -435,7 +425,7 @@ export class NativeBrowserElementsMainService extends Disposable implements INat
 		if (matched.matchedCSSRules?.length) {
 			for (const ruleEntry of matched.matchedCSSRules) {
 				const rule = ruleEntry.rule;
-				const selectors = rule.selectorList.selectors.map((s: any) => s.text).join(', ');
+				const selectors = rule.selectorList.selectors.map(s => s.text).join(', ');
 				lines.push(`/* Matched Rule from ${rule.origin} */`);
 				lines.push(`${selectors} {`);
 				for (const prop of rule.style.cssProperties) {
@@ -451,10 +441,18 @@ export class NativeBrowserElementsMainService extends Disposable implements INat
 		if (matched.inherited?.length) {
 			let level = 1;
 			for (const inherited of matched.inherited) {
+				const inline = inherited.inlineStyle;
+				if (inline) {
+					lines.push(`/* Inherited from ancestor level ${level} (inline) */`);
+					lines.push('element {');
+					lines.push(inline.cssText);
+					lines.push('}\n');
+				}
+
 				const rules = inherited.matchedCSSRules || [];
 				for (const ruleEntry of rules) {
 					const rule = ruleEntry.rule;
-					const selectors = rule.selectorList.selectors.map((s: any) => s.text).join(', ');
+					const selectors = rule.selectorList.selectors.map(s => s.text).join(', ');
 					lines.push(`/* Inherited from ancestor level ${level} (${rule.origin}) */`);
 					lines.push(`${selectors} {`);
 					for (const prop of rule.style.cssProperties) {

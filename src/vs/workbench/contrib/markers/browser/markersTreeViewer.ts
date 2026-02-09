@@ -506,6 +506,11 @@ export class Filter implements ITreeFilter<MarkerElement, FilterData> {
 			return false;
 		}
 
+		// Check source filters if present
+		if (!this.options.matchesSourceFilters(marker.marker.source)) {
+			return false;
+		}
+
 		if (!this.options.textFilter.text) {
 			return true;
 		}

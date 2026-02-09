@@ -114,7 +114,8 @@ export class GitHubSourceControlHistoryItemDetailsProvider implements SourceCont
 			return undefined;
 		}
 
-		const descriptor = getRepositoryDefaultRemote(repository);
+		// upstream -> origin -> first
+		const descriptor = getRepositoryDefaultRemote(repository, ['upstream', 'origin']);
 		if (!descriptor) {
 			this._logger.trace(`[GitHubSourceControlHistoryItemDetailsProvider][provideAvatar] Repository does not have a GitHub remote.`);
 			return undefined;
@@ -206,7 +207,8 @@ export class GitHubSourceControlHistoryItemDetailsProvider implements SourceCont
 	}
 
 	async provideHoverCommands(repository: Repository): Promise<Command[] | undefined> {
-		const url = getRepositoryDefaultRemoteUrl(repository);
+		// origin -> upstream -> first
+		const url = getRepositoryDefaultRemoteUrl(repository, ['origin', 'upstream']);
 		if (!url) {
 			return undefined;
 		}
@@ -220,7 +222,8 @@ export class GitHubSourceControlHistoryItemDetailsProvider implements SourceCont
 	}
 
 	async provideMessageLinks(repository: Repository, message: string): Promise<string | undefined> {
-		const descriptor = getRepositoryDefaultRemote(repository);
+		// upstream -> origin -> first
+		const descriptor = getRepositoryDefaultRemote(repository, ['upstream', 'origin']);
 		if (!descriptor) {
 			return undefined;
 		}

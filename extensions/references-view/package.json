@@ -129,13 +129,13 @@
         "command": "references-view.showOutgoingCalls",
         "title": "%cmd.references-view.showOutgoingCalls%",
         "category": "Calls",
-        "icon": "$(call-outgoing)"
+        "icon": "$(call-incoming)"
       },
       {
         "command": "references-view.showIncomingCalls",
         "title": "%cmd.references-view.showIncomingCalls%",
         "category": "Calls",
-        "icon": "$(call-incoming)"
+        "icon": "$(call-outgoing)"
       },
       {
         "command": "references-view.removeCallItem",

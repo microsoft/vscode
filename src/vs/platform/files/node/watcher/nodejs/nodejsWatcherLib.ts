@@ -7,7 +7,7 @@ import { watch, promises } from 'fs';
 import { RunOnceWorker, ThrottledWorker } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { isEqual, isEqualOrParent } from '../../../../../base/common/extpath.js';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, thenRegisterOrDispose, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { normalizeNFC } from '../../../../../base/common/normalization.js';
 import { basename, dirname, join } from '../../../../../base/common/path.js';
 import { isLinux, isMacintosh } from '../../../../../base/common/platform.js';
@@ -96,8 +96,9 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 	) {
 		super();
 
-		this.excludes = parseWatcherPatterns(this.request.path, this.request.excludes);
-		this.includes = this.request.includes ? parseWatcherPatterns(this.request.path, this.request.includes) : undefined;
+		const ignoreCase = !isLinux;
+		this.excludes = parseWatcherPatterns(this.request.path, this.request.excludes, ignoreCase);
+		this.includes = this.request.includes ? parseWatcherPatterns(this.request.path, this.request.includes, ignoreCase) : undefined;
 		this.filter = isWatchRequestWithCorrelation(this.request) ? this.request.filter : undefined; // filtering is only enabled when correlating because watchers are otherwise potentially reused
 
 		this.ready = this.watch();
@@ -160,12 +161,7 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 			}
 
 			if (error) {
-				const watchDisposable = await this.doWatch(isDirectory);
-				if (!disposables.isDisposed) {
-					disposables.add(watchDisposable);
-				} else {
-					watchDisposable.dispose();
-				}
+				await thenRegisterOrDispose(this.doWatch(isDirectory), disposables);
 			} else if (change) {
 				if (typeof change.cId === 'number' || typeof this.request.correlationId === 'number') {
 					// Re-emit this change with the correlation id of the request

@@ -9,7 +9,7 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import { ProxyChannel } from '../../../../base/parts/ipc/common/ipc.js';
 import { INativeHostService } from '../../../../platform/native/common/native.js';
 
-// @ts-ignore: interface is implemented via proxy
+// @ts-expect-error: interface is implemented via proxy
 export class NativeWorkspacesService implements IWorkspacesService {
 
 	declare readonly _serviceBrand: undefined;

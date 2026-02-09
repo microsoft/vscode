@@ -1,0 +1,37 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.interactive-item-container .chat-tip-widget {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	margin-bottom: 8px;
+	font-size: var(--vscode-chat-font-size-body-s);
+	font-family: var(--vscode-chat-font-family, inherit);
+	color: var(--vscode-descriptionForeground);
+}
+
+.interactive-item-container .chat-tip-widget .codicon-lightbulb {
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.interactive-item-container .chat-tip-widget .rendered-markdown p {
+	margin: 0;
+}
+
+/* Override bubble styling for tip widget's rendered markdown in chat editor */
+.interactive-session:not(.chat-widget > .interactive-session) {
+	.interactive-item-container.interactive-request .value .chat-tip-widget .rendered-markdown {
+		background-color: transparent;
+		border-radius: 0;
+		padding: 0;
+		max-width: none;
+		margin-left: 0;
+		width: auto;
+		margin-bottom: 0;
+		position: static;
+	}
+}

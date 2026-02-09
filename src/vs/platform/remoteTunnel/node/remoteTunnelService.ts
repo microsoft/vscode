@@ -55,13 +55,13 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 
 	declare readonly _serviceBrand: undefined;
 
-	private readonly _onDidTokenFailedEmitter = new Emitter<IRemoteTunnelSession | undefined>();
+	private readonly _onDidTokenFailedEmitter = this._register(new Emitter<IRemoteTunnelSession | undefined>());
 	public readonly onDidTokenFailed = this._onDidTokenFailedEmitter.event;
 
-	private readonly _onDidChangeTunnelStatusEmitter = new Emitter<TunnelStatus>();
+	private readonly _onDidChangeTunnelStatusEmitter = this._register(new Emitter<TunnelStatus>());
 	public readonly onDidChangeTunnelStatus = this._onDidChangeTunnelStatusEmitter.event;
 
-	private readonly _onDidChangeModeEmitter = new Emitter<TunnelMode>();
+	private readonly _onDidChangeModeEmitter = this._register(new Emitter<TunnelMode>());
 	public readonly onDidChangeMode = this._onDidChangeModeEmitter.event;
 
 	private readonly _logger: ILogger;
@@ -175,9 +175,17 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 				// appRoot = /Applications/Visual Studio Code - Insiders.app/Contents/Resources/app
 				// bin = /Applications/Visual Studio Code - Insiders.app/Contents/Resources/app/bin
 				binParentLocation = this.environmentService.appRoot;
+			} else if (isWindows) {
+				if (this.productService.win32VersionedUpdate) {
+					// appRoot = C:\Users\<name>\AppData\Local\Programs\Microsoft VS Code Insiders\<version>\resources\app
+					// bin = C:\Users\<name>\AppData\Local\Programs\Microsoft VS Code Insiders\bin
+					binParentLocation = dirname(dirname(dirname(this.environmentService.appRoot)));
+				} else {
+					// appRoot = C:\Users\<name>\AppData\Local\Programs\Microsoft VS Code Insiders\resources\app
+					// bin = C:\Users\<name>\AppData\Local\Programs\Microsoft VS Code Insiders\bin
+					binParentLocation = dirname(dirname(this.environmentService.appRoot));
+				}
 			} else {
-				// appRoot = C:\Users\<name>\AppData\Local\Programs\Microsoft VS Code Insiders\resources\app
-				// bin = C:\Users\<name>\AppData\Local\Programs\Microsoft VS Code Insiders\bin
 				// appRoot = /usr/share/code-insiders/resources/app
 				// bin = /usr/share/code-insiders/bin
 				binParentLocation = dirname(dirname(this.environmentService.appRoot));

@@ -85,7 +85,7 @@ class ExtensionsViewState extends Disposable implements IExtensionsViewState {
 export interface ExtensionsListViewOptions {
 	server?: IExtensionManagementServer;
 	flexibleHeight?: boolean;
-	onDidChangeTitle?: Event<string>;
+	readonly onDidChangeTitle?: Event<string>;
 	hideBadge?: boolean;
 }
 
@@ -109,7 +109,11 @@ function isLocalSortBy(value: any): value is LocalSortBy {
 type SortBy = LocalSortBy | GallerySortBy;
 type IQueryOptions = Omit<IGalleryQueryOptions, 'sortBy'> & { sortBy?: SortBy };
 
-export class ExtensionsListView extends ViewPane {
+export abstract class AbstractExtensionsListView<T> extends ViewPane {
+	abstract show(query: string, refresh?: boolean): Promise<IPagedModel<T>>;
+}
+
+export class ExtensionsListView extends AbstractExtensionsListView<IExtension> {
 
 	private static RECENT_UPDATE_DURATION = 7 * 24 * 60 * 60 * 1000; // 7 days
 
@@ -396,12 +400,8 @@ export class ExtensionsListView extends ViewPane {
 			extensions = this.filterRecentlyUpdatedExtensions(local, query, options);
 		}
 
-		else if (/@feature:/i.test(query.value)) {
-			const result = this.filterExtensionsByFeature(local, query);
-			if (result) {
-				extensions = result.extensions;
-				description = result.description;
-			}
+		else if (/@contribute:/i.test(query.value)) {
+			extensions = this.filterExtensionsByFeature(local, query);
 		}
 
 		else if (includeBuiltin) {
@@ -661,12 +661,12 @@ export class ExtensionsListView extends ViewPane {
 		return this.sortExtensions(result, options);
 	}
 
-	private filterExtensionsByFeature(local: IExtension[], query: Query): { extensions: IExtension[]; description: string } | undefined {
-		const value = query.value.replace(/@feature:/g, '').trim();
+	private filterExtensionsByFeature(local: IExtension[], query: Query): IExtension[] {
+		const value = query.value.replace(/@contribute:/g, '').trim();
 		const featureId = value.split(' ')[0];
 		const feature = Registry.as<IExtensionFeaturesRegistry>(Extensions.ExtensionFeaturesRegistry).getExtensionFeature(featureId);
 		if (!feature) {
-			return undefined;
+			return [];
 		}
 		if (this.extensionsViewState) {
 			this.extensionsViewState.filters.featureId = featureId;
@@ -684,10 +684,7 @@ export class ExtensionsListView extends ViewPane {
 					result.push([e, accessData?.accessTimes.length ?? 0]);
 				}
 			}
-			return {
-				extensions: result.sort(([, a], [, b]) => b - a).map(([e]) => e),
-				description: localize('showingExtensionsForFeature', "Extensions using {0} in the last 30 days", feature.label)
-			};
+			return result.sort(([, a], [, b]) => b - a).map(([e]) => e);
 		} finally {
 			renderer?.dispose();
 		}
@@ -1258,7 +1255,7 @@ export class ExtensionsListView extends ViewPane {
 	}
 
 	static isFeatureExtensionsQuery(query: string): boolean {
-		return /@feature:/i.test(query);
+		return /@contribute:/i.test(query);
 	}
 
 	override focus(): void {
@@ -1561,6 +1558,10 @@ export class PreferredExtensionsPagedModel implements IPagedModel<IExtension> {
 	}>;
 
 	public readonly length: number;
+
+	get onDidIncrementLength(): Event<number> {
+		return Event.None;
+	}
 
 	constructor(
 		private readonly preferredExtensions: IExtension[],

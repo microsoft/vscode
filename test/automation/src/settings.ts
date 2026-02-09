@@ -24,7 +24,7 @@ export class SettingsEditor {
 		await this.openUserSettingsFile();
 
 		await this.editors.selectTab('settings.json');
-		await this.code.sendKeybinding('right', () =>
+		await this.code.dispatchKeybinding('right', () =>
 			this.editor.waitForEditorSelection('settings.json', (s) => this._acceptEditorSelection(this.code.editContextEnabled, s)));
 		await this.editor.waitForTypeInEditor('settings.json', `"${setting}": ${value},`);
 		await this.editors.saveOpenedFile();
@@ -40,7 +40,7 @@ export class SettingsEditor {
 		await this.openUserSettingsFile();
 
 		await this.editors.selectTab('settings.json');
-		await this.code.sendKeybinding('right', () =>
+		await this.code.dispatchKeybinding('right', () =>
 			this.editor.waitForEditorSelection('settings.json', (s) => this._acceptEditorSelection(this.code.editContextEnabled, s)));
 		await this.editor.waitForTypeInEditor('settings.json', settings.map(v => `"${v[0]}": ${v[1]},`).join(''));
 		await this.editors.saveOpenedFile();
@@ -49,7 +49,7 @@ export class SettingsEditor {
 	async clearUserSettings(): Promise<void> {
 		await this.openUserSettingsFile();
 		await this.quickaccess.runCommand('editor.action.selectAll');
-		await this.code.sendKeybinding('Delete', async () => {
+		await this.code.dispatchKeybinding('Delete', async () => {
 			await this.editor.waitForEditorContents('settings.json', contents => contents === '');
 		});
 		await this.editor.waitForTypeInEditor('settings.json', `{`); // will auto close }
@@ -71,12 +71,8 @@ export class SettingsEditor {
 		await this.openUserSettingsUI();
 
 		await this.code.waitAndClick(this._editContextSelector());
-		if (process.platform === 'darwin') {
-			await this.code.sendKeybinding('cmd+a');
-		} else {
-			await this.code.sendKeybinding('ctrl+a');
-		}
-		await this.code.sendKeybinding('Delete', async () => {
+		await this.code.dispatchKeybinding(process.platform === 'darwin' ? 'cmd+a' : 'ctrl+a', async () => { });
+		await this.code.dispatchKeybinding('Delete', async () => {
 			await this.code.waitForElements('.settings-editor .settings-count-widget', false, results => !results || (results?.length === 1 && !results[0].textContent));
 		});
 		await this.code.waitForTypeInEditor(this._editContextSelector(), query);

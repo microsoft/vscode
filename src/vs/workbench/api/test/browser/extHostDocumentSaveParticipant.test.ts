@@ -81,6 +81,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 			sub.dispose();
 
 			assert.ok(event);
+			// eslint-disable-next-line local/code-no-any-casts
 			assert.throws(() => { (event.document as any) = null!; });
 		});
 	});

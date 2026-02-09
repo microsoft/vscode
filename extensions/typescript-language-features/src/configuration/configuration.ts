@@ -64,6 +64,7 @@ export class ImplicitProjectConfiguration {
 	public readonly experimentalDecorators: boolean;
 	public readonly strictNullChecks: boolean;
 	public readonly strictFunctionTypes: boolean;
+	public readonly strict: boolean;
 
 	constructor(configuration: vscode.WorkspaceConfiguration) {
 		this.target = ImplicitProjectConfiguration.readTarget(configuration);
@@ -72,6 +73,7 @@ export class ImplicitProjectConfiguration {
 		this.experimentalDecorators = ImplicitProjectConfiguration.readExperimentalDecorators(configuration);
 		this.strictNullChecks = ImplicitProjectConfiguration.readImplicitStrictNullChecks(configuration);
 		this.strictFunctionTypes = ImplicitProjectConfiguration.readImplicitStrictFunctionTypes(configuration);
+		this.strict = ImplicitProjectConfiguration.readImplicitStrict(configuration);
 	}
 
 	public isEqualTo(other: ImplicitProjectConfiguration): boolean {
@@ -101,6 +103,10 @@ export class ImplicitProjectConfiguration {
 	private static readImplicitStrictFunctionTypes(configuration: vscode.WorkspaceConfiguration): boolean {
 		return configuration.get<boolean>('js/ts.implicitProjectConfig.strictFunctionTypes', true);
 	}
+
+	private static readImplicitStrict(configuration: vscode.WorkspaceConfiguration): boolean {
+		return configuration.get<boolean>('js/ts.implicitProjectConfig.strict', true);
+	}
 }
 
 export interface TypeScriptServiceConfiguration {
@@ -127,7 +133,6 @@ export interface TypeScriptServiceConfiguration {
 	readonly localNodePath: string | null;
 	readonly globalNodePath: string | null;
 	readonly workspaceSymbolsExcludeLibrarySymbols: boolean;
-	readonly enableRegionDiagnostics: boolean;
 }
 
 export function areServiceConfigurationsEqual(a: TypeScriptServiceConfiguration, b: TypeScriptServiceConfiguration): boolean {
@@ -170,7 +175,6 @@ export abstract class BaseServiceConfigurationProvider implements ServiceConfigu
 			localNodePath: this.readLocalNodePath(configuration),
 			globalNodePath: this.readGlobalNodePath(configuration),
 			workspaceSymbolsExcludeLibrarySymbols: this.readWorkspaceSymbolsExcludeLibrarySymbols(configuration),
-			enableRegionDiagnostics: this.readEnableRegionDiagnostics(configuration),
 		};
 	}
 
@@ -300,9 +304,5 @@ export abstract class BaseServiceConfigurationProvider implements ServiceConfigu
 
 	private readWebTypeAcquisition(configuration: vscode.WorkspaceConfiguration): boolean {
 		return configuration.get<boolean>('typescript.tsserver.web.typeAcquisition.enabled', true);
-	}
-
-	private readEnableRegionDiagnostics(configuration: vscode.WorkspaceConfiguration): boolean {
-		return configuration.get<boolean>('typescript.tsserver.enableRegionDiagnostics', true);
 	}
 }

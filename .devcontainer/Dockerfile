@@ -1,4 +1,4 @@
-FROM mcr.microsoft.com/devcontainers/typescript-node:20-bookworm
+FROM mcr.microsoft.com/devcontainers/typescript-node:22-bookworm
 
 ADD install-vscode.sh /root/
 RUN /root/install-vscode.sh

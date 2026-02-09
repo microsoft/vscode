@@ -32,7 +32,7 @@ import { CommandsRegistry } from '../../../../platform/commands/common/commands.
 import { assertType } from '../../../../base/common/types.js';
 import { getWorkspaceSymbols, IWorkspaceSymbol } from '../common/search.js';
 import * as Constants from '../common/constants.js';
-import { SearchChatContextContribution } from './chatContributions.js';
+import { SearchChatContextContribution } from './searchChatContext.js';
 
 import './searchActionsCopy.js';
 import './searchActionsFind.js';
@@ -44,6 +44,8 @@ import './searchActionsTextQuickAccess.js';
 import { TEXT_SEARCH_QUICK_ACCESS_PREFIX, TextSearchQuickAccess } from './quickTextSearch/textSearchQuickAccess.js';
 import { Extensions, IConfigurationMigrationRegistry } from '../../../common/configuration.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
+import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { SearchAccessibilityHelp } from './searchAccessibilityHelp.js';
 
 registerSingleton(ISearchViewModelWorkbenchService, SearchViewModelWorkbenchService, InstantiationType.Delayed);
 registerSingleton(ISearchHistoryService, SearchHistoryService, InstantiationType.Delayed);
@@ -53,6 +55,8 @@ notebookSearchContributions();
 searchWidgetContributions();
 
 registerWorkbenchContribution2(SearchChatContextContribution.ID, SearchChatContextContribution, WorkbenchPhase.AfterRestored);
+
+AccessibleViewRegistry.register(new SearchAccessibilityHelp());
 
 const SEARCH_MODE_CONFIG = 'search.mode';
 
@@ -93,7 +97,7 @@ const quickAccessRegistry = Registry.as<IQuickAccessRegistry>(QuickAccessExtensi
 quickAccessRegistry.registerQuickAccessProvider({
 	ctor: AnythingQuickAccessProvider,
 	prefix: AnythingQuickAccessProvider.PREFIX,
-	placeholder: nls.localize('anythingQuickAccessPlaceholder', "Search files by name (append {0} to go to line or {1} to go to symbol)", AbstractGotoLineQuickAccessProvider.PREFIX, GotoSymbolQuickAccessProvider.PREFIX),
+	placeholder: nls.localize('anythingQuickAccessPlaceholder', "Search files by name (append {0} to go to line or {1} to go to symbol)", AbstractGotoLineQuickAccessProvider.GO_TO_LINE_PREFIX, GotoSymbolQuickAccessProvider.PREFIX),
 	contextKey: defaultQuickAccessContextKeyValue,
 	helpEntries: [{
 		description: nls.localize('anythingQuickAccess', "Go to File"),

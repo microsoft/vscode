@@ -42,6 +42,7 @@ export interface INativeWorkbenchEnvironmentService extends IBrowserWorkbenchEnv
 	readonly machineId: string;
 	readonly sqmId: string;
 	readonly devDeviceId: string;
+	readonly isPortable: boolean;
 
 	// --- Paths
 	readonly execPath: string;
@@ -68,6 +69,9 @@ export class NativeWorkbenchEnvironmentService extends AbstractNativeEnvironment
 
 	@memoize
 	get devDeviceId() { return this.configuration.devDeviceId; }
+
+	@memoize
+	get isPortable() { return this.configuration.isPortable; }
 
 	@memoize
 	get remoteAuthority() { return this.configuration.remoteAuthority; }
@@ -146,15 +150,6 @@ export class NativeWorkbenchEnvironmentService extends AbstractNativeEnvironment
 
 	@memoize
 	get filesToWait(): IPathsToWaitFor | undefined { return this.configuration.filesToWait; }
-
-	@memoize
-	get startupExperimentGroup(): string | undefined {
-		const group = this.args['startup-experiment-group'];
-		if (typeof group === 'string') {
-			return group;
-		}
-		return undefined;
-	}
 
 	constructor(
 		private readonly configuration: INativeWindowConfiguration,

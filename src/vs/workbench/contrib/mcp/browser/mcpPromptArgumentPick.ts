@@ -8,10 +8,11 @@ import { disposableTimeout, RunOnceScheduler, timeout } from '../../../../base/c
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, derived, IObservable, ObservablePromise, observableValue } from '../../../../base/common/observable.js';
+import { autorun, derived, IObservable, ObservablePromise, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { basename } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
+import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { getIconClasses } from '../../../../editor/common/services/getIconClasses.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
@@ -23,6 +24,7 @@ import { IQuickInputService, IQuickPick, IQuickPickItem, IQuickPickSeparator } f
 import { ICommandDetectionCapability, TerminalCapability } from '../../../../platform/terminal/common/capabilities/capabilities.js';
 import { TerminalLocation } from '../../../../platform/terminal/common/terminal.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { QueryBuilder } from '../../../services/search/common/queryBuilder.js';
 import { ISearchService } from '../../../services/search/common/search.js';
 import { ITerminalGroupService, ITerminalInstance, ITerminalService } from '../../terminal/browser/terminal.js';
@@ -32,6 +34,7 @@ import { MCP } from '../common/modelContextProtocol.js';
 type PickItem = IQuickPickItem & (
 	| { action: 'text' | 'command' | 'suggest' }
 	| { action: 'file'; uri: URI }
+	| { action: 'selectedText'; uri: URI; selectedText: string }
 );
 
 const SHELL_INTEGRATION_TIMEOUT = 5000;
@@ -56,6 +59,8 @@ export class McpPromptArgumentPick extends Disposable {
 		@ILanguageService private readonly _languageService: ILanguageService,
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
+		@IEditorService private readonly _editorService: IEditorService,
 	) {
 		super();
 		this.quickPick = this._register(_quickInputService.createQuickPick({ useSeparators: true }));
@@ -113,6 +118,10 @@ export class McpPromptArgumentPick extends Disposable {
 				observer: this._promptCompletions(arg, input$, argsSoFar),
 			},
 			{
+				name: localize('mcp.arg.activeFiles', 'Active File'),
+				observer: this._activeFileCompletions(),
+			},
+			{
 				name: localize('mcp.arg.files', 'Files'),
 				observer: this._fileCompletions(input$),
 			}
@@ -143,10 +152,11 @@ export class McpPromptArgumentPick extends Disposable {
 			quickPick.items = items;
 
 			const lastActive = items.find(i => previouslyActive.some(a => a.id === i.id)) as PickItem | undefined;
+			const serverSuggestions = asyncPicks[0].observer;
 			// Keep any selection state, but otherwise select the first completion item, and avoid default-selecting the top item unless there are no compltions
 			if (lastActive) {
 				quickPick.activeItems = [lastActive];
-			} else if (items.length > 2) {
+			} else if (serverSuggestions.read(reader).picks?.length) {
 				quickPick.activeItems = [items[3] as PickItem];
 			} else if (busy) {
 				quickPick.activeItems = [];
@@ -213,6 +223,8 @@ export class McpPromptArgumentPick extends Disposable {
 				case 'file':
 					quickPick.busy = true;
 					return { type: 'arg', value: await this._fileService.readFile(value.uri).then(c => c.value.toString()) };
+				case 'selectedText':
+					return { type: 'arg', value: value.selectedText };
 				default:
 					assertNever(value);
 			}
@@ -257,6 +269,62 @@ export class McpPromptArgumentPick extends Disposable {
 				uri: i.resource,
 				action: 'file',
 			}));
+		});
+	}
+
+	private _activeFileCompletions() {
+		const activeEditorChange = observableSignalFromEvent(this, this._editorService.onDidActiveEditorChange);
+		const activeEditor = derived(reader => {
+			activeEditorChange.read(reader);
+			return this._codeEditorService.getActiveCodeEditor();
+		});
+
+		const resourceObs = activeEditor
+			.map(e => e ? observableSignalFromEvent(this, e.onDidChangeModel).map(() => e.getModel()?.uri) : undefined)
+			.map((o, reader) => o?.read(reader));
+		const selectionObs = activeEditor
+			.map(e => e ? observableSignalFromEvent(this, e.onDidChangeCursorSelection).map(() => ({ range: e.getSelection(), model: e.getModel() })) : undefined)
+			.map((o, reader) => o?.read(reader));
+
+		return derived(reader => {
+			const resource = resourceObs.read(reader);
+			if (!resource) {
+				return { busy: false, picks: [] };
+			}
+
+			const items: PickItem[] = [];
+
+			// Add active file option
+			items.push({
+				id: 'active-file',
+				label: localize('mcp.arg.activeFile', 'Active File'),
+				description: this._labelService.getUriLabel(resource),
+				iconClasses: getIconClasses(this._modelService, this._languageService, resource),
+				uri: resource,
+				action: 'file',
+			});
+
+			const selection = selectionObs.read(reader);
+			// Add selected text option if there's a selection
+			if (selection && selection.model && selection.range && !selection.range.isEmpty()) {
+				const selectedText = selection.model.getValueInRange(selection.range);
+				const lineCount = selection.range.endLineNumber - selection.range.startLineNumber + 1;
+				const description = lineCount === 1
+					? localize('mcp.arg.selectedText.singleLine', 'line {0}', selection.range.startLineNumber)
+					: localize('mcp.arg.selectedText.multiLine', '{0} lines', lineCount);
+
+				items.push({
+					id: 'selected-text',
+					label: localize('mcp.arg.selectedText', 'Selected Text'),
+					description,
+					selectedText,
+					iconClass: ThemeIcon.asClassName(Codicon.selection),
+					uri: resource,
+					action: 'selectedText',
+				});
+			}
+
+			return { picks: items, busy: false };
 		});
 	}
 

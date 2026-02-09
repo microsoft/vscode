@@ -270,7 +270,7 @@ export class AuxiliaryEditorPart {
 					if (typeof canMoveVeto === 'string') {
 						group.openEditor(editor);
 						event.veto(canMoveVeto);
-						break;
+						return;
 					}
 				}
 			}
@@ -300,6 +300,22 @@ export class AuxiliaryEditorPart {
 					newCompact = !compact;
 				}
 				updateCompact(newCompact);
+			}
+		}));
+
+		disposables.add(editorPart.onDidAddGroup(group => {
+			updateCompact(false); // leave compact mode when a group is added
+
+			disposables.add(group.onDidActiveEditorChange(() => {
+				if (group.count > 1) {
+					updateCompact(false); // leave compact mode when more than 1 editor is active
+				}
+			}));
+		}));
+
+		disposables.add(editorPart.activeGroup.onDidActiveEditorChange(() => {
+			if (editorPart.activeGroup.count > 1) {
+				updateCompact(false); // leave compact mode when more than 1 editor is active
 			}
 		}));
 
@@ -342,6 +358,13 @@ class AuxiliaryEditorPartImpl extends EditorPart implements IAuxiliaryEditorPart
 	) {
 		const id = AuxiliaryEditorPartImpl.COUNTER++;
 		super(editorPartsView, `workbench.parts.auxiliaryEditor.${id}`, groupsLabel, windowId, instantiationService, themeService, configurationService, storageService, layoutService, hostService, contextKeyService);
+	}
+
+	protected override handleContextKeys(): void {
+		const isAuxiliaryWindowContext = IsAuxiliaryWindowContext.bindTo(this.scopedContextKeyService);
+		isAuxiliaryWindowContext.set(true);
+
+		super.handleContextKeys();
 	}
 
 	updateOptions(options: { compact: boolean }): void {
@@ -423,6 +446,9 @@ class AuxiliaryEditorPartImpl extends EditorPart implements IAuxiliaryEditorPart
 
 			// Then merge remaining to main part
 			result = this.mergeGroupsToMainPart();
+			if (!result) {
+				return false; // Do not close when editors could not be merged back
+			}
 		}
 
 		this._onWillClose.fire();

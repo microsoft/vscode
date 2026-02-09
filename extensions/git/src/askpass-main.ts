@@ -6,7 +6,7 @@
 import * as fs from 'fs';
 import { IPCClient } from './ipc/ipcClient';
 
-function fatal(err: any): void {
+function fatal(err: unknown): void {
 	console.error('Missing or invalid credentials.');
 	console.error(err);
 	process.exit(1);

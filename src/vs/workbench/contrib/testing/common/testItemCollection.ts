@@ -129,7 +129,7 @@ const diffableProps: { [K in keyof ITestItem]?: (a: ITestItem[K], b: ITestItem[K
 	},
 };
 
-const diffableEntries = Object.entries(diffableProps) as readonly [keyof ITestItem, (a: any, b: any) => boolean][];
+const diffableEntries = Object.entries(diffableProps) as readonly [keyof ITestItem, (a: unknown, b: unknown) => boolean][];
 
 const diffTestItems = (a: ITestItem, b: ITestItem) => {
 	let output: Record<string, unknown> | undefined;

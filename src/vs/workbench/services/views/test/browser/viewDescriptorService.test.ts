@@ -22,7 +22,9 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 const ViewsRegistry = Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry);
 const ViewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry);
 const viewContainerIdPrefix = 'testViewContainer';
+// eslint-disable-next-line local/code-no-any-casts
 const sidebarContainer = ViewContainersRegistry.registerViewContainer({ id: `${viewContainerIdPrefix}-${generateUuid()}`, title: nls.localize2('test', 'test'), ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
+// eslint-disable-next-line local/code-no-any-casts
 const panelContainer = ViewContainersRegistry.registerViewContainer({ id: `${viewContainerIdPrefix}-${generateUuid()}`, title: nls.localize2('test', 'test'), ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Panel);
 
 suite('ViewDescriptorService', () => {
@@ -330,6 +332,7 @@ suite('ViewDescriptorService', () => {
 
 	test('initialize with custom locations', async function () {
 		const storageService = instantiationService.get(IStorageService);
+		// eslint-disable-next-line local/code-no-any-casts
 		const viewContainer1 = ViewContainersRegistry.registerViewContainer({ id: `${viewContainerIdPrefix}-${generateUuid()}`, title: nls.localize2('test', 'test'), ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const generateViewContainer1 = `workbench.views.service.${ViewContainerLocationToString(ViewContainerLocation.Sidebar)}.${generateUuid()}`;
 		const viewsCustomizations = {
@@ -389,6 +392,7 @@ suite('ViewDescriptorService', () => {
 	test('storage change', async function () {
 		const testObject = aViewDescriptorService();
 
+		// eslint-disable-next-line local/code-no-any-casts
 		const viewContainer1 = ViewContainersRegistry.registerViewContainer({ id: `${viewContainerIdPrefix}-${generateUuid()}`, title: nls.localize2('test', 'test'), ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const generateViewContainer1 = `workbench.views.service.${ViewContainerLocationToString(ViewContainerLocation.Sidebar)}.${generateUuid()}`;
 
@@ -524,6 +528,7 @@ suite('ViewDescriptorService', () => {
 
 	test('custom locations take precedence when default view container of views change', async function () {
 		const storageService = instantiationService.get(IStorageService);
+		// eslint-disable-next-line local/code-no-any-casts
 		const viewContainer1 = ViewContainersRegistry.registerViewContainer({ id: `${viewContainerIdPrefix}-${generateUuid()}`, title: nls.localize2('test', 'test'), ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const generateViewContainer1 = `workbench.views.service.${ViewContainerLocationToString(ViewContainerLocation.Sidebar)}.${generateUuid()}`;
 		const viewsCustomizations = {
@@ -586,6 +591,7 @@ suite('ViewDescriptorService', () => {
 
 	test('view containers with not existing views are not removed from customizations', async function () {
 		const storageService = instantiationService.get(IStorageService);
+		// eslint-disable-next-line local/code-no-any-casts
 		const viewContainer1 = ViewContainersRegistry.registerViewContainer({ id: `${viewContainerIdPrefix}-${generateUuid()}`, title: nls.localize2('test', 'test'), ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const generateViewContainer1 = `workbench.views.service.${ViewContainerLocationToString(ViewContainerLocation.Sidebar)}.${generateUuid()}`;
 		const viewsCustomizations = {
@@ -636,6 +642,7 @@ suite('ViewDescriptorService', () => {
 		};
 		storageService.store('views.customizations', JSON.stringify(viewsCustomizations), StorageScope.PROFILE, StorageTarget.USER);
 
+		// eslint-disable-next-line local/code-no-any-casts
 		const viewContainer = ViewContainersRegistry.registerViewContainer({ id: `${viewContainerIdPrefix}-${generateUuid()}`, title: nls.localize2('test', 'test'), ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const viewDescriptors: IViewDescriptor[] = [
 			{
@@ -668,6 +675,7 @@ suite('ViewDescriptorService', () => {
 		const storageService = instantiationService.get(IStorageService);
 		const testObject = aViewDescriptorService();
 
+		// eslint-disable-next-line local/code-no-any-casts
 		const viewContainer = ViewContainersRegistry.registerViewContainer({ id: `${viewContainerIdPrefix}-${generateUuid()}`, title: nls.localize2('test', 'test'), ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const viewDescriptors: IViewDescriptor[] = [
 			{

@@ -6,7 +6,7 @@
 import path from 'path';
 import fs from 'fs';
 
-const root = path.join(__dirname, '..', '..');
+const root = path.join(import.meta.dirname, '..', '..');
 
 /**
  * Writes a `outDir/date` file with the contents of the build

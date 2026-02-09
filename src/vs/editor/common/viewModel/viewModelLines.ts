@@ -72,6 +72,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 	private wrappingIndent: WrappingIndent;
 	private wordBreak: 'normal' | 'keepAll';
 	private wrappingStrategy: 'simple' | 'advanced';
+	private wrapOnEscapedLineFeeds: boolean;
 
 	private modelLineProjections!: IModelLineProjection[];
 
@@ -92,7 +93,8 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		wrappingStrategy: 'simple' | 'advanced',
 		wrappingColumn: number,
 		wrappingIndent: WrappingIndent,
-		wordBreak: 'normal' | 'keepAll'
+		wordBreak: 'normal' | 'keepAll',
+		wrapOnEscapedLineFeeds: boolean
 	) {
 		this._editorId = editorId;
 		this.model = model;
@@ -105,6 +107,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		this.wrappingColumn = wrappingColumn;
 		this.wrappingIndent = wrappingIndent;
 		this.wordBreak = wordBreak;
+		this.wrapOnEscapedLineFeeds = wrapOnEscapedLineFeeds;
 
 		this._constructLines(/*resetHiddenAreas*/true, null);
 	}
@@ -148,8 +151,8 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 
 			if (lineNumber === nextLineNumberToUpdateHiddenArea) {
 				hiddenAreaIdx++;
-				hiddenAreaStart = hiddenAreas[hiddenAreaIdx]!.startLineNumber;
-				hiddenAreaEnd = hiddenAreas[hiddenAreaIdx]!.endLineNumber;
+				hiddenAreaStart = hiddenAreas[hiddenAreaIdx].startLineNumber;
+				hiddenAreaEnd = hiddenAreas[hiddenAreaIdx].endLineNumber;
 				nextLineNumberToUpdateHiddenArea = (hiddenAreaIdx + 1 < hiddenAreas.length) ? hiddenAreaEnd + 1 : lineCount + 2;
 			}
 
@@ -310,7 +313,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 				? this._domLineBreaksComputerFactory
 				: this._monospaceLineBreaksComputerFactory
 		);
-		return lineBreaksComputerFactory.createLineBreaksComputer(this.fontInfo, this.tabSize, this.wrappingColumn, this.wrappingIndent, this.wordBreak);
+		return lineBreaksComputerFactory.createLineBreaksComputer(this.fontInfo, this.tabSize, this.wrappingColumn, this.wrappingIndent, this.wordBreak, this.wrapOnEscapedLineFeeds);
 	}
 
 	public onModelFlushed(): void {
@@ -621,7 +624,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 						return new IndentGuide(g.visibleColumn, column, g.className,
 							new IndentGuideHorizontalLine(g.horizontalLine.top,
 								viewPosition.column),
-							- 1,
+							-1,
 							-1,
 						);
 					} else if (p.lineNumber < viewLineInfo.modelLineWrappedLineIdx) {

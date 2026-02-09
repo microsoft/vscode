@@ -49,7 +49,7 @@ export function writeTransientState(model: ITextModel, state: IWordWrapTransient
  * Read (in memory) the word wrap state for a particular model.
  */
 export function readTransientState(model: ITextModel, codeEditorService: ICodeEditorService): IWordWrapTransientState | null {
-	return codeEditorService.getTransientModelProperty(model, transientWordWrapState);
+	return codeEditorService.getTransientModelProperty(model, transientWordWrapState) as IWordWrapTransientState | null;
 }
 
 const TOGGLE_WORD_WRAP_ID = 'editor.action.toggleWordWrap';

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// version: 9
+// version: 12
 
 declare module 'vscode' {
 
@@ -30,12 +30,17 @@ declare module 'vscode' {
 	}
 
 	export class ChatRequestEditorData {
+
+		readonly editor: TextEditor;
+
 		//TODO@API should be the editor
 		document: TextDocument;
 		selection: Selection;
+
+		/** @deprecated */
 		wholeRange: Range;
 
-		constructor(document: TextDocument, selection: Selection, wholeRange: Range);
+		constructor(editor: TextEditor, document: TextDocument, selection: Selection, wholeRange: Range);
 	}
 
 	export class ChatRequestNotebookData {
@@ -54,6 +59,18 @@ declare module 'vscode' {
 		 * The attempt number of the request. The first request has attempt number 0.
 		 */
 		readonly attempt: number;
+
+		/**
+		 * The session identifier for this chat request.
+		 *
+		 * @deprecated Use {@link chatSessionResource} instead.
+		 */
+		readonly sessionId: string;
+
+		/**
+		 * The resource URI for the chat session this request belongs to.
+		 */
+		readonly sessionResource: Uri;
 
 		/**
 		 * If automatic command detection is enabled.
@@ -82,6 +99,27 @@ declare module 'vscode' {
 		 * Events for edited files in this session collected since the last request.
 		 */
 		readonly editedFileEvents?: ChatRequestEditedFileEvent[];
+
+		/**
+		 * Unique ID for the subagent invocation, used to group tool calls from the same subagent run together.
+		 * Pass this to tool invocations when calling tools from within a subagent context.
+		 */
+		readonly subAgentInvocationId?: string;
+
+		/**
+		 * Display name of the subagent that is invoking this request.
+		 */
+		readonly subAgentName?: string;
+
+		/**
+		 * The request ID of the parent request that invoked this subagent.
+		 */
+		readonly parentRequestId?: string;
+
+		/**
+		 * Whether any hooks are enabled for this request.
+		 */
+		readonly hasHooksEnabled: boolean;
 	}
 
 	export enum ChatRequestEditedFileEventKind {
@@ -99,6 +137,10 @@ declare module 'vscode' {
 	 * ChatRequestTurn + private additions. Note- at runtime this is the SAME as ChatRequestTurn and instanceof is safe.
 	 */
 	export class ChatRequestTurn2 {
+		/**
+		 * The id of the chat request. Used to identity an interaction with any of the chat surfaces.
+		 */
+		readonly id?: string;
 		/**
 		 * The prompt as entered by the user.
 		 *
@@ -137,7 +179,36 @@ declare module 'vscode' {
 		/**
 		 * @hidden
 		 */
-		private constructor(prompt: string, command: string | undefined, references: ChatPromptReference[], participant: string, toolReferences: ChatLanguageModelToolReference[], editedFileEvents: ChatRequestEditedFileEvent[] | undefined);
+		constructor(prompt: string, command: string | undefined, references: ChatPromptReference[], participant: string, toolReferences: ChatLanguageModelToolReference[], editedFileEvents: ChatRequestEditedFileEvent[] | undefined, id: string | undefined);
+	}
+
+	export class ChatResponseTurn2 {
+		/**
+		 * The id of the chat response. Used to identity an interaction with any of the chat surfaces.
+		 */
+		readonly id?: string;
+
+		/**
+		 * The content that was received from the chat participant. Only the stream parts that represent actual content (not metadata) are represented.
+		 */
+		readonly response: ReadonlyArray<ChatResponseMarkdownPart | ChatResponseFileTreePart | ChatResponseAnchorPart | ChatResponseCommandButtonPart | ExtendedChatResponsePart | ChatToolInvocationPart>;
+
+		/**
+		 * The result that was received from the chat participant.
+		 */
+		readonly result: ChatResult;
+
+		/**
+		 * The id of the chat participant that this response came from.
+		 */
+		readonly participant: string;
+
+		/**
+		 * The name of the command that this response came from.
+		 */
+		readonly command?: string;
+
+		constructor(response: ReadonlyArray<ChatResponseMarkdownPart | ChatResponseFileTreePart | ChatResponseAnchorPart | ChatResponseCommandButtonPart | ExtendedChatResponsePart>, result: ChatResult, participant: string);
 	}
 
 	export interface ChatParticipant {
@@ -158,7 +229,11 @@ declare module 'vscode' {
 
 		isQuotaExceeded?: boolean;
 
+		isRateLimited?: boolean;
+
 		level?: ChatErrorLevel;
+
+		code?: string;
 	}
 
 	export namespace chat {
@@ -185,9 +260,15 @@ declare module 'vscode' {
 
 	export interface LanguageModelToolInvocationOptions<T> {
 		chatRequestId?: string;
+		/** @deprecated Use {@link chatSessionResource} instead */
 		chatSessionId?: string;
+		chatSessionResource?: Uri;
 		chatInteractionId?: string;
 		terminalCommand?: string;
+		/**
+		 * Unique ID for the subagent invocation, used to group tool calls from the same subagent run together.
+		 */
+		subAgentInvocationId?: string;
 	}
 
 	export interface LanguageModelToolInvocationPrepareOptions<T> {
@@ -196,36 +277,27 @@ declare module 'vscode' {
 		 */
 		input: T;
 		chatRequestId?: string;
+		/** @deprecated Use {@link chatSessionResource} instead */
 		chatSessionId?: string;
+		chatSessionResource?: Uri;
 		chatInteractionId?: string;
+		/**
+		 * If set, tells the tool that it should include confirmation messages.
+		 */
+		forceConfirmationReason?: string;
 	}
 
 	export interface PreparedToolInvocation {
 		pastTenseMessage?: string | MarkdownString;
-		presentation?: 'hidden' | undefined;
-	}
-
-	export interface LanguageModelTool<T> {
-		prepareInvocation2?(options: LanguageModelToolInvocationPrepareOptions<T>, token: CancellationToken): ProviderResult<PreparedTerminalToolInvocation>;
-	}
-
-	export class PreparedTerminalToolInvocation {
-		readonly command: string;
-		readonly language: string;
-		readonly confirmationMessages?: LanguageModelToolConfirmationMessages;
-		readonly presentation?: 'hidden' | undefined;
-
-		constructor(
-			command: string,
-			language: string,
-			confirmationMessages?: LanguageModelToolConfirmationMessages,
-			presentation?: 'hidden'
-		);
+		presentation?: 'hidden' | 'hiddenAfterComplete' | undefined;
 	}
 
 	export class ExtendedLanguageModelToolResult extends LanguageModelToolResult {
 		toolResultMessage?: string | MarkdownString;
 		toolResultDetails?: Array<Uri | Location>;
+		toolMetadata?: unknown;
+		/** Whether there was an error calling the tool. The tool may still have partially succeeded. */
+		hasError?: boolean;
 	}
 
 	// #region Chat participant detection
@@ -262,6 +334,39 @@ declare module 'vscode' {
 	export interface ChatErrorDetailsConfirmationButton {
 		data: any;
 		label: string;
+	}
+
+	// #endregion
+
+	// #region LanguageModelProxyProvider
+
+	/**
+	 * Duplicated so that this proposal and languageModelProxy can be independent.
+	 */
+	export interface LanguageModelProxy extends Disposable {
+		readonly uri: Uri;
+		readonly key: string;
+	}
+
+	export interface LanguageModelProxyProvider {
+		provideModelProxy(forExtensionId: string, token: CancellationToken): ProviderResult<LanguageModelProxy>;
+	}
+
+	export namespace lm {
+		export function registerLanguageModelProxyProvider(provider: LanguageModelProxyProvider): Disposable;
+	}
+
+	// #endregion
+
+	// #region Steering
+
+	export interface ChatContext {
+		/**
+		 * Set to `true` by the editor to request the language model gracefully
+		 * stop after its next opportunity. When set, it's likely that the editor
+		 * will immediately follow up with a new request in the same conversation.
+		 */
+		readonly yieldRequested: boolean;
 	}
 
 	// #endregion

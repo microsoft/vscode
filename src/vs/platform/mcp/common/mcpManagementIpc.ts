@@ -4,12 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from '../../../base/common/event.js';
-import { Disposable } from '../../../base/common/lifecycle.js';
 import { cloneAndChange } from '../../../base/common/objects.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { DefaultURITransformer, IURITransformer, transformAndReviveIncomingURIs } from '../../../base/common/uriIpc.js';
 import { IChannel, IServerChannel } from '../../../base/parts/ipc/common/ipc.js';
-import { DidUninstallMcpServerEvent, IGalleryMcpServer, ILocalMcpServer, IMcpManagementService, IInstallableMcpServer, InstallMcpServerEvent, InstallMcpServerResult, InstallOptions, UninstallMcpServerEvent, UninstallOptions } from './mcpManagement.js';
+import { ILogService } from '../../log/common/log.js';
+import { RemoteAgentConnectionContext } from '../../remote/common/remoteAgentEnvironment.js';
+import { DidUninstallMcpServerEvent, IGalleryMcpServer, ILocalMcpServer, IMcpManagementService, IInstallableMcpServer, InstallMcpServerEvent, InstallMcpServerResult, InstallOptions, UninstallMcpServerEvent, UninstallOptions, IAllowedMcpServersService } from './mcpManagement.js';
+import { AbstractMcpManagementService } from './mcpManagementService.js';
 
 function transformIncomingURI(uri: UriComponents, transformer: IURITransformer | null): URI;
 function transformIncomingURI(uri: UriComponents | undefined, transformer: IURITransformer | null): URI | undefined;
@@ -36,14 +38,14 @@ function transformOutgoingURI(uri: URI, transformer: IURITransformer | null): UR
 	return transformer ? transformer.transformOutgoingURI(uri) : uri;
 }
 
-export class McpManagementChannel implements IServerChannel {
+export class McpManagementChannel<TContext = RemoteAgentConnectionContext | string> implements IServerChannel<TContext> {
 	readonly onInstallMcpServer: Event<InstallMcpServerEvent>;
 	readonly onDidInstallMcpServers: Event<readonly InstallMcpServerResult[]>;
 	readonly onDidUpdateMcpServers: Event<readonly InstallMcpServerResult[]>;
 	readonly onUninstallMcpServer: Event<UninstallMcpServerEvent>;
 	readonly onDidUninstallMcpServer: Event<DidUninstallMcpServerEvent>;
 
-	constructor(private service: IMcpManagementService, private getUriTransformer: (requestContext: any) => IURITransformer | null) {
+	constructor(private service: IMcpManagementService, private getUriTransformer: (requestContext: TContext) => IURITransformer | null) {
 		this.onInstallMcpServer = Event.buffer(service.onInstallMcpServer, true);
 		this.onDidInstallMcpServers = Event.buffer(service.onDidInstallMcpServers, true);
 		this.onDidUpdateMcpServers = Event.buffer(service.onDidUpdateMcpServers, true);
@@ -51,13 +53,13 @@ export class McpManagementChannel implements IServerChannel {
 		this.onDidUninstallMcpServer = Event.buffer(service.onDidUninstallMcpServer, true);
 	}
 
-	listen(context: any, event: string): Event<any> {
+	listen<T>(context: TContext, event: string): Event<T> {
 		const uriTransformer = this.getUriTransformer(context);
 		switch (event) {
 			case 'onInstallMcpServer': {
 				return Event.map<InstallMcpServerEvent, InstallMcpServerEvent>(this.onInstallMcpServer, event => {
 					return { ...event, mcpResource: transformOutgoingURI(event.mcpResource, uriTransformer) };
-				});
+				}) as Event<T>;
 			}
 			case 'onDidInstallMcpServers': {
 				return Event.map<readonly InstallMcpServerResult[], readonly InstallMcpServerResult[]>(this.onDidInstallMcpServers, results =>
@@ -65,7 +67,7 @@ export class McpManagementChannel implements IServerChannel {
 						...i,
 						local: i.local ? transformOutgoingExtension(i.local, uriTransformer) : i.local,
 						mcpResource: transformOutgoingURI(i.mcpResource, uriTransformer)
-					})));
+					}))) as Event<T>;
 			}
 			case 'onDidUpdateMcpServers': {
 				return Event.map<readonly InstallMcpServerResult[], readonly InstallMcpServerResult[]>(this.onDidUpdateMcpServers, results =>
@@ -73,41 +75,42 @@ export class McpManagementChannel implements IServerChannel {
 						...i,
 						local: i.local ? transformOutgoingExtension(i.local, uriTransformer) : i.local,
 						mcpResource: transformOutgoingURI(i.mcpResource, uriTransformer)
-					})));
+					}))) as Event<T>;
 			}
 			case 'onUninstallMcpServer': {
 				return Event.map<UninstallMcpServerEvent, UninstallMcpServerEvent>(this.onUninstallMcpServer, event => {
 					return { ...event, mcpResource: transformOutgoingURI(event.mcpResource, uriTransformer) };
-				});
+				}) as Event<T>;
 			}
 			case 'onDidUninstallMcpServer': {
 				return Event.map<DidUninstallMcpServerEvent, DidUninstallMcpServerEvent>(this.onDidUninstallMcpServer, event => {
 					return { ...event, mcpResource: transformOutgoingURI(event.mcpResource, uriTransformer) };
-				});
+				}) as Event<T>;
 			}
 		}
 
 		throw new Error('Invalid listen');
 	}
 
-	async call(context: any, command: string, args?: any): Promise<any> {
+	async call<T>(context: TContext, command: string, args?: unknown): Promise<T> {
 		const uriTransformer: IURITransformer | null = this.getUriTransformer(context);
+		const argsArray = Array.isArray(args) ? args : [];
 		switch (command) {
 			case 'getInstalled': {
-				const mcpServers = await this.service.getInstalled(transformIncomingURI(args[0], uriTransformer));
-				return mcpServers.map(e => transformOutgoingExtension(e, uriTransformer));
+				const mcpServers = await this.service.getInstalled(transformIncomingURI(argsArray[0], uriTransformer));
+				return mcpServers.map(e => transformOutgoingExtension(e, uriTransformer)) as T;
 			}
 			case 'install': {
-				return this.service.install(args[0], transformIncomingOptions(args[1], uriTransformer));
+				return this.service.install(argsArray[0], transformIncomingOptions(argsArray[1], uriTransformer)) as T;
 			}
 			case 'installFromGallery': {
-				return this.service.installFromGallery(args[0], transformIncomingOptions(args[1], uriTransformer));
+				return this.service.installFromGallery(argsArray[0], transformIncomingOptions(argsArray[1], uriTransformer)) as T;
 			}
 			case 'uninstall': {
-				return this.service.uninstall(transformIncomingServer(args[0], uriTransformer), transformIncomingOptions(args[1], uriTransformer));
+				return this.service.uninstall(transformIncomingServer(argsArray[0], uriTransformer), transformIncomingOptions(argsArray[1], uriTransformer)) as T;
 			}
 			case 'updateMetadata': {
-				return this.service.updateMetadata(transformIncomingServer(args[0], uriTransformer), args[1], transformIncomingURI(args[2], uriTransformer));
+				return this.service.updateMetadata(transformIncomingServer(argsArray[0], uriTransformer), argsArray[1], transformIncomingURI(argsArray[2], uriTransformer)) as T;
 			}
 		}
 
@@ -115,7 +118,7 @@ export class McpManagementChannel implements IServerChannel {
 	}
 }
 
-export class McpManagementChannelClient extends Disposable implements IMcpManagementService {
+export class McpManagementChannelClient extends AbstractMcpManagementService implements IMcpManagementService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -134,8 +137,12 @@ export class McpManagementChannelClient extends Disposable implements IMcpManage
 	private readonly _onDidUpdateMcpServers = this._register(new Emitter<InstallMcpServerResult[]>());
 	get onDidUpdateMcpServers() { return this._onDidUpdateMcpServers.event; }
 
-	constructor(private readonly channel: IChannel) {
-		super();
+	constructor(
+		private readonly channel: IChannel,
+		@IAllowedMcpServersService allowedMcpServersService: IAllowedMcpServersService,
+		@ILogService logService: ILogService
+	) {
+		super(allowedMcpServersService, logService);
 		this._register(this.channel.listen<InstallMcpServerEvent>('onInstallMcpServer')(e => this._onInstallMcpServer.fire(({ ...e, mcpResource: transformIncomingURI(e.mcpResource, null) }))));
 		this._register(this.channel.listen<readonly InstallMcpServerResult[]>('onDidInstallMcpServers')(results => this._onDidInstallMcpServers.fire(results.map(e => ({ ...e, local: e.local ? transformIncomingServer(e.local, null) : e.local, mcpResource: transformIncomingURI(e.mcpResource, null) })))));
 		this._register(this.channel.listen<readonly InstallMcpServerResult[]>('onDidUpdateMcpServers')(results => this._onDidUpdateMcpServers.fire(results.map(e => ({ ...e, local: e.local ? transformIncomingServer(e.local, null) : e.local, mcpResource: transformIncomingURI(e.mcpResource, null) })))));

@@ -6,7 +6,9 @@
 import { localize } from '../../../../nls.js';
 import { dirname, basename } from '../../../../base/common/resources.js';
 import { ITitleProperties, ITitleVariable } from './titlebarPart.js';
-import { IConfigurationService, IConfigurationChangeEvent } from '../../../../platform/configuration/common/configuration.js';
+import { IConfigurationService, IConfigurationChangeEvent, isConfigured } from '../../../../platform/configuration/common/configuration.js';
+import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { EditorResourceAccessor, Verbosity, SideBySideEditor } from '../../../common/editor.js';
@@ -286,6 +288,7 @@ export class WindowTitle extends Disposable {
 	 * {activeEditorLong}: e.g. /Users/Development/myFolder/myFileFolder/myFile.txt
 	 * {activeEditorMedium}: e.g. myFolder/myFileFolder/myFile.txt
 	 * {activeEditorShort}: e.g. myFile.txt
+	 * {activeEditorLanguageId}: e.g. typescript
 	 * {activeFolderLong}: e.g. /Users/Development/myFolder/myFileFolder
 	 * {activeFolderMedium}: e.g. myFolder/myFileFolder
 	 * {activeFolderShort}: e.g. myFileFolder
@@ -359,6 +362,7 @@ export class WindowTitle extends Disposable {
 		const profileName = this.userDataProfileService.currentProfile.isDefault ? '' : this.userDataProfileService.currentProfile.name;
 		const focusedView: string = this.viewsService.getFocusedViewName();
 		const activeEditorState = editorResource ? this.decorationsService.getDecoration(editorResource, false)?.tooltip : undefined;
+		const activeEditorLanguageId = this.editorService.activeTextEditorLanguageId;
 
 		const variables: Record<string, string> = {};
 		for (const [contextKey, name] of this.variables) {
@@ -384,6 +388,7 @@ export class WindowTitle extends Disposable {
 			activeEditorShort,
 			activeEditorLong,
 			activeEditorMedium,
+			activeEditorLanguageId,
 			activeFolderShort,
 			activeFolderMedium,
 			activeFolderLong,
@@ -409,6 +414,13 @@ export class WindowTitle extends Disposable {
 		const title = this.configurationService.inspect<string>(WindowSettingNames.title);
 		const titleSeparator = this.configurationService.inspect<string>(WindowSettingNames.titleSeparator);
 
-		return title.value !== title.defaultValue || titleSeparator.value !== titleSeparator.defaultValue;
+		if (isConfigured(title) || isConfigured(titleSeparator)) {
+			return true;
+		}
+
+		// Check if the default value is overridden from the configuration registry
+		const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+		const configurationProperties = configurationRegistry.getConfigurationProperties();
+		return title.defaultValue !== configurationProperties[WindowSettingNames.title]?.defaultDefaultValue;
 	}
 }

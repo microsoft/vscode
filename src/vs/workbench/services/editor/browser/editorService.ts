@@ -316,7 +316,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		}
 	}
 
-	private closeOnFileDelete: boolean = false;
+	private closeOnFileDelete = false;
 
 	private onConfigurationUpdated(e?: IConfigurationChangeEvent): void {
 		if (e && !e.affectsConfiguration('workbench.editor.closeOnFileDelete')) {

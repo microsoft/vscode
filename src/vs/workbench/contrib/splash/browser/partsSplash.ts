@@ -108,12 +108,14 @@ export class PartsSplash {
 	}
 
 	private _removePartsSplash(): void {
+		// eslint-disable-next-line no-restricted-syntax
 		const element = mainWindow.document.getElementById(PartsSplash._splashElementId);
 		if (element) {
 			element.style.display = 'none';
 		}
 
 		// remove initial colors
+		// eslint-disable-next-line no-restricted-syntax
 		const defaultStyles = mainWindow.document.head.getElementsByClassName('initialShellColors');
 		defaultStyles[0]?.remove();
 	}

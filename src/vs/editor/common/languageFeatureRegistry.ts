@@ -59,7 +59,7 @@ export class LanguageFeatureRegistry<T> {
 	private readonly _entries: Entry<T>[] = [];
 
 	private readonly _onDidChange = new Emitter<number>();
-	readonly onDidChange = this._onDidChange.event;
+	get onDidChange() { return this._onDidChange.event; }
 
 	constructor(private readonly _notebookInfoResolver?: NotebookInfoResolver) { }
 

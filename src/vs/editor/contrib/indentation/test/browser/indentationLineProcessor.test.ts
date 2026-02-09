@@ -50,7 +50,7 @@ suite('Indentation Context Processor - TypeScript/JavaScript', () => {
 		].join('\n'), languageId, {});
 		disposables.add(model);
 
-		withTestCodeEditor(model, { autoIndent: "full", serviceCollection }, (editor, viewModel, instantiationService) => {
+		withTestCodeEditor(model, { autoIndent: 'full', serviceCollection }, (editor, viewModel, instantiationService) => {
 			const tokens: StandardTokenTypeData[][] = [[
 				{ startIndex: 0, standardTokenType: StandardTokenType.Other },
 				{ startIndex: 16, standardTokenType: StandardTokenType.String },
@@ -74,7 +74,7 @@ suite('Indentation Context Processor - TypeScript/JavaScript', () => {
 		].join('\n'), languageId, {});
 		disposables.add(model);
 
-		withTestCodeEditor(model, { autoIndent: "full", serviceCollection }, (editor, viewModel, instantiationService) => {
+		withTestCodeEditor(model, { autoIndent: 'full', serviceCollection }, (editor, viewModel, instantiationService) => {
 			const tokens: StandardTokenTypeData[][] = [
 				[
 					{ startIndex: 0, standardTokenType: StandardTokenType.Other },
@@ -104,7 +104,7 @@ suite('Indentation Context Processor - TypeScript/JavaScript', () => {
 		].join('\n'), languageId, {});
 		disposables.add(model);
 
-		withTestCodeEditor(model, { autoIndent: "full", serviceCollection }, (editor, viewModel, instantiationService) => {
+		withTestCodeEditor(model, { autoIndent: 'full', serviceCollection }, (editor, viewModel, instantiationService) => {
 			const tokens: StandardTokenTypeData[][] = [
 				[
 					{ startIndex: 0, standardTokenType: StandardTokenType.Other },
@@ -163,7 +163,7 @@ suite('Processed Indent Rules Support - TypeScript/JavaScript', () => {
 		].join('\n'), languageId, {});
 		disposables.add(model);
 
-		withTestCodeEditor(model, { autoIndent: "full", serviceCollection }, (editor, viewModel, instantiationService) => {
+		withTestCodeEditor(model, { autoIndent: 'full', serviceCollection }, (editor, viewModel, instantiationService) => {
 			const tokens: StandardTokenTypeData[][] = [
 				[
 					{ startIndex: 0, standardTokenType: StandardTokenType.Other }
@@ -199,7 +199,7 @@ suite('Processed Indent Rules Support - TypeScript/JavaScript', () => {
 		].join('\n'), languageId, {});
 		disposables.add(model);
 
-		withTestCodeEditor(model, { autoIndent: "full", serviceCollection }, (editor, viewModel, instantiationService) => {
+		withTestCodeEditor(model, { autoIndent: 'full', serviceCollection }, (editor, viewModel, instantiationService) => {
 			const tokens: StandardTokenTypeData[][] = [
 				[{ startIndex: 0, standardTokenType: StandardTokenType.Other }],
 				[{ startIndex: 0, standardTokenType: StandardTokenType.String }],
@@ -227,7 +227,7 @@ suite('Processed Indent Rules Support - TypeScript/JavaScript', () => {
 		].join('\n'), languageId, {});
 		disposables.add(model);
 
-		withTestCodeEditor(model, { autoIndent: "full", serviceCollection }, (editor, viewModel, instantiationService) => {
+		withTestCodeEditor(model, { autoIndent: 'full', serviceCollection }, (editor, viewModel, instantiationService) => {
 			const tokens: StandardTokenTypeData[][] = [
 				[
 					{ startIndex: 0, standardTokenType: StandardTokenType.Other }

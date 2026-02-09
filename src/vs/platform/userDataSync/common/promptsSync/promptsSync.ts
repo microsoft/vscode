@@ -517,7 +517,7 @@ export class PromptsSynchronizer extends AbstractSynchroniser implements IUserDa
 		for (const entry of stat.children || []) {
 			const resource = entry.resource;
 			const path = resource.path;
-			if (['.prompt.md', '.instructions.md', '.chatmode.md'].some(ext => path.endsWith(ext))) {
+			if (['.prompt.md', '.instructions.md', '.chatmode.md', '.agent.md'].some(ext => path.endsWith(ext))) {
 				const key = this.extUri.relativePath(this.promptsFolder, resource)!;
 				const content = await this.fileService.readFile(resource);
 				prompts[key] = content;

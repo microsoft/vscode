@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import * as sinon from 'sinon';
-import { AsyncIterableObject } from '../../../../../base/common/async.js';
+import { AsyncIterableProducer } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
@@ -79,7 +79,7 @@ suite('NotebookExecutionService', () => {
 		});
 
 		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
-			override executeCommand(_commandId: string, ..._args: any[]) {
+			override executeCommand(_commandId: string, ..._args: unknown[]) {
 				return Promise.resolve(undefined);
 			}
 		});
@@ -183,8 +183,8 @@ class TestNotebookKernel implements INotebookKernel {
 	preloadUris: URI[] = [];
 	preloadProvides: string[] = [];
 	supportedLanguages: string[] = [];
-	provideVariables(notebookUri: URI, parentId: number | undefined, kind: 'named' | 'indexed', start: number, token: CancellationToken): AsyncIterableObject<VariablesResult> {
-		return AsyncIterableObject.EMPTY;
+	provideVariables(notebookUri: URI, parentId: number | undefined, kind: 'named' | 'indexed', start: number, token: CancellationToken): AsyncIterableProducer<VariablesResult> {
+		return AsyncIterableProducer.EMPTY;
 	}
 	executeNotebookCellsRequest(): Promise<void> {
 		throw new Error('Method not implemented.');

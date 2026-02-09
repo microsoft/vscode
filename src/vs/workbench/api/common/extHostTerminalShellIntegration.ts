@@ -81,7 +81,7 @@ export class ExtHostTerminalShellIntegration extends Disposable implements IExtH
 		// }, 4000);
 	}
 
-	public $shellIntegrationChange(instanceId: number): void {
+	public $shellIntegrationChange(instanceId: number, supportsExecuteCommandApi: boolean): void {
 		const terminal = this._extHostTerminalService.getTerminalById(instanceId);
 		if (!terminal) {
 			return;
@@ -90,7 +90,7 @@ export class ExtHostTerminalShellIntegration extends Disposable implements IExtH
 		const apiTerminal = terminal.value;
 		let shellIntegration = this._activeShellIntegrations.get(instanceId);
 		if (!shellIntegration) {
-			shellIntegration = new InternalTerminalShellIntegration(terminal.value, this._onDidStartTerminalShellExecution);
+			shellIntegration = new InternalTerminalShellIntegration(terminal.value, supportsExecuteCommandApi, this._onDidStartTerminalShellExecution);
 			this._activeShellIntegrations.set(instanceId, shellIntegration);
 			shellIntegration.store.add(terminal.onWillDispose(() => this._activeShellIntegrations.get(instanceId)?.dispose()));
 			shellIntegration.store.add(shellIntegration.onDidRequestShellExecution(commandLine => this._proxy.$executeCommand(instanceId, commandLine)));
@@ -104,11 +104,11 @@ export class ExtHostTerminalShellIntegration extends Disposable implements IExtH
 		});
 	}
 
-	public $shellExecutionStart(instanceId: number, commandLineValue: string, commandLineConfidence: TerminalShellExecutionCommandLineConfidence, isTrusted: boolean, cwd: string | undefined): void {
+	public $shellExecutionStart(instanceId: number, supportsExecuteCommandApi: boolean, commandLineValue: string, commandLineConfidence: TerminalShellExecutionCommandLineConfidence, isTrusted: boolean, cwd: string | undefined): void {
 		// Force shellIntegration creation if it hasn't been created yet, this could when events
 		// don't come through on startup
 		if (!this._activeShellIntegrations.has(instanceId)) {
-			this.$shellIntegrationChange(instanceId);
+			this.$shellIntegrationChange(instanceId, supportsExecuteCommandApi);
 		}
 		const commandLine: vscode.TerminalShellExecutionCommandLine = {
 			value: commandLineValue,
@@ -185,6 +185,7 @@ export class InternalTerminalShellIntegration extends Disposable {
 
 	constructor(
 		private readonly _terminal: vscode.Terminal,
+		supportsExecuteCommandApi: boolean,
 		private readonly _onDidStartTerminalShellExecution: Emitter<vscode.TerminalShellExecutionStartEvent>
 	) {
 		super();
@@ -206,6 +207,9 @@ export class InternalTerminalShellIntegration extends Disposable {
 			// executeCommand(commandLine: string): vscode.TerminalShellExecution;
 			// executeCommand(executable: string, args: string[]): vscode.TerminalShellExecution;
 			executeCommand(commandLineOrExecutable: string, args?: string[]): vscode.TerminalShellExecution {
+				if (!supportsExecuteCommandApi) {
+					throw new Error('This terminal does not support the executeCommand API.');
+				}
 				let commandLineValue = commandLineOrExecutable;
 				if (args) {
 					for (const arg of args) {

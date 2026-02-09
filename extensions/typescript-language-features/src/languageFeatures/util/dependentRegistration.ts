@@ -34,11 +34,15 @@ export class Condition extends Disposable {
 }
 
 class ConditionalRegistration {
-	private registration: vscode.Disposable | undefined = undefined;
+	private state?: {
+		readonly enabled: boolean;
+		readonly registration: vscode.Disposable | undefined;
+	};
 
 	public constructor(
 		private readonly conditions: readonly Condition[],
-		private readonly doRegister: () => vscode.Disposable
+		private readonly doRegister: () => vscode.Disposable,
+		private readonly elseDoRegister?: () => vscode.Disposable
 	) {
 		for (const condition of conditions) {
 			condition.onDidChange(() => this.update());
@@ -47,17 +51,22 @@ class ConditionalRegistration {
 	}
 
 	public dispose() {
-		this.registration?.dispose();
-		this.registration = undefined;
+		this.state?.registration?.dispose();
+		this.state = undefined;
 	}
 
 	private update() {
 		const enabled = this.conditions.every(condition => condition.value);
 		if (enabled) {
-			this.registration ??= this.doRegister();
+			if (!this.state?.enabled) {
+				this.state?.registration?.dispose();
+				this.state = { enabled: true, registration: this.doRegister() };
+			}
 		} else {
-			this.registration?.dispose();
-			this.registration = undefined;
+			if (this.state?.enabled || !this.state) {
+				this.state?.registration?.dispose();
+				this.state = { enabled: false, registration: this.elseDoRegister?.() };
+			}
 		}
 	}
 }
@@ -65,8 +74,9 @@ class ConditionalRegistration {
 export function conditionalRegistration(
 	conditions: readonly Condition[],
 	doRegister: () => vscode.Disposable,
+	elseDoRegister?: () => vscode.Disposable
 ): vscode.Disposable {
-	return new ConditionalRegistration(conditions, doRegister);
+	return new ConditionalRegistration(conditions, doRegister, elseDoRegister);
 }
 
 export function requireMinVersion(
@@ -101,3 +111,15 @@ export function requireSomeCapability(
 		client.onDidChangeCapabilities
 	);
 }
+
+export function requireHasVsCodeExtension(
+	extensionId: string
+) {
+	return new Condition(
+		() => {
+			return !!vscode.extensions.getExtension(extensionId);
+		},
+		vscode.extensions.onDidChange
+	);
+}
+
