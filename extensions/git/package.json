@@ -1101,7 +1101,7 @@
       {
         "command": "git.repositories.stashCopyName",
         "title": "%command.stashCopyName%",
-        "category": "Git",
+        "category": "Git"
       },
       {
         "command": "git.repositories.stashApply",
