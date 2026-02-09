@@ -2228,7 +2228,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			queue: options?.queue,
 		});
 
-		if (this.viewModel.sessionResource && !options.queue && (ChatSendResult.isRejected(result) || ChatSendResult.isQueued(result))) {
+		if (this.viewModel.sessionResource && !options.queue && ChatSendResult.isRejected(result)) {
 			this.chatAccessibilityService.disposeRequest(this.viewModel.sessionResource);
 		}
 
