@@ -69,6 +69,7 @@ COMMANDS:
 """
 
 import html
+import os
 import re
 import re._parser as regex_parser  # type: ignore[import]
 from re._constants import (  # type: ignore[import]
@@ -141,6 +142,10 @@ class RepetitionInput:
 # VS Code theme colors
 STRING = "#ce9178"
 GRAY = "#808080"
+
+# Search magnifying glass SVG
+with open(os.path.join(os.path.dirname(__file__), 'search.svg'), 'r') as f:
+    SEARCH_SVG = f.read().replace('<?xml version="1.0" encoding="utf-8"?>\n', '')
 
 # Available fuzzy character class options for dropdown selection
 # Each tuple is (pattern_value, display_label)
@@ -2342,19 +2347,21 @@ def visualize(value, model=None):
     selection_regex = model.get('selectionRegex')
     search_box_value = selection_regex if selection_regex else ""
     search_input_event = "lambda e: SearchBoxInput(value=e.get('value', ''))"
+    search_svg_html = SEARCH_SVG.replace("stroke:#000000;", "stroke:#8C8C8C;").replace("<svg ", f'<svg style="position: absolute; margin-left: 5px; margin-top: 4px; width: 12px; height: 12px;"', 1)
     search_box_html = (
         f'<div style="margin-top: 4px; white-space: normal;">'
+        f'{search_svg_html}'
         f'<input type="text" tabindex="0"'
         f' snc-input="{html.escape(search_input_event)}"'
         f' value="{html.escape(search_box_value)}"'
-        f' placeholder="regex search"'
+        f' placeholder="Search"'
         f' spellcheck="false"'
         f' style="'
         f'background: #1e1e1e;'
         f'color: #dcdcaa;'
         f'border: 1px solid #3c3c3c;'
-        f'border-radius: 3px;'
-        f'padding: 2px 6px;'
+        f'border-radius: 10px;'
+        f'padding: 2px 8px 2px 20px;'
         f'font-family: inherit;'
         f'font-size: 12px;'
         f'outline: none;'
