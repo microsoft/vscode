@@ -435,6 +435,11 @@ export class PaneCompositeBar extends Disposable {
 		const viewContainer = isString(viewContainerOrId) ? this.getViewContainer(viewContainerOrId) : viewContainerOrId;
 		const viewContainerId = isString(viewContainerOrId) ? viewContainerOrId : viewContainerOrId.id;
 
+		// In terminal mode, hide all non-terminal panel view containers
+		if (this.environmentService.terminal && this.part === Parts.PANEL_PART && viewContainerId !== 'terminal') {
+			return true;
+		}
+
 		if (viewContainer) {
 			if (viewContainer.hideIfEmpty) {
 				if (this.viewService.isViewContainerActive(viewContainerId)) {

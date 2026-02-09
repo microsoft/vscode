@@ -118,6 +118,9 @@ export class NativeWorkbenchEnvironmentService extends AbstractNativeEnvironment
 	get skipWelcome(): boolean { return !!this.args['skip-welcome']; }
 
 	@memoize
+	get terminal(): boolean { return !!this.args['terminal']; }
+
+	@memoize
 	get logExtensionHostCommunication(): boolean { return !!this.args.logExtensionHostCommunication; }
 
 	@memoize

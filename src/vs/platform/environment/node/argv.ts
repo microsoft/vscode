@@ -98,6 +98,7 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'remove': { type: 'boolean', cat: 'o', args: 'folder', description: localize('remove', "Remove folder(s) from the last active window.") },
 	'goto': { type: 'boolean', cat: 'o', alias: 'g', args: 'file:line[:character]', description: localize('goto', "Open a file at the path on the specified line and character position.") },
 	'new-window': { type: 'boolean', cat: 'o', alias: 'n', description: localize('newWindow', "Force to open a new window.") },
+	'terminal': { type: 'boolean', cat: 'o', alias: 't', description: localize('terminal', "Open a terminal window.") },
 	'reuse-window': { type: 'boolean', cat: 'o', alias: 'r', description: localize('reuseWindow', "Force to open a file or folder in an already opened window.") },
 	'wait': { type: 'boolean', cat: 'o', alias: 'w', description: localize('wait', "Wait for the files to be closed before returning.") },
 	'waitMarkerFilePath': { type: 'string' },

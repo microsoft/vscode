@@ -808,7 +808,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 	}
 
 	protected get isCommandCenterVisible() {
-		return !this.isCompact && this.configurationService.getValue<boolean>(LayoutSettings.COMMAND_CENTER) !== false;
+		return !this.isCompact && this.configurationService.getValue<boolean>(LayoutSettings.COMMAND_CENTER) !== false && !this.environmentService.terminal;
 	}
 
 	private get editorActionsEnabled(): boolean {
