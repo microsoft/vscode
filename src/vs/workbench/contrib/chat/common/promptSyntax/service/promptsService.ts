@@ -137,6 +137,13 @@ export function isCustomAgentVisibility(obj: unknown): obj is ICustomAgentVisibi
 	return typeof v.userInvokable === 'boolean' && typeof v.agentInvokable === 'boolean';
 }
 
+export enum Target {
+	VSCode = 'vscode',
+	GitHubCopilot = 'github-copilot',
+	Claude = 'claude',
+	Undefined = 'undefined',
+}
+
 export interface ICustomAgent {
 	/**
 	 * URI of a custom agent file.
@@ -169,9 +176,9 @@ export interface ICustomAgent {
 	readonly argumentHint?: string;
 
 	/**
-	 * Target metadata in the prompt header.
+	 * Target of the agent: Copilot, VSCode, Claude, or undefined if not specified.
 	 */
-	readonly target?: string;
+	readonly target: Target;
 
 	/**
 	 * What visibility the agent has (user invokable, subagent invokable).
@@ -219,6 +226,16 @@ export interface IAgentSkill {
 	readonly storage: PromptsStorage;
 	readonly name: string;
 	readonly description: string | undefined;
+	/**
+	 * If true, the skill should not be automatically loaded by the agent.
+	 * Use for workflows you want to trigger manually with /name.
+	 */
+	readonly disableModelInvocation: boolean;
+	/**
+	 * If false, the skill is hidden from the / menu.
+	 * Use for background knowledge users shouldn't invoke directly.
+	 */
+	readonly userInvokable: boolean;
 }
 
 /**
@@ -273,6 +290,10 @@ export interface IPromptFileDiscoveryResult {
 	readonly duplicateOf?: URI;
 	/** Extension ID if from extension */
 	readonly extensionId?: string;
+	/** If true, the skill is hidden from the / menu (user-invokable: false) */
+	readonly userInvokable?: boolean;
+	/** If true, the skill won't be automatically loaded by the agent (disable-model-invocation: true) */
+	readonly disableModelInvocation?: boolean;
 }
 
 /**

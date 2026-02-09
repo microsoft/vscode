@@ -23,14 +23,14 @@ export interface IUpdate {
  *          Idle
  *          ↓  ↑
  *   Checking for Updates  →  Available for Download
- *         ↓
+ *         ↓                    ↓
  *                     ←   Overwriting
  *     Downloading              ↑
  *                     →      Ready
  *         ↓                    ↑
  *     Downloaded      →     Updating
  *
- * Available: There is an update available for download (linux).
+ * Available: There is an update available for download (linux, darwin on metered connection).
  * Ready: Code will be updated as soon as it restarts (win32, darwin).
  * Downloaded: There is an update ready to be installed in the background (win32).
  * Overwriting: A newer update is being downloaded to replace the pending update (darwin).
@@ -106,7 +106,7 @@ export interface IUpdateService {
 	readonly state: State;
 
 	checkForUpdates(explicit: boolean): Promise<void>;
-	downloadUpdate(): Promise<void>;
+	downloadUpdate(explicit: boolean): Promise<void>;
 	applyUpdate(): Promise<void>;
 	quitAndInstall(): Promise<void>;
 

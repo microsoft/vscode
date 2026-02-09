@@ -5,7 +5,6 @@
 
 import * as dom from '../../../../base/browser/dom.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
-import { Button } from '../../../../base/browser/ui/button/button.js';
 import { toAction } from '../../../../base/common/actions.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
@@ -17,7 +16,6 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IHoverService, nativeHoverDelegate } from '../../../../platform/hover/browser/hover.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
-import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { Downloading, IUpdate, IUpdateService, Overwriting, StateType, State as UpdateState } from '../../../../platform/update/common/update.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, ShowTooltipCommand, StatusbarAlignment, TooltipContent } from '../../../services/statusbar/browser/statusbar.js';
@@ -198,10 +196,6 @@ export class UpdateStatusBarEntryContribution extends Disposable implements IWor
 				this.appendProductInfo(container, update);
 				this.appendWhatsIncluded(container);
 
-				this.appendActionButton(container, nls.localize('updateStatus.downloadButton', "Download"), store, () => {
-					this.runCommandAndClose('update.downloadNow');
-				});
-
 				return container;
 			}
 		};
@@ -274,10 +268,6 @@ export class UpdateStatusBarEntryContribution extends Disposable implements IWor
 				this.appendProductInfo(container, update);
 				this.appendWhatsIncluded(container);
 
-				this.appendActionButton(container, nls.localize('updateStatus.installButton', "Install"), store, () => {
-					this.runCommandAndClose('update.install');
-				});
-
 				return container;
 			}
 		};
@@ -292,10 +282,6 @@ export class UpdateStatusBarEntryContribution extends Disposable implements IWor
 				this.appendHeader(container, nls.localize('updateStatus.updateInstalledTitle', "Update Installed"), store);
 				this.appendProductInfo(container, update);
 				this.appendWhatsIncluded(container);
-
-				this.appendActionButton(container, nls.localize('updateStatus.restartButton', "Restart"), store, () => {
-					this.runCommandAndClose('update.restart');
-				});
 
 				return container;
 			}
@@ -376,17 +362,23 @@ export class UpdateStatusBarEntryContribution extends Disposable implements IWor
 		const productVersion = this.productService.version;
 		if (productVersion) {
 			const currentVersion = dom.append(details, dom.$('.product-version'));
-			currentVersion.textContent = nls.localize('updateStatus.currentVersionLabel', "Current Version: {0}", productVersion);
+			const currentCommitId = this.productService.commit?.substring(0, 7);
+			currentVersion.textContent = currentCommitId
+				? nls.localize('updateStatus.currentVersionLabelWithCommit', "Current Version: {0} ({1})", productVersion, currentCommitId)
+				: nls.localize('updateStatus.currentVersionLabel', "Current Version: {0}", productVersion);
 		}
 
 		const version = update?.productVersion;
 		if (version) {
 			const latestVersion = dom.append(details, dom.$('.product-version'));
-			latestVersion.textContent = nls.localize('updateStatus.latestVersionLabel', "Latest Version: {0}", version);
+			const updateCommitId = update.version?.substring(0, 7);
+			latestVersion.textContent = updateCommitId
+				? nls.localize('updateStatus.latestVersionLabelWithCommit', "Latest Version: {0} ({1})", version, updateCommitId)
+				: nls.localize('updateStatus.latestVersionLabel', "Latest Version: {0}", version);
 		}
 
 		const releaseDate = update?.timestamp ?? tryParseDate(this.productService.date);
-		if (releaseDate) {
+		if (typeof releaseDate === 'number' && releaseDate > 0) {
 			const releaseDateNode = dom.append(details, dom.$('.product-release-date'));
 			releaseDateNode.textContent = nls.localize('updateStatus.releasedLabel', "Released {0}", formatDate(releaseDate));
 		}
@@ -403,7 +395,8 @@ export class UpdateStatusBarEntryContribution extends Disposable implements IWor
 		}
 	}
 
-	private appendWhatsIncluded(container: HTMLElement): void {
+	private appendWhatsIncluded(container: HTMLElement) {
+		/*
 		const whatsIncluded = dom.append(container, dom.$('.whats-included'));
 
 		const sectionTitle = dom.append(whatsIncluded, dom.$('.section-title'));
@@ -421,13 +414,7 @@ export class UpdateStatusBarEntryContribution extends Disposable implements IWor
 			const li = dom.append(list, dom.$('li'));
 			li.textContent = item;
 		}
-	}
-
-	private appendActionButton(container: HTMLElement, label: string, store: DisposableStore, onClick: () => void): void {
-		const buttonContainer = dom.append(container, dom.$('.action-button-container'));
-		const button = store.add(new Button(buttonContainer, { ...defaultButtonStyles, secondary: true, hoverDelegate: nativeHoverDelegate }));
-		button.label = label;
-		store.add(button.onDidClick(onClick));
+		*/
 	}
 }
 
@@ -435,11 +422,11 @@ export class UpdateStatusBarEntryContribution extends Disposable implements IWor
  * Tries to parse a date string and returns the timestamp or undefined if parsing fails.
  */
 export function tryParseDate(date: string | undefined): number | undefined {
-	try {
-		return date !== undefined ? Date.parse(date) : undefined;
-	} catch {
+	if (date === undefined) {
 		return undefined;
 	}
+	const parsed = Date.parse(date);
+	return isNaN(parsed) ? undefined : parsed;
 }
 
 /**

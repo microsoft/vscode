@@ -144,7 +144,7 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 							if (configuredTask._label) {
 								taskNames.push(configuredTask._label);
 							} else {
-								taskNames.push(configuredTask.configures.task);
+								taskNames.push(configuredTask.configures.task as string);
 							}
 							const location = this._getTaskSource(configuredTask._source);
 							if (location) {
@@ -227,7 +227,7 @@ export class ManageAutomaticTaskRunning extends Action2 {
 		});
 	}
 
-	public async run(accessor: ServicesAccessor): Promise<any> {
+	public async run(accessor: ServicesAccessor): Promise<void> {
 		const quickInputService = accessor.get(IQuickInputService);
 		const configurationService = accessor.get(IConfigurationService);
 		const allowItem: IQuickPickItem = { label: nls.localize('workbench.action.tasks.allowAutomaticTasks', "Allow Automatic Tasks") };

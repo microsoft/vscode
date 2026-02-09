@@ -29,6 +29,8 @@ export class AutoFetcher {
 		const onGoodRemoteOperation = filterEvent(repository.onDidRunOperation, ({ operation, error }) => !error && operation.remote);
 		const onFirstGoodRemoteOperation = onceEvent(onGoodRemoteOperation);
 		onFirstGoodRemoteOperation(this.onFirstGoodRemoteOperation, this, this.disposables);
+
+		env.onDidChangeMeteredConnection(() => this.onConfiguration(), this, this.disposables);
 	}
 
 	private async onFirstGoodRemoteOperation(): Promise<void> {
@@ -63,6 +65,11 @@ export class AutoFetcher {
 
 	private onConfiguration(e?: ConfigurationChangeEvent): void {
 		if (e !== undefined && !e.affectsConfiguration('git.autofetch')) {
+			return;
+		}
+
+		if (env.isMeteredConnection) {
+			this.disable();
 			return;
 		}
 

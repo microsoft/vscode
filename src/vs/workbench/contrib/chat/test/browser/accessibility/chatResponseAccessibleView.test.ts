@@ -125,6 +125,7 @@ suite('ChatResponseAccessibleView', () => {
 			const prData: IChatPullRequestContent = {
 				kind: 'pullRequest',
 				uri: URI.file('/test'),
+				command: { id: 'vscode.open', title: 'Open Pull Request', arguments: [URI.file('/test')] },
 				title: 'Add new feature',
 				description: 'This PR adds a great feature',
 				author: 'testuser',

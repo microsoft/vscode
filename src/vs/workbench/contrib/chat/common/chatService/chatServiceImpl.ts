@@ -13,7 +13,7 @@ import { Iterable } from '../../../../../base/common/iterator.js';
 import { Disposable, DisposableResourceMap, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { revive } from '../../../../../base/common/marshalling.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { autorun, derived, IObservable } from '../../../../../base/common/observable.js';
+import { autorun, derived, IObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { StopWatch } from '../../../../../base/common/stopwatch.js';
 import { isDefined } from '../../../../../base/common/types.js';
@@ -56,9 +56,9 @@ import { IHooksExecutionService } from '../hooks/hooksExecutionService.js';
 const serializedChatKey = 'interactive.sessions';
 
 class CancellableRequest implements IDisposable {
-	private _yieldRequested = false;
+	private readonly _yieldRequested: ISettableObservable<boolean> = observableValue(this, false);
 
-	get yieldRequested(): boolean {
+	get yieldRequested(): IObservable<boolean> {
 		return this._yieldRequested;
 	}
 
@@ -81,7 +81,7 @@ class CancellableRequest implements IDisposable {
 	}
 
 	setYieldRequested(): void {
-		this._yieldRequested = true;
+		this._yieldRequested.set(true, undefined);
 	}
 }
 
@@ -737,7 +737,7 @@ export class ChatService extends Disposable implements IChatService {
 		const requestModel = new ChatRequestModel({
 			session: model,
 			message: parsedRequest,
-			variableData: { variables: [] },
+			variableData: { variables: options.attachedContext ?? [] },
 			timestamp: Date.now(),
 			modeInfo: options.modeInfo,
 			locationData: options.locationData,
@@ -776,12 +776,9 @@ export class ChatService extends Disposable implements IChatService {
 		const hasPendingRequest = this._pendingRequests.has(sessionResource);
 		const hasPendingQueue = model.getPendingRequests().length > 0;
 
-		if (hasPendingRequest) {
-			// A request is already in progress
-			if (options?.queue) {
-				// Queue this message to be sent after the current request completes
-				return this.queuePendingRequest(model, sessionResource, request, options);
-			}
+		if (options?.queue) {
+			return this.queuePendingRequest(model, sessionResource, request, options);
+		} else if (hasPendingRequest) {
 			this.trace('sendRequest', `Session ${sessionResource} already has a pending request`);
 			return { kind: 'rejected', reason: 'Request already in progress' };
 		}
@@ -906,7 +903,7 @@ export class ChatService extends Disposable implements IChatService {
 			let detectedAgent: IChatAgentData | undefined;
 			let detectedCommand: IChatAgentCommand | undefined;
 
-			// Collect hooks from hooks.json files
+			// Collect hooks from hook .json files
 			let collectedHooks: IChatRequestHooks | undefined;
 			try {
 				collectedHooks = await this.promptsService.getHooks(token);
@@ -979,6 +976,7 @@ export class ChatService extends Disposable implements IChatService {
 							modeInstructions: options?.modeInfo?.modeInstructions,
 							editedFileEvents: request.editedFileEvents,
 							hooks: collectedHooks,
+							hasHooksEnabled: !!collectedHooks && Object.values(collectedHooks).some(arr => arr.length > 0),
 						};
 
 						let isInitialTools = true;
@@ -1037,8 +1035,13 @@ export class ChatService extends Disposable implements IChatService {
 					const requestProps = prepareChatAgentRequest(agent, command, enableCommandDetection, request /* Reuse the request object if we already created it for participant detection */, !!detectedAgent);
 					this.generateInitialChatTitleIfNeeded(model, requestProps, defaultAgent, token);
 					const pendingRequest = this._pendingRequests.get(sessionResource);
-					if (pendingRequest && !pendingRequest.requestId) {
-						pendingRequest.requestId = requestProps.requestId;
+					if (pendingRequest) {
+						store.add(autorun(reader => {
+							if (pendingRequest.yieldRequested.read(reader)) {
+								this.chatAgentService.setYieldRequested(agent.id, request.id);
+							}
+						}));
+						pendingRequest.requestId ??= requestProps.requestId;
 					}
 					completeResponseCreated();
 
@@ -1176,7 +1179,12 @@ export class ChatService extends Disposable implements IChatService {
 		const deferred = this._queuedRequestDeferreds.get(pendingRequest.request.id);
 		this._queuedRequestDeferreds.delete(pendingRequest.request.id);
 
-		const sendOptions = pendingRequest.sendOptions;
+		const sendOptions: IChatSendRequestOptions = {
+			...pendingRequest.sendOptions,
+			// Ensure attachedContext is preserved after deserialization, where sendOptions
+			// loses attachedContext but the request model retains it in variableData.
+			attachedContext: pendingRequest.request.variableData.variables.slice(),
+		};
 		const location = sendOptions.location ?? sendOptions.locationData?.type ?? model.initialLocation;
 		const defaultAgent = this.chatAgentService.getDefaultAgent(location, sendOptions.modeInfo?.kind);
 		if (!defaultAgent) {

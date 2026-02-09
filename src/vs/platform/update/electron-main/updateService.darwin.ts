@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as electron from 'electron';
+import { CancellationToken } from '../../../base/common/cancellation.js';
 import { memoize } from '../../../base/common/decorators.js';
 import { Event } from '../../../base/common/event.js';
 import { hash } from '../../../base/common/hash.js';
@@ -13,9 +14,10 @@ import { IEnvironmentMainService } from '../../environment/electron-main/environ
 import { ILifecycleMainService, IRelaunchHandler, IRelaunchOptions } from '../../lifecycle/electron-main/lifecycleMainService.js';
 import { ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
-import { IRequestService } from '../../request/common/request.js';
+import { asJson, IRequestService } from '../../request/common/request.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
-import { IUpdate, State, StateType, UpdateType } from '../common/update.js';
+import { AvailableForDownload, IUpdate, State, StateType, UpdateType } from '../common/update.js';
+import { IMeteredConnectionService } from '../../meteredConnection/common/meteredConnection.js';
 import { AbstractUpdateService, createUpdateURL, IUpdateURLOptions, UpdateErrorClassification } from './abstractUpdateService.js';
 
 export class DarwinUpdateService extends AbstractUpdateService implements IRelaunchHandler {
@@ -25,7 +27,13 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 	@memoize private get onRawError(): Event<string> { return Event.fromNodeEventEmitter(electron.autoUpdater, 'error', (_, message) => message); }
 	@memoize private get onRawUpdateNotAvailable(): Event<void> { return Event.fromNodeEventEmitter<void>(electron.autoUpdater, 'update-not-available'); }
 	@memoize private get onRawUpdateAvailable(): Event<void> { return Event.fromNodeEventEmitter(electron.autoUpdater, 'update-available'); }
-	@memoize private get onRawUpdateDownloaded(): Event<IUpdate> { return Event.fromNodeEventEmitter(electron.autoUpdater, 'update-downloaded', (_, version: string, productVersion: string, timestamp: number) => ({ version, productVersion, timestamp })); }
+	@memoize private get onRawUpdateDownloaded(): Event<IUpdate> {
+		return Event.fromNodeEventEmitter(electron.autoUpdater, 'update-downloaded', (_, version: string, productVersion: string, releaseDate: Date | number) => ({
+			version,
+			productVersion,
+			timestamp: releaseDate instanceof Date ? releaseDate.getTime() || undefined : releaseDate
+		}));
+	}
 
 	constructor(
 		@ILifecycleMainService lifecycleMainService: ILifecycleMainService,
@@ -34,9 +42,10 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 		@IEnvironmentMainService environmentMainService: IEnvironmentMainService,
 		@IRequestService requestService: IRequestService,
 		@ILogService logService: ILogService,
-		@IProductService productService: IProductService
+		@IProductService productService: IProductService,
+		@IMeteredConnectionService meteredConnectionService: IMeteredConnectionService,
 	) {
-		super(lifecycleMainService, configurationService, environmentMainService, requestService, logService, productService, true);
+		super(lifecycleMainService, configurationService, environmentMainService, requestService, logService, productService, meteredConnectionService, true);
 
 		lifecycleMainService.setRelaunchHandler(this);
 	}
@@ -110,7 +119,32 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 			return;
 		}
 
+		// When connection is metered and this is not an explicit check, avoid electron call as to not to trigger auto-download.
+		if (!explicit && this.meteredConnectionService.isConnectionMetered) {
+			this.logService.info('update#doCheckForUpdates - checking for update without auto-download because connection is metered');
+			this.checkForUpdateNoDownload(url);
+			return;
+		}
+
 		electron.autoUpdater.checkForUpdates();
+	}
+
+	/**
+	 * Manually check the update feed URL without triggering Electron's auto-download.
+	 * Used when connection is metered to show update availability without downloading.
+	 */
+	private async checkForUpdateNoDownload(url: string): Promise<void> {
+		try {
+			const update = await asJson<IUpdate>(await this.requestService.request({ url }, CancellationToken.None));
+			if (!update || !update.url || !update.version || !update.productVersion) {
+				this.setState(State.Idle(UpdateType.Archive));
+			} else {
+				this.setState(State.AvailableForDownload(update));
+			}
+		} catch (err) {
+			this.logService.error(err);
+			this.setState(State.Idle(UpdateType.Archive));
+		}
 	}
 
 	private onUpdateAvailable(): void {
@@ -138,6 +172,13 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 		}
 
 		this.setState(State.Idle(UpdateType.Archive));
+	}
+
+	protected override async doDownloadUpdate(state: AvailableForDownload): Promise<void> {
+		// Rebuild feed URL and trigger download via Electron's auto-updater
+		this.buildUpdateFeedUrl(this.quality!, state.update.version);
+		this.setState(State.CheckingForUpdates(true));
+		electron.autoUpdater.checkForUpdates();
 	}
 
 	protected override doQuitAndInstall(): void {

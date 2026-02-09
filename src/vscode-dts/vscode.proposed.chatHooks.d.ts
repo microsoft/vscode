@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// version: 2
+// version: 3
 
 declare module 'vscode' {
 
 	/**
 	 * The type of hook to execute.
 	 */
-	export type ChatHookType = 'SessionStart' | 'UserPromptSubmit' | 'PreToolUse' | 'PostToolUse' | 'SubagentStart' | 'SubagentStop' | 'Stop';
+	export type ChatHookType = 'SessionStart' | 'UserPromptSubmit' | 'PreToolUse' | 'PostToolUse' | 'PreCompact' | 'SubagentStart' | 'SubagentStop' | 'Stop';
 
 	/**
 	 * Options for executing a hook command.
@@ -28,34 +28,42 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * The kind of result from executing a hook command.
+	 * - 'success': Hook executed successfully (exit code 0)
+	 * - 'error': Blocking error shown to model (exit code 2)
+	 * - 'warning': Non-blocking warning shown to user only (other exit codes)
+	 */
+	export type ChatHookResultKind = 'success' | 'error' | 'warning';
+
+	/**
 	 * Result of executing a hook command.
 	 * Contains common flow control fields and the hook's output.
 	 */
 	export interface ChatHookResult {
+		/**
+		 * The kind of result from executing the hook.
+		 */
+		readonly resultKind: ChatHookResultKind;
 		/**
 		 * If set, the agent should stop processing entirely after this hook.
 		 * The message is shown to the user but not to the agent.
 		 */
 		readonly stopReason?: string;
 		/**
-		 * Message shown to the user.
+		 * Warning message shown to the user.
 		 */
-		readonly messageForUser?: string;
+		readonly warningMessage?: string;
 		/**
 		 * The hook's output (hook-specific fields only).
 		 * For errors, this is the error message string.
 		 */
 		readonly output: unknown;
-		/**
-		 * Whether the hook command executed successfully (exit code 0).
-		 */
-		readonly success: boolean;
 	}
 
 	export namespace chat {
 		/**
 		 * Execute all hooks of the specified type for the current chat session.
-		 * Hooks are configured in hooks.json files in the workspace.
+		 * Hooks are configured in hooks .json files in the workspace.
 		 *
 		 * @param hookType The type of hook to execute.
 		 * @param options Hook execution options including the input data.

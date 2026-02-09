@@ -50,6 +50,7 @@ import { IEditorGroupsService } from '../../../../services/editor/common/editorG
 import { LocalChatSessionUri } from '../../common/model/chatUri.js';
 import { assertNever } from '../../../../../base/common/assert.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { Target } from '../../common/promptSyntax/service/promptsService.js';
 
 const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsExtensionPoint[]>({
 	extensionPoint: 'chatSessions',
@@ -1101,9 +1102,9 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	 * Get the customAgentTarget for a specific session type.
 	 * When set, the mode picker should show filtered custom agents matching this target.
 	 */
-	public getCustomAgentTargetForSessionType(chatSessionType: string): string | undefined {
+	public getCustomAgentTargetForSessionType(chatSessionType: string): Target {
 		const contribution = this._contributions.get(chatSessionType)?.contribution;
-		return contribution?.customAgentTarget;
+		return contribution?.customAgentTarget ?? Target.Undefined;
 	}
 
 	public getContentProviderSchemes(): string[] {

@@ -7,7 +7,7 @@ import { Disposable, IDisposable } from '../../../../../../base/common/lifecycle
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution } from '../../../../../common/contributions.js';
 import { ILanguageModelToolsService } from '../languageModelToolsService.js';
-import { ConfirmationTool, ConfirmationToolData } from './confirmationTool.js';
+import { ConfirmationTool, ConfirmationToolData, ConfirmationToolWithOptionsData } from './confirmationTool.js';
 import { EditTool, EditToolData } from './editFileTool.js';
 import { createManageTodoListToolData, ManageTodoListTool } from './manageTodoListTool.js';
 import { RunSubagentTool } from './runSubagentTool.js';
@@ -32,6 +32,7 @@ export class BuiltinToolsContribution extends Disposable implements IWorkbenchCo
 		// Register the confirmation tool
 		const confirmationTool = instantiationService.createInstance(ConfirmationTool);
 		this._register(toolsService.registerTool(ConfirmationToolData, confirmationTool));
+		this._register(toolsService.registerTool(ConfirmationToolWithOptionsData, confirmationTool));
 
 		const runSubagentTool = this._register(instantiationService.createInstance(RunSubagentTool));
 

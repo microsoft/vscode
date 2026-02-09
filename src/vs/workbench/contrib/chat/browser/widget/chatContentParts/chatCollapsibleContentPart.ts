@@ -49,7 +49,7 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 		private title: IMarkdownString | string,
 		context: IChatContentPartRenderContext,
 		private readonly hoverMessage: IMarkdownString | undefined,
-		@IHoverService private readonly hoverService: IHoverService,
+		@IHoverService protected readonly hoverService: IHoverService,
 	) {
 		super();
 		this.element = context.element;

@@ -14,7 +14,7 @@ import { MarshalledId } from '../../../base/common/marshallingIds.js';
 import { Mimes } from '../../../base/common/mime.js';
 import { nextCharLength } from '../../../base/common/strings.js';
 import { isNumber, isObject, isString, isStringArray } from '../../../base/common/types.js';
-import { URI } from '../../../base/common/uri.js';
+import { isUriComponents, URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { TextEditorSelectionSource } from '../../../platform/editor/common/editor.js';
 import { ExtensionIdentifier, IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
@@ -32,6 +32,7 @@ import { SnippetString } from './extHostTypes/snippetString.js';
 import { SymbolKind, SymbolTag } from './extHostTypes/symbolInformation.js';
 import { TextEdit } from './extHostTypes/textEdit.js';
 import { WorkspaceEdit } from './extHostTypes/workspaceEdit.js';
+import { HookTypeValue } from '../../contrib/chat/common/promptSyntax/hookSchema.js';
 
 export { CodeActionKind } from './extHostTypes/codeActionKind.js';
 export {
@@ -3175,6 +3176,19 @@ export class McpToolInvocationContentData {
 	}
 }
 
+export class ChatSubagentToolInvocationData {
+	description?: string;
+	agentName?: string;
+	prompt?: string;
+	result?: string;
+	constructor(description?: string, agentName?: string, prompt?: string, result?: string) {
+		this.description = description;
+		this.agentName = agentName;
+		this.prompt = prompt;
+		this.result = result;
+	}
+}
+
 export class ChatResponseExternalEditPart {
 	applied: Thenable<string>;
 	didGetApplied!: (value: string) => void;
@@ -3227,6 +3241,19 @@ export class ChatResponseThinkingProgressPart {
 	constructor(value: string | string[], id?: string, metadata?: { readonly [key: string]: any }) {
 		this.value = value;
 		this.id = id;
+		this.metadata = metadata;
+	}
+}
+
+export class ChatResponseHookPart {
+	hookType: HookTypeValue;
+	stopReason?: string;
+	systemMessage?: string;
+	metadata?: { readonly [key: string]: unknown };
+	constructor(hookType: HookTypeValue, stopReason?: string, systemMessage?: string, metadata?: { readonly [key: string]: unknown }) {
+		this.hookType = hookType;
+		this.stopReason = stopReason;
+		this.systemMessage = systemMessage;
 		this.metadata = metadata;
 	}
 }
@@ -3298,13 +3325,26 @@ export class ChatResponseExtensionsPart {
 }
 
 export class ChatResponsePullRequestPart {
+	public readonly uri?: vscode.Uri;
+	public readonly command: vscode.Command;
+
 	constructor(
-		public readonly uri: vscode.Uri,
+		uriOrCommand: vscode.Uri | vscode.Command,
 		public readonly title: string,
 		public readonly description: string,
 		public readonly author: string,
 		public readonly linkTag: string
 	) {
+		if (isUriComponents(uriOrCommand)) {
+			this.uri = uriOrCommand as vscode.Uri;
+			this.command = {
+				title: 'Open Pull Request',
+				command: 'vscode.open',
+				arguments: [uriOrCommand]
+			};
+		} else {
+			this.command = uriOrCommand;
+		}
 	}
 
 	toJSON() {
@@ -3450,7 +3490,7 @@ export enum ChatTodoStatus {
 export class ChatToolInvocationPart {
 	toolName: string;
 	toolCallId: string;
-	isError?: boolean;
+	errorMessage?: string;
 	invocationMessage?: string | vscode.MarkdownString;
 	originMessage?: string | vscode.MarkdownString;
 	pastTenseMessage?: string | vscode.MarkdownString;
@@ -3463,10 +3503,10 @@ export class ChatToolInvocationPart {
 
 	constructor(toolName: string,
 		toolCallId: string,
-		isError?: boolean) {
+		errorMessage?: string) {
 		this.toolName = toolName;
 		this.toolCallId = toolCallId;
-		this.isError = isError;
+		this.errorMessage = errorMessage;
 	}
 }
 

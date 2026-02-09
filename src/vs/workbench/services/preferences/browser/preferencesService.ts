@@ -214,7 +214,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	}
 
 	async openPreferences(): Promise<void> {
-		await this.editorService.openEditor(this.instantiationService.createInstance(PreferencesEditorInput));
+		await this.editorService.openEditor(this.instantiationService.createInstance(PreferencesEditorInput), undefined, MODAL_GROUP);
 	}
 
 	openSettings(options: IOpenSettingsOptions = {}): Promise<IEditorPane | undefined> {
@@ -273,7 +273,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			...options,
 			focusSearch: true
 		};
-		const group = this.getEditorGroupFromOptions(options);
+		const group = this.getEditorGroupFromOptions(false, options);
 		return this.editorService.openEditor(input, validateSettingsEditorOptions(options), group);
 	}
 
@@ -358,7 +358,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			}
 
 		} else {
-			const group = this.getEditorGroupFromOptions(options);
+			const group = this.getEditorGroupFromOptions(false, options);
 			const editor = (await this.editorService.openEditor(this.instantiationService.createInstance(KeybindingsEditorInput), { ...options }, group)) as IKeybindingsEditorPane;
 			if (options.query) {
 				editor.search(options.query);
@@ -371,12 +371,12 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		return this.editorService.openEditor({ resource: this.defaultKeybindingsResource, label: nls.localize('defaultKeybindings', "Default Keybindings") });
 	}
 
-	private getEditorGroupFromOptions(options: { groupId?: number; openInModal?: boolean; openToSide?: boolean }): PreferredGroup {
+	private getEditorGroupFromOptions(isTextual: boolean, options: { groupId?: number; openToSide?: boolean }): PreferredGroup {
+		if (!isTextual && this.configurationService.getValue<boolean>('workbench.editor.allowOpenInModalEditor')) {
+			return MODAL_GROUP;
+		}
 		if (options.openToSide) {
 			return SIDE_GROUP;
-		}
-		if (options.openInModal) {
-			return MODAL_GROUP;
 		}
 		if (options?.groupId !== undefined) {
 			return this.editorGroupService.getGroup(options.groupId) ?? this.editorGroupService.activeGroup;
@@ -385,7 +385,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	}
 
 	private async openSettingsJson(resource: URI, options: IOpenSettingsOptions): Promise<IEditorPane | undefined> {
-		const group = this.getEditorGroupFromOptions(options);
+		const group = this.getEditorGroupFromOptions(true, options);
 		const editor = await this.doOpenSettingsJson(resource, options, group);
 		if (editor && options?.revealSetting) {
 			await this.revealSetting(options.revealSetting.key, !!options.revealSetting.edit, editor, resource);

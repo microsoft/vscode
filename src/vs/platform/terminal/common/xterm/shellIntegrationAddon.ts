@@ -335,9 +335,9 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 	private _status: ShellIntegrationStatus = ShellIntegrationStatus.Off;
 	get status(): ShellIntegrationStatus { return this._status; }
 
-	private readonly _onDidChangeStatus = new Emitter<ShellIntegrationStatus>();
+	private readonly _onDidChangeStatus = this._register(new Emitter<ShellIntegrationStatus>());
 	readonly onDidChangeStatus = this._onDidChangeStatus.event;
-	private readonly _onDidChangeSeenSequences = new Emitter<ReadonlySet<string>>();
+	private readonly _onDidChangeSeenSequences = this._register(new Emitter<ReadonlySet<string>>());
 	readonly onDidChangeSeenSequences = this._onDidChangeSeenSequences.event;
 
 	constructor(

@@ -55,13 +55,13 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 
 	declare readonly _serviceBrand: undefined;
 
-	private readonly _onDidTokenFailedEmitter = new Emitter<IRemoteTunnelSession | undefined>();
+	private readonly _onDidTokenFailedEmitter = this._register(new Emitter<IRemoteTunnelSession | undefined>());
 	public readonly onDidTokenFailed = this._onDidTokenFailedEmitter.event;
 
-	private readonly _onDidChangeTunnelStatusEmitter = new Emitter<TunnelStatus>();
+	private readonly _onDidChangeTunnelStatusEmitter = this._register(new Emitter<TunnelStatus>());
 	public readonly onDidChangeTunnelStatus = this._onDidChangeTunnelStatusEmitter.event;
 
-	private readonly _onDidChangeModeEmitter = new Emitter<TunnelMode>();
+	private readonly _onDidChangeModeEmitter = this._register(new Emitter<TunnelMode>());
 	public readonly onDidChangeMode = this._onDidChangeModeEmitter.event;
 
 	private readonly _logger: ILogger;
@@ -95,7 +95,7 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 	) {
 		super();
 		this._logger = this._register(loggerService.createLogger(joinPath(environmentService.logsHome, `${LOG_ID}.log`), { id: LOG_ID, name: LOGGER_NAME }));
-		this._startTunnelProcessDelayer = new Delayer(100);
+		this._startTunnelProcessDelayer = this._register(new Delayer(100));
 
 		this._register(this._logger.onDidChangeLogLevel(l => this._logger.info('Log level changed to ' + LogLevelToString(l))));
 

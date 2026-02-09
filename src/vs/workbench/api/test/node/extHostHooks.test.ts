@@ -70,19 +70,34 @@ suite.skip('ExtHostHooks', () => {
 		assert.deepStrictEqual(result.result, { key: 'value' });
 	});
 
-	test('$runHookCommand returns error result for non-zero exit code', async () => {
+	test('$runHookCommand returns non-blocking error for exit code 1', async () => {
 		const hookCommand = createHookCommandDto('exit 1');
+		const result = await hooksService.$runHookCommand(hookCommand, undefined, CancellationToken.None);
+
+		assert.strictEqual(result.kind, HookCommandResultKind.NonBlockingError);
+	});
+
+	test('$runHookCommand returns blocking error for exit code 2', async () => {
+		const hookCommand = createHookCommandDto('exit 2');
 		const result = await hooksService.$runHookCommand(hookCommand, undefined, CancellationToken.None);
 
 		assert.strictEqual(result.kind, HookCommandResultKind.Error);
 	});
 
-	test('$runHookCommand captures stderr on failure', async () => {
+	test('$runHookCommand captures stderr on non-blocking error', async () => {
 		const hookCommand = createHookCommandDto('echo "error message" >&2 && exit 1');
 		const result = await hooksService.$runHookCommand(hookCommand, undefined, CancellationToken.None);
 
-		assert.strictEqual(result.kind, HookCommandResultKind.Error);
+		assert.strictEqual(result.kind, HookCommandResultKind.NonBlockingError);
 		assert.strictEqual((result.result as string).trim(), 'error message');
+	});
+
+	test('$runHookCommand captures stderr on blocking error', async () => {
+		const hookCommand = createHookCommandDto('echo "blocking error" >&2 && exit 2');
+		const result = await hooksService.$runHookCommand(hookCommand, undefined, CancellationToken.None);
+
+		assert.strictEqual(result.kind, HookCommandResultKind.Error);
+		assert.strictEqual((result.result as string).trim(), 'blocking error');
 	});
 
 	test('$runHookCommand passes input to stdin as JSON', async () => {
@@ -94,11 +109,13 @@ suite.skip('ExtHostHooks', () => {
 		assert.deepStrictEqual(result.result, input);
 	});
 
-	test('$runHookCommand returns error for invalid command', async () => {
+	test('$runHookCommand returns non-blocking error for invalid command', async () => {
 		const hookCommand = createHookCommandDto('/nonexistent/command/that/does/not/exist');
 		const result = await hooksService.$runHookCommand(hookCommand, undefined, CancellationToken.None);
 
-		assert.strictEqual(result.kind, HookCommandResultKind.Error);
+		// Invalid commands typically return non-zero exit codes (127 for command not found)
+		// which are treated as non-blocking errors unless it's exit code 2
+		assert.strictEqual(result.kind, HookCommandResultKind.NonBlockingError);
 	});
 
 	test('$runHookCommand uses custom environment variables', async () => {

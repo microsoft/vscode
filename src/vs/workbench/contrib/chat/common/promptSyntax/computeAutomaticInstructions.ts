@@ -314,7 +314,9 @@ export class ComputeAutomaticInstructions {
 			}
 
 			const agentSkills = await this._promptsService.findAgentSkills(token);
-			if (agentSkills && agentSkills.length > 0) {
+			// Filter out skills with disableModelInvocation=true (they can only be triggered manually via /name)
+			const modelInvokableSkills = agentSkills?.filter(skill => !skill.disableModelInvocation);
+			if (modelInvokableSkills && modelInvokableSkills.length > 0) {
 				const useSkillAdherencePrompt = this._configurationService.getValue(PromptsConfig.USE_SKILL_ADHERENCE_PROMPT);
 				entries.push('<skills>');
 				if (useSkillAdherencePrompt) {
@@ -336,7 +338,7 @@ export class ComputeAutomaticInstructions {
 					entries.push('Each skill comes with a description of the topic and a file path that contains the detailed instructions.');
 					entries.push(`When a user asks you to perform a task that falls within the domain of a skill, use the ${readTool.variable} tool to acquire the full instructions from the file URI.`);
 				}
-				for (const skill of agentSkills) {
+				for (const skill of modelInvokableSkills) {
 					entries.push('<skill>');
 					entries.push(`<name>${skill.name}</name>`);
 					if (skill.description) {

@@ -11,10 +11,10 @@ import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Lazy } from '../../../../../base/common/lazy.js';
-import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../../nls.js';
-import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import product from '../../../../../platform/product/common/product.js';
@@ -49,6 +49,7 @@ import { IMarker, IMarkerService, MarkerSeverity } from '../../../../../platform
 import { ChatSetupController } from './chatSetupController.js';
 import { ChatSetupAnonymous, ChatSetupStep, IChatSetupResult } from './chatSetup.js';
 import { ChatSetup } from './chatSetupRunner.js';
+import { chatViewsWelcomeRegistry } from '../viewsWelcome/chatViewsWelcome.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
@@ -191,6 +192,7 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 		@IViewsService private readonly viewsService: IViewsService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		super();
 
@@ -321,9 +323,12 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 				});
 			}, 10000);
 
+			const disposables = new DisposableStore();
+			disposables.add(toDisposable(() => clearTimeout(timeoutHandle)));
 			try {
 				const ready = await Promise.race([
 					timeout(this.environmentService.remoteAuthority ? 60000 /* increase for remote scenarios */ : 20000).then(() => 'timedout'),
+					this.whenPanelAgentHasGuidance(disposables).then(() => 'panelGuidance'),
 					Promise.allSettled([
 						whenAgentActivated,
 						whenAgentReady,
@@ -331,6 +336,20 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 						whenToolsModelReady
 					])
 				]);
+
+				if (ready === 'panelGuidance') {
+					const warningMessage = localize('chatTookLongWarningExtension', "Please try again.");
+
+					progress({
+						kind: 'markdownContent',
+						content: new MarkdownString(warningMessage)
+					});
+
+					// This means Chat is unhealthy and we cannot retry the
+					// request. Signal this to the outside via an event.
+					this._onUnresolvableError.fire();
+					return;
+				}
 
 				if (ready === 'timedout') {
 					let warningMessage: string;
@@ -459,7 +478,7 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 					return;
 				}
 			} finally {
-				clearTimeout(timeoutHandle);
+				disposables.dispose();
 			}
 		}
 
@@ -467,6 +486,41 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 			...widget?.getModeRequestOptions(),
 			modeInfo,
 			userSelectedModelId: widget?.input.currentLanguageModel
+		});
+	}
+
+	private async whenPanelAgentHasGuidance(disposables: DisposableStore): Promise<void> {
+		const panelAgentHasGuidance = () => chatViewsWelcomeRegistry.get().some(descriptor => this.contextKeyService.contextMatchesRules(descriptor.when));
+
+		if (panelAgentHasGuidance()) {
+			return;
+		}
+
+		return new Promise<void>(resolve => {
+			let descriptorKeys: Set<string> = new Set();
+			const updateDescriptorKeys = () => {
+				const descriptors = chatViewsWelcomeRegistry.get();
+				descriptorKeys = new Set(descriptors.flatMap(d => d.when.keys()));
+			};
+			updateDescriptorKeys();
+
+			const onDidChangeRegistry = Event.map(chatViewsWelcomeRegistry.onDidChange, () => 'registry' as const);
+			const onDidChangeRelevantContext = Event.map(
+				Event.filter(this.contextKeyService.onDidChangeContext, e => e.affectsSome(descriptorKeys)),
+				() => 'context' as const
+			);
+
+			disposables.add(Event.any(
+				onDidChangeRegistry,
+				onDidChangeRelevantContext
+			)(source => {
+				if (source === 'registry') {
+					updateDescriptorKeys();
+				}
+				if (panelAgentHasGuidance()) {
+					resolve();
+				}
+			}));
 		});
 	}
 

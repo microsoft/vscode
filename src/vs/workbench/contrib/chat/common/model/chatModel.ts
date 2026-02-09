@@ -29,8 +29,10 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { CellUri, ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
 import { ChatRequestToolReferenceEntry, IChatRequestVariableEntry, isImplicitVariableEntry, isStringImplicitContextValue, isStringVariableEntry } from '../attachments/chatVariableEntries.js';
 import { migrateLegacyTerminalToolSpecificData } from '../chat.js';
-import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatRequestQueueKind, ChatResponseClearToPreviousToolInvocationReason, ElicitationState, IChatAgentMarkdownContentWithVulnerability, IChatClearToPreviousToolInvocation, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatEditingSessionAction, IChatElicitationRequest, IChatElicitationRequestSerialized, IChatExtensionsContent, IChatFollowup, IChatLocationData, IChatMarkdownContent, IChatMcpServersStarting, IChatMcpServersStartingSerialized, IChatModelReference, IChatMultiDiffData, IChatMultiDiffDataSerialized, IChatNotebookEdit, IChatProgress, IChatProgressMessage, IChatPullRequestContent, IChatQuestionCarousel, IChatResponseCodeblockUriPart, IChatResponseProgressFileTreeData, IChatSendRequestOptions, IChatService, IChatSessionContext, IChatSessionTiming, IChatTask, IChatTaskSerialized, IChatTextEdit, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsage, IChatUsedContext, IChatWarningMessage, IChatWorkspaceEdit, ResponseModelState, isIUsedContext } from '../chatService/chatService.js';
+import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatRequestQueueKind, ChatResponseClearToPreviousToolInvocationReason, ElicitationState, IChatAgentMarkdownContentWithVulnerability, IChatClearToPreviousToolInvocation, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatEditingSessionAction, IChatElicitationRequest, IChatElicitationRequestSerialized, IChatExternalToolInvocationUpdate, IChatExtensionsContent, IChatFollowup, IChatHookPart, IChatLocationData, IChatMarkdownContent, IChatMcpServersStarting, IChatMcpServersStartingSerialized, IChatModelReference, IChatMultiDiffData, IChatMultiDiffDataSerialized, IChatNotebookEdit, IChatProgress, IChatProgressMessage, IChatPullRequestContent, IChatQuestionCarousel, IChatResponseCodeblockUriPart, IChatResponseProgressFileTreeData, IChatSendRequestOptions, IChatService, IChatSessionContext, IChatSessionTiming, IChatTask, IChatTaskSerialized, IChatTextEdit, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsage, IChatUsedContext, IChatWarningMessage, IChatWorkspaceEdit, ResponseModelState, isIUsedContext } from '../chatService/chatService.js';
 import { ChatAgentLocation, ChatModeKind } from '../constants.js';
+import { ChatToolInvocation } from './chatProgressTypes/chatToolInvocation.js';
+import { ToolDataSource, IToolData } from '../tools/languageModelToolsService.js';
 import { IChatEditingService, IChatEditingSession, ModifiedFileEntryState } from '../editing/chatEditingService.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../languageModels.js';
 import { IChatAgentCommand, IChatAgentData, IChatAgentResult, IChatAgentService, UserSelectedTools, reviveSerializedAgent } from '../participants/chatAgents.js';
@@ -188,6 +190,7 @@ export type IChatProgressHistoryResponseContent =
 	| IChatQuestionCarousel
 	| IChatExtensionsContent
 	| IChatThinkingPart
+	| IChatHookPart
 	| IChatPullRequestContent
 	| IChatWorkspaceEdit;
 
@@ -286,7 +289,7 @@ export interface IChatResponseModel {
 	setVoteDownReason(reason: ChatAgentVoteDownReason | undefined): void;
 	setUsage(usage: IChatUsage): void;
 	setEditApplied(edit: IChatTextEditGroup, editCount: number): boolean;
-	updateContent(progress: IChatProgressResponseContent | IChatTextEdit | IChatNotebookEdit | IChatTask, quiet?: boolean): void;
+	updateContent(progress: IChatProgressResponseContent | IChatTextEdit | IChatNotebookEdit | IChatTask | IChatExternalToolInvocationUpdate, quiet?: boolean): void;
 	/**
 	 * Adopts any partially-undo {@link response} as the {@link entireResponse}.
 	 * Only valid when {@link isComplete}. This is needed because otherwise an
@@ -495,6 +498,7 @@ class AbstractResponse implements IResponse {
 				case 'elicitation2':
 				case 'elicitationSerialized':
 				case 'thinking':
+				case 'hook':
 				case 'multiDiffData':
 				case 'mcpServersStarting':
 				case 'questionCarousel':
@@ -687,7 +691,7 @@ export class Response extends AbstractResponse implements IDisposable {
 		this._updateRepr(true);
 	}
 
-	updateContent(progress: IChatProgressResponseContent | IChatTextEdit | IChatNotebookEdit | IChatTask, quiet?: boolean): void {
+	updateContent(progress: IChatProgressResponseContent | IChatTextEdit | IChatNotebookEdit | IChatTask | IChatExternalToolInvocationUpdate, quiet?: boolean): void {
 		if (progress.kind === 'clearToPreviousToolInvocation') {
 			if (progress.reason === ChatResponseClearToPreviousToolInvocationReason.CopyrightContentRetry) {
 				this.clearToPreviousToolInvocation(localize('copyrightContentRetry', "Response cleared due to possible match to public code, retrying with modified prompt."));
@@ -791,6 +795,9 @@ export class Response extends AbstractResponse implements IDisposable {
 			});
 			this._responseParts.push(progress);
 			this._updateRepr(quiet);
+		} else if (progress.kind === 'externalToolInvocationUpdate') {
+			this._handleExternalToolInvocationUpdate(progress);
+			this._updateRepr(quiet);
 		} else {
 			this._responseParts.push(progress);
 			this._updateRepr(quiet);
@@ -822,6 +829,63 @@ export class Response extends AbstractResponse implements IDisposable {
 			}
 		}
 		this._responseParts.push({ kind: 'notebookEditGroup', uri, edits: [edits], done, isExternalEdit });
+	}
+
+	private _handleExternalToolInvocationUpdate(progress: IChatExternalToolInvocationUpdate): void {
+		// Look for existing invocation in the response parts
+		const existingInvocation = this._responseParts.findLast(
+			(part): part is ChatToolInvocation => part.kind === 'toolInvocation' && part.toolCallId === progress.toolCallId
+		);
+
+		if (existingInvocation) {
+			if (progress.isComplete) {
+				existingInvocation.didExecuteTool({
+					content: [],
+					toolResultMessage: progress.pastTenseMessage,
+					toolResultError: progress.errorMessage,
+				});
+			}
+			if (progress.toolSpecificData !== undefined) {
+				existingInvocation.toolSpecificData = progress.toolSpecificData;
+			}
+			return;
+		}
+
+		// Create a new external tool invocation
+		const toolData: IToolData = {
+			id: progress.toolName,
+			source: ToolDataSource.External,
+			displayName: progress.toolName,
+			modelDescription: progress.toolName,
+		};
+
+		const invocation = new ChatToolInvocation(
+			{
+				invocationMessage: progress.invocationMessage,
+				pastTenseMessage: progress.pastTenseMessage,
+				toolSpecificData: progress.toolSpecificData,
+			},
+			toolData,
+			progress.toolCallId,
+			progress.subagentInvocationId,
+			undefined, // parameters
+			{},
+			undefined // chatRequestId
+		);
+
+		if (progress.isComplete) {
+			// Already completed on first push
+			invocation.didExecuteTool({
+				content: [],
+				toolResultMessage: progress.pastTenseMessage,
+				toolResultError: progress.errorMessage,
+			});
+			if (progress.toolSpecificData !== undefined) {
+				invocation.toolSpecificData = progress.toolSpecificData;
+			}
+		}
+
+		this._responseParts.push(invocation);
 	}
 
 	protected override _updateRepr(quiet?: boolean) {
@@ -1145,7 +1209,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 	/**
 	 * Apply a progress update to the actual response content.
 	 */
-	updateContent(responsePart: IChatProgressResponseContent | IChatTextEdit | IChatNotebookEdit, quiet?: boolean) {
+	updateContent(responsePart: IChatProgressResponseContent | IChatTextEdit | IChatNotebookEdit | IChatExternalToolInvocationUpdate, quiet?: boolean) {
 		this._response.updateContent(responsePart, quiet);
 	}
 
@@ -1354,7 +1418,7 @@ interface ISerializableChatResponseData {
 	timeSpentWaiting?: number;
 }
 
-export type SerializedChatResponsePart = IMarkdownString | IChatResponseProgressFileTreeData | IChatContentInlineReference | IChatAgentMarkdownContentWithVulnerability | IChatThinkingPart | IChatProgressResponseContentSerialized;
+export type SerializedChatResponsePart = IMarkdownString | IChatResponseProgressFileTreeData | IChatContentInlineReference | IChatAgentMarkdownContentWithVulnerability | IChatThinkingPart | IChatProgressResponseContentSerialized | IChatQuestionCarousel;
 
 export interface ISerializableChatRequestData extends ISerializableChatResponseData {
 	requestId: string;
@@ -2305,6 +2369,9 @@ export class ChatModel extends Disposable implements IChatModel {
 	resetCheckpoint(): void {
 		for (const request of this._requests) {
 			request.setShouldBeBlocked(false);
+			if (request.response) {
+				request.response.setBlockedState(false);
+			}
 		}
 	}
 
@@ -2329,6 +2396,9 @@ export class ChatModel extends Disposable implements IChatModel {
 			const request = this._requests[i];
 			if (this._checkpoint && !checkpoint) {
 				request.setShouldBeBlocked(false);
+				if (request.response) {
+					request.response.setBlockedState(false);
+				}
 			} else if (checkpoint && i >= checkpointIndex) {
 				request.setShouldBeBlocked(true);
 				if (request.response) {
@@ -2336,6 +2406,9 @@ export class ChatModel extends Disposable implements IChatModel {
 				}
 			} else if (checkpoint && i < checkpointIndex) {
 				request.setShouldBeBlocked(false);
+				if (request.response) {
+					request.response.setBlockedState(false);
+				}
 			}
 		}
 

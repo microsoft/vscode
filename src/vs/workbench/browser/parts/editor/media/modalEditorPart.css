@@ -10,8 +10,8 @@
 	width: 100%;
 	left: 0;
 	top: 0;
-	/* z-index cannot be above iframes (50) to support showing them */
-	z-index: 40;
+	/* z-index for modal editors: below dialogs, quick input, context views, hovers but above other things */
+	z-index: 2000;
 	display: flex;
 	justify-content: center;
 	align-items: center;
@@ -23,7 +23,7 @@
 
 /** Modal Editor Part: Shadow Container */
 .monaco-modal-editor-block .modal-editor-shadow {
-	box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+	box-shadow: 0 4px 32px var(--vscode-widget-shadow, rgba(0, 0, 0, 0.2));
 	border-radius: 8px;
 	overflow: hidden;
 }
@@ -51,20 +51,20 @@
 	align-items: center;
 	height: 32px;
 	min-height: 32px;
-	padding: 0 8px;
-	background-color: var(--vscode-editorGroupHeader-tabsBackground);
-	border-bottom: 1px solid var(--vscode-editorGroupHeader-tabsBorder, transparent);
+	padding: 0 8px 0 16px;
+	color: var(--vscode-titleBar-activeForeground);
+	background-color: var(--vscode-titleBar-activeBackground);
+	border-bottom: 1px solid var(--vscode-titleBar-border, transparent);
 }
 
 .monaco-modal-editor-block .modal-editor-title {
-	grid-column: 2;
+	grid-column: 1;
 	font-size: 12px;
 	font-weight: 500;
-	color: var(--vscode-foreground);
+	color: var(--vscode-titleBar-activeForeground);
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
-	text-align: center;
 }
 
 .monaco-modal-editor-block .modal-editor-action-container {
@@ -72,6 +72,14 @@
 	display: flex;
 	align-items: center;
 	justify-content: flex-end;
+}
+
+.monaco-modal-editor-block .modal-editor-action-container .actions-container {
+	gap: 4px;
+}
+
+.monaco-modal-editor-block .modal-editor-action-container .actions-container .codicon {
+	color: inherit;
 }
 
 /** Modal Editor Part: Ensure proper sizing */

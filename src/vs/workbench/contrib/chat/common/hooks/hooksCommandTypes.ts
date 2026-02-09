@@ -16,6 +16,8 @@
  * Internal types (in hooksTypes.ts) are used within VS Code.
  */
 
+import { URI } from '../../../../../base/common/uri.js';
+
 //#region Common Hook Types
 
 /**
@@ -23,9 +25,10 @@
  */
 export interface IHookCommandInput {
 	readonly timestamp: string;
-	readonly cwd: string;
+	readonly cwd: URI;
 	readonly sessionId: string;
 	readonly hookEventName: string;
+	readonly transcript_path?: URI;
 }
 
 /**
@@ -46,7 +49,10 @@ export interface IHookCommandOutput {
 
 export const enum HookCommandResultKind {
 	Success = 1,
-	Error = 2
+	/** Blocking error - shown to model */
+	Error = 2,
+	/** Non-blocking error - shown to user only */
+	NonBlockingError = 3
 }
 
 /**
@@ -85,6 +91,35 @@ export interface IPreToolUseCommandOutput extends IHookCommandOutput {
 		readonly hookEventName?: string;
 		readonly permissionDecision?: 'allow' | 'deny';
 		readonly permissionDecisionReason?: string;
+		readonly updatedInput?: object;
+		readonly additionalContext?: string;
+	};
+}
+
+//#endregion
+
+//#region PostToolUse Hook Types
+
+/**
+ * Tool-specific command input fields for postToolUse hook.
+ * These are mixed with IHookCommandInput at runtime.
+ */
+export interface IPostToolUseCommandInput {
+	readonly tool_name: string;
+	readonly tool_input: unknown;
+	readonly tool_response: string;
+	readonly tool_use_id: string;
+}
+
+/**
+ * External command output for postToolUse hook.
+ * Extends common output with decision control fields.
+ */
+export interface IPostToolUseCommandOutput extends IHookCommandOutput {
+	readonly decision?: 'block';
+	readonly reason?: string;
+	readonly hookSpecificOutput?: {
+		readonly hookEventName?: string;
 		readonly additionalContext?: string;
 	};
 }

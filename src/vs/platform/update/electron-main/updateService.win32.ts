@@ -29,6 +29,7 @@ import { asJson, IRequestService } from '../../request/common/request.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { AvailableForDownload, DisablementReason, IUpdate, State, StateType, UpdateType } from '../common/update.js';
 import { AbstractUpdateService, createUpdateURL, IUpdateURLOptions, UpdateErrorClassification } from './abstractUpdateService.js';
+import { IMeteredConnectionService } from '../../meteredConnection/common/meteredConnection.js';
 
 async function pollUntil(fn: () => boolean, millis = 1000): Promise<void> {
 	while (!fn()) {
@@ -71,9 +72,10 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		@ILogService logService: ILogService,
 		@IFileService private readonly fileService: IFileService,
 		@INativeHostMainService private readonly nativeHostMainService: INativeHostMainService,
-		@IProductService productService: IProductService
+		@IProductService productService: IProductService,
+		@IMeteredConnectionService meteredConnectionService: IMeteredConnectionService,
 	) {
-		super(lifecycleMainService, configurationService, environmentMainService, requestService, logService, productService, false);
+		super(lifecycleMainService, configurationService, environmentMainService, requestService, logService, productService, meteredConnectionService, false);
 
 		lifecycleMainService.setRelaunchHandler(this);
 	}
@@ -186,6 +188,14 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 				}
 
 				if (updateType === UpdateType.Archive) {
+					this.setState(State.AvailableForDownload(update));
+					return Promise.resolve(null);
+				}
+
+				// When connection is metered and this is not an explicit check,
+				// show update is available but don't start downloading
+				if (!explicit && this.meteredConnectionService.isConnectionMetered) {
+					this.logService.info('update#doCheckForUpdates - update available but skipping download because connection is metered');
 					this.setState(State.AvailableForDownload(update));
 					return Promise.resolve(null);
 				}
