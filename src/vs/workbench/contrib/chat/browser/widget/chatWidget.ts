@@ -2245,6 +2245,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return;
 		}
 
+		// If this was a queued request that just got dequeued, start the progress sound now
+		if (options.queue && this.viewModel?.sessionResource) {
+			this.chatAccessibilityService.acceptRequest(this.viewModel.sessionResource, true);
+		}
+
 		this._onDidSubmitAgent.fire({ agent: sent.data.agent, slashCommand: sent.data.slashCommand });
 		this.handleDelegationExitIfNeeded(this._lockedAgent, sent.data.agent);
 		sent.data.responseCompletePromise.then(() => {
