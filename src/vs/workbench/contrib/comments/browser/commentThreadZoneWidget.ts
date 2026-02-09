@@ -588,5 +588,8 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		this._globalToDispose.dispose();
 		this._commentThreadDisposables.forEach(global => global.dispose());
 		this._onDidClose.fire(undefined);
+		this._onDidClose.dispose();
+		this._onDidCreateThread.dispose();
+		this._onDidChangeExpandedState.dispose();
 	}
 }

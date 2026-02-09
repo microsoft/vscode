@@ -1876,7 +1876,9 @@ export default tseslint.config(
 				},
 				{
 					'target': 'src/vscode-dts/**',
-					'restrictions': []
+					'restrictions': [
+						'src/vscode-dts/*'
+					]
 				},
 				{
 					'target': 'src/vs/nls.ts',

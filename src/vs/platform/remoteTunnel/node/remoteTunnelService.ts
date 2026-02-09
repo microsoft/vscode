@@ -95,7 +95,7 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 	) {
 		super();
 		this._logger = this._register(loggerService.createLogger(joinPath(environmentService.logsHome, `${LOG_ID}.log`), { id: LOG_ID, name: LOGGER_NAME }));
-		this._startTunnelProcessDelayer = new Delayer(100);
+		this._startTunnelProcessDelayer = this._register(new Delayer(100));
 
 		this._register(this._logger.onDidChangeLogLevel(l => this._logger.info('Log level changed to ' + LogLevelToString(l))));
 

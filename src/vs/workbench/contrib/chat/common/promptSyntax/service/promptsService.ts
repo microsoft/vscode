@@ -137,6 +137,13 @@ export function isCustomAgentVisibility(obj: unknown): obj is ICustomAgentVisibi
 	return typeof v.userInvokable === 'boolean' && typeof v.agentInvokable === 'boolean';
 }
 
+export enum Target {
+	VSCode = 'vscode',
+	GitHubCopilot = 'github-copilot',
+	Claude = 'claude',
+	Undefined = 'undefined',
+}
+
 export interface ICustomAgent {
 	/**
 	 * URI of a custom agent file.
@@ -169,9 +176,9 @@ export interface ICustomAgent {
 	readonly argumentHint?: string;
 
 	/**
-	 * Target metadata in the prompt header.
+	 * Target of the agent: Copilot, VSCode, Claude, or undefined if not specified.
 	 */
-	readonly target?: string;
+	readonly target: Target;
 
 	/**
 	 * What visibility the agent has (user invokable, subagent invokable).

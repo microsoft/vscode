@@ -15,6 +15,7 @@ import { IChatAgentAttachmentCapabilities, IChatAgentRequest } from './participa
 import { IChatEditingSession } from './editing/chatEditingService.js';
 import { IChatModel, IChatRequestVariableData, ISerializableChatModelInputState } from './model/chatModel.js';
 import { IChatProgress, IChatService, IChatSessionTiming } from './chatService/chatService.js';
+import { Target } from './promptSyntax/service/promptsService.js';
 
 export const enum ChatSessionStatus {
 	Failed = 0,
@@ -90,7 +91,7 @@ export interface IChatSessionsExtensionPoint {
 	 * to reuse the standard agent/mode dropdown with filtered custom agents.
 	 * Custom agents without a `target` property are also shown in all filtered lists
 	 */
-	readonly customAgentTarget?: string;
+	readonly customAgentTarget?: Target;
 }
 
 export interface IChatSessionItem {
@@ -259,9 +260,9 @@ export interface IChatSessionsService {
 
 	/**
 	 * Get the customAgentTarget for a specific session type.
-	 * When set, the mode picker should show filtered custom agents matching this target.
+	 * When the Target is not `Target.Undefined`, the mode picker should show filtered custom agents matching this target.
 	 */
-	getCustomAgentTargetForSessionType(chatSessionType: string): string | undefined;
+	getCustomAgentTargetForSessionType(chatSessionType: string): Target;
 
 	onDidChangeOptionGroups: Event<string>;
 

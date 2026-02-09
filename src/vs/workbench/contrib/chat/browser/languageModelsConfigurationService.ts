@@ -37,7 +37,7 @@ export class LanguageModelsConfigurationService extends Disposable implements IL
 	private readonly modelsConfigurationFile: URI;
 	get configurationFile(): URI { return this.modelsConfigurationFile; }
 
-	private readonly _onDidChangeLanguageModelGroups = new Emitter<readonly ILanguageModelsProviderGroup[]>();
+	private readonly _onDidChangeLanguageModelGroups = this._register(new Emitter<readonly ILanguageModelsProviderGroup[]>());
 	readonly onDidChangeLanguageModelGroups: Event<readonly ILanguageModelsProviderGroup[]> = this._onDidChangeLanguageModelGroups.event;
 
 	private languageModelsProviderGroups: LanguageModelsProviderGroups = [];

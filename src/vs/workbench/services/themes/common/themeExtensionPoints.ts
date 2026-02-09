@@ -185,6 +185,7 @@ export class ThemeRegistry<T extends IThemeData> implements IDisposable {
 
 	dispose() {
 		this.themesExtPoint.setHandler(() => { });
+		this.onDidChangeEmitter.dispose();
 	}
 
 	private initialize() {

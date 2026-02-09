@@ -30,7 +30,7 @@ export interface IResolvedHookEntry {
  * Supported hook file formats.
  */
 export enum HookSourceFormat {
-	/** GitHub Copilot hooks.json format */
+	/** GitHub Copilot hooks .json format */
 	Copilot = 'copilot',
 	/** Claude settings.json / settings.local.json format */
 	Claude = 'claude',
@@ -48,11 +48,6 @@ export function getHookSourceFormat(fileUri: URI): HookSourceFormat {
 		return HookSourceFormat.Claude;
 	}
 
-	// Copilot format: hooks.json (typically in .github/hooks/)
-	if (filename === 'hooks.json') {
-		return HookSourceFormat.Copilot;
-	}
-
 	// Default to Copilot format
 	return HookSourceFormat.Copilot;
 }
@@ -66,7 +61,7 @@ export function isReadOnlyHookSource(format: HookSourceFormat): boolean {
 }
 
 /**
- * Parses hooks from a Copilot hooks.json file (our native format).
+ * Parses hooks from a Copilot hooks .json file (our native format).
  */
 export function parseCopilotHooks(
 	json: unknown,

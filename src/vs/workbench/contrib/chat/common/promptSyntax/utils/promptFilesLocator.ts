@@ -12,7 +12,7 @@ import { getPromptFileLocationsConfigKey, isTildePath, PromptsConfig } from '../
 import { basename, dirname, isEqualOrParent, joinPath } from '../../../../../../base/common/resources.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { COPILOT_CUSTOM_INSTRUCTIONS_FILENAME, AGENTS_SOURCE_FOLDER, getPromptFileExtension, getPromptFileType, LEGACY_MODE_FILE_EXTENSION, getCleanPromptName, AGENT_FILE_EXTENSION, getPromptFileDefaultLocations, SKILL_FILENAME, IPromptSourceFolder, DEFAULT_AGENT_SOURCE_FOLDERS, DEFAULT_HOOK_FILE_PATHS, IResolvedPromptFile, IResolvedPromptSourceFolder, PromptFileSource, HOOKS_SOURCE_FOLDER } from '../config/promptFileLocations.js';
+import { COPILOT_CUSTOM_INSTRUCTIONS_FILENAME, AGENTS_SOURCE_FOLDER, getPromptFileExtension, getPromptFileType, LEGACY_MODE_FILE_EXTENSION, getCleanPromptName, AGENT_FILE_EXTENSION, getPromptFileDefaultLocations, SKILL_FILENAME, IPromptSourceFolder, DEFAULT_AGENT_SOURCE_FOLDERS, IResolvedPromptFile, IResolvedPromptSourceFolder, PromptFileSource } from '../config/promptFileLocations.js';
 import { PromptsType } from '../promptTypes.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { Schemas } from '../../../../../../base/common/network.js';
@@ -88,8 +88,8 @@ export class PromptFilesLocator {
 		// Filter to only user storage locations
 		const result = absoluteLocations.filter(loc => loc.storage === PromptsStorage.user);
 
-		// Also include the VS Code user data prompts folder (for all types except skills)
-		if (type !== PromptsType.skill) {
+		// Also include the VS Code user data prompts folder for certain types
+		if (type === PromptsType.agent || type === PromptsType.instructions || type === PromptsType.prompt) {
 			const userDataPromptsHome = this.userDataService.currentProfile.promptsHome;
 			return [
 				...result,
@@ -113,22 +113,28 @@ export class PromptFilesLocator {
 	private getSourceFoldersSync(type: PromptsType, userHome: URI): readonly URI[] {
 		const result: URI[] = [];
 		const { folders } = this.workspaceService.getWorkspace();
-		const defaultFolders = getPromptFileDefaultLocations(type);
+		const defaultFileOrFolders = getPromptFileDefaultLocations(type);
 
-		for (const sourceFolder of defaultFolders) {
-			let folderPath: URI;
-			if (sourceFolder.storage === PromptsStorage.local) {
+		const getFolderUri = (type: PromptsType, fileOrFolderPath: URI): URI => {
+			// For hooks, the paths are sometimes file paths, so get the parent directory in that case
+			if (type === PromptsType.hook && fileOrFolderPath.path.toLowerCase().endsWith('.json')) {
+				return dirname(fileOrFolderPath);
+			}
+			return fileOrFolderPath;
+		};
+
+		for (const sourceFileOrFolder of defaultFileOrFolders) {
+			let fileOrFolderPath: URI;
+			if (sourceFileOrFolder.storage === PromptsStorage.local) {
 				for (const workspaceFolder of folders) {
-					folderPath = joinPath(workspaceFolder.uri, sourceFolder.path);
-					// For hooks, the paths are file paths, so get the parent directory
-					result.push(type === PromptsType.hook ? dirname(folderPath) : folderPath);
+					fileOrFolderPath = joinPath(workspaceFolder.uri, sourceFileOrFolder.path);
+					result.push(getFolderUri(type, fileOrFolderPath));
 				}
-			} else if (sourceFolder.storage === PromptsStorage.user) {
+			} else if (sourceFileOrFolder.storage === PromptsStorage.user) {
 				// For tilde paths, strip the ~/ prefix before joining with userHome
-				const relativePath = isTildePath(sourceFolder.path) ? sourceFolder.path.substring(2) : sourceFolder.path;
-				folderPath = joinPath(userHome, relativePath);
-				// For hooks, the paths are file paths, so get the parent directory
-				result.push(type === PromptsType.hook ? dirname(folderPath) : folderPath);
+				const relativePath = isTildePath(sourceFileOrFolder.path) ? sourceFileOrFolder.path.substring(2) : sourceFileOrFolder.path;
+				fileOrFolderPath = joinPath(userHome, relativePath);
+				result.push(getFolderUri(type, fileOrFolderPath));
 			}
 		}
 
@@ -202,11 +208,36 @@ export class PromptFilesLocator {
 
 	/**
 	 * Gets the hook source folders for creating new hooks.
-	 * Returns only the Copilot hooks folder (.github/hooks) since Claude paths are read-only.
+	 * Returns folders from config, excluding user storage and Claude paths (which are read-only).
 	 */
 	public async getHookSourceFolders(): Promise<readonly URI[]> {
-		const { folders } = this.workspaceService.getWorkspace();
-		return folders.map(folder => joinPath(folder.uri, HOOKS_SOURCE_FOLDER));
+		const userHome = await this.pathService.userHome();
+		const configuredLocations = PromptsConfig.promptSourceFolders(this.configService, PromptsType.hook);
+
+		// Ignore claude folders since they aren't first-class supported, so we don't want to create invalid formats
+		// Check for .claude as an actual path segment (starts with ".claude/" or contains "/.claude/")
+		const allowedHookFolders = configuredLocations.filter(loc =>
+			!loc.path.startsWith('.claude/') && !loc.path.includes('/.claude/')
+		);
+
+		// Convert to absolute URIs
+		const result = new ResourceSet();
+		const absoluteLocations = this.toAbsoluteLocations(PromptsType.hook, allowedHookFolders, userHome);
+
+		for (const location of absoluteLocations) {
+			// For hook configs, entries are directories unless the path ends with .json (specific file)
+			// Default entries have filePattern, user entries don't but are still directories
+			const isSpecificFile = location.uri.path.endsWith('.json');
+			if (isSpecificFile) {
+				// It's a specific file path (like .github/hooks/hooks.json), use parent directory
+				result.add(dirname(location.uri));
+			} else {
+				// It's a directory path (like .github/hooks or .github/books)
+				result.add(location.uri);
+			}
+		}
+
+		return [...result];
 	}
 
 	/**
@@ -342,20 +373,7 @@ export class PromptFilesLocator {
 
 	private getLocalParentFolders(type: PromptsType): readonly { parent: URI; filePattern?: string }[] {
 		const configuredLocations = PromptsConfig.promptSourceFolders(this.configService, type);
-		if (type === PromptsType.agent) {
-			configuredLocations.push(...DEFAULT_AGENT_SOURCE_FOLDERS);
-		} else if (type === PromptsType.hook) {
-			configuredLocations.push(...DEFAULT_HOOK_FILE_PATHS);
-		}
-
 		const absoluteLocations = this.toAbsoluteLocations(type, configuredLocations, undefined);
-
-		// For hooks, the paths are file paths (e.g., '.github/hooks/hooks.json'), not folder paths.
-		// We need to watch the parent directories of these files.
-		if (type === PromptsType.hook) {
-			return absoluteLocations.map((location) => ({ parent: dirname(location.uri) }));
-		}
-
 		return absoluteLocations.map((location) => firstNonGlobParentAndPattern(location.uri));
 	}
 

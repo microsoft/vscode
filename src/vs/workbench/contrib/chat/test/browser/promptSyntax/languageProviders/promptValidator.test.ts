@@ -25,7 +25,7 @@ import { getPromptFileExtension } from '../../../../common/promptSyntax/config/p
 import { PromptValidator } from '../../../../common/promptSyntax/languageProviders/promptValidator.js';
 import { PromptsType } from '../../../../common/promptSyntax/promptTypes.js';
 import { PromptFileParser } from '../../../../common/promptSyntax/promptFileParser.js';
-import { ICustomAgent, IPromptsService, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
+import { ICustomAgent, IPromptsService, PromptsStorage, Target } from '../../../../common/promptSyntax/service/promptsService.js';
 import { MockChatModeService } from '../../../common/mockChatModeService.js';
 import { MockPromptsService } from '../../../common/promptSyntax/service/mockPromptsService.js';
 
@@ -135,6 +135,7 @@ suite('PromptValidator', () => {
 			name: 'BeastMode',
 			agentInstructions: { content: 'Beast mode instructions', toolReferences: [] },
 			source: { storage: PromptsStorage.local },
+			target: Target.Undefined,
 			visibility: { userInvokable: true, agentInvokable: true }
 		});
 		instaService.stub(IChatModeService, new MockChatModeService({ builtin: [ChatMode.Agent, ChatMode.Ask, ChatMode.Edit], custom: [customChatMode] }));
@@ -154,6 +155,7 @@ suite('PromptValidator', () => {
 			tools: ['tool1', 'tool2'],
 			agentInstructions: { content: 'Custom mode body', toolReferences: [] },
 			source: { storage: PromptsStorage.local },
+			target: Target.Undefined,
 			visibility: { userInvokable: true, agentInvokable: true }
 		};
 		promptsService.setCustomModes([customMode]);
@@ -206,7 +208,7 @@ suite('PromptValidator', () => {
 			);
 		});
 
-		test('tools must be array', async () => {
+		test('tools must be array or string', async () => {
 			const content = [
 				'---',
 				'description: "Test"',
@@ -214,8 +216,7 @@ suite('PromptValidator', () => {
 				'---',
 			].join('\n');
 			const markers = await validate(content, PromptsType.agent);
-			assert.strictEqual(markers.length, 1);
-			assert.deepStrictEqual(markers.map(m => m.message), [`The 'tools' attribute must be an array.`]);
+			assert.strictEqual(markers.length, 0);
 		});
 
 		test('model as string array - valid', async () => {
@@ -1851,6 +1852,273 @@ suite('PromptValidator', () => {
 			assert.deepStrictEqual(markers, [], 'All visibility attributes combined should be valid');
 		});
 
+	});
+
+	suite('claude agents', () => {
+
+		// Helper URI for Claude agents — file must be under .claude/agents/ for target detection
+		const claudeAgentUri = URI.parse('myFs://test/.claude/agents/test.agent.md');
+
+		test('valid Claude agent with all common attributes', async () => {
+			const content = [
+				'---',
+				'name: security-reviewer',
+				'description: Reviews code for security vulnerabilities',
+				`tools: ['Edit', 'Grep', 'AskUserQuestion', 'WebFetch']`,
+				'model: opus',
+				'permissionMode: delegate',
+				'---',
+				'You are a senior security engineer.',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent, claudeAgentUri);
+			assert.deepStrictEqual(markers, []);
+		});
+
+		test('valid Claude agent with minimal attributes', async () => {
+			const content = [
+				'---',
+				'name: helper',
+				'description: A simple helper agent',
+				'---',
+				'You help with tasks.',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent, claudeAgentUri);
+			assert.deepStrictEqual(markers, []);
+		});
+
+		test('Claude agent with valid model values', async () => {
+			// Each known Claude model should be valid
+			for (const modelName of ['sonnet', 'opus', 'haiku', 'inherit']) {
+				const content = [
+					'---',
+					'name: test-agent',
+					'description: Test',
+					`model: ${modelName}`,
+					'---',
+				].join('\n');
+				const markers = await validate(content, PromptsType.agent, claudeAgentUri);
+				assert.deepStrictEqual(markers, [], `Model '${modelName}' should be valid`);
+			}
+		});
+
+		test('Claude agent with unknown model value', async () => {
+			const content = [
+				'---',
+				'name: test-agent',
+				'description: Test',
+				'model: gpt-4',
+				'---',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent, claudeAgentUri);
+			assert.strictEqual(markers.length, 1);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
+			assert.strictEqual(markers[0].message, `Unknown value 'gpt-4', valid: sonnet, opus, haiku, inherit.`);
+		});
+
+		test('Claude agent with non-string model value', async () => {
+			const content = [
+				'---',
+				'name: test-agent',
+				'description: Test',
+				'model: 123',
+				'---',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent, claudeAgentUri);
+			assert.strictEqual(markers.length, 1);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
+			assert.strictEqual(markers[0].message, `The 'model' attribute must be a string.`);
+		});
+
+		test('Claude agent with valid permissionMode values', async () => {
+			for (const mode of ['default', 'acceptEdits', 'plan', 'delegate', 'dontAsk', 'bypassPermissions']) {
+				const content = [
+					'---',
+					'name: test-agent',
+					'description: Test',
+					`permissionMode: ${mode}`,
+					'---',
+				].join('\n');
+				const markers = await validate(content, PromptsType.agent, claudeAgentUri);
+				assert.deepStrictEqual(markers, [], `permissionMode '${mode}' should be valid`);
+			}
+		});
+
+		test('Claude agent with unknown permissionMode value', async () => {
+			const content = [
+				'---',
+				'name: test-agent',
+				'description: Test',
+				'model: sonnet',
+				'permissionMode: allowAll',
+				'---',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent, claudeAgentUri);
+			assert.strictEqual(markers.length, 1);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
+			assert.strictEqual(markers[0].message, `Unknown value 'allowAll', valid: default, acceptEdits, plan, delegate, dontAsk, bypassPermissions.`);
+		});
+
+		test('Claude agent with non-string permissionMode value', async () => {
+			const content = [
+				'---',
+				'name: test-agent',
+				'description: Test',
+				'model: sonnet',
+				'permissionMode: true',
+				'---',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent, claudeAgentUri);
+			assert.strictEqual(markers.length, 1);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
+			assert.strictEqual(markers[0].message, `The 'permissionMode' attribute must be a string.`);
+		});
+
+		test('Claude agent with valid memory values', async () => {
+			for (const mem of ['user', 'project', 'local']) {
+				const content = [
+					'---',
+					'name: test-agent',
+					'description: Test',
+					`memory: ${mem}`,
+					'---',
+				].join('\n');
+				const markers = await validate(content, PromptsType.agent, claudeAgentUri);
+				assert.deepStrictEqual(markers, [], `memory '${mem}' should be valid`);
+			}
+		});
+
+		test('Claude agent with unknown memory value', async () => {
+			const content = [
+				'---',
+				'name: test-agent',
+				'description: Test',
+				'model: sonnet',
+				'permissionMode: default',
+				'memory: global',
+				'---',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent, claudeAgentUri);
+			assert.strictEqual(markers.length, 1);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
+			assert.strictEqual(markers[0].message, `Unknown value 'global', valid: user, project, local.`);
+		});
+
+		test('Claude agent with empty name shows error', async () => {
+			const content = [
+				'---',
+				'name: ""',
+				'description: Test',
+				'---',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent, claudeAgentUri);
+			assert.strictEqual(markers.length, 1);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
+			assert.strictEqual(markers[0].message, `The 'name' attribute must not be empty.`);
+		});
+
+		test('Claude agent with empty description shows error', async () => {
+			const content = [
+				'---',
+				'name: test-agent',
+				'description: ""',
+				'---',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent, claudeAgentUri);
+			assert.strictEqual(markers.length, 1);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
+			assert.strictEqual(markers[0].message, `The 'description' attribute should not be empty.`);
+		});
+
+		test('Claude agent with unknown attributes does not warn', async () => {
+			// Claude target ignores unknown attributes since we don't have a full list
+			const content = [
+				'---',
+				'name: test-agent',
+				'description: Test',
+				'customAttribute: someValue',
+				'anotherCustom: 123',
+				'---',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent, claudeAgentUri);
+			assert.deepStrictEqual(markers, [], 'Unknown attributes should be silently ignored for Claude agents');
+		});
+
+		test('Claude agent tools are not validated against VS Code tool registry', async () => {
+			// Claude tool names (Edit, Grep, etc.) don't exist in VS Code's tool registry
+			// but should not produce warnings for Claude target
+			const content = [
+				'---',
+				'name: test-agent',
+				'description: Test',
+				`tools: ['Edit', 'Grep', 'UnknownClaudeTool', 'WebFetch']`,
+				'---',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent, claudeAgentUri);
+			assert.deepStrictEqual(markers, [], 'Claude tools should not be validated against VS Code registry');
+		});
+
+		test('Claude agent with comma-separated tools string', async () => {
+			const content = [
+				'---',
+				'name: security-reviewer',
+				'description: Reviews code',
+				'tools: Edit, Grep, AskUserQuestion, WebFetch',
+				'---',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent, claudeAgentUri);
+			assert.deepStrictEqual(markers, [], 'Comma-separated tools string should be valid for Claude');
+		});
+
+		test('Claude agent does not validate handoffs or agents attributes', async () => {
+			// handoffs and agents are VS Code-specific; they shouldn't be validated for Claude
+			const content = [
+				'---',
+				'name: test-agent',
+				'description: Test',
+				'model: opus',
+				'---',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent, claudeAgentUri);
+			assert.deepStrictEqual(markers, []);
+		});
+
+		test('Claude agent full realistic example', async () => {
+			const content = [
+				'---',
+				'name: security-reviewer',
+				'description: Reviews code for security vulnerabilities',
+				`tools: ['Edit', 'Grep', 'AskUserQuestion', 'WebFetch']`,
+				'model: opus',
+				'permissionMode: delegate',
+				'memory: project',
+				'---',
+				'You are a senior security engineer.',
+				'Review the code for common vulnerabilities.',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent, claudeAgentUri);
+			assert.deepStrictEqual(markers, []);
+		});
+
+		test('Claude agent with multiple validation errors', async () => {
+			const content = [
+				'---',
+				'name: ""',
+				'description: ""',
+				'model: unknown-model',
+				'permissionMode: invalid-mode',
+				'---',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent, claudeAgentUri);
+			assert.deepStrictEqual(
+				markers.map(m => ({ severity: m.severity, message: m.message })),
+				[
+					{ severity: MarkerSeverity.Error, message: `The 'name' attribute must not be empty.` },
+					{ severity: MarkerSeverity.Error, message: `The 'description' attribute should not be empty.` },
+					{ severity: MarkerSeverity.Warning, message: `Unknown value 'unknown-model', valid: sonnet, opus, haiku, inherit.` },
+					{ severity: MarkerSeverity.Warning, message: `Unknown value 'invalid-mode', valid: default, acceptEdits, plan, delegate, dontAsk, bypassPermissions.` },
+				]
+			);
+		});
 	});
 
 });

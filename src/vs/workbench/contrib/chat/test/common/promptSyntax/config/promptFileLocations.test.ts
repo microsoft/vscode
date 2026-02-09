@@ -83,49 +83,24 @@ suite('promptFileLocations', function () {
 			assert.strictEqual(getPromptFileType(uri), PromptsType.skill);
 		});
 
-		test('hooks.json should be recognized as hook', () => {
-			const uri = URI.file('/workspace/.github/hooks/hooks.json');
-			assert.strictEqual(getPromptFileType(uri), PromptsType.hook);
+		// Note: getPromptFileType assumes the URI is from a valid prompt source folder.
+		// Any .json file returns PromptsType.hook - the caller filters by folder.
+		test('any .json file should be recognized as hook', () => {
+			assert.strictEqual(getPromptFileType(URI.file('/workspace/.github/hooks/hooks.json')), PromptsType.hook);
+			assert.strictEqual(getPromptFileType(URI.file('/workspace/.github/hooks/custom-hooks.json')), PromptsType.hook);
+			assert.strictEqual(getPromptFileType(URI.file('/workspace/.claude/settings.json')), PromptsType.hook);
+			assert.strictEqual(getPromptFileType(URI.file('/workspace/.claude/settings.local.json')), PromptsType.hook);
+			assert.strictEqual(getPromptFileType(URI.file('/workspace/any/path/config.json')), PromptsType.hook);
 		});
 
-		test('HOOKS.JSON (uppercase) should be recognized as hook', () => {
-			const uri = URI.file('/workspace/.github/hooks/HOOKS.JSON');
-			assert.strictEqual(getPromptFileType(uri), PromptsType.hook);
+		test('.json files are case insensitive', () => {
+			assert.strictEqual(getPromptFileType(URI.file('/workspace/.github/hooks/HOOKS.JSON')), PromptsType.hook);
+			assert.strictEqual(getPromptFileType(URI.file('/workspace/.claude/SETTINGS.JSON')), PromptsType.hook);
 		});
 
-		test('hooks.json in any folder should be recognized as hook', () => {
-			const uri = URI.file('/workspace/some/other/path/hooks.json');
-			assert.strictEqual(getPromptFileType(uri), PromptsType.hook);
-		});
-
-		test('settings.json in .claude folder should be recognized as hook', () => {
-			const uri = URI.file('/workspace/.claude/settings.json');
-			assert.strictEqual(getPromptFileType(uri), PromptsType.hook);
-		});
-
-		test('settings.local.json in .claude folder should be recognized as hook', () => {
-			const uri = URI.file('/workspace/.claude/settings.local.json');
-			assert.strictEqual(getPromptFileType(uri), PromptsType.hook);
-		});
-
-		test('SETTINGS.JSON (uppercase) in .claude folder should be recognized as hook', () => {
-			const uri = URI.file('/workspace/.claude/SETTINGS.JSON');
-			assert.strictEqual(getPromptFileType(uri), PromptsType.hook);
-		});
-
-		test('settings.json outside .claude folder should NOT be recognized as hook', () => {
-			const uri = URI.file('/workspace/.github/settings.json');
+		test('non-json file in .github/hooks folder should NOT be recognized as hook', () => {
+			const uri = URI.file('/workspace/.github/hooks/readme.md');
 			assert.strictEqual(getPromptFileType(uri), undefined);
-		});
-
-		test('settings.local.json outside .claude folder should NOT be recognized as hook', () => {
-			const uri = URI.file('/workspace/some/path/settings.local.json');
-			assert.strictEqual(getPromptFileType(uri), undefined);
-		});
-
-		test('settings.json in ~/.claude folder should be recognized as hook', () => {
-			const uri = URI.file('/Users/user/.claude/settings.json');
-			assert.strictEqual(getPromptFileType(uri), PromptsType.hook);
 		});
 	});
 
@@ -208,20 +183,13 @@ suite('promptFileLocations', function () {
 			assert.strictEqual(isPromptOrInstructionsFile(URI.file('/workspace/SKILL2.md')), false);
 		});
 
-		test('hooks.json should return true', () => {
-			assert.strictEqual(isPromptOrInstructionsFile(URI.file('/workspace/.github/hooks/hooks.json')), true);
-		});
-
-		test('settings.json in .claude folder should return true', () => {
+		// Note: Any .json file returns true because getPromptFileType returns hook for all JSON.
+		// The caller is responsible for only passing URIs from valid prompt source folders.
+		test('any .json file should return true', () => {
+			assert.strictEqual(isPromptOrInstructionsFile(URI.file('/workspace/.github/hooks/custom-hooks.json')), true);
 			assert.strictEqual(isPromptOrInstructionsFile(URI.file('/workspace/.claude/settings.json')), true);
-		});
-
-		test('settings.local.json in .claude folder should return true', () => {
 			assert.strictEqual(isPromptOrInstructionsFile(URI.file('/workspace/.claude/settings.local.json')), true);
-		});
-
-		test('settings.json outside .claude folder should return false', () => {
-			assert.strictEqual(isPromptOrInstructionsFile(URI.file('/workspace/settings.json')), false);
+			assert.strictEqual(isPromptOrInstructionsFile(URI.file('/workspace/settings.json')), true);
 		});
 	});
 });

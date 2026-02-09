@@ -63,7 +63,7 @@ declare module 'vscode' {
 	export namespace chat {
 		/**
 		 * Execute all hooks of the specified type for the current chat session.
-		 * Hooks are configured in hooks.json files in the workspace.
+		 * Hooks are configured in hooks .json files in the workspace.
 		 *
 		 * @param hookType The type of hook to execute.
 		 * @param options Hook execution options including the input data.

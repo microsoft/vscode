@@ -101,7 +101,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	readonly onDidInvokeTool = this._onDidInvokeTool.event;
 
 	/** Throttle tools updates because it sends all tools and runs on context key updates */
-	private readonly _onDidChangeToolsScheduler = new RunOnceScheduler(() => this._onDidChangeTools.fire(), 750);
+	private readonly _onDidChangeToolsScheduler = this._register(new RunOnceScheduler(() => this._onDidChangeTools.fire(), 750));
 	private readonly _tools = new Map<string, IToolEntry>();
 	private readonly _toolContextKeys = new Set<string>();
 	private readonly _ctxToolsCount: IContextKey<number>;
@@ -1251,7 +1251,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	 * @param fullReferenceNames A list of tool or toolset by their full reference names that are enabled.
 	 * @returns A map of tool or toolset instances to their enablement state.
 	 */
-	toToolAndToolSetEnablementMap(fullReferenceNames: readonly string[], _target: string | undefined, model: ILanguageModelChatMetadata | undefined): IToolAndToolSetEnablementMap {
+	toToolAndToolSetEnablementMap(fullReferenceNames: readonly string[], model: ILanguageModelChatMetadata | undefined): IToolAndToolSetEnablementMap {
 		const toolOrToolSetNames = new Set(fullReferenceNames);
 		const result = new Map<IToolSet | IToolData, boolean>();
 		for (const [tool, fullReferenceName] of this.toolsWithFullReferenceName.get()) {

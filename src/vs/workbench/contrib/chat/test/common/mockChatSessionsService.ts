@@ -13,6 +13,7 @@ import { IChatAgentAttachmentCapabilities } from '../../common/participants/chat
 import { IChatModel } from '../../common/model/chatModel.js';
 import { IChatService } from '../../common/chatService/chatService.js';
 import { IChatSession, IChatSessionContentProvider, IChatSessionItem, IChatSessionItemProvider, IChatSessionOptionsWillNotifyExtensionEvent, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsExtensionPoint, IChatSessionsService } from '../../common/chatSessionsService.js';
+import { Target } from '../../common/promptSyntax/service/promptsService.js';
 
 export class MockChatSessionsService implements IChatSessionsService {
 	_serviceBrand: undefined;
@@ -187,8 +188,8 @@ export class MockChatSessionsService implements IChatSessionsService {
 		return this.contributions.find(c => c.type === chatSessionType)?.capabilities;
 	}
 
-	getCustomAgentTargetForSessionType(chatSessionType: string): string | undefined {
-		return this.contributions.find(c => c.type === chatSessionType)?.customAgentTarget;
+	getCustomAgentTargetForSessionType(chatSessionType: string): Target {
+		return this.contributions.find(c => c.type === chatSessionType)?.customAgentTarget ?? Target.Undefined;
 	}
 
 	getContentProviderSchemes(): string[] {

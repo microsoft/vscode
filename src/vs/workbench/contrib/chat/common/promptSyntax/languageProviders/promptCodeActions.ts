@@ -11,12 +11,12 @@ import { localize } from '../../../../../../nls.js';
 import { ILanguageModelToolsService } from '../../tools/languageModelToolsService.js';
 import { getPromptsTypeForLanguageId, PromptsType } from '../promptTypes.js';
 import { IPromptsService } from '../service/promptsService.js';
-import { ParsedPromptFile, PromptHeaderAttributes } from '../promptFileParser.js';
+import { parseCommaSeparatedList, ParsedPromptFile, PromptHeaderAttributes } from '../promptFileParser.js';
 import { Selection } from '../../../../../../editor/common/core/selection.js';
 import { Lazy } from '../../../../../../base/common/lazy.js';
 import { LEGACY_MODE_FILE_EXTENSION } from '../config/promptFileLocations.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
-import { isGithubTarget, MARKERS_OWNER_ID } from './promptValidator.js';
+import { getTarget, isVSCodeOrDefaultTarget, MARKERS_OWNER_ID } from './promptValidator.js';
 import { IMarkerData, IMarkerService } from '../../../../../../platform/markers/common/markers.js';
 import { CodeActionKind } from '../../../../../../editor/contrib/codeAction/common/types.js';
 
@@ -107,15 +107,22 @@ export class PromptCodeActionProvider implements CodeActionProvider {
 
 	private getUpdateToolsCodeActions(promptFile: ParsedPromptFile, promptType: PromptsType, model: ITextModel, range: Range, result: CodeAction[]): void {
 		const toolsAttr = promptFile.header?.getAttribute(PromptHeaderAttributes.tools);
-		if (toolsAttr?.value.type !== 'array' || !toolsAttr.value.range.containsRange(range)) {
+		if (!toolsAttr || !toolsAttr.value.range.containsRange(range)) {
 			return;
 		}
-		if (isGithubTarget(promptType, promptFile.header?.target)) {
-			// GitHub Copilot custom agents use a fixed set of tool names that are not deprecated
+		const target = getTarget(promptType, promptFile.header);
+		if (!isVSCodeOrDefaultTarget(target)) {
+			// GitHub Copilot and Claude custom agents use a fixed set of tool names that are not deprecated
 			return;
 		}
-
-		const values = toolsAttr.value.items;
+		let value = toolsAttr.value;
+		if (value.type === 'string') {
+			value = parseCommaSeparatedList(value);
+		}
+		if (value.type !== 'array') {
+			return;
+		}
+		const values = value.items;
 		const deprecatedNames = new Lazy(() => this.languageModelToolsService.getDeprecatedFullReferenceNames());
 		const edits: TextEdit[] = [];
 		for (const item of values) {
@@ -164,7 +171,7 @@ export class PromptCodeActionProvider implements CodeActionProvider {
 
 		if (edits.length && result.length === 0 || edits.length > 1) {
 			result.push(
-				this.createCodeAction(model, toolsAttr.value.range,
+				this.createCodeAction(model, value.range,
 					localize('updateAllToolNames', "Update all tool names"),
 					edits.map(edit => asWorkspaceTextEdit(model, edit))
 				)

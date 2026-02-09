@@ -127,7 +127,6 @@ export class AgentSessionsWelcomePage extends EditorPane {
 	private chatModelRef: IReference<IChatModel> | undefined;
 	private sessionsControl: AgentSessionsControl | undefined;
 	private sessionsControlContainer: HTMLElement | undefined;
-	private sessionsLoadingContainer: HTMLElement | undefined;
 	private readonly sessionsControlDisposables = this._register(new DisposableStore());
 	private readonly contentDisposables = this._register(new DisposableStore());
 	private contextService: IContextKeyService;
@@ -534,7 +533,6 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		// Clear previous sessions control
 		this.sessionsControlDisposables.clear();
 		this.sessionsControl = undefined;
-		this.sessionsLoadingContainer = undefined;
 
 		const sessions = this.agentSessionsService.model.sessions.filter(s => !s.isArchived());
 
@@ -545,45 +543,10 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		}
 	}
 
-	private buildLoadingSkeleton(container: HTMLElement): HTMLElement {
-		const loadingContainer = append(container, $('.agentSessionsWelcome-sessionsLoading', {
-			'role': 'status',
-			'aria-busy': 'true',
-			'aria-label': localize('loadingSessions', "Loading sessions...")
-		}));
-
-		// Create skeleton items to match MAX_SESSIONS (6 items, arranged in 2 columns)
-		for (let i = 0; i < MAX_SESSIONS; i++) {
-			const skeleton = append(loadingContainer, $('.agentSessionsWelcome-sessionSkeleton', { 'aria-hidden': 'true' }));
-			append(skeleton, $('.agentSessionsWelcome-sessionSkeleton-icon'));
-			const content = append(skeleton, $('.agentSessionsWelcome-sessionSkeleton-content'));
-			append(content, $('.agentSessionsWelcome-sessionSkeleton-title'));
-			append(content, $('.agentSessionsWelcome-sessionSkeleton-description'));
-		}
-
-		return loadingContainer;
-	}
-
-	private hideLoadingSkeleton(): void {
-		// Hide loading skeleton and show the sessions control
-		if (this.sessionsLoadingContainer) {
-			this.sessionsLoadingContainer.style.display = 'none';
-		}
-		if (this.sessionsControlContainer) {
-			this.sessionsControlContainer.style.display = '';
-			this.layoutSessionsControl();
-		}
-	}
-
 
 	private buildSessionsGrid(container: HTMLElement, _sessions: IAgentSession[]): void {
-		// Show loading skeleton initially
-		this.sessionsLoadingContainer = this.buildLoadingSkeleton(container);
-
+		// Show cached sessions immediately if available, otherwise show loading skeleton
 		this.sessionsControlContainer = append(container, $('.agentSessionsWelcome-sessionsGrid'));
-		// Hide the control initially until loading completes
-		this.sessionsControlContainer.style.display = 'none';
-
 		const options: IAgentSessionsControlOptions = {
 			overrideStyles: getListStyles({
 				listBackground: editorBackground,
@@ -611,11 +574,11 @@ export class AgentSessionsWelcomePage extends EditorPane {
 
 		// Listen for loading state changes to toggle skeleton visibility
 		this.sessionsControlDisposables.add(this.agentSessionsService.model.onDidResolve(() => {
-			this.hideLoadingSkeleton();
+			this.layoutSessionsControl();
 		}));
 
 		if (this.agentSessionsService.model.resolved) {
-			this.hideLoadingSkeleton();
+			this.layoutSessionsControl();
 		}
 
 		// Schedule layout at next animation frame to ensure proper rendering

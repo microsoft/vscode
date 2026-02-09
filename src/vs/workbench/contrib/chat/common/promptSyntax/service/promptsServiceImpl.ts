@@ -27,17 +27,18 @@ import { ITelemetryService } from '../../../../../../platform/telemetry/common/t
 import { IUserDataProfileService } from '../../../../../services/userDataProfile/common/userDataProfile.js';
 import { IVariableReference } from '../../chatModes.js';
 import { PromptsConfig } from '../config/config.js';
-import { AGENT_MD_FILENAME, CLAUDE_LOCAL_MD_FILENAME, CLAUDE_MD_FILENAME, getCleanPromptName, IResolvedPromptFile, IResolvedPromptSourceFolder, PromptFileSource } from '../config/promptFileLocations.js';
+import { AGENT_MD_FILENAME, CLAUDE_CONFIG_FOLDER, CLAUDE_LOCAL_MD_FILENAME, CLAUDE_MD_FILENAME, getCleanPromptName, IResolvedPromptFile, IResolvedPromptSourceFolder, PromptFileSource } from '../config/promptFileLocations.js';
 import { PROMPT_LANGUAGE_ID, PromptsType, getPromptsTypeForLanguageId } from '../promptTypes.js';
 import { PromptFilesLocator } from '../utils/promptFilesLocator.js';
 import { PromptFileParser, ParsedPromptFile, PromptHeaderAttributes } from '../promptFileParser.js';
-import { IAgentInstructions, type IAgentSource, IChatPromptSlashCommand, ICustomAgent, IExtensionPromptPath, ILocalPromptPath, IPromptPath, IPromptsService, IAgentSkill, IUserPromptPath, PromptsStorage, ExtensionAgentSourceType, CUSTOM_AGENT_PROVIDER_ACTIVATION_EVENT, INSTRUCTIONS_PROVIDER_ACTIVATION_EVENT, IPromptFileContext, IPromptFileResource, PROMPT_FILE_PROVIDER_ACTIVATION_EVENT, SKILL_PROVIDER_ACTIVATION_EVENT, IPromptDiscoveryInfo, IPromptFileDiscoveryResult, ICustomAgentVisibility, IResolvedAgentFile, AgentFileType, Logger } from './promptsService.js';
+import { IAgentInstructions, type IAgentSource, IChatPromptSlashCommand, ICustomAgent, IExtensionPromptPath, ILocalPromptPath, IPromptPath, IPromptsService, IAgentSkill, IUserPromptPath, PromptsStorage, ExtensionAgentSourceType, CUSTOM_AGENT_PROVIDER_ACTIVATION_EVENT, INSTRUCTIONS_PROVIDER_ACTIVATION_EVENT, IPromptFileContext, IPromptFileResource, PROMPT_FILE_PROVIDER_ACTIVATION_EVENT, SKILL_PROVIDER_ACTIVATION_EVENT, IPromptDiscoveryInfo, IPromptFileDiscoveryResult, ICustomAgentVisibility, IResolvedAgentFile, AgentFileType, Logger, Target } from './promptsService.js';
 import { Delayer } from '../../../../../../base/common/async.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { IChatRequestHooks, IHookCommand, HookType } from '../hookSchema.js';
 import { parseHooksFromFile } from '../hookCompatibility.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IPathService } from '../../../../../services/path/common/pathService.js';
+import { getTarget, mapClaudeModels, mapClaudeTools } from '../languageProviders/promptValidator.js';
 
 /**
  * Error thrown when a skill file is missing the required name attribute.
@@ -566,17 +567,25 @@ export class PromptsService extends Disposable implements IPromptsService {
 				} satisfies IAgentInstructions;
 
 				const name = ast.header?.name ?? promptPath.name ?? getCleanPromptName(uri);
+				const target = getTarget(PromptsType.agent, ast.header);
 
 				const source: IAgentSource = IAgentSource.fromPromptPath(promptPath);
 				if (!ast.header) {
-					return { uri, name, agentInstructions, source, visibility: { userInvokable: true, agentInvokable: true } };
+					return { uri, name, agentInstructions, source, target, visibility: { userInvokable: true, agentInvokable: true } };
 				}
 				const visibility = {
 					userInvokable: ast.header.userInvokable !== false,
 					agentInvokable: ast.header.infer === true || ast.header.disableModelInvocation !== true,
 				} satisfies ICustomAgentVisibility;
 
-				const { description, model, tools, handOffs, argumentHint, target, agents } = ast.header;
+				let model = ast.header.model;
+				if (target === Target.Claude && model) {
+					model = mapClaudeModels(model);
+				}
+				let { description, tools, handOffs, argumentHint, agents } = ast.header;
+				if (target === Target.Claude && tools) {
+					tools = mapClaudeTools(tools);
+				}
 				return { uri, name, description, model, tools, handOffs, argumentHint, target, visibility, agents, agentInstructions, source };
 			})
 		);
@@ -709,11 +718,11 @@ export class PromptsService extends Disposable implements IPromptsService {
 		}
 		const results: IResolvedAgentFile[] = [];
 		const userHome = await this.pathService.userHome();
-		const userClaudeFolder = joinPath(userHome, '.claude');
+		const userClaudeFolder = joinPath(userHome, CLAUDE_CONFIG_FOLDER);
 		await Promise.all([
 			this.fileLocator.findFilesInWorkspaceRoots(CLAUDE_MD_FILENAME, undefined, AgentFileType.claudeMd, token, results), // in workspace roots
 			this.fileLocator.findFilesInWorkspaceRoots(CLAUDE_LOCAL_MD_FILENAME, undefined, AgentFileType.claudeMd, token, results), // CLAUDE.local in workspace roots
-			this.fileLocator.findFilesInWorkspaceRoots(CLAUDE_MD_FILENAME, '.claude', AgentFileType.claudeMd, token, results), // in workspace/.claude folders
+			this.fileLocator.findFilesInWorkspaceRoots(CLAUDE_MD_FILENAME, CLAUDE_CONFIG_FOLDER, AgentFileType.claudeMd, token, results), // in workspace/.claude folders
 			this.fileLocator.findFilesInRoots([userClaudeFolder], CLAUDE_MD_FILENAME, AgentFileType.claudeMd, token, results) // in ~/.claude folder
 		]);
 		return results.sort((a, b) => a.uri.toString().localeCompare(b.uri.toString()));
