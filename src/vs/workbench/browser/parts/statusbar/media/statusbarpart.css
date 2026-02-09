@@ -61,10 +61,9 @@
 }
 
 .monaco-workbench .part.statusbar > .items-container > .statusbar-item {
-	display: inline-block;
-	line-height: 22px;
+	display: flex;
+	align-items: center;
 	height: 100%;
-	vertical-align: top;
 	max-width: 40vw;
 	font-variant-numeric: tabular-nums;
 }
