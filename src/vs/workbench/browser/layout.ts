@@ -746,7 +746,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 
 		// Sidebar View Container To Restore
-		if (this.isVisible(Parts.SIDEBAR_PART)) {
+		if (!this.environmentService.terminal && this.isVisible(Parts.SIDEBAR_PART)) {
 			let viewContainerToRestore = this.storageService.get(SidebarPart.activeViewletSettingsKey, StorageScope.WORKSPACE, this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.Sidebar)?.id);
 			if (
 				!this.environmentService.isBuilt ||
