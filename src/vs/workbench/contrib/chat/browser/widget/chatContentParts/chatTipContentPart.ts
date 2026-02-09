@@ -84,7 +84,7 @@ registerAction2(class DismissTipAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.chat.dismissTip',
-			title: localize2('chatTip.dismiss', "Dismiss This Tip"),
+			title: localize2('chatTip.dismiss', "Dismiss this tip"),
 			f1: false,
 			menu: [{
 				id: MenuId.ChatTipContext,
@@ -103,7 +103,7 @@ registerAction2(class DisableTipsAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.chat.disableTips',
-			title: localize2('chatTip.disableTips', "Disable Tips"),
+			title: localize2('chatTip.disableTips', "Disable tips"),
 			f1: false,
 			menu: [{
 				id: MenuId.ChatTipContext,
