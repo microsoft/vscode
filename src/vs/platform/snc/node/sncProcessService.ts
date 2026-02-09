@@ -24,7 +24,6 @@ const __dirname = path.dirname(__filename);
 interface PreloadedProcess {
 	child: ChildProcess;
 	buffer: string;
-	visualizersHash: string;
 	workingDirectory: string;
 	ready: boolean;
 	lastUsed: number;
@@ -92,7 +91,6 @@ export class SNCProcessService extends Disposable implements ISNCProcessService 
 			const preloaded: PreloadedProcess = {
 				child,
 				buffer: '',
-				visualizersHash: '',
 				workingDirectory: wd,
 				ready: false,
 				lastUsed: Date.now()
@@ -140,7 +138,6 @@ export class SNCProcessService extends Disposable implements ISNCProcessService 
 				if (msg.type === 'checkpoint_ready') {
 					if (msg.checkpoint === 1) {
 						preloaded.ready = true;
-						preloaded.visualizersHash = msg.visualizers_hash || '';
 					}
 				} else if (msg.type === 'item' || msg.type === 'command' || msg.type === 'end') {
 					const runId = msg.run_id || (msg.item && msg.item.runId);

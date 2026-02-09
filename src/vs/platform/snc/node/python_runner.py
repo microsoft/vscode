@@ -26,7 +26,6 @@ import signal
 import importlib.util
 import glob
 import time
-import hashlib
 from contextlib import redirect_stdout, redirect_stderr
 from io import StringIO
 from typing import List, Dict, Any, Optional, Callable, Protocol, TextIO, cast
@@ -37,7 +36,8 @@ execution_step = 0  # Incremental counter for each logged event
 line_emit_counter: Dict[int, int] = {}  # Per-line item index during a run
 _current_run_id: str = ""  # Run ID for preload mode, included in item/command messages
 
-_loaded_visualizers = []
+# Each entry is (filepath, mtime, visualizer_module)
+_loaded_visualizers: List[tuple[str, float, Any]] = []
 
 # Source code context for visualizers (set before execution)
 _source_code: str = ""
@@ -242,30 +242,84 @@ def _visualizers() -> List[StaticVisualizer | Visualizer]:
 	"""
 	Discover and load all visualizer files from the search directories.
 
+	On first call, scans search_paths for *_visualizer.py files and loads them,
+	recording each file's mtime. Subsequent calls return the cached list.
+	Use _reload_stale_visualizers() to refresh entries whose files have changed.
+
 	Returns:
-		List of loaded visualizer dictionaries, in priority order (first found wins)
+		List of loaded visualizer modules, in priority order (first found wins)
 	"""
 	if len(_loaded_visualizers) > 0:
-		return _loaded_visualizers
+		return [vis for _, _, vis in _loaded_visualizers]
 
-	for dir in search_paths:
-		if not os.path.isdir(dir):
+	for dir_path in search_paths:
+		if not os.path.isdir(dir_path):
 			continue
 
-		for filepath in glob.glob(os.path.join(dir, '*_visualizer.py')):
+		for filepath in sorted(glob.glob(os.path.join(dir_path, '*_visualizer.py'))):
 			visualizer = _visualizer_from_file(filepath)
 			if visualizer is not None:
-				_loaded_visualizers.append(visualizer)
+				mtime = os.path.getmtime(filepath)
+				_loaded_visualizers.append((filepath, mtime, visualizer))
 
-	return _loaded_visualizers
+	return [vis for _, _, vis in _loaded_visualizers]
+
+
+def _reload_stale_visualizers() -> None:
+	"""
+	Check loaded visualizers against their files' mtimes and reload any that changed.
+	Also picks up new visualizer files and drops deleted ones.
+	"""
+	if not _loaded_visualizers:
+		# Nothing cached yet; _visualizers() will do a full load.
+		return
+
+	# Build set of currently known paths for quick lookup
+	known_paths = {fp for fp, _, _ in _loaded_visualizers}
+
+	# Collect all visualizer file paths that exist now
+	current_files: Dict[str, float] = {}
+	for dir_path in search_paths:
+		if not os.path.isdir(dir_path):
+			continue
+		for filepath in sorted(glob.glob(os.path.join(dir_path, '*_visualizer.py'))):
+			try:
+				current_files[filepath] = os.path.getmtime(filepath)
+			except OSError:
+				pass
+
+	# Reload stale entries in-place, drop deleted ones
+	i = 0
+	while i < len(_loaded_visualizers):
+		fp, cached_mtime, _ = _loaded_visualizers[i]
+		if fp not in current_files:
+			# File was deleted
+			_loaded_visualizers.pop(i)
+			continue
+		disk_mtime = current_files[fp]
+		if disk_mtime != cached_mtime:
+			# File changed — reload
+			new_vis = _visualizer_from_file(fp)
+			if new_vis is not None:
+				_loaded_visualizers[i] = (fp, disk_mtime, new_vis)
+			else:
+				# Reload failed (e.g. syntax error); drop it
+				_loaded_visualizers.pop(i)
+				continue
+		i += 1
+
+	# Pick up brand-new files
+	for filepath, mtime in current_files.items():
+		if filepath not in known_paths:
+			vis = _visualizer_from_file(filepath)
+			if vis is not None:
+				_loaded_visualizers.append((filepath, mtime, vis))
 
 
 # ============================================================================
 # PRELOADING INFRASTRUCTURE
 # Fork-based checkpointing for fast execution
 # ============================================================================
-
-_visualizers_hash = ""  # Hash of visualizer files for cache invalidation
 
 
 def emit_meta(meta: str) -> None:
@@ -277,15 +331,13 @@ def emit_meta(meta: str) -> None:
 		pass
 
 
-def emit_checkpoint_ready(checkpoint: int, code_hash: str = "", visualizers_hash: str = "") -> None:
+def emit_checkpoint_ready(checkpoint: int) -> None:
 	"""Emit a message indicating a checkpoint is ready for forking."""
 	try:
 		msg = {
 			"type": "checkpoint_ready",
 			"checkpoint": checkpoint,
 			"pid": os.getpid(),
-			"code_hash": code_hash,
-			"visualizers_hash": visualizers_hash
 		}
 		_stream_out.write(json.dumps(msg, ensure_ascii=False) + "\n")
 		_stream_out.flush()
@@ -308,33 +360,6 @@ def emit_fork_result(success: bool, child_pid: int = 0, error: str = "") -> None
 		pass
 
 
-def _compute_visualizers_hash() -> str:
-	"""Compute a hash of all visualizer files for cache invalidation."""
-	hasher = hashlib.md5()
-	for dir in search_paths:
-		if not os.path.isdir(dir):
-			continue
-		for filepath in sorted(glob.glob(os.path.join(dir, '*_visualizer.py'))):
-			try:
-				with open(filepath, 'rb') as f:
-					hasher.update(filepath.encode())
-					hasher.update(f.read())
-			except Exception:
-				pass
-	return hasher.hexdigest()
-
-
-def _preload_visualizers() -> str:
-	"""Preload all visualizers and return the hash."""
-	global _visualizers_hash
-	_visualizers()
-	_visualizers_hash = _compute_visualizers_hash()
-	return _visualizers_hash
-
-
-def compute_code_hash(code: str) -> str:
-	"""Compute a hash of the code for checkpoint identification."""
-	return hashlib.md5(code.encode()).hexdigest()
 
 
 class CodeTransformer(ast.NodeTransformer):
@@ -1439,15 +1464,15 @@ def run_preload_mode(working_directory: str) -> None:
 
 	emit_meta('chdir-done')
 
-	visualizers_hash = _preload_visualizers()
+	_visualizers()
 	emit_meta('visualizers-loaded')
 
 	# Checkpoint 2 cache — includes pre-executed imports
-	cached_code_hash: str = ""
+	cached_code: str = ""
 	cached_body_code: Any = None          # compiled transformed body (no imports)
 	cached_import_globals: Optional[Dict[str, Any]] = None  # globals after exec'ing imports
 
-	emit_checkpoint_ready(1, code_hash="", visualizers_hash=visualizers_hash)
+	emit_checkpoint_ready(1)
 
 	last_child_pid: Optional[int] = None  # Track last forked child to kill on next run
 
@@ -1475,7 +1500,6 @@ def run_preload_mode(working_directory: str) -> None:
 			code = cmd.get('code', '')
 			models_and_events_json = cmd.get('models_and_events', '')
 			run_id = cmd.get('run_id', '')
-			code_hash = compute_code_hash(code)
 
 			emit_meta(f'received-run-{run_id}')
 
@@ -1489,7 +1513,10 @@ def run_preload_mode(working_directory: str) -> None:
 					pass  # Already exited
 				last_child_pid = None
 
-			use_checkpoint2 = (code_hash == cached_code_hash and cached_body_code is not None)
+			# Reload any visualizers whose files changed on disk
+			_reload_stale_visualizers()
+
+			use_checkpoint2 = (code == cached_code and cached_body_code is not None)
 
 			if use_checkpoint2:
 				emit_meta(f'checkpoint2-hit-{run_id}')
@@ -1521,8 +1548,8 @@ def run_preload_mode(working_directory: str) -> None:
 
 						cached_body_code = body_code
 						cached_import_globals = import_globals
-						cached_code_hash = code_hash
-						emit_checkpoint_ready(2, code_hash=code_hash, visualizers_hash=visualizers_hash)
+						cached_code = code
+						emit_checkpoint_ready(2)
 					except Exception:
 						pass
 				continue
