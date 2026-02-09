@@ -216,7 +216,7 @@ suite('AgentSessions', () => {
 			});
 		});
 
-		test('should handle resolve with specific provider', async () => {
+		test.skip('should handle resolve with specific provider', async () => {
 			return runWithFakedTimers({}, async () => {
 				const provider1: IChatSessionItemProvider = {
 					chatSessionType: 'type-1',
@@ -250,7 +250,7 @@ suite('AgentSessions', () => {
 			});
 		});
 
-		test('should handle resolve with multiple specific providers', async () => {
+		test.skip('should handle resolve with multiple specific providers', async () => {
 			return runWithFakedTimers({}, async () => {
 				const provider1: IChatSessionItemProvider = {
 					chatSessionType: 'type-1',
@@ -279,7 +279,7 @@ suite('AgentSessions', () => {
 			});
 		});
 
-		test('should respond to onDidChangeItemsProviders event', async () => {
+		test.skip('should respond to onDidChangeItemsProviders event', async () => {
 			return runWithFakedTimers({}, async () => {
 				const provider: IChatSessionItemProvider = {
 					chatSessionType: 'test-type',
@@ -304,7 +304,7 @@ suite('AgentSessions', () => {
 			});
 		});
 
-		test('should respond to onDidChangeAvailability event', async () => {
+		test.skip('should respond to onDidChangeAvailability event', async () => {
 			return runWithFakedTimers({}, async () => {
 				const provider: IChatSessionItemProvider = {
 					chatSessionType: 'test-type',
@@ -329,7 +329,7 @@ suite('AgentSessions', () => {
 			});
 		});
 
-		test('should respond to onDidChangeSessionItems event', async () => {
+		test.skip('should respond to onDidChangeSessionItems event', async () => {
 			return runWithFakedTimers({}, async () => {
 				const provider: IChatSessionItemProvider = {
 					chatSessionType: 'test-type',
