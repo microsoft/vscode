@@ -175,7 +175,7 @@ DC4 = chr(0x14)  # \Z - end of string anchor
 _SENTINEL_CHARS = [DC1, DC2, DC3, DC4]
 
 
-def synthesize_fuzzy_pattern(actual_text: str, next_char: str = '') -> str:
+def synthesize_fuzzy_pattern(actual_text: str, prev_char: str | None = '', next_char: str | None = '') -> str:
     """
     Synthesize a fuzzy regex pattern that matches exactly the given text.
 
@@ -183,35 +183,52 @@ def synthesize_fuzzy_pattern(actual_text: str, next_char: str = '') -> str:
     one that matches the dragged text, so the highlighted fuzzy segment
     corresponds precisely to the user's mouse drag distance.
 
-    Step 1: Try each pattern with * repetition (e.g. \\s*, \\d*), but only
-            if the character after the drag does NOT match the pattern
-            (otherwise * would greedily overshoot the drag boundary).
-    Step 2: If none matched with *, try each with {n} repetition (e.g. \\d{3}).
+    Step 1: Try each pattern with an open-ended quantifier:
+            - For a fresh selection (both prev_char and next_char are strings),
+              use + (one or more) so the regex won't match zero characters.
+            - When adjacent to an existing literal segment (prev_char or
+              next_char is None), use * (zero or more) since the literal
+              already anchors the match.
+            Skip if a non-None boundary character matches the pattern
+            (the quantifier would overshoot that edge).
+    Step 2: If none matched, try each with {n} repetition (e.g. \\d{3}).
 
     Args:
         actual_text: The actual string characters under the drag range
                      (sentinel chars should already be stripped).
+        prev_char: The character immediately before the drag range, or ''
+                   if at start of string. None if adjacent to an existing
+                   literal segment on the left (suppresses + in favor of *).
         next_char: The character immediately after the drag range, or ''
-                   if at end of string. Used to check whether * would overshoot.
+                   if at end of string. None if adjacent to an existing
+                   literal segment on the right (suppresses + in favor of *).
 
     Returns:
-        A regex pattern string like "\\s*", "\\d{3}", or ".*".
+        A regex pattern string like "\\s+", "\\s*", "\\d{3}", or ".*".
     """
     if not actual_text:
         return ".*"
 
     n = len(actual_text)
 
-    # Step 1: Try * repetition — prefer more specific character classes first.
-    # Only use * if the pattern naturally stops at the drag boundary,
-    # i.e., the next character does NOT match the pattern.
+    # Use + only for fresh selections (both boundaries are strings).
+    # When adjacent to an existing literal (either is None), use *.
+    is_fresh = prev_char is not None and next_char is not None
+    quantifier = '+' if is_fresh else '*'
+
+    # Step 1: Try open-ended quantifier (+ or *).
+    # Prefer more specific character classes first.
+    # Skip if a non-None boundary character matches (would overshoot).
     for pattern_str, _ in FUZZY_PATTERN_OPTIONS:
         try:
-            if re.fullmatch(pattern_str + '*', actual_text):
-                # Check boundary: if next_char also matches, * would overshoot
+            if re.fullmatch(pattern_str + quantifier, actual_text):
+                # Check right boundary (only when next_char is a string)
                 if next_char and re.fullmatch(pattern_str, next_char):
                     continue
-                return pattern_str + '*'
+                # Check left boundary (only when prev_char is a string)
+                if prev_char and re.fullmatch(pattern_str, prev_char):
+                    continue
+                return pattern_str + quantifier
         except Exception:
             continue
 
@@ -224,7 +241,7 @@ def synthesize_fuzzy_pattern(actual_text: str, next_char: str = '') -> str:
             continue
 
     # Fallback (should be unreachable since [\S\s]{n} matches everything)
-    return r"[\S\s]*"
+    return r"[\S\s]" + quantifier
 
 
 def char_to_regex_literal(char: str) -> str:
@@ -1968,6 +1985,71 @@ def extract_expression_from_line(source_code: str, line_number: int) -> Tuple[st
     return (line if line else "result", None)
 
 
+def find_available_variable_name(source_code: str, desired_name: str) -> str:
+    """
+    Find a non-colliding variable name in source_code.
+
+    Uses a simple regex over-approximation of identifiers. If desired_name is
+    already used, tries desired_name + "2", then + "3", etc. If desired_name
+    already ends with digits (e.g. "x2"), increments that numeric suffix.
+    """
+    existing_names = set(re.findall(r'\b[a-zA-Z_][a-zA-Z0-9_]*\b', source_code))
+    if desired_name not in existing_names:
+        return desired_name
+
+    suffix_match = re.match(r'^(.*?)(\d+)$', desired_name)
+    if suffix_match:
+        base_name = suffix_match.group(1)
+        next_suffix = int(suffix_match.group(2)) + 1
+    else:
+        base_name = desired_name
+        next_suffix = 2
+
+    while True:
+        candidate = f"{base_name}{next_suffix}"
+        if candidate not in existing_names:
+            return candidate
+        next_suffix += 1
+
+
+def _insert_line_after_with_matching_indent(source_code: str, line_number: int, generated_expr: str) -> List[str]:
+    """Insert generated_expr after line_number, matching that line's indentation."""
+    lines = source_code.split('\n')
+    if line_number >= 1 and line_number <= len(lines):
+        current_line = lines[line_number - 1]
+        indent = len(current_line) - len(current_line.lstrip())
+        indent_str = current_line[:indent]
+    else:
+        indent_str = ""
+
+    lines.insert(line_number, indent_str + generated_expr)
+    return lines
+
+
+def _ensure_import_statement(lines: List[str], import_stmt: str) -> None:
+    """Insert import_stmt near the top unless an identical import already exists."""
+    if any(line.strip() == import_stmt for line in lines):
+        return
+
+    import_line = 0
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        if stripped.startswith('import ') or stripped.startswith('from '):
+            import_line = i + 1
+        elif stripped and not stripped.startswith('#'):
+            # Stop at first non-import, non-comment line
+            break
+    lines.insert(import_line, import_stmt)
+
+
+def _build_regex_search_assignment(source_code: str, var_name: str | None, expr: str, regex_pattern: str) -> str:
+    """Build a collision-safe assignment for a re.search(...).group(0) expression."""
+    desired_name = f"{var_name}_match" if var_name else "result_match"
+    var_to_search = var_name if var_name else f"({expr})"
+    new_var = find_available_variable_name(source_code, desired_name)
+    return f"{new_var} = re.search(r'{regex_pattern}', {var_to_search}, re.M).group(0)"
+
+
 def generate_slice_code(source_code: str, line_number: int, string_value: str,
                         internal_start: int, internal_end: int) -> str:
     """
@@ -1987,28 +2069,12 @@ def generate_slice_code(source_code: str, line_number: int, string_value: str,
     expr, var_name = extract_expression_from_line(source_code, line_number)
 
     # Generate the slice expression
-    if var_name:
-        # Simple variable assignment: x = "hello" -> x_slice = x[0:3]
-        new_var = f"{var_name}_slice"
-        slice_expr = f"{new_var} = {var_name}[{slice_start}:{slice_end}]"
-    else:
-        # Complex expression: use parentheses
-        slice_expr = f"result_slice = ({expr})[{slice_start}:{slice_end}]"
+    desired_name = f"{var_name}_slice" if var_name else "result_slice"
+    source_expr = var_name if var_name else f"({expr})"
+    new_var = find_available_variable_name(source_code, desired_name)
+    slice_expr = f"{new_var} = {source_expr}[{slice_start}:{slice_end}]"
 
-    # Insert the new line after the current line
-    lines = source_code.split('\n')
-
-    # Detect indentation of the current line
-    if line_number >= 1 and line_number <= len(lines):
-        current_line = lines[line_number - 1]
-        indent = len(current_line) - len(current_line.lstrip())
-        indent_str = current_line[:indent]
-    else:
-        indent_str = ""
-
-    # Insert new line
-    new_line = indent_str + slice_expr
-    lines.insert(line_number, new_line)  # Insert after current line (0-indexed: line_number is the position after)
+    lines = _insert_line_after_with_matching_indent(source_code, line_number, slice_expr)
 
     return '\n'.join(lines)
 
@@ -2027,9 +2093,6 @@ def generate_regex_code(source_code: str, line_number: int, string_value: str,
     Returns:
         New source code with regex search line inserted
     """
-    # Check if 'import re' is needed
-    needs_import = 'import re' not in source_code
-
     expr, var_name = extract_expression_from_line(source_code, line_number)
     mapping = build_internal_to_string_mapping(string_value)
 
@@ -2055,40 +2118,10 @@ def generate_regex_code(source_code: str, line_number: int, string_value: str,
     regex_pattern = ''.join(pattern_parts)
 
     # Generate the regex expression
-    var_to_search = var_name if var_name else f"({expr})"
-    if var_name:
-        new_var = f"{var_name}_match"
-        regex_expr = f"{new_var} = re.search(r'{regex_pattern}', {var_to_search}, re.M).group(0)"
-    else:
-        regex_expr = f"result_match = re.search(r'{regex_pattern}', {var_to_search}, re.M).group(0)"
+    regex_expr = _build_regex_search_assignment(source_code, var_name, expr, regex_pattern)
 
-    # Insert the new line after the current line
-    lines = source_code.split('\n')
-
-    # Detect indentation of the current line
-    if line_number >= 1 and line_number <= len(lines):
-        current_line = lines[line_number - 1]
-        indent = len(current_line) - len(current_line.lstrip())
-        indent_str = current_line[:indent]
-    else:
-        indent_str = ""
-
-    # Insert new line
-    new_line = indent_str + regex_expr
-    lines.insert(line_number, new_line)
-
-    # Add 'import re' at the top if needed
-    if needs_import:
-        # Find the right place to insert the import (after any existing imports or at top)
-        import_line = 0
-        for i, line in enumerate(lines):
-            stripped = line.strip()
-            if stripped.startswith('import ') or stripped.startswith('from '):
-                import_line = i + 1
-            elif stripped and not stripped.startswith('#'):
-                # Stop at first non-import, non-comment line
-                break
-        lines.insert(import_line, 'import re')
+    lines = _insert_line_after_with_matching_indent(source_code, line_number, regex_expr)
+    _ensure_import_statement(lines, 'import re')
 
     return '\n'.join(lines)
 
@@ -2133,9 +2166,6 @@ def generate_regex_code_from_pattern(source_code: str, line_number: int, selecti
     Returns:
         New source code with regex search line inserted
     """
-    # Check if 'import re' is needed
-    needs_import = 'import re' not in source_code
-
     expr, var_name = extract_expression_from_line(source_code, line_number)
 
     # Extract inner pattern and strip capturing groups
@@ -2143,40 +2173,40 @@ def generate_regex_code_from_pattern(source_code: str, line_number: int, selecti
     regex_pattern = strip_capturing_groups(inner_pattern) if inner_pattern else ""
 
     # Generate the regex expression
+    regex_expr = _build_regex_search_assignment(source_code, var_name, expr, regex_pattern)
+
+    lines = _insert_line_after_with_matching_indent(source_code, line_number, regex_expr)
+    _ensure_import_statement(lines, 'import re')
+
+    return '\n'.join(lines)
+
+
+def generate_regex_delete_from_pattern(source_code: str, line_number: int, selection_regex: str) -> str:
+    """
+    Generate new source code with a re.sub deletion expression inserted after the current line.
+
+    Args:
+        source_code: The full source code
+        line_number: Line where the string is visualized (1-indexed)
+        selection_regex: Regex with / delimiters (canonical form), e.g., "/hello(.*)world/"
+
+    Returns:
+        New source code with re.sub line inserted
+    """
+    expr, var_name = extract_expression_from_line(source_code, line_number)
+
+    # Extract inner pattern and strip capturing groups
+    inner_pattern = get_regex_inner_pattern(selection_regex)
+    regex_pattern = strip_capturing_groups(inner_pattern) if inner_pattern else ""
+
+    # Generate the re.sub expression
+    desired_name = f"{var_name}" if var_name else "result"
     var_to_search = var_name if var_name else f"({expr})"
-    if var_name:
-        new_var = f"{var_name}_match"
-        regex_expr = f"{new_var} = re.search(r'{regex_pattern}', {var_to_search}, re.M).group(0)"
-    else:
-        regex_expr = f"result_match = re.search(r'{regex_pattern}', {var_to_search}, re.M).group(0)"
+    new_var = find_available_variable_name(source_code, desired_name)
+    regex_expr = f"{new_var} = re.sub(r'{regex_pattern}', '', {var_to_search}, flags=re.M)"
 
-    # Insert the new line after the current line
-    lines = source_code.split('\n')
-
-    # Detect indentation of the current line
-    if line_number >= 1 and line_number <= len(lines):
-        current_line = lines[line_number - 1]
-        indent = len(current_line) - len(current_line.lstrip())
-        indent_str = current_line[:indent]
-    else:
-        indent_str = ""
-
-    # Insert new line
-    new_line = indent_str + regex_expr
-    lines.insert(line_number, new_line)
-
-    # Add 'import re' at the top if needed
-    if needs_import:
-        # Find the right place to insert the import (after any existing imports or at top)
-        import_line = 0
-        for i, line in enumerate(lines):
-            stripped = line.strip()
-            if stripped.startswith('import ') or stripped.startswith('from '):
-                import_line = i + 1
-            elif stripped and not stripped.startswith('#'):
-                # Stop at first non-import, non-comment line
-                break
-        lines.insert(import_line, 'import re')
+    lines = _insert_line_after_with_matching_indent(source_code, line_number, regex_expr)
+    _ensure_import_statement(lines, 'import re')
 
     return '\n'.join(lines)
 
@@ -2280,10 +2310,41 @@ def build_preview_regex(model, string_value: str) -> str | None:
         # Synthesize a fuzzy pattern from the dragged text
         selected_text = extract_by_internal_indices(string_value, start, end)
         actual_text = ''.join(c for c in selected_text if c not in _SENTINEL_CHARS)
-        # Get the next character after the drag for boundary checking
-        next_text = extract_by_internal_indices(string_value, end, end + 1)
-        next_char = ''.join(c for c in next_text if c not in _SENTINEL_CHARS)
-        fuzzy_pattern = synthesize_fuzzy_pattern(actual_text, next_char)
+
+        # Determine boundary context:
+        # - Fresh selection (no existing regex): pass actual prev/next chars
+        #   so synthesize_fuzzy_pattern uses + (one or more).
+        # - Adjacent to existing literal: pass None for that side so it uses *
+        #   (zero or more), since the literal already anchors the match.
+        is_fresh = current_regex is None and extend_direction is None and insert_after_segment is None
+
+        if is_fresh:
+            # New selection: check both edges
+            prev_text = extract_by_internal_indices(string_value, start - 1, start) if start > 0 else ''
+            prev_char = ''.join(c for c in prev_text if c not in _SENTINEL_CHARS)
+            next_text = extract_by_internal_indices(string_value, end, end + 1)
+            next_char = ''.join(c for c in next_text if c not in _SENTINEL_CHARS)
+        elif extend_direction == 'left':
+            # Prepending to existing regex: literal on the right
+            prev_text = extract_by_internal_indices(string_value, start - 1, start) if start > 0 else ''
+            prev_char = ''.join(c for c in prev_text if c not in _SENTINEL_CHARS)
+            next_char = None
+        elif extend_direction == 'right':
+            # Appending to existing regex: literal on the left
+            prev_char = None
+            next_text = extract_by_internal_indices(string_value, end, end + 1)
+            next_char = ''.join(c for c in next_text if c not in _SENTINEL_CHARS)
+        elif insert_after_segment is not None:
+            # Inserting between existing segments: literals on both sides
+            prev_char = None
+            next_char = None
+        else:
+            # Fallback: treat as adjacent
+            prev_char = None
+            next_text = extract_by_internal_indices(string_value, end, end + 1)
+            next_char = ''.join(c for c in next_text if c not in _SENTINEL_CHARS)
+
+        fuzzy_pattern = synthesize_fuzzy_pattern(actual_text, prev_char, next_char)
         if extend_direction == 'left':
             return prepend_segment_to_regex(current_regex, 'fuzzy', fuzzy_pattern)
         elif insert_after_segment is not None:
@@ -2399,7 +2460,7 @@ def init_model(value):
         "handleDrag": None,       # {"segmentIndex": int, "side": "left"|"right", "cursorIdx": int} when dragging a handle
         "undoHistory": [],        # Stack of previous selectionRegex states
         "redoHistory": [],        # Stack for redo
-        "handledKeys": ["Escape", "Enter", "cmd z", "cmd shift z"],  # Keys to intercept from VS Code
+        "handledKeys": ["Escape", "Enter", "Backspace", "cmd z", "cmd shift z"],  # Keys to intercept from VS Code
         "hoverIdx": None,         # Internal index of the character currently hovered
         "hoverType": None,        # "literal" or "fuzzy" based on mouse position in top/bottom half
     }
@@ -2609,6 +2670,17 @@ def update(event, source_code: str, source_line: int, model: dict, value: str) -
 
                     if selection_regex and source_code and source_line:
                         new_code = generate_regex_code_from_pattern(source_code, source_line, selection_regex)
+                        commands.append(NewCode(code=new_code))
+
+            elif key == 'Backspace':
+                # Close dropdown if open, otherwise generate regex delete (re.sub) code
+                if model.get('openDropdown'):
+                    model['openDropdown'] = None
+                else:
+                    selection_regex = model.get('selectionRegex')
+
+                    if selection_regex and source_code and source_line:
+                        new_code = generate_regex_delete_from_pattern(source_code, source_line, selection_regex)
                         commands.append(NewCode(code=new_code))
 
             elif key == 'Escape':

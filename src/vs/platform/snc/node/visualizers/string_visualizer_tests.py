@@ -39,6 +39,11 @@ from string_visualizer import (
     is_adjacent_right,
     is_adjacent_left,
     synthesize_fuzzy_pattern,
+    find_available_variable_name,
+    generate_slice_code,
+    generate_regex_code,
+    generate_regex_code_from_pattern,
+    generate_regex_delete_from_pattern,
     DC1, DC2, DC3, DC4,  # Sentinel characters
 )
 
@@ -128,7 +133,7 @@ class TestBasics(unittest.TestCase):
         # Note: stringValue is no longer stored in model - it's passed as parameter
         self.assertEqual(model['undoHistory'], [])
         self.assertEqual(model['redoHistory'], [])
-        self.assertEqual(model['handledKeys'], ["Escape", "Enter", "cmd z", "cmd shift z"])
+        self.assertEqual(model['handledKeys'], ["Escape", "Enter", "Backspace", "cmd z", "cmd shift z"])
 
     def test_null_event_returns_unchanged_model(self):
         """Passing None event returns model unchanged with no commands."""
@@ -306,7 +311,7 @@ class TestSingleFuzzySelection(unittest.TestCase):
 
         Clicking at index 5 (letter 'l' in 'hello world') with no drag:
         - The single char 'l' is lowercase, next char 'o' is also lowercase
-        - So [a-z]* would overshoot; falls back to [a-z]{1}
+        - So [a-z]+ would overshoot; falls back to [a-z]{1}
         """
         model, _ = update(make_mouse_down_event(5, top_half=False),
                          self.source_code, self.source_line, self.model, self.value)
@@ -316,6 +321,48 @@ class TestSingleFuzzySelection(unittest.TestCase):
         self.assertFalse(model['dragging'])
         self.assertEqual(model['selectionRegex'], '/[a-z]{1}/')
         self.assertEqual(model['undoHistory'], [None])
+
+    def test_fresh_fuzzy_on_space_uses_plus(self):
+        r"""Fresh fuzzy selection on space char uses \s+ (not \s*).
+
+        Clicking at index 7 (the space in 'hello world') with no drag:
+        - actual_text = ' '
+        - prev_char = 'o' (doesn't match \s) -> clean left boundary
+        - next_char = 'w' (doesn't match \s) -> clean right boundary
+        - Fresh selection (no existing regex) -> uses + quantifier
+        """
+        model, _ = update(make_mouse_down_event(7, top_half=False),
+                         self.source_code, self.source_line, self.model, self.value)
+        model, _ = update(make_mouse_up_event(7),
+                         self.source_code, self.source_line, model, self.value)
+
+        self.assertFalse(model['dragging'])
+        self.assertEqual(model['selectionRegex'], r'/\s+/')
+        self.assertEqual(model['undoHistory'], [None])
+
+    def test_fresh_fuzzy_drag_across_letters_with_clean_boundaries(self):
+        r"""Fresh fuzzy drag with clean boundaries uses +.
+
+        For 'abc 123 xyz':
+        Augmented: 0=\A, 1=^, 2=a, 3=b, 4=c, 5=' ', 6=1, 7=2, 8=3, 9=' ', 10=x, 11=y, 12=z, ...
+        Dragging across '123' (indices 6-8):
+        - actual_text = '123'
+        - prev_char = ' ' (doesn't match \d) -> clean left boundary
+        - next_char = ' ' (doesn't match \d) -> clean right boundary
+        - Fresh selection -> \d+
+        """
+        value = "abc 123 xyz"
+        model = init_model(value)
+        source_code = "x = 'abc 123 xyz'"
+
+        model, _ = update(make_mouse_down_event(6, top_half=False),
+                         source_code, 1, model, value)
+        model, _ = update(make_mouse_move_event(8),
+                         source_code, 1, model, value)
+        model, _ = update(make_mouse_up_event(8),
+                         source_code, 1, model, value)
+
+        self.assertEqual(model['selectionRegex'], r'/\d+/')
 
 
 # =============================================================================
@@ -332,7 +379,7 @@ class TestChainedSelectionsExtendRight(unittest.TestCase):
         self.source_line = 1
 
     def test_extend_hello_with_fuzzy(self):
-        """Extend 'hello' selection with fuzzy -> /(hello)(.*)/."""
+        """Extend 'hello' selection with fuzzy -> /(hello)(\s*)/."""
         # Select "hello"
         model, _ = update(make_mouse_down_event(2, top_half=True),
                          self.source_code, self.source_line, self.model, self.value)
@@ -398,7 +445,7 @@ class TestChainedSelectionsExtendRight(unittest.TestCase):
 
         self.assertEqual(model['selectionRegex'], '/hello\\s*/')
 
-        # The fuzzy (.*) matches " world$\Z" (indices 7-15)
+        # The fuzzy (\s*) matches " world$\Z" (indices 7-15)
         # To add "world", click INSIDE the fuzzy region at index 8 (start of 'w')
         # and drag to index 12 (end of 'world')
         # Augmented indices: 7=' ', 8=w, 9=o, 10=r, 11=l, 12=d, 13=$, 14=\Z
@@ -504,12 +551,12 @@ class TestExtendLeft(unittest.TestCase):
         model, _ = update(make_mouse_up_event(7),
                          self.source_code, self.source_line, model, self.value)
 
-        # Should prepend fuzzy: /(.*)(world)/
+        # Should prepend fuzzy: /(\s*)(world)/
         self.assertEqual(model['selectionRegex'], '/\\s*world/')
         self.assertEqual(model['undoHistory'], [None, '/world/'])
 
     def test_prepend_fuzzy_to_world(self):
-        """Select 'world', then prepend fuzzy -> /(.*)(world)/."""
+        """Select 'world', then prepend fuzzy -> /(\s*)(world)/."""
         # Select "world" (indices 8-12)
         model, _ = update(make_mouse_down_event(8, top_half=True),
                          self.source_code, self.source_line, self.model, self.value)
@@ -727,8 +774,8 @@ class TestClickInsideFuzzy(unittest.TestCase):
         model, _ = update(make_mouse_up_event(12),
                          self.source_code, self.source_line, model, self.value)
 
-        # Expected: (1)(.*)(2) = /hello\s*world/
-        # Bug would produce: (.*)(2)(1) = /(.*)(world)(hello)/ - WRONG!
+        # Expected: (1)(\s*)(2) = /hello\s*world/
+        # Bug would produce: (\s*)(2)(1) = /(\s*)(world)(hello)/ - WRONG!
         self.assertEqual(model['selectionRegex'], '/hello\\s*world/')
 
         # Verify segment order explicitly
@@ -904,6 +951,63 @@ class TestKeyboardEvents(unittest.TestCase):
     def test_enter_without_selection_does_nothing(self):
         """Enter without selection produces no commands."""
         model, commands = update(make_key_down_event('Enter'),
+                                self.source_code, self.source_line, self.model, self.value)
+
+        self.assertEqual(commands, [])
+
+    def test_backspace_generates_delete_code_command(self):
+        """Backspace key generates NewCode command with re.sub deletion expression."""
+        model = self._create_hello_selection(self.model)
+
+        model, commands = update(make_key_down_event('Backspace'),
+                                self.source_code, self.source_line, model, self.value)
+
+        self.assertEqual(len(commands), 1)
+        self.assertIsInstance(commands[0], NewCode)
+        expected_code = "import re\nx = 'hello world'\nx2 = re.sub(r'hello', '', x, flags=re.M)"
+        self.assertEqual(commands[0].code, expected_code)
+
+    def test_enter_avoids_name_collision_for_match_variable(self):
+        """Enter key uses the next available _match suffix when name collides."""
+        source_code = "x = 'hello world'\nx_match = 'already used'\nx_match2 = 'also used'"
+        model = self._create_hello_selection(self.model)
+
+        model, commands = update(make_key_down_event('Enter'),
+                                source_code, self.source_line, model, self.value)
+
+        self.assertEqual(len(commands), 1)
+        self.assertIsInstance(commands[0], NewCode)
+        expected_code = (
+            "import re\n"
+            "x = 'hello world'\n"
+            "x_match3 = re.search(r'hello', x, re.M).group(0)\n"
+            "x_match = 'already used'\n"
+            "x_match2 = 'also used'"
+        )
+        self.assertEqual(commands[0].code, expected_code)
+
+    def test_backspace_avoids_name_collision_for_delete_variable(self):
+        """Backspace key uses the next available numeric suffix when name collides."""
+        source_code = "x = 'hello world'\nx2 = 'already used'\nx3 = 'also used'"
+        model = self._create_hello_selection(self.model)
+
+        model, commands = update(make_key_down_event('Backspace'),
+                                source_code, self.source_line, model, self.value)
+
+        self.assertEqual(len(commands), 1)
+        self.assertIsInstance(commands[0], NewCode)
+        expected_code = (
+            "import re\n"
+            "x = 'hello world'\n"
+            "x4 = re.sub(r'hello', '', x, flags=re.M)\n"
+            "x2 = 'already used'\n"
+            "x3 = 'also used'"
+        )
+        self.assertEqual(commands[0].code, expected_code)
+
+    def test_backspace_without_selection_does_nothing(self):
+        """Backspace without selection produces no commands."""
+        model, commands = update(make_key_down_event('Backspace'),
                                 self.source_code, self.source_line, self.model, self.value)
 
         self.assertEqual(commands, [])
@@ -1842,71 +1946,125 @@ class TestSynthesizeFuzzyPattern(unittest.TestCase):
     """Tests for synthesize_fuzzy_pattern() which picks the best regex pattern
     to match exactly the characters the user dragged over."""
 
-    # ---- Step 1: * repetition with natural boundary ----
+    # ---- Step 1: + repetition with natural boundary ----
 
     def test_whitespace_at_boundary(self):
-        r"""Whitespace followed by non-whitespace -> \s*."""
+        r"""Whitespace followed by non-whitespace -> \s+."""
         result = synthesize_fuzzy_pattern("   ", next_char="w")
-        self.assertEqual(result, r"\s*")
+        self.assertEqual(result, r"\s+")
 
     def test_digits_at_boundary(self):
-        r"""Digits followed by non-digit -> \d*."""
+        r"""Digits followed by non-digit -> \d+."""
         result = synthesize_fuzzy_pattern("123", next_char="a")
-        self.assertEqual(result, r"\d*")
+        self.assertEqual(result, r"\d+")
 
     def test_lowercase_at_boundary(self):
-        r"""Lowercase letters followed by space -> [a-z]*."""
+        r"""Lowercase letters followed by space -> [a-z]+."""
         result = synthesize_fuzzy_pattern("abc", next_char=" ")
-        self.assertEqual(result, r"[a-z]*")
+        self.assertEqual(result, r"[a-z]+")
 
     def test_uppercase_at_boundary(self):
-        r"""Uppercase letters followed by space -> [A-Z]*."""
+        r"""Uppercase letters followed by space -> [A-Z]+."""
         result = synthesize_fuzzy_pattern("ABC", next_char=" ")
-        self.assertEqual(result, r"[A-Z]*")
+        self.assertEqual(result, r"[A-Z]+")
 
     def test_word_chars_at_boundary(self):
-        r"""Mixed word chars followed by space -> \w*."""
+        r"""Mixed word chars followed by space -> \w+."""
         result = synthesize_fuzzy_pattern("heLLo_1", next_char=" ")
-        self.assertEqual(result, r"\w*")
+        self.assertEqual(result, r"\w+")
 
-    def test_dot_star_at_end_of_string(self):
-        """Any text at end of string (no next char) -> first matching *."""
+    def test_dot_plus_at_end_of_string(self):
+        """Any text at end of string (no next char) -> first matching +."""
         # "abc" with no next char: \s fails, \d fails, [0-9\.] fails,
-        # [a-z]* matches with no overshoot since no next char
+        # [a-z]+ matches with no overshoot since no next char
         result = synthesize_fuzzy_pattern("abc", next_char="")
-        self.assertEqual(result, r"[a-z]*")
+        self.assertEqual(result, r"[a-z]+")
 
     def test_alphanumeric_at_boundary(self):
-        r"""Alphanumeric chars followed by whitespace -> [A-Za-z0-9]* (more specific than \S*)."""
+        r"""Alphanumeric chars followed by whitespace -> [A-Za-z0-9]+ (more specific than \S+)."""
         result = synthesize_fuzzy_pattern("abc123", next_char=" ")
-        self.assertEqual(result, r"[A-Za-z0-9]*")
+        self.assertEqual(result, r"[A-Za-z0-9]+")
 
     def test_non_whitespace_at_boundary(self):
-        r"""Non-whitespace with special chars followed by whitespace -> \S*."""
+        r"""Non-whitespace with special chars followed by whitespace -> \S+."""
         result = synthesize_fuzzy_pattern("abc!@#", next_char=" ")
-        self.assertEqual(result, r"\S*")
+        self.assertEqual(result, r"\S+")
 
     def test_empty_text_returns_dot_star(self):
         """Empty drag text returns .*."""
         result = synthesize_fuzzy_pattern("", next_char="a")
         self.assertEqual(result, ".*")
 
-    # ---- Step 1: * skipped when next_char also matches pattern ----
+    # ---- Step 1: + skipped when next_char also matches pattern ----
 
-    def test_whitespace_not_at_boundary_skips_star(self):
-        r"""Whitespace followed by more whitespace -> can't use \s*, uses {n}."""
+    def test_whitespace_not_at_boundary_skips_plus(self):
+        r"""Whitespace followed by more whitespace -> can't use \s+, uses {n}."""
         result = synthesize_fuzzy_pattern("   ", next_char=" ")
         self.assertEqual(result, r"\s{3}")
 
-    def test_digits_not_at_boundary_skips_star(self):
-        r"""Digits followed by more digits -> can't use \d*, uses {n}."""
+    def test_digits_not_at_boundary_skips_plus(self):
+        r"""Digits followed by more digits -> can't use \d+, uses {n}."""
         result = synthesize_fuzzy_pattern("12", next_char="3")
         self.assertEqual(result, r"\d{2}")
 
-    def test_lowercase_not_at_boundary_skips_star(self):
-        r"""Lowercase followed by more lowercase -> can't use [a-z]*, uses {n}."""
+    def test_lowercase_not_at_boundary_skips_plus(self):
+        r"""Lowercase followed by more lowercase -> can't use [a-z]+, uses {n}."""
         result = synthesize_fuzzy_pattern("hel", next_char="l")
         self.assertEqual(result, r"[a-z]{3}")
+
+    # ---- Step 1: + skipped when prev_char also matches pattern ----
+
+    def test_whitespace_prev_char_matches_skips_plus(self):
+        r"""Whitespace preceded by more whitespace -> can't use \s+, uses {n}."""
+        result = synthesize_fuzzy_pattern("   ", prev_char=" ", next_char="w")
+        self.assertEqual(result, r"\s{3}")
+
+    def test_digits_prev_char_matches_skips_plus(self):
+        r"""Digits preceded by another digit -> can't use \d+, uses {n}."""
+        result = synthesize_fuzzy_pattern("123", prev_char="0", next_char="a")
+        self.assertEqual(result, r"\d{3}")
+
+    def test_lowercase_prev_char_matches_skips_plus(self):
+        r"""Lowercase preceded by more lowercase -> can't use [a-z]+, uses {n}."""
+        result = synthesize_fuzzy_pattern("abc", prev_char="z", next_char=" ")
+        self.assertEqual(result, r"[a-z]{3}")
+
+    def test_prev_char_no_match_allows_plus(self):
+        r"""Digits preceded by a letter (non-digit) -> \d+ is fine."""
+        result = synthesize_fuzzy_pattern("123", prev_char="a", next_char="b")
+        self.assertEqual(result, r"\d+")
+
+    def test_both_edges_match_skips_plus(self):
+        r"""Both prev and next match the pattern -> uses {n}."""
+        result = synthesize_fuzzy_pattern("abc", prev_char="z", next_char="d")
+        self.assertEqual(result, r"[a-z]{3}")
+
+    # ---- Adjacent to existing literal (None) -> uses * ----
+
+    def test_prev_char_none_uses_star(self):
+        r"""prev_char=None means adjacent to literal on left -> \s*."""
+        result = synthesize_fuzzy_pattern("   ", prev_char=None, next_char="w")
+        self.assertEqual(result, r"\s*")
+
+    def test_next_char_none_uses_star(self):
+        r"""next_char=None means adjacent to literal on right -> \s*."""
+        result = synthesize_fuzzy_pattern("   ", prev_char="a", next_char=None)
+        self.assertEqual(result, r"\s*")
+
+    def test_both_none_uses_star(self):
+        r"""Both None (inserting between literals) -> \s*."""
+        result = synthesize_fuzzy_pattern("   ", prev_char=None, next_char=None)
+        self.assertEqual(result, r"\s*")
+
+    def test_none_prev_still_checks_next_boundary(self):
+        r"""prev_char=None but next_char matches pattern -> skips *, uses {n}."""
+        result = synthesize_fuzzy_pattern("   ", prev_char=None, next_char=" ")
+        self.assertEqual(result, r"\s{3}")
+
+    def test_none_next_still_checks_prev_boundary(self):
+        r"""next_char=None but prev_char matches pattern -> skips *, uses {n}."""
+        result = synthesize_fuzzy_pattern("   ", prev_char=" ", next_char=None)
+        self.assertEqual(result, r"\s{3}")
 
     # ---- Step 2: {n} repetition ----
 
@@ -1921,9 +2079,9 @@ class TestSynthesizeFuzzyPattern(unittest.TestCase):
         self.assertEqual(result, r"[a-z]{1}")
 
     def test_digits_and_dots(self):
-        r"""'3.14' is all [0-9\.] followed by non-matching char -> [0-9\.]*."""
+        r"""'3.14' is all [0-9\.] followed by non-matching char -> [0-9\.]+."""
         result = synthesize_fuzzy_pattern("3.14", next_char=" ")
-        self.assertEqual(result, r"[0-9\.]*")
+        self.assertEqual(result, r"[0-9\.]+")
 
     def test_digits_and_dots_not_at_boundary(self):
         r"""'3.14' followed by another digit -> [0-9\.]{4}."""
@@ -1932,10 +2090,10 @@ class TestSynthesizeFuzzyPattern(unittest.TestCase):
 
     # ---- Text with newlines ----
 
-    def test_newline_text_uses_whitespace_star(self):
-        r"""Newline is whitespace, so '\n  ' with non-ws next -> \s*."""
+    def test_newline_text_uses_whitespace_plus(self):
+        r"""Newline is whitespace, so '\n  ' with non-ws next -> \s+."""
         result = synthesize_fuzzy_pattern("\n  ", next_char="a")
-        self.assertEqual(result, r"\s*")
+        self.assertEqual(result, r"\s+")
 
     def test_mixed_with_newline_uses_bracket_n(self):
         r"""'a\nb' can't use .* (dot doesn't match \n), uses [\S\s]{3}."""
@@ -1945,9 +2103,9 @@ class TestSynthesizeFuzzyPattern(unittest.TestCase):
 
     # ---- Integration: synthesized patterns are recognized as fuzzy ----
 
-    def test_synthesized_star_pattern_is_fuzzy_in_highlights(self):
-        r"""\s* pattern is recognized as fuzzy in highlighting."""
-        highlights = parse_regex_for_highlighting(r'/hello\s*world/', 'hello   world')
+    def test_synthesized_plus_pattern_is_fuzzy_in_highlights(self):
+        r"""\s+ pattern is recognized as fuzzy in highlighting."""
+        highlights = parse_regex_for_highlighting(r'/hello\s+world/', 'hello   world')
         self.assertEqual(len(highlights), 3)
         _, _, seg_type, _, _, _ = highlights[1]
         self.assertEqual(seg_type, 'fuzzy')
@@ -2817,7 +2975,7 @@ class TestMouseToSearchBoxInteraction(unittest.TestCase):
         model = self._select_hello_fuzzy_world(self.model)
         self.assertEqual(model['selectionRegex'], '/hello\\s*world/')
 
-        # Edit the pattern in the search box to change .* to \s+
+        # Edit the pattern in the search box to change \s* to \s+
         model, _ = update(make_search_box_input_event(r'/(hello)(\s+)(world)/'),
                           self.source_code, self.source_line, model, self.value)
 
@@ -2998,6 +3156,52 @@ class TestSearchBoxEnterGeneratesCode(unittest.TestCase):
         self.assertEqual(len(commands), 1)
         self.assertIsInstance(commands[0], NewCode)
         self.assertIn("re.search(r'hello'", commands[0].code)
+
+    def test_enter_after_search_box_avoids_match_collision(self):
+        """Search-box Enter path also avoids collisions for _match variable names."""
+        source_code = "x = 'hello world'\nx_match = 'already used'"
+        model, _ = update(make_search_box_input_event('/hello/'),
+                          source_code, self.source_line, self.model, self.value)
+
+        model, commands = update(make_key_down_event('Enter'),
+                                source_code, self.source_line, model, self.value)
+
+        self.assertEqual(len(commands), 1)
+        self.assertIsInstance(commands[0], NewCode)
+        self.assertIn("x_match2 = re.search(r'hello'", commands[0].code)
+
+
+class TestFindAvailableVariableName(unittest.TestCase):
+    """Unit tests for variable-name collision helper."""
+
+    def test_returns_desired_name_when_unused(self):
+        source_code = "x = 'hello world'"
+        self.assertEqual(find_available_variable_name(source_code, "x_match"), "x_match")
+
+    def test_increments_suffix_until_name_is_available(self):
+        source_code = "x_match = 1\nx_match2 = 2\nx_match3 = 3"
+        self.assertEqual(find_available_variable_name(source_code, "x_match"), "x_match4")
+
+    def test_generate_slice_code_avoids_result_slice_collision(self):
+        source_code = "print('hello world')\nresult_slice = 'used'"
+        new_code = generate_slice_code(source_code, 1, "hello world", 2, 7)
+        self.assertIn("result_slice2 = (print('hello world'))[0:5]", new_code)
+
+    def test_generate_regex_code_avoids_result_match_collision(self):
+        source_code = "print('hello world')\nresult_match = 'used'"
+        segments = [{"start": 2, "end": 7, "type": "literal"}]
+        new_code = generate_regex_code(source_code, 1, "hello world", segments)
+        self.assertIn("result_match2 = re.search(r'hello', (print('hello world')), re.M).group(0)", new_code)
+
+    def test_generate_regex_code_from_pattern_avoids_result_match_collision(self):
+        source_code = "print('hello world')\nresult_match = 'used'"
+        new_code = generate_regex_code_from_pattern(source_code, 1, "/hello/")
+        self.assertIn("result_match2 = re.search(r'hello', (print('hello world')), re.M).group(0)", new_code)
+
+    def test_generate_regex_delete_from_pattern_avoids_result2_collision(self):
+        source_code = "print('hello world')\nresult2 = 'used'\nresult3 = 'also used'"
+        new_code = generate_regex_delete_from_pattern(source_code, 1, "/hello/")
+        self.assertIn("result4 = re.sub(r'hello', '', (print('hello world')), flags=re.M)", new_code)
 
 
 class TestSearchBoxEscape(unittest.TestCase):
