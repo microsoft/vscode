@@ -21,7 +21,7 @@ import { CodeEditorStateFlag, EditorState } from '../../../editor/contrib/editor
 import { IClipboardService } from '../../../platform/clipboard/common/clipboardService.js';
 import { SnippetParser } from '../../../editor/contrib/snippet/browser/snippetParser.js';
 import { MainThreadDocuments } from './mainThreadDocuments.js';
-import { ISnippetEdit } from '../../../editor/contrib/snippet/browser/snippetSession.js';
+// import { ISnippetEdit } from '../../../editor/contrib/snippet/browser/snippetSession.js';
 
 export interface IFocusTracker {
 	onGainedFocus(): void;
@@ -535,11 +535,17 @@ export class MainThreadTextEditor {
 			return false;
 		}
 
+		// set selection, focus editor
+		const selections = ranges.map(r => new Selection(r.startLineNumber, r.startColumn, r.endLineNumber, r.endColumn));
+		this._codeEditor.setSelections(selections);
+
 		this._codeEditor.focus();
 
-		// make modifications as snippet edit
-		const edits: ISnippetEdit[] = ranges.map(range => ({ range: Range.lift(range), template }));
-		snippetController.apply(edits, {
+		// make modifications
+		snippetController.insert(template, {
+			// make modifications as snippet edit
+			// const edits: ISnippetEdit[] = ranges.map(range => ({ range: Range.lift(range), template }));
+			// snippetController.apply(edits, {
 			overwriteBefore: 0, overwriteAfter: 0,
 			undoStopBefore: opts.undoStopBefore, undoStopAfter: opts.undoStopAfter,
 			adjustWhitespace: !opts.keepWhitespace,
