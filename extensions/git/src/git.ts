@@ -1412,6 +1412,15 @@ export class Repository {
 		});
 	}
 
+	async isShallow(): Promise<boolean> {
+		try {
+			const result = await this.exec(['rev-parse', '--is-shallow-repository']);
+			return result.stdout.trim() === 'true';
+		} catch {
+			return false;
+		}
+	}
+
 	async log(options?: LogOptions, cancellationToken?: CancellationToken): Promise<Commit[]> {
 		const spawnOptions: SpawnOptions = { cancellationToken };
 		const args = ['log', `--format=${COMMIT_FORMAT}`, '-z'];

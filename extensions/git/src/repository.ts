@@ -883,6 +883,9 @@ export class Repository implements Disposable {
 	private _isHidden: boolean;
 	get isHidden(): boolean { return this._isHidden; }
 
+	private _isShallow: boolean = false;
+	get isShallow(): boolean { return this._isShallow; }
+
 	private isRepositoryHuge: false | { limit: number } = false;
 	private didWarnAboutLimit = false;
 
@@ -2740,7 +2743,7 @@ export class Repository implements Disposable {
 				this._updateResourceGroupsState(optimisticResourcesGroups);
 			}
 
-			const [HEAD, remotes, submodules, worktrees, rebaseCommit, mergeInProgress, cherryPickInProgress, commitTemplate] =
+			const [HEAD, remotes, submodules, worktrees, rebaseCommit, mergeInProgress, cherryPickInProgress, commitTemplate, isShallow] =
 				await Promise.all([
 					this.repository.getHEADRef(),
 					this.repository.getRemotes(),
@@ -2749,7 +2752,8 @@ export class Repository implements Disposable {
 					this.getRebaseCommit(),
 					this.isMergeInProgress(),
 					this.isCherryPickInProgress(),
-					this.getInputTemplate()]);
+					this.getInputTemplate(),
+					this.repository.isShallow()]);
 
 			// Reset the list of unpublished commits if HEAD has
 			// changed (ex: checkout, fetch, pull, push, publish, etc.).
@@ -2769,8 +2773,11 @@ export class Repository implements Disposable {
 			this.rebaseCommit = rebaseCommit;
 			this.mergeInProgress = mergeInProgress;
 			this.cherryPickInProgress = cherryPickInProgress;
+			this._isShallow = isShallow;
 
 			this._sourceControl.commitTemplate = commitTemplate;
+
+			commands.executeCommand('setContext', 'gitIsShallow', this._isShallow);
 
 			// Execute cancellable long-running operation
 			const [resourceGroups, refs] =
