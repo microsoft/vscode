@@ -1420,6 +1420,46 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 			await instantiationService.invokeFunction(showConfigureHooksQuickPick);
 		}));
 		this._store.add(slashCommandService.registerSlashCommand({
+			command: 'agents',
+			detail: nls.localize('agents', "Configure custom agents"),
+			sortText: 'z3_agents',
+			executeImmediately: true,
+			silent: true,
+			locations: [ChatAgentLocation.Chat]
+		}, async () => {
+			await commandService.executeCommand('workbench.action.chat.configure.customagents');
+		}));
+		this._store.add(slashCommandService.registerSlashCommand({
+			command: 'skills',
+			detail: nls.localize('skills', "Configure skills"),
+			sortText: 'z3_skills',
+			executeImmediately: true,
+			silent: true,
+			locations: [ChatAgentLocation.Chat]
+		}, async () => {
+			await commandService.executeCommand('workbench.action.chat.configure.skills');
+		}));
+		this._store.add(slashCommandService.registerSlashCommand({
+			command: 'instructions',
+			detail: nls.localize('instructions', "Configure instructions"),
+			sortText: 'z3_instructions',
+			executeImmediately: true,
+			silent: true,
+			locations: [ChatAgentLocation.Chat]
+		}, async () => {
+			await commandService.executeCommand('workbench.action.chat.configure.instructions');
+		}));
+		this._store.add(slashCommandService.registerSlashCommand({
+			command: 'prompts',
+			detail: nls.localize('prompts', "Configure prompt files"),
+			sortText: 'z3_prompts',
+			executeImmediately: true,
+			silent: true,
+			locations: [ChatAgentLocation.Chat]
+		}, async () => {
+			await commandService.executeCommand('workbench.action.chat.configure.prompts');
+		}));
+		this._store.add(slashCommandService.registerSlashCommand({
 			command: 'help',
 			detail: '',
 			sortText: 'z1_help',
